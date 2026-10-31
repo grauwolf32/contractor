@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"encoding/json"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -97,7 +98,7 @@ func TestPostgresSchedulerSupervisorClaimsOncePerIdleRoundAndFillsLanes(t *testi
 		t.Fatalf("idle claims = %v with %d lanes, want two per pool and four lanes", attempts, started.Load())
 	}
 
-	snapshot, err := configload.Load("../../testdata/configs-scan")
+	snapshot, _, err := configload.LoadUnionReadOnly("../../testdata/configs-scan", filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatal(err)
 	}

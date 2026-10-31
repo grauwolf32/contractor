@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/grauwolf32/contractor/internal/findingintake"
 	"os"
 	"path/filepath"
 	"sync"
@@ -29,6 +28,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/evalcoordinator"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalstore"
+	"github.com/grauwolf32/contractor/internal/findingintake"
 	pg "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/rundeletion"
@@ -1435,7 +1435,7 @@ spec:
 			t.Fatal(err)
 		}
 	}
-	snapshot, err := configload.Load(root)
+	snapshot, _, err := configload.LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatalf("load Audit service config: %v", err)
 	}

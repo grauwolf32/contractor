@@ -10,6 +10,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/configload"
+	"github.com/grauwolf32/contractor/internal/configload/configloadtest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -18,7 +19,7 @@ func TestAuditProgramsE2EConfigurationLoads(t *testing.T) {
 	installOrdinaryFindingFixture(t, root, "audit_asvs_source_verifier", "audit_asvs_source_verification", "fixture-ordinary-asvs")
 	installTypedCheckFixture(t, root)
 	installEngagementFixture(t, root)
-	snapshot, err := configload.Load(root)
+	snapshot, _, err := configload.LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,7 +50,7 @@ func TestAuditProgramsE2EConfigurationLoads(t *testing.T) {
 	for _, stage := range append(auditProgramGatewayStages(), findingsProducerStage("trace"), engagementFixtureStage()) {
 		t.Run(stage.name, func(t *testing.T) {
 			prefix, _, _ := strings.Cut(stage.name, "/")
-			template, err := snapshot.AgentTemplate(templates[prefix])
+			template, err := configloadtest.AgentTemplate(snapshot, templates[prefix])
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/grauwolf32/contractor/internal/findingintake"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -23,6 +22,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/configtest"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
+	"github.com/grauwolf32/contractor/internal/findingintake"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/rundeletion"
@@ -73,7 +73,7 @@ func newPreparationFixture(t *testing.T, dependency bool) preparationFixture {
 	if err := os.WriteFile(filepath.Join(root, "audit-profiles/prepared.yaml"), data, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	catalog, err := configload.Load(root)
+	catalog, _, err := configload.LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatal(err)
 	}

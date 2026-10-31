@@ -63,7 +63,7 @@ func TestWorkerSummarizerResolvesPinsAndPublishesSafeConfiguration(t *testing.T)
 	installWorkerSummarizer(t, root)
 	snapshot := mustLoad(t, root)
 
-	template, err := snapshot.AgentTemplate("artifact_builder@1")
+	template, err := snapshot.agentTemplateForTest("artifact_builder@1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,7 +119,7 @@ func TestWorkerSummarizerDigestCoversExactPolicyAndThresholds(t *testing.T) {
 	baselineRoot := copyCoreFixture(t)
 	installWorkerSummarizer(t, baselineRoot)
 	baseline := mustLoad(t, baselineRoot)
-	baselineTemplate, _ := baseline.AgentTemplate("artifact_builder@1")
+	baselineTemplate, _ := baseline.agentTemplateForTest("artifact_builder@1")
 	baselineWorker, _ := baseline.ModelPolicy("test-worker@1")
 	baselineSummary, _ := baseline.ModelPolicy("terminal_summarizer@1")
 
@@ -130,7 +130,7 @@ func TestWorkerSummarizerDigestCoversExactPolicyAndThresholds(t *testing.T) {
 		"contextWindowRatio: 0.9", "contextWindowRatio: 0.85",
 	)
 	threshold := mustLoad(t, thresholdRoot)
-	thresholdTemplate, _ := threshold.AgentTemplate("artifact_builder@1")
+	thresholdTemplate, _ := threshold.agentTemplateForTest("artifact_builder@1")
 	thresholdSummary, _ := threshold.ModelPolicy("terminal_summarizer@1")
 	if thresholdTemplate.Ref.Digest == baselineTemplate.Ref.Digest {
 		t.Fatal("summarizer threshold change did not alter AgentTemplate digest")
@@ -146,7 +146,7 @@ func TestWorkerSummarizerDigestCoversExactPolicyAndThresholds(t *testing.T) {
 		"model: worker-summarizer-model", "model: worker-summarizer-model-v2",
 	)
 	policyVariant := mustLoad(t, policyRoot)
-	policyTemplate, _ := policyVariant.AgentTemplate("artifact_builder@1")
+	policyTemplate, _ := policyVariant.agentTemplateForTest("artifact_builder@1")
 	policySummary, _ := policyVariant.ModelPolicy("terminal_summarizer@1")
 	policyWorker, _ := policyVariant.ModelPolicy("test-worker@1")
 	if policySummary.Ref.Digest == baselineSummary.Ref.Digest ||
@@ -160,9 +160,9 @@ func TestWorkerSummarizerDigestCoversExactPolicyAndThresholds(t *testing.T) {
 	omittedRoot := copyCoreFixture(t)
 	writeWorkerSummarizerPolicy(t, omittedRoot)
 	omitted := mustLoad(t, omittedRoot)
-	omittedTemplate, _ := omitted.AgentTemplate("artifact_builder@1")
+	omittedTemplate, _ := omitted.agentTemplateForTest("artifact_builder@1")
 	original := mustLoad(t, copyCoreFixture(t))
-	originalTemplate, _ := original.AgentTemplate("artifact_builder@1")
+	originalTemplate, _ := original.agentTemplateForTest("artifact_builder@1")
 	if omittedTemplate.Summarizer != nil || omittedTemplate.Ref.Digest != originalTemplate.Ref.Digest {
 		t.Fatalf("unreferenced summarizer changed omitted template: %+v", omittedTemplate.Summarizer)
 	}
@@ -174,13 +174,13 @@ func TestWorkerSummarizerDefaultsContextWindowRatioBeforeDigesting(t *testing.T)
 	explicitRoot := copyCoreFixture(t)
 	installWorkerSummarizer(t, explicitRoot)
 	explicitSnapshot := mustLoad(t, explicitRoot)
-	explicitTemplate, _ := explicitSnapshot.AgentTemplate("artifact_builder@1")
+	explicitTemplate, _ := explicitSnapshot.agentTemplateForTest("artifact_builder@1")
 
 	defaultedRoot := copyCoreFixture(t)
 	installWorkerSummarizer(t, defaultedRoot)
 	replaceFile(t, templatePath(defaultedRoot), "    contextWindowRatio: 0.9\n", "")
 	defaultedSnapshot := mustLoad(t, defaultedRoot)
-	defaultedTemplate, _ := defaultedSnapshot.AgentTemplate("artifact_builder@1")
+	defaultedTemplate, _ := defaultedSnapshot.agentTemplateForTest("artifact_builder@1")
 
 	if defaultedTemplate.Summarizer == nil ||
 		defaultedTemplate.Summarizer.ContextWindowRatio != 0.9 ||
@@ -195,13 +195,13 @@ func TestWorkerSummarizerSnapshotIsDeepAndRemainsPinnedAcrossReload(t *testing.T
 	root := copyCoreFixture(t)
 	installWorkerSummarizer(t, root)
 	first := mustLoad(t, root)
-	template, _ := first.AgentTemplate("artifact_builder@1")
+	template, _ := first.agentTemplateForTest("artifact_builder@1")
 	oldDigest := template.Ref.Digest
 	*template.Summarizer.CumulativeBudget = 1
 	template.Summarizer.ContextWindowRatio = 0.5
 	*template.Summarizer.ModelPolicy.Temperature = 99
 
-	again, _ := first.AgentTemplate("artifact_builder@1")
+	again, _ := first.agentTemplateForTest("artifact_builder@1")
 	if again.Summarizer == nil || *again.Summarizer.CumulativeBudget != 20_000 ||
 		again.Summarizer.ContextWindowRatio != 0.9 ||
 		again.Summarizer.ModelPolicy.Temperature == nil || *again.Summarizer.ModelPolicy.Temperature != 0.1 {
@@ -213,8 +213,8 @@ func TestWorkerSummarizerSnapshotIsDeepAndRemainsPinnedAcrossReload(t *testing.T
 		"model: worker-summarizer-model", "model: worker-summarizer-model-v2",
 	)
 	second := mustLoad(t, root)
-	pinnedAgain, _ := first.AgentTemplate("artifact_builder@1")
-	newTemplate, _ := second.AgentTemplate("artifact_builder@1")
+	pinnedAgain, _ := first.agentTemplateForTest("artifact_builder@1")
+	newTemplate, _ := second.agentTemplateForTest("artifact_builder@1")
 	if pinnedAgain.Ref.Digest != oldDigest ||
 		pinnedAgain.Summarizer.ModelPolicy.Model != "worker-summarizer-model" ||
 		newTemplate.Ref.Digest == oldDigest ||
@@ -287,7 +287,7 @@ func TestWorkerSummarizerRejectsInvalidAuthoring(t *testing.T) {
 			root := copyCoreFixture(t)
 			installWorkerSummarizer(t, root)
 			test.mutate(t, root)
-			snapshot, err := Load(root)
+			snapshot, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
 			if err == nil || snapshot != nil || !strings.Contains(err.Error(), test.want) {
 				t.Fatalf("Load() = (%v, %v), want error containing %q", snapshot, err, test.want)
 			}
@@ -405,7 +405,7 @@ func TestWorkerSummarizerIncludeReasoningResolvesPinsAndDigests(t *testing.T) {
 	}
 	template := func(t *testing.T, snapshot *Snapshot) contracts.ResolvedAgentTemplate {
 		t.Helper()
-		value, err := snapshot.AgentTemplate("artifact_builder@1")
+		value, err := snapshot.agentTemplateForTest("artifact_builder@1")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -486,7 +486,7 @@ func TestWorkerSummarizerIncludeReasoningRejectsInvalidAuthoring(t *testing.T) {
 			root := copyCoreFixture(t)
 			installWorkerSummarizer(t, root)
 			replaceFile(t, templatePath(root), "    cumulativeBudget: 20000\n", "    cumulativeBudget: 20000\n"+test.line+"\n")
-			snapshot, err := Load(root)
+			snapshot, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
 			if err == nil || snapshot != nil || !strings.Contains(err.Error(), test.want) {
 				t.Fatalf("Load() = (%v, %v), want error containing %q", snapshot, err, test.want)
 			}

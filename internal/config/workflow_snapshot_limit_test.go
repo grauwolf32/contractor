@@ -20,7 +20,7 @@ func TestCatalogRejectsAWorkflowWhoseSnapshotExceedsItsBound(t *testing.T) {
 	root := copyCoreFixture(t)
 	writeFile(t, filepath.Join(root, snapshotLimitInstruction), []byte(strings.Repeat("a", 2_300_000)))
 
-	_, err := Load(root)
+	_, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
 	if !errors.Is(err, resolved.ErrWorkflowSnapshotTooLarge) || !strings.Contains(err.Error(), "artifact-copy@1") {
 		t.Fatalf("load with a 2.3 MB instruction error = %v, want ErrWorkflowSnapshotTooLarge for artifact-copy@1", err)
 	}

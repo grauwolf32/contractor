@@ -14,7 +14,7 @@ func TestAuditIterativeFixtureConfigurationLoads(t *testing.T) {
 	root := stageE2EConfiguration(t, filepath.Join(h.repositoryRoot, "configs"), filepath.Join(h.temporaryRoot, "configs"), "http://127.0.0.1:1/v1")
 	installTypedCheckFixture(t, root)
 	installIterativeFixture(t, h, root)
-	snapshot, err := configload.Load(root)
+	snapshot, _, err := configload.LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatal(err)
 	}

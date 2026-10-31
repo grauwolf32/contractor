@@ -335,19 +335,3 @@ func DecodeFindingCollectionPackage(payload []byte) (FindingCollection, *Package
 func collectionPackageID(metadata []byte) string {
 	return "collection-" + strings.TrimPrefix(DigestBytes(metadata), "sha256:")
 }
-
-// FindingCollectionTargets returns versionless destinations in the reader's
-// own Run. Preparation must copy and verify every member, then retain returned
-// exact revisions before exposing list_findings. These are not read receipts.
-func FindingCollectionTargets(payload []byte) (map[string]contracts.ArtifactRef, error) {
-	value, pkg, err := DecodeFindingCollectionPackage(payload)
-	if err != nil {
-		return nil, err
-	}
-	namespace := "findings-" + strings.TrimPrefix(pkg.Digest, "sha256:")
-	result := make(map[string]contracts.ArtifactRef, len(value.Documents))
-	for _, document := range value.Documents {
-		result[document.ID] = contracts.ArtifactRef{Namespace: namespace, Name: document.ID}
-	}
-	return result, nil
-}

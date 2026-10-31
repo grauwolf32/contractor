@@ -2,6 +2,7 @@ package runservice
 
 import (
 	"errors"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -12,7 +13,7 @@ import (
 func TestPrecomputedAnalysisRunInputsAreExplicitAndStrict(t *testing.T) {
 	t.Parallel()
 
-	snapshot, err := configload.Load("testdata/analysis-workflow")
+	snapshot, _, err := configload.LoadUnionReadOnly("testdata/analysis-workflow", filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatal(err)
 	}

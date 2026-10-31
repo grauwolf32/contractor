@@ -1,6 +1,7 @@
 package planner
 
 import (
+	"path/filepath"
 	"reflect"
 	"testing"
 	"time"
@@ -11,7 +12,7 @@ import (
 )
 
 func TestPassthroughToolWorkflowBindsTargetAndExactReport(t *testing.T) {
-	snapshot, err := configload.Load("../../testdata/configs-scan")
+	snapshot, _, err := configload.LoadUnionReadOnly("../../testdata/configs-scan", filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatal(err)
 	}

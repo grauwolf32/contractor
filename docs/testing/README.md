@@ -50,6 +50,22 @@ export TMPDIR="$(cd "${TMPDIR:-/tmp}" && pwd -P)"
 Do not work around the failure by relaxing the blob store's symlink check; a
 symlinked blob directory stays refused in production.
 
+## Linux container checks
+
+The Git read-only container proof is compiled only on Linux
+(`internal/gitimport/read_only_integration_linux_test.go`). Ordinary macOS
+Go tests exclude it. Run `make test-git-read-only` on Linux with native Git,
+local Podman and a preinstalled `docker.io/library/alpine:latest` image;
+invoking this target on macOS fails with the Linux requirement. A Linux VM
+or container can run the same target with its own Linux toolchain and Podman.
+The Make pipeline builds the static Linux test binary for the host architecture
+and supplies it to the fixture. The fixture does not compile or inspect binaries.
+
+The Ubuntu CI integration job installs Podman, pulls Alpine and runs this
+focused target in addition to its standard integration selection. The full
+`test-git-artifacts` gate also includes it. It remains an opt-in exception of
+the local aggregate release gate, whose prerequisites do not include Podman.
+
 ## Runtime suite on macOS
 
 The ordinary Runtime targets Linux and macOS, while the allocation-scoped

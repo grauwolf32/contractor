@@ -108,7 +108,7 @@ func TestKatanaDiscoveryAcrossProductionProcesses(t *testing.T) {
 	}
 	// Consume the actual exported bytes in the pure planner. This verifies a
 	// reusable input without dispatching any follow-up network scans.
-	snapshot, err := configload.Load(filepath.Join(h.repositoryRoot, "configs", "scan"))
+	snapshot, _, err := configload.LoadUnionReadOnly(filepath.Join(h.repositoryRoot, "configs", "scan"), filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatal(err)
 	}

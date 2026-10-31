@@ -38,7 +38,7 @@ func TestProjectWorkflowModelSelection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fixtureCatalog, err := configload.Load(filepath.Join(fixture, "configs"))
+	fixtureCatalog, _, err := configload.LoadUnionReadOnly(filepath.Join(fixture, "configs"), filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,11 +60,11 @@ func TestProjectWorkflowModelSelection(t *testing.T) {
 		workflows:    []string{"openapi-from-workspace@7", "likec4-from-workspace@7"},
 	}
 	target := filepath.Join(t.TempDir(), "configs")
-	selections, err := copyLiveConfiguration(fixture, target, settings)
+	selections, err := copyLiveConfiguration(t, fixture, target, settings)
 	if err != nil {
 		t.Fatal(err)
 	}
-	snapshot, err := configload.Load(target)
+	snapshot, _, err := configload.LoadUnionReadOnly(target, filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,7 +94,7 @@ func TestProjectWorkflowModelSelection(t *testing.T) {
 			t.Fatalf("unrelated catalog bytes changed: %s", path)
 		}
 	}
-	base, err := configload.Load(filepath.Join(fixture, "configs"))
+	base, _, err := configload.LoadUnionReadOnly(filepath.Join(fixture, "configs"), filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -168,7 +168,7 @@ func TestProjectWorkflowModelSelectionRejectsUnresolvedRoutes(t *testing.T) {
 			} else if err := os.Remove(filepath.Join(fixture, "configs", broken)); err != nil {
 				t.Fatal(err)
 			}
-			selections, err := copyLiveConfiguration(fixture, filepath.Join(t.TempDir(), "configs"), settings)
+			selections, err := copyLiveConfiguration(t, fixture, filepath.Join(t.TempDir(), "configs"), settings)
 			if err == nil || selections != nil {
 				t.Fatal("unresolved selection must fail before execution, without default-model evidence")
 			}

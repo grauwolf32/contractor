@@ -2,6 +2,7 @@ package auditservice
 
 import (
 	"errors"
+	"path/filepath"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
@@ -21,7 +22,7 @@ const (
 
 func loadAuditServiceCatalog(t *testing.T) *config.Snapshot {
 	t.Helper()
-	snapshot, err := configload.Load(auditServiceCatalogFixture)
+	snapshot, _, err := configload.LoadUnionReadOnly(auditServiceCatalogFixture, filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -109,7 +109,7 @@ func TestAuditCompletionAuthoringIsClosed(t *testing.T) {
 		t.Fatal(err)
 	}
 	writeFile(t, path, []byte(strings.Replace(string(raw), "agent: checker}", "agent: checker, model_override: true}", 1)))
-	if _, err := Load(root); err == nil {
+	if _, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed")); err == nil {
 		t.Fatal("unknown completion authoring field accepted")
 	}
 }
@@ -148,7 +148,7 @@ func TestAuditCompletionRejectsRetiredToolset(t *testing.T) {
 		t.Fatal(err)
 	}
 	writeFile(t, path, []byte(strings.Replace(string(raw), "audit-results@2", "audit-results@1", 1)))
-	if _, err := Load(root); err == nil || !strings.Contains(err.Error(), `unknown Toolset "audit-results@1"`) {
+	if _, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed")); err == nil || !strings.Contains(err.Error(), `unknown Toolset "audit-results@1"`) {
 		t.Fatalf("retired Audit toolset must be rejected during catalog loading: %v", err)
 	}
 }

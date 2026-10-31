@@ -106,7 +106,7 @@ func TestTop10InventoryRetainsMappingsReviewAndEvidenceContracts(t *testing.T) {
 func TestTop10ProfileUsesOrdinaryCompatibleRunBoundary(t *testing.T) {
 	t.Parallel()
 
-	snapshot, err := configload.Load(configRoot())
+	snapshot, _, err := configload.LoadUnionReadOnly(configRoot(), filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatal(err)
 	}

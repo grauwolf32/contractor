@@ -204,6 +204,18 @@ def top_level_block(text: str, key: str) -> str:
 
 def check_ci_workflow(stages: list[str], text: str) -> None:
     name = CI_WORKFLOW.relative_to(ROOT)
+    stage_job = re.search(r"(?ms)^  stage:\n(.*?)(?=^  [\w-]+:|\Z)", text)
+    if stage_job is None or re.search(r"^    runs-on: ubuntu-[\d.]+$", stage_job[1], re.M) is None:
+        raise SystemExit(f"{name}: the stage pipeline must use a Linux Ubuntu runner")
+    proof_step = re.search(
+        r"(?ms)^      - name: Run Linux Git container proof\n(.*?)(?=^      - |^  [\w-]+:|\Z)",
+        stage_job[1],
+    )
+    if proof_step is None or (
+        "if: matrix.stage == 'release-verify-integration'" not in proof_step[1]
+        or "make test-git-read-only" not in proof_step[1]
+    ):
+        raise SystemExit(f"{name}: the integration job must run the Linux Git container pipeline")
     # Only a pull request cancels its superseded run; release tags and manual
     # runs keep independent verdicts.
     concurrency = top_level_block(text, "concurrency")

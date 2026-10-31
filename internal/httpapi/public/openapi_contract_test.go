@@ -20,6 +20,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/agentprincipal"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
+	"github.com/grauwolf32/contractor/internal/configload/configloadtest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/controlplane"
@@ -376,7 +377,7 @@ func TestImplementedPublicHandlersConformToOpenAPI(t *testing.T) {
 	if response := serveAndValidatePublicContract(t, router, fixture.handler, getConfiguration, true); response.Code != http.StatusOK {
 		t.Fatalf("get configuration = %d: %s", response.Code, response.Body.String())
 	}
-	operationsTemplate, _ := fixture.configs.Snapshot().AgentTemplate("artifact_builder@1")
+	operationsTemplate, _ := configloadtest.AgentTemplate(fixture.configs.Snapshot(), "artifact_builder@1")
 	operationsGateway, _ := fixture.configs.Snapshot().LLMGateway("local-litellm@1")
 	operationsNow := time.Date(2026, 8, 31, 1, 0, 0, 0, time.UTC)
 	fixture.operations.set(controlplane.OperationsSnapshot{

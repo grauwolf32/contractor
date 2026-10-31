@@ -297,7 +297,7 @@ func appSkillWorkflowWithNames(t *testing.T, names ...string) resolved.ResolvedW
 	if err := os.WriteFile(path, data, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	snapshot, err := configload.Load(root)
+	snapshot, _, err := configload.LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatal(err)
 	}

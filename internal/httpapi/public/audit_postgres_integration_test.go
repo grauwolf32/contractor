@@ -297,7 +297,7 @@ spec:
 	if err := os.WriteFile(filepath.Join(targetRoot, "audit-profiles", "public_checklist.yaml"), profile, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	snapshot, err := configload.Load(targetRoot)
+	snapshot, _, err := configload.LoadUnionReadOnly(targetRoot, filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatalf("load public Audit configuration: %v", err)
 	}

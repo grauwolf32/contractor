@@ -84,7 +84,7 @@ func TestWorkflowPresentationValidationIsStrictAndUnicodeBounded(t *testing.T) {
 			root := copyCoreFixture(t)
 			path := filepath.Join(root, "workflows", "artifact_copy.yaml")
 			replaceFile(t, path, "spec:\n", "spec:\n  presentation:\n    "+test.presentation+"\n")
-			if snapshot, err := Load(root); err == nil || snapshot != nil ||
+			if snapshot, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed")); err == nil || snapshot != nil ||
 				!strings.Contains(err.Error(), test.want) {
 				t.Fatalf("Load() = (%v, %v), want %q", snapshot, err, test.want)
 			}

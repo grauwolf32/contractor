@@ -32,7 +32,7 @@ func TestLoadValidatesBundledSkillsWithoutReadingManagedRoot(t *testing.T) {
 	root := configtest.CopyWithPolicies(t, catalogFixture)
 	skill := filepath.Join(root, "skills", "review", "SKILL.md")
 	writeFile(t, skill, "---\nname: review\ndescription: Review guidance.\n---\n# Review\n")
-	if _, err := Load(root); err != nil {
+	if _, _, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed")); err != nil {
 		t.Fatalf("valid bundled skill rejected: %v", err)
 	}
 
@@ -47,8 +47,8 @@ func TestLoadValidatesBundledSkillsWithoutReadingManagedRoot(t *testing.T) {
 	secret := "PRIVATE-SKILL-INSTRUCTION"
 	writeFile(t, skill, secret)
 	for name, load := range map[string]func() error{
-		"Load": func() error { _, err := Load(root); return err },
-		"LoadUnionReadOnly": func() error {
+		"missing managed root": func() error { _, _, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed")); return err },
+		"existing managed root": func() error {
 			_, _, err := LoadUnionReadOnly(root, managed)
 			return err
 		},
@@ -65,7 +65,7 @@ func TestLoadValidatesBundledSkillsWithoutReadingManagedRoot(t *testing.T) {
 func TestLoadValidatesBundledAuditStandards(t *testing.T) {
 	root := configtest.CopyWithPolicies(t, catalogFixture)
 	writeFile(t, filepath.Join(root, "audit-standards", "broken", "standard.json"), "{}")
-	_, err := Load(root)
+	_, _, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
 	if err == nil || !strings.HasPrefix(err.Error(), "bundled Audit standards: ") {
 		t.Fatalf("invalid bundled Audit standard error = %v", err)
 	}

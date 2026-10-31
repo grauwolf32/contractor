@@ -1,6 +1,7 @@
 {
   "description": "Who reads each shared fixture under api/testdata: go (a TestShared* Go test), python (a test_shared_* Runtime test, or a test module whose test_shared_* tests ran) and ui (a UI source that imports the fixture). Keys are paths below api/testdata; a key ending in / covers its directory, and the longest matching key wins. make test-wire-cross-language (scripts/shared_fixture_gate.py) fails when a fixture matches no key, when a declared side does not read it, when a side reads it without being declared, and when a fixture has one reader but no reason. README files and this file are not fixtures. A file in another testdata directory that tests of two sides name is a shared fixture outside api/testdata, which the gate rejects unless OUTSIDE_SHARED in scripts/shared_fixture_gate.py names it with its reason.",
   "readers": {
+    "workflow-context-management-cases.json": {"readers": ["go", "ui"]},
     "server-operation-stage-cases.json": {"readers": ["go", "ui"], "reason": "Server Workflow execution selection is shared with the Studio; Runtime receives no operation stages."},
     "public/tool-diagnostic-values.json": {"readers": ["go", "ui"]},
     "public/runtime-diagnostic-decimals.json": {"readers": ["go", "ui"]},

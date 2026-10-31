@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -75,7 +76,7 @@ func testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *te
 		t.Fatal(err)
 	}
 
-	snapshot, err := configload.Load("../config/testdata/valid")
+	snapshot, _, err := configload.LoadUnionReadOnly("../config/testdata/valid", filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatal(err)
 	}

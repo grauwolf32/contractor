@@ -1784,7 +1784,7 @@ func TestDeleteRunRequiresOwnedReleasedTerminalRun(t *testing.T) {
 
 func TestRunStatusExposesSafeMetricsAndAttemptDiagnostics(t *testing.T) {
 	fixture := newHandlerFixture(t)
-	snapshot, err := configload.Load("../../config/testdata/valid")
+	snapshot, _, err := configload.LoadUnionReadOnly("../../config/testdata/valid", filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1894,7 +1894,7 @@ func TestRunStatusExposesSafeMetricsAndAttemptDiagnostics(t *testing.T) {
 
 func TestRunStatusExposesEscalationLineageAndSafeEffectiveRefs(t *testing.T) {
 	fixture := newHandlerFixture(t)
-	snapshot, err := configload.Load(configtest.CopyWithEscalation(t, "../../../testdata/configs"))
+	snapshot, _, err := configload.LoadUnionReadOnly(configtest.CopyWithEscalation(t, "../../../testdata/configs"), filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatal(err)
 	}

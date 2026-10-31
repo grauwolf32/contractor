@@ -91,7 +91,7 @@ func TestWorkflowStageSessionRejectsEveryNonEnumAuthoringForm(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			root := copyCoreFixture(t)
 			setWorkflowSession(t, root, test.raw)
-			if snapshot, err := Load(root); err == nil || snapshot != nil ||
+			if snapshot, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed")); err == nil || snapshot != nil ||
 				!strings.Contains(err.Error(), "session") {
 				t.Fatalf("Load() = (%v, %v), want session validation error", snapshot, err)
 			}

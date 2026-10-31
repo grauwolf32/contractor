@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -248,7 +249,7 @@ func newFindingImportFixture(t *testing.T, direct bool) deletionImportFixture {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	snapshot, err := configload.Load("../config/testdata/valid")
+	snapshot, _, err := configload.LoadUnionReadOnly("../config/testdata/valid", filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatal(err)
 	}

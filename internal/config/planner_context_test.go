@@ -133,7 +133,7 @@ func TestPlannerContextManagementRejectsInvalidAuthoring(t *testing.T) {
 				replaceFile(t, compactingWorkflowPath(root),
 					"    planner:\n      modelPolicy: test-window-planner@1\n      llmGateway: local-litellm@1\n", "")
 			}
-			_, err := Load(root)
+			_, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
 			if err == nil {
 				t.Fatal("invalid plannerContextManagement loaded")
 			}
@@ -200,7 +200,7 @@ func TestCompactorSelectionRejectedWithoutCompactingStage(t *testing.T) {
 	replaceFile(t, compactingWorkflowPath(root), compactBlock, "")
 	replaceFile(t, compactingWorkflowPath(root), "      modelPolicy: test-window-planner@1\n",
 		"      modelPolicy: test-window-planner@1\n      compactorModelPolicy: test-compactor@1\n")
-	if _, err := Load(root); err == nil {
+	if _, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed")); err == nil {
 		t.Fatal("ignored compactor selection on a none Workflow loaded")
 	}
 	root = compactionFixture(t)
@@ -278,7 +278,7 @@ spec:
 
 	// The same profile on a Stage without compaction is an ignored selection.
 	replaceFile(t, compactingWorkflowPath(root), compactBlock, "")
-	if _, err := Load(root); err == nil {
+	if _, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed")); err == nil {
 		t.Fatal("compactor profile applied to a none Stage loaded")
 	}
 }

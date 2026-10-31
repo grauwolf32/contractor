@@ -16,7 +16,7 @@ import (
 
 func TestAgentTemplateSkillsNormalizeAndPreserveEmptyDigest(t *testing.T) {
 	baseline := mustLoad(t, agentSkillsFixtureRoot)
-	baselineTemplate, _ := baseline.AgentTemplate("artifact_builder@1")
+	baselineTemplate, _ := baseline.agentTemplateForTest("artifact_builder@1")
 	const fixtureWithoutSkillsDigest = "sha256:76879d45aef4c7b7900341ed7ff0b9de5ea9d7a41c6921d304a1c80a2bd2e9d0"
 	if baselineTemplate.Ref.Digest != fixtureWithoutSkillsDigest {
 		t.Fatalf("test fixture AgentTemplate digest changed: %s", baselineTemplate.Ref.Digest)
@@ -25,7 +25,7 @@ func TestAgentTemplateSkillsNormalizeAndPreserveEmptyDigest(t *testing.T) {
 	emptyRoot := copyAgentSkillsFixture(t)
 	addTemplateSkills(t, emptyRoot, "  skills: []\n")
 	empty := mustLoad(t, emptyRoot)
-	emptyTemplate, _ := empty.AgentTemplate("artifact_builder@1")
+	emptyTemplate, _ := empty.agentTemplateForTest("artifact_builder@1")
 	if baselineTemplate.Ref.Digest != emptyTemplate.Ref.Digest || len(emptyTemplate.Skills) != 0 {
 		t.Fatalf("omitted/empty Skill normalization changed digest: %s != %s", baselineTemplate.Ref.Digest, emptyTemplate.Ref.Digest)
 	}
@@ -36,8 +36,8 @@ func TestAgentTemplateSkillsNormalizeAndPreserveEmptyDigest(t *testing.T) {
 	addTemplateSkills(t, secondRoot, "  skills:\n    - {namespace: skills, name: alpha2}\n    - {namespace: skills, name: beta}\n")
 	first := mustLoad(t, firstRoot)
 	second := mustLoad(t, secondRoot)
-	firstTemplate, _ := first.AgentTemplate("artifact_builder@1")
-	secondTemplate, _ := second.AgentTemplate("artifact_builder@1")
+	firstTemplate, _ := first.agentTemplateForTest("artifact_builder@1")
+	secondTemplate, _ := second.agentTemplateForTest("artifact_builder@1")
 	if firstTemplate.Ref.Digest != secondTemplate.Ref.Digest ||
 		firstTemplate.Ref.Digest == baselineTemplate.Ref.Digest {
 		t.Fatalf("Skill set digest normalization = baseline %s, first %s, second %s", baselineTemplate.Ref.Digest, firstTemplate.Ref.Digest, secondTemplate.Ref.Digest)
@@ -81,7 +81,7 @@ func TestAgentTemplateSkillRefsAreStrict(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			root := copyAgentSkillsFixture(t)
 			addTemplateSkills(t, root, test.yaml)
-			if snapshot, err := Load(root); err == nil || snapshot != nil ||
+			if snapshot, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed")); err == nil || snapshot != nil ||
 				!strings.Contains(err.Error(), test.want) {
 				t.Fatalf("Load() = (%v, %v), want %q", snapshot, err, test.want)
 			}
@@ -95,7 +95,7 @@ func TestAgentTemplateSkillRefsAreStrict(t *testing.T) {
 		fmt.Fprintf(&over, "    - {namespace: skills, name: skill%02d}\n", index)
 	}
 	addTemplateSkills(t, root, over.String())
-	if snapshot, err := Load(root); err == nil || snapshot != nil ||
+	if snapshot, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed")); err == nil || snapshot != nil ||
 		!strings.Contains(err.Error(), "at most 32") {
 		t.Fatalf("over-limit Load() = (%v, %v)", snapshot, err)
 	}
@@ -110,7 +110,7 @@ func TestAgentTemplateSkillsReserveNativeToolsAndRequireToolBudget(t *testing.T)
 		addTemplateSkills(t, root, "  skills: [{namespace: skills, name: review}]\n")
 		path := filepath.Join(root, "agent-templates/artifact_builder.yaml")
 		replaceFile(t, path, "        - list_artifacts", "        - load_skill")
-		if snapshot, err := Load(root); err == nil || snapshot != nil ||
+		if snapshot, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed")); err == nil || snapshot != nil ||
 			!strings.Contains(err.Error(), "does not export selected tool") {
 			t.Fatalf("colliding Load() = (%v, %v)", snapshot, err)
 		}
@@ -137,7 +137,7 @@ spec:
         - write_artifact
 `, "  toolsets: []\n")
 		addTemplateSkills(t, root, "  skills: [{namespace: skills, name: review}]\n")
-		if snapshot, err := Load(root); err == nil || snapshot != nil ||
+		if snapshot, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed")); err == nil || snapshot != nil ||
 			!strings.Contains(err.Error(), "tool-using Worker modelPolicy requires maxToolCalls") {
 			t.Fatalf("unbudgeted Skill-only Load() = (%v, %v)", snapshot, err)
 		}
@@ -146,7 +146,7 @@ spec:
 
 func TestWorkflowSkillUnionIncludesAllRetainedTemplatesAndIsBounded(t *testing.T) {
 	snapshot := mustLoad(t, agentSkillsFixtureRoot)
-	template, err := snapshot.AgentTemplate("artifact_builder@1")
+	template, err := snapshot.agentTemplateForTest("artifact_builder@1")
 	if err != nil {
 		t.Fatal(err)
 	}

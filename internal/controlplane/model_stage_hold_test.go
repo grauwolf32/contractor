@@ -2,10 +2,12 @@ package controlplane
 
 import (
 	"errors"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/configload"
+	"github.com/grauwolf32/contractor/internal/configload/configloadtest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
@@ -116,11 +118,11 @@ func TestModelStageHoldValidatesTheLaneClassOfTheRequest(t *testing.T) {
 
 func holdScanRequest(t *testing.T, stageExecutionID string) ReservationRequest {
 	t.Helper()
-	snapshot, err := configload.Load("../../testdata/configs-scan")
+	snapshot, _, err := configload.LoadUnionReadOnly("../../testdata/configs-scan", filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	template, err := snapshot.AgentTemplate("nuclei-scan@1")
+	template, err := configloadtest.AgentTemplate(snapshot, "nuclei-scan@1")
 	if err != nil {
 		t.Fatal(err)
 	}

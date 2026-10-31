@@ -302,7 +302,8 @@ def test_shared_go_python_fixture_and_exact_consumer_reads():
             assert item["has_hypothesis"] == (index == 1)
             for document in [item["proposal"], *item["evidence"]]:
                 ref = document["ref"]
-                assert ref["namespace"] == "findings-" + frozen["package_digest"][7:]
+                expected = frozen["consumer_targets"][ref["name"]]
+                assert {key: ref[key] for key in ("namespace", "name")} == expected
                 assert ref["revision"].startswith("consumer-revision-")
                 assert document["source"]["ref"]["revision"] == "rev-1"
                 assert document["source"]["scope"]["kind"] == "run"
@@ -316,6 +317,16 @@ def test_shared_go_python_fixture_and_exact_consumer_reads():
             "run-a" not in request[1] and "run-b" not in request[1]
             for request in transport.requests
         )
+
+        # A different frozen snapshot must materialize into different bindings,
+        # even though all source documents are unchanged.
+        collection["snapshot_at"] = "2026-09-06T09:00:01Z"
+        changed_tools, _, _ = await _tools(Transport(_package(collection, contents)))
+        changed = await changed_tools["list_findings"]()
+        for item in changed["items"]:
+            for document in [item["proposal"], *item["evidence"]]:
+                ref = document["ref"]
+                assert ref["namespace"] != frozen["consumer_targets"][ref["name"]]["namespace"]
 
     asyncio.run(scenario())
 

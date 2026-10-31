@@ -20,7 +20,7 @@ const configImportPath = "github.com/grauwolf32/contractor/internal/config"
 // roots. Outside internal/config itself, only this package may name them, so
 // no load can silently skip the bundle checks.
 var catalogLoaders = map[string]bool{
-	"Load": true, "LoadUnion": true, "LoadUnionReadOnly": true, "NewManager": true,
+	"LoadUnion": true, "LoadUnionReadOnly": true, "NewManager": true,
 }
 
 // referenceRule restricts the named exports of one package to the listed
@@ -169,7 +169,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/agentskills"
 )
 
-var load = workflowconfig.Load
+var load = workflowconfig.LoadUnion
 
 func f() {
 	_, _ = workflowconfig.NewManager(workflowconfig.ManagerOptions{})
@@ -185,7 +185,7 @@ func f() {
 	got := strings.Join(importReferences(fset, "/module", file, referenceRule{
 		importPath: configImportPath, names: catalogLoaders,
 	}), "\n")
-	want := "sample.go:8: workflowconfig.Load\nsample.go:11: workflowconfig.NewManager"
+	want := "sample.go:8: workflowconfig.LoadUnion\nsample.go:11: workflowconfig.NewManager"
 	if got != want {
 		t.Fatalf("references =\n%s\nwant\n%s", got, want)
 	}

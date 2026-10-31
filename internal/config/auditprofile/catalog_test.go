@@ -31,7 +31,7 @@ func copyCatalog(t *testing.T, slices ...string) string {
 
 func loadCatalog(t *testing.T, root string) *config.Snapshot {
 	t.Helper()
-	snapshot, err := configload.Load(root)
+	snapshot, _, err := configload.LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatalf("load %s: %v", root, err)
 	}

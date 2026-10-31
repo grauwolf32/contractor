@@ -91,7 +91,7 @@ func newOperationHarness(t *testing.T, apply bool, customize ...func(*resolved.R
 	if err := os.WriteFile(filepath.Join(root, "workflows", "sitemap_join.yaml"), data, 0600); err != nil {
 		t.Fatal(err)
 	}
-	catalog, err := configload.Load(root)
+	catalog, _, err := configload.LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatal(err)
 	}

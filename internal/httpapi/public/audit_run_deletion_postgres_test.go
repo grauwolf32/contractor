@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
@@ -122,7 +123,7 @@ func TestPublicAuditSourceRunDeletionInvalidatesReadContexts(t *testing.T) {
 		}
 		deps.Audits = audits
 	})
-	snapshot, err := configload.Load("../../config/testdata/valid")
+	snapshot, _, err := configload.LoadUnionReadOnly("../../config/testdata/valid", filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatal(err)
 	}

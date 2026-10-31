@@ -201,7 +201,7 @@ func aliasedRulepackCatalog(t *testing.T) *config.Snapshot {
 			t.Fatal(err)
 		}
 	}
-	catalog, err := configload.Load(root)
+	catalog, _, err := configload.LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatal(err)
 	}

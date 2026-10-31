@@ -127,5 +127,23 @@
     "doc-f39469eb9a094195b8f85885c2a239d50ca2c0b462fe060a4fe20a7f7519a14e": "{\"client_key\":\"candidate-a\",\"description\":\"A generic finding with retained evidence.\",\"evidence_ids\":[\"evidence-1\"],\"limitations\":[],\"preconditions\":[],\"proposed_checks\":[],\"schema\":\"contractor.audit.finding-proposal.v1\",\"severity_suggestion\":\"\",\"standard_refs\":[],\"subject\":{\"key\":\"subject-a\",\"kind\":\"function\"},\"title\":\"Observation a\"}"
   },
   "package_digest": "sha256:42c1c1a020f251137aa41dff6345e7d8e753791e38f076c33981f731c0dbb7c0",
-  "package_id": "collection-66bf56c311e81d6c539efec0da86faa82760bdd211b9be078d5becc9123aeab3"
+  "package_id": "collection-66bf56c311e81d6c539efec0da86faa82760bdd211b9be078d5becc9123aeab3",
+  "consumer_targets": {
+    "doc-1b0d20aaf54838c6549c1f813084821371f41d6d5f6f6272dec2b17418d0fd49": {
+      "namespace": "findings-42c1c1a020f251137aa41dff6345e7d8e753791e38f076c33981f731c0dbb7c0",
+      "name": "doc-1b0d20aaf54838c6549c1f813084821371f41d6d5f6f6272dec2b17418d0fd49"
+    },
+    "doc-d1388f3fa4060d234cb8cfc500489c1c01a07071d617a787a1d95bb0919e718f": {
+      "namespace": "findings-42c1c1a020f251137aa41dff6345e7d8e753791e38f076c33981f731c0dbb7c0",
+      "name": "doc-d1388f3fa4060d234cb8cfc500489c1c01a07071d617a787a1d95bb0919e718f"
+    },
+    "doc-de9d74745db7ff327cc95d39afeea455debfe05ec8e5b538b1f8a0231e85a03f": {
+      "namespace": "findings-42c1c1a020f251137aa41dff6345e7d8e753791e38f076c33981f731c0dbb7c0",
+      "name": "doc-de9d74745db7ff327cc95d39afeea455debfe05ec8e5b538b1f8a0231e85a03f"
+    },
+    "doc-f39469eb9a094195b8f85885c2a239d50ca2c0b462fe060a4fe20a7f7519a14e": {
+      "namespace": "findings-42c1c1a020f251137aa41dff6345e7d8e753791e38f076c33981f731c0dbb7c0",
+      "name": "doc-f39469eb9a094195b8f85885c2a239d50ca2c0b462fe060a4fe20a7f7519a14e"
+    }
+  }
 }

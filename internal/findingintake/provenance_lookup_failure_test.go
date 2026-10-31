@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -121,7 +122,7 @@ func auditSubmissionGrant(
 	t *testing.T, ctx context.Context, pool *pgxpool.Pool, ownerID, projectID, runID string,
 ) (controlplane.AllocationGrant, *AuditOrigin) {
 	t.Helper()
-	snapshot, err := configload.Load("../config/testdata/valid")
+	snapshot, _, err := configload.LoadUnionReadOnly("../config/testdata/valid", filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatal(err)
 	}

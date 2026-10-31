@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -222,7 +223,7 @@ func (f decisionRetryFixture) decide(
 // the transaction ends, as an Audit child Run creation does.
 func (f decisionRetryFixture) beginChildRunCreation(t *testing.T, runID string) pgx.Tx {
 	t.Helper()
-	snapshot, err := configload.Load("../config/testdata/valid")
+	snapshot, _, err := configload.LoadUnionReadOnly("../config/testdata/valid", filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatal(err)
 	}

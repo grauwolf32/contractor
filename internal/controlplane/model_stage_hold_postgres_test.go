@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"path/filepath"
 	"slices"
 	"testing"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
+	"github.com/grauwolf32/contractor/internal/configload/configloadtest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
@@ -26,11 +28,11 @@ func TestModelStageHoldPostgresGivesReleasedSharedAgentToWaitingModelStage(t *te
 	fixture := newPlacementFixture(t, ctx, pool, nil)
 	// The hold must not lapse while the test runs, however slow the database.
 	fixture.registry.modelStageHold = time.Hour
-	catalog, err := configload.Load("../../testdata/configs-scan")
+	catalog, _, err := configload.LoadUnionReadOnly("../../testdata/configs-scan", filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	scanTemplate, err := catalog.AgentTemplate("nuclei-scan@1")
+	scanTemplate, err := configloadtest.AgentTemplate(catalog, "nuclei-scan@1")
 	if err != nil {
 		t.Fatal(err)
 	}

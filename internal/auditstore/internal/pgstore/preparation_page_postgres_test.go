@@ -354,7 +354,7 @@ func preparationPageProfile(t *testing.T) (auditprofile.ResolvedAuditProfile, js
 	if err := os.WriteFile(filepath.Join(root, "audit-profiles", "prepared.yaml"), data, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	catalog, err := configload.Load(root)
+	catalog, _, err := configload.LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatal(err)
 	}

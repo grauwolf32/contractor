@@ -118,7 +118,7 @@ func loadNames(t *testing.T, files map[string]string) (*Snapshot, error) {
 	for path, content := range files {
 		writeFile(t, filepath.Join(root, path), []byte(content))
 	}
-	return Load(root)
+	return LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
 }
 
 // TestSharedWorkflowNamesUseTheOperationsNameGrammar is the regression for a

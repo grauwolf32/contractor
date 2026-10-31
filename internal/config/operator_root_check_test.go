@@ -35,7 +35,7 @@ func TestOperatorRootChecksRunOnlyOnTheResolvedOperatorRoot(t *testing.T) {
 	if _, err := LoadUnionReadOnly(operator, managed, recorded.check("bundle")); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Load(operator, recorded.check("bundle")); err != nil {
+	if _, err := LoadUnionReadOnly(operator, filepath.Join(t.TempDir(), "managed"), recorded.check("bundle")); err != nil {
 		t.Fatal(err)
 	}
 	if want := []string{resolved, resolved}; !slices.Equal(recorded.roots, want) {
@@ -49,11 +49,11 @@ func TestOperatorRootCheckFailureRejectsLoadBeforeManifests(t *testing.T) {
 		t.Fatal(err)
 	}
 	failing := &recordedRootCheck{fail: errors.New("package_invalid")}
-	_, err := Load(operator, failing.check("bundled things"))
+	_, err := LoadUnionReadOnly(operator, filepath.Join(t.TempDir(), "managed"), failing.check("bundled things"))
 	if err == nil || err.Error() != "bundled things: package_invalid" {
 		t.Fatalf("load error = %v", err)
 	}
-	if _, err := Load(operator); err == nil || strings.Contains(err.Error(), "bundled things") {
+	if _, err := LoadUnionReadOnly(operator, filepath.Join(t.TempDir(), "managed")); err == nil || strings.Contains(err.Error(), "bundled things") {
 		t.Fatalf("catalog error without checks = %v", err)
 	}
 }

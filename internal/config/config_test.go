@@ -37,7 +37,7 @@ func TestLoadResolvesAndPinsCatalogReferences(t *testing.T) {
 		t.Fatalf("unexpected resolved ModelPolicy: %+v", policy)
 	}
 
-	template, err := snapshot.AgentTemplate("artifact_builder@1")
+	template, err := snapshot.agentTemplateForTest("artifact_builder@1")
 	if err != nil {
 		t.Fatalf("resolve AgentTemplate: %v", err)
 	}
@@ -128,7 +128,7 @@ func TestCodeAnalysisSelectionLoadsAndDigestsInTemplate(t *testing.T) {
 	root := copyCoreFixture(t)
 	writeFile(t, filepath.Join(root, "agent-templates/source_graph_analyst.yaml"), []byte(codeAnalysisTemplateYAML))
 	snapshot := mustLoad(t, root)
-	template, err := snapshot.AgentTemplate("source_graph_analyst@1")
+	template, err := snapshot.agentTemplateForTest("source_graph_analyst@1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -206,7 +206,7 @@ func TestStreamlineRequiresExactlyOneLogicalAgent(t *testing.T) {
 `
 	invalid := strings.Replace(string(example), "      context:\n", secondBinding+"      context:\n", 1)
 	writeFile(t, path, []byte(invalid))
-	loaded, err := Load(root)
+	loaded, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
 	if err == nil || loaded != nil ||
 		!strings.Contains(err.Error(), "streamline@1 requires exactly one logical Agent binding") {
 		t.Fatalf("Load() = (%v, %v), want Streamline cardinality error", loaded, err)
@@ -250,7 +250,7 @@ func TestStoredFixtures(t *testing.T) {
 			root := copyCoreFixture(t)
 			fixture := readFile(t, filepath.Join("testdata/invalid", name))
 			writeFile(t, filepath.Join(root, "model-policies/test-worker.yaml"), fixture)
-			snapshot, err := Load(root)
+			snapshot, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
 			if err == nil || snapshot != nil {
 				t.Fatalf("Load() = (%v, %v), want (nil, error)", snapshot, err)
 			}
@@ -281,7 +281,7 @@ func TestModelPolicyWorkerBudgetsAreRequiredAndBounded(t *testing.T) {
 			t.Parallel()
 			root := copyCoreFixture(t)
 			replaceFile(t, filepath.Join(root, "model-policies/test-worker.yaml"), test.old, test.replacement)
-			if snapshot, err := Load(root); err == nil || snapshot != nil ||
+			if snapshot, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed")); err == nil || snapshot != nil ||
 				!strings.Contains(err.Error(), test.want) {
 				t.Fatalf("Load() = (%v, %v), want error containing %q", snapshot, err, test.want)
 			}
@@ -387,7 +387,7 @@ spec: {model: other, maxOutputTokens: 1}
 			t.Parallel()
 			root := copyCoreFixture(t)
 			test.mutate(t, root)
-			snapshot, err := Load(root)
+			snapshot, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
 			if err == nil || snapshot != nil {
 				t.Fatalf("Load() = (%v, %v), want (nil, error)", snapshot, err)
 			}
@@ -427,7 +427,7 @@ func TestInstructionPathAndFilesystemContainment(t *testing.T) {
 		if err := os.Symlink(outside, target); err != nil {
 			t.Fatal(err)
 		}
-		snapshot, err := Load(root)
+		snapshot, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
 		if err == nil || snapshot != nil || !strings.Contains(err.Error(), "is a symlink") {
 			t.Fatalf("Load() = (%v, %v), want strict symlink error", snapshot, err)
 		}
@@ -436,7 +436,7 @@ func TestInstructionPathAndFilesystemContainment(t *testing.T) {
 	t.Run("invalid utf8", func(t *testing.T) {
 		root := copyCoreFixture(t)
 		writeFile(t, filepath.Join(root, "instructions/artifact-builder.md"), []byte{0xff, 0xfe})
-		snapshot, err := Load(root)
+		snapshot, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
 		if err == nil || snapshot != nil || !strings.Contains(err.Error(), "strict UTF-8") {
 			t.Fatalf("Load() = (%v, %v), want UTF-8 error", snapshot, err)
 		}
@@ -450,7 +450,7 @@ func TestManifestDiscoveryRejectsSymlinks(t *testing.T) {
 	if err := os.Symlink("test-worker.yaml", filepath.Join(root, "model-policies/link.yaml")); err != nil {
 		t.Fatal(err)
 	}
-	if snapshot, err := Load(root); err == nil || snapshot != nil ||
+	if snapshot, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed")); err == nil || snapshot != nil ||
 		!strings.Contains(err.Error(), "is a symlink") {
 		t.Fatalf("Load() = (%v, %v), want strict symlink error", snapshot, err)
 	}
@@ -466,11 +466,11 @@ func TestCatalogFileReadsAreBounded(t *testing.T) {
 		root := copyCoreFixture(t)
 		path := filepath.Join(root, "instructions", "padding.md")
 		writeFile(t, path, bytes.Repeat([]byte("a"), maximumCatalogFileBytes))
-		if _, err := Load(root); err != nil {
+		if _, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed")); err != nil {
 			t.Fatalf("instruction at the bound: %v", err)
 		}
 		writeFile(t, path, bytes.Repeat([]byte("a"), maximumCatalogFileBytes+1))
-		snapshot, err := Load(root)
+		snapshot, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
 		if snapshot != nil || !errors.Is(err, securefile.ErrTooLarge) ||
 			!strings.Contains(err.Error(), `read instruction "instructions/padding.md"`) {
 			t.Fatalf("instruction over the bound = (%v, %v)", snapshot, err)
@@ -486,11 +486,11 @@ func TestCatalogFileReadsAreBounded(t *testing.T) {
 			return append(data, bytes.Repeat([]byte("x"), size-len(data))...)
 		}
 		writeFile(t, path, padded(maximumCatalogFileBytes))
-		if _, err := Load(root); err != nil {
+		if _, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed")); err != nil {
 			t.Fatalf("manifest at the bound: %v", err)
 		}
 		writeFile(t, path, padded(maximumCatalogFileBytes+1))
-		snapshot, err := Load(root)
+		snapshot, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
 		if snapshot != nil || !errors.Is(err, securefile.ErrTooLarge) ||
 			!strings.Contains(err.Error(), "model-policies/test-worker.yaml: read manifest") {
 			t.Fatalf("manifest over the bound = (%v, %v)", snapshot, err)
@@ -555,7 +555,7 @@ func TestToolsetVisibleNameCollision(t *testing.T) {
     - ref: security-findings-code@1
       tools: [finding]
   sandboxProfile: local-workdir@1`)
-	snapshot, err := Load(root)
+	snapshot, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
 	if err == nil || snapshot != nil || !strings.Contains(err.Error(), "collides between Toolsets") {
 		t.Fatalf("Load() = (%v, %v), want collision error", snapshot, err)
 	}
@@ -629,7 +629,7 @@ func TestWorkflowPrimaryMarkerIsAcceptedOnlyOnWorkflowOutputs(t *testing.T) {
 			root := copyCoreFixture(t)
 			path := filepath.Join(root, "workflows/artifact_copy.yaml")
 			replaceFile(t, path, test.old, test.replacement)
-			snapshot, err := Load(root)
+			snapshot, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
 			if err == nil || snapshot != nil || !strings.Contains(err.Error(), test.field) ||
 				!strings.Contains(err.Error(), "allowed only for Workflow outputs") {
 				t.Fatalf("Load() = (%v, %v), want output-only primary error", snapshot, err)
@@ -649,7 +649,7 @@ func TestWorkflowGraphRejectsNextCycle(t *testing.T) {
 	)
 	writeFile(t, filepath.Join(root, "workflows/artifact_copy.yaml"), []byte(cyclic))
 
-	snapshot, err := Load(root)
+	snapshot, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
 	if err == nil || snapshot != nil || !strings.Contains(err.Error(), "Cycle") {
 		t.Fatalf("Load(cycle) = (%v, %v)", snapshot, err)
 	}
@@ -661,7 +661,7 @@ func TestWorkflowGraphRejectsUnreachableStage(t *testing.T) {
 	workflow := multiStageWorkflowYAML + "    orphan:\n" + reviewStageYAML
 	writeFile(t, filepath.Join(root, "workflows/artifact_copy.yaml"), []byte(workflow))
 
-	snapshot, err := Load(root)
+	snapshot, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
 	if err == nil || snapshot != nil || !strings.Contains(err.Error(), "unreachable") {
 		t.Fatalf("Load(unreachable) = (%v, %v)", snapshot, err)
 	}
@@ -678,7 +678,7 @@ func TestWorkflowTransitionRejectsSuccessPathWithoutRequiredOutput(t *testing.T)
 	)
 	writeFile(t, filepath.Join(root, "workflows/artifact_copy.yaml"), []byte(workflow))
 
-	snapshot, err := Load(root)
+	snapshot, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
 	if err == nil || snapshot != nil || !strings.Contains(err.Error(), "without required output") {
 		t.Fatalf("Load(missing output path) = (%v, %v)", snapshot, err)
 	}
@@ -695,7 +695,7 @@ func TestWorkflowTransitionRejectsOptionalResultAsRequiredOutput(t *testing.T) {
 		1,
 	)
 	writeFile(t, filepath.Join(root, "workflows/artifact_copy.yaml"), []byte(workflow))
-	if snapshot, err := Load(root); err == nil || snapshot != nil ||
+	if snapshot, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed")); err == nil || snapshot != nil ||
 		!strings.Contains(err.Error(), "without required output") {
 		t.Fatalf("Load() = (%v, %v), want required output error", snapshot, err)
 	}
@@ -718,7 +718,7 @@ func TestWorkflowGraphRejectsOutputMappedTwiceOnOnePath(t *testing.T) {
 	}
 	writeFile(t, filepath.Join(root, "workflows/artifact_copy.yaml"), []byte(workflow))
 
-	snapshot, err := Load(root)
+	snapshot, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
 	if err == nil || snapshot != nil ||
 		!strings.Contains(err.Error(), `Workflow output "result" may be mapped more than once on one Graph path`) {
 		t.Fatalf("Load(output mapped twice) = (%v, %v)", snapshot, err)
@@ -769,7 +769,7 @@ func TestWorkflowResultBindingsAreTrustedAndVersionless(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			root := copyCoreFixture(t)
 			replaceFile(t, filepath.Join(root, path), test.old, test.replacement)
-			snapshot, err := Load(root)
+			snapshot, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
 			if err == nil || snapshot != nil || !strings.Contains(err.Error(), test.fragment) {
 				t.Fatalf("Load() = (%v, %v), want %q", snapshot, err, test.fragment)
 			}
@@ -835,7 +835,7 @@ const reviewStageYAML = `      objective: Review the candidate
 
 func mustLoad(t *testing.T, root string) *Snapshot {
 	t.Helper()
-	snapshot, err := Load(root)
+	snapshot, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatalf("Load(%q): %v", root, err)
 	}

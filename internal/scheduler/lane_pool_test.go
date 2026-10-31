@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"maps"
+	"path/filepath"
 	"slices"
 	"testing"
 	"time"
@@ -136,7 +137,7 @@ func TestSchedulerSupervisorRejectsInvalidToolPoolSizeBeforeAnyClaim(t *testing.
 // lane releases the claim without deferral and a model lane claims the Run
 // next. No lane of the wrong pool ever holds it.
 func TestSchedulerHandsTheRunToTheModelPoolAfterAToolStage(t *testing.T) {
-	snapshot, err := configload.Load("../../testdata/configs-scan")
+	snapshot, _, err := configload.LoadUnionReadOnly("../../testdata/configs-scan", filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatal(err)
 	}

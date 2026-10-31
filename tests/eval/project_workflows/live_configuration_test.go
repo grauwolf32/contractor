@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"testing"
 
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
@@ -38,7 +39,8 @@ func liveAliasSHA256(model string) string {
 	return hex.EncodeToString(digest[:])
 }
 
-func copyLiveConfiguration(repositoryRoot, target string, settings liveSettings) ([]liveModelSelection, error) {
+func copyLiveConfiguration(t *testing.T, repositoryRoot, target string, settings liveSettings) ([]liveModelSelection, error) {
+	t.Helper()
 	source := filepath.Join(repositoryRoot, "configs")
 	if err := filepath.WalkDir(source, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
@@ -66,7 +68,7 @@ func copyLiveConfiguration(repositoryRoot, target string, settings liveSettings)
 	}); err != nil {
 		return nil, errors.New("copy live configuration failed")
 	}
-	snapshot, err := configload.Load(target)
+	snapshot, _, err := configload.LoadUnionReadOnly(target, filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		return nil, errors.New("live configuration cannot be resolved")
 	}
@@ -110,7 +112,7 @@ func copyLiveConfiguration(repositoryRoot, target string, settings liveSettings)
 		return nil, err
 	}
 	// Recompute all identities and effective selections with the same loader the Server uses.
-	snapshot, err = configload.Load(target)
+	snapshot, _, err = configload.LoadUnionReadOnly(target, filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		return nil, errors.New("overridden live configuration cannot be resolved")
 	}

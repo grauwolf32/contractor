@@ -3,6 +3,7 @@ package auditprofile_test
 import (
 	"bytes"
 	"encoding/json"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -19,7 +20,7 @@ func TestCheckMethodAuthoringStrictRegistryAndPersistedPins(t *testing.T) {
 			key, _ := contracts.LookupCheckPlanMethod(contracts.FindingCheckPlanSchema, method)
 			text := strings.Replace(templateAuditProfileYAML(t, "routed-check"), "  workflows:", "  methods:\n    renamed-route:\n      planSchema: "+key.Schema+"\n      method: "+method+"\n      workflowRole: check\n      requiredCapabilities: []\n  workflows:", 1)
 			writeAuditProfile(t, root, "routed-check", text)
-			catalog, err := configload.Load(root)
+			catalog, _, err := configload.LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -112,7 +113,7 @@ func TestSharedCheckMethodAuthoringDerivesPhase(t *testing.T) {
 			methods := "  methods:\n    renamed-route: " + mapping.String() + "\n  workflows:"
 			manifest := strings.Replace(templateAuditProfileYAML(t, "derived-phase"), "  workflows:", methods, 1)
 			writeAuditProfile(t, root, "derived-phase", manifest)
-			catalog, err := configload.Load(root)
+			catalog, _, err := configload.LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
 			if (err == nil) != test.Valid {
 				t.Fatalf("valid=%t want %t: %v", err == nil, test.Valid, err)
 			}
@@ -208,7 +209,7 @@ func TestSharedCheckMethodMappingNameText(t *testing.T) {
 			methods := "  methods:\n    " + string(name) + ":\n      planSchema: contractor.audit.finding-check-plan.v1\n      method: verify\n      workflowRole: check\n      requiredCapabilities: []\n  workflows:"
 			manifest := strings.Replace(templateAuditProfileYAML(t, "mapping-text"), "  workflows:", methods, 1)
 			writeAuditProfile(t, root, "mapping-text", manifest)
-			catalog, err := configload.Load(root)
+			catalog, _, err := configload.LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
 			if (err == nil) != test.Valid {
 				t.Fatalf("valid=%t want%t: %v", err == nil, test.Valid, err)
 			}

@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/configload/configloadtest"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 )
 
@@ -17,7 +18,7 @@ func TestOperationsSnapshotAndPagesAreCoherentStableAndObserved(t *testing.T) {
 	now := time.Date(2026, 8, 31, 1, 0, 0, 0, time.UTC)
 	lease := now.Add(time.Minute)
 	allocationID := "allocation-operations"
-	template, err := fixture.configs.Snapshot().AgentTemplate("artifact_builder@1")
+	template, err := configloadtest.AgentTemplate(fixture.configs.Snapshot(), "artifact_builder@1")
 	if err != nil {
 		t.Fatal(err)
 	}

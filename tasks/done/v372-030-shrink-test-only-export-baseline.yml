@@ -5,9 +5,9 @@ milestone: hub-audit-structure-2026-10
 epic: quality
 kind: chore
 priority: P3
-status: in_progress
+status: completed
 depends_on: [V369-007]
-languages: [go]
+languages: [go, python, json]
 goal: "tools/testonlyexports/baseline.txt names no entry of this task: each identifier below has a production caller, lives in a test file or a test helper package, or is gone."
 context:
   review: "V369-007 (tools/testonlyexports) and V370-008, 2026-10-12, on b2b09ea"
@@ -89,6 +89,18 @@ context:
     files of nearly every package while five lanes were landing; do them
     together in a quiet period, routing the loads through
     configload.LoadUnionReadOnly with a missing managed root.
+    2026-10-31 continuation: all three remaining entries are now removed.
+    The transitive test-only config.Load wrapper is also removed. Production
+    readers are unchanged; cross-package tests follow resolved Workflow bindings
+    and LoadUnionReadOnly, and findings destinations come from the shared fixture
+    exercised by the Runtime reader. Implementation is committed as
+    ffa5b57214b8f49a7df77fb26bcf62cbbcff15c8 on
+    codex/v372-030-test-only-exports, not merged into main. Lint, export,
+    shared-wire and affected process checks passed. The mandatory full internal
+    integration command passed after restoring Podman's local UID/GID mappings
+    and completing the separate V425-022 container-platform test correction.
+    All acceptance criteria and listed commands are verified; main remains
+    unchanged until the user merges the branch.
   decision: >-
     Open choices, to settle in this task: whether the error kinds become the
     typed values evaldomain and the Audit package errors raise (preferred,
@@ -155,3 +167,54 @@ decisions:
     bound to one RunScope. The function adapters of PlannerTelemetryAdapterCatalog and
     TransactionLLMCredentialLookupFactory moved to runtimeconfigtest (internal/runtimeconfig's own
     tests keep unexported copies, since they cannot import runtimeconfigtest).
+
+  - >-
+    2026-10-31 (user-authorized continuation): remove the remaining production
+    accessors and wrappers. Tests load through LoadUnionReadOnly with a missing
+    managed root; config.Load is removed with configload.Load. Cross-package
+    template readers use a test-only configloadtest helper over resolved Workflow
+    bindings, without importing the core loader. Core catalog tests inspect
+    unbound templates through a private test-only accessor. Finding consumer
+    destinations are frozen in the shared fixture, checked by the real Runtime
+    reader and used by the process regression; the Go production copy is removed.
+    This preserves production behavior and leaves the V64 baseline entries alone.
+implementation_commit: ffa5b57214b8f49a7df77fb26bcf62cbbcff15c8
+verification_results:
+  - >-
+    2026-10-31 final verification after V425-022: make lint and
+    CONTRACTOR_TEST_DATABASE_URL=<disposable TCP PostgreSQL database>
+    go test -tags=integration ./internal/... passed. All 96 tested packages
+    succeeded (14 fresh executions, 82 valid cached results from prior runs).
+    The previously failing Git container proof ran successfully through Podman
+    Machine; no test was excluded to obtain this result. Earlier failed runs
+    below are retained as investigation history, not the final gate result.
+  - >-
+    2026-10-31 user-requested retry: recreated the disposable TCP PostgreSQL
+    database and repeated go test -tags=integration ./internal/.... The command
+    again failed only at TestRealGitReadOnlyContainer (Alpine image not known);
+    the other 95 packages reused their passing Go test cache. A fresh podman pull
+    docker.io/library/alpine:latest again failed with insufficient UID/GID
+    mappings while unpacking /etc/shadow. No task completion is claimed.
+  - "2026-10-31: make lint passed; existing lint blockers were corrected separately in completed V425-020 and V425-021."
+  - 'go -C tools/testonlyexports run . -tags=integration,e2e -baseline tools/testonlyexports/baseline.txt "$PWD" passed; only four V64 entries remain.'
+  - >-
+    CONTRACTOR_TEST_DATABASE_URL=<disposable TCP PostgreSQL database>
+    go test -tags=integration ./internal/... failed only in internal/gitimport:
+    TestRealGitReadOnlyContainer requires docker.io/library/alpine:latest with
+    --pull=never, but the image is absent. podman pull failed with insufficient
+    UIDs/GIDs in the user namespace (lchown /etc/shadow: invalid argument).
+    All other 95 tested packages passed. No database test was skipped for an
+    unset database URL. This is a failed required command, not a passing gate.
+  - >-
+    go test -tags=integration -count=1 ./internal/gitimport
+    -skip '^TestRealGitReadOnlyContainer$' passed the remaining host tests.
+    The excluded container proof remains unverified and blocks task completion.
+  - "make test-wire-cross-language passed: 355 shared fixtures, 392 Go and 284 Python shared tests; 1577 Runtime shared cases plus 375 contract cases."
+  - "In runtime/: uv run --locked pytest -q tests/test_findings_reader_toolset.py passed all 70 tests, including shared destinations and changed-snapshot isolation."
+  - "go test ./tests/eval/... ./tests/integration/lease ./tests/e2e passed; no live-model evaluation is claimed."
+  - "make test-release-config-fixtures passed."
+  - >-
+    go test -tags=e2e -count=1 -timeout=12m ./tests/e2e -run
+    '^(TestFindingsReaderBoundariesAcrossProcesses|TestMemoryMVPProcesses|TestAuditProgramsResolveAsRunnableMVPProfiles|TestAuditProgramsFixturesBuildStableChecklistAndOpenAPIInventories|TestAuditProgramsResultFixturesRemainDistinct|TestKatanaDiscoveryAcrossProductionProcesses)$'
+    passed against disposable PostgreSQL and real Server/Runtime processes.
+  - "go test -tags=e2e -count=1 ./tests/ui-stack -run '^TestUIStackConfigurationClosure$' passed."

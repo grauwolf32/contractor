@@ -6,13 +6,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditdomain"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
@@ -246,7 +247,7 @@ func quotaSubmissionGrantWithInputs(
 	prepare func() map[string]runstore.PinnedContextArtifact,
 ) controlplane.AllocationGrant {
 	t.Helper()
-	snapshot, err := configload.Load("../config/testdata/valid")
+	snapshot, _, err := configload.LoadUnionReadOnly("../config/testdata/valid", filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatal(err)
 	}

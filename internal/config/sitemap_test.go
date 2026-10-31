@@ -2,6 +2,7 @@ package config
 
 import (
 	"encoding/json"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -30,19 +31,19 @@ func TestSitemapPolicyAuthoringPinsAndClonesAuthority(t *testing.T) {
 	root := copyCoreFixture(t)
 	appendFile(t, templatePath(root), sitemapPolicyYAML)
 	snapshot := mustLoad(t, root)
-	first, err := snapshot.AgentTemplate("artifact_builder@1")
+	first, err := snapshot.agentTemplateForTest("artifact_builder@1")
 	if err != nil || first.Sitemap == nil || !first.Sitemap.CollectObservations {
 		t.Fatalf("pinned sitemap policy: %+v %v", first.Sitemap, err)
 	}
 	digest := first.Ref.Digest
 	*first.Sitemap.Deployment = "changed"
 	first.Sitemap.SnapshotInputs[0] = "changed"
-	again, err := snapshot.AgentTemplate("artifact_builder@1")
+	again, err := snapshot.agentTemplateForTest("artifact_builder@1")
 	if err != nil || *again.Sitemap.Deployment != "prod" || len(again.Sitemap.SnapshotInputs) != 1 || again.Sitemap.SnapshotInputs[0] != "api" {
 		t.Fatal("sitemap policy shares mutable template state")
 	}
 	replaceFile(t, templatePath(root), "collectObservations: true", "collectObservations: false")
-	changed, err := mustLoad(t, root).AgentTemplate("artifact_builder@1")
+	changed, err := mustLoad(t, root).agentTemplateForTest("artifact_builder@1")
 	if err != nil || changed.Ref.Digest == digest {
 		t.Fatal("collection authority is outside the template digest")
 	}
@@ -61,7 +62,7 @@ func TestSitemapPolicyRejectsInvalidAuthoring(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			root := copyCoreFixture(t)
 			appendFile(t, templatePath(root), block)
-			if _, err := Load(root); err == nil {
+			if _, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed")); err == nil {
 				t.Fatal("accepted invalid sitemap policy")
 			}
 		})

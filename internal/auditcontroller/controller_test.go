@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -906,7 +907,7 @@ type fakeControllerStore struct {
 
 func newFakeControllerStore(t *testing.T, itemCount, window int) *fakeControllerStore {
 	t.Helper()
-	snapshot, err := configload.Load("../../testdata/configs")
+	snapshot, _, err := configload.LoadUnionReadOnly("../../testdata/configs", filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1497,7 +1498,7 @@ func (s *fakeControllerStore) assignRoles(t *testing.T, roleOf func(int) string)
 	if err != nil {
 		t.Fatal(err)
 	}
-	catalog, err := configload.Load("../../testdata/configs-scan")
+	catalog, _, err := configload.LoadUnionReadOnly("../../testdata/configs-scan", filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatal(err)
 	}

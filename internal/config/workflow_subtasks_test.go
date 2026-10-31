@@ -63,7 +63,7 @@ func TestSharedWorkflowSubtaskLimits(t *testing.T) {
 			if tc.Present {
 				replaceFile(t, filepath.Join(root, "workflows/artifact_copy.yaml"), "spec:\n", fmt.Sprintf("spec:\n  maxSubtasks: %s\n", tc.Value))
 			}
-			snapshot, err := Load(root)
+			snapshot, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
 			if (err == nil) != tc.Valid {
 				t.Fatalf("valid=%v, load error=%v", tc.Valid, err)
 			}

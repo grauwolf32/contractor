@@ -120,7 +120,22 @@ benchmark-performance:
 	$(call run-family-test,go test -run '^$$' -bench '^(BenchmarkHTTPInstrumentation|BenchmarkPerformanceCollect|BenchmarkPerformanceMinute)$$' -benchmem -count=5 ./internal/performance)
 	go run ./tools/performancebench -repetitions=5 -http-requests=50000 -collection-cycles=240 -profile-seconds=1
 
-test-git-artifacts: require-database runtime-venv
+.PHONY: test-git-read-only require-git-container-linux
+GIT_PROBE_BINARY := $(CURDIR)/.local/git-read-only/probe
+
+# Platform selection and probe compilation belong to this pipeline. The Go
+# container fixture is Linux-only and consumes this binary without rebuilding it.
+require-git-container-linux:
+	@test "$$(uname -s)" = Linux || (echo "Git container checks require Linux; run this target on Linux or inside a Linux VM/container" >&2; exit 1)
+
+test-git-read-only: require-git-container-linux
+	@command -v git >/dev/null || (echo "native git is required for fixtures" >&2; exit 1)
+	@command -v podman >/dev/null || (echo "local Linux podman is required" >&2; exit 1)
+	mkdir -p "$(dir $(GIT_PROBE_BINARY))"
+	CGO_ENABLED=0 GOOS=linux GOARCH="$$(go env GOHOSTARCH)" go test -tags=integration -c -o "$(GIT_PROBE_BINARY)" ./internal/gitimport
+	CONTRACTOR_TEST_GIT_PROBE_BINARY="$(GIT_PROBE_BINARY)" go test -tags=integration -count=1 -v -timeout=3m ./internal/gitimport
+
+test-git-artifacts: require-git-container-linux require-database runtime-venv test-git-read-only
 	@command -v git >/dev/null || (echo "native git is required for fixtures" >&2; exit 1)
 	@command -v podman >/dev/null || (echo "podman is required" >&2; exit 1)
 	$(call run-family-test,go test -race -tags=integration -count=1 ./internal/credentials ./internal/gitimport ./internal/artifacts ./internal/httpapi/public ./internal/app ./internal/persistence/postgres)

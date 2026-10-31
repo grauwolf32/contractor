@@ -7,8 +7,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -19,6 +19,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingintake"
@@ -54,7 +55,7 @@ func newCollectionTestPublisher(t *testing.T, pool *pgxpool.Pool) *findingintake
 
 func seedCollectionRun(t *testing.T, ctx context.Context, pool *pgxpool.Pool, owner, runID string, projects ...string) {
 	t.Helper()
-	snapshot, err := configload.Load("../config/testdata/valid")
+	snapshot, _, err := configload.LoadUnionReadOnly("../config/testdata/valid", filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatal(err)
 	}

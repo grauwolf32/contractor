@@ -56,7 +56,7 @@ func TestDevelopmentCredentialsUseSelectedGatewayWithoutChangingManagedCredentia
 	if err := os.WriteFile(filepath.Join(root, "llm-gateways/selected.yaml"), raw, 0600); err != nil {
 		t.Fatal(err)
 	}
-	snapshot, err := configload.Load(root)
+	snapshot, _, err := configload.LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatal(err)
 	}

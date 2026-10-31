@@ -2,6 +2,7 @@ package auditprofile_test
 
 import (
 	"encoding/json"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -24,7 +25,7 @@ func TestRetainedDependencyAuthoringAndPersistedValidation(t *testing.T) {
 			root := copyCatalog(t, "audit-profile-catalog")
 			manifest := strings.Replace(templateAuditProfileYAML(t, "retained-check"), "{source: audit-input, name: source}", test.mapping, 1)
 			writeAuditProfile(t, root, "retained-check", manifest)
-			snapshot, err := configload.Load(root)
+			snapshot, _, err := configload.LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
 			if (err == nil) != test.valid {
 				t.Fatalf("load valid=%v: %v", test.valid, err)
 			}

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"path/filepath"
 	"slices"
 	"sort"
 	"strings"
@@ -38,7 +39,7 @@ func (s *auditFactoryHistory) ReadAuditScanHistory(context.Context, string) ([]p
 func newAuditFactoryHarness(t *testing.T, scanner string) (*factoryHarness, *auditFactoryHistory) {
 	t.Helper()
 	h := newFactoryHarness(t, 1)
-	snapshot, err := configload.Load("../../../testdata/configs-scan")
+	snapshot, _, err := configload.LoadUnionReadOnly("../../../testdata/configs-scan", filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatal(err)
 	}

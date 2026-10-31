@@ -132,7 +132,7 @@ func TestResolveRunWorkflowAllowsOnlyWorkerPhysicalGatewayToRemainAbsent(t *test
       credential: development-worker
 
 `, "")
-	snapshot, err := Load(root)
+	snapshot, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -289,7 +289,7 @@ func TestExecutionConfigRejectsConsumerIncompatibilityAndInvalidWorkflowPatches(
 		t.Run(test.name, func(t *testing.T) {
 			root := copyCoreFixture(t)
 			test.mutate(t, root)
-			snapshot, err := Load(root)
+			snapshot, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
 			if err == nil || snapshot != nil || !strings.Contains(err.Error(), test.want) {
 				t.Fatalf("Load() = (%v, %v), want error containing %q", snapshot, err, test.want)
 			}

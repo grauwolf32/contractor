@@ -46,7 +46,7 @@ func TestPostgresNextRoundStopsBeforeWritingUnsupportedScanTasks(t *testing.T) {
 	if err := os.WriteFile(profilePath, []byte(modified), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	snapshot, err := configload.Load(root)
+	snapshot, _, err := configload.LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatal(err)
 	}

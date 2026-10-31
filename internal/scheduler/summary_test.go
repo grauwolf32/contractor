@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -27,7 +28,7 @@ func configureSummaryWorkflow(t *testing.T, workflow *resolved.ResolvedWorkflow)
 		stage.MaxSubtasks = workflow.MaxSubtasks
 		workflow.Stages[name] = stage
 	}
-	catalog, err := configload.Load(configtest.CopyWithPolicies(t, "../../testdata/configs"))
+	catalog, _, err := configload.LoadUnionReadOnly(configtest.CopyWithPolicies(t, "../../testdata/configs"), filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatal(err)
 	}

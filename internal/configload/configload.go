@@ -72,18 +72,6 @@ func (c *bundleChecks) take() Bundles {
 	return bundles
 }
 
-// Load validates one operator root: its bundles, then its catalog.
-func Load(root string) (*config.Snapshot, error) {
-	snapshot, err := config.Load(root, newBundleChecks().operatorRootChecks()...)
-	if err != nil {
-		return nil, err
-	}
-	if err := config.ValidateModelChoiceCatalog(root, snapshot); err != nil {
-		return nil, err
-	}
-	return snapshot, nil
-}
-
 // LoadUnionReadOnly is offline validation of the Server's operator and managed
 // roots; see config.LoadUnionReadOnly. It also returns the bundles it
 // validated.

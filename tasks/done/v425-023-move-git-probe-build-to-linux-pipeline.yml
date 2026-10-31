@@ -1,0 +1,62 @@
+schema_version: "1.0"
+id: V425-023
+title: "Move the Git container probe build and platform selection into the Linux pipeline"
+milestone: hub-audit-structure-2026-10
+epic: quality
+kind: chore
+introduced_by: V425-022
+priority: P3
+status: completed
+depends_on: [V425-022]
+languages: [go, python, shell, yaml]
+goal: "The build pipeline selects Linux and builds the Git probe; ordinary macOS tests do not adapt a Linux-only container test to Podman Machine."
+context:
+  authority: "2026-10-31: user directed platform selection and compilation into build pipelines, with Linux tests excluded on macOS or run in a Linux Podman environment. This supersedes V425-022's macOS adaptation."
+  finding: >-
+    V425-022 placed cross-compilation, ELF inspection and Podman Machine
+    networking in internal/gitimport/real_git_integration_test.go. These are
+    pipeline responsibilities. CI already runs on Ubuntu but the read-only
+    proof is an opt-in exception absent from its standard integration command.
+  decision: >-
+    Keep the two container probe tests in an integration-tagged Linux-only Go
+    file. A focused Make pipeline requires Linux and local Podman, builds a
+    static Linux probe for the host architecture, and passes its path to the
+    parent test. The test only provisions fixtures and executes the supplied
+    binary. The existing Ubuntu integration job installs Podman, prepares
+    Alpine and runs that focused target. The full Git artifacts gate includes
+    the same target; no macOS VM-specific networking remains inside tests.
+scope:
+  in:
+    - "Linux-only Go file selection, focused Make build/run pipeline and its CI invocation."
+    - "Release inventory references, gate documentation and the superseding decision on V425-022."
+  out:
+    - "Changing ordinary cross-platform Git import tests or production behavior."
+    - "Moving the entire test suite into containers or changing existing Runtime platform markers."
+acceptance_criteria:
+  - id: A1
+    text: "Go excludes the container proof on macOS; a focused Linux pipeline invoked on macOS fails before compilation with a clear platform requirement."
+  - id: A2
+    text: "The Linux pipeline builds and supplies the probe, and its real Podman execution passes HTTPS, private SSH and read-only filesystem checks. No test builds or inspects a binary or adapts macOS networking."
+  - id: A3
+    text: "The existing Ubuntu CI integration job invokes the focused pipeline; the release-graph guard retains that invocation and the opt-in inventory."
+tests:
+  - command: "go test -tags=integration -count=1 ./internal/gitimport"
+    covers: [A1]
+  - command: "make test-git-read-only on Linux, or execute its make -n recipe with sh inside a Linux VM with Go, Git, Podman and preinstalled Alpine"
+    covers: [A2]
+  - command: make lint
+    covers: [A1, A3]
+implementation_commit: 395a0d970516c38fb38e2d7d6f400cacc064ded3
+verification_results:
+  - "2026-10-31: go test -tags=integration -count=1 ./internal/gitimport passed natively on macOS; go test -list confirmed both Linux-only probe tests are absent from that binary."
+  - "make test-git-read-only on macOS failed at require-git-container-linux before build, with the documented Linux requirement."
+  - >-
+    The complete recipe emitted by make -n test-git-read-only was executed
+    with sh -e inside Podman Machine's Linux arm64 VM, using a SHA256-verified
+    Linux Go 1.26.9 SDK, native Git and local rootless Podman. The entire
+    integration-tagged Git package passed, including the nested read-only
+    probe's real HTTPS and private SSH imports. GNU Make is absent in that VM;
+    the emitted Make recipe was executed unchanged rather than claiming a
+    native make invocation there.
+  - "make lint passed, including release-graph validation and 56 focused guard tests with negative cases for removing the Linux proof or replacing its Ubuntu runner."
+  - "The hosted GitHub Actions job was updated and checked locally, not dispatched. Existing V372-030 verification remains recorded; no full project test rerun was needed for this pipeline-only adjustment."

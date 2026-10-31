@@ -176,7 +176,7 @@ func TestWorkflowPublicationRequiresWorkspaceForCodeAnalysis(t *testing.T) {
         - read_artifact
         - write_artifact`, `    - ref: code-analysis@1
       tools: [search_def]`)
-	snapshot, err := Load(root)
+	snapshot, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
 	if err == nil || snapshot != nil ||
 		!strings.Contains(err.Error(), "workspace-dependent Toolsets require context.workspace") {
 		t.Fatalf("Load() = (%v, %v), want code-analysis workspace error", snapshot, err)
@@ -194,7 +194,7 @@ func TestWorkflowPublicationRequiresWorkspaceForTaintAnnotations(t *testing.T) {
         - read_artifact
         - write_artifact`, `    - ref: taint-annotations@1
       tools: [annotate_trace]`)
-	snapshot, err := Load(root)
+	snapshot, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
 	if err == nil || snapshot != nil ||
 		!strings.Contains(err.Error(), "workspace-dependent Toolsets require context.workspace") {
 		t.Fatalf("Load() = (%v, %v), want taint annotation workspace error", snapshot, err)
