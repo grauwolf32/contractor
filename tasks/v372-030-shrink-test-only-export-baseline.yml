@@ -93,8 +93,14 @@ context:
     The transitive test-only config.Load wrapper is also removed. Production
     readers are unchanged; cross-package tests follow resolved Workflow bindings
     and LoadUnionReadOnly, and findings destinations come from the shared fixture
-    exercised by the Runtime reader. Final acceptance is being verified on
-    codex/v372-030-test-only-exports with a disposable PostgreSQL database.
+    exercised by the Runtime reader. Implementation is committed as
+    ffa5b57214b8f49a7df77fb26bcf62cbbcff15c8 on
+    codex/v372-030-test-only-exports, not merged into main. Lint, export,
+    shared-wire and affected process checks passed. The mandatory full internal
+    integration command remains blocked by the local Podman environment:
+    TestRealGitReadOnlyContainer cannot start its required Alpine image, and
+    pulling it fails because the Podman user namespace lacks sufficient UID/GID
+    mappings. Keep in_progress until that command succeeds on a suitable host.
   decision: >-
     Open choices, to settle in this task: whether the error kinds become the
     typed values evaldomain and the Audit package errors raise (preferred,
@@ -172,3 +178,27 @@ decisions:
     destinations are frozen in the shared fixture, checked by the real Runtime
     reader and used by the process regression; the Go production copy is removed.
     This preserves production behavior and leaves the V64 baseline entries alone.
+verification_results:
+  - "2026-10-31: make lint passed; existing lint blockers were corrected separately in completed V425-020 and V425-021."
+  - 'go -C tools/testonlyexports run . -tags=integration,e2e -baseline tools/testonlyexports/baseline.txt "$PWD" passed; only four V64 entries remain.'
+  - >-
+    CONTRACTOR_TEST_DATABASE_URL=<disposable TCP PostgreSQL database>
+    go test -tags=integration ./internal/... failed only in internal/gitimport:
+    TestRealGitReadOnlyContainer requires docker.io/library/alpine:latest with
+    --pull=never, but the image is absent. podman pull failed with insufficient
+    UIDs/GIDs in the user namespace (lchown /etc/shadow: invalid argument).
+    All other 95 tested packages passed. No database test was skipped for an
+    unset database URL. This is a failed required command, not a passing gate.
+  - >-
+    go test -tags=integration -count=1 ./internal/gitimport
+    -skip '^TestRealGitReadOnlyContainer$' passed the remaining host tests.
+    The excluded container proof remains unverified and blocks task completion.
+  - "make test-wire-cross-language passed: 355 shared fixtures, 392 Go and 284 Python shared tests; 1577 Runtime shared cases plus 375 contract cases."
+  - "In runtime/: uv run --locked pytest -q tests/test_findings_reader_toolset.py passed all 70 tests, including shared destinations and changed-snapshot isolation."
+  - "go test ./tests/eval/... ./tests/integration/lease ./tests/e2e passed; no live-model evaluation is claimed."
+  - "make test-release-config-fixtures passed."
+  - >-
+    go test -tags=e2e -count=1 -timeout=12m ./tests/e2e -run
+    '^(TestFindingsReaderBoundariesAcrossProcesses|TestMemoryMVPProcesses|TestAuditProgramsResolveAsRunnableMVPProfiles|TestAuditProgramsFixturesBuildStableChecklistAndOpenAPIInventories|TestAuditProgramsResultFixturesRemainDistinct|TestKatanaDiscoveryAcrossProductionProcesses)$'
+    passed against disposable PostgreSQL and real Server/Runtime processes.
+  - "go test -tags=e2e -count=1 ./tests/ui-stack -run '^TestUIStackConfigurationClosure$' passed."
