@@ -6,7 +6,8 @@ epic: ui
 kind: chore
 introduced_by: V429-003
 priority: P3
-status: in_progress
+status: completed
+implementation_commit: 862cd05cb8db45bed880ee5b93f8a1f264ec92a7
 depends_on: [V429-003]
 languages: [typescript]
 goal: Restore public API verification while preserving the Project output-role failure scenario.
