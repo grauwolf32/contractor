@@ -15,7 +15,7 @@ import (
 // without sleeping: park the Worker and renewal, expire the SQL lease, and let
 // another lane try to claim it before the original lane renews.
 func TestPostgresLivePlannerSurvivesExpiredClaimBeforeRenewal(t *testing.T) {
-	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	h := newDeferredPlacementHarness(t, ctx, nil)
 	clock := &manualRenewalClock{now: time.Now().UTC(), waits: make(chan chan time.Time, 4)}
@@ -39,11 +39,7 @@ func TestPostgresLivePlannerSurvivesExpiredClaimBeforeRenewal(t *testing.T) {
 		if !finished {
 			close(finish)
 		}
-		select {
-		case <-joined:
-		case <-time.After(5 * time.Second):
-			t.Error("original lane did not join")
-		}
+		<-joined
 	}()
 	select {
 	case <-started:
@@ -81,7 +77,7 @@ WHERE run_id = 'run-1'`); err != nil {
 	}
 	close(finish)
 	finished = true
-	if err := receiveError(t, done, 5*time.Second, "original Planner completion"); err != nil {
+	if err := awaitValue(t, t.Context(), done, "original Planner completion"); err != nil {
 		t.Fatal(err)
 	}
 	current, err = h.store.GetRun(ctx, "run-1")

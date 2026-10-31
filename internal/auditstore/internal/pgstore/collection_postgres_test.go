@@ -399,8 +399,7 @@ func newCollectingAuditFixture(t *testing.T, name string, maxEvidenceBytes int64
 	if databaseURL == "" {
 		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
-	t.Cleanup(cancel)
+	ctx := t.Context()
 	var pool *pgxpool.Pool
 	if option.ownDatabase {
 		pool = budgetAuditPool(t, ctx, databaseURL)
