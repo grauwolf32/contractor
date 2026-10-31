@@ -5,7 +5,7 @@ milestone: hub-audit-defects-2026-10
 epic: persistence
 kind: chore
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages: [go, sql, python]
 goal: >-
@@ -75,3 +75,4 @@ verification:
   - After integrating current main, the full persistence integration suite and make lint passed, including release graph selections, schema ownership/ERD, task/spec checks, generator regression, Runtime lint and import contracts.
   - make test-project-sitemap-postgres passed 17 complete packages and all 39 mandatory cases with zero mandatory skips; make test-artifact-history-postgres passed all six selected packages with no empty package selection.
   - Deferred V365-016, V61-002 and V62-008 retain their statuses and scope; maintenance notes identify their dated migration references as historical and direct reactivation to the current baseline and next free version.
+implementation_commit: c07b1bf99891593af0db78d03bcfc86decd5dbc7
