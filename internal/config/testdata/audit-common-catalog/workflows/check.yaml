@@ -6,6 +6,7 @@ spec:
   inputs:
     source: {required: true, mediaTypes: [text/plain]}
     context: {required: true, mediaTypes: [application/json]}
+    supplement: {required: false, mediaTypes: [text/plain]}
   outputs:
     result: {required: true, primary: true, mediaTypes: [application/json]}
   executionConfig:
@@ -22,6 +23,7 @@ spec:
         artifacts:
           source: {namespace: inputs, name: source, required: true}
           context: {namespace: inputs, name: context, required: true}
+          supplement: {namespace: inputs, name: supplement, required: false}
       result:
         artifacts:
           conclusions: {required: true, mediaTypes: [application/json], from: {namespace: builder, name: conclusions}}

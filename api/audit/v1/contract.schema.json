@@ -108,6 +108,8 @@
     },
     "seed": {
       "type": "object",
+      "description": "The complete seed's RFC 8785 canonical UTF-8 encoding must fit 32768 bytes. This early content bound does not replace the complete hypothesis document bound after trusted identity, revision and origin are assigned.",
+      "x-maxCanonicalBytes": 32768,
       "properties": {
         "statement": {
           "$ref": "#/$defs/text"

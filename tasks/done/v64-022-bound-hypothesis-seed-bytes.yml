@@ -6,7 +6,7 @@ epic: audits
 kind: defect
 introduced_by: V64-001
 priority: P1
-status: pending
+status: completed
 depends_on:
 - V64-001
 languages:
@@ -19,7 +19,8 @@ goal: Known oversized candidate content is rejected at the common contract bound
 context:
   authority: 'User request on 2026-11-01: create fixes for the three implementation-review findings in
     completed V64-001. Preserve the accepted simple Audit task/Run/result model; these are local contract
-    corrections, not a new subsystem or authorization to start implementation now.'
+    corrections, not a new subsystem. User explicitly authorized implementing V64-020,
+    V64-021 and V64-022 on 2026-11-01.'
   review: Implementation review of main 79d2788d7 on 2026-11-01, following the delegated V64-001 delivery.
   severity: medium
   finding: internal/contracts/auditcontract/codec.go:160-168 checks nested hypothesis sizes only for context
@@ -120,4 +121,9 @@ test_prerequisites:
   selection is a failure.
 - On macOS use a canonical TMPDIR for the existing strict-root tests. If implementation expands into store
   behavior, report the scope change before proceeding.
-implementation_commit: null
+implementation_commit: be190ddc489cba873fabe4b26c76ca4f186b4d14
+verification:
+- Before the fix, the 33000-byte statement and combined-content regressions failed in Decode, the real loaded catalog and offline CLI (2026-11-01).
+- Complete auditcontract/config/.../app/archtest suites and the independent Python conformance module passed after the fix. Shared cases cover 32768 and 32769 canonical bytes with ASCII, multibyte Unicode, scope/grounds and JSON escaping across initial/generated/pinned-context seeds.
+- Separate cases retain full-document metadata charging for standalone/context/mutation hypotheses and allow unrelated 33000-byte result rationale. No persistence behavior or database fixture was introduced.
+- make test-wire-cross-language and make lint passed on 2026-11-01. The existing cross-language gate used a dedicated disposable PostgreSQL database and validated 367 fixtures with 392 Go and 288 Python shared tests; its Runtime selection passed 1583 tests.
