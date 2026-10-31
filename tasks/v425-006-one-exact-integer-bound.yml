@@ -20,6 +20,17 @@ context:
     finding_collection.go:229, finding_correlation.go:12, finding_limits.go:10, internal/findinganalysis/codec.go:91,
     internal/findingexport/snapshot.go:35, and Runtime toolset copies (V371-004 chose the cap and recorded
     it in WRK-R164).'
+  decision_needed: >-
+    Agent proposal, 2026-10-31; implementation has not started. The task's
+    prescribed source conflicts with the enforced layer stack:
+    internal/documentnumber is foundation (internal/archtest/layers_test.go),
+    while internal/contracts is kernel, so documentnumber cannot import
+    contracts.MaxExactInteger. Recommended option: keep the sole Go numeric
+    definition in the existing documentnumber package and derive the published
+    contracts.MaxExactInteger constant from it; preserve the bound and all
+    existing consumers. Simpler scheduling alternative: leave this task pending
+    until the shared numeric-policy owner is chosen. The user has been asked
+    to choose; no source-owner change is authorized or implemented yet.
   siblings: Run git grep for 9007199254740991, 1<<53 and 2**53 across internal/, runtime/src/ and ui/src;
     every hit uses the shared definition or is a documented test literal.
 scope:
