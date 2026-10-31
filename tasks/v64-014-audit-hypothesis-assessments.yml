@@ -32,7 +32,10 @@ context:
     The user accepted the common execution skeleton and requested concrete tasks; implementation is a
     subsequent step, not part of this task-formation request. User clarification on 2026-11-01 accepts
     preserving existing deduplication while moving finding ownership to Project. Semantic comparison
-    is separate future work, not an expansion of this task.'
+    is separate future work, not an expansion of this task. User review on 2026-11-01 requests explicit
+    rules for problem publication versus evidence-optional proposals, truthful migration of unverified
+    proposals, conflicting source assessments and duplicate corrections, plus concurrent admission and
+    large-history pagination acceptance.'
   implementation_gate: V64-001 is completed and its decisions are settled. A user assignment of V64-014
     is sufficient under normal dependency/status rules; V64-004 is not a prerequisite. This amendment
     keeps the task pending and starts no code, migrations, live Runs or deployment.
@@ -52,6 +55,8 @@ context:
   - docs/spec/audits/common-contract.md#ACT-R11
   - docs/spec/findings/findings.md#FND-R174
   - docs/spec/findings/findings.md#FND-R180
+  - docs/spec/findings/findings.md#FND-R22
+  - docs/spec/findings/findings.md#FND-R28
   specification_baseline: Named specifications describe current behavior. Update their owning requirements,
     API/wire contracts and fixtures with implementation; proposal 0050 governs the reviewed replacement
     direction.
@@ -72,6 +77,10 @@ context:
     receipt replay, Project correlation fence, bounded candidate search and direct human duplicate corrections.
     Adapt their ownership and callers; do not introduce a second deduplication engine or broaden equality.
     Semantic matching may be reconsidered separately after Project findings work through real callers.
+  analyst_action_boundary: This task owns retained source assessments/annotations, their Project read
+    semantics and migration. V411-010 supplies the ordinary direct Project annotation commands and removes
+    formal approvals. Do not implement another review workflow, assessment ledger or blocking confirmation
+    step here. Until an explicit Project annotation exists, current Project assessment is unset.
 scope:
   in:
   - Adapt existing finding intake, normalized result assembly, Project reads and evidence publication;
@@ -85,6 +94,9 @@ scope:
   - Move current Audit-local finding/provenance facts to the chosen owner through tested migrations, retaining
     original exact payload/evidence and historical decisions as data without inventing prior hypotheses
     or confirmation.
+  - Keep evidence-optional proposals as ordinary retained proposal/result artifacts and receipts. Admit
+    a Project problem only through explicit problem publication with selected exact evidence; preserve
+    source assessments and duplicate annotations without promoting them into a current Project verdict.
   - Keep AppSec severity/classification/issue annotations as domain-specific data. Remove a separate research
     assessment ledger and universal human-confirmation gate.
   out:
@@ -93,13 +105,18 @@ scope:
     before V64-012 supplies its actual caller.
   - Audit Artifact scope, ordinary material handoff/publication and the new coordinator; V64-004 and
     V64-002 retain those responsibilities.
+  - A semantic proof validator, a mandatory promotion/review queue, a new conflict status, automatic
+    status/severity aggregation, or the direct annotation command replacement owned by V411-010.
   - Implementation during this planning-only update; changing user model configuration or deploying/migrating
     the demo.
 requirements:
 - id: R1
-  text: A finding can originate without a hypothesis but must meet domain problem/evidence rules. A check
-    result is not itself a finding; missing evidence, timeout and execution failure cannot establish support
-    or refutation.
+  text: Explicit problem publication through existing intake/import requires a problem claim and at least
+    one selected exact evidence artifact distinct from the proposal artifact. Server checks shape, bounds,
+    exact metadata, access and trusted provenance; it does not certify semantic truth or assign confirmed
+    status. Evidence-optional proposal intake remains valid and creates no Project problem by itself;
+    preserve its artifact/receipt as an ordinary result without an invented hypothesis or review queue.
+    A check verdict, missing evidence, timeout or execution failure alone creates no problem or refutation.
 - id: R2
   text: Deduplication reuses existing qualified producer/structural equality rules and preserves all original
     Audit/Run/evidence associations and compatible source context. Missing or ambiguous keys and weak
@@ -114,11 +131,31 @@ requirements:
     with current source facts and review history. Retain exact proposal/evidence through existing Run-to-Project
     forks of the same immutable versions/blobs; source deletion and replay must not require V64-004 or
     create redundant bindings/payloads.
+- id: R5
+  text: Each source retains its observation, conditions, original assessment/status/severity, actor/time
+    and exact evidence; source assessments may disagree. Current Project analyst assessment is optional
+    and unset until explicitly written at Project level. Never infer its status or severity from the
+    latest source, group representative, maximum severity, majority or migration. Expose source ratings
+    through bounded source/history pages; disagreement introduces no conflict state or full-history scan.
+    Later direct Project annotations use existing owner/CAS/receipt rules with actor/history and are not
+    overwritten by subsequent source collection.
+- id: R6
+  text: Migration preserves proposals that lack R1 admission facts and their original annotations as
+    retained ordinary results/receipts, without invented evidence or confirmation. Existing evidence-bearing
+    problem claims may retain Project identity under R1 without human confirmation; a missing human
+    verdict alone does not exclude them. Migration never sets a current Project assessment. Preserve
+    historical duplicate decisions with original source/target IDs and actor/time; add a mapped Project
+    target where one exists. They remain source annotations, never an implicit current Project verdict
+    or a new transitive equality rule. A link whose endpoints map to one Project problem is history only;
+    incompatible source targets remain separately visible without creating an active self-link/cycle.
 failure_outcomes:
 - operation: Accept and deduplicate normalized Project finding contributions
   permanent: Reject invalid/foreign/unsupported content and exact-revision or collision conflicts through
     the owning API/ERR contract fixed by V64-001. A deterministic ErrInvalid is permanent; no partial
-    authoritative result or endless retry.
+    authoritative result or endless retry. Explicit problem publication with no qualifying exact evidence
+    is a permanent validation rejection; retain the already accepted proposal/result and receipt without
+    a problem card. This alone neither fails the ordinary Run nor invents a semantic verdict. Foreign
+    or malformed evidence is rejected, not treated as an evidence-free observation.
   retryable: Use existing classified storage_transaction_conflict 503 and bounded retries of the same
     operation, with owning operation/Run timeout and attempt limits.
   ambiguous: Reconcile the original task/Run/publication/intake identity through existing keyed mutations
@@ -131,10 +168,15 @@ cardinality:
 - collection: Accept and deduplicate normalized Project finding contributions
   expected: 'One Project, two Audits and independent ordinary producer Runs, plus replay, qualified/weak
     matches and a negative recheck; no hypothesis or generator is required.'
-  maximum: Project lifetime collection has no new global count cap; use indexed pages (existing max 100/256
-    KiB where applicable), bounded intake slices and existing report/export/evidence ceilings.
+  maximum: Project lifetime collection has no new global count cap; use indexed pages with each owning
+    endpoint's existing item/byte/work bounds, bounded intake slices and existing report/export/evidence
+    ceilings. Any necessary source/history page declares its limits in the owning FND/LIM contract.
   bound: At most 128 admitted primary records / 1 MiB metadata per mutation slice; lists use existing
     page/byte bounds and explicit continuation.
+  scale_fixture: PostgreSQL fixture with at least 10000 Project problems and 50000 source contributions,
+    including 10000 sources for one qualified problem. These agent-selected verification sizes are not
+    new domain limits. Apply each endpoint's actual item/byte/work bounds; read-budget counters must detect
+    a full-history scan, whole-source fanout or per-row hydration during one page.
 lifecycle:
 - entity: Task-owned records and exact artifacts
   delete: Authenticated Audit/Project deletion uses the owning drain/purge path. No work or reader may
@@ -145,30 +187,54 @@ lifecycle:
     deletion until their owner releases them. Reading alone creates no hold.
 acceptance_criteria:
 - id: A1
-  given: an existing ordinary producer without a hypothesis and replayed finding publication
+  given: an existing ordinary producer without a hypothesis, an evidence-free proposal, an explicit
+    problem publication with exact evidence and replay of both accepted deliveries
   when: intake and the Project finding detail/list path reconcile using existing Run-to-Project forks
-  then: one logical contribution is accepted; provenance comes from trusted context, replay adds no
-    bindings or sources, and the path works without V64-004 or the new coordinator
+  then: only the evidenced problem becomes a Project card with one contribution and trusted provenance;
+    the evidence-free proposal remains readable as an ordinary result/receipt, explicit evidence-free
+    problem publication is rejected without Run failure, and replay adds no bindings or sources.
+    The path works without V64-004 or the new coordinator and publishes no automatic confirmation
 - id: A2
   given: independent confirmations from two Audits in one Project, qualified duplicates, weak-only or
     missing/ambiguous keys, a negative recheck and a positive-property check
   when: ordinary results are retained and Project problems are listed/deduplicated
   then: existing qualified matches identify one Project problem with every independent source; weak-only
     matches remain candidates and unavailable keys stay separate. Problem cards require evidenced problems,
-    negative rechecks remain linked results without automatic resolution, and pages stay bounded
+    negative rechecks remain linked results without automatic resolution, and pages stay bounded.
+    Conflicting source assessments such as confirmed/high and rejected retain their own conditions and
+    provenance; current Project assessment remains unset and no source is chosen as the overall verdict
 - id: A3
-  given: populated current Audit findings and decisions
+  given: populated current Audit findings, evidence-free/unverified proposals, conflicting assessments
+    and duplicate decisions whose mapped targets agree, disagree or collapse to the same problem
   when: migration, source Run/Audit purge and Project purge execute
   then: historical facts remain truthful and retained until the Project owner releases them; no orphan
-    holds remain
+    holds remain. Proposals lacking admission facts are not promoted into evidenced/confirmed problems,
+    qualifying evidence-bearing claims require no invented human verdict, original
+    duplicate targets and annotations remain readable as source history, and no current Project verdict,
+    active self-link or cycle is synthesized
+- id: A4
+  given: two independent Audits concurrently publish evidenced problems with the same qualified key
+  when: real PostgreSQL transactions contend and callers reconcile classified retryable conflicts with
+    their original operation identities
+  then: there is one Project problem and exactly two independent source contributions with all evidence;
+    replay adds neither a source nor a binding and no additional fence or receipt mechanism is introduced
+- id: A5
+  given: the large-history PostgreSQL fixture, including a high-multiplicity problem
+  when: Project problem and source/history readers traverse every page of the stable fixture, then a
+    concurrent change exercises the existing reader revision/cursor contract
+  then: stable traversal returns every selected record once, each page respects its actual item/byte/work
+    bounds without full-history hydration or N+1 reads, and concurrent changes follow documented cursor
+    semantics instead of silently dropping or replacing accepted records
 tests:
 - command: make require-database
 - command: go test -tags=integration -count=1 ./internal/findingintake/... ./internal/auditimport/...
-    ./internal/auditstore/... ./internal/artifacts/...
+    ./internal/auditstore/... ./internal/auditservice/... ./internal/artifacts/...
   covers:
   - A1
   - A2
   - A3
+  - A4
+  - A5
 - command: make test-findings-e2e
   covers:
   - A1
