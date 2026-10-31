@@ -2,10 +2,10 @@
 set -euo pipefail
 test "$(id -u)" = 0
 base=/etc/contractor-hybrid
-read -r litellm_image postgres_image dns < <(python3 - <<'PY'
+read -r litellm_image postgres_image dns db_address < <(python3 - <<'PY'
 import json
 d=json.load(open('/etc/contractor-hybrid/gateway.json'))
-print(d['images']['litellm'],d['images']['postgres'],d['dns'][0])
+print(d['images']['litellm'],d['images']['postgres'],d['dns'][0],d['egress']['host_address'])
 PY
 )
 case "$1" in
@@ -33,12 +33,12 @@ case "$1" in
     exec podman run --rm --replace --name contractor-hybrid-postgres --network host \
       --memory 512m --cpus 0.5 --env-file "$base/postgres.env" \
       -v contractor-hybrid-litellm-pgdata:/var/lib/postgresql/data \
-      "$postgres_image" -c listen_addresses=172.30.91.1 -p 54329
+      "$postgres_image" -c "listen_addresses=$db_address" -p 54329
     ;;
   litellm)
     ready=false
     for unused in $(seq 1 90); do
-      if podman exec contractor-hybrid-postgres pg_isready -U litellm -p 54329 -h 172.30.91.1 -d litellm >/dev/null 2>&1; then ready=true; break; fi
+      if podman exec contractor-hybrid-postgres pg_isready -U litellm -p 54329 -h "$db_address" -d litellm >/dev/null 2>&1; then ready=true; break; fi
       sleep 2
     done
     test "$ready" = true
@@ -53,7 +53,9 @@ case "$1" in
 from pathlib import Path
 import json,time,urllib.request,urllib.error
 values=dict(line.split('=',1) for line in Path('/etc/contractor-hybrid/litellm.env').read_text().splitlines())
-request=urllib.request.Request('http://172.30.91.2:4000/v1/models',headers={'Authorization':'Bearer '+values['LITELLM_MASTER_KEY']})
+gateway=json.loads(Path('/etc/contractor-hybrid/gateway.json').read_text())
+url='http://'+gateway['egress']['namespace_address']+':4000/v1/models'
+request=urllib.request.Request(url,headers={'Authorization':'Bearer '+values['LITELLM_MASTER_KEY']})
 for attempt in range(90):
     try:
         with urllib.request.urlopen(request,timeout=3) as response:

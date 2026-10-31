@@ -52,12 +52,12 @@ func noAnalysisSnapshot(t *testing.T, count int) findingexport.Snapshot {
 func TestRenderNoAnalysisIsDeterministicAndHonorsDuplicateParameter(t *testing.T) {
 	snapshot := noAnalysisSnapshot(t, 2)
 	snapshot.Results[1].Review = findingexport.Review{State: "duplicate", DuplicateTargetID: snapshot.Results[0].FindingID}
-	first, diagnostics, err := Render(snapshot)
-	if err != nil || len(diagnostics.Items) == 0 {
-		t.Fatalf("render: %v", err)
+	first, _, diagnostics := rendered(t, snapshot)
+	if len(diagnostics.Items) == 0 {
+		t.Fatal("missing diagnostics")
 	}
-	second, _, err := Render(snapshot)
-	if err != nil || !bytes.Equal(first, second) || first[len(first)-1] != '\n' {
+	second, _, _ := rendered(t, snapshot)
+	if !bytes.Equal(first, second) || first[len(first)-1] != '\n' {
 		t.Fatal("unstable rendering")
 	}
 	var document struct {
@@ -70,14 +70,12 @@ func TestRenderNoAnalysisIsDeterministicAndHonorsDuplicateParameter(t *testing.T
 		t.Fatalf("unexpected projection: %+v %v", document, err)
 	}
 	snapshot.Request.IncludeDuplicates = true
-	_, snapshot.RequestDigest, err = snapshot.Request.Normalize(snapshot.AuditID)
+	_, digest, err := snapshot.Request.Normalize(snapshot.AuditID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	expanded, _, err := Render(snapshot)
-	if err != nil {
-		t.Fatal(err)
-	}
+	snapshot.RequestDigest = digest
+	expanded, _, _ := rendered(t, snapshot)
 	if err := json.Unmarshal(expanded, &document); err != nil || len(document.Runs[0].Results) != 2 {
 		t.Fatal("includeDuplicates did not retain results")
 	}

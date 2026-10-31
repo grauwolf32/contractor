@@ -15,7 +15,14 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "hybrid"))
-from common import DEFAULT_STATE, apply_remote, load_state, secure_write, ssh
+from common import (
+    DEFAULT_STATE,
+    apply_remote,
+    egress_settings,
+    load_state,
+    secure_write,
+    ssh,
+)
 
 
 def parse_profile(path):
@@ -47,7 +54,7 @@ def parse_profile(path):
     allowed = [str(ipaddress.ip_network(x.strip())) for x in peer["allowedips"].split(",")]
     if "0.0.0.0/0" not in allowed:
         raise ValueError("provider profile must carry the IPv4 default route")
-    dns = [str(ipaddress.ip_address(x.strip())) for x in interface.get("dns", "1.1.1.1").split(",")]
+    dns = [str(ipaddress.ip_address(x.strip())) for x in interface["dns"].split(",")]
     mtu = int(interface.get("mtu", "1380"))
     if not 1280 <= mtu <= 1420:
         raise ValueError("MTU must be between 1280 and 1420")
@@ -91,6 +98,7 @@ def main():
         return
     config, metadata = parse_profile(args.config)
     metadata.update(mesh_address=host["address"], mesh_network=doc["network"])
+    metadata["egress"] = egress_settings(doc)
     secure_write(state / "secrets" / "wg-egress.conf", config)
     secure_write(state / "egress.json", json.dumps(metadata, indent=2) + "\n")
     unit = """[Unit]

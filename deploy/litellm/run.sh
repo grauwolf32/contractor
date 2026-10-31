@@ -11,17 +11,37 @@ network_name=${CONTRACTOR_LITELLM_NETWORK:-contractor-litellm}
 upstream_key_file=${CONTRACTOR_OPENROUTER_API_KEY_FILE:?CONTRACTOR_OPENROUTER_API_KEY_FILE is required}
 master_key_file=${CONTRACTOR_LITELLM_MASTER_KEY_FILE:?CONTRACTOR_LITELLM_MASTER_KEY_FILE is required}
 salt_key_file=${CONTRACTOR_LITELLM_SALT_KEY_FILE:?CONTRACTOR_LITELLM_SALT_KEY_FILE is required}
+password_file=${CONTRACTOR_LITELLM_POSTGRES_PASSWORD_FILE:?CONTRACTOR_LITELLM_POSTGRES_PASSWORD_FILE is required}
 
-if [ ! -f "$master_key_file" ] || [ -L "$master_key_file" ] || [ ! -f "$salt_key_file" ] || [ -L "$salt_key_file" ] || [ ! -f "$upstream_key_file" ] || [ -L "$upstream_key_file" ]; then
-  echo 'LiteLLM master, salt and upstream key paths must be regular non-symlink files' >&2
-  exit 1
-fi
-master_key=$(sed -n '1p' "$master_key_file")
-salt_key=$(sed -n '1p' "$salt_key_file")
-upstream_key=$(sed -n '1p' "$upstream_key_file")
+read_secret() {
+  python3 - "$1" <<'PY'
+import pathlib, stat, sys
+try:
+    path = pathlib.Path(sys.argv[1])
+    mode = path.lstat().st_mode
+    if not stat.S_ISREG(mode) or mode & 0o077:
+        raise ValueError()
+    with path.open() as stream:
+        value = stream.read(4097).strip()
+    if not value or len(value) > 4096 or any(c.isspace() or ord(c) < 32 for c in value):
+        raise ValueError()
+except (OSError, ValueError, UnicodeError):
+    raise SystemExit('LiteLLM credentials require regular owner-only files with one nonempty value')
+print(value)
+PY
+}
+master_key=$(read_secret "$master_key_file")
+salt_key=$(read_secret "$salt_key_file")
+upstream_key=$(read_secret "$upstream_key_file")
+database_password=$(read_secret "$password_file")
 case "$master_key" in sk-*) ;; *) echo 'LiteLLM master key must start with sk-' >&2; exit 1 ;; esac
 case "$salt_key" in sk-*) ;; *) echo 'LiteLLM salt key must start with sk-' >&2; exit 1 ;; esac
 case "$upstream_key" in sk-or-v1-?*) ;; *) echo 'OpenRouter inference key must start with sk-or-v1-' >&2; exit 1 ;; esac
+case "$database_password" in *[!A-Za-z0-9_-]*) echo 'PostgreSQL password must use URL-safe letters, digits, underscores or hyphens' >&2; exit 1 ;; esac
+
+# Pass both bootstrap password and DSN by environment name, including DB creation.
+export POSTGRES_PASSWORD="$database_password"
+export DATABASE_URL="postgresql://postgres:$database_password@$database_name:5432/litellm"
 
 if ! podman network exists "$network_name"; then
   podman network create "$network_name" >/dev/null
@@ -31,7 +51,7 @@ if podman container exists "$database_name"; then
   podman start "$database_name" >/dev/null
 else
   podman run -d --name "$database_name" --network "$network_name" \
-    -e POSTGRES_PASSWORD=contractor-litellm-local \
+    -e POSTGRES_PASSWORD \
     -e POSTGRES_DB=litellm \
     -v "$database_volume:/var/lib/postgresql/data:Z" \
     "$postgres_image" >/dev/null
@@ -59,7 +79,7 @@ exec podman run --rm --name "$proxy_name" --network "$network_name" \
   -p 127.0.0.1:4000:4000 \
   -e LITELLM_MASTER_KEY \
   -e LITELLM_SALT_KEY \
-  -e DATABASE_URL="postgresql://postgres:contractor-litellm-local@$database_name:5432/litellm" \
+  -e DATABASE_URL \
   -e OPENROUTER_API_KEY \
   -v "$script_dir/litellm_config.yaml:/app/config.yaml:ro,Z" \
   "$litellm_image" \

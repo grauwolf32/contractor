@@ -4,18 +4,20 @@ These scripts extend an existing local Server deployment. They reuse
 `deploy/ansible` for Runtime installation and the existing deployment CA. They
 do not deploy another Server or migrate the Contractor database.
 
-Default topology:
+Illustrative topology (choose your addresses and SSH aliases):
 
 ```text
-Mac 10.77.0.10                  cloudru1 10.77.0.11
+Controller 10.42.0.10           worker-a 10.42.0.11
   existing Server                one Runtime slot :9443
   PostgreSQL                     LiteLLM :4000 -> isolated wg-egress -> OpenRouter
   local Runtime Agents           persistent LiteLLM PostgreSQL
   mesh :8443 -> loopback :8443
              \
-              WireGuard mesh -- cloudru2 10.77.0.12
+              WireGuard mesh -- worker-b 10.42.0.12
                                   one Runtime slot :9443
 ```
+
+The example host aliases must exist in your local SSH configuration.
 
 The mesh has individual keys and /32 routes; it does not replace any host's
 default route. LiteLLM alone uses the provider VPN profile. One provider profile
@@ -31,10 +33,14 @@ subcommand; the default is the gitignored `.local/hybrid/` directory.
 ## Bring up the network
 
 ```sh
-python3 deploy/wireguard/mesh.py init cloudru1 cloudru2
+python3 deploy/wireguard/mesh.py init worker-a worker-b \
+  --network 10.42.0.0/24 --egress-network 172.25.18.0/30 \
+  --egress-check-url https://provider.example/health
 python3 deploy/wireguard/mesh.py apply
-# Only for Cloud.ru images with the unavailable vendor Ubuntu mirror:
-# python3 deploy/wireguard/mesh.py apply --ubuntu-mirror https://ru.archive.ubuntu.com/ubuntu
+# Optional: replace one exact unavailable Ubuntu mirror (both URLs required):
+# python3 deploy/wireguard/mesh.py apply \
+#   --ubuntu-mirror-source https://old-mirror.example/ubuntu \
+#   --ubuntu-mirror https://new-mirror.example/ubuntu
 python3 deploy/wireguard/mesh.py local-up
 python3 deploy/wireguard/mesh.py status
 python3 deploy/wireguard/egress.py apply --config /absolute/path/provider.conf
@@ -48,7 +54,7 @@ On macOS, `local-up` also restores an explicit route for the deployment's privat
 mesh /24. It discovers the interface by the controller address, verifies its
 WireGuard public identity, and checks that each peer routes through it. It also
 reconciles one exact host route for the controller's own mesh address through
-`lo0` (for example, `10.77.0.10/32`). Local Runtime calls to the advertised
+`lo0` (for example, `10.42.0.10/32`). Local Runtime calls to the advertised
 private API can then use local delivery, while remote peer routes still use
 the mesh interface. Both route classes are read back before reporting readiness.
 On macOS the commands pass `-ifp` to select the actual output interface as well
@@ -73,13 +79,20 @@ There is no background route monitor for VPN changes or automatic activation
 added by this helper; rerun `local-up` after such a change. Linux cloud startup
 continues to use `wg-quick@wg-mesh` and the per-peer /32 routes.
 Remote peers listen on UDP 51821; allow this in the cloud security group. The
-Mac can be behind NAT and initiates connections with keepalives. On cloudru1
+Mac can be behind NAT and initiates connections with keepalives. On the gateway host
 the provider tunnel additionally needs outbound UDP to its configured endpoint.
 
 Runtime and LiteLLM listen on the mesh; the public Server API stays on loopback.
-The namespace uses 172.30.91.0/30; choose a different subnet in the scripts
-before installation if this overlaps an existing route. The current scripts
-assume this fixed private subnet and a stable mesh topology. To add peers,
+The mesh and namespace networks are explicit operator inputs recorded in
+`.local/hybrid/deployment.json`; the values above are examples. Replace the
+probe URL with a real HTTPS endpoint reachable through the provider VPN.
+The manifest shape is illustrated in [deployment.example.json](deployment.example.json).
+The namespace requires a private IPv4 /30 outside the private mesh /24; choose
+both to avoid existing host routes. Its first two usable addresses become the
+host and namespace addresses across routing, firewall, database and SSH tunnel.
+Do not change an installed namespace network in place: stop its dependent services
+and tear down its owned network resources before installing a different network.
+The current scripts assume a stable mesh topology. To add peers,
 render and reapply all peer configurations, then restart remote `wg-quick`
 units during a maintenance window so new routes are installed.
 
@@ -92,6 +105,7 @@ python3 deploy/hybrid/bootstrap.py tunnel
 python3 deploy/hybrid/bootstrap.py --token-file /absolute/path/api-token publish
 ```
 
+The provider profile must declare its DNS servers explicitly.
 The OpenRouter key file must be owner-only (0600). Images use the existing
 digest pins and model aliases from `deploy/litellm`. Existing model selections
 are preserved. The gateway is shared by the cloud workers. Its persistent
@@ -118,7 +132,7 @@ This writes a separate Server profile and a separate leaf certificate with the
 mesh IP, signed by the existing CA. The original configuration and certificates
 are preserved. The private listener stays on 127.0.0.1:8443, so existing local
 Runtime URLs continue to work. A bounded raw TCP ingress exposes that same
-mTLS listener on 10.77.0.10:8443 without terminating TLS.
+mTLS listener on 10.42.0.10:8443 without terminating TLS.
 
 For the optional guarded restart helper, create an owner-only JSON file:
 
@@ -188,8 +202,8 @@ registered declarations. Drain affected slots and rerun without that flag to
 apply the new declaration. A failed or interrupted deployment can be rerun from
 the same source manifest without changing the desired location.
 
-Start with one slot per host: these VPS have only 2 CPUs and 4 GB RAM, and
-cloudru1 also hosts LiteLLM. The default profile provides source analysis with
+Start with one slot per host and size additional slots against measured CPU
+and memory capacity, including LiteLLM on the gateway host. The default profile provides source analysis with
 local workspaces and tree-sitter parsers. It omits Podman, external scanners,
 and external OpenAPI/LikeC4 validators. `--full-capabilities` installs the full
 Ansible profile when needed. A label configures execution settings; it does not
@@ -262,6 +276,11 @@ provider bodies and credentials.
 
 ## Secrets and recovery
 
+Keep concrete SSH aliases, addresses, mirror mappings, local launch commands
+and operational reports in a private `.local/` runbook. The repository contains
+reusable scripts and illustrative examples; it must not become the record of a
+particular installation. The shared `deploy/models/` catalog remains versioned.
+
 Generated WireGuard keys and gateway master/salt/database keys live in
 `.local/hybrid/` with mode 0600, in directories created with mode 0700. Remote
 gateway secrets live in root-owned `/etc/contractor-hybrid/*.env` (0600).
@@ -285,7 +304,7 @@ until `seal` succeeds. Never commit plaintext state, `.env` files or VPN profile
 Stopping services does not remove persisted data. For rollback, stop the local
 ingress PID recorded in state and start the previous Server binary/config from
 `server-previous.json` with the original environment. Stop remote Runtime user
-units before taking down the mesh. On cloudru1 stop LiteLLM and its PostgreSQL
+units before taking down the mesh. On the gateway host, stop LiteLLM and its PostgreSQL
 before stopping `contractor-wg-egress`. Namespace cleanup removes only resources
 owned by these scripts; it does not delete either database volume.
 

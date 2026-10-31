@@ -262,6 +262,20 @@ managed configuration root that supports hard links; see
 and are not durable; see the
 [Kubernetes volume contract](https://kubernetes.io/docs/concepts/storage/volumes/#emptydir).
 
+**OPS-R227.** Versioned deployment tooling contains reusable operations, pinned
+dependencies, shared model catalogs and illustrative examples. Concrete host
+aliases, installation addresses and network selections, provider mirror mappings,
+credentials, VPN/PKI material, generated inventories and operational runbooks
+belong in ignored local state under `.local/` or an explicitly selected private
+state directory. The hybrid manifest declares its mesh and namespace networks
+and provider connectivity-check URL explicitly; all namespace consumers derive
+addresses from that same input. Missing or invalid input fails before remote
+mutation. Deployment launchers read secrets from private files and pass them to
+containers through files or environment names, never literal process arguments.
+Changing a password file does not rotate a password in an existing database
+volume. The [deployment tooling guide](../../../deploy/README.md) describes the
+operator inputs and examples.
+
 ### Process settings and operational budgets
 
 **OPS-R12.** `ServerConfig.spec` contains typed, non-secret process

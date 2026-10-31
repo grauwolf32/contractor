@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import ipaddress
 import json
 import os
 import re
@@ -10,9 +11,58 @@ import shlex
 import subprocess
 import tempfile
 from pathlib import Path
+from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_STATE = ROOT / ".local" / "hybrid"
+
+
+def mesh_network(value):
+    if not isinstance(value, str):
+        raise ValueError("mesh network must be a private IPv4 /24")
+    network = ipaddress.ip_network(value)
+    if network.version != 4 or network.prefixlen != 24 or not network.is_private:
+        raise ValueError("mesh network must be a private IPv4 /24")
+    return network
+
+
+def egress_settings(document):
+    """Derive all namespace consumers from the operator's explicit /30."""
+    settings = document.get("egress")
+    if not isinstance(settings, dict) or set(settings) != {"network", "check_url"}:
+        raise ValueError("set deployment.json egress.network and egress.check_url explicitly")
+    if not isinstance(settings["network"], str):
+        raise ValueError("egress network must be a private IPv4 /30 outside the mesh")
+    network = ipaddress.ip_network(settings["network"])
+    mesh = mesh_network(document["network"])
+    if (
+        network.version != 4
+        or network.prefixlen != 30
+        or not network.is_private
+        or network.overlaps(mesh)
+    ):
+        raise ValueError("egress network must be a private IPv4 /30 outside the mesh")
+    url = settings["check_url"]
+    if not isinstance(url, str) or len(url) > 2048:
+        raise ValueError("egress check_url must be a plain HTTPS URL")
+    parts = urlsplit(url)
+    if (
+        parts.scheme != "https"
+        or not parts.hostname
+        or parts.username is not None
+        or parts.password is not None
+        or parts.query
+        or parts.fragment
+        or any(character.isspace() or ord(character) < 32 for character in url)
+    ):
+        raise ValueError("egress check_url must be a plain HTTPS URL")
+    return {
+        "network": str(network),
+        "host_address": str(network.network_address + 1),
+        "namespace_address": str(network.network_address + 2),
+        "prefix_length": network.prefixlen,
+        "check_url": url,
+    }
 
 
 def run(argv, *, data=None, timeout=120, show=False, env=None):
@@ -138,6 +188,7 @@ def load_state(path):
     document = json.loads((path / "deployment.json").read_text())
     if document.get("version") != 1:
         raise ValueError("unsupported deployment state version")
+    egress_settings(document)
     aliases = [ssh_target(host["ssh"]) for host in document["hosts"]]
     endpoints = [ssh_hostname(alias) for alias in aliases]
     if len(set(endpoints)) != len(endpoints):

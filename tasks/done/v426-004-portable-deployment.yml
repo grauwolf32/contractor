@@ -1,0 +1,89 @@
+schema_version: "1.0"
+id: V426-004
+title: Separate local deployment settings from reusable deployment scripts
+milestone: hub-audit-defects-2026-10
+epic: operations
+kind: chore
+priority: P3
+status: completed
+depends_on: []
+languages: [python, shell]
+goal: Keep deployment scripts reusable and ready to publish while preserving the existing environment and secrets under ignored .local state.
+context:
+  authority:
+    - date: 2026-10-31
+      source: user
+      decision: Move concrete environment values to .local and retain generic scripts in deploy before pushing to origin.
+    - date: 2026-10-31
+      source: user
+      decision: Keep the shared GLM/OpenRouter model catalog; only local deployment parameters move.
+  specification:
+    - docs/spec/operations/operations.md
+  finding: >-
+    deploy/wireguard/mesh.py:379 defaults to the local mesh subnet;
+    linux-egress.sh, hybrid/gateway.py, gateway.sh and bootstrap.py repeat one
+    namespace subnet. linux-mesh.sh:16 names a particular provider mirror.
+    deploy/litellm/run.sh:36 embeds a database password and passes it in argv.
+    deploy/hybrid/README.md documents specific host aliases and hardware.
+    The original hybrid implementation is baeb04eddf918141d342438eb66da5b2d573fcfa;
+    as V415-004 records, no task identifies that deployment addition. Local state is already ignored by Git.
+  boundary: >-
+    The operator owns addresses, provider probe URL, SSH aliases, mirror mapping,
+    credentials and local runbooks in .local. deploy owns deterministic derivation,
+    bounded deployment operations, reusable examples, pinned images and tool versions.
+    Existing deployment.json owns network configuration; extend it rather than
+    introduce another configuration system. Namespace addresses derive once from
+    an explicit private IPv4 /30. Require the new input without a legacy fallback.
+    Preserve current local values, keys and identities, using a private backup
+    before extending the local manifest. No services are restarted or deployed.
+    The shared model catalog, generated policies and model choices stay unchanged.
+  alternatives: >-
+    Moving whole scripts to .local would hide reusable operations and duplicate
+    them for the next environment. Parameterize the existing consumers instead;
+    reopen only when a real different topology needs more capabilities.
+  failure_outcomes: >-
+    Missing or invalid network inputs fail before SSH or file replacement.
+    Networks cannot overlap. Missing, symlinked or malformed credential files
+    fail before Podman. Secrets travel by file or environment name, never literal
+    argv. Existing bounded SSH/readiness/replay behavior is unchanged. Existing
+    persistent volumes require their original password; no implicit rotation,
+    deletion, migration, deployment or database connection occurs in this task.
+scope:
+  in:
+    - Require explicit mesh and namespace networks and provider check URL; share derived namespace addresses across firewall, database, Gateway and management tunnel.
+    - Replace provider-specific mirror substitution with an explicit source and target pair.
+    - Read the local LiteLLM PostgreSQL password from an owner-only file and omit it from all Podman arguments.
+    - Preserve the current local deployment inputs and runbook under .local, and publish generic examples and instructions.
+    - Add regression coverage for changed deployment paths using disposable fixtures and real local subprocesses.
+  out:
+    - Changing shared model profiles, generated model contracts, live models, services, schemas or persistent volumes.
+    - Rewriting Git history, pushing, merging or changing another branch's unfinished work.
+    - General secret scanning of repository history or unrelated product refactoring.
+acceptance_criteria:
+  - id: A1
+    text: Two different fixture networks produce consistent namespace, firewall, Gateway DB and SSH-forward addresses, with invalid or overlapping input rejected before remote work.
+  - id: A2
+    text: No actual host aliases, local mesh/namespace defaults, provider mirror or embedded deployment password remain in reusable scripts; examples identify their values as illustrative.
+  - id: A3
+    text: Local state, keys and existing business data remain preserved; local parameters and runbook are ignored by Git and no live deployment is executed.
+  - id: A4
+    text: All LiteLLM launch secrets, including the database password and derived DSN, are absent from Podman argv; invalid credential files fail before Podman.
+  - id: A5
+    text: Documentation and the operations spec describe the local-input boundary, and complete deployment suites and lint succeed or report concrete external blockers without claiming a pass.
+tests:
+  - command: make test-hybrid
+    covers: [A1, A2, A3, A5]
+  - command: make test-ansible
+    covers: [A1, A5]
+  - command: sh deploy/litellm/test-run-argv.sh
+    covers: [A4, A5]
+  - command: make lint
+    covers: [A2, A5]
+verification_results:
+  - "make test-hybrid: passed; final complete deployment suite has 49 tests, including two namespace networks and real shell command fixtures."
+  - "make test-ansible: passed (syntax, ansible-lint and complete role suites)."
+  - "sh deploy/litellm/test-run-argv.sh: passed for database creation and reuse; all credential values and the DSN stay out of argv."
+  - "make lint: passed with local Go 1.26.9, Node 24.20.0 and independent worktree dependencies."
+  - "Private local manifest backups were verified; original fields are unchanged, new explicit egress inputs match the running layout, and private files have mode 0600 and are ignored. No live deployment or database operation was run."
+  - "After rebasing only this change onto current main: make lint passed again; no unrelated Planner changes are included."
+implementation_commit: 0726f9b0bdc7318db7fe9bff8c19a25f484017e5

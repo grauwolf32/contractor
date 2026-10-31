@@ -7,13 +7,14 @@ grep -q '^# Managed by Contractor WireGuard mesh$' "$config"
 case "$1" in
   up)
     if test "$#" -gt 1 && test -n "$2"; then
-      python3 - "$2" <<'PY'
+      test "$#" = 3 && test -n "$3"
+      python3 - "$2" "$3" <<'PY'
 from pathlib import Path
 import shutil
 import sys
 p = Path('/etc/apt/sources.list.d/ubuntu.sources')
 original = p.read_text()
-old = 'https://repo.mng.sbercloud.tech/repository/ubuntu'
+old = sys.argv[2].rstrip('/')
 new = sys.argv[1].rstrip('/')
 if old in original:
     backup = p.with_name('ubuntu.sources.contractor-backup')

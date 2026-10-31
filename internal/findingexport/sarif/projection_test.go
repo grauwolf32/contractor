@@ -150,6 +150,9 @@ func rendered(t *testing.T, s findingexport.Snapshot) ([]byte, object, findingex
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err := validateSemantics(doc, s); err != nil {
+		t.Fatalf("output semantics: %v", err)
+	}
 	return data, doc, diagnostics
 }
 func runResult(document object) (object, object) {
