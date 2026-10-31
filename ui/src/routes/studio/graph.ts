@@ -233,9 +233,13 @@ export function buildGraph(draft: Draft): StudioGraph {
         ["spec", key],
         key,
         title,
-        textValue(spec[key]) ||
-          textValue(record(spec[key]).ref) ||
-          "Unconfigured",
+        key === "summarizer"
+          ? spec.summarizer === undefined
+            ? "Disabled"
+            : "Terminal summary"
+          : textValue(spec[key]) ||
+              textValue(record(spec[key]).ref) ||
+              "Unconfigured",
       );
       edge(["spec", key], ["metadata"], title, "wire");
     }
