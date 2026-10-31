@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-81 open tasks: 10 in progress, 60 pending, 11 deferred. 1279 finished: 1264 completed, 15 archived.
+82 open tasks: 10 in progress, 61 pending, 11 deferred. 1279 finished: 1264 completed, 15 archived.
 
 ## In progress
 
@@ -74,6 +74,7 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V411-007](v411-007-trusted-http-capture.yml) | defect | P1 | — | Retain actual engagement HTTP exchanges through ordinary Audit evidence |
 | [V411-011](v411-011-project-findings-reader.yml) | feature | P1 | V411-015 | Read live Project findings through allocation-authorized existing mechanisms |
+| [V425-032](v425-032-sarif-output-checks-in-tests.yml) | chore | P3 | — | Move SARIF output schema and semantic self-checks into tests |
 
 ### Workflow catalog and document workflows (`workflows`)
 
@@ -196,7 +197,7 @@ tasks in `introduced_by`.
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
 | HTTP and Caido tools (`http-tools`) | 4 | 22 | 27 | 9 | 25 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 2 | 17 | 10 | 9 | 19 |
-| Findings tools and collections (`findings`) | 2 | 16 | 9 | 8 | 13 |
+| Findings tools and collections (`findings`) | 3 | 16 | 9 | 9 | 14 |
 | Workflow catalog and document workflows (`workflows`) | 4 | 18 | 15 | 12 | 19 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 36 | 37 | 11 | 60 |
 | Audits (`audits`) | 23 | 67 | 82 | 35 | 121 |
