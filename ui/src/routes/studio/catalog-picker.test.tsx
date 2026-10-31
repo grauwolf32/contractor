@@ -18,7 +18,6 @@ function agent(name: string, version: string) {
       description: `Published ${name}`,
       runtime: "llm@1",
       instructions: { ref: "instructions/agent.md", digest: DIGEST },
-      modelPolicy: { policyId: "worker", version: "1", digest: DIGEST },
       sandboxProfile: "default@1",
       toolsets: [],
     },

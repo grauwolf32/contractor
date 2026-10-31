@@ -381,6 +381,7 @@ func TestImplementedPublicHandlersConformToOpenAPI(t *testing.T) {
 	if response := serveAndValidatePublicContract(t, router, fixture.handler, getConfiguration, true); response.Code != http.StatusOK {
 		t.Fatalf("get configuration = %d: %s", response.Code, response.Body.String())
 	}
+	operationsPolicy, _ := fixture.configs.Snapshot().ModelPolicy("worker@1")
 	operationsTemplate, _ := configloadtest.AgentTemplate(fixture.configs.Snapshot(), "artifact_builder@1")
 	operationsGateway, _ := fixture.configs.Snapshot().LLMGateway("local-litellm@1")
 	operationsNow := time.Date(2026, 8, 31, 1, 0, 0, 0, time.UTC)
@@ -405,7 +406,7 @@ func TestImplementedPublicHandlersConformToOpenAPI(t *testing.T) {
 			StageExecutionID: "stage-contract", RuntimeAgentInstanceID: "runtime-contract",
 			LogicalWorker: "builder", AgentTemplate: operationsTemplate.Ref,
 			ExecutionConfig: controlplane.AllocationExecutionConfig{
-				ModelPolicy: operationsTemplate.ModelPolicy.Ref, LLMGateway: operationsGateway.Ref,
+				ModelPolicy: operationsPolicy.Ref, LLMGateway: operationsGateway.Ref,
 			},
 			AuthoritativePhase: controlplane.AllocationPreparing,
 			ObservedPhase:      controlplane.AllocationObservedAbsent,

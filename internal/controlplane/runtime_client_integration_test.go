@@ -128,7 +128,7 @@ func testCrossLanguageMTLSAllocationLifecycle(t *testing.T, terminal string) {
 	reservation.PerformanceCollectionPolicy = reporting.PerformanceCollectionRequested
 	reservation.PerformanceMetrics = reservation.PerformanceCollectionPolicy.Request()
 	settings := runtimesettings.WorkerExecutionSettings{
-		ModelPolicy: template.ModelPolicy, RuntimeSettings: testRuntimeSettings(),
+		ModelPolicy: testWorkerPolicy(t), RuntimeSettings: testRuntimeSettings(),
 		ResolvedRuntimeConfigProvenance: testRuntimeProvenance(),
 	}
 

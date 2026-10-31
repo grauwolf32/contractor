@@ -297,6 +297,10 @@ func reservationRequest(t *testing.T, runID, stageID string) controlplane.Reserv
 	if err != nil {
 		t.Fatal(err)
 	}
+	policy, err := snapshot.ModelPolicy("worker@1")
+	if err != nil {
+		t.Fatal(err)
+	}
 	gateway, err := snapshot.LLMGateway("local-litellm@1")
 	if err != nil {
 		t.Fatal(err)
@@ -307,7 +311,7 @@ func reservationRequest(t *testing.T, runID, stageID string) controlplane.Reserv
 			LogicalAgentName: "builder", Namespace: "builder", AgentTemplate: template,
 			WorkerSessionMode: contracts.WorkerSessionIsolated, ContextManagement: contracts.WorkerContextManagement{Strategy: contracts.ContextStrategyNone},
 			ExecutionConfig: controlplane.AllocationExecutionConfig{
-				ModelPolicy: template.ModelPolicy.Ref, LLMGateway: gateway.Ref,
+				ModelPolicy: policy.Ref, LLMGateway: gateway.Ref,
 			},
 		}},
 	}

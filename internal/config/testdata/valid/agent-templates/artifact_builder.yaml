@@ -8,7 +8,6 @@ spec:
   runtime: adk@1
   instructions:
     ref: instructions/artifact-builder.md
-  modelPolicy: worker@1
   toolsets:
     - ref: run-artifacts@1
       tools: [list_artifacts, read_artifact, write_artifact]

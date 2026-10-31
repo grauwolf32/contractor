@@ -426,6 +426,12 @@ which would have no consumer. The same combinations are rejected when a
 persisted snapshot is read and when an allocation is admitted
 ([WRK-R184](../execution/worker.md)).
 
+Every modeled Worker binding requires a compatible effective main
+`modelPolicy` from Workflow executionConfig. A binding using terminal
+summarization also requires `summarizerModelPolicy`; neither selection falls
+back to AgentTemplate. A small model and a stronger model can therefore use the
+same exact template in different bindings or Workflows (TPL-R15, TPL-R112).
+
 **WFL-R94.** Resolution pins the compactor policy body, the instruction
 ref, digest and text and every resolved member into the Workflow, Run, Stage
 and allocation snapshots. Deployment model selection does not retarget the

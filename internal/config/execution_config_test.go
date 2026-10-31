@@ -25,6 +25,7 @@ func TestResolveRunWorkflowPinsAuthoredWorkerLayers(t *testing.T) {
     workers:
       llmGateway: local-litellm@1
       credential: development-worker
+      modelPolicy: test-worker@1
 `, `  executionConfig:
     workers:
       modelPolicy: test-domain-worker@1
@@ -107,8 +108,9 @@ func TestResolveRunWorkflowAllowsOnlyWorkerPhysicalGatewayToRemainAbsent(t *test
     workers:
       llmGateway: local-litellm@1
       credential: development-worker
+      modelPolicy: test-worker@1
 
-`, "")
+`, "  executionConfig:\n    workers: {modelPolicy: test-worker@1}\n\n")
 	snapshot, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatal(err)
@@ -121,7 +123,7 @@ func TestResolveRunWorkflowAllowsOnlyWorkerPhysicalGatewayToRemainAbsent(t *test
 	}
 	selection := workflow.Stages[workflow.EntryStage].ExecutionConfig.Agents["builder"]
 	if selection.LLMGateway != nil || selection.ModelPolicy.Ref.PolicyID != "test-worker" ||
-		selection.Origins.ModelPolicy != originAgentTemplate || selection.Origins.LLMGateway != "" {
+		selection.Origins.ModelPolicy != originWorkflowPrefix+".workers" || selection.Origins.LLMGateway != "" {
 		t.Fatalf("partially routed Worker selection = %+v", selection)
 	}
 
@@ -148,6 +150,7 @@ func TestResolveRunWorkflowKeepsPlannerAndWorkerSelectionsIndependent(t *testing
     workers:
       llmGateway: local-litellm@1
       credential: development-worker
+      modelPolicy: test-worker@1
 `, `  executionConfig:
     planner:
       modelPolicy: test-planner@1
@@ -192,8 +195,8 @@ func TestWorkflowWidePlannerDefaultSkipsPassthroughStages(t *testing.T) {
 	root := copyCoreFixture(t)
 	workflow := strings.Replace(
 		multiStageWorkflowYAML,
-		"  executionConfig:\n    workers: {llmGateway: local-litellm@1}\n",
-		"  executionConfig:\n    planner: {modelPolicy: test-planner@1, llmGateway: local-litellm@1}\n    workers: {llmGateway: local-litellm@1}\n",
+		"  executionConfig:\n    workers: {modelPolicy: test-worker@1, llmGateway: local-litellm@1}\n",
+		"  executionConfig:\n    planner: {modelPolicy: test-planner@1, llmGateway: local-litellm@1}\n    workers: {modelPolicy: test-worker@1, llmGateway: local-litellm@1}\n",
 		1,
 	)
 	workflow = strings.Replace(workflow, "      planner: passthrough@1", "      planner: streamline@1", 2)
@@ -237,7 +240,7 @@ func TestExecutionConfigRejectsConsumerIncompatibilityAndInvalidWorkflowPatches(
 			name: "tool Worker policy missing maxToolCalls",
 			mutate: func(t *testing.T, root string) {
 				path := filepath.Join(root, "workflows/artifact_copy.yaml")
-				replaceFile(t, path, "    workers:\n", "    workers:\n      modelPolicy: test-planner@1\n")
+				replaceFile(t, path, "modelPolicy: test-worker@1", "modelPolicy: test-planner@1")
 			},
 			want: "tool-using Worker modelPolicy requires maxToolCalls",
 		},
@@ -255,8 +258,8 @@ func TestExecutionConfigRejectsConsumerIncompatibilityAndInvalidWorkflowPatches(
 				path := filepath.Join(root, "workflows/artifact_copy.yaml")
 				replaceFile(
 					t, path,
-					"    workers:\n      llmGateway: local-litellm@1\n      credential: development-worker\n",
-					"    workers:\n      llmGateway: local-litellm@1\n      credential: development-worker\n    stages:\n      absent:\n        agents: {}\n",
+					"    workers:\n      llmGateway: local-litellm@1\n      credential: development-worker\n      modelPolicy: test-worker@1\n",
+					"    workers:\n      llmGateway: local-litellm@1\n      credential: development-worker\n      modelPolicy: test-worker@1\n    stages:\n      absent:\n        agents: {}\n",
 				)
 			},
 			want: "unknown Stage",

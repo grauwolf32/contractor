@@ -87,30 +87,48 @@
         "temperature": {"type": "number", "minimum": 0}
       }
     },
+    "workerSummarizerModelPolicy": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/resolvedModelPolicy"
+        },
+        {
+          "required": [
+            "contextWindowTokens",
+            "maxOutputTokens",
+            "maxModelCalls"
+          ],
+          "properties": {
+            "maxModelCalls": {
+              "const": 1
+            }
+          },
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "maxToolCalls"
+                ]
+              },
+              {
+                "required": [
+                  "maxWorkerCalls"
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
     "workerSummarizerConfig": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["modelPolicy", "contextWindowRatio", "includeReasoning"],
+      "required": ["contextWindowRatio", "includeReasoning"],
       "properties": {
         "instructions": {
           "allOf": [
             {"$ref": "#/$defs/resolvedAgentTemplate/properties/instructions"},
             {"properties": {"text": {"maxLength": 8000, "pattern": "\\S"}}}
-          ]
-        },
-        "modelPolicy": {
-          "allOf": [
-            {"$ref": "#/$defs/resolvedModelPolicy"},
-            {
-              "required": ["contextWindowTokens", "maxOutputTokens", "maxModelCalls"],
-              "properties": {"maxModelCalls": {"const": 1}},
-              "not": {
-                "anyOf": [
-                  {"required": ["maxToolCalls"]},
-                  {"required": ["maxWorkerCalls"]}
-                ]
-              }
-            }
           ]
         },
         "cumulativeBudget": {"type": "integer", "minimum": 1, "maximum": 100000000},
@@ -233,9 +251,9 @@
       "if": {"properties": {"runtime": {"properties": {"runtimeId": {"const": "tool"}, "version": {"const": "1"}}}}},
       "then": {
         "required": ["execution"],
-        "properties": {"instructions": false, "modelPolicy": false, "summarizer": false, "skills": {"maxItems": 0}, "toolsets": {"minItems": 1, "maxItems": 1, "items": {"properties": {"tools": {"maxItems": 1}}}}, "sandboxProfile": {"properties": {"sandboxProfileId": {"const": "local-workdir"}, "version": {"const": "1"}}}}
+        "properties": {"instructions": false, "summarizer": false, "skills": {"maxItems": 0}, "toolsets": {"minItems": 1, "maxItems": 1, "items": {"properties": {"tools": {"maxItems": 1}}}}, "sandboxProfile": {"properties": {"sandboxProfileId": {"const": "local-workdir"}, "version": {"const": "1"}}}}
       },
-      "else": {"required": ["instructions", "modelPolicy"], "properties": {"execution": false}},
+      "else": {"required": ["instructions"], "properties": {"execution": false}},
       "properties": {
         "execution": {"$ref": "#/$defs/toolExecution"},
         "ref": {"$ref": "#/$defs/agentTemplateRef"},
@@ -251,7 +269,6 @@
             "text": {"type": "string", "minLength": 1}
           }
         },
-        "modelPolicy": {"$ref": "#/$defs/resolvedModelPolicy"},
         "summarizer": {"$ref": "#/$defs/workerSummarizerConfig"},
         "sitemap": {"$ref": "#/$defs/projectSitemapPolicy"},
         "toolsets": {

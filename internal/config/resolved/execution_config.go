@@ -328,7 +328,10 @@ func ValidateStageExecutionConfig(stageName string, stage ResolvedStage) error {
 		}
 		// compact@1 wholly replaces the template summarizer (WFL-R92).
 		if binding.Template.Summarizer != nil && !binding.ContextManagement.IsCompact() {
-			if err := binding.Template.Summarizer.Validate(selection.ModelPolicy); err != nil {
+			if selection.SummarizerModelPolicy == nil {
+				return fmt.Errorf("Stage %q Agent %q requires summarizerModelPolicy", stageName, logicalName)
+			}
+			if err := binding.Template.Summarizer.ValidateForWorker(selection.ModelPolicy); err != nil {
 				return fmt.Errorf("Stage %q Agent %q summarizer: %w", stageName, logicalName, err)
 			}
 		}
@@ -341,6 +344,9 @@ func validateConsumerExecutionConfig(
 	planner bool,
 	hasTools bool,
 ) error {
+	if selection.ModelPolicy.Ref.PolicyID == "" {
+		return fmt.Errorf("modelPolicy is required in Workflow executionConfig")
+	}
 	var err error
 	if planner {
 		if selection.SummarizerModelPolicy != nil {

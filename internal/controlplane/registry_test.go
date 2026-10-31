@@ -850,7 +850,7 @@ func TestPrepareReservationRejectsActuallyExpiredOwningAgent(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err = controller.PrepareAll(context.Background(), reservations,
-		testWorkerExecutionSettings(testTemplate(t), testRuntimeSettings(), "builder"))
+		testWorkerExecutionSettings(t, testRuntimeSettings(), "builder"))
 	if !errors.Is(err, ErrAllocationLost) || len(runtime.prepared) != 0 {
 		t.Fatalf("lost allocation reached Runtime prepare: error=%v prepared=%v", err, runtime.prepared)
 	}
@@ -1323,7 +1323,7 @@ func testBinding(
 			contracts.WorkerContextManagement{Strategy: contracts.ContextStrategyTemplate}, template),
 		AgentTemplate: template,
 		ExecutionConfig: AllocationExecutionConfig{
-			ModelPolicy: template.ModelPolicy.Ref,
+			ModelPolicy: testWorkerPolicy(t).Ref,
 			LLMGateway:  gateway.Ref,
 		},
 	}
@@ -1473,8 +1473,8 @@ func TestReservationFingerprintPreservesEmptyRuntimeSnapshotShape(t *testing.T) 
 	snapshot.Labels, snapshot.LLMCredentialIDs, snapshot.RuntimeCredentialIDs = nil, nil, nil
 	binding := testBinding(t, "builder", "builder", testTemplate(t))
 	binding.RuntimeSelection = &resolved.ResolvedConsumerExecutionConfig{
-		ModelPolicy: binding.AgentTemplate.ModelPolicy,
-		Origins:     resolved.ExecutionConfigOrigins{ModelPolicy: "agentTemplate.modelPolicy"},
+		ModelPolicy: testWorkerPolicy(t),
+		Origins:     resolved.ExecutionConfigOrigins{ModelPolicy: "workflow.executionConfig.workers"},
 	}
 	request := ReservationRequest{
 		RunID: "run-fingerprint-shape", StageExecutionID: "stage-fingerprint-shape",
@@ -1493,4 +1493,17 @@ func TestReservationFingerprintPreservesEmptyRuntimeSnapshotShape(t *testing.T) 
 	if err != nil || other != fingerprint {
 		t.Fatalf("nil and empty collections have different replay fingerprints: %v", err)
 	}
+}
+
+func testWorkerPolicy(t *testing.T) contracts.ResolvedModelPolicy {
+	t.Helper()
+	snapshot, _, err := configload.LoadUnionReadOnly("../config/testdata/valid", filepath.Join(t.TempDir(), "managed"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	policy, err := snapshot.ModelPolicy("worker@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return policy
 }

@@ -115,12 +115,11 @@ type ToolsetSelection struct {
 }
 
 // WorkerSummarizerConfig is an immutable, template-owned terminal
-// summarization policy. Its ModelPolicy is resolved before a Run is accepted;
+// summarization behavior. Workflow selects its ModelPolicy separately;
 // the normalized context ratio is always present while the optional cumulative
 // budget remains a pointer so strict decoding distinguishes omission from zero.
 type WorkerSummarizerConfig struct {
 	Instructions       *ResolvedInstructions `json:"instructions,omitempty"`
-	ModelPolicy        ResolvedModelPolicy   `json:"modelPolicy" strictjson:"required"`
 	ContextWindowRatio float64               `json:"contextWindowRatio" strictjson:"required"`
 	CumulativeBudget   *int                  `json:"cumulativeBudget,omitempty"`
 	// IncludeReasoning admits the Worker model's provider reasoning into the
@@ -141,8 +140,20 @@ func (c *WorkerSummarizerConfig) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (c WorkerSummarizerConfig) Validate(workerPolicy ResolvedModelPolicy) error {
-	return validateWorkerSummarizerConfig(c, workerPolicy)
+func (c WorkerSummarizerConfig) Validate() error { return validateWorkerSummarizerConfig(c) }
+
+// ValidateForWorker checks template behavior against the effective Workflow policy.
+func (c WorkerSummarizerConfig) ValidateForWorker(workerPolicy ResolvedModelPolicy) error {
+	if err := c.Validate(); err != nil {
+		return err
+	}
+	if workerPolicy.ContextWindowTokens <= 0 {
+		return Invalidf("summarized Worker modelPolicy requires contextWindowTokens")
+	}
+	if c.CumulativeBudget != nil && (workerPolicy.MaxTotalTokens <= 0 || *c.CumulativeBudget >= workerPolicy.MaxTotalTokens) {
+		return Invalidf("Worker summarizer cumulativeBudget must be below Worker maxTotalTokens")
+	}
+	return nil
 }
 
 type ResolvedAgentTemplate struct {
@@ -150,7 +161,6 @@ type ResolvedAgentTemplate struct {
 	Description    string                  `json:"description" strictjson:"required"`
 	Runtime        WorkerRuntimeRef        `json:"runtime" strictjson:"required"`
 	Instructions   ResolvedInstructions    `json:"instructions,omitzero"`
-	ModelPolicy    ResolvedModelPolicy     `json:"modelPolicy,omitzero"`
 	Execution      *ToolExecutionConfig    `json:"execution,omitempty"`
 	Summarizer     *WorkerSummarizerConfig `json:"summarizer,omitempty"`
 	Sitemap        *ProjectSitemapPolicy   `json:"sitemap,omitempty"`
@@ -167,14 +177,12 @@ func (t ResolvedAgentTemplate) Clone() ResolvedAgentTemplate {
 	result := t
 	result.Execution = t.Execution.Clone()
 	result.Sitemap = t.Sitemap.Clone()
-	result.ModelPolicy = t.ModelPolicy.Clone()
 	if t.Summarizer != nil {
 		summarizer := *t.Summarizer
 		if t.Summarizer.Instructions != nil {
 			instructions := *t.Summarizer.Instructions
 			summarizer.Instructions = &instructions
 		}
-		summarizer.ModelPolicy = t.Summarizer.ModelPolicy.Clone()
 		if t.Summarizer.CumulativeBudget != nil {
 			budget := *t.Summarizer.CumulativeBudget
 			summarizer.CumulativeBudget = &budget
@@ -223,12 +231,9 @@ func validateResolvedAgentTemplate(template ResolvedAgentTemplate) error {
 		if err := ValidateDigest("agentTemplate.instructions.digest", template.Instructions.Digest); err != nil {
 			return err
 		}
-		if err := validateWorkerModelPolicy(template.ModelPolicy, len(template.Toolsets) > 0 || len(template.Skills) > 0); err != nil {
-			return err
-		}
 	}
 	if template.Summarizer != nil {
-		if err := validateWorkerSummarizerConfig(*template.Summarizer, template.ModelPolicy); err != nil {
+		if err := validateWorkerSummarizerConfig(*template.Summarizer); err != nil {
 			return err
 		}
 	}
@@ -364,7 +369,6 @@ func validateWorkerSummarizerModelPolicy(policy ResolvedModelPolicy) error {
 
 func validateWorkerSummarizerConfig(
 	config WorkerSummarizerConfig,
-	workerPolicy ResolvedModelPolicy,
 ) error {
 	if instructions := config.Instructions; instructions != nil {
 		if strings.TrimSpace(instructions.Ref) == "" || strings.TrimSpace(instructions.Text) == "" {
@@ -377,12 +381,6 @@ func validateWorkerSummarizerConfig(
 			return err
 		}
 	}
-	if err := validateWorkerSummarizerModelPolicy(config.ModelPolicy); err != nil {
-		return err
-	}
-	if workerPolicy.ContextWindowTokens <= 0 {
-		return Invalidf("summarized Worker modelPolicy requires contextWindowTokens")
-	}
 	if config.ContextWindowRatio <= 0 || config.ContextWindowRatio >= 1 ||
 		math.IsNaN(config.ContextWindowRatio) || math.IsInf(config.ContextWindowRatio, 0) {
 		return Invalidf("Worker summarizer contextWindowRatio must be finite and between 0 and 1")
@@ -390,9 +388,6 @@ func validateWorkerSummarizerConfig(
 	if config.CumulativeBudget != nil {
 		if *config.CumulativeBudget <= 0 || *config.CumulativeBudget > MaxWorkerTotalTokens {
 			return Invalidf("Worker summarizer cumulativeBudget must be between 1 and %d", MaxWorkerTotalTokens)
-		}
-		if workerPolicy.MaxTotalTokens <= 0 || *config.CumulativeBudget >= workerPolicy.MaxTotalTokens {
-			return Invalidf("Worker summarizer cumulativeBudget must be below Worker maxTotalTokens")
 		}
 	}
 	return nil

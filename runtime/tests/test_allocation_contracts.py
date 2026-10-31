@@ -9,27 +9,31 @@ from fakes.spec import allocation_spec
 from pydantic import ValidationError
 
 from contractor_runtime.contracts import AllocationSpec
-from contractor_runtime.digests import TemplateDigestMismatch, verify_template_digests
+from contractor_runtime.digests import (
+    TemplateDigestMismatch,
+    verify_model_policy_digest,
+    verify_template_digests,
+)
 
 FIXTURES = Path(__file__).parents[2] / "api" / "testdata" / "v1alpha1" / "valid"
 
 
 def test_shared_optional_summarizer_round_trips_on_both_allocation_contracts() -> None:
     raw = (FIXTURES / "allocation-spec-summarizer.json").read_text(encoding="utf-8")
-    legacy = AllocationSpec.model_validate_json(raw)
-    assert legacy.agent_template.summarizer is not None
-    assert legacy.agent_template.summarizer.cumulative_budget == 20_000
-    assert legacy.agent_template.summarizer.context_window_ratio == 0.9
-    assert legacy.agent_template.model_policy.context_window_tokens == 131_072
-    assert legacy.agent_template.summarizer.model_policy.context_window_tokens == 131_072
-    verify_template_digests(legacy.agent_template)
+    golden = AllocationSpec.model_validate_json(raw)
+    assert golden.agent_template.summarizer is not None
+    assert golden.agent_template.summarizer.cumulative_budget == 20_000
+    assert golden.agent_template.summarizer.context_window_ratio == 0.9
+    assert golden.model_policy.context_window_tokens == 131_072
+    assert golden.summarizer_model_policy.context_window_tokens == 131_072
+    verify_template_digests(golden.agent_template)
 
     current = allocation_spec(summarizer=True)
     encoded = current.model_dump_json(by_alias=True, exclude_none=True)
     decoded = AllocationSpec.model_validate_json(encoded)
     assert decoded == current
     assert decoded.agent_template.summarizer is not None
-    assert decoded.agent_template.summarizer.model_policy.model == "worker-summarizer-model"
+    assert decoded.summarizer_model_policy.model == "worker-summarizer-model"
     verify_template_digests(decoded.agent_template)
 
 
@@ -66,9 +70,12 @@ def test_shared_invalid_summarizer_wire_shape_is_rejected(mutation: Any) -> None
     allocation = json.loads(
         (FIXTURES / "allocation-spec-summarizer.json").read_text(encoding="utf-8")
     )
-    mutation(allocation["agentTemplate"]["summarizer"])
+    behavior = allocation["agentTemplate"]["summarizer"]
+    behavior["modelPolicy"] = allocation["summarizerModelPolicy"]
+    mutation(behavior)
+    behavior.pop("modelPolicy", None)
     with pytest.raises(ValidationError):
-        AllocationSpec.model_validate(allocation)
+        AllocationSpec.model_validate_json(json.dumps(allocation))
 
 
 def test_effective_worker_budget_must_remain_above_soft_total_threshold() -> None:
@@ -98,11 +105,11 @@ def test_summarizer_policy_and_thresholds_are_covered_by_template_digests() -> N
     with pytest.raises(TemplateDigestMismatch, match="AgentTemplate"):
         verify_template_digests(changed_threshold)
 
-    changed_policy = template.model_copy(deep=True)
-    assert changed_policy.summarizer is not None
-    changed_policy.summarizer.model_policy.model = "different-summary-model"
+    assert allocation.summarizer_model_policy is not None
+    changed_policy = allocation.summarizer_model_policy.model_copy(deep=True)
+    changed_policy.model = "different-summary-model"
     with pytest.raises(TemplateDigestMismatch, match="ModelPolicy"):
-        verify_template_digests(changed_policy)
+        verify_model_policy_digest(changed_policy)
 
 
 def test_shared_summary_instruction_golden_and_digest_tampering() -> None:
@@ -150,15 +157,17 @@ def test_shared_include_reasoning_is_explicit_and_digested() -> None:
 def test_summary_instruction_wire_character_limit(text: str, valid: bool) -> None:
     import hashlib
 
-    allocation = allocation_spec(summarizer=True).model_dump(by_alias=True, exclude_none=True)
+    allocation = allocation_spec(summarizer=True).model_dump(
+        mode="json", by_alias=True, exclude_none=True
+    )
     allocation["agentTemplate"]["summarizer"]["instructions"] = {
         "ref": "instructions/summary.md",
         "digest": "sha256:" + hashlib.sha256(text.encode("utf-8")).hexdigest(),
         "text": text,
     }
     if valid:
-        decoded = AllocationSpec.model_validate(allocation)
+        decoded = AllocationSpec.model_validate_json(json.dumps(allocation))
         assert decoded.agent_template.summarizer.instructions.text == text
     else:
         with pytest.raises(ValidationError):
-            AllocationSpec.model_validate(allocation)
+            AllocationSpec.model_validate_json(json.dumps(allocation))

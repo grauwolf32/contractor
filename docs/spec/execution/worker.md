@@ -1251,7 +1251,8 @@ exactly.
 
 **WRK-R133.** The summarizer uses the same pinned Worker
 LLMGatewayConfig and credential as the normal Worker but its own exact
-ModelPolicy and model alias, whose required fields are owned by
+ModelPolicy and model alias selected by Workflow `summarizerModelPolicy` and
+carried separately in AllocationSpec. Its required fields are owned by
 [AgentTemplates](../configuration/agent-templates.md). Runtime enforces that
 policy's one-call bound and, when `maxTotalTokens` is supplied, checks it
 against the reported usage after that call.

@@ -47,7 +47,6 @@ function agentTemplate(
           ref: "instructions/researcher.md",
           digest: exactDigest,
         },
-        modelPolicy: { policyId: "worker", version: "1", digest },
       };
   return conforming("ConfigurationResource", {
     ref: {
