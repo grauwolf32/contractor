@@ -1,0 +1,143 @@
+schema_version: "1.0"
+id: V425-032
+title: Move SARIF output schema and semantic self-checks into tests
+milestone: finding-sarif-export-2026-10
+epic: findings
+kind: chore
+introduced_by: V397-008
+priority: P3
+status: completed
+depends_on: []
+languages: [go, markdown]
+goal: Remove post-render validation of Contractor's own SARIF from production while preserving valid export bytes, validated inputs and independent regression coverage.
+context:
+  authority: >-
+    User request 2026-10-31: create the SARIF simplification task after the
+    complexity research. The user explicitly permits revising unnecessary
+    specification requirements and then questioned why validation is needed
+    during export. User request 2026-10-31 in this chat: take V425-032 into
+    implementation, authorizing its recorded validation-boundary change.
+  recommendation: >-
+    Agent recommendation following that question: move both complete output
+    checks, official-schema validation and output-to-snapshot semantic comparison,
+    into tests. Retain production authorization, input/evidence validation,
+    construction invariants and resource bounds. The renderer deterministically
+    constructs its own output; this task covers no external SARIF ingestion.
+  review: docs/research/2026-10-31-architecture-simplification-research.md
+  specification:
+    - docs/spec/findings/findings.md#FND-R202
+    - docs/spec/findings/findings.md#FND-R203
+    - docs/spec/findings/findings.md#FND-R204
+    - docs/spec/findings/findings.md#FND-R205
+    - docs/spec/findings/findings.md#FND-R206
+    - docs/spec/findings/findings.md#FND-R207
+    - docs/spec/findings/findings.md#FND-R208
+    - docs/spec/platform/failure-model.md
+  finding: >-
+    internal/findingexport/sarif/render.go:77 reparses actual output and validates
+    it against the embedded official schema; line 81 invokes validateSemantics
+    from semantics.go:30. The latter file has 494 lines and reconstructs expected
+    ratings, sources, locations, rule/taxonomy references, HTTP and flow projections
+    from the frozen snapshot. Its helpers have no other production callers.
+    schema.go owns the output reparse, schema compilation, digest pin and loader.
+    V397-008 introduced these checks in 428f9556bc1261684dd88b11a6bd0158ccee7623;
+    V397-019 extended the semantic checks. projection_test.go:143 already checks
+    real Render output against the schema, while line 276 mutates schema-valid
+    output and expects the semantic checker to reject fabrication.
+  boundary: >-
+    Remove both post-render calls from production Render. Move the schema validator,
+    embedded schema/compiler setup and complete semantic checker with their
+    solely test-needed helpers to same-package _test.go compilation. Keep the
+    schemaURI used in emitted metadata in production without duplicating its value.
+    Invoke both independent checkers on actual successful renderer fixtures.
+    Retain EncodeSnapshot/validateSnapshot, builder/registry domain checks,
+    diagnostics validation and construction/final-byte limits in production.
+    No replacement output-validation framework or second production projection pass.
+  contract_change: >-
+    Update FND-R202 in the implementation commit: actual renderer output remains
+    required to conform to the pinned official OASIS schema and FND-R203 through
+    FND-R208, but full schema and semantic equivalence checks run in regression
+    tests rather than on each publication. Preserve schema version/digest pinning
+    and offline-only loading in tests. The production boundary remains validated
+    inputs and deterministic bounded construction. Update Render's comment and
+    directly affected verification prose to describe that guarantee honestly.
+  failure_outcomes: >-
+    Invalid snapshots, unsupported evidence claims, conflicting rule definitions
+    and exceeded construction/output bounds retain their production errors and
+    publish no partial success. Existing storage failures, cancellation, lost
+    publication replies and frozen-receipt replay keep their handling. An internal
+    renderer defect detectable only by full output schema or semantic validation
+    may now escape at runtime; its detection moves to tests. Do not preserve a
+    production rejection promise for intentionally removed output checkers.
+  accepted_risk:
+    owner: findings renderer and its regression suite
+    risk: Malformed or semantically wrong internally generated SARIF no longer has a second per-publication runtime checker.
+    detection: Pinned official-schema checks, independent goldens, semantic checks on real renderer output, output mutations, and unchanged production input/construction checks.
+    reopen_when: Export begins incorporating externally supplied SARIF projections or the validated-input and deterministic-construction boundary changes.
+  output_identity: >-
+    Valid SARIF and diagnostics remain byte-identical, including current exporter
+    and profile identity. Do not regenerate goldens to accommodate changed mappings
+    or change exporter versions merely to move checks. Existing publication replay
+    returns retained bytes without rerendering historical snapshots.
+  verification_prerequisites: >-
+    Use a disposable PostgreSQL database and the locked Runtime environment for
+    real-store consumer suites. Before direct Go tests on macOS, resolve TMPDIR
+    to its physical path as documented in docs/testing/README.md.
+scope:
+  in:
+    - Move output schema compilation, schema validation, semantic comparison and test-only helpers out of production compilation.
+    - Check successful Render fixtures against both test-only validators; preserve independent goldens and existing schema-valid fabrication mutations.
+    - Preserve real-store export publication, frozen replay, safe retained evidence and atomic failure behavior.
+    - Update FND-R202 and directly affected comments or verification statements in the same change.
+    - Report production Go reduction separately from total repository line change and test-code relocation.
+  out:
+    - Removing authorization, snapshot/evidence validation, construction checks, diagnostics limits or final output byte bounds.
+    - Changing SARIF mappings, output bytes, diagnostics, versions, duplicate grouping, review decisions, safe HTTP policy or the pinned schema resource.
+    - External SARIF ingestion, API/UI/CLI changes, migrations, publication receipts or retention mechanisms.
+    - Other simplification steps, broad exporter rewrites, new dependencies, exported test hooks or a generic validation framework.
+acceptance_criteria:
+  - id: A1
+    given: A valid frozen snapshot reaches production Render.
+    when: Rendering and publication finish.
+    then: No full schema or output-to-snapshot semantic pass reparses the produced SARIF; the checkers and solely test-needed schema resources compile only in tests, and production Go shrinks.
+  - id: A2
+    given: Code, partial/unlocated flow, separate source roots, HTTP/Caido, no-analysis and duplicate-selection fixtures.
+    when: Their actual Render output passes the regression suite.
+    then: The pinned official schema, independent goldens and semantic checker prove unchanged FND-R203 through FND-R208 output, canonical bytes and diagnostics without deriving every expectation from renderer helpers.
+  - id: A3
+    given: Malformed output or schema-valid fabricated indices, hashes, coordinates, symbols, ratings, taxonomy claims and edges across native gaps.
+    when: Output mutation tests run against the test-only checkers.
+    then: Invalid shapes fail schema checks and existing schema-valid fabrication cases fail semantic checks; the tests demonstrably reject those mutations.
+  - id: A4
+    given: Invalid input, unsupported tool-reported claims, conflicting rules or oversized construction, and owner-authorized ordinary exports.
+    when: Production rendering and complete real-store consumer suites run.
+    then: Input/construction/byte errors still fail before publication, accepted exports replay unchanged after source deletion or later review changes, and ownership plus atomic publication remain intact.
+  - id: A5
+    given: The implementation and its changed validation boundary are ready.
+    when: FND-R202, comments, complete touched-package suites and make lint are checked.
+    then: The spec accurately places full output schema and semantic checks in tests; required commands pass, configured database tests do not skip, and production versus test-only line changes are recorded.
+tests:
+  - command: go test -count=1 ./internal/findingexport/...
+    covers: [A1, A2, A3, A4, A5]
+  - command: CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -tags=integration -count=1 -p=2 -timeout=20m ./internal/findingintake ./internal/auditservice
+    covers: [A4, A5]
+  - command: make lint
+    covers: [A1, A5]
+
+implementation_notes:
+  - Production Render retains strict snapshot/evidence validation, construction checks, diagnostics validation and final byte limits; it no longer reparses its output.
+  - The 494-line semantic checker and 65 lines of schema setup/validation moved to same-package test compilation; the one schemaURI definition stays in production metadata.
+  - All successful fixture families use schema and semantic checks; existing goldens and 12 schema-valid fabrication mutations are unchanged. Six malformed/schema-invalid cases and offline loader rejection are covered.
+  - FND-R202 and schema documentation describe the new boundary; regenerating the dependency diagram changed only its specification fingerprint.
+verification_results:
+  - go test -count=1 ./internal/findingexport/... passed, including unchanged golden bytes and versions.
+  - go test -tags=integration -count=1 -p=2 -timeout=20m -json ./internal/findingintake ./internal/auditservice passed against a dedicated disposable PostgreSQL database; 381 tests/subtests passed, zero skipped.
+  - make lint passed after regenerating docs/spec/audit-workflow-dependencies.html with make docs-dependencies.
+  - Locked Runtime setup used make runtime-venv; direct Go tests used the physical TMPDIR path. UI dependencies for lint were installed with the frozen lockfile.
+  - go list confirms schema_test.go and semantics_test.go are TestGoFiles, the schema appears only in TestEmbedPatterns, and production EmbedFiles is empty.
+line_changes:
+  production_go: -565
+  test_go: 586
+  total_go: 21
+  repository_net: 171
+implementation_commit: 9c4bcb62f22b6c8a095dcbebb73de9925c725741

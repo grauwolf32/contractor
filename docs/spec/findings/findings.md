@@ -1640,10 +1640,17 @@ retryable 503 `storage_transaction_conflict` with `Retry-After`.
 **FND-R202.** The `generic/1` policy renders one SARIF 2.1.0 run for the
 owning Audit from its frozen snapshot, without network, model, filesystem or
 store discovery. Exporter version `1.1.1` identifies the structured renderer.
-The actual output bytes must pass the embedded official OASIS Errata 01 JSON
+The actual output bytes must conform to the official OASIS Errata 01 JSON
 Schema (SHA-256 `c3b4bb2d6093897483348925aaa73af03b3e3f4bd4ca38cef26dcb4212a2682e`)
-and independent semantic checks before publication. Schema loading cannot fetch
-external resources. Snapshot and SARIF remain bounded to 16 MiB each;
+and FND-R203 through FND-R208. Regression tests check actual renderer output
+against the pinned schema, independent semantic checks and golden fixtures;
+full output checks and schema embedding run only in tests, with offline-only
+schema loading. Production validates frozen inputs and enforces deterministic
+construction invariants and resource bounds. Renderer defects detectable only
+by the full output checks are caught by the regression suite; reopen this
+boundary if externally supplied SARIF projections enter rendering or the
+validated-input and deterministic-construction boundary changes. Snapshot and
+SARIF remain bounded to 16 MiB each;
 diagnostics remain bounded to 4 MiB and 4096 items. Construction accounts for
 repeated locations, flows and presentations before accumulating oversized output.
 
