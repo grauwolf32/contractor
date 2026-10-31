@@ -442,7 +442,6 @@ export const queryKeys = {
     all: ["evals"] as const,
     projects: ["evals", "projects"] as const,
     capabilities: ["evals", "capabilities"] as const,
-    executionChoices: ["evals", "execution-choices"] as const,
     datasets: (projectId: string) => ["evals", "datasets", projectId] as const,
     cases: (projectId: string, datasetId: string, revision: string) =>
       ["evals", "cases", projectId, datasetId, revision] as const,

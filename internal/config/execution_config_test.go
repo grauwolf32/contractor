@@ -9,12 +9,15 @@ import (
 	"strings"
 	"testing"
 
+	"go.yaml.in/yaml/v4"
+	"os"
+
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/credentialerrors"
 )
 
-func TestResolveRunWorkflowAppliesAllWorkerLayersAndPinsBodies(t *testing.T) {
+func TestResolveRunWorkflowPinsAuthoredWorkerLayers(t *testing.T) {
 	root := copyCoreFixture(t)
 	writeFile(t, filepath.Join(root, "llm-gateways/secondary.yaml"), []byte(secondaryGatewayYAML))
 	workflowPath := filepath.Join(root, "workflows/artifact_copy.yaml")
@@ -40,11 +43,11 @@ func TestResolveRunWorkflowAppliesAllWorkerLayersAndPinsBodies(t *testing.T) {
 		t.Fatal(err)
 	}
 	credentials := metadataLookup{
-		"workflow-worker": credentialMetadata("workflow-worker", localGateway.Ref),
-		"run-worker":      credentialMetadata("run-worker", localGateway.Ref),
+		"workflow-worker":  credentialMetadata("workflow-worker", localGateway.Ref),
+		"secondary-worker": credentialMetadata("secondary-worker", mustGateway(t, snapshot, "secondary@1")),
 	}
 
-	base, err := snapshot.ResolveRunWorkflow(t.Context(), "artifact-copy@1", resolved.ExecutionConfigPatch{}, credentials)
+	base, err := snapshot.ResolveRunWorkflow(t.Context(), "artifact-copy@1", credentials)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,42 +61,16 @@ func TestResolveRunWorkflowAppliesAllWorkerLayersAndPinsBodies(t *testing.T) {
 		t.Fatalf("resolved Workflow defaults = %+v", baseSelection)
 	}
 
-	globalPatch := decodeExecutionConfigPatch(t, `{
-  "workers": {"modelPolicy": "test-domain-worker@1", "credential": "run-worker"}
-}`)
-	global, err := snapshot.ResolveRunWorkflow(t.Context(), "artifact-copy@1", globalPatch, credentials)
-	if err != nil {
-		t.Fatal(err)
-	}
-	globalSelection := global.Stages["copy"].ExecutionConfig.Agents["builder"]
-	if globalSelection.ModelPolicy.Ref.PolicyID != "test-domain-worker" ||
-		globalSelection.Origins.ModelPolicy != "run.executionConfig.workers" ||
-		globalSelection.Credential == nil || globalSelection.Credential.CredentialID != "run-worker" ||
-		globalSelection.Origins.Credential != "run.executionConfig.workers" {
-		t.Fatalf("resolved Run-wide override = %+v", globalSelection)
-	}
-
-	bindingPatch := decodeExecutionConfigPatch(t, `{
-  "workers": {"modelPolicy": "test-domain-worker@1", "credential": "run-worker"},
-  "stages": {"copy": {"agents": {"builder": {
-    "modelPolicy": "test-worker@1",
-    "llmGateway": "secondary@1",
-    "credential": null
-  }}}}
-}`)
-	runWorkflow, err := snapshot.ResolveRunWorkflow(t.Context(), "artifact-copy@1", bindingPatch, credentials)
+	writeWorkflowExecutionConfig(t, root, "artifact_copy.yaml", `{"workers":{"modelPolicy":"test-domain-worker@1","credential":"workflow-worker","llmGateway":"local-litellm@1"},"stages":{"copy":{"agents":{"builder":{"modelPolicy":"test-worker@1","llmGateway":"secondary@1","credential":"secondary-worker"}}}}}`)
+	snapshot = mustLoad(t, root)
+	runWorkflow, err := snapshot.ResolveRunWorkflow(t.Context(), "artifact-copy@1", credentials)
 	if err != nil {
 		t.Fatal(err)
 	}
 	selection := runWorkflow.Stages["copy"].ExecutionConfig.Agents["builder"]
-	if selection.ModelPolicy.Ref.PolicyID != "test-worker" || selection.LLMGateway.Ref.GatewayID != "secondary" ||
-		selection.Credential != nil ||
-		selection.Origins.ModelPolicy != "run.executionConfig.stages.copy.agents.builder" ||
-		selection.Origins.LLMGateway != "run.executionConfig.stages.copy.agents.builder" ||
-		selection.Origins.Credential != "run.executionConfig.stages.copy.agents.builder" {
-		t.Fatalf("resolved binding override = %+v", selection)
+	if selection.ModelPolicy.Ref.PolicyID != "test-worker" || selection.LLMGateway.Ref.GatewayID != "secondary" || selection.Credential == nil || selection.Credential.CredentialID != "secondary-worker" || selection.Origins.Credential != "workflow.executionConfig.stages.copy.agents.builder" {
+		t.Fatalf("binding selection = %+v", selection)
 	}
-
 	pinned, err := json.Marshal(runWorkflow)
 	if err != nil {
 		t.Fatal(err)
@@ -107,7 +84,7 @@ func TestResolveRunWorkflowAppliesAllWorkerLayersAndPinsBodies(t *testing.T) {
 	)
 	reloaded := mustLoad(t, root)
 	newResolution, err := reloaded.ResolveRunWorkflow(
-		t.Context(), "artifact-copy@1", bindingPatch, credentials,
+		t.Context(), "artifact-copy@1", credentials,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -137,7 +114,7 @@ func TestResolveRunWorkflowAllowsOnlyWorkerPhysicalGatewayToRemainAbsent(t *test
 		t.Fatal(err)
 	}
 	workflow, err := snapshot.ResolveRunWorkflow(
-		t.Context(), "artifact-copy@1", resolved.ExecutionConfigPatch{}, metadataLookup{},
+		t.Context(), "artifact-copy@1", metadataLookup{},
 	)
 	if err != nil {
 		t.Fatalf("resolve label-routed Worker: %v", err)
@@ -190,7 +167,7 @@ func TestResolveRunWorkflowKeepsPlannerAndWorkerSelectionsIndependent(t *testing
 		"worker-credential":  credentialMetadata("worker-credential", workerGateway.Ref),
 	}
 	workflow, err := snapshot.ResolveRunWorkflow(
-		t.Context(), "artifact-copy@1", resolved.ExecutionConfigPatch{}, lookup,
+		t.Context(), "artifact-copy@1", lookup,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -226,7 +203,7 @@ func TestWorkflowWidePlannerDefaultSkipsPassthroughStages(t *testing.T) {
 
 	snapshot := mustLoad(t, root)
 	runWorkflow, err := snapshot.ResolveRunWorkflow(
-		t.Context(), "artifact-copy@1", resolved.ExecutionConfigPatch{}, metadataLookup{},
+		t.Context(), "artifact-copy@1", metadataLookup{},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -298,9 +275,10 @@ func TestExecutionConfigRejectsConsumerIncompatibilityAndInvalidWorkflowPatches(
 }
 
 func TestResolveRunWorkflowRejectsMissingOrMismatchedCredentialSafely(t *testing.T) {
-	snapshot := mustLoad(t, copyCoreFixture(t))
+	root := copyCoreFixture(t)
+	replaceFile(t, filepath.Join(root, "workflows/artifact_copy.yaml"), "credential: development-worker", "credential: selected-credential")
+	snapshot := mustLoad(t, root)
 	localGateway, _ := snapshot.LLMGateway("local-litellm@1")
-	patch := decodeExecutionConfigPatch(t, `{"workers":{"credential":"selected-credential"}}`)
 	tests := []struct {
 		name   string
 		lookup resolved.CredentialLookup
@@ -317,7 +295,7 @@ func TestResolveRunWorkflowRejectsMissingOrMismatchedCredentialSafely(t *testing
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := snapshot.ResolveRunWorkflow(t.Context(), "artifact-copy@1", patch, test.lookup)
+			_, err := snapshot.ResolveRunWorkflow(t.Context(), "artifact-copy@1", test.lookup)
 			if err == nil || strings.Contains(err.Error(), "secret-value") ||
 				(!strings.Contains(err.Error(), "unavailable") && !strings.Contains(err.Error(), "another LLMGatewayConfig")) {
 				t.Fatalf("unsafe or missing credential error = %v", err)
@@ -325,7 +303,7 @@ func TestResolveRunWorkflowRejectsMissingOrMismatchedCredentialSafely(t *testing
 		})
 	}
 	if _, err := snapshot.ResolveRunWorkflow(
-		t.Context(), "artifact-copy@1", patch,
+		t.Context(), "artifact-copy@1",
 		metadataLookup{"selected-credential": credentialMetadata("selected-credential", localGateway.Ref)},
 	); err != nil {
 		t.Fatalf("matching credential was rejected: %v", err)
@@ -333,11 +311,12 @@ func TestResolveRunWorkflowRejectsMissingOrMismatchedCredentialSafely(t *testing
 }
 
 func TestCredentialLookupFailuresKeepTheirClassAndCause(t *testing.T) {
-	snapshot := mustLoad(t, copyCoreFixture(t))
+	root := copyCoreFixture(t)
+	replaceFile(t, filepath.Join(root, "workflows/artifact_copy.yaml"), "credential: development-worker", "credential: selected-credential")
+	snapshot := mustLoad(t, root)
 	localGateway, _ := snapshot.LLMGateway("local-litellm@1")
-	patch := decodeExecutionConfigPatch(t, `{"workers":{"credential":"selected-credential"}}`)
 	runWorkflow, err := snapshot.ResolveRunWorkflow(
-		t.Context(), "artifact-copy@1", patch,
+		t.Context(), "artifact-copy@1",
 		metadataLookup{"selected-credential": credentialMetadata("selected-credential", localGateway.Ref)},
 	)
 	if err != nil {
@@ -358,7 +337,7 @@ func TestCredentialLookupFailuresKeepTheirClassAndCause(t *testing.T) {
 		{"cancelled while absent", cancelled, metadataLookup{}, context.Canceled},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			_, resolveErr := snapshot.ResolveRunWorkflow(test.ctx, "artifact-copy@1", patch, test.lookup)
+			_, resolveErr := snapshot.ResolveRunWorkflow(test.ctx, "artifact-copy@1", test.lookup)
 			validateErr := resolved.ValidateResolvedWorkflowCredentials(test.ctx, runWorkflow, test.lookup)
 			for name, err := range map[string]error{"resolve": resolveErr, "revalidate": validateErr} {
 				if !errors.Is(err, resolved.ErrCredentialLookup) || !errors.Is(err, test.cause) ||
@@ -370,7 +349,7 @@ func TestCredentialLookupFailuresKeepTheirClassAndCause(t *testing.T) {
 		})
 	}
 	t.Run("confirmed absence", func(t *testing.T) {
-		_, resolveErr := snapshot.ResolveRunWorkflow(t.Context(), "artifact-copy@1", patch, metadataLookup{})
+		_, resolveErr := snapshot.ResolveRunWorkflow(t.Context(), "artifact-copy@1", metadataLookup{})
 		validateErr := resolved.ValidateResolvedWorkflowCredentials(t.Context(), runWorkflow, metadataLookup{})
 		for name, err := range map[string]error{"resolve": resolveErr, "revalidate": validateErr} {
 			if err == nil || errors.Is(err, resolved.ErrCredentialLookup) || errors.Is(err, credentialerrors.LLMNotFound) ||
@@ -385,36 +364,6 @@ type failingCredentialLookup struct{ err error }
 
 func (l failingCredentialLookup) LookupLLMCredential(context.Context, string) (resolved.CredentialMetadata, error) {
 	return resolved.CredentialMetadata{}, l.err
-}
-
-func TestExecutionConfigPatchJSONIsStrictAndPreservesCredentialNull(t *testing.T) {
-	invalid := []string{
-		`null`,
-		`{"planner":null}`,
-		`{"workers":{}}`,
-		`{"workers":{"modelPolicy":null}}`,
-		`{"workers":{"credential":42}}`,
-		`{"workers":{"unknown":"value"}}`,
-		`{"unknown":{}}`,
-		`{"stages":{"copy":{"agents":{"builder":null}}}}`,
-	}
-	for _, raw := range invalid {
-		var patch resolved.ExecutionConfigPatch
-		if err := json.Unmarshal([]byte(raw), &patch); err == nil {
-			t.Fatalf("json.Unmarshal(%s) unexpectedly succeeded", raw)
-		}
-	}
-
-	raw := `{"stages":{},"workers":{"credential":null}}`
-	patch := decodeExecutionConfigPatch(t, raw)
-	encoded, err := json.Marshal(patch)
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := `{"workers":{"credential":null}}`
-	if string(encoded) != want {
-		t.Fatalf("tri-state patch canonical form = %s, want %s", encoded, want)
-	}
 }
 
 type metadataLookup map[string]resolved.CredentialMetadata
@@ -445,15 +394,6 @@ func developmentCredentialLookup(t *testing.T, snapshot *Snapshot) metadataLooku
 	}
 }
 
-func decodeExecutionConfigPatch(t *testing.T, raw string) resolved.ExecutionConfigPatch {
-	t.Helper()
-	var patch resolved.ExecutionConfigPatch
-	if err := json.Unmarshal([]byte(raw), &patch); err != nil {
-		t.Fatalf("decode executionConfig patch: %v", err)
-	}
-	return patch
-}
-
 const secondaryGatewayYAML = `apiVersion: contractor/v1alpha1
 kind: LLMGatewayConfig
 metadata:
@@ -463,3 +403,55 @@ spec:
   protocol: openai-compatible@1
   url: https://secondary.example/v1
 `
+
+func writeWorkflowExecutionConfig(t *testing.T, root, file, value string) {
+	t.Helper()
+	path := filepath.Join(root, "workflows", file)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var document yaml.Node
+	if err := yaml.Unmarshal(data, &document); err != nil {
+		t.Fatal(err)
+	}
+	var selection yaml.Node
+	if err := yaml.Unmarshal([]byte(value), &selection); err != nil {
+		t.Fatal(err)
+	}
+	mapping := document.Content[0]
+	for i := 0; i < len(mapping.Content); i += 2 {
+		if mapping.Content[i].Value != "spec" {
+			continue
+		}
+		spec := mapping.Content[i+1]
+		for j := 0; j < len(spec.Content); j += 2 {
+			if spec.Content[j].Value == "executionConfig" {
+				spec.Content[j+1] = selection.Content[0]
+				data, err = yaml.Marshal(&document)
+				if err != nil {
+					t.Fatal(err)
+				}
+				writeFile(t, path, data)
+				return
+			}
+		}
+		spec.Content = append(spec.Content, &yaml.Node{Kind: yaml.ScalarNode, Value: "executionConfig"}, selection.Content[0])
+		data, err = yaml.Marshal(&document)
+		if err != nil {
+			t.Fatal(err)
+		}
+		writeFile(t, path, data)
+		return
+	}
+	t.Fatal("Workflow spec missing")
+}
+
+func mustGateway(t *testing.T, snapshot *Snapshot, ref string) llmgateway.LLMGatewayConfigRef {
+	t.Helper()
+	gateway, err := snapshot.LLMGateway(ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return gateway.Ref
+}

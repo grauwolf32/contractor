@@ -9,7 +9,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -18,6 +20,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
+	"github.com/grauwolf32/contractor/internal/configtest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/credentials"
@@ -43,8 +46,9 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedPublicPool(t, ctx)
+	variantRoot := configtest.CopyWithModelVariants(t, "../../../testdata/configs")
 	configurationManager, _, err := configload.NewManager(config.ManagerOptions{
-		OperatorRoot: "../../config/testdata/valid",
+		OperatorRoot: variantRoot,
 		ManagedRoot:  filepath.Join(t.TempDir(), "managed-configs"),
 	})
 	if err != nil {
@@ -54,6 +58,12 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 	runs := runstore.NewPostgresStore(pool)
 	nextRunID := "run-public"
 	managedCredentials := newFakeManagedCredentials()
+	gateway, err := configurationManager.LLMGateway("local-litellm@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	managedCredentials.lookups["development-worker"] = resolved.CredentialMetadata{Ref: llmgateway.LLMCredentialRef{CredentialID: "development-worker"}, LLMGateway: gateway.Ref}
+
 	runtimeConfigs := newFakeRuntimeConfigManagement(runtimeconfig.GatewayResolverFunc(
 		func(_ context.Context, selector string) (llmgateway.ResolvedLLMGatewayConfig, error) {
 			return configurationManager.LLMGateway(selector)
@@ -250,7 +260,7 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 	handler.ServeHTTP(repeatResponse, repeatRequest)
 	var repeat runRepeatDraftResponse
 	if repeatResponse.Code != http.StatusOK || json.Unmarshal(repeatResponse.Body.Bytes(), &repeat) != nil ||
-		repeat.Draft == nil || repeat.Draft.ExecutionConfig.Status != repeatStatusAvailable ||
+		repeat.Draft == nil ||
 		repeat.Draft.Inputs["source"].Status != repeatStatusAvailable ||
 		repeat.Draft.Inputs["source"].Artifact == nil ||
 		!repeat.Draft.Inputs["source"].Artifact.Equal(current.Ref) ||
@@ -359,6 +369,56 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 	if foreignResponse.Code != http.StatusNotFound {
 		t.Fatalf("foreign PostgreSQL RunScope query = %d: %s", foreignResponse.Code, foreignResponse.Body.String())
 	}
+	// Experiments select authored Workflows through ordinary public Run creation.
+	snapshots := map[string]string{}
+	for _, variant := range []string{"a", "b"} {
+		nextRunID = "run-variant-" + variant
+		body := []byte(`{"workflow":"artifact-copy-` + variant + `@1","parameters":{},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`)
+		request := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(body))
+		request.Header.Set(idempotencyKeyHeader, "variant-"+variant)
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, request)
+		if response.Code != http.StatusAccepted {
+			t.Fatalf("variant %s: %d %s", variant, response.Code, response.Body.String())
+		}
+		stored, err := runs.GetRun(ctx, nextRunID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var pinned resolved.ResolvedWorkflow
+		if err := json.Unmarshal(stored.WorkflowSnapshot, &pinned); err != nil {
+			t.Fatal(err)
+		}
+		selected := pinned.Stages["copy"].ExecutionConfig.Agents["builder"]
+		if selected.ModelPolicy.Model != "variant-model-"+variant || selected.Origins.ModelPolicy != "workflow.executionConfig.workers" {
+			t.Fatalf("variant policy: %+v", selected)
+		}
+		snapshots[nextRunID] = string(stored.WorkflowSnapshot)
+	}
+	// Reloading a changed pre-production catalog cannot retarget accepted Runs.
+	policyPath := filepath.Join(variantRoot, "model-policies/test-variant-worker-a.yaml")
+	policy, err := os.ReadFile(policyPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(policyPath, []byte(strings.Replace(string(policy), "variant-model-a", "replacement-model", 1)), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	restarted, _, err := configload.NewManager(config.ManagerOptions{OperatorRoot: variantRoot, ManagedRoot: filepath.Join(t.TempDir(), "restarted-managed")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	changed, err := restarted.Workflow("artifact-copy-a@1")
+	if err != nil || changed.Stages["copy"].ExecutionConfig.Agents["builder"].ModelPolicy.Model != "replacement-model" {
+		t.Fatalf("replacement catalog did not load: %v", err)
+	}
+	for id, want := range snapshots {
+		stored, err := runs.GetRun(ctx, id)
+		if err != nil || string(stored.WorkflowSnapshot) != want {
+			t.Fatalf("catalog reload changed accepted %s: %v", id, err)
+		}
+	}
+
 }
 
 type integrationUnitOfWork struct {

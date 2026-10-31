@@ -50,7 +50,7 @@ func TestToolWorkerIgnoresUnavailableConflictingModelRoutes(t *testing.T) {
 	if !input.RunLabels[0].Spec.Worker.LLMGateway.Present {
 		t.Fatal("caller mutated")
 	}
-	input.RunOverride.Credential = Field[string]{Present: true, Clear: true}
+	input.Workflow.Credential = Field[string]{Present: true, Clear: true}
 	if _, err := ResolveRuntimeConfig(input); err == nil {
 		t.Fatal("explicit model override accepted")
 	}

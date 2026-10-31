@@ -2,7 +2,6 @@ package public
 
 import (
 	"bytes"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -31,7 +30,7 @@ func TestRunRepeatDraftRetainsExactRequestAndHidesSystemArtifact(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	body := []byte(`{"workflow":"artifact-copy@1","labels":{"purpose":"eval","eval.id":"sample-1"},"parameters":{"objective":"copy"},"artifacts":{"source":{"namespace":"sources","name":"service"}},"executionConfig":{"workers":{"modelPolicy":"test-worker@1","credential":null}}}`)
+	body := []byte(`{"workflow":"artifact-copy@1","labels":{"purpose":"eval","eval.id":"sample-1"},"parameters":{"objective":"copy"},"artifacts":{"source":{"namespace":"sources","name":"service"}}}`)
 	request := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(body))
 	created := httptest.NewRecorder()
 	fixture.handler.ServeHTTP(created, request)
@@ -46,8 +45,7 @@ func TestRunRepeatDraftRetainsExactRequestAndHidesSystemArtifact(t *testing.T) {
 	response := serveQuery(t, fixture.handler, "/v1/runs/run_fixed/repeat-draft")
 	var repeat runRepeatDraftResponse
 	decodeQueryResponse(t, response, &repeat)
-	if response.Code != http.StatusOK || repeat.Authority != repeatAuthorityOrdinary || repeat.Draft == nil ||
-		repeat.Draft.ExecutionConfig.Status != repeatStatusAvailable {
+	if response.Code != http.StatusOK || repeat.Authority != repeatAuthorityOrdinary || repeat.Draft == nil {
 		t.Fatalf("repeat draft = status %d, %+v", response.Code, repeat)
 	}
 	assertRepeatDraftNotCached(t, response)
@@ -55,10 +53,6 @@ func TestRunRepeatDraftRetainsExactRequestAndHidesSystemArtifact(t *testing.T) {
 	if input.Status != repeatStatusAvailable || input.Artifact == nil || input.Metadata == nil ||
 		!input.Artifact.Equal(source.Ref) || !input.Metadata.Ref.Equal(source.Ref) || !input.Metadata.CanUploadNewVersion {
 		t.Fatalf("repeat input = %+v, source = %+v", input, source.Ref)
-	}
-	encodedPatch, err := json.Marshal(repeat.Draft.ExecutionConfig.Value)
-	if err != nil || string(encodedPatch) != `{"workers":{"credential":null,"modelPolicy":"test-worker@1"}}` {
-		t.Fatalf("retained executionConfig = %s (%v)", encodedPatch, err)
 	}
 	if !hasRepeatNotice(repeat.Notices, "evaluation_labels_require_review") {
 		t.Fatalf("repeat notices = %+v", repeat.Notices)
@@ -89,10 +83,10 @@ func TestRunRepeatDraftBlocksMissingOrInvalidAuthorityDespiteLineage(t *testing.
 	}{
 		{"missing", "", "repeat_request_unavailable"},
 		{"malformed", "{", "repeat_request_invalid"},
-		{"missing-patch", `{"schemaVersion":"contractor.run-repeat-request/v2","workflow":{"name":"artifact-copy","version":"1"},"inputs":{}}`, "repeat_request_invalid"},
-		{"null-patch", `{"schemaVersion":"contractor.run-repeat-request/v2","workflow":{"name":"artifact-copy","version":"1"},"inputs":{},"executionConfig":null}`, "repeat_request_invalid"},
-		{"wrong-workflow", `{"schemaVersion":"contractor.run-repeat-request/v2","workflow":{"name":"other","version":"1"},"inputs":{},"executionConfig":{}}`, "repeat_request_invalid"},
-		{"wrong-project", `{"schemaVersion":"contractor.run-repeat-request/v2","workflow":{"name":"artifact-copy","version":"1"},"projectId":"other","inputs":{},"executionConfig":{}}`, "repeat_request_invalid"},
+		{"empty-patch", `{"schemaVersion":"contractor.run-repeat-request/v3","workflow":{"name":"artifact-copy","version":"1"},"inputs":{},"executionConfig":{}}`, "repeat_request_invalid"},
+		{"null-patch", `{"schemaVersion":"contractor.run-repeat-request/v3","workflow":{"name":"artifact-copy","version":"1"},"inputs":{},"executionConfig":null}`, "repeat_request_invalid"},
+		{"wrong-workflow", `{"schemaVersion":"contractor.run-repeat-request/v3","workflow":{"name":"other","version":"1"},"inputs":{}}`, "repeat_request_invalid"},
+		{"wrong-project", `{"schemaVersion":"contractor.run-repeat-request/v3","workflow":{"name":"artifact-copy","version":"1"},"projectId":"other","inputs":{}}`, "repeat_request_invalid"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			fixture := newHandlerFixture(t)

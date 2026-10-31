@@ -34,7 +34,6 @@ type ConfigurationPage = components["schemas"]["ConfigurationPage"];
 export type ConfigurationResource =
   components["schemas"]["ConfigurationResource"];
 type CredentialPage = components["schemas"]["CredentialPage"];
-export type CredentialResource = components["schemas"]["CredentialResource"];
 export type CreateRunRequest = components["schemas"]["CreateRunRequest"];
 type CreateRunResponse = components["schemas"]["CreateRunResponse"];
 

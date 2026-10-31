@@ -15,6 +15,7 @@ task owns it. The findings below that section describe the reviewed revision.
 
 | Report | Cited by |
 | --- | --- |
+| [Дополнительные направления упрощения — 2026-10-31](2026-10-31-further-simplification-candidates.md) | Предложения по ExecutionConfig, Studio и Evals; модельные Planner и Worker сохраняются по решению пользователя |
 | [Исследование сложности Contractor — 2026-10-31](2026-10-31-architecture-simplification-research.md) | ADK, SARIF и удаление Sweep выполнены (V425-031/032/033, предпосылка V425-035); Allocation — V425-034; остальные сокращения остаются предложениями |
 | [Database schema review — 2026-10-03](2026-10-03-database-schema-review.md) | The [schema reduction plan](../plans/2026-10-04-schema-reduction.md), V365-016 and the [database ERD](../spec/database-erd.html) |
 | [Code review of main — 2026-10-04](2026-10-04-code-review.md) | V341-001, V347-001 |

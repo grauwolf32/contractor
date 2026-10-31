@@ -53,7 +53,7 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 			if normalized.PinnedWorkflow != nil {
 				workflow, resolveErr = s.workflows.ResolvePinnedRunWorkflow(ctx, *normalized.PinnedWorkflow, s.llmCredentials)
 			} else {
-				workflow, resolveErr = s.workflows.ResolveRunWorkflow(ctx, normalized.Workflow, normalized.ExecutionConfig, s.llmCredentials)
+				workflow, resolveErr = s.workflows.ResolveRunWorkflow(ctx, normalized.Workflow, s.llmCredentials)
 			}
 			if resolveErr != nil {
 				// A credential lookup outage keeps its cause so the caller can
@@ -61,7 +61,7 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 				if errors.Is(resolveErr, resolved.ErrCredentialLookup) || errors.Is(resolveErr, contentdigest.ErrPinnedSelectionChanged) {
 					return resolveErr
 				}
-				return fmt.Errorf("%w: invalid Workflow or executionConfig selection: %v", ErrInvalid, resolveErr)
+				return fmt.Errorf("%w: invalid Workflow selection: %v", ErrInvalid, resolveErr)
 			}
 			if err := contentdigest.CheckPinnedSelection(normalized.ExpectedWorkflowSHA256, workflow); err != nil {
 				return err
@@ -184,7 +184,7 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 				}
 				repeatRequest, encodeErr := runrepeat.Encode(runrepeat.Snapshot{
 					Workflow: workflow.Ref, ProjectID: normalized.ProjectID,
-					Inputs: exactSources, ExecutionConfig: normalized.ExecutionConfig,
+					Inputs: exactSources,
 				})
 				if encodeErr != nil {
 					return encodeErr

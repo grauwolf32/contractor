@@ -10,6 +10,7 @@ import {
   workflowSummary,
 } from "../src/test/builders-execution";
 import {
+  fulfillContent,
   fulfillEmptyPageOrNotFound,
   fulfillJSON,
   mockAPI,
@@ -21,6 +22,8 @@ const PROJECT_ID = "project_browser_example";
 
 interface ProjectAPIFixtureOptions {
   artifactStoredInitially?: boolean;
+  showResult?: boolean;
+  outputReads?: string[];
   exposeWorkflow?: boolean;
   runRequests?: Array<{
     url: string;
@@ -60,6 +63,20 @@ async function installProjectAPI(
     frozen: false,
     createdAt: "2026-09-01T10:01:00Z",
   };
+  const resultSource = "note: selected output";
+  const resultRef = {
+    namespace: "outputs",
+    name: "openapi",
+    revision: "result-r1",
+  };
+  const resultRun = runStatus("run_result_browser", {
+    projectId: PROJECT_ID,
+    workflow: "openapi-from-source@1",
+    state: "succeeded",
+    deletable: true,
+    finishedAt: "2026-09-01T10:05:00Z",
+    outputs: { openapi: resultRef },
+  });
   const workflow = workflowResource("openapi-from-source", "1", {
     entryStage: "analyze",
     inputs: {
@@ -77,6 +94,31 @@ async function installProjectAPI(
   await mockAPI(
     page,
     async (route, request, url) => {
+      if (
+        options.showResult &&
+        url.pathname.startsWith("/v1/runs/run_result_browser/artifacts/")
+      ) {
+        options.outputReads?.push(request.url());
+        expect(url.searchParams.get("revision")).toBe("result-r1");
+        if (url.pathname.endsWith("/metadata"))
+          await fulfillJSON(route, {
+            ...artifact,
+            artifact: resultRef,
+            mediaType: "application/yaml",
+            size: resultSource.length,
+            canUploadNewVersion: false,
+            frozen: true,
+          });
+        else await fulfillContent(route, resultSource, "application/yaml");
+        return;
+      }
+      if (
+        options.showResult &&
+        url.pathname === "/v1/runs/run_result_browser"
+      ) {
+        await fulfillJSON(route, resultRun);
+        return;
+      }
       if (url.pathname === "/v1/projects" && request.method() === "GET") {
         await fulfillJSON(route, {
           items: [project],
@@ -173,7 +215,35 @@ async function installProjectAPI(
         url.pathname === `/v1/projects/${PROJECT_ID}/runs` &&
         request.method() === "GET"
       ) {
-        await fulfillJSON(route, { items: [], page: { hasMore: false } });
+        const {
+          runId,
+          projectId,
+          workflow,
+          state,
+          deletable,
+          labels,
+          createdAt,
+          updatedAt,
+          finishedAt,
+        } = resultRun;
+        await fulfillJSON(route, {
+          items: options.showResult
+            ? [
+                {
+                  runId,
+                  projectId,
+                  workflow,
+                  state,
+                  deletable,
+                  labels,
+                  createdAt,
+                  updatedAt,
+                  finishedAt,
+                },
+              ]
+            : [],
+          page: { hasMore: false },
+        });
         return;
       }
       if (url.pathname === "/v1/runs/run_project_browser") {
@@ -257,8 +327,9 @@ test("Project dashboard remains usable at 320px", async ({ page }) => {
 
   await openProjectFromShell(page);
   await page
-    .getByRole("combobox", { name: "Project section", exact: true })
-    .selectOption("artifacts");
+    .getByRole("navigation", { name: "Project sections" })
+    .getByRole("link", { name: "Materials", exact: true })
+    .click();
   await page.getByRole("button", { name: "Add material", exact: true }).click();
   await expect(page.getByRole("button", { name: "Other" })).toBeVisible();
   await page.getByRole("button", { name: "Other" }).click();
@@ -327,7 +398,7 @@ test("Project recommendation launches an exact Project Run", async ({
   });
 });
 
-test("Project sections open inputs and Run setup, while deletion stays in its menu", async ({
+test("Project sections open inputs and Run setup, with explicit confirmed deletion", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
@@ -344,7 +415,7 @@ test("Project sections open inputs and Run setup, while deletion stays in its me
   ).toHaveAttribute("aria-current", "page");
   await expect(
     page.getByRole("button", { name: "Delete Project" }),
-  ).toBeHidden();
+  ).toBeVisible();
   // The overview's Materials chips end with the link that opens the sheet.
   await page
     .getByRole("list", { name: "Materials" })
@@ -385,7 +456,6 @@ test("Project sections open inputs and Run setup, while deletion stays in its me
   await expect(
     page.getByRole("button", { name: "Configure openapi-from-source@1" }),
   ).toBeFocused();
-  await page.getByLabel("Project actions", { exact: true }).click();
   const deleteProject = page.getByRole("button", { name: "Delete Project" });
   await expect(deleteProject).toBeVisible();
   await deleteProject.click();
@@ -448,3 +518,107 @@ test("Workflow overview leads with Run setup in a dismissible drawer", async ({
     fullPage: true,
   });
 });
+
+for (const theme of ["light", "dark", "black"] as const) {
+  for (const width of [1440, 390, 320]) {
+    test(`Project Overview hierarchy and exact actions at ${width}px in ${theme}`, async ({
+      page,
+    }, testInfo) => {
+      await page.setViewportSize({ width, height: 1000 });
+      await page.addInitScript(
+        (theme) => localStorage.setItem("contractor.theme", theme),
+        theme,
+      );
+      const outputReads: string[] = [];
+      await installProjectAPI(page, mockedAPIOrigin(), [], {
+        artifactStoredInitially: true,
+        exposeWorkflow: true,
+        showResult: true,
+        outputReads,
+      });
+      await page.goto(`/projects/${PROJECT_ID}`);
+      const composer = page.getByRole("form", {
+        name: "What do you want to check?",
+      });
+      const results = page.getByRole("region", { name: "Recent results" });
+      const output = results.getByRole("article", { name: "openapi" });
+      await expect(output.getByText("outputs/openapi@result-r1")).toBeVisible();
+      const field = composer.getByRole("textbox");
+      await expect(field).toHaveAttribute("maxlength", "4000");
+      await expect(
+        composer.getByRole("button", { name: "Start a check" }),
+      ).toBeVisible();
+      expect(outputReads).toHaveLength(0);
+      const positions = await page.evaluate(() => {
+        const box = (selector: string) =>
+          document.querySelector(selector)!.getBoundingClientRect().toJSON();
+        return {
+          composer: box(".projects-composer"),
+          result: box(".projects-output"),
+          actions: box(".projects-output-actions"),
+          footer: box(".projects-output-footer"),
+          details: box(".projects-output-footer > a"),
+          provenance: box(".projects-result-provenance"),
+          documentWidth: document.documentElement.scrollWidth,
+        };
+      });
+      expect(positions.composer.top).toBeLessThan(positions.result.top);
+      expect(positions.actions.top).toBeLessThan(positions.footer.top);
+      expect(positions.details.top).toBeGreaterThanOrEqual(
+        positions.provenance.bottom,
+      );
+      expect(positions.documentWidth).toBe(width);
+      await output
+        .getByRole("button", { name: "Preview", exact: true })
+        .click();
+      await expect(
+        output.getByText("note: selected output", { exact: true }),
+      ).toBeVisible();
+      expect(outputReads).toHaveLength(2);
+      await expect(
+        output.getByRole("button", { name: "Download openapi" }),
+      ).toBeVisible();
+      await page.screenshot({
+        path: testInfo.outputPath(`project-overview-${width}-${theme}.png`),
+        fullPage: true,
+      });
+      await page.goto(`/projects/${PROJECT_ID}/workflows`);
+      const navigation = page.getByRole("navigation", {
+        name: "Project sections",
+      });
+      await expect(navigation.getByRole("link")).toHaveCount(7);
+      await expect(
+        navigation.getByRole("link", { name: "Workflows", exact: true }),
+      ).toHaveAttribute("aria-current", "page");
+      for (const resized of width === 1440 ? [390, 320, 1440] : [width]) {
+        await page.setViewportSize({ width: resized, height: 1000 });
+        await expect
+          .poll(() =>
+            navigation.evaluate((nav) => {
+              const active = nav
+                .querySelector('[aria-current="page"]')!
+                .getBoundingClientRect();
+              const bounds = nav.getBoundingClientRect();
+              return (
+                active.left >= bounds.left - 1 &&
+                active.right <= bounds.right + 1
+              );
+            }),
+          )
+          .toBe(true);
+        await expect
+          .poll(() => page.evaluate(() => document.documentElement.scrollWidth))
+          .toBe(resized);
+      }
+      await navigation
+        .getByRole("link", { name: "Overview", exact: true })
+        .click();
+      await expect(
+        page.getByRole("button", { name: "Refresh", exact: true }).last(),
+      ).toBeInViewport();
+      await expect
+        .poll(() => page.evaluate(() => document.documentElement.scrollWidth))
+        .toBe(width);
+    });
+  }
+}

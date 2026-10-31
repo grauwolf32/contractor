@@ -1,7 +1,6 @@
 import type { SharedConfig } from "../api/shared-config";
 import type { ArtifactMetadata, ExactArtifactRef } from "../api/artifacts";
 import { labelPlacementError } from "../api/audit-labels";
-import type { components } from "../api/generated/public";
 import {
   runMetadataLabelKeyError,
   runMetadataLabelValueError,
@@ -13,38 +12,18 @@ import {
 } from "../api/runtime-configuration";
 import type { CreateRunRequest, WorkflowResource } from "../api/workflows";
 
-export const NO_CREDENTIAL_OVERRIDE = "__none__";
-
-export interface ConsumerOverrideDraft {
-  summarizerModelPolicy?: string;
-  /** Preserved from a repeated Run; the form has no compactor editor. */
-  compactorModelPolicy?: string;
-  modelPolicy: string;
-  llmGateway: string;
-  credential: string;
-}
-
-export interface ExecutionOverrideDraft {
-  planner: ConsumerOverrideDraft;
-  workers: ConsumerOverrideDraft;
-  stages?: components["schemas"]["ExecutionConfigPatch"]["stages"];
-}
-
 interface RunDraftValues {
   runtimeLabels: string[];
   metadataLabels: readonly RunMetadataLabelDraft[];
   parameters: Record<string, string | undefined>;
   artifacts: Record<string, string>;
   artifactReviews: Readonly<Record<string, string>>;
-  overrides: ExecutionOverrideDraft;
 }
 
 interface RunDraftValidation {
   request?: CreateRunRequest;
   errors: Record<string, string>;
 }
-
-type ExecutionSelectionPatch = components["schemas"]["ExecutionSelectionPatch"];
 
 export function artifactOptionKey(ref: ExactArtifactRef): string {
   return `${ref.namespace}/${ref.name}@${ref.revision}`;
@@ -55,37 +34,6 @@ export function artifactAccepts(
   metadata: ArtifactMetadata,
 ): boolean {
   return accepted.includes("*/*") || accepted.includes(metadata.mediaType);
-}
-
-function selectionPatch(
-  draft: ConsumerOverrideDraft,
-): ExecutionSelectionPatch | undefined {
-  const result: ExecutionSelectionPatch = {};
-  if (draft.modelPolicy !== "") {
-    result.modelPolicy = draft.modelPolicy;
-  }
-  if (draft.summarizerModelPolicy) {
-    result.summarizerModelPolicy = draft.summarizerModelPolicy;
-  }
-  if (draft.compactorModelPolicy) {
-    result.compactorModelPolicy = draft.compactorModelPolicy;
-  }
-  if (draft.llmGateway !== "") {
-    result.llmGateway = draft.llmGateway;
-  }
-  if (draft.credential === NO_CREDENTIAL_OVERRIDE) {
-    result.credential = null;
-  } else if (draft.credential !== "") {
-    result.credential = draft.credential;
-  }
-  return Object.keys(result).length === 0 ? undefined : result;
-}
-
-export function emptyExecutionOverrides(): ExecutionOverrideDraft {
-  return {
-    planner: { modelPolicy: "", llmGateway: "", credential: "" },
-    workers: { modelPolicy: "", llmGateway: "", credential: "" },
-  };
 }
 
 export function validateRunDraft(
@@ -179,16 +127,6 @@ export function validateRunDraft(
     inputRefs[name] = metadata.artifact;
   }
 
-  const planner = selectionPatch(values.overrides.planner);
-  const workers = selectionPatch(values.overrides.workers);
-  const executionConfig = {
-    ...(planner === undefined ? {} : { planner }),
-    ...(workers === undefined ? {} : { workers }),
-    ...(values.overrides.stages === undefined ||
-    Object.keys(values.overrides.stages).length === 0
-      ? {}
-      : { stages: structuredClone(values.overrides.stages) }),
-  };
   if (Object.keys(errors).length > 0 || runtimeLabels === undefined) {
     return { errors };
   }
@@ -202,7 +140,6 @@ export function validateRunDraft(
         : { labels: sortedMetadataLabels }),
       parameters,
       artifacts: inputRefs,
-      ...(Object.keys(executionConfig).length === 0 ? {} : { executionConfig }),
     },
   };
 }

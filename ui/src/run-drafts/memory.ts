@@ -2,11 +2,7 @@ import type { ArtifactMetadata } from "../api/artifacts";
 import type { RunMetadataLabelDraft } from "../api/run-metadata-labels";
 import { canonicalMutationRequest } from "../mutations/idempotency";
 import { RunDraftKeyring } from "./idempotency";
-import {
-  artifactOptionKey,
-  emptyExecutionOverrides,
-  type ExecutionOverrideDraft,
-} from "./validation";
+import { artifactOptionKey } from "./validation";
 
 const MAX_RETAINED_RUN_DRAFTS = 16;
 
@@ -38,7 +34,6 @@ export interface RunDraftState {
   artifactSuggestions: Record<string, string>;
   artifactReviews: Record<string, string>;
   knownArtifacts: Record<string, ArtifactMetadata[]>;
-  overrides: ExecutionOverrideDraft;
   repeat?: RepeatDraftContext;
 }
 
@@ -107,7 +102,6 @@ export function initialRunDraftState(
         structuredClone([...metadata]),
       ]),
     ),
-    overrides: emptyExecutionOverrides(),
   };
 }
 

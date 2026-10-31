@@ -286,8 +286,7 @@ func (h *runHandlers) createRunFromProject(
 	credentialUser := runtimeCredentialUser(r.Context())
 	params := runservice.PublicCreateParams{
 		OwnerID: credentialUser.UserID, OperationsPrincipal: credentialUser.Operations,
-		ProjectID: projectID, Workflow: request.Workflow,
-		ExecutionConfig: request.ExecutionConfig, RuntimeLabels: normalizedLabels,
+		ProjectID: projectID, Workflow: request.Workflow, RuntimeLabels: normalizedLabels,
 		MetadataLabels: metadataLabels, Parameters: request.Parameters, Inputs: request.Artifacts,
 		IdempotencyKey: idempotencyKey,
 		NewRunID:       func() (string, error) { return h.NewID("run_") },

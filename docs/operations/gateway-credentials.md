@@ -81,5 +81,5 @@ jq -n --argjson gateway "$GATEWAY_REF" --argjson policy "$WORKER_POLICY_REF" \
 
 The response contains only ID, exact Gateway ref, label, effective policy and
 creation time. LiteLLM's generated virtual key is encrypted immediately in
-PostgreSQL. Select `managed-worker` in Workflow or Run `executionConfig`; keep
+PostgreSQL. Select `managed-worker` in Workflow `spec.executionConfig`; keep
 the development token environment variables unset when testing this path.

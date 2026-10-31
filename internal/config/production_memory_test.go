@@ -42,7 +42,7 @@ func TestRetiredWorkflowAndRebasedProfileKeepPinnedSnapshots(t *testing.T) {
 	}
 	appendFile(t, filepath.Join(root, "instructions", "audit-source-checker-worker.md"), "\nRecord every checked file.\n")
 	current := mustLoad(t, root)
-	if _, err := current.ResolveRunWorkflow(t.Context(), "artifact-copy@1", resolved.ExecutionConfigPatch{}, nil); err == nil {
+	if _, err := current.ResolveRunWorkflow(t.Context(), "artifact-copy@1", nil); err == nil {
 		t.Fatal("new Run silently resolved retired Workflow")
 	}
 	rebased, err := current.AuditProfile("source-checklist@1")

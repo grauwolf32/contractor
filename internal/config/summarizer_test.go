@@ -81,7 +81,7 @@ func TestWorkerSummarizerResolvesPinsAndPublishesSafeConfiguration(t *testing.T)
 	}
 
 	workflow, err := snapshot.ResolveRunWorkflow(
-		t.Context(), "artifact-copy@1", resolved.ExecutionConfigPatch{}, developmentCredentialLookup(t, snapshot),
+		t.Context(), "artifact-copy@1", developmentCredentialLookup(t, snapshot),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -295,19 +295,16 @@ func TestWorkerSummarizerRejectsInvalidAuthoring(t *testing.T) {
 	}
 }
 
-func TestWorkerSummarizerRejectsEffectiveRunPolicyBelowSoftThreshold(t *testing.T) {
+func TestWorkerSummarizerRejectsEffectiveWorkflowPolicyBelowSoftThreshold(t *testing.T) {
 	t.Parallel()
 
 	root := copyCoreFixture(t)
 	installWorkerSummarizer(t, root)
 	writeFile(t, filepath.Join(root, "model-policies/test-low-worker.yaml"), []byte(lowWorkerPolicyYAML))
-	snapshot := mustLoad(t, root)
-	patch := decodeExecutionConfigPatch(t, `{"workers":{"modelPolicy":"test-low-worker@1"}}`)
-	workflow, err := snapshot.ResolveRunWorkflow(
-		t.Context(), "artifact-copy@1", patch, developmentCredentialLookup(t, snapshot),
-	)
+	writeWorkflowExecutionConfig(t, root, "artifact_copy.yaml", `{"workers":{"modelPolicy":"test-low-worker@1"}}`)
+	workflow, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
 	if err == nil || !strings.Contains(err.Error(), "below Worker maxTotalTokens") {
-		t.Fatalf("ResolveRunWorkflow() = (%+v, %v), want summarizer threshold error", workflow, err)
+		t.Fatalf("Load() = (%+v, %v), want summarizer threshold error", workflow, err)
 	}
 }
 
@@ -318,8 +315,9 @@ func TestExecutionConfigCannotOverrideWorkerSummarizer(t *testing.T) {
 		`{"workers":{"summarizer":"terminal_summarizer@1"}}`,
 		`{"stages":{"copy":{"agents":{"builder":{"summarizer":null}}}}}`,
 	} {
-		var patch resolved.ExecutionConfigPatch
-		if err := json.Unmarshal([]byte(raw), &patch); err == nil {
+		root := copyCoreFixture(t)
+		writeWorkflowExecutionConfig(t, root, "artifact_copy.yaml", raw)
+		if _, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed")); err == nil {
 			t.Fatalf("executionConfig accepted summarizer override: %s", raw)
 		}
 	}
@@ -429,7 +427,7 @@ func TestWorkerSummarizerIncludeReasoningResolvesPinsAndDigests(t *testing.T) {
 	}
 
 	workflow, err := enabledSnapshot.ResolveRunWorkflow(
-		t.Context(), "artifact-copy@1", resolved.ExecutionConfigPatch{}, developmentCredentialLookup(t, enabledSnapshot),
+		t.Context(), "artifact-copy@1", developmentCredentialLookup(t, enabledSnapshot),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -500,7 +498,7 @@ func TestWorkerSummarizerResolvedIncludeReasoningRequiresExplicitBoolean(t *test
 	installWorkerSummarizer(t, root)
 	snapshot := mustLoad(t, root)
 	workflow, err := snapshot.ResolveRunWorkflow(
-		t.Context(), "artifact-copy@1", resolved.ExecutionConfigPatch{}, developmentCredentialLookup(t, snapshot),
+		t.Context(), "artifact-copy@1", developmentCredentialLookup(t, snapshot),
 	)
 	if err != nil {
 		t.Fatal(err)

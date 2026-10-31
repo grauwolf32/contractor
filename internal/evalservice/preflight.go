@@ -18,7 +18,7 @@ import (
 )
 
 type Catalog interface {
-	ResolveRunWorkflow(context.Context, string, resolved.ExecutionConfigPatch, resolved.CredentialLookup) (resolved.ResolvedWorkflow, error)
+	ResolveRunWorkflow(context.Context, string, resolved.CredentialLookup) (resolved.ResolvedWorkflow, error)
 	ResolveAuditProfile(context.Context, string) (auditprofile.ResolvedAuditProfile, error)
 }
 

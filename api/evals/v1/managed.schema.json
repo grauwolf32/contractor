@@ -370,79 +370,6 @@
       ],
       "additionalProperties": false
     },
-    "ExecutionSelection": {
-      "type": "object",
-      "properties": {
-        "modelPolicy": {
-          "$ref": "#/$defs/Selector"
-        },
-        "llmGateway": {
-          "$ref": "#/$defs/Selector"
-        },
-        "credential": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/Opaque"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "summarizerModelPolicy": {
-          "$ref": "#/$defs/Selector"
-        },
-        "compactorModelPolicy": {
-          "$ref": "#/$defs/Selector"
-        }
-      },
-      "required": [],
-      "additionalProperties": false,
-      "minProperties": 1
-    },
-    "StageOverride": {
-      "type": "object",
-      "properties": {
-        "planner": {
-          "$ref": "#/$defs/ExecutionSelection"
-        },
-        "agents": {
-          "type": "object",
-          "propertyNames": {
-            "$ref": "#/$defs/Id"
-          },
-          "additionalProperties": {
-            "$ref": "#/$defs/ExecutionSelection"
-          },
-          "maxProperties": 128
-        }
-      },
-      "required": [],
-      "additionalProperties": false
-    },
-    "ExecutionConfig": {
-      "type": "object",
-      "properties": {
-        "planner": {
-          "$ref": "#/$defs/ExecutionSelection"
-        },
-        "workers": {
-          "$ref": "#/$defs/ExecutionSelection"
-        },
-        "stages": {
-          "type": "object",
-          "propertyNames": {
-            "$ref": "#/$defs/Id"
-          },
-          "additionalProperties": {
-            "$ref": "#/$defs/StageOverride"
-          },
-          "maxProperties": 128
-        }
-      },
-      "required": [],
-      "additionalProperties": false
-    },
     "Variant": {
       "type": "object",
       "properties": {
@@ -457,9 +384,6 @@
         },
         "selector": {
           "$ref": "#/$defs/Selector"
-        },
-        "executionConfig": {
-          "$ref": "#/$defs/ExecutionConfig"
         },
         "runtimeLabels": {
           "type": "array",
@@ -506,8 +430,7 @@
       "required": [
         "id",
         "kind",
-        "selector",
-        "executionConfig"
+        "selector"
       ],
       "additionalProperties": false
     },

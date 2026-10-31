@@ -428,7 +428,7 @@ verdict or missing artifact from hidden expectations.
 exactly one of `workflow` or `audit_profile` must be present (LIM-EVF-13).
 
 **EVF-R61.** Workflow selectors, the AuditProfile name and version,
-runtime labels, execution overrides, parameter mappings and artifact
+runtime labels, parameter mappings and artifact
 namespaces exist only in the Contractor binding settings, not in portable
 Cases or scorers.
 

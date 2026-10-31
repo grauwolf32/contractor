@@ -900,9 +900,7 @@ are invalid.
 **EVM-R132.** Variant parameters override case task parameters, and
 `$task.objective` substitutes the visible objective.
 
-**EVM-R133.** Workflow variants use ordinary execution overrides. Audit
-variants select exact AuditProfiles and cannot supply execution overrides until
-the ordinary Audit service supports them.
+**EVM-R133.** Workflow variants select exact authored Workflow refs; Audit variants select exact AuditProfile refs. Neither accepts execution overrides. Compare model policies by selecting distinct Workflows with compatible contracts; preparation retains their exact effective selections and submission consumes those pins.
 
 **EVM-R134.** Managed submission keys are scoped by experiment lookup identity
 and member ID, with distinct keys for Audit creation and start (FAIL-EVM-5).
@@ -1440,7 +1438,7 @@ invent a missing journal or resolve ambiguous receipt membership.
 **EVM-R234.** The managed Eval contract is producer-neutral.
 
 **EVM-R238.** Native Eval preparation resolves deployment model defaults and
-explicit variant Run overrides into retained execution bindings, including
+authored Workflow selections into retained execution bindings, including
 main, summary and late Planner policies. Dispatch uses that binding rather than
 resolving mutable defaults again. It verifies that exact Workflow, profile,
 template, model and Gateway dependencies still exist unchanged and rechecks
@@ -1655,8 +1653,8 @@ Content-Type: application/json
     "dataset": {"id": "trace-small", "revision": "r1"},
     "caseIds": ["unsafe-query", "safe-query"],
     "variants": [
-      {"id": "a", "kind": "workflow", "selector": "trace-baseline@1", "executionConfig": {}},
-      {"id": "b", "kind": "workflow", "selector": "trace-candidate@1", "executionConfig": {}}
+      {"id": "a", "kind": "workflow", "selector": "trace-baseline@1"},
+      {"id": "b", "kind": "workflow", "selector": "trace-candidate@1"}
     ],
     "repetitions": 2,
     "order": {"kind": "alternating"},

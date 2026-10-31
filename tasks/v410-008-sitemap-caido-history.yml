@@ -22,6 +22,8 @@ context:
     this task records planned work, not implementation or verification evidence. The 2026-10-28 user decision makes
     sitemap metadata shared by every permitted reader, without source-mode classification. Original file retention
     belongs only to explicit snapshots through snapshotInputs; current operation and exact-file authority remain.
+    The user decision on 2026-10-31 splits the sitemap lane for parallel work with Audit; keep this optional
+    follow-up after independent V410-007, without V410-025 or V64 prerequisites.
   proposal: docs/proposals/0042-live-project-sitemap.md
   proposal_sections: 'Sections 5 and 9-12: provider continuation, source selection, checkpointed imports and independent
     optional delivery.'
@@ -46,6 +48,11 @@ context:
   - tests/e2e
   reuse: Current Caido history has provider paging; V375-002 solves passive sitemap snapshot paging separately.
     The pending V386-004 flat catalog defect is not a dependency of this selected history import.
+  parallel_delivery: >-
+    User decision 2026-10-31: the user requested sitemap work in parallel with Audit and a task
+    rewrite. Follow standalone V410-007 under ordinary task policy; Audit review, V410-025 and
+    V64 are not prerequisites. Preserve the other listed dependencies and existing source/snapshot
+    authority. This planning update starts no implementation.
 scope:
   in:
   - Validate the exact continuation semantics against the pinned Caido GraphQL schema/fixtures and document whether

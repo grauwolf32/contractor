@@ -4,12 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import type { ArtifactMetadata } from "../api/artifacts";
 import type { WorkflowResource } from "../api/workflows";
-import {
-  artifactOptionKey,
-  emptyExecutionOverrides,
-  NO_CREDENTIAL_OVERRIDE,
-  validateRunDraft,
-} from "./validation";
+import { artifactOptionKey, validateRunDraft } from "./validation";
 
 const workflow: WorkflowResource = {
   ref: { name: "openapi-from-workspace", version: "fixture-1" },
@@ -53,7 +48,6 @@ describe("Run draft validation", () => {
         parameters: {},
         artifacts: { source: key },
         artifactReviews: { source: key },
-        overrides: emptyExecutionOverrides(),
       },
       () => new Map([[key, incompatible]]),
       TEST_SHARED_CONFIG.limits,
@@ -74,7 +68,6 @@ describe("Run draft validation", () => {
         parameters: { objective: "Build OpenAPI" },
         artifacts: {},
         artifactReviews: {},
-        overrides: emptyExecutionOverrides(),
       },
       () => new Map(),
       TEST_SHARED_CONFIG.limits,
@@ -94,7 +87,6 @@ describe("Run draft validation", () => {
         parameters: { objective: "Build OpenAPI" },
         artifacts: { source: key },
         artifactReviews: { source: key },
-        overrides: emptyExecutionOverrides(),
       },
       () => new Map(),
       TEST_SHARED_CONFIG.limits,
@@ -120,7 +112,6 @@ describe("Run draft validation", () => {
         parameters: { objective: "Build OpenAPI" },
         artifacts: { source: key },
         artifactReviews: { source: key },
-        overrides: emptyExecutionOverrides(),
       },
       () => new Map([[key, source]]),
       TEST_SHARED_CONFIG.limits,
@@ -132,41 +123,6 @@ describe("Run draft validation", () => {
       labels: { debug: "", "eval.id": "eval-01", purpose: "eval" },
       parameters: { objective: "Build OpenAPI" },
       artifacts: { source: source.artifact },
-    });
-  });
-
-  it("uses only selector and active credential fields in global overrides", () => {
-    const key = artifactOptionKey(source.artifact);
-    const overrides = emptyExecutionOverrides();
-    overrides.planner.modelPolicy = "planner-strong@2";
-    overrides.planner.credential = NO_CREDENTIAL_OVERRIDE;
-    overrides.workers.llmGateway = "local@1";
-    overrides.workers.summarizerModelPolicy = "summary-small@1";
-    overrides.workers.credential = "credential-worker";
-    const result = validateRunDraft(
-      workflow,
-      {
-        runtimeLabels: [],
-        metadataLabels: [],
-        parameters: { objective: "Build OpenAPI", note: "" },
-        artifacts: { source: key },
-        artifactReviews: { source: key },
-        overrides,
-      },
-      () => new Map([[key, source]]),
-      TEST_SHARED_CONFIG.limits,
-    );
-    expect(result.request?.executionConfig).toEqual({
-      planner: { modelPolicy: "planner-strong@2", credential: null },
-      workers: {
-        llmGateway: "local@1",
-        credential: "credential-worker",
-        summarizerModelPolicy: "summary-small@1",
-      },
-    });
-    expect(result.request?.parameters).toEqual({
-      objective: "Build OpenAPI",
-      note: "",
     });
   });
 
@@ -191,7 +147,6 @@ describe("Run draft validation", () => {
         parameters: {},
         artifacts: {},
         artifactReviews: {},
-        overrides: emptyExecutionOverrides(),
       },
       () => new Map(),
       TEST_SHARED_CONFIG.limits,
@@ -218,7 +173,6 @@ describe("Run draft validation", () => {
         parameters: { objective: "Build OpenAPI" },
         artifacts: { source: key },
         artifactReviews: {},
-        overrides: emptyExecutionOverrides(),
       },
       () => new Map([[key, source]]),
       TEST_SHARED_CONFIG.limits,
@@ -253,7 +207,6 @@ describe("Run draft validation", () => {
         parameters: {},
         artifacts: { dependency_report: key, project_report: key },
         artifactReviews: { dependency_report: key },
-        overrides: emptyExecutionOverrides(),
       },
       () => new Map([[key, report]]),
       TEST_SHARED_CONFIG.limits,
@@ -271,7 +224,6 @@ describe("Run draft validation", () => {
         parameters: {},
         artifacts: { dependency_report: key, project_report: key },
         artifactReviews: { dependency_report: key, project_report: key },
-        overrides: emptyExecutionOverrides(),
       },
       () => new Map([[key, report]]),
       TEST_SHARED_CONFIG.limits,

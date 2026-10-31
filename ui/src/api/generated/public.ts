@@ -1576,7 +1576,7 @@ export interface paths {
         };
         /**
          * Project a terminal Run into a reviewed new-Run draft
-         * @description Reads immutable Run request provenance without creating or changing a Run. Original UserScope or ProjectScope revisions are returned only after owner and source-scope verification; frozen RunScope inputs are never presented as reusable sources. Audit-managed Runs return their owning Audit context without a draft. The draft requires the Run's retained executionConfig fragment, valid and matching its Workflow and Project; a missing or invalid fragment returns a blocking notice and no draft, and neither lineage nor current or effective configuration reconstructs the original request.
+         * @description Reads immutable Run request provenance without creating or changing a Run. Original UserScope or ProjectScope revisions are returned only after owner and source-scope verification; frozen RunScope inputs are never presented as reusable sources. Audit-managed Runs return their owning Audit context without a draft. The draft requires the Run's retained request fragment, valid and matching its Workflow and Project; a missing or invalid fragment returns a blocking notice and no draft, and neither lineage nor current or effective configuration reconstructs the original request.
          */
         get: operations["getRunRepeatDraft"];
         put?: never;
@@ -2933,32 +2933,11 @@ export interface components {
             id: components["schemas"]["EvalId"];
             revision: components["schemas"]["EvalOpaque"];
         };
-        EvalExecutionSelection: {
-            modelPolicy?: components["schemas"]["EvalSelector"];
-            llmGateway?: components["schemas"]["EvalSelector"];
-            credential?: components["schemas"]["EvalOpaque"] | null;
-            summarizerModelPolicy?: components["schemas"]["EvalSelector"];
-            compactorModelPolicy?: components["schemas"]["EvalSelector"];
-        };
-        EvalStageOverride: {
-            planner?: components["schemas"]["EvalExecutionSelection"];
-            agents?: {
-                [key: string]: components["schemas"]["EvalExecutionSelection"];
-            };
-        };
-        EvalExecutionConfig: {
-            planner?: components["schemas"]["EvalExecutionSelection"];
-            workers?: components["schemas"]["EvalExecutionSelection"];
-            stages?: {
-                [key: string]: components["schemas"]["EvalStageOverride"];
-            };
-        };
         EvalVariant: {
             id: components["schemas"]["EvalId"];
             /** @enum {string} */
             kind: "workflow" | "audit";
             selector: components["schemas"]["EvalSelector"];
-            executionConfig: components["schemas"]["EvalExecutionConfig"];
             runtimeLabels?: components["schemas"]["EvalId"][];
             inputMapping?: {
                 [key: string]: components["schemas"]["EvalId"];
@@ -5661,7 +5640,7 @@ export interface components {
         };
         RuntimeFieldOrigin: {
             /** @enum {string} */
-            layer: "default" | "workflow_execution_config" | "run_labels" | "run_execution_config" | "escalation_execution_config" | "agent_labels";
+            layer: "default" | "workflow_execution_config" | "run_labels" | "escalation_execution_config" | "agent_labels";
             configs?: components["schemas"]["RuntimeConfigRef"][];
         };
         StageRuntimeOrigins: {
@@ -5839,11 +5818,6 @@ export interface components {
             field?: string;
             message: string;
         };
-        RunRepeatExecutionConfig: {
-            /** @enum {string} */
-            status: "available";
-            value: components["schemas"]["ExecutionConfigPatch"];
-        };
         RunRepeatInput: {
             /** @enum {string} */
             status: "available" | "unavailable";
@@ -5862,7 +5836,6 @@ export interface components {
             /** @description Selected Runtime labels in lexical order; never the reserved default label (RCF-R118). */
             runtimeLabels: components["schemas"]["ConfigId"][];
             labels: components["schemas"]["RunMetadataLabels"];
-            executionConfig: components["schemas"]["RunRepeatExecutionConfig"];
             inputs: {
                 [key: string]: components["schemas"]["RunRepeatInput"];
             };
@@ -5937,27 +5910,6 @@ export interface components {
             state: components["schemas"]["WorkflowRunState"];
             cancellation?: components["schemas"]["Cancellation"];
         };
-        ExecutionSelectionPatch: {
-            modelPolicy?: components["schemas"]["Selector"];
-            summarizerModelPolicy?: components["schemas"]["Selector"];
-            /** @description Exact compactor ModelPolicy; valid only in a Planner selection that applies to a compact@1 Stage (PLN-R125). */
-            compactorModelPolicy?: components["schemas"]["Selector"];
-            llmGateway?: components["schemas"]["Selector"];
-            credential?: components["schemas"]["ConfigId"] | null;
-        };
-        StageExecutionConfigPatch: {
-            planner?: components["schemas"]["ExecutionSelectionPatch"];
-            agents?: {
-                [key: string]: components["schemas"]["ExecutionSelectionPatch"];
-            };
-        };
-        ExecutionConfigPatch: {
-            planner?: components["schemas"]["ExecutionSelectionPatch"];
-            workers?: components["schemas"]["ExecutionSelectionPatch"];
-            stages?: {
-                [key: string]: components["schemas"]["StageExecutionConfigPatch"];
-            };
-        };
         CreateRunRequest: {
             workflow: components["schemas"]["Selector"];
             /** @description Runtime labels in any order: at most 32 labels of the label grammar, unique, never the reserved default label (RCF-R117 to RCF-R120). The Server stores and answers them in lexical order. */
@@ -5969,7 +5921,6 @@ export interface components {
             artifacts?: {
                 [key: string]: components["schemas"]["ArtifactRef"];
             } | null;
-            executionConfig?: components["schemas"]["ExecutionConfigPatch"];
         };
         PlannerSubtask: {
             id: string;

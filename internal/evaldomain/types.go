@@ -1,7 +1,5 @@
 package evaldomain
 
-import "github.com/grauwolf32/contractor/internal/config/resolved"
-
 type Source struct {
 	System       string  `json:"system"`
 	ID           string  `json:"id"`
@@ -71,14 +69,13 @@ type DatasetRef struct {
 }
 
 type Variant struct {
-	ID              string                        `json:"id"`
-	Kind            string                        `json:"kind"`
-	Selector        string                        `json:"selector"`
-	ExecutionConfig resolved.ExecutionConfigPatch `json:"executionConfig"`
-	RuntimeLabels   []string                      `json:"runtimeLabels,omitempty"`
-	InputMapping    map[string]string             `json:"inputMapping,omitempty"`
-	OutputMapping   map[string]string             `json:"outputMapping,omitempty"`
-	Parameters      map[string]string             `json:"parameters,omitempty"`
+	ID            string            `json:"id"`
+	Kind          string            `json:"kind"`
+	Selector      string            `json:"selector"`
+	RuntimeLabels []string          `json:"runtimeLabels,omitempty"`
+	InputMapping  map[string]string `json:"inputMapping,omitempty"`
+	OutputMapping map[string]string `json:"outputMapping,omitempty"`
+	Parameters    map[string]string `json:"parameters,omitempty"`
 }
 
 type Check struct {

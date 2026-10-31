@@ -83,7 +83,6 @@ export function initialEvalDraft(): EvalDraft {
       id,
       kind: "workflow",
       selector: "",
-      executionConfig: {},
     })),
     repetitions: 1,
     order: { kind: "alternating" },
