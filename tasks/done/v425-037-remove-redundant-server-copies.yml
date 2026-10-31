@@ -5,7 +5,7 @@ milestone: hub-audit-structure-2026-10
 epic: quality
 kind: chore
 priority: P3
-status: in_progress
+status: completed
 depends_on: []
 languages: [go]
 goal: Reduce handwritten copying and repeated allocations without changing persisted or public behavior.
@@ -79,3 +79,13 @@ implementation_notes:
     Production Go shrinks by 168 lines, and all Go including replacement regressions shrinks
     by 83 lines. Tests exercise actual stored Audit/engagement/Planner reads, HTTP ordering,
     stable nil/empty reservation fingerprints and retained Registry isolation.
+implementation_commit: 8540037bdcbaf54a08cdcf3de9f90c57bb466c1c
+verification: >-
+  All six complete integration-tagged owner suites passed with the dedicated disposable
+  PostgreSQL 17.11 database configured: auditservice, controlplane, planner/session,
+  httpapi/public, runtimeconfig and contracts/engagementcontract. The full controlplane,
+  planner/session and httpapi/public suites passed with the race detector; database
+  tests were unset in that separate race pass. The focused stored-baseline regression
+  passed, make lint passed, and task metadata/backlog checks passed after closure.
+  No benchmark or full release gate is claimed. Implemented on codex/server-copy-cleanup;
+  not merged into main.
