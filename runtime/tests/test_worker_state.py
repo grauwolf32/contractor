@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from shared_config_defaults import MAX_AGENT_STATE_SNAPSHOT_BYTES
 from test_allocation import NOW, TrackedMetricsState, make_service, make_spec
 
 import contractor_runtime.worker.state as state_module
@@ -33,7 +34,6 @@ from contractor_runtime.telemetry.metrics import (
 )
 from contractor_runtime.worker.observations import WorkspaceObservationReducer
 from contractor_runtime.worker.state import (
-    MAX_AGENT_STATE_SNAPSHOT_BYTES,
     WorkerStateError,
     WorkerStateStore,
 )

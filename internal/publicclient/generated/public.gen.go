@@ -13103,9 +13103,18 @@ type SharedConfig struct {
 	ApiVersion SharedConfigApiVersion `json:"apiVersion"`
 	Digest     string                 `json:"digest"`
 	Limits     struct {
-		ArtifactListMaxItems    int `json:"artifactListMaxItems"`
-		ArtifactPayloadMaxBytes int `json:"artifactPayloadMaxBytes"`
-		PublicPageMaxItems      int `json:"publicPageMaxItems"`
+		ArtifactListMaxItems              int `json:"artifactListMaxItems"`
+		ArtifactPayloadMaxBytes           int `json:"artifactPayloadMaxBytes"`
+		PublicPageMaxItems                int `json:"publicPageMaxItems"`
+		WorkerCompletionMaxBytes          int `json:"workerCompletionMaxBytes"`
+		WorkerFailureMessageMaxBytes      int `json:"workerFailureMessageMaxBytes"`
+		WorkerObservationMaxTools         int `json:"workerObservationMaxTools"`
+		WorkerResultMaxArtifacts          int `json:"workerResultMaxArtifacts"`
+		WorkerResultMaxBytes              int `json:"workerResultMaxBytes"`
+		WorkerStateMaxBytes               int `json:"workerStateMaxBytes"`
+		WorkerStateWorkspaceMaxPaths      int `json:"workerStateWorkspaceMaxPaths"`
+		WorkerStateWorkspacePathsMaxBytes int `json:"workerStateWorkspacePathsMaxBytes"`
+		WorkerWorkspaceMaxFilesRead       int `json:"workerWorkspaceMaxFilesRead"`
 	} `json:"limits"`
 	Version SharedConfigVersion `json:"version"`
 }

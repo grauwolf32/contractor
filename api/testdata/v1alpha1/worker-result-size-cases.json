@@ -72,32 +72,32 @@
   {
     "name": "literal_html_escape",
     "unit": "\\u003c",
-    "repeat": 9000,
+    "repeat": 5461,
     "prefix": "",
     "padding": 0,
     "integer": null,
     "valid": true,
-    "json_bytes": 63233
+    "json_bytes": 38460
   },
   {
     "name": "literal_separator_escape",
     "unit": "\\u2028",
-    "repeat": 9000,
+    "repeat": 5461,
     "prefix": "",
     "padding": 0,
     "integer": null,
     "valid": true,
-    "json_bytes": 63233
+    "json_bytes": 38460
   },
   {
     "name": "mixed_escapes",
     "unit": "<>&  \"\\u2028\\u003c\\",
-    "repeat": 1000,
+    "repeat": 1424,
     "prefix": "",
     "padding": 0,
     "integer": null,
     "valid": true,
-    "json_bytes": 27233
+    "json_bytes": 38681
   },
   {
     "name": "exact_integer_max",
@@ -172,9 +172,9 @@
   {
     "name": "separator_envelope_at_limit",
     "unit": " ",
-    "repeat": 21000,
+    "repeat": 21845,
     "prefix": "x",
-    "padding": 198853,
+    "padding": 196318,
     "integer": null,
     "valid": true,
     "json_bytes": 262144
@@ -182,9 +182,9 @@
   {
     "name": "separator_envelope_over_limit",
     "unit": " ",
-    "repeat": 21000,
+    "repeat": 21845,
     "prefix": "x",
-    "padding": 198854,
+    "padding": 196319,
     "integer": null,
     "valid": false,
     "json_bytes": 262145

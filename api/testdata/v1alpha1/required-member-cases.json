@@ -3596,6 +3596,15 @@
         "/limits/artifactListMaxItems",
         "/limits/artifactPayloadMaxBytes",
         "/limits/publicPageMaxItems",
+        "/limits/workerCompletionMaxBytes",
+        "/limits/workerFailureMessageMaxBytes",
+        "/limits/workerObservationMaxTools",
+        "/limits/workerResultMaxArtifacts",
+        "/limits/workerResultMaxBytes",
+        "/limits/workerStateMaxBytes",
+        "/limits/workerStateWorkspaceMaxPaths",
+        "/limits/workerStateWorkspacePathsMaxBytes",
+        "/limits/workerWorkspaceMaxFilesRead",
         "/version"
       ],
       "null": [
@@ -3605,6 +3614,15 @@
         "/limits/artifactListMaxItems",
         "/limits/artifactPayloadMaxBytes",
         "/limits/publicPageMaxItems",
+        "/limits/workerCompletionMaxBytes",
+        "/limits/workerFailureMessageMaxBytes",
+        "/limits/workerObservationMaxTools",
+        "/limits/workerResultMaxArtifacts",
+        "/limits/workerResultMaxBytes",
+        "/limits/workerStateMaxBytes",
+        "/limits/workerStateWorkspaceMaxPaths",
+        "/limits/workerStateWorkspacePathsMaxBytes",
+        "/limits/workerWorkspaceMaxFilesRead",
         "/version"
       ]
     },

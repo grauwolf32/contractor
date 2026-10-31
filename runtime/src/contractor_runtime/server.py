@@ -25,7 +25,6 @@ from contractor_runtime._https import PRIVATE_LISTENER_IDLE_TIMEOUT_SECONDS
 from contractor_runtime.a2a_server import AllocationA2AGateway
 from contractor_runtime.allocation import AllocationError, AllocationService
 from contractor_runtime.contracts import (
-    MAX_AGENT_STATE_SNAPSHOT_BYTES,
     AbortAllocationRequest,
     FinalizeAllocationRequest,
     PrepareAllocationRequest,
@@ -36,6 +35,7 @@ from contractor_runtime.contracts import (
 )
 from contractor_runtime.mtls import verify_control_plane_peer
 from contractor_runtime.settings import Settings
+from contractor_runtime.shared_config import get_shared_config
 from contractor_runtime.state import ProcessState, RuntimeState
 
 logger = logging.getLogger(__name__)
@@ -219,7 +219,7 @@ def create_app(
                 by_alias=True,
             )
             encoded = encoded_text.encode("utf-8")
-            if len(encoded) > MAX_AGENT_STATE_SNAPSHOT_BYTES:
+            if len(encoded) > get_shared_config().worker_state_max_bytes:
                 raise AllocationError(
                     "agent_state_unavailable",
                     "allocation Worker State is unavailable",

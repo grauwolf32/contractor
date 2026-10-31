@@ -29,7 +29,16 @@
       "required": [
         "artifactPayloadMaxBytes",
         "publicPageMaxItems",
-        "artifactListMaxItems"
+        "artifactListMaxItems",
+        "workerResultMaxBytes",
+        "workerCompletionMaxBytes",
+        "workerFailureMessageMaxBytes",
+        "workerResultMaxArtifacts",
+        "workerObservationMaxTools",
+        "workerWorkspaceMaxFilesRead",
+        "workerStateMaxBytes",
+        "workerStateWorkspaceMaxPaths",
+        "workerStateWorkspacePathsMaxBytes"
       ],
       "properties": {
         "artifactPayloadMaxBytes": {
@@ -43,6 +52,51 @@
           "maximum": 9007199254740991
         },
         "artifactListMaxItems": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "workerResultMaxBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "workerCompletionMaxBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "workerFailureMessageMaxBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "workerResultMaxArtifacts": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "workerObservationMaxTools": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "workerWorkspaceMaxFilesRead": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "workerStateMaxBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "workerStateWorkspaceMaxPaths": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "workerStateWorkspacePathsMaxBytes": {
           "type": "integer",
           "minimum": 1,
           "maximum": 9007199254740991

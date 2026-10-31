@@ -11,10 +11,10 @@ from typing import Any, Literal
 
 from contractor_runtime.contracts import (
     API_VERSION,
-    MAX_AGENT_STATE_SNAPSHOT_BYTES,
     AgentStateSnapshot,
 )
 from contractor_runtime.contracts.base import json_byte_size
+from contractor_runtime.shared_config import get_shared_config
 from contractor_runtime.telemetry.metrics import MetricsState
 from contractor_runtime.toolsets.common.http_observations import HTTPObservationSink
 from contractor_runtime.toolsets.common.report_publications import ReportPublicationSink
@@ -423,7 +423,7 @@ def _fit_snapshot(candidate: dict[str, Any]) -> dict[str, Any]:
     place and only re-slices the shared record projections, never mutating them.
     """
 
-    if _envelope_size(candidate) <= MAX_AGENT_STATE_SNAPSHOT_BYTES:
+    if _envelope_size(candidate) <= get_shared_config().worker_state_max_bytes:
         return candidate
 
     metrics = candidate.get("metrics")
@@ -438,14 +438,14 @@ def _fit_snapshot(candidate: dict[str, Any]) -> dict[str, Any]:
     metrics["errors"] = []
     metrics["truncated"] = True
     _trim_workspace_detail(candidate)
-    if _envelope_size(candidate) > MAX_AGENT_STATE_SNAPSHOT_BYTES:
+    if _envelope_size(candidate) > get_shared_config().worker_state_max_bytes:
         raise WorkerStateError("mandatory Worker State exceeds the 4 MiB envelope")
 
     admitted_errors = _largest_fitting_prefix(candidate, metrics, "errors", errors)
     metrics["errors"] = errors[:admitted_errors]
     admitted_calls = _largest_fitting_prefix(candidate, metrics, "toolCalls", tool_calls)
     metrics["toolCalls"] = tool_calls[:admitted_calls]
-    if _envelope_size(candidate) > MAX_AGENT_STATE_SNAPSHOT_BYTES:
+    if _envelope_size(candidate) > get_shared_config().worker_state_max_bytes:
         raise WorkerStateError("Worker State admission produced an oversized envelope")
     return candidate
 
@@ -453,7 +453,7 @@ def _fit_snapshot(candidate: dict[str, Any]) -> dict[str, Any]:
 def _trim_workspace_detail(state: dict[str, Any]) -> None:
     """Deterministically reduce optional invocation path detail until it fits."""
 
-    while _envelope_size(state) > MAX_AGENT_STATE_SNAPSHOT_BYTES:
+    while _envelope_size(state) > get_shared_config().worker_state_max_bytes:
         choices: list[tuple[int, int, dict[str, Any], str]] = []
         for invocation_order, field_name in enumerate(
             ("lastCompletedInvocation", "currentInvocation")
@@ -493,7 +493,7 @@ def _largest_fitting_prefix(
     while low < high:
         middle = (low + high + 1) // 2
         metrics[field] = values[:middle]
-        if _envelope_size(state) <= MAX_AGENT_STATE_SNAPSHOT_BYTES:
+        if _envelope_size(state) <= get_shared_config().worker_state_max_bytes:
             low = middle
         else:
             high = middle - 1

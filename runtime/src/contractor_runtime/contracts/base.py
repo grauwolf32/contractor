@@ -20,6 +20,8 @@ from pydantic import (
     model_validator,
 )
 
+from contractor_runtime.shared_config import get_shared_config
+
 API_VERSION = "contractor/v1alpha1"
 ARTIFACT_NAME_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}")
 # Opaque private Artifact list cursor (LIM-ART-5): unpadded base64url issued by
@@ -58,15 +60,6 @@ MAX_RUNTIME_LABELS = 32
 MAX_RUNTIME_LABEL_BYTES = 63
 MAX_RUN_METADATA_LABEL_KEY_BYTES = 63
 MAX_RUN_METADATA_LABEL_VALUE_BYTES = 256
-MAX_WORKER_RESULT_BYTES = 64 * 1024
-MAX_WORKER_FAILURE_MESSAGE_BYTES = 4 * 1024
-MAX_WORKER_RESULT_ARTIFACTS = 128
-MAX_WORKER_OBSERVATION_TOOLS = 256
-MAX_WORKER_FILES_READ = 25
-MAX_WORKER_COMPLETION_BYTES = 256 * 1024
-MAX_AGENT_STATE_SNAPSHOT_BYTES = 4 * 1024 * 1024
-MAX_STATE_WORKSPACE_PATHS = 10_000
-MAX_STATE_WORKSPACE_PATH_BYTES = 2 * 1024 * 1024
 # The relative workspace path grammar (WSP-R13): workspace targets and the
 # files a Worker reports reading, and the larger Worker State paths.
 MAX_WORKSPACE_TARGET_BYTES = 1024
@@ -477,8 +470,11 @@ def normalize_run_metadata_labels(value: dict[str, str]) -> dict[str, str]:
 
 
 def _require_worker_result_text(value: str) -> str:
-    if is_blank(value) or len(value.encode("utf-8")) > MAX_WORKER_RESULT_BYTES:
-        raise ValueError("Worker result must contain 1..65536 UTF-8 bytes")
+    if is_blank(value) or len(value.encode("utf-8")) > get_shared_config().worker_result_max_bytes:
+        raise ValueError(
+            "Worker result must contain 1.."
+            f"{get_shared_config().worker_result_max_bytes} UTF-8 bytes"
+        )
     return value
 
 

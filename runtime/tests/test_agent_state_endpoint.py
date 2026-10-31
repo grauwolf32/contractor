@@ -4,6 +4,7 @@ import asyncio
 import json
 from datetime import timedelta
 from pathlib import Path
+from types import SimpleNamespace
 
 import httpx
 import pytest
@@ -144,7 +145,10 @@ def test_agent_state_endpoint_classifies_snapshot_failures(
             service._context.worker_state._state["stateRevision"] = 0
         elif failure == "oversized":
             # Exercise the wire-size guard after the model has validated the snapshot.
-            monkeypatch.setattr("contractor_runtime.server.MAX_AGENT_STATE_SNAPSHOT_BYTES", 1)
+            monkeypatch.setattr(
+                "contractor_runtime.server.get_shared_config",
+                lambda: SimpleNamespace(worker_state_max_bytes=1),
+            )
         else:
 
             async def unavailable():

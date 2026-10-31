@@ -13,13 +13,13 @@ from contractor_runtime.contracts.artifacts import ArtifactRef
 from contractor_runtime.contracts.base import (
     ID_PATTERN,
     MAX_EXACT_INTEGER,
-    MAX_WORKER_FILES_READ,
     WireModel,
     WorkspaceMode,
     WorkspaceStorage,
     _require_sorted_unique,
     _require_workspace_target,
 )
+from contractor_runtime.shared_config import get_shared_config
 
 
 class WorkspaceObservationSummary(WireModel):
@@ -33,11 +33,13 @@ class WorkspaceObservationSummary(WireModel):
     modified_files: int = Field(ge=0, le=MAX_EXACT_INTEGER)
     detail_complete: bool
     unread_files: int | None = Field(default=None, ge=0, le=MAX_EXACT_INTEGER)
-    files_read: list[str] = Field(max_length=MAX_WORKER_FILES_READ)
+    files_read: list[str]
     files_read_truncated: bool
 
     @model_validator(mode="after")
     def validate_workspace(self) -> Self:
+        if len(self.files_read) > get_shared_config().worker_workspace_max_files_read:
+            raise ValueError("Worker filesRead exceeds its bound")
         seen: set[str] = set()
         for path in self.files_read:
             if not path:

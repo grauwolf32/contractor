@@ -1,0 +1,73 @@
+schema_version: '1.0'
+id: V425-030
+title: Use shared startup policy for Worker results and State
+milestone: runtime-shared-config-2026-10
+epic: execution-core
+kind: feature
+priority: P1
+status: in_progress
+depends_on: [V425-029]
+languages: [go, python, typescript]
+goal: >-
+  Server and Runtime enforce the same Worker result and State size ceilings,
+  so changing the owning Server constant does not require editing Runtime or
+  its tests and wire schemas independently.
+demonstration: >-
+  Install a changed startup snapshot and construct Worker text, failure,
+  observations and State at and beyond the received limits. Validators and
+  live result/State assembly use those limits after module import.
+context:
+  authority: >-
+    User decision on 2026-10-31: extend shared configuration with the proposed
+    Worker result and Worker State limits. Agent proposal: migrate adjacent
+    filesRead and tool-observation cardinalities with the same result boundary;
+    preserve independent Planner/Stage payload policies.
+  specification: docs/spec/execution/worker.md#WRK-R37
+scope:
+  in:
+    - Result text, completion envelope, failure text and Artifact-reference count.
+    - Result observation tool and filesRead cardinality, State envelope and workspace path count/total bytes.
+    - Server-owned defaults, immutable fetched Runtime consumers, generated schema/fixture/test bindings and public config projection.
+  out:
+    - StageContentRequest, Planner-facing WorkerResult payload, StageResult and fixed path grammar limits.
+    - Per-allocation budgets, LLM settings, HTTP and UI input limit families.
+requirements:
+  - id: R1
+    text: Every migrated limit has one Server numeric definition and an actual Runtime consumer; Runtime has no import-time fallback or frozen Field bound.
+  - id: R2
+    text: Wire schemas and test defaults are generated; differing test snapshots control validation and assembly without module reload.
+  - id: R3
+    text: Shared config remains secret-free, strict, immutable and completely digest-verified under existing bootstrap failure semantics.
+failure_outcomes:
+  - operation: Existing config bootstrap and Worker result/State production
+    permanent: Invalid config stops startup; oversized results and State use existing classified validation/failure or bounded truncation paths.
+    retryable: Existing bootstrap and transport retry policies only.
+    ambiguous: No new mutation or outbound protocol is introduced.
+    cancelled: Existing Worker shutdown and request cancellation own in-flight work.
+    timeout: Existing independent request and invocation deadlines remain unchanged.
+cardinality:
+  - collection: Shared Worker policy
+    expected: Nine scalar limits in one startup document.
+    maximum: Positive exact JSON integers.
+    bound: Result, State, map and list bounds use the received snapshot; no new scans.
+lifecycle:
+  - entity: Existing startup snapshot
+    delete: Released on process/client disposal.
+    cascade: No persistent state added.
+    retention: Restart required for changed policy; no hot reload.
+acceptance_criteria:
+  - id: A1
+    text: Shared config, both schemas and all generated fixtures expose every new value with a valid canonical digest.
+  - id: A2
+    text: Runtime applies changed post-import limits to text, errors, refs, observations, completion and State, with deterministic boundary regressions.
+  - id: A3
+    text: Generation updates named wire bounds and test defaults without changing unrelated equal-valued policies; existing production defaults remain unchanged.
+tests:
+  - command: go test ./internal/contracts/... ./internal/controlplane/... ./internal/httpapi/public/... ./internal/archtest/...
+    covers: [A1, A3]
+  - command: make test-wire-cross-language verify-public-api ui-verify
+    covers: [A1, A3]
+  - command: cd runtime && uv run pytest --deselect tests/test_projectfs_local_io.py::test_limits_deadline_names_and_binary_classification --deselect tests/test_code_analysis_graph.py::test_graph_collection_stops_at_encoded_result_ceiling_with_resumable_cursor
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A3]

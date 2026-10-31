@@ -1766,6 +1766,14 @@ It accepts no query or body and returns a non-cacheable, secret-free
 `limits.publicPageMaxItems` from `pagelimit.MaxRows`, and
 `limits.artifactListMaxItems` from `contracts.MaxArtifactListItems`.
 Public list pages and private Artifact list pages are independent policies.
+Worker policy comes from the owning `contracts` completion constants:
+`workerResultMaxBytes`, `workerCompletionMaxBytes`,
+`workerFailureMessageMaxBytes`, `workerResultMaxArtifacts`,
+`workerObservationMaxTools`, and `workerWorkspaceMaxFilesRead`.
+The `reporting` State constants supply `workerStateMaxBytes`,
+`workerStateWorkspaceMaxPaths`, and `workerStateWorkspacePathsMaxBytes`.
+These settings retain their independent result, envelope and workspace meanings;
+Planner requests and Stage results are not aliases of these policies.
 The digest is `sha256:` of canonical JSON containing only `limits` and
 `version`; integers must be positive and exactly representable JSON integers.
 Unknown fields, unsupported versions and digest mismatches are permanent

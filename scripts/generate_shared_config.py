@@ -19,18 +19,37 @@ PUBLIC = "api/openapi/contractor-public-v1.yaml"
 
 def schema_bindings():
     paths = []
-    for route in ("/v1/artifacts/{namespace}/{name}", "/v1/projects/{projectId}/artifacts/{namespace}/{name}"):
+    for route in (
+        "/v1/artifacts/{namespace}/{name}",
+        "/v1/projects/{projectId}/artifacts/{namespace}/{name}",
+    ):
         base = ("paths", route, "put")
-        paths += [base + ("x-max-request-body-bytes",), base + ("requestBody", "content", "*/*", "schema", "maxLength")]
+        paths += [
+            base + ("x-max-request-body-bytes",),
+            base + ("requestBody", "content", "*/*", "schema", "maxLength"),
+        ]
     base = ("components", "responses", "ArtifactBytes")
-    paths += [base + ("headers", "Content-Length", "schema", "maximum"), base + ("content", "*/*", "schema", "maxLength")]
-    for name, field in (("SitemapExactArtifact", "sizeBytes"), ("GitImportResult", "size"), ("AuditExactArtifact", "sizeBytes"), ("AuditReportSummaryArtifact", "sizeBytes"), ("FindingExactArtifact", "sizeBytes"), ("ArtifactWriteResponse", "size"), ("ArtifactMetadata", "size")):
+    paths += [
+        base + ("headers", "Content-Length", "schema", "maximum"),
+        base + ("content", "*/*", "schema", "maxLength"),
+    ]
+    for name, field in (
+        ("SitemapExactArtifact", "sizeBytes"),
+        ("GitImportResult", "size"),
+        ("AuditExactArtifact", "sizeBytes"),
+        ("AuditReportSummaryArtifact", "sizeBytes"),
+        ("FindingExactArtifact", "sizeBytes"),
+        ("ArtifactWriteResponse", "size"),
+        ("ArtifactMetadata", "size"),
+    ):
         paths.append(("components", "schemas", name, "properties", field, "maximum"))
     return {
         PUBLIC: paths,
         "api/v1alpha1/artifact-metadata.schema.json": [("properties", "size", "maximum")],
         # SitemapExactArtifact itself is copied from public by generate_sitemap_schema.
-        "api/v1alpha1/project-sitemap.schema.json": [("$defs", "SitemapInputDescriptor", "properties", "sizeBytes", "maximum")],
+        "api/v1alpha1/project-sitemap.schema.json": [
+            ("$defs", "SitemapInputDescriptor", "properties", "sizeBytes", "maximum")
+        ],
     }
 
 
@@ -68,7 +87,7 @@ def bind_config_schema(source, schema):
     schema = {key: value for key, value in schema.items() if key not in ("$schema", "$id", "title")}
     lines = json.dumps(schema, indent=2).splitlines()
     rendered = lines[0] + "\n" + "\n".join("    " + line for line in lines[1:])
-    return source[:node.start_mark.index] + rendered + source[node.end_mark.index:]
+    return source[: node.start_mark.index] + rendered + source[node.end_mark.index :]
 
 
 def pagination_bindings(source):
@@ -99,6 +118,111 @@ def pagination_bindings(source):
     return bindings
 
 
+def worker_bindings():
+    return {
+        "workerResultMaxBytes": {
+            "api/v1alpha1/worker-completion.schema.json": [
+                ("$defs", "workerResult", "properties", "result", "maxLength"),
+                ("$defs", "workerResult", "properties", "result", "x-maxBytes"),
+            ]
+        },
+        "workerCompletionMaxBytes": {
+            "api/v1alpha1/worker-completion.schema.json": [("x-maxBytes",)]
+        },
+        "workerFailureMessageMaxBytes": {
+            "api/v1alpha1/worker-completion.schema.json": [
+                ("$defs", "workerFailure", "properties", "message", "maxLength"),
+                ("$defs", "workerFailure", "properties", "message", "x-maxBytes"),
+            ]
+        },
+        "workerResultMaxArtifacts": {
+            "api/v1alpha1/worker-completion.schema.json": [
+                ("$defs", "workerResult", "properties", "artifacts", "maxProperties")
+            ]
+        },
+        "workerObservationMaxTools": {
+            "api/v1alpha1/worker-completion.schema.json": [
+                ("$defs", "workerObservations", "properties", "tools", "maxProperties")
+            ]
+        },
+        "workerWorkspaceMaxFilesRead": {
+            "api/v1alpha1/worker-completion.schema.json": [
+                ("$defs", "workspaceObservationSummary", "properties", "filesRead", "maxItems")
+            ]
+        },
+        "workerStateMaxBytes": {"api/v1alpha1/agent-state.schema.json": [("x-maxBytes",)]},
+        "workerStateWorkspaceMaxPaths": {
+            "api/v1alpha1/agent-state.schema.json": [
+                ("$defs", "workspaceObservation", "properties", "scopePaths", "maxItems"),
+                ("$defs", "workspaceObservation", "properties", "interactions", "maxItems"),
+            ]
+        },
+        "workerStateWorkspacePathsMaxBytes": {
+            "api/v1alpha1/agent-state.schema.json": [
+                ("$defs", "workspaceObservation", "properties", "scopePaths", "x-maxBytes"),
+                ("$defs", "workspaceObservation", "properties", "interactions", "x-paths-maxBytes"),
+            ]
+        },
+    }
+
+
+def worker_result_cases(root, limits):
+    """Rebuild boundary recipes and byte expectations from the owning policy."""
+    cases = json.loads((root / "api/testdata/v1alpha1/worker-result-size-cases.json").read_text())
+    base = json.loads(
+        (root / "api/testdata/v1alpha1/valid/worker-completion-empty-observations.json").read_text()
+    )
+    text_cap, envelope_cap = limits["workerResultMaxBytes"], limits["workerCompletionMaxBytes"]
+
+    def encoded_size(value):
+        return len(json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode())
+
+    for case in cases:
+        name = case["name"]
+        if name.startswith("exact_integer"):
+            repeat = 1
+        elif name == "text_over_limit":
+            repeat = text_cap + 1
+        elif name == "text_at_limit":
+            repeat = text_cap
+        elif name.startswith("envelope_"):
+            repeat = 1
+        elif name.startswith("separator_envelope_"):
+            repeat = max(1, (text_cap - len(case["prefix"].encode())) // len(case["unit"].encode()))
+        elif name.startswith("literal_") or name == "mixed_escapes":
+            repeat = max(1, text_cap // (2 * len(case["unit"].encode())))
+        else:
+            repeat = max(1, (text_cap - len(case["prefix"].encode())) // len(case["unit"].encode()))
+        case["repeat"] = repeat
+        value = json.loads(json.dumps(base))
+        value["result"]["result"] = case["prefix"] + case["unit"] * repeat
+        case["padding"] = 0
+        if "envelope_" in name:
+            value["result"]["artifacts"] = {
+                "": {"namespace": "review", "name": "report", "revision": "r1"}
+            }
+            target = envelope_cap + int(name.endswith("over_limit"))
+            padding = target - encoded_size(value)
+            if padding < 1:
+                raise ValueError("Worker completion ceiling cannot hold the boundary fixture")
+            case["padding"] = padding
+            value["result"]["artifacts"] = {
+                "p" * padding: {"namespace": "review", "name": "report", "revision": "r1"}
+            }
+        if case["integer"] is not None:
+            value["stateRevision"] = case["integer"]
+            value["result"]["observations"]["tools"] = {
+                "read_file": {"calls": case["integer"], "failures": 0}
+            }
+        case["json_bytes"] = encoded_size(value)
+        case["valid"] = (
+            len(value["result"]["result"].encode()) <= text_cap
+            and case["json_bytes"] <= envelope_cap
+            and (case["integer"] is None or case["integer"] <= 2**53 - 1)
+        )
+    return json.dumps(cases, ensure_ascii=False, indent=2) + "\n"
+
+
 def outputs(root, config):
     cap = config["limits"]["artifactPayloadMaxBytes"]
     result = {}
@@ -112,12 +236,25 @@ def outputs(root, config):
         ("api/testdata/http-capture-cases.json", ("limits", "submissionBytes"), cap),
     ):
         result[name] = replace_scalars((root / name).read_text(), [binding], value)
+    for policy, files in worker_bindings().items():
+        for name, bindings in files.items():
+            source = result.get(name, (root / name).read_text())
+            result[name] = replace_scalars(source, bindings, config["limits"][policy])
     public_cap = config["limits"]["publicPageMaxItems"]
     source = result[PUBLIC]
     result[PUBLIC] = replace_scalars(source, pagination_bindings(source), public_cap)
-    result[PUBLIC] = replace_scalars(result[PUBLIC], [("components", "parameters", "Limit", "schema", "default")], min(50, public_cap))
+    result[PUBLIC] = replace_scalars(
+        result[PUBLIC],
+        [("components", "parameters", "Limit", "schema", "default")],
+        min(50, public_cap),
+    )
     name = "api/testdata/v1alpha1/artifact-list-cases.json"
-    result[name] = replace_scalars((root / name).read_text(), [("maxLimit",)], config["limits"]["artifactListMaxItems"])
+    result[name] = replace_scalars(
+        (root / name).read_text(), [("maxLimit",)], config["limits"]["artifactListMaxItems"]
+    )
+    result["api/testdata/v1alpha1/worker-result-size-cases.json"] = worker_result_cases(
+        root, config["limits"]
+    )
     schema = json.loads((root / "api/v1alpha1/shared-config.schema.json").read_text())
     result[PUBLIC] = bind_config_schema(result[PUBLIC], schema)
     raw = json.dumps(config, sort_keys=True, separators=(",", ":")) + "\n"
@@ -126,12 +263,23 @@ def outputs(root, config):
     result["runtime/tests/shared_config_defaults.py"] = (
         '"""Generated by make shared-config-generate; test defaults only."""\n\n'
         f"MAX_ARTIFACT_BYTES = {cap}\n"
+        f"MAX_WORKER_RESULT_BYTES = {config['limits']['workerResultMaxBytes']}\n"
+        f"MAX_WORKER_COMPLETION_BYTES = {config['limits']['workerCompletionMaxBytes']}\n"
+        f"MAX_WORKER_FAILURE_MESSAGE_BYTES = {config['limits']['workerFailureMessageMaxBytes']}\n"
+        f"MAX_WORKER_RESULT_ARTIFACTS = {config['limits']['workerResultMaxArtifacts']}\n"
+        f"MAX_WORKER_OBSERVATION_TOOLS = {config['limits']['workerObservationMaxTools']}\n"
+        f"MAX_WORKER_FILES_READ = {config['limits']['workerWorkspaceMaxFilesRead']}\n"
+        f"MAX_AGENT_STATE_SNAPSHOT_BYTES = {config['limits']['workerStateMaxBytes']}\n"
+        f"MAX_STATE_WORKSPACE_PATHS = {config['limits']['workerStateWorkspaceMaxPaths']}\n"
+        f"MAX_STATE_WORKSPACE_PATH_BYTES = {config['limits']['workerStateWorkspacePathsMaxBytes']}\n"
     )
     migrations = root / "internal/persistence/migrations"
     effective = None
     for path in sorted(migrations.glob("*.sql")):
         # Matches both the baseline and subsequent ALTER CHECK forms.
-        matches = re.findall(r"artifact_blobs_size_check[\s\S]*?size_bytes\s*<=\s*(\d+)", path.read_text())
+        matches = re.findall(
+            r"artifact_blobs_size_check[\s\S]*?size_bytes\s*<=\s*(\d+)", path.read_text()
+        )
         if matches:
             effective = int(matches[-1])
     if effective is None:
@@ -160,7 +308,9 @@ def generate(root, config, check=False):
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text(content)
     if check and stale:
-        raise ValueError("stale shared config bindings; run make shared-config-generate: " + ", ".join(stale))
+        raise ValueError(
+            "stale shared config bindings; run make shared-config-generate: " + ", ".join(stale)
+        )
     return stale
 
 
