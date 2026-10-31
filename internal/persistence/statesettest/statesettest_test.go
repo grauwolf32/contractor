@@ -2,17 +2,14 @@ package statesettest
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"maps"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5"
+	"github.com/grauwolf32/contractor/internal/persistence/postgrestest"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -339,42 +336,6 @@ func mustDeclaredValues(t *testing.T, fixture string) []string {
 // when the test ends. It needs no migrations: the tests create their tables.
 func isolatedFixturePool(t *testing.T, ctx context.Context) *pgxpool.Pool {
 	t.Helper()
-	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
-	if databaseURL == "" {
-		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
-	}
-	admin, err := pgxpool.New(ctx, databaseURL)
-	if err != nil {
-		t.Fatalf("open the test database: %v", err)
-	}
-	t.Cleanup(admin.Close)
-	random := make([]byte, 8)
-	if _, err := rand.Read(random); err != nil {
-		t.Fatal(err)
-	}
-	schema := pgx.Identifier{"statesettest_" + hex.EncodeToString(random)}.Sanitize()
-	if _, err := admin.Exec(ctx, `CREATE SCHEMA `+schema); err != nil {
-		t.Fatalf("create the test schema: %v", err)
-	}
-	t.Cleanup(func() {
-		cleanupCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		if _, err := admin.Exec(cleanupCtx, `DROP SCHEMA `+schema+` CASCADE`); err != nil {
-			t.Errorf("drop the test schema: %v", err)
-		}
-	})
-	config, err := pgxpool.ParseConfig(databaseURL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	config.ConnConfig.RuntimeParams["search_path"] = strings.Trim(schema, `"`)
-	pool, err := pgxpool.NewWithConfig(ctx, config)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(pool.Close)
-	if err := pool.Ping(ctx); err != nil {
-		t.Fatalf("ping the test database: %v", err)
-	}
+	pool := postgrestest.NewPool(t, ctx, "", postgrestest.Options{})
 	return pool
 }
