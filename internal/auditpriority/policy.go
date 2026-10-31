@@ -2,10 +2,10 @@ package auditpriority
 
 import "github.com/grauwolf32/contractor/internal/contentdigest"
 
-// ResolveTopN pins one effective value. Nil means omitted; zero is not omission.
+// resolveTopN pins one effective value. Nil means omitted; zero is not omission.
 // It deliberately does not reduce topN to available candidates or execution
 // capacity. The selector handles all-if-fewer; admission must check full capacity.
-func ResolveTopN(policy Policy, override *int) (int, error) {
+func resolveTopN(policy Policy, override *int) (int, error) {
 	count, ceiling := DefaultTopN, MaxTopN
 	if policy.DefaultTopN != nil {
 		count = *policy.DefaultTopN

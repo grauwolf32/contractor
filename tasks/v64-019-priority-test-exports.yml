@@ -1,0 +1,40 @@
+schema_version: '1.0'
+id: V64-019
+title: Restrict unused priority selection exports to test hooks
+milestone: audit-check-prioritization
+epic: audits
+kind: chore
+introduced_by: V64-000
+priority: P3
+status: in_progress
+depends_on:
+- V64-000
+languages:
+- go
+- yaml
+goal: Keep the export-ownership gate valid after the old priority selection task was archived, without retaining unused production exports.
+context:
+  review: Discovered by required V64-001 verification on 2026-11-01.
+  finding: tools/testonlyexports/baseline.txt:11-12 ties auditpriority.ResolveTopN and SelectionDigest to archived V64-006. Both have only external test callers; V64-000 introduced the helpers and their pure core behavior remains useful to existing tests. The archived task can no longer own exceptions.
+  authority: Repository rules require test-only hooks in export_test.go and a baseline that only shrinks; no runtime behavior or dependent Audit feature is authorized by this cleanup.
+scope:
+  in:
+  - Make the two helpers private and preserve existing external tests through export_test.go aliases.
+  - Remove their stale baseline exceptions; retain the other existing exceptions unchanged.
+  out:
+  - Changes to ranking, selection, policy semantics, wire contracts or future production consumers.
+acceptance_criteria:
+- id: A1
+  text: The two helpers are absent from production exports, available to the unchanged tests through test hooks, and removed from the baseline without new exceptions.
+- id: A2
+  text: The whole priority package and required lint gate pass without changing existing test behavior.
+tests:
+- command: go test -count=1 ./internal/auditpriority
+  covers:
+  - A1
+  - A2
+- command: make lint
+  covers:
+  - A1
+  - A2
+implementation_commit: null
