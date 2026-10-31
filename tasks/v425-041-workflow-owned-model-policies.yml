@@ -131,3 +131,5 @@ tests:
     covers: [A2, A3, A4]
   - command: go test -tags=e2e -count=1 ./tests/e2e -run '^(TestCodeAnalysisE2EConfigurationLoads|TestProductionMemoryConfigurationStaging)$'
     covers: [A2, A4]
+  - command: go test -tags=e2e -count=1 -timeout=8m ./tests/e2e -run '^TestWorkerSummarizerProductionBoundaries$'
+    covers: [A2, A3, A4]

@@ -26,7 +26,7 @@ func TestOperationsSnapshotAndPagesAreCoherentStableAndObserved(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	policy, err := fixture.configs.Snapshot().ModelPolicy("test-worker@1")
+	policy, err := fixture.configs.Snapshot().ModelPolicy("worker@1")
 	if err != nil {
 		t.Fatal(err)
 	}
