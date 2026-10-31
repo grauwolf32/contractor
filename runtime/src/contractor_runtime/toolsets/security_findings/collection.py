@@ -15,7 +15,7 @@ from typing import Any
 import jcs
 
 from contractor_runtime.contracts import MEDIA_TYPE_PATTERN, ArtifactRef
-from contractor_runtime.contracts.base import is_blank
+from contractor_runtime.contracts.base import MAX_EXACT_INTEGER, is_blank
 from contractor_runtime.digests import sha256_digest
 from contractor_runtime.strict_json import unique_json_object
 from contractor_runtime.toolsets.common.finding_locations import normalize_locations
@@ -335,7 +335,7 @@ def _validate_metadata(value: dict[str, Any]) -> None:
                     if key not in {"revision", "state"}
                 )
             )
-            require(type(review["revision"]) is int and 0 < review["revision"] < 2**53)
+            require(type(review["revision"]) is int and 0 < review["revision"] <= MAX_EXACT_INTEGER)
             require(
                 review["state"]
                 in {

@@ -14,6 +14,7 @@ from uuid import uuid4
 
 from contractor_runtime.artifacts import ArtifactAPIError, ArtifactTransportError
 from contractor_runtime.contracts import ArtifactRef
+from contractor_runtime.contracts.base import MAX_EXACT_INTEGER
 from contractor_runtime.sitemap import SitemapClient
 
 _LOGGER = logging.getLogger(__name__)
@@ -22,7 +23,7 @@ MAX_BYTES = 256 << 10
 FLUSH_INTERVAL_SECONDS = 5.0
 FLUSH_BUDGET_SECONDS = 15.0
 MAX_ATTEMPTS = 3
-MAX_GAP_COUNT = 2**53 - 1
+MAX_GAP_COUNT = MAX_EXACT_INTEGER
 _REPORT_REJECTION_CODES = frozenset(
     {"invalid_request", "artifact_not_found", "artifact_access_denied"}
 )

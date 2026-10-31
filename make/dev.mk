@@ -28,6 +28,7 @@ lint: shared-config-check generate-public-client-check docs-dependencies-check m
 	python3 scripts/shared_fixture_gate.py --sources-only
 	python3 scripts/check_database_erd.py
 	CONTRACTOR_ERD_USAGE_OUT= go test -count=1 -run '^(TestERDUsageMatchesTheSQLScan|TestRoutineInspectionsUseTheSharedBodyReader|TestRoutineSourceGuardRejectsDirectReaders)$$' ./internal/persistence
+	go test -count=1 ./internal/exactinteger
 	cd runtime && uv run ruff check .
 	cd runtime && uv run ruff format --check .
 	cd runtime && uv run lint-imports --no-cache --no-logo

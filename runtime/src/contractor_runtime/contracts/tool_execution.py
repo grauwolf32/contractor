@@ -9,7 +9,7 @@ from typing import Any, Literal, Self
 
 from pydantic import Field, model_validator
 
-from contractor_runtime.contracts.base import WireModel, trim_whitespace
+from contractor_runtime.contracts.base import MAX_EXACT_INTEGER, WireModel, trim_whitespace
 
 ARGUMENT_NAME = r"^[A-Za-z_][A-Za-z0-9_]{0,63}$"
 
@@ -61,7 +61,7 @@ class ToolArgumentBinding(WireModel):
             elif type(value) is bool:
                 pass
             elif type(value) in {int, float}:
-                if abs(value) > 9007199254740991 or not math.isfinite(value):
+                if abs(value) > MAX_EXACT_INTEGER or not math.isfinite(value):
                     raise ValueError("literal tool number exceeds its bound")
             else:
                 raise ValueError("literal tool arguments must be non-null scalars")
@@ -71,7 +71,7 @@ class ToolArgumentBinding(WireModel):
         value = self.default
         if (
             type(value) not in {int, float}
-            or not 0 <= value <= 9007199254740991
+            or not 0 <= value <= MAX_EXACT_INTEGER
             or int(value) != value
         ):
             raise ValueError("integer tool parameter default must be an exact nonnegative integer")
@@ -95,7 +95,7 @@ class ToolArgumentBinding(WireModel):
         ):
             raise ValueError("tool parameter must be a canonical unsigned integer")
         number = int(value)
-        if number > 9007199254740991:
+        if number > MAX_EXACT_INTEGER:
             raise ValueError("tool parameter exceeds the exact integer bound")
         return number
 

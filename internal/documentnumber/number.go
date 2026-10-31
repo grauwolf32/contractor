@@ -7,9 +7,13 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/grauwolf32/contractor/internal/exactinteger"
 )
 
-const maximum = 1<<53 - 1
+const maximum = exactinteger.Max
+
+var maximumDecimal = strconv.FormatInt(maximum, 10)
 
 var numericYAMLScalar = regexp.MustCompile(`^[+-]?(?:0[xX][0-9a-fA-F_]+|0[oO][0-7_]+|0[bB][01_]+|(?:[0-9][0-9_]*(?:\.[0-9_]*)?|\.[0-9][0-9_]*)(?:[eE][+-]?[0-9]+)?)$`)
 
@@ -56,18 +60,18 @@ func Float(text string) (float64, bool) {
 		}
 	}
 	integerDigits := int64(len(digits)-len(fraction)) + exponent
-	if integerDigits > 16 {
+	if integerDigits > int64(len(maximumDecimal)) {
 		return 0, false
 	}
-	if integerDigits == 16 {
+	if integerDigits == int64(len(maximumDecimal)) {
 		whole := digits
-		if len(whole) < 16 {
-			whole += strings.Repeat("0", 16-len(whole))
+		if len(whole) < len(maximumDecimal) {
+			whole += strings.Repeat("0", len(maximumDecimal)-len(whole))
 		} else {
-			whole = whole[:16]
+			whole = whole[:len(maximumDecimal)]
 		}
-		if whole > "9007199254740991" ||
-			(whole == "9007199254740991" && len(digits) > 16 && strings.Trim(digits[16:], "0") != "") {
+		if whole > maximumDecimal ||
+			(whole == maximumDecimal && len(digits) > len(maximumDecimal) && strings.Trim(digits[len(maximumDecimal):], "0") != "") {
 			return 0, false
 		}
 	}

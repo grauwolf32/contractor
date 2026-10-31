@@ -34,7 +34,7 @@ const (
 	MaxBatch                 = 100
 	MaxBatchBytes            = 256 << 10
 	MaxAttempts              = 3
-	MaxOmissionCount  uint64 = 1<<53 - 1
+	MaxOmissionCount  uint64 = contracts.MaxExactInteger
 )
 
 // Document is the only persisted map representation. Arrays are canonical,

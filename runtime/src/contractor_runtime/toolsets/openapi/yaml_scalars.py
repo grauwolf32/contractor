@@ -31,6 +31,7 @@ import re
 
 import yaml
 
+from contractor_runtime.contracts.base import MAX_EXACT_INTEGER
 from contractor_runtime.core.input_errors import ToolInputError
 
 STR_TAG = "tag:yaml.org,2002:str"
@@ -48,9 +49,11 @@ NUMERIC_STRING_TAG = "tag:contractor.invalid,2026:numeric-string"
 # The explicit tags a scalar may carry.
 SCALAR_TAGS = frozenset({STR_TAG, INT_TAG, FLOAT_TAG, BOOL_TAG, NULL_TAG})
 
-MAX_SAFE_INTEGER = (1 << 53) - 1
+MAX_SAFE_INTEGER = MAX_EXACT_INTEGER
+_MAX_SAFE_INTEGER_TEXT = str(MAX_SAFE_INTEGER)
+_MAX_SAFE_INTEGER_DIGITS = len(_MAX_SAFE_INTEGER_TEXT)
 NUMBER_MESSAGE = (
-    "OpenAPI document numbers must be finite and within ±9007199254740991; "
+    f"OpenAPI document numbers must be finite and within ±{MAX_SAFE_INTEGER}; "
     "quote a string that is spelled like a number"
 )
 TAGGED_SCALAR_MESSAGE = "OpenAPI YAML scalar text does not match its explicit tag"
@@ -237,12 +240,14 @@ def document_float(text: str) -> float | None:
         if not -(1 << 31) <= exponent < 1 << 31:
             return None
     integer_digits = len(digits) - len(fraction) + exponent
-    if integer_digits > 16:
+    if integer_digits > _MAX_SAFE_INTEGER_DIGITS:
         return None
-    if integer_digits == 16:
-        whole = (digits + "0" * 16)[:16]
-        if whole > "9007199254740991" or (
-            whole == "9007199254740991" and len(digits) > 16 and digits[16:].strip("0")
+    if integer_digits == _MAX_SAFE_INTEGER_DIGITS:
+        whole = (digits + "0" * _MAX_SAFE_INTEGER_DIGITS)[:_MAX_SAFE_INTEGER_DIGITS]
+        if whole > _MAX_SAFE_INTEGER_TEXT or (
+            whole == _MAX_SAFE_INTEGER_TEXT
+            and len(digits) > _MAX_SAFE_INTEGER_DIGITS
+            and digits[_MAX_SAFE_INTEGER_DIGITS:].strip("0")
         ):
             return None
     return value

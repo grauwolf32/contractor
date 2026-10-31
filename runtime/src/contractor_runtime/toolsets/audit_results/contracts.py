@@ -11,7 +11,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Literal
 
-from contractor_runtime.contracts.base import is_blank
+from contractor_runtime.contracts.base import MAX_EXACT_INTEGER, is_blank
 from contractor_runtime.digests import sha256_digest
 from contractor_runtime.toolsets.common.http_capture import HTTPObservation
 
@@ -24,7 +24,7 @@ MAX_COLLECTED_BYTES = 8 * 1024 * 1024
 MAX_MEMBER_BYTES = 16 * 1024 * 1024
 MAX_PACKAGE_BYTES = 16 * 1024 * 1024
 MAX_REMINDERS = 2
-MAX_REVISION = 2**53 - 1
+MAX_REVISION = MAX_EXACT_INTEGER
 IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$")
 DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
 ARTIFACT_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")

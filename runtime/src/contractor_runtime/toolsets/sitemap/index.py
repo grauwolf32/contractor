@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from contractor_runtime.artifacts import ArtifactTransportError
+from contractor_runtime.contracts.base import MAX_EXACT_INTEGER
 from contractor_runtime.sitemap import MAX_SITEMAP_BYTES
 
 MAX_VIEW_BYTES = 128 << 20
@@ -224,7 +225,7 @@ class ViewIndex:
             return type(value) is bool
         if kind == "integer":
             return type(value) is int and schema.get("minimum", 0) <= value <= schema.get(
-                "maximum", 2**53 - 1
+                "maximum", MAX_EXACT_INTEGER
             )
         return False
 

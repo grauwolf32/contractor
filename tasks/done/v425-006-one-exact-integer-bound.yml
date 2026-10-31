@@ -1,0 +1,90 @@
+schema_version: '1.0'
+id: V425-006
+title: Take the exact JSON integer bound from one definition in Go and one in Python
+milestone: hub-audit-defects-2026-10
+epic: api-contracts
+kind: chore
+introduced_by: V371-004
+priority: P3
+status: completed
+depends_on: []
+languages:
+- go
+- python
+goal: The 2^53-1 exact-integer bound has one foundation Go definition (exactinteger.Max, exposed by contracts.MaxExactInteger) and one Runtime
+  definition held to it by a shared fixture.
+context:
+  origin: Reported by a lane of the 2026-10-30 defect wave and rechecked on main fde39a943 by the coordinator.
+  finding: 'internal/contracts/common.go:62 defines MaxExactInteger, but copies remain: internal/config/validation.go:13,
+    internal/documentnumber/number.go:12 and :69-70, internal/memory/codec.go:32, internal/auditdomain/codec.go:616,
+    finding_collection.go:229, finding_correlation.go:12, finding_limits.go:10, internal/findinganalysis/codec.go:91,
+    internal/findingexport/snapshot.go:35, and Runtime toolset copies (V371-004 chose the cap and recorded
+    it in WRK-R164).'
+  authority: >-
+    2026-10-31: the user confirmed this is a fixed numeric-format constant,
+    not configuration, and asked to continue the task. Preserve its value
+    and merge verified work into main with --no-ff.
+  specification:
+  - docs/spec/execution/worker.md#WRK-R164
+  implementation_decision: >-
+    Agent implementation choice, 2026-10-31: put the sole Go literal in a
+    dependency-free foundation exactinteger package. contracts derives its
+    existing public constant from it, and foundation documentnumber imports
+    it directly. Reusing documentnumber would attach the document parser to
+    unrelated wire consumers; the small leaf package avoids that dependency.
+    Runtime reuses contracts.base.MAX_EXACT_INTEGER. No configurable policy
+    or range change is introduced. Reopen if the transport numeric format changes.
+    Source guards cover executable Go/Python definitions and decimal-string
+    comparisons. Declarative schemas and historical SQL retain their literal
+    contract values and existing cross-language fixture validation.
+  siblings: Run git grep for 9007199254740991, 1<<53 and 2**53 across internal/, runtime/src/ and ui/src;
+    every hit uses the shared definition or is a documented test literal.
+scope:
+  in:
+  - Replace every Go copy with contracts.MaxExactInteger (or a derived constant); consumers without a wire-kernel dependency use foundation exactinteger.Max and every
+    Runtime copy with one module constant.
+  - A shared fixture case that both sides validate, plus a source scan that fails on a new literal copy.
+  out:
+  - Changing the bound itself or the UI, which uses Number.MAX_SAFE_INTEGER.
+acceptance_criteria:
+- id: A1
+  text: No production literal copy of the bound remains outside the two definitions.
+- id: A2
+  text: The source scan fails when a literal copy is added.
+tests:
+- command: go test -count=1 ./internal/contracts/... ./internal/config/... ./internal/documentnumber/...
+    ./internal/memory/... ./internal/auditdomain/... ./internal/findinganalysis/... ./internal/findingexport/...
+  covers:
+  - A1
+- command: go test -count=1 ./internal/exactinteger/... ./internal/findingintake/... ./internal/performance/... ./internal/projectsitemap/... ./internal/archtest/... ./internal/scanplan/...
+  covers: [A1, A2]
+- command: cd runtime && uv run pytest -q tests/test_adk_migration_contracts.py tests/test_adk_runtime.py tests/test_allocation.py tests/test_audit_accepted_plans.py tests/test_audit_arguments.py tests/test_audit_completion_contracts.py tests/test_audit_completion_e2e.py tests/test_audit_completion_runtime.py tests/test_audit_result_collector.py tests/test_audit_result_publication.py tests/test_audit_results_toolset.py tests/test_audit_retained_dependencies.py tests/test_capabilities.py tests/test_common_line_window.py tests/test_contracts.py tests/test_edit_files_toolset.py tests/test_filesystem_toolset.py tests/test_finding_analysis.py tests/test_finding_anchors.py tests/test_finding_facades.py tests/test_finding_tool_contracts.py tests/test_findings_reader_toolset.py tests/test_http_caido_concurrency.py tests/test_http_capture.py tests/test_http_proxy_adapter.py tests/test_local_direct_tool_consumers.py tests/test_memory.py tests/test_memory_toolset.py tests/test_metrics.py tests/test_numbered_file_reads.py tests/test_observation_metadata.py tests/test_openapi_toolset.py tests/test_performance_contracts.py tests/test_projectfs_local_direct.py tests/test_run_artifacts_toolset.py tests/test_scan_toolset.py tests/test_security_findings_toolset.py tests/test_shared_artifact_history.py tests/test_shared_exact_integer.py tests/test_shared_finding_facades.py tests/test_shared_memory_reservation.py tests/test_shared_text_rules.py tests/test_sitemap_collection.py tests/test_sitemap_contracts.py tests/test_sitemap_imports.py tests/test_sitemap_report_contracts.py tests/test_sitemap_report_projection.py tests/test_sitemap_tools.py tests/test_sitemap_views.py tests/test_text_artifacts_toolset.py tests/test_tool_input_errors.py tests/test_tool_operation_ownership.py tests/test_tool_process.py tests/test_tool_report_publication.py tests/test_tool_worker.py tests/test_toolset_cursors.py tests/test_unconfigured_artifact_clients.py tests/test_workspace_changes_toolset.py
+  covers: [A1]
+- command: make test-wire-cross-language
+  covers:
+  - A1
+- command: make lint
+  covers:
+  - A1
+  - A2
+implementation_commit: e500a9935b78e3f4d6568fbd8af94caa3977a76c
+verification:
+  date: '2026-10-31'
+  source_commit: 399ddcdb71d6b7c28a7dfb3de06d03590c7120c5
+  integrated_base: 7f5222c12
+  commands:
+    - All listed Go package suites passed with disposable PostgreSQL configured, including exactinteger, documentnumber, contracts, config, memory, audits, findings, performance, sitemap, scanplan and archtest.
+    - The listed Runtime selection passed 2056 tests across 58 files; one process bridge test was skipped because it is launched by make test-audit-completion-e2e with the real Go Artifact API.
+    - make test-wire-cross-language passed with 357 fixtures, 395 Go and 285 Python shared tests; its initial Runtime contract suite passed 377 tests.
+    - make lint passed, including Go copy-guard probes, the Python copy-guard probes, shared fixture source checks and import-layer checks.
+    - make docs-dependencies regenerated the required dependency document after introducing the foundation definition.
+  outcome: >-
+    The accepted numeric range, validation failures and UI behavior are unchanged.
+    Executable Go and Runtime consumers derive the fixed bound; decimal comparisons
+    derive its text instead of copying the digits. Shared cases cover positive and
+    negative endpoints, integral decimal spellings, exponents and fractions that
+    round into the accepted float range. Runtime declarative schema maxima are
+    pinned to the same fixture. V425-017 and its report-size boundary are untouched.
+  prerequisite: >-
+    V426-003 separately repairs a missing Git wire-import registry entry that
+    reproduced on main and blocked the full architecture suite.

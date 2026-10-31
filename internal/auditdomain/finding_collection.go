@@ -226,7 +226,7 @@ func validateFindingCollection(value FindingCollection) error {
 			selected = selected || sources["audit\x00"+review.AuditID]
 			key := review.AuditID + "\x00" + review.FindingID
 			if validateIdentifier(review.AuditID, "audit_id") != nil || validateIdentifier(review.FindingID, "finding_id") != nil ||
-				key <= priorReview || review.Revision == 0 || review.Revision > 1<<53-1 ||
+				key <= priorReview || review.Revision == 0 || review.Revision > contracts.MaxExactInteger ||
 				review.DecisionID != "" && validateIdentifier(review.DecisionID, "decision_id") != nil ||
 				review.AssessmentID != "" && validateIdentifier(review.AssessmentID, "assessment_id") != nil ||
 				review.DuplicateTargetID != "" && validateIdentifier(review.DuplicateTargetID, "duplicate_target_id") != nil {

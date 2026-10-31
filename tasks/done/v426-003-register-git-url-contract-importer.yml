@@ -1,0 +1,46 @@
+schema_version: "1.0"
+id: V426-003
+title: "Register the Git URL contract dependency in the architecture gate"
+milestone: hub-audit-defects-2026-10
+epic: quality
+kind: chore
+introduced_by: V425-024
+priority: P3
+status: completed
+depends_on: []
+languages: [go]
+goal: "The architecture gate recognizes the existing canonical Git URL wire-bound dependency without weakening its importer checks."
+context:
+  origin: "The full architecture suite required while completing V425-006 fails identically on main 0cf8a23940ce620c8b887183da9d82196b5dcbd3."
+  finding: >-
+    internal/gitimport/client.go:41 uses contracts.MaxGitImportURLBytes but
+    contractsImporters in internal/archtest/contracts_importers_test.go does
+    not list that package. TestContractsKernelImportersUseWireSymbols fails.
+  introduced_evidence: >-
+    git blame traces the import and derived constant to V425-024 implementation
+    fb5728784f907c42995265310425579cf8b6ab75.
+  siblings: >-
+    The existing gate scans every production kernel importer. Git import is
+    its sole missing entry on main; its sole kernel symbol is the wire URL bound.
+scope:
+  in:
+    - "List internal/gitimport with MaxGitImportURLBytes in the existing importer registry."
+  out:
+    - "Changing production imports, Git URL behavior or architecture gate logic."
+acceptance_criteria:
+  - id: A1
+    text: "The full architecture suite passes with the existing Git URL importer explicitly tied to its actual kernel symbol."
+  - id: A2
+    text: "Existing importer negative probes still reject missing, stale and unsubstantiated registry entries."
+tests:
+  - command: go test -count=1 ./internal/archtest
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2]
+implementation_commit: 02f6e37b32c5b6a85e34da30bb925392589b837a
+verification:
+  date: '2026-10-31'
+  commands:
+    - go test -count=1 ./internal/archtest passed, including the real importer scan and all negative probes.
+    - make lint passed before and after integration with main 7f5222c12.
+  regression: The missing Git importer failure reproduced on main before this registry-only correction; no guard exception or production change was added.

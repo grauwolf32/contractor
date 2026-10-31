@@ -11,6 +11,7 @@ from typing import Final
 import jcs
 
 from contractor_runtime.contracts.artifacts import MEMORY_ARTIFACT_PREFIX
+from contractor_runtime.contracts.base import MAX_EXACT_INTEGER
 from contractor_runtime.strict_json import DuplicateJSONKey, unique_json_object
 
 SCHEMA_VERSION: Final = "contractor.memory-note/v1"
@@ -23,7 +24,7 @@ MAXIMUM_NAME_BYTES: Final = MAXIMUM_ARTIFACT_NAME_BYTES - len(ARTIFACT_NAME_PREF
 MAXIMUM_DESCRIPTION_BYTES: Final = 512
 MAXIMUM_TAGS: Final = 3
 MAXIMUM_TAG_BYTES: Final = 64
-MAXIMUM_EXACT_ORDINAL: Final = (1 << 53) - 1
+MAXIMUM_EXACT_ORDINAL: Final = MAX_EXACT_INTEGER
 
 NAME_PATTERN = re.compile(r"^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$")
 TAG_PATTERN = re.compile(r"^[a-z][a-z0-9_-]*$")

@@ -11,6 +11,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/documentnumber"
 	"github.com/grauwolf32/contractor/internal/strictjson"
 )
@@ -88,7 +89,7 @@ func validate(value Document) error {
 			if r.EndLine != nil {
 				end = *r.EndLine
 			}
-			if r.StartLine < 1 || r.StartLine > 1<<53-1 || end < r.StartLine || end > 1<<53-1 || r.EndColumn != nil && r.StartColumn == nil || r.StartColumn != nil && (*r.StartColumn < 1 || *r.StartColumn > 1<<53-1) || r.EndColumn != nil && (*r.EndColumn < 1 || *r.EndColumn > 1<<53-1 || end == r.StartLine && *r.EndColumn < *r.StartColumn) {
+			if r.StartLine < 1 || r.StartLine > contracts.MaxExactInteger || end < r.StartLine || end > contracts.MaxExactInteger || r.EndColumn != nil && r.StartColumn == nil || r.StartColumn != nil && (*r.StartColumn < 1 || *r.StartColumn > contracts.MaxExactInteger) || r.EndColumn != nil && (*r.EndColumn < 1 || *r.EndColumn > contracts.MaxExactInteger || end == r.StartLine && *r.EndColumn < *r.StartColumn) {
 				return errInvalid
 			}
 		}

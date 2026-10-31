@@ -24,6 +24,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/apierror"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
+	"github.com/grauwolf32/contractor/internal/exactinteger"
 	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
@@ -59,7 +60,7 @@ const MaxIdempotencyKeyLength = 128
 // (OBS-R111, LIM-OBS-17), every WorkerCompletion integer, which crosses the A2A
 // DataPart as a double (WRK-R164, LIM-WRK-27), and exact tool parameter
 // integers.
-const MaxExactInteger = 1<<53 - 1
+const MaxExactInteger = exactinteger.Max
 
 var (
 	// ErrValidation identifies a syntactically valid JSON value that violates a

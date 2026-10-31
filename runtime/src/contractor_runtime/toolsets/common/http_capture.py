@@ -12,6 +12,7 @@ from typing import Annotated, Any, Literal
 from pydantic import Field, field_validator, model_validator
 
 from contractor_runtime import threads
+from contractor_runtime.contracts.base import MAX_EXACT_INTEGER
 from contractor_runtime.core.http_limits import (
     MAX_EXCHANGE_ATTEMPTS,
     MAX_HEADER_BYTES,
@@ -155,7 +156,7 @@ class CapturedHTTPExchange(ClosedModel):
             not self.request_id.isascii()
             or not self.request_id.isdecimal()
             or str(int(self.request_id)) != self.request_id
-            or not 1 <= int(self.request_id) <= 9007199254740991
+            or not 1 <= int(self.request_id) <= MAX_EXACT_INTEGER
             or self.request_tag is None
         ):
             raise ValueError("invalid Runtime HTTP request identity")

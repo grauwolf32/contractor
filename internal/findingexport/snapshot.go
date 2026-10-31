@@ -32,7 +32,7 @@ func (r Request) Normalize(auditID string) (Request, string, error) {
 	out.Findings = append([]Selection{}, r.Findings...)
 	sort.Slice(out.Findings, func(i, j int) bool { return out.Findings[i].FindingID < out.Findings[j].FindingID })
 	for i, f := range out.Findings {
-		if !contracts.ValidIdempotencyKey(f.FindingID) || f.Revision == 0 || f.Revision > 1<<53-1 || f.PresentationReceiptID != "" && !contracts.ValidIdempotencyKey(f.PresentationReceiptID) || i > 0 && out.Findings[i-1].FindingID == f.FindingID {
+		if !contracts.ValidIdempotencyKey(f.FindingID) || f.Revision == 0 || f.Revision > contracts.MaxExactInteger || f.PresentationReceiptID != "" && !contracts.ValidIdempotencyKey(f.PresentationReceiptID) || i > 0 && out.Findings[i-1].FindingID == f.FindingID {
 			return Request{}, "", ErrInvalid
 		}
 	}
