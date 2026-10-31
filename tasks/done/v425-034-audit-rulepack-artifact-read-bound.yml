@@ -6,7 +6,8 @@ epic: audits
 kind: defect
 introduced_by: V406-018
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 0d2e44dceeba2c3eb0e3504a464613f91300bead
 depends_on: [V406-018]
 languages: [go]
 goal: A Web scan Audit can execute its exact custom rulepack through the real Artifact service, within the existing YAML and ZIP limits.
@@ -37,6 +38,11 @@ context:
     execution manifest, saved plans, retained reports and rulepack verification.
     Runtime and Audit admission already own YAML/ZIP media bounds; do not add a
     second rulepack parser, generic read API, table or validation framework.
+  verification: >-
+    2026-10-31: the complete internal/planner/scan package passed with a dedicated
+    PostgreSQL database, including real User-to-Run input forks. make lint passed.
+    The V425-033 installed/custom Audit process demonstration also passed after
+    this fix; its full removal changes and process fixture remain in V425-033.
   failures: >-
     Invalid/non-exact refs and unsupported read budgets remain permanent
     validation errors. Payloads beyond the requested budget remain permanent
