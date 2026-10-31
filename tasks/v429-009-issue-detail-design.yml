@@ -1,0 +1,59 @@
+schema_version: "1.0"
+id: V429-009
+title: Prepare the OpenDesign Issues review candidate
+milestone: ui-journey-usability
+epic: ui
+kind: chore
+priority: P2
+status: in_progress
+depends_on: [V429-007, V429-005, V429-006]
+languages: [typescript, css]
+goal: Deliver an OpenDesign-generated Issue detail candidate and a reproducible isolated preview in the shared Run/Project visual language.
+context:
+  authority: >-
+    On 2026-11-01 the user returned to Issues and explicitly asked to use
+    OpenDesign to improve its design. Their standing direction is to preserve
+    all OpenDesign data and keep typography/controls consistent across the
+    project. The earlier Issue exploration was deferred for the Run/Project
+    fidelity repair and is now resumed.
+  specification: docs/spec/ui/ui.md
+  design: docs/design/ui/README.md
+  artifact: docs/design/ui/experiments/issues-opendesign-2026-11-01
+  user_review: >-
+    The user reported that the first candidate layout had gone wrong. The
+    narrow content column, unused right area and disconnected decision surface
+    were sent back to OpenDesign; its next artifact provides a wide two-column
+    desktop composition and a single-column mobile view.
+  decision: >-
+    This deliverable is the resumed visual exploration: an actual OpenDesign
+    output, its preserved original and an isolated interactive review. The
+    initially drafted production-transfer scope was an agent proposal; defer
+    that follow-up until this concrete candidate has been reviewed. Do not
+    silently present a prototype as an implemented production Issue workflow.
+scope:
+  in:
+    - Isolated OpenDesign generation through the existing Contractor gateway and configured model.
+    - Preserved original output, provenance, documented preview corrections and reproducible local preview/proof tools.
+    - Shared typography/tokens, labelled navigation, proposal/evidence/decision hierarchy and synthetic demo interactions.
+    - Read-only current-Application comparison and desktop/mobile theme checks.
+  out:
+    - Production UI transfer, release bump, Server/API/schema changes, model selection changes and business-data mutations.
+    - New review eligibility, automatic verification, invented evidence or copying analyst outcomes between list examples.
+acceptance_criteria:
+  - id: A1
+    text: An actual OpenDesign-generated candidate is preserved with source hashes and provenance; its composition uses the shared system fonts, neutral surfaces and labelled rail.
+  - id: A2
+    text: Proposal, AI suggestion, verification and analyst decisions remain separate; exact evidence identities and limitations are visible, and recording is explicitly a local demo.
+  - id: A3
+    text: The isolated preview works at 1440/390/320 px in light/dark/black, with tabs, explicit evidence preview, rationale/severity checks and source-list/mobile navigation.
+  - id: A4
+    text: All prior OpenDesign data is preserved with a verified recoverable backup; the demo cannot send network requests or real decisions, and temporary upstream credentials are removed.
+tests:
+  - command: node docs/design/ui/experiments/issues-opendesign-2026-11-01/verify.mjs
+    covers: [A1, A2, A3, A4]
+  - command: make ui-gates
+    covers: [A1, A2, A3]
+  - command: python3 scripts/check_tasks.py
+    covers: [A1, A2, A3, A4]
+  - command: python3 scripts/check_spec.py
+    covers: [A2]
