@@ -12325,6 +12325,9 @@ type ResourceId = string
 // Revision defines model for Revision.
 type Revision = string
 
+// RunMetadataLabelSelector Exact metadata-label key=value selector after query decoding. The first '=' separates the key from the value. Server validates the key with the RunMetadataLabels key grammar (1–63 ASCII bytes, LIM-RUN-4) and the value with its value bound (0–256 UTF-8 bytes, no U+0000, LIM-RUN-5). The combined bound is 320 UTF-8 bytes (LIM-RUN-11); a shorter key does not increase the value allowance. Invalid parts return 400 invalid_request.
+type RunMetadataLabelSelector = string
+
 // RunMetadataLabels Immutable ordinary key/value labels. cloud and local derive Runtime placement; an empty value selects the namespace and a non-empty value selects its provider/site child path. Other keys are descriptive.
 type RunMetadataLabels map[string]string
 
@@ -13111,7 +13114,7 @@ type SharedConfigApiVersion string
 // SharedConfigVersion defines model for SharedConfig.Version.
 type SharedConfigVersion int
 
-// SitemapEditorRule defines model for SitemapEditorRule.
+// SitemapEditorRule Server validates origin and path together: their combined UTF-8 size must not exceed 8192 bytes (LIM-SMT-2). Each part also stays within that bound; unused bytes in one part are available to the other. Invalid routes return 400 invalid_request. Origin must be a canonical HTTP(S) origin and path must start with '/' and contain no query or fragment.
 type SitemapEditorRule struct {
 	Method     string                       `json:"method"`
 	Origin     string                       `json:"origin"`
@@ -14886,8 +14889,8 @@ type ListProjectRunsParams struct {
 	State  *WorkflowRunState `form:"state,omitempty" json:"state,omitempty"`
 
 	// Lifecycle Read-only active or terminal state grouping applied before pagination.
-	Lifecycle *WorkflowRunLifecycle `form:"lifecycle,omitempty" json:"lifecycle,omitempty"`
-	Label     *[]string             `form:"label,omitempty" json:"label,omitempty"`
+	Lifecycle *WorkflowRunLifecycle       `form:"lifecycle,omitempty" json:"lifecycle,omitempty"`
+	Label     *[]RunMetadataLabelSelector `form:"label,omitempty" json:"label,omitempty"`
 }
 
 // CreateProjectRunParams defines parameters for CreateProjectRun.
@@ -14958,7 +14961,7 @@ type ListRunsParams struct {
 	Lifecycle *WorkflowRunLifecycle `form:"lifecycle,omitempty" json:"lifecycle,omitempty"`
 
 	// Label Repeat for an exact key/value conjunction. The first decoded '=' separates the metadata-label key from its value; percent-encode value delimiters when constructing the URL.
-	Label *[]string `form:"label,omitempty" json:"label,omitempty"`
+	Label *[]RunMetadataLabelSelector `form:"label,omitempty" json:"label,omitempty"`
 }
 
 // CreateRunParams defines parameters for CreateRun.

@@ -272,10 +272,11 @@ a credential label or a catalog search, or a lookup value it only compares.
 Server-issued opaque values declare their ASCII grammar: sealed cursors and
 Eval bin tokens are unpadded base64url, and Artifact revisions, Audit package
 member IDs and sitemap member IDs keep their identifier grammars. A Run label
-selector `key=value` and a sitemap rule origin and path keep a code-point
-`maxLength`, because their parts are bounded separately (the label key by its
-ASCII grammar and the value by LIM-RUN-5; origin and path together by
-LIM-SMT-2), which one string schema cannot express.
+selector `key=value` declares its derived 320-byte envelope (LIM-RUN-11);
+Server also validates its key and value separately (LIM-RUN-4, LIM-RUN-5).
+Sitemap rule origin and path each declare the 8 KiB byte bound, and Server
+also enforces that bound on their sum (LIM-SMT-2). The OpenAPI descriptions
+state these part and sum constraints; neither composite is a byte-bound exception.
 
 **API-R5.** An Artifact over its payload limit (LIM-ART-4)
 ([ART-R65](../artifacts/artifact-store.md),

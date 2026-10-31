@@ -311,9 +311,12 @@ describe("shared UTF-8 byte bounds", () => {
       expect(rule.maxLength, where).toBe(field.maxBytes);
       for (const character of byteBounds.characters) {
         const width = encoder.encode(character).length;
+        const prefix = "prefix" in field ? field.prefix : "";
+        const room = field.maxBytes - encoder.encode(prefix).length;
         const at =
-          character.repeat(Math.floor(field.maxBytes / width)) +
-          "a".repeat(field.maxBytes % width);
+          prefix +
+          character.repeat(Math.floor(room / width)) +
+          "a".repeat(room % width);
         expect(encoder.encode(at).length, where).toBe(field.maxBytes);
         expect(rule.test(at), `${where} ${character}`).toBe(true);
         expect(rule.test(`${at}a`), `${where} ${character}`).toBe(false);

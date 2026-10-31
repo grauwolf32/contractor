@@ -17,6 +17,7 @@ type UTF8ByteBound struct {
 	Path     []string `json:"path"`
 	MaxBytes int      `json:"maxBytes"`
 	Rule     string   `json:"rule"`
+	Prefix   string   `json:"prefix,omitempty"`
 }
 
 // UTF8ByteBoundValue is a string of one character at or one byte over a
@@ -28,10 +29,10 @@ type UTF8ByteBoundValue struct {
 }
 
 // Values returns, for each shared character, the string of exactly MaxBytes
-// bytes (the character repeated, padded with "a") and the same string with
+// bytes (after the optional structured prefix, the character repeated, padded with "a") and the same string with
 // one more "a".
 func (b UTF8ByteBound) Values(characters []string) []UTF8ByteBoundValue {
-	return b.EmbeddedValues(characters, "", "")
+	return b.EmbeddedValues(characters, b.Prefix, "")
 }
 
 // EmbeddedValues is Values for a value with structure, such as a URL or an
@@ -81,7 +82,7 @@ func ReadUTF8ByteBoundCases(t testing.TB) ([]string, []UTF8ByteBound) {
 		t.Fatal("utf8-byte-bound-cases.json needs characters of different UTF-8 widths")
 	}
 	for _, field := range fixture.Fields {
-		if field.Schema == "" || field.Path == nil || field.MaxBytes <= 0 || field.Rule == "" {
+		if field.Schema == "" || field.Path == nil || field.MaxBytes <= 0 || field.Rule == "" || !utf8.ValidString(field.Prefix) || len(field.Prefix) >= field.MaxBytes {
 			t.Fatalf("incomplete UTF-8 byte bound %+v", field)
 		}
 	}
