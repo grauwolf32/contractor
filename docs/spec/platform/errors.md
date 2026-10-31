@@ -304,6 +304,11 @@ output publication result has exactly one row in the [Registry](#registry),
 and that row links the requirement that defines the code. These codes reach the
 public API as the `code` of a StageTermination and of an attempt diagnostic.
 The Server's source is scanned for them, so a code without a row fails a test.
+The same registration rule covers the Runtime's `AllocationError` codes in
+allocation validation, preparation, cleanup and private lifecycle handlers.
+Their HTTP statuses below describe the private Runtime API, not new public
+API envelope codes. Source checks cover every directly constructed code; a
+wrapped domain error retains its owning domain's code and classification.
 Model-visible tool errors that end nothing and Run event reason codes are
 other vocabularies.
 
@@ -490,7 +495,11 @@ Assembled from every document.
 | `INVALID_ARGUMENTS` | — | not specified | Bounded Skill tool error: an oversize, absolute, backslash or dot-segment skill function argument; returned before native dispatch and never retained as a safe metric path | [SKL-R94](../tools/skills.md) |
 | `SKILL_DISCLOSURE_LIMIT` | — | not specified | Bounded tool error: a native Skill call would exceed the allocation disclosure budget; returned before activation or content lookup, with no partial content | [SKL-R100](../tools/skills.md) |
 | `agent_state_unavailable` | 409/503 | contextual | Closed safe agent-state endpoint error: retryable 409 for a missing, preparing or draining Worker; non-retryable 503 for an invalid or oversized snapshot; retryable 503 for temporary snapshot infrastructure failures | [WRK-R121](../execution/worker.md) |
+| `allocation_cleanup_failed` | 503 | yes | Private allocation release could not confirm cleanup; the slot stays fenced and cleanup may be retried. | [RTA-R51](../execution/runtime-agent.md) |
+| `allocation_conflict` | 409 | no | Private lifecycle request conflicts with the active slot, allocation identity, specification or recorded operation. | [ERR-R24](errors.md) |
 | `allocation_fence_failed` | — | yes | The Scheduler could not write-fence the Stage's allocations before finalization; the Stage ends through bounded aborting with an interrupted StageTermination. | [SCH-R184](../execution/scheduler.md) |
+| `allocation_id_mismatch` | 409 | no | Private lifecycle URL and body identify different allocations; no lifecycle operation is dispatched. | [ERR-R24](errors.md) |
+| `allocation_lease_expired` | 409 | yes | The supplied allocation lease has already expired; preparation is refused. | [RTA-R33](../execution/runtime-agent.md) |
 | `allocation_not_found` | — | not specified | Closed safe agent-state endpoint error for a stale, preparing, draining-with-destroyed-State or released slot | [WRK-R121](../execution/worker.md) |
 | `allocation_preparation_failed` | — | not specified | Allocation preparation failed, including a confirmed local Podman engine preparation failure. Retry follows the existing preparation retry classification. | [EXE-R115](../tools/code-execution.md) |
 | `allocation_report_unavailable` | — | yes | Error of the incomplete placeholder report the Scheduler records for a Worker allocation that started but returned no valid execution report. | [OBS-R37](observability.md) |
@@ -515,8 +524,13 @@ Assembled from every document.
 | `audit_scan_task_unavailable` | — | cause-based for Audit; no for ordinary scans | The exact assigned task package could not be read. | [SCN-R258](../tools/scanners.md) |
 | `automatic_active_checks_unsupported` | — | no | Reason code of audit_profile_unsupported for a profile prohibition conflicting with selected active tools. | [AUD-R89](../audits/audits.md) |
 | `control_plane_state_lost` | — | yes | Control Plane no longer holds the active allocation set of the Stage being prepared, such as durable allocation rows left without grants; interrupted StageTermination. | [SCH-R184](../execution/scheduler.md) |
+| `duplicate_visible_tool` | 422 | no | Selected Toolset factories returned colliding model-visible tool names; preparation rolls back. | [TLS-R21](../tools/toolsets.md) |
 | `invalid_a2a_response` | — | no | The Worker answered with an invalid or unsupported A2A response, Task or Task state, or with a payload that is not one bounded Agent DataPart of the WorkerCompletion media type. | [PLN-R123](../execution/planners.md) |
+| `invalid_agent_namespace` | 422 | no | Allocation preparation selected a Run-reserved namespace for an agent. | [ERR-R24](errors.md) |
+| `invalid_run_metadata_labels` | 422 | no | Allocation Run metadata labels fail normalization; preparation is refused. | [ERR-R24](errors.md) |
 | `invalid_stage_content` | — | no | The StageContentRequest of a Worker invocation violates its contract; nothing is sent to the Worker. | [PLN-R123](../execution/planners.md) |
+| `invalid_toolset_factory` | 422/500 | no | Private allocation preparation rejects an invalid declared workspace access mode (422), or a factory whose returned tool set, visible names or workspace observation declarations disagree (500); resources roll back. | [TLS-R21](../tools/toolsets.md) |
+| `invalid_worker_completion` | 422 | no | Allocation completion authority does not match the selected Worker contract. | [ERR-R24](errors.md) |
 | `invalid_worker_handle` | — | no | The Worker binding or allocation identity is missing, or the Worker's Agent Card or Runtime Agent principal is invalid or incompatible; nothing is sent to the Worker. | [PLN-R123](../execution/planners.md) |
 | `model_route_binding_failed` | — | yes | The Scheduler could not bind the model recovery routes of the Stage's placed allocations; interrupted StageTermination. | [SCH-R184](../execution/scheduler.md) |
 | `planner_already_completed` | — | no | A model call was attempted after the Planner had produced its candidate. | [PLN-R121](../execution/planners.md) |
@@ -639,12 +653,15 @@ Assembled from every document.
 | `result_verification_unavailable` | — | yes | Scheduler revalidation could not verify a candidate result or summary artifact because the store did not answer, for example an unavailable database or a lock timeout; recorded as a retryable interrupted StageTermination. | [SCH-R177](../execution/scheduler.md) |
 | `resync_required` | — | not specified | An operations-stream cursor cannot continue (missed revision, unavailable cursor, cursor older than the latest 255 invalidations, or another generation after Server restart); the UI obtains another authenticated REST snapshot before continuing | [API-R58](../api/public-api.md) |
 | `role_dispatch_contract_invalid` | — | no | Stop reason of an Audit whose discovery or assessment role dispatch data fails deterministic validation, or whose role execution intent the Audit Store refuses as invalid; dispatch closes after one attempt and the Audit finalizes. A prepare role reports `preparation_failed` instead. | [AUX-R99](../audits/execution.md) |
+| `runtime_adapter_close_unconfirmed` | 503 | no | Allocation adapter teardown could not be joined or confirmed; the slot is fenced and the Runtime exits instead of reusing it. | [RTA-R27](../execution/runtime-agent.md) |
 | `runtime_adapter_prepare_failed` | — | yes | Safe code of a retryable preparation interruption: a locally advertised adapter cannot construct because of a transient allocation resource error. | [FAIL-R17](failure-model.md) |
 | `runtime_state_mismatch` | — | not specified | Allocation-loss reason recorded in the interrupted StageTermination for a Runtime state mismatch reported as allocation loss. | [SCH-R95](../execution/scheduler.md) |
 | `sampling_gap` | — | not specified | Bounded reason value of runtime.resources for a partial or unavailable resource summary (the sources define only the name) | [OPS-R174](../operations/operations.md) |
 | `sandbox_cleanup_failed` | — | not specified | The descendant proof failed: a workload left live descendants, which were terminated. A closed guardian channel is not evidence of a more specific cause. | [EXE-R78](../tools/code-execution.md) |
+| `sandbox_cleanup_unconfirmed` | 503 | no | Allocation sandbox cleanup could not be confirmed; the slot is fenced and the Runtime exits instead of reusing it. | [RTA-R25](../execution/runtime-agent.md) |
 | `sandbox_invalid_command` | — | not specified | A `timeout_seconds` above the operator command maximum is rejected before launch. It is neither clamped silently nor fatal to the allocation. | [EXE-R56](../tools/code-execution.md) |
 | `sandbox_outcome_unknown` | — | no | The Podman CLI exited with 125, 126 or 127. These codes overlap Podman's own exec errors and cannot prove the program's status, so the diagnostic streams are discarded and the allocation is terminated without retry. | [EXE-R76](../tools/code-execution.md) |
+| `sandbox_unavailable` | 422 | no | The selected Podman profile has no execution lifecycle implementation in this Runtime. | [RTA-R45](../execution/runtime-agent.md) |
 | `scan_completion_write_failed` | — | cause-based for Audit; no for ordinary scans | The completed scan result could not be recorded within the separate completion budget. | [SCN-R258](../tools/scanners.md) |
 | `scan_failed` | — | yes, known Audit outcome only | An Audit scan has a known failed or unavailable current-attempt outcome; the retained package preserves coverage and evidence. | [SCN-R258](../tools/scanners.md) |
 | `scan_history_invalid` | — | no | The current scan attempt is missing from the bounded Audit journal history. | [SCN-R258](../tools/scanners.md) |
@@ -712,6 +729,7 @@ Assembled from every document.
 | `tool_call_failed` | — | no, unless the raising exception declares itself retryable | Recorded, and returned to the model as a failed tool result named only by the tool and the exception class, for a raised tool exception without an identifier code; also recorded in place of a tool error code that is not an identifier or that contains a long secret. | [OBS-R32](observability.md) |
 | `tool_call_not_executed` | — | no independent retry grant | Synthetic interrupted-history result only when the tool callback was never admitted; it proves no dispatch through that call and does not rerun it. | [WRK-R174](../execution/worker.md) |
 | `tool_call_outcome_unknown` | — | no blind retry; reconcile the owning receipt | Synthetic interrupted-history result for an admitted call without a known result or proven cancellation; a remote effect may have committed. | [WRK-R174](../execution/worker.md) |
+| `tool_cleanup_unconfirmed` | 503 | no | Selected tool teardown could not be joined or confirmed; the slot is fenced and the Runtime exits instead of reusing it. | [RTA-R25](../execution/runtime-agent.md) |
 | `tool_execution_failed` | — | no | The tool callable raised an exception; when the report reference is omitted, scan-plan@1 resolves only the job's own deterministic report binding for classification. | [SCN-R48](../tools/scanners.md) |
 | `invalid_tool_history` | — | no | Internal cause of worker_session_lifecycle_failed: malformed, mismatched, stale or unencodable interrupted-call history cannot safely continue; the allocation is fenced. | [WRK-R176](../execution/worker.md), [WRK-R177](../execution/worker.md) |
 | `tool_history_limit_exceeded` | — | no | Internal cause of worker_session_lifecycle_failed: cumulative observed calls or unresolved metadata/result bytes exceed their ledger bound; the allocation is fenced. | [WRK-R175](../execution/worker.md), [WRK-R177](../execution/worker.md) |
@@ -727,8 +745,15 @@ Assembled from every document.
 | `unnamed: blob store not installed` | — | not specified | An operation reached a filesystem object through work that does not carry the installation's blob store, a Server composition defect; it fails as a logged internal error, never as missing or corrupt content, and a deletion fails before its commit. The sources assign no wire code. | [BLB-R75](../artifacts/blob-storage.md) |
 | `unnamed: unknown blob backend` | — | not specified | The configured backend name is not a known backend; validation fails at startup. The sources assign no wire code. | [BLB-R7](../artifacts/blob-storage.md) |
 | `unnamed: unsupported blob backend (s3)` | — | not specified | `s3` is selected; the Server returns an explicit unsupported-backend error and never falls back to postgresql or filesystem. The sources assign no wire code. | [BLB-R7](../artifacts/blob-storage.md) |
+| `unsafe_worker_handle` | 500 | no | The Worker Agent Card exposed private allocation settings or its local workspace path; preparation is refused without returning that data. | [ERR-R24](errors.md) |
 | `unsafe_worker_result` | — | no | Result text retains an allocation RuntimeSettings credential (secret-retention scan) | [WRK-R60](../execution/worker.md), [ERR-R2](errors.md) |
 | `unsupported_platform` | — | not specified | Reason value: the platform cannot provide a platform-dependent resource observation | [OPS-R3](../operations/operations.md) |
+| `unsupported_runtime_adapter` | 422 | no | An exact required adapter or HTTP transport is absent from the frozen capabilities or installed factories; preparation is refused. | [RTA-R33](../execution/runtime-agent.md) |
+| `unsupported_sandbox_profile` | 422 | no | The selected SandboxProfile is unavailable in the frozen capabilities or factory registry; preparation is refused. | [RTA-R45](../execution/runtime-agent.md) |
+| `unsupported_tool` | 422 | no | A selected tool is not advertised or exported by its exact Toolset; preparation is refused. | [TLS-R20](../tools/toolsets.md) |
+| `unsupported_toolset` | 422 | no | The selected Toolset is unavailable, or its transport channels are incompatible with the allocation engagement authority; preparation is refused. | [TLS-R20](../tools/toolsets.md) |
+| `unsupported_worker_completion` | 422 | no | The selected tool Worker has no installed deterministic completion authority. | [ERR-R24](errors.md) |
+| `unsupported_worker_runtime` | 422 | no | The selected WorkerRuntime is unavailable in the frozen capabilities or factory registry; preparation is refused. | [RTA-R3](../execution/runtime-agent.md) |
 | `unsupported_workflow_shape` | — | not specified | Durable Workflow shape the Scheduler cannot progress; handled exactly like scheduler_state_invalid. | [SCH-R102](../execution/scheduler.md) |
 | `usage_incomplete` | — | not specified | Core diagnostic for usage whose completeness is partial or unavailable. | [EVF-R223](../evals/format.md) |
 | `user_cancelled` | — | not specified | The cancellation code recorded in the immutable WorkflowRunCancellation by the winning cancel request; required while the Run is cancelling or cancelled. | [RUN-R40](../execution/runs.md) |
@@ -755,6 +780,7 @@ Assembled from every document.
 | `worker_session_lifecycle_failed` | — | yes only for the tool_history_unavailable cause; no otherwise | Allocation-local session or interrupted-history settlement failed. Deterministic invalid or over-limit history is permanent; unavailable history may succeed only in a fresh StageExecution. Every history cause fences the current allocation. | [WRK-R76](../execution/worker.md), [WRK-R177](../execution/worker.md), [ERR-R2](errors.md) |
 | `worker_state_changed` | — | not specified | A projection collection cursor was invalidated because the bound state revision changed. | [PLN-R59](../execution/planners.md) |
 | `worker_state_unavailable` | — | not specified | A Planner projection tool was called before any WorkerCompletion matching that logical Worker was returned. | [PLN-R57](../execution/planners.md) |
+| `worker_stop_unconfirmed` | 503 | no | The in-process Worker could not be stopped and joined; the slot is fenced and the Runtime exits instead of reusing it. | [RTA-R25](../execution/runtime-agent.md) |
 | `worker_summarization_failed` | — | yes for missing, invalid, mismatched or oversized summarizer output and summarizer budget exhaustion; provider failures keep Gateway retryability | Terminal summarization failed; a more specific bounded cause is in metrics | [WRK-R152](../execution/worker.md) |
 | `worker_summarized` | — | no | Trusted terminal summary is incomplete work; declared summary policy may continue it, otherwise ordinary failure applies | [SCH-R171](../execution/scheduler.md) |
 | `worker_task_cancelled` | — | yes | The Worker's A2A Task was cancelled. | [PLN-R123](../execution/planners.md) |
@@ -765,6 +791,7 @@ Assembled from every document.
 | `summary_publication_unavailable` | — | yes, within source admission deadline | Transient summary publication failure; replay the recorded completion without dispatching its Worker again | [SCH-R174](../execution/scheduler.md) |
 | `worker_unavailable` | — | yes; no when the A2A client is not configured | The Worker's A2A endpoint is unavailable, or the Worker invocation failed for another reason. | [PLN-R123](../execution/planners.md) |
 | `workspace_capacity_exceeded` | — | yes | Workspace placement/resource failure: capacity exceeded | [ERR-R10](errors.md), [WSP-R173](../tools/workspace.md) |
+| `workspace_cleanup_unconfirmed` | 503 | no | Allocation workspace cleanup could not be joined or confirmed; the slot is fenced and the Runtime exits instead of reusing it. | [RTA-R25](../execution/runtime-agent.md) |
 | `workspace_export_failed` | — | yes | Overlay workspace export failed because of a temporary Artifact API failure; invalid state, quota and fence failures are classified by their own stable cause instead (WSP-R152) | [ERR-R10](errors.md), [WSP-R152](../tools/workspace.md) |
 | `workspace_limit_exceeded` | — | no | Workspace limit exceeded; a deterministic quota violation (WSP-R174) | [ERR-R10](errors.md), [WSP-R93](../tools/workspace.md) |
 | `workspace_line_invalid` | — | not specified | Read or edit line outside an existing file's valid range | [ERR-R10](errors.md), [WSP-R132](../tools/workspace.md) |
@@ -774,6 +801,7 @@ Assembled from every document.
 | `workspace_path_invalid` | — | not specified | Invalid workspace path | [ERR-R10](errors.md), [WSP-R90](../tools/workspace.md) |
 | `workspace_required` | — | not specified | No project workspace was supplied | [ERR-R10](errors.md), [CAN-R135](../tools/code-analysis.md), [WSP-R173](../tools/workspace.md) |
 | `workspace_source_invalid` | — | no | Malformed or malicious workspace source archive | [ERR-R10](errors.md), [WSP-R47](../tools/workspace.md) |
+| `workspace_source_unavailable` | 503 | yes | The exact workspace source could not be preflighted because storage is temporarily unavailable; preparation creates no sandbox or Worker. | [RTA-R36](../execution/runtime-agent.md) |
 | `workspace_state_invalid` | — | no | Invalid workspace state | [ERR-R10](errors.md), [WSP-R174](../tools/workspace.md) |
 | `workspace_type_conflict` | — | not specified | Workspace type conflict | [ERR-R10](errors.md), [WSP-R89](../tools/workspace.md) |
 | `workspace_unavailable` | — | not specified | Bounded filesystem acquisition, I/O or mutation failure | [ERR-R10](errors.md), [WSP-R173](../tools/workspace.md) |
@@ -781,7 +809,7 @@ Assembled from every document.
 | `interactsh_evidence_unconfirmed` | — | yes | Exact evidence publication could not be confirmed | [Interactsh](../tools/interactsh.md) |
 | `interactsh_handle_invalid` | — | no | Handle is unknown, unowned or released | [Interactsh](../tools/interactsh.md) |
 | `interactsh_limit_exceeded` | — | no | Allocation registration limit reached | [Interactsh](../tools/interactsh.md) |
-| `interactsh_not_configured` | — | no | Required private adapter is absent | [Interactsh](../tools/interactsh.md) |
+| `interactsh_not_configured` | — | no | Required private adapter is absent | [INT-R2](../tools/interactsh.md), [ERR-R24](errors.md) |
 | `interactsh_rate_limited` | — | yes | Poll rate limited, with a bounded retry hint | [Interactsh](../tools/interactsh.md) |
 | `interactsh_registration_expired` | — | no | Registration expired locally or upstream | [Interactsh](../tools/interactsh.md) |
 | `interactsh_request_failed` | — | yes | Collector transport or server failure; coverage may be incomplete | [Interactsh](../tools/interactsh.md) |

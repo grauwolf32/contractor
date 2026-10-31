@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-86 open tasks: 9 in progress, 66 pending, 11 deferred. 1264 finished: 1249 completed, 15 archived.
+85 open tasks: 9 in progress, 65 pending, 11 deferred. 1265 finished: 1250 completed, 15 archived.
 
 ## In progress
 
@@ -145,7 +145,6 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V411-017](v411-017-pentest-api-cli.yml) | feature | P1 | V411-015, V411-016, V411-010 | Expose HTTP engagement setup and results through existing API and CLI |
 | [V425-006](v425-006-one-exact-integer-bound.yml) | chore | P3 | — | Take the exact JSON integer bound from one definition in Go and one in Python |
-| [V425-008](v425-008-remaining-error-codes.yml) | chore | P3 | — | Register invalid_toolset_factory and unsupported_toolset in the error registry |
 | [V425-009](v425-009-typed-const-and-event-enums.yml) | chore | P3 | — | Give every OpenAPI const schema and every events schema enum a type |
 | [V425-010](v425-010-composite-byte-bounds-server.yml) | defect | P2 | — | Validate per-part byte bounds of Run label selectors and sitemap rules in the Server and drop their gate exceptions |
 
@@ -209,6 +208,6 @@ tasks in `introduced_by`.
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |
 | Web UI (`ui`) | 2 | 25 | 66 | 15 | 59 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 18 | 45 | 7 | 20 |
-| Public API and wire contracts (`api-contracts`) | 5 | 2 | 38 | 25 | 14 |
+| Public API and wire contracts (`api-contracts`) | 4 | 2 | 38 | 25 | 14 |
 | PostgreSQL persistence and schema (`persistence`) | 4 | 0 | 27 | 45 | 14 |
 | Quality, CI and process (`quality`) | 11 | 1 | 28 | 107 | 26 |
