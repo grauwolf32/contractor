@@ -6,7 +6,7 @@ epic: quality
 kind: chore
 introduced_by: V38-004
 priority: P3
-status: in_progress
+status: completed
 depends_on: []
 languages: [go]
 goal: Remove repeated PostgreSQL test setup while preserving real-store isolation and each suite's explicit settings.
@@ -56,3 +56,13 @@ implementation_notes:
   - Specialized fixtures retained are settingsstore.isolatedSettingsPool and postgres.isolatedPools (shared-schema reopening/multiple pools), app.isolatedRecoveryPool and performance.databaseFixture (production OpenPool), and app.isolatedStartupDatabase (startup/migration URL).
   - A comparison against the original sources confirmed that the 33 migrated files change only imports and their single setup helper; test scenarios are unchanged.
   - V425-028 separately fixes the pre-existing V425-024 Git wire import inventory omission discovered by the first aggregate test pass.
+implementation_commit: 740882ad0e249db9a99e007b367d0614ae10cd93
+verification: >-
+  The final dedicated PostgreSQL 17 TCP database pass of
+  go test -tags=integration -count=1 -p=2 ./internal/... passed in full.
+  go test -race -count=1 ./internal/persistence/postgrestest passed against real PostgreSQL.
+  make lint passed on the final code. The initial Unix-socket attempt exposed TCP-only
+  lease-test prerequisites; it was replaced with a TCP test URL. The next aggregate
+  pass found only the unchanged Git import inventory defect, fixed independently by
+  V425-028; the final complete rerun had no failures. No production behavior or
+  dependencies changed. The branch is codex/postgres-test-harness and is not merged.
