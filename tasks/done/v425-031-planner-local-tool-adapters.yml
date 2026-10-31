@@ -6,7 +6,7 @@ epic: planner-worker
 kind: chore
 introduced_by: V17-006
 priority: P3
-status: in_progress
+status: completed
 depends_on: []
 languages: [go]
 goal: Keep one local implementation of ADK tool request packing and eligible Worker lookup for Planner Memory and State tools.
@@ -95,4 +95,7 @@ verification: >-
   -count=1 -p=2 ./internal/planner/streamline ./internal/planner/router passed with
   PostgreSQL configured and physical TMPDIR resolved; the complete suites ran,
   including the database cases. Locked Runtime dependencies were synchronized.
-  make lint verification is ongoing.
+  make lint passed, including generated clients, static checks, release graph,
+  task/spec validation, Ruff and all four Runtime import-layer contracts.
+  The implementation is on codex/allocation-rollback-planner-adapters and is not merged.
+implementation_commit: 0d02498473effa42e7249a0fdce2abb54faef17f
