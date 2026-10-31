@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 type GitSource struct {
@@ -32,7 +34,7 @@ func (r *PostgresTxRepository) RecordGitSource(ctx context.Context, scope Scope,
 		return ErrExactRevisionRequired
 	}
 	u, err := url.Parse(source.RepositoryURL)
-	if err != nil || len(source.RepositoryURL) > 4096 || u.Host == "" || (u.Scheme != "https" && u.Scheme != "ssh") || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || (u.Scheme == "https" && u.User != nil) || !gitCommitPattern.MatchString(source.ResolvedCommit) || source.ImportedAt.IsZero() {
+	if err != nil || len(source.RepositoryURL) > contracts.MaxGitSourceURLBytes || u.Host == "" || (u.Scheme != "https" && u.Scheme != "ssh") || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || (u.Scheme == "https" && u.User != nil) || !gitCommitPattern.MatchString(source.ResolvedCommit) || source.ImportedAt.IsZero() {
 		return ErrArtifactIntegrity
 	}
 	if u.User != nil {

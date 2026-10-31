@@ -7,13 +7,14 @@ kind: defect
 introduced_by: V35-002
 priority: P3
 status: pending
-depends_on: []
+depends_on: [V425-024]
 languages:
 - go
 goal: A Git import URL is either refused at intake or fetched; a URL that passes intake never fails later
   with ErrURL.
 context:
-  decision_needed: >-
+  authority: "2026-10-31: user chose to preserve the 4096-byte input bound and increase canonical provenance storage/API bounds. V425-024 owns that prerequisite."
+  decision: >-
     2026-10-31 revalidation: removing Fetch's ParseRemote(remote.URL) alone is
     insufficient. LIM-GIT-23 and TestSharedGitImportBoundsCountUTF8Bytes accept
     4096 bytes of the caller's UTF-8 URL, but artifacts.validateGitSource and
@@ -24,8 +25,8 @@ context:
     task covering storage, schemas, spec and shared fixtures). Simpler
     alternative: apply 4096 to the canonical URL at intake, which changes the
     existing shared input contract and the task's no-allowed-URL-change scope.
-    Asked the user; keep pending until the boundary is settled, then shape the
-    prerequisite and update dependencies instead of silently widening this task.
+    The user selected the recommended option. V425-024 now owns the prerequisite;
+    this task remains pending until that task completes.
   origin: Reported by a lane of the 2026-10-30 defect wave and rechecked on main fde39a943 by the coordinator.
   severity: low
   finding: internal/gitimport/client.go Fetch (line ~218) re-validates the repository URL after percent-encoding

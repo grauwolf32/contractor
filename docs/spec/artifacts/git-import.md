@@ -289,7 +289,9 @@ ceiling require separate contracts.
 mutable name or content digest alone. This per-version repository, ref and
 commit metadata preserves origin across exact input forks without changing
 ArtifactRef and without turning a Workflow input into a live repository
-reference.
+reference. The normalized repository URL has its own 12,288-byte bound
+(LIM-GIT-24), allowing percent encoding of the 4,096-byte original input
+(LIM-GIT-23). Input and provenance bounds are checked at their own boundaries.
 
 **GIT-R30.** Git-source fields, including the optional analysis summary, are stored
 on `artifact_versions`; metadata queries project them without reading blobs.
@@ -588,7 +590,8 @@ authorization ([Public API](../api/public-api.md)):
 
 **GIT-R83.** Import JSON contains `repositoryUrl` and optional `ref`. No
 request can choose another owner, credential, backend or output filesystem
-path.
+path. `repositoryUrl` is bounded to 4,096 UTF-8 bytes as the caller sends it
+(LIM-GIT-23), before URL normalization; canonical provenance uses LIM-GIT-24.
 
 **GIT-R84.** Import uses the existing Artifact create and CAS headers:
 `If-None-Match: *` or an exact `If-Match`.
