@@ -6,7 +6,7 @@ epic: projects-artifacts
 kind: defect
 introduced_by: V407-025
 priority: P3
-status: in_progress
+status: completed
 depends_on: []
 languages:
 - go
@@ -51,3 +51,33 @@ tests:
   covers: [A1, A2]
 - command: make lint
   covers: [A1]
+implementation_commit: b318a4e1119f77a19a56fb37f1f5f11ed722e8e2
+verification:
+  date: '2026-10-31'
+  integrated_base: 8e0be503189c5f069f5fa99eef00a8aa0c4c08d1
+  migration: 000065_project_active_run_index.sql
+  commands:
+    - go test -tags=integration -count=1 ./internal/projectlifecycle/... ./internal/runstore/... ./internal/persistence/... passed against disposable PostgreSQL before and after integration with the shared test-pool setup.
+    - make lint passed before and after integration, including the canonical active-state index guard, schema/ERD checks, layers and source guards.
+    - make docs-erd applied all 65 migrations to a scratch database and regenerated the ERD; make docs-dependencies kept the dependency document current.
+  scale_and_budget: >-
+    Six owners, thirty Projects, 6000 then 60000 Runs, and three Stages and
+    allocations per Run. The target's terminal history grows from 214 to 2142
+    Runs; 112 global active Runs and 30 unreleased allocations stay fixed.
+    Custom and executed generic plans stay within 38 Run reads (30 release
+    lookups plus 8 planning entries), independent of terminal history. The
+    measured custom plan reads 2 then 32 Run entries; the active-Run predicate
+    returns zero index entries at both sizes. Stage and allocation read budgets
+    remain 38 each. Statistics sample the complete 180000-row Stage tables.
+  negative_control: >-
+    Dropping only the new index inside a rollback-only transaction restores
+    2286 Run reads for both custom and generic plans, exceeding the same budget
+    of 38. This replaces the obsolete historical-SQL block comparison: both
+    SQL spellings benefit equally when measured on the newly indexed schema.
+  outcome: >-
+    The existing production query and deletion semantics are unchanged.
+    Cancellation, cancelling Runs, unreleased allocations, Audit barriers,
+    owner claims and the purge recheck retain their result coverage. The active
+    state predicate is registered against runstore's canonical state set.
+    The separate release lookup retains its established globally-unreleased
+    allocation budget; no new ownership projection or store was introduced.
