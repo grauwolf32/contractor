@@ -3,6 +3,7 @@ package control
 import (
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/pagelimit"
 )
 
@@ -16,6 +17,16 @@ type SharedConfig struct {
 }
 
 type SharedLimits struct {
+	WorkerResultMaxBytes              int `json:"workerResultMaxBytes" strictjson:"required"`
+	WorkerCompletionMaxBytes          int `json:"workerCompletionMaxBytes" strictjson:"required"`
+	WorkerFailureMessageMaxBytes      int `json:"workerFailureMessageMaxBytes" strictjson:"required"`
+	WorkerResultMaxArtifacts          int `json:"workerResultMaxArtifacts" strictjson:"required"`
+	WorkerObservationMaxTools         int `json:"workerObservationMaxTools" strictjson:"required"`
+	WorkerWorkspaceMaxFilesRead       int `json:"workerWorkspaceMaxFilesRead" strictjson:"required"`
+	WorkerStateMaxBytes               int `json:"workerStateMaxBytes" strictjson:"required"`
+	WorkerStateWorkspaceMaxPaths      int `json:"workerStateWorkspaceMaxPaths" strictjson:"required"`
+	WorkerStateWorkspacePathsMaxBytes int `json:"workerStateWorkspacePathsMaxBytes" strictjson:"required"`
+
 	ArtifactPayloadMaxBytes int64 `json:"artifactPayloadMaxBytes" strictjson:"required"`
 	PublicPageMaxItems      int   `json:"publicPageMaxItems" strictjson:"required"`
 	ArtifactListMaxItems    int   `json:"artifactListMaxItems" strictjson:"required"`
@@ -25,6 +36,16 @@ type SharedLimits struct {
 func DefaultSharedConfig() (SharedConfig, error) {
 	c := SharedConfig{APIVersion: contracts.APIVersion, Version: 1,
 		Limits: SharedLimits{
+			WorkerResultMaxBytes:              contracts.MaxWorkerResultBytes,
+			WorkerCompletionMaxBytes:          contracts.MaxWorkerCompletionBytes,
+			WorkerFailureMessageMaxBytes:      contracts.MaxWorkerFailureMessageBytes,
+			WorkerResultMaxArtifacts:          contracts.MaxWorkerResultArtifacts,
+			WorkerObservationMaxTools:         contracts.MaxWorkerObservationTools,
+			WorkerWorkspaceMaxFilesRead:       contracts.MaxWorkerFilesRead,
+			WorkerStateMaxBytes:               reporting.MaxAgentStateSnapshotBytes,
+			WorkerStateWorkspaceMaxPaths:      reporting.MaxStateWorkspacePaths,
+			WorkerStateWorkspacePathsMaxBytes: reporting.MaxStateWorkspacePathBytes,
+
 			ArtifactPayloadMaxBytes: contracts.MaxArtifactPayloadBytes,
 			PublicPageMaxItems:      pagelimit.MaxRows,
 			ArtifactListMaxItems:    contracts.MaxArtifactListItems,
@@ -52,7 +73,7 @@ func (c SharedConfig) Validate() error {
 	if c.Version != 1 {
 		return contracts.Invalidf("unsupported shared config version")
 	}
-	for _, limit := range []int64{c.Limits.ArtifactPayloadMaxBytes, int64(c.Limits.PublicPageMaxItems), int64(c.Limits.ArtifactListMaxItems)} {
+	for _, limit := range []int64{int64(c.Limits.WorkerResultMaxBytes), int64(c.Limits.WorkerCompletionMaxBytes), int64(c.Limits.WorkerFailureMessageMaxBytes), int64(c.Limits.WorkerResultMaxArtifacts), int64(c.Limits.WorkerObservationMaxTools), int64(c.Limits.WorkerWorkspaceMaxFilesRead), int64(c.Limits.WorkerStateMaxBytes), int64(c.Limits.WorkerStateWorkspaceMaxPaths), int64(c.Limits.WorkerStateWorkspacePathsMaxBytes), c.Limits.ArtifactPayloadMaxBytes, int64(c.Limits.PublicPageMaxItems), int64(c.Limits.ArtifactListMaxItems)} {
 		if limit <= 0 || limit > contracts.MaxExactInteger {
 			return contracts.Invalidf("invalid shared config limit")
 		}

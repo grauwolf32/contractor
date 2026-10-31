@@ -1,0 +1,72 @@
+schema_version: '1.0'
+id: V427-002
+title: Fetch common HTTP evidence byte ceilings at Runtime startup
+milestone: runtime-shared-config-2026-10
+epic: execution-core
+kind: feature
+priority: P1
+status: in_progress
+depends_on: [V427-001]
+languages: [go, python, typescript]
+goal: >-
+  The Runtime sends and retains HTTP evidence within the same byte ceilings
+  that Server validates, with one editable definition for each shared bound.
+demonstration: >-
+  With smaller received request, response and header bounds, HTTP tool and
+  capture validators accept boundary values and reject overflow; response reads
+  and decoded cache admission use the same received response ceiling.
+context:
+  authority: >-
+    User decision on 2026-10-31: move the proposed shared HTTP byte bounds to
+    existing config endpoints. Agent proposal: keep provider GraphQL, scanner,
+    Control Plane transport and per-Run engagement limits independent.
+  specification: docs/spec/tools/http-caido.md#HTP-R25
+scope:
+  in:
+    - Request body, response body and retained header-block byte ceilings.
+    - Kernel wire constants shared by auditdomain and the startup config constructor.
+    - Runtime HTTP transport, proxy admission, tool, evidence and capture consumers plus derived cache ceiling.
+    - Both config schemas, shared HTTP fixtures and generated test defaults.
+  out:
+    - Provider GraphQL response bounds, private transport headers, retries, timeouts, cookies and per-Run engagement limits.
+    - Changes to HTTP authority, provider parsing, storage or capture retention policy.
+requirements:
+  - id: R1
+    text: Three common HTTP ceilings are defined once in the Go wire kernel; auditdomain keeps named aliases and Runtime consumes the verified immutable snapshot.
+  - id: R2
+    text: A smaller configured bound affects validation and transport before sending or reading excess data; local request-header preference and derived caches never exceed the shared relevant ceiling.
+  - id: R3
+    text: Shared fixtures and generated schema/test bindings follow changed policy without rewriting unrelated equal-valued provider or transport budgets.
+failure_outcomes:
+  - operation: Existing HTTP tool and capture operations
+    permanent: Existing http_request_invalid, http_response_invalid and capture validation errors classify overflow; no local policy fallback.
+    retryable: Existing HTTP transport attempt and deadline bounds remain in force.
+    ambiguous: Existing request and evidence receipt semantics remain unchanged.
+    cancelled: Existing HTTP owner joins in-flight transport before release.
+    timeout: Per-request and invocation deadlines retain their existing owners.
+cardinality:
+  - collection: Shared HTTP ceilings
+    expected: Three positive exact integer scalars in the existing startup document.
+    maximum: Existing request, response and header maxima until the Server source changes.
+    bound: Reads and evidence remain byte bounded; no new list, store or background loop.
+lifecycle:
+  - entity: Existing startup snapshot
+    delete: Process/client disposal releases memory.
+    cascade: No new persistent entities.
+    retention: Restart required for changed policy.
+acceptance_criteria:
+  - id: A1
+    text: Server, Runtime and generated config/HTTP fixtures agree on the three default and altered ceilings.
+  - id: A2
+    text: Post-import smaller snapshots control real HTTP body/header validation, capture checks and derived response/cache budgets.
+  - id: A3
+    text: Unrelated provider, private transport and per-Run policies retain their own definitions and checks.
+tests:
+  - command: go test ./internal/contracts/... ./internal/auditdomain/... ./internal/archtest/...
+    covers: [A1, A3]
+  - command: make test-wire-cross-language verify-public-api ui-verify
+    covers: [A1, A3]
+  - command: cd runtime && uv run pytest tests/test_http*.py tests/test_security_findings_toolset.py tests/test_finding_tool_contracts.py tests/test_finding_facades.py tests/test_shared_config_bootstrap.py
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A3]

@@ -1,0 +1,80 @@
+schema_version: '1.0'
+id: V427-003
+title: Enforce fetched Git and metadata-label limits in UI and Runtime
+milestone: runtime-shared-config-2026-10
+epic: execution-core
+kind: feature
+priority: P1
+status: pending
+depends_on: [V427-002]
+languages: [go, python, typescript]
+goal: >-
+  Repository import and descriptive Run/Audit label controls explain and enforce
+  Server policy from startup config, so one Server source change reaches forms,
+  clients, Runtime validation, schemas, fixtures and persistence checks.
+demonstration: >-
+  A fake Server publishes smaller UTF-8 input and label limits. The Git form and
+  API client reject oversized URLs, label editors and filters obey the received
+  count/key/value limits, and Runtime validation and telemetry use the same
+  Run metadata policy. Audit label count retains room for child provenance.
+context:
+  authority: >-
+    User decision on 2026-10-31: extend shared configuration with Git input URL
+    and metadata label bounds; keep Server-only policy local. Earlier user
+    decision: preserve the original 4096-byte Git input allowance and derive a
+    larger canonical provenance bound. Agent proposal: also publish the derived
+    Audit label count because its editor is an actual consumer of Run label policy.
+  specification: docs/spec/execution/control-plane.md#CTL-R171
+scope:
+  in:
+    - Git import input bytes, Run metadata label count/key/value bytes and derived Audit label count.
+    - UI Git forms/client, Run/Audit editors, Run draft validation and metadata filter normalization.
+    - Runtime private-label and OTLP validation from the received snapshot.
+    - Generation of public/private bounds, fixtures and future incremental SQL for Git provenance and metadata-label checks.
+  out:
+    - Runtime placement labels, identifier grammar, Git key size, secrets and live reload.
+    - Changing current numeric policy, data migration or demo database operations.
+requirements:
+  - id: R1
+    text: Server owners remain the only editable policy numbers; canonical Git provenance and Audit capacity retain their distinct derived meanings.
+  - id: R2
+    text: Forms and clients take limits explicitly from the per-API or React snapshot; reusable pure validators receive those limits, with no global numeric fallback.
+  - id: R3
+    text: Generation follows changed sources through schemas, shared boundary fixtures and incremental SQL while historical migrations stay immutable.
+failure_outcomes:
+  - operation: Existing Git import and metadata label requests
+    permanent: Invalid inputs fail locally or with existing classified Server validation errors; invalid config blocks startup.
+    retryable: Existing public client/query and operation retry policy only.
+    ambiguous: Existing idempotency/precondition and Git import behavior remain in force.
+    cancelled: Existing operation signal and request lifecycle own cancellation.
+    timeout: Existing independent API/operation deadlines remain unchanged.
+cardinality:
+  - collection: Shared input policy
+    expected: Five scalar limits in one existing startup snapshot.
+    maximum: Positive exact JSON integers; current Server policy remains unchanged.
+    bound: Input bytes and label counts are checked before mutation; no extra collection scans.
+lifecycle:
+  - entity: Existing startup snapshot
+    delete: Process/client disposal releases memory.
+    cascade: No new stored state.
+    retention: Restart required for a changed policy.
+acceptance_criteria:
+  - id: A1
+    text: Changed received limits control Git UTF-8 validation and label counts/key/value checks in real UI consumers and API wrappers.
+  - id: A2
+    text: Runtime private and OTLP metadata-label validation use the received policy, independently of placement labels.
+  - id: A3
+    text: Source changes update schema/fixture/SQL bindings without editing historical migrations or unrelated limits, with real-store verification of generated SQL.
+  - id: A4
+    text: Final generated contracts, UI/browser checks and applicable owner-package gates pass; prerequisite tasks are closed and the final policy is ready for local main integration.
+tests:
+  - command: go test ./internal/contracts/... ./internal/artifacts/... ./internal/runstore/... ./internal/archtest/...
+    covers: [A2, A3, A4]
+  - command: make test-wire-cross-language verify-public-api ui-verify ui-browser-mocked
+    covers: [A1, A2, A4]
+  - command: cd runtime && uv run pytest tests/test_contracts.py tests/test_otlp_adapter.py tests/test_otlp_streaming.py tests/test_shared_config_bootstrap.py
+    covers: [A2, A4]
+  - command: python3 -m unittest discover -s scripts -p test_generate_shared_config.py
+    covers: [A3]
+  - command: make lint
+    covers: [A3, A4]

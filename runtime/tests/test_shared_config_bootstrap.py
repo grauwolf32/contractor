@@ -278,3 +278,120 @@ def test_fetched_artifact_list_ceiling_controls_client_before_transport(monkeypa
         assert transport.request.call_args.args[1].endswith("limit=2&cursor=next")
 
     asyncio.run(scenario())
+
+
+def test_shared_received_worker_policy_controls_post_import_models(monkeypatch):
+    from dataclasses import replace
+
+    from contractor_runtime.contracts import (
+        AgentStateSnapshot,
+        WorkerCompletion,
+        WorkerFailure,
+        WorkerObservations,
+        WorkerResult,
+        WorkspaceObservationSummary,
+    )
+    from contractor_runtime.contracts.worker import WorkerStateWorkspaceObservation
+
+    original = shared_config.get_shared_config()
+    monkeypatch.setattr(
+        shared_config,
+        "_snapshot",
+        replace(
+            original,
+            worker_result_max_bytes=7,
+            worker_failure_message_max_bytes=5,
+            worker_result_max_artifacts=1,
+            worker_observation_max_tools=1,
+            worker_workspace_max_files_read=1,
+            worker_state_workspace_max_paths=1,
+        ),
+    )
+    observations = {"profile": "lean@1", "tools": {}, "truncated": False}
+    result = {
+        "subtaskId": "0",
+        "result": "éééx",
+        "observations": observations,
+        "artifacts": {},
+        "summarized": False,
+    }
+    WorkerResult.model_validate(result)
+    with pytest.raises(ValidationError):
+        WorkerResult.model_validate({**result, "result": "éééxx"})
+    WorkerFailure(code="failed", message="ééx", retryable=False)
+    with pytest.raises(ValidationError):
+        WorkerFailure(code="failed", message="ééxx", retryable=False)
+    artifact = {"namespace": "analysis", "name": "report", "revision": "r1"}
+    WorkerResult.model_validate({**result, "artifacts": {"one": artifact}})
+    with pytest.raises(ValidationError):
+        WorkerResult.model_validate({**result, "artifacts": {"one": artifact, "two": artifact}})
+    count = {"calls": 1, "failures": 0}
+    WorkerObservations.model_validate({**observations, "tools": {"one": count}})
+    with pytest.raises(ValidationError):
+        WorkerObservations.model_validate({**observations, "tools": {"one": count, "two": count}})
+    workspace = dict(
+        scopedFiles=2,
+        scopeComplete=False,
+        discoveredFiles=2,
+        readFiles=2,
+        matchedFiles=0,
+        modifiedFiles=0,
+        detailComplete=False,
+        filesRead=["a.py"],
+        filesReadTruncated=True,
+    )
+    WorkspaceObservationSummary.model_validate(workspace)
+    with pytest.raises(ValidationError):
+        WorkspaceObservationSummary.model_validate(
+            {**workspace, "filesRead": ["a.py", "b.py"], "filesReadTruncated": False}
+        )
+    state_workspace = dict(
+        scopePaths=["a.py"], scopeComplete=False, interactions=[], detailComplete=False
+    )
+    WorkerStateWorkspaceObservation.model_validate(state_workspace)
+    with pytest.raises(ValidationError):
+        WorkerStateWorkspaceObservation.model_validate(
+            {**state_workspace, "scopePaths": ["a.py", "b.py"]}
+        )
+    cap = len(b'["a.py"]')
+    monkeypatch.setattr(
+        shared_config,
+        "_snapshot",
+        replace(shared_config.get_shared_config(), worker_state_workspace_paths_max_bytes=cap),
+    )
+    WorkerStateWorkspaceObservation.model_validate(state_workspace)
+    with pytest.raises(ValidationError):
+        WorkerStateWorkspaceObservation.model_validate({**state_workspace, "scopePaths": ["aa.py"]})
+
+    completion = WorkerCompletion(
+        apiVersion="contractor/v1alpha1",
+        invocationId="invocation-1",
+        stateRevision=1,
+        result=result,
+    )
+    cap = len(completion.model_dump_json(by_alias=True, exclude_none=True).encode())
+    monkeypatch.setattr(
+        shared_config,
+        "_snapshot",
+        replace(shared_config.get_shared_config(), worker_completion_max_bytes=cap),
+    )
+    WorkerCompletion.model_validate(completion.model_dump(exclude_none=True))
+    with pytest.raises(ValidationError):
+        WorkerCompletion.model_validate(
+            {**completion.model_dump(exclude_none=True), "invocation_id": "invocation-11"}
+        )
+    # State envelope checking reads the received cap at validation time as well.
+    fixture = (
+        Path(__file__).resolve().parents[2]
+        / "api/testdata/v1alpha1/valid/agent-state-snapshot.json"
+    )
+    monkeypatch.setattr(shared_config, "_snapshot", original)
+    state = AgentStateSnapshot.model_validate_json(fixture.read_bytes())
+    cap = len(state.model_dump_json(by_alias=True, exclude_none=True).encode())
+    monkeypatch.setattr(shared_config, "_snapshot", replace(original, worker_state_max_bytes=cap))
+    AgentStateSnapshot.model_validate_json(fixture.read_bytes())
+    monkeypatch.setattr(
+        shared_config, "_snapshot", replace(original, worker_state_max_bytes=cap - 1)
+    )
+    with pytest.raises(ValidationError):
+        AgentStateSnapshot.model_validate_json(fixture.read_bytes())

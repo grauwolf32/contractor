@@ -11,8 +11,8 @@ import (
 const (
 	WorkerStateSchemaVersion    = 2
 	MaxAgentStateSnapshotBytes  = 4 * 1024 * 1024
-	maxStateWorkspacePaths      = 10_000
-	maxStateWorkspacePathBytes  = 2 * 1024 * 1024
+	MaxStateWorkspacePaths      = 10_000
+	MaxStateWorkspacePathBytes  = 2 * 1024 * 1024
 	maxStateAllocationCounters  = 10_000
 	maxStateInvocationToolNames = 256
 )
@@ -337,8 +337,8 @@ func (m WorkerStateInvocationMetric) validate() error {
 }
 
 func (s WorkerStateWorkspace) validate() error {
-	if s.ScopePaths == nil || s.Interactions == nil || len(s.ScopePaths) > maxStateWorkspacePaths ||
-		len(s.Interactions) > maxStateWorkspacePaths || !sort.StringsAreSorted(s.ScopePaths) {
+	if s.ScopePaths == nil || s.Interactions == nil || len(s.ScopePaths) > MaxStateWorkspacePaths ||
+		len(s.Interactions) > MaxStateWorkspacePaths || !sort.StringsAreSorted(s.ScopePaths) {
 		return contracts.Invalidf("Worker State workspace collections are invalid")
 	}
 	for index, path := range s.ScopePaths {
@@ -349,7 +349,7 @@ func (s WorkerStateWorkspace) validate() error {
 			return contracts.Invalidf("Worker State workspace scope paths must be unique")
 		}
 	}
-	if size, err := contracts.ResultJSONSize(s.ScopePaths); err != nil || size > maxStateWorkspacePathBytes {
+	if size, err := contracts.ResultJSONSize(s.ScopePaths); err != nil || size > MaxStateWorkspacePathBytes {
 		return contracts.Invalidf("Worker State workspace scope paths exceed their bound")
 	}
 	interactionPaths := make([]string, 0, len(s.Interactions))
@@ -371,7 +371,7 @@ func (s WorkerStateWorkspace) validate() error {
 		previous = item
 		interactionPaths = append(interactionPaths, item.Path)
 	}
-	if size, err := contracts.ResultJSONSize(interactionPaths); err != nil || size > maxStateWorkspacePathBytes {
+	if size, err := contracts.ResultJSONSize(interactionPaths); err != nil || size > MaxStateWorkspacePathBytes {
 		return contracts.Invalidf("Worker State workspace interaction paths exceed their bound")
 	}
 	return nil

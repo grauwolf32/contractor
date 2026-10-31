@@ -2627,6 +2627,15 @@ export interface components {
                 artifactPayloadMaxBytes: number;
                 publicPageMaxItems: number;
                 artifactListMaxItems: number;
+                workerResultMaxBytes: number;
+                workerCompletionMaxBytes: number;
+                workerFailureMessageMaxBytes: number;
+                workerResultMaxArtifacts: number;
+                workerObservationMaxTools: number;
+                workerWorkspaceMaxFilesRead: number;
+                workerStateMaxBytes: number;
+                workerStateWorkspaceMaxPaths: number;
+                workerStateWorkspacePathsMaxBytes: number;
             };
         };
         SitemapDocument: {

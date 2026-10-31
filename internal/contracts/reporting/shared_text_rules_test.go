@@ -66,15 +66,15 @@ func TestSharedWorkerStateBoundsCountCompactUTF8(t *testing.T) {
 		extra int
 		valid bool
 	}{{0, true}, {1, false}} {
-		paths := sharedBoundPathList(maxStateWorkspacePathBytes + test.extra)
-		if size, err := contracts.ResultJSONSize(paths); err != nil || size != maxStateWorkspacePathBytes+test.extra {
+		paths := sharedBoundPathList(MaxStateWorkspacePathBytes + test.extra)
+		if size, err := contracts.ResultJSONSize(paths); err != nil || size != MaxStateWorkspacePathBytes+test.extra {
 			t.Fatalf("scope path list size = %d, %v", size, err)
 		}
 		err := decode(t, func(state map[string]any) {
 			state["currentInvocation"].(map[string]any)["workspace"].(map[string]any)["scopePaths"] = paths
 		})
 		if (err == nil) != test.valid {
-			t.Fatalf("Worker State with a %d-byte scope list accepted = %t, want %t: %v", maxStateWorkspacePathBytes+test.extra, err == nil, test.valid, err)
+			t.Fatalf("Worker State with a %d-byte scope list accepted = %t, want %t: %v", MaxStateWorkspacePathBytes+test.extra, err == nil, test.valid, err)
 		}
 	}
 }

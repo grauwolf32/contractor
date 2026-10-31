@@ -522,7 +522,12 @@ the Server each message's own validator is the single definition of its
 bounds: every Planner, the Workflow Scheduler and RunStore apply the same
 `StageResult` check, so a candidate one of them accepts is never rejected by
 another for its size. The 64 KiB result-text bound (LIM-WRK-5),
-model-output bounds and outer transport limits are separate limits.
+model-output bounds and outer transport limits are separate limits. Shared
+Worker result and State ceilings are delivered through CTL-R171 at startup.
+Server constants remain the numeric source; Runtime validators and producers
+read the immutable received snapshot, including result observation cardinality.
+When a lean observation exceeds its tool or filesRead detail bound, Runtime
+retains a deterministic bounded prefix and marks it truncated.
 
 **WRK-R165.** The Worker State byte bounds count compact UTF-8 JSON bytes as
 WRK-R37 does: the `AgentStateSnapshot` body (LIM-WRK-17), the 4,096-byte

@@ -224,6 +224,7 @@
       ],
       "properties": {
         "scopePaths": {
+          "x-maxBytes": 2097152,
           "type": "array",
           "maxItems": 10000,
           "uniqueItems": true,
@@ -231,6 +232,8 @@
         },
         "scopeComplete": {"type": "boolean"},
         "interactions": {
+          "description": "The compact JSON array of interaction paths shares the workspace path byte bound.",
+          "x-paths-maxBytes": 2097152,
           "type": "array",
           "maxItems": 10000,
           "items": {"$ref": "#/$defs/workspaceInteraction"}
@@ -316,6 +319,7 @@
   },
   "type": "object",
   "additionalProperties": false,
+  "x-maxBytes": 4194304,
   "required": ["apiVersion", "state"],
   "properties": {
     "apiVersion": {"$ref": "common.schema.json#/$defs/apiVersion"},
