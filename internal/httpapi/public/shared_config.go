@@ -19,5 +19,10 @@ func getSharedConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Cache-Control", "no-store")
-	writeJSON(w, http.StatusOK, control.DefaultSharedConfig())
+	config, err := control.DefaultSharedConfig()
+	if err != nil {
+		handleError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, config)
 }

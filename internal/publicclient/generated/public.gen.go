@@ -13103,7 +13103,9 @@ type SharedConfig struct {
 	ApiVersion SharedConfigApiVersion `json:"apiVersion"`
 	Digest     string                 `json:"digest"`
 	Limits     struct {
+		ArtifactListMaxItems    int `json:"artifactListMaxItems"`
 		ArtifactPayloadMaxBytes int `json:"artifactPayloadMaxBytes"`
+		PublicPageMaxItems      int `json:"publicPageMaxItems"`
 	} `json:"limits"`
 	Version SharedConfigVersion `json:"version"`
 }

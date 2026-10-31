@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Bind shared policy to schemas/test data and incremental persistence checks.
 
-Edit internal/contracts/artifacts.go, then run make shared-config-generate.
+Edit the owning Server constant, then run make shared-config-generate.
 Historical SQL stays immutable; a policy change emits the next migration.
 """
 
@@ -71,6 +71,34 @@ def bind_config_schema(source, schema):
     return source[:node.start_mark.index] + rendered + source[node.end_mark.index:]
 
 
+def pagination_bindings(source):
+    """Follow only operations declaring common Limit, not equal-valued domain policies."""
+    document = yaml.safe_load(source)
+    bindings = {("components", "parameters", "Limit", "schema", "maximum")}
+    for item in document["paths"].values():
+        for operation in item.values():
+            if not isinstance(operation, dict):
+                continue
+            parameters = item.get("parameters", []) + operation.get("parameters", [])
+            if not any(p.get("$ref") == "#/components/parameters/Limit" for p in parameters):
+                continue
+            for status, response in operation.get("responses", {}).items():
+                if not str(status).startswith("2"):
+                    continue
+                if "$ref" in response:
+                    response = document["components"]["responses"][response["$ref"].split("/")[-1]]
+                schema = response.get("content", {}).get("application/json", {}).get("schema", {})
+                if "$ref" not in schema:
+                    raise ValueError("common list response needs a named page schema")
+                name = schema["$ref"].split("/")[-1]
+                properties = document["components"]["schemas"][name]["properties"]
+                arrays = [key for key, value in properties.items() if value.get("type") == "array"]
+                if len(arrays) != 1:
+                    raise ValueError(f"common list {name} needs one page array")
+                bindings.add(("components", "schemas", name, "properties", arrays[0], "maxItems"))
+    return bindings
+
+
 def outputs(root, config):
     cap = config["limits"]["artifactPayloadMaxBytes"]
     result = {}
@@ -84,6 +112,12 @@ def outputs(root, config):
         ("api/testdata/http-capture-cases.json", ("limits", "submissionBytes"), cap),
     ):
         result[name] = replace_scalars((root / name).read_text(), [binding], value)
+    public_cap = config["limits"]["publicPageMaxItems"]
+    source = result[PUBLIC]
+    result[PUBLIC] = replace_scalars(source, pagination_bindings(source), public_cap)
+    result[PUBLIC] = replace_scalars(result[PUBLIC], [("components", "parameters", "Limit", "schema", "default")], min(50, public_cap))
+    name = "api/testdata/v1alpha1/artifact-list-cases.json"
+    result[name] = replace_scalars((root / name).read_text(), [("maxLimit",)], config["limits"]["artifactListMaxItems"])
     schema = json.loads((root / "api/v1alpha1/shared-config.schema.json").read_text())
     result[PUBLIC] = bind_config_schema(result[PUBLIC], schema)
     raw = json.dumps(config, sort_keys=True, separators=(",", ":")) + "\n"

@@ -23,6 +23,9 @@ import {
 } from "./error";
 import type { components, operations, paths } from "./generated/public";
 
+import { PUBLIC_PAGED_OPERATIONS } from "./generated/response-schemas";
+import { getSharedConfig } from "./shared-config";
+
 const MAXIMUM_ERROR_BODY_BYTES = 64 * 1024;
 const SAFE_HEADER_VALUE = /^[\x21-\x7E]{1,256}$/;
 
@@ -132,7 +135,11 @@ const CLIENT_METHODS = ["GET", "PUT", "POST", "DELETE", "PATCH"] as const;
 
 type ClientInit = {
   parseAs?: string;
-  params?: { header?: Record<string, unknown> };
+  params?: {
+    header?: Record<string, unknown>;
+    query?: Record<string, unknown>;
+  };
+  signal?: AbortSignal;
   fetch?: (request: Request) => Promise<Response>;
 };
 
@@ -176,6 +183,7 @@ function requireContractHeaders(
 function validatingClient(
   client: Client<paths>,
   send: (request: Request) => Promise<Response>,
+  api: PublicAPI,
 ): Client<paths> {
   const wrapped: Record<string, unknown> = { ...client };
   for (const method of CLIENT_METHODS) {
@@ -190,6 +198,24 @@ function validatingClient(
         });
       }
       requireContractHeaders(operation, init?.params?.header);
+      if (PUBLIC_PAGED_OPERATIONS.includes(operation)) {
+        const { limits } = await getSharedConfig(api, init?.signal);
+        const preferred = init?.params?.query?.limit;
+        // A preferred size is local UI policy; only the ceiling is shared.
+        // Leave malformed explicit values to the ordinary request validation.
+        const limit =
+          preferred === undefined
+            ? limits.publicPageMaxItems
+            : typeof preferred === "number" &&
+                Number.isInteger(preferred) &&
+                preferred > 0
+              ? Math.min(preferred, limits.publicPageMaxItems)
+              : preferred;
+        init = {
+          ...init,
+          params: { ...init?.params, query: { ...init?.params?.query, limit } },
+        };
+      }
       let answered = false;
       let result: Awaited<ReturnType<ClientCall>>;
       try {
@@ -378,6 +404,7 @@ export class PublicAPI {
         headers: { Accept: "application/json" },
       }),
       checkedFetch,
+      this,
     );
   }
 

@@ -73,7 +73,11 @@ function mount(
   load: (url: URL) => Response,
   kind: CatalogKind = "agent-templates",
 ) {
-  const answer = ({ url }: { url: URL }) => load(url);
+  const requests: Request[] = [];
+  const answer = ({ url, request }: { url: URL; request: Request }) => {
+    requests.push(request);
+    return load(url);
+  };
   const change = vi.fn();
   const view = renderWithAPI(
     <CatalogField
@@ -89,7 +93,7 @@ function mount(
       }),
     },
   );
-  return { change, requests: view.requests, user: view.user };
+  return { change, requests, user: view.user };
 }
 
 describe("Studio catalog selectors", () => {

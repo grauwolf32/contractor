@@ -10,6 +10,7 @@ class SharedConfigSnapshot:
     version: int
     digest: str
     artifact_payload_max_bytes: int
+    artifact_list_max_items: int
 
 
 _snapshot: SharedConfigSnapshot | None = None
@@ -26,3 +27,9 @@ def artifact_payload_max_bytes() -> int:
     if _snapshot is None:
         raise RuntimeError("shared config has not been loaded")
     return _snapshot.artifact_payload_max_bytes
+
+
+def artifact_list_max_items() -> int:
+    if _snapshot is None:
+        raise RuntimeError("shared config has not been loaded")
+    return _snapshot.artifact_list_max_items

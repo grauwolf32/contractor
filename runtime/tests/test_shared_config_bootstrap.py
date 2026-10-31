@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+from pathlib import Path
 from unittest.mock import AsyncMock
 
 import pytest
@@ -24,7 +25,11 @@ from contractor_runtime.toolsets.common.artifact_read_cache import artifact_read
 
 
 def document(cap: int = 17) -> dict:
-    projection = {"limits": {"artifactPayloadMaxBytes": cap}, "version": 1}
+    limits = json.loads((Path(__file__).parent / "testdata/shared-config.json").read_text())[
+        "limits"
+    ]
+    limits["artifactPayloadMaxBytes"] = cap
+    projection = {"limits": limits, "version": 1}
     digest = hashlib.sha256(
         json.dumps(projection, sort_keys=True, separators=(",", ":")).encode()
     ).hexdigest()
@@ -247,5 +252,29 @@ def test_small_payload_policy_keeps_metadata_transport_budget(monkeypatch):
         assert (
             connections.exchange.call_args.kwargs["max_response_bytes"] == MAX_ARTIFACT_JSON_BYTES
         )
+
+    asyncio.run(scenario())
+
+
+def test_fetched_artifact_list_ceiling_controls_client_before_transport(monkeypatch):
+    from dataclasses import replace
+
+    monkeypatch.setattr(
+        shared_config, "_snapshot", replace(shared_config._snapshot, artifact_list_max_items=2)
+    )
+
+    async def scenario():
+        transport = AsyncMock()
+        client = ArtifactClient("allocation-test", transport)
+        with pytest.raises(ValueError, match="list limit"):
+            await client.list_artifact_page(limit=3)
+        with pytest.raises(ValueError, match="list limit"):
+            await client.list_artifact_prefix("analysis", "report", limit=3)
+        transport.request.assert_not_called()
+        # Boundary and continuation use the fetched limit without rewriting the cursor.
+        transport.request.side_effect = OSError("observed request")
+        with pytest.raises(OSError):
+            await client.list_artifact_page(limit=2, cursor="next")
+        assert transport.request.call_args.args[1].endswith("limit=2&cursor=next")
 
     asyncio.run(scenario())

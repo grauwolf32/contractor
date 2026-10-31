@@ -4,17 +4,49 @@
   "title": "SharedConfig",
   "type": "object",
   "additionalProperties": false,
-  "required": ["apiVersion", "version", "limits", "digest"],
+  "required": [
+    "apiVersion",
+    "version",
+    "limits",
+    "digest"
+  ],
   "properties": {
-    "apiVersion": {"type": "string", "const": "contractor/v1alpha1"},
-    "version": {"type": "integer", "const": 1},
-    "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "apiVersion": {
+      "type": "string",
+      "const": "contractor/v1alpha1"
+    },
+    "version": {
+      "type": "integer",
+      "const": 1
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
     "limits": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["artifactPayloadMaxBytes"],
+      "required": [
+        "artifactPayloadMaxBytes",
+        "publicPageMaxItems",
+        "artifactListMaxItems"
+      ],
       "properties": {
-        "artifactPayloadMaxBytes": {"type": "integer", "minimum": 1, "maximum": 9007199254740991}
+        "artifactPayloadMaxBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "publicPageMaxItems": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "artifactListMaxItems": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
       }
     }
   }

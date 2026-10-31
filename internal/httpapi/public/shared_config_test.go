@@ -22,8 +22,12 @@ func TestPublicSharedConfigContract(t *testing.T) {
 	if response.Code != http.StatusOK {
 		t.Fatalf("config = %d %s", response.Code, response.Body)
 	}
+	expected, err := control.DefaultSharedConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
 	var value control.SharedConfig
-	if err := json.Unmarshal(response.Body.Bytes(), &value); err != nil || value.Validate() != nil || value != control.DefaultSharedConfig() {
+	if err := json.Unmarshal(response.Body.Bytes(), &value); err != nil || value.Validate() != nil || value != expected {
 		t.Fatalf("public config differs from private policy: %+v %v", value, err)
 	}
 	if response.Header().Get("Cache-Control") != "no-store" {

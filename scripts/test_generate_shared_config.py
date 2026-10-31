@@ -13,7 +13,7 @@ class SharedConfigGenerationTests(unittest.TestCase):
     def test_changed_source_updates_bindings_and_emits_one_incremental_migration(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
-            for name in [*generator.schema_bindings(), "api/testdata/v1alpha1/valid/artifact-metadata-result-boundary.json", "api/testdata/v1alpha1/artifact-history-cases.json", "api/testdata/http-capture-cases.json", "api/v1alpha1/shared-config.schema.json"]:
+            for name in [*generator.schema_bindings(), "api/testdata/v1alpha1/valid/artifact-metadata-result-boundary.json", "api/testdata/v1alpha1/artifact-history-cases.json", "api/testdata/http-capture-cases.json", "api/v1alpha1/shared-config.schema.json", "api/testdata/v1alpha1/artifact-list-cases.json"]:
                 target = root / name
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_text((generator.ROOT / name).read_text())
@@ -25,6 +25,8 @@ class SharedConfigGenerationTests(unittest.TestCase):
             config = json.loads((generator.ROOT / "runtime/tests/testdata/shared-config.json").read_text())
             changed = copy.deepcopy(config)
             changed["limits"]["artifactPayloadMaxBytes"] = 43
+            changed["limits"]["publicPageMaxItems"] = 7
+            changed["limits"]["artifactListMaxItems"] = 11
             with self.assertRaisesRegex(ValueError, "stale shared config"):
                 generator.generate(root, changed, check=True)
             generator.generate(root, changed)
@@ -34,6 +36,11 @@ class SharedConfigGenerationTests(unittest.TestCase):
             self.assertIn("size_bytes <= 43", (migrations / "000002_shared_artifact_payload_limit.sql").read_text())
             public = generator.yaml.safe_load((root / generator.PUBLIC).read_text())
             self.assertEqual(public["components"]["schemas"]["ArtifactMetadata"]["properties"]["size"]["maximum"], 43)
+            self.assertEqual(public["components"]["parameters"]["Limit"]["schema"]["maximum"], 7)
+            self.assertEqual(public["components"]["parameters"]["Limit"]["schema"]["default"], 7)
+            self.assertEqual(public["components"]["schemas"]["ProjectPage"]["properties"]["items"]["maxItems"], 7)
+            self.assertEqual(public["components"]["schemas"]["FindingProposalReceipt"], generator.yaml.safe_load((generator.ROOT / generator.PUBLIC).read_text())["components"]["schemas"]["FindingProposalReceipt"])
+            self.assertEqual(json.loads((root / "api/testdata/v1alpha1/artifact-list-cases.json").read_text())["maxLimit"], 11)
             # Equal-valued telemetry is a different policy, not an Artifact binding.
             original = generator.yaml.safe_load((generator.ROOT / generator.PUBLIC).read_text())
             self.assertEqual(public["components"]["schemas"]["WorkerTelemetryExportConfig"], original["components"]["schemas"]["WorkerTelemetryExportConfig"])

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { PublicAPI } from "./client";
+import { TestPublicAPI as PublicAPI } from "../test/shared-config";
 import {
   getRuntimeConfig,
   listRuntimeConfigs,

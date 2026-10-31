@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { RuntimeConfig } from "../config/runtime-config";
 import { listAgentTemplateWorkflowBindings } from "./agents";
-import { PublicAPI } from "./client";
+import { TestPublicAPI as PublicAPI } from "../test/shared-config";
 
 const runtimeConfig: RuntimeConfig = {
   uiVersion: "0.1.0",

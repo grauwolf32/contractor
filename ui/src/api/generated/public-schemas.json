@@ -13,9 +13,23 @@
         "limits": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["artifactPayloadMaxBytes"],
+          "required": [
+            "artifactPayloadMaxBytes",
+            "publicPageMaxItems",
+            "artifactListMaxItems"
+          ],
           "properties": {
             "artifactPayloadMaxBytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "publicPageMaxItems": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "artifactListMaxItems": {
               "type": "integer",
               "minimum": 1,
               "maximum": 9007199254740991

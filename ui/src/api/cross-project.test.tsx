@@ -12,7 +12,7 @@ import type {
   AuditReviewRequest,
   AuditState,
 } from "./audits";
-import { PublicAPI } from "./client";
+import { TestPublicAPI as PublicAPI } from "../test/shared-config";
 import { PublicAPIProvider } from "./context";
 import {
   INBOX_CHECK_STATES,

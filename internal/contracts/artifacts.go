@@ -8,9 +8,11 @@ import (
 const (
 	// MaxArtifactPayloadBytes bounds encoded Artifacts (LIM-ART-4).
 	MaxArtifactPayloadBytes = 64 * 1024 * 1024
-	AgentSkillNamespace     = "skills"
-	MaxAgentTemplateSkills  = 32
-	MaxWorkflowRunSkills    = 128
+	// MaxArtifactListItems bounds private Artifact list pages (LIM-ART-3).
+	MaxArtifactListItems   = 256
+	AgentSkillNamespace    = "skills"
+	MaxAgentTemplateSkills = 32
+	MaxWorkflowRunSkills   = 128
 )
 
 // MaxArtifactListCursorLength bounds the opaque private Artifact list cursor

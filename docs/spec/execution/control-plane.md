@@ -1762,11 +1762,14 @@ Control Plane role verification. A verified Runtime certificate may read it
 without registering a principal; the endpoint has no database side effects.
 It accepts no query or body and returns a non-cacheable, secret-free
 `SharedConfig` (`apiVersion`, `version`, `limits`, `digest`). Version 1 carries
-`limits.artifactPayloadMaxBytes` from `contracts.MaxArtifactPayloadBytes`.
+`limits.artifactPayloadMaxBytes` from `contracts.MaxArtifactPayloadBytes`,
+`limits.publicPageMaxItems` from `pagelimit.MaxRows`, and
+`limits.artifactListMaxItems` from `contracts.MaxArtifactListItems`.
+Public list pages and private Artifact list pages are independent policies.
 The digest is `sha256:` of canonical JSON containing only `limits` and
 `version`; integers must be positive and exactly representable JSON integers.
 Unknown fields, unsupported versions and digest mismatches are permanent
-startup errors. The Server constant is the only editable definition: run
+startup errors. The owning Server constants are the only editable numeric definitions: run
 `make shared-config-generate` after changing it, and commit generated schema,
 test and sequential SQL CHECK changes; `make lint` checks drift. Historical
 migrations remain immutable. A decrease must first remove oversized payloads
@@ -1776,6 +1779,6 @@ The authenticated public projection for browser startup is API-R113.
 
 This boundary uses a startup snapshot instead of hand-maintained Runtime
 constants or another operator config file. It is deliberately limited to
-shared policy with an actual Runtime consumer; Server-only policy stays local.
+shared policy with an actual Runtime or UI consumer; Server-only policy stays local.
 Reopen startup-only delivery if policy needs to change during an active Runtime
 process; version/digest do not implement live reload or registration fencing.
