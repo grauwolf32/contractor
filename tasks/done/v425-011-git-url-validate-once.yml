@@ -6,7 +6,7 @@ epic: projects-artifacts
 kind: defect
 introduced_by: V35-002
 priority: P3
-status: in_progress
+status: completed
 depends_on: [V425-024]
 languages:
 - go
@@ -53,3 +53,18 @@ tests:
 - command: make lint
   covers:
   - A1
+implementation_commit: 8a8fcfebefb7672170ce6fbb357ccdbec25bade8
+verification_results:
+- "2026-10-31: go test -count=1 ./internal/gitimport/... passed with the disposable PostgreSQL URL set; go test -tags=integration -count=1 ./internal/gitimport/... passed the full native package suite."
+- >-
+  TestRealGitUTF8URLIntakeAndFetch fetches a real native-Git repository over
+  verified TLS for 2-, 3- and 4-byte Unicode characters at exactly 4096 input
+  bytes. It checks the exact commit, all files, the decoded HTTP paths and
+  unchanged canonical provenance beyond the raw-input bound.
+- "A temporary Go overlay restoring the redundant ParseRemote guard failed all three regression cases with ErrURL; tracked sources were unchanged."
+- >-
+  The complete make -n test-git-read-only recipe passed inside Podman
+  Machine's Linux arm64 VM with a native Linux Go SDK and local Podman.
+  The full Git integration suite, including the Unicode regression and the
+  nested read-only container proof over HTTPS/private SSH, passed there.
+- "make lint passed. The prerequisite's real PostgreSQL, API, UI and shared-wire checks remain recorded under completed V425-024."
