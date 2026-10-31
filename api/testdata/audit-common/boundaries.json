@@ -1,0 +1,37 @@
+{
+  "hypothesis": {
+    "schema": "contractor.audit.hypothesis.v1",
+    "id": "hypothesis-1",
+    "revision": 1,
+    "statement": "Claim",
+    "scope": {},
+    "grounds": "Selected evidence",
+    "origin": {
+      "kind": "manual",
+      "audit_id": "audit-1"
+    }
+  },
+  "limits": {
+    "max_tasks": 100000,
+    "max_iterations": 32,
+    "max_tasks_per_iteration": 10000,
+    "batch_size": 64,
+    "max_submitted_runs": 1000000,
+    "max_attempts": 10,
+    "deadline_seconds": 31536000,
+    "max_evidence_bytes": 1073741824,
+    "max_hypotheses": 10000,
+    "max_hypothesis_revisions": 50000,
+    "max_hypothesis_bytes": 268435456
+  },
+  "mutation_records": 128,
+  "mutation_bytes": 1048576,
+  "hypothesis_bytes": 32768,
+  "max_depth": 64,
+  "max_nodes": 250000,
+  "text_bytes": 65536,
+  "document_bytes": 8388608,
+  "program_bytes": 4194304,
+  "evidence_per_item": 256,
+  "coverage_values": 512
+}

@@ -72,6 +72,7 @@ var layers = []layerSpec{
 		packages: []string{
 			"internal/auth",
 			"internal/contracts",
+			"internal/contracts/auditcontract",
 			"internal/contracts/control",
 			"internal/contracts/engagementcontract",
 			"internal/contracts/llmgateway",

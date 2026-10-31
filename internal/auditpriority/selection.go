@@ -157,7 +157,7 @@ func MarshalSelection(selection Selection) ([]byte, error) {
 	return data, nil
 }
 
-func SelectionDigest(selection Selection) (string, error) {
+func selectionDigest(selection Selection) (string, error) {
 	data, err := MarshalSelection(selection)
 	if err != nil {
 		return "", err
