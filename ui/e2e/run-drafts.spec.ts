@@ -394,26 +394,16 @@ for (const viewport of [
       ).toBeVisible();
       await runDialog.getByRole("button", { name: "Close Run setup" }).click();
 
-      if (viewport.width === 390) {
-        await page
-          .getByRole("combobox", { name: "Project section", exact: true })
-          .selectOption("settings");
-        await expect(page).toHaveURL(/\/settings$/);
-        await page
-          .getByRole("combobox", { name: "Project section", exact: true })
-          .selectOption("workflows");
-      } else {
-        const navigation = page.getByRole("navigation", {
-          name: "Project sections",
-        });
-        await navigation
-          .getByRole("link", { name: "Settings", exact: true })
-          .click();
-        await expect(page).toHaveURL(/\/settings$/);
-        await navigation
-          .getByRole("link", { name: "Workflows", exact: true })
-          .click();
-      }
+      const navigation = page.getByRole("navigation", {
+        name: "Project sections",
+      });
+      await navigation
+        .getByRole("link", { name: "Settings", exact: true })
+        .click();
+      await expect(page).toHaveURL(/\/settings$/);
+      await navigation
+        .getByRole("link", { name: "Workflows", exact: true })
+        .click();
       await launcher.click();
       runDialog = page.getByRole("dialog", { name: "Configure Run" });
       await expect(

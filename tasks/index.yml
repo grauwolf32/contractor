@@ -17,7 +17,12 @@ execution_policy:
     explicitly labelled contract proposals; accepted structural decisions are not reopened. User clarification
     2026-10-31 removes the old approvals mechanism rather than introducing an approval migration or compatibility
     protocol. V64-001 is delegated to a separate implementation agent; this clarification does not start dependent
-    tasks. This planning change starts no
+    tasks. User decision 2026-10-31
+    separates a parallel sitemap lane: V410-006 ships standalone discovery/reconciliation Runs and
+    V410-007 gates their independent scale/lifecycle slice. Their completed prerequisites and ordinary
+    task policy control selection; the Audit review gate does not apply to V410-006/007 or their
+    optional V410-008/009 follow-ups. New V410-025 owns the later Audit task/workspace/profile
+    integration after V410-007 and V64-002; V411-014/020 depend on it. This planning change starts no
     implementation. User clarification accepted on 2026-10-31: investigation, checking and generation
     use the same accepted-task/ordinary-Run/result path. No mandatory discovery-finding-generator
     sequence exists; initial work may check authored hypotheses or generate from selected materials,
@@ -56,7 +61,8 @@ execution_policy:
     Audit read model; Server lifecycle; Runtime; finding fence) and close through V414-027. This is
     delivery order, not an additional technical dependency. The 2026-10-24 research-only task graph
     is superseded by the reviewed planning package; completed V62 history stays intact. The new
-    review gate controls Audit-dependent replanned work; independent sitemap work stays under its existing task policy. Optional model-ranking evidence belongs to V64-016, not
+    review gate controls Audit-dependent replanned work; the independent sitemap exception above
+    supersedes the earlier blanket gate. Optional model-ranking evidence belongs to V64-016, not
     the deterministic core exit. V61 and V62-008 remain deferred. The earlier evening resumption
     covered tasks not blocked by V62; the newly pending shared tasks can now enter execution once
     their prerequisites complete. Each lane works on its branch claude/<lane> and merges each closed
@@ -169,7 +175,7 @@ milestones:
     outcome: Local-storage Runtimes reuse authorized immutable source archives and Skill packages across allocations with a bounded 1-GiB private disk cache, preserving exact provenance, access checks and memory-only operation.
   - id: project-sitemap-2026-10
     exit_task: V410-007
-    outcome: A bounded shared Project sitemap supports safe concurrent edits, automatic HTTP observations, structured imports and deterministic OpenAPI reconciliation, using shared ArtifactStore admission and automatic per-artifact history retention across User, Project and Run scopes, without a sitemap-specific cumulative Run budget; current revisions and exact holds remain protected, backed by real-store and scale evidence.
+    outcome: Standalone Project Runs deliver discovery, exact snapshot handoff and deterministic OpenAPI reconciliation independently of Audit redesign. The bounded shared sitemap supports concurrent edits, HTTP observations and structured imports through shared ArtifactStore admission and per-artifact history retention, without a sitemap-specific cumulative Run budget; current revisions and exact holds have real-store/scale evidence. V410-025 separately owns later Audit integration under the composed HTTP milestone.
   - id: sitemap-caido-history-2026-10
     exit_task: V410-008
     outcome: Optional incremental Caido history collection preserves pinned continuation, safe observations and bounded restart behavior independently of browser support.

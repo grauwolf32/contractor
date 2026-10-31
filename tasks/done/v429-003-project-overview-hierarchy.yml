@@ -1,0 +1,162 @@
+schema_version: "1.0"
+id: V429-003
+title: Apply the reviewed Project Overview hierarchy and result actions
+milestone: ui-journey-usability
+epic: ui
+kind: feature
+priority: P2
+status: completed
+depends_on: [V429-002]
+languages: [typescript, css]
+goal: >-
+  A Project opens with a clear check setup entry, actionable review needs and
+  readable results and recent Runs, with stable navigation and explicit deletion.
+demonstration: >-
+  Open a populated Project, enter an objective, and open ordinary check setup
+  without starting execution. Return to its Overview, explicitly preview an
+  exact output, inspect its Run and open the existing named deletion confirmation.
+  Repeat navigation and result inspection at 320 px and in all three themes.
+context:
+  authority: >-
+    User decisions on 2026-10-31 and 2026-11-01: explore Project Overview through
+    isolated OpenDesign, then refine it in this chat. Keep navigation icon labels,
+    expose Delete project directly instead of the ellipsis, preserve Timeline's
+    line/icons, keep Project tabs on one horizontal row with Refresh outside its
+    scroll area, and omit the Advanced caption. Improve recent Runs as compact
+    two-line rows with exact copyable identities and time; show documents first
+    in Recent results with Preview/download at top right, details below the
+    divider and supporting Run identity/time in the footer. Put What do you want
+    to check? first and use the reviewed unified input/action surface. On
+    2026-11-01 the user explicitly authorized applying this reviewed design to UI.
+  specification: docs/spec/ui/ui.md#UI-R217
+  design: docs/design/ui/README.md
+  decision: >-
+    Existing Project components own layout and navigation; existing data hooks,
+    ActivityLog, check setup and deletion controller keep their authority. Reuse
+    the Run exact-artifact metadata/download/preview mechanism for the concrete
+    Overview caller, without route CSS dependencies or a new store/API. File
+    headings use actual output names and existing format labels; generic YAML
+    never establishes that an output is OpenAPI. Missing/unknown output roles,
+    partial counts and all error outcomes remain explicit. The static prototype
+    is a presentation reference, not a source of business data or backend rules.
+    Workspace/Eval menus and unrelated screen redesigns remain outside scope.
+scope:
+  in:
+    - Project Overview composition, composer, recent results/Runs and Timeline presentation.
+    - Project header deletion/metadata refresh and horizontal section navigation.
+    - Reuse of bounded exact Run artifact actions for explicit Overview previews/downloads.
+    - UI patch version, relevant spec, regression checks and real-component visual QA.
+  out:
+    - Server/API, persistence, polling contracts, model choice and configuration changes.
+    - Evals/Workspace action-menu redesign, global shell replacement or new routes.
+    - Invented result labels, semantic quality grades or automatic output-byte reads.
+requirements:
+  - id: R1
+    text: Put the existing objective form first, preserve its draft, limit, keyboard shortcut and setup-only navigation, and retain matching check-type suggestions.
+  - id: R2
+    text: Keep all seven section destinations and section-query retention on one scrollable tab row, with reachable section actions and selected-tab visibility.
+  - id: R3
+    text: Show explicit Project deletion and metadata refresh, preserving named confirmation, eligibility, error, cancellation and deletion-progress behavior.
+  - id: R4
+    text: Present bounded exact results and recent Runs clearly; Preview and icon-only download remain explicit, details follows the divider, and exact Run identity/time stays accessible.
+  - id: R5
+    text: Preserve actual Timeline glyphs/connectors and filters, materials, partial-count qualifiers and loading/empty/error states at every size/theme.
+failure_outcomes:
+  - operation: Existing Project, Run, Workflow and exact Artifact reads/actions
+    permanent: Retain classified errors, missing outputs, ownership rejection and explicit retry UI.
+    retryable: Retain existing query backoff and user-triggered retry; no new polling loop.
+    ambiguous: Existing deletion receipt/controller remains authoritative; no new mutation or blind replay.
+    cancelled: Route/query ownership and existing action cancellation remain unchanged.
+    timeout: Existing request and preview budgets remain; no model or external-provider call is added.
+cardinality:
+  - collection: One Project Overview and its sampled reads
+    expected: A few checks, materials and Runs.
+    maximum: Existing 50 newest checks, 3 waiting checks, 5 recent Runs, 3 successful Runs and bounded material sample (UI-R112).
+    bound: Preserve existing reads and at most 2 shown outputs per successful Run; exact metadata and bytes load only on explicit action.
+lifecycle:
+  - entity: Existing Project, Run outputs and in-memory objective draft
+    delete: Keep existing type-to-confirm deletion and Server-reported progress; never claim local success.
+    cascade: No new durable entity; preserve the existing deletion cascade and shared-resource exclusions.
+    retention: Preserve exact artifact revisions, draft ownership and existing navigation context.
+acceptance_criteria:
+  - id: A1
+    given: A Project with materials, waiting work, successful and active Runs
+    when: Overview opens and its objective is submitted
+    then: The reviewed hierarchy renders; only check setup opens with the objective, and no execution mutation occurs.
+  - id: A2
+    given: Published, missing and unknown-role outputs or failed reads
+    when: Overview opens, a result is explicitly previewed/downloaded, or a read fails
+    then: No bytes load before action; exact revision, role honesty, bounded preview and error recovery remain correct.
+  - id: A3
+    given: Active/deleting Projects and a user opening deletion
+    when: The explicit action is used, cancelled or confirmed by exact name
+    then: Existing confirmation and Server-reported lifecycle remain intact; metadata refresh remains reachable.
+  - id: A4
+    given: All Project sections and retained filters
+    when: Navigation, keyboard focus and resize are used at desktop, 390 and 320 px in light/dark/black
+    then: Tabs stay on one horizontal row, actions and selected tab remain reachable, Timeline retains line/icons and the document does not overflow.
+tests:
+  - command: make ui-verify
+    covers: [A1, A2, A3, A4]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+  - command: make ui-gates
+    covers: [A1, A2, A3, A4]
+  - command: cd ui && corepack pnpm exec playwright test e2e/project-workspace.spec.ts e2e/run-drafts.spec.ts e2e/audit-presets.spec.ts e2e/lifecycle-controls.spec.ts e2e/responsive-layout.spec.ts --reporter=line,json
+    covers: [A1, A2, A3, A4]
+verification:
+  - >-
+    Applied the user-reviewed isolated OpenDesign Project prototype through the
+    existing React components and production theme tokens. Preserved visible
+    shell labels, the ActivityLog connector/glyphs, real count qualifiers,
+    existing setup and deletion controllers, exact output roles and ownership.
+    No external model call, new endpoint or backend behavior was added.
+  - >-
+    CheckComposer now leads and retains its 4000-character objective, shortcut,
+    draft protection and actual catalog format-match suggestions. The production
+    test follows setup navigation with the objective and verifies only GETs,
+    with no execution mutation. All seven Project destinations retain their
+    individual query state; horizontal selection visibility is checked on direct
+    navigation and live resizing from desktop through 390 and 320 px.
+  - >-
+    Project results reuse the Run metadata/download/preview hook. New real-client
+    tests verify zero metadata/byte reads on opening, exact selected revision,
+    a new explicit action after revision replacement, unknown roles on contract
+    failure, and metadata-denial recovery without prematurely reading bytes.
+    Existing complete Run suites retain unsupported/bounded preview, exact
+    download and mismatched-metadata rejection coverage.
+  - >-
+    make ui-verify passed: 216 files, 2665 passing tests and one existing expected
+    failure, all 17 static-server tests, generated-client validation, lint,
+    typecheck and production build. The production build retains its existing
+    large preview-renderer chunk warning. make ui-gates passed after the final
+    narrow-header adjustment.
+  - >-
+    The listed browser selection passed 33 cases across five specs, zero skips,
+    unexpected outcomes or flaky retries. It includes the complete 1440/390/320
+    by light/dark/black Project matrix with explicit preview, full-width bounds,
+    result action/footer geometry, fixed Refresh and selected-tab visibility
+    across resizing; existing deletion, upload, setup-draft and Run scenarios
+    also pass. Served an immutable production-build snapshot with separate
+    mocked UI/API origins and validated the JSON report. Initial harness runs
+    corrected a Library selector inadvertently renamed with the Project link
+    and avoided replacing lazy-loaded assets during a concurrent build.
+  - >-
+    Inspected real-component populated fixtures manually in the in-app browser
+    and production browser screenshots, including 390/light and 320/black. The
+    final mobile adjustment removes the old nowrap menu rule so long Project
+    names keep their width and explicit header actions wrap naturally. The
+    1440/dark read-only preview is available under
+    ui/test-results/project-design/index.html, with a saved screenshot in that
+    directory; browser evidence is in ui/test-results/project-overview-integration.
+    Fixtures are contract-checked stand-ins; no live database/model/process-stack
+    suite or demo deployment was used for this UI presentation change.
+  - >-
+    make lint passed, including spec/task registries, CSS/production exports,
+    Go vet/staticcheck/test-only-export checks, Python/Ruff/layer checks and
+    deployment fixtures. The scripts suite retains one existing skip (189
+    tests); it is not counted as a passing test. An initial stale Audit export
+    owner on the starting main revision was already repaired by V425-040; this
+    branch fast-forwarded to main 2cae252f2 before its successful full lint run,
+    without making an unrelated Audit change in this task.
+implementation_commit: 260b6d9b7fd56aa25dc818b261b7af9f0b1b7c84

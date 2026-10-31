@@ -731,8 +731,8 @@ Audits, Findings and Settings at independent URLs under `/projects/:projectId`.
 **UI-R109.** Add artifact is a contextual Artifacts action; Workflow cards open
 exact Run setup.
 
-**UI-R110.** The compact Project actions menu contains metadata refresh and the
-existing confirmed deletion action
+**UI-R110.** The Project header exposes metadata refresh and the existing
+confirmed deletion action directly
 ([Retention and deletion](../artifacts/retention-and-deletion.md)).
 
 **UI-R189.** The Project header carries no duplicate Audits or Run analysis
@@ -766,6 +766,21 @@ from the same per-Audit reads, so the list and the Overview agree.
 Workflow output roles; missing or unavailable primary outputs are not replaced
 with guessed results.
 
+**UI-R217.** Project Overview leads with the objective composer, then decisions
+waiting for review, recent results, recent Runs and the existing Timeline with
+its connectors, status icons and filters. Materials and qualified summary counts
+form supporting context. The composer uses one input/action surface and opens
+ordinary check setup, preserving the objective, format-match suggestions and
+keyboard submission; it does not start execution. Result cards lead with the
+actual output name, known role and declared format hints. Preview and icon-only
+download sit at the top right; the exact output reference remains visible and
+`details →` follows the divider and producing Run identity/time on its own line.
+Metadata and bounded content previews load only after explicit action, through
+the same exact-revision mechanism as Run results. Recent Runs retain Server
+order, a copyable full identity behind the shortened ID, reported state and
+accessible full timestamps. Empty, partial and failed reads retain their truthful
+outcomes. This hierarchy works at 320/390 px and in light, dark and black themes.
+
 **UI-R190.** Result links retain their RunScope and exact revision.
 
 **UI-R116.** The Overview does not load the complete input or Workflow
@@ -773,7 +788,9 @@ inventories.
 
 **UI-R117.** Artifacts, Workflows, Runs, Audits, Findings and Settings mount
 only when selected. They share the Project header, actions and section
-navigation; mobile navigation uses a labelled select.
+navigation. All seven destinations remain on one horizontally scrollable row,
+with the selected destination revealed on section changes and resize. Section
+actions remain outside that scroll area.
 
 **UI-R118.** Project Settings contains metadata and application access.
 
@@ -1070,7 +1087,7 @@ states across Catalog, Runs, Operations, Projects and Audits.
 
 **UI-R191.** Local Project and Audit navigation remains sticky.
 
-**UI-R172.** Project overflow actions support Escape and outside dismissal.
+**UI-R172.** Workspace overflow menus support Escape and outside dismissal.
 
 **UI-R173.** Run removal, Project HTTP target configuration and Skill upload
 use the shared modal focus containment, inert background and return-focus
