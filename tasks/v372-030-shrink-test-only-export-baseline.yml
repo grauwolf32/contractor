@@ -179,6 +179,13 @@ decisions:
     reader and used by the process regression; the Go production copy is removed.
     This preserves production behavior and leaves the V64 baseline entries alone.
 verification_results:
+  - >-
+    2026-10-31 user-requested retry: recreated the disposable TCP PostgreSQL
+    database and repeated go test -tags=integration ./internal/.... The command
+    again failed only at TestRealGitReadOnlyContainer (Alpine image not known);
+    the other 95 packages reused their passing Go test cache. A fresh podman pull
+    docker.io/library/alpine:latest again failed with insufficient UID/GID
+    mappings while unpacking /etc/shadow. No task completion is claimed.
   - "2026-10-31: make lint passed; existing lint blockers were corrected separately in completed V425-020 and V425-021."
   - 'go -C tools/testonlyexports run . -tags=integration,e2e -baseline tools/testonlyexports/baseline.txt "$PWD" passed; only four V64 entries remain.'
   - >-
