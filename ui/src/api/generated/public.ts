@@ -6205,6 +6205,7 @@ export interface components {
         };
         WorkflowSucceededTransition: components["schemas"]["WorkflowNextTransition"] | components["schemas"]["WorkflowSucceedTransition"];
         WorkflowSummaryTransition: {
+            plannerContextManagement?: components["schemas"]["PlannerContextManagement"];
             /** @constant */
             kind: "escalate";
             /** @constant */

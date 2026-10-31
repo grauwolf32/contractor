@@ -292,14 +292,15 @@ type retrySource struct {
 }
 
 type escalateSource struct {
-	MaxAttempts     int                              `yaml:"maxAttempts"`
-	Planner         *string                          `yaml:"planner,omitempty"`
-	DeadlineSeconds *int                             `yaml:"deadlineSeconds,omitempty"`
-	ExecutionConfig *escalationExecutionConfigSource `yaml:"executionConfig"`
-	Then            *transitionActionSource          `yaml:"then"`
-	plannerPresent  bool
-	deadlinePresent bool
-	thenPresent     bool
+	PlannerContextManagement yaml.Node                        `yaml:"plannerContextManagement,omitempty"`
+	MaxAttempts              int                              `yaml:"maxAttempts"`
+	Planner                  *string                          `yaml:"planner,omitempty"`
+	DeadlineSeconds          *int                             `yaml:"deadlineSeconds,omitempty"`
+	ExecutionConfig          *escalationExecutionConfigSource `yaml:"executionConfig"`
+	Then                     *transitionActionSource          `yaml:"then"`
+	plannerPresent           bool
+	deadlinePresent          bool
+	thenPresent              bool
 }
 
 type escalationExecutionConfigSource struct {

@@ -85,6 +85,7 @@ func (s *Scheduler) buildStageCreation(
 	stage := workflow.stage
 	if configuration.planner != nil {
 		stage.Planner = *configuration.planner
+		stage.PlannerContextManagement = configuration.plannerContextManagement.Clone()
 	}
 	if configuration.variant == "" {
 		configuration.variant = runstore.StageExecutionConfigBase
@@ -121,11 +122,12 @@ func (s *Scheduler) buildStageCreation(
 }
 
 type stageExecutionConfiguration struct {
-	variant   runstore.StageExecutionConfigVariant
-	ordinal   *int
-	effective *resolved.ResolvedStageExecutionConfig
-	planner   *resolved.PlannerRef
-	context   *runstore.StageContextSnapshot
+	plannerContextManagement *resolved.PlannerContextManagement
+	variant                  runstore.StageExecutionConfigVariant
+	ordinal                  *int
+	effective                *resolved.ResolvedStageExecutionConfig
+	planner                  *resolved.PlannerRef
+	context                  *runstore.StageContextSnapshot
 }
 
 func missingRequiredContext(execution runstore.StageExecution) string {

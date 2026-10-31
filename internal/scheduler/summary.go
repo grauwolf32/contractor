@@ -110,5 +110,6 @@ func summaryEscalationConfiguration(
 		variant: runstore.StageExecutionConfigSummaryEscalation,
 		ordinal: intPointer(1), effective: &action.ExecutionConfig.Effective,
 		planner: action.Planner, context: &stageContext,
+		plannerContextManagement: action.PlannerContextManagement,
 	}, nil
 }

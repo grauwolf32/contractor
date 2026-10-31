@@ -399,6 +399,7 @@ func (s *Scheduler) buildProgression(
 				variant: runstore.StageExecutionConfigSummaryEscalation,
 				ordinal: execution.EscalationOrdinal, effective: &policy.ExecutionConfig.Effective,
 				planner: policy.Planner, context: &execution.StageContext,
+				plannerContextManagement: policy.PlannerContextManagement,
 			}
 		}
 		creation, err := s.buildStageCreation(

@@ -9,11 +9,13 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"go.yaml.in/yaml/v4"
 )
 
 func TestProductionMemoryConfigurationStaging(t *testing.T) {
+	assertProductionPlannerCompactionCatalog(t)
 	for _, configured := range []bool{true, false} {
 		name := "configured instructions"
 		if !configured {
@@ -125,5 +127,91 @@ func TestProductionMemoryConfigurationStaging(t *testing.T) {
 				t.Fatal("staging changed the resolved production template, instructions or digests")
 			}
 		})
+	}
+}
+
+// Read the shipped catalog only in this e2e fixture gate (AGENTS.md 2).
+func assertProductionPlannerCompactionCatalog(t *testing.T) {
+	t.Helper()
+	root := filepath.Join(repoRoot(t), "configs")
+	catalog, err := configload.Load(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	direct, continuations := 0, 0
+	for _, workflow := range catalog.Workflows() {
+		for name, stage := range workflow.Stages {
+			check := func(context *resolved.PlannerContextManagement, selection *resolved.ResolvedConsumerExecutionConfig) {
+				t.Helper()
+				if context == nil || context.Strategy != resolved.PlannerContextCompact ||
+					context.Instructions.Ref != "instructions/planner-compaction.md" ||
+					selection == nil || selection.CompactorModelPolicy == nil ||
+					selection.CompactorModelPolicy.Ref.PolicyID != "compactor" || selection.CompactorModelPolicy.Ref.Version != "1" {
+					t.Fatalf("%s@%s Stage %s has no shared Planner compaction policy", workflow.Ref.Name, workflow.Ref.Version, name)
+				}
+			}
+			if stage.Planner.Selector() == resolved.StreamlinePlanner || stage.Planner.Selector() == resolved.RouterPlanner {
+				check(stage.PlannerContextManagement, stage.ExecutionConfig.Planner)
+				direct++
+			}
+			if stage.On.Summarized != nil && stage.On.Summarized.Escalate != nil {
+				target := stage.On.Summarized.Escalate
+				check(target.PlannerContextManagement, target.ExecutionConfig.Effective.Planner)
+				continuations++
+			}
+		}
+	}
+	if direct != 8 || continuations != 16 {
+		t.Fatalf("modelled Planner coverage = %d direct/%d continuations, want 8/16", direct, continuations)
+	}
+	loaded := filepath.Join(t.TempDir(), "catalog")
+	if err := os.CopyFS(loaded, os.DirFS(root)); err != nil {
+		t.Fatal(err)
+	}
+	// Expanding native YAML references must preserve every normalized value,
+	// instruction digest and model pin across the entire production catalog.
+	entries, err := os.ReadDir(filepath.Join(loaded, "workflows"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".yaml" {
+			continue
+		}
+		path := filepath.Join(loaded, "workflows", entry.Name())
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var value map[string]any
+		if err := yaml.Unmarshal(data, &value); err != nil {
+			t.Fatal(err)
+		}
+		expanded, err := yaml.Marshal(value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, expanded, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	inline, err := configload.Load(loaded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(catalog.Workflows(), inline.Workflows()) {
+		t.Fatal("YAML references changed normalized Workflow behavior")
+	}
+	for _, name := range []string{"streamline_review_workflow.yaml", "router_openapi_workflow.yaml"} {
+		data, err := os.ReadFile(filepath.Join(root, "examples", name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(loaded, "workflows", name), data, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := configload.Load(loaded); err != nil {
+		t.Fatalf("Planner examples cannot use the shipped compactor policy: %v", err)
 	}
 }

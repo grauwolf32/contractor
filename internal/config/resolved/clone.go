@@ -220,10 +220,11 @@ func cloneTransition(source TransitionAction) TransitionAction {
 	}
 	if source.Escalate != nil {
 		result.Escalate = &EscalateTransition{
-			MaxAttempts:     source.Escalate.MaxAttempts,
-			DeadlineSeconds: source.Escalate.DeadlineSeconds,
-			ExecutionConfig: cloneEscalationExecutionConfig(source.Escalate.ExecutionConfig),
-			Then:            cloneTransition(source.Escalate.Then),
+			PlannerContextManagement: source.Escalate.PlannerContextManagement.Clone(),
+			MaxAttempts:              source.Escalate.MaxAttempts,
+			DeadlineSeconds:          source.Escalate.DeadlineSeconds,
+			ExecutionConfig:          cloneEscalationExecutionConfig(source.Escalate.ExecutionConfig),
+			Then:                     cloneTransition(source.Escalate.Then),
 		}
 		if source.Escalate.Planner != nil {
 			ref := *source.Escalate.Planner

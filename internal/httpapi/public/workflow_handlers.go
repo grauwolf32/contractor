@@ -194,6 +194,11 @@ func workflowTransitionReadModel(action resolved.TransitionAction) workflowTrans
 	if action.Escalate != nil {
 		result.MaxAttempts = action.Escalate.MaxAttempts
 		result.Planner = action.Escalate.Planner
+		if action.Escalate.PlannerContextManagement != nil {
+			result.PlannerContextManagement = plannerContextManagementReadModel(resolved.ResolvedStage{
+				PlannerContextManagement: action.Escalate.PlannerContextManagement,
+			})
+		}
 		result.DeadlineSeconds = action.Escalate.DeadlineSeconds
 		result.ExecutionConfig = &workflowEscalationConfigResponse{
 			Ref: action.Escalate.ExecutionConfig.Ref,

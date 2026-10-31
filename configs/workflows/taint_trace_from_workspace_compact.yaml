@@ -88,13 +88,9 @@ spec:
       on:
         succeeded:
           succeed: {}
-        failed:
+        failed: &retry_policy
           retry:
             maxAttempts: 2
             then:
               fail: {}
-        interrupted:
-          retry:
-            maxAttempts: 2
-            then:
-              fail: {}
+        interrupted: *retry_policy

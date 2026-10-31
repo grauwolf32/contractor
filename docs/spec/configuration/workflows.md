@@ -270,6 +270,11 @@ the `compact@1` branch with every default made explicit and no member for
 included. Runtime execution is owned by
 [Planners](../execution/planners.md#context-compaction) (PLN-R125).
 
+Native YAML anchors, aliases and merge keys may reuse an authored Planner block
+within a Workflow file. They are resolved by the YAML parser before ordinary
+closed-shape validation and exact pinning. Resolved snapshots contain the full
+independent policies and never require a YAML reference resolver.
+
 **WFL-R15.** Every Planner Stage declares a mandatory non-empty literal
 `objective` and one mandatory Planner-instruction resource ref,
 `instructions`:
@@ -601,12 +606,29 @@ summarized:
     maxAttempts: 1
     planner: streamline@1
     deadlineSeconds: 1800
+    plannerContextManagement:
+      strategy: compact@1
+      instructions:
+        ref: instructions/planner-compaction.md
     executionConfig:
       planner:
         modelPolicy: planner@2
+        compactorModelPolicy: compactor@1
         llmGateway: local-litellm@1
         credential: development-planner
 ```
+
+The optional `plannerContextManagement` controls only the target Planner. It
+uses the closed `none`/`compact@1` policy and bounds of WFL-R90; authoring
+omission or `none` leaves target compaction off. In this escalation scope the
+compactor ModelPolicy is selected through the existing
+`executionConfig.planner.compactorModelPolicy` (TPL-R117), including when an
+ExecutionConfig ref supplies it. A `modelPolicy` inside the context block is
+invalid here. Compact instructions and every threshold are resolved and pinned
+in the transition, then copied to the target StageSpec. Null or malformed
+policies and context settings on non-summary escalation are invalid. The
+source Passthrough and Worker keep their own existing behavior. The shipped
+catalog explicitly enables target compaction with `compactor@1`.
 
 The target factory is exactly `streamline@1`; its independent compatible
 ModelPolicy, Gateway and optional matching credential are resolved and pinned

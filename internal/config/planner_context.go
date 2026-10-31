@@ -30,18 +30,36 @@ func (l *loader) resolvePlannerContextManagement(
 	node yaml.Node,
 	operation bool,
 ) (*resolved.PlannerContextManagement, *contracts.ResolvedModelPolicy, error) {
+	return l.resolvePlannerContextPolicy(node, operation, true)
+}
+
+// Summary continuations select their compactor through the existing escalation
+// executionConfig.planner.compactorModelPolicy; ordinary Stages also accept the
+// policy in their context block as the lowest-precedence execution selection.
+func (l *loader) resolvePlannerContextPolicy(
+	node yaml.Node, operation, withModelPolicy bool,
+) (*resolved.PlannerContextManagement, *contracts.ResolvedModelPolicy, error) {
 	if node.Kind == 0 {
 		return nil, nil, nil
 	}
+	resolvedNode := yamlAliasTarget(&node)
+	if resolvedNode == nil {
+		return nil, nil, fmt.Errorf("invalid YAML alias")
+	}
+	node = *resolvedNode
 	if operation {
 		return nil, nil, fmt.Errorf("Server operation forbids plannerContextManagement")
 	}
 	if node.Kind != yaml.MappingNode {
 		return nil, nil, fmt.Errorf("must be a mapping")
 	}
-	for index := 0; index+1 < len(node.Content); index += 2 {
-		if value := node.Content[index+1]; value.Kind == yaml.ScalarNode && value.ShortTag() == "!!null" {
-			return nil, nil, fmt.Errorf("%s must not be null", node.Content[index].Value)
+	var members map[string]yaml.Node
+	if err := node.Load(&members, yaml.WithUniqueKeys()); err != nil {
+		return nil, nil, err
+	}
+	for name, member := range members {
+		if value := yamlAliasTarget(&member); value != nil && value.Kind == yaml.ScalarNode && value.ShortTag() == "!!null" {
+			return nil, nil, fmt.Errorf("%s must not be null", name)
 		}
 	}
 	var source plannerContextManagementSource
@@ -50,8 +68,7 @@ func (l *loader) resolvePlannerContextManagement(
 	}
 	switch source.Strategy {
 	case resolved.PlannerContextNone:
-		if source.ModelPolicy != "" || source.Instructions != nil || source.ContextWindowRatio != nil ||
-			source.KeepRecentGroups != nil || source.MaxCompactions != nil {
+		if len(members) != 1 {
 			return nil, nil, fmt.Errorf("strategy %s accepts no other field", resolved.PlannerContextNone)
 		}
 		return nil, nil, nil
@@ -61,12 +78,18 @@ func (l *loader) resolvePlannerContextManagement(
 			"strategy must be %s or %s", resolved.PlannerContextNone, resolved.PlannerContextCompact,
 		)
 	}
-	if source.ModelPolicy == "" {
-		return nil, nil, fmt.Errorf("strategy %s requires modelPolicy", resolved.PlannerContextCompact)
-	}
-	policy, err := l.compactorPolicy(source.ModelPolicy)
-	if err != nil {
-		return nil, nil, err
+	var policy *contracts.ResolvedModelPolicy
+	if withModelPolicy {
+		if source.ModelPolicy == "" {
+			return nil, nil, fmt.Errorf("strategy %s requires modelPolicy", resolved.PlannerContextCompact)
+		}
+		selected, err := l.compactorPolicy(source.ModelPolicy)
+		if err != nil {
+			return nil, nil, err
+		}
+		policy = &selected
+	} else if _, present := members["modelPolicy"]; present {
+		return nil, nil, fmt.Errorf("summary compactor policy belongs in executionConfig.planner.compactorModelPolicy")
 	}
 	instructions, err := l.resolveInstructions(source.Instructions)
 	if err != nil {
@@ -91,5 +114,5 @@ func (l *loader) resolvePlannerContextManagement(
 	if err := result.Validate(); err != nil {
 		return nil, nil, err
 	}
-	return result, &policy, nil
+	return result, policy, nil
 }

@@ -58,15 +58,28 @@ Existing Streamline variants already use that Planner. Bounded Audit Workers
 have no terminal summarizer; the short artifact-copy and Podman smoke fixtures
 retain their direct passthrough completion and failure checks.
 
-Planner context compaction is opt-in per Streamline/Router Stage. Copy
-[`examples/streamline_compaction_workflow.yaml`](examples/streamline_compaction_workflow.yaml)
-under `workflows/` and
-[`examples/planner_compactor_policy.yaml`](examples/planner_compactor_policy.yaml)
-under `model-policies/` to load a review Workflow whose Planner replaces earlier
-steps with a rolling summary once its prompt reaches 75% of the Planner window,
-keeping exact earlier Worker results readable. The compactor policy has no
-deployment model-selection role, so its `model` must name a live Gateway route.
-No bundled Workflow enables compaction.
+All shipped Streamline/Router Planner Stages and summary-continuation targets
+explicitly select `compact@1` with the shared generated `compactor@1` ModelPolicy
+and `instructions/planner-compaction.md`. The Planner keeps recent complete
+steps and a rolling summary while exact earlier Worker results remain readable.
+For a direct Planner Stage the selection is `plannerContextManagement` with
+`modelPolicy: compactor@1`; for a summary continuation, set the target's
+`plannerContextManagement` under `on.summarized.escalate` and select
+`executionConfig.planner.compactorModelPolicy: compactor@1` there.
+The source Worker configuration remains independent.
+
+Within each multi-Stage Workflow, standard YAML anchors and aliases define an
+identical Planner block once at its first use. Direct Stages reuse
+`&planner_compaction` / `*planner_compaction`; identical summary-continuation
+targets reuse `&planner_continuation` / `*planner_continuation`. They produce
+ordinary fully resolved Stage snapshots; there is no separate template/profile
+or cross-file `$ref` mechanism.
+
+[`examples/streamline_review_workflow.yaml`](examples/streamline_review_workflow.yaml)
+and [`examples/router_openapi_workflow.yaml`](examples/router_openapi_workflow.yaml)
+can be copied under `workflows/` directly; each uses the existing `compactor@1`.
+The API still allows an explicit uncompacted Planner policy. Deterministic
+Passthrough, scan-plan and server-operation Stages do not invoke a Planner model.
 
 Set optional `spec.maxSubtasks` on a Workflow to bound each Streamline/Router
 plan, including summary continuation. For example, `maxSubtasks: 64` allows up

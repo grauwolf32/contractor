@@ -74,6 +74,21 @@ func summarizedCandidate() stageresult.StageContentResult {
 func TestSchedulerSummaryContinuationPreservesOriginalContextAndRetriesStrategy(t *testing.T) {
 	h := newSchedulerHarness(t)
 	configureSummaryWorkflow(t, &h.workflow)
+	stage := h.workflow.Stages[h.workflow.EntryStage]
+	policy := stage.On.Summarized.Escalate
+	policy.PlannerContextManagement = &resolved.PlannerContextManagement{
+		Strategy:           resolved.PlannerContextCompact,
+		Instructions:       contracts.ResolvedInstructions{Ref: "instructions/compact.md", Digest: "sha256:" + strings.Repeat("a", 64), Text: "Preserve decisions and evidence."},
+		ContextWindowRatio: 0.75, KeepRecentGroups: 4, MaxCompactions: 8,
+	}
+	policy.ExecutionConfig.Override.Planner.ModelPolicy.ContextWindowTokens = 131072
+	compactor := policy.ExecutionConfig.Override.Planner.ModelPolicy.Clone()
+	compactor.MaxModelCalls, compactor.MaxWorkerCalls, compactor.MaxToolCalls = 1, 0, 0
+	compactor.MaxTotalTokens = 140000
+	policy.ExecutionConfig.Override.Planner.CompactorModelPolicy = &compactor
+	if err := resolved.ResolveEscalationVariants(&h.workflow); err != nil {
+		t.Fatal(err)
+	}
 	configureRetryWorkflow(t, h, 3)
 	h.planners.results = []stageresult.StageContentResult{summarizedCandidate(), failedStageResult("gateway_unavailable", true), h.planners.result}
 	for index := range 3 {
@@ -97,7 +112,9 @@ func TestSchedulerSummaryContinuationPreservesOriginalContextAndRetriesStrategy(
 	}
 	for _, attempt := range h.store.stages[1:] {
 		stage, err := resolved.DecodeResolvedStageSnapshot(attempt.StageSpecSnapshot)
-		if err != nil || stage.MaxSubtasks != h.workflow.MaxSubtasks {
+		if err != nil || stage.MaxSubtasks != h.workflow.MaxSubtasks ||
+			!reflect.DeepEqual(stage.PlannerContextManagement, policy.PlannerContextManagement) ||
+			stage.ExecutionConfig.Planner.CompactorModelPolicy == nil {
 			t.Fatalf("continuation/retry lost its Workflow subtask limit: %v", err)
 		}
 		if attempt.ExecutionConfigVariant != runstore.StageExecutionConfigSummaryEscalation || *attempt.EscalationOrdinal != 1 ||

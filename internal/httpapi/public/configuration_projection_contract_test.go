@@ -5,11 +5,14 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/getkin/kin-openapi/routers/gorillamux"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	publicapi "github.com/grauwolf32/contractor/internal/publicclient/generated"
@@ -26,6 +29,53 @@ func TestPublicConfigurationProjectionContracts(t *testing.T) {
 		t.Fatal(err)
 	}
 	fixture := newHandlerFixtureWithConfig(t, publicCatalogFixture)
+
+	t.Run("summary continuation Planner compaction", func(t *testing.T) {
+		workflow := catalogWorkflow(t, "likec4-from-workspace@7")
+		stage := workflow.Stages[workflow.EntryStage]
+		var selection resolved.ResolvedConsumerExecutionConfig
+		for _, agent := range stage.ExecutionConfig.Agents {
+			selection = agent
+			break
+		}
+		selection.SummarizerModelPolicy = nil
+		policy := &resolved.EscalateTransition{
+			MaxAttempts: 1, Planner: &resolved.PlannerRef{PlannerID: "streamline", Version: "1"}, DeadlineSeconds: 60,
+			ExecutionConfig: resolved.ResolvedEscalationExecutionConfig{Effective: resolved.ResolvedStageExecutionConfig{
+				Planner: &selection, Agents: stage.ExecutionConfig.Agents,
+			}},
+		}
+		const privateText = "private compactor instruction text"
+		policy.PlannerContextManagement = &resolved.PlannerContextManagement{
+			Strategy:           resolved.PlannerContextCompact,
+			Instructions:       contracts.ResolvedInstructions{Ref: "instructions/planner-compaction.md", Digest: "sha256:" + strings.Repeat("a", 64), Text: privateText},
+			ContextWindowRatio: 0.75, KeepRecentGroups: 4, MaxCompactions: 8,
+		}
+		compactor := policy.ExecutionConfig.Effective.Planner.ModelPolicy.Clone()
+		compactor.Ref.PolicyID = "compactor"
+		policy.ExecutionConfig.Effective.Planner.CompactorModelPolicy = &compactor
+		policy.ExecutionConfig.Effective.Planner.Origins.CompactorModelPolicy = "workflow.stages.on.summarized.escalate.executionConfig"
+		body, err := json.Marshal(workflowTransitionReadModel(resolved.TransitionAction{Kind: resolved.TransitionEscalate, Escalate: policy}))
+		if err != nil || strings.Contains(string(body), privateText) {
+			t.Fatalf("unsafe summary Planner projection: %v", err)
+		}
+		var value map[string]any
+		if err := json.Unmarshal(body, &value); err != nil {
+			t.Fatal(err)
+		}
+		schema := document.Components.Schemas["WorkflowSummaryTransition"].Value
+		if err := schema.VisitJSON(value); err != nil {
+			t.Fatalf("summary Planner compaction does not match OpenAPI: %v", err)
+		}
+		var typed publicapi.WorkflowSummaryTransition
+		if err := json.Unmarshal(body, &typed); err != nil || typed.PlannerContextManagement == nil {
+			t.Fatalf("generated client lost the continuation context policy: %v", err)
+		}
+		value["plannerContextManagement"] = nil
+		if err := schema.VisitJSON(value); err == nil {
+			t.Fatal("public schema accepted null continuation context")
+		}
+	})
 
 	t.Run("repository catalog", func(t *testing.T) {
 		summarizers, instructions := 0, 0

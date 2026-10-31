@@ -11814,6 +11814,9 @@
         "executionConfig"
       ],
       "properties": {
+        "plannerContextManagement": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/PlannerContextManagement"
+        },
         "kind": { "type": "string", "const": "escalate" },
         "maxAttempts": { "type": "integer", "const": 1 },
         "planner": {

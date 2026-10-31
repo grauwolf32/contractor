@@ -50,6 +50,7 @@ type summarizerGateway struct {
 	normalCalls    map[string]int
 	summaryCalls   map[string]int
 	plannerCalls   int
+	compactorCalls int
 	pending        map[string]summarizerFinalizerExpectation
 	captures       []summarizerGatewayCapture
 	failures       []string
@@ -142,6 +143,17 @@ func (g *summarizerGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	model = strings.TrimPrefix(model, "openai/")
+	if model == "planner-compactor-model" {
+		if !requestHasNoModelTools(request) {
+			g.fail(w, http.StatusBadRequest, "Planner compactor received tools")
+			return
+		}
+		g.mu.Lock()
+		g.compactorCalls++
+		g.mu.Unlock()
+		g.writeCompletion(w, model, map[string]any{"role": "assistant", "content": `{"summary":"The plan is created; verify the current Worker result before finishing."}`}, "stop", summarizerUsage(50, 10, 60))
+		return
+	}
 	if model == "planner-model" {
 		g.serveContinuationPlanner(w, request)
 		return
@@ -535,7 +547,11 @@ func (g *summarizerGateway) serveContinuationPlanner(w http.ResponseWriter, requ
 		g.fail(w, http.StatusBadRequest, "continuation exceeded its bounded Planner script")
 		return
 	}
-	g.writeCompletion(w, "planner-model", message, "tool_calls", summarizerUsage(7, 3, 10))
+	usage := summarizerUsage(7, 3, 10)
+	if step <= 2 {
+		usage = summarizerUsage(3072, 3, 3075)
+	}
+	g.writeCompletion(w, "planner-model", message, "tool_calls", usage)
 }
 
 // summaryReasoning is what a summarizer request shows of the reasoning option.

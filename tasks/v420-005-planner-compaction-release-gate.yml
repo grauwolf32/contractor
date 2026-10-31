@@ -7,6 +7,7 @@ kind: chore
 priority: P1
 status: pending
 depends_on:
+- V420-006
 - V420-003
 - V420-004
 languages:
@@ -18,7 +19,7 @@ context:
   authority: 'User request on 2026-10-25: create detailed tasks for Go ADK v2.6.0 and Planner compaction, including
     compatibility, tests and mutual exclusion with terminal summarization; keep Scheduler substantially unchanged.
     These pending records authorize planning only, do not start implementation and do not change the current
-    delivery focus.'
+    delivery focus. User decision on 2026-10-31: the release gate also covers V420-006 shared compactor@1 catalog activation and explicit summary-continuation Planner compaction, without Worker changes.'
   review: tasks/evidence/v419-go-adk-26-review.json
   specification:
   - docs/spec/execution/planners.md#PLN-R1

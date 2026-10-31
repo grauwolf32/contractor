@@ -976,7 +976,11 @@ effective Gateway with the Planner's credential, with no tools and without
 in-invocation Gateway recovery. The selection is Planner-only and never enters
 `AllocationSpec`. Compaction never marks a result summarized, never falls back
 to terminal summarization and is off for every Passthrough Planner, including
-the Passthrough base of a summary escalation (WFL-R86). ADK native compaction
+the Passthrough base of a summary escalation (WFL-R86). That escalation's
+target Streamline invocation may independently select compact@1 in its pinned
+StageSpec; this does not change the source Worker or make compaction emit a
+terminal summary. The shipped modelled Planner Stages and summary-continuation
+targets explicitly select the shared compactor@1 policy. ADK native compaction
 stays off.
 
 **PLN-R126.** A context checkpoint is due before a main model request when the

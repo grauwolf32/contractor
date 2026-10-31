@@ -1017,8 +1017,12 @@ selection replace it with the precedence of TPL-R79 and TPL-R80. A Planner
 selection that names `compactorModelPolicy` applies only to `compact@1`
 Stages: a selection that would apply it to no such Stage, a Worker selection
 and an Agent binding selection are invalid. It cannot enable compaction or
-alter its instructions or thresholds, and there is no deployment default role
-for it. The compactor uses the Planner's effective LLMGatewayConfig and
+alter its instructions or thresholds. A summary-continuation target may select
+its own Planner context policy on `on.summarized.escalate` (WFL-R86); its exact
+compactor policy uses that transition's existing Planner execution selection.
+There is no deployment model-selection role for it. The catalog's generated
+`compactor@1` policy and Gateway route use the deployment source's `defaultModel`
+at generation time; Planner and Worker execution selections remain independent. The compactor uses the Planner's effective LLMGatewayConfig and
 credential. Consumer projections expose the requested compactor alias, the exact policy
 ref and its origin beside the Planner's (TPL-R113).
 

@@ -104,6 +104,7 @@ func (w executableWorkflow) selectExecution(
 			return executableWorkflow{}, fmt.Errorf("summary-escalation StageExecution identity is invalid")
 		}
 		stage.Planner = *stage.On.Summarized.Escalate.Planner
+		stage.PlannerContextManagement = stage.On.Summarized.Escalate.PlannerContextManagement.Clone()
 		stage.ExecutionConfig = stage.On.Summarized.Escalate.ExecutionConfig.Effective
 	default:
 		return executableWorkflow{}, fmt.Errorf(

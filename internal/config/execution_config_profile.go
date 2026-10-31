@@ -31,16 +31,28 @@ func (s *escalationExecutionConfigSource) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
+// yamlAliasTarget exposes the standard YAML alias target to validators that
+// inspect raw nodes instead of decoding them into a typed value.
+func yamlAliasTarget(node *yaml.Node) *yaml.Node {
+	if node != nil && node.Kind == yaml.AliasNode {
+		return node.Alias
+	}
+	return node
+}
+
 func yamlMappingHasKey(node *yaml.Node, key string) bool {
-	if node.Kind != yaml.MappingNode {
+	node = yamlAliasTarget(node)
+	if node == nil || node.Kind != yaml.MappingNode {
 		return false
 	}
-	for index := 0; index+1 < len(node.Content); index += 2 {
-		if node.Content[index].Value == key {
-			return true
-		}
+	// Let the YAML library resolve aliases and native merge keys, including
+	// the presence of explicit null members inherited through a merge.
+	var fields map[string]yaml.Node
+	if err := node.Decode(&fields); err != nil {
+		return false
 	}
-	return false
+	_, present := fields[key]
+	return present
 }
 
 func (l *loader) loadExecutionConfigs() error {
