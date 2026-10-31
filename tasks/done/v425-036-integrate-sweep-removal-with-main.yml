@@ -6,7 +6,8 @@ epic: audits
 kind: chore
 introduced_by: V425-033
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 684eb03e1598f11302a93b4b8e4ccd6b1298a328
 depends_on: [V425-033, V428-001]
 languages: [go, sql, typescript, yaml, markdown]
 goal: Main contains the verified Audit-owned scan implementation, without restoring Sweep or losing newer shared-policy and baseline work.
@@ -15,6 +16,15 @@ context:
     User request 2026-10-31: merge the completed removal branch into main.
     Main has since folded its migration history and reassigned V425-034 to
     Allocation rollback. Resolve integration within this task before landing.
+  verification: >-
+    2026-10-31: populated baseline-to-000002 preservation and the complete affected
+    Go/PostgreSQL packages passed. Public API operation coverage and PostgreSQL
+    API checks, ui-verify, deterministic Web scan Audit process gate, shipped
+    catalog validation and make lint passed. Generated clients, dependencies,
+    ERD and tracker were regenerated/checked. Main merge 684eb03e1 uses --no-ff
+    and its tree equals the tested integration tree 7ad31107d; no demo deployment
+    or remote push was performed. Main's existing worktree was clean before and
+    after the merge. The integration task is closed by this metadata commit.
   boundary: >-
     Preserve main's folded baseline and its later evolution model. Renumber the
     Sweep retirement migration as the next migration (000002), and keep its
