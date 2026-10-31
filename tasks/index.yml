@@ -9,6 +9,11 @@ project:
 
 execution_policy:
   current_delivery_focus: >-
+    User clarification 2026-11-01 keeps V64-014 to Project finding ownership and retained contributions
+    using existing deduplication, intake receipts, correlation fence and Run-to-Project Artifact forks.
+    The existing Run-to-Project path removes the technical prerequisite on V64-004: V64-014 depends
+    only on completed V64-001; V64-002 still integrates both. Semantic comparison, new matching rules
+    and a second deduplication engine are outside V64-014. This task amendment starts no implementation.
     User clarification 2026-11-01 keeps V64-004 to the existing role-output collection and dependent
     RunService input path, using real Audit Artifact scope and per-artifact exact forks/publication.
     Multiple explicit Workflow inputs remain supported. Automatic report-link/dependency collection

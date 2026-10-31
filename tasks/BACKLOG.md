@@ -97,7 +97,7 @@ the epics are in [epics.yml](epics.yml).
 | [V64-011](v64-011-audit-priority-release.yml) | feature | P1 | V64-009, V64-010, V411-015, V425-017 | Gate the basic Audit research scenario and complexity reduction |
 | [V64-012](v64-012-audit-hypothesis-registry.yml) | feature | P1 | V64-002, V64-014 | Verify fixed and manual hypotheses through Audit tasks |
 | [V64-013](v64-013-audit-hypothesis-generation.yml) | feature | P1 | V64-012, V64-004, V411-011 | Generate scoped hypotheses from selected materials and check results |
-| [V64-014](v64-014-audit-hypothesis-assessments.yml) | feature | P1 | V64-004 | Retain Project problem findings and exact source contributions |
+| [V64-014](v64-014-audit-hypothesis-assessments.yml) | feature | P1 | — | Retain Project problem findings and exact source contributions |
 | [V64-015](v64-015-audit-research-frontier.yml) | feature | P2 | V64-011 | Measure whether a larger Audit frontier needs incremental indexing |
 | [V64-016](v64-016-audit-research-ranking-evaluation.yml) | chore | P2 | V64-005, V64-011 | Evaluate optional Audit ranking against the deterministic baseline |
 | [V64-017](v64-017-audit-attack-tree-projection.yml) | feature | P2 | V64-011 | Project optional attack trees over retained research conclusions |

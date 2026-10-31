@@ -8,7 +8,6 @@ priority: P1
 status: pending
 depends_on:
 - V64-001
-- V64-004
 languages:
 - go
 - python
@@ -31,14 +30,16 @@ context:
     allow future Project ownership. Remove almost all formal approvals and keep complexity controlled.
     Generation can use selected materials, findings and ordinary results including refutations and gaps.
     The user accepted the common execution skeleton and requested concrete tasks; implementation is a
-    subsequent step, not part of this task-formation request.'
-  implementation_gate: Task formation only, requested on 2026-10-31 after acceptance of the common execution
-    skeleton. Keep pending until implementation is requested and dependencies are complete. Do not start
-    code, migrations, live Runs or deployment in this planning turn. Resolve the explicitly labelled remaining
-    contract proposals in V64-001 before dependent implementation.
+    subsequent step, not part of this task-formation request. User clarification on 2026-11-01 accepts
+    preserving existing deduplication while moving finding ownership to Project. Semantic comparison
+    is separate future work, not an expansion of this task.'
+  implementation_gate: V64-001 is completed and its decisions are settled. A user assignment of V64-014
+    is sufficient under normal dependency/status rules; V64-004 is not a prerequisite. This amendment
+    keeps the task pending and starts no code, migrations, live Runs or deployment.
   design:
   - docs/proposals/0050-audit-common-hypothesis-model.md
   - docs/plans/2026-10-31-audit-redesign.md
+  - docs/proposals/0050-audit-removal-map.yml
   specification:
   - docs/spec/audits/audits.md
   - docs/spec/audits/execution.md
@@ -47,19 +48,38 @@ context:
   - docs/spec/findings/findings.md
   - docs/spec/platform/failure-model.md
   - docs/spec/platform/persistence.md
+  - docs/spec/audits/common-contract.md#ACT-R6
+  - docs/spec/audits/common-contract.md#ACT-R11
+  - docs/spec/findings/findings.md#FND-R174
+  - docs/spec/findings/findings.md#FND-R180
   specification_baseline: Named specifications describe current behavior. Update their owning requirements,
     API/wire contracts and fixtures with implementation; proposal 0050 governs the reviewed replacement
     direction.
   implementation_boundary: Every new state, export, relation or capability needs its real production caller
     in this task. Reuse RunService, Scheduler, ArtifactStore, finding intake, ControllerClaims and existing
     keyed/natural receipts. No new collector, admission engine, lease store or compatibility reader.
+  production_caller: Adapt findingintake.Service.Submit and the existing ImportIntoAudit/importIntoAuditWithTx
+    admission path to Project-owned findings/contributions, with the existing owner-authorized finding
+    detail/list readers. An existing Audit child Run is a sufficient producer; the new coordinator and
+    hypothesis registry are not prerequisites. Later callers supply their trusted task/hypothesis context.
+  dependency_boundary: Existing findingintake.retainFindingArtifact already forks exact Run artifacts
+    into Project through ArtifactStore without copying payloads. Replace Audit-local finding holds with
+    Project contribution ownership here, using stable receipt-based bindings and the existing fork/retention/purge
+    mechanisms. No new Audit scope or temporary compatibility path is needed; V64-004 separately owns
+    ordinary material handoff/publication. Coordinate shared-file or migration-number conflicts as integration
+    work, not a semantic dependency.
+  deduplication_boundary: Reuse current qualified producer/structural key derivation and equality rules,
+    receipt replay, Project correlation fence, bounded candidate search and direct human duplicate corrections.
+    Adapt their ownership and callers; do not introduce a second deduplication engine or broaden equality.
+    Semantic matching may be reconsidered separately after Project findings work through real callers.
 scope:
   in:
   - Adapt existing finding intake, normalized result assembly, Project reads and evidence publication;
     use a real producer and detail/list caller in this task.
   - Represent Project finding identity and retained source contributions; automatically derive Audit/task/Run
     and later per-item hypothesis association from trusted execution context.
-  - Preserve replay identity, qualified/structural problem deduplication and human duplicate corrections.
+  - Reuse replay identity, existing qualified/structural problem deduplication, bounded candidate search
+    and direct human duplicate corrections; change ownership and source associations, not matching policy.
     Independent discoveries retain separate sources; negative rechecks and incompatible observations remain
     exact ordinary results and cannot silently erase or resolve a historical problem.
   - Move current Audit-local finding/provenance facts to the chosen owner through tested migrations, retaining
@@ -68,8 +88,11 @@ scope:
   - Keep AppSec severity/classification/issue annotations as domain-specific data. Remove a separate research
     assessment ledger and universal human-confirmation gate.
   out:
-  - LLM similarity as identity, a new receipt/lease system, a generic knowledge graph, hypothesis-only
-    storage before V64-012 supplies its actual caller.
+  - Semantic/LLM/embedding comparison or ranking, new fingerprint schemes or provider parsers, a second
+    deduplication engine, new receipt/lease systems, a generic knowledge graph, and hypothesis-only storage
+    before V64-012 supplies its actual caller.
+  - Audit Artifact scope, ordinary material handoff/publication and the new coordinator; V64-004 and
+    V64-002 retain those responsibilities.
   - Implementation during this planning-only update; changing user model configuration or deploying/migrating
     the demo.
 requirements:
@@ -78,15 +101,19 @@ requirements:
     result is not itself a finding; missing evidence, timeout and execution failure cannot establish support
     or refutation.
 - id: R2
-  text: Canonical deduplication preserves all original Audit/Run/evidence associations and compatible
-    source context; source Audit purge cannot destroy Project-owned findings/evidence.
+  text: Deduplication reuses existing qualified producer/structural equality rules and preserves all original
+    Audit/Run/evidence associations and compatible source context. Missing or ambiguous keys and weak
+    candidate matches never establish automatic equality. Source Audit purge cannot destroy Project-owned
+    findings/evidence.
 - id: R3
   text: Retain observation, interpretation and exact source result distinctly. Results that refute a bug
     claim create no new problem card; a negative recheck of an existing finding may link to it but does
     not automatically mark it fixed, erase prior evidence or rewrite a report.
 - id: R4
   text: Register every changed relation owner and retention holder; use a migration regression populated
-    with current source facts and review history.
+    with current source facts and review history. Retain exact proposal/evidence through existing Run-to-Project
+    forks of the same immutable versions/blobs; source deletion and replay must not require V64-004 or
+    create redundant bindings/payloads.
 failure_outcomes:
 - operation: Accept and deduplicate normalized Project finding contributions
   permanent: Reject invalid/foreign/unsupported content and exact-revision or collision conflicts through
@@ -102,8 +129,8 @@ failure_outcomes:
     timeouts remain with their owners. No post-deadline semantic work to repair persistence.
 cardinality:
 - collection: Accept and deduplicate normalized Project finding contributions
-  expected: 'Base fixture: 2 ordinary Runs, 2 seeded hypotheses, 1 generated hypothesis, several check
-    results and optional problem findings.'
+  expected: 'One Project, two Audits and independent ordinary producer Runs, plus replay, qualified/weak
+    matches and a negative recheck; no hypothesis or generator is required.'
   maximum: Project lifetime collection has no new global count cap; use indexed pages (existing max 100/256
     KiB where applicable), bounded intake slices and existing report/export/evidence ceilings.
   bound: At most 128 admitted primary records / 1 MiB metadata per mutation slice; lists use existing
@@ -118,15 +145,17 @@ lifecycle:
     deletion until their owner releases them. Reading alone creates no hold.
 acceptance_criteria:
 - id: A1
-  given: a real producer and replayed finding publication
-  when: intake and collection reconcile
-  then: one logical contribution is accepted; every field of provenance comes from trusted context
+  given: an existing ordinary producer without a hypothesis and replayed finding publication
+  when: intake and the Project finding detail/list path reconcile using existing Run-to-Project forks
+  then: one logical contribution is accepted; provenance comes from trusted context, replay adds no
+    bindings or sources, and the path works without V64-004 or the new coordinator
 - id: A2
-  given: independent problem confirmations, a negative recheck, a positive-property check and qualified
-    duplicates
+  given: independent confirmations from two Audits in one Project, qualified duplicates, weak-only or
+    missing/ambiguous keys, a negative recheck and a positive-property check
   when: ordinary results are retained and Project problems are listed/deduplicated
-  then: all source evidence survives; problem cards arise only from evidenced problems, negative rechecks
-    remain linked results without automatic resolution, and pages stay bounded
+  then: existing qualified matches identify one Project problem with every independent source; weak-only
+    matches remain candidates and unavailable keys stay separate. Problem cards require evidenced problems,
+    negative rechecks remain linked results without automatic resolution, and pages stay bounded
 - id: A3
   given: populated current Audit findings and decisions
   when: migration, source Run/Audit purge and Project purge execute
