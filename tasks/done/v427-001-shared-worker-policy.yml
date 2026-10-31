@@ -1,5 +1,5 @@
 schema_version: '1.0'
-id: V425-030
+id: V427-001
 title: Use shared startup policy for Worker results and State
 milestone: runtime-shared-config-2026-10
 epic: execution-core
@@ -79,3 +79,5 @@ verification:
   - Immutable implementation checkout completed the broad Runtime command with 5788 passed, 133 platform skips and two explicitly deselected pre-existing macOS cases, in 424 seconds.
   - Changed post-import Worker/State bounds passed in the shared bootstrap suite; generator tests rebuilt text/envelope boundary recipes from changed policy.
   - make lint passed including generator drift, dependency graph, script tests, Runtime lint and import contracts.
+
+tracking_note: Renumbered from V425-030 on 2026-10-31 because concurrent pgx work took that ID on main; implementation and acceptance evidence are unchanged.

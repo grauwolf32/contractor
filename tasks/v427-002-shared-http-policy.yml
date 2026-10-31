@@ -1,12 +1,12 @@
 schema_version: '1.0'
-id: V425-031
+id: V427-002
 title: Fetch common HTTP evidence byte ceilings at Runtime startup
 milestone: runtime-shared-config-2026-10
 epic: execution-core
 kind: feature
 priority: P1
-status: pending
-depends_on: [V425-030]
+status: in_progress
+depends_on: [V427-001]
 languages: [go, python, typescript]
 goal: >-
   The Runtime sends and retains HTTP evidence within the same byte ceilings
@@ -66,7 +66,7 @@ tests:
     covers: [A1, A3]
   - command: make test-wire-cross-language verify-public-api ui-verify
     covers: [A1, A3]
-  - command: cd runtime && uv run pytest tests/test_http*.py tests/test_security_findings_toolset.py tests/test_finding_tool_contracts.py tests/test_shared_config_bootstrap.py
+  - command: cd runtime && uv run pytest tests/test_http*.py tests/test_security_findings_toolset.py tests/test_finding_tool_contracts.py tests/test_finding_facades.py tests/test_shared_config_bootstrap.py
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A1, A3]

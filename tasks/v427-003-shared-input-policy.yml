@@ -1,12 +1,12 @@
 schema_version: '1.0'
-id: V425-032
+id: V427-003
 title: Enforce fetched Git and metadata-label limits in UI and Runtime
 milestone: runtime-shared-config-2026-10
 epic: execution-core
 kind: feature
 priority: P1
 status: pending
-depends_on: [V425-031]
+depends_on: [V427-002]
 languages: [go, python, typescript]
 goal: >-
   Repository import and descriptive Run/Audit label controls explain and enforce
