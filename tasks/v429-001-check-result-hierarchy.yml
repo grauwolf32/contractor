@@ -1,0 +1,93 @@
+schema_version: "1.0"
+id: V429-001
+title: Make check item conclusions and review actions easier to scan
+milestone: ui-journey-usability
+epic: ui
+kind: feature
+priority: P2
+status: in_progress
+depends_on: []
+languages: [typescript, css]
+goal: >-
+  An engineer reading a check item can distinguish its conclusion, remaining
+  uncertainty and next review action at a glance while retaining visible
+  evidence, item navigation and the current compact V3B layout.
+demonstration: >-
+  Open the real React check page on a partially traced endpoint with a possible
+  issue, read its conclusion and limitations, follow Review to the existing
+  issue route, and return to the selected item. Confirmed and set-aside findings
+  retain their true state and do not acquire a pending-review action.
+context:
+  specification: docs/spec/ui/ui.md#UI-R215
+  design: docs/design/ui/README.md
+  authority: >-
+    User decision on 2026-10-31: apply the successful ideas from the locally
+    generated OpenDesign Contractor prototype to the existing UI. Agent proposal:
+    adopt its conclusion/uncertainty hierarchy and explicit Review affordance
+    in the shared check item view; retain current navigation, density and open
+    evidence rather than copying the prototype wholesale.
+  decision: >-
+    UI presentation remains owned by CheckItemView and its route CSS. Existing
+    Server coverage, finding states, routes, shared buttons and theme tokens
+    remain authoritative. Use a compact neutral conclusion surface, a labelled
+    limitations divider and status-toned pending issue rows with secondary Review
+    links. The check-level Review remains the page's primary action. A generic
+    shared-card redesign would widen scope and affect unrelated screens. Reopen
+    only after actual use shows the item hierarchy is still unclear.
+scope:
+  in:
+    - Shared endpoint, requirement and scenario result presentation.
+    - Explicit contextual Review links for proposed and needs-evidence findings.
+    - Token-based styling, focused route regressions, visual checks and UI patch version.
+  out:
+    - Navigation rail, list widths, endpoint selection, filters, pagination and polling changes.
+    - New review semantics, inline mutations, model calls, Server/API/schema changes or deployment.
+requirements:
+  - id: R1
+    text: Separate authoritative conclusion and limitations visually without changing their text, state or fallback behavior.
+  - id: R2
+    text: Show an explicit Review link for proposed and needs-evidence findings only, preserving existing title links and return context.
+  - id: R3
+    text: Keep evidence expanded, activity reachable, previous/next controls and all technical details available in V3B and all themes.
+failure_outcomes:
+  - operation: Read and navigate existing item and finding projections
+    permanent: No new read or mutation; existing missing-data and classified read errors remain visible.
+    retryable: Existing collection refetch and backoff policies are unchanged.
+    ambiguous: No new writes or receipts; Review navigates to the existing decision owner.
+    cancelled: Existing route and query lifecycle is unchanged.
+    timeout: Existing query timeout ownership is unchanged.
+cardinality:
+  - collection: Loaded item evidence, gaps, attempts and associated findings
+    expected: One selected item with a few evidence entries and findings.
+    maximum: Existing API-bound loaded collections; no new fetch, expansion or duplicate collection.
+    bound: One linear render of already loaded item fields and findings; existing pagination controls remain.
+lifecycle:
+  - entity: Existing selected item and finding review navigation
+    delete: Existing deleted-run and absent-item behavior remains.
+    cascade: No new entity or retained state.
+    retention: Existing query and URL selection ownership remains.
+acceptance_criteria:
+  - id: A1
+    given: A partially traced endpoint with a written result and gaps
+    when: The item is opened
+    then: Conclusion and labelled uncertainty are distinct, evidence stays open and current item controls remain.
+  - id: A2
+    given: Proposed, needs-evidence, confirmed and set-aside findings
+    when: The item is rendered
+    then: Only pending findings offer contextual Review links to their exact existing issue route; state and severity are unchanged.
+  - id: A3
+    given: Light, dark and black themes at desktop and 390/320 px widths
+    when: The real component is rendered and its Review link is followed
+    then: Controls and evidence remain reachable, no horizontal overflow occurs and navigation retains return context.
+tests:
+  - command: make ui-verify
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+verification:
+  - >-
+    make ui-verify passed: 216 files, 2659 passing tests and one existing expected failure; all 17 static-server tests passed, generated-client check, lint, typecheck and production build passed.
+  - make lint passed, including CSS/export gates, task/spec checks, Go vet/static checks and Runtime lint/import contracts; the scripts unittest suite retained its existing skip.
+  - Native browser review rendered the real CheckItemView, CheckListPane and PaneLayout with isolated contract-checked fixtures, using existing local fonts and production CSS. Desktop and narrow viewports preserve evidence and navigation without horizontal document overflow.
+  - Review regression follows the real issue route and browser Back to the same selected endpoint, retains return context, and covers all five finding states; evidence and Next endpoint remain visible.
+  - No Server, API, generated client, runtime dependency, model configuration or demo data changes.
