@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
@@ -23,13 +24,21 @@ import (
 // The lease runs out by the database clock, and the lane renews its claim only
 // when the test releases a renewal, so no local timer decides the outcome.
 func TestPostgresCancellationCleanupRetainsRunClaim(t *testing.T) {
+	// Prove the goroutine ordering at quiescence before involving network I/O.
+	// A stopped renewal fails here immediately, rather than at a SQL test's
+	// watchdog while waiting for a renewal that can never arrive.
+	if !t.Run("renewal lifetime", func(t *testing.T) {
+		synctest.Test(t, cancellationRenewalLifetime)
+	}) {
+		return
+	}
 	for _, notify := range []bool{true, false} {
 		name := "polled cancellation"
 		if notify {
 			name = "immediate cancellation"
 		}
 		t.Run(name, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
+			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
 			pool := isolatedSchedulerPool(t, ctx)
 			postgresStore := runstore.NewPostgresStore(pool)
@@ -203,4 +212,89 @@ func TestPostgresFailActiveRunEndsCancellingRunAsCancelled(t *testing.T) {
 	if err != nil || run.State != runstore.RunCancelled {
 		t.Fatalf("Run = (%+v, %v), want cancelled", run, err)
 	}
+}
+
+// cancellationRenewalLifetime drives the production claim/cancellation path
+// with the existing store double. synctest.Wait is the synchronization
+// boundary; neither missing renewal nor premature shutdown consumes a timer.
+func cancellationRenewalLifetime(t *testing.T) {
+	h := newSchedulerHarness(t)
+	store := &cancellationLifetimeStore{
+		memorySchedulerStore: h.store, started: make(chan struct{}),
+		cleaning: make(chan struct{}), finish: make(chan struct{}),
+	}
+	h.scheduler.store = store
+	clock := &manualRenewalClock{now: h.clock.now, waits: make(chan chan time.Time, 4)}
+	h.scheduler.options.Clock = clock
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		_, err := h.scheduler.RunOnce(ctx)
+		done <- err
+	}()
+	<-store.started
+	synctest.Wait()
+	h.requestCancellation("cancel while executing")
+	h.scheduler.Cancel(h.store.run.RunID)
+	synctest.Wait()
+	select {
+	case <-store.cleaning:
+	default:
+		t.Fatal("execution cancellation did not enter cleanup")
+	}
+	select {
+	case tick := <-clock.waits:
+		tick <- clock.now
+	default:
+		t.Fatal("claim renewal never armed")
+	}
+	synctest.Wait()
+	if store.renewals != 1 {
+		t.Fatalf("cleanup stopped claim renewal: calls=%d", store.renewals)
+	}
+	select {
+	case <-clock.waits:
+	default:
+		t.Fatal("cleanup renewal did not rearm")
+	}
+	close(store.finish)
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if h.store.run.State != runstore.RunCancelled {
+		t.Fatalf("cleanup state=%s", h.store.run.State)
+	}
+}
+
+type cancellationLifetimeStore struct {
+	*memorySchedulerStore
+	first                     bool
+	started, cleaning, finish chan struct{}
+	renewals                  int
+}
+
+func (s *cancellationLifetimeStore) HasStageExecutions(ctx context.Context, _ string) (bool, error) {
+	if !s.first {
+		s.first = true
+		close(s.started)
+		<-ctx.Done()
+		return false, ctx.Err()
+	}
+	return false, nil
+}
+
+func (s *cancellationLifetimeStore) ListStageExecutionsWithUnreleasedAllocations(ctx context.Context, _ string) ([]runstore.StageExecution, error) {
+	close(s.cleaning)
+	select {
+	case <-s.finish:
+		return nil, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+func (s *cancellationLifetimeStore) RenewRunClaim(ctx context.Context, runID, claimID string, duration time.Duration) (runstore.WorkflowRunState, error) {
+	s.renewals++
+	return s.memorySchedulerStore.RenewRunClaim(ctx, runID, claimID, duration)
 }

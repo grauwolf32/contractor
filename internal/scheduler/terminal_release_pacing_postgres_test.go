@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 	"slices"
 	"sync"
@@ -305,11 +306,7 @@ func (s *pacedReleaseStore) listCount() int {
 func (s *pacedReleaseStore) waitLists(t *testing.T, count int) {
 	t.Helper()
 	for s.listCount() < count {
-		select {
-		case <-s.listed:
-		case <-time.After(10 * time.Second):
-			t.Fatalf("recovery listed %d times, want %d", s.listCount(), count)
-		}
+		awaitValue(t, t.Context(), s.listed, "recovery listing")
 	}
 }
 
@@ -322,6 +319,7 @@ type pacedTerminalRelease struct {
 	store       *pacedReleaseStore
 	clock       *manualPollClock
 	allocations map[string]string // StageExecution ID -> allocation ID
+	failed      chan struct{}     // monitor observed an ended failed operation
 }
 
 func newPacedTerminalRelease(t *testing.T, ctx context.Context, attempts int) pacedTerminalRelease {
@@ -351,7 +349,9 @@ func newPacedTerminalRelease(t *testing.T, ctx context.Context, attempts int) pa
 	h.scheduler.workers = batch
 	h.scheduler.options.Clock = clock
 	paced.scheduler = h.scheduler
-	return pacedTerminalRelease{h: h, paced: paced, store: store, clock: clock, allocations: allocations}
+	failed := make(chan struct{}, 64)
+	h.scheduler.options.Logger = slog.New(releaseFailureHandler{failed: failed})
+	return pacedTerminalRelease{h: h, paced: paced, store: store, clock: clock, allocations: allocations, failed: failed}
 }
 
 // startMonitor runs the production terminal release monitor until stop; done
@@ -400,43 +400,41 @@ func (f pacedTerminalRelease) attempted(t *testing.T, ctx context.Context) map[s
 	return attempted
 }
 
-// waitOperationEnded waits until no operation holds the release gate of a
-// Stage, so a later listing can start it again.
-func (f pacedTerminalRelease) waitOperationEnded(t *testing.T, stageExecutionID string) {
+// requireOperationsEnded checks gates only after the monitor acknowledged
+// the corresponding outcomes, so a retained gate fails without polling.
+func (f pacedTerminalRelease) requireOperationsEnded(t *testing.T, ids ...string) {
 	t.Helper()
-	deadline := time.Now().Add(10 * time.Second)
-	for {
-		f.h.scheduler.releaseMu.Lock()
-		_, held := f.h.scheduler.releasing[stageExecutionID]
-		f.h.scheduler.releaseMu.Unlock()
-		if !held {
-			return
+	f.h.scheduler.releaseMu.Lock()
+	defer f.h.scheduler.releaseMu.Unlock()
+	for _, id := range ids {
+		if _, held := f.h.scheduler.releasing[id]; held {
+			t.Fatalf("completed recovery retained gate %s", id)
 		}
-		if time.Now().After(deadline) {
-			t.Fatalf("operation of %s did not end", stageExecutionID)
-		}
-		time.Sleep(time.Millisecond)
 	}
 }
 
+// The monitor reports a failed recovery only after recoverTerminalStage has
+// returned and released its gate. These events replace polling releaseMu.
+type releaseFailureHandler struct{ failed chan struct{} }
+
+func (h releaseFailureHandler) Enabled(context.Context, slog.Level) bool { return true }
+func (h releaseFailureHandler) Handle(_ context.Context, record slog.Record) error {
+	if record.Message == "terminal allocation release recovery failed" {
+		h.failed <- struct{}{}
+	}
+	return nil
+}
+func (h releaseFailureHandler) WithAttrs([]slog.Attr) slog.Handler { return h }
+func (h releaseFailureHandler) WithGroup(string) slog.Handler      { return h }
+
 func receiveStage(t *testing.T, channel <-chan string, operation string) string {
 	t.Helper()
-	select {
-	case stageExecutionID := <-channel:
-		return stageExecutionID
-	case <-time.After(10 * time.Second):
-		t.Fatalf("timeout waiting for %s", operation)
-		return ""
-	}
+	return awaitValue(t, t.Context(), channel, operation)
 }
 
 func waitClosed(t *testing.T, done <-chan struct{}, operation string) {
 	t.Helper()
-	select {
-	case <-done:
-	case <-time.After(10 * time.Second):
-		t.Fatalf("timeout waiting for %s", operation)
-	}
+	awaitValue(t, t.Context(), done, operation)
 }
 
 // Terminal release recovery runs at most four Stage operations at once
@@ -447,7 +445,7 @@ func waitClosed(t *testing.T, done <-chan struct{}, operation string) {
 // completes once its Runtime answers. Recovery lists again only after an
 // operation completed useful work.
 func TestPostgresTerminalReleaseRecoveryBoundsOperationsAndPassesBlockedPeer(t *testing.T) {
-	ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	const attempts = 2*terminalReleaseRecoveryConcurrency + 2
 	f := newPacedTerminalRelease(t, ctx, attempts)
@@ -521,7 +519,7 @@ func TestPostgresTerminalReleaseRecoveryBoundsOperationsAndPassesBlockedPeer(t *
 // lost; a failed listing waits for the next poll; a release that reached its
 // cleanup deadline keeps its grant until a later attempt succeeds.
 func TestPostgresTerminalReleaseRecoveryRotatesFailuresBehindUnattemptedStages(t *testing.T) {
-	ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	f := newPacedTerminalRelease(t, ctx, 6)
 	conflict, timedOut, slowA, slowB := historicalAttemptID(1), historicalAttemptID(2), historicalAttemptID(3), historicalAttemptID(4)
@@ -543,7 +541,7 @@ func TestPostgresTerminalReleaseRecoveryRotatesFailuresBehindUnattemptedStages(t
 			t.Fatalf("failed listing started Stage %s", id)
 		}
 	}
-	f.clock.fireWhenArmed(t, poll, 1)
+	f.clock.fireWhenArmedBefore(t, t.Context(), poll, 1)
 	var entered []string
 	for range terminalReleaseRecoveryConcurrency {
 		entered = append(entered, receiveStage(t, f.paced.entered, "Runtime release"))
@@ -555,6 +553,8 @@ func TestPostgresTerminalReleaseRecoveryRotatesFailuresBehindUnattemptedStages(t
 	if id := receiveStage(t, f.paced.returned, "Runtime conflict"); id != conflict {
 		t.Fatalf("first Runtime answer from %s, want the conflict of %s", id, conflict)
 	}
+	awaitValue(t, t.Context(), f.failed, "first failed recovery outcome")
+	f.requireOperationsEnded(t, conflict)
 	// Nothing lists again before the poll: the failure is not useful work.
 	attempted := f.attempted(t, ctx)
 	if f.paced.callCount(healthy) != 0 || f.paced.callCount(lost) != 0 || attempted[healthy] || attempted[lost] {
@@ -565,7 +565,7 @@ func TestPostgresTerminalReleaseRecoveryRotatesFailuresBehindUnattemptedStages(t
 		t.Fatalf("conflicting release: attempted %t, live %t", attempted[conflict], f.paced.isLive(f.allocations[conflict]))
 	}
 
-	f.clock.fireWhenArmed(t, poll, 1)
+	f.clock.fireWhenArmedBefore(t, t.Context(), poll, 1)
 	var rotated []string
 	for range 3 {
 		rotated = append(rotated, receiveStage(t, f.paced.entered, "rotated Runtime release"))
@@ -584,8 +584,12 @@ func TestPostgresTerminalReleaseRecoveryRotatesFailuresBehindUnattemptedStages(t
 	}
 
 	f.paced.finish(timedOut, context.DeadlineExceeded)
-	f.waitOperationEnded(t, timedOut)
-	f.waitOperationEnded(t, conflict)
+	// The conflict retry and injected cleanup timeout have ended. The
+	// initial conflict was acknowledged before its retry above.
+	for range 2 {
+		awaitValue(t, t.Context(), f.failed, "failed recovery outcome")
+	}
+	f.requireOperationsEnded(t, timedOut, conflict)
 	requireUnreleasedAllocations(t, ctx, f.h, f.allocations, conflict, timedOut, slowA, slowB)
 	if !f.paced.isLive(f.allocations[timedOut]) {
 		t.Fatal("release past its cleanup deadline lost its grant")
@@ -627,7 +631,7 @@ func TestPostgresTerminalReleaseRecoveryRotatesFailuresBehindUnattemptedStages(t
 // durable release afterwards, and nothing outlives the monitor (SCH-R180,
 // FAIL-SCH-9).
 func TestPostgresTerminalReleaseRecoveryStopJoinsOperations(t *testing.T) {
-	ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	f := newPacedTerminalRelease(t, ctx, 3)
 	blocked, laneOwned, healthy := historicalAttemptID(1), historicalAttemptID(2), historicalAttemptID(3)

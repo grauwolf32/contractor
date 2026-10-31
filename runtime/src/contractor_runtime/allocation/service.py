@@ -79,6 +79,47 @@ from contractor_runtime.worker.state import WorkerStateStore
 from contractor_runtime.workspace import AllocationWorkspace
 
 
+def _preparation_error(error: Exception) -> AllocationError:
+    if isinstance(error, AdapterPreparationError):
+        return AllocationError(
+            "runtime_adapter_prepare_failed",
+            "allocation Runtime adapter preparation failed",
+            retryable=error.retryable,
+            status_code=503,
+        )
+    if isinstance(error, AgentSkillPreparationError):
+        return AllocationError(
+            error.code,
+            f"allocation Agent Skill preparation failed ({error.code})",
+            retryable=error.retryable,
+            status_code=error.status_code,
+        )
+    if isinstance(error, WorkspacePreparationError):
+        return AllocationError(
+            error.code,
+            f"allocation workspace preparation failed ({error.code})",
+            retryable=error.retryable,
+            status_code=error.status_code,
+        )
+    if isinstance(error, (FindingsError, HTTPToolError)):
+        return AllocationError(
+            error.code,
+            (
+                f"allocation findings preparation failed ({error.code})"
+                if isinstance(error, FindingsError)
+                else f"allocation HTTP preparation failed ({error.code})"
+            ),
+            retryable=error.retryable,
+            status_code=503 if error.retryable else 422,
+        )
+    return AllocationError(
+        "allocation_preparation_failed",
+        f"allocation resource preparation failed ({type(error).__name__})",
+        retryable=True,
+        status_code=503,
+    )
+
+
 def _effective_summarizer(spec: AllocationSpec) -> WorkerSummarizerConfig | None:
     """Returns the terminal summarizer only when it is the effective branch."""
     summarizer = spec.agent_template.summarizer
@@ -441,7 +482,7 @@ class AllocationService:
                 self._context = context
                 self._released_allocation_id = None
                 return response
-            except AdapterPreparationError as error:
+            except (Exception, asyncio.CancelledError) as error:
                 await self._rollback_prepare(
                     spec,
                     sandbox,
@@ -454,126 +495,15 @@ class AllocationService:
                     collector=collector,
                     http_transport=http_transport,
                 )
-                if not error.cleanup_confirmed:
+                if isinstance(error, (AllocationError, asyncio.CancelledError)):
+                    raise
+                if (
+                    isinstance(error, (AdapterPreparationError, WorkspacePreparationError))
+                    and not error.cleanup_confirmed
+                ):
                     await self._state.fence_allocation(spec.allocation_id)
                     self._force_exit(70)
-                raise AllocationError(
-                    "runtime_adapter_prepare_failed",
-                    "allocation Runtime adapter preparation failed",
-                    retryable=error.retryable,
-                    status_code=503,
-                ) from None
-            except AgentSkillPreparationError as error:
-                await self._rollback_prepare(
-                    spec,
-                    sandbox,
-                    workspace,
-                    project_workspace,
-                    tools,
-                    worker,
-                    adapter_host,
-                    execution,
-                    collector=collector,
-                    http_transport=http_transport,
-                )
-                raise AllocationError(
-                    error.code,
-                    f"allocation Agent Skill preparation failed ({error.code})",
-                    retryable=error.retryable,
-                    status_code=error.status_code,
-                ) from None
-            except WorkspacePreparationError as error:
-                await self._rollback_prepare(
-                    spec,
-                    sandbox,
-                    workspace,
-                    project_workspace,
-                    tools,
-                    worker,
-                    adapter_host,
-                    execution,
-                    collector=collector,
-                    http_transport=http_transport,
-                )
-                if not error.cleanup_confirmed:
-                    await self._state.fence_allocation(spec.allocation_id)
-                    self._force_exit(70)
-                raise AllocationError(
-                    error.code,
-                    f"allocation workspace preparation failed ({error.code})",
-                    retryable=error.retryable,
-                    status_code=error.status_code,
-                ) from None
-            except AllocationError:
-                await self._rollback_prepare(
-                    spec,
-                    sandbox,
-                    workspace,
-                    project_workspace,
-                    tools,
-                    worker,
-                    adapter_host,
-                    execution,
-                    collector=collector,
-                    http_transport=http_transport,
-                )
-                raise
-            except asyncio.CancelledError:
-                await self._rollback_prepare(
-                    spec,
-                    sandbox,
-                    workspace,
-                    project_workspace,
-                    tools,
-                    worker,
-                    adapter_host,
-                    execution,
-                    collector=collector,
-                    http_transport=http_transport,
-                )
-                raise
-            except (FindingsError, HTTPToolError) as error:
-                await self._rollback_prepare(
-                    spec,
-                    sandbox,
-                    workspace,
-                    project_workspace,
-                    tools,
-                    worker,
-                    adapter_host,
-                    execution,
-                    collector=collector,
-                    http_transport=http_transport,
-                )
-                raise AllocationError(
-                    error.code,
-                    (
-                        f"allocation findings preparation failed ({error.code})"
-                        if isinstance(error, FindingsError)
-                        else f"allocation HTTP preparation failed ({error.code})"
-                    ),
-                    retryable=error.retryable,
-                    status_code=503 if error.retryable else 422,
-                ) from None
-            except Exception as error:
-                await self._rollback_prepare(
-                    spec,
-                    sandbox,
-                    workspace,
-                    project_workspace,
-                    tools,
-                    worker,
-                    adapter_host,
-                    execution,
-                    collector=collector,
-                    http_transport=http_transport,
-                )
-                raise AllocationError(
-                    "allocation_preparation_failed",
-                    f"allocation resource preparation failed ({type(error).__name__})",
-                    retryable=True,
-                    status_code=503,
-                ) from None
+                raise _preparation_error(error) from None
             finally:
                 if resource_metrics is not None and (
                     self._context is None or self._context.resource_metrics is not resource_metrics
