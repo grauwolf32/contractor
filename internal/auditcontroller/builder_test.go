@@ -149,7 +149,7 @@ func TestResolveRoleInputsPinsRetainedDependencyByRoundAndLogicalName(t *testing
 	baselineInput := builderExact("source", "source-r1")
 	retained := builderExact("inventory", "inventory-r1")
 	execution := builderExact("role-manifest", "manifest-r1")
-	lookup := &fakeRoleOutputLookup{link: auditstore.ArtifactLink{Scope: "project", Artifact: retained}}
+	lookup := &fakeRoleOutputLookup{link: auditstore.ArtifactLink{Scope: "audit", Artifact: retained}}
 	builder := &PinnedSubmissionBuilder{outputs: lookup}
 	binding := auditprofile.ResolvedAuditWorkflowBinding{
 		Inputs: map[string]auditprofile.AuditWorkflowInputMapping{
@@ -181,6 +181,11 @@ func TestResolveRoleInputsPinsRetainedDependencyByRoundAndLogicalName(t *testing
 	if lookup.auditID != "audit-one" ||
 		lookup.logicalKey != auditstore.RoleOutputLogicalKey(3, "discover", "inventory") {
 		t.Fatalf("retained lookup = (%q, %q)", lookup.auditID, lookup.logicalKey)
+	}
+	lookup.link.Scope = artifacts.ScopeProject
+	if _, err := builder.resolveRoleInputs(context.Background(), snapshot, "assess", binding,
+		auditservice.BaselineSnapshot{Inputs: map[string]auditstore.ExactArtifact{"source": baselineInput}}, execution); !errors.Is(err, ErrInvalidSubmission) {
+		t.Fatalf("Project-scoped role output was admitted: %v", err)
 	}
 }
 

@@ -257,6 +257,9 @@ func (b *PinnedSubmissionBuilder) resolveRoleInputs(
 			if err != nil {
 				return nil, fmt.Errorf("resolve retained output for role %q: %w", workflowRole, err)
 			}
+			if link.Scope != artifacts.ScopeAudit {
+				return nil, invalidSubmission("retained role output is not Audit-owned")
+			}
 			result[slot] = link.Artifact.Clone()
 		case auditprofile.AuditInputFromRoundResults:
 			artifact, err := b.prepareRoundResults(ctx, snapshot)
@@ -851,6 +854,9 @@ func (b *PinnedSubmissionBuilder) resolveInputs(
 			)
 			if err != nil {
 				return nil, nil, fmt.Errorf("resolve retained output for check role: %w", err)
+			}
+			if link.Scope != artifacts.ScopeAudit {
+				return nil, nil, invalidSubmission("retained role output is not Audit-owned")
 			}
 			runInputs[slot] = link.Artifact.Clone()
 		default:

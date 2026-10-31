@@ -357,9 +357,11 @@ Audit.
 
 ### Platform contracts reused by Audits
 
-**AUD-R11.** Audits use the ArtifactStore scopes `UserScope`, `ProjectScope`
-and `RunScope` ([artifact store](../artifacts/artifact-store.md)). No
-`AuditScope` is introduced, and `ArtifactRef` does not carry a scope.
+**AUD-R11.** Audits use the ArtifactStore scopes `UserScope`, `ProjectScope`,
+`AuditScope` and `RunScope` ([artifact store](../artifacts/artifact-store.md)).
+Accepted ordinary role outputs belong to `AuditScope` (ART-R136);
+`ArtifactRef` does not carry a scope. Trusted owner records and accepted links
+select the scope, rather than an artifact's name or payload.
 
 **AUD-R12.** Audit baseline inputs always require exact refs: an `ArtifactRef`
 with `namespace`, `name` and a required `revision`.

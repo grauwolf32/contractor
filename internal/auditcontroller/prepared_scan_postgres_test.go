@@ -167,7 +167,7 @@ func TestPostgresPreparedRulepackRefusedBeforeScanDispatch(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			builder, err := NewPinnedSubmissionBuilder(access, &fakeRoleOutputLookup{link: auditstore.ArtifactLink{Scope: "project", Artifact: output.Output.Retained}})
+			builder, err := NewPinnedSubmissionBuilder(access, &fakeRoleOutputLookup{link: auditstore.ArtifactLink{Scope: "audit", Artifact: output.Output.Retained}})
 			if err != nil {
 				t.Fatal(err)
 			}
