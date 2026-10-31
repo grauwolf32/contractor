@@ -6,7 +6,7 @@ epic: quality
 kind: chore
 introduced_by: V425-024
 priority: P3
-status: in_progress
+status: completed
 depends_on: []
 languages: [go]
 goal: "The architecture gate recognizes the existing canonical Git URL wire-bound dependency without weakening its importer checks."
@@ -37,3 +37,10 @@ tests:
     covers: [A1, A2]
   - command: make lint
     covers: [A1, A2]
+implementation_commit: 02f6e37b32c5b6a85e34da30bb925392589b837a
+verification:
+  date: '2026-10-31'
+  commands:
+    - go test -count=1 ./internal/archtest passed, including the real importer scan and all negative probes.
+    - make lint passed before and after integration with main 7f5222c12.
+  regression: The missing Git importer failure reproduced on main before this registry-only correction; no guard exception or production change was added.
