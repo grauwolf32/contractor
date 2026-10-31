@@ -14,7 +14,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 )
 
 func TestSharedGitSourceURLBoundsCountUTF8Bytes(t *testing.T) {
@@ -59,8 +58,7 @@ WHERE scope_kind='user' AND scope_id='user-1' AND namespace='source' AND name=$4
 					t.Fatalf("direct=%t %q URL bytes=%d: error=%v within=%t", direct, value.Character, len(value.Value), err, value.Within)
 				}
 				if !value.Within {
-					var constraint *pgconn.PgError
-					if direct && (!errors.As(err, &constraint) || constraint.Code != "23514" || constraint.ConstraintName != "artifact_versions_git_repository_url_check") {
+					if direct && (postgres.Classify(err) != postgres.ClassInvalid || postgres.ConstraintName(err) != "artifact_versions_git_repository_url_check") {
 						t.Fatalf("expected URL CHECK rejection, got %v", err)
 					}
 					if !direct && !errors.Is(err, ErrArtifactIntegrity) {

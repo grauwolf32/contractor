@@ -1,0 +1,43 @@
+schema_version: "1.0"
+id: V426-001
+title: "Use shared PostgreSQL classification in the Git provenance regression"
+milestone: hub-audit-defects-2026-10
+epic: quality
+kind: chore
+introduced_by: V425-024
+priority: P3
+status: in_progress
+depends_on: []
+languages: [go]
+goal: "The canonical Git provenance regression preserves its exact CHECK and rollback assertions while satisfying the shared SQLSTATE guard."
+context:
+  origin: "The full persistence suite required by V425-019 failed before that task could close."
+  specification:
+    - docs/spec/platform/persistence.md#PER-R13
+  finding: >-
+    internal/artifacts/git_source_postgres_test.go:63 compares a PgError with
+    a literal SQLSTATE. TestSQLStateLiteralsLiveOnlyInTheClassifier rejects
+    that literal, so the required persistence package suite fails on main.
+  introduced_evidence: >-
+    git blame traces the literal to fb5728784f907c42995265310425579cf8b6ab75,
+    the V425-024 canonical provenance bound implementation.
+  siblings: >-
+    The existing source guard scans all Go files. This is its sole reported
+    violation; other Artifact CHECK tests already use the named classifier API.
+scope:
+  in:
+    - "Use the existing PostgreSQL classification and constraint-name helpers in the existing direct-store CHECK assertion."
+    - "Run the full Artifact and persistence suites against disposable PostgreSQL."
+  out:
+    - "Changing Git URL limits, provenance validation, SQL constraints or production behavior."
+    - "Adding a source-guard exception."
+acceptance_criteria:
+  - id: A1
+    text: "The SQLSTATE source guard passes without new exceptions or literal code copies."
+  - id: A2
+    text: "The real PostgreSQL regression still accepts values at the canonical bound, rejects values over it through the exact CHECK, and proves rejected writes roll back."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/artifacts/... ./internal/persistence/..."
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2]
