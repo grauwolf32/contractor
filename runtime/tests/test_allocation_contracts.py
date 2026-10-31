@@ -11,8 +11,8 @@ from pydantic import ValidationError
 from contractor_runtime.contracts import AllocationSpec
 from contractor_runtime.digests import (
     TemplateDigestMismatch,
-    verify_template_digests,
     verify_model_policy_digest,
+    verify_template_digests,
 )
 
 FIXTURES = Path(__file__).parents[2] / "api" / "testdata" / "v1alpha1" / "valid"

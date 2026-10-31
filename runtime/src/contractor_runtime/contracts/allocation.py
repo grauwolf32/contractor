@@ -257,7 +257,8 @@ class AllocationSpec(VersionedWireModel):
             or self.summarizer_model_policy is None
         ):
             raise ValueError(
-                "contextManagement terminal@1 requires template summarizer behavior and summarizerModelPolicy"
+                "contextManagement terminal@1 requires template summarizer behavior "
+                "and summarizerModelPolicy"
             )
         if self.summarizer_model_policy is not None and strategy != "terminal@1":
             raise ValueError("summarizerModelPolicy requires terminal@1 context management")
