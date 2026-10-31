@@ -30,7 +30,7 @@ func TestResolverComplexPrecedenceFixture(t *testing.T) {
 		}),
 		testPin("caido", "3", Spec{Worker: WorkerPatch{HTTPProxy: proxyPatch("proxy-auth")}}),
 	}
-	input.RunOverride.Credential = Field[string]{Present: true, Clear: true}
+	input.Workflow.Credential = Field[string]{Present: true, Clear: true}
 	input.Escalation = WorkerRoutePatch{
 		Gateway:    gatewayField(testGatewayRef("primary", "1")),
 		Credential: credentialField("escalation-key"),
@@ -207,7 +207,7 @@ func TestResolverSameLayerPermutationConflictAndDeduplication(t *testing.T) {
 func TestResolverOmissionClearAndEscalationPrecedenceMatrix(t *testing.T) {
 	tests := []struct {
 		name        string
-		run         WorkerRoutePatch
+		workflow    WorkerRoutePatch
 		escalation  WorkerRoutePatch
 		agent       *PinnedRuntimeConfig
 		wantID      string
@@ -215,15 +215,15 @@ func TestResolverOmissionClearAndEscalationPrecedenceMatrix(t *testing.T) {
 		wantPresent bool
 	}{
 		{name: "omission inherits", wantID: "default-key", wantOrigin: LayerDefault, wantPresent: true},
-		{name: "run clear", run: WorkerRoutePatch{Credential: Field[string]{Present: true, Clear: true}}, wantOrigin: LayerRunOverride},
-		{name: "escalation replaces clear", run: WorkerRoutePatch{Credential: Field[string]{Present: true, Clear: true}}, escalation: WorkerRoutePatch{Credential: credentialField("escalation-key")}, wantID: "escalation-key", wantOrigin: LayerEscalation, wantPresent: true},
+		{name: "workflow clear", workflow: WorkerRoutePatch{Credential: Field[string]{Present: true, Clear: true}}, wantOrigin: LayerWorkflow},
+		{name: "escalation replaces clear", workflow: WorkerRoutePatch{Credential: Field[string]{Present: true, Clear: true}}, escalation: WorkerRoutePatch{Credential: credentialField("escalation-key")}, wantID: "escalation-key", wantOrigin: LayerEscalation, wantPresent: true},
 		{name: "agent clear wins", escalation: WorkerRoutePatch{Credential: credentialField("escalation-key")}, agent: pointerPin(testPin("direct", "6", Spec{Worker: WorkerPatch{LLMGateway: LLMGatewayPatch{Present: true, Credential: Field[string]{Present: true, Clear: true}}}})), wantOrigin: LayerAgentLabels},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			input := resolverInput()
 			input.Default.Spec.Worker.LLMGateway.Credential = credentialField("default-key")
-			input.RunOverride = test.run
+			input.Workflow = test.workflow
 			input.Escalation = test.escalation
 			if test.agent != nil {
 				input.AgentLabels = []PinnedRuntimeConfig{*test.agent}
@@ -645,4 +645,11 @@ func interactshPatch(endpoint, credentialID string) AtomicPatch[InteractshConfig
 		Adapter: string(runtimesettings.RuntimeAdapterInteractshHTTP), Endpoint: endpoint,
 		Credential: credentialID, RequestTimeoutSeconds: 30,
 	}}
+}
+
+func TestRuntimeOriginsRejectRemovedRunExecutionLayer(t *testing.T) {
+	origins := ResolvedRuntimeConfigOrigins{LLMGateway: &RuntimeFieldOrigin{Layer: RuntimeLayer("run_execution_config")}}
+	if err := origins.Validate(); err == nil {
+		t.Fatal("removed Run execution layer was accepted")
+	}
 }

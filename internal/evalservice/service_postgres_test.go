@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -146,7 +147,7 @@ func (a *lostAuditResponse) Start(ctx context.Context, p auditservice.StartParam
 // Snapshot implementation on the ordinary PostgreSQL-backed Run/Audit path.
 type retainedExecutionCatalog struct{ *config.Snapshot }
 
-func (retainedExecutionCatalog) ResolveRunWorkflow(context.Context, string, resolved.ExecutionConfigPatch, resolved.CredentialLookup) (resolved.ResolvedWorkflow, error) {
+func (retainedExecutionCatalog) ResolveRunWorkflow(context.Context, string, resolved.CredentialLookup) (resolved.ResolvedWorkflow, error) {
 	return resolved.ResolvedWorkflow{}, errors.New("mutable defaults must not be consulted after preparation")
 }
 
@@ -1375,6 +1376,12 @@ spec:
     reportAcceptance: automatic
 `,
 	}
+	for _, variant := range []string{"a", "b"} {
+		policy := strings.Replace(files["model-policies/worker.yaml"], "name: worker", "name: variant-worker-"+variant, 1)
+		files["model-policies/variant-worker-"+variant+".yaml"] = strings.Replace(policy, "worker-model", "variant-model-"+variant, 1)
+		workflow := strings.Replace(files["workflows/check.yaml"], "name: audit-check", "name: variant-check-"+variant, 1)
+		files["workflows/variant-check-"+variant+".yaml"] = strings.Replace(workflow, "    workers:\n", "    workers:\n      modelPolicy: variant-worker-"+variant+"@1\n", 1)
+	}
 	for _, name := range []string{"agent-templates/nuclei.yaml", "workflows/nuclei.yaml"} {
 		data, err := os.ReadFile(filepath.Join("testdata", "source-scope", name))
 		if err != nil {
@@ -1408,4 +1415,67 @@ spec:
 		t.Fatalf("load Audit service config: %v", err)
 	}
 	return snapshot
+}
+
+func TestSharedPostgresEvalComparesAuthoredWorkflowPoliciesAndSubmitsFrozenBindings(t *testing.T) {
+	h := newHarness(t)
+	draft, _ := h.dataset(t, "workflow")
+	draft.Variants[0].Selector = "variant-check-a@1"
+	draft.Variants[1].Selector = "variant-check-b@1"
+	draft.Comparison.AllowedDifferences = append(draft.Comparison.AllowedDifferences, "models", "sampling")
+	doc := frozen(t, "CreateExperiment", evaldomain.CreateExperiment{Name: "Authored model comparison", ControlMode: "server", Draft: &draft})
+	receipt, err := h.service.Create(t.Context(), h.scope, doc, identity(t, "create", 0, doc))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ref, err := receipt.Experiment()
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := h.get(t, ref.ExperimentID)
+	h.command(t, e, "prepare")
+	tick(t, h.coordinator(t, "prepare"))
+	e = h.get(t, e.ID)
+	if e.State != "ready" {
+		t.Fatalf("prepare: %s %s", e.State, e.Diagnostic)
+	}
+	// The ordinary dispatcher already refuses mutable resolution; make the
+	// preflight resolver unavailable too after preparation to expose accidental reuse.
+	catalog := h.resolver.Catalog.(*config.Snapshot)
+	h.resolver.Catalog = retainedExecutionCatalog{catalog}
+	h.command(t, e, "start")
+	c := h.coordinator(t, "controller")
+	for n := 0; n < 80 && count(t, h.pool, "workflow_runs") < 8; n++ {
+		tick(t, c)
+		h.finishRuns(t)
+	}
+	rows, err := h.pool.Query(t.Context(), `SELECT workflow_name,workflow_snapshot FROM workflow_runs ORDER BY run_id`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	counts := map[string]int{}
+	for rows.Next() {
+		var name string
+		var body []byte
+		if err := rows.Scan(&name, &body); err != nil {
+			t.Fatal(err)
+		}
+		var workflow resolved.ResolvedWorkflow
+		if err := json.Unmarshal(body, &workflow); err != nil {
+			t.Fatal(err)
+		}
+		variant := strings.TrimPrefix(name, "variant-check-")
+		selection := workflow.Stages["check"].ExecutionConfig.Agents["worker"]
+		if selection.ModelPolicy.Model != "variant-model-"+variant || selection.Origins.ModelPolicy != "workflow.executionConfig.workers" {
+			t.Fatalf("submitted policy %+v", selection)
+		}
+		counts[variant]++
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if counts["a"] != 4 || counts["b"] != 4 {
+		t.Fatalf("submitted variants: %v", counts)
+	}
 }

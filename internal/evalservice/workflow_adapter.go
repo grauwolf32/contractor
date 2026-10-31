@@ -82,7 +82,6 @@ func (d *workflowAdapter) Create(ctx context.Context, e evalstore.Experiment, m 
 		PinnedWorkflow:         binding.Workflow,
 		ProjectID:              &request.ProjectID,
 		Workflow:               request.Workflow,
-		ExecutionConfig:        m.Recipe.Variant.ExecutionConfig,
 		RuntimeLabels:          m.Recipe.Variant.RuntimeLabels,
 		Inputs:                 request.Inputs,
 		Parameters:             request.Parameters,

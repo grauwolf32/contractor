@@ -2,16 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
 import { usePublicAPI } from "../../api/context";
 import { getAuditProfile } from "../../api/audits";
-import {
-  getWorkflow,
-  listConfigurations,
-  listCredentials,
-} from "../../api/workflows";
-import {
-  evalInventory,
-  type EvalCapabilities,
-  type EvalVariant,
-} from "../../api/evals";
+import { getWorkflow } from "../../api/workflows";
+import { type EvalCapabilities, type EvalVariant } from "../../api/evals";
 import { queryKeys } from "../../api/query-keys";
 import { Field, IdChip } from "../../ui";
 import {
@@ -22,130 +14,6 @@ import {
 } from "./common";
 import { executableLabel } from "./labels";
 import { sortedBindings } from "./setup-model";
-
-function ExecutionOverrides({
-  value,
-  onChange,
-}: {
-  value: EvalVariant["executionConfig"];
-  onChange: (value: EvalVariant["executionConfig"]) => void;
-}) {
-  const api = usePublicAPI();
-  const inventory = useQuery({
-    queryKey: queryKeys.evals.executionChoices,
-    queryFn: async ({ signal }) => {
-      const [models, gateways, credentials] = await Promise.all([
-        evalInventory(
-          (cursor) =>
-            listConfigurations(api, "model-policies", {
-              signal,
-              ...(cursor ? { cursor } : {}),
-            }),
-          signal,
-        ),
-        evalInventory(
-          (cursor) =>
-            listConfigurations(api, "llm-gateways", {
-              signal,
-              ...(cursor ? { cursor } : {}),
-            }),
-          signal,
-        ),
-        evalInventory(
-          (cursor) => listCredentials(api, cursor ? { cursor } : {}),
-          signal,
-        ),
-      ]);
-      return {
-        models: models.map((x) => `${x.ref.name}@${x.ref.version}`),
-        gateways: gateways.map((x) => `${x.ref.name}@${x.ref.version}`),
-        credentials: credentials.map((x) => x.credentialId),
-      };
-    },
-  });
-  return (
-    <>
-      <EvalError error={inventory.error} />
-      {(["planner", "workers"] as const).map((role) => (
-        <fieldset className="eval-subfieldset" key={role}>
-          <legend>{role === "planner" ? "Planner" : "Workers"}</legend>
-          {(
-            [
-              {
-                field: "modelPolicy",
-                title: "Model policy",
-                choices: inventory.data?.models,
-              },
-              ...(role === "workers"
-                ? [
-                    {
-                      field: "summarizerModelPolicy" as const,
-                      title: "Summarizer model policy",
-                      choices: inventory.data?.models,
-                    },
-                  ]
-                : []),
-              {
-                field: "llmGateway",
-                title: "Gateway",
-                choices: inventory.data?.gateways,
-              },
-              {
-                field: "credential",
-                title: "Credential",
-                choices: inventory.data?.credentials,
-              },
-            ] as const
-          ).map(({ field, title, choices }) => {
-            const selected = value[role]?.[field];
-            const display = selected === null ? "__none__" : (selected ?? "");
-            return (
-              <Field label={`${role} ${title}`} key={field}>
-                {(control) => (
-                  <select
-                    {...control}
-                    value={display}
-                    onChange={(e) => {
-                      const patch = { ...value[role] };
-                      if (!e.target.value) delete patch[field];
-                      else
-                        patch[field] =
-                          e.target.value === "__none__"
-                            ? (null as never)
-                            : e.target.value;
-                      onChange({ ...value, [role]: patch });
-                    }}
-                  >
-                    <option value="">Use selected Workflow default</option>
-                    {field === "credential" ? (
-                      <option value="__none__">No credential</option>
-                    ) : null}
-                    {display &&
-                    display !== "__none__" &&
-                    !choices?.includes(display) ? (
-                      <option value={display}>
-                        {display} · retained selection
-                      </option>
-                    ) : null}
-                    {choices?.map((option) => (
-                      <option key={option}>{option}</option>
-                    ))}
-                  </select>
-                )}
-              </Field>
-            );
-          })}
-        </fieldset>
-      ))}
-      {value.stages && Object.keys(value.stages).length ? (
-        <p className="ui-caption">
-          Per-stage overrides from the saved draft are retained. Review them in
-          Setup before Prepare.
-        </p>
-      ) : null}
-    </>
-  );
-}
 
 export function VariantEditor({
   value,
@@ -195,7 +63,6 @@ export function VariantEditor({
               onChange({
                 ...value,
                 selector: latest?.selector ?? "",
-                executionConfig: {},
               });
             }}
           >
@@ -319,18 +186,11 @@ export function VariantEditor({
       <details className="eval-disclosure">
         <summary>Execution settings</summary>
         <div className="eval-disclosure-body">
-          {value.kind === "workflow" ? (
-            <ExecutionOverrides
-              value={value.executionConfig}
-              onChange={(executionConfig) =>
-                onChange({ ...value, executionConfig })
-              }
-            />
-          ) : (
-            <p className="ui-caption">
-              Execution settings come from the pinned check type.
-            </p>
-          )}
+          <p className="ui-caption">
+            {value.kind === "workflow"
+              ? "Execution policies come from the selected Workflow."
+              : "Execution policies come from the selected check type."}
+          </p>
           <Field
             label={`${label} runtime labels`}
             hint="Optional labels, separated by commas; availability is checked during preparation."

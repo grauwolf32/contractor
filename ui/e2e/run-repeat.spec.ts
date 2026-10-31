@@ -133,7 +133,6 @@ async function installFixture(
             parameters: { objective: "Inspect original source" },
             runtimeLabels: [],
             labels: { "eval.id": "sample-1", purpose: "eval" },
-            executionConfig: { status: "available", value: {} },
             inputs: {
               source: {
                 status: "available",

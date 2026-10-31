@@ -1,4 +1,3 @@
-import type { components } from "../api/generated/public";
 import type { RunRepeatDraftResponse } from "../api/runs";
 import type { RunMetadataLabelDraft } from "../api/run-metadata-labels";
 import {
@@ -7,36 +6,12 @@ import {
   type RunDraftIdentity,
   type RunDraftState,
 } from "./memory";
-import {
-  artifactOptionKey,
-  NO_CREDENTIAL_OVERRIDE,
-  type ConsumerOverrideDraft,
-  type ExecutionOverrideDraft,
-} from "./validation";
-
-type SelectionPatch = components["schemas"]["ExecutionSelectionPatch"];
+import { artifactOptionKey } from "./validation";
 
 interface PreparedRepeatDraft {
   identity: RunDraftIdentity;
   state: RunDraftState;
   destination: string;
-}
-
-function consumerDraft(patch?: SelectionPatch): ConsumerOverrideDraft {
-  return {
-    modelPolicy: patch?.modelPolicy ?? "",
-    ...(patch?.summarizerModelPolicy === undefined
-      ? {}
-      : { summarizerModelPolicy: patch.summarizerModelPolicy }),
-    ...(patch?.compactorModelPolicy === undefined
-      ? {}
-      : { compactorModelPolicy: patch.compactorModelPolicy }),
-    llmGateway: patch?.llmGateway ?? "",
-    credential:
-      patch?.credential === null
-        ? NO_CREDENTIAL_OVERRIDE
-        : (patch?.credential ?? ""),
-  };
 }
 
 function metadataLabels(
@@ -89,35 +64,14 @@ export function prepareRepeatDraft(
       [structuredClone(input.metadata!)],
     ]),
   );
-  const retained = response.draft.executionConfig.value;
-  const overrides: ExecutionOverrideDraft = {
-    planner: consumerDraft(retained.planner),
-    workers: consumerDraft(retained.workers),
-    ...(retained.stages === undefined
-      ? {}
-      : { stages: structuredClone(retained.stages) }),
-  };
   const notices: RepeatDraftNotice[] = response.notices.map((notice) => ({
     ...notice,
   }));
-  if (
-    retained.stages !== undefined &&
-    Object.keys(retained.stages).length > 0
-  ) {
-    notices.push({
-      code: "stage_execution_overrides_retained",
-      severity: "warning",
-      field: "executionConfig.stages",
-      message:
-        "Stage-specific execution overrides were retained exactly. They are shown read-only and can be removed as a group.",
-    });
-  }
   const state = initialRunDraftState(selections, knownArtifacts);
   state.parameters = { ...response.draft.parameters };
   state.runtimeLabels = [...response.draft.runtimeLabels];
   state.metadataLabels = metadataLabels(response.draft.labels);
   state.artifactReviews = {};
-  state.overrides = overrides;
   state.repeat = {
     sourceRunId: response.sourceRunId,
     notices,

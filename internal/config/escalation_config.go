@@ -47,41 +47,41 @@ func yamlMappingHasKey(node *yaml.Node, key string) bool {
 func stageExecutionConfigPatchFromEscalationSource(
 	source *escalationExecutionConfigSource,
 	field string,
-) (resolved.StageExecutionConfigPatch, error) {
+) (stageExecutionConfigPatch, error) {
 	if source == nil {
-		return resolved.StageExecutionConfigPatch{}, fmt.Errorf("%s is required", field)
+		return stageExecutionConfigPatch{}, fmt.Errorf("%s is required", field)
 	}
 	if !source.plannerPresent && !source.agentsPresent {
-		return resolved.StageExecutionConfigPatch{}, fmt.Errorf("%s must contain planner and/or agents", field)
+		return stageExecutionConfigPatch{}, fmt.Errorf("%s must contain planner and/or agents", field)
 	}
-	result := resolved.StageExecutionConfigPatch{}
+	result := stageExecutionConfigPatch{}
 	if source.plannerPresent {
 		if source.Planner == nil {
-			return resolved.StageExecutionConfigPatch{}, fmt.Errorf("%s.planner must not be null", field)
+			return stageExecutionConfigPatch{}, fmt.Errorf("%s.planner must not be null", field)
 		}
 		selection, err := executionSelectionFromYAML(*source.Planner, true, field+".planner")
 		if err != nil {
-			return resolved.StageExecutionConfigPatch{}, err
+			return stageExecutionConfigPatch{}, err
 		}
 		result.Planner = &selection
 	}
 	if source.agentsPresent {
 		if source.Agents == nil {
-			return resolved.StageExecutionConfigPatch{}, fmt.Errorf("%s.agents must not be null", field)
+			return stageExecutionConfigPatch{}, fmt.Errorf("%s.agents must not be null", field)
 		}
 		if len(*source.Agents) == 0 {
-			return resolved.StageExecutionConfigPatch{}, fmt.Errorf("%s.agents must be a non-empty mapping", field)
+			return stageExecutionConfigPatch{}, fmt.Errorf("%s.agents must be a non-empty mapping", field)
 		}
-		result.Agents = make(map[string]resolved.ExecutionSelectionPatch, len(*source.Agents))
+		result.Agents = make(map[string]executionSelectionPatch, len(*source.Agents))
 		for logicalName, sourceSelection := range *source.Agents {
 			if err := resolved.ValidateWorkflowName(field+" logical Agent name", logicalName); err != nil {
-				return resolved.StageExecutionConfigPatch{}, err
+				return stageExecutionConfigPatch{}, err
 			}
 			selection, err := executionSelectionFromYAML(
 				sourceSelection, true, field+".agents."+logicalName,
 			)
 			if err != nil {
-				return resolved.StageExecutionConfigPatch{}, err
+				return stageExecutionConfigPatch{}, err
 			}
 			result.Agents[logicalName] = selection
 		}
@@ -90,7 +90,7 @@ func stageExecutionConfigPatchFromEscalationSource(
 }
 
 func (l *loader) resolveStageExecutionConfigOverride(
-	patch resolved.StageExecutionConfigPatch,
+	patch stageExecutionConfigPatch,
 ) (resolved.ResolvedStageExecutionConfigOverride, error) {
 	result := resolved.ResolvedStageExecutionConfigOverride{}
 	if patch.Planner != nil {
@@ -114,7 +114,7 @@ func (l *loader) resolveStageExecutionConfigOverride(
 }
 
 func (l *loader) resolveExecutionSelectionOverride(
-	patch resolved.ExecutionSelectionPatch,
+	patch executionSelectionPatch,
 ) (resolved.ResolvedExecutionSelectionOverride, error) {
 	result := resolved.ResolvedExecutionSelectionOverride{}
 	if patch.ModelPolicy.Present {

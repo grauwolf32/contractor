@@ -44,12 +44,13 @@ function response(
 
 describe("Run API", () => {
   it.each([
-    { origin: { layer: "run_execution_config" }, readable: true },
+    { origin: { layer: "workflow_execution_config" }, readable: true },
     {
-      origin: { layer: "run_execution_config", token: "never-cache-this" },
+      origin: { layer: "workflow_execution_config", token: "never-cache-this" },
       readable: false,
     },
     { origin: { layer: "unknown-layer" }, readable: false },
+    { origin: { layer: "run_execution_config" }, readable: false },
     {
       origin: { layer: "agent_labels" },
       readable: false,
@@ -405,8 +406,9 @@ describe("Run API", () => {
     { status: "available" },
     { status: "available", value: null },
     { status: "available", value: [] },
+    { status: "available", value: {} },
   ])(
-    "rejects a draft without explicit retained executionConfig: %j",
+    "rejects removed executionConfig in a repeat draft: %j",
     async (executionConfig) => {
       const api = new PublicAPI(
         runtimeConfig,
@@ -453,7 +455,6 @@ describe("Run API", () => {
             parameters: { objective: "inspect" },
             runtimeLabels: ["debug"],
             labels: {},
-            executionConfig: { status: "available", value: {} },
             inputs: {
               source: {
                 status: "available",
@@ -496,7 +497,6 @@ describe("Run API", () => {
             parameters: {},
             runtimeLabels: ["debug", "debug"],
             labels: {},
-            executionConfig: { status: "available", value: {} },
             inputs: {},
           },
         }),

@@ -372,7 +372,7 @@ Terms used across the specification. Each entry names the document that owns the
 
 **Execution-selection leaf** — An object with the optional fields `modelPolicy`, `llmGateway` and `credential`, at least one of which must be present. Owner: [Agent templates](configuration/agent-templates.md).
 
-**executionConfig** — Reference-only selections of ModelPolicy, LLMGatewayConfig and credential for Planner and Worker consumers, given as Workflow defaults, a Run override or an inline escalation override. Inline blocks may reuse YAML anchors within their Workflow; there is no standalone configuration kind. Owner: [Agent templates](configuration/agent-templates.md).
+**executionConfig** — Reference-only selections of ModelPolicy, LLMGatewayConfig and credential for Planner and Worker consumers, given as Workflow defaults, an inline escalation override. Inline blocks may reuse YAML anchors within their Workflow; there is no standalone configuration kind. Owner: [Agent templates](configuration/agent-templates.md).
 
 **ExecutionRef** — The common opaque reference `{provider, connection_id, kind, id}` to one provider execution. Owner: [Portable evaluation format](evals/format.md).
 

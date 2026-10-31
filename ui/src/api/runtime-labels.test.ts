@@ -3,10 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import fixture from "../../../api/testdata/v1alpha1/runtime-label-set-cases.json";
 import type { RuntimeConfig } from "../config/runtime-config";
-import {
-  emptyExecutionOverrides,
-  validateRunDraft,
-} from "../run-drafts/validation";
+import { validateRunDraft } from "../run-drafts/validation";
 import { PublicAPI } from "./client";
 import { replaceRuntimeAgentPrincipalLabels } from "./operations";
 import {
@@ -64,7 +61,6 @@ describe("Runtime label sets", () => {
         parameters: {},
         artifacts: {},
         artifactReviews: {},
-        overrides: emptyExecutionOverrides(),
       },
       () => undefined,
       TEST_SHARED_CONFIG.limits,

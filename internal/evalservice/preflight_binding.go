@@ -40,7 +40,7 @@ func (r *Resolver) resolveBinding(ctx context.Context, owner string, v evaldomai
 		inputs:    map[string]resolved.ArtifactSlot{},
 	}
 	if v.Kind == "workflow" {
-		workflow, err := r.Catalog.ResolveRunWorkflow(ctx, v.Selector, v.ExecutionConfig, lookup)
+		workflow, err := r.Catalog.ResolveRunWorkflow(ctx, v.Selector, lookup)
 		if err != nil {
 			return b, workflowSelectionError(err)
 		}
@@ -48,13 +48,6 @@ func (r *Resolver) resolveBinding(ctx context.Context, owner string, v evaldomai
 		b.workflows["workflow"] = workflow
 		b.inputs = workflow.Inputs
 		return b, nil
-	}
-	patch, err := jsonBytes(v.ExecutionConfig)
-	if err != nil {
-		return b, err
-	}
-	if string(patch) != "{}" {
-		return b, evaldomain.Failure("eval_not_ready")
 	}
 	profile, err := r.Catalog.ResolveAuditProfile(ctx, v.Selector)
 	if err != nil {

@@ -20,7 +20,7 @@ const scanFixtureRoot = "testdata/scan-catalog"
 
 func scanPlanWorkflow(t *testing.T, name string) resolved.ResolvedWorkflow {
 	t.Helper()
-	workflow, err := mustLoad(t, scanFixtureRoot).ResolveRunWorkflow(context.Background(), name, resolved.ExecutionConfigPatch{}, nil)
+	workflow, err := mustLoad(t, scanFixtureRoot).ResolveRunWorkflow(context.Background(), name, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -252,10 +252,10 @@ func TestScanPlanModelOverridesAndAuthoringUnknownFieldsAreRejected(t *testing.T
 	workflow := scanPlanWorkflow(t, "request-set-scan@1")
 	stage := workflow.Stages["scan"]
 	l := loader{}
-	if err := l.applyPlannerSelection(&stage, resolved.ExecutionSelectionPatch{}, "test"); err == nil || !strings.Contains(err.Error(), "does not accept Planner model") {
+	if err := l.applyPlannerSelection(&stage, executionSelectionPatch{}, "test"); err == nil || !strings.Contains(err.Error(), "does not accept Planner model") {
 		t.Fatalf("direct model override error=%v", err)
 	}
-	patch := resolved.ExecutionConfigPatch{Planner: &resolved.ExecutionSelectionPatch{}}
+	patch := executionConfigPatch{Planner: &executionSelectionPatch{}}
 	if err := l.applyExecutionConfigPatch(&workflow, patch, "test"); err == nil || !strings.Contains(err.Error(), "do not apply") {
 		t.Fatalf("workflow model override error=%v", err)
 	}

@@ -15,7 +15,7 @@ import (
 
 func TestServerOperationWorkflowUsesNoPlannerOrWorker(t *testing.T) {
 	snapshot := mustLoad(t, copyCoreFixture(t, "server-operations"))
-	workflow, err := snapshot.ResolveRunWorkflow(context.Background(), "sitemap-join@1", resolved.ExecutionConfigPatch{}, nil)
+	workflow, err := snapshot.ResolveRunWorkflow(context.Background(), "sitemap-join@1", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

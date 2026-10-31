@@ -6,7 +6,7 @@ epic: workflows
 kind: chore
 introduced_by: V3-006
 priority: P3
-status: pending
+status: in_progress
 depends_on: [V425-038]
 languages: [go, python, typescript]
 goal: >-
@@ -20,8 +20,8 @@ context:
     future capability. The user explicitly said that the current refactoring only
     needs that direction, without implementing publication as a prerequisite.
     The user then requested merging proposal 0051 and asked for a concrete task
-    approach. The end-to-end removal scope below is the agent's proposal for
-    review; implementation has not started.
+    approach. User authorization 2026-11-01: merge the task into main and
+    implement the proposed removal. Dynamic publication remains outside this task.
   proposal: docs/proposals/0051-dynamic-workflow-publication.md
   specification:
     - docs/spec/configuration/agent-templates.md
@@ -118,7 +118,7 @@ acceptance_criteria:
     when: The listed checks run.
     then: The complete touched-package suites and relevant process/wire/UI gates pass; no new compatibility path, receipt, table or speculative authoring subsystem is added.
 tests:
-  - command: go test -tags=integration ./internal/config/... ./internal/runservice ./internal/runrepeat ./internal/evaldomain ./internal/evalservice ./internal/runtimeconfig ./internal/controlplane ./internal/httpapi/public ./internal/publicclient/... ./internal/app
+  - command: go test -tags=integration ./internal/config/... ./internal/runservice ./internal/runrepeat ./internal/evaldomain ./internal/evalservice ./internal/runtimeconfig ./internal/controlplane ./internal/httpapi/public ./internal/publicclient/... ./internal/app ./internal/scheduler
     covers: [A1, A2, A3, A4, A5]
   - command: make verify-public-api
     covers: [A1, A4, A5]
@@ -132,3 +132,5 @@ tests:
     covers: [A3, A5]
   - command: make lint
     covers: [A1, A4, A5]
+  - command: go test -tags=e2e -count=1 -timeout=15m ./tests/ui-stack -run '^TestManagedEvals(Native|External)Stack$'
+    covers: [A1, A2, A4, A5]
