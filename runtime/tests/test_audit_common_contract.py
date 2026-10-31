@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import jcs
 import jsonschema
 import pytest
 from referencing import Registry, Resource
@@ -61,6 +62,21 @@ def _decode(data: str):
                 bytes_and_depth(item, depth + 1)
 
     bytes_and_depth(value)
+    if value["schema"] in {"contractor.audit.program.v1", "contractor.audit.proposals.v1"} and any(
+        len(jcs.canonicalize(seed)) > 32768 for seed in value["hypotheses"].values()
+    ):
+        raise ValueError("hypothesis seed bytes")
+    if value["schema"] == "contractor.audit.proposal-context.v1":
+        _decode(jcs.canonicalize(value["program"]).decode())
+    if value["schema"] == "contractor.audit.context.v1" and any(
+        len(jcs.canonicalize(member["hypothesis"])) > 32768
+        for member in value["items"]
+        if "hypothesis" in member
+    ):
+        raise ValueError("hypothesis snapshot bytes")
+    if value["schema"] == "contractor.audit.mutation.v1":
+        for record in value["records"]:
+            _decode(jcs.canonicalize(record).decode())
     if value["schema"] == "contractor.audit.context.v1":
         _require_selector("workflow_ref", value["workflow_ref"])
     if value["schema"] == "contractor.audit.program.v1":
@@ -117,7 +133,16 @@ def _validate_case(case):
         if "continuation" in value and value["continuation"]["workflow"] not in bindings:
             raise ValueError("unknown continuation")
         return
-    if value["schema"] in {"contractor.audit.control.v1", "contractor.audit.task.v1"}:
+    if value["schema"] == "contractor.audit.proposal-context.v1":
+        _validate_case({"document": json.dumps(value["program"])})
+        return
+    if value["schema"] in {
+        "contractor.audit.control.v1",
+        "contractor.audit.task.v1",
+        "contractor.audit.hypothesis.v1",
+        "contractor.audit.context.v1",
+        "contractor.audit.mutation.v1",
+    }:
         return
     if value["schema"] == "contractor.audit.proposals.v1":
         trusted = _decode(case["context"])
@@ -171,14 +196,6 @@ def _validate_case(case):
             raise ValueError("membership")
         seen.add(key)
         member = members[key]
-        if (
-            "hypothesis" in member
-            and len(
-                json.dumps(member["hypothesis"], ensure_ascii=False, separators=(",", ":")).encode()
-            )
-            > 32768
-        ):
-            raise ValueError("hypothesis snapshot bytes")
         if ("hypothesis" in member) != ("verdict" in item):
             raise ValueError("checking context")
         if item.get("verdict") in {"supported", "refuted"} and (

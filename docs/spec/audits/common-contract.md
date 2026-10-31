@@ -141,7 +141,15 @@ consent cannot become an active permission; no compatibility reader, special
 policy-wait state or old-policy Resume is defined.
 
 **ACT-R10.** Numeric limits are LIM-ACT-1 through LIM-ACT-4. Existing tighter
-owner bounds still apply. Mutation limits are slice limits, not permission to
+owner bounds still apply. Each initial or generated hypothesis seed must fit
+32 KiB in its complete RFC 8785 canonical UTF-8 encoding, including statement,
+scope, grounds, member names, punctuation and JSON escaping. The check also
+applies to seeds in pinned proposal-context programs. This is a necessary early
+content bound, without guessed identity metadata; after trusted ID, revision and
+origin are assigned, the complete hypothesis document must independently fit
+32 KiB. Full hypothesis snapshots in contexts and mutation records retain that
+complete-document bound; unrelated result text retains its own limits.
+Mutation limits are slice limits, not permission to
 materialize or rescan a whole containing collection. Lists retain existing
 row/byte pagination bounds. Replays reconcile the original identity through
 existing keyed/natural receipts; they never repeat target activity merely to
