@@ -5,6 +5,9 @@ import { createMemoryRouter } from "react-router";
 import { RouterProvider } from "react-router/dom";
 import { describe, expect, it, vi } from "vitest";
 
+import { PublicAPIProvider } from "../api/context";
+import { testAPI } from "../test/render";
+import { fakeServer } from "../test/fake-server";
 import type { AuthSession } from "../api/client";
 import { APICompatibilityError, PublicAPIError } from "../api/error";
 import { queryKeys } from "../api/query-keys";
@@ -36,9 +39,11 @@ function renderGuard(getSession: SessionAPI["getSession"], initialPath = "/") {
   );
   render(
     <QueryClientProvider client={queryClient}>
-      <SessionProvider api={api}>
-        <RouterProvider router={router} />
-      </SessionProvider>
+      <PublicAPIProvider api={testAPI(fakeServer()).api}>
+        <SessionProvider api={api}>
+          <RouterProvider router={router} />
+        </SessionProvider>
+      </PublicAPIProvider>
     </QueryClientProvider>,
   );
   return queryClient;

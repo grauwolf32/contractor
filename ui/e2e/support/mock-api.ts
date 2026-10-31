@@ -14,6 +14,7 @@
 // route.fulfill themselves, so no spec can serve an unchecked answer.
 import type { Page, Request, Route, TestInfo } from "@playwright/test";
 
+import sharedConfigFixture from "../../../api/testdata/v1alpha1/valid/shared-config.json" with { type: "json" };
 import packageMetadata from "../../package.json" with { type: "json" };
 import {
   responseViolation,
@@ -341,6 +342,10 @@ export async function mockAPI(
     }
     if (url.pathname === "/v1/auth/session" && request.method() === "GET") {
       await fulfillJSON(route, session);
+      return;
+    }
+    if (url.pathname === "/v1/config" && request.method() === "GET") {
+      await fulfillJSON(route, sharedConfigFixture);
       return;
     }
     let settled = false;

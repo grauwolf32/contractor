@@ -359,7 +359,7 @@ describe("Material detail", () => {
 
       fail = true;
       await user.click(
-        screen.getByRole("button", { name: "Download this revision" }),
+        await screen.findByRole("button", { name: "Download this revision" }),
       );
       expect(await screen.findByRole("alert")).toHaveTextContent(
         "The download did not finish",

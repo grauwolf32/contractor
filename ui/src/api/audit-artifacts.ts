@@ -1,4 +1,4 @@
-import { MAXIMUM_ARTIFACT_BYTES } from "./artifacts";
+import { getSharedConfig } from "./shared-config";
 import type { PublicAPI } from "./client";
 import { invalidAPIResponse } from "./error";
 
@@ -11,6 +11,8 @@ export async function readAuditArtifact(
   member: string | undefined,
   signal: AbortSignal,
 ): Promise<{ blob: Blob; mediaType: string }> {
+  const maximumBytes = (await getSharedConfig(api, signal)).limits
+    .artifactPayloadMaxBytes;
   const query = new URLSearchParams({ key, revision });
   if (member !== undefined) query.set("member", member);
   const response = await api.fetch(
@@ -23,7 +25,7 @@ export async function readAuditArtifact(
   if (
     declared === null ||
     !/^(0|[1-9][0-9]*)$/u.test(declared) ||
-    Number(declared) > MAXIMUM_ARTIFACT_BYTES ||
+    Number(declared) > maximumBytes ||
     mediaType === null
   ) {
     await response.body?.cancel();
@@ -41,7 +43,7 @@ export async function readAuditArtifact(
         const { done, value } = await reader.read();
         if (done) break;
         size += value.byteLength;
-        if (size > Number(declared) || size > MAXIMUM_ARTIFACT_BYTES) {
+        if (size > Number(declared) || size > maximumBytes) {
           throw invalidAPIResponse(
             response.status,
             "The saved material exceeds its recorded length.",

@@ -1,10 +1,8 @@
+import { useSharedConfig } from "../../config/shared-config";
 import { useId, useState } from "react";
 import { Link } from "react-router";
 
-import {
-  MAXIMUM_ARTIFACT_BYTES,
-  type ArtifactWriteResponse,
-} from "../../api/artifacts";
+import { type ArtifactWriteResponse } from "../../api/artifacts";
 import type { GitImportResult } from "../../api/git-artifacts";
 import { writeConflict } from "../../app/conflict";
 import { Dialog, DialogHeader } from "../../app/dialog";
@@ -116,6 +114,7 @@ export function AddMaterialSheet({
   onClose: () => void;
   onAdded: (result: ArtifactWriteResponse | GitImportResult) => void;
 }) {
+  const maximumBytes = useSharedConfig().limits.artifactPayloadMaxBytes;
   const heading = useId();
   const description = useId();
   const [kind, setKind] = useState<MaterialUploadKind | null>(null);
@@ -158,9 +157,8 @@ export function AddMaterialSheet({
           ))}
         </ul>
         <p className="materials-sheet-note">
-          Uploads take one file of up to{" "}
-          {MAXIMUM_ARTIFACT_BYTES / (1024 * 1024)} MiB. Private repositories
-          over SSH use your{" "}
+          Uploads take one file of up to {maximumBytes / (1024 * 1024)} MiB.
+          Private repositories over SSH use your{" "}
           <Link to={SSH_KEY_SETTINGS}>Git key in Settings</Link>.
         </p>
       </Dialog>

@@ -1,15 +1,10 @@
-import { REVISION, schemaLimit, stringRule } from "./contract";
+import { getSharedConfig } from "./shared-config";
+import { REVISION, stringRule } from "./contract";
 import type { PublicAPI } from "./client";
 import type { ResponseOperation } from "./contract";
 import { invalidAPIResponse, PublicAPIError, requireData } from "./error";
 import type { components } from "./generated/public";
 
-export const MAXIMUM_ARTIFACT_BYTES = schemaLimit(
-  "ArtifactMetadata",
-  "maximum",
-  "properties",
-  "size",
-);
 // One inline text preview, HTTP exchanges included (LIM-UI-12).
 export const MAXIMUM_PREVIEW_BYTES = 1024 * 1024;
 export const PREVIEW_LIMIT_LABEL = `${MAXIMUM_PREVIEW_BYTES / (1024 * 1024)} MiB`;
@@ -294,8 +289,10 @@ export async function writeScopedArtifact(
   if (request.mediaType === "*/*") {
     throw new TypeError("Artifact upload requires one concrete media type");
   }
-  if (request.payload.size > MAXIMUM_ARTIFACT_BYTES) {
-    throw new TypeError("Artifact payload exceeds 64 MiB");
+  const maximumBytes = (await getSharedConfig(api, request.signal)).limits
+    .artifactPayloadMaxBytes;
+  if (request.payload.size > maximumBytes) {
+    throw new TypeError("Artifact payload exceeds the Server upload limit");
   }
   let headers: Headers;
   if (request.expectedRevision === undefined) {
@@ -381,6 +378,8 @@ export async function downloadExactArtifact(
   metadata: ArtifactMetadata,
   path: string,
 ): Promise<DownloadedArtifact> {
+  const maximumBytes = (await getSharedConfig(api)).limits
+    .artifactPayloadMaxBytes;
   const response = await api.fetch(path, {
     method: "GET",
     headers: { Accept: metadata.mediaType },
@@ -392,7 +391,7 @@ export async function downloadExactArtifact(
   if (
     declaredLength !== null &&
     (!/^(?:0|[1-9][0-9]*)$/.test(declaredLength) ||
-      Number(declaredLength) > MAXIMUM_ARTIFACT_BYTES)
+      Number(declaredLength) > maximumBytes)
   ) {
     throw new PublicAPIError({
       status: response.status,
@@ -409,7 +408,7 @@ export async function downloadExactArtifact(
     });
   }
   const blob = await response.blob();
-  if (blob.size > MAXIMUM_ARTIFACT_BYTES || blob.size !== metadata.size) {
+  if (blob.size > maximumBytes || blob.size !== metadata.size) {
     throw new PublicAPIError({
       status: response.status,
       code: "invalid_api_response",

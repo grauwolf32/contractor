@@ -60,6 +60,17 @@ def replace_scalars(source, bindings, value):
     return source
 
 
+def bind_config_schema(source, schema):
+    """The public projection uses the private owning schema, without its IDs."""
+    node = yaml.compose(source)
+    for key in ("components", "schemas", "SharedConfig"):
+        node = next(child for name, child in node.value if name.value == key)
+    schema = {key: value for key, value in schema.items() if key not in ("$schema", "$id", "title")}
+    lines = json.dumps(schema, indent=2).splitlines()
+    rendered = lines[0] + "\n" + "\n".join("    " + line for line in lines[1:])
+    return source[:node.start_mark.index] + rendered + source[node.end_mark.index:]
+
+
 def outputs(root, config):
     cap = config["limits"]["artifactPayloadMaxBytes"]
     result = {}
@@ -73,6 +84,8 @@ def outputs(root, config):
         ("api/testdata/http-capture-cases.json", ("limits", "submissionBytes"), cap),
     ):
         result[name] = replace_scalars((root / name).read_text(), [binding], value)
+    schema = json.loads((root / "api/v1alpha1/shared-config.schema.json").read_text())
+    result[PUBLIC] = bind_config_schema(result[PUBLIC], schema)
     raw = json.dumps(config, sort_keys=True, separators=(",", ":")) + "\n"
     result["api/testdata/v1alpha1/valid/shared-config.json"] = raw
     result["runtime/tests/testdata/shared-config.json"] = raw

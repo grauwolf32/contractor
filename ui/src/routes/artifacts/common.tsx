@@ -1,3 +1,4 @@
+import { useSharedConfig } from "../../config/shared-config";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   type DragEvent,
@@ -12,7 +13,6 @@ import { Link } from "react-router";
 
 import {
   ARTIFACT_NAME_PATTERN,
-  MAXIMUM_ARTIFACT_BYTES,
   MEDIA_TYPE_PATTERN,
   type ArtifactWriteRequest,
   type ArtifactWriteResponse,
@@ -34,7 +34,7 @@ import "./materials.css";
 export function ArtifactFileDrop({
   file,
   inputRevision,
-  maximumBytes = MAXIMUM_ARTIFACT_BYTES,
+  maximumBytes: givenMaximumBytes,
   onSelect,
 }: {
   file: File | null;
@@ -42,6 +42,11 @@ export function ArtifactFileDrop({
   maximumBytes?: number;
   onSelect: (file: File | undefined) => void;
 }) {
+  const sharedMaximumBytes = useSharedConfig().limits.artifactPayloadMaxBytes;
+  const maximumBytes = Math.min(
+    givenMaximumBytes ?? sharedMaximumBytes,
+    sharedMaximumBytes,
+  );
   const copyId = useId();
   const fileInput = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
@@ -107,7 +112,7 @@ export function ArtifactWriteForm({
   excludedNamespace,
   expectedRevision,
   acceptedMediaTypes,
-  maximumBytes = MAXIMUM_ARTIFACT_BYTES,
+  maximumBytes: givenMaximumBytes,
   startOperation,
   submitLabel,
   headingId,
@@ -153,6 +158,11 @@ export function ArtifactWriteForm({
   writeErrorHint?: (error: unknown) => ReactNode;
   onWritten: (result: ArtifactWriteResponse) => void;
 }) {
+  const sharedMaximumBytes = useSharedConfig().limits.artifactPayloadMaxBytes;
+  const maximumBytes = Math.min(
+    givenMaximumBytes ?? sharedMaximumBytes,
+    sharedMaximumBytes,
+  );
   const api = usePublicAPI();
   const queryClient = useQueryClient();
   const ownHeadingId = useId();

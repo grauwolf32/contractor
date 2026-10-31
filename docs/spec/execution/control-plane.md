@@ -1772,6 +1772,7 @@ test and sequential SQL CHECK changes; `make lint` checks drift. Historical
 migrations remain immutable. A decrease must first remove oversized payloads
 through normal authorized lifecycle operations, or its SQL migration fails.
 Allocation-specific RuntimeSettings retain their existing owner and delivery.
+The authenticated public projection for browser startup is API-R113.
 
 This boundary uses a startup snapshot instead of hand-maintained Runtime
 constants or another operator config file. It is deliberately limited to

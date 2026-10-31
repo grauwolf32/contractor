@@ -5,7 +5,7 @@ milestone: runtime-shared-config-2026-10
 epic: execution-core
 kind: feature
 priority: P1
-status: pending
+status: in_progress
 depends_on: [V425-025]
 languages: [go, typescript]
 goal: >-
@@ -69,9 +69,13 @@ acceptance_criteria:
 tests:
   - command: go test ./internal/httpapi/public/...
     covers: [A1, A4]
+  - command: make test-wire-cross-language
+    covers: [A1, A4]
   - command: make verify-public-api
     covers: [A1, A4]
   - command: make ui-verify
+    covers: [A2, A3, A4]
+  - command: make ui-browser-mocked
     covers: [A2, A3, A4]
   - command: make lint
     covers: [A1, A3, A4]

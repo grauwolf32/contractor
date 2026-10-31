@@ -21,6 +21,7 @@ type route struct {
 // (TestMain).
 func (c contextHandlers) routes() []route {
 	return []route{
+		{"GET", "/v1/config", "getSharedConfig", getSharedConfig},
 		{"POST", "/v1/scan-sweeps", "createScanSweep", c.scanSweeps.create},
 		{"GET", "/v1/scan-sweeps", "listScanSweeps", c.scanSweeps.list},
 		{"GET", "/v1/scan-sweeps/{sweepId}", "getScanSweep", c.scanSweeps.get},

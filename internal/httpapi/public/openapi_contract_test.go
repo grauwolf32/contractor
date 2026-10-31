@@ -154,6 +154,7 @@ func TestPublicOpenAPIContractIsValidAndPolicySafe(t *testing.T) {
 // PostgreSQL error to handleError, so they cannot return its transaction-conflict
 // 503; every other operation must document one.
 var operationsWithoutPostgreSQL = map[string]string{
+	"GET /v1/config":                                          "process-local shared startup policy",
 	"POST /v1/auth/login":                                     "process-local session authentication",
 	"GET /v1/auth/session":                                    "process-local session authentication",
 	"POST /v1/auth/logout":                                    "process-local session authentication",

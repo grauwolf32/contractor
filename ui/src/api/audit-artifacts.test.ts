@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MAXIMUM_ARTIFACT_BYTES } from "./artifacts";
+import { TEST_SHARED_CONFIG } from "../test/shared-config";
 import { readAuditArtifact } from "./audit-artifacts";
 import { fakeServer } from "../test/fake-server";
 import { bytes, failure } from "../test/responses";
@@ -33,7 +33,7 @@ describe("exact Audit receipt content", () => {
 
   it.each([
     undefined,
-    String(MAXIMUM_ARTIFACT_BYTES + 1),
+    String(TEST_SHARED_CONFIG.limits.artifactPayloadMaxBytes + 1),
     "-1",
     "invalid",
     "1",

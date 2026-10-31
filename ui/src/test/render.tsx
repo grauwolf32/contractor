@@ -8,6 +8,8 @@ import { createMemoryRouter, type RouteObject } from "react-router";
 import { RouterProvider } from "react-router/dom";
 import { vi } from "vitest";
 
+import { SharedConfigProvider } from "../config/shared-config";
+import { TEST_SHARED_CONFIG } from "./shared-config";
 import { PublicAPI, type AuthSession } from "../api/client";
 import { PublicAPIProvider } from "../api/context";
 import { queryKeys } from "../api/query-keys";
@@ -107,7 +109,11 @@ export function renderWithAPI(
   const user = userEvent.setup();
   const view = render(
     <QueryClientProvider client={queryClient}>
-      <PublicAPIProvider api={api}>{tree}</PublicAPIProvider>
+      <PublicAPIProvider api={api}>
+        <SharedConfigProvider config={TEST_SHARED_CONFIG}>
+          {tree}
+        </SharedConfigProvider>
+      </PublicAPIProvider>
     </QueryClientProvider>,
   );
   return {

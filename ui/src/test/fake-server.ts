@@ -6,6 +6,7 @@
 // declares without a JSON body (artifact content, whatever its media type) is
 // raw bytes and is not checked.
 import { expect } from "vitest";
+import { TEST_SHARED_CONFIG } from "./shared-config";
 
 import { responseViolation, type ResponseOperation } from "../api/contract";
 import { RESPONSE_SCHEMAS } from "../api/generated/response-schemas";
@@ -100,7 +101,10 @@ export function fakeServer(
   fallback?: Fallback,
 ): FakeServer {
   const table = new Map<ResponseOperation, Route>(
-    Object.entries(routes) as [ResponseOperation, Route][],
+    Object.entries({
+      "GET /v1/config": () => json(TEST_SHARED_CONFIG),
+      ...routes,
+    }) as [ResponseOperation, Route][],
   );
   const requests: Request[] = [];
   // The test this Server serves; its late reads are not checked in another.

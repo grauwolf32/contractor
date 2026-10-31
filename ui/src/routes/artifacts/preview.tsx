@@ -1,3 +1,4 @@
+import { useSharedConfig } from "../../config/shared-config";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useId } from "react";
 
@@ -36,7 +37,11 @@ export function ArtifactPreviewPanel({
   /** Heading level of the section title. Default "h3". */
   titleAs?: "h2" | "h3" | undefined;
 }) {
-  if (archiveScope !== undefined && canBrowseArchive(props.metadata)) {
+  const maximumBytes = useSharedConfig().limits.artifactPayloadMaxBytes;
+  if (
+    archiveScope !== undefined &&
+    canBrowseArchive(props.metadata, maximumBytes)
+  ) {
     return (
       <ArchivePreviewPanel
         key={JSON.stringify([archiveScope, props.metadata.artifact])}

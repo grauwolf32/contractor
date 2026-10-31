@@ -13,7 +13,7 @@ class SharedConfigGenerationTests(unittest.TestCase):
     def test_changed_source_updates_bindings_and_emits_one_incremental_migration(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
-            for name in [*generator.schema_bindings(), "api/testdata/v1alpha1/valid/artifact-metadata-result-boundary.json", "api/testdata/v1alpha1/artifact-history-cases.json", "api/testdata/http-capture-cases.json"]:
+            for name in [*generator.schema_bindings(), "api/testdata/v1alpha1/valid/artifact-metadata-result-boundary.json", "api/testdata/v1alpha1/artifact-history-cases.json", "api/testdata/http-capture-cases.json", "api/v1alpha1/shared-config.schema.json"]:
                 target = root / name
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_text((generator.ROOT / name).read_text())

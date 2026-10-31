@@ -895,3 +895,13 @@ Foreign and absent identities return `not_found`. Storage-reaching routes
 document retryable `503 storage_transaction_conflict`. The scanner owner
 defines snapshot, bounds and lifecycle in [SCN-R244](../tools/scanners.md)
 through [SCN-R251](../tools/scanners.md); OpenAPI defines the exact fields.
+
+
+**API-R113.** Authenticated `GET /v1/config` returns the non-secret shared
+startup policy owned by CTL-R171, with the same version, limits and digest as
+`GET /private/v1/config`. Ordinary users can read it without Operations access.
+It rejects query parameters and a body, returns `Cache-Control: no-store`, and
+uses ordinary public API version, authentication and error handling. The
+handler reads no store. Server-only settings, credentials and allocation
+RuntimeSettings are absent. The public schema is generated from the private
+owning SharedConfig schema; both endpoints use the same Server constructor.
