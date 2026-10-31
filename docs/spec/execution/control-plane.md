@@ -1774,6 +1774,20 @@ The `reporting` State constants supply `workerStateMaxBytes`,
 `workerStateWorkspaceMaxPaths`, and `workerStateWorkspacePathsMaxBytes`.
 These settings retain their independent result, envelope and workspace meanings;
 Planner requests and Stage results are not aliases of these policies.
+`httpRequestBodyMaxBytes`, `httpResponseBodyMaxBytes` and
+`httpHeaderBlockMaxBytes` come from the normalized HTTP evidence constants in
+`contracts`; Server domain validation and Runtime transport/capture share them.
+Provider envelopes, private transport headers and per-Run engagement budgets
+remain independent.
+`gitImportUrlMaxBytes` supplies the original Git input byte ceiling;
+canonical stored provenance retains its separately derived expansion bound.
+`runMetadataMaxLabels`, `runMetadataKeyMaxBytes`, `runMetadataValueMaxBytes`
+and derived `auditMaxLabels` come from `runlabels`. Runtime validation and
+telemetry, UI label editors/filters and the Git import client consume the
+relevant received settings. Runtime placement labels remain independent.
+Generation binds public/private schemas and shared boundary fixtures, and emits
+sequential Git provenance or metadata CHECK migrations when their policy changes;
+historical SQL is never rewritten, and decreases revalidate existing rows.
 The digest is `sha256:` of canonical JSON containing only `limits` and
 `version`; integers must be positive and exactly representable JSON integers.
 Unknown fields, unsupported versions and digest mismatches are permanent

@@ -1264,6 +1264,8 @@ cache budgets use that snapshot. Private Artifact list validation uses its
 Artifact page ceiling; model-facing preferred page sizes are capped by it. Worker result validation, result assembly, lean observations, State workspace
 reduction and State export read their corresponding CTL-R171 ceilings from
 that snapshot at operation time; no class definition freezes a startup default.
+Run metadata label validation and telemetry use the received count and key/value
+byte bounds; Runtime placement labels remain separate.
 A different snapshot requires process restart.
 Malformed/oversized configuration documents, unsupported versions, digest mismatch and
 permanent HTTP rejection stop startup without registration. Network failures,

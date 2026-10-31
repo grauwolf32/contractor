@@ -40,8 +40,6 @@ from contractor_runtime.adapters.otlp_retry import (
     classify_response,
 )
 from contractor_runtime.contracts import (
-    MAX_RUN_METADATA_LABEL_VALUE_BYTES,
-    MAX_RUN_METADATA_LABELS,
     RUN_METADATA_LABEL_KEY_PATTERN,
     DroppedSpanCounts,
     RuntimeAdapterRef,
@@ -49,6 +47,7 @@ from contractor_runtime.contracts import (
 )
 from contractor_runtime.http_body import HTTP_TRANSPORT_ERRORS
 from contractor_runtime.redaction import contains_private_value
+from contractor_runtime.shared_config import get_shared_config
 
 MAX_SPAN_ATTRIBUTES = 64
 MAX_STRING_ATTRIBUTE_BYTES = 256
@@ -672,7 +671,7 @@ def _safe_attributes(
 
 
 def _run_metadata_attributes(source: Mapping[str, str], secrets: Sequence[str]) -> dict[str, str]:
-    if len(source) > MAX_RUN_METADATA_LABELS:
+    if len(source) > get_shared_config().run_metadata_max_labels:
         return {}
     result: dict[str, str] = {}
     for key, value in source.items():
@@ -681,11 +680,12 @@ def _run_metadata_attributes(source: Mapping[str, str], secrets: Sequence[str]) 
         attribute_key = RUN_METADATA_LABEL_ATTRIBUTE_PREFIX + key
         if (
             not key
+            or len(key.encode("utf-8")) > get_shared_config().run_metadata_key_max_bytes
             or len(attribute_key.encode("utf-8")) > MAX_ATTRIBUTE_KEY_BYTES
             or RUN_METADATA_LABEL_KEY_PATTERN.fullmatch(key) is None
             or key.startswith("contractor.")
             or "\0" in value
-            or len(value.encode("utf-8")) > MAX_RUN_METADATA_LABEL_VALUE_BYTES
+            or len(value.encode("utf-8")) > get_shared_config().run_metadata_value_max_bytes
         ):
             return {}
         if contains_private_value(value, secrets):

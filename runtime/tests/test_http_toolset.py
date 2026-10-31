@@ -8,6 +8,7 @@ import socket
 import ssl
 import sys
 import threading
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
@@ -26,6 +27,7 @@ from cryptography.x509.oid import NameOID
 from http_cookie_store import HTTPToolsetFactory
 
 import contractor_runtime.toolsets.http.tools as http_tools
+from contractor_runtime import shared_config
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.adapters.http_proxy import ProxyHTTPClient
@@ -230,7 +232,7 @@ def test_http_body_reads_cache_pages_and_evict_between_requests(tmp_path: Path) 
             assert artifacts.reads == 0
             assert state.http_session._cached_body.request_id == binary_id
             assert sys.getsizeof(state.http_session._cached_body.content) <= (
-                http_tools.MAX_DECODED_BODY_CACHE_BYTES
+                http_tools.decoded_body_cache_max_bytes()
             )
 
             assert (await read(text_id, offset=4))["eof"] is True
@@ -262,7 +264,7 @@ def test_http_body_read_skips_content_above_cache_bound(
         try:
             result = await tools["http_request"]("https://target.example/body")
             monkeypatch.setattr(
-                http_tools, "MAX_DECODED_BODY_CACHE_BYTES", sys.getsizeof("body") - 1
+                http_tools, "decoded_body_cache_max_bytes", lambda: sys.getsizeof("body") - 1
             )
             assert (await tools["http_read_body"](result["request_id"]))["data"] == "body"
             assert state.http_session._cached_body is None
@@ -1178,7 +1180,11 @@ def test_proxy_route_is_required_and_target_errors_are_returned(tmp_path: Path) 
 def test_oversized_response_and_proxy_auth_failure_leave_no_body_selection(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(http_tools, "MAX_RESPONSE_BODY_BYTES", 32)
+    monkeypatch.setattr(
+        shared_config,
+        "_snapshot",
+        replace(shared_config.get_shared_config(), http_response_body_max_bytes=32),
+    )
 
     async def oversized(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, content=b"x" * 33, request=request)

@@ -9,14 +9,16 @@ from pathlib import Path
 import pytest
 from private_schemas import private_validator
 from pydantic import ValidationError
-from shared_config_defaults import MAX_ARTIFACT_BYTES
+from shared_config_defaults import (
+    MAX_ARTIFACT_BYTES,
+    MAX_HEADER_BYTES,
+    MAX_REQUEST_BODY_BYTES,
+    MAX_RESPONSE_BODY_BYTES,
+)
 
 from contractor_runtime.core.http_limits import (
     MAX_EXCHANGE_ATTEMPTS,
-    MAX_HEADER_BYTES,
     MAX_HISTORY,
-    MAX_REQUEST_BODY_BYTES,
-    MAX_RESPONSE_BODY_BYTES,
 )
 from contractor_runtime.toolsets.common import http_capture
 from contractor_runtime.toolsets.common.http_capture import CapturedHTTPExchange, RecentHTTPCaptures

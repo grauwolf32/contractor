@@ -1,8 +1,8 @@
+import type { SharedConfig } from "../api/shared-config";
 import type { ArtifactMetadata, ExactArtifactRef } from "../api/artifacts";
 import { labelPlacementError } from "../api/audit-labels";
 import type { components } from "../api/generated/public";
 import {
-  RUN_METADATA_LABEL_LIMIT,
   runMetadataLabelKeyError,
   runMetadataLabelValueError,
   type RunMetadataLabelDraft,
@@ -94,6 +94,7 @@ export function validateRunDraft(
   artifactsForSlot: (
     slot: string,
   ) => ReadonlyMap<string, ArtifactMetadata> | undefined,
+  limits: SharedConfig["limits"],
 ): RunDraftValidation {
   const errors: Record<string, string> = {};
   const runtimeLabels = canonicalRuntimeLabels(values.runtimeLabels);
@@ -101,14 +102,14 @@ export function validateRunDraft(
     errors.runtimeLabels = `Runtime labels must be a set of at most ${RUNTIME_LABEL_LIMIT} valid labels without default.`;
   }
 
-  if (values.metadataLabels.length > RUN_METADATA_LABEL_LIMIT) {
-    errors.metadataLabels = `A Run can have at most ${RUN_METADATA_LABEL_LIMIT} metadata labels.`;
+  if (values.metadataLabels.length > limits.runMetadataMaxLabels) {
+    errors.metadataLabels = `A Run can have at most ${limits.runMetadataMaxLabels} metadata labels.`;
   }
   const metadataLabels: Record<string, string> = {};
   const firstLabelByKey = new Map<string, string>();
   for (const label of values.metadataLabels) {
-    const keyError = runMetadataLabelKeyError(label.key);
-    const valueError = runMetadataLabelValueError(label.value);
+    const keyError = runMetadataLabelKeyError(label.key, limits);
+    const valueError = runMetadataLabelValueError(label.value, limits);
     if (keyError !== undefined) {
       errors[`metadataLabel:${label.id}:key`] = keyError;
     }

@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { fakeServer } from "../test/fake-server";
 import { json } from "../test/responses";
+import { testSharedConfig } from "../test/shared-config";
 import { testAPI } from "../test/render";
 import { importGitArtifact } from "./git-artifacts";
 
@@ -49,3 +50,39 @@ it.each(cases.analysisSummaries)(
     expect(conformsTo("GitAnalysis", test.value)).toBe(test.valid);
   },
 );
+
+it("uses the received Git URL byte ceiling in the API client", async () => {
+  const url = "https://example.test/é";
+  const maxBytes = new TextEncoder().encode(url).length;
+  const result = {
+    artifact: { namespace: "sources", name: "repo", revision: "r1" },
+    mediaType: "application/zip",
+    size: 1,
+    gitSource: {
+      repositoryUrl: "https://example.test:443/%C3%A9",
+      requestedRef: "main",
+      resolvedCommit: "a".repeat(40),
+      importedAt: "2026-10-31T00:00:00Z",
+    },
+  };
+  const server = fakeServer({
+    "GET /v1/config": () =>
+      json(testSharedConfig(17, { gitImportUrlMaxBytes: maxBytes })),
+    "POST /v1/artifacts/{namespace}/{name}/git-import": () => json(result, 201),
+  });
+  const { api } = testAPI(server);
+  const draft = { namespace: "sources", name: "repo", repositoryUrl: url };
+  await expect(
+    importGitArtifact(api, draft, new AbortController().signal),
+  ).resolves.toEqual(result);
+  await expect(
+    importGitArtifact(
+      api,
+      { ...draft, repositoryUrl: url + "x" },
+      new AbortController().signal,
+    ),
+  ).rejects.toThrow("UTF-8 bytes");
+  expect(
+    server.sent("POST", "/v1/artifacts/sources/repo/git-import"),
+  ).toHaveLength(1);
+});

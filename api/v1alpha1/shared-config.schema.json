@@ -38,7 +38,15 @@
         "workerWorkspaceMaxFilesRead",
         "workerStateMaxBytes",
         "workerStateWorkspaceMaxPaths",
-        "workerStateWorkspacePathsMaxBytes"
+        "workerStateWorkspacePathsMaxBytes",
+        "httpRequestBodyMaxBytes",
+        "httpResponseBodyMaxBytes",
+        "httpHeaderBlockMaxBytes",
+        "gitImportUrlMaxBytes",
+        "runMetadataMaxLabels",
+        "runMetadataKeyMaxBytes",
+        "runMetadataValueMaxBytes",
+        "auditMaxLabels"
       ],
       "properties": {
         "artifactPayloadMaxBytes": {
@@ -97,6 +105,46 @@
           "maximum": 9007199254740991
         },
         "workerStateWorkspacePathsMaxBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "httpRequestBodyMaxBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "httpResponseBodyMaxBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "httpHeaderBlockMaxBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "gitImportUrlMaxBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "runMetadataMaxLabels": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "runMetadataKeyMaxBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "runMetadataValueMaxBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "auditMaxLabels": {
           "type": "integer",
           "minimum": 1,
           "maximum": 9007199254740991

@@ -109,8 +109,8 @@ execution_policy:
 
 milestones:
   - id: runtime-shared-config-2026-10
-    exit_task: V427-002
-    outcome: Runtime and UI load immutable non-secret shared policy at startup; Server-owned Artifact, pagination, Worker result/State and HTTP evidence ceilings drive consumers, generated schemas and persistence checks.
+    exit_task: V427-003
+    outcome: Runtime and UI load immutable non-secret shared policy at startup; Server-owned Artifact, pagination, Worker result/State, HTTP evidence and Git/metadata input ceilings drive consumers, generated schemas and persistence checks.
   - id: data-model-consumers-2026-10
     exit_task: V421-010
     outcome: Accepted data-model review changes connect trusted Audit evidence and finding conditions to reports, expose bounded owner-authorized Runtime and tool-call diagnostics, remove unsupported Eval and private-wire fields end to end, and retain Artifact storage timestamps with accurate API/UI semantics, verified on an integrated deterministic release gate.

@@ -1,3 +1,4 @@
+import { testSharedConfig } from "../../test/shared-config";
 import {
   act,
   fireEvent,
@@ -462,4 +463,17 @@ it("keeps analysis coverage visible beside a selected source", () => {
   expect(screen.getByText(/3 entries excluded/)).toHaveTextContent(
     ".contractor-import-report.json",
   );
+});
+
+it("rejects a repository URL over the received UTF-8 limit before metadata or import calls", async () => {
+  const server = fakeServer();
+  const config = testSharedConfig(17, { gitImportUrlMaxBytes: 10 });
+  const { user } = renderWithAPI(
+    <GitImportDialog onClose={vi.fn()} onImported={vi.fn()} />,
+    { server, sharedConfig: config },
+  );
+  await user.type(screen.getByLabelText("Repository URL"), "https://x/é");
+  await user.click(screen.getByRole("button", { name: /Import/ }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("10 UTF-8 bytes");
+  expect(server.requests).toHaveLength(0);
 });

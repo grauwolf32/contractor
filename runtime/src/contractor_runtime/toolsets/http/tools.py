@@ -36,7 +36,6 @@ from contractor_runtime.contracts.fields import is_field_value
 from contractor_runtime.core.http_limits import (
     MAX_ATTEMPTS,
     MAX_COOKIES,
-    MAX_HEADER_BYTES,
     MAX_HEADER_VALUE_BYTES,
     MAX_HEADERS,
     MAX_HISTORY,
@@ -45,11 +44,9 @@ from contractor_runtime.core.http_limits import (
     MAX_QUERY_KEYS,
     MAX_READ_UNITS,
     MAX_REDIRECTS,
-    MAX_REQUEST_BODY_BYTES,
-    MAX_REQUEST_HEADER_BYTES,
-    MAX_RESPONSE_BODY_BYTES,
     MAX_URL_BYTES,
     header_block_bytes,
+    request_header_max_bytes,
 )
 from contractor_runtime.core.http_session import (
     discard_expired_cookies,
@@ -65,6 +62,7 @@ from contractor_runtime.core.target_policy import (
 from contractor_runtime.core.tool_metrics import RecordedToolCall, ToolMetrics, elapsed_ms
 from contractor_runtime.http_body import HTTP_TRANSPORT_ERRORS, BodyTooLarge, read_limited_body
 from contractor_runtime.redaction import runtime_secrets
+from contractor_runtime.shared_config import get_shared_config
 from contractor_runtime.toolsets.common.artifacts import (
     ArtifactClientFactory,
     _reject_unconfigured_client,
@@ -91,9 +89,12 @@ from contractor_runtime.toolsets.http.fields import is_cookie_pair
 from contractor_runtime.toolsets.http.transport import PolicyHTTPTransport
 from contractor_runtime.workspace import AllocationWorkspace
 
+
 # A 16 MiB UTF-8 response can occupy almost 64 MiB as a Python str when a
 # single non-BMP character forces four-byte storage for all characters.
-MAX_DECODED_BODY_CACHE_BYTES = 4 * MAX_RESPONSE_BODY_BYTES + 128
+def decoded_body_cache_max_bytes() -> int:
+    return 4 * get_shared_config().http_response_body_max_bytes + 128
+
 
 _METHODS = frozenset({"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"})
 _IDEMPOTENT_METHODS = frozenset({"GET", "PUT", "DELETE", "HEAD", "OPTIONS"})
@@ -763,7 +764,10 @@ class _HTTPSession:
             except ValueError:
                 raise HTTPToolError("http_request_invalid") from None
             captured = CapturedAttempt.from_request(request, target_credential=target_credential)
-            if header_block_bytes(captured.header_pairs()) > MAX_HEADER_BYTES:
+            if (
+                header_block_bytes(captured.header_pairs())
+                > get_shared_config().http_header_block_max_bytes
+            ):
                 # Session cookies or auth grew the block past what finding
                 # evidence retains; refuse before anything is sent.
                 raise HTTPToolError("http_request_invalid")
@@ -870,7 +874,7 @@ class _HTTPSession:
                     # An evicted, foreign or undecodable buffered capture. Any
                     # other exception is an implementation failure.
                     raise HTTPToolError("http_body_not_found") from None
-                if sys.getsizeof(content) <= MAX_DECODED_BODY_CACHE_BYTES:
+                if sys.getsizeof(content) <= decoded_body_cache_max_bytes():
                     self._cached_body = _CachedBody(request_id, kind, content)
             if kind == "text":
                 if not (isinstance(content, str)):
@@ -1521,7 +1525,7 @@ def _headers(headers: Mapping[str, Any] | None) -> dict[str, str]:
         if size > MAX_HEADER_VALUE_BYTES:
             raise HTTPToolError("http_request_invalid")
         total += len(name) + size
-        if total > MAX_REQUEST_HEADER_BYTES:
+        if total > request_header_max_bytes():
             raise HTTPToolError("http_request_invalid")
         seen.add(normalized)
         result[name] = raw_value
@@ -1536,7 +1540,7 @@ def _merge_headers(defaults: Mapping[str, str], request: Mapping[str, str]) -> d
         result[name.lower()] = (name, value)
     if len(result) > MAX_HEADERS:
         raise HTTPToolError("http_request_invalid")
-    if header_block_bytes(result.values()) > MAX_REQUEST_HEADER_BYTES:
+    if header_block_bytes(result.values()) > request_header_max_bytes():
         raise HTTPToolError("http_request_invalid")
     return {name: value for name, value in result.values()}
 
@@ -1566,7 +1570,7 @@ def _request_body(body_type: object, body: Any) -> tuple[bytes, str | None]:
         raise
     except (TypeError, ValueError, UnicodeError):
         raise HTTPToolError("http_request_invalid") from None
-    if len(encoded) > MAX_REQUEST_BODY_BYTES:
+    if len(encoded) > get_shared_config().http_request_body_max_bytes:
         raise HTTPToolError("http_request_invalid")
     return encoded, media_type
 
@@ -1646,7 +1650,7 @@ def _origin(url: str) -> tuple[str, str, int]:
 async def _read_response_body(response: httpx.Response) -> bytes:
     # Bounds both the received bytes and incremental gzip/deflate decoding.
     try:
-        return await read_limited_body(response, MAX_RESPONSE_BODY_BYTES)
+        return await read_limited_body(response, get_shared_config().http_response_body_max_bytes)
     except BodyTooLarge:
         raise HTTPToolError("http_response_too_large") from None
     except (*HTTP_TRANSPORT_ERRORS, UnicodeError):
@@ -1688,7 +1692,7 @@ def _response_headers(headers: httpx.Headers) -> tuple[dict[str, str], bool]:
         if (
             len(result) >= MAX_HEADERS
             or len(value.encode("utf-8")) > MAX_HEADER_VALUE_BYTES
-            or total + size > MAX_HEADER_BYTES
+            or total + size > get_shared_config().http_header_block_max_bytes
         ):
             truncated = True
             continue

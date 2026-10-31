@@ -343,7 +343,12 @@ the session `Authorization` and client defaults.
 and authorization, would still exceed 64 KiB (LIM-FND-8) fails
 `http_request_invalid` before it is sent, so every sent request can be selected
 as evidence. The evidence limits themselves are owned by
-[Findings](../findings/findings.md).
+[Findings](../findings/findings.md). Their shared byte ceilings are delivered
+through CTL-R171 at startup. Runtime input-header admission uses the smaller
+of its local input budget and the received header ceiling; body reads,
+validation and derived decoded-string cache admission use the corresponding
+received request/response ceiling. Provider GraphQL and Control Plane transport
+bounds remain independent.
 
 **HTP-R26.** Hop-by-hop headers, `Host`, `Content-Length`, proxy authentication
 and CR/LF header injection are rejected.

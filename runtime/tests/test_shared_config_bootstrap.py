@@ -395,3 +395,81 @@ def test_shared_received_worker_policy_controls_post_import_models(monkeypatch):
     )
     with pytest.raises(ValidationError):
         AgentStateSnapshot.model_validate_json(fixture.read_bytes())
+
+
+def test_received_http_policy_controls_post_import_models_and_tools(monkeypatch):
+    import base64
+    from dataclasses import replace
+
+    from contractor_runtime.toolsets.common.http_capture import (
+        CapturedHTTPRequest,
+        CapturedHTTPResponse,
+        StructuredHTTPMessage,
+    )
+    from contractor_runtime.toolsets.http import tools as http_tools
+
+    monkeypatch.setattr(
+        shared_config,
+        "_snapshot",
+        replace(
+            shared_config.get_shared_config(),
+            http_request_body_max_bytes=3,
+            http_response_body_max_bytes=5,
+            http_header_block_max_bytes=6,
+        ),
+    )
+
+    def message(body):
+        return dict(kind="structured", headers=[], body_base64=base64.b64encode(body).decode())
+
+    CapturedHTTPRequest(method="POST", url="https://example.test/", message=message(b"123"))
+    with pytest.raises(ValidationError):
+        CapturedHTTPRequest(method="POST", url="https://example.test/", message=message(b"1234"))
+    CapturedHTTPResponse(status=200, message=message(b"12345"), complete=True)
+    with pytest.raises(ValidationError):
+        CapturedHTTPResponse(status=200, message=message(b"123456"), complete=True)
+    StructuredHTTPMessage(kind="structured", headers=[dict(name="X", value="ééx")], body_base64="")
+    with pytest.raises(ValidationError):
+        StructuredHTTPMessage(
+            kind="structured", headers=[dict(name="X", value="ééxx")], body_base64=""
+        )
+    assert http_tools._request_body("text", "éx")[0] == "éx".encode()
+    with pytest.raises(http_tools.HTTPToolError):
+        http_tools._request_body("text", "éxx")
+    assert http_tools.decoded_body_cache_max_bytes() == 4 * 5 + 128
+    assert http_tools.request_header_max_bytes() == 6
+
+
+def test_received_metadata_policy_controls_wire_validation_and_telemetry(monkeypatch):
+    from dataclasses import replace
+
+    from contractor_runtime.adapters.otlp_http import (
+        RUN_METADATA_LABEL_ATTRIBUTE_PREFIX,
+        _run_metadata_attributes,
+    )
+    from contractor_runtime.contracts.base import (
+        _require_runtime_labels,
+        normalize_run_metadata_labels,
+    )
+
+    monkeypatch.setattr(
+        shared_config,
+        "_snapshot",
+        replace(
+            shared_config.get_shared_config(),
+            run_metadata_max_labels=1,
+            run_metadata_key_max_bytes=4,
+            run_metadata_value_max_bytes=5,
+        ),
+    )
+    accepted = {"team": "ééx"}
+    assert normalize_run_metadata_labels(accepted) == accepted
+    assert _run_metadata_attributes(accepted, ()) == {
+        RUN_METADATA_LABEL_ATTRIBUTE_PREFIX + "team": "ééx"
+    }
+    for invalid in ({"teams": "x"}, {"team": "ééxx"}, {"one": "a", "two": "b"}):
+        with pytest.raises(ValueError):
+            normalize_run_metadata_labels(invalid)
+        assert _run_metadata_attributes(invalid, ()) == {}
+    # Placement labels have their own grammar and size policy.
+    _require_runtime_labels("labels", ["team-label"])

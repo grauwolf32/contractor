@@ -1,3 +1,4 @@
+import { useSharedConfig } from "../../../config/shared-config";
 import { isWebScanProfile } from "./web-scan-contract";
 /**
  * State of the Start page: which check type is chosen (the `type` query
@@ -209,6 +210,7 @@ export function useStartCheck(
   projectId: string,
   initialObjective: string,
 ): StartCheck {
+  const { limits } = useSharedConfig();
   const [params] = useSearchParams();
   const typeParam = params.get("type") ?? undefined;
   const projectQuery = useProject(projectId);
@@ -228,7 +230,7 @@ export function useStartCheck(
   const [authorizationScope, setAuthorizationScope] = useState("");
   const [runtimeLabels, setRuntimeLabels] = useState("");
   const [labels, setLabels] = useState<LabelEntry[]>([]);
-  const parsedAuditLabels = auditLabels(labels);
+  const parsedAuditLabels = auditLabels(labels, limits);
   const [timeLimit, setTimeLimit] = useState<TimeLimitState>({
     choice: DEFAULT_TIME_LIMIT,
     hours: "24",

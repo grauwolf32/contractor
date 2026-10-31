@@ -30,10 +30,10 @@ from contractor_runtime.adapters.http_transport import HTTPTransport, HTTPTransp
 from contractor_runtime.contracts.engagement import canonical_url
 from contractor_runtime.core.http_limits import (
     MAX_HEADERS,
-    MAX_REQUEST_BODY_BYTES,
-    MAX_REQUEST_HEADER_BYTES,
+    request_header_max_bytes,
 )
 from contractor_runtime.redaction import redact_private_values
+from contractor_runtime.shared_config import get_shared_config
 from contractor_runtime.threads import consume_task_exception, to_thread_until_done
 
 _HOP_HEADERS = {
@@ -188,7 +188,9 @@ class HTTPProxyBridge:
         ).encode()
 
     async def _message(self, reader):
-        connection = h11.Connection(h11.SERVER, max_incomplete_event_size=MAX_REQUEST_HEADER_BYTES)
+        connection = h11.Connection(
+            h11.SERVER, max_incomplete_event_size=request_header_max_bytes()
+        )
         request, body, received = None, bytearray(), False
         while True:
             event = connection.next_event()
@@ -204,12 +206,13 @@ class HTTPProxyBridge:
                 request = event
                 if (
                     len(event.headers) > MAX_HEADERS
-                    or sum(len(k) + len(v) + 4 for k, v in event.headers) > MAX_REQUEST_HEADER_BYTES
+                    or sum(len(k) + len(v) + 4 for k, v in event.headers)
+                    > request_header_max_bytes()
                 ):
                     raise ValueError("HTTP request headers exceed bound")
             elif isinstance(event, h11.Data):
                 body.extend(event.data)
-                if len(body) > MAX_REQUEST_BODY_BYTES:
+                if len(body) > get_shared_config().http_request_body_max_bytes:
                     raise ValueError("HTTP request body exceeds bound")
             elif isinstance(event, h11.EndOfMessage):
                 if request is None or connection.trailing_data[0]:

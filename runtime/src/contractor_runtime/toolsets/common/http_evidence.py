@@ -9,10 +9,9 @@ from pydantic import Field, field_validator, model_validator
 
 from contractor_runtime.core.http_limits import (
     MAX_EXCHANGE_ATTEMPTS,
-    MAX_HEADER_BYTES,
-    MAX_REQUEST_BODY_BYTES,
     header_block_bytes,
 )
+from contractor_runtime.shared_config import get_shared_config
 from contractor_runtime.toolsets.common.finding_locations import (
     HTTP_TOKEN,
     ClosedModel,
@@ -52,14 +51,20 @@ class HTTPAttempt(WebLocation):
     @classmethod
     def check_body(cls, value: str) -> str:
         body = base64.b64decode(value, validate=True)
-        if len(body) > MAX_REQUEST_BODY_BYTES or base64.b64encode(body).decode("ascii") != value:
+        if (
+            len(body) > get_shared_config().http_request_body_max_bytes
+            or base64.b64encode(body).decode("ascii") != value
+        ):
             raise ValueError("invalid or oversized request body encoding")
         return value
 
     @field_validator("headers", "response_headers")
     @classmethod
     def check_headers(cls, values: list[HTTPHeader]) -> list[HTTPHeader]:
-        if header_block_bytes((row.name, row.value) for row in values) > MAX_HEADER_BYTES:
+        if (
+            header_block_bytes((row.name, row.value) for row in values)
+            > get_shared_config().http_header_block_max_bytes
+        ):
             raise ValueError("HTTP headers exceed the byte limit")
         return values
 

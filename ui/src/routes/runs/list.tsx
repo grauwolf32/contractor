@@ -1,3 +1,5 @@
+import type { SharedConfig } from "../../api/shared-config";
+import { useSharedConfig } from "../../config/shared-config";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useId, useState } from "react";
 import { useSearchParams } from "react-router";
@@ -6,7 +8,6 @@ import { usePublicAPI } from "../../api/context";
 import { queryKeys } from "../../api/query-keys";
 import {
   normalizeRunMetadataLabelSelectors,
-  RUN_METADATA_LABEL_LIMIT,
   type RunMetadataLabelSelector,
 } from "../../api/run-metadata-labels";
 import {
@@ -60,6 +61,7 @@ const STATE_OPTIONS = [
 
 function decodeLabelSelectors(
   values: readonly string[],
+  limits: SharedConfig["limits"],
 ): RunMetadataLabelSelector[] {
   return normalizeRunMetadataLabelSelectors(
     values.map((value) => {
@@ -74,15 +76,19 @@ function decodeLabelSelectors(
         value: value.slice(separator + 1),
       };
     }),
+    limits,
   );
 }
 
-function safelyDecodeLabelSelectors(values: readonly string[]): {
+function safelyDecodeLabelSelectors(
+  values: readonly string[],
+  limits: SharedConfig["limits"],
+): {
   selectors: RunMetadataLabelSelector[];
   error?: string;
 } {
   try {
-    return { selectors: decodeLabelSelectors(values) };
+    return { selectors: decodeLabelSelectors(values, limits) };
   } catch (error) {
     return {
       selectors: [],
@@ -132,6 +138,7 @@ function RunLabelFilters({
   parseError: string | undefined;
   onReplace: (selectors: readonly RunMetadataLabelSelector[]) => void;
 }) {
+  const { limits } = useSharedConfig();
   const [validationError, setValidationError] = useState<string | undefined>();
   const [filtersOpen, setFiltersOpen] = useState(
     selectors.length > 0 || parseError !== undefined,
@@ -261,7 +268,7 @@ function RunLabelFilters({
           <Button
             size="sm"
             type="submit"
-            disabled={selectors.length >= RUN_METADATA_LABEL_LIMIT}
+            disabled={selectors.length >= limits.runMetadataMaxLabels}
           >
             Add filter
           </Button>
@@ -416,6 +423,7 @@ function CompletedRunRow({
  * Filters and the page cursor live in the URL.
  */
 export function CompletedRunsPanel() {
+  const { limits } = useSharedConfig();
   const api = usePublicAPI();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -427,7 +435,7 @@ export function CompletedRunsPanel() {
   const [deleteTarget, setDeleteTarget] = useState<string | undefined>();
   const cursor = pages.cursor;
   const encodedLabelSelectors = searchParams.getAll("label");
-  const decoded = safelyDecodeLabelSelectors(encodedLabelSelectors);
+  const decoded = safelyDecodeLabelSelectors(encodedLabelSelectors, limits);
   const selectorTokens = decoded.selectors.map(selectorToken);
   const query = useQuery({
     queryKey: queryKeys.runs.list(state, cursor, selectorTokens, "terminal"),
@@ -465,7 +473,10 @@ export function CompletedRunsPanel() {
   function replaceLabelSelectors(
     nextSelectors: readonly RunMetadataLabelSelector[],
   ): void {
-    const normalized = normalizeRunMetadataLabelSelectors(nextSelectors);
+    const normalized = normalizeRunMetadataLabelSelectors(
+      nextSelectors,
+      limits,
+    );
     const next = completedParams(searchParams);
     next.delete("cursor");
     next.delete("label");
