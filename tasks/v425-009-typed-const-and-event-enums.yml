@@ -6,12 +6,14 @@ epic: api-contracts
 kind: chore
 introduced_by: V372-025
 priority: P3
-status: pending
+status: in_progress
 depends_on: []
 languages:
 - go
 - typescript
 - yaml
+- json
+- markdown
 goal: Generated clients get concrete types for const schemas and event enums, and the V372-025 gate covers
   both documents.
 context:
@@ -19,6 +21,12 @@ context:
   finding: After V372-025 typed every OpenAPI enum, 91 untyped const schemas in api/openapi/contractor-public-v1.yaml
     still generate interface{} in internal/publicclient/generated, and api/events/contractor-events-v1.schema.json
     has 15 untyped enums.
+  specification:
+  - docs/spec/api/public-api.md#API-R68
+  revalidated: >-
+    2026-10-31: 91 OpenAPI const schemas and 49 event schemas (15 enum,
+    34 const) lack types. Extend the same gate to both literal constraints
+    in both documents, distinguishing schema maps and literal example data.
   siblings: Every schema document under api/ that the generators or the UI read.
 scope:
   in:
@@ -42,4 +50,8 @@ tests:
   - A1
 - command: make lint
   covers:
+  - A2
+- command: go test -count=1 ./internal/httpapi/public/... ./internal/publicclient/... ./internal/cli
+  covers:
+  - A1
   - A2
