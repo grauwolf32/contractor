@@ -1,0 +1,46 @@
+schema_version: "1.0"
+id: V425-040
+title: Repoint existing Audit export exceptions to their open successor
+milestone: hub-audit-structure-2026-10
+epic: quality
+kind: chore
+introduced_by: V64-006
+priority: P3
+status: in_progress
+depends_on: []
+languages: [go]
+goal: Restore the test-only-export lint gate after Audit task replanning without adding exceptions or starting Audit implementation.
+context:
+  authority: >-
+    Routine prerequisite discovered on 2026-11-01 while carrying out the user's
+    authorized V425-039 refactoring and merge. This changes lint metadata only;
+    the Audit implementation gate remains in force.
+  finding: >-
+    tools/testonlyexports/baseline.txt:11-12 still names V64-006 for ResolveTopN
+    and SelectionDigest. Commit be2198276bb2542b4c96ef496ff01f7ff5f15c75 archived
+    V64-006 and explicitly assigned its replacement to V64-012. The guard rejects
+    any exception naming a finished task, so make lint fails on unchanged main.
+  boundary: >-
+    Keep exactly the existing four exception identifiers and transfer only the
+    two archived-task references to the recorded open successor V64-012. That
+    task must resolve each retained export by reuse, privatization or deletion;
+    this repair neither requires a future caller nor preserves the old design.
+scope:
+  in:
+    - Repoint the two stale baseline references to V64-012.
+  out:
+    - Audit code, task scope/status, new baseline entries, altered lint rules or configuration refactoring.
+acceptance_criteria:
+  - id: A1
+    given: The unchanged four exported Audit priority exceptions.
+    when: The existing test-only-export guard checks their owner tasks.
+    then: Every reference names an open task and the guard passes without adding an exception.
+  - id: A2
+    given: Audit tasks remain gated for later implementation.
+    when: This metadata repair lands.
+    then: Their scope and status are unchanged, and the task registry validates.
+tests:
+  - command: go -C tools/testonlyexports run . -tags=integration,e2e -baseline tools/testonlyexports/baseline.txt "$PWD"
+    covers: [A1, A2]
+  - command: python3 scripts/check_tasks.py
+    covers: [A2]
