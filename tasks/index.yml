@@ -14,7 +14,10 @@ execution_policy:
     one report-bound regression); their scope/acceptance reflects the accepted result/finding distinction.
     Implementation is a subsequent step. Replanned Audit-dependent tasks carry this explicit implementation
     gate; dependency completion alone does not authorize their execution. V64-001 finalizes the remaining
-    explicitly labelled contract proposals; accepted structural decisions are not reopened. This planning change starts no
+    explicitly labelled contract proposals; accepted structural decisions are not reopened. User clarification
+    2026-10-31 removes the old approvals mechanism rather than introducing an approval migration or compatibility
+    protocol. V64-001 is delegated to a separate implementation agent; this clarification does not start dependent
+    tasks. This planning change starts no
     implementation. User clarification accepted on 2026-10-31: investigation, checking and generation
     use the same accepted-task/ordinary-Run/result path. No mandatory discovery-finding-generator
     sequence exists; initial work may check authored hypotheses or generate from selected materials,
