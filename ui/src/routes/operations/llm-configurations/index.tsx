@@ -120,7 +120,7 @@ export function ConfigurationListRoute() {
               model requests. New versions take effect when selected for future
               executions.
             </p>
-            <p>Agent templates and execution configs are read-only here.</p>
+            <p>Agent templates are read-only here.</p>
           </>
         }
         actions={<ScopeChip>Server-wide</ScopeChip>}

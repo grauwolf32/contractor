@@ -173,9 +173,7 @@ test("Run detail stays within a 320px viewport", async ({ page }) => {
   await expect(
     page.getByRole("heading", { name: "responsive-layout" }),
   ).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "Preview" }),
-  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Preview" })).toBeVisible();
   await expect(page.locator(".run-output-detail-link")).toBeVisible();
   await expect
     .poll(() =>

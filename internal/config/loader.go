@@ -30,7 +30,6 @@ type loader struct {
 	instructions                map[string]contracts.ResolvedInstructions
 	policies                    map[string]contracts.ResolvedModelPolicy
 	gateways                    map[string]llmgateway.ResolvedLLMGatewayConfig
-	executionConfigs            map[string]resolved.ResolvedExecutionConfigProfile
 	templates                   map[string]contracts.ResolvedAgentTemplate
 	workflows                   map[string]resolved.ResolvedWorkflow
 	auditProfiles               map[string]auditprofile.ResolvedAuditProfile
@@ -119,7 +118,6 @@ func loadConfigurationRoots(roots []configurationRoot, options loadOptions) (*Sn
 		instructions:                make(map[string]contracts.ResolvedInstructions),
 		policies:                    make(map[string]contracts.ResolvedModelPolicy),
 		gateways:                    make(map[string]llmgateway.ResolvedLLMGatewayConfig),
-		executionConfigs:            make(map[string]resolved.ResolvedExecutionConfigProfile),
 		templates:                   make(map[string]contracts.ResolvedAgentTemplate),
 		workflows:                   make(map[string]resolved.ResolvedWorkflow),
 		auditProfiles:               make(map[string]auditprofile.ResolvedAuditProfile),
@@ -134,9 +132,6 @@ func loadConfigurationRoots(roots []configurationRoot, options loadOptions) (*Sn
 	if err := current.loadModelPolicies(); err != nil {
 		return nil, err
 	}
-	if err := current.loadExecutionConfigs(); err != nil {
-		return nil, err
-	}
 	if err := current.loadAgentTemplates(); err != nil {
 		return nil, err
 	}
@@ -148,7 +143,7 @@ func loadConfigurationRoots(roots []configurationRoot, options loadOptions) (*Sn
 	}
 	return newSnapshot(
 		current.workflows, current.templates, current.policies, current.gateways,
-		current.executionConfigs, current.auditProfiles, current.instructions, current.sources,
+		current.auditProfiles, current.instructions, current.sources,
 	), nil
 }
 

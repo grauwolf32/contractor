@@ -12,7 +12,7 @@ immutability and canonical digest, its resolution and pinning for a Run, and
 its read endpoints. It also owns ModelPolicy, the shared model-loop policy of
 Planners and Workers, and executionConfig: the reference-only selections of
 ModelPolicy, LLM Gateway and credential that Workflow defaults, Run requests
-and escalation profiles make, their precedence layers and their resolution into
+and inline escalation overrides make, their precedence layers and their resolution into
 ResolvedExecutionConfigs.
 
 It leaves to other documents:
@@ -22,7 +22,7 @@ It leaves to other documents:
   AgentTemplateCatalog as an in-process configuration boundary:
   [Configuration catalog](catalog.md);
 - Workflow Stages, Stage Agent bindings, Stage `objective` and `instructions`,
-  escalation transition actions and the closed `ref`-or-inline union of an
+  escalation transition actions and the inline shape of an
   escalation `executionConfig`: [Workflows](workflows.md);
 - LLMGatewayConfig, LLM credentials, RuntimeConfig, runtime labels and the
   infrastructure layers that complete or override a Worker's physical Gateway
@@ -69,8 +69,6 @@ Terms are defined once in the [glossary](../glossary.md).
 | Worker summarizer | The optional one-shot terminal summarization policy of an `adk@1` AgentTemplate. |
 | executionConfig | Reference-only selections of ModelPolicy, LLMGatewayConfig and credential for Planner and Worker consumers, given as Workflow defaults, a Run override or an escalation override. |
 | Execution-selection leaf | One object with the optional fields `modelPolicy`, `llmGateway` and `credential`, at least one of them present. |
-| ExecutionConfig | The configuration kind of an immutable, Stage-local escalation override profile. |
-| ExecutionConfigRef | The exact `(name, version)` of an ExecutionConfig plus the digest of its normalized manifest. |
 | ResolvedExecutionConfig | The effective per-consumer selection that Run initialization stores in the immutable WorkflowRun snapshot. |
 | Escalation variant | The ResolvedExecutionConfig of an escalated attempt, resolved at Run initialization. |
 
@@ -189,7 +187,7 @@ flowchart LR
 executionConfig appears on three surfaces: the Workflow's
 `spec.executionConfig` defaults, the optional top-level `executionConfig` of a
 `POST /v1/runs` request, and the executionConfig of an escalation transition,
-which is either an exact ExecutionConfig profile or an inline override
+which is an inline Stage-local override
 ([Workflows](workflows.md)). Each surface carries execution-selection leaves.
 Run initialization resolves them, in the precedence below, into a base
 ResolvedExecutionConfig and one escalation variant per declared escalation for
@@ -714,7 +712,7 @@ passed in AllocationSpec rather than fetched by the Worker at task time.
 AllocationSpec carries the normalized manifest, the resolved instruction text,
 the resolved default ModelPolicy dependency, the optional summarizer
 ModelPolicy and the separately selected effective Worker ModelPolicy body, each
-with its exact ref. ExecutionConfig may thereby select another compatible
+with its exact ref. executionConfig may thereby select another compatible
 published ModelPolicy without mutating the AgentTemplate.
 
 **TPL-R63.** Before creating the Worker, Runtime Agent verifies the instruction
@@ -780,7 +778,7 @@ binding in that Stage. Unknown fields, Stages, bindings or configurations are
 invalid.
 
 **TPL-R72.** Every execution-selection leaf, whether in Workflow defaults, a
-Run override or an ExecutionConfig profile, contains only the optional exact
+Run override or an inline escalation override, contains only the optional exact
 `<id>@<version>` selectors `modelPolicy`, `summarizerModelPolicy` and `llmGateway` plus the optional
 exact credential ID `credential`, and must select at least one of them.
 Explicit `credential: null` is accepted only in a Run or escalation override
@@ -832,7 +830,7 @@ escalation executionConfig is applied as a final layer, with canonical role
 references materialized using the same captured defaults (TPL-R111).
 
 **TPL-R81.** This order is authoritative for ModelPolicy, budgets and Planner
-model access. ExecutionConfig is not another label and alone selects them:
+model access. executionConfig is not another label and alone selects them:
 stronger models and larger call or token budgets are an explicit
 executionConfig selection (for example `high-budget@1`), Planner LLM Gateway
 and model selection remains entirely in executionConfig, and runtime labels
@@ -846,30 +844,29 @@ overrides and then apply the selected Runtime Agent label layer last. The final
 effective refs remain fully provenance-attributed; no browser state is used to
 reconstruct layers.
 
-#### ExecutionConfig profiles
+#### Inline escalation configuration
 
-**TPL-R83.** A Workflow escalation may select one immutable Stage-local
-ExecutionConfig profile by exact `name@version`. The selector resolves an
-immutable manifest under `configs/execution-configs/`. The alternative inline
-override, and the closed union of the two forms, are owned by
-[Workflows](workflows.md).
+**TPL-R83.** A Workflow escalation declares its Stage-local execution override
+inline. Standard YAML anchors, aliases and merge keys may reuse the block within
+the same Workflow document. There is no standalone ExecutionConfig kind, catalog
+subtree or profile selector.
 
-**TPL-R84.** An ExecutionConfig `spec` is a non-empty Stage-local
-reference-only override. It contains the optional fields `planner` and
-`agents`, at least one of which must be present. `planner` is one non-empty
-execution-selection leaf (TPL-R72). `agents`, when present, is a non-empty
-mapping from logical Stage binding name to a non-empty leaf. Unknown fields and
-duplicate YAML keys are invalid.
+**TPL-R84.** An inline escalation executionConfig is a non-empty Stage-local
+reference-only override. It contains optional `planner` and `agents` fields, at
+least one present. `planner` is one non-empty execution-selection leaf
+(TPL-R72). `agents`, when present, is a non-empty mapping from logical Stage
+binding names to non-empty leaves. Unknown fields (including `ref`), duplicate
+YAML keys and explicit null planner/agents blocks are invalid.
 
-**TPL-R85.** ModelPolicy and Gateway refs in a profile resolve while the
-configuration set loads; binding names and consumer compatibility are validated
-against every Stage that references the profile.
+**TPL-R85.** ModelPolicy and Gateway refs in an inline override resolve while
+the configuration set loads. Binding names and consumer compatibility are
+validated against every consuming Stage, including uses expanded from YAML
+aliases.
 
-**TPL-R86.** The manifest's exact `(name, version)` selector resolves to an
-`ExecutionConfigRef` carrying the SHA-256 digest of its normalized RFC 8785 JCS
-manifest. WorkflowCatalog embeds that exact ref and the resolved body in the
-Run snapshot. A missing or incompatible profile rejects the consuming Workflow
-(FAIL-TPL-1); later edits cannot reinterpret an existing Run.
+**TPL-R86.** WorkflowCatalog embeds the normalized inline override and its fully
+resolved effective variant in the Run snapshot. Missing or incompatible selected
+configurations reject the consuming Workflow (FAIL-TPL-1); later edits cannot
+reinterpret an existing Run.
 
 **TPL-R87.** An escalation override may select other already published
 ModelPolicy, LLMGatewayConfig and credential refs, but cannot change the
@@ -881,10 +878,10 @@ factory from Passthrough to Streamline under
 **TPL-R88.** Contractor does not infer whether a selected model is stronger;
 the Workflow author declares the escalation tier intentionally.
 
-**TPL-R89.** Operations exposes an ExecutionConfig profile's digest and its
-safe ModelPolicy, LLMGatewayConfig and credential IDs read-only. The Run form
-cannot edit the profile body or mix browser-supplied inline fields into the
-referenced profile.
+**TPL-R89.** Operations and Run history expose the safe effective ModelPolicy,
+LLMGatewayConfig and credential IDs and their origins. The inline override
+belongs to the Workflow; there is no independently published profile body,
+identity or digest.
 
 #### Consumers
 
@@ -916,8 +913,7 @@ rather than an environment default.
 
 **TPL-R95.** Run initialization resolves both the base configuration and every
 declared escalation variant. A later Scheduler decision selects one already
-pinned variant rather than performing configuration lookup; an ExecutionConfig
-ref is never resolved during an attempt.
+pinned variant rather than performing configuration lookup; no configuration ref is resolved during an attempt.
 
 **TPL-R96.** Before returning a successful Run-create response, Server expands
 defaults and overrides into immutable base and escalation-variant per-consumer
@@ -941,7 +937,7 @@ resolves the pinned credential only when constructing RuntimeSettings or the
 Planner model client.
 
 **TPL-R99.** The Run detail page shows the selected refs and their origin
-(`workflow`, `run override`, inline escalation or exact ExecutionConfig ref),
+(`workflow`, `run override`, inline escalation),
 but never reconstructs authority from browser state.
 
 ### Resolution and pinning
@@ -1071,11 +1067,10 @@ instruction text is owned by [UI](../ui/ui.md).
 
 ## Interfaces
 
-- AgentTemplate, ModelPolicy and ExecutionConfig documents use
-  `apiVersion: contractor/v1alpha1` with `kind: AgentTemplate`,
-  `kind: ModelPolicy` and `kind: ExecutionConfig` ([Examples](#examples)). The
-  ExecutionConfig manifest schema is
-  [`execution-config-manifest.schema.json`](../../../api/v1alpha1/execution-config-manifest.schema.json).
+- AgentTemplate and ModelPolicy documents use
+  `apiVersion: contractor/v1alpha1` with `kind: AgentTemplate` and
+  `kind: ModelPolicy` ([Examples](#examples)). Escalation execution settings
+  are inline in the owning Workflow.
 - AgentTemplates travel to the Runtime inside AllocationSpec
   ([`allocation.schema.json`](../../../api/v1alpha1/allocation.schema.json),
   [Control Plane](../execution/control-plane.md)).
@@ -1113,7 +1108,7 @@ Registry entries owned by this document:
 - [LIM-TPL-12](../platform/limits.md): summarizer instructions at most 8,000
   Unicode characters (TPL-R50).
 - [FAIL-TPL-1](../platform/failure-model.md): resolution of a selected
-  ModelPolicy or ExecutionConfig profile against its consumers (TPL-R27,
+  ModelPolicy or inline escalation override against its consumers (TPL-R27,
   TPL-R86).
 - [FAIL-TPL-2](../platform/failure-model.md): Runtime Agent allocation
   preparation from a resolved AgentTemplate (TPL-R45, TPL-R63).
@@ -1166,7 +1161,7 @@ enforced independently of Gateway-reported spend and rate state (TPL-R17).
    in one Runtime Agent ([Control Plane](../execution/control-plane.md)).
 3. The complete template is resolved before capacity preparation and is passed
    in AllocationSpec rather than fetched by the Worker at task time (TPL-R62).
-4. ExecutionConfig may select another compatible published ModelPolicy without
+4. executionConfig may select another compatible published ModelPolicy without
    mutating the AgentTemplate; AllocationSpec carries that effective exact
    policy separately and Runtime verifies its digest (TPL-R62, TPL-R63).
 5. WorkerHandle reports the exact template ref, runtime ref and allocation
@@ -1188,7 +1183,7 @@ enforced independently of Gateway-reported spend and rate state (TPL-R17).
     WorkflowRun, not Runtime, resolves them in the owner UserScope and pins
     exact immutable revisions (TPL-R14).
 12. Immutable base and escalation-variant ResolvedExecutionConfigs are
-    authoritative after Run creation, and an ExecutionConfig ref is never
+    authoritative after Run creation, and no execution selection is
     resolved during an attempt (TPL-R95, TPL-R97).
 
 ## Examples
@@ -1349,23 +1344,19 @@ spec:
             credential: paid-openapi-builder
 ```
 
-An ExecutionConfig escalation profile:
+An inline escalation override (at its first use inside a Workflow):
 
 ```yaml
-apiVersion: contractor/v1alpha1
-kind: ExecutionConfig
-
-metadata:
-  name: strong-oas-review
-  version: "1"
-
-spec:
+executionConfig: &strong_review
   planner:
     modelPolicy: planner-strong@1
   agents:
     reviewer:
       modelPolicy: oas-reviewer-strong@1
 ```
+
+Another compatible transition in the same document may use
+`executionConfig: *strong_review`.
 
 A Run form may leave discovery on a local Worker policy while choosing a
 stronger published policy and a separately metered credential for the OpenAPI
@@ -1377,7 +1368,7 @@ because it makes no Planner LLM call.
 
 - Prompt editing and raw invocation inspection through the instruction endpoint
   or the Catalog UI.
-- An ExecutionConfig override of only the summarizer model, or a summarizer
+- An executionConfig override of only the summarizer model, or a summarizer
   Gateway or credential different from the normal Worker's.
 - Wildcard, omitted-list-means-all and exclusion modes in Toolset selection
   (TPL-R41).

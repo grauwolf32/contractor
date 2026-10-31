@@ -278,9 +278,7 @@ test("uploads a Project wordlist, pins its revision and opens a real ffuf report
     const output = page.locator(".run-result-card").filter({
       has: page.getByRole("heading", { name: "report", exact: true }),
     });
-    await output
-      .getByRole("button", { name: "Preview", exact: true })
-      .click();
+    await output.getByRole("button", { name: "Preview", exact: true }).click();
     const summary = output.getByRole("region", { name: "Scanner execution" });
     await expect(summary).toBeVisible();
     await expect(summary.getByText("Completed", { exact: true })).toBeVisible();

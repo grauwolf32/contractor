@@ -12,7 +12,7 @@ This document owns the Workflow definition: the `v1alpha1` document shape,
 string parameters, presentation metadata, Stages and their `objective`,
 `instructions`, Planner or Server operation selection, Worker `session` policy and Agent bindings,
 the `on` transitions and their typed actions, the retry action and its attempt
-count, the escalation action and the closed union of its `executionConfig`,
+count, the escalation action and the inline `executionConfig`,
 Workflow input and output slots, Stage context and result artifacts, the slot
 payload contract and media-type matching, the output-slot `primary` marker,
 `workflowOutputs` mappings and the built-in workspace Workflow variants.
@@ -25,7 +25,7 @@ It leaves to other documents:
   `<id>@<version>` selector grammar, WorkflowCatalog loading and selector
   resolution, and the configuration-root text-resource ref contract used by
   Stage `instructions`: [Configuration catalog](catalog.md);
-- AgentTemplates, ExecutionConfig profiles, the Workflow `spec.executionConfig`
+- AgentTemplates, the Workflow `spec.executionConfig`
   defaults, executionConfig layering and what an escalation override may
   select: [AgentTemplates](agent-templates.md);
 - Runtime labels: [Runtime configuration](runtime-config.md);
@@ -179,7 +179,7 @@ with a versioned document envelope, exactly one entry Stage (LIM-WFL-1), a
 mapping of stable Stage names and Stage-local typed transitions.
 
 WorkflowCatalog resolution of the `planner`, `template` and escalation
-ExecutionConfig selectors into exact refs, the rejection of unknown or
+execution selections into exact refs, the rejection of unknown or
 ambiguous selectors, the Run snapshot that stores the resolved refs and the
 rule that Scheduler never re-resolves the authoring strings while executing a
 Run are owned by [CAT-R29 to CAT-R35](catalog.md).
@@ -335,11 +335,11 @@ in the normalized internal binding.
 `ConfigId` schema in which the public API and Operations show them. The rule
 applies wherever a name is declared or referenced: `stages` keys,
 `entryStage` and `next` targets; `agents` keys, the Stage and Agent keys of a
-Workflow `executionConfig`, the `agents` keys of an ExecutionConfig document
+Workflow `executionConfig`, the `agents` keys of an inline escalation override
 and of an escalation `executionConfig`, `scanPlan.tools[].worker`, and an
 AuditProfile `workerCompletion` Stage and Agent. WorkflowCatalog rejects any
 other name at load, a persisted Workflow or Stage snapshot carrying one is
-invalid on read, the ExecutionConfig manifest and Workflow transition schemas
+invalid on read, the Workflow transition schemas
 and the private AllocationSpec `logicalAgentName` use the same grammar,
 Control Plane rejects a placement binding outside it, and a Planner dispatch
 and the Run events that record it accept only such a Worker name. So every
@@ -567,32 +567,34 @@ backoff consumes a Workflow attempt is owned by
 **WFL-R48.** Escalation is a Workflow Scheduler decision, never a
 model-facing Planner operation.
 
-**WFL-R49.** An escalation that selects an ExecutionConfig profile
-references it with `executionConfig.ref`:
+**WFL-R49.** An escalation declares its Stage-local execution override inline:
 
 ```yaml
 escalate:
   maxAttempts: 1
-  executionConfig:
-    ref: strong-oas-review@1
+  executionConfig: &strong_review
+    agents:
+      reviewer:
+        modelPolicy: oas-reviewer-strong@1
   then:
     fail: {}
 ```
 
-**WFL-R50.** Alternatively, `executionConfig` may contain the inline
-`planner`/`agents` object directly. The two shapes are a closed union: an
-object contains exactly `ref`, or it contains the inline override; `ref` plus
-inline fields is invalid, and there is no second merge layer inside a profile.
+**WFL-R50.** `executionConfig` contains a non-empty `planner`/`agents` object.
+Unknown fields, including `ref`, are invalid. There is no standalone
+`ExecutionConfig` configuration kind or cross-file profile lookup.
 
-**WFL-R51.** Both forms produce the same normalized Stage-local
-override.
+**WFL-R51.** Standard YAML anchors, aliases and merge keys may reuse inline
+settings within one Workflow. An anchor is declared at its first valid use;
+no additional definitions section is introduced. YAML expansion produces the
+same normalized Stage-local override as an expanded inline mapping. Each use
+is validated against its consuming Stage and pins its own effective variant.
 
-The ExecutionConfig profile manifest and the inline override body, which refs
-an override may select and what it cannot change, and the rule that the
-Workflow author declares the escalation tier intentionally are owned by
-[TPL-R83 to TPL-R88](agent-templates.md). The escalation `maxAttempts` bound
-(LIM-SCH-5), what it counts, the effective executionConfig of an escalated
-StageExecution and its pinning in the Run snapshot are owned by
+The inline override body, which refs an override may select and what it cannot
+change, and the rule that the Workflow author declares the escalation tier
+intentionally are owned by [TPL-R83 to TPL-R88](agent-templates.md). The escalation
+`maxAttempts` bound (LIM-SCH-5), what it counts, the effective executionConfig of an
+escalated StageExecution and its pinning in the Run snapshot are owned by
 [SCH-R84 to SCH-R90](../execution/scheduler.md).
 
 ### Summary continuation policy
@@ -623,7 +625,7 @@ uses the closed `none`/`compact@1` policy and bounds of WFL-R90; authoring
 omission or `none` leaves target compaction off. In this escalation scope the
 compactor ModelPolicy is selected through the existing
 `executionConfig.planner.compactorModelPolicy` (TPL-R117), including when an
-ExecutionConfig ref supplies it. A `modelPolicy` inside the context block is
+inline execution selection supplies it. A `modelPolicy` inside the context block is
 invalid here. Compact instructions and every threshold are resolved and pinned
 in the transition, then copied to the target StageSpec. Null or malformed
 policies and context settings on non-summary escalation are invalid. The
@@ -634,7 +636,7 @@ The target factory is exactly `streamline@1`; its independent compatible
 ModelPolicy, Gateway and optional matching credential are resolved and pinned
 before Run admission. Only a Planner execution selection may be overridden;
 the Worker and original task authority stay unchanged. The existing
-ExecutionConfig ref/inline union applies. The deadline is bounded by
+inline executionConfig shape applies. The deadline is bounded by
 [LIM-SCH-18](../platform/limits.md) and has the admission semantics of SCH-R172.
 No `then` is accepted: this source can summarize only once, and continuation
 errors use the unchanged `failed` or `interrupted` branches. A Stage combining

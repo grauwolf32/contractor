@@ -20,7 +20,6 @@ CATALOG = {
     "agent-templates": "AgentTemplate",
     "model-policies": "ModelPolicy",
     "llm-gateways": "LLMGatewayConfig",
-    "execution-configs": "ExecutionConfig",
 }
 BUILTINS = {
     "Planner": "internal/config/resolved/descriptors.go",
@@ -140,7 +139,6 @@ class Graph:
                 "modelPolicy": "ModelPolicy",
                 "llmGateway": "LLMGatewayConfig",
                 "credential": "Credential",
-                "ref": "ExecutionConfig",
             }
             if name in kinds and isinstance(value, str):
                 self.reference(origin, kinds[name], value, source, location, view=view)
@@ -390,8 +388,6 @@ def build():
             workflow_edges(graph, label, spec, source)
         elif kind == "AuditProfile":
             profile_edges(graph, label, spec, source)
-        elif kind == "ExecutionConfig":
-            graph.execution(f"{kind}:{label}", spec, source, "spec")
     architecture = json.loads(graph.read(HERE / "architecture.json"))
     for node in architecture["nodes"]:
         for source in node["sources"]:

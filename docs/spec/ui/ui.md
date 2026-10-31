@@ -1258,7 +1258,7 @@ authoritative REST snapshot (UI-R29). Shared rules are in
    ([AgentTemplates](../configuration/agent-templates.md),
    [Runs](../execution/runs.md)).
 3. Immutable base and escalation-variant ResolvedExecutionConfigs are
-   authoritative after Run creation; an ExecutionConfig ref is never resolved
+   authoritative after Run creation; no execution selection is resolved
    during an attempt. The default, Run and Agent infrastructure layers may
    complete or override only a Worker's physical connection settings under
    their separately pinned provenance

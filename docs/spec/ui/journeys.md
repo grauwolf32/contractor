@@ -31,7 +31,7 @@ Other documents own the adjacent concepts:
   [Planners](../execution/planners.md).
 - Workflow input and output slots and the output-slot `primary` marker:
   [Workflows](../configuration/workflows.md).
-- ModelPolicy and ExecutionConfig selection and escalation profiles:
+- ModelPolicy selection and inline escalation configuration:
   [AgentTemplates](../configuration/agent-templates.md).
 - RuntimeConfig, Runtime labels, credentials, explicit-null overlays and the
   effect copy for new Run snapshots versus future allocations:
@@ -176,7 +176,7 @@ existing exact version.
 
 **UIJ-R8.** When a Run execution override is desired, the user selects
 published ModelPolicy, LLMGatewayConfig and credential refs; the surface shows
-any Workflow-pinned ExecutionConfig escalation profiles.
+any Workflow-pinned inline escalation variants.
 
 **UIJ-R9.** The user can select zero or more active `runtimeLabels`, such as
 `debug` or `caido`, for the concrete Run, and the surface shows their exact

@@ -13,10 +13,9 @@ import (
 type ConfigurationKind string
 
 const (
-	ConfigurationAgentTemplates   ConfigurationKind = "agent-templates"
-	ConfigurationExecutionConfigs ConfigurationKind = "execution-configs"
-	ConfigurationModelPolicies    ConfigurationKind = "model-policies"
-	ConfigurationLLMGateways      ConfigurationKind = "llm-gateways"
+	ConfigurationAgentTemplates ConfigurationKind = "agent-templates"
+	ConfigurationModelPolicies  ConfigurationKind = "model-policies"
+	ConfigurationLLMGateways    ConfigurationKind = "llm-gateways"
 )
 
 type ConfigurationSource string
@@ -56,7 +55,7 @@ type ConfigurationResource struct {
 func ParseConfigurationKind(raw string) (ConfigurationKind, error) {
 	kind := ConfigurationKind(raw)
 	switch kind {
-	case ConfigurationAgentTemplates, ConfigurationExecutionConfigs,
+	case ConfigurationAgentTemplates,
 		ConfigurationModelPolicies, ConfigurationLLMGateways:
 		return kind, nil
 	default:
@@ -124,17 +123,6 @@ func (s *Snapshot) Configuration(
 			},
 			Body: agentTemplateResourceBody(value), Source: source,
 		}, nil
-	case ConfigurationExecutionConfigs:
-		value, ok := s.executionConfigs[selector.String()]
-		if !ok {
-			return ConfigurationResource{}, ErrConfigurationNotFound
-		}
-		return ConfigurationResource{
-			Ref: ConfigurationRef{
-				Kind: kind, Name: selector.ID, Version: selector.Version, Digest: value.Ref.Digest,
-			},
-			Body: executionConfigResourceBody(value), Source: source,
-		}, nil
 	default:
 		return ConfigurationResource{}, ErrInvalidConfigurationKind
 	}
@@ -149,8 +137,7 @@ func (s *Snapshot) configurationSelectors(kind ConfigurationKind) []string {
 		result = mapKeys(s.gateways)
 	case ConfigurationAgentTemplates:
 		result = mapKeys(s.templates)
-	case ConfigurationExecutionConfigs:
-		result = mapKeys(s.executionConfigs)
+
 	}
 	sort.Strings(result)
 	return result
@@ -242,43 +229,6 @@ func agentTemplateResourceBody(template contracts.ResolvedAgentTemplate) map[str
 			summarizer["instructions"] = map[string]any{
 				"ref": instructions.Ref, "digest": instructions.Digest,
 			}
-		}
-	}
-	return result
-}
-
-func executionConfigResourceBody(profile resolved.ResolvedExecutionConfigProfile) map[string]any {
-	result := make(map[string]any, 2)
-	if profile.Override.Planner != nil {
-		result["planner"] = executionSelectionResourceBody(*profile.Override.Planner)
-	}
-	if len(profile.Override.Agents) != 0 {
-		agents := make(map[string]any, len(profile.Override.Agents))
-		for name, selection := range profile.Override.Agents {
-			agents[name] = executionSelectionResourceBody(selection)
-		}
-		result["agents"] = agents
-	}
-	return result
-}
-
-func executionSelectionResourceBody(selection resolved.ResolvedExecutionSelectionOverride) map[string]any {
-	result := make(map[string]any, 3)
-	if selection.ModelPolicy != nil {
-		result["modelPolicy"] = selection.ModelPolicy.Ref
-	}
-	if selection.CompactorModelPolicy != nil {
-		result["compactorModelPolicy"] = selection.CompactorModelPolicy.Ref
-	}
-	if selection.LLMGateway != nil {
-		result["llmGateway"] = selection.LLMGateway.Ref
-	}
-	if selection.Credential != nil {
-		if selection.Credential.Clear {
-			result["credential"] = nil
-		} else {
-			// A value, not the Snapshot's pointer: the body is caller-owned.
-			result["credential"] = *selection.Credential.Ref
 		}
 	}
 	return result

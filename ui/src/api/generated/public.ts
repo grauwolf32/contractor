@@ -5693,11 +5693,6 @@ export interface components {
         CredentialRef: {
             credentialId: components["schemas"]["ConfigId"];
         };
-        ExecutionConfigRef: {
-            configId: components["schemas"]["ConfigurationName"];
-            version: components["schemas"]["ConfigVersion"];
-            digest: components["schemas"]["Digest"];
-        };
         ConsumerExecutionConfig: {
             modelPolicy?: components["schemas"]["ModelPolicyRef"];
             model?: string;
@@ -5726,7 +5721,6 @@ export interface components {
             /** @enum {string} */
             variant: "base" | "failed_escalation" | "interrupted_escalation" | "summary_escalation";
             escalationOrdinal?: number;
-            ref?: components["schemas"]["ExecutionConfigRef"];
             planner?: components["schemas"]["ConsumerExecutionConfig"];
             agents: {
                 [key: string]: components["schemas"]["ConsumerExecutionConfig"];
@@ -6127,7 +6121,6 @@ export interface components {
             then: components["schemas"]["WorkflowNextOrFailTransition"];
         };
         WorkflowEscalationConfig: {
-            ref?: components["schemas"]["ExecutionConfigRef"];
             effective: components["schemas"]["ResolvedStageExecutionConfig"];
         };
         WorkflowEscalateTransition: {
@@ -6340,7 +6333,7 @@ export interface components {
          * @description Version-indexed configuration kinds. Instruction resources retain normalized path identity and are therefore not exposed as name@version.
          * @enum {string}
          */
-        ConfigurationKind: "agent-templates" | "execution-configs" | "model-policies" | "llm-gateways";
+        ConfigurationKind: "agent-templates" | "model-policies" | "llm-gateways";
         ConfigurationRef: {
             kind: components["schemas"]["ConfigurationKind"];
             name: components["schemas"]["ConfigurationName"];
@@ -6437,21 +6430,9 @@ export interface components {
             source: "literal";
             value: string | boolean | number;
         };
-        ExecutionConfigSelection: {
-            modelPolicy?: components["schemas"]["ModelPolicyRef"];
-            compactorModelPolicy?: components["schemas"]["ModelPolicyRef"];
-            llmGateway?: components["schemas"]["LLMGatewayConfigRef"];
-            credential?: components["schemas"]["CredentialRef"] | null;
-        };
-        ExecutionConfigBody: {
-            planner?: components["schemas"]["ExecutionConfigSelection"];
-            agents?: {
-                [key: string]: components["schemas"]["ExecutionConfigSelection"];
-            };
-        };
         ConfigurationResource: {
             ref: components["schemas"]["ConfigurationRef"];
-            body: components["schemas"]["ModelPolicyBody"] | components["schemas"]["LLMGatewayBody"] | components["schemas"]["AgentTemplateBody"] | components["schemas"]["ExecutionConfigBody"];
+            body: components["schemas"]["ModelPolicyBody"] | components["schemas"]["LLMGatewayBody"] | components["schemas"]["AgentTemplateBody"];
             /** @enum {string} */
             source: "operator" | "managed";
         };

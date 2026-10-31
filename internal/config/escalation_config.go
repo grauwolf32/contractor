@@ -10,22 +10,11 @@ import (
 	"go.yaml.in/yaml/v4"
 )
 
-func (s *executionConfigProfileSpecSource) UnmarshalYAML(node *yaml.Node) error {
-	type plain executionConfigProfileSpecSource
-	if err := node.Load((*plain)(s), yaml.WithKnownFields(), yaml.WithUniqueKeys()); err != nil {
-		return err
-	}
-	s.plannerPresent = yamlMappingHasKey(node, "planner")
-	s.agentsPresent = yamlMappingHasKey(node, "agents")
-	return nil
-}
-
 func (s *escalationExecutionConfigSource) UnmarshalYAML(node *yaml.Node) error {
 	type plain escalationExecutionConfigSource
 	if err := node.Load((*plain)(s), yaml.WithKnownFields(), yaml.WithUniqueKeys()); err != nil {
 		return err
 	}
-	s.refPresent = yamlMappingHasKey(node, "ref")
 	s.plannerPresent = yamlMappingHasKey(node, "planner")
 	s.agentsPresent = yamlMappingHasKey(node, "agents")
 	return nil
@@ -55,60 +44,6 @@ func yamlMappingHasKey(node *yaml.Node, key string) bool {
 	return present
 }
 
-func (l *loader) loadExecutionConfigs() error {
-	files, err := l.discover("execution-configs")
-	if err != nil {
-		return err
-	}
-	for _, file := range files {
-		document, decodeErr := decodeOne[executionConfigDocument](file)
-		if decodeErr != nil {
-			return decodeErr
-		}
-		selector, resolveErr := validateEnvelope(
-			document.APIVersion, document.Kind, executionConfigKind, document.Metadata,
-		)
-		if resolveErr != nil {
-			return fmt.Errorf("%s: %w", file.relative, resolveErr)
-		}
-		if _, exists := l.executionConfigs[selector.String()]; exists {
-			return fmt.Errorf("%s: duplicate ExecutionConfig identity %s", file.relative, selector)
-		}
-		patch, resolveErr := stageExecutionConfigPatchFromProfileSource(document.Spec, "spec")
-		if resolveErr != nil {
-			return fmt.Errorf("%s: %w", file.relative, resolveErr)
-		}
-		override, resolveErr := l.resolveStageExecutionConfigOverride(patch)
-		if resolveErr != nil {
-			return fmt.Errorf("%s: %w", file.relative, resolveErr)
-		}
-		digest, digestErr := executionConfigDigest(selector, patch)
-		if digestErr != nil {
-			return fmt.Errorf("%s: compute ExecutionConfig digest: %w", file.relative, digestErr)
-		}
-		l.executionConfigs[selector.String()] = resolved.ResolvedExecutionConfigProfile{
-			Ref: resolved.ExecutionConfigRef{
-				ConfigID: selector.ID, Version: selector.Version, Digest: digest,
-			},
-			Override: override,
-		}
-		l.sources[configurationSourceKey(ConfigurationExecutionConfigs, selector.String())] = file.source
-	}
-	return nil
-}
-
-func stageExecutionConfigPatchFromProfileSource(
-	source *executionConfigProfileSpecSource,
-	field string,
-) (resolved.StageExecutionConfigPatch, error) {
-	if source == nil {
-		return resolved.StageExecutionConfigPatch{}, fmt.Errorf("%s is required", field)
-	}
-	return stageExecutionConfigPatchFromParts(
-		source.Planner, source.Agents, source.plannerPresent, source.agentsPresent, field,
-	)
-}
-
 func stageExecutionConfigPatchFromEscalationSource(
 	source *escalationExecutionConfigSource,
 	field string,
@@ -116,41 +51,29 @@ func stageExecutionConfigPatchFromEscalationSource(
 	if source == nil {
 		return resolved.StageExecutionConfigPatch{}, fmt.Errorf("%s is required", field)
 	}
-	return stageExecutionConfigPatchFromParts(
-		source.Planner, source.Agents, source.plannerPresent, source.agentsPresent, field,
-	)
-}
-
-func stageExecutionConfigPatchFromParts(
-	planner *executionSelectionSource,
-	agents *map[string]executionSelectionSource,
-	plannerPresent bool,
-	agentsPresent bool,
-	field string,
-) (resolved.StageExecutionConfigPatch, error) {
-	if !plannerPresent && !agentsPresent {
+	if !source.plannerPresent && !source.agentsPresent {
 		return resolved.StageExecutionConfigPatch{}, fmt.Errorf("%s must contain planner and/or agents", field)
 	}
 	result := resolved.StageExecutionConfigPatch{}
-	if plannerPresent {
-		if planner == nil {
+	if source.plannerPresent {
+		if source.Planner == nil {
 			return resolved.StageExecutionConfigPatch{}, fmt.Errorf("%s.planner must not be null", field)
 		}
-		selection, err := executionSelectionFromYAML(*planner, true, field+".planner")
+		selection, err := executionSelectionFromYAML(*source.Planner, true, field+".planner")
 		if err != nil {
 			return resolved.StageExecutionConfigPatch{}, err
 		}
 		result.Planner = &selection
 	}
-	if agentsPresent {
-		if agents == nil {
+	if source.agentsPresent {
+		if source.Agents == nil {
 			return resolved.StageExecutionConfigPatch{}, fmt.Errorf("%s.agents must not be null", field)
 		}
-		if len(*agents) == 0 {
+		if len(*source.Agents) == 0 {
 			return resolved.StageExecutionConfigPatch{}, fmt.Errorf("%s.agents must be a non-empty mapping", field)
 		}
-		result.Agents = make(map[string]resolved.ExecutionSelectionPatch, len(*agents))
-		for logicalName, sourceSelection := range *agents {
+		result.Agents = make(map[string]resolved.ExecutionSelectionPatch, len(*source.Agents))
+		for logicalName, sourceSelection := range *source.Agents {
 			if err := resolved.ValidateWorkflowName(field+" logical Agent name", logicalName); err != nil {
 				return resolved.StageExecutionConfigPatch{}, err
 			}

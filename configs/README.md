@@ -389,14 +389,12 @@ digests, origins, and credential IDs are pinned in the Run snapshot, while
 token bytes are resolved only when constructing a Planner client or Worker
 allocation.
 
-`execution-configs/` is the catalog location for immutable Stage-local
-escalation patches; the default catalog currently ships none. A runnable
-example is under [`e2e/execution-configs/`](e2e/execution-configs/). A
-Workflow `failed` or `interrupted` action may select one exact profile ref, or
-declare the same `planner`/`agents` patch inline. The loader resolves and
-validates every possible variant, and Run creation reapplies it over that
-Run's base overrides before pinning the complete effective configuration.
-Credential `null` is an explicit clear in this patch shape.
+Escalation execution settings are inline in the owning Workflow. Standard YAML
+anchors and aliases reuse a block within that document, for example
+`executionConfig: &strong_execution` at its first use and
+`executionConfig: *strong_execution` at another compatible transition. There is
+no standalone ExecutionConfig manifest or cross-file profile lookup. The process
+example is [`e2e/workflows/escalating_copy.yaml`](e2e/workflows/escalating_copy.yaml).
 
 For local development only, `CONTRACTOR_LLM_GATEWAY_TOKEN` and
 `CONTRACTOR_PLANNER_LLM_GATEWAY_TOKEN` bootstrap the fixed credential IDs

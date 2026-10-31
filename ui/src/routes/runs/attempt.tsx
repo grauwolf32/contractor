@@ -61,15 +61,6 @@ function ExecutionConfigView({ attempt }: { attempt: StageAttempt }) {
           ? null
           : ` · escalation ${config.escalationOrdinal}`}
       </p>
-      {config.ref === undefined ? null : (
-        <p className="runs-block-note">
-          Profile{" "}
-          <code>
-            {config.ref.configId}@{config.ref.version}
-          </code>{" "}
-          <Digest value={config.ref.digest} />
-        </p>
-      )}
       <ConsumerConfigList
         config={config}
         workerLabel={(name) => `Logical Worker ${name}`}

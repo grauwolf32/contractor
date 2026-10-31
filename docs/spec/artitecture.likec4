@@ -331,7 +331,7 @@ model {
         #contractor
       }
 
-      executionConfigService = component 'Execution Profiles + Model/Gateway Config + Credential Boundary' {
+      executionConfigService = component 'Inline Execution Selections + Model/Gateway Config + Credential Boundary' {
         #contractor
       }
 
@@ -689,7 +689,7 @@ model {
     orchestration.runService -> auditCoordination.auditStore 'Commit trusted submission identity and Run association in the same transaction'
 
     orchestration.workflowScheduler -> orchestration.workflowCatalog 'Resolve Workflow and select ready StageSpec'
-    orchestration.workflowCatalog -> identityConfiguration.executionConfigService 'Resolve exact digest-bearing escalation profiles'
+    orchestration.workflowCatalog -> identityConfiguration.executionConfigService 'Resolve inline escalation selections against exact ModelPolicy/Gateway refs'
     orchestration.workflowScheduler -> orchestration.agentTemplateCatalog 'Resolve and pin exact Stage AgentTemplates'
     orchestration.workflowScheduler -> orchestration.skillCatalog 'Resolve owner refs once; validate and fork exact packages into RunScope'
     orchestration.workflowScheduler -> identityConfiguration.executionConfigService 'Resolve immutable per-Run executionConfig'

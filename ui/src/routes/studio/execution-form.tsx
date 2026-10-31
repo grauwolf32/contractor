@@ -1,7 +1,7 @@
 import { Button, Field } from "../../ui";
 import { at, record, textValue, type Path } from "./document";
 import { useDraftEdit, type FormEditor } from "./form-editor";
-import { setSelectionField, setEscalationMode } from "./advanced-edits";
+import { setSelectionField } from "./advanced-edits";
 import { CatalogField } from "./catalog-picker";
 
 function SelectionForm({
@@ -247,45 +247,16 @@ export function EscalationForm({
   agents: string[];
   outcome: string;
 }) {
-  const row = record(at(editor.draft.value, path)),
-    mode = row.ref !== undefined ? "reference" : "inline";
-  const { edit, error } = useDraftEdit(editor.draft, editor.onReplace);
   return (
     <details className="studio-settings">
       <summary>{outcome} escalation configuration</summary>
-      <Field label={`${outcome} escalation mode`} className="studio-field">
-        {(control) => (
-          <select
-            {...control}
-            value={mode}
-            onChange={(event) =>
-              edit((document) =>
-                setEscalationMode(document, path, event.target.value),
-              )
-            }
-          >
-            <option value="reference">Published configuration</option>
-            <option value="inline">Inline selections</option>
-          </select>
-        )}
-      </Field>
-      {mode === "reference" ? (
-        <CatalogField
-          label={`${outcome} execution configuration`}
-          kind="execution-configs"
-          value={textValue(row.ref)}
-          onChange={(value) => editor.onPatch([...path, "ref"], value)}
-        />
-      ) : (
-        <StageSelections
-          editor={editor}
-          path={path}
-          agents={agents}
-          allowClear
-          title={`${outcome} escalation`}
-        />
-      )}
-      {error ? <p role="alert">{error}</p> : null}
+      <StageSelections
+        editor={editor}
+        path={path}
+        agents={agents}
+        allowClear
+        title={`${outcome} escalation`}
+      />
     </details>
   );
 }

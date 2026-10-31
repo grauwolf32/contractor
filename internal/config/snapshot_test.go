@@ -16,31 +16,12 @@ import (
 	"github.com/grauwolf32/contractor/internal/configtest"
 )
 
-// detachedOverrideProfile selects every override field, including a cleared
-// credential, so the profile clone path carries a Gateway body and both
-// credential shapes.
-const detachedOverrideProfile = `apiVersion: contractor/v1alpha1
-kind: ExecutionConfig
-metadata: {name: detached-override, version: "1"}
-spec:
-  planner:
-    llmGateway: local-litellm@1
-    credential: development-planner
-  agents:
-    builder:
-      modelPolicy: worker@1
-      llmGateway: local-litellm@1
-      credential: development-worker
-    validator:
-      credential: null
-`
-
 // TestSnapshotAccessorResultsShareNoMemoryWithSnapshot checks the Snapshot
 // contract mechanically: every pointer, slice and map in an accessor result
 // must be an allocation the Snapshot does not hold, so no caller mutation, at
 // any depth, reaches the published configuration. The catalog declares Gateway
 // failure signatures, Planner and Worker selections with credentials, an inline
-// escalation override, an ExecutionConfig profile with every field, scan plans
+// escalation override, scan plans
 // and AuditProfiles. A new exported accessor fails the test until it is
 // exercised here.
 func TestSnapshotAccessorResultsShareNoMemoryWithSnapshot(t *testing.T) {
@@ -55,9 +36,13 @@ func TestSnapshotAccessorResultsShareNoMemoryWithSnapshot(t *testing.T) {
 		}
 	}
 	writeFile(t, filepath.Join(root, "llm-gateways/local_litellm.yaml"), []byte(signedGatewayManifest))
-	writeFile(t, filepath.Join(root, "execution-configs/detached_override.yaml"), []byte(detachedOverrideProfile))
-	replaceFile(t, filepath.Join(root, "workflows/openapi_from_workspace_v5.yaml"), "ref: strong-oas-review@1",
-		"agents: {validator: {llmGateway: local-litellm@1, credential: development-worker}}")
+	// Exercise both override credential shapes and a Gateway body through the
+	// remaining inline path, rather than a separately catalogued profile.
+	path := filepath.Join(root, "workflows/openapi_from_workspace_v5.yaml")
+	replaceFile(t, path, "                  modelPolicy: test-strong-worker@1",
+		"                  modelPolicy: test-strong-worker@1\n                  llmGateway: local-litellm@1\n                  credential: development-worker")
+	replaceFile(t, path, "        interrupted: {fail: {}}",
+		"        interrupted:\n          escalate:\n            maxAttempts: 1\n            executionConfig:\n              agents:\n                validator: {credential: null}\n            then: {fail: {}}")
 	snapshot := mustLoad(t, root)
 	owned := newSpanIndex(mutableSpans(reflect.ValueOf(snapshot).Elem(), "Snapshot"))
 
@@ -79,7 +64,7 @@ func TestSnapshotAccessorResultsShareNoMemoryWithSnapshot(t *testing.T) {
 	record("Counts", "", snapshot.Counts(), nil)
 	selectors := make(map[ConfigurationKind][]string)
 	for _, kind := range []ConfigurationKind{
-		ConfigurationAgentTemplates, ConfigurationExecutionConfigs,
+		ConfigurationAgentTemplates,
 		ConfigurationModelPolicies, ConfigurationLLMGateways,
 	} {
 		discovery, err := snapshot.ConfigurationDiscovery(kind)
@@ -151,8 +136,8 @@ func TestSnapshotAccessorResultsShareNoMemoryWithSnapshot(t *testing.T) {
 		record("ResolvePinnedAuditProfile", selector, profile, err)
 	}
 
-	if len(profiles) == 0 || len(selectors[ConfigurationExecutionConfigs]) < 2 {
-		t.Fatalf("catalog lost its AuditProfiles or ExecutionConfig profiles: %d, %v", len(profiles), selectors)
+	if len(profiles) == 0 {
+		t.Fatalf("catalog lost its AuditProfiles: %d, %v", len(profiles), selectors)
 	}
 	snapshotType := reflect.TypeOf(snapshot)
 	for index := range snapshotType.NumMethod() {

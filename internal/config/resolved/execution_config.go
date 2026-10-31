@@ -26,7 +26,7 @@ func ResolveEscalationVariants(workflow *ResolvedWorkflow) error {
 				return fmt.Errorf("Stage %q on.%s: %w", stageName, item.Outcome, err)
 			}
 			origin := escalationExecutionConfigOrigin(
-				stageName, item.Outcome, item.Action.Escalate.ExecutionConfig,
+				stageName, item.Outcome,
 			)
 			if err := applyResolvedStageExecutionConfigOverride(
 				&variantStage, item.Action.Escalate.ExecutionConfig.Override, origin,
@@ -59,11 +59,6 @@ func ValidateStageEscalationVariant(
 		return nil
 	}
 	variant := action.Escalate.ExecutionConfig
-	if variant.Ref != nil {
-		if err := validateExecutionConfigRef(*variant.Ref); err != nil {
-			return fmt.Errorf("Stage %q on.%s.escalate.executionConfig.ref: %w", stageName, outcome, err)
-		}
-	}
 	variantStage, err := escalationStage(stage, outcome, *action.Escalate)
 	if err != nil {
 		return fmt.Errorf("Stage %q on.%s: %w", stageName, outcome, err)
@@ -71,7 +66,7 @@ func ValidateStageEscalationVariant(
 	if err := applyResolvedStageExecutionConfigOverride(
 		&variantStage,
 		variant.Override,
-		escalationExecutionConfigOrigin(stageName, outcome, variant),
+		escalationExecutionConfigOrigin(stageName, outcome),
 	); err != nil {
 		return fmt.Errorf("Stage %q on.%s.escalate.executionConfig: %w", stageName, outcome, err)
 	}
@@ -204,11 +199,7 @@ func resolvedExecutionSelectionOverrideHasAny(value ResolvedExecutionSelectionOv
 func escalationExecutionConfigOrigin(
 	stageName string,
 	outcome string,
-	variant ResolvedEscalationExecutionConfig,
 ) string {
-	if variant.Ref != nil {
-		return "executionConfig." + variant.Ref.ConfigID + "@" + variant.Ref.Version
-	}
 	return "workflow.stages." + stageName + ".on." + outcome + ".escalate.executionConfig"
 }
 

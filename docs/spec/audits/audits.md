@@ -422,7 +422,7 @@ unsupported; start and recovery fail validation (FAIL-AUD-1).
 
 **AUD-R23.** `audit-profiles` is a fixed configuration subtree alongside
 `workflows`, `agent-templates`, `model-policies`, `llm-gateways`,
-`execution-configs` and `instructions`. The subtree list, the roots from which
+and `instructions`. The subtree list, the roots from which
 AuditProfile manifests are loaded and the loading contract are specified in
 [catalog](../configuration/catalog.md).
 

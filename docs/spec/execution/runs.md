@@ -763,8 +763,7 @@ precondition and idempotency errors of the
 secret-free.
 
 **RUN-R86.** Run detail shows the selected execution-config refs and
-their origin (`workflow`, `run override`, inline escalation or exact
-ExecutionConfig ref) and never reconstructs authority from browser state.
+their origin (`workflow`, `run override`, inline escalation) and never reconstructs authority from browser state.
 
 **RUN-R87.** A Run detail response includes the event cursor of the
 Run's `run` stream ([Public API](../api/public-api.md)). The Server reads the

@@ -18,7 +18,7 @@ type ExecutionConfigPatch struct {
 }
 
 // StageExecutionConfigPatch is the planner and per-Agent part of one Stage's
-// patch, and the body of a named ExecutionConfig profile.
+// patch, also used when resolving an inline escalation override.
 type StageExecutionConfigPatch struct {
 	Planner *ExecutionSelectionPatch
 	Agents  map[string]ExecutionSelectionPatch
@@ -207,7 +207,7 @@ func (p ExecutionConfigPatch) canonicalValue() map[string]any {
 	if len(p.Stages) > 0 {
 		stages := make(map[string]any, len(p.Stages))
 		for name, value := range p.Stages {
-			canonical := value.CanonicalValue()
+			canonical := value.canonicalValue()
 			if len(canonical) > 0 {
 				stages[name] = canonical
 			}
@@ -219,11 +219,11 @@ func (p ExecutionConfigPatch) canonicalValue() map[string]any {
 	return result
 }
 
+// CanonicalValue returns the detached request shape used by Run idempotency hashing.
 func (p ExecutionConfigPatch) CanonicalValue() map[string]any { return p.canonicalValue() }
 
-// CanonicalValue is the JSON shape of the patch that an ExecutionConfig
-// profile digest covers; it preserves an explicit credential null.
-func (p StageExecutionConfigPatch) CanonicalValue() map[string]any {
+// canonicalValue preserves explicit credential null when hashing a Run patch.
+func (p StageExecutionConfigPatch) canonicalValue() map[string]any {
 	result := make(map[string]any)
 	if p.Planner != nil {
 		result["planner"] = p.Planner.canonicalValue()

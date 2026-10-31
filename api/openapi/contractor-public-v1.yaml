@@ -15728,14 +15728,6 @@ components:
       required: [credentialId]
       properties:
         credentialId: {$ref: '#/components/schemas/ConfigId'}
-    ExecutionConfigRef:
-      type: object
-      additionalProperties: false
-      required: [configId, version, digest]
-      properties:
-        configId: {$ref: '#/components/schemas/ConfigurationName'}
-        version: {$ref: '#/components/schemas/ConfigVersion'}
-        digest: {$ref: '#/components/schemas/Digest'}
     ConsumerExecutionConfig:
       type: object
       additionalProperties: false
@@ -15775,7 +15767,6 @@ components:
       properties:
         variant: {type: string, enum: [base, failed_escalation, interrupted_escalation, summary_escalation]}
         escalationOrdinal: {type: integer, minimum: 1}
-        ref: {$ref: '#/components/schemas/ExecutionConfigRef'}
         planner: {$ref: '#/components/schemas/ConsumerExecutionConfig'}
         agents:
           type: object
@@ -16355,7 +16346,6 @@ components:
       additionalProperties: false
       required: [effective]
       properties:
-        ref: {$ref: '#/components/schemas/ExecutionConfigRef'}
         effective: {$ref: '#/components/schemas/ResolvedStageExecutionConfig'}
     WorkflowEscalateTransition:
       type: object
@@ -16537,7 +16527,7 @@ components:
       description: >-
         Version-indexed configuration kinds. Instruction resources retain
         normalized path identity and are therefore not exposed as name@version.
-      enum: [agent-templates, execution-configs, model-policies, llm-gateways]
+      enum: [agent-templates, model-policies, llm-gateways]
     ConfigurationRef:
       type: object
       additionalProperties: false
@@ -16706,28 +16696,6 @@ components:
                 - {type: string, maxLength: 8192}
                 - {type: boolean}
                 - {type: number, minimum: -9007199254740991, maximum: 9007199254740991}
-    ExecutionConfigSelection:
-      type: object
-      additionalProperties: false
-      minProperties: 1
-      properties:
-        modelPolicy: {$ref: '#/components/schemas/ModelPolicyRef'}
-        compactorModelPolicy: {$ref: '#/components/schemas/ModelPolicyRef'}
-        llmGateway: {$ref: '#/components/schemas/LLMGatewayConfigRef'}
-        credential:
-          oneOf:
-            - {$ref: '#/components/schemas/CredentialRef'}
-            - {type: 'null'}
-    ExecutionConfigBody:
-      type: object
-      additionalProperties: false
-      minProperties: 1
-      properties:
-        planner: {$ref: '#/components/schemas/ExecutionConfigSelection'}
-        agents:
-          type: object
-          minProperties: 1
-          additionalProperties: {$ref: '#/components/schemas/ExecutionConfigSelection'}
     ConfigurationResource:
       type: object
       additionalProperties: false
@@ -16739,7 +16707,6 @@ components:
             - {$ref: '#/components/schemas/ModelPolicyBody'}
             - {$ref: '#/components/schemas/LLMGatewayBody'}
             - {$ref: '#/components/schemas/AgentTemplateBody'}
-            - {$ref: '#/components/schemas/ExecutionConfigBody'}
         source: {type: string, enum: [operator, managed]}
     ConfigurationPage:
       type: object

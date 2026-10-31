@@ -93,11 +93,6 @@ const workflow: WorkflowResource = conforming("WorkflowResource", {
           kind: "escalate",
           maxAttempts: 1,
           executionConfig: {
-            ref: {
-              configId: "strong-escalation",
-              version: "2",
-              digest,
-            },
             effective: { agents: { builder: workerConfig } },
           },
           then: { kind: "fail" },
@@ -1406,9 +1401,7 @@ describe("Workflow routes", () => {
             true,
       ),
     ).toBeInTheDocument();
-    expect(
-      screen.getByText("strong-escalation@2", { selector: "code" }),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/inline execution settings/)).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /escalate/i }),
     ).not.toBeInTheDocument();
