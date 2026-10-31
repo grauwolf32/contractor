@@ -1,6 +1,8 @@
 package apierror
 
 import (
+	"bytes"
+	"encoding/json"
 	"flag"
 	"os"
 	"path/filepath"
@@ -11,9 +13,9 @@ import (
 	"testing"
 )
 
-// update rewrites the generated table of docs/spec/platform/errors.md:
+// update rewrites the generated table and browser test retryability fixture:
 // go test ./internal/apierror -run TestRegistryTableIsCurrent -update
-var update = flag.Bool("update", false, "rewrite the generated public error code table of errors.md")
+var update = flag.Bool("update", false, "rewrite the generated error table and browser test registry")
 
 const (
 	registryDocument = specPlatform + "/errors.md"
@@ -88,5 +90,30 @@ func TestRegistryTableIsCurrent(t *testing.T) {
 			t.Errorf("%s: the assembled table has two rows for %s", path, code)
 		}
 		seen[code] = true
+	}
+
+	// The browser's test doubles share the Server's retryability instead of
+	// independently guessing it from a status or defaulting it to false.
+	retryability := make(map[string]bool, len(registry))
+	for _, row := range registry {
+		retryability[row.code] = row.retryable
+	}
+	want, err := json.MarshalIndent(retryability, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want = append(want, '\n')
+	fixture := "../../ui/src/test/error-retryability.generated.json"
+	currentFixture, err := os.ReadFile(fixture)
+	if err != nil && !os.IsNotExist(err) {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(currentFixture, want) {
+		if !*update {
+			t.Fatalf("%s is stale: run make docs-error-registry", fixture)
+		}
+		if err := os.WriteFile(fixture, want, 0o644); err != nil {
+			t.Fatal(err)
+		}
 	}
 }

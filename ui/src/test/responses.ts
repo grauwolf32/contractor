@@ -5,6 +5,7 @@
 import { responseViolation, type ResponseOperation } from "../api/contract";
 import { RESPONSE_SCHEMAS } from "../api/generated/response-schemas";
 import type { components } from "../api/generated/public";
+import errorRetryability from "./error-retryability.generated.json";
 
 export const API_VERSION_HEADERS = {
   "X-Contractor-API-Version": "contractor.public.v1",
@@ -46,14 +47,29 @@ export function bytes(
   });
 }
 
-/** An error envelope with `status`. */
+/** Retryability generated from internal/apierror by make docs-error-registry. */
+export function errorRetryable(code: string): boolean {
+  if (!Object.hasOwn(errorRetryability, code)) {
+    throw new Error(`Unregistered public API error code: ${code}`);
+  }
+  return errorRetryability[code as keyof typeof errorRetryability];
+}
+
+/** An error envelope with `status` and the registry's retryability. */
 export function failure(
   status: number,
   code = status === 404 ? "not_found" : "internal_error",
   message = "Server failed",
-  retryable = false,
 ): Response {
-  return json({ code, message, retryable, requestId: "request_test" }, status);
+  return json(
+    {
+      code,
+      message,
+      retryable: errorRetryable(code),
+      requestId: "request_test",
+    },
+    status,
+  );
 }
 
 /** 409: another write changed the resource or its state first. */

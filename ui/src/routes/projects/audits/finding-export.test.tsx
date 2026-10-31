@@ -47,18 +47,13 @@ describe("check SARIF export", () => {
       "POST /v1/audits/{auditId}/findings/exports": async ({ request }) => {
         posts.push((await request.json()) as FindingExportRequest);
         return posts.length === 1
-          ? failure(503, "storage_transaction_conflict", "Try again", true)
+          ? failure(503, "storage_transaction_conflict", "Try again")
           : json({ ...published, replayed: true });
       },
       "GET /v1/audits/{auditId}/findings/exports/{exportId}/content": () => {
         downloadCalls++;
         return downloadCalls === 1
-          ? failure(
-              503,
-              "storage_transaction_conflict",
-              "Try download again",
-              true,
-            )
+          ? failure(503, "storage_transaction_conflict", "Try download again")
           : bytes(EXPORT_BYTES, "application/json", { ETag: '"r1"' });
       },
     });

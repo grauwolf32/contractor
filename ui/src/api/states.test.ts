@@ -72,6 +72,20 @@ describe("state lists", () => {
     }
   });
 
+  it("marks materials prepared only in inventory and Rounds", () => {
+    const prepared: Record<AuditPhase, boolean> = {
+      "not-started": false,
+      preparing: false,
+      inventory: true,
+      rounds: true,
+    };
+    const phases = contractEnum("AuditPhase") as AuditPhase[];
+    expect(Object.keys(prepared).sort()).toEqual([...phases].sort());
+    for (const phase of phases) {
+      expect(states.auditPastPreparation(phase), phase).toBe(prepared[phase]);
+    }
+  });
+
   it("keeps the Audit subsets consistent with each other", () => {
     expect(["draft", ...states.AUDIT_STATES_WITH_FINDINGS, "deleting"]).toEqual(
       expect.arrayContaining([...states.AUDIT_STATES]),

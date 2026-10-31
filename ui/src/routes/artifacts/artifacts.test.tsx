@@ -275,7 +275,7 @@ describe("Artifact routes", () => {
     const { sent } = renderApplication("/artifacts", {
       server: {
         [LIST]: () => json(page([])),
-        [WRITE]: () => failure(409, "conflict", "resource state changed", true),
+        [WRITE]: () => failure(409, "conflict", "resource state changed"),
       },
     });
     await screen.findByText("No files yet");
@@ -515,7 +515,6 @@ describe("Artifact routes", () => {
                 409,
                 "conflict",
                 "resource state changed; retry with the current revision",
-                true,
               );
             },
             [METADATA]: ({ url }) => {

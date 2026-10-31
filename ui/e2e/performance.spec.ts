@@ -82,7 +82,12 @@ test("renders disabled stale and discontinuous performance observations truthful
     async (route, _request, url) => {
       if (url.pathname === "/v1/operations/snapshot") {
         registryReads += 1;
-        await fulfillError(route, 500, "unexpected_registry_read");
+        await fulfillError(
+          route,
+          500,
+          "internal_error",
+          "Unexpected registry read",
+        );
         return;
       }
       if (url.pathname === "/v1/operations/performance") {

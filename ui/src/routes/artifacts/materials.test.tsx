@@ -337,7 +337,7 @@ describe("Project materials", () => {
     const { requests, user } = renderRegion(
       {
         [LIST_READ]: () => listOf([]),
-        [WRITE]: () => failure(409, "conflict", "resource state changed", true),
+        [WRITE]: () => failure(409, "conflict", "resource state changed"),
       },
       `/projects/${PROJECT}/artifacts?add=artifact`,
     );

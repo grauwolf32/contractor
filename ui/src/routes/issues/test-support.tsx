@@ -120,7 +120,11 @@ function routes(server: IssuesServer) {
     "GET /v1/findings": async (call: FakeCall) => {
       await server.gate;
       if (server.failing.size > 0)
-        return failure(503, "unavailable", "Findings unavailable");
+        return failure(
+          503,
+          "storage_transaction_conflict",
+          "Findings unavailable",
+        );
       return owner["GET /v1/findings"]!(call);
     },
     "GET /v1/projects": () => json(page(server.projects)),
@@ -155,7 +159,11 @@ function routes(server: IssuesServer) {
       if (audit === undefined) return failure(404, "not_found", "No check");
       await server.gate;
       if (server.failing.has(audit.auditId))
-        return failure(503, "unavailable", "Findings unavailable");
+        return failure(
+          503,
+          "storage_transaction_conflict",
+          "Findings unavailable",
+        );
       const state = url.searchParams.get("state");
       const verdict = url.searchParams.get("verdict");
       const severity = url.searchParams.get("severity");

@@ -123,7 +123,6 @@ function serve(
               503,
               "storage_transaction_conflict",
               "Checks unavailable",
-              true,
             );
           const state = url.searchParams.get("state");
           return json(

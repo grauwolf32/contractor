@@ -168,11 +168,14 @@ function stateListCopies(path: string, text: string): string[] {
 }
 
 const AUDIT_PHASES = new Set<string>(schemaEnum("AuditPhase"));
-/** The phases auditPrecedesRounds selects, in lexical order. */
-const PHASES_BEFORE_ROUNDS = "inventory,preparing";
+/** Phase sets owned by the predicates in states.ts, in lexical order. */
+const SHARED_PHASE_SETS = new Map([
+  ["inventory,preparing", "phases before Rounds"],
+  ["inventory,rounds", "phases past preparation"],
+]);
 
 /**
- * Conditions and lists that name exactly the Audit phases before Rounds: a
+ * Conditions and lists that repeat a shared Audit phase predicate: a
  * chain of && and || whose comparisons with Audit phases compare with
  * exactly those two, or a list of exactly those two.
  */
@@ -208,25 +211,28 @@ function phaseSetCopies(path: string, text: string): string[] {
         : [],
     );
   };
-  const exactly = (phases: readonly string[]) =>
-    [...new Set(phases)].sort().join(",") === PHASES_BEFORE_ROUNDS;
+  const phaseSet = (phases: readonly string[]) =>
+    SHARED_PHASE_SETS.get([...new Set(phases)].sort().join(","));
   const visit = (node: ts.Node) => {
     if (isChain(node)) {
       const parts = leaves(node);
-      if (exactly(parts.flatMap(comparedPhases))) {
-        found.push(`phases before Rounds at line ${line(node)}`);
+      const shared = phaseSet(parts.flatMap(comparedPhases));
+      if (shared !== undefined) {
+        found.push(`${shared} at line ${line(node)}`);
       }
       parts.forEach(visit);
       return;
     }
     if (
       ts.isArrayLiteralExpression(node) &&
-      node.elements.every(ts.isStringLiteral) &&
-      exactly(
-        node.elements.map((element) => (element as ts.StringLiteral).text),
-      )
+      node.elements.every(ts.isStringLiteral)
     ) {
-      found.push(`phases before Rounds at line ${line(node)}`);
+      const shared = phaseSet(
+        node.elements.map((element) => (element as ts.StringLiteral).text),
+      );
+      if (shared !== undefined) {
+        found.push(`${shared} at line ${line(node)}`);
+      }
     }
     ts.forEachChild(node, visit);
   };
@@ -306,6 +312,7 @@ describe("contract rules have one definition", () => {
       "phases before Rounds at line 1",
       "phases before Rounds at line 2",
       "phases before Rounds at line 3",
+      "phases past preparation at line 4",
     ]);
   });
 
