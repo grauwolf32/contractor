@@ -17,7 +17,7 @@ languages:
 - yaml
 - markdown
 goal: Specify one strict program/task/result contract for exploratory and hypothesis-driven Audits, with
-  real configuration validation and a reviewable deletion/cutover map.
+  real configuration validation and a reviewable removal/data migration map.
 demonstration: A test-only fixed checklist and an exploratory program validate through the real configuration
   loader; malformed or forged context is rejected with the shared Go/Python/public fixtures.
 context:
@@ -31,11 +31,13 @@ context:
     allow future Project ownership. Remove almost all formal approvals and keep complexity controlled.
     Generation can use selected materials, findings and ordinary results including refutations and gaps.
     The user accepted the common execution skeleton and requested concrete tasks; implementation is a
-    subsequent step, not part of this task-formation request.'
-  implementation_gate: Task formation only, requested on 2026-10-31 after acceptance of the common execution
-    skeleton. Keep pending until implementation is requested and dependencies are complete. Do not start
-    code, migrations, live Runs or deployment in this planning turn. Resolve the explicitly labelled remaining
-    contract proposals in V64-001 before dependent implementation.
+    subsequent step, not part of this task-formation request. Subsequent user decisions on 2026-10-31:
+    V64-001 is delegated to a separate implementation agent. Formal approvals are removed; a transition
+    from old approvals, compatibility mode and special old-policy Resume protocol are not requested.'
+  implementation_gate: The user delegated implementation of V64-001 to a separate agent on 2026-10-31.
+    This amendment clarifies that agent's task without assigning implementation to the amending agent
+    or authorizing dependent tasks. Ordinary dependency/status rules still apply; the delegate sets
+    in_progress when starting. Approval removal is settled and must not be reopened as a cutover choice.
   design:
   - docs/proposals/0050-audit-common-hypothesis-model.md
   - docs/plans/2026-10-31-audit-redesign.md
@@ -61,8 +63,9 @@ context:
     keyed/natural receipts. No new collector, admission engine, lease store or compatibility reader.
   review_choices: The accepted task/Run/result skeleton and result/finding distinction are settled. Do
     not reopen them. Proposal 0050 still labels exact new hypothesis/mutation budgets, soft-pause/terminal-cancel
-    guarantees and old approval-required policy cutover as proposals; finalize these explicit contract
-    choices before implementation, without silently treating an agent recommendation as a user decision.
+    guarantees as proposals; finalize these explicit contract choices without silently treating an agent
+    recommendation as a user decision. Formal approval removal is a user decision, not an open choice;
+    do not design a migration/compatibility lifecycle for old approval-required policy.
   agent_proposal: 'For review: formulate a hypothesis as one observable assertion with object/actor and
     conditions, plus grounds and a way to check it. For problem search prefer a suspected violation; positive
     properties remain valid. Use existing statement/scope/grounds rather than new mandatory types or polarity
@@ -78,8 +81,9 @@ scope:
     alone never establishes a problem: supporting a bug claim or refuting a positive property may justify
     a finding under domain evidence rules. Ordinary result outputs retain other conclusions without a
     new ledger/service.'
-  - Specify pause/drain/resume versus terminal cancel, report snapshots, operation policy after review
-    removal, and strict cutover of existing persisted facts without inventing hypotheses or verdicts.
+  - Specify pause/drain/resume versus terminal cancel, report snapshots and ordinary scope/operation/access
+    restrictions. Define removal of formal approval contracts and their callers; any necessary business-data
+    migration preserves exact evidence and reports without inventing hypotheses, verdicts or consent.
   - Build shared strict fixtures/codecs only with real config/contract validation callers. Map all current
     shipped profiles/API/wire/state/table paths to preservation, replacement or deletion.
   - Specify one accepted task path for investigation, checking, supporting work and generation; these
@@ -88,7 +92,9 @@ scope:
   out:
   - A general graph/search engine, Project-wide hypothesis registry, ranker, new execution capacity or
     all-at-once materialization.
-  - Implementation during this planning-only update; changing user model configuration or deploying/migrating
+  - An approval migration protocol, compatibility reader or legacy approval mode; special waiting-for-policy
+    states, transfer/replay of prior approvals, or Resume semantics for old approval-required policy.
+  - Implementation of dependent Audit tasks under V64-001; changing user model configuration or deploying/migrating
     the demo.
 requirements:
 - id: R1
@@ -101,9 +107,10 @@ requirements:
   text: Preserve current task/iteration/batch ceilings and evidence/report bounds until an explicitly
     reviewed change; proposed new hypothesis bounds are finite and recorded once in LIM/shared fixtures.
 - id: R4
-  text: Recommended new-start active policy is allowed/prohibited under pinned Project/program scope.
-    Legacy approval-required policy must not silently become broader permission; proposed cutover pauses
-    affected old work and maps ambiguous new-start policy to prohibited.
+  text: Remove formal approval requests, waiting/expiry/renewal states, approval-required policy and report
+    acceptance from the target contract. Keep ordinary scope, allowed/prohibited operations and access
+    checks. No approval compatibility mode, migration lifecycle or special old-policy Resume is required;
+    retained historical data never becomes an active permission or fabricated human consent.
 - id: R5
   text: No internal Audit ZIP or source-reference rewriting is a target requirement. Existing external
     exports/archives retain their independent contracts.
@@ -148,26 +155,36 @@ acceptance_criteria:
   then: only trusted exact per-item associations are accepted; latest substitution and forged provenance
     fail
 - id: A3
-  given: existing stored evidence, review decisions and approval-required settings
-  when: the cutover/removal map is reviewed
+  given: existing stored evidence, report snapshots and the inventory of obsolete approval contracts/callers
+  when: the removal/data migration map is reviewed
   then: every fact has a preservation/transfer/deletion owner; no fabricated hypothesis, verdict, scope
-    or permission is specified
+    or permission is specified, and obsolete approval machinery is assigned to removal rather than compatibility
+- id: A4
+  given: target program/task/result definitions and obsolete approval-required or approval-request forms
+  when: the actual target loader/codecs and shared Go/Python/public contract fixtures validate them
+  then: supported definitions use ordinary scope/operation/access checks; obsolete approval forms are
+    rejected by the target contract, with no old-policy waiting/resume or compatibility branch. The removal
+    map assigns runtime/API/UI/storage caller deletion to the dependent implementation tasks; V64-001
+    does not expand into the whole Audit replacement
 tests:
 - command: go test -count=1 ./internal/config/... ./internal/contracts/... ./internal/auditdomain
   covers:
   - A1
   - A2
   - A3
+  - A4
 - command: make test-wire-cross-language
   covers:
   - A1
   - A2
   - A3
+  - A4
 - command: make verify-public-api verify-public-api-postgres
   covers:
   - A1
   - A2
   - A3
+  - A4
 - command: make lint
 test_prerequisites:
 - Commands below are future implementation acceptance, not results of this planning update.
