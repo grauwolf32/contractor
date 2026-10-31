@@ -1,0 +1,107 @@
+schema_version: "1.0"
+id: V425-030
+title: Consolidate failed Allocation preparation rollback
+milestone: hub-audit-structure-2026-10
+epic: execution-core
+kind: chore
+introduced_by: V8-010
+priority: P3
+status: in_progress
+depends_on: []
+languages: [python]
+goal: Give failed Allocation preparation one rollback call site while preserving resource ownership, cancellation and private API errors.
+context:
+  authority: >-
+    User decision 2026-10-31: accept research step 1, common Allocation rollback
+    and local ADK adapters, as detailed in this chat. This task owns the Runtime
+    half; V425-031 owns the independent Go Planner half.
+  review: docs/research/2026-10-31-architecture-simplification-research.md
+  specification:
+    - docs/spec/execution/runtime-agent.md#RTA-R32
+    - docs/spec/platform/failure-model.md
+  finding: >-
+    runtime/src/contractor_runtime/allocation/service.py:228 repeats the same
+    _rollback_prepare call in seven except branches. Cleanup is already owned
+    by _rollback_prepare at line 1235; the duplication is in invoking cleanup
+    and then classifying preparation errors. git blame attributes the adapter
+    branches to V8-010, commit 650421c3f9dfe4a31cd5567acd2fe3d3583670fb;
+    sibling branches accumulated through MVP-010, V10-005, V11-005 and V319-001.
+  boundary: >-
+    Keep cleanup in the existing _rollback_prepare and invoke it once on each
+    failed preparation handled today. After rollback, preserve the original
+    AllocationError or CancelledError, apply the existing adapter/workspace
+    cleanup_confirmed fence and process-exit behavior, and translate the remaining
+    preparation exceptions through one small private function. A rollback failure
+    propagates without passing through the preparation-error translator. Successful
+    preparation transfers ownership to _AllocationContext and keeps its resources.
+  failure_outcomes: >-
+    Preserve all current code/message/status/retryable mappings: adapter failure
+    is runtime_adapter_prepare_failed/503 with its retryable value; Skill and
+    workspace failures retain their fields; FindingsError and HTTPToolError retain
+    their codes and use 503 when retryable, otherwise 422; other Exception becomes
+    allocation_preparation_failed/503/retryable. Cancellation remains cancellation.
+    Catch the current Exception and CancelledError set, without broadening it to
+    all BaseException. Cleanup failure or unconfirmed adapter/workspace cleanup
+    retains fencing and exit code 70. No automatic preparation or rollback retry.
+scope:
+  in:
+    - One failed-prepare rollback call site and a small private preparation-error translator.
+    - Preserve ordinary and Podman rollback ownership, existing deadlines, cleanup ordering, ADK cache release and resource-metrics finalization.
+    - Extend existing Allocation lifecycle tests only where needed to hold error classification, cancellation, cleanup failure and partial ownership to their current behavior.
+    - Record the net production Python reduction and verification in this task.
+  out:
+    - Redesigning _rollback_prepare, release, abort, their ownership protocol or the slot lock.
+    - A generic resource framework, AsyncExitStack migration, new lifecycle states, dependencies, wire fields or API behavior.
+    - Other research steps and unrelated Runtime or platform test defects.
+acceptance_criteria:
+  - id: A1
+    given: A preparation creates only part of its resources and then fails.
+    when: The existing preparation error boundary handles the failure.
+    then: One rollback invocation completes before the error is returned; existing cleanup ordering and ownership are preserved, and production Python shrinks overall.
+  - id: A2
+    given: Each currently handled preparation error, an existing AllocationError, or in-flight cancellation.
+    when: Rollback completes.
+    then: Codes, messages, status and retryability are unchanged; AllocationError and cancellation are re-raised, and successful preparation retains its resources.
+  - id: A3
+    given: Rollback fails, cleanup cannot be confirmed, or a partially prepared Podman execution still exists.
+    when: Preparation unwinds.
+    then: Cleanup failures are not reclassified as preparation errors; fencing, exit code 70, retained ownership and prevention of premature slot reuse follow the existing behavior.
+  - id: A4
+    given: A Worker and its tools were built before commit fails, or preparation is cancelled.
+    when: Existing lifecycle and resource-metrics suites run.
+    then: Cleanup joins owned work, releases tools and ADK caches where cleanup succeeds, and discards failed-prepare samplers; complete Runtime tests and make lint pass with platform skips reported explicitly.
+tests:
+  - command: cd runtime && uv run pytest tests/test_allocation.py tests/test_adapter_host.py tests/test_agent_skill_lifecycle.py tests/test_podman_allocation.py tests/test_workspace_provider.py
+    covers: [A1, A2, A3, A4]
+  - command: make test-runtime
+    covers: [A1, A2, A3, A4]
+  - command: make lint
+    covers: [A1, A4]
+implementation_notes:
+  - >-
+    A single Exception/CancelledError preparation boundary invokes the existing
+    rollback owner once. Original AllocationError/cancellation identity, the
+    adapter/workspace cleanup-confirmation fence and error translation remain
+    separate; rollback exceptions bypass translation. Successful preparation,
+    cleanup ordering, deadlines, partial Podman context ownership and sampler
+    finalization are unchanged. No contracts, states or dependencies were added.
+  - >-
+    Production Python shrank by 70 physical lines (49 added, 119 removed).
+    Added real-service regressions for the preparation error classes, passthrough
+    identity, cleanup-confirmation fencing, exactly one rollback and propagation
+    of an exception raised by rollback itself.
+verification: >-
+  The listed five-file lifecycle selection passed: 133 passed, 15 skipped
+  (Linux/Podman-only allocation cases on macOS). uv sync --locked, Ruff,
+  all four Runtime import-layer contracts and make lint passed. The complete
+  make test-runtime command failed: 5795 passed, 133 skipped, 2 failed.
+  Of the skips, 94 require Linux Podman capabilities and 39 belong to explicit
+  real-engine/process/live-Gateway gates. The failures are the existing
+  V425-001 APFS Unicode filename test and V425-002 long Trailmark path test;
+  both also fail with an extracted unmodified HEAD production source snapshot.
+  The initial environment-only Go launch failures disappeared after restoring
+  the installed Go toolchain to PATH; an initial 150-ms Podman CLI output-limit
+  test failure also did not recur. No unrelated Runtime defects were changed.
+  Status remains in_progress because the required complete Runtime command
+  has not succeeded. The implementation is on
+  codex/allocation-rollback-planner-adapters and is not merged.

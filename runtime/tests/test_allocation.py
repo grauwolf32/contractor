@@ -28,9 +28,10 @@ from test_text_artifacts_toolset import MemoryArtifactClient
 import contractor_runtime.allocation.service as allocation_service_module
 import contractor_runtime.worker.adk_caches as adk_caches
 import contractor_runtime.worker.state as worker_state_module
-from contractor_runtime.adapters import AdapterHandles
+from contractor_runtime.adapters import AdapterHandles, AdapterPreparationError
 from contractor_runtime.adapters.host import RuntimeAdapterBuildContext, RuntimeAdapterMetricsState
 from contractor_runtime.adapters.interactsh import InteractshClient
+from contractor_runtime.agent_skills.runtime import AgentSkillPreparationError
 from contractor_runtime.allocation import AllocationError, AllocationService
 from contractor_runtime.capabilities import CapabilitySnapshot
 from contractor_runtime.contracts import (
@@ -71,6 +72,7 @@ from contractor_runtime.factories import (
     WorkerBuildContext,
     built_in_factories,
 )
+from contractor_runtime.projectfs import WorkspacePreparationError
 from contractor_runtime.state import ProcessState, RuntimeState
 from contractor_runtime.telemetry.metrics import (
     MAX_METRIC_ERRORS,
@@ -382,6 +384,116 @@ def test_prepare_keeps_findings_error_code_and_retryability(
         assert (await state.snapshot()).process_state is ProcessState.IDLE
         assert await service.snapshot() is None
         assert list(tmp_path.iterdir()) == []
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        AdapterPreparationError(retryable=False, cleanup_confirmed=True),
+        AdapterPreparationError(retryable=True, cleanup_confirmed=False),
+        AgentSkillPreparationError("skill_unavailable", retryable=True, status_code=503),
+        WorkspacePreparationError("workspace_invalid", retryable=False, status_code=422),
+        WorkspacePreparationError(
+            "workspace_unavailable", retryable=True, status_code=503, cleanup_confirmed=False
+        ),
+        AllocationError(
+            "allocation_conflict", "original message", retryable=False, status_code=409
+        ),
+        asyncio.CancelledError("original cancellation"),
+        RuntimeError("private failure"),
+    ],
+)
+def test_failed_prepare_rolls_back_once_before_classifying(
+    tmp_path: Path,
+    runtime_capabilities: CapabilitySnapshot,
+    monkeypatch: pytest.MonkeyPatch,
+    error: BaseException,
+) -> None:
+    async def scenario() -> None:
+        state, service = await make_service(tmp_path, runtime_capabilities)
+        exits: list[int] = []
+        service._force_exit = exits.append
+        rollbacks = []
+        rollback = service._rollback_prepare
+
+        async def fail(*args: object, **kwargs: object) -> None:
+            raise error
+
+        async def track_rollback(*args: object, **kwargs: object) -> None:
+            rollbacks.append("rollback")
+            await rollback(*args, **kwargs)
+
+        monkeypatch.setattr(service, "_create_tools", fail)
+        monkeypatch.setattr(service, "_rollback_prepare", track_rollback)
+        expected = (
+            asyncio.CancelledError if isinstance(error, asyncio.CancelledError) else AllocationError
+        )
+        with pytest.raises(expected) as failure:
+            await service.prepare(make_spec())
+        assert rollbacks == ["rollback"]
+        assert list(tmp_path.iterdir()) == []
+        assert await service.snapshot() is None
+        fenced = (
+            isinstance(error, (AdapterPreparationError, WorkspacePreparationError))
+            and not error.cleanup_confirmed
+        )
+        assert exits == ([70] if fenced else [])
+        assert ((await state.snapshot()).process_state is ProcessState.IDLE) is not fenced
+        if isinstance(error, (AllocationError, asyncio.CancelledError)):
+            assert failure.value is error
+        else:
+            if isinstance(error, AdapterPreparationError):
+                code, message = (
+                    "runtime_adapter_prepare_failed",
+                    "allocation Runtime adapter preparation failed",
+                )
+            elif isinstance(error, AgentSkillPreparationError):
+                code, message = (
+                    error.code,
+                    f"allocation Agent Skill preparation failed ({error.code})",
+                )
+            elif isinstance(error, WorkspacePreparationError):
+                code, message = (
+                    error.code,
+                    f"allocation workspace preparation failed ({error.code})",
+                )
+            else:
+                code, message = (
+                    "allocation_preparation_failed",
+                    "allocation resource preparation failed (RuntimeError)",
+                )
+            assert failure.value.payload() == {
+                "code": code,
+                "message": message,
+                "retryable": getattr(error, "retryable", True),
+            }
+            assert failure.value.status_code == getattr(error, "status_code", 503)
+
+    asyncio.run(scenario())
+
+
+def test_prepare_does_not_translate_rollback_failure(
+    tmp_path: Path,
+    runtime_capabilities: CapabilitySnapshot,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def scenario() -> None:
+        _, service = await make_service(tmp_path, runtime_capabilities)
+        cleanup_error = RuntimeError("rollback failed")
+
+        async def fail_prepare(*args: object, **kwargs: object) -> None:
+            raise ValueError("prepare failed")
+
+        async def fail_rollback(*args: object, **kwargs: object) -> None:
+            raise cleanup_error
+
+        monkeypatch.setattr(service, "_create_tools", fail_prepare)
+        monkeypatch.setattr(service, "_rollback_prepare", fail_rollback)
+        with pytest.raises(RuntimeError) as failure:
+            await service.prepare(make_spec())
+        assert failure.value is cleanup_error
 
     asyncio.run(scenario())
 
