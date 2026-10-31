@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-83 open tasks: 11 in progress, 61 pending, 11 deferred. 1280 finished: 1265 completed, 15 archived.
+82 open tasks: 10 in progress, 61 pending, 11 deferred. 1281 finished: 1266 completed, 15 archived.
 
 ## In progress
 
@@ -21,7 +21,6 @@ the epics are in [epics.yml](epics.yml).
 | [V420-002](v420-002-planner-compaction-vertical-slice.yml) | planner-worker | feature | P1 | Implement opt-in bounded compaction for Streamline and Router Planners |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Enable shared Planner compaction and reuse native YAML in shipped Workflows |
 | [V425-030](v425-030-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
-| [V425-033](v425-033-remove-sweeps-use-audit-scans.yml) | audits | defect | P1 | Remove standalone sweeps and use Audit-owned target scans |
 
 ## Pending
 
@@ -201,7 +200,7 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 3 | 16 | 9 | 9 | 14 |
 | Workflow catalog and document workflows (`workflows`) | 4 | 18 | 15 | 12 | 19 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 36 | 37 | 11 | 60 |
-| Audits (`audits`) | 24 | 67 | 84 | 35 | 122 |
+| Audits (`audits`) | 23 | 67 | 84 | 35 | 122 |
 | Evaluations (`evals`) | 6 | 21 | 39 | 15 | 49 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |
 | Web UI (`ui`) | 1 | 25 | 66 | 16 | 59 |

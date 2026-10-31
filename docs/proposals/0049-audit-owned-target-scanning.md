@@ -94,6 +94,8 @@ The optional configs/scan directory is explicitly a model-free tool fixture cata
 
 Use the existing single-active-Server upgrade model. After the old Server stops, the new revision has no sweep controller and cannot resume pending members. Previously admitted child Runs remain ordinary Runs with their existing states, inputs, reports and cancellation controls.
 
+The preserved guarantee is readable Run history, exact inputs/reports and ordinary cancellation. The removed standalone Workflow is not kept executable or repeatable across a Runtime upgrade; the repository explicitly rejects backward compatibility. Complete needed standalone work before a later upgrade rather than rewrite historical snapshots or retain a compatibility adapter.
+
 Do not invent Audits around historical Runs: that would fabricate a baseline, coverage or acceptance history. Do not restart or replay scans as part of migration. Retire exclusively sweep-owned auxiliary metadata and retained bindings through a migration and existing Artifact ownership rules, while preserving child inputs and shared blobs. The migration must be tested against populated active and terminal sweeps.
 
 No compatibility reader, abandoned sweep maintenance controller or indefinite feature-specific retention path remains after removal. Apply the repository's backup and migration requirements before any later demo upgrade; implementation verification uses disposable databases.
@@ -117,3 +119,13 @@ Retarget the existing Nuclei process gate and its fixtures rather than remove sc
 Implementation belongs to V425-033. The previous sweep consolidation proposal is withdrawn. The web-nuclei milestone outcome must describe Audit-owned target scanning, and its current completion boundary must include removing the obsolete product.
 
 V425-005 should no longer repair sweep ID bounds or cosmetically relocate sweep ownership entries. V425-033 removes that schema and metadata; V425-005 retains all other stored-size defects. V411-017 continues to extend ordinary Audit API/CLI consumers only and must not restore standalone scanner endpoints. Existing completed V406 records remain historical evidence of the superseded design.
+
+## Delivery — 2026-10-31
+
+Implemented by V425-033 in commit 5392479ea, on `codex/remove-sweeps-audit-scans`.
+The real Audit demonstration also exposed the existing 16 MiB input-read budget
+being rejected by the 4 MiB plan/output ceiling; V425-034 fixed that prerequisite
+separately. The obsolete standalone template-manifest result advertisement was
+removed; exact internal manifest provenance remains in the ordinary report.
+Production sources decreased by 2,622 lines including the migration. Required
+checks passed, with the full Runtime suite verified on a supported Linux host.

@@ -6,7 +6,8 @@ epic: audits
 kind: defect
 introduced_by: V406-004
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 5392479eaa4ce0c5b2557f95a6d695e0b3e79dcc
 depends_on: [V406-018, V422-003, V425-034]
 languages: [go, python, sql, typescript, yaml, markdown]
 goal: Owners scan one target through an ordinary Project Audit and its selected Workflow, with no independent Sweep resource or orchestration left.
@@ -58,7 +59,11 @@ context:
     sweep-owned metadata and stops all pending sweep dispatch. Existing admitted
     child Runs, their states, input/report Artifacts and ordinary cancellation
     survive. Do not launch, replay, cancel all children, manufacture Audit history
-    or erase Project/source data during migration. Shared blobs remain while
+    or erase Project/source data during migration. Preservation covers history,
+    exact Artifact reads and ordinary cancellation; it does not keep the retired
+    standalone Workflow executable/repeatable on a new Runtime. This follows the
+    repository no-backward-compatibility policy; complete any needed standalone
+    work before a later upgrade. Shared blobs remain while
     ordinary bindings reference them. No legacy reader or sweep cleanup loop
     remains. Demo migration still follows the existing backup policy.
   failure_outcomes: >-
@@ -88,6 +93,29 @@ context:
     manifest and exact templateManifest report provenance, generic additional
     Artifact support (Katana) and strict Worker result validation. No new output
     protocol or scanner-specific Planner branch is introduced.
+  verification: >-
+    2026-10-31: all listed Go, PostgreSQL, public API, browser/UI, deterministic
+    Nuclei Audit process, catalog, architecture and lint commands passed. The
+    process proof covers concrete audit-web-nuclei-scan@1 children and Allocations,
+    installed/custom rules, absent installation, exact accepted inputs after
+    Project/source changes, create/start reply replay, unknown scanner results,
+    ordinary cancellation and retained results after child deletion. Migration
+    65 passed against populated active/terminal sweeps with pending/admitted
+    members; complete stored child Run rows are unchanged and shared input/report
+    payloads remain readable. Only dedicated disposable databases were used.
+    The full Runtime gate passed natively in a non-root Linux VM: 5841 passed,
+    89 skipped by platform/optional-integration conditions, and the report verifier
+    passed. Runtime source bytes match this checkout. No live scanner/model or
+    demo deployment was run.
+  verification_notes: >-
+    Initial Go startup checks shared a database with an active process-test Server
+    and hit its single-active-Server lease; the complete suite passed with a
+    separate database. The initial macOS Runtime gate had 5795 passed, 133 skipped
+    and two failures outside this change: the encoded graph-result ceiling and
+    local filesystem Unicode-name tests. A minimal Linux container was unsuitable
+    for the full backend suite (root execution and missing Go); it was stopped.
+    The complete supported Linux VM gate then passed without changing or excluding
+    tests. These attempts are not reported as successful gates.
   reduction: >-
     Measured against the prerequisite-complete parent: production sources remove
     2,698 lines and add 76 (including the new migration), a net reduction of 2,622.
