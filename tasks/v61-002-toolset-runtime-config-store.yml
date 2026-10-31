@@ -67,6 +67,15 @@ context:
     LIM-RCF-22), so the protocol-neutral rename stays in scope. Overlap: V414-015 (pending) defines
     the sendable HTTP field-value grammar for stored credential tokens; mcp-headers@1 must reuse it
     rather than add another copy.
+  baseline_fold: >-
+    User decision on 2026-10-31 (V428-001): the previous baseline and
+    migrations 000002-000065 are replaced by one current 000001_baseline.sql.
+    Migration numbers and file/line references in the dated revalidation
+    above describe the retired chain. On explicit reactivation, inspect the
+    current baseline and choose the next free migration number from the
+    directory; keep PER-R33 upgrade coverage for any new data-moving change.
+    This maintenance note does not reactivate the deferred task or alter its
+    scope or deferral conditions.
 scope:
   in:
     - Add bounded typed Toolsets map, registry normalization/validation, defaults, clones, Spec.Empty and canonical serialization.

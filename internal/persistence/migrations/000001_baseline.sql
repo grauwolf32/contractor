@@ -1,44 +1,19 @@
--- Contractor schema baseline.
---
--- This file creates the whole schema of a new database. It replaces
--- migrations 000001-000102, which were folded on 2026-10-11 while the
--- project had no deployments to upgrade (V367-001). A database migrated by
--- those files has a different ledger and must be recreated: the migrator
--- reports drift instead of upgrading it.
---
--- Tables are grouped by context, each followed by its keys, indexes and
--- triggers. Functions come first because CHECK constraints and triggers
--- call them, foreign keys come last, and the rows every database starts
--- with close the file. Later schema changes go into new numbered files.
-
--- Function bodies reference functions and tables created later in this file.
+-- Contractor schema baseline, folded on 2026-10-31.
+-- Replaces the previous baseline and migrations 000002-000065.
+-- Older migration ledgers are rejected as drift; no upgrade path is retained.
+-- Objects retain PostgreSQL dependency order so SQL-standard function bodies
+-- bind to the tables and routines they reference in the target schema.
 SET LOCAL check_function_bodies = false;
 
--- Functions
-
-CREATE FUNCTION artifact_blob_backend_guard() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-BEGIN
-    -- Reads of already selected settings need no global serialization.
-    IF NOT EXISTS (SELECT 1 FROM artifact_blob_settings WHERE backend = NEW.backend) THEN
-        UPDATE artifact_blob_settings SET backend = NEW.backend
-        WHERE singleton AND backend IS NULL;
-        IF NOT EXISTS (SELECT 1 FROM artifact_blob_settings WHERE backend = NEW.backend) THEN
-            RAISE EXCEPTION 'artifact blob backend mismatch' USING ERRCODE = '23514';
-        END IF;
-    END IF;
-    RETURN NEW;
-END;
-$$;
+-- Function: contractor_admit_audit_finding()
 
 CREATE FUNCTION contractor_admit_audit_finding() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 DECLARE
     admitted_finding_id text;
-    event_sequence bigint;
     finding_revision bigint;
+    admitted_events jsonb;
 BEGIN
     -- Findings belong to an Audit; the same immutable receipt may be imported
     -- into several compatible Audits. Preserve all previously admitted IDs.
@@ -63,22 +38,82 @@ BEGIN
         admitted_finding_id, NEW.audit_id, NEW.receipt_id, 'first', NEW.proposal_ref
     );
 
+    admitted_events := jsonb_build_array(jsonb_build_object(
+        'kind', 'finding.proposed', 'entityId', admitted_finding_id,
+        'entityRevision', finding_revision,
+        'summary', jsonb_build_object('state', 'proposed')
+    ));
     UPDATE audits
-       SET revision = revision + 1,
-           next_event_sequence = next_event_sequence + 1,
+       SET revision = revision + jsonb_array_length(admitted_events),
+           next_event_sequence = next_event_sequence + jsonb_array_length(admitted_events),
            updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond')
-     WHERE audit_id = NEW.audit_id
-    RETURNING next_event_sequence - 1 INTO event_sequence;
-
-    INSERT INTO audit_events (
-        audit_id, sequence_number, kind, entity_id, entity_revision, summary
-    ) VALUES (
-        NEW.audit_id, event_sequence, 'finding.proposed', admitted_finding_id,
-        finding_revision, jsonb_build_object('state', 'proposed')
-    );
+     WHERE audit_id = NEW.audit_id;
+    PERFORM contractor_append_audit_events(NEW.audit_id, admitted_events);
     RETURN NEW;
 END;
 $$;
+
+-- Function: contractor_advance_finding_correlation(text[])
+
+CREATE FUNCTION contractor_advance_finding_correlation(affected_projects text[]) RETURNS void
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+ selected_project text;
+BEGIN
+ FOR selected_project IN SELECT DISTINCT unnest(affected_projects) ORDER BY 1 LOOP
+  PERFORM contractor_lock_finding_correlation_fence(selected_project);
+  UPDATE finding_correlation_fences SET revision = revision + 1 WHERE project_id = selected_project;
+ END LOOP;
+END;
+$$;
+
+-- Function: contractor_append_audit_events(text, jsonb)
+
+CREATE FUNCTION contractor_append_audit_events(target_audit_id text, events jsonb) RETURNS bigint
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    event_count bigint;
+    reserved_next bigint;
+    last_sequence bigint;
+BEGIN
+    IF events IS NULL OR jsonb_typeof(events) <> 'array' THEN
+        RAISE EXCEPTION 'Audit events must be a JSON array' USING ERRCODE = 'assert_failure';
+    END IF;
+    event_count := jsonb_array_length(events);
+
+    SELECT audit.next_event_sequence INTO reserved_next
+      FROM audits AS audit
+     WHERE audit.audit_id = target_audit_id;
+    IF reserved_next IS NULL THEN
+        RAISE EXCEPTION 'Audit events have no Audit' USING ERRCODE = 'assert_failure';
+    END IF;
+
+    SELECT event.sequence_number INTO last_sequence
+      FROM audit_events AS event
+     WHERE event.audit_id = target_audit_id
+     ORDER BY event.sequence_number DESC
+     LIMIT 1;
+    IF COALESCE(last_sequence, 0) + event_count <> reserved_next - 1 THEN
+        RAISE EXCEPTION 'Audit event reservation does not continue the event sequence'
+            USING ERRCODE = 'assert_failure',
+                  DETAIL = format('last event %s, %s events, next sequence %s',
+                                  COALESCE(last_sequence, 0), event_count, reserved_next);
+    END IF;
+
+    INSERT INTO audit_events (
+        audit_id, sequence_number, kind, entity_id, entity_revision, summary
+    )
+    SELECT target_audit_id, reserved_next - event_count + event.position - 1,
+           event.value->>'kind', event.value->>'entityId',
+           (event.value->>'entityRevision')::bigint, event.value->'summary'
+      FROM jsonb_array_elements(events) WITH ORDINALITY AS event(value, position);
+    RETURN reserved_next - 1;
+END;
+$$;
+
+-- Function: contractor_append_workflow_run_lifecycle_event(text, text, text, text)
 
 CREATE FUNCTION contractor_append_workflow_run_lifecycle_event(target_run_id text, resource_kind text, target_stage_execution_id text, resource_state text) RETURNS bigint
     LANGUAGE plpgsql
@@ -134,6 +169,296 @@ BEGIN
 END;
 $$;
 
+-- Function: contractor_artifact_hold_apply(jsonb, jsonb, boolean)
+
+CREATE FUNCTION contractor_artifact_hold_apply(acquired jsonb, released jsonb, strict boolean) RETURNS void
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    kinds text[];
+    ids text[];
+    namespaces text[];
+    names text[];
+    revisions text[];
+    deltas integer[];
+    missing bigint;
+BEGIN
+    SELECT COALESCE(array_agg(change.scope_kind ORDER BY change.scope_kind, change.scope_id, change.namespace,
+                                  change.name, change.revision), '{}'),
+           COALESCE(array_agg(change.scope_id ORDER BY change.scope_kind, change.scope_id, change.namespace,
+                                  change.name, change.revision), '{}'),
+           COALESCE(array_agg(change.namespace ORDER BY change.scope_kind, change.scope_id, change.namespace,
+                                  change.name, change.revision), '{}'),
+           COALESCE(array_agg(change.name ORDER BY change.scope_kind, change.scope_id, change.namespace,
+                                  change.name, change.revision), '{}'),
+           COALESCE(array_agg(change.revision ORDER BY change.scope_kind, change.scope_id, change.namespace,
+                                  change.name, change.revision), '{}'),
+           COALESCE(array_agg(change.delta ORDER BY change.scope_kind, change.scope_id, change.namespace,
+                                  change.name, change.revision), '{}')
+    INTO kinds, ids, namespaces, names, revisions, deltas
+    FROM (
+        SELECT key.scope_kind, key.scope_id, key.namespace, key.name, key.revision,
+               sum(key.delta)::integer AS delta
+        FROM (
+            SELECT held ->> 0 AS scope_kind, held ->> 1 AS scope_id, held ->> 2 AS namespace,
+                   held ->> 3 AS name, held ->> 4 AS revision, 1 AS delta
+            FROM jsonb_array_elements(acquired) AS held
+            UNION ALL
+            SELECT freed ->> 0, freed ->> 1, freed ->> 2, freed ->> 3, freed ->> 4, -1
+            FROM jsonb_array_elements(released) AS freed
+        ) AS key
+        WHERE key.scope_kind IS NOT NULL AND key.scope_id IS NOT NULL AND key.namespace IS NOT NULL
+          AND key.name IS NOT NULL AND key.revision IS NOT NULL
+        GROUP BY key.scope_kind, key.scope_id, key.namespace, key.name, key.revision
+        HAVING sum(key.delta) <> 0
+    ) AS change;
+    IF cardinality(deltas) = 0 THEN
+        RETURN;
+    END IF;
+    PERFORM 1
+    FROM artifact_binding_revisions AS revision
+    JOIN unnest(kinds, ids, namespaces, names, revisions)
+        AS change(scope_kind, scope_id, namespace, name, revision)
+      ON (revision.scope_kind, revision.scope_id, revision.namespace, revision.name, revision.revision)
+       = (change.scope_kind, change.scope_id, change.namespace, change.name, change.revision)
+    ORDER BY revision.scope_kind, revision.scope_id, revision.namespace, revision.name, revision.revision
+    FOR NO KEY UPDATE OF revision;
+    UPDATE artifact_binding_revisions AS revision
+    SET hold_count = revision.hold_count + change.delta
+    FROM unnest(kinds, ids, namespaces, names, revisions, deltas)
+        AS change(scope_kind, scope_id, namespace, name, revision, delta)
+    WHERE (revision.scope_kind, revision.scope_id, revision.namespace, revision.name, revision.revision)
+        = (change.scope_kind, change.scope_id, change.namespace, change.name, change.revision);
+    IF strict THEN
+        SELECT count(*) INTO missing
+        FROM unnest(kinds, ids, namespaces, names, revisions, deltas)
+            AS change(scope_kind, scope_id, namespace, name, revision, delta)
+        WHERE change.delta > 0
+          AND EXISTS (
+              SELECT 1 FROM artifact_scopes AS scope
+              WHERE scope.scope_kind = change.scope_kind AND scope.scope_id = change.scope_id
+          )
+          AND NOT EXISTS (
+              SELECT 1 FROM artifact_binding_revisions AS revision
+              WHERE (revision.scope_kind, revision.scope_id, revision.namespace, revision.name,
+                     revision.revision)
+                  = (change.scope_kind, change.scope_id, change.namespace, change.name, change.revision)
+          );
+        IF missing > 0 THEN
+            RAISE EXCEPTION 'exact Artifact revision to hold does not exist'
+                USING ERRCODE = '23503', CONSTRAINT = 'artifact_exact_hold';
+        END IF;
+    END IF;
+END;
+$$;
+
+-- Function: contractor_artifact_key_set(jsonb[])
+
+CREATE FUNCTION contractor_artifact_key_set(keys jsonb[]) RETURNS jsonb
+    LANGUAGE sql IMMUTABLE
+    BEGIN ATOMIC
+ SELECT COALESCE(jsonb_agg(DISTINCT key.key ORDER BY key.key), '[]'::jsonb) AS "coalesce"
+    FROM unnest(contractor_artifact_key_set.keys) key(key)
+   WHERE (key.key IS NOT NULL);
+END;
+
+-- Function: contractor_artifact_ref_key(text, text, jsonb)
+
+CREATE FUNCTION contractor_artifact_ref_key(scope_kind text, scope_id text, ref jsonb) RETURNS jsonb
+    LANGUAGE sql IMMUTABLE
+    BEGIN ATOMIC
+ SELECT
+         CASE
+             WHEN ((scope_kind IS NOT NULL) AND (scope_id IS NOT NULL) AND (jsonb_typeof((ref -> 'namespace'::text)) = 'string'::text) AND (jsonb_typeof((ref -> 'name'::text)) = 'string'::text) AND (jsonb_typeof((ref -> 'revision'::text)) = 'string'::text)) THEN jsonb_build_array(scope_kind, scope_id, (ref -> 'namespace'::text), (ref -> 'name'::text), (ref -> 'revision'::text))
+             ELSE NULL::jsonb
+         END AS "case";
+END;
+
+-- Function: contractor_artifact_retention_enabled()
+
+CREATE FUNCTION contractor_artifact_retention_enabled() RETURNS boolean
+    LANGUAGE sql STABLE
+    AS $$
+SELECT COALESCE(current_setting('contractor.artifact_retention', true), '') = 'evict'
+$$;
+
+-- Function: contractor_audit_dependency_closure_valid(text, jsonb, jsonb)
+
+CREATE FUNCTION contractor_audit_dependency_closure_valid(id text, manifest jsonb, dependency jsonb) RETURNS boolean
+    LANGUAGE sql STABLE
+    AS $$
+SELECT CASE dependency->>'kind'
+ WHEN 'baseline' THEN true
+ WHEN 'prepare-output' THEN NOT EXISTS (
+  SELECT 1 FROM audits AS audit
+  JOIN audit_executions AS execution ON execution.audit_id=audit.audit_id AND execution.execution_id=dependency #>> '{origin,execution_id}',
+   LATERAL jsonb_each(audit.profile_snapshot->'workflows'->(dependency #>> '{origin,workflow_role}')->'inputs') AS input
+  WHERE audit.audit_id=id AND input.value->>'source' IN ('audit-input','prepare-output')
+   AND (execution.preparation_snapshot->'inputs') ? input.key
+   AND NOT EXISTS (
+    SELECT 1 FROM jsonb_array_elements(manifest->'dependencies') AS required
+    WHERE dependency->'requires' ? (required->>'name')
+     AND CASE input.value->>'source'
+      WHEN 'audit-input' THEN required->>'kind'='baseline' AND required #>> '{origin,baseline_input}'=input.value->>'name'
+      WHEN 'prepare-output' THEN required->>'kind'='prepare-output' AND required #>> '{origin,workflow_role}'=input.value->>'role' AND required #>> '{origin,logical_output}'=input.value->>'name'
+     END
+   )
+ )
+ WHEN 'finding-receipt' THEN NOT EXISTS (
+  SELECT 1 FROM finding_proposal_receipts AS receipt
+  JOIN finding_proposal_audit_holds AS hold USING (receipt_id),
+   LATERAL jsonb_array_elements(CASE WHEN jsonb_array_length(hold.evidence)<=31 THEN hold.evidence ELSE '[]'::jsonb END) AS closure_evidence(value)
+  WHERE hold.audit_id=id AND receipt.receipt_id=dependency #>> '{origin,receipt_id}'
+   AND receipt.proposal_ref=dependency #> '{source,ref}'
+   AND NOT EXISTS (
+    SELECT 1 FROM jsonb_array_elements(manifest->'dependencies') AS required
+    WHERE dependency->'requires' ? (required->>'name') AND required->'retained'=closure_evidence.value
+     AND required->>'kind'='finding-receipt' AND required->'origin'=dependency->'origin'
+   )
+ )
+ WHEN 'accepted-item-result' THEN NOT EXISTS (
+  SELECT 1 FROM audit_executions AS execution,
+   LATERAL jsonb_array_elements(CASE WHEN jsonb_array_length(execution.collection_retained_refs)<=32
+    AND octet_length(execution.collection_retained_refs::text)<=1048576
+    THEN execution.collection_retained_refs ELSE '[]'::jsonb END) AS closure_evidence(value)
+  WHERE execution.audit_id=id AND execution.execution_id=dependency #>> '{origin,execution_id}'
+   AND execution.collection_source_output_ref=dependency #> '{source,ref}'
+   AND closure_evidence.value->'artifact'<>dependency->'retained'
+   AND NOT EXISTS (
+    SELECT 1 FROM jsonb_array_elements(manifest->'dependencies') AS required
+    WHERE dependency->'requires' ? (required->>'name') AND required->'retained'=closure_evidence.value->'artifact'
+     AND required->>'kind'='accepted-item-result' AND required->'origin'=dependency->'origin'
+   )
+ )
+ ELSE false END
+$$;
+
+-- Function: contractor_jsonb_elements(jsonb)
+
+CREATE FUNCTION contractor_jsonb_elements(value jsonb) RETURNS SETOF jsonb
+    LANGUAGE sql IMMUTABLE
+    BEGIN ATOMIC
+ SELECT element.value AS element
+    FROM jsonb_array_elements(
+         CASE
+             WHEN (jsonb_typeof(contractor_jsonb_elements.value) = 'array'::text) THEN contractor_jsonb_elements.value
+             ELSE '[]'::jsonb
+         END) element(value);
+END;
+
+-- Function: contractor_audit_dependency_holds(text, jsonb)
+
+CREATE FUNCTION contractor_audit_dependency_holds(project text, manifest jsonb) RETURNS jsonb
+    LANGUAGE sql IMMUTABLE
+    BEGIN ATOMIC
+ SELECT contractor_artifact_key_set(ARRAY( SELECT contractor_artifact_ref_key('project'::text, contractor_audit_dependency_holds.project, (dependency.dependency #> '{retained,ref}'::text[])) AS contractor_artifact_ref_key
+            FROM contractor_jsonb_elements((contractor_audit_dependency_holds.manifest -> 'dependencies'::text)) dependency(dependency))) AS contractor_artifact_key_set;
+END;
+
+-- Function: contractor_audit_dependency_namespace(text)
+
+CREATE FUNCTION contractor_audit_dependency_namespace(id text) RETURNS text
+    LANGUAGE sql IMMUTABLE
+    AS $$
+SELECT 'audit-' || encode(sha256(convert_to('contractor.audit.identity.v1', 'UTF8') || decode('00','hex') ||
+ convert_to('audit','UTF8') || decode('00','hex') || convert_to(id,'UTF8')), 'hex')
+$$;
+
+-- Function: contractor_audit_dependency_origin_valid(text, jsonb)
+
+CREATE FUNCTION contractor_audit_dependency_origin_valid(id text, dependency jsonb) RETURNS boolean
+    LANGUAGE sql STABLE
+    AS $$
+SELECT CASE dependency->>'kind'
+ WHEN 'baseline' THEN EXISTS (
+  SELECT 1 FROM audits AS audit
+  WHERE audit.audit_id=id AND audit.baseline_snapshot->'inputs'->(dependency #>> '{origin,baseline_input}') = dependency->'source'
+   AND EXISTS (
+    SELECT 1 FROM artifact_lineage AS lineage
+    WHERE lineage.source_scope_kind='project' AND lineage.source_scope_id=audit.project_id
+     AND lineage.source_namespace=dependency #>> '{source,ref,namespace}'
+     AND lineage.source_name=dependency #>> '{source,ref,name}' AND lineage.source_revision=dependency #>> '{source,ref,revision}'
+     AND lineage.target_scope_kind='project' AND lineage.target_scope_id=audit.project_id
+     AND lineage.target_namespace=dependency #>> '{retained,ref,namespace}'
+     AND lineage.target_name=dependency #>> '{retained,ref,name}' AND lineage.target_revision=dependency #>> '{retained,ref,revision}'
+     AND lineage.lineage_kind='audit_import'
+   )
+ )
+ WHEN 'prepare-output' THEN EXISTS (
+  SELECT 1 FROM audit_executions AS execution,
+   LATERAL jsonb_array_elements(execution.preparation_outputs) AS output
+  WHERE execution.audit_id=id AND execution.execution_id=dependency #>> '{origin,execution_id}'
+   AND execution.workflow_role=dependency #>> '{origin,workflow_role}' AND execution.role='prepare'
+   AND execution.role_attempt=(dependency #>> '{origin,attempt}')::integer
+   AND COALESCE(execution.run_id,execution.run_provenance->>'runId')=dependency #>> '{origin,run_id}'
+   AND execution.collection_disposition='accepted-result'
+   AND output->>'logicalName'=dependency #>> '{origin,logical_output}'
+   AND output->'source'=dependency->'source' AND output->'retained'=dependency->'retained'
+ )
+ WHEN 'finding-receipt' THEN EXISTS (
+  SELECT 1 FROM finding_proposal_audit_holds AS hold
+  JOIN finding_proposal_receipts AS receipt USING (receipt_id)
+  WHERE hold.audit_id=id AND hold.receipt_id=dependency #>> '{origin,receipt_id}'
+   AND receipt.run_id=dependency #>> '{origin,run_id}'
+   AND jsonb_array_length(hold.evidence)<=31 AND jsonb_array_length(receipt.evidence)<=31
+   AND (dependency #>> '{origin,proposed_check_ordinal}')::integer >= 0
+   AND (dependency #>> '{origin,proposed_check_ordinal}')::integer < 512
+   AND ((receipt.proposal_ref=dependency #> '{source,ref}' AND receipt.proposal_digest=dependency #>> '{source,digest}' AND hold.proposal_ref=dependency->'retained')
+    OR EXISTS (
+     SELECT 1 FROM jsonb_array_elements(receipt.evidence) WITH ORDINALITY AS source(value,ordinal)
+     JOIN jsonb_array_elements(hold.evidence) WITH ORDINALITY AS retained(value,ordinal) USING (ordinal)
+     WHERE source.value=dependency->'source' AND retained.value=dependency->'retained'
+    ))
+ )
+ WHEN 'accepted-item-result' THEN EXISTS (
+  SELECT 1 FROM audit_items AS item
+  JOIN audit_execution_items AS member ON member.item_id=item.item_id
+  JOIN audit_executions AS execution ON execution.execution_id=member.execution_id
+  CROSS JOIN LATERAL jsonb_array_elements(CASE
+   WHEN jsonb_array_length(execution.collection_retained_refs)<=32 AND octet_length(execution.collection_retained_refs::text)<=1048576
+   THEN execution.collection_retained_refs ELSE '[]'::jsonb END) AS link
+  WHERE item.audit_id=id AND item.item_id=dependency #>> '{origin,item_id}'
+   AND item.round_id=dependency #>> '{origin,round_id}'
+   AND execution.execution_id=dependency #>> '{origin,execution_id}'
+   AND member.item_attempt=(dependency #>> '{origin,attempt}')::integer
+   AND COALESCE(execution.run_id,execution.run_provenance->>'runId')=dependency #>> '{origin,run_id}'
+   AND member.collection_disposition='accepted-result' AND execution.collection_disposition='accepted-result'
+   AND item.accepted_result_ref=member.result_ref AND item.accepted_result_digest=member.result_digest
+   AND link->'artifact'=dependency->'retained'
+   AND (link->>'logicalKey'='result/' || member.execution_item_id OR starts_with(link->>'logicalKey','evidence/' || execution.execution_id || '/'))
+   AND ((execution.collection_source_output_ref=dependency #> '{source,ref}' AND execution.collection_source_output_digest=dependency #>> '{source,digest}')
+    OR link #> '{sourceProvenance,evidence,artifact}'=dependency #> '{source,ref}')
+ )
+ ELSE false END
+$$;
+
+-- Function: contractor_audit_input_artifact_holds(text, jsonb, jsonb)
+
+CREATE FUNCTION contractor_audit_input_artifact_holds(project_id text, selection jsonb, baseline jsonb) RETURNS jsonb
+    LANGUAGE sql IMMUTABLE
+    AS $$
+SELECT contractor_artifact_key_set(ARRAY(
+    SELECT contractor_artifact_ref_key('project', project_id, input -> 'ref')
+    FROM contractor_jsonb_values(selection -> 'inputs') AS input
+    UNION ALL
+    SELECT contractor_artifact_ref_key('project', project_id, input -> 'ref')
+    FROM contractor_jsonb_values(baseline -> 'inputs') AS input
+))
+$$;
+
+-- Function: contractor_audit_run_input_holds(text, jsonb)
+
+CREATE FUNCTION contractor_audit_run_input_holds(run_id text, progress jsonb) RETURNS jsonb
+    LANGUAGE sql IMMUTABLE
+    AS $$
+SELECT contractor_artifact_key_set(ARRAY(
+ SELECT contractor_artifact_ref_key('run',run_id,ref)
+ FROM contractor_jsonb_elements(progress->'refs') AS ref
+))
+$$;
+
+-- Function: contractor_capture_stage_execution_lifecycle_event()
+
 CREATE FUNCTION contractor_capture_stage_execution_lifecycle_event() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -164,6 +489,8 @@ BEGIN
 END;
 $$;
 
+-- Function: contractor_capture_workflow_run_lifecycle_event()
+
 CREATE FUNCTION contractor_capture_workflow_run_lifecycle_event() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -176,6 +503,8 @@ BEGIN
     RETURN NEW;
 END;
 $$;
+
+-- Function: contractor_check_llm_credential_exclusive_state()
 
 CREATE FUNCTION contractor_check_llm_credential_exclusive_state() RETURNS trigger
     LANGUAGE plpgsql
@@ -197,6 +526,80 @@ BEGIN
 END;
 $$;
 
+-- Function: contractor_copy_finding_hold_receipt_time()
+
+CREATE FUNCTION contractor_copy_finding_hold_receipt_time() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    receipt_time timestamp with time zone;
+BEGIN
+    SELECT receipt.created_at INTO receipt_time
+      FROM finding_proposal_receipts AS receipt
+     WHERE receipt.receipt_id = NEW.receipt_id;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'finding proposal Audit hold has no receipt' USING ERRCODE = '23503';
+    END IF;
+    IF NEW.receipt_created_at IS NOT NULL AND NEW.receipt_created_at <> receipt_time THEN
+        RAISE EXCEPTION 'finding proposal Audit hold names another receipt time' USING ERRCODE = '23514';
+    END IF;
+    NEW.receipt_created_at := receipt_time;
+    RETURN NEW;
+END;
+$$;
+
+-- Function: contractor_count_run_artifact_revisions()
+
+CREATE FUNCTION contractor_count_run_artifact_revisions() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    exceeded boolean;
+BEGIN
+    WITH added AS (
+        SELECT scope_id, count(*) AS revisions
+          FROM inserted_revisions
+         WHERE scope_kind = 'run' AND namespace <> 'outputs'
+         GROUP BY scope_id
+    ), counted AS (
+        UPDATE artifact_scopes AS scope
+           SET revision_count = scope.revision_count + added.revisions
+          FROM added
+         WHERE scope.scope_kind = 'run' AND scope.scope_id = added.scope_id
+        RETURNING scope.revision_count
+    )
+    SELECT COALESCE(bool_or(revision_count > 50000), false) INTO exceeded FROM counted;
+    IF exceeded THEN
+        RAISE EXCEPTION 'Run artifact revision limit exceeded'
+            USING ERRCODE = '54000', CONSTRAINT = 'artifact_scopes_run_revision_limit';
+    END IF;
+    RETURN NULL;
+END;
+$$;
+
+-- Function: contractor_discard_audit_report_pages()
+
+CREATE FUNCTION contractor_discard_audit_report_pages() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    DELETE FROM audit_report_pages WHERE audit_id = NEW.audit_id;
+    RETURN NULL;
+END;
+$$;
+
+-- Function: contractor_empty_finding_checks(text, bigint)
+
+CREATE FUNCTION contractor_empty_finding_checks(digest text, bytes bigint) RETURNS json
+    LANGUAGE sql IMMUTABLE
+    AS $$
+ SELECT json_build_object('schema','contractor.audit.finding-checks-projection.v1',
+  'proposal_digest',digest,'size_bytes',bytes,'discarded',true,
+  'subject',NULL,'limitations',NULL,'checks','[]'::json)
+$$;
+
+-- Function: contractor_eval_audit_child_changed()
+
 CREATE FUNCTION contractor_eval_audit_child_changed() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -213,6 +616,8 @@ BEGIN
     RETURN NULL;
 END;
 $$;
+
+-- Function: contractor_eval_collection_changed()
 
 CREATE FUNCTION contractor_eval_collection_changed() RETURNS trigger
     LANGUAGE plpgsql
@@ -234,6 +639,8 @@ BEGIN
     RETURN NULL;
 END; $$;
 
+-- Function: contractor_eval_collections_changed()
+
 CREATE FUNCTION contractor_eval_collections_changed() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -246,6 +653,8 @@ BEGIN
     ON CONFLICT (owner_id, project_id) DO UPDATE SET revision = eval_collections.revision + 1;
     RETURN NULL;
 END; $$;
+
+-- Function: contractor_eval_collections_updated()
 
 CREATE FUNCTION contractor_eval_collections_updated() RETURNS trigger
     LANGUAGE plpgsql
@@ -273,6 +682,8 @@ BEGIN
     RETURN NULL;
 END; $$;
 
+-- Function: contractor_eval_complete_matrix()
+
 CREATE FUNCTION contractor_eval_complete_matrix() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -286,20 +697,24 @@ BEGIN
     RETURN NULL;
 END; $$;
 
+-- Function: contractor_eval_dirty(text, text)
+
 CREATE FUNCTION contractor_eval_dirty(selected_experiment text, selected_member text) RETURNS void
     LANGUAGE plpgsql
     AS $$
 BEGIN
+    INSERT INTO eval_projection_queue(experiment_id) VALUES (selected_experiment)
+    ON CONFLICT (experiment_id)
+    DO UPDATE SET revision = eval_projection_queue.revision + 1;
+
     INSERT INTO eval_member_projections(experiment_id, member_id)
     VALUES (selected_experiment, selected_member)
     ON CONFLICT (experiment_id, member_id)
     DO UPDATE SET revision = eval_member_projections.revision + 1;
-
-    INSERT INTO eval_projection_queue(experiment_id) VALUES (selected_experiment)
-    ON CONFLICT (experiment_id)
-    DO UPDATE SET revision = eval_projection_queue.revision + 1;
 END;
 $$;
+
+-- Function: contractor_eval_evidence_deleted()
 
 CREATE FUNCTION contractor_eval_evidence_deleted() RETURNS trigger
     LANGUAGE plpgsql
@@ -317,6 +732,8 @@ BEGIN
     RETURN OLD;
 END;
 $$;
+
+-- Function: contractor_eval_execution_changed()
 
 CREATE FUNCTION contractor_eval_execution_changed() RETURNS trigger
     LANGUAGE plpgsql
@@ -350,6 +767,8 @@ BEGIN
 END;
 $$;
 
+-- Function: contractor_eval_fence_project()
+
 CREATE FUNCTION contractor_eval_fence_project() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -373,6 +792,8 @@ BEGIN
     RETURN NEW;
 END; $$;
 
+-- Function: contractor_eval_immutable()
+
 CREATE FUNCTION contractor_eval_immutable() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -380,6 +801,8 @@ BEGIN
     IF TG_OP = 'DELETE' AND current_setting('contractor.eval_purge', true) = 'on' THEN RETURN OLD; END IF;
     RAISE EXCEPTION 'Evaluation record is immutable' USING ERRCODE = '23514';
 END; $$;
+
+-- Function: contractor_eval_member_bound()
 
 CREATE FUNCTION contractor_eval_member_bound() RETURNS trigger
     LANGUAGE plpgsql
@@ -391,6 +814,8 @@ BEGIN
     RETURN NEW;
 END; $$;
 
+-- Function: contractor_eval_member_changed()
+
 CREATE FUNCTION contractor_eval_member_changed() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -400,20 +825,24 @@ BEGIN
 END;
 $$;
 
+-- Function: contractor_eval_members_inserted()
+
 CREATE FUNCTION contractor_eval_members_inserted() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
-    INSERT INTO eval_member_projections(experiment_id, member_id)
-    SELECT experiment_id, member_id FROM inserted_members;
-
     INSERT INTO eval_projection_queue(experiment_id)
-    SELECT DISTINCT experiment_id FROM inserted_members
+    SELECT DISTINCT experiment_id FROM inserted_members ORDER BY experiment_id
     ON CONFLICT (experiment_id)
     DO UPDATE SET revision = eval_projection_queue.revision + 1;
+
+    INSERT INTO eval_member_projections(experiment_id, member_id)
+    SELECT experiment_id, member_id FROM inserted_members ORDER BY experiment_id, member_id;
     RETURN NULL;
 END;
 $$;
+
+-- Function: contractor_eval_metrics_changed()
 
 CREATE FUNCTION contractor_eval_metrics_changed() RETURNS trigger
     LANGUAGE plpgsql
@@ -429,21 +858,14 @@ BEGIN
         WHERE stage_execution_id = COALESCE(NEW.stage_execution_id, OLD.stage_execution_id);
     END IF;
 
-    FOR r IN
-        SELECT s.experiment_id, s.member_id
-        FROM eval_submissions s
-        WHERE s.execution_kind = 'run' AND s.execution_id = selected_run
-        UNION
-        SELECT s.experiment_id, s.member_id
-        FROM audit_executions x
-        JOIN eval_submissions s ON s.execution_kind = 'audit' AND s.execution_id = x.audit_id
-        WHERE x.run_id = selected_run
-    LOOP
+    FOR r IN SELECT * FROM contractor_eval_run_members(selected_run) LOOP
         PERFORM contractor_eval_dirty(r.experiment_id, r.member_id);
     END LOOP;
     RETURN NULL;
 END;
 $$;
+
+-- Function: contractor_eval_output_changed()
 
 CREATE FUNCTION contractor_eval_output_changed() RETURNS trigger
     LANGUAGE plpgsql
@@ -475,6 +897,8 @@ BEGIN
 END;
 $$;
 
+-- Function: contractor_eval_protect_experiment()
+
 CREATE FUNCTION contractor_eval_protect_experiment() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -499,6 +923,8 @@ BEGIN
     RETURN NEW;
 END; $$;
 
+-- Function: contractor_eval_protect_submission()
+
 CREATE FUNCTION contractor_eval_protect_submission() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -512,6 +938,8 @@ BEGIN
     RETURN NEW;
 END; $$;
 
+-- Function: contractor_eval_protect_suboperation()
+
 CREATE FUNCTION contractor_eval_protect_suboperation() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -522,6 +950,8 @@ BEGIN
     THEN RAISE EXCEPTION 'Evaluation suboperation is immutable' USING ERRCODE = '23514'; END IF;
     RETURN NEW;
 END; $$;
+
+-- Function: contractor_eval_retain_deleted_execution()
 
 CREATE FUNCTION contractor_eval_retain_deleted_execution() RETURNS trigger
     LANGUAGE plpgsql
@@ -536,7 +966,7 @@ BEGIN
         kind:='run';execution:=OLD.run_id;outcome:=OLD.state;never_started:=false;
     ELSE
         SELECT op.experiment_id,op.member_id INTO bound_experiment,bound_member
-        FROM audit_idempotency i JOIN eval_suboperations op ON op.operation_key=i.idempotency_key
+        FROM mutation_receipts i JOIN eval_suboperations op ON op.operation_key=i.idempotency_key
         JOIN eval_experiments e ON e.experiment_id=op.experiment_id
         JOIN eval_submissions s ON s.experiment_id=op.experiment_id AND s.member_id=op.member_id
         WHERE i.audit_id=OLD.audit_id AND i.operation='audit.create' AND op.kind='audit-create'
@@ -556,6 +986,23 @@ BEGIN
     RETURN OLD;
 END; $$;
 
+-- Function: contractor_eval_run_members(text)
+
+CREATE FUNCTION contractor_eval_run_members(selected_run text) RETURNS TABLE(experiment_id text, member_id text)
+    LANGUAGE sql STABLE
+    AS $$
+    SELECT s.experiment_id, s.member_id
+      FROM eval_submissions s
+     WHERE s.execution_kind = 'run' AND s.execution_id = selected_run
+    UNION
+    SELECT s.experiment_id, s.member_id
+      FROM audit_executions x
+      JOIN eval_submissions s ON s.execution_kind = 'audit' AND s.execution_id = x.audit_id
+     WHERE x.run_id = selected_run
+$$;
+
+-- Function: contractor_eval_view_immutable()
+
 CREATE FUNCTION contractor_eval_view_immutable() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -571,6 +1018,209 @@ BEGIN
 END;
 $$;
 
+-- Function: contractor_finding_comparison_projection(text, text, text, text)
+
+CREATE FUNCTION contractor_finding_comparison_projection(report text, fingerprint text, anchors text, retention text) RETURNS jsonb
+    LANGUAGE plpgsql IMMUTABLE STRICT
+    AS $$
+DECLARE
+ r jsonb := report::jsonb;
+ f jsonb := fingerprint::jsonb;
+ a jsonb := anchors::jsonb;
+ families jsonb := '[]';
+ family_available boolean := true;
+ result jsonb;
+BEGIN
+ IF retention='discarded' THEN
+  RETURN '{"schema":"contractor.finding.comparison-projection.v1","availability":"unavailable","reason":"discarded"}'::jsonb;
+ END IF;
+ IF coalesce(r->>'title','')='' THEN
+  RETURN '{"schema":"contractor.finding.comparison-projection.v1","availability":"unavailable","reason":"not_recorded"}'::jsonb;
+ END IF;
+ IF jsonb_array_length(coalesce(r->'standard_refs','[]'))>32 OR EXISTS (
+  SELECT 1 FROM jsonb_array_elements(coalesce(r->'standard_refs','[]')) AS ref
+  WHERE octet_length(ref->>'scheme')>256 OR octet_length(ref->>'version')>160 OR octet_length(ref->>'requirement_id')>256
+ ) THEN family_available:=false;
+ ELSE
+  SELECT coalesce(jsonb_agg(ref ORDER BY (ref->>'scheme') COLLATE "C",(ref->>'version') COLLATE "C",(ref->>'requirement_id') COLLATE "C"),'[]') INTO families
+  FROM jsonb_array_elements(coalesce(r->'standard_refs','[]')) AS ref;
+ END IF;
+ result:=jsonb_build_object('schema','contractor.finding.comparison-projection.v1','availability','available',
+  'preview',jsonb_build_object('title',left(r->>'title',256),'titleTruncated',length(r->>'title')>256,
+   'severitySuggestion',coalesce(r->>'severity_suggestion','')),
+  'hints',jsonb_build_object('subject',r->'subject','families',families,'familiesAvailable',family_available,
+   'producerKey',CASE WHEN f->>'availability'='available' AND f->>'algorithm'='contractor/producer-issue/v1'
+    AND f->>'adapter'='pinned-sarif-native/v1' THEN f->>'value' ELSE '' END,
+   'sites',CASE WHEN a->>'availability'='available' THEN coalesce((SELECT jsonb_agg(k->>'siteKey') FROM jsonb_array_elements(a->'keys') AS k),'[]') ELSE '[]' END,
+   'repository',coalesce(f->>'repository',a->>'repository',''),
+   'commit',coalesce(f->>'commit',a->>'commit','')));
+ RETURN result;
+END;
+$$;
+
+-- Function: contractor_finding_correlation_contributed()
+
+CREATE FUNCTION contractor_finding_correlation_contributed() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+ UPDATE audits SET revision = revision + 1,
+  updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond')
+ WHERE audit_id IN (SELECT DISTINCT audit_id FROM inserted_contributions WHERE relation <> 'first');
+ PERFORM contractor_advance_finding_correlation(ARRAY(
+  SELECT DISTINCT audit.project_id FROM inserted_contributions AS contribution
+  JOIN audits AS audit USING(audit_id) WHERE contribution.relation <> 'first'
+ ));
+ RETURN NULL;
+END;
+$$;
+
+-- Function: contractor_finding_correlation_contribution_deleted()
+
+CREATE FUNCTION contractor_finding_correlation_contribution_deleted() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+ UPDATE audits SET revision = revision + 1,
+  updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond')
+ WHERE audit_id IN (SELECT DISTINCT audit_id FROM deleted_contributions WHERE relation <> 'first');
+ PERFORM contractor_advance_finding_correlation(ARRAY(
+  SELECT DISTINCT audit.project_id FROM deleted_contributions AS contribution
+  JOIN audits AS audit USING(audit_id) WHERE contribution.relation <> 'first'
+ ));
+ RETURN NULL;
+END;
+$$;
+
+-- Function: contractor_finding_correlation_deleted()
+
+CREATE FUNCTION contractor_finding_correlation_deleted() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+ -- Purge changes the selected Audit set as well as Project membership. No
+ -- synthetic analyst decision/event is appended and no surviving peer is written.
+ UPDATE audits SET revision = revision + 1,
+  updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond')
+ WHERE audit_id IN (SELECT DISTINCT audit_id FROM deleted_findings);
+ PERFORM contractor_advance_finding_correlation(ARRAY(SELECT DISTINCT correlation_project_id FROM deleted_findings));
+ RETURN NULL;
+END;
+$$;
+
+-- Function: contractor_finding_correlation_inserted()
+
+CREATE FUNCTION contractor_finding_correlation_inserted() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+ PERFORM contractor_advance_finding_correlation(ARRAY(SELECT DISTINCT correlation_project_id FROM inserted_findings));
+ RETURN NULL;
+END;
+$$;
+
+-- Function: contractor_finding_correlation_source_deleted()
+
+CREATE FUNCTION contractor_finding_correlation_source_deleted() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+ PERFORM contractor_advance_finding_correlation(ARRAY(
+  SELECT DISTINCT n.project_id FROM updated_receipts AS n JOIN previous_receipts AS o USING(receipt_id)
+  JOIN finding_correlation_fences AS fence ON fence.project_id = n.project_id
+  WHERE n.source_run_deleted_at IS DISTINCT FROM o.source_run_deleted_at
+ ));
+ RETURN NULL;
+END;
+$$;
+
+-- Function: contractor_finding_correlation_updated()
+
+CREATE FUNCTION contractor_finding_correlation_updated() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+ affected_projects text[];
+ affected_audits text[];
+BEGIN
+ SELECT array_agg(DISTINCT n.correlation_project_id), array_agg(DISTINCT n.audit_id)
+ INTO affected_projects, affected_audits FROM updated_findings AS n JOIN previous_findings AS o USING(finding_id)
+ WHERE ROW(n.state,n.rejection_reason,n.duplicate_target_id,n.current_assessment_id,n.current_decision_id,n.revision,n.updated_at)
+  IS DISTINCT FROM ROW(o.state,o.rejection_reason,o.duplicate_target_id,o.current_assessment_id,o.current_decision_id,o.revision,o.updated_at);
+ -- Normal result writes already advance Audit revisions through their events.
+ -- Purge pointer resets need a fence as well, including before row removal.
+ UPDATE audits SET revision = revision + 1,
+  updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond')
+ WHERE audit_id = ANY(affected_audits) AND state = 'deleting';
+ PERFORM contractor_advance_finding_correlation(affected_projects);
+ RETURN NULL;
+END;
+$$;
+
+-- Function: contractor_finding_group_key(text, text, text)
+
+CREATE FUNCTION contractor_finding_group_key(project_id text, algorithm text, value text) RETURNS text
+    LANGUAGE sql IMMUTABLE STRICT
+    BEGIN ATOMIC
+ SELECT encode(sha256(convert_to((((((((('['::text || (to_json('contractor/finding-group/v1'::text))::text) || ','::text) || (to_json(project_id))::text) || ','::text) || (to_json(algorithm))::text) || ','::text) || (to_json(value))::text) || ']'::text), 'UTF8'::name)), 'hex'::text) AS encode;
+END;
+
+-- Function: contractor_finding_primary_key(text)
+
+CREATE FUNCTION contractor_finding_primary_key(selected_receipt text) RETURNS TABLE(algorithm text, value text, reason text)
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+ fingerprint jsonb;
+ anchors jsonb;
+ issue_keys text[];
+BEGIN
+ SELECT fingerprint_projection::jsonb, anchor_projection::jsonb INTO fingerprint, anchors
+ FROM finding_proposal_receipts WHERE receipt_id = selected_receipt;
+ IF NOT FOUND THEN
+  RAISE EXCEPTION 'finding first receipt is missing' USING ERRCODE='23503';
+ END IF;
+ IF fingerprint->>'availability' = 'available' THEN
+  IF fingerprint->>'algorithm' IS DISTINCT FROM 'contractor/producer-issue/v1'
+   OR fingerprint->>'adapter' IS DISTINCT FROM 'pinned-sarif-native/v1' THEN
+   RAISE EXCEPTION 'unsupported primary producer policy' USING ERRCODE='23514';
+  END IF;
+  RETURN QUERY SELECT 'contractor/producer-issue/v1'::text, fingerprint->>'value', ''::text;
+  RETURN;
+ END IF;
+ IF anchors->>'availability' = 'available' THEN
+  SELECT array_agg(key) INTO issue_keys FROM (
+   SELECT DISTINCT item->>'issueKey' AS key FROM jsonb_array_elements(anchors->'keys') AS item
+   WHERE item ? 'issueKey' LIMIT 2
+  ) AS qualified;
+ END IF;
+ IF cardinality(issue_keys) = 1 THEN
+  RETURN QUERY SELECT 'contractor/snapshot-issue-anchor/v1'::text, issue_keys[1], ''::text;
+ ELSIF cardinality(issue_keys) > 1 THEN
+  RETURN QUERY SELECT ''::text, ''::text, 'primary_key_ambiguous'::text;
+ ELSIF fingerprint->>'reason' = 'not_recorded' AND anchors->>'reason' = 'not_recorded' THEN
+  RETURN QUERY SELECT ''::text, ''::text, 'not_recorded'::text;
+ ELSE
+  RETURN QUERY SELECT ''::text, ''::text, 'no_qualified_key'::text;
+ END IF;
+END;
+$$;
+
+-- Function: contractor_finding_receipt_artifact_holds(text, jsonb, jsonb)
+
+CREATE FUNCTION contractor_finding_receipt_artifact_holds(run_id text, proposal_ref jsonb, evidence jsonb) RETURNS jsonb
+    LANGUAGE sql IMMUTABLE
+    AS $$
+SELECT contractor_artifact_key_set(ARRAY(
+    SELECT contractor_artifact_ref_key('run', run_id, proposal_ref)
+    UNION ALL
+    SELECT contractor_artifact_ref_key('run', run_id, item -> 'ref')
+    FROM contractor_jsonb_elements(evidence) AS item
+))
+$$;
+
+-- Function: contractor_guard_audit_admission()
+
 CREATE FUNCTION contractor_guard_audit_admission() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -579,6 +1229,8 @@ BEGIN
     RETURN NEW;
 END;
 $$;
+
+-- Function: contractor_guard_audit_child_admission()
 
 CREATE FUNCTION contractor_guard_audit_child_admission() RETURNS trigger
     LANGUAGE plpgsql
@@ -597,6 +1249,8 @@ BEGIN
 END;
 $$;
 
+-- Function: contractor_guard_project_artifact_admission()
+
 CREATE FUNCTION contractor_guard_project_artifact_admission() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -607,6 +1261,8 @@ BEGIN
     RETURN NEW;
 END;
 $$;
+
+-- Function: contractor_guard_project_artifact_binding_admission()
 
 CREATE FUNCTION contractor_guard_project_artifact_binding_admission() RETURNS trigger
     LANGUAGE plpgsql
@@ -642,6 +1298,8 @@ BEGIN
 END;
 $$;
 
+-- Function: contractor_guard_project_artifact_scope_admission()
+
 CREATE FUNCTION contractor_guard_project_artifact_scope_admission() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -666,6 +1324,8 @@ BEGIN
 END;
 $$;
 
+-- Function: contractor_guard_workflow_run_project_admission()
+
 CREATE FUNCTION contractor_guard_workflow_run_project_admission() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -677,12 +1337,311 @@ BEGIN
 END;
 $$;
 
+-- Function: contractor_hold_audit_artifacts()
+
+CREATE FUNCTION contractor_hold_audit_artifacts() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    inputs_acquired jsonb := '[]';
+    inputs_released jsonb := '[]';
+    skills_acquired jsonb := '[]';
+    skills_released jsonb := '[]';
+BEGIN
+    IF TG_OP <> 'DELETE' THEN
+        inputs_acquired := contractor_audit_input_artifact_holds(NEW.project_id, NEW.input_selection,
+            NEW.baseline_snapshot);
+        skills_acquired := contractor_skill_source_artifact_holds(NEW.owner_id, NEW.baseline_snapshot -> 'skills');
+    END IF;
+    IF TG_OP <> 'INSERT' THEN
+        inputs_released := contractor_audit_input_artifact_holds(OLD.project_id, OLD.input_selection,
+            OLD.baseline_snapshot);
+        skills_released := contractor_skill_source_artifact_holds(OLD.owner_id, OLD.baseline_snapshot -> 'skills');
+    END IF;
+    PERFORM contractor_artifact_hold_apply(inputs_acquired, inputs_released, true);
+    PERFORM contractor_artifact_hold_apply(skills_acquired, skills_released, false);
+    RETURN NULL;
+END;
+$$;
+
+-- Function: contractor_hold_audit_dependencies()
+
+CREATE FUNCTION contractor_hold_audit_dependencies() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE project text;
+BEGIN
+ IF TG_OP='INSERT' THEN
+  IF NEW.retained_dependencies IS NULL THEN RETURN NEW; END IF;
+  project := NEW.retained_dependencies->>'project_id';
+  PERFORM contractor_artifact_hold_apply(contractor_audit_dependency_holds(project,NEW.retained_dependencies::jsonb),'[]',true);
+  RETURN NEW;
+ END IF;
+ IF OLD.retained_dependencies IS NULL THEN RETURN OLD; END IF;
+ project := OLD.retained_dependencies->>'project_id';
+ PERFORM contractor_artifact_hold_apply('[]',contractor_audit_dependency_holds(project,OLD.retained_dependencies::jsonb),true);
+ RETURN OLD;
+END;
+$$;
+
+-- Function: contractor_hold_audit_run_inputs()
+
+CREATE FUNCTION contractor_hold_audit_run_inputs() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE acquired jsonb:='[]'; released jsonb:='[]';
+BEGIN
+ IF TG_OP<>'DELETE' THEN acquired:=contractor_audit_run_input_holds(NEW.run_id,NEW.audit_input_materialization::jsonb); END IF;
+ IF TG_OP<>'INSERT' THEN released:=contractor_audit_run_input_holds(OLD.run_id,OLD.audit_input_materialization::jsonb); END IF;
+ PERFORM contractor_artifact_hold_apply(acquired,released,true);
+ RETURN NULL;
+END;
+$$;
+
+-- Function: contractor_hold_finding_receipt_artifacts()
+
+CREATE FUNCTION contractor_hold_finding_receipt_artifacts() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    PERFORM contractor_artifact_hold_apply(
+        contractor_finding_receipt_artifact_holds(NEW.run_id, NEW.proposal_ref, NEW.evidence), '[]', true);
+    RETURN NULL;
+END;
+$$;
+
+-- Function: contractor_hold_lineage_artifacts()
+
+CREATE FUNCTION contractor_hold_lineage_artifacts() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    IF TG_OP = 'INSERT' THEN
+        PERFORM contractor_artifact_hold_apply((
+            SELECT COALESCE(jsonb_agg(key), '[]'::jsonb)
+            FROM inserted_lineage AS edge,
+                 LATERAL (VALUES
+                     (jsonb_build_array(edge.target_scope_kind, edge.target_scope_id, edge.target_namespace,
+                                        edge.target_name, edge.target_revision)),
+                     (jsonb_build_array(edge.source_scope_kind, edge.source_scope_id, edge.source_namespace,
+                                        edge.source_name, edge.source_revision))) AS end_key(key)
+        ), '[]'::jsonb, true);
+    ELSE
+        PERFORM contractor_artifact_hold_apply('[]'::jsonb, (
+            SELECT COALESCE(jsonb_agg(key), '[]'::jsonb)
+            FROM deleted_lineage AS edge,
+                 LATERAL (VALUES
+                     (jsonb_build_array(edge.target_scope_kind, edge.target_scope_id, edge.target_namespace,
+                                        edge.target_name, edge.target_revision)),
+                     (jsonb_build_array(edge.source_scope_kind, edge.source_scope_id, edge.source_namespace,
+                                        edge.source_name, edge.source_revision))) AS end_key(key)
+        ), false);
+    END IF;
+    RETURN NULL;
+END;
+$$;
+
+-- Function: contractor_hold_output_publication_artifacts()
+
+CREATE FUNCTION contractor_hold_output_publication_artifacts() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    IF TG_OP = 'INSERT' THEN
+        PERFORM contractor_artifact_hold_apply((
+            SELECT COALESCE(jsonb_agg(key), '[]'::jsonb)
+            FROM inserted_publications AS publication,
+                 LATERAL (VALUES
+                     (jsonb_build_array('run', publication.run_id, publication.source_namespace,
+                                        publication.source_name, publication.source_revision)),
+                     (CASE WHEN publication.target_revision IS NOT NULL THEN
+                          jsonb_build_array('project', publication.project_id, publication.target_namespace,
+                                            publication.target_name, publication.target_revision) END)
+                 ) AS end_key(key)
+            WHERE key IS NOT NULL
+        ), '[]'::jsonb, true);
+    ELSE
+        PERFORM contractor_artifact_hold_apply('[]'::jsonb, (
+            SELECT COALESCE(jsonb_agg(key), '[]'::jsonb)
+            FROM deleted_publications AS publication,
+                 LATERAL (VALUES
+                     (jsonb_build_array('run', publication.run_id, publication.source_namespace,
+                                        publication.source_name, publication.source_revision)),
+                     (CASE WHEN publication.target_revision IS NOT NULL THEN
+                          jsonb_build_array('project', publication.project_id, publication.target_namespace,
+                                            publication.target_name, publication.target_revision) END)
+                 ) AS end_key(key)
+            WHERE key IS NOT NULL
+        ), false);
+    END IF;
+    RETURN NULL;
+END;
+$$;
+
+-- Function: contractor_hold_planner_session_artifacts()
+
+CREATE FUNCTION contractor_hold_planner_session_artifacts() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    session_run_id text;
+    previous jsonb := '[]';
+BEGIN
+    IF TG_OP = 'UPDATE' THEN
+        previous := OLD.artifact_refs;
+    END IF;
+    SELECT stage.run_id INTO session_run_id
+    FROM stage_executions AS stage
+    WHERE stage.stage_execution_id = NEW.stage_execution_id;
+    PERFORM contractor_artifact_hold_apply(
+        contractor_run_artifact_keys(session_run_id, NEW.artifact_refs),
+        contractor_run_artifact_keys(session_run_id, previous),
+        false);
+    RETURN NULL;
+END;
+$$;
+
+-- Function: contractor_hold_run_skill_artifacts()
+
+CREATE FUNCTION contractor_hold_run_skill_artifacts() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    acquired jsonb := '[]';
+    released jsonb := '[]';
+BEGIN
+    IF TG_OP <> 'DELETE' THEN
+        acquired := contractor_skill_source_artifact_holds(NEW.owner_id, NEW.skill_snapshot);
+    END IF;
+    IF TG_OP <> 'INSERT' THEN
+        released := contractor_skill_source_artifact_holds(OLD.owner_id, OLD.skill_snapshot);
+    END IF;
+    PERFORM contractor_artifact_hold_apply(acquired, released, false);
+    RETURN NULL;
+END;
+$$;
+
+-- Function: contractor_hold_stage_execution_artifacts()
+
+CREATE FUNCTION contractor_hold_stage_execution_artifacts() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    previous jsonb := '[]';
+BEGIN
+    IF TG_OP = 'UPDATE' THEN
+        previous := contractor_stage_execution_artifact_holds(OLD.run_id, OLD.stage_context_snapshot,
+            OLD.candidate_stage_result, OLD.accepted_stage_result);
+    END IF;
+    PERFORM contractor_artifact_hold_apply(
+        contractor_stage_execution_artifact_holds(NEW.run_id, NEW.stage_context_snapshot,
+            NEW.candidate_stage_result, NEW.accepted_stage_result),
+        previous, true);
+    RETURN NULL;
+END;
+$$;
+
+-- Function: contractor_initialize_finding_comparison_projection()
+
+CREATE FUNCTION contractor_initialize_finding_comparison_projection() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+ NEW.comparison_projection:=contractor_finding_comparison_projection(NEW.report_projection,NEW.fingerprint_projection,NEW.anchor_projection,NEW.retention_state);
+ RETURN NEW;
+END;
+$$;
+
+-- Function: contractor_initialize_finding_correlation()
+
+CREATE FUNCTION contractor_initialize_finding_correlation() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+ actual_project text;
+ primary_key record;
+ actual_group text;
+BEGIN
+ SELECT project_id INTO actual_project FROM audits WHERE audit_id = NEW.audit_id;
+ IF NOT FOUND THEN
+  RAISE EXCEPTION 'finding Audit is missing' USING ERRCODE='23503';
+ END IF;
+ SELECT * INTO STRICT primary_key FROM contractor_finding_primary_key(NEW.first_receipt_id);
+ actual_group := CASE WHEN primary_key.algorithm = '' THEN ''
+  ELSE contractor_finding_group_key(actual_project, primary_key.algorithm, primary_key.value) END;
+ IF NEW.correlation_algorithm IS NULL OR NEW.correlation_value IS NULL OR NEW.correlation_group_key IS NULL OR NEW.correlation_reason IS NULL
+  OR NEW.correlation_project_id IS NOT NULL AND NEW.correlation_project_id <> actual_project
+  OR NEW.correlation_algorithm <> '' AND NEW.correlation_algorithm <> primary_key.algorithm
+  OR NEW.correlation_value <> '' AND NEW.correlation_value <> primary_key.value
+  OR NEW.correlation_group_key <> '' AND NEW.correlation_group_key <> actual_group
+  OR NEW.correlation_reason <> 'not_recorded' AND NEW.correlation_reason <> primary_key.reason THEN
+  RAISE EXCEPTION 'finding correlation does not match its first receipt or Audit' USING ERRCODE='23514';
+ END IF;
+ NEW.correlation_project_id := actual_project;
+ NEW.correlation_algorithm := primary_key.algorithm;
+ NEW.correlation_value := primary_key.value;
+ NEW.correlation_group_key := actual_group;
+ NEW.correlation_reason := primary_key.reason;
+ RETURN NEW;
+END;
+$$;
+
+-- Function: contractor_jsonb_values(jsonb)
+
+CREATE FUNCTION contractor_jsonb_values(value jsonb) RETURNS SETOF jsonb
+    LANGUAGE sql IMMUTABLE
+    BEGIN ATOMIC
+ SELECT member.value
+    FROM jsonb_each(
+         CASE
+             WHEN (jsonb_typeof(contractor_jsonb_values.value) = 'object'::text) THEN contractor_jsonb_values.value
+             ELSE '{}'::jsonb
+         END) member(key, value);
+END;
+
+-- Function: contractor_lifecycle_purge_enabled()
+
 CREATE FUNCTION contractor_lifecycle_purge_enabled() RETURNS boolean
     LANGUAGE sql STABLE
     AS $$
-    SELECT COALESCE(current_setting('contractor.lifecycle_purge', true), '')
-        IN ('run', 'project', 'audit')
+ SELECT COALESCE(current_setting('contractor.lifecycle_purge',true),'') IN ('run','project','audit','scan-sweep')
 $$;
+
+-- Function: contractor_lock_finding_correlation_fence(text)
+
+CREATE FUNCTION contractor_lock_finding_correlation_fence(selected_project text) RETURNS void
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+ fenced boolean;
+BEGIN
+ BEGIN
+  PERFORM 1 FROM projects WHERE project_id = selected_project FOR SHARE NOWAIT;
+  SELECT true INTO fenced FROM finding_correlation_fences WHERE project_id = selected_project
+   FOR NO KEY UPDATE NOWAIT;
+ EXCEPTION WHEN lock_not_available THEN
+  RAISE EXCEPTION 'Project finding correlation is concurrently changing' USING ERRCODE='40001';
+ END;
+ IF fenced IS NULL THEN
+  RAISE EXCEPTION 'Project % has no finding correlation fence', selected_project USING ERRCODE='P0004';
+ END IF;
+END;
+$$;
+
+-- Function: contractor_mark_allocation_report_received()
+
+CREATE FUNCTION contractor_mark_allocation_report_received() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    UPDATE stage_allocations
+       SET execution_report_received = true
+     WHERE allocation_id = NEW.allocation_id AND NOT execution_report_received;
+    RETURN NULL;
+END;
+$$;
+
+-- Function: contractor_notify_workflow_run_event()
 
 CREATE FUNCTION contractor_notify_workflow_run_event() RETURNS trigger
     LANGUAGE plpgsql
@@ -692,6 +1651,28 @@ BEGIN
     RETURN NEW;
 END;
 $$;
+
+-- Function: contractor_planner_session_artifact_refs(jsonb)
+
+CREATE FUNCTION contractor_planner_session_artifact_refs(state jsonb) RETURNS jsonb
+    LANGUAGE sql IMMUTABLE
+    BEGIN ATOMIC
+ SELECT contractor_artifact_key_set(ARRAY( SELECT contractor_artifact_ref_key('run'::text, ''::text, (((contractor_planner_session_artifact_refs.state -> 'completion'::text) -> 'result'::text) -> 'summaryArtifact'::text)) AS contractor_artifact_ref_key
+         UNION ALL
+          SELECT contractor_artifact_ref_key('run'::text, ''::text, slot.slot) AS contractor_artifact_ref_key
+            FROM contractor_jsonb_values((((contractor_planner_session_artifact_refs.state -> 'completion'::text) -> 'result'::text) -> 'artifacts'::text)) slot(slot)
+         UNION ALL
+          SELECT contractor_artifact_ref_key('run'::text, ''::text, (((contractor_planner_session_artifact_refs.state -> 'scan'::text) -> 'state'::text) -> 'plan'::text)) AS contractor_artifact_ref_key
+         UNION ALL
+          SELECT contractor_artifact_ref_key('run'::text, ''::text, (job.job -> 'report'::text)) AS contractor_artifact_ref_key
+            FROM contractor_jsonb_elements((((contractor_planner_session_artifact_refs.state -> 'scan'::text) -> 'state'::text) -> 'jobs'::text)) job(job)
+         UNION ALL
+          SELECT contractor_artifact_ref_key('run'::text, ''::text, input.input) AS contractor_artifact_ref_key
+            FROM contractor_jsonb_elements((((contractor_planner_session_artifact_refs.state -> 'scan'::text) -> 'state'::text) -> 'jobs'::text)) job(job),
+             LATERAL contractor_jsonb_values((job.job -> 'inputArtifacts'::text)) input(input))) AS contractor_artifact_key_set;
+END;
+
+-- Function: contractor_protect_artifact_binding()
 
 CREATE FUNCTION contractor_protect_artifact_binding() RETURNS trigger
     LANGUAGE plpgsql
@@ -731,12 +1712,14 @@ BEGIN
 END;
 $$;
 
+-- Function: contractor_protect_artifact_blob_immutable()
+
 CREATE FUNCTION contractor_protect_artifact_blob_immutable() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
     IF TG_OP = 'DELETE' THEN
-        IF contractor_lifecycle_purge_enabled() THEN
+        IF contractor_lifecycle_purge_enabled() OR contractor_artifact_retention_enabled() THEN
             RETURN OLD;
         END IF;
         RAISE EXCEPTION 'immutable Artifact blob cannot be changed' USING ERRCODE = '23514';
@@ -751,6 +1734,8 @@ BEGIN
 END;
 $$;
 
+-- Function: contractor_protect_artifact_immutable()
+
 CREATE FUNCTION contractor_protect_artifact_immutable() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -762,11 +1747,49 @@ BEGIN
 END;
 $$;
 
+-- Function: contractor_protect_artifact_revision_delete()
+
+CREATE FUNCTION contractor_protect_artifact_revision_delete() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    IF contractor_lifecycle_purge_enabled() THEN
+        RETURN OLD;
+    END IF;
+    -- The binding's foreign key to its current revision is deferred to the
+    -- commit, so retention refuses the current revision here.
+    IF contractor_artifact_retention_enabled() AND OLD.hold_count = 0 AND NOT EXISTS (
+        SELECT 1 FROM artifact_bindings AS binding
+        WHERE binding.scope_kind = OLD.scope_kind AND binding.scope_id = OLD.scope_id
+          AND binding.namespace = OLD.namespace AND binding.name = OLD.name
+          AND binding.current_revision = OLD.revision
+    ) THEN
+        RETURN OLD;
+    END IF;
+    RAISE EXCEPTION 'immutable ArtifactStore row cannot be changed' USING ERRCODE = '23514';
+END;
+$$;
+
+-- Function: contractor_protect_artifact_scope_created_at()
+
+CREATE FUNCTION contractor_protect_artifact_scope_created_at() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    IF NEW.created_at IS DISTINCT FROM OLD.created_at THEN
+        RAISE EXCEPTION 'Artifact scope creation time cannot be changed' USING ERRCODE = '23514';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+-- Function: contractor_protect_artifact_version()
+
 CREATE FUNCTION contractor_protect_artifact_version() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
-    IF TG_OP = 'DELETE' AND contractor_lifecycle_purge_enabled() THEN
+    IF TG_OP = 'DELETE' AND (contractor_lifecycle_purge_enabled() OR contractor_artifact_retention_enabled()) THEN
         RETURN OLD;
     END IF;
     IF TG_OP = 'UPDATE' AND OLD.git_resolved_commit IS NULL AND NEW.git_resolved_commit IS NOT NULL
@@ -778,6 +1801,8 @@ BEGIN
     RAISE EXCEPTION 'immutable ArtifactStore row cannot be changed' USING ERRCODE = '23514';
 END;
 $$;
+
+-- Function: contractor_protect_audit_completion()
 
 CREATE FUNCTION contractor_protect_audit_completion() RETURNS trigger
     LANGUAGE plpgsql
@@ -791,6 +1816,8 @@ BEGIN
 END;
 $$;
 
+-- Function: contractor_protect_audit_event()
+
 CREATE FUNCTION contractor_protect_audit_event() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -798,6 +1825,8 @@ BEGIN
     RAISE EXCEPTION 'Audit events are immutable' USING ERRCODE = '23514';
 END;
 $$;
+
+-- Function: contractor_protect_audit_execution_collection()
 
 CREATE FUNCTION contractor_protect_audit_execution_collection() RETURNS trigger
     LANGUAGE plpgsql
@@ -824,6 +1853,8 @@ BEGIN
 END;
 $$;
 
+-- Function: contractor_protect_audit_finding_history()
+
 CREATE FUNCTION contractor_protect_audit_finding_history() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -831,6 +1862,32 @@ BEGIN
     RAISE EXCEPTION 'Audit finding history is immutable' USING ERRCODE = '23514';
 END;
 $$;
+
+-- Function: contractor_protect_audit_input_materialization()
+
+CREATE FUNCTION contractor_protect_audit_input_materialization() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+ IF NEW.audit_input_materialization::text IS DISTINCT FROM OLD.audit_input_materialization::text THEN
+  IF NEW.publication_mode<>'audit-managed' OR NEW.state<>'initializing'
+   OR NEW.audit_input_materialization IS NULL THEN
+   RAISE EXCEPTION 'Audit input progress is writable only during initialization' USING ERRCODE='23514';
+  END IF;
+  IF OLD.audit_input_materialization IS NOT NULL AND (
+   (OLD.audit_input_materialization->>'complete')::boolean
+   OR NEW.audit_input_materialization->>'identity' IS DISTINCT FROM OLD.audit_input_materialization->>'identity'
+   OR NEW.audit_input_materialization->>'deadlineAt' IS DISTINCT FROM OLD.audit_input_materialization->>'deadlineAt'
+   OR (NEW.audit_input_materialization->>'revision')::bigint<>(OLD.audit_input_materialization->>'revision')::bigint+1
+   OR NOT ((NEW.audit_input_materialization::jsonb->'refs') @> (OLD.audit_input_materialization::jsonb->'refs'))) THEN
+   RAISE EXCEPTION 'Audit input progress cannot change authority or release its closure' USING ERRCODE='23514';
+  END IF;
+ END IF;
+ RETURN NEW;
+END;
+$$;
+
+-- Function: contractor_protect_audit_item_source()
 
 CREATE FUNCTION contractor_protect_audit_item_source() RETURNS trigger
     LANGUAGE plpgsql
@@ -847,19 +1904,26 @@ BEGIN
 END;
 $$;
 
+-- Function: contractor_protect_audit_preparation_baseline()
+
 CREATE FUNCTION contractor_protect_audit_preparation_baseline() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
+DECLARE
+    baseline_changed boolean := ROW(NEW.baseline_snapshot, NEW.profile_snapshot, NEW.input_selection,
+            NEW.profile_name, NEW.profile_version, NEW.profile_digest, NEW.owner_id, NEW.project_id)
+        IS DISTINCT FROM ROW(OLD.baseline_snapshot, OLD.profile_snapshot, OLD.input_selection,
+            OLD.profile_name, OLD.profile_version, OLD.profile_digest, OLD.owner_id, OLD.project_id);
 BEGIN
-    IF OLD.phase IN ('preparing', 'inventory') OR EXISTS (
-        SELECT 1 FROM audit_executions WHERE audit_id = OLD.audit_id AND role = 'prepare'
-    ) THEN
-        IF ROW(NEW.baseline_snapshot, NEW.profile_snapshot, NEW.input_selection,
-               NEW.profile_name, NEW.profile_version, NEW.profile_digest, NEW.owner_id, NEW.project_id)
-           IS DISTINCT FROM ROW(OLD.baseline_snapshot, OLD.profile_snapshot, OLD.input_selection,
-               OLD.profile_name, OLD.profile_version, OLD.profile_digest, OLD.owner_id, OLD.project_id)
-        THEN RAISE EXCEPTION 'Audit preparation baseline is immutable' USING ERRCODE = '23514'; END IF;
-        IF NEW.phase = 'not-started' THEN
+    -- Only a changed baseline or a not-started phase is rejected once
+    -- preparation began, so only they need to know whether it did.
+    IF baseline_changed OR NEW.phase = 'not-started' THEN
+        IF OLD.phase IN ('preparing', 'inventory') OR EXISTS (
+            SELECT 1 FROM audit_executions WHERE audit_id = OLD.audit_id AND role = 'prepare'
+        ) THEN
+            IF baseline_changed THEN
+                RAISE EXCEPTION 'Audit preparation baseline is immutable' USING ERRCODE = '23514';
+            END IF;
             RAISE EXCEPTION 'Audit preparation cannot return to not-started' USING ERRCODE = '23514';
         END IF;
     END IF;
@@ -881,6 +1945,8 @@ BEGIN
     RETURN NEW;
 END;
 $$;
+
+-- Function: contractor_protect_credential_operation()
 
 CREATE FUNCTION contractor_protect_credential_operation() RETURNS trigger
     LANGUAGE plpgsql
@@ -913,6 +1979,35 @@ BEGIN
 END;
 $$;
 
+-- Function: contractor_protect_finding_correlation()
+
+CREATE FUNCTION contractor_protect_finding_correlation() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+ IF ROW(NEW.audit_id,NEW.first_receipt_id,NEW.correlation_project_id,NEW.correlation_algorithm,NEW.correlation_value,NEW.correlation_group_key,NEW.correlation_reason)
+  IS DISTINCT FROM ROW(OLD.audit_id,OLD.first_receipt_id,OLD.correlation_project_id,OLD.correlation_algorithm,OLD.correlation_value,OLD.correlation_group_key,OLD.correlation_reason) THEN
+  RAISE EXCEPTION 'first-receipt finding correlation is immutable' USING ERRCODE='23514';
+ END IF;
+ RETURN NEW;
+END;
+$$;
+
+-- Function: contractor_protect_finding_correlation_fence()
+
+CREATE FUNCTION contractor_protect_finding_correlation_fence() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+ IF NEW.project_id <> OLD.project_id OR NEW.revision NOT IN (OLD.revision, OLD.revision + 1) THEN
+  RAISE EXCEPTION 'finding correlation revision must advance monotonically' USING ERRCODE='23514';
+ END IF;
+ RETURN NEW;
+END;
+$$;
+
+-- Function: contractor_protect_finding_proposal_receipt()
+
 CREATE FUNCTION contractor_protect_finding_proposal_receipt() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -921,19 +2016,38 @@ BEGIN
 END;
 $$;
 
+-- Function: contractor_protect_finding_proposal_receipt_retention()
+
 CREATE FUNCTION contractor_protect_finding_proposal_receipt_retention() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
-    IF TG_OP = 'UPDATE'
-        AND to_jsonb(NEW) - ARRAY['retention_state', 'source_run_deleted_at', 'discarded_at', 'retention_updated_at']
-            = to_jsonb(OLD) - ARRAY['retention_state', 'source_run_deleted_at', 'discarded_at', 'retention_updated_at']
-    THEN
-        RETURN NEW;
-    END IF;
-    RAISE EXCEPTION 'finding proposal receipts are immutable' USING ERRCODE = '23514';
+ IF TG_OP='UPDATE' THEN
+  IF NEW.retention_state='discarded' THEN
+   NEW.report_projection:='{}';
+   NEW.anchor_projection:='{"schema":"contractor.finding.anchors-projection.v1","availability":"unavailable","reason":"discarded"}';
+   NEW.fingerprint_projection:='{"schema":"contractor.finding.fingerprint-projection.v1","availability":"unavailable","reason":"discarded"}';
+   NEW.checks_projection:=contractor_empty_finding_checks(NEW.proposal_digest,NEW.proposal_size_bytes);
+  END IF;
+  IF NEW.comparison_projection IS DISTINCT FROM OLD.comparison_projection
+   AND NEW.comparison_projection IS DISTINCT FROM contractor_finding_comparison_projection(NEW.report_projection,NEW.fingerprint_projection,NEW.anchor_projection,NEW.retention_state) THEN
+   RAISE EXCEPTION 'finding comparison projection does not match its immutable sources' USING ERRCODE='23514';
+  END IF;
+  NEW.comparison_projection:=contractor_finding_comparison_projection(NEW.report_projection,NEW.fingerprint_projection,NEW.anchor_projection,NEW.retention_state);
+  IF to_jsonb(NEW)-ARRAY['retention_state','source_run_deleted_at','discarded_at','retention_updated_at','report_projection','fingerprint_projection','anchor_projection','comparison_projection','checks_projection','checks_projection_bytes','checks_projection_count']
+   =to_jsonb(OLD)-ARRAY['retention_state','source_run_deleted_at','discarded_at','retention_updated_at','report_projection','fingerprint_projection','anchor_projection','comparison_projection','checks_projection','checks_projection_bytes','checks_projection_count']
+   AND (NEW.report_projection=OLD.report_projection OR NEW.retention_state='discarded')
+   AND (NEW.anchor_projection=OLD.anchor_projection OR NEW.retention_state='discarded')
+   AND (NEW.fingerprint_projection=OLD.fingerprint_projection OR NEW.retention_state='discarded')
+   AND (NEW.checks_projection::text IS NOT DISTINCT FROM OLD.checks_projection::text OR OLD.checks_projection IS NULL OR NEW.retention_state='discarded') THEN RETURN NEW; END IF;
+ END IF;
+ IF TG_OP='DELETE' AND current_setting('contractor.lifecycle_purge',true)='project'
+  AND EXISTS(SELECT 1 FROM projects WHERE project_id=OLD.project_id AND lifecycle_state='deleting') THEN RETURN OLD; END IF;
+ RAISE EXCEPTION 'finding proposal receipts are immutable' USING ERRCODE='23514';
 END;
 $$;
+
+-- Function: contractor_protect_immutable_credential_row()
 
 CREATE FUNCTION contractor_protect_immutable_credential_row() RETURNS trigger
     LANGUAGE plpgsql
@@ -943,6 +2057,43 @@ BEGIN
         USING ERRCODE = '23514';
 END;
 $$;
+
+-- Function: contractor_protect_model_selection_settings()
+
+CREATE FUNCTION contractor_protect_model_selection_settings() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    IF TG_OP = 'DELETE' THEN
+        RAISE EXCEPTION 'Model selection singleton cannot be deleted' USING ERRCODE = '23514';
+    END IF;
+    IF NEW.singleton IS DISTINCT FROM OLD.singleton
+       OR (NEW.default_model IS NOT DISTINCT FROM OLD.default_model
+           AND NEW.role_models IS NOT DISTINCT FROM OLD.role_models)
+       OR NEW.revision IS DISTINCT FROM OLD.revision + 1
+       OR NEW.updated_at <= OLD.updated_at THEN
+        RAISE EXCEPTION 'Model selection update must be one semantic revision' USING ERRCODE = '23514';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+-- Function: contractor_protect_mutation_receipt()
+
+CREATE FUNCTION contractor_protect_mutation_receipt() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+ IF TG_OP = 'DELETE' AND (
+  OLD.key_scope[1] = 'audit'
+  OR (OLD.key_scope[1] = 'eval' AND current_setting('contractor.eval_purge', true) = 'on')
+  OR (OLD.key_scope[1] = 'project' AND current_setting('contractor.lifecycle_purge', true) = 'project'
+   AND EXISTS (SELECT 1 FROM projects WHERE project_id=OLD.project_id AND lifecycle_state='deleting'))
+ ) THEN RETURN OLD; END IF;
+ RAISE EXCEPTION 'mutation receipt is immutable' USING ERRCODE = '23514';
+END; $$;
+
+-- Function: contractor_protect_owner_queue_control()
 
 CREATE FUNCTION contractor_protect_owner_queue_control() RETURNS trigger
     LANGUAGE plpgsql
@@ -960,6 +2111,70 @@ BEGIN
     RETURN NEW;
 END;
 $$;
+
+-- Function: contractor_protect_placement_labels()
+
+CREATE FUNCTION contractor_protect_placement_labels() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    RAISE EXCEPTION 'Runtime placement labels are immutable' USING ERRCODE = '23514';
+END;
+$$;
+
+-- Function: contractor_protect_prepared_audit_item()
+
+CREATE FUNCTION contractor_protect_prepared_audit_item() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+ IF TG_OP='INSERT' THEN
+  IF (NEW.prepared_execution IS NOT NULL OR EXISTS(SELECT 1 FROM audit_rounds
+   WHERE audit_id=NEW.audit_id AND round_id=NEW.round_id AND prepared_generation IS NOT NULL))
+   AND NOT EXISTS(SELECT 1 FROM audit_rounds WHERE audit_id=NEW.audit_id AND round_id=NEW.round_id
+    AND state='proposed' AND prepared_page_count IS NULL AND NEW.prepared_execution IS NOT NULL) THEN
+   RAISE EXCEPTION 'prepared Audit membership is sealed' USING ERRCODE='23514'; END IF;
+  RETURN NEW;
+ END IF;
+ IF TG_OP='UPDATE' THEN
+  IF OLD.prepared_execution IS NOT NULL AND ROW(NEW.item_id,NEW.audit_id,NEW.round_id,NEW.item_key,NEW.ordinal,NEW.kind,NEW.subject_key,
+    NEW.workflow_role,NEW.task_ref,NEW.task_digest,NEW.origin,NEW.approval_kind,NEW.approval_subject_digest)
+   IS DISTINCT FROM ROW(OLD.item_id,OLD.audit_id,OLD.round_id,OLD.item_key,OLD.ordinal,OLD.kind,OLD.subject_key,
+    OLD.workflow_role,OLD.task_ref,OLD.task_digest,OLD.origin,OLD.approval_kind,OLD.approval_subject_digest) THEN
+   RAISE EXCEPTION 'prepared Audit item authority is immutable' USING ERRCODE='23514'; END IF;
+  IF ROW(NEW.prepared_execution::text,NEW.prepared_page_ordinal,NEW.prepared_related_count)
+   IS DISTINCT FROM ROW(OLD.prepared_execution::text,OLD.prepared_page_ordinal,OLD.prepared_related_count) THEN
+   RAISE EXCEPTION 'prepared Audit membership is immutable' USING ERRCODE='23514'; END IF;
+  RETURN NEW;
+ END IF;
+ IF OLD.prepared_execution IS NOT NULL THEN
+  IF EXISTS(SELECT 1 FROM audit_rounds WHERE audit_id=OLD.audit_id AND round_id=OLD.round_id AND state<>'proposed')
+   AND EXISTS(SELECT 1 FROM audits WHERE audit_id=OLD.audit_id AND state<>'deleting') THEN
+   RAISE EXCEPTION 'accepted prepared Audit membership cannot be deleted' USING ERRCODE='23514'; END IF;
+  UPDATE audit_rounds SET prepared_staged_count=prepared_staged_count-1,
+   prepared_review_count=prepared_review_count-CASE WHEN OLD.approval_kind='none' THEN 0 ELSE 1 END
+  WHERE audit_id=OLD.audit_id AND round_id=OLD.round_id AND state='proposed';
+ END IF;
+ RETURN OLD;
+END;
+$$;
+
+-- Function: contractor_protect_prepared_audit_round()
+
+CREATE FUNCTION contractor_protect_prepared_audit_round() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+ IF OLD.prepared_page_count IS NOT NULL AND ROW(NEW.round_id,NEW.audit_id,NEW.ordinal,NEW.manifest_ref,NEW.manifest_digest,
+  NEW.acceptance_digest,NEW.expected_item_count,NEW.prepared_generation,NEW.prepared_page_count,NEW.prepared_pages_digest)
+ IS DISTINCT FROM ROW(OLD.round_id,OLD.audit_id,OLD.ordinal,OLD.manifest_ref,OLD.manifest_digest,
+  OLD.acceptance_digest,OLD.expected_item_count,OLD.prepared_generation,OLD.prepared_page_count,OLD.prepared_pages_digest) THEN
+  RAISE EXCEPTION 'prepared Audit root is immutable' USING ERRCODE='23514'; END IF;
+ RETURN NEW;
+END;
+$$;
+
+-- Function: contractor_protect_project()
 
 CREATE FUNCTION contractor_protect_project() RETURNS trigger
     LANGUAGE plpgsql
@@ -981,6 +2196,7 @@ BEGIN
         AND (
             NEW.name IS DISTINCT FROM OLD.name
             OR NEW.description IS DISTINCT FROM OLD.description
+            OR NEW.active_checks IS DISTINCT FROM OLD.active_checks
             OR NEW.http_target_url IS DISTINCT FROM OLD.http_target_url
             OR NEW.http_target_credential_id IS DISTINCT FROM OLD.http_target_credential_id
             OR NEW.http_target_credential_kind IS DISTINCT FROM OLD.http_target_credential_kind
@@ -1022,11 +2238,11 @@ BEGIN
     END IF;
 
     public_change := ROW(
-        NEW.name, NEW.description,
+        NEW.name, NEW.description, NEW.active_checks,
         NEW.http_target_url, NEW.http_target_credential_id, NEW.http_target_credential_kind,
         NEW.lifecycle_state, NEW.deletion_phase, NEW.deletion_requested_at
     ) IS DISTINCT FROM ROW(
-        OLD.name, OLD.description,
+        OLD.name, OLD.description, OLD.active_checks,
         OLD.http_target_url, OLD.http_target_credential_id, OLD.http_target_credential_kind,
         OLD.lifecycle_state, OLD.deletion_phase, OLD.deletion_requested_at
     );
@@ -1044,6 +2260,58 @@ BEGIN
 END;
 $$;
 
+-- Function: contractor_protect_round_results_page()
+
+CREATE FUNCTION contractor_protect_round_results_page() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    IF ROW(NEW.audit_id, NEW.round_id, NEW.source_generation, NEW.ordinal,
+           NEW.last_item_ordinal, NEW.item_count, NEW.content_bytes)
+       IS DISTINCT FROM ROW(OLD.audit_id, OLD.round_id, OLD.source_generation, OLD.ordinal,
+           OLD.last_item_ordinal, OLD.item_count, OLD.content_bytes)
+       OR (OLD.artifact IS NOT NULL AND NEW.artifact IS DISTINCT FROM OLD.artifact) THEN
+        RAISE EXCEPTION 'Round result page is immutable' USING ERRCODE = '23514',
+            CONSTRAINT = 'audit_round_result_pages_immutable';
+    END IF;
+    IF NEW.content IS DISTINCT FROM OLD.content AND NOT (
+        OLD.content IS NOT NULL AND NEW.content IS NULL AND OLD.artifact IS NULL AND NEW.artifact IS NOT NULL
+    ) THEN
+        RAISE EXCEPTION 'Round result page content is immutable until transferred to its frozen Artifact'
+            USING ERRCODE='23514', CONSTRAINT='audit_round_result_pages_content_immutable';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+-- Function: contractor_protect_round_results_root()
+
+CREATE FUNCTION contractor_protect_round_results_root() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    IF OLD.results_sealed AND ROW(NEW.results_generation, NEW.results_sealed,
+        NEW.results_item_count, NEW.results_metadata_bytes, NEW.results_page_count)
+        IS DISTINCT FROM ROW(OLD.results_generation, OLD.results_sealed,
+        OLD.results_item_count, OLD.results_metadata_bytes, OLD.results_page_count)
+        OR OLD.results_manifest IS NOT NULL AND NEW.results_manifest IS DISTINCT FROM OLD.results_manifest THEN
+        RAISE EXCEPTION 'Round results source generation is immutable' USING ERRCODE = '23514',
+            CONSTRAINT = 'audit_rounds_results_immutable';
+    END IF;
+    IF NEW.results_published_pages IS DISTINCT FROM OLD.results_published_pages
+       AND (NOT OLD.results_sealed OR OLD.results_manifest IS NOT NULL
+         OR jsonb_array_length(NEW.results_published_pages)<>jsonb_array_length(OLD.results_published_pages)+1
+         OR NEW.results_published_pages - (jsonb_array_length(NEW.results_published_pages)-1)
+            IS DISTINCT FROM OLD.results_published_pages) THEN
+        RAISE EXCEPTION 'Round results publication progress is append-only' USING ERRCODE = '23514',
+            CONSTRAINT = 'audit_rounds_results_publication_immutable';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+-- Function: contractor_protect_run_stage_resumption()
+
 CREATE FUNCTION contractor_protect_run_stage_resumption() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -1051,6 +2319,8 @@ BEGIN
     RAISE EXCEPTION 'Run continuation receipts are immutable' USING ERRCODE = '23514';
 END;
 $$;
+
+-- Function: contractor_protect_runtime_agent_principal()
 
 CREATE FUNCTION contractor_protect_runtime_agent_principal() RETURNS trigger
     LANGUAGE plpgsql
@@ -1069,6 +2339,8 @@ BEGIN
 END;
 $$;
 
+-- Function: contractor_protect_runtime_config_immutable()
+
 CREATE FUNCTION contractor_protect_runtime_config_immutable() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -1077,6 +2349,8 @@ BEGIN
         USING ERRCODE = '23514';
 END;
 $$;
+
+-- Function: contractor_protect_runtime_credential_immutable()
 
 CREATE FUNCTION contractor_protect_runtime_credential_immutable() RETURNS trigger
     LANGUAGE plpgsql
@@ -1097,6 +2371,8 @@ BEGIN
         USING ERRCODE = '23514';
 END;
 $$;
+
+-- Function: contractor_protect_runtime_label_binding()
 
 CREATE FUNCTION contractor_protect_runtime_label_binding() RETURNS trigger
     LANGUAGE plpgsql
@@ -1125,6 +2401,8 @@ BEGIN
 END;
 $$;
 
+-- Function: contractor_protect_scheduler_settings()
+
 CREATE FUNCTION contractor_protect_scheduler_settings() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -1134,7 +2412,8 @@ BEGIN
             USING ERRCODE = '23514';
     END IF;
     IF NEW.singleton IS DISTINCT FROM OLD.singleton
-        OR NEW.max_concurrent_runs IS NOT DISTINCT FROM OLD.max_concurrent_runs
+        OR (NEW.max_concurrent_runs IS NOT DISTINCT FROM OLD.max_concurrent_runs
+            AND NEW.max_concurrent_tool_runs IS NOT DISTINCT FROM OLD.max_concurrent_tool_runs)
         OR NEW.revision IS DISTINCT FROM OLD.revision + 1
         OR NEW.updated_at <= OLD.updated_at
     THEN
@@ -1144,6 +2423,8 @@ BEGIN
     RETURN NEW;
 END;
 $$;
+
+-- Function: contractor_protect_stage_allocation_identity()
 
 CREATE FUNCTION contractor_protect_stage_allocation_identity() RETURNS trigger
     LANGUAGE plpgsql
@@ -1169,6 +2450,8 @@ BEGIN
 END;
 $$;
 
+-- Function: contractor_protect_stage_allocation_performance_policy()
+
 CREATE FUNCTION contractor_protect_stage_allocation_performance_policy() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -1180,6 +2463,8 @@ BEGIN
     RETURN NEW;
 END;
 $$;
+
+-- Function: contractor_protect_stage_execution_immutable()
 
 CREATE FUNCTION contractor_protect_stage_execution_immutable() RETURNS trigger
     LANGUAGE plpgsql
@@ -1240,6 +2525,8 @@ BEGIN
 END;
 $$;
 
+-- Function: contractor_protect_stage_transition_decision_immutable()
+
 CREATE FUNCTION contractor_protect_stage_transition_decision_immutable() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -1247,6 +2534,8 @@ BEGIN
     RAISE EXCEPTION 'Stage transition decisions are immutable' USING ERRCODE = '23514';
 END;
 $$;
+
+-- Function: contractor_protect_telemetry_report_immutable()
 
 CREATE FUNCTION contractor_protect_telemetry_report_immutable() RETURNS trigger
     LANGUAGE plpgsql
@@ -1256,6 +2545,8 @@ BEGIN
 END;
 $$;
 
+-- Function: contractor_protect_workflow_run_event_immutable()
+
 CREATE FUNCTION contractor_protect_workflow_run_event_immutable() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -1263,6 +2554,8 @@ BEGIN
     RAISE EXCEPTION 'WorkflowRun events are immutable' USING ERRCODE = '23514';
 END;
 $$;
+
+-- Function: contractor_protect_workflow_run_immutable()
 
 CREATE FUNCTION contractor_protect_workflow_run_immutable() RETURNS trigger
     LANGUAGE plpgsql
@@ -1302,6 +2595,8 @@ BEGIN
 END;
 $$;
 
+-- Function: contractor_protect_workflow_run_skill_snapshot()
+
 CREATE FUNCTION contractor_protect_workflow_run_skill_snapshot() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -1314,6 +2609,8 @@ BEGIN
     RETURN NEW;
 END;
 $$;
+
+-- Function: contractor_reconcile_finding_retention()
 
 CREATE FUNCTION contractor_reconcile_finding_retention() RETURNS trigger
     LANGUAGE plpgsql
@@ -1346,6 +2643,8 @@ BEGIN
 END;
 $$;
 
+-- Function: contractor_require_active_audit_project(text, text)
+
 CREATE FUNCTION contractor_require_active_audit_project(checked_project_id text, checked_owner_id text) RETURNS void
     LANGUAGE plpgsql
     AS $$
@@ -1368,6 +2667,8 @@ BEGIN
 END;
 $$;
 
+-- Function: contractor_require_active_project(text, text)
+
 CREATE FUNCTION contractor_require_active_project(checked_project_id text, checked_owner_id text DEFAULT NULL::text) RETURNS void
     LANGUAGE plpgsql
     AS $$
@@ -1387,13 +2688,18 @@ BEGIN
 END;
 $$;
 
+-- Function: contractor_require_allocation_completion()
+
 CREATE FUNCTION contractor_require_allocation_completion() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 DECLARE pinned jsonb; stage_name text;
 BEGIN
- IF TG_OP = 'UPDATE' AND NEW.completion_contract IS DISTINCT FROM OLD.completion_contract THEN
-  RAISE EXCEPTION 'Allocation completion is immutable' USING ERRCODE = '23514';
+ IF TG_OP = 'UPDATE' THEN
+  IF NEW.completion_contract IS DISTINCT FROM OLD.completion_contract THEN
+   RAISE EXCEPTION 'Allocation completion is immutable' USING ERRCODE = '23514';
+  END IF;
+  RETURN NEW;
  END IF;
  SELECT r.audit_completion, s.stage_name INTO pinned, stage_name
  FROM stage_executions s JOIN workflow_runs r USING (run_id)
@@ -1408,6 +2714,8 @@ BEGIN
  RETURN NEW;
 END;
 $$;
+
+-- Function: contractor_require_audit_completion()
 
 CREATE FUNCTION contractor_require_audit_completion() RETURNS trigger
     LANGUAGE plpgsql
@@ -1434,6 +2742,8 @@ BEGIN
 END;
 $$;
 
+-- Function: contractor_require_complete_audit_run_binding()
+
 CREATE FUNCTION contractor_require_complete_audit_run_binding() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -1451,6 +2761,8 @@ BEGIN
     RETURN NEW;
 END;
 $$;
+
+-- Function: contractor_require_matching_audit_run()
 
 CREATE FUNCTION contractor_require_matching_audit_run() RETURNS trigger
     LANGUAGE plpgsql
@@ -1477,8 +2789,102 @@ BEGIN
 END;
 $$;
 
+-- Function: contractor_retain_finding_correlation_fence()
+
+CREATE FUNCTION contractor_retain_finding_correlation_fence() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+ IF EXISTS (SELECT 1 FROM projects WHERE project_id = OLD.project_id) THEN
+  RAISE EXCEPTION 'finding correlation fence is kept while its Project exists' USING ERRCODE='23514';
+ END IF;
+ RETURN OLD;
+END;
+$$;
+
+-- Function: contractor_round_results_descriptor_bytes(text, jsonb, text, text, bigint, jsonb, text)
+
+CREATE FUNCTION contractor_round_results_descriptor_bytes(key text, ref jsonb, digest text, media text, size bigint, provenance jsonb, display text) RETURNS bigint
+    LANGUAGE sql IMMUTABLE
+    BEGIN ATOMIC
+ SELECT octet_length(replace(replace(replace(replace(replace((jsonb_strip_nulls(jsonb_build_object('logical_key', key, 'classification', 'accepted-attachment', 'artifact', jsonb_build_object('ref', ref, 'digest', digest, 'mediaType', media, 'sizeBytes', size), 'kind', ((provenance -> 'evidence'::text) ->> 'kind'::text), 'evidence_id', ((provenance -> 'evidence'::text) ->> 'id'::text), 'content_member_id', ((provenance -> 'evidence'::text) ->> 'content_member_id'::text), 'display_ref', display, 'original',
+         CASE
+             WHEN ((((provenance -> 'evidence'::text) -> 'artifact'::text) IS NOT NULL) AND (((provenance -> 'evidence'::text) -> 'artifact'::text) <> 'null'::jsonb)) THEN jsonb_build_object('ref', ((provenance -> 'evidence'::text) -> 'artifact'::text), 'digest', digest, 'mediaType', media, 'sizeBytes', size)
+             ELSE NULL::jsonb
+         END)))::text, '<'::text, '<'::text), '>'::text, '>'::text), '&'::text, '&'::text), ' '::text, ' '::text), ' '::text, ' '::text)) AS octet_length;
+END;
+
+-- Function: contractor_run_artifact_keys(text, jsonb)
+
+CREATE FUNCTION contractor_run_artifact_keys(run_id text, refs jsonb) RETURNS jsonb
+    LANGUAGE sql IMMUTABLE
+    AS $$
+SELECT COALESCE(jsonb_agg(jsonb_set(ref, '{1}', to_jsonb(run_id)) ORDER BY ref), '[]'::jsonb)
+FROM jsonb_array_elements(refs) AS ref
+WHERE run_id IS NOT NULL
+$$;
+
+-- Function: contractor_scan_sweep_immutable()
+
+CREATE FUNCTION contractor_scan_sweep_immutable() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+ IF TG_TABLE_NAME = 'scan_sweeps' THEN
+  IF ROW(NEW.sweep_id,NEW.owner_id,NEW.workflow,NEW.snapshot,NEW.snapshot_digest,NEW.total,NEW.created_at)
+    IS DISTINCT FROM ROW(OLD.sweep_id,OLD.owner_id,OLD.workflow,OLD.snapshot,OLD.snapshot_digest,OLD.total,OLD.created_at) THEN
+   RAISE EXCEPTION 'scan sweep snapshot is immutable' USING ERRCODE = '23514';
+  END IF;
+ ELSE
+  IF ROW(NEW.sweep_id,NEW.ordinal,NEW.project_id,NEW.target,NEW.child,NEW.child_key,NEW.child_digest)
+    IS DISTINCT FROM ROW(OLD.sweep_id,OLD.ordinal,OLD.project_id,OLD.target,OLD.child,OLD.child_key,OLD.child_digest)
+    OR (OLD.run_id IS NOT NULL AND NEW.run_id IS DISTINCT FROM OLD.run_id)
+    OR (OLD.settled AND NOT NEW.settled) THEN
+   RAISE EXCEPTION 'scan sweep member fact is immutable' USING ERRCODE = '23514';
+  END IF;
+ END IF;
+ RETURN NEW;
+END $$;
+
+-- Function: contractor_skill_source_artifact_holds(text, jsonb)
+
+CREATE FUNCTION contractor_skill_source_artifact_holds(owner_id text, skills jsonb) RETURNS jsonb
+    LANGUAGE sql IMMUTABLE
+    AS $$
+SELECT contractor_artifact_key_set(ARRAY(
+    SELECT contractor_artifact_ref_key('user', owner_id, skill -> 'source')
+    FROM contractor_jsonb_elements(skills) AS skill
+))
+$$;
+
+-- Function: contractor_stage_execution_artifact_holds(text, jsonb, jsonb, jsonb)
+
+CREATE FUNCTION contractor_stage_execution_artifact_holds(run_id text, context jsonb, candidate jsonb, accepted jsonb) RETURNS jsonb
+    LANGUAGE sql IMMUTABLE
+    AS $$
+SELECT contractor_artifact_key_set(ARRAY(
+    SELECT contractor_artifact_ref_key('run', run_id, pin -> 'artifact')
+    FROM contractor_jsonb_values(context -> 'artifacts') AS pin
+    UNION ALL
+    SELECT contractor_artifact_ref_key('run', run_id, context -> 'continuation' -> 'summaryArtifact')
+    UNION ALL
+    SELECT contractor_artifact_ref_key('run', run_id, slot)
+    FROM contractor_jsonb_values(context -> 'continuation' -> 'artifacts') AS slot
+    UNION ALL
+    SELECT contractor_artifact_ref_key('run', run_id, result.value -> 'summaryArtifact')
+    FROM (VALUES (candidate), (accepted)) AS result(value)
+    UNION ALL
+    SELECT contractor_artifact_ref_key('run', run_id, slot)
+    FROM (VALUES (candidate), (accepted)) AS result(value),
+         contractor_jsonb_values(result.value -> 'artifacts') AS slot
+))
+$$;
+
+-- Function: contractor_valid_allocation_runtime_configuration(jsonb)
+
 CREATE FUNCTION contractor_valid_allocation_runtime_configuration(candidate jsonb) RETURNS boolean
     LANGUAGE plpgsql IMMUTABLE STRICT
+    SET search_path TO 'pg_catalog'
     AS $_$
 DECLARE
     model_policy jsonb := candidate->'modelPolicy';
@@ -1538,53 +2944,78 @@ EXCEPTION WHEN OTHERS THEN
 END;
 $_$;
 
+-- Function: contractor_valid_audit_input_materialization(json)
+
+CREATE FUNCTION contractor_valid_audit_input_materialization(progress json) RETURNS boolean
+    LANGUAGE sql IMMUTABLE
+    BEGIN ATOMIC
+ SELECT COALESCE(((octet_length((contractor_valid_audit_input_materialization.progress)::text) <= 262144) AND (jsonb_typeof(parsed.value) = 'object'::text) AND (parsed.value ?& ARRAY['identity'::text, 'revision'::text, 'complete'::text, 'deadlineAt'::text, 'checkpoint'::text, 'refs'::text]) AND ((parsed.value - ARRAY['identity'::text, 'revision'::text, 'complete'::text, 'deadlineAt'::text, 'checkpoint'::text, 'refs'::text]) = '{}'::jsonb) AND (jsonb_typeof((parsed.value -> 'identity'::text)) = 'string'::text) AND ((parsed.value ->> 'identity'::text) ~ '^sha256:[0-9a-f]{64}$'::text) AND (jsonb_typeof((parsed.value -> 'revision'::text)) = 'number'::text) AND ((((parsed.value ->> 'revision'::text))::bigint >= 1) AND (((parsed.value ->> 'revision'::text))::bigint <= '4294967295'::bigint)) AND (jsonb_typeof((parsed.value -> 'complete'::text)) = 'boolean'::text) AND (jsonb_typeof((parsed.value -> 'deadlineAt'::text)) = 'string'::text) AND (jsonb_typeof((parsed.value -> 'checkpoint'::text)) = 'object'::text) AND (jsonb_typeof((parsed.value -> 'refs'::text)) = 'array'::text) AND (jsonb_array_length((parsed.value -> 'refs'::text)) <= 1024)), false) AS "coalesce"
+    FROM ( SELECT (contractor_valid_audit_input_materialization.progress)::jsonb AS value) parsed;
+END;
+
+-- Function: contractor_valid_model_selection(text, jsonb)
+
+CREATE FUNCTION contractor_valid_model_selection(default_model text, roles jsonb) RETURNS boolean
+    LANGUAGE sql IMMUTABLE PARALLEL SAFE
+    BEGIN ATOMIC
+ SELECT
+         CASE
+             WHEN (jsonb_typeof(roles) IS DISTINCT FROM 'object'::text) THEN false
+             ELSE ((default_model ~ '^[a-z0-9][a-z0-9.-]{0,74}$'::text) AND (NOT (EXISTS ( SELECT 1
+                FROM jsonb_each(contractor_valid_model_selection.roles) r(key, value)
+               WHERE ((r.key <> ALL (ARRAY['planner'::text, 'worker'::text, 'summarizer'::text, 'audit_completion_worker'::text])) OR (jsonb_typeof(r.value) IS DISTINCT FROM 'string'::text) OR ((r.value #>> '{}'::text[]) !~ '^[a-z0-9][a-z0-9.-]{0,74}$'::text))))))
+         END AS "case";
+END;
+
+-- Function: contractor_valid_pinned_runtime_config(jsonb, text, boolean)
+
 CREATE FUNCTION contractor_valid_pinned_runtime_config(candidate jsonb, expected_label text, explicit boolean) RETURNS boolean
     LANGUAGE sql IMMUTABLE STRICT
+    BEGIN ATOMIC
+ SELECT ((jsonb_typeof(candidate) = 'object'::text) AND (( SELECT array_agg(key.key ORDER BY key.key) AS array_agg
+            FROM jsonb_object_keys(contractor_valid_pinned_runtime_config.candidate) key(key)) = ARRAY['bindingRevision'::text, 'config'::text, 'explicit'::text, 'label'::text]) AND ((candidate ->> 'label'::text) = expected_label) AND ((candidate -> 'explicit'::text) = to_jsonb(explicit)) AND (jsonb_typeof((candidate -> 'bindingRevision'::text)) = 'number'::text) AND (((candidate ->> 'bindingRevision'::text))::numeric >= (1)::numeric) AND (((candidate ->> 'bindingRevision'::text))::numeric <= '18446744073709551615'::numeric) AND (scale(((candidate ->> 'bindingRevision'::text))::numeric) = 0) AND (jsonb_typeof((candidate -> 'config'::text)) = 'object'::text) AND (( SELECT array_agg(key.key ORDER BY key.key) AS array_agg
+            FROM jsonb_object_keys((contractor_valid_pinned_runtime_config.candidate -> 'config'::text)) key(key)) = ARRAY['digest'::text, 'name'::text, 'version'::text]) AND (((candidate -> 'config'::text) ->> 'name'::text) ~ '^[a-z][a-z0-9_-]*$'::text) AND (length(((candidate -> 'config'::text) ->> 'name'::text)) <= 63) AND (((candidate -> 'config'::text) ->> 'version'::text) ~ '^[A-Za-z0-9][A-Za-z0-9._-]*$'::text) AND (length(((candidate -> 'config'::text) ->> 'version'::text)) <= 128) AND (((candidate -> 'config'::text) ->> 'digest'::text) ~ '^sha256:[0-9a-f]{64}$'::text));
+END;
+
+-- Function: contractor_valid_placement_labels(text[])
+
+CREATE FUNCTION contractor_valid_placement_labels(labels text[]) RETURNS boolean
+    LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE
+    SET search_path TO 'pg_catalog'
     AS $_$
-    SELECT jsonb_typeof(candidate) = 'object'
-       AND (SELECT array_agg(key ORDER BY key) FROM jsonb_object_keys(candidate) AS key)
-           = ARRAY['bindingRevision', 'config', 'explicit', 'label']::text[]
-       AND candidate->>'label' = expected_label
-       AND candidate->'explicit' = to_jsonb(explicit)
-       AND jsonb_typeof(candidate->'bindingRevision') = 'number'
-       AND (candidate->>'bindingRevision')::numeric >= 1
-       AND (candidate->>'bindingRevision')::numeric <= 18446744073709551615
-       AND scale((candidate->>'bindingRevision')::numeric) = 0
-       AND jsonb_typeof(candidate->'config') = 'object'
-       AND (SELECT array_agg(key ORDER BY key) FROM jsonb_object_keys(candidate->'config') AS key)
-           = ARRAY['digest', 'name', 'version']::text[]
-       AND candidate->'config'->>'name' ~ '^[a-z][a-z0-9_-]*$'
-       AND length(candidate->'config'->>'name') <= 63
-       AND candidate->'config'->>'version' ~ '^[A-Za-z0-9][A-Za-z0-9._-]*$'
-       AND length(candidate->'config'->>'version') <= 128
-       AND candidate->'config'->>'digest' ~ '^sha256:[0-9a-f]{64}$'
+DECLARE
+    label text;
+    previous text := '';
+BEGIN
+    IF labels IS NULL OR cardinality(labels) > 32
+       OR (cardinality(labels) > 0 AND (array_ndims(labels) <> 1 OR array_lower(labels, 1) <> 1))
+    THEN RETURN false; END IF;
+    FOREACH label IN ARRAY labels LOOP
+        IF label IS NULL OR octet_length(label) NOT BETWEEN 1 AND 63
+           OR label !~ '^(cloud|local)(/[a-z][a-z0-9_-]*)*$'
+           OR label ~ '[^a-z0-9_/-]'
+        THEN RETURN false; END IF;
+        IF previous <> '' AND left(label, length(previous) + 1) <> previous || '/'
+        THEN RETURN false; END IF;
+        previous := label;
+    END LOOP;
+    RETURN true;
+END;
 $_$;
+
+-- Function: contractor_valid_run_cancellation(jsonb)
 
 CREATE FUNCTION contractor_valid_run_cancellation(payload jsonb) RETURNS boolean
     LANGUAGE sql IMMUTABLE
-    AS $$
-    SELECT COALESCE(
-        jsonb_typeof(payload) = 'object'
-        AND payload->>'code' = 'user_cancelled'
-        AND jsonb_typeof(payload->'requestedAt') = 'string'
-        AND btrim(payload->>'requestedAt') <> ''
-        AND (
-            NOT (payload ? 'requestedBy')
-            OR jsonb_typeof(payload->'requestedBy') = 'string'
-                AND btrim(payload->>'requestedBy') <> ''
-        )
-        AND (
-            NOT (payload ? 'reason')
-            OR jsonb_typeof(payload->'reason') = 'string'
-                AND btrim(payload->>'reason') <> ''
-        ),
-        false
-    )
-$$;
+    BEGIN ATOMIC
+ SELECT COALESCE(((jsonb_typeof(payload) = 'object'::text) AND ((payload ->> 'code'::text) = 'user_cancelled'::text) AND (jsonb_typeof((payload -> 'requestedAt'::text)) = 'string'::text) AND (btrim((payload ->> 'requestedAt'::text)) <> ''::text) AND ((NOT (payload ? 'requestedBy'::text)) OR ((jsonb_typeof((payload -> 'requestedBy'::text)) = 'string'::text) AND (btrim((payload ->> 'requestedBy'::text)) <> ''::text))) AND ((NOT (payload ? 'reason'::text)) OR ((jsonb_typeof((payload -> 'reason'::text)) = 'string'::text) AND (btrim((payload ->> 'reason'::text)) <> ''::text)))), false) AS "coalesce";
+END;
+
+-- Function: contractor_valid_run_metadata_labels(jsonb)
 
 CREATE FUNCTION contractor_valid_run_metadata_labels(labels jsonb) RETURNS boolean
-    LANGUAGE sql IMMUTABLE
-    AS $_$
+LANGUAGE sql IMMUTABLE
+BEGIN ATOMIC
     SELECT jsonb_typeof(labels) = 'object'
        AND (SELECT count(*) FROM jsonb_object_keys(labels)) <= 32
        AND NOT EXISTS (
@@ -1594,139 +3025,114 @@ CREATE FUNCTION contractor_valid_run_metadata_labels(labels jsonb) RETURNS boole
               OR entry.key !~ '^[a-z][a-z0-9]*([._-][a-z0-9]+)*$'
               OR entry.key ~ '^contractor\.'
               OR octet_length(entry.value #>> '{}') > 256
-       )
-$_$;
+       );
+END;
+
+-- Function: contractor_valid_run_runtime_snapshot(jsonb, text[])
 
 CREATE FUNCTION contractor_valid_run_runtime_snapshot(candidate jsonb, labels text[]) RETURNS boolean
-    LANGUAGE plpgsql IMMUTABLE STRICT
-    AS $_$
-DECLARE
-    item jsonb;
-    index_value integer := 1;
-    previous_value text := '';
-    credential_value text;
-BEGIN
-    IF jsonb_typeof(candidate) <> 'object'
-       OR (SELECT array_agg(key ORDER BY key) FROM jsonb_object_keys(candidate) AS key)
-          <> ARRAY['default', 'labels', 'llmCredentialIds', 'runtimeCredentialIds']::text[]
-       OR contractor_valid_pinned_runtime_config(candidate->'default', 'default', false) IS DISTINCT FROM true
-       OR jsonb_typeof(candidate->'labels') <> 'array'
-       OR jsonb_array_length(candidate->'labels') <> cardinality(labels)
-       OR jsonb_typeof(candidate->'llmCredentialIds') <> 'array'
-       OR jsonb_typeof(candidate->'runtimeCredentialIds') <> 'array'
-    THEN
-        RETURN false;
-    END IF;
-
-    FOR item IN SELECT value FROM jsonb_array_elements(candidate->'labels')
-    LOOP
-        IF index_value > cardinality(labels)
-           OR contractor_valid_pinned_runtime_config(item, labels[index_value], true) IS DISTINCT FROM true
-        THEN
-            RETURN false;
-        END IF;
-        index_value := index_value + 1;
-    END LOOP;
-
-    FOR credential_value IN
-        SELECT value #>> '{}' FROM jsonb_array_elements(candidate->'llmCredentialIds') AS value
-    LOOP
-        IF credential_value IS NULL
-           OR credential_value !~ '^[a-z][a-z0-9_-]*$'
-           OR length(credential_value) > 128
-           OR credential_value <= previous_value
-        THEN
-            RETURN false;
-        END IF;
-        previous_value := credential_value;
-    END LOOP;
-
-    previous_value := '';
-    FOR credential_value IN
-        SELECT value #>> '{}' FROM jsonb_array_elements(candidate->'runtimeCredentialIds') AS value
-    LOOP
-        IF credential_value IS NULL
-           OR credential_value !~ '^[a-z][a-z0-9_-]*$'
-           OR length(credential_value) > 128
-           OR credential_value <= previous_value
-        THEN
-            RETURN false;
-        END IF;
-        previous_value := credential_value;
-    END LOOP;
-    RETURN true;
-EXCEPTION WHEN OTHERS THEN
-    RETURN false;
+    LANGUAGE sql IMMUTABLE STRICT
+    BEGIN ATOMIC
+ SELECT
+         CASE
+             WHEN (jsonb_typeof(candidate) <> 'object'::text) THEN false
+             WHEN (( SELECT array_agg(key.key ORDER BY key.key) AS array_agg
+                FROM jsonb_object_keys(contractor_valid_run_runtime_snapshot.candidate) key(key)) IS DISTINCT FROM ARRAY['default'::text, 'labels'::text, 'llmCredentialIds'::text, 'runtimeCredentialIds'::text]) THEN false
+             WHEN ((jsonb_typeof((candidate -> 'labels'::text)) <> 'array'::text) OR (jsonb_typeof((candidate -> 'llmCredentialIds'::text)) <> 'array'::text) OR (jsonb_typeof((candidate -> 'runtimeCredentialIds'::text)) <> 'array'::text)) THEN false
+             ELSE ((contractor_valid_pinned_runtime_config((candidate -> 'default'::text), 'default'::text, false) IS TRUE) AND (jsonb_array_length((candidate -> 'labels'::text)) = cardinality(labels)) AND (NOT (EXISTS ( SELECT 1
+                FROM jsonb_array_elements((contractor_valid_run_runtime_snapshot.candidate -> 'labels'::text)) WITH ORDINALITY item(value, "position")
+               WHERE (contractor_valid_pinned_runtime_config(item.value, (contractor_valid_run_runtime_snapshot.labels)[item."position"], true) IS NOT TRUE)))) AND (NOT (EXISTS ( SELECT 1
+                FROM ( SELECT credentials.identifier,
+                         lag(credentials.identifier, 1, ''::text) OVER (PARTITION BY credentials.list ORDER BY credentials."position") AS previous
+                        FROM ( SELECT 'llm'::text AS list,
+                                 (credential.value #>> '{}'::text[]) AS identifier,
+                                 credential."position"
+                                FROM jsonb_array_elements((contractor_valid_run_runtime_snapshot.candidate -> 'llmCredentialIds'::text)) WITH ORDINALITY credential(value, "position")
+                             UNION ALL
+                              SELECT 'runtime'::text,
+                                 (credential.value #>> '{}'::text[]),
+                                 credential."position"
+                                FROM jsonb_array_elements((contractor_valid_run_runtime_snapshot.candidate -> 'runtimeCredentialIds'::text)) WITH ORDINALITY credential(value, "position")) credentials) ordered
+               WHERE ((ordered.identifier IS NULL) OR (ordered.identifier !~ '^[a-z][a-z0-9_-]*$'::text) OR (length(ordered.identifier) > 128) OR (ordered.identifier <= ordered.previous))))))
+         END AS "case";
 END;
-$_$;
+
+-- Function: contractor_valid_runtime_agent_labels(text[])
 
 CREATE FUNCTION contractor_valid_runtime_agent_labels(candidate text[]) RETURNS boolean
     LANGUAGE sql IMMUTABLE STRICT
-    AS $_$
-    SELECT cardinality(candidate) <= 32
-       AND candidate = ARRAY(
-           SELECT value
-           FROM unnest(candidate) AS value
-           ORDER BY value COLLATE "C"
-       )
-       AND NOT EXISTS (
-           SELECT 1
-           FROM unnest(candidate) AS value
-           WHERE value !~ '^[a-z][a-z0-9_-]*$'
-              OR length(value) > 63
-              OR value = 'default'
-       )
-       AND cardinality(candidate) = (
-           SELECT count(DISTINCT value) FROM unnest(candidate) AS value
-       )
-$_$;
+    BEGIN ATOMIC
+ SELECT ((cardinality(candidate) <= 32) AND (candidate = ARRAY( SELECT value.value
+            FROM unnest(contractor_valid_runtime_agent_labels.candidate) value(value)
+           ORDER BY (value.value COLLATE "C"))) AND (NOT (EXISTS ( SELECT 1
+            FROM unnest(contractor_valid_runtime_agent_labels.candidate) value(value)
+           WHERE ((value.value !~ '^[a-z][a-z0-9_-]*$'::text) OR (length(value.value) > 63) OR (value.value = 'default'::text))))) AND (cardinality(candidate) = ( SELECT count(DISTINCT value.value) AS count
+            FROM unnest(contractor_valid_runtime_agent_labels.candidate) value(value))));
+END;
+
+-- Function: contractor_valid_stage_result(jsonb)
 
 CREATE FUNCTION contractor_valid_stage_result(payload jsonb) RETURNS boolean
     LANGUAGE sql IMMUTABLE
-    AS $$
-    SELECT COALESCE(
-        jsonb_typeof(payload) = 'object'
-        AND jsonb_typeof(payload->'apiVersion') = 'string'
-        AND btrim(payload->>'apiVersion') <> ''
-        AND payload->>'outcome' IN ('succeeded', 'failed')
-        AND jsonb_typeof(payload->'summary') = 'string'
-        AND btrim(payload->>'summary') <> ''
-        AND jsonb_typeof(payload->'artifacts') = 'object'
-        AND (
-            (payload->>'outcome' = 'succeeded'
-                AND (NOT (payload ? 'error') OR payload->'error' = 'null'::jsonb))
-            OR
-            (payload->>'outcome' = 'failed'
-                AND jsonb_typeof(payload->'error') = 'object'
-                AND jsonb_typeof(payload->'error'->'code') = 'string'
-                AND btrim(payload->'error'->>'code') <> ''
-                AND jsonb_typeof(payload->'error'->'message') = 'string'
-                AND btrim(payload->'error'->>'message') <> ''
-                AND jsonb_typeof(payload->'error'->'retryable') = 'boolean')
-        ),
-        false
-    )
-$$;
+    BEGIN ATOMIC
+ SELECT COALESCE(((jsonb_typeof(payload) = 'object'::text) AND (jsonb_typeof((payload -> 'apiVersion'::text)) = 'string'::text) AND (btrim((payload ->> 'apiVersion'::text)) <> ''::text) AND ((payload ->> 'outcome'::text) = ANY (ARRAY['succeeded'::text, 'failed'::text])) AND (jsonb_typeof((payload -> 'summary'::text)) = 'string'::text) AND (btrim((payload ->> 'summary'::text)) <> ''::text) AND (jsonb_typeof((payload -> 'artifacts'::text)) = 'object'::text) AND ((NOT (payload ? 'summarized'::text)) OR (jsonb_typeof((payload -> 'summarized'::text)) = 'boolean'::text)) AND ((COALESCE(((payload -> 'summarized'::text) = 'true'::jsonb), false) AND ((payload ->> 'outcome'::text) = 'failed'::text) AND (((payload -> 'error'::text) ->> 'code'::text) = 'worker_summarized'::text) AND (((payload -> 'error'::text) -> 'retryable'::text) = 'false'::jsonb)) OR ((NOT COALESCE(((payload -> 'summarized'::text) = 'true'::jsonb), false)) AND (((payload -> 'error'::text) ->> 'code'::text) IS DISTINCT FROM 'worker_summarized'::text))) AND ((NOT (payload ? 'summaryArtifact'::text)) OR (((payload -> 'summarized'::text) = 'true'::jsonb) AND (jsonb_typeof((payload -> 'summaryArtifact'::text)) = 'object'::text) AND (jsonb_typeof(((payload -> 'summaryArtifact'::text) -> 'namespace'::text)) = 'string'::text) AND (btrim(((payload -> 'summaryArtifact'::text) ->> 'namespace'::text)) <> ''::text) AND (jsonb_typeof(((payload -> 'summaryArtifact'::text) -> 'name'::text)) = 'string'::text) AND (btrim(((payload -> 'summaryArtifact'::text) ->> 'name'::text)) <> ''::text) AND (jsonb_typeof(((payload -> 'summaryArtifact'::text) -> 'revision'::text)) = 'string'::text) AND (btrim(((payload -> 'summaryArtifact'::text) ->> 'revision'::text)) <> ''::text))) AND ((((payload ->> 'outcome'::text) = 'succeeded'::text) AND ((NOT (payload ? 'error'::text)) OR ((payload -> 'error'::text) = 'null'::jsonb))) OR (((payload ->> 'outcome'::text) = 'failed'::text) AND (jsonb_typeof((payload -> 'error'::text)) = 'object'::text) AND (jsonb_typeof(((payload -> 'error'::text) -> 'code'::text)) = 'string'::text) AND (btrim(((payload -> 'error'::text) ->> 'code'::text)) <> ''::text) AND (jsonb_typeof(((payload -> 'error'::text) -> 'message'::text)) = 'string'::text) AND (btrim(((payload -> 'error'::text) ->> 'message'::text)) <> ''::text) AND (jsonb_typeof(((payload -> 'error'::text) -> 'retryable'::text)) = 'boolean'::text)))), false) AS "coalesce";
+END;
+
+-- Function: contractor_valid_stage_termination(jsonb)
 
 CREATE FUNCTION contractor_valid_stage_termination(payload jsonb) RETURNS boolean
     LANGUAGE sql IMMUTABLE
+    BEGIN ATOMIC
+ SELECT COALESCE(((jsonb_typeof(payload) = 'object'::text) AND (jsonb_typeof((payload -> 'outcome'::text)) = 'string'::text) AND ((payload ->> 'outcome'::text) = ANY (ARRAY['cancelled'::text, 'interrupted'::text])) AND (jsonb_typeof((payload -> 'code'::text)) = 'string'::text) AND (btrim((payload ->> 'code'::text)) <> ''::text) AND (jsonb_typeof((payload -> 'message'::text)) = 'string'::text) AND (btrim((payload ->> 'message'::text)) <> ''::text) AND (jsonb_typeof((payload -> 'retryable'::text)) = 'boolean'::text) AND (jsonb_typeof((payload -> 'phase'::text)) = 'string'::text) AND ((payload ->> 'phase'::text) = ANY (ARRAY['preparing'::text, 'running'::text])) AND (jsonb_typeof((payload -> 'occurredAt'::text)) = 'string'::text) AND (btrim((payload ->> 'occurredAt'::text)) <> ''::text)), false) AS "coalesce";
+END;
+
+-- Function: contractor_validate_audit_dependencies()
+
+CREATE FUNCTION contractor_validate_audit_dependencies() RETURNS trigger
+    LANGUAGE plpgsql
     AS $$
-    SELECT COALESCE(
-        jsonb_typeof(payload) = 'object'
-        AND jsonb_typeof(payload->'outcome') = 'string'
-        AND payload->>'outcome' IN ('cancelled', 'interrupted')
-        AND jsonb_typeof(payload->'code') = 'string'
-        AND btrim(payload->>'code') <> ''
-        AND jsonb_typeof(payload->'message') = 'string'
-        AND btrim(payload->>'message') <> ''
-        AND jsonb_typeof(payload->'retryable') = 'boolean'
-        AND jsonb_typeof(payload->'phase') = 'string'
-        AND payload->>'phase' IN ('preparing', 'running')
-        AND jsonb_typeof(payload->'occurredAt') = 'string'
-        AND btrim(payload->>'occurredAt') <> '',
-        false
-    )
+DECLARE dependency jsonb; project text; owner text;
+BEGIN
+ IF TG_OP='UPDATE' THEN
+  IF NEW.retained_dependencies::text IS DISTINCT FROM OLD.retained_dependencies::text THEN
+   RAISE EXCEPTION 'accepted Audit dependencies are immutable' USING ERRCODE='23514';
+  END IF;
+  RETURN NEW;
+ END IF;
+ IF NEW.retained_dependencies IS NULL THEN RETURN NEW; END IF;
+ SELECT project_id,owner_id INTO project,owner FROM audits WHERE audit_id=NEW.audit_id;
+ IF NEW.retained_dependencies->>'owner_id' IS DISTINCT FROM owner
+  OR NEW.retained_dependencies->>'project_id' IS DISTINCT FROM project
+  OR NEW.retained_dependencies->>'profile_digest' IS DISTINCT FROM (SELECT profile_digest FROM audits WHERE audit_id=NEW.audit_id)
+  OR NEW.retained_dependencies->>'baseline_digest' IS DISTINCT FROM (SELECT 'sha256:' || encode(sha256(convert_to(baseline_snapshot::text,'UTF8')),'hex') FROM audits WHERE audit_id=NEW.audit_id) THEN
+  RAISE EXCEPTION 'foreign Audit dependency manifest' USING ERRCODE='23514';
+ END IF;
+ FOR dependency IN SELECT value FROM jsonb_array_elements((NEW.retained_dependencies->'dependencies')::jsonb) LOOP
+  IF ((dependency->'source') - 'ref') IS DISTINCT FROM ((dependency->'retained') - 'ref')
+   OR (dependency->>'kind'='finding-receipt' AND (dependency #>> '{origin,receipt_id}' IS DISTINCT FROM NEW.proposal_receipt_id OR (dependency #>> '{origin,proposed_check_ordinal}')::integer IS DISTINCT FROM NEW.proposal_check_ordinal))
+   OR dependency->>'projection' IS DISTINCT FROM 'exact'
+   OR dependency #>> '{origin,kind}' IS DISTINCT FROM dependency->>'kind'
+   OR dependency #>> '{retained,ref,namespace}' IS DISTINCT FROM contractor_audit_dependency_namespace(NEW.audit_id)
+   OR NOT contractor_audit_dependency_origin_valid(NEW.audit_id,dependency)
+   OR NOT contractor_audit_dependency_closure_valid(NEW.audit_id,NEW.retained_dependencies::jsonb,dependency)
+   OR NOT EXISTS (
+    SELECT 1 FROM artifact_binding_revisions AS revision
+    JOIN artifact_bindings AS binding USING (scope_kind,scope_id,namespace,name)
+    JOIN artifact_versions AS version USING (version_id)
+    JOIN artifact_blobs AS blob ON blob.sha256=version.blob_sha256
+    WHERE revision.scope_kind='project' AND revision.scope_id=project
+     AND revision.namespace=dependency #>> '{retained,ref,namespace}' AND revision.name=dependency #>> '{retained,ref,name}'
+     AND revision.revision=dependency #>> '{retained,ref,revision}' AND binding.frozen
+     AND version.media_type=dependency #>> '{retained,mediaType}'
+     AND blob.size_bytes=(dependency #>> '{retained,sizeBytes}')::bigint
+     AND 'sha256:' || encode(blob.sha256,'hex')=dependency #>> '{retained,digest}'
+   ) THEN RAISE EXCEPTION 'Audit dependency source is not accepted exact content' USING ERRCODE='23514'; END IF;
+ END LOOP;
+ RETURN NEW;
+END;
 $$;
+
+-- Function: contractor_validate_audit_preparation_execution()
 
 CREATE FUNCTION contractor_validate_audit_preparation_execution() RETURNS trigger
     LANGUAGE plpgsql
@@ -1854,6 +3260,8 @@ BEGIN
 END;
 $$;
 
+-- Function: contractor_validate_manual_stage_execution()
+
 CREATE FUNCTION contractor_validate_manual_stage_execution() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -1883,6 +3291,8 @@ BEGIN
 END;
 $$;
 
+-- Function: contractor_validate_run_stage_resumption()
+
 CREATE FUNCTION contractor_validate_run_stage_resumption() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -1899,8 +3309,7 @@ BEGIN
 END;
 $$;
 
-
--- Workflow Runs: Runs, Stages, scheduler claims, events, reports and metrics
+-- Table: allocation_execution_reports
 
 CREATE TABLE allocation_execution_reports (
     report_id text NOT NULL,
@@ -1916,448 +3325,7 @@ CREATE TABLE allocation_execution_reports (
     CONSTRAINT allocation_execution_reports_report_schema_version_check CHECK ((btrim(report_schema_version) <> ''::text))
 );
 
-ALTER TABLE allocation_execution_reports
-    ADD CONSTRAINT allocation_execution_reports_pkey PRIMARY KEY (report_id);
-
-CREATE INDEX allocation_execution_reports_allocation_idx ON allocation_execution_reports USING btree (allocation_id, received_at DESC);
-
-CREATE UNIQUE INDEX allocation_execution_reports_complete_identity ON allocation_execution_reports USING btree (stage_execution_id, allocation_id, logical_agent_name) WHERE ((((report -> 'worker'::text) ->> 'complete'::text))::boolean AND (((report -> 'runtime'::text) ->> 'complete'::text))::boolean);
-
-CREATE INDEX allocation_execution_reports_expiry_idx ON allocation_execution_reports USING btree (expires_at, stage_execution_id);
-
-CREATE INDEX allocation_execution_reports_stage_idx ON allocation_execution_reports USING btree (stage_execution_id, logical_agent_name);
-
-CREATE TRIGGER allocation_execution_reports_immutable BEFORE UPDATE ON allocation_execution_reports FOR EACH ROW EXECUTE FUNCTION contractor_protect_telemetry_report_immutable();
-
-CREATE TABLE performance_minutes (
-    server_generation text NOT NULL,
-    minute_start timestamp with time zone NOT NULL,
-    schema_version smallint NOT NULL,
-    coverage_seconds double precision NOT NULL,
-    payload bytea NOT NULL,
-    expires_at timestamp with time zone NOT NULL,
-    CONSTRAINT performance_minutes_check CHECK ((expires_at = (minute_start + '168:00:00'::interval))),
-    CONSTRAINT performance_minutes_coverage_seconds_check CHECK (((coverage_seconds >= (0)::double precision) AND (coverage_seconds <= (60)::double precision))),
-    CONSTRAINT performance_minutes_minute_start_check CHECK ((minute_start = date_trunc('minute'::text, minute_start))),
-    CONSTRAINT performance_minutes_payload_check CHECK (((octet_length(payload) >= 1) AND (octet_length(payload) <= 32768))),
-    CONSTRAINT performance_minutes_schema_version_check CHECK ((schema_version = 1)),
-    CONSTRAINT performance_minutes_server_generation_check CHECK (((length(server_generation) >= 1) AND (length(server_generation) <= 128)))
-);
-
-ALTER TABLE performance_minutes
-    ADD CONSTRAINT performance_minutes_pkey PRIMARY KEY (server_generation, minute_start);
-
-CREATE INDEX performance_minutes_expiry_idx ON performance_minutes USING btree (expires_at, server_generation, minute_start);
-
-CREATE INDEX performance_minutes_range_idx ON performance_minutes USING btree (minute_start, server_generation);
-
-CREATE TABLE planner_execution_reports (
-    report_id text NOT NULL,
-    stage_execution_id text NOT NULL,
-    session_id text NOT NULL,
-    invocation_id text NOT NULL,
-    started_at timestamp with time zone NOT NULL,
-    finished_at timestamp with time zone NOT NULL,
-    report_schema_version text NOT NULL,
-    report jsonb NOT NULL,
-    received_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
-    expires_at timestamp with time zone DEFAULT (clock_timestamp() + '30 days'::interval) NOT NULL,
-    CONSTRAINT planner_execution_reports_check CHECK ((finished_at >= started_at)),
-    CONSTRAINT planner_execution_reports_check1 CHECK (((jsonb_typeof(report) = 'object'::text) AND ((report ->> 'reportId'::text) = report_id))),
-    CONSTRAINT planner_execution_reports_invocation_id_check CHECK ((btrim(invocation_id) <> ''::text)),
-    CONSTRAINT planner_execution_reports_report_id_check CHECK ((btrim(report_id) <> ''::text)),
-    CONSTRAINT planner_execution_reports_report_schema_version_check CHECK ((btrim(report_schema_version) <> ''::text))
-);
-
-ALTER TABLE planner_execution_reports
-    ADD CONSTRAINT planner_execution_reports_pkey PRIMARY KEY (report_id);
-
-CREATE UNIQUE INDEX planner_execution_reports_complete_identity ON planner_execution_reports USING btree (stage_execution_id, session_id) WHERE ((report ->> 'complete'::text))::boolean;
-
-CREATE INDEX planner_execution_reports_expiry_idx ON planner_execution_reports USING btree (expires_at, stage_execution_id);
-
-CREATE INDEX planner_execution_reports_session_idx ON planner_execution_reports USING btree (session_id);
-
-CREATE INDEX planner_execution_reports_stage_idx ON planner_execution_reports USING btree (stage_execution_id, received_at DESC);
-
-CREATE TRIGGER planner_execution_reports_immutable BEFORE UPDATE ON planner_execution_reports FOR EACH ROW EXECUTE FUNCTION contractor_protect_telemetry_report_immutable();
-
-CREATE TABLE planner_sessions (
-    session_id text NOT NULL,
-    stage_execution_id text NOT NULL,
-    invocation_id text NOT NULL,
-    state_schema_version text NOT NULL,
-    state jsonb DEFAULT '{}'::jsonb NOT NULL,
-    created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
-    updated_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
-    next_event_sequence bigint DEFAULT 1 NOT NULL,
-    CONSTRAINT planner_session_next_event_sequence_positive CHECK ((next_event_sequence > 0)),
-    CONSTRAINT planner_session_state_size CHECK ((octet_length((state)::text) <= 2097152)),
-    CONSTRAINT planner_sessions_invocation_id_check CHECK ((btrim(invocation_id) <> ''::text)),
-    CONSTRAINT planner_sessions_session_id_check CHECK ((btrim(session_id) <> ''::text)),
-    CONSTRAINT planner_sessions_state_check CHECK ((jsonb_typeof(state) = 'object'::text)),
-    CONSTRAINT planner_sessions_state_schema_version_check CHECK ((btrim(state_schema_version) <> ''::text))
-);
-
-ALTER TABLE planner_sessions
-    ADD CONSTRAINT planner_sessions_invocation_id_key UNIQUE (invocation_id);
-
-ALTER TABLE planner_sessions
-    ADD CONSTRAINT planner_sessions_pkey PRIMARY KEY (session_id);
-
-ALTER TABLE planner_sessions
-    ADD CONSTRAINT planner_sessions_stage_execution_id_key UNIQUE (stage_execution_id);
-
-ALTER TABLE planner_sessions
-    ADD CONSTRAINT planner_sessions_stage_execution_id_session_id_invocation_i_key UNIQUE (stage_execution_id, session_id, invocation_id);
-
-CREATE TABLE run_stage_resumptions (
-    source_execution_id text NOT NULL,
-    run_id text NOT NULL,
-    target_execution_id text NOT NULL,
-    requested_by text NOT NULL,
-    requested_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
-    transaction_id xid8 DEFAULT pg_current_xact_id() NOT NULL
-);
-
-ALTER TABLE run_stage_resumptions
-    ADD CONSTRAINT run_stage_resumption_target_source_unique UNIQUE (target_execution_id, source_execution_id);
-
-ALTER TABLE run_stage_resumptions
-    ADD CONSTRAINT run_stage_resumptions_pkey PRIMARY KEY (source_execution_id);
-
-ALTER TABLE run_stage_resumptions
-    ADD CONSTRAINT run_stage_resumptions_target_execution_id_key UNIQUE (target_execution_id);
-
-CREATE INDEX run_stage_resumptions_run_idx ON run_stage_resumptions USING btree (run_id);
-
-CREATE TRIGGER run_stage_resumptions_immutable BEFORE UPDATE ON run_stage_resumptions FOR EACH ROW EXECUTE FUNCTION contractor_protect_run_stage_resumption();
-
-CREATE TRIGGER run_stage_resumptions_validate BEFORE INSERT ON run_stage_resumptions FOR EACH ROW EXECUTE FUNCTION contractor_validate_run_stage_resumption();
-
-CREATE TABLE stage_allocations (
-    allocation_id text NOT NULL,
-    stage_execution_id text NOT NULL,
-    logical_agent_name text NOT NULL,
-    namespace text NOT NULL,
-    agent_template_ref jsonb NOT NULL,
-    worker_runtime_ref jsonb NOT NULL,
-    runtime_agent_instance_id text NOT NULL,
-    created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
-    release_attempted_at timestamp with time zone,
-    release_completed_at timestamp with time zone,
-    runtime_agent_id text,
-    runtime_agent_label_revision numeric(20,0),
-    runtime_configuration_schema_version text,
-    runtime_configuration jsonb,
-    performance_collection_policy text,
-    completion_contract jsonb,
-    CONSTRAINT stage_allocation_performance_collection_policy CHECK (((performance_collection_policy IS NULL) OR (performance_collection_policy = ANY (ARRAY['requested'::text, 'disabled'::text, 'unsupported'::text])))),
-    CONSTRAINT stage_allocation_release_timestamps CHECK (((release_completed_at IS NULL) OR ((release_attempted_at IS NOT NULL) AND (release_completed_at >= release_attempted_at)))),
-    CONSTRAINT stage_allocation_runtime_configuration_shape CHECK ((((runtime_agent_id IS NULL) AND (runtime_agent_label_revision IS NULL) AND (runtime_configuration_schema_version IS NULL) AND (runtime_configuration IS NULL)) OR ((runtime_agent_id ~ '^[0-9a-f]{64}$'::text) AND (runtime_agent_label_revision >= (1)::numeric) AND (runtime_agent_label_revision <= '18446744073709551615'::numeric) AND (runtime_configuration_schema_version = 'contractor.runtime-config-provenance/v2'::text) AND contractor_valid_allocation_runtime_configuration(runtime_configuration)))),
-    CONSTRAINT stage_allocations_agent_template_ref_check CHECK ((jsonb_typeof(agent_template_ref) = 'object'::text)),
-    CONSTRAINT stage_allocations_allocation_id_check CHECK ((btrim(allocation_id) <> ''::text)),
-    CONSTRAINT stage_allocations_completion_contract_check CHECK (((completion_contract IS NULL) OR ((jsonb_typeof(completion_contract) = 'object'::text) AND ((completion_contract ->> 'kind'::text) = 'audit-check-results@1'::text)))),
-    CONSTRAINT stage_allocations_logical_agent_name_check CHECK ((btrim(logical_agent_name) <> ''::text)),
-    CONSTRAINT stage_allocations_namespace_check CHECK (((btrim(namespace) <> ''::text) AND (POSITION(('/'::text) IN (namespace)) = 0))),
-    CONSTRAINT stage_allocations_runtime_agent_instance_id_check CHECK ((btrim(runtime_agent_instance_id) <> ''::text)),
-    CONSTRAINT stage_allocations_worker_runtime_ref_check CHECK ((jsonb_typeof(worker_runtime_ref) = 'object'::text))
-);
-
-ALTER TABLE stage_allocations
-    ADD CONSTRAINT stage_allocation_report_identity UNIQUE (stage_execution_id, allocation_id, logical_agent_name);
-
-ALTER TABLE stage_allocations
-    ADD CONSTRAINT stage_allocations_pkey PRIMARY KEY (allocation_id);
-
-ALTER TABLE stage_allocations
-    ADD CONSTRAINT stage_allocations_stage_execution_id_logical_agent_name_key UNIQUE (stage_execution_id, logical_agent_name);
-
-CREATE INDEX stage_allocations_live_llm_credential_idx ON stage_allocations USING btree (((runtime_configuration #>> '{provenance,llmCredential,credentialId}'::text[]))) WHERE ((release_completed_at IS NULL) AND (runtime_configuration IS NOT NULL));
-
-CREATE INDEX stage_allocations_live_runtime_agent_idx ON stage_allocations USING btree (runtime_agent_id, allocation_id) WHERE ((runtime_agent_id IS NOT NULL) AND (release_completed_at IS NULL));
-
-CREATE INDEX stage_allocations_live_runtime_credentials_idx ON stage_allocations USING gin ((((runtime_configuration -> 'provenance'::text) -> 'runtimeCredentialRefs'::text))) WHERE ((release_completed_at IS NULL) AND (runtime_configuration IS NOT NULL));
-
-CREATE INDEX stage_allocations_pending_release_idx ON stage_allocations USING btree (release_attempted_at, stage_execution_id, allocation_id) WHERE (release_completed_at IS NULL);
-
-CREATE TRIGGER stage_allocations_protect_identity BEFORE UPDATE ON stage_allocations FOR EACH ROW EXECUTE FUNCTION contractor_protect_stage_allocation_identity();
-
-CREATE TRIGGER stage_allocations_protect_performance_policy BEFORE UPDATE ON stage_allocations FOR EACH ROW EXECUTE FUNCTION contractor_protect_stage_allocation_performance_policy();
-
-CREATE TRIGGER stage_allocations_require_completion BEFORE INSERT OR UPDATE ON stage_allocations FOR EACH ROW EXECUTE FUNCTION contractor_require_allocation_completion();
-
-CREATE TABLE stage_executions (
-    stage_execution_id text NOT NULL,
-    run_id text NOT NULL,
-    stage_name text NOT NULL,
-    attempt integer NOT NULL,
-    previous_execution_id text,
-    stage_spec_schema_version text NOT NULL,
-    stage_spec_snapshot jsonb NOT NULL,
-    stage_context_schema_version text NOT NULL,
-    stage_context_snapshot jsonb NOT NULL,
-    state text NOT NULL,
-    state_reason_code text NOT NULL,
-    state_reason_message text DEFAULT ''::text NOT NULL,
-    planner_session_id text,
-    planner_invocation_id text,
-    candidate_result_schema_version text,
-    candidate_stage_result jsonb,
-    accepted_result_schema_version text,
-    accepted_stage_result jsonb,
-    termination_schema_version text,
-    stage_termination jsonb,
-    finalization_id text,
-    finalization_deadline timestamp with time zone,
-    abort_id text,
-    abort_deadline timestamp with time zone,
-    created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
-    updated_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
-    planner_started_at timestamp with time zone,
-    terminal_at timestamp with time zone,
-    execution_config_variant text DEFAULT 'base'::text NOT NULL,
-    escalation_ordinal integer,
-    resume_source_execution_id text,
-    admitted_at timestamp with time zone,
-    CONSTRAINT stage_accepted_shape CHECK ((((accepted_result_schema_version IS NULL) = (accepted_stage_result IS NULL)) AND ((accepted_stage_result IS NULL) OR ((btrim(accepted_result_schema_version) <> ''::text) AND contractor_valid_stage_result(accepted_stage_result))))),
-    CONSTRAINT stage_attempt_lineage_shape CHECK ((((attempt = 1) AND (previous_execution_id IS NULL)) OR ((attempt > 1) AND (previous_execution_id IS NOT NULL)))),
-    CONSTRAINT stage_candidate_shape CHECK ((((candidate_result_schema_version IS NULL) = (candidate_stage_result IS NULL)) AND ((candidate_stage_result IS NULL) OR ((btrim(candidate_result_schema_version) <> ''::text) AND contractor_valid_stage_result(candidate_stage_result))))),
-    CONSTRAINT stage_execution_config_variant_shape CHECK ((((execution_config_variant = 'base'::text) AND (escalation_ordinal IS NULL)) OR ((execution_config_variant = ANY (ARRAY['failed_escalation'::text, 'interrupted_escalation'::text])) AND (escalation_ordinal IS NOT NULL) AND (escalation_ordinal > 0)))),
-    CONSTRAINT stage_execution_resume_previous CHECK (((resume_source_execution_id IS NULL) OR ((previous_execution_id IS NOT NULL) AND (resume_source_execution_id = previous_execution_id)))),
-    CONSTRAINT stage_execution_state_shape CHECK ((((state = 'preparing'::text) AND (planner_session_id IS NULL) AND (candidate_stage_result IS NULL) AND (accepted_stage_result IS NULL) AND (stage_termination IS NULL) AND (finalization_id IS NULL) AND (finalization_deadline IS NULL) AND (abort_id IS NULL) AND (abort_deadline IS NULL) AND (terminal_at IS NULL)) OR ((state = 'running'::text) AND (planner_session_id IS NOT NULL) AND (candidate_stage_result IS NULL) AND (accepted_stage_result IS NULL) AND (stage_termination IS NULL) AND (finalization_id IS NULL) AND (finalization_deadline IS NULL) AND (abort_id IS NULL) AND (abort_deadline IS NULL) AND (planner_started_at IS NOT NULL) AND (terminal_at IS NULL)) OR ((state = 'finalizing'::text) AND (planner_session_id IS NOT NULL) AND (candidate_stage_result IS NOT NULL) AND (accepted_stage_result IS NULL) AND (stage_termination IS NULL) AND (finalization_id IS NOT NULL) AND (btrim(finalization_id) <> ''::text) AND (finalization_deadline IS NOT NULL) AND (abort_id IS NULL) AND (abort_deadline IS NULL) AND (planner_started_at IS NOT NULL) AND (terminal_at IS NULL)) OR ((state = 'aborting'::text) AND (candidate_stage_result IS NULL) AND (accepted_stage_result IS NULL) AND (stage_termination IS NOT NULL) AND (finalization_id IS NULL) AND (finalization_deadline IS NULL) AND (abort_id IS NOT NULL) AND (btrim(abort_id) <> ''::text) AND (abort_deadline IS NOT NULL) AND (terminal_at IS NULL) AND ((((stage_termination ->> 'phase'::text) = 'preparing'::text) AND (planner_session_id IS NULL)) OR (((stage_termination ->> 'phase'::text) = 'running'::text) AND (planner_session_id IS NOT NULL) AND (planner_started_at IS NOT NULL)))) OR ((state = ANY (ARRAY['succeeded'::text, 'failed'::text])) AND (planner_session_id IS NOT NULL) AND (candidate_stage_result IS NOT NULL) AND (accepted_stage_result = candidate_stage_result) AND (accepted_result_schema_version = candidate_result_schema_version) AND ((accepted_stage_result ->> 'outcome'::text) = state) AND (stage_termination IS NULL) AND (finalization_id IS NOT NULL) AND (btrim(finalization_id) <> ''::text) AND (finalization_deadline IS NOT NULL) AND (abort_id IS NULL) AND (abort_deadline IS NULL) AND (planner_started_at IS NOT NULL) AND (terminal_at IS NOT NULL)) OR ((state = ANY (ARRAY['interrupted'::text, 'cancelled'::text])) AND (candidate_stage_result IS NULL) AND (accepted_stage_result IS NULL) AND (stage_termination IS NOT NULL) AND ((stage_termination ->> 'outcome'::text) = state) AND (finalization_id IS NULL) AND (finalization_deadline IS NULL) AND (abort_id IS NOT NULL) AND (btrim(abort_id) <> ''::text) AND (abort_deadline IS NOT NULL) AND (terminal_at IS NOT NULL) AND ((((stage_termination ->> 'phase'::text) = 'preparing'::text) AND (planner_session_id IS NULL)) OR (((stage_termination ->> 'phase'::text) = 'running'::text) AND (planner_session_id IS NOT NULL) AND (planner_started_at IS NOT NULL)))))),
-    CONSTRAINT stage_executions_attempt_check CHECK ((attempt > 0)),
-    CONSTRAINT stage_executions_stage_context_schema_version_check CHECK ((btrim(stage_context_schema_version) <> ''::text)),
-    CONSTRAINT stage_executions_stage_context_snapshot_check CHECK ((jsonb_typeof(stage_context_snapshot) = 'object'::text)),
-    CONSTRAINT stage_executions_stage_execution_id_check CHECK ((btrim(stage_execution_id) <> ''::text)),
-    CONSTRAINT stage_executions_stage_name_check CHECK ((btrim(stage_name) <> ''::text)),
-    CONSTRAINT stage_executions_stage_spec_schema_version_check CHECK ((btrim(stage_spec_schema_version) <> ''::text)),
-    CONSTRAINT stage_executions_stage_spec_snapshot_check CHECK ((jsonb_typeof(stage_spec_snapshot) = 'object'::text)),
-    CONSTRAINT stage_executions_state_check CHECK ((state = ANY (ARRAY['preparing'::text, 'running'::text, 'finalizing'::text, 'aborting'::text, 'succeeded'::text, 'failed'::text, 'interrupted'::text, 'cancelled'::text]))),
-    CONSTRAINT stage_executions_state_reason_code_check CHECK ((btrim(state_reason_code) <> ''::text)),
-    CONSTRAINT stage_planner_ids_shape CHECK (((planner_session_id IS NULL) = (planner_invocation_id IS NULL))),
-    CONSTRAINT stage_termination_payload_shape CHECK ((((termination_schema_version IS NULL) = (stage_termination IS NULL)) AND ((stage_termination IS NULL) OR ((btrim(termination_schema_version) <> ''::text) AND contractor_valid_stage_termination(stage_termination)))))
-);
-
-ALTER TABLE stage_executions
-    ADD CONSTRAINT stage_attempt_identity UNIQUE (run_id, stage_name, attempt);
-
-ALTER TABLE stage_executions
-    ADD CONSTRAINT stage_execution_lineage_key UNIQUE (run_id, stage_name, stage_execution_id);
-
-ALTER TABLE stage_executions
-    ADD CONSTRAINT stage_execution_run_identity UNIQUE (run_id, stage_execution_id);
-
-ALTER TABLE stage_executions
-    ADD CONSTRAINT stage_executions_pkey PRIMARY KEY (stage_execution_id);
-
-CREATE UNIQUE INDEX stage_execution_escalation_ordinal_unique ON stage_executions USING btree (run_id, stage_name, execution_config_variant, escalation_ordinal) WHERE ((execution_config_variant <> 'base'::text) AND (resume_source_execution_id IS NULL));
-
-CREATE INDEX stage_executions_recovery_idx ON stage_executions USING btree (state, updated_at) WHERE (state = ANY (ARRAY['preparing'::text, 'running'::text, 'finalizing'::text, 'aborting'::text]));
-
-CREATE INDEX stage_executions_run_created_idx ON stage_executions USING btree (run_id, created_at, stage_execution_id);
-
-CREATE INDEX stage_executions_run_terminal_history_idx ON stage_executions USING btree (run_id, terminal_at DESC, stage_execution_id DESC) WHERE (terminal_at IS NOT NULL);
-
-CREATE INDEX stage_executions_terminal_history_idx ON stage_executions USING btree (terminal_at DESC, stage_execution_id DESC) WHERE (terminal_at IS NOT NULL);
-
-CREATE TRIGGER eval_stages_projection AFTER INSERT OR DELETE OR UPDATE OF state ON stage_executions FOR EACH ROW EXECUTE FUNCTION contractor_eval_metrics_changed();
-
-CREATE TRIGGER stage_executions_capture_lifecycle_event AFTER INSERT OR UPDATE ON stage_executions FOR EACH ROW EXECUTE FUNCTION contractor_capture_stage_execution_lifecycle_event();
-
-CREATE TRIGGER stage_executions_manual_continuation BEFORE INSERT OR UPDATE ON stage_executions FOR EACH ROW EXECUTE FUNCTION contractor_validate_manual_stage_execution();
-
-CREATE TRIGGER stage_executions_protect_immutable BEFORE UPDATE ON stage_executions FOR EACH ROW EXECUTE FUNCTION contractor_protect_stage_execution_immutable();
-
-CREATE TABLE stage_metrics (
-    stage_execution_id text NOT NULL,
-    metrics_schema_version text NOT NULL,
-    metrics jsonb NOT NULL,
-    summary jsonb NOT NULL,
-    updated_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
-    expires_at timestamp with time zone DEFAULT (clock_timestamp() + '30 days'::interval) NOT NULL,
-    CONSTRAINT stage_metrics_metrics_check CHECK (((jsonb_typeof(metrics) = 'object'::text) AND (jsonb_typeof((metrics -> 'workers'::text)) = 'object'::text) AND (jsonb_typeof((metrics -> 'runtime'::text)) = 'object'::text))),
-    CONSTRAINT stage_metrics_metrics_schema_version_check CHECK ((btrim(metrics_schema_version) <> ''::text)),
-    CONSTRAINT stage_metrics_summary_check CHECK ((jsonb_typeof(summary) = 'object'::text))
-);
-
-ALTER TABLE stage_metrics
-    ADD CONSTRAINT stage_metrics_pkey PRIMARY KEY (stage_execution_id);
-
-CREATE INDEX stage_metrics_expiry_idx ON stage_metrics USING btree (expires_at, stage_execution_id);
-
-CREATE TRIGGER eval_metrics_projection AFTER INSERT OR DELETE OR UPDATE ON stage_metrics FOR EACH ROW EXECUTE FUNCTION contractor_eval_metrics_changed();
-
-CREATE TABLE stage_transition_decisions (
-    source_execution_id text NOT NULL,
-    run_id text NOT NULL,
-    action text NOT NULL,
-    target_stage_name text,
-    target_execution_id text,
-    decided_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
-    escalation_ordinal integer,
-    escalation_exhausted boolean DEFAULT false NOT NULL,
-    CONSTRAINT stage_transition_action CHECK ((action = ANY (ARRAY['next'::text, 'retry'::text, 'escalate'::text, 'succeed'::text, 'fail'::text]))),
-    CONSTRAINT stage_transition_decision_shape CHECK ((((action = ANY (ARRAY['next'::text, 'retry'::text, 'escalate'::text])) AND (target_stage_name IS NOT NULL) AND (btrim(target_stage_name) <> ''::text) AND (target_execution_id IS NOT NULL) AND (btrim(target_execution_id) <> ''::text)) OR ((action = ANY (ARRAY['succeed'::text, 'fail'::text])) AND (target_stage_name IS NULL) AND (target_execution_id IS NULL)))),
-    CONSTRAINT stage_transition_escalation_shape CHECK ((((action = 'escalate'::text) AND (escalation_ordinal IS NOT NULL) AND (escalation_ordinal > 0) AND (escalation_exhausted = false)) OR ((action = ANY (ARRAY['next'::text, 'fail'::text])) AND (escalation_ordinal IS NOT NULL) AND (escalation_ordinal > 0) AND (escalation_exhausted = true)) OR ((action <> 'escalate'::text) AND (escalation_ordinal IS NULL) AND (escalation_exhausted = false))))
-);
-
-ALTER TABLE stage_transition_decisions
-    ADD CONSTRAINT stage_transition_decisions_pkey PRIMARY KEY (source_execution_id);
-
-ALTER TABLE stage_transition_decisions
-    ADD CONSTRAINT stage_transition_target_once UNIQUE (target_execution_id);
-
-CREATE INDEX stage_transition_decisions_run_idx ON stage_transition_decisions USING btree (run_id, decided_at, source_execution_id);
-
-CREATE TRIGGER stage_transition_decisions_protect_immutable BEFORE UPDATE ON stage_transition_decisions FOR EACH ROW EXECUTE FUNCTION contractor_protect_stage_transition_decision_immutable();
-
-CREATE TABLE workflow_run_events (
-    run_id text NOT NULL,
-    sequence_number bigint NOT NULL,
-    event_id text NOT NULL,
-    event_schema_version text NOT NULL,
-    kind text NOT NULL,
-    data jsonb NOT NULL,
-    occurred_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
-    CONSTRAINT workflow_run_events_data_check CHECK (((jsonb_typeof(data) = 'object'::text) AND (octet_length((data)::text) <= 2097152))),
-    CONSTRAINT workflow_run_events_event_id_check CHECK ((btrim(event_id) <> ''::text)),
-    CONSTRAINT workflow_run_events_event_schema_version_check CHECK ((btrim(event_schema_version) <> ''::text)),
-    CONSTRAINT workflow_run_events_kind_check CHECK ((kind = ANY (ARRAY['planner.started'::text, 'planner.request_recorded'::text, 'planner.activity'::text, 'planner.plan_changed'::text, 'planner.current_changed'::text, 'planner.dispatch_selected'::text, 'planner.dispatch_started'::text, 'planner.dispatch_completed'::text, 'planner.finish_requested'::text, 'planner.completed'::text, 'planner.failed'::text, 'lifecycle.changed'::text]))),
-    CONSTRAINT workflow_run_events_sequence_number_check CHECK ((sequence_number > 0))
-);
-
-ALTER TABLE workflow_run_events
-    ADD CONSTRAINT workflow_run_events_event_id_key UNIQUE (event_id);
-
-ALTER TABLE workflow_run_events
-    ADD CONSTRAINT workflow_run_events_pkey PRIMARY KEY (run_id, sequence_number);
-
-CREATE INDEX workflow_run_events_time_idx ON workflow_run_events USING btree (run_id, occurred_at, sequence_number);
-
-CREATE TRIGGER workflow_run_events_notify_after_commit AFTER INSERT ON workflow_run_events FOR EACH ROW EXECUTE FUNCTION contractor_notify_workflow_run_event();
-
-CREATE TRIGGER workflow_run_events_protect_immutable BEFORE UPDATE ON workflow_run_events FOR EACH ROW EXECUTE FUNCTION contractor_protect_workflow_run_event_immutable();
-
-CREATE TABLE workflow_runs (
-    run_id text NOT NULL,
-    owner_id text NOT NULL,
-    workflow_name text NOT NULL,
-    workflow_version text NOT NULL,
-    workflow_schema_version text NOT NULL,
-    workflow_snapshot jsonb NOT NULL,
-    parameters jsonb DEFAULT '{}'::jsonb NOT NULL,
-    state text NOT NULL,
-    state_reason_code text NOT NULL,
-    state_reason_message text DEFAULT ''::text NOT NULL,
-    scheduler_claim_id text,
-    scheduler_claimed_at timestamp with time zone,
-    scheduler_claim_expires_at timestamp with time zone,
-    created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
-    updated_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
-    started_at timestamp with time zone,
-    finished_at timestamp with time zone,
-    cancellation_schema_version text,
-    run_cancellation jsonb,
-    request_idempotency_key text,
-    request_digest text,
-    run_event_generation text DEFAULT ('events-'::text || md5(((random())::text || (clock_timestamp())::text))) NOT NULL,
-    next_run_event_sequence bigint DEFAULT 1 NOT NULL,
-    runtime_labels text[] NOT NULL,
-    runtime_config_snapshot jsonb NOT NULL,
-    skill_snapshot jsonb DEFAULT '[]'::jsonb NOT NULL,
-    project_id text,
-    project_http_target_snapshot jsonb,
-    publication_mode text DEFAULT 'ordinary'::text NOT NULL,
-    audit_execution_id text,
-    audit_submission_key text,
-    audit_completion jsonb,
-    scheduler_deferred boolean DEFAULT false NOT NULL,
-    metadata_labels jsonb DEFAULT '{}'::jsonb NOT NULL,
-    CONSTRAINT workflow_run_cancellation_shape CHECK ((((state = ANY (ARRAY['cancelling'::text, 'cancelled'::text])) = ((cancellation_schema_version IS NOT NULL) AND (btrim(cancellation_schema_version) <> ''::text) AND (run_cancellation IS NOT NULL) AND contractor_valid_run_cancellation(run_cancellation))) AND ((state = ANY (ARRAY['cancelling'::text, 'cancelled'::text])) OR ((cancellation_schema_version IS NULL) AND (run_cancellation IS NULL))))),
-    CONSTRAINT workflow_run_claim_shape CHECK ((((scheduler_claim_id IS NULL) AND (scheduler_claimed_at IS NULL) AND (scheduler_claim_expires_at IS NULL)) OR ((scheduler_claim_id IS NOT NULL) AND (btrim(scheduler_claim_id) <> ''::text) AND (scheduler_claimed_at IS NOT NULL) AND (scheduler_claim_expires_at > scheduler_claimed_at)))),
-    CONSTRAINT workflow_run_terminal_shape CHECK (((state = ANY (ARRAY['succeeded'::text, 'failed'::text, 'cancelled'::text])) = (finished_at IS NOT NULL))),
-    CONSTRAINT workflow_run_terminal_unclaimed CHECK (((state <> ALL (ARRAY['succeeded'::text, 'failed'::text, 'cancelled'::text])) OR (scheduler_claim_id IS NULL))),
-    CONSTRAINT workflow_runs_audit_authority_shape CHECK ((((publication_mode = 'ordinary'::text) AND (audit_execution_id IS NULL) AND (audit_submission_key IS NULL)) OR ((publication_mode = 'audit-managed'::text) AND (project_id IS NOT NULL) AND (audit_execution_id IS NOT NULL) AND (audit_submission_key IS NOT NULL)))),
-    CONSTRAINT workflow_runs_check CHECK (((audit_completion IS NULL) OR ((publication_mode = 'audit-managed'::text) AND (jsonb_typeof(audit_completion) = 'object'::text) AND ((audit_completion #>> '{contract,kind}'::text[]) = 'audit-check-results@1'::text)))),
-    CONSTRAINT workflow_runs_metadata_labels_check CHECK (contractor_valid_run_metadata_labels(metadata_labels)),
-    CONSTRAINT workflow_runs_next_run_event_sequence_check CHECK ((next_run_event_sequence > 0)),
-    CONSTRAINT workflow_runs_owner_id_check CHECK ((btrim(owner_id) <> ''::text)),
-    CONSTRAINT workflow_runs_parameters_check CHECK ((jsonb_typeof(parameters) = 'object'::text)),
-    CONSTRAINT workflow_runs_project_http_target_shape CHECK (((project_http_target_snapshot IS NULL) OR ((project_id IS NOT NULL) AND (jsonb_typeof(project_http_target_snapshot) = 'object'::text) AND (jsonb_typeof((project_http_target_snapshot -> 'url'::text)) = 'string'::text) AND (btrim((project_http_target_snapshot ->> 'url'::text)) = (project_http_target_snapshot ->> 'url'::text)) AND ((octet_length((project_http_target_snapshot ->> 'url'::text)) >= 1) AND (octet_length((project_http_target_snapshot ->> 'url'::text)) <= 2048)) AND ((NOT (project_http_target_snapshot ? 'credential'::text)) OR ((jsonb_typeof((project_http_target_snapshot -> 'credential'::text)) = 'object'::text) AND (jsonb_typeof((project_http_target_snapshot #> '{credential,credentialId}'::text[])) = 'string'::text) AND ((project_http_target_snapshot #>> '{credential,kind}'::text[]) = ANY (ARRAY['http-origin-basic@1'::text, 'http-origin-bearer@1'::text]))))))),
-    CONSTRAINT workflow_runs_publication_mode_check CHECK ((publication_mode = ANY (ARRAY['ordinary'::text, 'audit-managed'::text]))),
-    CONSTRAINT workflow_runs_request_idempotency_shape CHECK ((((request_idempotency_key IS NULL) AND (request_digest IS NULL)) OR ((request_idempotency_key ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'::text) AND (request_digest ~ '^sha256:[0-9a-f]{64}$'::text)))),
-    CONSTRAINT workflow_runs_run_event_generation_check CHECK ((btrim(run_event_generation) <> ''::text)),
-    CONSTRAINT workflow_runs_run_id_check CHECK ((btrim(run_id) <> ''::text)),
-    CONSTRAINT workflow_runs_runtime_config_snapshot_shape CHECK (contractor_valid_run_runtime_snapshot(runtime_config_snapshot, runtime_labels)),
-    CONSTRAINT workflow_runs_runtime_labels_check CHECK (contractor_valid_runtime_agent_labels(runtime_labels)),
-    CONSTRAINT workflow_runs_skill_snapshot_array CHECK ((jsonb_typeof(skill_snapshot) = 'array'::text)),
-    CONSTRAINT workflow_runs_state_check CHECK ((state = ANY (ARRAY['initializing'::text, 'pending'::text, 'running'::text, 'waiting'::text, 'cancelling'::text, 'succeeded'::text, 'failed'::text, 'cancelled'::text]))),
-    CONSTRAINT workflow_runs_state_reason_code_check CHECK ((btrim(state_reason_code) <> ''::text)),
-    CONSTRAINT workflow_runs_workflow_name_check CHECK ((btrim(workflow_name) <> ''::text)),
-    CONSTRAINT workflow_runs_workflow_schema_version_check CHECK ((btrim(workflow_schema_version) <> ''::text)),
-    CONSTRAINT workflow_runs_workflow_snapshot_check CHECK ((jsonb_typeof(workflow_snapshot) = 'object'::text)),
-    CONSTRAINT workflow_runs_workflow_version_check CHECK ((btrim(workflow_version) <> ''::text))
-);
-
-ALTER TABLE workflow_runs
-    ADD CONSTRAINT workflow_runs_audit_execution_unique UNIQUE (audit_execution_id);
-
-ALTER TABLE workflow_runs
-    ADD CONSTRAINT workflow_runs_audit_submission_unique UNIQUE (audit_submission_key);
-
-ALTER TABLE workflow_runs
-    ADD CONSTRAINT workflow_runs_pkey PRIMARY KEY (run_id);
-
-ALTER TABLE workflow_runs
-    ADD CONSTRAINT workflow_runs_run_project_key UNIQUE (run_id, project_id);
-
-CREATE INDEX workflow_runs_admission_idx ON workflow_runs USING btree (state, scheduler_claim_expires_at, updated_at, created_at, run_id) WHERE (state = ANY (ARRAY['pending'::text, 'running'::text, 'waiting'::text, 'cancelling'::text]));
-
-CREATE INDEX workflow_runs_metadata_labels_idx ON workflow_runs USING gin (metadata_labels jsonb_path_ops);
-
-CREATE INDEX workflow_runs_owner_created_idx ON workflow_runs USING btree (owner_id, created_at, run_id);
-
-CREATE UNIQUE INDEX workflow_runs_owner_idempotency_key ON workflow_runs USING btree (owner_id, request_idempotency_key) WHERE (request_idempotency_key IS NOT NULL);
-
-CREATE INDEX workflow_runs_owner_nonterminal_queue_idx ON workflow_runs USING btree (owner_id, created_at, run_id) INCLUDE (project_id, workflow_name, workflow_version, state, updated_at, run_event_generation, next_run_event_sequence) WHERE (state = ANY (ARRAY['initializing'::text, 'running'::text, 'cancelling'::text]));
-
-CREATE INDEX workflow_runs_owner_project_created_idx ON workflow_runs USING btree (owner_id, project_id, created_at DESC, run_id DESC) WHERE (project_id IS NOT NULL);
-
-CREATE INDEX workflow_runs_project_http_target_credential_idx ON workflow_runs USING btree (((project_http_target_snapshot #>> '{credential,credentialId}'::text[])), created_at, run_id) WHERE ((state = ANY (ARRAY['initializing'::text, 'running'::text, 'cancelling'::text])) AND (project_http_target_snapshot ? 'credential'::text));
-
-CREATE INDEX workflow_runs_publication_mode_idx ON workflow_runs USING btree (publication_mode, run_id) WHERE (publication_mode = 'audit-managed'::text);
-
-CREATE INDEX workflow_runs_runtime_credentials_idx ON workflow_runs USING gin (((runtime_config_snapshot -> 'runtimeCredentialIds'::text))) WHERE (state = ANY (ARRAY['initializing'::text, 'running'::text, 'cancelling'::text]));
-
-CREATE INDEX workflow_runs_runtime_labels_idx ON workflow_runs USING gin (runtime_labels);
-
-CREATE INDEX workflow_runs_runtime_llm_credentials_idx ON workflow_runs USING gin (((runtime_config_snapshot -> 'llmCredentialIds'::text))) WHERE (state = ANY (ARRAY['initializing'::text, 'running'::text, 'cancelling'::text]));
-
-CREATE INDEX workflow_runs_scheduler_idx ON workflow_runs USING btree (state, scheduler_claim_expires_at, created_at) WHERE (state = ANY (ARRAY['running'::text, 'cancelling'::text]));
-
-CREATE INDEX workflow_runs_skill_initialization_scheduler_idx ON workflow_runs USING btree (scheduler_claim_expires_at, created_at, run_id) WHERE ((state = 'initializing'::text) AND (state_reason_code = 'skill_initialization_pending'::text));
-
-CREATE TRIGGER eval_runs_projection AFTER DELETE OR UPDATE OF state, finished_at ON workflow_runs FOR EACH ROW EXECUTE FUNCTION contractor_eval_execution_changed();
-
-CREATE TRIGGER workflow_runs_capture_lifecycle_event AFTER INSERT OR UPDATE ON workflow_runs FOR EACH ROW EXECUTE FUNCTION contractor_capture_workflow_run_lifecycle_event();
-
-CREATE TRIGGER workflow_runs_eval_tombstone BEFORE DELETE ON workflow_runs FOR EACH ROW EXECUTE FUNCTION contractor_eval_retain_deleted_execution();
-
-CREATE TRIGGER workflow_runs_project_admission BEFORE INSERT ON workflow_runs FOR EACH ROW EXECUTE FUNCTION contractor_guard_workflow_run_project_admission();
-
-CREATE TRIGGER workflow_runs_protect_audit_completion BEFORE UPDATE ON workflow_runs FOR EACH ROW EXECUTE FUNCTION contractor_protect_audit_completion();
-
-CREATE TRIGGER workflow_runs_protect_immutable BEFORE UPDATE ON workflow_runs FOR EACH ROW EXECUTE FUNCTION contractor_protect_workflow_run_immutable();
-
-CREATE TRIGGER workflow_runs_protect_skill_snapshot BEFORE UPDATE ON workflow_runs FOR EACH ROW EXECUTE FUNCTION contractor_protect_workflow_run_skill_snapshot();
-
-CREATE CONSTRAINT TRIGGER workflow_runs_require_audit_completion AFTER INSERT OR UPDATE ON workflow_runs DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION contractor_require_audit_completion();
-
-CREATE CONSTRAINT TRIGGER workflow_runs_require_complete_audit_binding AFTER INSERT OR UPDATE ON workflow_runs DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION contractor_require_complete_audit_run_binding();
-
-
--- Artifacts: versioned bindings, names, provenance and output publication
+-- Table: artifact_binding_revisions
 
 CREATE TABLE artifact_binding_revisions (
     scope_kind text NOT NULL,
@@ -2367,21 +3335,14 @@ CREATE TABLE artifact_binding_revisions (
     revision text NOT NULL,
     version_id text NOT NULL,
     created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    hold_count integer DEFAULT 0 NOT NULL,
+    CONSTRAINT artifact_binding_revisions_hold_count_check CHECK ((hold_count >= 0)),
     CONSTRAINT artifact_binding_revisions_name_check CHECK (((btrim(name) <> ''::text) AND (POSITION(('/'::text) IN (name)) = 0))),
     CONSTRAINT artifact_binding_revisions_namespace_check CHECK (((btrim(namespace) <> ''::text) AND (POSITION(('/'::text) IN (namespace)) = 0))),
     CONSTRAINT artifact_binding_revisions_revision_check CHECK ((btrim(revision) <> ''::text))
 );
 
-ALTER TABLE artifact_binding_revisions
-    ADD CONSTRAINT artifact_binding_revisions_pkey PRIMARY KEY (scope_kind, scope_id, namespace, name, revision);
-
-CREATE INDEX artifact_binding_revisions_history_idx ON artifact_binding_revisions USING btree (scope_kind, scope_id, namespace, name, created_at DESC, revision DESC);
-
-CREATE INDEX artifact_binding_revisions_version_idx ON artifact_binding_revisions USING btree (version_id);
-
-CREATE TRIGGER artifact_binding_revisions_immutable BEFORE DELETE OR UPDATE ON artifact_binding_revisions FOR EACH ROW EXECUTE FUNCTION contractor_protect_artifact_immutable();
-
-CREATE TRIGGER eval_artifact_projection BEFORE DELETE ON artifact_binding_revisions FOR EACH ROW EXECUTE FUNCTION contractor_eval_evidence_deleted();
+-- Table: artifact_bindings
 
 CREATE TABLE artifact_bindings (
     scope_kind text NOT NULL,
@@ -2392,29 +3353,16 @@ CREATE TABLE artifact_bindings (
     frozen boolean DEFAULT false NOT NULL,
     created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
     updated_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    retained_revisions bigint NOT NULL,
+    retained_bytes bigint NOT NULL,
     CONSTRAINT artifact_bindings_current_revision_check CHECK ((btrim(current_revision) <> ''::text)),
     CONSTRAINT artifact_bindings_name_check CHECK (((btrim(name) <> ''::text) AND (POSITION(('/'::text) IN (name)) = 0))),
-    CONSTRAINT artifact_bindings_namespace_check CHECK (((btrim(namespace) <> ''::text) AND (POSITION(('/'::text) IN (namespace)) = 0)))
+    CONSTRAINT artifact_bindings_namespace_check CHECK (((btrim(namespace) <> ''::text) AND (POSITION(('/'::text) IN (namespace)) = 0))),
+    CONSTRAINT artifact_bindings_retained_bytes_check CHECK ((retained_bytes >= 0)),
+    CONSTRAINT artifact_bindings_retained_revisions_check CHECK ((retained_revisions >= 1))
 );
 
-ALTER TABLE artifact_bindings
-    ADD CONSTRAINT artifact_bindings_pkey PRIMARY KEY (scope_kind, scope_id, namespace, name);
-
-CREATE TRIGGER artifact_bindings_project_admission BEFORE INSERT OR UPDATE ON artifact_bindings FOR EACH ROW EXECUTE FUNCTION contractor_guard_project_artifact_binding_admission();
-
-CREATE TRIGGER artifact_bindings_protect_identity BEFORE UPDATE ON artifact_bindings FOR EACH ROW EXECUTE FUNCTION contractor_protect_artifact_binding();
-
-CREATE TRIGGER eval_outputs_projection AFTER INSERT OR DELETE OR UPDATE ON artifact_bindings FOR EACH ROW EXECUTE FUNCTION contractor_eval_output_changed();
-
-CREATE TABLE artifact_blob_settings (
-    singleton boolean DEFAULT true NOT NULL,
-    backend text,
-    CONSTRAINT artifact_blob_settings_backend_check CHECK ((backend = ANY (ARRAY['postgresql'::text, 'filesystem'::text]))),
-    CONSTRAINT artifact_blob_settings_singleton_check CHECK (singleton)
-);
-
-ALTER TABLE artifact_blob_settings
-    ADD CONSTRAINT artifact_blob_settings_pkey PRIMARY KEY (singleton);
+-- Table: artifact_blobs
 
 CREATE TABLE artifact_blobs (
     sha256 bytea NOT NULL,
@@ -2428,14 +3376,7 @@ CREATE TABLE artifact_blobs (
     CONSTRAINT artifact_blobs_storage_check CHECK ((((backend = 'postgresql'::text) AND (object_key IS NULL) AND (payload IS NOT NULL) AND (size_bytes = octet_length(payload)) AND (sha256 = sha256(payload))) OR ((backend = 'filesystem'::text) AND (payload IS NULL) AND (object_key IS NOT NULL) AND (object_key ~ '^[0-9a-f]{2}/[0-9a-f]{32}$'::text))))
 );
 
-ALTER TABLE artifact_blobs
-    ADD CONSTRAINT artifact_blobs_pkey PRIMARY KEY (sha256);
-
-CREATE UNIQUE INDEX artifact_blobs_object_key_idx ON artifact_blobs USING btree (object_key) WHERE (object_key IS NOT NULL);
-
-CREATE TRIGGER artifact_blob_backend_guard BEFORE INSERT OR UPDATE ON artifact_blobs FOR EACH ROW EXECUTE FUNCTION artifact_blob_backend_guard();
-
-CREATE TRIGGER artifact_blobs_immutable BEFORE DELETE OR UPDATE ON artifact_blobs FOR EACH ROW EXECUTE FUNCTION contractor_protect_artifact_blob_immutable();
+-- Table: artifact_lineage
 
 CREATE TABLE artifact_lineage (
     target_scope_kind text NOT NULL,
@@ -2450,15 +3391,10 @@ CREATE TABLE artifact_lineage (
     source_revision text NOT NULL,
     lineage_kind text NOT NULL,
     created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
-    CONSTRAINT artifact_lineage_lineage_kind_check CHECK ((lineage_kind = ANY (ARRAY['input_fork'::text, 'output_bind'::text, 'project_output_publish'::text, 'audit_import'::text])))
+    CONSTRAINT artifact_lineage_lineage_kind_check CHECK ((lineage_kind = ANY (ARRAY['input_fork'::text, 'output_bind'::text, 'project_output_publish'::text, 'audit_import'::text, 'context_projection'::text])))
 );
 
-ALTER TABLE artifact_lineage
-    ADD CONSTRAINT artifact_lineage_pkey PRIMARY KEY (target_scope_kind, target_scope_id, target_namespace, target_name, target_revision);
-
-CREATE INDEX artifact_lineage_source_idx ON artifact_lineage USING btree (source_scope_kind, source_scope_id, source_namespace, source_name, source_revision);
-
-CREATE TRIGGER artifact_lineage_immutable BEFORE DELETE OR UPDATE ON artifact_lineage FOR EACH ROW EXECUTE FUNCTION contractor_protect_artifact_immutable();
+-- Table: artifact_scopes
 
 CREATE TABLE artifact_scopes (
     scope_kind text NOT NULL,
@@ -2474,18 +3410,13 @@ CASE
     WHEN (scope_kind = 'project'::text) THEN scope_id
     ELSE NULL::text
 END) STORED,
+    revision_count bigint DEFAULT 0 NOT NULL,
+    CONSTRAINT artifact_scopes_revision_count_check CHECK (((revision_count >= 0) AND ((scope_kind = 'run'::text) OR (revision_count = 0)))),
     CONSTRAINT artifact_scopes_scope_id_check CHECK ((btrim(scope_id) <> ''::text)),
     CONSTRAINT artifact_scopes_scope_kind_check CHECK ((scope_kind = ANY (ARRAY['user'::text, 'project'::text, 'run'::text])))
 );
 
-ALTER TABLE artifact_scopes
-    ADD CONSTRAINT artifact_scopes_pkey PRIMARY KEY (scope_kind, scope_id);
-
-CREATE INDEX artifact_scopes_project_idx ON artifact_scopes USING btree (project_id) WHERE (project_id IS NOT NULL);
-
-CREATE INDEX artifact_scopes_run_idx ON artifact_scopes USING btree (run_id) WHERE (run_id IS NOT NULL);
-
-CREATE TRIGGER artifact_scopes_project_admission BEFORE INSERT ON artifact_scopes FOR EACH ROW EXECUTE FUNCTION contractor_guard_project_artifact_scope_admission();
+-- Table: artifact_versions
 
 CREATE TABLE artifact_versions (
     version_id text NOT NULL,
@@ -2496,7 +3427,9 @@ CREATE TABLE artifact_versions (
     git_requested_ref text,
     git_resolved_commit text,
     git_imported_at timestamp with time zone,
-    CONSTRAINT artifact_versions_git_repository_url_check CHECK (((octet_length(git_repository_url) >= 1) AND (octet_length(git_repository_url) <= 4096))),
+    git_analysis jsonb,
+    CONSTRAINT artifact_versions_git_analysis CHECK (((git_analysis IS NULL) OR (((git_resolved_commit IS NOT NULL) AND (jsonb_typeof(git_analysis) = 'object'::text) AND (git_analysis ?& ARRAY['policy'::text, 'reportPath'::text, 'includedFiles'::text, 'excludedEntries'::text]) AND ((git_analysis - ARRAY['policy'::text, 'reportPath'::text, 'includedFiles'::text, 'excludedEntries'::text]) = '{}'::jsonb) AND ((git_analysis ->> 'policy'::text) = 'source-analysis-v1'::text) AND ((git_analysis ->> 'reportPath'::text) = '.contractor-import-report.json'::text) AND (jsonb_typeof((git_analysis -> 'includedFiles'::text)) = 'number'::text) AND ((git_analysis ->> 'includedFiles'::text) ~ '^[1-9][0-9]{0,4}$'::text) AND ((((git_analysis ->> 'includedFiles'::text))::numeric >= (1)::numeric) AND (((git_analysis ->> 'includedFiles'::text))::numeric <= (49999)::numeric)) AND (jsonb_typeof((git_analysis -> 'excludedEntries'::text)) = 'number'::text) AND ((git_analysis ->> 'excludedEntries'::text) ~ '^(0|[1-9][0-9]{0,4})$'::text) AND ((((git_analysis ->> 'excludedEntries'::text))::numeric >= (0)::numeric) AND (((git_analysis ->> 'excludedEntries'::text))::numeric <= (50000)::numeric))) IS TRUE))),
+    CONSTRAINT artifact_versions_git_repository_url_check CHECK (((octet_length(git_repository_url) >= 1) AND (octet_length(git_repository_url) <= 12288))),
     CONSTRAINT artifact_versions_git_requested_ref_check CHECK (((octet_length(git_requested_ref) >= 1) AND (octet_length(git_requested_ref) <= 1024))),
     CONSTRAINT artifact_versions_git_resolved_commit_check CHECK ((git_resolved_commit ~ '^[0-9a-f]{40}$'::text)),
     CONSTRAINT artifact_versions_git_source CHECK ((((git_repository_url IS NULL) = (git_resolved_commit IS NULL)) AND ((git_repository_url IS NULL) = (git_imported_at IS NULL)) AND ((git_requested_ref IS NULL) OR (git_repository_url IS NOT NULL)))),
@@ -2505,440 +3438,7 @@ CREATE TABLE artifact_versions (
     CONSTRAINT artifact_versions_version_id_check CHECK ((btrim(version_id) <> ''::text))
 );
 
-ALTER TABLE artifact_versions
-    ADD CONSTRAINT artifact_versions_pkey PRIMARY KEY (version_id);
-
-CREATE INDEX artifact_versions_blob_idx ON artifact_versions USING btree (blob_sha256);
-
-CREATE TRIGGER artifact_versions_immutable BEFORE DELETE OR UPDATE ON artifact_versions FOR EACH ROW EXECUTE FUNCTION contractor_protect_artifact_version();
-
-CREATE TABLE workflow_run_output_publications (
-    run_id text NOT NULL,
-    project_id text NOT NULL,
-    output_name text NOT NULL,
-    status text NOT NULL,
-    source_scope_kind text GENERATED ALWAYS AS ('run'::text) STORED,
-    source_namespace text NOT NULL,
-    source_name text NOT NULL,
-    source_revision text NOT NULL,
-    target_scope_kind text GENERATED ALWAYS AS ('project'::text) STORED,
-    target_namespace text NOT NULL,
-    target_name text NOT NULL,
-    target_revision text,
-    error_code text,
-    error_message text,
-    created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
-    CONSTRAINT workflow_run_output_publications_check CHECK (((source_name = output_name) AND (target_name = output_name))),
-    CONSTRAINT workflow_run_output_publications_check1 CHECK ((((status = 'published'::text) AND (target_revision IS NOT NULL) AND (error_code IS NULL) AND (error_message IS NULL)) OR ((status = 'already_present'::text) AND (target_revision IS NULL) AND (error_code IS NULL) AND (error_message IS NULL)) OR ((status = 'failed'::text) AND (target_revision IS NULL) AND (error_code IS NOT NULL) AND (btrim(error_code) <> ''::text) AND (octet_length(error_code) <= 128) AND (error_message IS NOT NULL) AND (btrim(error_message) <> ''::text) AND (octet_length(error_message) <= 2048)))),
-    CONSTRAINT workflow_run_output_publications_output_name_check CHECK (((btrim(output_name) <> ''::text) AND (POSITION(('/'::text) IN (output_name)) = 0) AND (octet_length(output_name) <= 128))),
-    CONSTRAINT workflow_run_output_publications_source_namespace_check CHECK ((source_namespace = 'outputs'::text)),
-    CONSTRAINT workflow_run_output_publications_source_revision_check CHECK ((btrim(source_revision) <> ''::text)),
-    CONSTRAINT workflow_run_output_publications_status_check CHECK ((status = ANY (ARRAY['published'::text, 'already_present'::text, 'failed'::text]))),
-    CONSTRAINT workflow_run_output_publications_target_namespace_check CHECK ((target_namespace = 'outputs'::text))
-);
-
-ALTER TABLE workflow_run_output_publications
-    ADD CONSTRAINT workflow_run_output_publications_pkey PRIMARY KEY (run_id, output_name);
-
-CREATE INDEX workflow_run_output_publications_project_idx ON workflow_run_output_publications USING btree (project_id, created_at DESC, run_id, output_name);
-
-CREATE TRIGGER workflow_run_output_publications_immutable BEFORE DELETE OR UPDATE ON workflow_run_output_publications FOR EACH ROW EXECUTE FUNCTION contractor_protect_artifact_immutable();
-
-
--- Projects and the owner queue
-
-CREATE TABLE owner_queue_controls (
-    owner_id text NOT NULL,
-    paused boolean DEFAULT false NOT NULL,
-    revision bigint DEFAULT 1 NOT NULL,
-    updated_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
-    CONSTRAINT owner_queue_controls_owner_id_check CHECK (((btrim(owner_id) <> ''::text) AND (octet_length(owner_id) <= 256))),
-    CONSTRAINT owner_queue_controls_revision_check CHECK ((revision > 0))
-);
-
-ALTER TABLE owner_queue_controls
-    ADD CONSTRAINT owner_queue_controls_pkey PRIMARY KEY (owner_id);
-
-CREATE TRIGGER owner_queue_controls_protect_mutation BEFORE UPDATE ON owner_queue_controls FOR EACH ROW EXECUTE FUNCTION contractor_protect_owner_queue_control();
-
-CREATE TABLE projects (
-    project_id text NOT NULL,
-    owner_id text NOT NULL,
-    kind text NOT NULL,
-    name text NOT NULL,
-    description text DEFAULT ''::text NOT NULL,
-    revision bigint DEFAULT 1 NOT NULL,
-    request_idempotency_key text NOT NULL,
-    request_digest text NOT NULL,
-    created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
-    updated_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
-    http_target_url text,
-    http_target_credential_id text,
-    http_target_credential_kind text,
-    lifecycle_state text DEFAULT 'active'::text NOT NULL,
-    deletion_phase text,
-    deletion_requested_at timestamp with time zone,
-    deletion_claim_id text,
-    deletion_claimed_at timestamp with time zone,
-    deletion_claim_expires_at timestamp with time zone,
-    CONSTRAINT projects_deletion_phase_check CHECK ((deletion_phase = ANY (ARRAY['cancelling'::text, 'draining'::text, 'purging_runs'::text, 'purging_artifacts'::text]))),
-    CONSTRAINT projects_deletion_shape CHECK ((((lifecycle_state = 'active'::text) AND (deletion_phase IS NULL) AND (deletion_requested_at IS NULL) AND (deletion_claim_id IS NULL) AND (deletion_claimed_at IS NULL) AND (deletion_claim_expires_at IS NULL)) OR ((lifecycle_state = 'deleting'::text) AND (deletion_phase IS NOT NULL) AND (deletion_requested_at IS NOT NULL) AND (((deletion_claim_id IS NULL) AND (deletion_claimed_at IS NULL) AND (deletion_claim_expires_at IS NULL)) OR ((deletion_claim_id IS NOT NULL) AND (deletion_claimed_at IS NOT NULL) AND (deletion_claim_expires_at > deletion_claimed_at)))))),
-    CONSTRAINT projects_description_check CHECK ((octet_length(description) <= 4096)),
-    CONSTRAINT projects_http_target_shape CHECK ((((http_target_url IS NULL) AND (http_target_credential_id IS NULL) AND (http_target_credential_kind IS NULL)) OR ((http_target_url IS NOT NULL) AND (btrim(http_target_url) = http_target_url) AND ((octet_length(http_target_url) >= 1) AND (octet_length(http_target_url) <= 2048)) AND (((http_target_credential_id IS NULL) AND (http_target_credential_kind IS NULL)) OR ((http_target_credential_id IS NOT NULL) AND (http_target_credential_kind = ANY (ARRAY['http-origin-basic@1'::text, 'http-origin-bearer@1'::text]))))))),
-    CONSTRAINT projects_kind_check CHECK ((kind = ANY (ARRAY['project'::text, 'evaluation'::text]))),
-    CONSTRAINT projects_lifecycle_state_check CHECK ((lifecycle_state = ANY (ARRAY['active'::text, 'deleting'::text]))),
-    CONSTRAINT projects_name_check CHECK (((btrim(name) <> ''::text) AND (octet_length(name) <= 160))),
-    CONSTRAINT projects_owner_id_check CHECK (((btrim(owner_id) <> ''::text) AND (octet_length(owner_id) <= 256))),
-    CONSTRAINT projects_project_id_check CHECK ((project_id ~ '^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$'::text)),
-    CONSTRAINT projects_request_digest_check CHECK ((request_digest ~ '^sha256:[0-9a-f]{64}$'::text)),
-    CONSTRAINT projects_request_idempotency_key_check CHECK ((request_idempotency_key ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'::text)),
-    CONSTRAINT projects_revision_check CHECK ((revision > 0))
-);
-
-ALTER TABLE projects
-    ADD CONSTRAINT projects_owner_id_request_idempotency_key_key UNIQUE (owner_id, request_idempotency_key);
-
-ALTER TABLE projects
-    ADD CONSTRAINT projects_owner_identity UNIQUE (owner_id, project_id);
-
-ALTER TABLE projects
-    ADD CONSTRAINT projects_pkey PRIMARY KEY (project_id);
-
-ALTER TABLE projects
-    ADD CONSTRAINT projects_project_owner_key UNIQUE (project_id, owner_id);
-
-CREATE INDEX projects_deletion_claim_idx ON projects USING btree (deletion_claim_expires_at, deletion_requested_at, project_id) WHERE (lifecycle_state = 'deleting'::text);
-
-CREATE INDEX projects_http_target_credential_idx ON projects USING btree (http_target_credential_id, project_id) WHERE (http_target_credential_id IS NOT NULL);
-
-CREATE INDEX projects_owner_kind_created_idx ON projects USING btree (owner_id, kind, created_at DESC, project_id DESC);
-
-CREATE TRIGGER projects_eval_fence AFTER UPDATE OF lifecycle_state ON projects FOR EACH ROW EXECUTE FUNCTION contractor_eval_fence_project();
-
-CREATE TRIGGER projects_protect_identity BEFORE UPDATE ON projects FOR EACH ROW EXECUTE FUNCTION contractor_protect_project();
-
-CREATE TABLE scheduler_settings (
-    singleton boolean DEFAULT true NOT NULL,
-    max_concurrent_runs integer NOT NULL,
-    revision numeric(20,0) NOT NULL,
-    updated_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
-    CONSTRAINT scheduler_settings_max_concurrent_runs_check CHECK (((max_concurrent_runs >= 1) AND (max_concurrent_runs <= 32))),
-    CONSTRAINT scheduler_settings_revision_check CHECK (((revision >= (1)::numeric) AND (revision <= '18446744073709551615'::numeric))),
-    CONSTRAINT scheduler_settings_singleton_check CHECK (singleton)
-);
-
-ALTER TABLE scheduler_settings
-    ADD CONSTRAINT scheduler_settings_pkey PRIMARY KEY (singleton);
-
-CREATE TRIGGER scheduler_settings_protect_mutation BEFORE DELETE OR UPDATE ON scheduler_settings FOR EACH ROW EXECUTE FUNCTION contractor_protect_scheduler_settings();
-
-
--- Credentials: LLM Gateway keys, Runtime credentials and SSH keys
-
-CREATE TABLE credential_operations (
-    operation_id text NOT NULL,
-    idempotency_key text NOT NULL,
-    request_hash text NOT NULL,
-    credential_id text NOT NULL,
-    operation_kind text NOT NULL,
-    phase text NOT NULL,
-    request_schema_version text NOT NULL,
-    request jsonb NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone NOT NULL,
-    CONSTRAINT credential_operations_check CHECK ((updated_at >= created_at)),
-    CONSTRAINT credential_operations_idempotency_key_check CHECK ((idempotency_key ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'::text)),
-    CONSTRAINT credential_operations_operation_id_check CHECK (((operation_id ~ '^[A-Za-z0-9][A-Za-z0-9_.:-]*$'::text) AND (octet_length(operation_id) <= 128))),
-    CONSTRAINT credential_operations_operation_kind_check CHECK ((operation_kind = ANY (ARRAY['create'::text, 'delete'::text]))),
-    CONSTRAINT credential_operations_phase_check CHECK ((phase = ANY (ARRAY['prepared'::text, 'completed'::text, 'abandoned'::text]))),
-    CONSTRAINT credential_operations_request_check CHECK (((jsonb_typeof(request) = 'object'::text) AND (octet_length((request)::text) <= 65536))),
-    CONSTRAINT credential_operations_request_hash_check CHECK ((request_hash ~ '^sha256:[0-9a-f]{64}$'::text)),
-    CONSTRAINT credential_operations_request_schema_version_check CHECK ((request_schema_version = 'contractor.credentials/v1'::text))
-);
-
-ALTER TABLE credential_operations
-    ADD CONSTRAINT credential_operations_operation_kind_idempotency_key_key UNIQUE (operation_kind, idempotency_key);
-
-ALTER TABLE credential_operations
-    ADD CONSTRAINT credential_operations_pkey PRIMARY KEY (operation_id);
-
-CREATE UNIQUE INDEX credential_operations_create_identity ON credential_operations USING btree (credential_id) WHERE (operation_kind = 'create'::text);
-
-CREATE INDEX credential_operations_prepared_idx ON credential_operations USING btree (created_at, operation_id) WHERE (phase = 'prepared'::text);
-
-CREATE TRIGGER credential_operations_protect_delete BEFORE DELETE ON credential_operations FOR EACH ROW EXECUTE FUNCTION contractor_protect_immutable_credential_row();
-
-CREATE TRIGGER credential_operations_protect_transition BEFORE UPDATE ON credential_operations FOR EACH ROW EXECUTE FUNCTION contractor_protect_credential_operation();
-
-CREATE TABLE git_ssh_keys (
-    owner_id text NOT NULL,
-    generation text NOT NULL,
-    encryption_schema_version text NOT NULL,
-    key_id text NOT NULL,
-    nonce bytea NOT NULL,
-    ciphertext bytea NOT NULL,
-    fingerprint text NOT NULL,
-    key_type text NOT NULL,
-    updated_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
-    CONSTRAINT git_ssh_keys_ciphertext_check CHECK (((octet_length(ciphertext) >= 17) AND (octet_length(ciphertext) <= 32784))),
-    CONSTRAINT git_ssh_keys_encryption_schema_version_check CHECK ((encryption_schema_version = 'git-ssh-key@1'::text)),
-    CONSTRAINT git_ssh_keys_generation_check CHECK ((generation ~ '^[0-9a-f]{32}$'::text)),
-    CONSTRAINT git_ssh_keys_key_id_check CHECK ((key_id ~ '^sha256:[0-9a-f]{64}$'::text)),
-    CONSTRAINT git_ssh_keys_nonce_check CHECK ((octet_length(nonce) = 12)),
-    CONSTRAINT git_ssh_keys_owner_id_check CHECK (((length(owner_id) >= 1) AND (length(owner_id) <= 256)))
-);
-
-ALTER TABLE git_ssh_keys
-    ADD CONSTRAINT git_ssh_keys_pkey PRIMARY KEY (owner_id);
-
-CREATE TABLE llm_credentials (
-    credential_id text NOT NULL,
-    llm_gateway_id text NOT NULL,
-    llm_gateway_version text NOT NULL,
-    llm_gateway_digest text NOT NULL,
-    remote_key_id text NOT NULL,
-    label text,
-    gateway_policy jsonb NOT NULL,
-    encryption_schema_version text NOT NULL,
-    key_id text NOT NULL,
-    nonce bytea NOT NULL,
-    ciphertext bytea NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    CONSTRAINT llm_credentials_ciphertext_check CHECK (((octet_length(ciphertext) >= 17) AND (octet_length(ciphertext) <= 16400))),
-    CONSTRAINT llm_credentials_encryption_schema_version_check CHECK ((encryption_schema_version = 'contractor.credentials/v1'::text)),
-    CONSTRAINT llm_credentials_gateway_policy_check CHECK (((jsonb_typeof(gateway_policy) = 'object'::text) AND (octet_length((gateway_policy)::text) <= 65536))),
-    CONSTRAINT llm_credentials_key_id_check CHECK ((key_id ~ '^sha256:[0-9a-f]{64}$'::text)),
-    CONSTRAINT llm_credentials_label_check CHECK (((label IS NULL) OR ((btrim(label) <> ''::text) AND (octet_length(label) <= 1024)))),
-    CONSTRAINT llm_credentials_llm_gateway_digest_check CHECK ((llm_gateway_digest ~ '^sha256:[0-9a-f]{64}$'::text)),
-    CONSTRAINT llm_credentials_llm_gateway_id_check CHECK (((llm_gateway_id ~ '^[a-z][a-z0-9_-]*$'::text) AND (octet_length(llm_gateway_id) <= 128))),
-    CONSTRAINT llm_credentials_llm_gateway_version_check CHECK (((llm_gateway_version ~ '^[A-Za-z0-9][A-Za-z0-9._+-]*$'::text) AND (octet_length(llm_gateway_version) <= 64))),
-    CONSTRAINT llm_credentials_nonce_check CHECK ((octet_length(nonce) = 12)),
-    CONSTRAINT llm_credentials_remote_key_id_check CHECK (((btrim(remote_key_id) <> ''::text) AND (octet_length(remote_key_id) <= 512)))
-);
-
-ALTER TABLE llm_credentials
-    ADD CONSTRAINT llm_credentials_llm_gateway_digest_remote_key_id_key UNIQUE (llm_gateway_digest, remote_key_id);
-
-ALTER TABLE llm_credentials
-    ADD CONSTRAINT llm_credentials_pkey PRIMARY KEY (credential_id);
-
-CREATE INDEX llm_credentials_created_idx ON llm_credentials USING btree (created_at, credential_id);
-
-CREATE TRIGGER llm_credentials_exclusive_state BEFORE INSERT ON llm_credentials FOR EACH ROW EXECUTE FUNCTION contractor_check_llm_credential_exclusive_state();
-
-CREATE TRIGGER llm_credentials_protect_update BEFORE UPDATE ON llm_credentials FOR EACH ROW EXECUTE FUNCTION contractor_protect_immutable_credential_row();
-
-CREATE TABLE runtime_credentials (
-    credential_id text NOT NULL,
-    credential_kind text NOT NULL,
-    encryption_schema_version text NOT NULL,
-    key_id text NOT NULL,
-    nonce bytea NOT NULL,
-    ciphertext bytea NOT NULL,
-    created_by text NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    idempotency_key_digest text,
-    request_mac bytea,
-    deleted_by text,
-    deleted_at timestamp with time zone,
-    CONSTRAINT runtime_credentials_ciphertext_check CHECK (((octet_length(ciphertext) >= 17) AND (octet_length(ciphertext) <= 32784))),
-    CONSTRAINT runtime_credentials_created_by_check CHECK (((btrim(created_by) <> ''::text) AND (octet_length(created_by) <= 256))),
-    CONSTRAINT runtime_credentials_creation_receipt CHECK (((idempotency_key_digest IS NULL) = (request_mac IS NULL))),
-    CONSTRAINT runtime_credentials_credential_id_check CHECK (((credential_id ~ '^[a-z][a-z0-9_-]*$'::text) AND (octet_length(credential_id) <= 128))),
-    CONSTRAINT runtime_credentials_credential_kind_check CHECK ((credential_kind = ANY (ARRAY['otlp-headers@1'::text, 'http-proxy-basic@1'::text, 'http-proxy-bearer@1'::text, 'caido-bearer@1'::text, 'http-origin-basic@1'::text, 'http-origin-bearer@1'::text]))),
-    CONSTRAINT runtime_credentials_deleted_by_check CHECK (((btrim(deleted_by) <> ''::text) AND (octet_length(deleted_by) <= 256))),
-    CONSTRAINT runtime_credentials_deletion_marker CHECK (((deleted_by IS NULL) = (deleted_at IS NULL))),
-    CONSTRAINT runtime_credentials_encryption_schema_version_check CHECK ((encryption_schema_version = 'contractor.runtime-credentials/v1'::text)),
-    CONSTRAINT runtime_credentials_idempotency_key_digest_check CHECK ((idempotency_key_digest ~ '^sha256:[0-9a-f]{64}$'::text)),
-    CONSTRAINT runtime_credentials_key_id_check CHECK ((key_id ~ '^sha256:[0-9a-f]{64}$'::text)),
-    CONSTRAINT runtime_credentials_nonce_check CHECK ((octet_length(nonce) = 12)),
-    CONSTRAINT runtime_credentials_request_mac_check CHECK ((octet_length(request_mac) = 32))
-);
-
-ALTER TABLE runtime_credentials
-    ADD CONSTRAINT runtime_credentials_credential_id_credential_kind_key UNIQUE (credential_id, credential_kind);
-
-ALTER TABLE runtime_credentials
-    ADD CONSTRAINT runtime_credentials_idempotency_key_digest_key UNIQUE (idempotency_key_digest);
-
-ALTER TABLE runtime_credentials
-    ADD CONSTRAINT runtime_credentials_pkey PRIMARY KEY (credential_id);
-
-CREATE INDEX runtime_credentials_created_idx ON runtime_credentials USING btree (created_at, credential_id);
-
-CREATE TRIGGER runtime_credentials_protect_mutation BEFORE DELETE OR UPDATE ON runtime_credentials FOR EACH ROW EXECUTE FUNCTION contractor_protect_runtime_credential_immutable();
-
-
--- Runtime configuration, Runtime Agents and model gateway recovery
-
-CREATE TABLE gateway_allocation_routes (
-    allocation_id text NOT NULL,
-    model text NOT NULL,
-    run_id text NOT NULL,
-    route_key text NOT NULL
-);
-
-ALTER TABLE gateway_allocation_routes
-    ADD CONSTRAINT gateway_allocation_routes_pkey PRIMARY KEY (allocation_id, model);
-
-CREATE INDEX gateway_allocation_routes_run_idx ON gateway_allocation_routes USING btree (run_id);
-
-CREATE TABLE gateway_recovery_failures (
-    route_key text NOT NULL,
-    request_id text NOT NULL,
-    run_id text NOT NULL
-);
-
-ALTER TABLE gateway_recovery_failures
-    ADD CONSTRAINT gateway_recovery_failures_pkey PRIMARY KEY (route_key, request_id);
-
-CREATE INDEX gateway_recovery_failures_run_idx ON gateway_recovery_failures USING btree (run_id);
-
-CREATE TABLE gateway_recovery_routes (
-    route_key text NOT NULL,
-    owner_id text NOT NULL,
-    blocked boolean DEFAULT false NOT NULL,
-    failure_code text DEFAULT ''::text NOT NULL,
-    failure_count bigint DEFAULT 0 NOT NULL,
-    blocked_at timestamp with time zone,
-    next_probe_at timestamp with time zone,
-    automatic_until timestamp with time zone,
-    probe_id text,
-    probe_run_id text,
-    probe_until timestamp with time zone
-);
-
-ALTER TABLE gateway_recovery_routes
-    ADD CONSTRAINT gateway_recovery_routes_pkey PRIMARY KEY (route_key);
-
-CREATE TABLE gateway_recovery_waits (
-    participant_id text NOT NULL,
-    model text NOT NULL,
-    run_id text NOT NULL,
-    route_key text NOT NULL
-);
-
-ALTER TABLE gateway_recovery_waits
-    ADD CONSTRAINT gateway_recovery_waits_pkey PRIMARY KEY (participant_id, model);
-
-CREATE INDEX gateway_recovery_waits_route_idx ON gateway_recovery_waits USING btree (route_key);
-
-CREATE INDEX gateway_recovery_waits_run_idx ON gateway_recovery_waits USING btree (run_id);
-
-CREATE TABLE gateway_run_routes (
-    run_id text NOT NULL,
-    route_key text NOT NULL
-);
-
-ALTER TABLE gateway_run_routes
-    ADD CONSTRAINT gateway_run_routes_pkey PRIMARY KEY (run_id, route_key);
-
-CREATE TABLE runtime_agent_principals (
-    runtime_agent_id text NOT NULL,
-    labels text[] NOT NULL,
-    label_revision numeric(20,0) NOT NULL,
-    created_by text NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    updated_by text NOT NULL,
-    updated_at timestamp with time zone NOT NULL,
-    CONSTRAINT runtime_agent_principals_created_by_check CHECK (((btrim(created_by) <> ''::text) AND (length(created_by) <= 256))),
-    CONSTRAINT runtime_agent_principals_label_revision_check CHECK (((label_revision >= (1)::numeric) AND (label_revision <= '18446744073709551615'::numeric))),
-    CONSTRAINT runtime_agent_principals_labels_check CHECK (contractor_valid_runtime_agent_labels(labels)),
-    CONSTRAINT runtime_agent_principals_runtime_agent_id_check CHECK ((runtime_agent_id ~ '^[0-9a-f]{64}$'::text)),
-    CONSTRAINT runtime_agent_principals_updated_by_check CHECK (((btrim(updated_by) <> ''::text) AND (length(updated_by) <= 256)))
-);
-
-ALTER TABLE runtime_agent_principals
-    ADD CONSTRAINT runtime_agent_principals_pkey PRIMARY KEY (runtime_agent_id);
-
-CREATE INDEX runtime_agent_principals_labels_idx ON runtime_agent_principals USING gin (labels);
-
-CREATE INDEX runtime_agent_principals_updated_idx ON runtime_agent_principals USING btree (updated_at, runtime_agent_id);
-
-CREATE TRIGGER runtime_agent_principals_protect_mutation BEFORE UPDATE ON runtime_agent_principals FOR EACH ROW EXECUTE FUNCTION contractor_protect_runtime_agent_principal();
-
-CREATE TABLE runtime_config_versions (
-    name text NOT NULL,
-    version text NOT NULL,
-    digest text NOT NULL,
-    canonical_document text NOT NULL,
-    built_in boolean DEFAULT false NOT NULL,
-    actor_id text NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    idempotency_key_digest text,
-    request_digest text,
-    CONSTRAINT runtime_config_versions_actor_id_check CHECK (((btrim(actor_id) <> ''::text) AND (length(actor_id) <= 256))),
-    CONSTRAINT runtime_config_versions_canonical_document_check CHECK (((octet_length(canonical_document) <= 131072) AND (jsonb_typeof((canonical_document)::jsonb) = 'object'::text))),
-    CONSTRAINT runtime_config_versions_check CHECK ((((name = 'contractor-empty'::text) AND (version = '1'::text) AND built_in AND (digest = 'sha256:80a1754c01f8443c29fdc8f650a2254b2461694819918b204a55a7ad3425dc5f'::text) AND (canonical_document = '{"apiVersion":"contractor/v1alpha1","kind":"RuntimeConfig","metadata":{"name":"contractor-empty","version":"1"},"spec":{}}'::text)) OR ((NOT built_in) AND (NOT ((name = 'contractor-empty'::text) AND (version = '1'::text)))))),
-    CONSTRAINT runtime_config_versions_digest_check CHECK ((digest ~ '^sha256:[0-9a-f]{64}$'::text)),
-    CONSTRAINT runtime_config_versions_idempotency_key_digest_check CHECK ((idempotency_key_digest ~ '^sha256:[0-9a-f]{64}$'::text)),
-    CONSTRAINT runtime_config_versions_name_check CHECK (((name ~ '^[a-z][a-z0-9_-]*$'::text) AND (length(name) <= 63))),
-    CONSTRAINT runtime_config_versions_publication_receipt CHECK (((idempotency_key_digest IS NULL) = (request_digest IS NULL))),
-    CONSTRAINT runtime_config_versions_request_digest_check CHECK ((request_digest ~ '^sha256:[0-9a-f]{64}$'::text)),
-    CONSTRAINT runtime_config_versions_version_check CHECK (((version ~ '^[A-Za-z0-9][A-Za-z0-9._+-]*$'::text) AND (length(version) <= 128)))
-);
-
-ALTER TABLE runtime_config_versions
-    ADD CONSTRAINT runtime_config_versions_idempotency_key_digest_key UNIQUE (idempotency_key_digest);
-
-ALTER TABLE runtime_config_versions
-    ADD CONSTRAINT runtime_config_versions_name_version_digest_key UNIQUE (name, version, digest);
-
-ALTER TABLE runtime_config_versions
-    ADD CONSTRAINT runtime_config_versions_pkey PRIMARY KEY (name, version);
-
-CREATE INDEX runtime_config_versions_created_at_idx ON runtime_config_versions USING btree (created_at, name, version);
-
-CREATE TRIGGER runtime_config_versions_protect_immutable BEFORE DELETE OR UPDATE ON runtime_config_versions FOR EACH ROW EXECUTE FUNCTION contractor_protect_runtime_config_immutable();
-
-CREATE TABLE runtime_label_bindings (
-    label text NOT NULL,
-    config_name text NOT NULL,
-    config_version text NOT NULL,
-    config_digest text NOT NULL,
-    revision numeric(20,0) NOT NULL,
-    created_by text NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    updated_by text NOT NULL,
-    updated_at timestamp with time zone NOT NULL,
-    CONSTRAINT runtime_label_bindings_created_by_check CHECK (((btrim(created_by) <> ''::text) AND (length(created_by) <= 256))),
-    CONSTRAINT runtime_label_bindings_label_check CHECK (((label ~ '^[a-z][a-z0-9_-]*$'::text) AND (length(label) <= 63))),
-    CONSTRAINT runtime_label_bindings_revision_check CHECK (((revision >= (1)::numeric) AND (revision <= '18446744073709551615'::numeric))),
-    CONSTRAINT runtime_label_bindings_updated_by_check CHECK (((btrim(updated_by) <> ''::text) AND (length(updated_by) <= 256)))
-);
-
-ALTER TABLE runtime_label_bindings
-    ADD CONSTRAINT runtime_label_bindings_pkey PRIMARY KEY (label);
-
-CREATE INDEX runtime_label_bindings_config_idx ON runtime_label_bindings USING btree (config_name, config_version, config_digest, label);
-
-CREATE TRIGGER runtime_label_bindings_protect_mutation BEFORE DELETE OR UPDATE ON runtime_label_bindings FOR EACH ROW EXECUTE FUNCTION contractor_protect_runtime_label_binding();
-
-CREATE TABLE runtime_management_operations (
-    idempotency_key_digest text NOT NULL,
-    request_digest text NOT NULL,
-    operation_kind text NOT NULL,
-    resource_id text NOT NULL,
-    result jsonb NOT NULL,
-    actor_id text NOT NULL,
-    performed_at timestamp with time zone NOT NULL,
-    CONSTRAINT runtime_management_operations_actor_id_check CHECK (((btrim(actor_id) <> ''::text) AND (length(actor_id) <= 256))),
-    CONSTRAINT runtime_management_operations_idempotency_key_digest_check CHECK ((idempotency_key_digest ~ '^sha256:[0-9a-f]{64}$'::text)),
-    CONSTRAINT runtime_management_operations_operation_kind_check CHECK ((operation_kind ~ '^[a-z][a-z0-9.-]{0,63}$'::text)),
-    CONSTRAINT runtime_management_operations_request_digest_check CHECK ((request_digest ~ '^sha256:[0-9a-f]{64}$'::text)),
-    CONSTRAINT runtime_management_operations_resource_id_check CHECK ((resource_id ~ '^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$'::text)),
-    CONSTRAINT runtime_management_operations_result_check CHECK (((jsonb_typeof(result) = 'object'::text) AND (octet_length((result)::text) <= 16384)))
-);
-
-ALTER TABLE runtime_management_operations
-    ADD CONSTRAINT runtime_management_operations_pkey PRIMARY KEY (idempotency_key_digest);
-
-CREATE INDEX runtime_management_operations_performed_at_idx ON runtime_management_operations USING btree (performed_at, idempotency_key_digest);
-
-CREATE TRIGGER runtime_management_operations_protect_immutable BEFORE DELETE OR UPDATE ON runtime_management_operations FOR EACH ROW EXECUTE FUNCTION contractor_protect_runtime_config_immutable();
-
-
--- Audits: rounds, items, Audit-managed Runs and coverage
+-- Table: audit_artifact_links
 
 CREATE TABLE audit_artifact_links (
     audit_id text NOT NULL,
@@ -2950,6 +3450,7 @@ CREATE TABLE audit_artifact_links (
     source_provenance jsonb NOT NULL,
     display_ref text DEFAULT ''::text NOT NULL,
     created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    results_descriptor_bytes bigint GENERATED ALWAYS AS (contractor_round_results_descriptor_bytes(logical_key, artifact_ref, artifact_digest, media_type, size_bytes, source_provenance, display_ref)) STORED,
     CONSTRAINT audit_artifact_links_artifact_digest_check CHECK ((artifact_digest ~ '^sha256:[0-9a-f]{64}$'::text)),
     CONSTRAINT audit_artifact_links_artifact_ref_check CHECK (((jsonb_typeof(artifact_ref) = 'object'::text) AND (octet_length((artifact_ref)::text) <= 4096))),
     CONSTRAINT audit_artifact_links_display_ref_check CHECK ((octet_length(display_ref) <= 1024)),
@@ -2959,10 +3460,7 @@ CREATE TABLE audit_artifact_links (
     CONSTRAINT audit_artifact_links_source_provenance_check CHECK (((jsonb_typeof(source_provenance) = 'object'::text) AND (octet_length((source_provenance)::text) <= 1048576)))
 );
 
-ALTER TABLE audit_artifact_links
-    ADD CONSTRAINT audit_artifact_links_pkey PRIMARY KEY (audit_id, logical_key);
-
-CREATE TRIGGER eval_audit_outputs_projection AFTER INSERT OR DELETE OR UPDATE ON audit_artifact_links FOR EACH ROW EXECUTE FUNCTION contractor_eval_audit_child_changed();
+-- Table: audit_controller_claims
 
 CREATE TABLE audit_controller_claims (
     audit_id text NOT NULL,
@@ -2975,10 +3473,7 @@ CREATE TABLE audit_controller_claims (
     CONSTRAINT audit_controller_claims_holder_id_check CHECK (((holder_id IS NULL) OR ((btrim(holder_id) <> ''::text) AND (octet_length(holder_id) <= 256))))
 );
 
-ALTER TABLE audit_controller_claims
-    ADD CONSTRAINT audit_controller_claims_pkey PRIMARY KEY (audit_id);
-
-CREATE INDEX audit_controller_claim_expiry_idx ON audit_controller_claims USING btree (expires_at, audit_id);
+-- Table: audit_events
 
 CREATE TABLE audit_events (
     audit_id text NOT NULL,
@@ -2995,12 +3490,7 @@ CREATE TABLE audit_events (
     CONSTRAINT audit_events_summary_check CHECK (((jsonb_typeof(summary) = 'object'::text) AND (octet_length((summary)::text) <= 65536)))
 );
 
-ALTER TABLE audit_events
-    ADD CONSTRAINT audit_events_pkey PRIMARY KEY (audit_id, sequence_number);
-
-CREATE INDEX audit_events_finding_proposal_rejected_idx ON audit_events USING btree (audit_id, entity_id) WHERE (kind = 'finding.proposal_rejected'::text);
-
-CREATE TRIGGER audit_events_protect_immutable BEFORE UPDATE ON audit_events FOR EACH ROW EXECUTE FUNCTION contractor_protect_audit_event();
+-- Table: audit_execution_items
 
 CREATE TABLE audit_execution_items (
     execution_item_id text NOT NULL,
@@ -3032,22 +3522,7 @@ CREATE TABLE audit_execution_items (
     CONSTRAINT audit_execution_items_task_ref_check CHECK (((jsonb_typeof(task_ref) = 'object'::text) AND (octet_length((task_ref)::text) <= 4096)))
 );
 
-ALTER TABLE audit_execution_items
-    ADD CONSTRAINT audit_execution_items_execution_member UNIQUE (execution_id, item_id);
-
-ALTER TABLE audit_execution_items
-    ADD CONSTRAINT audit_execution_items_execution_ordinal UNIQUE (execution_id, batch_ordinal);
-
-ALTER TABLE audit_execution_items
-    ADD CONSTRAINT audit_execution_items_item_attempt UNIQUE (item_id, item_attempt);
-
-ALTER TABLE audit_execution_items
-    ADD CONSTRAINT audit_execution_items_item_identity UNIQUE (execution_item_id, item_id);
-
-ALTER TABLE audit_execution_items
-    ADD CONSTRAINT audit_execution_items_pkey PRIMARY KEY (execution_item_id);
-
-CREATE INDEX audit_execution_items_audit_state_idx ON audit_execution_items USING btree (audit_id, state, execution_id, batch_ordinal);
+-- Table: audit_executions
 
 CREATE TABLE audit_executions (
     execution_id text NOT NULL,
@@ -3080,6 +3555,7 @@ CREATE TABLE audit_executions (
     collected_at timestamp with time zone,
     preparation_snapshot jsonb,
     preparation_outputs jsonb DEFAULT '[]'::jsonb NOT NULL,
+    lane_class text NOT NULL,
     CONSTRAINT audit_executions_collection_disposition_check CHECK ((collection_disposition = ANY (ARRAY['accepted-result'::text, 'missing-output'::text, 'invalid-result'::text, 'execution-failed'::text, 'execution-cancelled'::text, 'collection-contract-invalid'::text]))),
     CONSTRAINT audit_executions_collection_error_code_check CHECK (((btrim(collection_error_code) <> ''::text) AND (octet_length(collection_error_code) <= 128))),
     CONSTRAINT audit_executions_collection_observation_shape CHECK (((collection_receipt_id IS NULL) OR ((run_id IS NOT NULL) AND (terminal_outcome IS NOT NULL) AND (terminal_run_generation IS NOT NULL) AND (btrim(terminal_run_generation) <> ''::text) AND (terminal_run_sequence >= 0)) OR ((run_id IS NULL) AND (terminal_outcome = 'submission-failed'::text) AND (terminal_run_generation IS NULL) AND (terminal_run_sequence IS NULL)))),
@@ -3091,6 +3567,7 @@ CREATE TABLE audit_executions (
     CONSTRAINT audit_executions_collection_source_output_ref_check CHECK (((jsonb_typeof(collection_source_output_ref) = 'object'::text) AND (octet_length((collection_source_output_ref)::text) <= 4096))),
     CONSTRAINT audit_executions_collection_source_shape CHECK ((((collection_source_output_ref IS NULL) = (collection_source_output_digest IS NULL)) AND ((collection_receipt_id IS NULL) OR ((collection_disposition = ANY (ARRAY['accepted-result'::text, 'invalid-result'::text])) = (collection_source_output_ref IS NOT NULL))))),
     CONSTRAINT audit_executions_execution_id_check CHECK ((execution_id ~ '^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$'::text)),
+    CONSTRAINT audit_executions_lane_class_check CHECK ((lane_class = ANY (ARRAY['model'::text, 'tool'::text]))),
     CONSTRAINT audit_executions_manifest_digest_check CHECK ((manifest_digest ~ '^sha256:[0-9a-f]{64}$'::text)),
     CONSTRAINT audit_executions_manifest_ref_check CHECK (((jsonb_typeof(manifest_ref) = 'object'::text) AND (octet_length((manifest_ref)::text) <= 4096))),
     CONSTRAINT audit_executions_preparation_outputs_shape CHECK (((jsonb_typeof(preparation_outputs) = 'array'::text) AND (jsonb_array_length(preparation_outputs) <= 128) AND (octet_length((preparation_outputs)::text) <= 1048576) AND
@@ -3115,67 +3592,76 @@ END)),
     CONSTRAINT audit_executions_workflow_role_shape CHECK (((btrim(workflow_role) <> ''::text) AND (octet_length(workflow_role) <= 128)))
 );
 
-ALTER TABLE audit_executions
-    ADD CONSTRAINT audit_executions_audit_identity UNIQUE (execution_id, audit_id);
+-- Table: audit_finding_assessments
 
-ALTER TABLE audit_executions
-    ADD CONSTRAINT audit_executions_collection_receipt_id_key UNIQUE (collection_receipt_id);
-
-ALTER TABLE audit_executions
-    ADD CONSTRAINT audit_executions_identity UNIQUE (execution_id, audit_id, round_id);
-
-ALTER TABLE audit_executions
-    ADD CONSTRAINT audit_executions_pkey PRIMARY KEY (execution_id);
-
-ALTER TABLE audit_executions
-    ADD CONSTRAINT audit_executions_submission_identity UNIQUE (execution_id, submission_key);
-
-ALTER TABLE audit_executions
-    ADD CONSTRAINT audit_executions_submission_key UNIQUE (submission_key);
-
-CREATE INDEX audit_executions_audit_run_cleanup_idx ON audit_executions USING btree (audit_id, run_deleted_at, created_at, execution_id) WHERE (run_id IS NOT NULL);
-
-CREATE UNIQUE INDEX audit_executions_prepare_accepted_unique ON audit_executions USING btree (audit_id, workflow_role) WHERE ((role = 'prepare'::text) AND (collection_disposition = 'accepted-result'::text));
-
-CREATE UNIQUE INDEX audit_executions_prepare_attempt_unique ON audit_executions USING btree (audit_id, workflow_role, role_attempt) WHERE (role = 'prepare'::text);
-
-CREATE INDEX audit_executions_reconcile_idx ON audit_executions USING btree (audit_id, state, created_at, execution_id) WHERE (state = ANY (ARRAY['intent'::text, 'submitted'::text, 'collecting'::text]));
-
-CREATE UNIQUE INDEX audit_executions_role_attempt_unique ON audit_executions USING btree (audit_id, COALESCE(round_id, ''::text), role, workflow_role, COALESCE(role_attempt, 0)) WHERE (role = ANY (ARRAY['discovery'::text, 'assessment'::text]));
-
-CREATE UNIQUE INDEX audit_executions_run_unique ON audit_executions USING btree (run_id) WHERE (run_id IS NOT NULL);
-
-CREATE TRIGGER audit_executions_project_admission BEFORE INSERT ON audit_executions FOR EACH ROW EXECUTE FUNCTION contractor_guard_audit_child_admission();
-
-CREATE TRIGGER audit_executions_protect_collection BEFORE UPDATE ON audit_executions FOR EACH ROW EXECUTE FUNCTION contractor_protect_audit_execution_collection();
-
-CREATE CONSTRAINT TRIGGER audit_executions_require_matching_run AFTER INSERT OR UPDATE ON audit_executions DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION contractor_require_matching_audit_run();
-
-CREATE TRIGGER audit_executions_validate_preparation BEFORE INSERT OR UPDATE ON audit_executions FOR EACH ROW EXECUTE FUNCTION contractor_validate_audit_preparation_execution();
-
-CREATE TRIGGER eval_audit_children_projection AFTER INSERT OR DELETE OR UPDATE ON audit_executions FOR EACH ROW EXECUTE FUNCTION contractor_eval_audit_child_changed();
-
-CREATE TABLE audit_idempotency (
-    owner_id text NOT NULL,
-    operation text NOT NULL,
-    idempotency_key text NOT NULL,
-    request_digest text NOT NULL,
+CREATE TABLE audit_finding_assessments (
+    assessment_id text NOT NULL,
+    finding_id text NOT NULL,
     audit_id text NOT NULL,
-    resource_id text NOT NULL,
-    response_snapshot jsonb NOT NULL,
-    created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
-    CONSTRAINT audit_idempotency_idempotency_key_check CHECK ((idempotency_key ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'::text)),
-    CONSTRAINT audit_idempotency_operation_check CHECK ((operation ~ '^[a-z][a-z0-9_.-]{0,127}$'::text)),
-    CONSTRAINT audit_idempotency_owner_id_check CHECK (((btrim(owner_id) <> ''::text) AND (octet_length(owner_id) <= 256))),
-    CONSTRAINT audit_idempotency_request_digest_check CHECK ((request_digest ~ '^sha256:[0-9a-f]{64}$'::text)),
-    CONSTRAINT audit_idempotency_resource_id_check CHECK (((btrim(resource_id) <> ''::text) AND (octet_length(resource_id) <= 256))),
-    CONSTRAINT audit_idempotency_response_snapshot_check CHECK (((jsonb_typeof(response_snapshot) = 'object'::text) AND (octet_length((response_snapshot)::text) <= 1048576)))
+    receipt_id text NOT NULL,
+    item_id text,
+    execution_item_id text,
+    collection_receipt_id text,
+    semantic_assessment text NOT NULL,
+    result_ref jsonb NOT NULL,
+    result_digest text NOT NULL,
+    direct_verification boolean DEFAULT false NOT NULL,
+    contract_ref jsonb,
+    contract_digest text,
+    accepted_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    CONSTRAINT audit_finding_assessments_assessment_id_check CHECK ((assessment_id ~ '^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$'::text)),
+    CONSTRAINT audit_finding_assessments_contract_shape CHECK ((((contract_ref IS NULL) = (contract_digest IS NULL)) AND ((NOT direct_verification) OR (contract_ref IS NOT NULL)) AND ((contract_ref IS NULL) OR ((jsonb_typeof(contract_ref) = 'object'::text) AND (octet_length((contract_ref)::text) <= 4096) AND (contract_digest ~ '^sha256:[0-9a-f]{64}$'::text))))),
+    CONSTRAINT audit_finding_assessments_item_shape CHECK ((((item_id IS NULL) = (execution_item_id IS NULL)) AND (direct_verification OR (item_id IS NOT NULL)))),
+    CONSTRAINT audit_finding_assessments_result_digest_check CHECK ((result_digest ~ '^sha256:[0-9a-f]{64}$'::text)),
+    CONSTRAINT audit_finding_assessments_result_ref_check CHECK (((jsonb_typeof(result_ref) = 'object'::text) AND (octet_length((result_ref)::text) <= 4096))),
+    CONSTRAINT audit_finding_assessments_semantic_assessment_check CHECK ((semantic_assessment = ANY (ARRAY['supported'::text, 'refuted'::text, 'inconclusive'::text, 'blocked'::text, 'satisfied'::text, 'violated'::text, 'not-tested'::text])))
 );
 
-ALTER TABLE audit_idempotency
-    ADD CONSTRAINT audit_idempotency_pkey PRIMARY KEY (owner_id, operation, idempotency_key);
+-- Table: audit_finding_contributions
 
-CREATE INDEX audit_idempotency_audit_idx ON audit_idempotency USING btree (audit_id);
+CREATE TABLE audit_finding_contributions (
+    finding_id text NOT NULL,
+    audit_id text NOT NULL,
+    receipt_id text NOT NULL,
+    relation text NOT NULL,
+    proposal_ref jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    CONSTRAINT audit_finding_contributions_proposal_ref_check CHECK (((jsonb_typeof(proposal_ref) = 'object'::text) AND (octet_length((proposal_ref)::text) <= 4096))),
+    CONSTRAINT audit_finding_contributions_relation_check CHECK ((relation = ANY (ARRAY['first'::text, 'contributing'::text])))
+);
+
+-- Table: audit_findings
+
+CREATE TABLE audit_findings (
+    finding_id text NOT NULL,
+    audit_id text NOT NULL,
+    first_receipt_id text NOT NULL,
+    first_proposal_ref jsonb NOT NULL,
+    state text DEFAULT 'proposed'::text NOT NULL,
+    rejection_reason text,
+    duplicate_target_id text,
+    current_assessment_id text,
+    current_decision_id text,
+    revision bigint DEFAULT 1 NOT NULL,
+    created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    updated_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    correlation_project_id text NOT NULL,
+    correlation_algorithm text DEFAULT ''::text NOT NULL,
+    correlation_value text DEFAULT ''::text NOT NULL,
+    correlation_group_key text DEFAULT ''::text NOT NULL,
+    correlation_reason text DEFAULT 'not_recorded'::text NOT NULL,
+    CONSTRAINT audit_findings_correlation_shape CHECK ((((correlation_algorithm = ''::text) AND (correlation_value = ''::text) AND (correlation_group_key = ''::text) AND (correlation_reason = ANY (ARRAY['not_recorded'::text, 'no_qualified_key'::text, 'primary_key_ambiguous'::text]))) OR ((correlation_algorithm = ANY (ARRAY['contractor/producer-issue/v1'::text, 'contractor/snapshot-issue-anchor/v1'::text])) AND (correlation_value ~ '^[0-9a-f]{64}$'::text) AND (correlation_reason = ''::text) AND (correlation_group_key = contractor_finding_group_key(correlation_project_id, correlation_algorithm, correlation_value))))),
+    CONSTRAINT audit_findings_duplicate_shape CHECK (((state = 'duplicate'::text) = (duplicate_target_id IS NOT NULL))),
+    CONSTRAINT audit_findings_effective_decision_shape CHECK (((state = ANY (ARRAY['confirmed'::text, 'rejected'::text])) = (current_decision_id IS NOT NULL))),
+    CONSTRAINT audit_findings_finding_id_check CHECK ((finding_id ~ '^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$'::text)),
+    CONSTRAINT audit_findings_first_proposal_ref_check CHECK (((jsonb_typeof(first_proposal_ref) = 'object'::text) AND (octet_length((first_proposal_ref)::text) <= 4096))),
+    CONSTRAINT audit_findings_rejection_reason_check CHECK (((rejection_reason IS NULL) OR (rejection_reason = ANY (ARRAY['false-positive'::text, 'policy'::text, 'out-of-scope'::text])))),
+    CONSTRAINT audit_findings_rejection_shape CHECK (((state = 'rejected'::text) = (rejection_reason IS NOT NULL))),
+    CONSTRAINT audit_findings_revision_check CHECK ((revision > 0)),
+    CONSTRAINT audit_findings_state_check CHECK ((state = ANY (ARRAY['proposed'::text, 'confirmed'::text, 'rejected'::text, 'duplicate'::text, 'needs-evidence'::text])))
+);
+
+-- Table: audit_items
 
 CREATE TABLE audit_items (
     item_id text NOT NULL,
@@ -3210,6 +3696,15 @@ CREATE TABLE audit_items (
     proposal_check_ordinal integer,
     proposal_ref jsonb,
     proposal_digest text,
+    results_projection_bytes bigint GENERATED ALWAYS AS ((4096 + (6 * ((((((octet_length(item_key) + octet_length(kind)) + octet_length(subject_key)) + octet_length(coverage_rationale)) + octet_length((coverage_requested)::text)) + octet_length((coverage_completed)::text)) + octet_length((coverage_gaps)::text))))) STORED,
+    retained_dependencies json,
+    retained_dependency_hold_count integer GENERATED ALWAYS AS (jsonb_array_length(contractor_audit_dependency_holds((retained_dependencies ->> 'project_id'::text), (retained_dependencies)::jsonb))) STORED,
+    prepared_page_ordinal integer,
+    prepared_execution json,
+    prepared_related_count integer,
+    prepared_projection_bytes integer GENERATED ALWAYS AS (octet_length((prepared_execution)::text)) STORED,
+    CONSTRAINT audit_item_prepared_page_shape CHECK ((((prepared_execution IS NULL) = (prepared_page_ordinal IS NULL)) AND ((prepared_page_ordinal IS NULL) OR ((prepared_page_ordinal >= 0) AND (prepared_page_ordinal <= 4095))) AND ((prepared_related_count IS NULL) = (prepared_execution IS NULL)) AND COALESCE(((prepared_related_count >= 0) AND (prepared_related_count <= 512)), true))),
+    CONSTRAINT audit_item_prepared_plan_shape CHECK (((prepared_execution IS NULL) OR COALESCE(((json_typeof(prepared_execution) = 'object'::text) AND (json_typeof((prepared_execution -> 'accepted_plan'::text)) = 'object'::text) AND (octet_length(((prepared_execution -> 'accepted_plan'::text))::text) <= 65536) AND (((prepared_execution -> 'accepted_plan'::text) ->> 'schema'::text) = 'contractor.audit.accepted-plan.v1'::text) AND (((prepared_execution -> 'accepted_plan'::text) ->> 'audit_id'::text) = audit_id) AND (((prepared_execution -> 'accepted_plan'::text) ->> 'item_key'::text) = item_key)), false))),
     CONSTRAINT audit_items_accepted_result_digest_check CHECK (((accepted_result_digest IS NULL) OR (accepted_result_digest ~ '^sha256:[0-9a-f]{64}$'::text))),
     CONSTRAINT audit_items_accepted_result_ref_check CHECK (((accepted_result_ref IS NULL) OR ((jsonb_typeof(accepted_result_ref) = 'object'::text) AND (octet_length((accepted_result_ref)::text) <= 4096)))),
     CONSTRAINT audit_items_approval_kind_check CHECK ((approval_kind = ANY (ARRAY['none'::text, 'active-check-approval'::text, 'requirement-applicability'::text]))),
@@ -3232,6 +3727,7 @@ CREATE TABLE audit_items (
     CONSTRAINT audit_items_proposal_ref_check CHECK (((jsonb_typeof(proposal_ref) = 'object'::text) AND (octet_length((proposal_ref)::text) <= 4096))),
     CONSTRAINT audit_items_proposal_shape CHECK ((((proposal_receipt_id IS NULL) = (proposal_check_ordinal IS NULL)) AND ((proposal_receipt_id IS NULL) = (proposal_ref IS NULL)) AND ((proposal_receipt_id IS NULL) = (proposal_digest IS NULL)))),
     CONSTRAINT audit_items_result_shape CHECK ((((accepted_result_ref IS NULL) = (accepted_result_digest IS NULL)) AND ((accepted_result_ref IS NULL) OR (final_disposition = 'accepted-result'::text)))),
+    CONSTRAINT audit_items_retained_dependencies_check CHECK (((retained_dependencies IS NULL) OR ((json_typeof(retained_dependencies) = 'object'::text) AND (octet_length((retained_dependencies)::text) <= 262144) AND ((retained_dependencies ->> 'schema'::text) = 'contractor.audit.retained-dependencies.v1'::text) AND ((retained_dependencies ->> 'audit_id'::text) = audit_id) AND ((retained_dependencies ->> 'item_key'::text) = item_key) AND (json_typeof((retained_dependencies -> 'dependencies'::text)) = 'array'::text) AND ((json_array_length((retained_dependencies -> 'dependencies'::text)) >= 1) AND (json_array_length((retained_dependencies -> 'dependencies'::text)) <= 32))))),
     CONSTRAINT audit_items_settlement_shape CHECK (((state = 'settled'::text) = (final_disposition IS NOT NULL))),
     CONSTRAINT audit_items_state_check CHECK ((state = ANY (ARRAY['pending'::text, 'awaiting_review'::text, 'ready'::text, 'submitted'::text, 'collecting'::text, 'settled'::text]))),
     CONSTRAINT audit_items_subject_key_check CHECK (((btrim(subject_key) <> ''::text) AND (octet_length(subject_key) <= 512))),
@@ -3240,249 +3736,7 @@ CREATE TABLE audit_items (
     CONSTRAINT audit_items_workflow_role_check CHECK (((btrim(workflow_role) <> ''::text) AND (octet_length(workflow_role) <= 128)))
 );
 
-ALTER TABLE audit_items
-    ADD CONSTRAINT audit_items_audit_identity UNIQUE (item_id, audit_id, round_id);
-
-ALTER TABLE audit_items
-    ADD CONSTRAINT audit_items_pkey PRIMARY KEY (item_id);
-
-ALTER TABLE audit_items
-    ADD CONSTRAINT audit_items_proposal_check_once UNIQUE (audit_id, proposal_receipt_id, proposal_check_ordinal);
-
-ALTER TABLE audit_items
-    ADD CONSTRAINT audit_items_round_key UNIQUE (round_id, item_key);
-
-ALTER TABLE audit_items
-    ADD CONSTRAINT audit_items_round_ordinal UNIQUE (round_id, ordinal);
-
-CREATE INDEX audit_items_dispatch_idx ON audit_items USING btree (audit_id, state, round_id, ordinal, item_id) WHERE (state <> 'settled'::text);
-
-CREATE INDEX audit_items_pending_approval_idx ON audit_items USING btree (audit_id, state, approval_kind, item_id) WHERE (state = 'awaiting_review'::text);
-
-CREATE TRIGGER audit_items_protect_source BEFORE UPDATE ON audit_items FOR EACH ROW EXECUTE FUNCTION contractor_protect_audit_item_source();
-
-CREATE TABLE audit_rounds (
-    round_id text NOT NULL,
-    audit_id text NOT NULL,
-    ordinal integer NOT NULL,
-    manifest_ref jsonb NOT NULL,
-    manifest_digest text NOT NULL,
-    state text NOT NULL,
-    expected_item_count integer NOT NULL,
-    revision bigint DEFAULT 1 NOT NULL,
-    created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
-    updated_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
-    acceptance_digest text,
-    CONSTRAINT audit_rounds_acceptance_digest_check CHECK (((acceptance_digest IS NULL) OR (acceptance_digest ~ '^sha256:[0-9a-f]{64}$'::text))),
-    CONSTRAINT audit_rounds_expected_item_count_check CHECK (((expected_item_count >= 0) AND (expected_item_count <= 10000))),
-    CONSTRAINT audit_rounds_manifest_digest_check CHECK ((manifest_digest ~ '^sha256:[0-9a-f]{64}$'::text)),
-    CONSTRAINT audit_rounds_manifest_ref_check CHECK (((jsonb_typeof(manifest_ref) = 'object'::text) AND (octet_length((manifest_ref)::text) <= 4096))),
-    CONSTRAINT audit_rounds_ordinal_check CHECK ((ordinal > 0)),
-    CONSTRAINT audit_rounds_revision_check CHECK ((revision > 0)),
-    CONSTRAINT audit_rounds_round_id_check CHECK ((round_id ~ '^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$'::text)),
-    CONSTRAINT audit_rounds_state_check CHECK ((state = ANY (ARRAY['proposed'::text, 'accepted'::text, 'executing'::text, 'assessing'::text, 'closed'::text])))
-);
-
-ALTER TABLE audit_rounds
-    ADD CONSTRAINT audit_rounds_audit_id_ordinal_key UNIQUE (audit_id, ordinal);
-
-ALTER TABLE audit_rounds
-    ADD CONSTRAINT audit_rounds_pkey PRIMARY KEY (round_id);
-
-ALTER TABLE audit_rounds
-    ADD CONSTRAINT audit_rounds_round_id_audit_id_key UNIQUE (round_id, audit_id);
-
-CREATE TRIGGER audit_rounds_project_admission BEFORE INSERT ON audit_rounds FOR EACH ROW EXECUTE FUNCTION contractor_guard_audit_child_admission();
-
-CREATE TABLE audits (
-    audit_id text NOT NULL,
-    owner_id text NOT NULL,
-    project_id text NOT NULL,
-    profile_name text NOT NULL,
-    profile_version text NOT NULL,
-    profile_digest text NOT NULL,
-    profile_snapshot jsonb NOT NULL,
-    input_selection jsonb NOT NULL,
-    baseline_snapshot jsonb,
-    state text DEFAULT 'draft'::text NOT NULL,
-    revision bigint DEFAULT 1 NOT NULL,
-    current_round_id text,
-    dispatch_state text DEFAULT 'open'::text NOT NULL,
-    hold_state text DEFAULT 'pending'::text NOT NULL,
-    deadline_at timestamp with time zone,
-    max_rounds integer NOT NULL,
-    batch_size integer NOT NULL,
-    max_items_per_round integer NOT NULL,
-    max_items_total integer NOT NULL,
-    max_submitted_runs integer NOT NULL,
-    max_item_run_attempts integer NOT NULL,
-    max_evidence_bytes bigint NOT NULL,
-    reserved_run_count integer DEFAULT 0 NOT NULL,
-    submitted_run_count integer DEFAULT 0 NOT NULL,
-    outstanding_run_count integer DEFAULT 0 NOT NULL,
-    retained_evidence_bytes bigint DEFAULT 0 NOT NULL,
-    next_event_sequence bigint DEFAULT 1 NOT NULL,
-    stop_reason_code text,
-    stop_reason_message text,
-    created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
-    updated_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
-    started_at timestamp with time zone,
-    finished_at timestamp with time zone,
-    deletion_requested_at timestamp with time zone,
-    paused_at timestamp with time zone,
-    phase text DEFAULT 'not-started'::text NOT NULL,
-    CONSTRAINT audits_audit_id_check CHECK ((audit_id ~ '^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$'::text)),
-    CONSTRAINT audits_baseline_shape CHECK (((state = ANY (ARRAY['draft'::text, 'deleting'::text])) OR (baseline_snapshot IS NOT NULL))),
-    CONSTRAINT audits_baseline_snapshot_check CHECK (((baseline_snapshot IS NULL) OR ((jsonb_typeof(baseline_snapshot) = 'object'::text) AND (octet_length((baseline_snapshot)::text) <= 16777216)))),
-    CONSTRAINT audits_batch_size_check CHECK (((batch_size > 0) AND (batch_size <= 64))),
-    CONSTRAINT audits_counter_bounds CHECK (((reserved_run_count <= max_submitted_runs) AND (submitted_run_count <= reserved_run_count) AND (outstanding_run_count <= reserved_run_count) AND (retained_evidence_bytes <= max_evidence_bytes))),
-    CONSTRAINT audits_deletion_intent_shape CHECK ((((deletion_requested_at IS NULL) AND (state <> 'deleting'::text)) OR ((deletion_requested_at IS NOT NULL) AND (state = ANY (ARRAY['cancelling'::text, 'deleting'::text]))))),
-    CONSTRAINT audits_dispatch_state_check CHECK ((dispatch_state = ANY (ARRAY['open'::text, 'closed'::text]))),
-    CONSTRAINT audits_hold_state_check CHECK ((hold_state = ANY (ARRAY['pending'::text, 'held'::text, 'released'::text]))),
-    CONSTRAINT audits_input_selection_check CHECK (((jsonb_typeof(input_selection) = 'object'::text) AND (octet_length((input_selection)::text) <= 8388608))),
-    CONSTRAINT audits_max_evidence_bytes_check CHECK (((max_evidence_bytes > 0) AND (max_evidence_bytes <= 1073741824))),
-    CONSTRAINT audits_max_item_run_attempts_check CHECK (((max_item_run_attempts > 0) AND (max_item_run_attempts <= 10))),
-    CONSTRAINT audits_max_items_per_round_check CHECK (((max_items_per_round > 0) AND (max_items_per_round <= 10000))),
-    CONSTRAINT audits_max_items_total_check CHECK (((max_items_total > 0) AND (max_items_total <= 100000))),
-    CONSTRAINT audits_max_rounds_check CHECK (((max_rounds > 0) AND (max_rounds <= 32))),
-    CONSTRAINT audits_max_submitted_runs_check CHECK (((max_submitted_runs > 0) AND (max_submitted_runs <= 1000000))),
-    CONSTRAINT audits_next_event_sequence_check CHECK ((next_event_sequence > 0)),
-    CONSTRAINT audits_outstanding_run_count_check CHECK ((outstanding_run_count >= 0)),
-    CONSTRAINT audits_owner_id_check CHECK (((btrim(owner_id) <> ''::text) AND (octet_length(owner_id) <= 256))),
-    CONSTRAINT audits_phase_shape CHECK (((phase = ANY (ARRAY['not-started'::text, 'preparing'::text, 'inventory'::text, 'rounds'::text])) AND ((phase <> ALL (ARRAY['preparing'::text, 'inventory'::text])) OR ((current_round_id IS NULL) AND (baseline_snapshot IS NOT NULL))))),
-    CONSTRAINT audits_profile_digest_check CHECK ((profile_digest ~ '^sha256:[0-9a-f]{64}$'::text)),
-    CONSTRAINT audits_profile_name_check CHECK (((btrim(profile_name) <> ''::text) AND (octet_length(profile_name) <= 128))),
-    CONSTRAINT audits_profile_snapshot_check CHECK (((jsonb_typeof(profile_snapshot) = 'object'::text) AND (octet_length((profile_snapshot)::text) <= 8388608))),
-    CONSTRAINT audits_profile_version_check CHECK (((btrim(profile_version) <> ''::text) AND (octet_length(profile_version) <= 128))),
-    CONSTRAINT audits_reserved_run_count_check CHECK ((reserved_run_count >= 0)),
-    CONSTRAINT audits_retained_evidence_bytes_check CHECK ((retained_evidence_bytes >= 0)),
-    CONSTRAINT audits_revision_check CHECK ((revision > 0)),
-    CONSTRAINT audits_state_check CHECK ((state = ANY (ARRAY['draft'::text, 'active'::text, 'waiting_review'::text, 'paused'::text, 'finalizing'::text, 'cancelling'::text, 'completed'::text, 'cancelled'::text, 'failed'::text, 'deleting'::text]))),
-    CONSTRAINT audits_stop_reason_code_check CHECK (((stop_reason_code IS NULL) OR ((btrim(stop_reason_code) <> ''::text) AND (octet_length(stop_reason_code) <= 128)))),
-    CONSTRAINT audits_stop_reason_message_check CHECK (((stop_reason_message IS NULL) OR (octet_length(stop_reason_message) <= 4096))),
-    CONSTRAINT audits_stop_reason_shape CHECK (((stop_reason_code IS NULL) = (stop_reason_message IS NULL))),
-    CONSTRAINT audits_submitted_run_count_check CHECK ((submitted_run_count >= 0)),
-    CONSTRAINT audits_time_shape CHECK ((((state = 'draft'::text) AND (started_at IS NULL) AND (finished_at IS NULL)) OR ((state = ANY (ARRAY['active'::text, 'waiting_review'::text, 'paused'::text, 'finalizing'::text, 'cancelling'::text])) AND (started_at IS NOT NULL) AND (finished_at IS NULL)) OR ((state = ANY (ARRAY['completed'::text, 'cancelled'::text, 'failed'::text])) AND (started_at IS NOT NULL) AND (finished_at IS NOT NULL)) OR (state = 'deleting'::text)))
-);
-
-ALTER TABLE audits
-    ADD CONSTRAINT audits_pkey PRIMARY KEY (audit_id);
-
-ALTER TABLE audits
-    ADD CONSTRAINT audits_project_owner_identity UNIQUE (audit_id, project_id, owner_id);
-
-CREATE INDEX audits_owner_created_idx ON audits USING btree (owner_id, created_at DESC, audit_id DESC);
-
-CREATE INDEX audits_project_deletion_intent_idx ON audits USING btree (project_id, deletion_requested_at, created_at, audit_id);
-
-CREATE INDEX audits_project_state_idx ON audits USING btree (project_id, state, created_at, audit_id);
-
-CREATE INDEX audits_reconcile_idx ON audits USING btree (updated_at, audit_id) WHERE (state = ANY (ARRAY['active'::text, 'waiting_review'::text, 'paused'::text, 'finalizing'::text, 'cancelling'::text, 'deleting'::text]));
-
-CREATE TRIGGER audits_eval_tombstone BEFORE DELETE ON audits FOR EACH ROW EXECUTE FUNCTION contractor_eval_retain_deleted_execution();
-
-CREATE TRIGGER audits_project_admission BEFORE INSERT ON audits FOR EACH ROW EXECUTE FUNCTION contractor_guard_audit_admission();
-
-CREATE TRIGGER audits_protect_preparation_baseline BEFORE UPDATE ON audits FOR EACH ROW EXECUTE FUNCTION contractor_protect_audit_preparation_baseline();
-
-CREATE TRIGGER eval_audits_projection AFTER DELETE OR UPDATE OF state, finished_at, dispatch_state ON audits FOR EACH ROW EXECUTE FUNCTION contractor_eval_execution_changed();
-
-
--- Findings: proposals, deduplication, assessments and reviews
-
-CREATE TABLE audit_finding_assessments (
-    assessment_id text NOT NULL,
-    finding_id text NOT NULL,
-    audit_id text NOT NULL,
-    receipt_id text NOT NULL,
-    item_id text,
-    execution_item_id text,
-    collection_receipt_id text,
-    semantic_assessment text NOT NULL,
-    result_ref jsonb NOT NULL,
-    result_digest text NOT NULL,
-    direct_verification boolean DEFAULT false NOT NULL,
-    contract_ref jsonb,
-    contract_digest text,
-    accepted_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
-    CONSTRAINT audit_finding_assessments_assessment_id_check CHECK ((assessment_id ~ '^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$'::text)),
-    CONSTRAINT audit_finding_assessments_contract_shape CHECK ((((contract_ref IS NULL) = (contract_digest IS NULL)) AND ((NOT direct_verification) OR (contract_ref IS NOT NULL)) AND ((contract_ref IS NULL) OR ((jsonb_typeof(contract_ref) = 'object'::text) AND (octet_length((contract_ref)::text) <= 4096) AND (contract_digest ~ '^sha256:[0-9a-f]{64}$'::text))))),
-    CONSTRAINT audit_finding_assessments_item_shape CHECK ((((item_id IS NULL) = (execution_item_id IS NULL)) AND (direct_verification OR (item_id IS NOT NULL)))),
-    CONSTRAINT audit_finding_assessments_result_digest_check CHECK ((result_digest ~ '^sha256:[0-9a-f]{64}$'::text)),
-    CONSTRAINT audit_finding_assessments_result_ref_check CHECK (((jsonb_typeof(result_ref) = 'object'::text) AND (octet_length((result_ref)::text) <= 4096))),
-    CONSTRAINT audit_finding_assessments_semantic_assessment_check CHECK ((semantic_assessment = ANY (ARRAY['supported'::text, 'refuted'::text, 'inconclusive'::text, 'blocked'::text, 'satisfied'::text, 'violated'::text, 'not-tested'::text])))
-);
-
-ALTER TABLE audit_finding_assessments
-    ADD CONSTRAINT audit_finding_assessments_pkey PRIMARY KEY (assessment_id);
-
-ALTER TABLE audit_finding_assessments
-    ADD CONSTRAINT audit_finding_assessments_receipt_id_execution_item_id_resu_key UNIQUE (receipt_id, execution_item_id, result_digest);
-
-CREATE INDEX audit_finding_assessments_audit_idx ON audit_finding_assessments USING btree (audit_id);
-
-CREATE INDEX audit_finding_assessments_collection_receipt_idx ON audit_finding_assessments USING btree (collection_receipt_id);
-
-CREATE INDEX audit_finding_assessments_execution_item_idx ON audit_finding_assessments USING btree (execution_item_id, item_id);
-
-CREATE TRIGGER audit_finding_assessments_protect_update BEFORE UPDATE ON audit_finding_assessments FOR EACH ROW EXECUTE FUNCTION contractor_protect_audit_finding_history();
-
-CREATE TABLE audit_finding_contributions (
-    finding_id text NOT NULL,
-    audit_id text NOT NULL,
-    receipt_id text NOT NULL,
-    relation text NOT NULL,
-    proposal_ref jsonb NOT NULL,
-    created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
-    CONSTRAINT audit_finding_contributions_proposal_ref_check CHECK (((jsonb_typeof(proposal_ref) = 'object'::text) AND (octet_length((proposal_ref)::text) <= 4096))),
-    CONSTRAINT audit_finding_contributions_relation_check CHECK ((relation = ANY (ARRAY['first'::text, 'contributing'::text])))
-);
-
-ALTER TABLE audit_finding_contributions
-    ADD CONSTRAINT audit_finding_contributions_audit_id_receipt_id_key UNIQUE (audit_id, receipt_id);
-
-ALTER TABLE audit_finding_contributions
-    ADD CONSTRAINT audit_finding_contributions_pkey PRIMARY KEY (finding_id, receipt_id);
-
-CREATE TRIGGER audit_finding_contributions_protect_update BEFORE UPDATE ON audit_finding_contributions FOR EACH ROW EXECUTE FUNCTION contractor_protect_audit_finding_history();
-
-CREATE TABLE audit_findings (
-    finding_id text NOT NULL,
-    audit_id text NOT NULL,
-    first_receipt_id text NOT NULL,
-    first_proposal_ref jsonb NOT NULL,
-    state text DEFAULT 'proposed'::text NOT NULL,
-    rejection_reason text,
-    duplicate_target_id text,
-    current_assessment_id text,
-    current_decision_id text,
-    revision bigint DEFAULT 1 NOT NULL,
-    created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
-    updated_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
-    CONSTRAINT audit_findings_duplicate_shape CHECK (((state = 'duplicate'::text) = (duplicate_target_id IS NOT NULL))),
-    CONSTRAINT audit_findings_effective_decision_shape CHECK (((state = ANY (ARRAY['confirmed'::text, 'rejected'::text])) = (current_decision_id IS NOT NULL))),
-    CONSTRAINT audit_findings_finding_id_check CHECK ((finding_id ~ '^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$'::text)),
-    CONSTRAINT audit_findings_first_proposal_ref_check CHECK (((jsonb_typeof(first_proposal_ref) = 'object'::text) AND (octet_length((first_proposal_ref)::text) <= 4096))),
-    CONSTRAINT audit_findings_rejection_reason_check CHECK (((rejection_reason IS NULL) OR (rejection_reason = ANY (ARRAY['false-positive'::text, 'policy'::text, 'out-of-scope'::text])))),
-    CONSTRAINT audit_findings_rejection_shape CHECK (((state = 'rejected'::text) = (rejection_reason IS NOT NULL))),
-    CONSTRAINT audit_findings_revision_check CHECK ((revision > 0)),
-    CONSTRAINT audit_findings_state_check CHECK ((state = ANY (ARRAY['proposed'::text, 'confirmed'::text, 'rejected'::text, 'duplicate'::text, 'needs-evidence'::text])))
-);
-
-ALTER TABLE audit_findings
-    ADD CONSTRAINT audit_findings_audit_id_first_receipt_id_key UNIQUE (audit_id, first_receipt_id);
-
-ALTER TABLE audit_findings
-    ADD CONSTRAINT audit_findings_finding_id_audit_id_key UNIQUE (finding_id, audit_id);
-
-ALTER TABLE audit_findings
-    ADD CONSTRAINT audit_findings_pkey PRIMARY KEY (finding_id);
-
-CREATE INDEX audit_findings_global_created_idx ON audit_findings USING btree (created_at DESC, finding_id DESC);
-
-CREATE INDEX audit_findings_list_idx ON audit_findings USING btree (audit_id, created_at, finding_id);
-
-CREATE INDEX audit_findings_state_idx ON audit_findings USING btree (audit_id, state, created_at, finding_id);
+-- Table: audit_review_decisions
 
 CREATE TABLE audit_review_decisions (
     decision_id text NOT NULL,
@@ -3513,16 +3767,7 @@ CREATE TABLE audit_review_decisions (
     CONSTRAINT audit_review_decisions_verdict_check CHECK ((verdict = ANY (ARRAY['true_positive'::text, 'false_positive'::text, 'duplicate'::text, 'reopen'::text, 'needs_evidence'::text])))
 );
 
-ALTER TABLE audit_review_decisions
-    ADD CONSTRAINT audit_review_decisions_audit_id_idempotency_key_key UNIQUE (audit_id, idempotency_key);
-
-ALTER TABLE audit_review_decisions
-    ADD CONSTRAINT audit_review_decisions_pkey PRIMARY KEY (decision_id);
-
-ALTER TABLE audit_review_decisions
-    ADD CONSTRAINT audit_review_decisions_request_id_key UNIQUE (request_id);
-
-CREATE TRIGGER audit_review_decisions_protect_update BEFORE UPDATE ON audit_review_decisions FOR EACH ROW EXECUTE FUNCTION contractor_protect_audit_finding_history();
+-- Table: audit_review_requests
 
 CREATE TABLE audit_review_requests (
     request_id text NOT NULL,
@@ -3561,128 +3806,215 @@ CREATE TABLE audit_review_requests (
     CONSTRAINT audit_review_requests_subject_shape CHECK ((((subject_kind = 'finding'::text) AND (finding_id = subject_id)) OR ((subject_kind <> 'finding'::text) AND (finding_id IS NULL))))
 );
 
-ALTER TABLE audit_review_requests
-    ADD CONSTRAINT audit_review_requests_audit_id_idempotency_key_key UNIQUE (audit_id, idempotency_key);
+-- Table: audit_rounds
 
-ALTER TABLE audit_review_requests
-    ADD CONSTRAINT audit_review_requests_pkey PRIMARY KEY (request_id);
-
-ALTER TABLE audit_review_requests
-    ADD CONSTRAINT audit_review_requests_request_audit_unique UNIQUE (request_id, audit_id);
-
-CREATE INDEX audit_review_requests_global_created_idx ON audit_review_requests USING btree (created_at DESC, request_id DESC);
-
-CREATE INDEX audit_review_requests_global_state_created_idx ON audit_review_requests USING btree (state, created_at DESC, request_id DESC);
-
-CREATE INDEX audit_review_requests_list_idx ON audit_review_requests USING btree (audit_id, created_at, request_id);
-
-CREATE UNIQUE INDEX audit_review_requests_pending_subject_unique ON audit_review_requests USING btree (audit_id, subject_kind, subject_id, kind, subject_revision, subject_digest) WHERE (state = 'pending'::text);
-
-CREATE UNIQUE INDEX audit_review_requests_report_candidate_unique ON audit_review_requests USING btree (audit_id) WHERE (subject_kind = 'audit-report'::text);
-
-CREATE TABLE finding_proposal_audit_holds (
-    receipt_id text NOT NULL,
+CREATE TABLE audit_rounds (
+    round_id text NOT NULL,
     audit_id text NOT NULL,
-    project_id text NOT NULL,
-    proposal_ref jsonb NOT NULL,
-    evidence jsonb NOT NULL,
+    ordinal integer NOT NULL,
+    manifest_ref jsonb NOT NULL,
+    manifest_digest text NOT NULL,
+    state text NOT NULL,
+    expected_item_count integer NOT NULL,
+    revision bigint DEFAULT 1 NOT NULL,
     created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
-    CONSTRAINT finding_proposal_audit_holds_evidence_check CHECK (((jsonb_typeof(evidence) = 'array'::text) AND (octet_length((evidence)::text) <= 1048576))),
-    CONSTRAINT finding_proposal_audit_holds_proposal_ref_check CHECK (((jsonb_typeof(proposal_ref) = 'object'::text) AND (octet_length((proposal_ref)::text) <= 4096)))
+    updated_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    acceptance_digest text,
+    results_generation bigint,
+    results_sealed boolean DEFAULT false NOT NULL,
+    results_item_count integer DEFAULT 0 NOT NULL,
+    results_metadata_bytes bigint DEFAULT 0 NOT NULL,
+    results_page_count integer DEFAULT 0 NOT NULL,
+    results_published_pages jsonb DEFAULT '[]'::jsonb NOT NULL,
+    results_manifest jsonb,
+    admission_checkpoint json,
+    prepared_generation text,
+    prepared_page_count integer,
+    prepared_pages_digest text,
+    prepared_staged_count integer DEFAULT 0 NOT NULL,
+    prepared_review_count integer DEFAULT 0 NOT NULL,
+    CONSTRAINT audit_round_admission_checkpoint_shape CHECK (((admission_checkpoint IS NULL) OR COALESCE(((json_typeof(admission_checkpoint) = 'object'::text) AND (octet_length((admission_checkpoint)::text) <= 65536)), false))),
+    CONSTRAINT audit_rounds_acceptance_digest_check CHECK (((acceptance_digest IS NULL) OR (acceptance_digest ~ '^sha256:[0-9a-f]{64}$'::text))),
+    CONSTRAINT audit_rounds_expected_item_count_check CHECK (((expected_item_count >= 0) AND (expected_item_count <= 10000))),
+    CONSTRAINT audit_rounds_manifest_digest_check CHECK ((manifest_digest ~ '^sha256:[0-9a-f]{64}$'::text)),
+    CONSTRAINT audit_rounds_manifest_ref_check CHECK (((jsonb_typeof(manifest_ref) = 'object'::text) AND (octet_length((manifest_ref)::text) <= 4096))),
+    CONSTRAINT audit_rounds_ordinal_check CHECK ((ordinal > 0)),
+    CONSTRAINT audit_rounds_prepared_review_count_check CHECK (((prepared_review_count >= 0) AND (prepared_review_count <= 4096))),
+    CONSTRAINT audit_rounds_prepared_staged_count_check CHECK (((prepared_staged_count >= 0) AND (prepared_staged_count <= 4096))),
+    CONSTRAINT audit_rounds_results_generation_check CHECK (((results_generation IS NULL) OR (results_generation > 0))),
+    CONSTRAINT audit_rounds_results_item_count_check CHECK (((results_item_count >= 0) AND (results_item_count <= 4096))),
+    CONSTRAINT audit_rounds_results_manifest_check CHECK (((results_manifest IS NULL) OR (results_sealed AND (octet_length((results_manifest)::text) <= 4096)))),
+    CONSTRAINT audit_rounds_results_metadata_bytes_check CHECK (((results_metadata_bytes >= 0) AND (results_metadata_bytes <= 67108864))),
+    CONSTRAINT audit_rounds_results_page_count_check CHECK (((results_page_count >= 0) AND (results_page_count <= 256))),
+    CONSTRAINT audit_rounds_results_published_pages_check CHECK (((jsonb_typeof(results_published_pages) = 'array'::text) AND (jsonb_array_length(results_published_pages) <= 256) AND (octet_length((results_published_pages)::text) <= 262144))),
+    CONSTRAINT audit_rounds_revision_check CHECK ((revision > 0)),
+    CONSTRAINT audit_rounds_round_id_check CHECK ((round_id ~ '^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$'::text)),
+    CONSTRAINT audit_rounds_state_check CHECK ((state = ANY (ARRAY['proposed'::text, 'accepted'::text, 'executing'::text, 'assessing'::text, 'closed'::text])))
 );
 
-ALTER TABLE finding_proposal_audit_holds
-    ADD CONSTRAINT finding_proposal_audit_holds_pkey PRIMARY KEY (receipt_id, audit_id);
+-- View: audit_live_item_reviews
 
-CREATE INDEX finding_proposal_audit_holds_audit_idx ON finding_proposal_audit_holds USING btree (audit_id, created_at, receipt_id);
+CREATE VIEW audit_live_item_reviews AS
+ SELECT item.audit_id,
+    item.item_id,
+    request.request_id,
+    (request.state = 'decided'::text) AS approved
+   FROM ((audit_items item
+     JOIN audit_rounds round USING (round_id, audit_id))
+     JOIN audit_review_requests request ON (((request.audit_id = item.audit_id) AND (request.subject_kind = 'audit-item-action'::text) AND (request.subject_id = item.item_id) AND (request.kind = item.approval_kind) AND (request.subject_revision = 1) AND (request.subject_digest = item.approval_subject_digest))))
+  WHERE ((round.state <> 'proposed'::text) AND ((request.expires_at IS NULL) OR (request.expires_at > clock_timestamp())) AND ((request.state = 'pending'::text) OR ((request.state = 'decided'::text) AND (EXISTS ( SELECT 1
+           FROM audit_review_decisions decision
+          WHERE ((decision.request_id = request.request_id) AND (decision.audit_id = request.audit_id) AND (decision.action = 'approve'::text) AND (decision.subject_revision = request.subject_revision) AND (decision.subject_digest = request.subject_digest)))))));
 
-CREATE INDEX finding_proposal_audit_holds_project_idx ON finding_proposal_audit_holds USING btree (project_id);
+-- Table: audit_report_pages
 
-CREATE TRIGGER finding_proposal_audit_holds_admit_finding AFTER INSERT ON finding_proposal_audit_holds FOR EACH ROW EXECUTE FUNCTION contractor_admit_audit_finding();
+CREATE TABLE audit_report_pages (
+    audit_id text NOT NULL,
+    audit_revision bigint NOT NULL,
+    ordinal integer NOT NULL,
+    section text NOT NULL,
+    round_id text,
+    last_item_ordinal integer,
+    last_created_at timestamp with time zone,
+    last_finding_id text,
+    exhausted boolean NOT NULL,
+    entry_count integer NOT NULL,
+    content bytea NOT NULL,
+    coverage_counts jsonb,
+    created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    CONSTRAINT audit_report_pages_audit_revision_check CHECK ((audit_revision > 0)),
+    CONSTRAINT audit_report_pages_content_check CHECK ((octet_length(content) <= 67108864)),
+    CONSTRAINT audit_report_pages_entries_check CHECK (((entry_count >= 0) AND ((entry_count = 0) = (octet_length(content) = 0)) AND ((entry_count > 0) OR exhausted))),
+    CONSTRAINT audit_report_pages_ordinal_check CHECK ((ordinal >= 0)),
+    CONSTRAINT audit_report_pages_section_check CHECK ((section = ANY (ARRAY['items'::text, 'confirmed'::text, 'proposed'::text, 'rejected'::text, 'duplicate'::text, 'needs-evidence'::text]))),
+    CONSTRAINT audit_report_pages_shape CHECK (
+CASE
+    WHEN (section = 'items'::text) THEN ((round_id ~ '^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$'::text) AND (jsonb_typeof(coverage_counts) = 'object'::text) AND (last_created_at IS NULL) AND (last_finding_id IS NULL) AND ((last_item_ordinal IS NULL) = (entry_count = 0)) AND ((last_item_ordinal IS NULL) OR (last_item_ordinal >= 0)))
+    ELSE ((round_id IS NULL) AND (coverage_counts IS NULL) AND (last_item_ordinal IS NULL) AND ((last_created_at IS NULL) = (entry_count = 0)) AND ((last_finding_id IS NULL) = (entry_count = 0)) AND ((last_finding_id IS NULL) OR (last_finding_id ~ '^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$'::text)))
+END)
+);
 
-CREATE TRIGGER finding_proposal_audit_holds_protect_update BEFORE UPDATE ON finding_proposal_audit_holds FOR EACH ROW EXECUTE FUNCTION contractor_protect_finding_proposal_receipt();
+-- Table: audit_round_result_pages
 
-CREATE TRIGGER finding_proposal_audit_holds_reconcile AFTER INSERT OR DELETE ON finding_proposal_audit_holds FOR EACH ROW EXECUTE FUNCTION contractor_reconcile_finding_retention();
+CREATE TABLE audit_round_result_pages (
+    audit_id text NOT NULL,
+    round_id text NOT NULL,
+    source_generation bigint NOT NULL,
+    ordinal integer NOT NULL,
+    last_item_ordinal integer NOT NULL,
+    item_count integer NOT NULL,
+    content_bytes integer NOT NULL,
+    content bytea,
+    artifact jsonb,
+    CONSTRAINT audit_round_result_pages_artifact_check CHECK (((artifact IS NULL) OR (octet_length((artifact)::text) <= 4096))),
+    CONSTRAINT audit_round_result_pages_check CHECK (((content IS NULL) OR (octet_length(content) = content_bytes))),
+    CONSTRAINT audit_round_result_pages_check1 CHECK (((content IS NOT NULL) OR (artifact IS NOT NULL))),
+    CONSTRAINT audit_round_result_pages_content_bytes_check CHECK (((content_bytes >= 1) AND (content_bytes <= 262144))),
+    CONSTRAINT audit_round_result_pages_item_count_check CHECK (((item_count >= 1) AND (item_count <= 128))),
+    CONSTRAINT audit_round_result_pages_last_item_ordinal_check CHECK (((last_item_ordinal >= 0) AND (last_item_ordinal <= 4095))),
+    CONSTRAINT audit_round_result_pages_ordinal_check CHECK (((ordinal >= 0) AND (ordinal <= 255))),
+    CONSTRAINT audit_round_result_pages_source_generation_check CHECK ((source_generation > 0))
+);
 
-CREATE TABLE finding_proposal_receipts (
-    receipt_id text NOT NULL,
-    proposal_id text NOT NULL,
-    allocation_id text NOT NULL,
-    runtime_agent_id text NOT NULL,
-    runtime_instance_id text NOT NULL,
-    stage_execution_id text NOT NULL,
-    logical_agent_name text NOT NULL,
-    invocation_id text NOT NULL,
-    submission_id text NOT NULL,
-    client_key text NOT NULL,
-    request_digest text NOT NULL,
-    run_id text NOT NULL,
+-- Table: audits
+
+CREATE TABLE audits (
+    audit_id text NOT NULL,
     owner_id text NOT NULL,
-    project_id text,
-    audit_execution_id text,
-    audit_id text,
-    audit_role text,
-    workflow_name text NOT NULL,
-    workflow_version text NOT NULL,
-    workflow_schema_version text NOT NULL,
-    workflow_configuration_ref jsonb NOT NULL,
-    workflow_closure_digest text NOT NULL,
-    proposal_ref jsonb NOT NULL,
-    proposal_digest text NOT NULL,
-    proposal_media_type text NOT NULL,
-    proposal_size_bytes bigint NOT NULL,
-    evidence jsonb NOT NULL,
+    project_id text NOT NULL,
+    profile_name text NOT NULL,
+    profile_version text NOT NULL,
+    profile_digest text NOT NULL,
+    profile_snapshot jsonb NOT NULL,
+    input_selection jsonb NOT NULL,
+    baseline_snapshot jsonb,
+    state text DEFAULT 'draft'::text NOT NULL,
+    revision bigint DEFAULT 1 NOT NULL,
+    current_round_id text,
+    dispatch_state text DEFAULT 'open'::text NOT NULL,
+    hold_state text DEFAULT 'pending'::text NOT NULL,
+    deadline_at timestamp with time zone,
+    max_rounds integer NOT NULL,
+    batch_size integer NOT NULL,
+    max_items_per_round integer NOT NULL,
+    max_items_total integer NOT NULL,
+    max_submitted_runs integer NOT NULL,
+    max_item_run_attempts integer NOT NULL,
+    max_evidence_bytes bigint NOT NULL,
+    reserved_run_count integer DEFAULT 0 NOT NULL,
+    submitted_run_count integer DEFAULT 0 NOT NULL,
+    outstanding_run_count integer DEFAULT 0 NOT NULL,
+    retained_evidence_bytes bigint DEFAULT 0 NOT NULL,
+    next_event_sequence bigint DEFAULT 1 NOT NULL,
+    stop_reason_code text,
+    stop_reason_message text,
     created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
-    retention_state text DEFAULT 'source-held'::text NOT NULL,
-    source_run_deleted_at timestamp with time zone,
-    discarded_at timestamp with time zone,
-    retention_updated_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
-    CONSTRAINT finding_proposal_receipts_allocation_id_check CHECK (((btrim(allocation_id) <> ''::text) AND (octet_length(allocation_id) <= 256))),
-    CONSTRAINT finding_proposal_receipts_audit_role_check CHECK (((audit_role IS NULL) OR (audit_role = ANY (ARRAY['discovery'::text, 'check'::text, 'assessment'::text])))),
-    CONSTRAINT finding_proposal_receipts_audit_shape CHECK ((((audit_execution_id IS NULL) AND (audit_id IS NULL) AND (audit_role IS NULL)) OR ((audit_execution_id IS NOT NULL) AND (audit_id IS NOT NULL) AND (audit_role IS NOT NULL)))),
-    CONSTRAINT finding_proposal_receipts_client_key_check CHECK ((client_key ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$'::text)),
-    CONSTRAINT finding_proposal_receipts_evidence_check CHECK (((jsonb_typeof(evidence) = 'array'::text) AND (octet_length((evidence)::text) <= 1048576))),
-    CONSTRAINT finding_proposal_receipts_invocation_id_check CHECK (((btrim(invocation_id) <> ''::text) AND (octet_length(invocation_id) <= 128))),
-    CONSTRAINT finding_proposal_receipts_logical_agent_name_check CHECK (((btrim(logical_agent_name) <> ''::text) AND (octet_length(logical_agent_name) <= 128))),
-    CONSTRAINT finding_proposal_receipts_owner_id_check CHECK (((btrim(owner_id) <> ''::text) AND (octet_length(owner_id) <= 256))),
-    CONSTRAINT finding_proposal_receipts_proposal_digest_check CHECK ((proposal_digest ~ '^sha256:[0-9a-f]{64}$'::text)),
-    CONSTRAINT finding_proposal_receipts_proposal_id_check CHECK ((proposal_id ~ '^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$'::text)),
-    CONSTRAINT finding_proposal_receipts_proposal_media_type_check CHECK ((proposal_media_type = 'application/json'::text)),
-    CONSTRAINT finding_proposal_receipts_proposal_ref_check CHECK (((jsonb_typeof(proposal_ref) = 'object'::text) AND (octet_length((proposal_ref)::text) <= 4096))),
-    CONSTRAINT finding_proposal_receipts_proposal_size_bytes_check CHECK (((proposal_size_bytes >= 0) AND (proposal_size_bytes <= 8388608))),
-    CONSTRAINT finding_proposal_receipts_receipt_id_check CHECK ((receipt_id ~ '^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$'::text)),
-    CONSTRAINT finding_proposal_receipts_request_digest_check CHECK ((request_digest ~ '^sha256:[0-9a-f]{64}$'::text)),
-    CONSTRAINT finding_proposal_receipts_retention_shape CHECK ((((retention_state = 'source-held'::text) AND (source_run_deleted_at IS NULL) AND (discarded_at IS NULL)) OR ((retention_state = 'audit-held'::text) AND (discarded_at IS NULL)) OR ((retention_state = 'discarded'::text) AND (source_run_deleted_at IS NOT NULL) AND (discarded_at IS NOT NULL)))),
-    CONSTRAINT finding_proposal_receipts_retention_state_check CHECK ((retention_state = ANY (ARRAY['source-held'::text, 'audit-held'::text, 'discarded'::text]))),
-    CONSTRAINT finding_proposal_receipts_run_id_check CHECK (((btrim(run_id) <> ''::text) AND (octet_length(run_id) <= 256))),
-    CONSTRAINT finding_proposal_receipts_runtime_agent_id_check CHECK (((btrim(runtime_agent_id) <> ''::text) AND (octet_length(runtime_agent_id) <= 256))),
-    CONSTRAINT finding_proposal_receipts_runtime_instance_id_check CHECK (((btrim(runtime_instance_id) <> ''::text) AND (octet_length(runtime_instance_id) <= 256))),
-    CONSTRAINT finding_proposal_receipts_stage_execution_id_check CHECK (((btrim(stage_execution_id) <> ''::text) AND (octet_length(stage_execution_id) <= 256))),
-    CONSTRAINT finding_proposal_receipts_submission_id_check CHECK (((btrim(submission_id) <> ''::text) AND (octet_length(submission_id) <= 128))),
-    CONSTRAINT finding_proposal_receipts_workflow_closure_digest_check CHECK ((workflow_closure_digest ~ '^sha256:[0-9a-f]{64}$'::text)),
-    CONSTRAINT finding_proposal_receipts_workflow_configuration_ref_check CHECK (((jsonb_typeof(workflow_configuration_ref) = 'object'::text) AND (octet_length((workflow_configuration_ref)::text) <= 4096))),
-    CONSTRAINT finding_proposal_receipts_workflow_name_check CHECK (((btrim(workflow_name) <> ''::text) AND (octet_length(workflow_name) <= 128))),
-    CONSTRAINT finding_proposal_receipts_workflow_schema_version_check CHECK (((btrim(workflow_schema_version) <> ''::text) AND (octet_length(workflow_schema_version) <= 128))),
-    CONSTRAINT finding_proposal_receipts_workflow_version_check CHECK (((btrim(workflow_version) <> ''::text) AND (octet_length(workflow_version) <= 128)))
+    updated_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    started_at timestamp with time zone,
+    finished_at timestamp with time zone,
+    deletion_requested_at timestamp with time zone,
+    paused_at timestamp with time zone,
+    phase text DEFAULT 'not-started'::text NOT NULL,
+    outstanding_tool_run_count integer DEFAULT 0 NOT NULL,
+    CONSTRAINT audits_audit_id_check CHECK ((audit_id ~ '^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$'::text)),
+    CONSTRAINT audits_baseline_shape CHECK (((state = ANY (ARRAY['draft'::text, 'deleting'::text])) OR (baseline_snapshot IS NOT NULL))),
+    CONSTRAINT audits_baseline_snapshot_check CHECK (((baseline_snapshot IS NULL) OR ((jsonb_typeof(baseline_snapshot) = 'object'::text) AND (octet_length((baseline_snapshot)::text) <= 16777216)))),
+    CONSTRAINT audits_batch_size_check CHECK (((batch_size > 0) AND (batch_size <= 64))),
+    CONSTRAINT audits_counter_bounds CHECK (((reserved_run_count <= max_submitted_runs) AND (submitted_run_count <= reserved_run_count) AND (outstanding_run_count <= reserved_run_count) AND (retained_evidence_bytes <= max_evidence_bytes))),
+    CONSTRAINT audits_deletion_intent_shape CHECK ((((deletion_requested_at IS NULL) AND (state <> 'deleting'::text)) OR ((deletion_requested_at IS NOT NULL) AND (state = ANY (ARRAY['cancelling'::text, 'deleting'::text]))))),
+    CONSTRAINT audits_dispatch_state_check CHECK ((dispatch_state = ANY (ARRAY['open'::text, 'closed'::text]))),
+    CONSTRAINT audits_hold_state_check CHECK ((hold_state = ANY (ARRAY['pending'::text, 'held'::text, 'released'::text]))),
+    CONSTRAINT audits_input_selection_check CHECK (((jsonb_typeof(input_selection) = 'object'::text) AND (octet_length((input_selection)::text) <= 8388608))),
+    CONSTRAINT audits_max_evidence_bytes_check CHECK (((max_evidence_bytes > 0) AND (max_evidence_bytes <= 1073741824))),
+    CONSTRAINT audits_max_item_run_attempts_check CHECK (((max_item_run_attempts > 0) AND (max_item_run_attempts <= 10))),
+    CONSTRAINT audits_max_items_per_round_check CHECK (((max_items_per_round > 0) AND (max_items_per_round <= 10000))),
+    CONSTRAINT audits_max_items_total_check CHECK (((max_items_total > 0) AND (max_items_total <= 100000))),
+    CONSTRAINT audits_max_rounds_check CHECK (((max_rounds > 0) AND (max_rounds <= 32))),
+    CONSTRAINT audits_max_submitted_runs_check CHECK (((max_submitted_runs > 0) AND (max_submitted_runs <= 1000000))),
+    CONSTRAINT audits_next_event_sequence_check CHECK ((next_event_sequence > 0)),
+    CONSTRAINT audits_outstanding_run_count_check CHECK ((outstanding_run_count >= 0)),
+    CONSTRAINT audits_outstanding_tool_run_count_check CHECK (((outstanding_tool_run_count >= 0) AND (outstanding_tool_run_count <= outstanding_run_count))),
+    CONSTRAINT audits_owner_id_check CHECK (((btrim(owner_id) <> ''::text) AND (octet_length(owner_id) <= 256))),
+    CONSTRAINT audits_phase_shape CHECK (((phase = ANY (ARRAY['not-started'::text, 'preparing'::text, 'inventory'::text, 'rounds'::text])) AND ((phase <> ALL (ARRAY['preparing'::text, 'inventory'::text])) OR ((current_round_id IS NULL) AND (baseline_snapshot IS NOT NULL))))),
+    CONSTRAINT audits_profile_digest_check CHECK ((profile_digest ~ '^sha256:[0-9a-f]{64}$'::text)),
+    CONSTRAINT audits_profile_name_check CHECK (((btrim(profile_name) <> ''::text) AND (octet_length(profile_name) <= 128))),
+    CONSTRAINT audits_profile_snapshot_check CHECK (((jsonb_typeof(profile_snapshot) = 'object'::text) AND (octet_length((profile_snapshot)::text) <= 8388608))),
+    CONSTRAINT audits_profile_version_check CHECK (((btrim(profile_version) <> ''::text) AND (octet_length(profile_version) <= 128))),
+    CONSTRAINT audits_reserved_run_count_check CHECK ((reserved_run_count >= 0)),
+    CONSTRAINT audits_retained_evidence_bytes_check CHECK ((retained_evidence_bytes >= 0)),
+    CONSTRAINT audits_revision_check CHECK ((revision > 0)),
+    CONSTRAINT audits_state_check CHECK ((state = ANY (ARRAY['draft'::text, 'active'::text, 'waiting_review'::text, 'paused'::text, 'finalizing'::text, 'cancelling'::text, 'completed'::text, 'cancelled'::text, 'failed'::text, 'deleting'::text]))),
+    CONSTRAINT audits_stop_reason_code_check CHECK (((stop_reason_code IS NULL) OR ((btrim(stop_reason_code) <> ''::text) AND (octet_length(stop_reason_code) <= 128)))),
+    CONSTRAINT audits_stop_reason_message_check CHECK (((stop_reason_message IS NULL) OR (octet_length(stop_reason_message) <= 4096))),
+    CONSTRAINT audits_stop_reason_shape CHECK (((stop_reason_code IS NULL) = (stop_reason_message IS NULL))),
+    CONSTRAINT audits_submitted_run_count_check CHECK ((submitted_run_count >= 0)),
+    CONSTRAINT audits_time_shape CHECK ((((state = 'draft'::text) AND (started_at IS NULL) AND (finished_at IS NULL)) OR ((state = ANY (ARRAY['active'::text, 'waiting_review'::text, 'paused'::text, 'finalizing'::text, 'cancelling'::text])) AND (started_at IS NOT NULL) AND (finished_at IS NULL)) OR ((state = ANY (ARRAY['completed'::text, 'cancelled'::text, 'failed'::text])) AND (started_at IS NOT NULL) AND (finished_at IS NOT NULL)) OR (state = 'deleting'::text)))
 );
 
-ALTER TABLE finding_proposal_receipts
-    ADD CONSTRAINT finding_proposal_receipts_allocation_id_invocation_id_submi_key UNIQUE (allocation_id, invocation_id, submission_id);
+-- Table: credential_operations
 
-ALTER TABLE finding_proposal_receipts
-    ADD CONSTRAINT finding_proposal_receipts_pkey PRIMARY KEY (receipt_id);
+CREATE TABLE credential_operations (
+    operation_id text NOT NULL,
+    idempotency_key text NOT NULL,
+    request_hash text NOT NULL,
+    credential_id text NOT NULL,
+    operation_kind text NOT NULL,
+    phase text NOT NULL,
+    request_schema_version text NOT NULL,
+    request jsonb NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    CONSTRAINT credential_operations_check CHECK ((updated_at >= created_at)),
+    CONSTRAINT credential_operations_idempotency_key_check CHECK ((idempotency_key ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'::text)),
+    CONSTRAINT credential_operations_operation_id_check CHECK (((operation_id ~ '^[A-Za-z0-9][A-Za-z0-9_.:-]*$'::text) AND (octet_length(operation_id) <= 128))),
+    CONSTRAINT credential_operations_operation_kind_check CHECK ((operation_kind = ANY (ARRAY['create'::text, 'delete'::text]))),
+    CONSTRAINT credential_operations_phase_check CHECK ((phase = ANY (ARRAY['prepared'::text, 'completed'::text, 'abandoned'::text]))),
+    CONSTRAINT credential_operations_request_check CHECK (((jsonb_typeof(request) = 'object'::text) AND (octet_length((request)::text) <= 65536))),
+    CONSTRAINT credential_operations_request_hash_check CHECK ((request_hash ~ '^sha256:[0-9a-f]{64}$'::text)),
+    CONSTRAINT credential_operations_request_schema_version_check CHECK ((request_schema_version = 'contractor.credentials/v1'::text))
+);
 
-ALTER TABLE finding_proposal_receipts
-    ADD CONSTRAINT finding_proposal_receipts_proposal_id_key UNIQUE (proposal_id);
-
-CREATE INDEX finding_proposal_receipts_audit_idx ON finding_proposal_receipts USING btree (audit_id, created_at, receipt_id) WHERE (audit_id IS NOT NULL);
-
-CREATE INDEX finding_proposal_receipts_run_idx ON finding_proposal_receipts USING btree (run_id, created_at, receipt_id);
-
-CREATE TRIGGER finding_proposal_receipts_protect_immutable BEFORE DELETE OR UPDATE ON finding_proposal_receipts FOR EACH ROW EXECUTE FUNCTION contractor_protect_finding_proposal_receipt_retention();
-
-
--- Evals: experiments, the case matrix, results and UI projections
+-- Table: eval_collections
 
 CREATE TABLE eval_collections (
     owner_id text NOT NULL,
@@ -3690,8 +4022,7 @@ CREATE TABLE eval_collections (
     revision bigint DEFAULT 1 NOT NULL
 );
 
-ALTER TABLE eval_collections
-    ADD CONSTRAINT eval_collections_pkey PRIMARY KEY (owner_id, project_id);
+-- Table: eval_commands
 
 CREATE TABLE eval_commands (
     command_id text NOT NULL,
@@ -3706,24 +4037,20 @@ CREATE TABLE eval_commands (
     CONSTRAINT eval_commands_state_check CHECK ((state = ANY (ARRAY['accepted'::text, 'running'::text, 'succeeded'::text, 'failed'::text])))
 );
 
-ALTER TABLE eval_commands
-    ADD CONSTRAINT eval_commands_pkey PRIMARY KEY (command_id);
-
-CREATE INDEX eval_commands_pending_idx ON eval_commands USING btree (experiment_id, created_at, command_id) WHERE (state = ANY (ARRAY['accepted'::text, 'running'::text]));
+-- Table: eval_controller_claims
 
 CREATE TABLE eval_controller_claims (
     experiment_id text NOT NULL,
     epoch bigint DEFAULT 0 NOT NULL,
     holder_id text,
     expires_at timestamp with time zone,
-    CONSTRAINT eval_controller_claims_check CHECK (((holder_id IS NULL) = (expires_at IS NULL))),
-    CONSTRAINT eval_controller_claims_epoch_check CHECK ((epoch >= 0))
+    claimed_at timestamp with time zone,
+    CONSTRAINT eval_controller_claim_shape CHECK ((((holder_id IS NULL) AND (claimed_at IS NULL) AND (expires_at IS NULL)) OR ((holder_id IS NOT NULL) AND (claimed_at IS NOT NULL) AND (expires_at > claimed_at)))),
+    CONSTRAINT eval_controller_claims_epoch_check CHECK ((epoch >= 0)),
+    CONSTRAINT eval_controller_claims_holder_id_check CHECK (((holder_id IS NULL) OR ((btrim(holder_id) <> ''::text) AND (octet_length(holder_id) <= 256))))
 );
 
-ALTER TABLE eval_controller_claims
-    ADD CONSTRAINT eval_controller_claims_pkey PRIMARY KEY (experiment_id);
-
-CREATE INDEX eval_claims_expiry_idx ON eval_controller_claims USING btree (expires_at, experiment_id);
+-- Table: eval_dataset_revisions
 
 CREATE TABLE eval_dataset_revisions (
     owner_id text NOT NULL,
@@ -3738,14 +4065,7 @@ CREATE TABLE eval_dataset_revisions (
     CONSTRAINT eval_dataset_revisions_metadata_check CHECK ((jsonb_typeof(metadata) = 'object'::text))
 );
 
-ALTER TABLE eval_dataset_revisions
-    ADD CONSTRAINT eval_dataset_revisions_pkey PRIMARY KEY (project_id, dataset_id, revision);
-
-CREATE INDEX eval_datasets_owner_page_idx ON eval_dataset_revisions USING btree (owner_id, project_id, dataset_id, revision);
-
-CREATE TRIGGER eval_datasets_collection AFTER INSERT OR DELETE ON eval_dataset_revisions FOR EACH ROW EXECUTE FUNCTION contractor_eval_collection_changed();
-
-CREATE TRIGGER eval_datasets_immutable BEFORE DELETE OR UPDATE ON eval_dataset_revisions FOR EACH ROW EXECUTE FUNCTION contractor_eval_immutable();
+-- Table: eval_evidence_refs
 
 CREATE TABLE eval_evidence_refs (
     experiment_id text NOT NULL,
@@ -3758,10 +4078,7 @@ CREATE TABLE eval_evidence_refs (
     revision text NOT NULL
 );
 
-ALTER TABLE eval_evidence_refs
-    ADD CONSTRAINT eval_evidence_refs_pkey PRIMARY KEY (experiment_id, member_id, record_sha256, scope_kind, scope_id, namespace, name, revision);
-
-CREATE INDEX eval_evidence_refs_artifact ON eval_evidence_refs USING btree (scope_kind, scope_id, namespace, name, revision);
+-- Table: eval_execution_tombstones
 
 CREATE TABLE eval_execution_tombstones (
     experiment_id text NOT NULL,
@@ -3773,10 +4090,7 @@ CREATE TABLE eval_execution_tombstones (
     deleted_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL
 );
 
-ALTER TABLE eval_execution_tombstones
-    ADD CONSTRAINT eval_execution_tombstones_pkey PRIMARY KEY (experiment_id, member_id);
-
-CREATE TRIGGER eval_tombstones_immutable BEFORE DELETE OR UPDATE ON eval_execution_tombstones FOR EACH ROW EXECUTE FUNCTION contractor_eval_immutable();
+-- Table: eval_experiments
 
 CREATE TABLE eval_experiments (
     experiment_id text NOT NULL,
@@ -3820,37 +4134,7 @@ CREATE TABLE eval_experiments (
     CONSTRAINT eval_experiments_wall_ms_check CHECK ((wall_ms > 0))
 );
 
-ALTER TABLE eval_experiments
-    ADD CONSTRAINT eval_experiments_owner_id_project_id_portable_id_key UNIQUE (owner_id, project_id, portable_id);
-
-ALTER TABLE eval_experiments
-    ADD CONSTRAINT eval_experiments_pkey PRIMARY KEY (experiment_id);
-
-CREATE INDEX eval_experiments_claim_active_idx ON eval_experiments USING btree (experiment_id) WHERE (state = ANY (ARRAY['preparing'::text, 'running'::text, 'settling'::text, 'pausing'::text, 'cancelling'::text]));
-
-CREATE INDEX eval_experiments_claim_paused_deadline_idx ON eval_experiments USING btree (deadline_at, experiment_id) WHERE (state = 'paused'::text);
-
-CREATE INDEX eval_experiments_control_page_idx ON eval_experiments USING btree (owner_id, control_mode, experiment_id);
-
-CREATE INDEX eval_experiments_dataset_page_idx ON eval_experiments USING btree (owner_id, dataset_id, experiment_id);
-
-CREATE INDEX eval_experiments_owner_created_page_idx ON eval_experiments USING btree (owner_id, created_at DESC, experiment_id DESC);
-
-CREATE INDEX eval_experiments_owner_page_idx ON eval_experiments USING btree (owner_id, experiment_id);
-
-CREATE INDEX eval_experiments_project_created_page_idx ON eval_experiments USING btree (owner_id, project_id, created_at DESC, experiment_id DESC);
-
-CREATE INDEX eval_experiments_project_page_idx ON eval_experiments USING btree (owner_id, project_id, experiment_id);
-
-CREATE INDEX eval_experiments_state_page_idx ON eval_experiments USING btree (owner_id, state, experiment_id);
-
-CREATE TRIGGER eval_experiments_collection_delete AFTER DELETE ON eval_experiments REFERENCING OLD TABLE AS changed_experiments FOR EACH STATEMENT EXECUTE FUNCTION contractor_eval_collections_changed();
-
-CREATE TRIGGER eval_experiments_collection_insert AFTER INSERT ON eval_experiments REFERENCING NEW TABLE AS changed_experiments FOR EACH STATEMENT EXECUTE FUNCTION contractor_eval_collections_changed();
-
-CREATE TRIGGER eval_experiments_collection_update AFTER UPDATE ON eval_experiments REFERENCING OLD TABLE AS old_experiments NEW TABLE AS new_experiments FOR EACH STATEMENT EXECUTE FUNCTION contractor_eval_collections_updated();
-
-CREATE TRIGGER eval_experiments_protect BEFORE UPDATE ON eval_experiments FOR EACH ROW EXECUTE FUNCTION contractor_eval_protect_experiment();
+-- Table: eval_frozen_plans
 
 CREATE TABLE eval_frozen_plans (
     experiment_id text NOT NULL,
@@ -3860,18 +4144,16 @@ CREATE TABLE eval_frozen_plans (
     plan_sha256 text NOT NULL,
     setup bytea NOT NULL,
     created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    readiness bytea,
     CONSTRAINT eval_frozen_plans_document_check CHECK (((octet_length(document) >= 2) AND (octet_length(document) <= 1048576))),
     CONSTRAINT eval_frozen_plans_document_kind_check CHECK ((document_kind = ANY (ARRAY['playground.plan/v1'::text, 'ExternalRegistration'::text]))),
     CONSTRAINT eval_frozen_plans_plan_sha256_check CHECK ((plan_sha256 ~ '^sha256:[0-9a-f]{64}$'::text)),
+    CONSTRAINT eval_frozen_plans_readiness_check CHECK (((octet_length(readiness) >= 2) AND (octet_length(readiness) <= 1048576))),
+    CONSTRAINT eval_frozen_plans_readiness_kind_check CHECK (((document_kind = 'playground.plan/v1'::text) = (readiness IS NOT NULL))),
     CONSTRAINT eval_frozen_plans_setup_check CHECK (((octet_length(setup) >= 2) AND (octet_length(setup) <= 1048576)))
 );
 
-ALTER TABLE eval_frozen_plans
-    ADD CONSTRAINT eval_frozen_plans_pkey PRIMARY KEY (experiment_id);
-
-CREATE CONSTRAINT TRIGGER eval_plans_complete_matrix AFTER INSERT ON eval_frozen_plans DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION contractor_eval_complete_matrix();
-
-CREATE TRIGGER eval_plans_immutable BEFORE DELETE OR UPDATE ON eval_frozen_plans FOR EACH ROW EXECUTE FUNCTION contractor_eval_immutable();
+-- Table: eval_member_projections
 
 CREATE TABLE eval_member_projections (
     experiment_id text NOT NULL,
@@ -3886,10 +4168,7 @@ CREATE TABLE eval_member_projections (
     CONSTRAINT eval_member_projections_observed_document_check CHECK (((observed_document IS NULL) OR ((octet_length(observed_document) >= 2) AND (octet_length(observed_document) <= 1048576))))
 );
 
-ALTER TABLE eval_member_projections
-    ADD CONSTRAINT eval_member_projections_pkey PRIMARY KEY (experiment_id, member_id);
-
-CREATE INDEX eval_member_projections_dirty ON eval_member_projections USING btree (experiment_id, checked_at NULLS FIRST, member_id) WHERE (revision <> projected_revision);
+-- Table: eval_members
 
 CREATE TABLE eval_members (
     experiment_id text NOT NULL,
@@ -3917,50 +4196,7 @@ CREATE TABLE eval_members (
     CONSTRAINT eval_members_sample_check CHECK (((sample >= 1) AND (sample <= 100)))
 );
 
-ALTER TABLE eval_members
-    ADD CONSTRAINT eval_members_experiment_id_member_id_execution_kind_key UNIQUE (experiment_id, member_id, execution_kind);
-
-ALTER TABLE eval_members
-    ADD CONSTRAINT eval_members_experiment_id_ordinal_key UNIQUE (experiment_id, ordinal);
-
-ALTER TABLE eval_members
-    ADD CONSTRAINT eval_members_experiment_id_suite_id_case_id_sample_variant__key UNIQUE (experiment_id, suite_id, case_id, sample, variant_id);
-
-ALTER TABLE eval_members
-    ADD CONSTRAINT eval_members_pkey PRIMARY KEY (experiment_id, member_id);
-
-ALTER TABLE eval_members
-    ADD CONSTRAINT eval_members_submission_key_key UNIQUE (submission_key);
-
-CREATE INDEX eval_members_pair_idx ON eval_members USING btree (experiment_id, pair_id, variant_id);
-
-CREATE TRIGGER eval_members_bound BEFORE INSERT ON eval_members FOR EACH ROW EXECUTE FUNCTION contractor_eval_member_bound();
-
-CREATE TRIGGER eval_members_immutable BEFORE DELETE OR UPDATE ON eval_members FOR EACH ROW EXECUTE FUNCTION contractor_eval_immutable();
-
-CREATE TRIGGER eval_members_projection AFTER INSERT ON eval_members REFERENCING NEW TABLE AS inserted_members FOR EACH STATEMENT EXECUTE FUNCTION contractor_eval_members_inserted();
-
-CREATE TABLE eval_mutation_receipts (
-    owner_id text NOT NULL,
-    project_id text NOT NULL,
-    resource_id text NOT NULL,
-    operation text NOT NULL,
-    operation_key text NOT NULL,
-    request_sha256 text NOT NULL,
-    expected_revision bigint,
-    response bytea NOT NULL,
-    created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
-    CONSTRAINT eval_mutation_receipts_operation_key_check CHECK (((length(operation_key) >= 1) AND (length(operation_key) <= 128))),
-    CONSTRAINT eval_mutation_receipts_request_sha256_check CHECK ((request_sha256 ~ '^sha256:[0-9a-f]{64}$'::text)),
-    CONSTRAINT eval_mutation_receipts_response_check CHECK (((octet_length(response) >= 2) AND (octet_length(response) <= 1048576)))
-);
-
-ALTER TABLE eval_mutation_receipts
-    ADD CONSTRAINT eval_mutation_receipts_pkey PRIMARY KEY (owner_id, project_id, resource_id, operation, operation_key);
-
-CREATE INDEX eval_mutation_receipts_project_idx ON eval_mutation_receipts USING btree (project_id);
-
-CREATE TRIGGER eval_receipts_immutable BEFORE DELETE OR UPDATE ON eval_mutation_receipts FOR EACH ROW EXECUTE FUNCTION contractor_eval_immutable();
+-- Table: eval_plan_resources
 
 CREATE TABLE eval_plan_resources (
     experiment_id text NOT NULL,
@@ -3972,10 +4208,7 @@ CREATE TABLE eval_plan_resources (
     CONSTRAINT eval_plan_resources_resource_path_check CHECK (((length(resource_path) >= 1) AND (length(resource_path) <= 1024)))
 );
 
-ALTER TABLE eval_plan_resources
-    ADD CONSTRAINT eval_plan_resources_pkey PRIMARY KEY (experiment_id, resource_path);
-
-CREATE TRIGGER eval_resources_immutable BEFORE DELETE OR UPDATE ON eval_plan_resources FOR EACH ROW EXECUTE FUNCTION contractor_eval_immutable();
+-- Table: eval_progress_observations
 
 CREATE TABLE eval_progress_observations (
     experiment_id text NOT NULL,
@@ -3983,6 +4216,8 @@ CREATE TABLE eval_progress_observations (
     observed_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
     counts jsonb NOT NULL
 );
+
+-- Sequence: eval_progress_observations_sequence_seq
 
 ALTER TABLE eval_progress_observations ALTER COLUMN sequence ADD GENERATED ALWAYS AS IDENTITY (
     SEQUENCE NAME eval_progress_observations_sequence_seq
@@ -3993,10 +4228,7 @@ ALTER TABLE eval_progress_observations ALTER COLUMN sequence ADD GENERATED ALWAY
     CACHE 1
 );
 
-ALTER TABLE eval_progress_observations
-    ADD CONSTRAINT eval_progress_observations_pkey PRIMARY KEY (experiment_id, sequence);
-
-CREATE INDEX eval_progress_observations_time ON eval_progress_observations USING btree (experiment_id, observed_at, sequence);
+-- Table: eval_projection_queue
 
 CREATE TABLE eval_projection_queue (
     experiment_id text NOT NULL,
@@ -4014,10 +4246,7 @@ CREATE TABLE eval_projection_queue (
     CONSTRAINT eval_projection_queue_view_shape CHECK ((((snapshot_id IS NULL) = (generation IS NULL)) AND ((generation IS NULL) = (summary IS NULL)) AND ((generation IS NULL) = (suites IS NULL)) AND ((generation IS NULL) = (pins_verified IS NULL)) AND ((generation IS NULL) = (published_at IS NULL))))
 );
 
-ALTER TABLE eval_projection_queue
-    ADD CONSTRAINT eval_projection_queue_pkey PRIMARY KEY (experiment_id);
-
-CREATE INDEX eval_projection_queue_dirty_idx ON eval_projection_queue USING btree (experiment_id) WHERE (revision <> published_revision);
+-- Table: eval_records
 
 CREATE TABLE eval_records (
     experiment_id text NOT NULL,
@@ -4033,14 +4262,7 @@ CREATE TABLE eval_records (
     CONSTRAINT eval_records_kind_check CHECK ((kind = ANY (ARRAY['result'::text, 'assessment'::text])))
 );
 
-ALTER TABLE eval_records
-    ADD CONSTRAINT eval_records_pkey PRIMARY KEY (experiment_id, member_id, kind, record_sha256);
-
-CREATE INDEX eval_records_native_recent ON eval_records USING btree (experiment_id, member_id, kind, created_at DESC, record_sha256 DESC) WHERE (actor_id = 'system:eval-collector'::text);
-
-CREATE INDEX eval_records_recent ON eval_records USING btree (experiment_id, member_id, kind, created_at DESC, record_sha256 DESC);
-
-CREATE TRIGGER eval_records_immutable BEFORE DELETE OR UPDATE ON eval_records FOR EACH ROW EXECUTE FUNCTION contractor_eval_immutable();
+-- Table: eval_selections
 
 CREATE TABLE eval_selections (
     experiment_id text NOT NULL,
@@ -4055,10 +4277,7 @@ CREATE TABLE eval_selections (
     CONSTRAINT eval_selections_result_kind_check CHECK ((result_kind = 'result'::text))
 );
 
-ALTER TABLE eval_selections
-    ADD CONSTRAINT eval_selections_pkey PRIMARY KEY (experiment_id, member_id);
-
-CREATE TRIGGER eval_selections_projection AFTER INSERT OR UPDATE ON eval_selections FOR EACH ROW EXECUTE FUNCTION contractor_eval_member_changed();
+-- Table: eval_submissions
 
 CREATE TABLE eval_submissions (
     experiment_id text NOT NULL,
@@ -4078,22 +4297,7 @@ CREATE TABLE eval_submissions (
     CONSTRAINT eval_submissions_state_check CHECK ((state = ANY (ARRAY['intent'::text, 'accepted'::text, 'terminal'::text, 'rejected'::text])))
 );
 
-ALTER TABLE eval_submissions
-    ADD CONSTRAINT eval_submissions_pkey PRIMARY KEY (experiment_id, member_id);
-
-CREATE UNIQUE INDEX eval_submissions_execution_idx ON eval_submissions USING btree (execution_kind, execution_id) WHERE (execution_id IS NOT NULL);
-
-CREATE INDEX eval_submissions_outstanding_idx ON eval_submissions USING btree (experiment_id, member_id) WHERE (state = ANY (ARRAY['intent'::text, 'accepted'::text]));
-
-CREATE INDEX eval_submissions_reconcile_idx ON eval_submissions USING btree (experiment_id, updated_at, member_id) WHERE (state = ANY (ARRAY['intent'::text, 'accepted'::text]));
-
-CREATE UNIQUE INDEX eval_submissions_workspace_idx ON eval_submissions USING btree (execution_project_id) WHERE (execution_project_id IS NOT NULL);
-
-CREATE TRIGGER eval_submissions_projection AFTER INSERT ON eval_submissions FOR EACH ROW EXECUTE FUNCTION contractor_eval_member_changed();
-
-CREATE TRIGGER eval_submissions_projection_update AFTER UPDATE OF state, execution_id, execution_project_id, terminal_state ON eval_submissions FOR EACH ROW WHEN (((((old.state IS DISTINCT FROM new.state) OR (old.execution_id IS DISTINCT FROM new.execution_id)) OR (old.execution_project_id IS DISTINCT FROM new.execution_project_id)) OR (old.terminal_state IS DISTINCT FROM new.terminal_state))) EXECUTE FUNCTION contractor_eval_member_changed();
-
-CREATE TRIGGER eval_submissions_protect BEFORE UPDATE ON eval_submissions FOR EACH ROW EXECUTE FUNCTION contractor_eval_protect_submission();
+-- Table: eval_suboperations
 
 CREATE TABLE eval_suboperations (
     experiment_id text NOT NULL,
@@ -4111,13 +4315,7 @@ CREATE TABLE eval_suboperations (
     CONSTRAINT eval_suboperations_state_check CHECK ((state = ANY (ARRAY['intent'::text, 'succeeded'::text, 'rejected'::text])))
 );
 
-ALTER TABLE eval_suboperations
-    ADD CONSTRAINT eval_suboperations_operation_key_key UNIQUE (operation_key);
-
-ALTER TABLE eval_suboperations
-    ADD CONSTRAINT eval_suboperations_pkey PRIMARY KEY (experiment_id, member_id, kind);
-
-CREATE TRIGGER eval_suboperations_protect BEFORE UPDATE ON eval_suboperations FOR EACH ROW EXECUTE FUNCTION contractor_eval_protect_suboperation();
+-- Table: eval_view_charts
 
 CREATE TABLE eval_view_charts (
     experiment_id text NOT NULL,
@@ -4127,10 +4325,7 @@ CREATE TABLE eval_view_charts (
     document bytea NOT NULL
 );
 
-ALTER TABLE eval_view_charts
-    ADD CONSTRAINT eval_view_charts_pkey PRIMARY KEY (experiment_id, generation, suite_id, metric);
-
-CREATE TRIGGER eval_view_charts_immutable BEFORE DELETE OR UPDATE ON eval_view_charts FOR EACH ROW EXECUTE FUNCTION contractor_eval_view_immutable();
+-- Table: eval_view_pairs
 
 CREATE TABLE eval_view_pairs (
     experiment_id text NOT NULL,
@@ -4146,340 +4341,3163 @@ CREATE TABLE eval_view_pairs (
     duration_a double precision,
     duration_b double precision,
     complete_a boolean NOT NULL,
-    complete_b boolean NOT NULL
+    complete_b boolean NOT NULL,
+    member_ordinal_a integer NOT NULL,
+    member_ordinal_b integer NOT NULL,
+    variant_a text NOT NULL,
+    variant_b text NOT NULL,
+    eligibility_a text NOT NULL,
+    eligibility_b text NOT NULL,
+    execution_state_a text,
+    execution_state_b text,
+    assessment_a text NOT NULL,
+    assessment_b text NOT NULL,
+    conflicting_a boolean NOT NULL,
+    conflicting_b boolean NOT NULL
 );
 
-ALTER TABLE eval_view_pairs
+-- Table: finding_correlation_fences
+
+CREATE TABLE finding_correlation_fences (
+    project_id text NOT NULL,
+    revision bigint DEFAULT 1 NOT NULL,
+    CONSTRAINT finding_correlation_fences_revision_check CHECK (((revision >= 1) AND (revision <= '9007199254740991'::bigint)))
+);
+
+-- Table: finding_proposal_audit_holds
+
+CREATE TABLE finding_proposal_audit_holds (
+    receipt_id text NOT NULL,
+    audit_id text NOT NULL,
+    project_id text NOT NULL,
+    proposal_ref jsonb NOT NULL,
+    evidence jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    receipt_created_at timestamp with time zone NOT NULL,
+    CONSTRAINT finding_proposal_audit_holds_evidence_check CHECK (((jsonb_typeof(evidence) = 'array'::text) AND (octet_length((evidence)::text) <= 1048576))),
+    CONSTRAINT finding_proposal_audit_holds_proposal_ref_check CHECK (((jsonb_typeof(proposal_ref) = 'object'::text) AND (octet_length((proposal_ref)::text) <= 4096)))
+);
+
+-- Table: finding_proposal_receipts
+
+CREATE TABLE finding_proposal_receipts (
+    receipt_id text NOT NULL,
+    proposal_id text NOT NULL,
+    allocation_id text NOT NULL,
+    runtime_agent_id text NOT NULL,
+    runtime_instance_id text NOT NULL,
+    stage_execution_id text NOT NULL,
+    logical_agent_name text NOT NULL,
+    invocation_id text NOT NULL,
+    submission_id text NOT NULL,
+    client_key text NOT NULL,
+    request_digest text NOT NULL,
+    run_id text NOT NULL,
+    owner_id text NOT NULL,
+    project_id text,
+    audit_execution_id text,
+    audit_id text,
+    audit_role text,
+    workflow_name text NOT NULL,
+    workflow_version text NOT NULL,
+    workflow_schema_version text NOT NULL,
+    workflow_configuration_ref jsonb NOT NULL,
+    workflow_closure_digest text NOT NULL,
+    proposal_ref jsonb NOT NULL,
+    proposal_digest text NOT NULL,
+    proposal_media_type text NOT NULL,
+    proposal_size_bytes bigint NOT NULL,
+    evidence jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    retention_state text DEFAULT 'source-held'::text NOT NULL,
+    source_run_deleted_at timestamp with time zone,
+    discarded_at timestamp with time zone,
+    retention_updated_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    report_projection text NOT NULL,
+    fingerprint_projection text DEFAULT '{"schema":"contractor.finding.fingerprint-projection.v1","availability":"unavailable","reason":"not_recorded"}'::text NOT NULL,
+    anchor_projection text DEFAULT '{"schema":"contractor.finding.anchors-projection.v1","availability":"unavailable","reason":"not_recorded"}'::text NOT NULL,
+    comparison_projection jsonb DEFAULT '{"reason": "not_recorded", "schema": "contractor.finding.comparison-projection.v1", "availability": "unavailable"}'::jsonb NOT NULL,
+    checks_projection json,
+    checks_projection_bytes integer GENERATED ALWAYS AS (octet_length((checks_projection)::text)) STORED,
+    checks_projection_count integer GENERATED ALWAYS AS (json_array_length((checks_projection -> 'checks'::text))) STORED,
+    CONSTRAINT finding_anchor_projection_shape CHECK (((((octet_length(anchor_projection) >= 2) AND (octet_length(anchor_projection) <= 32768)) AND (jsonb_typeof((anchor_projection)::jsonb) = 'object'::text) AND (((anchor_projection)::jsonb ->> 'schema'::text) = 'contractor.finding.anchors-projection.v1'::text) AND (((anchor_projection)::jsonb ->> 'availability'::text) = ANY (ARRAY['available'::text, 'unavailable'::text]))) IS TRUE)),
+    CONSTRAINT finding_checks_projection_discarded CHECK (((retention_state <> 'discarded'::text) OR COALESCE(((checks_projection IS NOT NULL) AND ((checks_projection ->> 'discarded'::text) = 'true'::text) AND (json_array_length((checks_projection -> 'checks'::text)) = 0) AND ((checks_projection ->> 'subject'::text) IS NULL) AND ((checks_projection ->> 'limitations'::text) IS NULL)), false))),
+    CONSTRAINT finding_checks_projection_shape CHECK (((checks_projection IS NULL) OR COALESCE(((octet_length((checks_projection)::text) <= 262144) AND (json_typeof(checks_projection) = 'object'::text) AND ((checks_projection ->> 'schema'::text) = 'contractor.audit.finding-checks-projection.v1'::text) AND ((checks_projection ->> 'proposal_digest'::text) = proposal_digest) AND (((checks_projection ->> 'size_bytes'::text))::bigint = proposal_size_bytes) AND (json_typeof((checks_projection -> 'checks'::text)) = 'array'::text) AND (json_array_length((checks_projection -> 'checks'::text)) <= 512) AND (json_typeof((checks_projection -> 'discarded'::text)) = 'boolean'::text) AND (((checks_projection ->> 'discarded'::text))::boolean = (retention_state = 'discarded'::text))), false))),
+    CONSTRAINT finding_comparison_projection_shape CHECK (((jsonb_typeof(comparison_projection) = 'object'::text) AND (octet_length((comparison_projection)::text) <= 32768) AND ((comparison_projection ->> 'schema'::text) = 'contractor.finding.comparison-projection.v1'::text) AND ((comparison_projection ->> 'availability'::text) = ANY (ARRAY['available'::text, 'unavailable'::text])))),
+    CONSTRAINT finding_fingerprint_projection_shape CHECK (((((octet_length(fingerprint_projection) >= 2) AND (octet_length(fingerprint_projection) <= 16384)) AND (jsonb_typeof((fingerprint_projection)::jsonb) = 'object'::text) AND (((fingerprint_projection)::jsonb ->> 'schema'::text) = 'contractor.finding.fingerprint-projection.v1'::text) AND (((fingerprint_projection)::jsonb ->> 'availability'::text) = ANY (ARRAY['available'::text, 'unavailable'::text]))) IS TRUE)),
+    CONSTRAINT finding_proposal_receipts_allocation_id_check CHECK (((btrim(allocation_id) <> ''::text) AND (octet_length(allocation_id) <= 256))),
+    CONSTRAINT finding_proposal_receipts_audit_role_check CHECK (((audit_role IS NULL) OR (audit_role = ANY (ARRAY['discovery'::text, 'check'::text, 'assessment'::text])))),
+    CONSTRAINT finding_proposal_receipts_audit_shape CHECK ((((audit_execution_id IS NULL) AND (audit_id IS NULL) AND (audit_role IS NULL)) OR ((audit_execution_id IS NOT NULL) AND (audit_id IS NOT NULL) AND (audit_role IS NOT NULL)))),
+    CONSTRAINT finding_proposal_receipts_client_key_check CHECK ((client_key ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$'::text)),
+    CONSTRAINT finding_proposal_receipts_discarded_report_check CHECK (((retention_state <> 'discarded'::text) OR (report_projection = '{}'::text))),
+    CONSTRAINT finding_proposal_receipts_evidence_check CHECK (((jsonb_typeof(evidence) = 'array'::text) AND (octet_length((evidence)::text) <= 1048576))),
+    CONSTRAINT finding_proposal_receipts_invocation_id_check CHECK (((btrim(invocation_id) <> ''::text) AND (octet_length(invocation_id) <= 128))),
+    CONSTRAINT finding_proposal_receipts_logical_agent_name_check CHECK (((btrim(logical_agent_name) <> ''::text) AND (octet_length(logical_agent_name) <= 128))),
+    CONSTRAINT finding_proposal_receipts_owner_id_check CHECK (((btrim(owner_id) <> ''::text) AND (octet_length(owner_id) <= 256))),
+    CONSTRAINT finding_proposal_receipts_proposal_digest_check CHECK ((proposal_digest ~ '^sha256:[0-9a-f]{64}$'::text)),
+    CONSTRAINT finding_proposal_receipts_proposal_id_check CHECK ((proposal_id ~ '^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$'::text)),
+    CONSTRAINT finding_proposal_receipts_proposal_media_type_check CHECK ((proposal_media_type = 'application/json'::text)),
+    CONSTRAINT finding_proposal_receipts_proposal_ref_check CHECK (((jsonb_typeof(proposal_ref) = 'object'::text) AND (octet_length((proposal_ref)::text) <= 4096))),
+    CONSTRAINT finding_proposal_receipts_proposal_size_bytes_check CHECK (((proposal_size_bytes >= 0) AND (proposal_size_bytes <= 8388608))),
+    CONSTRAINT finding_proposal_receipts_receipt_id_check CHECK ((receipt_id ~ '^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$'::text)),
+    CONSTRAINT finding_proposal_receipts_report_preconditions_check CHECK (((retention_state = 'discarded'::text) OR (NOT (jsonb_typeof(((report_projection)::jsonb -> 'preconditions'::text)) IS DISTINCT FROM 'array'::text)))),
+    CONSTRAINT finding_proposal_receipts_report_projection_check CHECK ((((octet_length(report_projection) >= 2) AND (octet_length(report_projection) <= 8388608)) AND (jsonb_typeof((report_projection)::jsonb) = 'object'::text))),
+    CONSTRAINT finding_proposal_receipts_request_digest_check CHECK ((request_digest ~ '^sha256:[0-9a-f]{64}$'::text)),
+    CONSTRAINT finding_proposal_receipts_retention_shape CHECK ((((retention_state = 'source-held'::text) AND (source_run_deleted_at IS NULL) AND (discarded_at IS NULL)) OR ((retention_state = 'audit-held'::text) AND (discarded_at IS NULL)) OR ((retention_state = 'discarded'::text) AND (source_run_deleted_at IS NOT NULL) AND (discarded_at IS NOT NULL)))),
+    CONSTRAINT finding_proposal_receipts_retention_state_check CHECK ((retention_state = ANY (ARRAY['source-held'::text, 'audit-held'::text, 'discarded'::text]))),
+    CONSTRAINT finding_proposal_receipts_run_id_check CHECK (((btrim(run_id) <> ''::text) AND (octet_length(run_id) <= 256))),
+    CONSTRAINT finding_proposal_receipts_runtime_agent_id_check CHECK (((btrim(runtime_agent_id) <> ''::text) AND (octet_length(runtime_agent_id) <= 256))),
+    CONSTRAINT finding_proposal_receipts_runtime_instance_id_check CHECK (((btrim(runtime_instance_id) <> ''::text) AND (octet_length(runtime_instance_id) <= 256))),
+    CONSTRAINT finding_proposal_receipts_stage_execution_id_check CHECK (((btrim(stage_execution_id) <> ''::text) AND (octet_length(stage_execution_id) <= 256))),
+    CONSTRAINT finding_proposal_receipts_submission_id_check CHECK (((btrim(submission_id) <> ''::text) AND (octet_length(submission_id) <= 128))),
+    CONSTRAINT finding_proposal_receipts_workflow_closure_digest_check CHECK ((workflow_closure_digest ~ '^sha256:[0-9a-f]{64}$'::text)),
+    CONSTRAINT finding_proposal_receipts_workflow_configuration_ref_check CHECK (((jsonb_typeof(workflow_configuration_ref) = 'object'::text) AND (octet_length((workflow_configuration_ref)::text) <= 4096))),
+    CONSTRAINT finding_proposal_receipts_workflow_name_check CHECK (((btrim(workflow_name) <> ''::text) AND (octet_length(workflow_name) <= 128))),
+    CONSTRAINT finding_proposal_receipts_workflow_schema_version_check CHECK (((btrim(workflow_schema_version) <> ''::text) AND (octet_length(workflow_schema_version) <= 128))),
+    CONSTRAINT finding_proposal_receipts_workflow_version_check CHECK (((btrim(workflow_version) <> ''::text) AND (octet_length(workflow_version) <= 128)))
+);
+
+-- Table: gateway_allocation_routes
+
+CREATE TABLE gateway_allocation_routes (
+    allocation_id text NOT NULL,
+    model text NOT NULL,
+    run_id text NOT NULL,
+    route_key text NOT NULL
+);
+
+-- Table: gateway_recovery_failures
+
+CREATE TABLE gateway_recovery_failures (
+    route_key text NOT NULL,
+    request_id text NOT NULL,
+    run_id text NOT NULL
+);
+
+-- Table: gateway_recovery_routes
+
+CREATE TABLE gateway_recovery_routes (
+    route_key text NOT NULL,
+    owner_id text NOT NULL,
+    blocked boolean DEFAULT false NOT NULL,
+    failure_code text DEFAULT ''::text NOT NULL,
+    failure_count bigint DEFAULT 0 NOT NULL,
+    blocked_at timestamp with time zone,
+    next_probe_at timestamp with time zone,
+    automatic_until timestamp with time zone,
+    probe_id text,
+    probe_run_id text,
+    probe_until timestamp with time zone
+);
+
+-- Table: gateway_recovery_waits
+
+CREATE TABLE gateway_recovery_waits (
+    participant_id text NOT NULL,
+    model text NOT NULL,
+    run_id text NOT NULL,
+    route_key text NOT NULL
+);
+
+-- Table: gateway_run_routes
+
+CREATE TABLE gateway_run_routes (
+    run_id text NOT NULL,
+    route_key text NOT NULL
+);
+
+-- Table: git_ssh_keys
+
+CREATE TABLE git_ssh_keys (
+    owner_id text NOT NULL,
+    generation text NOT NULL,
+    encryption_schema_version text NOT NULL,
+    key_id text NOT NULL,
+    nonce bytea NOT NULL,
+    ciphertext bytea NOT NULL,
+    fingerprint text NOT NULL,
+    key_type text NOT NULL,
+    updated_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    CONSTRAINT git_ssh_keys_ciphertext_check CHECK (((octet_length(ciphertext) >= 17) AND (octet_length(ciphertext) <= 32784))),
+    CONSTRAINT git_ssh_keys_encryption_schema_version_check CHECK ((encryption_schema_version = 'git-ssh-key@1'::text)),
+    CONSTRAINT git_ssh_keys_generation_check CHECK ((generation ~ '^[0-9a-f]{32}$'::text)),
+    CONSTRAINT git_ssh_keys_key_id_check CHECK ((key_id ~ '^sha256:[0-9a-f]{64}$'::text)),
+    CONSTRAINT git_ssh_keys_nonce_check CHECK ((octet_length(nonce) = 12)),
+    CONSTRAINT git_ssh_keys_owner_id_check CHECK (((length(owner_id) >= 1) AND (length(owner_id) <= 256)))
+);
+
+-- Table: llm_credentials
+
+CREATE TABLE llm_credentials (
+    credential_id text NOT NULL,
+    llm_gateway_id text NOT NULL,
+    llm_gateway_version text NOT NULL,
+    llm_gateway_digest text NOT NULL,
+    remote_key_id text NOT NULL,
+    label text,
+    gateway_policy jsonb NOT NULL,
+    encryption_schema_version text NOT NULL,
+    key_id text NOT NULL,
+    nonce bytea NOT NULL,
+    ciphertext bytea NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    CONSTRAINT llm_credentials_ciphertext_check CHECK (((octet_length(ciphertext) >= 17) AND (octet_length(ciphertext) <= 16400))),
+    CONSTRAINT llm_credentials_encryption_schema_version_check CHECK ((encryption_schema_version = 'contractor.credentials/v1'::text)),
+    CONSTRAINT llm_credentials_gateway_policy_check CHECK (((jsonb_typeof(gateway_policy) = 'object'::text) AND (octet_length((gateway_policy)::text) <= 65536))),
+    CONSTRAINT llm_credentials_key_id_check CHECK ((key_id ~ '^sha256:[0-9a-f]{64}$'::text)),
+    CONSTRAINT llm_credentials_label_check CHECK (((label IS NULL) OR ((btrim(label) <> ''::text) AND (octet_length(label) <= 1024)))),
+    CONSTRAINT llm_credentials_llm_gateway_digest_check CHECK ((llm_gateway_digest ~ '^sha256:[0-9a-f]{64}$'::text)),
+    CONSTRAINT llm_credentials_llm_gateway_id_check CHECK (((llm_gateway_id ~ '^[a-z][a-z0-9_-]*$'::text) AND (octet_length(llm_gateway_id) <= 128))),
+    CONSTRAINT llm_credentials_llm_gateway_version_check CHECK (((llm_gateway_version ~ '^[A-Za-z0-9][A-Za-z0-9._+-]*$'::text) AND (octet_length(llm_gateway_version) <= 64))),
+    CONSTRAINT llm_credentials_nonce_check CHECK ((octet_length(nonce) = 12)),
+    CONSTRAINT llm_credentials_remote_key_id_check CHECK (((btrim(remote_key_id) <> ''::text) AND (octet_length(remote_key_id) <= 512)))
+);
+
+-- Table: model_selection_settings
+
+CREATE TABLE model_selection_settings (
+    singleton boolean DEFAULT true NOT NULL,
+    default_model text NOT NULL,
+    role_models jsonb NOT NULL,
+    revision numeric(20,0) DEFAULT 1 NOT NULL,
+    updated_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    CONSTRAINT model_selection_settings_revision_check CHECK (((revision >= (1)::numeric) AND (revision <= '18446744073709551615'::numeric))),
+    CONSTRAINT model_selection_settings_singleton_check CHECK (singleton),
+    CONSTRAINT model_selection_settings_value CHECK (contractor_valid_model_selection(default_model, role_models))
+);
+
+-- Table: mutation_receipts
+
+CREATE TABLE mutation_receipts (
+    key_scope text[] NOT NULL,
+    idempotency_key text NOT NULL,
+    operation text NOT NULL,
+    request_digest text NOT NULL,
+    resource_id text NOT NULL,
+    response bytea NOT NULL,
+    owner_id text,
+    project_id text,
+    audit_id text,
+    created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    CONSTRAINT mutation_receipts_family_check CHECK (
+CASE key_scope[1]
+    WHEN 'audit'::text THEN ((owner_id IS NOT NULL) AND (audit_id IS NOT NULL) AND (project_id IS NULL) AND (key_scope = ARRAY['audit'::text, owner_id, operation]) AND (idempotency_key ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'::text))
+    WHEN 'eval'::text THEN ((owner_id IS NOT NULL) AND (project_id IS NOT NULL) AND (audit_id IS NULL) AND (key_scope = ARRAY['eval'::text, owner_id, project_id, resource_id, operation]))
+    WHEN 'runtime-management'::text THEN ((owner_id IS NULL) AND (project_id IS NULL) AND (audit_id IS NULL) AND (key_scope = ARRAY['runtime-management'::text]) AND (idempotency_key ~ '^sha256:[0-9a-f]{64}$'::text))
+    WHEN 'scan-sweep'::text THEN ((owner_id IS NOT NULL) AND (project_id IS NULL) AND (audit_id IS NULL) AND (operation = 'scan-sweep.create'::text) AND (key_scope = ARRAY['scan-sweep'::text, owner_id, operation]) AND (idempotency_key ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'::text))
+    WHEN 'project'::text THEN ((owner_id IS NOT NULL) AND (project_id IS NOT NULL) AND (audit_id IS NULL) AND (key_scope = ARRAY['project'::text, owner_id, project_id, resource_id, operation]) AND (idempotency_key ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'::text))
+    ELSE false
+END),
+    CONSTRAINT mutation_receipts_idempotency_key_check CHECK (((octet_length(idempotency_key) >= 1) AND (octet_length(idempotency_key) <= 128))),
+    CONSTRAINT mutation_receipts_operation_check CHECK ((operation ~ '^[a-z][a-z0-9_.-]{0,127}$'::text)),
+    CONSTRAINT mutation_receipts_owner_id_check CHECK (((owner_id IS NULL) OR ((btrim(owner_id) <> ''::text) AND (octet_length(owner_id) <= 256)))),
+    CONSTRAINT mutation_receipts_request_digest_check CHECK ((request_digest ~ '^sha256:[0-9a-f]{64}$'::text)),
+    CONSTRAINT mutation_receipts_resource_id_check CHECK (((btrim(resource_id) <> ''::text) AND (octet_length(resource_id) <= 1024))),
+    CONSTRAINT mutation_receipts_response_check CHECK (((octet_length(response) >= 2) AND (octet_length(response) <= 1048576)))
+);
+
+-- Table: owner_queue_controls
+
+CREATE TABLE owner_queue_controls (
+    owner_id text NOT NULL,
+    paused boolean DEFAULT false NOT NULL,
+    revision bigint DEFAULT 1 NOT NULL,
+    updated_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    CONSTRAINT owner_queue_controls_owner_id_check CHECK (((btrim(owner_id) <> ''::text) AND (octet_length(owner_id) <= 256))),
+    CONSTRAINT owner_queue_controls_revision_check CHECK ((revision > 0))
+);
+
+-- Table: performance_minutes
+
+CREATE TABLE performance_minutes (
+    server_generation text NOT NULL,
+    minute_start timestamp with time zone NOT NULL,
+    schema_version smallint NOT NULL,
+    coverage_seconds double precision NOT NULL,
+    payload bytea NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    CONSTRAINT performance_minutes_check CHECK ((expires_at = (minute_start + '168:00:00'::interval))),
+    CONSTRAINT performance_minutes_coverage_seconds_check CHECK (((coverage_seconds >= (0)::double precision) AND (coverage_seconds <= (60)::double precision))),
+    CONSTRAINT performance_minutes_minute_start_check CHECK ((minute_start = date_trunc('minute'::text, minute_start))),
+    CONSTRAINT performance_minutes_payload_check CHECK (((octet_length(payload) >= 1) AND (octet_length(payload) <= 32768))),
+    CONSTRAINT performance_minutes_schema_version_check CHECK ((schema_version = 1)),
+    CONSTRAINT performance_minutes_server_generation_check CHECK (((length(server_generation) >= 1) AND (length(server_generation) <= 128)))
+);
+
+-- Table: planner_execution_reports
+
+CREATE TABLE planner_execution_reports (
+    report_id text NOT NULL,
+    stage_execution_id text NOT NULL,
+    session_id text NOT NULL,
+    invocation_id text NOT NULL,
+    started_at timestamp with time zone NOT NULL,
+    finished_at timestamp with time zone NOT NULL,
+    report_schema_version text NOT NULL,
+    report jsonb NOT NULL,
+    received_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    expires_at timestamp with time zone DEFAULT (clock_timestamp() + '30 days'::interval) NOT NULL,
+    CONSTRAINT planner_execution_reports_check CHECK ((finished_at >= started_at)),
+    CONSTRAINT planner_execution_reports_check1 CHECK (((jsonb_typeof(report) = 'object'::text) AND ((report ->> 'reportId'::text) = report_id))),
+    CONSTRAINT planner_execution_reports_invocation_id_check CHECK ((btrim(invocation_id) <> ''::text)),
+    CONSTRAINT planner_execution_reports_report_id_check CHECK ((btrim(report_id) <> ''::text)),
+    CONSTRAINT planner_execution_reports_report_schema_version_check CHECK ((btrim(report_schema_version) <> ''::text))
+);
+
+-- Table: planner_sessions
+
+CREATE TABLE planner_sessions (
+    session_id text NOT NULL,
+    stage_execution_id text NOT NULL,
+    invocation_id text NOT NULL,
+    state_schema_version text NOT NULL,
+    state jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    updated_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    next_event_sequence bigint DEFAULT 1 NOT NULL,
+    artifact_refs jsonb GENERATED ALWAYS AS (contractor_planner_session_artifact_refs(state)) STORED,
+    CONSTRAINT planner_session_next_event_sequence_positive CHECK ((next_event_sequence > 0)),
+    CONSTRAINT planner_session_state_size CHECK ((octet_length((state)::text) <= 2097152)),
+    CONSTRAINT planner_sessions_invocation_id_check CHECK ((btrim(invocation_id) <> ''::text)),
+    CONSTRAINT planner_sessions_session_id_check CHECK ((btrim(session_id) <> ''::text)),
+    CONSTRAINT planner_sessions_state_check CHECK ((jsonb_typeof(state) = 'object'::text)),
+    CONSTRAINT planner_sessions_state_schema_version_check CHECK ((btrim(state_schema_version) <> ''::text))
+);
+
+-- Table: projects
+
+CREATE TABLE projects (
+    project_id text NOT NULL,
+    owner_id text NOT NULL,
+    kind text NOT NULL,
+    name text NOT NULL,
+    description text DEFAULT ''::text NOT NULL,
+    revision bigint DEFAULT 1 NOT NULL,
+    request_idempotency_key text NOT NULL,
+    request_digest text NOT NULL,
+    created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    updated_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    http_target_url text,
+    http_target_credential_id text,
+    http_target_credential_kind text,
+    lifecycle_state text DEFAULT 'active'::text NOT NULL,
+    deletion_phase text,
+    deletion_requested_at timestamp with time zone,
+    deletion_claim_id text,
+    deletion_claimed_at timestamp with time zone,
+    deletion_claim_expires_at timestamp with time zone,
+    active_checks text DEFAULT 'automatic'::text NOT NULL,
+    CONSTRAINT projects_active_checks_policy CHECK ((active_checks = ANY (ARRAY['automatic'::text, 'approval-required'::text, 'prohibited'::text]))),
+    CONSTRAINT projects_deletion_phase_check CHECK ((deletion_phase = ANY (ARRAY['cancelling'::text, 'draining'::text, 'purging_runs'::text, 'purging_artifacts'::text]))),
+    CONSTRAINT projects_deletion_shape CHECK ((((lifecycle_state = 'active'::text) AND (deletion_phase IS NULL) AND (deletion_requested_at IS NULL) AND (deletion_claim_id IS NULL) AND (deletion_claimed_at IS NULL) AND (deletion_claim_expires_at IS NULL)) OR ((lifecycle_state = 'deleting'::text) AND (deletion_phase IS NOT NULL) AND (deletion_requested_at IS NOT NULL) AND (((deletion_claim_id IS NULL) AND (deletion_claimed_at IS NULL) AND (deletion_claim_expires_at IS NULL)) OR ((deletion_claim_id IS NOT NULL) AND (deletion_claimed_at IS NOT NULL) AND (deletion_claim_expires_at > deletion_claimed_at)))))),
+    CONSTRAINT projects_description_check CHECK ((octet_length(description) <= 4096)),
+    CONSTRAINT projects_http_target_shape CHECK ((((http_target_url IS NULL) AND (http_target_credential_id IS NULL) AND (http_target_credential_kind IS NULL)) OR ((http_target_url IS NOT NULL) AND (btrim(http_target_url) = http_target_url) AND ((octet_length(http_target_url) >= 1) AND (octet_length(http_target_url) <= 2048)) AND (((http_target_credential_id IS NULL) AND (http_target_credential_kind IS NULL)) OR ((http_target_credential_id IS NOT NULL) AND (http_target_credential_kind = ANY (ARRAY['http-origin-basic@1'::text, 'http-origin-bearer@1'::text]))))))),
+    CONSTRAINT projects_kind_check CHECK ((kind = ANY (ARRAY['project'::text, 'evaluation'::text]))),
+    CONSTRAINT projects_lifecycle_state_check CHECK ((lifecycle_state = ANY (ARRAY['active'::text, 'deleting'::text]))),
+    CONSTRAINT projects_name_check CHECK (((btrim(name) <> ''::text) AND (octet_length(name) <= 160))),
+    CONSTRAINT projects_owner_id_check CHECK (((btrim(owner_id) <> ''::text) AND (octet_length(owner_id) <= 256))),
+    CONSTRAINT projects_project_id_check CHECK ((project_id ~ '^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$'::text)),
+    CONSTRAINT projects_request_digest_check CHECK ((request_digest ~ '^sha256:[0-9a-f]{64}$'::text)),
+    CONSTRAINT projects_request_idempotency_key_check CHECK ((request_idempotency_key ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'::text)),
+    CONSTRAINT projects_revision_check CHECK ((revision > 0))
+);
+
+-- Table: run_stage_resumptions
+
+CREATE TABLE run_stage_resumptions (
+    source_execution_id text NOT NULL,
+    run_id text NOT NULL,
+    target_execution_id text NOT NULL,
+    requested_by text NOT NULL,
+    requested_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    transaction_id xid8 DEFAULT pg_current_xact_id() NOT NULL
+);
+
+-- Table: runtime_agent_principals
+
+CREATE TABLE runtime_agent_principals (
+    runtime_agent_id text NOT NULL,
+    labels text[] NOT NULL,
+    label_revision numeric(20,0) NOT NULL,
+    created_by text NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_by text NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    CONSTRAINT runtime_agent_principals_created_by_check CHECK (((btrim(created_by) <> ''::text) AND (length(created_by) <= 256))),
+    CONSTRAINT runtime_agent_principals_label_revision_check CHECK (((label_revision >= (1)::numeric) AND (label_revision <= '18446744073709551615'::numeric))),
+    CONSTRAINT runtime_agent_principals_labels_check CHECK (contractor_valid_runtime_agent_labels(labels)),
+    CONSTRAINT runtime_agent_principals_runtime_agent_id_check CHECK ((runtime_agent_id ~ '^[0-9a-f]{64}$'::text)),
+    CONSTRAINT runtime_agent_principals_updated_by_check CHECK (((btrim(updated_by) <> ''::text) AND (length(updated_by) <= 256)))
+);
+
+-- Table: runtime_config_versions
+
+CREATE TABLE runtime_config_versions (
+    name text NOT NULL,
+    version text NOT NULL,
+    digest text NOT NULL,
+    canonical_document text NOT NULL,
+    built_in boolean DEFAULT false NOT NULL,
+    actor_id text NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    idempotency_key_digest text,
+    request_digest text,
+    CONSTRAINT runtime_config_versions_actor_id_check CHECK (((btrim(actor_id) <> ''::text) AND (length(actor_id) <= 256))),
+    CONSTRAINT runtime_config_versions_canonical_document_check CHECK (((octet_length(canonical_document) <= 131072) AND (jsonb_typeof((canonical_document)::jsonb) = 'object'::text))),
+    CONSTRAINT runtime_config_versions_check CHECK ((((name = 'contractor-empty'::text) AND (version = '1'::text) AND built_in AND (digest = 'sha256:80a1754c01f8443c29fdc8f650a2254b2461694819918b204a55a7ad3425dc5f'::text) AND (canonical_document = '{"apiVersion":"contractor/v1alpha1","kind":"RuntimeConfig","metadata":{"name":"contractor-empty","version":"1"},"spec":{}}'::text)) OR ((NOT built_in) AND (NOT ((name = 'contractor-empty'::text) AND (version = '1'::text)))))),
+    CONSTRAINT runtime_config_versions_digest_check CHECK ((digest ~ '^sha256:[0-9a-f]{64}$'::text)),
+    CONSTRAINT runtime_config_versions_idempotency_key_digest_check CHECK ((idempotency_key_digest ~ '^sha256:[0-9a-f]{64}$'::text)),
+    CONSTRAINT runtime_config_versions_name_check CHECK (((name ~ '^[a-z][a-z0-9_-]*$'::text) AND (length(name) <= 63))),
+    CONSTRAINT runtime_config_versions_publication_receipt CHECK (((idempotency_key_digest IS NULL) = (request_digest IS NULL))),
+    CONSTRAINT runtime_config_versions_request_digest_check CHECK ((request_digest ~ '^sha256:[0-9a-f]{64}$'::text)),
+    CONSTRAINT runtime_config_versions_version_check CHECK (((version ~ '^[A-Za-z0-9][A-Za-z0-9._+-]*$'::text) AND (length(version) <= 128)))
+);
+
+-- Table: runtime_credentials
+
+CREATE TABLE runtime_credentials (
+    credential_id text NOT NULL,
+    credential_kind text NOT NULL,
+    encryption_schema_version text NOT NULL,
+    key_id text NOT NULL,
+    nonce bytea NOT NULL,
+    ciphertext bytea NOT NULL,
+    created_by text NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    idempotency_key_digest text,
+    request_mac bytea,
+    deleted_by text,
+    deleted_at timestamp with time zone,
+    CONSTRAINT runtime_credentials_ciphertext_check CHECK (((octet_length(ciphertext) >= 17) AND (octet_length(ciphertext) <= 32784))),
+    CONSTRAINT runtime_credentials_created_by_check CHECK (((btrim(created_by) <> ''::text) AND (octet_length(created_by) <= 256))),
+    CONSTRAINT runtime_credentials_creation_receipt CHECK (((idempotency_key_digest IS NULL) = (request_mac IS NULL))),
+    CONSTRAINT runtime_credentials_credential_id_check CHECK (((credential_id ~ '^[a-z][a-z0-9_-]*$'::text) AND (octet_length(credential_id) <= 128))),
+    CONSTRAINT runtime_credentials_credential_kind_check CHECK ((credential_kind = ANY (ARRAY['otlp-headers@1'::text, 'http-proxy-basic@1'::text, 'http-proxy-bearer@1'::text, 'caido-bearer@1'::text, 'interactsh-token@1'::text, 'http-origin-basic@1'::text, 'http-origin-bearer@1'::text, 'target-basic@1'::text, 'target-bearer@1'::text, 'target-cookies@1'::text]))),
+    CONSTRAINT runtime_credentials_deleted_by_check CHECK (((btrim(deleted_by) <> ''::text) AND (octet_length(deleted_by) <= 256))),
+    CONSTRAINT runtime_credentials_deletion_marker CHECK (((deleted_by IS NULL) = (deleted_at IS NULL))),
+    CONSTRAINT runtime_credentials_encryption_schema_version_check CHECK ((encryption_schema_version = 'contractor.runtime-credentials/v1'::text)),
+    CONSTRAINT runtime_credentials_idempotency_key_digest_check CHECK ((idempotency_key_digest ~ '^sha256:[0-9a-f]{64}$'::text)),
+    CONSTRAINT runtime_credentials_key_id_check CHECK ((key_id ~ '^sha256:[0-9a-f]{64}$'::text)),
+    CONSTRAINT runtime_credentials_nonce_check CHECK ((octet_length(nonce) = 12)),
+    CONSTRAINT runtime_credentials_request_mac_check CHECK ((octet_length(request_mac) = 32))
+);
+
+-- Table: runtime_label_bindings
+
+CREATE TABLE runtime_label_bindings (
+    label text NOT NULL,
+    config_name text NOT NULL,
+    config_version text NOT NULL,
+    config_digest text NOT NULL,
+    revision numeric(20,0) NOT NULL,
+    created_by text NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_by text NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    CONSTRAINT runtime_label_bindings_created_by_check CHECK (((btrim(created_by) <> ''::text) AND (length(created_by) <= 256))),
+    CONSTRAINT runtime_label_bindings_label_check CHECK (((label ~ '^[a-z][a-z0-9_-]*$'::text) AND (length(label) <= 63))),
+    CONSTRAINT runtime_label_bindings_revision_check CHECK (((revision >= (1)::numeric) AND (revision <= '18446744073709551615'::numeric))),
+    CONSTRAINT runtime_label_bindings_updated_by_check CHECK (((btrim(updated_by) <> ''::text) AND (length(updated_by) <= 256)))
+);
+
+-- Table: scan_sweep_members
+
+CREATE TABLE scan_sweep_members (
+    sweep_id text NOT NULL,
+    ordinal integer NOT NULL,
+    project_id text NOT NULL,
+    target text NOT NULL,
+    child bytea NOT NULL,
+    child_key text NOT NULL,
+    child_digest text NOT NULL,
+    state text NOT NULL,
+    reason text NOT NULL,
+    run_id text,
+    settled boolean NOT NULL,
+    attempts integer DEFAULT 0 NOT NULL,
+    next_attempt_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    CONSTRAINT scan_sweep_members_attempts_check CHECK (((attempts >= 0) AND (attempts <= 100))),
+    CONSTRAINT scan_sweep_members_check CHECK (((state = 'admitted'::text) = (run_id IS NOT NULL))),
+    CONSTRAINT scan_sweep_members_check1 CHECK (((state <> ALL (ARRAY['skipped'::text, 'failed'::text, 'cancelled'::text])) OR settled)),
+    CONSTRAINT scan_sweep_members_child_check CHECK (((octet_length(child) >= 2) AND (octet_length(child) <= 16384))),
+    CONSTRAINT scan_sweep_members_child_digest_check CHECK ((child_digest ~ '^sha256:[0-9a-f]{64}$'::text)),
+    CONSTRAINT scan_sweep_members_child_key_check CHECK ((child_key ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'::text)),
+    CONSTRAINT scan_sweep_members_ordinal_check CHECK (((ordinal >= 0) AND (ordinal <= 999))),
+    CONSTRAINT scan_sweep_members_project_id_check CHECK (((project_id <> ''::text) AND (octet_length(project_id) <= 256))),
+    CONSTRAINT scan_sweep_members_state_check CHECK ((state = ANY (ARRAY['pending'::text, 'admitted'::text, 'skipped'::text, 'failed'::text, 'cancelled'::text]))),
+    CONSTRAINT scan_sweep_members_target_check CHECK ((octet_length(target) <= 2048))
+);
+
+-- Table: scan_sweeps
+
+CREATE TABLE scan_sweeps (
+    sweep_id text NOT NULL,
+    owner_id text NOT NULL,
+    workflow text NOT NULL,
+    snapshot bytea NOT NULL,
+    snapshot_digest text NOT NULL,
+    purging boolean DEFAULT false NOT NULL,
+    state text NOT NULL,
+    total integer NOT NULL,
+    pending integer NOT NULL,
+    admitted integer DEFAULT 0 NOT NULL,
+    skipped integer NOT NULL,
+    failed integer DEFAULT 0 NOT NULL,
+    cancelled integer DEFAULT 0 NOT NULL,
+    unsettled integer NOT NULL,
+    created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    settled_at timestamp with time zone,
+    next_tick_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    epoch bigint DEFAULT 0 NOT NULL,
+    holder_id text,
+    claimed_at timestamp with time zone,
+    expires_at timestamp with time zone,
+    CONSTRAINT scan_sweeps_admitted_check CHECK ((admitted >= 0)),
+    CONSTRAINT scan_sweeps_cancelled_check CHECK ((cancelled >= 0)),
+    CONSTRAINT scan_sweeps_check CHECK (((unsettled >= 0) AND (unsettled <= total))),
+    CONSTRAINT scan_sweeps_check1 CHECK ((((((pending + admitted) + skipped) + failed) + cancelled) = total)),
+    CONSTRAINT scan_sweeps_check2 CHECK (((state = ANY (ARRAY['completed'::text, 'cancelled'::text])) = (settled_at IS NOT NULL))),
+    CONSTRAINT scan_sweeps_check3 CHECK ((((holder_id IS NULL) AND (claimed_at IS NULL) AND (expires_at IS NULL)) OR ((holder_id IS NOT NULL) AND (claimed_at IS NOT NULL) AND (expires_at > claimed_at)))),
+    CONSTRAINT scan_sweeps_epoch_check CHECK ((epoch >= 0)),
+    CONSTRAINT scan_sweeps_failed_check CHECK ((failed >= 0)),
+    CONSTRAINT scan_sweeps_owner_id_check CHECK (((owner_id <> ''::text) AND (octet_length(owner_id) <= 256))),
+    CONSTRAINT scan_sweeps_pending_check CHECK ((pending >= 0)),
+    CONSTRAINT scan_sweeps_skipped_check CHECK ((skipped >= 0)),
+    CONSTRAINT scan_sweeps_snapshot_check CHECK (((octet_length(snapshot) >= 2) AND (octet_length(snapshot) <= 8388608))),
+    CONSTRAINT scan_sweeps_snapshot_digest_check CHECK ((snapshot_digest ~ '^sha256:[0-9a-f]{64}$'::text)),
+    CONSTRAINT scan_sweeps_state_check CHECK ((state = ANY (ARRAY['active'::text, 'cancelling'::text, 'completed'::text, 'cancelled'::text]))),
+    CONSTRAINT scan_sweeps_sweep_id_check CHECK (((sweep_id <> ''::text) AND (octet_length(sweep_id) <= 128))),
+    CONSTRAINT scan_sweeps_total_check CHECK (((total >= 1) AND (total <= 1000)))
+);
+
+-- Table: scheduler_settings
+
+CREATE TABLE scheduler_settings (
+    singleton boolean DEFAULT true NOT NULL,
+    max_concurrent_runs integer NOT NULL,
+    revision numeric(20,0) NOT NULL,
+    updated_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    max_concurrent_tool_runs integer NOT NULL,
+    CONSTRAINT scheduler_settings_max_concurrent_runs_check CHECK (((max_concurrent_runs >= 1) AND (max_concurrent_runs <= 32))),
+    CONSTRAINT scheduler_settings_max_concurrent_tool_runs_check CHECK (((max_concurrent_tool_runs >= 1) AND (max_concurrent_tool_runs <= 32))),
+    CONSTRAINT scheduler_settings_revision_check CHECK (((revision >= (1)::numeric) AND (revision <= '18446744073709551615'::numeric))),
+    CONSTRAINT scheduler_settings_singleton_check CHECK (singleton)
+);
+
+-- Table: stage_allocations
+
+CREATE TABLE stage_allocations (
+    allocation_id text NOT NULL,
+    stage_execution_id text NOT NULL,
+    logical_agent_name text NOT NULL,
+    namespace text NOT NULL,
+    agent_template_ref jsonb NOT NULL,
+    worker_runtime_ref jsonb NOT NULL,
+    runtime_agent_instance_id text NOT NULL,
+    created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    release_attempted_at timestamp with time zone,
+    release_completed_at timestamp with time zone,
+    runtime_agent_id text,
+    runtime_agent_label_revision numeric(20,0),
+    runtime_configuration_schema_version text,
+    runtime_configuration jsonb,
+    performance_collection_policy text,
+    completion_contract jsonb,
+    execution_report_received boolean DEFAULT false NOT NULL,
+    runtime_placement_labels text[] DEFAULT '{}'::text[] NOT NULL,
+    CONSTRAINT stage_allocation_performance_collection_policy CHECK (((performance_collection_policy IS NULL) OR (performance_collection_policy = ANY (ARRAY['requested'::text, 'disabled'::text, 'unsupported'::text])))),
+    CONSTRAINT stage_allocation_release_timestamps CHECK (((release_completed_at IS NULL) OR ((release_attempted_at IS NOT NULL) AND (release_completed_at >= release_attempted_at)))),
+    CONSTRAINT stage_allocation_runtime_configuration_shape CHECK ((((runtime_agent_id IS NULL) AND (runtime_agent_label_revision IS NULL) AND (runtime_configuration_schema_version IS NULL) AND (runtime_configuration IS NULL)) OR ((runtime_agent_id ~ '^[0-9a-f]{64}$'::text) AND (runtime_agent_label_revision >= (1)::numeric) AND (runtime_agent_label_revision <= '18446744073709551615'::numeric) AND (runtime_configuration_schema_version = 'contractor.runtime-config-provenance/v2'::text) AND contractor_valid_allocation_runtime_configuration(runtime_configuration)))),
+    CONSTRAINT stage_allocations_agent_template_ref_check CHECK ((jsonb_typeof(agent_template_ref) = 'object'::text)),
+    CONSTRAINT stage_allocations_allocation_id_check CHECK ((btrim(allocation_id) <> ''::text)),
+    CONSTRAINT stage_allocations_completion_contract_check CHECK (((completion_contract IS NULL) OR ((jsonb_typeof(completion_contract) = 'object'::text) AND ((completion_contract ->> 'kind'::text) = 'audit-check-results@1'::text)))),
+    CONSTRAINT stage_allocations_logical_agent_name_check CHECK ((btrim(logical_agent_name) <> ''::text)),
+    CONSTRAINT stage_allocations_namespace_check CHECK (((btrim(namespace) <> ''::text) AND (POSITION(('/'::text) IN (namespace)) = 0))),
+    CONSTRAINT stage_allocations_placement_labels_valid CHECK (contractor_valid_placement_labels(runtime_placement_labels)),
+    CONSTRAINT stage_allocations_runtime_agent_instance_id_check CHECK ((btrim(runtime_agent_instance_id) <> ''::text)),
+    CONSTRAINT stage_allocations_worker_runtime_ref_check CHECK ((jsonb_typeof(worker_runtime_ref) = 'object'::text))
+);
+
+-- Table: stage_executions
+
+CREATE TABLE stage_executions (
+    stage_execution_id text NOT NULL,
+    run_id text NOT NULL,
+    stage_name text NOT NULL,
+    attempt integer NOT NULL,
+    previous_execution_id text,
+    stage_spec_schema_version text NOT NULL,
+    stage_spec_snapshot jsonb NOT NULL,
+    stage_context_schema_version text NOT NULL,
+    stage_context_snapshot jsonb NOT NULL,
+    state text NOT NULL,
+    state_reason_code text NOT NULL,
+    state_reason_message text DEFAULT ''::text NOT NULL,
+    planner_session_id text,
+    planner_invocation_id text,
+    candidate_result_schema_version text,
+    candidate_stage_result jsonb,
+    accepted_result_schema_version text,
+    accepted_stage_result jsonb,
+    termination_schema_version text,
+    stage_termination jsonb,
+    finalization_id text,
+    finalization_deadline timestamp with time zone,
+    abort_id text,
+    abort_deadline timestamp with time zone,
+    created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    updated_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    planner_started_at timestamp with time zone,
+    terminal_at timestamp with time zone,
+    execution_config_variant text DEFAULT 'base'::text NOT NULL,
+    escalation_ordinal integer,
+    resume_source_execution_id text,
+    admitted_at timestamp with time zone,
+    output_publication_failures integer DEFAULT 0 NOT NULL,
+    CONSTRAINT stage_accepted_shape CHECK ((((accepted_result_schema_version IS NULL) = (accepted_stage_result IS NULL)) AND ((accepted_stage_result IS NULL) OR ((btrim(accepted_result_schema_version) <> ''::text) AND contractor_valid_stage_result(accepted_stage_result))))),
+    CONSTRAINT stage_attempt_lineage_shape CHECK ((((attempt = 1) AND (previous_execution_id IS NULL)) OR ((attempt > 1) AND (previous_execution_id IS NOT NULL)))),
+    CONSTRAINT stage_candidate_shape CHECK ((((candidate_result_schema_version IS NULL) = (candidate_stage_result IS NULL)) AND ((candidate_stage_result IS NULL) OR ((btrim(candidate_result_schema_version) <> ''::text) AND contractor_valid_stage_result(candidate_stage_result))))),
+    CONSTRAINT stage_execution_config_variant_shape CHECK ((((execution_config_variant = 'base'::text) AND (escalation_ordinal IS NULL) AND (NOT (stage_context_snapshot ? 'continuation'::text))) OR ((execution_config_variant = ANY (ARRAY['failed_escalation'::text, 'interrupted_escalation'::text])) AND (escalation_ordinal IS NOT NULL) AND (escalation_ordinal > 0) AND (NOT (stage_context_snapshot ? 'continuation'::text))) OR ((execution_config_variant = 'summary_escalation'::text) AND (escalation_ordinal IS NOT NULL) AND (escalation_ordinal = 1) AND (stage_context_snapshot ? 'continuation'::text) AND (jsonb_typeof((stage_context_snapshot -> 'continuation'::text)) = 'object'::text) AND ((stage_context_snapshot -> 'continuation'::text) ? 'sourceStageExecutionId'::text) AND (jsonb_typeof(((stage_context_snapshot -> 'continuation'::text) -> 'sourceStageExecutionId'::text)) = 'string'::text)))),
+    CONSTRAINT stage_execution_resume_previous CHECK (((resume_source_execution_id IS NULL) OR ((previous_execution_id IS NOT NULL) AND (resume_source_execution_id = previous_execution_id)))),
+    CONSTRAINT stage_execution_state_shape CHECK ((((state = 'preparing'::text) AND (planner_session_id IS NULL) AND (candidate_stage_result IS NULL) AND (accepted_stage_result IS NULL) AND (stage_termination IS NULL) AND (finalization_id IS NULL) AND (finalization_deadline IS NULL) AND (abort_id IS NULL) AND (abort_deadline IS NULL) AND (terminal_at IS NULL) AND (NOT (stage_spec_snapshot ? 'operation'::text))) OR ((state = 'running'::text) AND (planner_session_id IS NOT NULL) AND (candidate_stage_result IS NULL) AND (accepted_stage_result IS NULL) AND (stage_termination IS NULL) AND (finalization_id IS NULL) AND (finalization_deadline IS NULL) AND (abort_id IS NULL) AND (abort_deadline IS NULL) AND (planner_started_at IS NOT NULL) AND (terminal_at IS NULL) AND (NOT (stage_spec_snapshot ? 'operation'::text))) OR ((state = 'finalizing'::text) AND (planner_session_id IS NOT NULL) AND (candidate_stage_result IS NOT NULL) AND (accepted_stage_result IS NULL) AND (stage_termination IS NULL) AND (finalization_id IS NOT NULL) AND (btrim(finalization_id) <> ''::text) AND (finalization_deadline IS NOT NULL) AND (abort_id IS NULL) AND (abort_deadline IS NULL) AND (planner_started_at IS NOT NULL) AND (terminal_at IS NULL) AND (NOT (stage_spec_snapshot ? 'operation'::text))) OR ((state = 'aborting'::text) AND (candidate_stage_result IS NULL) AND (accepted_stage_result IS NULL) AND (stage_termination IS NOT NULL) AND (finalization_id IS NULL) AND (finalization_deadline IS NULL) AND (abort_id IS NOT NULL) AND (btrim(abort_id) <> ''::text) AND (abort_deadline IS NOT NULL) AND (terminal_at IS NULL) AND ((((stage_termination ->> 'phase'::text) = 'preparing'::text) AND (planner_session_id IS NULL)) OR (((stage_termination ->> 'phase'::text) = 'running'::text) AND (planner_session_id IS NOT NULL) AND (planner_started_at IS NOT NULL))) AND (NOT (stage_spec_snapshot ? 'operation'::text))) OR ((state = ANY (ARRAY['succeeded'::text, 'failed'::text])) AND (planner_session_id IS NOT NULL) AND (candidate_stage_result IS NOT NULL) AND (accepted_stage_result = candidate_stage_result) AND (accepted_result_schema_version = candidate_result_schema_version) AND ((accepted_stage_result ->> 'outcome'::text) = state) AND (stage_termination IS NULL) AND (finalization_id IS NOT NULL) AND (btrim(finalization_id) <> ''::text) AND (finalization_deadline IS NOT NULL) AND (abort_id IS NULL) AND (abort_deadline IS NULL) AND (planner_started_at IS NOT NULL) AND (terminal_at IS NOT NULL) AND (NOT (stage_spec_snapshot ? 'operation'::text))) OR ((state = ANY (ARRAY['interrupted'::text, 'cancelled'::text])) AND (candidate_stage_result IS NULL) AND (accepted_stage_result IS NULL) AND (stage_termination IS NOT NULL) AND ((stage_termination ->> 'outcome'::text) = state) AND (finalization_id IS NULL) AND (finalization_deadline IS NULL) AND (abort_id IS NOT NULL) AND (btrim(abort_id) <> ''::text) AND (abort_deadline IS NOT NULL) AND (terminal_at IS NOT NULL) AND ((((stage_termination ->> 'phase'::text) = 'preparing'::text) AND (planner_session_id IS NULL)) OR (((stage_termination ->> 'phase'::text) = 'running'::text) AND (planner_session_id IS NOT NULL) AND (planner_started_at IS NOT NULL))) AND (NOT (stage_spec_snapshot ? 'operation'::text))) OR ((state = 'preparing'::text) AND (candidate_stage_result IS NULL) AND (accepted_stage_result IS NULL) AND (stage_termination IS NULL) AND (finalization_id IS NULL) AND (finalization_deadline IS NULL) AND (abort_id IS NULL) AND (abort_deadline IS NULL) AND (terminal_at IS NULL) AND (stage_spec_snapshot ? 'operation'::text) AND (jsonb_typeof((stage_spec_snapshot -> 'operation'::text)) = 'object'::text) AND (NOT (stage_spec_snapshot ? 'planner'::text)) AND (planner_session_id IS NULL) AND (planner_invocation_id IS NULL) AND (planner_started_at IS NULL)) OR ((state = 'running'::text) AND (admitted_at IS NOT NULL) AND (candidate_stage_result IS NULL) AND (accepted_stage_result IS NULL) AND (stage_termination IS NULL) AND (finalization_id IS NULL) AND (finalization_deadline IS NULL) AND (abort_id IS NULL) AND (abort_deadline IS NULL) AND (terminal_at IS NULL) AND (stage_spec_snapshot ? 'operation'::text) AND (jsonb_typeof((stage_spec_snapshot -> 'operation'::text)) = 'object'::text) AND (NOT (stage_spec_snapshot ? 'planner'::text)) AND (planner_session_id IS NULL) AND (planner_invocation_id IS NULL) AND (planner_started_at IS NULL)) OR ((state = 'finalizing'::text) AND (admitted_at IS NOT NULL) AND (candidate_stage_result IS NOT NULL) AND (accepted_stage_result IS NULL) AND (stage_termination IS NULL) AND (finalization_id IS NOT NULL) AND (btrim(finalization_id) <> ''::text) AND (finalization_deadline IS NOT NULL) AND (abort_id IS NULL) AND (abort_deadline IS NULL) AND (terminal_at IS NULL) AND (stage_spec_snapshot ? 'operation'::text) AND (jsonb_typeof((stage_spec_snapshot -> 'operation'::text)) = 'object'::text) AND (NOT (stage_spec_snapshot ? 'planner'::text)) AND (planner_session_id IS NULL) AND (planner_invocation_id IS NULL) AND (planner_started_at IS NULL)) OR ((state = ANY (ARRAY['succeeded'::text, 'failed'::text])) AND (admitted_at IS NOT NULL) AND (candidate_stage_result IS NOT NULL) AND (accepted_stage_result = candidate_stage_result) AND (accepted_result_schema_version = candidate_result_schema_version) AND ((accepted_stage_result ->> 'outcome'::text) = state) AND (stage_termination IS NULL) AND (finalization_id IS NOT NULL) AND (btrim(finalization_id) <> ''::text) AND (finalization_deadline IS NOT NULL) AND (abort_id IS NULL) AND (abort_deadline IS NULL) AND (terminal_at IS NOT NULL) AND (stage_spec_snapshot ? 'operation'::text) AND (jsonb_typeof((stage_spec_snapshot -> 'operation'::text)) = 'object'::text) AND (NOT (stage_spec_snapshot ? 'planner'::text)) AND (planner_session_id IS NULL) AND (planner_invocation_id IS NULL) AND (planner_started_at IS NULL)) OR ((state = 'aborting'::text) AND (candidate_stage_result IS NULL) AND (accepted_stage_result IS NULL) AND (stage_termination IS NOT NULL) AND (finalization_id IS NULL) AND (finalization_deadline IS NULL) AND (abort_id IS NOT NULL) AND (btrim(abort_id) <> ''::text) AND (abort_deadline IS NOT NULL) AND ((((stage_termination ->> 'phase'::text) = 'running'::text) AND (admitted_at IS NOT NULL)) OR ((stage_termination ->> 'phase'::text) = 'preparing'::text)) AND (terminal_at IS NULL) AND (stage_spec_snapshot ? 'operation'::text) AND (jsonb_typeof((stage_spec_snapshot -> 'operation'::text)) = 'object'::text) AND (NOT (stage_spec_snapshot ? 'planner'::text)) AND (planner_session_id IS NULL) AND (planner_invocation_id IS NULL) AND (planner_started_at IS NULL)) OR ((state = ANY (ARRAY['interrupted'::text, 'cancelled'::text])) AND (candidate_stage_result IS NULL) AND (accepted_stage_result IS NULL) AND (stage_termination IS NOT NULL) AND (finalization_id IS NULL) AND (finalization_deadline IS NULL) AND (abort_id IS NOT NULL) AND (btrim(abort_id) <> ''::text) AND (abort_deadline IS NOT NULL) AND ((((stage_termination ->> 'phase'::text) = 'running'::text) AND (admitted_at IS NOT NULL)) OR ((stage_termination ->> 'phase'::text) = 'preparing'::text)) AND (terminal_at IS NOT NULL) AND ((stage_termination ->> 'outcome'::text) = state) AND (stage_spec_snapshot ? 'operation'::text) AND (jsonb_typeof((stage_spec_snapshot -> 'operation'::text)) = 'object'::text) AND (NOT (stage_spec_snapshot ? 'planner'::text)) AND (planner_session_id IS NULL) AND (planner_invocation_id IS NULL) AND (planner_started_at IS NULL)))),
+    CONSTRAINT stage_executions_attempt_check CHECK ((attempt > 0)),
+    CONSTRAINT stage_executions_output_publication_failures_check CHECK ((output_publication_failures >= 0)),
+    CONSTRAINT stage_executions_stage_context_schema_version_check CHECK ((btrim(stage_context_schema_version) <> ''::text)),
+    CONSTRAINT stage_executions_stage_context_snapshot_check CHECK ((jsonb_typeof(stage_context_snapshot) = 'object'::text)),
+    CONSTRAINT stage_executions_stage_execution_id_check CHECK ((btrim(stage_execution_id) <> ''::text)),
+    CONSTRAINT stage_executions_stage_name_check CHECK ((btrim(stage_name) <> ''::text)),
+    CONSTRAINT stage_executions_stage_spec_schema_version_check CHECK ((btrim(stage_spec_schema_version) <> ''::text)),
+    CONSTRAINT stage_executions_stage_spec_snapshot_check CHECK ((jsonb_typeof(stage_spec_snapshot) = 'object'::text)),
+    CONSTRAINT stage_executions_state_check CHECK ((state = ANY (ARRAY['preparing'::text, 'running'::text, 'finalizing'::text, 'aborting'::text, 'succeeded'::text, 'failed'::text, 'interrupted'::text, 'cancelled'::text]))),
+    CONSTRAINT stage_executions_state_reason_code_check CHECK ((btrim(state_reason_code) <> ''::text)),
+    CONSTRAINT stage_planner_ids_shape CHECK (((planner_session_id IS NULL) = (planner_invocation_id IS NULL))),
+    CONSTRAINT stage_termination_payload_shape CHECK ((((termination_schema_version IS NULL) = (stage_termination IS NULL)) AND ((stage_termination IS NULL) OR ((btrim(termination_schema_version) <> ''::text) AND contractor_valid_stage_termination(stage_termination)))))
+);
+
+-- Table: stage_metrics
+
+CREATE TABLE stage_metrics (
+    stage_execution_id text NOT NULL,
+    metrics_schema_version text NOT NULL,
+    metrics jsonb NOT NULL,
+    summary jsonb NOT NULL,
+    updated_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    expires_at timestamp with time zone DEFAULT (clock_timestamp() + '30 days'::interval) NOT NULL,
+    CONSTRAINT stage_metrics_metrics_check CHECK (((jsonb_typeof(metrics) = 'object'::text) AND (jsonb_typeof((metrics -> 'workers'::text)) = 'object'::text) AND (jsonb_typeof((metrics -> 'runtime'::text)) = 'object'::text))),
+    CONSTRAINT stage_metrics_metrics_schema_version_check CHECK ((btrim(metrics_schema_version) <> ''::text)),
+    CONSTRAINT stage_metrics_summary_check CHECK ((jsonb_typeof(summary) = 'object'::text))
+);
+
+-- Table: stage_transition_decisions
+
+CREATE TABLE stage_transition_decisions (
+    source_execution_id text NOT NULL,
+    run_id text NOT NULL,
+    action text NOT NULL,
+    target_stage_name text,
+    target_execution_id text,
+    decided_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    escalation_ordinal integer,
+    escalation_exhausted boolean DEFAULT false NOT NULL,
+    CONSTRAINT stage_transition_action CHECK ((action = ANY (ARRAY['next'::text, 'retry'::text, 'escalate'::text, 'succeed'::text, 'fail'::text]))),
+    CONSTRAINT stage_transition_decision_shape CHECK ((((action = ANY (ARRAY['next'::text, 'retry'::text, 'escalate'::text])) AND (target_stage_name IS NOT NULL) AND (btrim(target_stage_name) <> ''::text) AND (target_execution_id IS NOT NULL) AND (btrim(target_execution_id) <> ''::text)) OR ((action = ANY (ARRAY['succeed'::text, 'fail'::text])) AND (target_stage_name IS NULL) AND (target_execution_id IS NULL)))),
+    CONSTRAINT stage_transition_escalation_shape CHECK ((((action = 'escalate'::text) AND (escalation_ordinal IS NOT NULL) AND (escalation_ordinal > 0) AND (escalation_exhausted = false)) OR ((action = ANY (ARRAY['next'::text, 'fail'::text])) AND (escalation_ordinal IS NOT NULL) AND (escalation_ordinal > 0) AND (escalation_exhausted = true)) OR ((action <> 'escalate'::text) AND (escalation_ordinal IS NULL) AND (escalation_exhausted = false))))
+);
+
+-- Table: workflow_run_events
+
+CREATE TABLE workflow_run_events (
+    run_id text NOT NULL,
+    sequence_number bigint NOT NULL,
+    event_id text NOT NULL,
+    event_schema_version text NOT NULL,
+    kind text NOT NULL,
+    data jsonb NOT NULL,
+    occurred_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    CONSTRAINT workflow_run_events_data_check CHECK (((jsonb_typeof(data) = 'object'::text) AND (octet_length((data)::text) <= 2097152))),
+    CONSTRAINT workflow_run_events_event_id_check CHECK ((btrim(event_id) <> ''::text)),
+    CONSTRAINT workflow_run_events_event_schema_version_check CHECK ((btrim(event_schema_version) <> ''::text)),
+    CONSTRAINT workflow_run_events_kind_check CHECK ((kind = ANY (ARRAY['planner.started'::text, 'planner.request_recorded'::text, 'planner.activity'::text, 'planner.plan_changed'::text, 'planner.current_changed'::text, 'planner.dispatch_selected'::text, 'planner.dispatch_started'::text, 'planner.dispatch_completed'::text, 'planner.finish_requested'::text, 'planner.completed'::text, 'planner.failed'::text, 'lifecycle.changed'::text]))),
+    CONSTRAINT workflow_run_events_sequence_number_check CHECK ((sequence_number > 0))
+);
+
+-- Table: workflow_run_output_publications
+
+CREATE TABLE workflow_run_output_publications (
+    run_id text NOT NULL,
+    project_id text NOT NULL,
+    output_name text NOT NULL,
+    status text NOT NULL,
+    source_scope_kind text GENERATED ALWAYS AS ('run'::text) STORED,
+    source_namespace text NOT NULL,
+    source_name text NOT NULL,
+    source_revision text NOT NULL,
+    target_scope_kind text GENERATED ALWAYS AS ('project'::text) STORED,
+    target_namespace text NOT NULL,
+    target_name text NOT NULL,
+    target_revision text,
+    error_code text,
+    error_message text,
+    created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    CONSTRAINT workflow_run_output_publications_check CHECK (((source_name = output_name) AND (target_name = output_name))),
+    CONSTRAINT workflow_run_output_publications_check1 CHECK ((((status = 'published'::text) AND (target_revision IS NOT NULL) AND (error_code IS NULL) AND (error_message IS NULL)) OR ((status = 'already_present'::text) AND (target_revision IS NULL) AND (error_code IS NULL) AND (error_message IS NULL)) OR ((status = 'failed'::text) AND (target_revision IS NULL) AND (error_code IS NOT NULL) AND (btrim(error_code) <> ''::text) AND (octet_length(error_code) <= 128) AND (error_message IS NOT NULL) AND (btrim(error_message) <> ''::text) AND (octet_length(error_message) <= 2048)))),
+    CONSTRAINT workflow_run_output_publications_output_name_check CHECK (((btrim(output_name) <> ''::text) AND (POSITION(('/'::text) IN (output_name)) = 0) AND (octet_length(output_name) <= 128))),
+    CONSTRAINT workflow_run_output_publications_source_namespace_check CHECK ((source_namespace = 'outputs'::text)),
+    CONSTRAINT workflow_run_output_publications_source_revision_check CHECK ((btrim(source_revision) <> ''::text)),
+    CONSTRAINT workflow_run_output_publications_status_check CHECK ((status = ANY (ARRAY['published'::text, 'already_present'::text, 'failed'::text]))),
+    CONSTRAINT workflow_run_output_publications_target_namespace_check CHECK ((target_namespace = 'outputs'::text))
+);
+
+-- Table: workflow_runs
+
+CREATE TABLE workflow_runs (
+    run_id text NOT NULL,
+    owner_id text NOT NULL,
+    workflow_name text NOT NULL,
+    workflow_version text NOT NULL,
+    workflow_schema_version text NOT NULL,
+    workflow_snapshot jsonb NOT NULL,
+    parameters jsonb DEFAULT '{}'::jsonb NOT NULL,
+    state text NOT NULL,
+    state_reason_code text NOT NULL,
+    state_reason_message text DEFAULT ''::text NOT NULL,
+    scheduler_claim_id text,
+    scheduler_claimed_at timestamp with time zone,
+    scheduler_claim_expires_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    updated_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    started_at timestamp with time zone,
+    finished_at timestamp with time zone,
+    cancellation_schema_version text,
+    run_cancellation jsonb,
+    request_idempotency_key text,
+    request_digest text,
+    run_event_generation text DEFAULT ('events-'::text || md5(((random())::text || (clock_timestamp())::text))) NOT NULL,
+    next_run_event_sequence bigint DEFAULT 1 NOT NULL,
+    runtime_labels text[] NOT NULL,
+    runtime_config_snapshot jsonb NOT NULL,
+    skill_snapshot jsonb DEFAULT '[]'::jsonb NOT NULL,
+    project_id text,
+    project_http_target_snapshot jsonb,
+    publication_mode text DEFAULT 'ordinary'::text NOT NULL,
+    audit_execution_id text,
+    audit_submission_key text,
+    audit_completion jsonb,
+    scheduler_deferred boolean DEFAULT false NOT NULL,
+    metadata_labels jsonb DEFAULT '{}'::jsonb NOT NULL,
+    scheduler_claim_tier smallint GENERATED ALWAYS AS (
+CASE
+    WHEN (state = 'cancelling'::text) THEN 0
+    WHEN (state = ANY (ARRAY['running'::text, 'waiting'::text])) THEN 1
+    WHEN ((state = 'pending'::text) OR ((state = 'initializing'::text) AND (state_reason_code = 'skill_initialization_pending'::text))) THEN 2
+    ELSE NULL::integer
+END) STORED,
+    scheduler_lane_class text NOT NULL,
+    required_placement_labels text[] DEFAULT '{}'::text[] NOT NULL,
+    audit_input_materialization json,
+    CONSTRAINT workflow_run_cancellation_shape CHECK ((((state = ANY (ARRAY['cancelling'::text, 'cancelled'::text])) = ((cancellation_schema_version IS NOT NULL) AND (btrim(cancellation_schema_version) <> ''::text) AND (run_cancellation IS NOT NULL) AND contractor_valid_run_cancellation(run_cancellation))) AND ((state = ANY (ARRAY['cancelling'::text, 'cancelled'::text])) OR ((cancellation_schema_version IS NULL) AND (run_cancellation IS NULL))))),
+    CONSTRAINT workflow_run_claim_shape CHECK ((((scheduler_claim_id IS NULL) AND (scheduler_claimed_at IS NULL) AND (scheduler_claim_expires_at IS NULL)) OR ((scheduler_claim_id IS NOT NULL) AND (btrim(scheduler_claim_id) <> ''::text) AND (scheduler_claimed_at IS NOT NULL) AND (scheduler_claim_expires_at > scheduler_claimed_at)))),
+    CONSTRAINT workflow_run_terminal_shape CHECK (((state = ANY (ARRAY['succeeded'::text, 'failed'::text, 'cancelled'::text])) = (finished_at IS NOT NULL))),
+    CONSTRAINT workflow_run_terminal_unclaimed CHECK (((state <> ALL (ARRAY['succeeded'::text, 'failed'::text, 'cancelled'::text])) OR (scheduler_claim_id IS NULL))),
+    CONSTRAINT workflow_runs_audit_authority_shape CHECK ((((publication_mode = 'ordinary'::text) AND (audit_execution_id IS NULL) AND (audit_submission_key IS NULL)) OR ((publication_mode = 'audit-managed'::text) AND (project_id IS NOT NULL) AND (audit_execution_id IS NOT NULL) AND (audit_submission_key IS NOT NULL)))),
+    CONSTRAINT workflow_runs_audit_input_materialization_check CHECK (((audit_input_materialization IS NULL) OR ((publication_mode = 'audit-managed'::text) AND contractor_valid_audit_input_materialization(audit_input_materialization)))),
+    CONSTRAINT workflow_runs_check CHECK (((audit_completion IS NULL) OR ((publication_mode = 'audit-managed'::text) AND (jsonb_typeof(audit_completion) = 'object'::text) AND ((audit_completion #>> '{contract,kind}'::text[]) = 'audit-check-results@1'::text)))),
+    CONSTRAINT workflow_runs_metadata_labels_check CHECK (contractor_valid_run_metadata_labels(metadata_labels)),
+    CONSTRAINT workflow_runs_next_run_event_sequence_check CHECK ((next_run_event_sequence > 0)),
+    CONSTRAINT workflow_runs_owner_id_check CHECK ((btrim(owner_id) <> ''::text)),
+    CONSTRAINT workflow_runs_parameters_check CHECK ((jsonb_typeof(parameters) = 'object'::text)),
+    CONSTRAINT workflow_runs_placement_labels_valid CHECK (contractor_valid_placement_labels(required_placement_labels)),
+    CONSTRAINT workflow_runs_project_http_target_shape CHECK (((project_http_target_snapshot IS NULL) OR ((project_id IS NOT NULL) AND (jsonb_typeof(project_http_target_snapshot) = 'object'::text) AND (jsonb_typeof((project_http_target_snapshot -> 'url'::text)) = 'string'::text) AND (btrim((project_http_target_snapshot ->> 'url'::text)) = (project_http_target_snapshot ->> 'url'::text)) AND ((octet_length((project_http_target_snapshot ->> 'url'::text)) >= 1) AND (octet_length((project_http_target_snapshot ->> 'url'::text)) <= 2048)) AND ((NOT (project_http_target_snapshot ? 'credential'::text)) OR ((jsonb_typeof((project_http_target_snapshot -> 'credential'::text)) = 'object'::text) AND (jsonb_typeof((project_http_target_snapshot #> '{credential,credentialId}'::text[])) = 'string'::text) AND ((project_http_target_snapshot #>> '{credential,kind}'::text[]) = ANY (ARRAY['http-origin-basic@1'::text, 'http-origin-bearer@1'::text]))))))),
+    CONSTRAINT workflow_runs_publication_mode_check CHECK ((publication_mode = ANY (ARRAY['ordinary'::text, 'audit-managed'::text]))),
+    CONSTRAINT workflow_runs_request_idempotency_shape CHECK ((((request_idempotency_key IS NULL) AND (request_digest IS NULL)) OR ((request_idempotency_key ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'::text) AND (request_digest ~ '^sha256:[0-9a-f]{64}$'::text)))),
+    CONSTRAINT workflow_runs_run_event_generation_check CHECK ((btrim(run_event_generation) <> ''::text)),
+    CONSTRAINT workflow_runs_run_id_check CHECK ((btrim(run_id) <> ''::text)),
+    CONSTRAINT workflow_runs_runtime_config_snapshot_shape CHECK (contractor_valid_run_runtime_snapshot(runtime_config_snapshot, runtime_labels)),
+    CONSTRAINT workflow_runs_runtime_labels_check CHECK (contractor_valid_runtime_agent_labels(runtime_labels)),
+    CONSTRAINT workflow_runs_scheduler_lane_class_check CHECK ((scheduler_lane_class = ANY (ARRAY['model'::text, 'tool'::text]))),
+    CONSTRAINT workflow_runs_skill_snapshot_array CHECK ((jsonb_typeof(skill_snapshot) = 'array'::text)),
+    CONSTRAINT workflow_runs_state_check CHECK ((state = ANY (ARRAY['initializing'::text, 'pending'::text, 'running'::text, 'waiting'::text, 'cancelling'::text, 'succeeded'::text, 'failed'::text, 'cancelled'::text]))),
+    CONSTRAINT workflow_runs_state_reason_code_check CHECK ((btrim(state_reason_code) <> ''::text)),
+    CONSTRAINT workflow_runs_workflow_name_check CHECK ((btrim(workflow_name) <> ''::text)),
+    CONSTRAINT workflow_runs_workflow_schema_version_check CHECK ((btrim(workflow_schema_version) <> ''::text)),
+    CONSTRAINT workflow_runs_workflow_snapshot_check CHECK ((jsonb_typeof(workflow_snapshot) = 'object'::text)),
+    CONSTRAINT workflow_runs_workflow_version_check CHECK ((btrim(workflow_version) <> ''::text))
+);
+
+-- Constraint: allocation_execution_reports allocation_execution_reports_pkey
+
+ALTER TABLE ONLY allocation_execution_reports
+    ADD CONSTRAINT allocation_execution_reports_pkey PRIMARY KEY (report_id);
+
+-- Constraint: artifact_binding_revisions artifact_binding_revisions_pkey
+
+ALTER TABLE ONLY artifact_binding_revisions
+    ADD CONSTRAINT artifact_binding_revisions_pkey PRIMARY KEY (scope_kind, scope_id, namespace, name, revision);
+
+-- Constraint: artifact_bindings artifact_bindings_pkey
+
+ALTER TABLE ONLY artifact_bindings
+    ADD CONSTRAINT artifact_bindings_pkey PRIMARY KEY (scope_kind, scope_id, namespace, name);
+
+-- Constraint: artifact_blobs artifact_blobs_pkey
+
+ALTER TABLE ONLY artifact_blobs
+    ADD CONSTRAINT artifact_blobs_pkey PRIMARY KEY (sha256);
+
+-- Constraint: artifact_lineage artifact_lineage_pkey
+
+ALTER TABLE ONLY artifact_lineage
+    ADD CONSTRAINT artifact_lineage_pkey PRIMARY KEY (target_scope_kind, target_scope_id, target_namespace, target_name, target_revision);
+
+-- Constraint: artifact_scopes artifact_scopes_pkey
+
+ALTER TABLE ONLY artifact_scopes
+    ADD CONSTRAINT artifact_scopes_pkey PRIMARY KEY (scope_kind, scope_id);
+
+-- Constraint: artifact_versions artifact_versions_pkey
+
+ALTER TABLE ONLY artifact_versions
+    ADD CONSTRAINT artifact_versions_pkey PRIMARY KEY (version_id);
+
+-- Constraint: audit_artifact_links audit_artifact_links_pkey
+
+ALTER TABLE ONLY audit_artifact_links
+    ADD CONSTRAINT audit_artifact_links_pkey PRIMARY KEY (audit_id, logical_key);
+
+-- Constraint: audit_controller_claims audit_controller_claims_pkey
+
+ALTER TABLE ONLY audit_controller_claims
+    ADD CONSTRAINT audit_controller_claims_pkey PRIMARY KEY (audit_id);
+
+-- Constraint: audit_events audit_events_pkey
+
+ALTER TABLE ONLY audit_events
+    ADD CONSTRAINT audit_events_pkey PRIMARY KEY (audit_id, sequence_number);
+
+-- Constraint: audit_execution_items audit_execution_items_execution_member
+
+ALTER TABLE ONLY audit_execution_items
+    ADD CONSTRAINT audit_execution_items_execution_member UNIQUE (execution_id, item_id);
+
+-- Constraint: audit_execution_items audit_execution_items_execution_ordinal
+
+ALTER TABLE ONLY audit_execution_items
+    ADD CONSTRAINT audit_execution_items_execution_ordinal UNIQUE (execution_id, batch_ordinal);
+
+-- Constraint: audit_execution_items audit_execution_items_item_attempt
+
+ALTER TABLE ONLY audit_execution_items
+    ADD CONSTRAINT audit_execution_items_item_attempt UNIQUE (item_id, item_attempt);
+
+-- Constraint: audit_execution_items audit_execution_items_item_identity
+
+ALTER TABLE ONLY audit_execution_items
+    ADD CONSTRAINT audit_execution_items_item_identity UNIQUE (execution_item_id, item_id);
+
+-- Constraint: audit_execution_items audit_execution_items_pkey
+
+ALTER TABLE ONLY audit_execution_items
+    ADD CONSTRAINT audit_execution_items_pkey PRIMARY KEY (execution_item_id);
+
+-- Constraint: audit_executions audit_executions_audit_identity
+
+ALTER TABLE ONLY audit_executions
+    ADD CONSTRAINT audit_executions_audit_identity UNIQUE (execution_id, audit_id);
+
+-- Constraint: audit_executions audit_executions_collection_receipt_id_key
+
+ALTER TABLE ONLY audit_executions
+    ADD CONSTRAINT audit_executions_collection_receipt_id_key UNIQUE (collection_receipt_id);
+
+-- Constraint: audit_executions audit_executions_identity
+
+ALTER TABLE ONLY audit_executions
+    ADD CONSTRAINT audit_executions_identity UNIQUE (execution_id, audit_id, round_id);
+
+-- Constraint: audit_executions audit_executions_pkey
+
+ALTER TABLE ONLY audit_executions
+    ADD CONSTRAINT audit_executions_pkey PRIMARY KEY (execution_id);
+
+-- Constraint: audit_executions audit_executions_submission_identity
+
+ALTER TABLE ONLY audit_executions
+    ADD CONSTRAINT audit_executions_submission_identity UNIQUE (execution_id, submission_key);
+
+-- Constraint: audit_executions audit_executions_submission_key
+
+ALTER TABLE ONLY audit_executions
+    ADD CONSTRAINT audit_executions_submission_key UNIQUE (submission_key);
+
+-- Constraint: audit_finding_assessments audit_finding_assessments_pkey
+
+ALTER TABLE ONLY audit_finding_assessments
+    ADD CONSTRAINT audit_finding_assessments_pkey PRIMARY KEY (assessment_id);
+
+-- Constraint: audit_finding_assessments audit_finding_assessments_receipt_id_execution_item_id_resu_key
+
+ALTER TABLE ONLY audit_finding_assessments
+    ADD CONSTRAINT audit_finding_assessments_receipt_id_execution_item_id_resu_key UNIQUE (receipt_id, execution_item_id, result_digest);
+
+-- Constraint: audit_finding_contributions audit_finding_contributions_audit_id_receipt_id_key
+
+ALTER TABLE ONLY audit_finding_contributions
+    ADD CONSTRAINT audit_finding_contributions_audit_id_receipt_id_key UNIQUE (audit_id, receipt_id);
+
+-- Constraint: audit_finding_contributions audit_finding_contributions_pkey
+
+ALTER TABLE ONLY audit_finding_contributions
+    ADD CONSTRAINT audit_finding_contributions_pkey PRIMARY KEY (finding_id, receipt_id);
+
+-- Constraint: audit_findings audit_findings_audit_id_first_receipt_id_key
+
+ALTER TABLE ONLY audit_findings
+    ADD CONSTRAINT audit_findings_audit_id_first_receipt_id_key UNIQUE (audit_id, first_receipt_id);
+
+-- Constraint: audit_findings audit_findings_finding_id_audit_id_key
+
+ALTER TABLE ONLY audit_findings
+    ADD CONSTRAINT audit_findings_finding_id_audit_id_key UNIQUE (finding_id, audit_id);
+
+-- Constraint: audit_findings audit_findings_pkey
+
+ALTER TABLE ONLY audit_findings
+    ADD CONSTRAINT audit_findings_pkey PRIMARY KEY (finding_id);
+
+-- Constraint: audit_items audit_items_audit_identity
+
+ALTER TABLE ONLY audit_items
+    ADD CONSTRAINT audit_items_audit_identity UNIQUE (item_id, audit_id, round_id);
+
+-- Constraint: audit_items audit_items_pkey
+
+ALTER TABLE ONLY audit_items
+    ADD CONSTRAINT audit_items_pkey PRIMARY KEY (item_id);
+
+-- Constraint: audit_items audit_items_proposal_check_once
+
+ALTER TABLE ONLY audit_items
+    ADD CONSTRAINT audit_items_proposal_check_once UNIQUE (audit_id, proposal_receipt_id, proposal_check_ordinal);
+
+-- Constraint: audit_items audit_items_round_key
+
+ALTER TABLE ONLY audit_items
+    ADD CONSTRAINT audit_items_round_key UNIQUE (round_id, item_key);
+
+-- Constraint: audit_items audit_items_round_ordinal
+
+ALTER TABLE ONLY audit_items
+    ADD CONSTRAINT audit_items_round_ordinal UNIQUE (round_id, ordinal);
+
+-- Constraint: audit_report_pages audit_report_pages_pkey
+
+ALTER TABLE ONLY audit_report_pages
+    ADD CONSTRAINT audit_report_pages_pkey PRIMARY KEY (audit_id, audit_revision, ordinal);
+
+-- Constraint: audit_review_decisions audit_review_decisions_audit_id_idempotency_key_key
+
+ALTER TABLE ONLY audit_review_decisions
+    ADD CONSTRAINT audit_review_decisions_audit_id_idempotency_key_key UNIQUE (audit_id, idempotency_key);
+
+-- Constraint: audit_review_decisions audit_review_decisions_pkey
+
+ALTER TABLE ONLY audit_review_decisions
+    ADD CONSTRAINT audit_review_decisions_pkey PRIMARY KEY (decision_id);
+
+-- Constraint: audit_review_decisions audit_review_decisions_request_id_key
+
+ALTER TABLE ONLY audit_review_decisions
+    ADD CONSTRAINT audit_review_decisions_request_id_key UNIQUE (request_id);
+
+-- Constraint: audit_review_requests audit_review_requests_audit_id_idempotency_key_key
+
+ALTER TABLE ONLY audit_review_requests
+    ADD CONSTRAINT audit_review_requests_audit_id_idempotency_key_key UNIQUE (audit_id, idempotency_key);
+
+-- Constraint: audit_review_requests audit_review_requests_pkey
+
+ALTER TABLE ONLY audit_review_requests
+    ADD CONSTRAINT audit_review_requests_pkey PRIMARY KEY (request_id);
+
+-- Constraint: audit_review_requests audit_review_requests_request_audit_unique
+
+ALTER TABLE ONLY audit_review_requests
+    ADD CONSTRAINT audit_review_requests_request_audit_unique UNIQUE (request_id, audit_id);
+
+-- Constraint: audit_round_result_pages audit_round_result_pages_pkey
+
+ALTER TABLE ONLY audit_round_result_pages
+    ADD CONSTRAINT audit_round_result_pages_pkey PRIMARY KEY (round_id, ordinal);
+
+-- Constraint: audit_round_result_pages audit_round_result_pages_round_id_last_item_ordinal_key
+
+ALTER TABLE ONLY audit_round_result_pages
+    ADD CONSTRAINT audit_round_result_pages_round_id_last_item_ordinal_key UNIQUE (round_id, last_item_ordinal);
+
+-- Constraint: audit_rounds audit_rounds_audit_id_ordinal_key
+
+ALTER TABLE ONLY audit_rounds
+    ADD CONSTRAINT audit_rounds_audit_id_ordinal_key UNIQUE (audit_id, ordinal);
+
+-- Constraint: audit_rounds audit_rounds_pkey
+
+ALTER TABLE ONLY audit_rounds
+    ADD CONSTRAINT audit_rounds_pkey PRIMARY KEY (round_id);
+
+-- Constraint: audit_rounds audit_rounds_round_id_audit_id_key
+
+ALTER TABLE ONLY audit_rounds
+    ADD CONSTRAINT audit_rounds_round_id_audit_id_key UNIQUE (round_id, audit_id);
+
+-- Constraint: audits audits_correlation_scope
+
+ALTER TABLE ONLY audits
+    ADD CONSTRAINT audits_correlation_scope UNIQUE (audit_id, project_id);
+
+-- Constraint: audits audits_pkey
+
+ALTER TABLE ONLY audits
+    ADD CONSTRAINT audits_pkey PRIMARY KEY (audit_id);
+
+-- Constraint: credential_operations credential_operations_operation_kind_idempotency_key_key
+
+ALTER TABLE ONLY credential_operations
+    ADD CONSTRAINT credential_operations_operation_kind_idempotency_key_key UNIQUE (operation_kind, idempotency_key);
+
+-- Constraint: credential_operations credential_operations_pkey
+
+ALTER TABLE ONLY credential_operations
+    ADD CONSTRAINT credential_operations_pkey PRIMARY KEY (operation_id);
+
+-- Constraint: eval_collections eval_collections_pkey
+
+ALTER TABLE ONLY eval_collections
+    ADD CONSTRAINT eval_collections_pkey PRIMARY KEY (owner_id, project_id);
+
+-- Constraint: eval_commands eval_commands_pkey
+
+ALTER TABLE ONLY eval_commands
+    ADD CONSTRAINT eval_commands_pkey PRIMARY KEY (command_id);
+
+-- Constraint: eval_controller_claims eval_controller_claims_pkey
+
+ALTER TABLE ONLY eval_controller_claims
+    ADD CONSTRAINT eval_controller_claims_pkey PRIMARY KEY (experiment_id);
+
+-- Constraint: eval_dataset_revisions eval_dataset_revisions_pkey
+
+ALTER TABLE ONLY eval_dataset_revisions
+    ADD CONSTRAINT eval_dataset_revisions_pkey PRIMARY KEY (project_id, dataset_id, revision);
+
+-- Constraint: eval_evidence_refs eval_evidence_refs_pkey
+
+ALTER TABLE ONLY eval_evidence_refs
+    ADD CONSTRAINT eval_evidence_refs_pkey PRIMARY KEY (experiment_id, member_id, record_sha256, scope_kind, scope_id, namespace, name, revision);
+
+-- Constraint: eval_execution_tombstones eval_execution_tombstones_pkey
+
+ALTER TABLE ONLY eval_execution_tombstones
+    ADD CONSTRAINT eval_execution_tombstones_pkey PRIMARY KEY (experiment_id, member_id);
+
+-- Constraint: eval_experiments eval_experiments_owner_id_project_id_portable_id_key
+
+ALTER TABLE ONLY eval_experiments
+    ADD CONSTRAINT eval_experiments_owner_id_project_id_portable_id_key UNIQUE (owner_id, project_id, portable_id);
+
+-- Constraint: eval_experiments eval_experiments_pkey
+
+ALTER TABLE ONLY eval_experiments
+    ADD CONSTRAINT eval_experiments_pkey PRIMARY KEY (experiment_id);
+
+-- Constraint: eval_frozen_plans eval_frozen_plans_pkey
+
+ALTER TABLE ONLY eval_frozen_plans
+    ADD CONSTRAINT eval_frozen_plans_pkey PRIMARY KEY (experiment_id);
+
+-- Constraint: eval_member_projections eval_member_projections_pkey
+
+ALTER TABLE ONLY eval_member_projections
+    ADD CONSTRAINT eval_member_projections_pkey PRIMARY KEY (experiment_id, member_id);
+
+-- Constraint: eval_members eval_members_experiment_id_member_id_execution_kind_key
+
+ALTER TABLE ONLY eval_members
+    ADD CONSTRAINT eval_members_experiment_id_member_id_execution_kind_key UNIQUE (experiment_id, member_id, execution_kind);
+
+-- Constraint: eval_members eval_members_experiment_id_ordinal_key
+
+ALTER TABLE ONLY eval_members
+    ADD CONSTRAINT eval_members_experiment_id_ordinal_key UNIQUE (experiment_id, ordinal);
+
+-- Constraint: eval_members eval_members_experiment_id_suite_id_case_id_sample_variant__key
+
+ALTER TABLE ONLY eval_members
+    ADD CONSTRAINT eval_members_experiment_id_suite_id_case_id_sample_variant__key UNIQUE (experiment_id, suite_id, case_id, sample, variant_id);
+
+-- Constraint: eval_members eval_members_pkey
+
+ALTER TABLE ONLY eval_members
+    ADD CONSTRAINT eval_members_pkey PRIMARY KEY (experiment_id, member_id);
+
+-- Constraint: eval_members eval_members_submission_key_key
+
+ALTER TABLE ONLY eval_members
+    ADD CONSTRAINT eval_members_submission_key_key UNIQUE (submission_key);
+
+-- Constraint: eval_plan_resources eval_plan_resources_pkey
+
+ALTER TABLE ONLY eval_plan_resources
+    ADD CONSTRAINT eval_plan_resources_pkey PRIMARY KEY (experiment_id, resource_path);
+
+-- Constraint: eval_progress_observations eval_progress_observations_pkey
+
+ALTER TABLE ONLY eval_progress_observations
+    ADD CONSTRAINT eval_progress_observations_pkey PRIMARY KEY (experiment_id, sequence);
+
+-- Constraint: eval_projection_queue eval_projection_queue_pkey
+
+ALTER TABLE ONLY eval_projection_queue
+    ADD CONSTRAINT eval_projection_queue_pkey PRIMARY KEY (experiment_id);
+
+-- Constraint: eval_records eval_records_pkey
+
+ALTER TABLE ONLY eval_records
+    ADD CONSTRAINT eval_records_pkey PRIMARY KEY (experiment_id, member_id, kind, record_sha256);
+
+-- Constraint: eval_selections eval_selections_pkey
+
+ALTER TABLE ONLY eval_selections
+    ADD CONSTRAINT eval_selections_pkey PRIMARY KEY (experiment_id, member_id);
+
+-- Constraint: eval_submissions eval_submissions_pkey
+
+ALTER TABLE ONLY eval_submissions
+    ADD CONSTRAINT eval_submissions_pkey PRIMARY KEY (experiment_id, member_id);
+
+-- Constraint: eval_suboperations eval_suboperations_operation_key_key
+
+ALTER TABLE ONLY eval_suboperations
+    ADD CONSTRAINT eval_suboperations_operation_key_key UNIQUE (operation_key);
+
+-- Constraint: eval_suboperations eval_suboperations_pkey
+
+ALTER TABLE ONLY eval_suboperations
+    ADD CONSTRAINT eval_suboperations_pkey PRIMARY KEY (experiment_id, member_id, kind);
+
+-- Constraint: eval_view_charts eval_view_charts_pkey
+
+ALTER TABLE ONLY eval_view_charts
+    ADD CONSTRAINT eval_view_charts_pkey PRIMARY KEY (experiment_id, generation, suite_id, metric);
+
+-- Constraint: eval_view_pairs eval_view_pairs_experiment_id_generation_pair_id_key
+
+ALTER TABLE ONLY eval_view_pairs
     ADD CONSTRAINT eval_view_pairs_experiment_id_generation_pair_id_key UNIQUE (experiment_id, generation, pair_id);
 
-ALTER TABLE eval_view_pairs
+-- Constraint: eval_view_pairs eval_view_pairs_pkey
+
+ALTER TABLE ONLY eval_view_pairs
     ADD CONSTRAINT eval_view_pairs_pkey PRIMARY KEY (experiment_id, generation, ordinal);
+
+-- Constraint: finding_correlation_fences finding_correlation_fences_pkey
+
+ALTER TABLE ONLY finding_correlation_fences
+    ADD CONSTRAINT finding_correlation_fences_pkey PRIMARY KEY (project_id);
+
+-- Constraint: finding_proposal_audit_holds finding_proposal_audit_holds_pkey
+
+ALTER TABLE ONLY finding_proposal_audit_holds
+    ADD CONSTRAINT finding_proposal_audit_holds_pkey PRIMARY KEY (receipt_id, audit_id);
+
+-- Constraint: finding_proposal_receipts finding_proposal_receipts_allocation_id_invocation_id_submi_key
+
+ALTER TABLE ONLY finding_proposal_receipts
+    ADD CONSTRAINT finding_proposal_receipts_allocation_id_invocation_id_submi_key UNIQUE (allocation_id, invocation_id, submission_id);
+
+-- Constraint: finding_proposal_receipts finding_proposal_receipts_pkey
+
+ALTER TABLE ONLY finding_proposal_receipts
+    ADD CONSTRAINT finding_proposal_receipts_pkey PRIMARY KEY (receipt_id);
+
+-- Constraint: finding_proposal_receipts finding_proposal_receipts_proposal_id_key
+
+ALTER TABLE ONLY finding_proposal_receipts
+    ADD CONSTRAINT finding_proposal_receipts_proposal_id_key UNIQUE (proposal_id);
+
+-- Constraint: gateway_allocation_routes gateway_allocation_routes_pkey
+
+ALTER TABLE ONLY gateway_allocation_routes
+    ADD CONSTRAINT gateway_allocation_routes_pkey PRIMARY KEY (allocation_id, model);
+
+-- Constraint: gateway_recovery_failures gateway_recovery_failures_pkey
+
+ALTER TABLE ONLY gateway_recovery_failures
+    ADD CONSTRAINT gateway_recovery_failures_pkey PRIMARY KEY (route_key, request_id);
+
+-- Constraint: gateway_recovery_routes gateway_recovery_routes_pkey
+
+ALTER TABLE ONLY gateway_recovery_routes
+    ADD CONSTRAINT gateway_recovery_routes_pkey PRIMARY KEY (route_key);
+
+-- Constraint: gateway_recovery_waits gateway_recovery_waits_pkey
+
+ALTER TABLE ONLY gateway_recovery_waits
+    ADD CONSTRAINT gateway_recovery_waits_pkey PRIMARY KEY (participant_id, model);
+
+-- Constraint: gateway_run_routes gateway_run_routes_pkey
+
+ALTER TABLE ONLY gateway_run_routes
+    ADD CONSTRAINT gateway_run_routes_pkey PRIMARY KEY (run_id, route_key);
+
+-- Constraint: git_ssh_keys git_ssh_keys_pkey
+
+ALTER TABLE ONLY git_ssh_keys
+    ADD CONSTRAINT git_ssh_keys_pkey PRIMARY KEY (owner_id);
+
+-- Constraint: llm_credentials llm_credentials_llm_gateway_digest_remote_key_id_key
+
+ALTER TABLE ONLY llm_credentials
+    ADD CONSTRAINT llm_credentials_llm_gateway_digest_remote_key_id_key UNIQUE (llm_gateway_digest, remote_key_id);
+
+-- Constraint: llm_credentials llm_credentials_pkey
+
+ALTER TABLE ONLY llm_credentials
+    ADD CONSTRAINT llm_credentials_pkey PRIMARY KEY (credential_id);
+
+-- Constraint: model_selection_settings model_selection_settings_pkey
+
+ALTER TABLE ONLY model_selection_settings
+    ADD CONSTRAINT model_selection_settings_pkey PRIMARY KEY (singleton);
+
+-- Constraint: mutation_receipts mutation_receipts_pkey
+
+ALTER TABLE ONLY mutation_receipts
+    ADD CONSTRAINT mutation_receipts_pkey PRIMARY KEY (key_scope, idempotency_key);
+
+-- Constraint: owner_queue_controls owner_queue_controls_pkey
+
+ALTER TABLE ONLY owner_queue_controls
+    ADD CONSTRAINT owner_queue_controls_pkey PRIMARY KEY (owner_id);
+
+-- Constraint: performance_minutes performance_minutes_pkey
+
+ALTER TABLE ONLY performance_minutes
+    ADD CONSTRAINT performance_minutes_pkey PRIMARY KEY (server_generation, minute_start);
+
+-- Constraint: planner_execution_reports planner_execution_reports_pkey
+
+ALTER TABLE ONLY planner_execution_reports
+    ADD CONSTRAINT planner_execution_reports_pkey PRIMARY KEY (report_id);
+
+-- Constraint: planner_sessions planner_sessions_invocation_id_key
+
+ALTER TABLE ONLY planner_sessions
+    ADD CONSTRAINT planner_sessions_invocation_id_key UNIQUE (invocation_id);
+
+-- Constraint: planner_sessions planner_sessions_pkey
+
+ALTER TABLE ONLY planner_sessions
+    ADD CONSTRAINT planner_sessions_pkey PRIMARY KEY (session_id);
+
+-- Constraint: planner_sessions planner_sessions_stage_execution_id_key
+
+ALTER TABLE ONLY planner_sessions
+    ADD CONSTRAINT planner_sessions_stage_execution_id_key UNIQUE (stage_execution_id);
+
+-- Constraint: planner_sessions planner_sessions_stage_execution_id_session_id_invocation_i_key
+
+ALTER TABLE ONLY planner_sessions
+    ADD CONSTRAINT planner_sessions_stage_execution_id_session_id_invocation_i_key UNIQUE (stage_execution_id, session_id, invocation_id);
+
+-- Constraint: projects projects_owner_id_request_idempotency_key_key
+
+ALTER TABLE ONLY projects
+    ADD CONSTRAINT projects_owner_id_request_idempotency_key_key UNIQUE (owner_id, request_idempotency_key);
+
+-- Constraint: projects projects_owner_identity
+
+ALTER TABLE ONLY projects
+    ADD CONSTRAINT projects_owner_identity UNIQUE (owner_id, project_id);
+
+-- Constraint: projects projects_pkey
+
+ALTER TABLE ONLY projects
+    ADD CONSTRAINT projects_pkey PRIMARY KEY (project_id);
+
+-- Constraint: run_stage_resumptions run_stage_resumption_target_source_unique
+
+ALTER TABLE ONLY run_stage_resumptions
+    ADD CONSTRAINT run_stage_resumption_target_source_unique UNIQUE (target_execution_id, source_execution_id);
+
+-- Constraint: run_stage_resumptions run_stage_resumptions_pkey
+
+ALTER TABLE ONLY run_stage_resumptions
+    ADD CONSTRAINT run_stage_resumptions_pkey PRIMARY KEY (source_execution_id);
+
+-- Constraint: run_stage_resumptions run_stage_resumptions_target_execution_id_key
+
+ALTER TABLE ONLY run_stage_resumptions
+    ADD CONSTRAINT run_stage_resumptions_target_execution_id_key UNIQUE (target_execution_id);
+
+-- Constraint: runtime_agent_principals runtime_agent_principals_pkey
+
+ALTER TABLE ONLY runtime_agent_principals
+    ADD CONSTRAINT runtime_agent_principals_pkey PRIMARY KEY (runtime_agent_id);
+
+-- Constraint: runtime_config_versions runtime_config_versions_idempotency_key_digest_key
+
+ALTER TABLE ONLY runtime_config_versions
+    ADD CONSTRAINT runtime_config_versions_idempotency_key_digest_key UNIQUE (idempotency_key_digest);
+
+-- Constraint: runtime_config_versions runtime_config_versions_name_version_digest_key
+
+ALTER TABLE ONLY runtime_config_versions
+    ADD CONSTRAINT runtime_config_versions_name_version_digest_key UNIQUE (name, version, digest);
+
+-- Constraint: runtime_config_versions runtime_config_versions_pkey
+
+ALTER TABLE ONLY runtime_config_versions
+    ADD CONSTRAINT runtime_config_versions_pkey PRIMARY KEY (name, version);
+
+-- Constraint: runtime_credentials runtime_credentials_credential_id_credential_kind_key
+
+ALTER TABLE ONLY runtime_credentials
+    ADD CONSTRAINT runtime_credentials_credential_id_credential_kind_key UNIQUE (credential_id, credential_kind);
+
+-- Constraint: runtime_credentials runtime_credentials_idempotency_key_digest_key
+
+ALTER TABLE ONLY runtime_credentials
+    ADD CONSTRAINT runtime_credentials_idempotency_key_digest_key UNIQUE (idempotency_key_digest);
+
+-- Constraint: runtime_credentials runtime_credentials_pkey
+
+ALTER TABLE ONLY runtime_credentials
+    ADD CONSTRAINT runtime_credentials_pkey PRIMARY KEY (credential_id);
+
+-- Constraint: runtime_label_bindings runtime_label_bindings_pkey
+
+ALTER TABLE ONLY runtime_label_bindings
+    ADD CONSTRAINT runtime_label_bindings_pkey PRIMARY KEY (label);
+
+-- Constraint: scan_sweep_members scan_sweep_members_pkey
+
+ALTER TABLE ONLY scan_sweep_members
+    ADD CONSTRAINT scan_sweep_members_pkey PRIMARY KEY (sweep_id, ordinal);
+
+-- Constraint: scan_sweep_members scan_sweep_members_sweep_id_project_id_key
+
+ALTER TABLE ONLY scan_sweep_members
+    ADD CONSTRAINT scan_sweep_members_sweep_id_project_id_key UNIQUE (sweep_id, project_id);
+
+-- Constraint: scan_sweeps scan_sweeps_pkey
+
+ALTER TABLE ONLY scan_sweeps
+    ADD CONSTRAINT scan_sweeps_pkey PRIMARY KEY (sweep_id);
+
+-- Constraint: scheduler_settings scheduler_settings_pkey
+
+ALTER TABLE ONLY scheduler_settings
+    ADD CONSTRAINT scheduler_settings_pkey PRIMARY KEY (singleton);
+
+-- Constraint: stage_allocations stage_allocation_report_identity
+
+ALTER TABLE ONLY stage_allocations
+    ADD CONSTRAINT stage_allocation_report_identity UNIQUE (stage_execution_id, allocation_id, logical_agent_name);
+
+-- Constraint: stage_allocations stage_allocations_pkey
+
+ALTER TABLE ONLY stage_allocations
+    ADD CONSTRAINT stage_allocations_pkey PRIMARY KEY (allocation_id);
+
+-- Constraint: stage_allocations stage_allocations_stage_execution_id_logical_agent_name_key
+
+ALTER TABLE ONLY stage_allocations
+    ADD CONSTRAINT stage_allocations_stage_execution_id_logical_agent_name_key UNIQUE (stage_execution_id, logical_agent_name);
+
+-- Constraint: stage_executions stage_attempt_identity
+
+ALTER TABLE ONLY stage_executions
+    ADD CONSTRAINT stage_attempt_identity UNIQUE (run_id, stage_name, attempt);
+
+-- Constraint: stage_executions stage_execution_lineage_key
+
+ALTER TABLE ONLY stage_executions
+    ADD CONSTRAINT stage_execution_lineage_key UNIQUE (run_id, stage_name, stage_execution_id);
+
+-- Constraint: stage_executions stage_execution_run_identity
+
+ALTER TABLE ONLY stage_executions
+    ADD CONSTRAINT stage_execution_run_identity UNIQUE (run_id, stage_execution_id);
+
+-- Constraint: stage_executions stage_executions_pkey
+
+ALTER TABLE ONLY stage_executions
+    ADD CONSTRAINT stage_executions_pkey PRIMARY KEY (stage_execution_id);
+
+-- Constraint: stage_metrics stage_metrics_pkey
+
+ALTER TABLE ONLY stage_metrics
+    ADD CONSTRAINT stage_metrics_pkey PRIMARY KEY (stage_execution_id);
+
+-- Constraint: stage_transition_decisions stage_transition_decisions_pkey
+
+ALTER TABLE ONLY stage_transition_decisions
+    ADD CONSTRAINT stage_transition_decisions_pkey PRIMARY KEY (source_execution_id);
+
+-- Constraint: stage_transition_decisions stage_transition_target_once
+
+ALTER TABLE ONLY stage_transition_decisions
+    ADD CONSTRAINT stage_transition_target_once UNIQUE (target_execution_id);
+
+-- Constraint: workflow_run_events workflow_run_events_event_id_key
+
+ALTER TABLE ONLY workflow_run_events
+    ADD CONSTRAINT workflow_run_events_event_id_key UNIQUE (event_id);
+
+-- Constraint: workflow_run_events workflow_run_events_pkey
+
+ALTER TABLE ONLY workflow_run_events
+    ADD CONSTRAINT workflow_run_events_pkey PRIMARY KEY (run_id, sequence_number);
+
+-- Constraint: workflow_run_output_publications workflow_run_output_publications_pkey
+
+ALTER TABLE ONLY workflow_run_output_publications
+    ADD CONSTRAINT workflow_run_output_publications_pkey PRIMARY KEY (run_id, output_name);
+
+-- Constraint: workflow_runs workflow_runs_audit_execution_unique
+
+ALTER TABLE ONLY workflow_runs
+    ADD CONSTRAINT workflow_runs_audit_execution_unique UNIQUE (audit_execution_id);
+
+-- Constraint: workflow_runs workflow_runs_audit_submission_unique
+
+ALTER TABLE ONLY workflow_runs
+    ADD CONSTRAINT workflow_runs_audit_submission_unique UNIQUE (audit_submission_key);
+
+-- Constraint: workflow_runs workflow_runs_pkey
+
+ALTER TABLE ONLY workflow_runs
+    ADD CONSTRAINT workflow_runs_pkey PRIMARY KEY (run_id);
+
+-- Constraint: workflow_runs workflow_runs_run_project_key
+
+ALTER TABLE ONLY workflow_runs
+    ADD CONSTRAINT workflow_runs_run_project_key UNIQUE (run_id, project_id);
+
+-- Index: allocation_execution_reports_allocation_idx
+
+CREATE INDEX allocation_execution_reports_allocation_idx ON allocation_execution_reports USING btree (allocation_id, received_at DESC);
+
+-- Index: allocation_execution_reports_complete_identity
+
+CREATE UNIQUE INDEX allocation_execution_reports_complete_identity ON allocation_execution_reports USING btree (stage_execution_id, allocation_id, logical_agent_name) WHERE ((((report -> 'worker'::text) ->> 'complete'::text))::boolean AND (((report -> 'runtime'::text) ->> 'complete'::text))::boolean);
+
+-- Index: allocation_execution_reports_expiry_idx
+
+CREATE INDEX allocation_execution_reports_expiry_idx ON allocation_execution_reports USING btree (expires_at, stage_execution_id);
+
+-- Index: allocation_execution_reports_stage_idx
+
+CREATE INDEX allocation_execution_reports_stage_idx ON allocation_execution_reports USING btree (stage_execution_id, logical_agent_name);
+
+-- Index: artifact_binding_revisions_eligible_idx
+
+CREATE INDEX artifact_binding_revisions_eligible_idx ON artifact_binding_revisions USING btree (scope_kind, scope_id, namespace, name, created_at, revision) WHERE (hold_count = 0);
+
+-- Index: artifact_binding_revisions_history_idx
+
+CREATE INDEX artifact_binding_revisions_history_idx ON artifact_binding_revisions USING btree (scope_kind, scope_id, namespace, name, created_at DESC, revision DESC);
+
+-- Index: artifact_binding_revisions_version_idx
+
+CREATE INDEX artifact_binding_revisions_version_idx ON artifact_binding_revisions USING btree (version_id);
+
+-- Index: artifact_bindings_project_listing_idx
+
+CREATE INDEX artifact_bindings_project_listing_idx ON artifact_bindings USING btree (scope_id, namespace, name) WHERE ((scope_kind = 'project'::text) AND (namespace !~~ 'audit-%'::text));
+
+-- Index: artifact_bindings_user_listing_idx
+
+CREATE INDEX artifact_bindings_user_listing_idx ON artifact_bindings USING btree (scope_id, namespace, name) WHERE ((scope_kind = 'user'::text) AND (namespace <> ALL (ARRAY['audit-standards'::text, 'contractor-system'::text])));
+
+-- Index: artifact_blobs_object_key_idx
+
+CREATE UNIQUE INDEX artifact_blobs_object_key_idx ON artifact_blobs USING btree (object_key) WHERE (object_key IS NOT NULL);
+
+-- Index: artifact_lineage_source_idx
+
+CREATE INDEX artifact_lineage_source_idx ON artifact_lineage USING btree (source_scope_kind, source_scope_id, source_namespace, source_name, source_revision);
+
+-- Index: artifact_scopes_project_idx
+
+CREATE INDEX artifact_scopes_project_idx ON artifact_scopes USING btree (project_id) WHERE (project_id IS NOT NULL);
+
+-- Index: artifact_scopes_run_idx
+
+CREATE INDEX artifact_scopes_run_idx ON artifact_scopes USING btree (run_id) WHERE (run_id IS NOT NULL);
+
+-- Index: artifact_versions_blob_idx
+
+CREATE INDEX artifact_versions_blob_idx ON artifact_versions USING btree (blob_sha256);
+
+-- Index: audit_admission_decisions_idx
+
+CREATE INDEX audit_admission_decisions_idx ON audit_artifact_links USING btree (audit_id, ((source_provenance ->> 'source_key'::text)), ((source_provenance ->> 'policy_digest'::text)), ((source_provenance ->> 'disposition'::text))) WHERE ((source_provenance ->> 'schema'::text) = 'contractor.audit.admission-decision.v1'::text);
+
+-- Index: audit_admission_pages_idx
+
+CREATE INDEX audit_admission_pages_idx ON audit_artifact_links USING btree (audit_id, ((source_provenance ->> 'generation'::text)), ((source_provenance ->> 'kind'::text)), ((source_provenance ->> 'ordinal'::text))) WHERE ((source_provenance ->> 'schema'::text) = 'contractor.audit.admission-provenance.v1'::text);
+
+-- Index: audit_artifact_links_digest_idx
+
+CREATE INDEX audit_artifact_links_digest_idx ON audit_artifact_links USING btree (audit_id, artifact_digest);
+
+-- Index: audit_artifact_links_exact_dependency_idx
+
+CREATE INDEX audit_artifact_links_exact_dependency_idx ON audit_artifact_links USING btree (audit_id, ((artifact_ref ->> 'namespace'::text)), ((artifact_ref ->> 'name'::text)), ((artifact_ref ->> 'revision'::text)), artifact_digest);
+
+-- Index: audit_artifact_links_execution_item_idx
+
+CREATE INDEX audit_artifact_links_execution_item_idx ON audit_artifact_links USING btree (audit_id, COALESCE((source_provenance ->> 'executionItemId'::text), ((source_provenance -> 'source'::text) ->> 'executionItemId'::text)), logical_key);
+
+-- Index: audit_controller_claim_expiry_idx
+
+CREATE INDEX audit_controller_claim_expiry_idx ON audit_controller_claims USING btree (expires_at, audit_id);
+
+-- Index: audit_events_finding_proposal_rejected_idx
+
+CREATE INDEX audit_events_finding_proposal_rejected_idx ON audit_events USING btree (audit_id, entity_id) WHERE (kind = 'finding.proposal_rejected'::text);
+
+-- Index: audit_execution_items_audit_state_idx
+
+CREATE INDEX audit_execution_items_audit_state_idx ON audit_execution_items USING btree (audit_id, state, execution_id, batch_ordinal);
+
+-- Index: audit_executions_audit_round_idx
+
+CREATE INDEX audit_executions_audit_round_idx ON audit_executions USING btree (audit_id, round_id);
+
+-- Index: audit_executions_audit_run_cleanup_idx
+
+CREATE INDEX audit_executions_audit_run_cleanup_idx ON audit_executions USING btree (audit_id, run_deleted_at, created_at, execution_id) WHERE (run_id IS NOT NULL);
+
+-- Index: audit_executions_prepare_accepted_unique
+
+CREATE UNIQUE INDEX audit_executions_prepare_accepted_unique ON audit_executions USING btree (audit_id, workflow_role) WHERE ((role = 'prepare'::text) AND (collection_disposition = 'accepted-result'::text));
+
+-- Index: audit_executions_prepare_attempt_unique
+
+CREATE UNIQUE INDEX audit_executions_prepare_attempt_unique ON audit_executions USING btree (audit_id, workflow_role, role_attempt) WHERE (role = 'prepare'::text);
+
+-- Index: audit_executions_reconcile_idx
+
+CREATE INDEX audit_executions_reconcile_idx ON audit_executions USING btree (audit_id, state, created_at, execution_id) WHERE (state = ANY (ARRAY['intent'::text, 'submitted'::text, 'collecting'::text]));
+
+-- Index: audit_executions_role_attempt_unique
+
+CREATE UNIQUE INDEX audit_executions_role_attempt_unique ON audit_executions USING btree (audit_id, COALESCE(round_id, ''::text), role, workflow_role, COALESCE(role_attempt, 0)) WHERE (role = ANY (ARRAY['discovery'::text, 'assessment'::text]));
+
+-- Index: audit_executions_run_unique
+
+CREATE UNIQUE INDEX audit_executions_run_unique ON audit_executions USING btree (run_id) WHERE (run_id IS NOT NULL);
+
+-- Index: audit_finding_assessments_audit_idx
+
+CREATE INDEX audit_finding_assessments_audit_idx ON audit_finding_assessments USING btree (audit_id);
+
+-- Index: audit_finding_assessments_collection_receipt_idx
+
+CREATE INDEX audit_finding_assessments_collection_receipt_idx ON audit_finding_assessments USING btree (collection_receipt_id);
+
+-- Index: audit_finding_assessments_execution_item_idx
+
+CREATE INDEX audit_finding_assessments_execution_item_idx ON audit_finding_assessments USING btree (execution_item_id, item_id);
+
+-- Index: audit_finding_assessments_finding_idx
+
+CREATE INDEX audit_finding_assessments_finding_idx ON audit_finding_assessments USING btree (finding_id, audit_id);
+
+-- Index: audit_finding_assessments_round_results_idx
+
+CREATE INDEX audit_finding_assessments_round_results_idx ON audit_finding_assessments USING btree (audit_id, execution_item_id, assessment_id);
+
+-- Index: audit_finding_contributions_receipt_idx
+
+CREATE INDEX audit_finding_contributions_receipt_idx ON audit_finding_contributions USING btree (receipt_id);
+
+-- Index: audit_findings_correlation_audit_group_idx
+
+CREATE INDEX audit_findings_correlation_audit_group_idx ON audit_findings USING btree (audit_id, correlation_group_key COLLATE "C", finding_id COLLATE "C");
+
+-- Index: audit_findings_correlation_audit_group_order_idx
+
+CREATE INDEX audit_findings_correlation_audit_group_order_idx ON audit_findings USING btree (audit_id, correlation_group_key COLLATE "C", created_at, finding_id COLLATE "C") WHERE (correlation_group_key <> ''::text);
+
+-- Index: audit_findings_correlation_audit_scan_idx
+
+CREATE INDEX audit_findings_correlation_audit_scan_idx ON audit_findings USING btree (audit_id, created_at, finding_id COLLATE "C");
+
+-- Index: audit_findings_correlation_group_idx
+
+CREATE INDEX audit_findings_correlation_group_idx ON audit_findings USING btree (correlation_project_id, correlation_group_key, finding_id COLLATE "C") INCLUDE (audit_id) WHERE (correlation_group_key <> ''::text);
+
+-- Index: audit_findings_correlation_project_group_order_idx
+
+CREATE INDEX audit_findings_correlation_project_group_order_idx ON audit_findings USING btree (correlation_project_id, correlation_group_key, created_at, finding_id COLLATE "C") WHERE (correlation_group_key <> ''::text);
+
+-- Index: audit_findings_correlation_project_scan_idx
+
+CREATE INDEX audit_findings_correlation_project_scan_idx ON audit_findings USING btree (correlation_project_id, created_at, finding_id COLLATE "C");
+
+-- Index: audit_findings_correlation_scope_idx
+
+CREATE INDEX audit_findings_correlation_scope_idx ON audit_findings USING btree (audit_id, correlation_project_id);
+
+-- Index: audit_findings_current_assessment_idx
+
+CREATE INDEX audit_findings_current_assessment_idx ON audit_findings USING btree (current_assessment_id) WHERE (current_assessment_id IS NOT NULL);
+
+-- Index: audit_findings_current_decision_idx
+
+CREATE INDEX audit_findings_current_decision_idx ON audit_findings USING btree (current_decision_id) WHERE (current_decision_id IS NOT NULL);
+
+-- Index: audit_findings_duplicate_target_idx
+
+CREATE INDEX audit_findings_duplicate_target_idx ON audit_findings USING btree (duplicate_target_id, audit_id) WHERE (duplicate_target_id IS NOT NULL);
+
+-- Index: audit_findings_first_receipt_idx
+
+CREATE INDEX audit_findings_first_receipt_idx ON audit_findings USING btree (first_receipt_id);
+
+-- Index: audit_findings_global_created_idx
+
+CREATE INDEX audit_findings_global_created_idx ON audit_findings USING btree (created_at DESC, finding_id DESC);
+
+-- Index: audit_findings_list_idx
+
+CREATE INDEX audit_findings_list_idx ON audit_findings USING btree (audit_id, created_at, finding_id);
+
+-- Index: audit_findings_purge_pointers_idx
+
+CREATE INDEX audit_findings_purge_pointers_idx ON audit_findings USING btree (audit_id, finding_id) WHERE ((current_assessment_id IS NOT NULL) OR (current_decision_id IS NOT NULL) OR (duplicate_target_id IS NOT NULL));
+
+-- Index: audit_findings_state_idx
+
+CREATE INDEX audit_findings_state_idx ON audit_findings USING btree (audit_id, state, created_at, finding_id);
+
+-- Index: audit_items_dependency_purge_idx
+
+CREATE INDEX audit_items_dependency_purge_idx ON audit_items USING btree (audit_id, item_id) INCLUDE (retained_dependency_hold_count);
+
+-- Index: audit_items_dispatch_idx
+
+CREATE INDEX audit_items_dispatch_idx ON audit_items USING btree (audit_id, state, round_id, ordinal, item_id) WHERE (state <> 'settled'::text);
+
+-- Index: audit_items_pending_approval_idx
+
+CREATE INDEX audit_items_pending_approval_idx ON audit_items USING btree (audit_id, state, approval_kind, item_id) WHERE (state = 'awaiting_review'::text);
+
+-- Index: audit_items_purge_pointer_idx
+
+CREATE INDEX audit_items_purge_pointer_idx ON audit_items USING btree (audit_id, item_id) WHERE (last_execution_item_id IS NOT NULL);
+
+-- Index: audit_items_ready_role_idx
+
+CREATE INDEX audit_items_ready_role_idx ON audit_items USING btree (audit_id, round_id, workflow_role, ordinal, item_id) WHERE (state = 'ready'::text);
+
+-- Index: audit_review_decisions_duplicate_target_idx
+
+CREATE INDEX audit_review_decisions_duplicate_target_idx ON audit_review_decisions USING btree (duplicate_target_id, audit_id) WHERE (duplicate_target_id IS NOT NULL);
+
+-- Index: audit_review_requests_finding_idx
+
+CREATE INDEX audit_review_requests_finding_idx ON audit_review_requests USING btree (finding_id, audit_id) WHERE (finding_id IS NOT NULL);
+
+-- Index: audit_review_requests_global_created_idx
+
+CREATE INDEX audit_review_requests_global_created_idx ON audit_review_requests USING btree (created_at DESC, request_id DESC);
+
+-- Index: audit_review_requests_global_state_created_idx
+
+CREATE INDEX audit_review_requests_global_state_created_idx ON audit_review_requests USING btree (state, created_at DESC, request_id DESC);
+
+-- Index: audit_review_requests_item_subject_idx
+
+CREATE INDEX audit_review_requests_item_subject_idx ON audit_review_requests USING btree (audit_id, subject_id) WHERE (subject_kind = 'audit-item-action'::text);
+
+-- Index: audit_review_requests_list_idx
+
+CREATE INDEX audit_review_requests_list_idx ON audit_review_requests USING btree (audit_id, created_at, request_id);
+
+-- Index: audit_review_requests_pending_subject_unique
+
+CREATE UNIQUE INDEX audit_review_requests_pending_subject_unique ON audit_review_requests USING btree (audit_id, subject_kind, subject_id, kind, subject_revision, subject_digest) WHERE (state = 'pending'::text);
+
+-- Index: audit_review_requests_report_candidate_unique
+
+CREATE UNIQUE INDEX audit_review_requests_report_candidate_unique ON audit_review_requests USING btree (audit_id) WHERE (subject_kind = 'audit-report'::text);
+
+-- Index: audit_review_requests_report_round_idx
+
+CREATE INDEX audit_review_requests_report_round_idx ON audit_review_requests USING btree (report_round_id, audit_id) WHERE (report_round_id IS NOT NULL);
+
+-- Index: audit_round_result_pages_audit_idx
+
+CREATE INDEX audit_round_result_pages_audit_idx ON audit_round_result_pages USING btree (audit_id, round_id, ordinal);
+
+-- Index: audits_held_llm_credentials_idx
+
+CREATE INDEX audits_held_llm_credentials_idx ON audits USING gin (((baseline_snapshot -> 'llmCredentialIds'::text))) WHERE (hold_state = 'held'::text);
+
+-- Index: audits_held_runtime_credentials_idx
+
+CREATE INDEX audits_held_runtime_credentials_idx ON audits USING gin (((baseline_snapshot -> 'runtimeCredentialIds'::text))) WHERE (hold_state = 'held'::text);
+
+-- Index: audits_owner_created_idx
+
+CREATE INDEX audits_owner_created_idx ON audits USING btree (owner_id, created_at DESC, audit_id DESC);
+
+-- Index: audits_project_deletion_intent_idx
+
+CREATE INDEX audits_project_deletion_intent_idx ON audits USING btree (project_id, deletion_requested_at, created_at, audit_id);
+
+-- Index: audits_project_state_idx
+
+CREATE INDEX audits_project_state_idx ON audits USING btree (project_id, state, created_at, audit_id);
+
+-- Index: audits_reconcile_idx
+
+CREATE INDEX audits_reconcile_idx ON audits USING btree (updated_at, audit_id) WHERE (state = ANY (ARRAY['active'::text, 'waiting_review'::text, 'paused'::text, 'finalizing'::text, 'cancelling'::text, 'deleting'::text]));
+
+-- Index: credential_operations_create_identity
+
+CREATE UNIQUE INDEX credential_operations_create_identity ON credential_operations USING btree (credential_id) WHERE (operation_kind = 'create'::text);
+
+-- Index: credential_operations_prepared_idx
+
+CREATE INDEX credential_operations_prepared_idx ON credential_operations USING btree (created_at, operation_id) WHERE (phase = 'prepared'::text);
+
+-- Index: eval_claims_expiry_idx
+
+CREATE INDEX eval_claims_expiry_idx ON eval_controller_claims USING btree (expires_at, experiment_id);
+
+-- Index: eval_commands_experiment_idx
+
+CREATE INDEX eval_commands_experiment_idx ON eval_commands USING btree (experiment_id);
+
+-- Index: eval_commands_pending_idx
+
+CREATE INDEX eval_commands_pending_idx ON eval_commands USING btree (experiment_id, created_at, command_id) WHERE (state = ANY (ARRAY['accepted'::text, 'running'::text]));
+
+-- Index: eval_datasets_owner_page_idx
+
+CREATE INDEX eval_datasets_owner_page_idx ON eval_dataset_revisions USING btree (owner_id, project_id, dataset_id, revision);
+
+-- Index: eval_evidence_refs_artifact
+
+CREATE INDEX eval_evidence_refs_artifact ON eval_evidence_refs USING btree (scope_kind, scope_id, namespace, name, revision);
+
+-- Index: eval_experiments_claim_active_idx
+
+CREATE INDEX eval_experiments_claim_active_idx ON eval_experiments USING btree (experiment_id) WHERE (state = ANY (ARRAY['preparing'::text, 'running'::text, 'settling'::text, 'pausing'::text, 'cancelling'::text]));
+
+-- Index: eval_experiments_claim_paused_deadline_idx
+
+CREATE INDEX eval_experiments_claim_paused_deadline_idx ON eval_experiments USING btree (deadline_at, experiment_id) WHERE (state = 'paused'::text);
+
+-- Index: eval_experiments_dataset_revision_idx
+
+CREATE INDEX eval_experiments_dataset_revision_idx ON eval_experiments USING btree (project_id, dataset_id, dataset_revision) WHERE (dataset_id IS NOT NULL);
+
+-- Index: eval_experiments_owner_created_page_idx
+
+CREATE INDEX eval_experiments_owner_created_page_idx ON eval_experiments USING btree (owner_id, created_at DESC, experiment_id DESC);
+
+-- Index: eval_experiments_project_created_page_idx
+
+CREATE INDEX eval_experiments_project_created_page_idx ON eval_experiments USING btree (owner_id, project_id, created_at DESC, experiment_id DESC);
+
+-- Index: eval_experiments_project_page_idx
+
+CREATE INDEX eval_experiments_project_page_idx ON eval_experiments USING btree (owner_id, project_id, experiment_id);
+
+-- Index: eval_member_projections_dirty
+
+CREATE INDEX eval_member_projections_dirty ON eval_member_projections USING btree (experiment_id, checked_at NULLS FIRST, member_id) WHERE (revision <> projected_revision);
+
+-- Index: eval_members_pair_idx
+
+CREATE INDEX eval_members_pair_idx ON eval_members USING btree (experiment_id, pair_id, variant_id);
+
+-- Index: eval_progress_observations_time
+
+CREATE INDEX eval_progress_observations_time ON eval_progress_observations USING btree (experiment_id, observed_at, sequence);
+
+-- Index: eval_projection_queue_dirty_idx
+
+CREATE INDEX eval_projection_queue_dirty_idx ON eval_projection_queue USING btree (experiment_id) WHERE (revision <> published_revision);
+
+-- Index: eval_records_native_recent
+
+CREATE INDEX eval_records_native_recent ON eval_records USING btree (experiment_id, member_id, kind, created_at DESC, record_sha256 DESC) WHERE (actor_id = 'system:eval-collector'::text);
+
+-- Index: eval_records_recent
+
+CREATE INDEX eval_records_recent ON eval_records USING btree (experiment_id, member_id, kind, created_at DESC, record_sha256 DESC);
+
+-- Index: eval_submissions_execution_idx
+
+CREATE UNIQUE INDEX eval_submissions_execution_idx ON eval_submissions USING btree (execution_kind, execution_id) WHERE (execution_id IS NOT NULL);
+
+-- Index: eval_submissions_outstanding_idx
+
+CREATE INDEX eval_submissions_outstanding_idx ON eval_submissions USING btree (experiment_id, member_id) WHERE (state = ANY (ARRAY['intent'::text, 'accepted'::text]));
+
+-- Index: eval_submissions_reconcile_idx
+
+CREATE INDEX eval_submissions_reconcile_idx ON eval_submissions USING btree (experiment_id, updated_at, member_id) WHERE (state = ANY (ARRAY['intent'::text, 'accepted'::text]));
+
+-- Index: eval_submissions_workspace_idx
+
+CREATE UNIQUE INDEX eval_submissions_workspace_idx ON eval_submissions USING btree (execution_project_id) WHERE (execution_project_id IS NOT NULL);
+
+-- Index: eval_view_pairs_suite
 
 CREATE INDEX eval_view_pairs_suite ON eval_view_pairs USING btree (experiment_id, generation, suite_id, ordinal);
 
+-- Index: finding_checks_projection_pending_idx
+
+CREATE INDEX finding_checks_projection_pending_idx ON finding_proposal_receipts USING btree (receipt_id) WHERE (checks_projection IS NULL);
+
+-- Index: finding_holds_admission_cutoff_idx
+
+CREATE INDEX finding_holds_admission_cutoff_idx ON finding_proposal_audit_holds USING btree (audit_id, created_at, receipt_id);
+
+-- Index: finding_proposal_audit_holds_audit_receipt_idx
+
+CREATE INDEX finding_proposal_audit_holds_audit_receipt_idx ON finding_proposal_audit_holds USING btree (audit_id, receipt_created_at, receipt_id);
+
+-- Index: finding_proposal_audit_holds_project_idx
+
+CREATE INDEX finding_proposal_audit_holds_project_idx ON finding_proposal_audit_holds USING btree (project_id);
+
+-- Index: finding_proposal_receipts_audit_idx
+
+CREATE INDEX finding_proposal_receipts_audit_idx ON finding_proposal_receipts USING btree (audit_id, created_at, receipt_id) WHERE (audit_id IS NOT NULL);
+
+-- Index: finding_proposal_receipts_project_idx
+
+CREATE INDEX finding_proposal_receipts_project_idx ON finding_proposal_receipts USING btree (project_id, receipt_id) WHERE (project_id IS NOT NULL);
+
+-- Index: finding_proposal_receipts_run_idx
+
+CREATE INDEX finding_proposal_receipts_run_idx ON finding_proposal_receipts USING btree (run_id, created_at, receipt_id);
+
+-- Index: gateway_allocation_routes_route_idx
+
+CREATE INDEX gateway_allocation_routes_route_idx ON gateway_allocation_routes USING btree (route_key);
+
+-- Index: gateway_allocation_routes_run_idx
+
+CREATE INDEX gateway_allocation_routes_run_idx ON gateway_allocation_routes USING btree (run_id);
+
+-- Index: gateway_recovery_failures_run_idx
+
+CREATE INDEX gateway_recovery_failures_run_idx ON gateway_recovery_failures USING btree (run_id);
+
+-- Index: gateway_recovery_routes_probe_run_idx
+
+CREATE INDEX gateway_recovery_routes_probe_run_idx ON gateway_recovery_routes USING btree (probe_run_id) WHERE (probe_run_id IS NOT NULL);
+
+-- Index: gateway_recovery_waits_route_idx
+
+CREATE INDEX gateway_recovery_waits_route_idx ON gateway_recovery_waits USING btree (route_key);
+
+-- Index: gateway_recovery_waits_run_idx
+
+CREATE INDEX gateway_recovery_waits_run_idx ON gateway_recovery_waits USING btree (run_id);
+
+-- Index: gateway_run_routes_route_idx
+
+CREATE INDEX gateway_run_routes_route_idx ON gateway_run_routes USING btree (route_key);
+
+-- Index: llm_credentials_created_idx
+
+CREATE INDEX llm_credentials_created_idx ON llm_credentials USING btree (created_at, credential_id);
+
+-- Index: mutation_receipts_audit_idx
+
+CREATE INDEX mutation_receipts_audit_idx ON mutation_receipts USING btree (audit_id) WHERE (audit_id IS NOT NULL);
+
+-- Index: mutation_receipts_owner_resource_idx
+
+CREATE INDEX mutation_receipts_owner_resource_idx ON mutation_receipts USING btree (owner_id, resource_id, operation, idempotency_key) WHERE (owner_id IS NOT NULL);
+
+-- Index: mutation_receipts_project_idx
+
+CREATE INDEX mutation_receipts_project_idx ON mutation_receipts USING btree (project_id) WHERE (project_id IS NOT NULL);
+
+-- Index: mutation_receipts_project_mutations_idx
+
+CREATE INDEX mutation_receipts_project_mutations_idx ON mutation_receipts USING btree (project_id) WHERE (key_scope[1] = 'project'::text);
+
+-- Index: performance_minutes_expiry_idx
+
+CREATE INDEX performance_minutes_expiry_idx ON performance_minutes USING btree (expires_at, server_generation, minute_start);
+
+-- Index: performance_minutes_range_idx
+
+CREATE INDEX performance_minutes_range_idx ON performance_minutes USING btree (minute_start, server_generation);
+
+-- Index: planner_execution_reports_complete_identity
+
+CREATE UNIQUE INDEX planner_execution_reports_complete_identity ON planner_execution_reports USING btree (stage_execution_id, session_id) WHERE ((report ->> 'complete'::text))::boolean;
+
+-- Index: planner_execution_reports_expiry_idx
+
+CREATE INDEX planner_execution_reports_expiry_idx ON planner_execution_reports USING btree (expires_at, stage_execution_id);
+
+-- Index: planner_execution_reports_session_idx
+
+CREATE INDEX planner_execution_reports_session_idx ON planner_execution_reports USING btree (session_id);
+
+-- Index: planner_execution_reports_stage_idx
+
+CREATE INDEX planner_execution_reports_stage_idx ON planner_execution_reports USING btree (stage_execution_id, received_at DESC);
+
+-- Index: projects_deletion_claim_idx
+
+CREATE INDEX projects_deletion_claim_idx ON projects USING btree (deletion_requested_at, project_id) WHERE (lifecycle_state = 'deleting'::text);
+
+-- Index: projects_http_target_credential_idx
+
+CREATE INDEX projects_http_target_credential_idx ON projects USING btree (http_target_credential_id, project_id) WHERE (http_target_credential_id IS NOT NULL);
+
+-- Index: projects_owner_kind_created_idx
+
+CREATE INDEX projects_owner_kind_created_idx ON projects USING btree (owner_id, kind, created_at DESC, project_id DESC);
+
+-- Index: projects_sweep_selection_idx
+
+CREATE INDEX projects_sweep_selection_idx ON projects USING btree (owner_id, kind, project_id COLLATE "C");
+
+-- Index: run_stage_resumptions_run_idx
+
+CREATE INDEX run_stage_resumptions_run_idx ON run_stage_resumptions USING btree (run_id);
+
+-- Index: runtime_agent_principals_labels_idx
+
+CREATE INDEX runtime_agent_principals_labels_idx ON runtime_agent_principals USING gin (labels);
+
+-- Index: runtime_agent_principals_updated_idx
+
+CREATE INDEX runtime_agent_principals_updated_idx ON runtime_agent_principals USING btree (updated_at, runtime_agent_id);
+
+-- Index: runtime_config_versions_created_at_idx
+
+CREATE INDEX runtime_config_versions_created_at_idx ON runtime_config_versions USING btree (created_at, name, version);
+
+-- Index: runtime_credentials_created_idx
+
+CREATE INDEX runtime_credentials_created_idx ON runtime_credentials USING btree (created_at, credential_id);
+
+-- Index: runtime_label_bindings_config_idx
+
+CREATE INDEX runtime_label_bindings_config_idx ON runtime_label_bindings USING btree (config_name, config_version, config_digest, label);
+
+-- Index: scan_sweep_members_work_idx
+
+CREATE INDEX scan_sweep_members_work_idx ON scan_sweep_members USING btree (sweep_id, next_attempt_at, ordinal) WHERE (NOT settled);
+
+-- Index: scan_sweeps_owner_page_idx
+
+CREATE INDEX scan_sweeps_owner_page_idx ON scan_sweeps USING btree (owner_id, sweep_id);
+
+-- Index: scan_sweeps_ready_idx
+
+CREATE INDEX scan_sweeps_ready_idx ON scan_sweeps USING btree (next_tick_at, sweep_id) WHERE (state = ANY (ARRAY['active'::text, 'cancelling'::text]));
+
+-- Index: scan_sweeps_retention_idx
+
+CREATE INDEX scan_sweeps_retention_idx ON scan_sweeps USING btree (purging DESC, settled_at, sweep_id) WHERE (settled_at IS NOT NULL);
+
+-- Index: stage_allocations_live_llm_credential_idx
+
+CREATE INDEX stage_allocations_live_llm_credential_idx ON stage_allocations USING btree (((runtime_configuration #>> '{provenance,llmCredential,credentialId}'::text[]))) WHERE ((release_completed_at IS NULL) AND (runtime_configuration IS NOT NULL));
+
+-- Index: stage_allocations_live_runtime_agent_idx
+
+CREATE INDEX stage_allocations_live_runtime_agent_idx ON stage_allocations USING btree (runtime_agent_id, allocation_id) WHERE ((runtime_agent_id IS NOT NULL) AND (release_completed_at IS NULL));
+
+-- Index: stage_allocations_live_runtime_credentials_idx
+
+CREATE INDEX stage_allocations_live_runtime_credentials_idx ON stage_allocations USING gin ((((runtime_configuration -> 'provenance'::text) -> 'runtimeCredentialRefs'::text))) WHERE ((release_completed_at IS NULL) AND (runtime_configuration IS NOT NULL));
+
+-- Index: stage_allocations_pending_release_idx
+
+CREATE INDEX stage_allocations_pending_release_idx ON stage_allocations USING btree (release_attempted_at, stage_execution_id, allocation_id) WHERE (release_completed_at IS NULL);
+
+-- Index: stage_execution_escalation_ordinal_unique
+
+CREATE UNIQUE INDEX stage_execution_escalation_ordinal_unique ON stage_executions USING btree (run_id, stage_name, execution_config_variant, escalation_ordinal) WHERE ((execution_config_variant <> 'base'::text) AND (resume_source_execution_id IS NULL) AND ((execution_config_variant <> 'summary_escalation'::text) OR (((stage_context_snapshot -> 'continuation'::text) ->> 'sourceStageExecutionId'::text) = previous_execution_id)));
+
+-- Index: stage_executions_run_active_idx
+
+CREATE INDEX stage_executions_run_active_idx ON stage_executions USING btree (run_id, created_at, stage_execution_id) WHERE (state = ANY (ARRAY['preparing'::text, 'running'::text, 'finalizing'::text, 'aborting'::text]));
+
+-- Index: stage_executions_run_created_idx
+
+CREATE INDEX stage_executions_run_created_idx ON stage_executions USING btree (run_id, created_at, stage_execution_id);
+
+-- Index: stage_executions_run_terminal_history_idx
+
+CREATE INDEX stage_executions_run_terminal_history_idx ON stage_executions USING btree (run_id, terminal_at DESC, stage_execution_id DESC) WHERE (terminal_at IS NOT NULL);
+
+-- Index: stage_executions_terminal_history_idx
+
+CREATE INDEX stage_executions_terminal_history_idx ON stage_executions USING btree (terminal_at DESC, stage_execution_id DESC) WHERE (terminal_at IS NOT NULL);
+
+-- Index: stage_metrics_expiry_idx
+
+CREATE INDEX stage_metrics_expiry_idx ON stage_metrics USING btree (expires_at, stage_execution_id);
+
+-- Index: stage_transition_decisions_run_idx
+
+CREATE INDEX stage_transition_decisions_run_idx ON stage_transition_decisions USING btree (run_id, decided_at, source_execution_id);
+
+-- Index: workflow_run_output_publications_project_idx
+
+CREATE INDEX workflow_run_output_publications_project_idx ON workflow_run_output_publications USING btree (project_id, created_at DESC, run_id, output_name);
+
+-- Index: workflow_runs_claim_idx
+
+CREATE INDEX workflow_runs_claim_idx ON workflow_runs USING btree (scheduler_lane_class, scheduler_claim_tier, updated_at, created_at, run_id) WHERE (scheduler_claim_tier IS NOT NULL);
+
+-- Index: workflow_runs_deferred_claim_idx
+
+CREATE INDEX workflow_runs_deferred_claim_idx ON workflow_runs USING btree (scheduler_lane_class, updated_at, created_at, run_id) WHERE (scheduler_deferred AND (scheduler_claim_tier > 0));
+
+-- Index: workflow_runs_metadata_labels_idx
+
+CREATE INDEX workflow_runs_metadata_labels_idx ON workflow_runs USING gin (metadata_labels jsonb_path_ops);
+
+-- Index: workflow_runs_owner_created_idx
+
+CREATE INDEX workflow_runs_owner_created_idx ON workflow_runs USING btree (owner_id, created_at, run_id);
+
+-- Index: workflow_runs_owner_idempotency_key
+
+CREATE UNIQUE INDEX workflow_runs_owner_idempotency_key ON workflow_runs USING btree (owner_id, request_idempotency_key) WHERE (request_idempotency_key IS NOT NULL);
+
+-- Index: workflow_runs_owner_nonterminal_queue_idx
+
+CREATE INDEX workflow_runs_owner_nonterminal_queue_idx ON workflow_runs USING btree (owner_id, created_at, run_id) WHERE (state = ANY (ARRAY['initializing'::text, 'pending'::text, 'running'::text, 'waiting'::text, 'cancelling'::text]));
+
+-- Index: workflow_runs_owner_project_active_idx
+
+CREATE INDEX workflow_runs_owner_project_active_idx ON workflow_runs USING btree (owner_id, project_id) WHERE ((project_id IS NOT NULL) AND (state = ANY (ARRAY['initializing'::text, 'pending'::text, 'running'::text, 'waiting'::text, 'cancelling'::text])));
+
+-- Index: workflow_runs_owner_project_created_idx
+
+CREATE INDEX workflow_runs_owner_project_created_idx ON workflow_runs USING btree (owner_id, project_id, created_at DESC, run_id DESC) WHERE (project_id IS NOT NULL);
+
+-- Index: workflow_runs_project_http_target_credential_idx
+
+CREATE INDEX workflow_runs_project_http_target_credential_idx ON workflow_runs USING btree (((project_http_target_snapshot #>> '{credential,credentialId}'::text[])), created_at, run_id) WHERE ((state = ANY (ARRAY['initializing'::text, 'pending'::text, 'running'::text, 'waiting'::text, 'cancelling'::text])) AND (project_http_target_snapshot ? 'credential'::text));
+
+-- Index: workflow_runs_runtime_credentials_idx
+
+CREATE INDEX workflow_runs_runtime_credentials_idx ON workflow_runs USING gin (((runtime_config_snapshot -> 'runtimeCredentialIds'::text))) WHERE (state = ANY (ARRAY['initializing'::text, 'pending'::text, 'running'::text, 'waiting'::text, 'cancelling'::text]));
+
+-- Index: workflow_runs_runtime_llm_credentials_idx
+
+CREATE INDEX workflow_runs_runtime_llm_credentials_idx ON workflow_runs USING gin (((runtime_config_snapshot -> 'llmCredentialIds'::text))) WHERE (state = ANY (ARRAY['initializing'::text, 'pending'::text, 'running'::text, 'waiting'::text, 'cancelling'::text]));
+
+-- Index: workflow_runs_workflow_credentials_idx
+
+CREATE INDEX workflow_runs_workflow_credentials_idx ON workflow_runs USING gin (jsonb_path_query_array(workflow_snapshot, '$.**."credentialId".**'::jsonpath, '{}'::jsonb, true)) WHERE (state = ANY (ARRAY['initializing'::text, 'pending'::text, 'running'::text, 'waiting'::text, 'cancelling'::text]));
+
+-- Trigger: allocation_execution_reports allocation_execution_reports_immutable
+
+CREATE TRIGGER allocation_execution_reports_immutable BEFORE UPDATE ON allocation_execution_reports FOR EACH ROW EXECUTE FUNCTION contractor_protect_telemetry_report_immutable();
+
+-- Trigger: allocation_execution_reports allocation_execution_reports_mark_received
+
+CREATE TRIGGER allocation_execution_reports_mark_received AFTER INSERT ON allocation_execution_reports FOR EACH ROW EXECUTE FUNCTION contractor_mark_allocation_report_received();
+
+-- Trigger: artifact_binding_revisions artifact_binding_revisions_delete
+
+CREATE TRIGGER artifact_binding_revisions_delete BEFORE DELETE ON artifact_binding_revisions FOR EACH ROW EXECUTE FUNCTION contractor_protect_artifact_revision_delete();
+
+-- Trigger: artifact_binding_revisions artifact_binding_revisions_immutable
+
+CREATE TRIGGER artifact_binding_revisions_immutable BEFORE UPDATE OF scope_kind, scope_id, namespace, name, revision, version_id, created_at ON artifact_binding_revisions FOR EACH ROW EXECUTE FUNCTION contractor_protect_artifact_immutable();
+
+-- Trigger: artifact_binding_revisions artifact_binding_revisions_run_limit
+
+CREATE TRIGGER artifact_binding_revisions_run_limit AFTER INSERT ON artifact_binding_revisions REFERENCING NEW TABLE AS inserted_revisions FOR EACH STATEMENT EXECUTE FUNCTION contractor_count_run_artifact_revisions();
+
+-- Trigger: artifact_bindings artifact_bindings_project_admission
+
+CREATE TRIGGER artifact_bindings_project_admission BEFORE INSERT OR UPDATE ON artifact_bindings FOR EACH ROW WHEN ((new.scope_kind = 'project'::text)) EXECUTE FUNCTION contractor_guard_project_artifact_binding_admission();
+
+-- Trigger: artifact_bindings artifact_bindings_protect_identity
+
+CREATE TRIGGER artifact_bindings_protect_identity BEFORE UPDATE OF scope_kind, scope_id, namespace, name, created_at, current_revision, frozen ON artifact_bindings FOR EACH ROW EXECUTE FUNCTION contractor_protect_artifact_binding();
+
+-- Trigger: artifact_blobs artifact_blobs_immutable
+
+CREATE TRIGGER artifact_blobs_immutable BEFORE DELETE OR UPDATE ON artifact_blobs FOR EACH ROW EXECUTE FUNCTION contractor_protect_artifact_blob_immutable();
+
+-- Trigger: artifact_lineage artifact_lineage_hold
+
+CREATE TRIGGER artifact_lineage_hold AFTER INSERT ON artifact_lineage REFERENCING NEW TABLE AS inserted_lineage FOR EACH STATEMENT EXECUTE FUNCTION contractor_hold_lineage_artifacts();
+
+-- Trigger: artifact_lineage artifact_lineage_immutable
+
+CREATE TRIGGER artifact_lineage_immutable BEFORE DELETE OR UPDATE ON artifact_lineage FOR EACH ROW EXECUTE FUNCTION contractor_protect_artifact_immutable();
+
+-- Trigger: artifact_lineage artifact_lineage_release
+
+CREATE TRIGGER artifact_lineage_release AFTER DELETE ON artifact_lineage REFERENCING OLD TABLE AS deleted_lineage FOR EACH STATEMENT EXECUTE FUNCTION contractor_hold_lineage_artifacts();
+
+-- Trigger: artifact_scopes artifact_scopes_project_admission
+
+CREATE TRIGGER artifact_scopes_project_admission BEFORE INSERT ON artifact_scopes FOR EACH ROW EXECUTE FUNCTION contractor_guard_project_artifact_scope_admission();
+
+-- Trigger: artifact_scopes artifact_scopes_protect_creation
+
+CREATE TRIGGER artifact_scopes_protect_creation BEFORE UPDATE OF created_at ON artifact_scopes FOR EACH ROW EXECUTE FUNCTION contractor_protect_artifact_scope_created_at();
+
+-- Trigger: artifact_versions artifact_versions_immutable
+
+CREATE TRIGGER artifact_versions_immutable BEFORE DELETE OR UPDATE ON artifact_versions FOR EACH ROW EXECUTE FUNCTION contractor_protect_artifact_version();
+
+-- Trigger: audit_events audit_events_protect_immutable
+
+CREATE TRIGGER audit_events_protect_immutable BEFORE UPDATE ON audit_events FOR EACH ROW EXECUTE FUNCTION contractor_protect_audit_event();
+
+-- Trigger: audit_executions audit_executions_project_admission
+
+CREATE TRIGGER audit_executions_project_admission BEFORE INSERT ON audit_executions FOR EACH ROW EXECUTE FUNCTION contractor_guard_audit_child_admission();
+
+-- Trigger: audit_executions audit_executions_protect_collection
+
+CREATE TRIGGER audit_executions_protect_collection BEFORE UPDATE OF execution_id, audit_id, run_id, terminal_outcome, terminal_run_generation, terminal_run_sequence, collection_receipt_id, collection_disposition, collection_source_output_ref, collection_source_output_digest, collection_retained_refs, collection_error_code, collection_request_digest, collected_at ON audit_executions FOR EACH ROW EXECUTE FUNCTION contractor_protect_audit_execution_collection();
+
+-- Trigger: audit_executions audit_executions_require_matching_run
+
+CREATE CONSTRAINT TRIGGER audit_executions_require_matching_run AFTER INSERT ON audit_executions DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION contractor_require_matching_audit_run();
+
+-- Trigger: audit_executions audit_executions_require_matching_run_on_update
+
+CREATE CONSTRAINT TRIGGER audit_executions_require_matching_run_on_update AFTER UPDATE ON audit_executions DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN (((old.run_id IS DISTINCT FROM new.run_id) OR (old.run_deleted_at IS DISTINCT FROM new.run_deleted_at) OR (old.execution_id IS DISTINCT FROM new.execution_id) OR (old.submission_key IS DISTINCT FROM new.submission_key))) EXECUTE FUNCTION contractor_require_matching_audit_run();
+
+-- Trigger: audit_executions audit_executions_validate_preparation
+
+CREATE TRIGGER audit_executions_validate_preparation BEFORE INSERT OR UPDATE OF execution_id, audit_id, round_id, role, workflow_role, role_attempt, manifest_ref, manifest_digest, submission_key, request_digest, preparation_snapshot, preparation_outputs, collection_receipt_id ON audit_executions FOR EACH ROW EXECUTE FUNCTION contractor_validate_audit_preparation_execution();
+
+-- Trigger: audit_finding_assessments audit_finding_assessments_protect_update
+
+CREATE TRIGGER audit_finding_assessments_protect_update BEFORE UPDATE ON audit_finding_assessments FOR EACH ROW EXECUTE FUNCTION contractor_protect_audit_finding_history();
+
+-- Trigger: audit_finding_contributions audit_finding_contributions_protect_update
+
+CREATE TRIGGER audit_finding_contributions_protect_update BEFORE UPDATE ON audit_finding_contributions FOR EACH ROW EXECUTE FUNCTION contractor_protect_audit_finding_history();
+
+-- Trigger: audit_findings audit_findings_correlation_deleted
+
+CREATE TRIGGER audit_findings_correlation_deleted AFTER DELETE ON audit_findings REFERENCING OLD TABLE AS deleted_findings FOR EACH STATEMENT EXECUTE FUNCTION contractor_finding_correlation_deleted();
+
+-- Trigger: audit_findings audit_findings_correlation_inserted
+
+CREATE TRIGGER audit_findings_correlation_inserted AFTER INSERT ON audit_findings REFERENCING NEW TABLE AS inserted_findings FOR EACH STATEMENT EXECUTE FUNCTION contractor_finding_correlation_inserted();
+
+-- Trigger: audit_findings audit_findings_correlation_updated
+
+CREATE TRIGGER audit_findings_correlation_updated AFTER UPDATE ON audit_findings REFERENCING OLD TABLE AS previous_findings NEW TABLE AS updated_findings FOR EACH STATEMENT EXECUTE FUNCTION contractor_finding_correlation_updated();
+
+-- Trigger: audit_findings audit_findings_initialize_correlation
+
+CREATE TRIGGER audit_findings_initialize_correlation BEFORE INSERT ON audit_findings FOR EACH ROW EXECUTE FUNCTION contractor_initialize_finding_correlation();
+
+-- Trigger: audit_findings audit_findings_protect_correlation
+
+CREATE TRIGGER audit_findings_protect_correlation BEFORE UPDATE OF audit_id, first_receipt_id, correlation_project_id, correlation_algorithm, correlation_value, correlation_group_key, correlation_reason ON audit_findings FOR EACH ROW EXECUTE FUNCTION contractor_protect_finding_correlation();
+
+-- Trigger: audit_items audit_items_hold_dependencies
+
+CREATE TRIGGER audit_items_hold_dependencies AFTER INSERT OR DELETE ON audit_items FOR EACH ROW EXECUTE FUNCTION contractor_hold_audit_dependencies();
+
+-- Trigger: audit_items audit_items_protect_prepared
+
+CREATE TRIGGER audit_items_protect_prepared BEFORE INSERT OR DELETE OR UPDATE ON audit_items FOR EACH ROW EXECUTE FUNCTION contractor_protect_prepared_audit_item();
+
+-- Trigger: audit_items audit_items_protect_source
+
+CREATE TRIGGER audit_items_protect_source BEFORE UPDATE ON audit_items FOR EACH ROW EXECUTE FUNCTION contractor_protect_audit_item_source();
+
+-- Trigger: audit_items audit_items_validate_dependencies
+
+CREATE TRIGGER audit_items_validate_dependencies BEFORE INSERT OR UPDATE OF retained_dependencies ON audit_items FOR EACH ROW EXECUTE FUNCTION contractor_validate_audit_dependencies();
+
+-- Trigger: audit_review_decisions audit_review_decisions_protect_update
+
+CREATE TRIGGER audit_review_decisions_protect_update BEFORE UPDATE ON audit_review_decisions FOR EACH ROW EXECUTE FUNCTION contractor_protect_audit_finding_history();
+
+-- Trigger: audit_round_result_pages audit_round_result_pages_protect_update
+
+CREATE TRIGGER audit_round_result_pages_protect_update BEFORE UPDATE ON audit_round_result_pages FOR EACH ROW EXECUTE FUNCTION contractor_protect_round_results_page();
+
+-- Trigger: audit_rounds audit_rounds_project_admission
+
+CREATE TRIGGER audit_rounds_project_admission BEFORE INSERT ON audit_rounds FOR EACH ROW EXECUTE FUNCTION contractor_guard_audit_child_admission();
+
+-- Trigger: audit_rounds audit_rounds_protect_prepared
+
+CREATE TRIGGER audit_rounds_protect_prepared BEFORE UPDATE ON audit_rounds FOR EACH ROW EXECUTE FUNCTION contractor_protect_prepared_audit_round();
+
+-- Trigger: audit_rounds audit_rounds_protect_results
+
+CREATE TRIGGER audit_rounds_protect_results BEFORE UPDATE OF results_generation, results_sealed, results_item_count, results_metadata_bytes, results_page_count, results_manifest, results_published_pages ON audit_rounds FOR EACH ROW EXECUTE FUNCTION contractor_protect_round_results_root();
+
+-- Trigger: audits audits_discard_report_pages
+
+CREATE TRIGGER audits_discard_report_pages AFTER UPDATE OF state ON audits FOR EACH ROW WHEN (((old.state = 'finalizing'::text) AND (new.state <> 'finalizing'::text))) EXECUTE FUNCTION contractor_discard_audit_report_pages();
+
+-- Trigger: audits audits_eval_tombstone
+
+CREATE TRIGGER audits_eval_tombstone BEFORE DELETE ON audits FOR EACH ROW EXECUTE FUNCTION contractor_eval_retain_deleted_execution();
+
+-- Trigger: audits audits_hold_artifacts
+
+CREATE TRIGGER audits_hold_artifacts AFTER INSERT ON audits FOR EACH ROW EXECUTE FUNCTION contractor_hold_audit_artifacts();
+
+-- Trigger: audits audits_hold_artifacts_on_update
+
+CREATE TRIGGER audits_hold_artifacts_on_update AFTER UPDATE OF input_selection, baseline_snapshot ON audits FOR EACH ROW WHEN (((old.input_selection IS DISTINCT FROM new.input_selection) OR (old.baseline_snapshot IS DISTINCT FROM new.baseline_snapshot))) EXECUTE FUNCTION contractor_hold_audit_artifacts();
+
+-- Trigger: audits audits_project_admission
+
+CREATE TRIGGER audits_project_admission BEFORE INSERT ON audits FOR EACH ROW EXECUTE FUNCTION contractor_guard_audit_admission();
+
+-- Trigger: audits audits_protect_preparation_baseline
+
+CREATE TRIGGER audits_protect_preparation_baseline BEFORE UPDATE OF phase, baseline_snapshot, profile_snapshot, input_selection, profile_name, profile_version, profile_digest, owner_id, project_id ON audits FOR EACH ROW EXECUTE FUNCTION contractor_protect_audit_preparation_baseline();
+
+-- Trigger: audits audits_release_artifacts
+
+CREATE TRIGGER audits_release_artifacts AFTER DELETE ON audits FOR EACH ROW EXECUTE FUNCTION contractor_hold_audit_artifacts();
+
+-- Trigger: credential_operations credential_operations_protect_delete
+
+CREATE TRIGGER credential_operations_protect_delete BEFORE DELETE ON credential_operations FOR EACH ROW EXECUTE FUNCTION contractor_protect_immutable_credential_row();
+
+-- Trigger: credential_operations credential_operations_protect_transition
+
+CREATE TRIGGER credential_operations_protect_transition BEFORE UPDATE ON credential_operations FOR EACH ROW EXECUTE FUNCTION contractor_protect_credential_operation();
+
+-- Trigger: artifact_binding_revisions eval_artifact_projection
+
+CREATE TRIGGER eval_artifact_projection BEFORE DELETE ON artifact_binding_revisions FOR EACH ROW EXECUTE FUNCTION contractor_eval_evidence_deleted();
+
+-- Trigger: audit_executions eval_audit_children_projection
+
+CREATE TRIGGER eval_audit_children_projection AFTER INSERT OR DELETE OR UPDATE ON audit_executions FOR EACH ROW EXECUTE FUNCTION contractor_eval_audit_child_changed();
+
+-- Trigger: audit_artifact_links eval_audit_outputs_projection
+
+CREATE TRIGGER eval_audit_outputs_projection AFTER INSERT OR DELETE OR UPDATE ON audit_artifact_links FOR EACH ROW EXECUTE FUNCTION contractor_eval_audit_child_changed();
+
+-- Trigger: audits eval_audits_projection
+
+CREATE TRIGGER eval_audits_projection AFTER DELETE OR UPDATE OF state, finished_at, dispatch_state ON audits FOR EACH ROW EXECUTE FUNCTION contractor_eval_execution_changed();
+
+-- Trigger: eval_dataset_revisions eval_datasets_collection
+
+CREATE TRIGGER eval_datasets_collection AFTER INSERT OR DELETE ON eval_dataset_revisions FOR EACH ROW EXECUTE FUNCTION contractor_eval_collection_changed();
+
+-- Trigger: eval_dataset_revisions eval_datasets_immutable
+
+CREATE TRIGGER eval_datasets_immutable BEFORE DELETE OR UPDATE ON eval_dataset_revisions FOR EACH ROW EXECUTE FUNCTION contractor_eval_immutable();
+
+-- Trigger: eval_experiments eval_experiments_collection_delete
+
+CREATE TRIGGER eval_experiments_collection_delete AFTER DELETE ON eval_experiments REFERENCING OLD TABLE AS changed_experiments FOR EACH STATEMENT EXECUTE FUNCTION contractor_eval_collections_changed();
+
+-- Trigger: eval_experiments eval_experiments_collection_insert
+
+CREATE TRIGGER eval_experiments_collection_insert AFTER INSERT ON eval_experiments REFERENCING NEW TABLE AS changed_experiments FOR EACH STATEMENT EXECUTE FUNCTION contractor_eval_collections_changed();
+
+-- Trigger: eval_experiments eval_experiments_collection_update
+
+CREATE TRIGGER eval_experiments_collection_update AFTER UPDATE ON eval_experiments REFERENCING OLD TABLE AS old_experiments NEW TABLE AS new_experiments FOR EACH STATEMENT EXECUTE FUNCTION contractor_eval_collections_updated();
+
+-- Trigger: eval_experiments eval_experiments_protect
+
+CREATE TRIGGER eval_experiments_protect BEFORE UPDATE ON eval_experiments FOR EACH ROW EXECUTE FUNCTION contractor_eval_protect_experiment();
+
+-- Trigger: eval_members eval_members_bound
+
+CREATE TRIGGER eval_members_bound BEFORE INSERT ON eval_members FOR EACH ROW EXECUTE FUNCTION contractor_eval_member_bound();
+
+-- Trigger: eval_members eval_members_immutable
+
+CREATE TRIGGER eval_members_immutable BEFORE DELETE OR UPDATE ON eval_members FOR EACH ROW EXECUTE FUNCTION contractor_eval_immutable();
+
+-- Trigger: eval_members eval_members_projection
+
+CREATE TRIGGER eval_members_projection AFTER INSERT ON eval_members REFERENCING NEW TABLE AS inserted_members FOR EACH STATEMENT EXECUTE FUNCTION contractor_eval_members_inserted();
+
+-- Trigger: stage_metrics eval_metrics_projection
+
+CREATE TRIGGER eval_metrics_projection AFTER INSERT OR DELETE OR UPDATE OF metrics_schema_version, metrics, summary ON stage_metrics FOR EACH ROW EXECUTE FUNCTION contractor_eval_metrics_changed();
+
+-- Trigger: artifact_bindings eval_outputs_projection
+
+CREATE TRIGGER eval_outputs_projection AFTER INSERT ON artifact_bindings FOR EACH ROW WHEN (((new.scope_kind = 'run'::text) AND (new.namespace = 'outputs'::text))) EXECUTE FUNCTION contractor_eval_output_changed();
+
+-- Trigger: artifact_bindings eval_outputs_projection_on_delete
+
+CREATE TRIGGER eval_outputs_projection_on_delete AFTER DELETE ON artifact_bindings FOR EACH ROW WHEN (((old.scope_kind = 'run'::text) AND (old.namespace = 'outputs'::text))) EXECUTE FUNCTION contractor_eval_output_changed();
+
+-- Trigger: artifact_bindings eval_outputs_projection_on_update
+
+CREATE TRIGGER eval_outputs_projection_on_update AFTER UPDATE ON artifact_bindings FOR EACH ROW WHEN (((new.scope_kind = 'run'::text) AND (new.namespace = 'outputs'::text) AND ((old.current_revision IS DISTINCT FROM new.current_revision) OR (old.frozen IS DISTINCT FROM new.frozen)))) EXECUTE FUNCTION contractor_eval_output_changed();
+
+-- Trigger: eval_frozen_plans eval_plans_complete_matrix
+
+CREATE CONSTRAINT TRIGGER eval_plans_complete_matrix AFTER INSERT ON eval_frozen_plans DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION contractor_eval_complete_matrix();
+
+-- Trigger: eval_frozen_plans eval_plans_immutable
+
+CREATE TRIGGER eval_plans_immutable BEFORE DELETE OR UPDATE ON eval_frozen_plans FOR EACH ROW EXECUTE FUNCTION contractor_eval_immutable();
+
+-- Trigger: eval_records eval_records_immutable
+
+CREATE TRIGGER eval_records_immutable BEFORE DELETE OR UPDATE ON eval_records FOR EACH ROW EXECUTE FUNCTION contractor_eval_immutable();
+
+-- Trigger: eval_plan_resources eval_resources_immutable
+
+CREATE TRIGGER eval_resources_immutable BEFORE DELETE OR UPDATE ON eval_plan_resources FOR EACH ROW EXECUTE FUNCTION contractor_eval_immutable();
+
+-- Trigger: workflow_runs eval_runs_projection
+
+CREATE TRIGGER eval_runs_projection AFTER DELETE OR UPDATE OF state, finished_at ON workflow_runs FOR EACH ROW EXECUTE FUNCTION contractor_eval_execution_changed();
+
+-- Trigger: eval_selections eval_selections_projection
+
+CREATE TRIGGER eval_selections_projection AFTER INSERT OR UPDATE ON eval_selections FOR EACH ROW EXECUTE FUNCTION contractor_eval_member_changed();
+
+-- Trigger: stage_executions eval_stages_projection
+
+CREATE TRIGGER eval_stages_projection AFTER INSERT OR DELETE OR UPDATE OF state ON stage_executions FOR EACH ROW EXECUTE FUNCTION contractor_eval_metrics_changed();
+
+-- Trigger: eval_submissions eval_submissions_projection
+
+CREATE TRIGGER eval_submissions_projection AFTER INSERT ON eval_submissions FOR EACH ROW EXECUTE FUNCTION contractor_eval_member_changed();
+
+-- Trigger: eval_submissions eval_submissions_projection_update
+
+CREATE TRIGGER eval_submissions_projection_update AFTER UPDATE OF state, execution_id, execution_project_id, terminal_state ON eval_submissions FOR EACH ROW WHEN (((old.state IS DISTINCT FROM new.state) OR (old.execution_id IS DISTINCT FROM new.execution_id) OR (old.execution_project_id IS DISTINCT FROM new.execution_project_id) OR (old.terminal_state IS DISTINCT FROM new.terminal_state))) EXECUTE FUNCTION contractor_eval_member_changed();
+
+-- Trigger: eval_submissions eval_submissions_protect
+
+CREATE TRIGGER eval_submissions_protect BEFORE UPDATE ON eval_submissions FOR EACH ROW EXECUTE FUNCTION contractor_eval_protect_submission();
+
+-- Trigger: eval_suboperations eval_suboperations_protect
+
+CREATE TRIGGER eval_suboperations_protect BEFORE UPDATE ON eval_suboperations FOR EACH ROW EXECUTE FUNCTION contractor_eval_protect_suboperation();
+
+-- Trigger: eval_execution_tombstones eval_tombstones_immutable
+
+CREATE TRIGGER eval_tombstones_immutable BEFORE DELETE OR UPDATE ON eval_execution_tombstones FOR EACH ROW EXECUTE FUNCTION contractor_eval_immutable();
+
+-- Trigger: eval_view_charts eval_view_charts_immutable
+
+CREATE TRIGGER eval_view_charts_immutable BEFORE DELETE OR UPDATE ON eval_view_charts FOR EACH ROW EXECUTE FUNCTION contractor_eval_view_immutable();
+
+-- Trigger: eval_view_pairs eval_view_pairs_immutable
+
 CREATE TRIGGER eval_view_pairs_immutable BEFORE DELETE OR UPDATE ON eval_view_pairs FOR EACH ROW EXECUTE FUNCTION contractor_eval_view_immutable();
 
+-- Trigger: audit_finding_contributions finding_contributions_correlation_deleted
 
--- Views
+CREATE TRIGGER finding_contributions_correlation_deleted AFTER DELETE ON audit_finding_contributions REFERENCING OLD TABLE AS deleted_contributions FOR EACH STATEMENT EXECUTE FUNCTION contractor_finding_correlation_contribution_deleted();
 
-CREATE VIEW audit_live_item_reviews AS
- SELECT item.audit_id,
-    item.item_id,
-    request.request_id,
-    (request.state = 'decided'::text) AS approved
-   FROM (audit_items item
-     JOIN audit_review_requests request ON (((request.audit_id = item.audit_id) AND (request.subject_kind = 'audit-item-action'::text) AND (request.subject_id = item.item_id) AND (request.kind = item.approval_kind) AND (request.subject_revision = 1) AND (request.subject_digest = item.approval_subject_digest))))
-  WHERE (((request.expires_at IS NULL) OR (request.expires_at > clock_timestamp())) AND ((request.state = 'pending'::text) OR ((request.state = 'decided'::text) AND (EXISTS ( SELECT 1
-           FROM audit_review_decisions decision
-          WHERE ((decision.request_id = request.request_id) AND (decision.audit_id = request.audit_id) AND (decision.action = 'approve'::text) AND (decision.subject_revision = request.subject_revision) AND (decision.subject_digest = request.subject_digest)))))));
+-- Trigger: audit_finding_contributions finding_contributions_correlation_inserted
 
+CREATE TRIGGER finding_contributions_correlation_inserted AFTER INSERT ON audit_finding_contributions REFERENCING NEW TABLE AS inserted_contributions FOR EACH STATEMENT EXECUTE FUNCTION contractor_finding_correlation_contributed();
 
--- Foreign keys
+-- Trigger: finding_correlation_fences finding_correlation_fences_protect_revision
 
-ALTER TABLE allocation_execution_reports
+CREATE TRIGGER finding_correlation_fences_protect_revision BEFORE UPDATE ON finding_correlation_fences FOR EACH ROW EXECUTE FUNCTION contractor_protect_finding_correlation_fence();
+
+-- Trigger: finding_correlation_fences finding_correlation_fences_retain
+
+CREATE TRIGGER finding_correlation_fences_retain BEFORE DELETE ON finding_correlation_fences FOR EACH ROW EXECUTE FUNCTION contractor_retain_finding_correlation_fence();
+
+-- Trigger: finding_proposal_audit_holds finding_proposal_audit_holds_admit_finding
+
+CREATE TRIGGER finding_proposal_audit_holds_admit_finding AFTER INSERT ON finding_proposal_audit_holds FOR EACH ROW EXECUTE FUNCTION contractor_admit_audit_finding();
+
+-- Trigger: finding_proposal_audit_holds finding_proposal_audit_holds_copy_receipt_time
+
+CREATE TRIGGER finding_proposal_audit_holds_copy_receipt_time BEFORE INSERT ON finding_proposal_audit_holds FOR EACH ROW EXECUTE FUNCTION contractor_copy_finding_hold_receipt_time();
+
+-- Trigger: finding_proposal_audit_holds finding_proposal_audit_holds_protect_update
+
+CREATE TRIGGER finding_proposal_audit_holds_protect_update BEFORE UPDATE ON finding_proposal_audit_holds FOR EACH ROW EXECUTE FUNCTION contractor_protect_finding_proposal_receipt();
+
+-- Trigger: finding_proposal_audit_holds finding_proposal_audit_holds_reconcile
+
+CREATE TRIGGER finding_proposal_audit_holds_reconcile AFTER INSERT OR DELETE ON finding_proposal_audit_holds FOR EACH ROW EXECUTE FUNCTION contractor_reconcile_finding_retention();
+
+-- Trigger: finding_proposal_receipts finding_proposal_receipts_hold_artifacts
+
+CREATE TRIGGER finding_proposal_receipts_hold_artifacts AFTER INSERT ON finding_proposal_receipts FOR EACH ROW EXECUTE FUNCTION contractor_hold_finding_receipt_artifacts();
+
+-- Trigger: finding_proposal_receipts finding_proposal_receipts_protect_immutable
+
+CREATE TRIGGER finding_proposal_receipts_protect_immutable BEFORE DELETE OR UPDATE ON finding_proposal_receipts FOR EACH ROW EXECUTE FUNCTION contractor_protect_finding_proposal_receipt_retention();
+
+-- Trigger: finding_proposal_receipts finding_receipts_correlation_source_deleted
+
+CREATE TRIGGER finding_receipts_correlation_source_deleted AFTER UPDATE ON finding_proposal_receipts REFERENCING OLD TABLE AS previous_receipts NEW TABLE AS updated_receipts FOR EACH STATEMENT EXECUTE FUNCTION contractor_finding_correlation_source_deleted();
+
+-- Trigger: finding_proposal_receipts finding_receipts_initialize_comparison
+
+CREATE TRIGGER finding_receipts_initialize_comparison BEFORE INSERT ON finding_proposal_receipts FOR EACH ROW EXECUTE FUNCTION contractor_initialize_finding_comparison_projection();
+
+-- Trigger: llm_credentials llm_credentials_exclusive_state
+
+CREATE TRIGGER llm_credentials_exclusive_state BEFORE INSERT ON llm_credentials FOR EACH ROW EXECUTE FUNCTION contractor_check_llm_credential_exclusive_state();
+
+-- Trigger: llm_credentials llm_credentials_protect_update
+
+CREATE TRIGGER llm_credentials_protect_update BEFORE UPDATE ON llm_credentials FOR EACH ROW EXECUTE FUNCTION contractor_protect_immutable_credential_row();
+
+-- Trigger: model_selection_settings model_selection_settings_protect_mutation
+
+CREATE TRIGGER model_selection_settings_protect_mutation BEFORE DELETE OR UPDATE ON model_selection_settings FOR EACH ROW EXECUTE FUNCTION contractor_protect_model_selection_settings();
+
+-- Trigger: mutation_receipts mutation_receipts_protect_immutable
+
+CREATE TRIGGER mutation_receipts_protect_immutable BEFORE DELETE OR UPDATE ON mutation_receipts FOR EACH ROW EXECUTE FUNCTION contractor_protect_mutation_receipt();
+
+-- Trigger: owner_queue_controls owner_queue_controls_protect_mutation
+
+CREATE TRIGGER owner_queue_controls_protect_mutation BEFORE UPDATE ON owner_queue_controls FOR EACH ROW EXECUTE FUNCTION contractor_protect_owner_queue_control();
+
+-- Trigger: planner_execution_reports planner_execution_reports_immutable
+
+CREATE TRIGGER planner_execution_reports_immutable BEFORE UPDATE ON planner_execution_reports FOR EACH ROW EXECUTE FUNCTION contractor_protect_telemetry_report_immutable();
+
+-- Trigger: planner_sessions planner_sessions_hold_artifacts
+
+CREATE TRIGGER planner_sessions_hold_artifacts AFTER INSERT ON planner_sessions FOR EACH ROW WHEN ((new.artifact_refs <> '[]'::jsonb)) EXECUTE FUNCTION contractor_hold_planner_session_artifacts();
+
+-- Trigger: planner_sessions planner_sessions_hold_artifacts_on_update
+
+CREATE TRIGGER planner_sessions_hold_artifacts_on_update AFTER UPDATE OF state ON planner_sessions FOR EACH ROW WHEN ((old.artifact_refs IS DISTINCT FROM new.artifact_refs)) EXECUTE FUNCTION contractor_hold_planner_session_artifacts();
+
+-- Trigger: projects projects_eval_fence
+
+CREATE TRIGGER projects_eval_fence AFTER UPDATE OF lifecycle_state ON projects FOR EACH ROW EXECUTE FUNCTION contractor_eval_fence_project();
+
+-- Trigger: projects projects_protect_identity
+
+CREATE TRIGGER projects_protect_identity BEFORE UPDATE ON projects FOR EACH ROW EXECUTE FUNCTION contractor_protect_project();
+
+-- Trigger: run_stage_resumptions run_stage_resumptions_immutable
+
+CREATE TRIGGER run_stage_resumptions_immutable BEFORE UPDATE ON run_stage_resumptions FOR EACH ROW EXECUTE FUNCTION contractor_protect_run_stage_resumption();
+
+-- Trigger: run_stage_resumptions run_stage_resumptions_validate
+
+CREATE TRIGGER run_stage_resumptions_validate BEFORE INSERT ON run_stage_resumptions FOR EACH ROW EXECUTE FUNCTION contractor_validate_run_stage_resumption();
+
+-- Trigger: runtime_agent_principals runtime_agent_principals_protect_mutation
+
+CREATE TRIGGER runtime_agent_principals_protect_mutation BEFORE UPDATE ON runtime_agent_principals FOR EACH ROW EXECUTE FUNCTION contractor_protect_runtime_agent_principal();
+
+-- Trigger: runtime_config_versions runtime_config_versions_protect_immutable
+
+CREATE TRIGGER runtime_config_versions_protect_immutable BEFORE DELETE OR UPDATE ON runtime_config_versions FOR EACH ROW EXECUTE FUNCTION contractor_protect_runtime_config_immutable();
+
+-- Trigger: runtime_credentials runtime_credentials_protect_mutation
+
+CREATE TRIGGER runtime_credentials_protect_mutation BEFORE DELETE OR UPDATE ON runtime_credentials FOR EACH ROW EXECUTE FUNCTION contractor_protect_runtime_credential_immutable();
+
+-- Trigger: runtime_label_bindings runtime_label_bindings_protect_mutation
+
+CREATE TRIGGER runtime_label_bindings_protect_mutation BEFORE DELETE OR UPDATE ON runtime_label_bindings FOR EACH ROW EXECUTE FUNCTION contractor_protect_runtime_label_binding();
+
+-- Trigger: scan_sweep_members scan_sweep_members_immutable
+
+CREATE TRIGGER scan_sweep_members_immutable BEFORE UPDATE OF sweep_id, ordinal, project_id, target, child, child_key, child_digest, run_id, settled ON scan_sweep_members FOR EACH ROW EXECUTE FUNCTION contractor_scan_sweep_immutable();
+
+-- Trigger: scan_sweeps scan_sweeps_immutable
+
+CREATE TRIGGER scan_sweeps_immutable BEFORE UPDATE OF sweep_id, owner_id, workflow, snapshot, snapshot_digest, total, created_at ON scan_sweeps FOR EACH ROW EXECUTE FUNCTION contractor_scan_sweep_immutable();
+
+-- Trigger: scheduler_settings scheduler_settings_protect_mutation
+
+CREATE TRIGGER scheduler_settings_protect_mutation BEFORE DELETE OR UPDATE ON scheduler_settings FOR EACH ROW EXECUTE FUNCTION contractor_protect_scheduler_settings();
+
+-- Trigger: stage_allocations stage_allocations_protect_identity
+
+CREATE TRIGGER stage_allocations_protect_identity BEFORE UPDATE OF allocation_id, stage_execution_id, logical_agent_name, namespace, agent_template_ref, worker_runtime_ref, runtime_agent_instance_id, runtime_agent_id, runtime_agent_label_revision, runtime_configuration_schema_version, runtime_configuration, created_at ON stage_allocations FOR EACH ROW EXECUTE FUNCTION contractor_protect_stage_allocation_identity();
+
+-- Trigger: stage_allocations stage_allocations_protect_performance_policy
+
+CREATE TRIGGER stage_allocations_protect_performance_policy BEFORE UPDATE OF performance_collection_policy ON stage_allocations FOR EACH ROW EXECUTE FUNCTION contractor_protect_stage_allocation_performance_policy();
+
+-- Trigger: stage_allocations stage_allocations_protect_placement_labels
+
+CREATE TRIGGER stage_allocations_protect_placement_labels BEFORE UPDATE OF runtime_placement_labels ON stage_allocations FOR EACH ROW WHEN ((new.runtime_placement_labels IS DISTINCT FROM old.runtime_placement_labels)) EXECUTE FUNCTION contractor_protect_placement_labels();
+
+-- Trigger: stage_allocations stage_allocations_require_completion
+
+CREATE TRIGGER stage_allocations_require_completion BEFORE INSERT OR UPDATE OF completion_contract ON stage_allocations FOR EACH ROW EXECUTE FUNCTION contractor_require_allocation_completion();
+
+-- Trigger: stage_executions stage_executions_capture_lifecycle_event
+
+CREATE TRIGGER stage_executions_capture_lifecycle_event AFTER INSERT ON stage_executions FOR EACH ROW EXECUTE FUNCTION contractor_capture_stage_execution_lifecycle_event();
+
+-- Trigger: stage_executions stage_executions_capture_lifecycle_event_on_update
+
+CREATE TRIGGER stage_executions_capture_lifecycle_event_on_update AFTER UPDATE ON stage_executions FOR EACH ROW WHEN ((old.state IS DISTINCT FROM new.state)) EXECUTE FUNCTION contractor_capture_stage_execution_lifecycle_event();
+
+-- Trigger: stage_executions stage_executions_hold_artifacts
+
+CREATE TRIGGER stage_executions_hold_artifacts AFTER INSERT ON stage_executions FOR EACH ROW EXECUTE FUNCTION contractor_hold_stage_execution_artifacts();
+
+-- Trigger: stage_executions stage_executions_hold_artifacts_on_update
+
+CREATE TRIGGER stage_executions_hold_artifacts_on_update AFTER UPDATE OF stage_context_snapshot, candidate_stage_result, accepted_stage_result ON stage_executions FOR EACH ROW WHEN (((old.stage_context_snapshot IS DISTINCT FROM new.stage_context_snapshot) OR (old.candidate_stage_result IS DISTINCT FROM new.candidate_stage_result) OR (old.accepted_stage_result IS DISTINCT FROM new.accepted_stage_result))) EXECUTE FUNCTION contractor_hold_stage_execution_artifacts();
+
+-- Trigger: stage_executions stage_executions_manual_continuation
+
+CREATE TRIGGER stage_executions_manual_continuation BEFORE INSERT OR UPDATE OF resume_source_execution_id ON stage_executions FOR EACH ROW EXECUTE FUNCTION contractor_validate_manual_stage_execution();
+
+-- Trigger: stage_executions stage_executions_protect_immutable
+
+CREATE TRIGGER stage_executions_protect_immutable BEFORE UPDATE OF stage_execution_id, run_id, stage_name, attempt, previous_execution_id, execution_config_variant, escalation_ordinal, stage_spec_schema_version, stage_spec_snapshot, stage_context_schema_version, stage_context_snapshot, created_at, planner_session_id, planner_invocation_id, candidate_stage_result, candidate_result_schema_version, accepted_stage_result, accepted_result_schema_version, stage_termination, termination_schema_version, finalization_id, finalization_deadline, abort_id, abort_deadline ON stage_executions FOR EACH ROW EXECUTE FUNCTION contractor_protect_stage_execution_immutable();
+
+-- Trigger: stage_transition_decisions stage_transition_decisions_protect_immutable
+
+CREATE TRIGGER stage_transition_decisions_protect_immutable BEFORE UPDATE ON stage_transition_decisions FOR EACH ROW EXECUTE FUNCTION contractor_protect_stage_transition_decision_immutable();
+
+-- Trigger: workflow_run_events workflow_run_events_notify_after_commit
+
+CREATE TRIGGER workflow_run_events_notify_after_commit AFTER INSERT ON workflow_run_events FOR EACH ROW EXECUTE FUNCTION contractor_notify_workflow_run_event();
+
+-- Trigger: workflow_run_events workflow_run_events_protect_immutable
+
+CREATE TRIGGER workflow_run_events_protect_immutable BEFORE UPDATE ON workflow_run_events FOR EACH ROW EXECUTE FUNCTION contractor_protect_workflow_run_event_immutable();
+
+-- Trigger: workflow_run_output_publications workflow_run_output_publications_hold
+
+CREATE TRIGGER workflow_run_output_publications_hold AFTER INSERT ON workflow_run_output_publications REFERENCING NEW TABLE AS inserted_publications FOR EACH STATEMENT EXECUTE FUNCTION contractor_hold_output_publication_artifacts();
+
+-- Trigger: workflow_run_output_publications workflow_run_output_publications_immutable
+
+CREATE TRIGGER workflow_run_output_publications_immutable BEFORE DELETE OR UPDATE ON workflow_run_output_publications FOR EACH ROW EXECUTE FUNCTION contractor_protect_artifact_immutable();
+
+-- Trigger: workflow_run_output_publications workflow_run_output_publications_release
+
+CREATE TRIGGER workflow_run_output_publications_release AFTER DELETE ON workflow_run_output_publications REFERENCING OLD TABLE AS deleted_publications FOR EACH STATEMENT EXECUTE FUNCTION contractor_hold_output_publication_artifacts();
+
+-- Trigger: workflow_runs workflow_runs_capture_lifecycle_event
+
+CREATE TRIGGER workflow_runs_capture_lifecycle_event AFTER INSERT ON workflow_runs FOR EACH ROW EXECUTE FUNCTION contractor_capture_workflow_run_lifecycle_event();
+
+-- Trigger: workflow_runs workflow_runs_capture_lifecycle_event_on_update
+
+CREATE TRIGGER workflow_runs_capture_lifecycle_event_on_update AFTER UPDATE ON workflow_runs FOR EACH ROW WHEN ((old.state IS DISTINCT FROM new.state)) EXECUTE FUNCTION contractor_capture_workflow_run_lifecycle_event();
+
+-- Trigger: workflow_runs workflow_runs_eval_tombstone
+
+CREATE TRIGGER workflow_runs_eval_tombstone BEFORE DELETE ON workflow_runs FOR EACH ROW WHEN (((old.project_id IS NOT NULL) AND (old.request_idempotency_key IS NOT NULL) AND (old.request_digest IS NOT NULL))) EXECUTE FUNCTION contractor_eval_retain_deleted_execution();
+
+-- Trigger: workflow_runs workflow_runs_hold_audit_inputs_on_insert
+
+CREATE TRIGGER workflow_runs_hold_audit_inputs_on_insert AFTER INSERT ON workflow_runs FOR EACH ROW WHEN ((new.audit_input_materialization IS NOT NULL)) EXECUTE FUNCTION contractor_hold_audit_run_inputs();
+
+-- Trigger: workflow_runs workflow_runs_hold_audit_inputs_on_update
+
+CREATE TRIGGER workflow_runs_hold_audit_inputs_on_update AFTER UPDATE OF audit_input_materialization ON workflow_runs FOR EACH ROW WHEN (((old.audit_input_materialization)::text IS DISTINCT FROM (new.audit_input_materialization)::text)) EXECUTE FUNCTION contractor_hold_audit_run_inputs();
+
+-- Trigger: workflow_runs workflow_runs_hold_skill_sources
+
+CREATE TRIGGER workflow_runs_hold_skill_sources AFTER INSERT ON workflow_runs FOR EACH ROW WHEN ((new.skill_snapshot <> '[]'::jsonb)) EXECUTE FUNCTION contractor_hold_run_skill_artifacts();
+
+-- Trigger: workflow_runs workflow_runs_hold_skill_sources_on_update
+
+CREATE TRIGGER workflow_runs_hold_skill_sources_on_update AFTER UPDATE OF skill_snapshot ON workflow_runs FOR EACH ROW WHEN ((old.skill_snapshot IS DISTINCT FROM new.skill_snapshot)) EXECUTE FUNCTION contractor_hold_run_skill_artifacts();
+
+-- Trigger: workflow_runs workflow_runs_project_admission
+
+CREATE TRIGGER workflow_runs_project_admission BEFORE INSERT ON workflow_runs FOR EACH ROW EXECUTE FUNCTION contractor_guard_workflow_run_project_admission();
+
+-- Trigger: workflow_runs workflow_runs_protect_audit_completion
+
+CREATE TRIGGER workflow_runs_protect_audit_completion BEFORE UPDATE OF audit_completion ON workflow_runs FOR EACH ROW EXECUTE FUNCTION contractor_protect_audit_completion();
+
+-- Trigger: workflow_runs workflow_runs_protect_audit_input_materialization
+
+CREATE TRIGGER workflow_runs_protect_audit_input_materialization BEFORE UPDATE OF audit_input_materialization ON workflow_runs FOR EACH ROW WHEN (((old.audit_input_materialization)::text IS DISTINCT FROM (new.audit_input_materialization)::text)) EXECUTE FUNCTION contractor_protect_audit_input_materialization();
+
+-- Trigger: workflow_runs workflow_runs_protect_immutable
+
+CREATE TRIGGER workflow_runs_protect_immutable BEFORE UPDATE OF run_id, owner_id, project_id, workflow_name, workflow_version, workflow_schema_version, workflow_snapshot, parameters, metadata_labels, request_idempotency_key, request_digest, run_event_generation, runtime_labels, runtime_config_snapshot, project_http_target_snapshot, publication_mode, audit_execution_id, audit_submission_key, created_at, cancellation_schema_version, run_cancellation ON workflow_runs FOR EACH ROW EXECUTE FUNCTION contractor_protect_workflow_run_immutable();
+
+-- Trigger: workflow_runs workflow_runs_protect_placement_labels
+
+CREATE TRIGGER workflow_runs_protect_placement_labels BEFORE UPDATE OF required_placement_labels ON workflow_runs FOR EACH ROW WHEN ((new.required_placement_labels IS DISTINCT FROM old.required_placement_labels)) EXECUTE FUNCTION contractor_protect_placement_labels();
+
+-- Trigger: workflow_runs workflow_runs_protect_skill_snapshot
+
+CREATE TRIGGER workflow_runs_protect_skill_snapshot BEFORE UPDATE OF skill_snapshot ON workflow_runs FOR EACH ROW EXECUTE FUNCTION contractor_protect_workflow_run_skill_snapshot();
+
+-- Trigger: workflow_runs workflow_runs_release_audit_inputs
+
+CREATE TRIGGER workflow_runs_release_audit_inputs AFTER DELETE ON workflow_runs FOR EACH ROW WHEN ((old.audit_input_materialization IS NOT NULL)) EXECUTE FUNCTION contractor_hold_audit_run_inputs();
+
+-- Trigger: workflow_runs workflow_runs_release_skill_sources
+
+CREATE TRIGGER workflow_runs_release_skill_sources AFTER DELETE ON workflow_runs FOR EACH ROW WHEN ((old.skill_snapshot <> '[]'::jsonb)) EXECUTE FUNCTION contractor_hold_run_skill_artifacts();
+
+-- Trigger: workflow_runs workflow_runs_require_audit_completion
+
+CREATE CONSTRAINT TRIGGER workflow_runs_require_audit_completion AFTER INSERT ON workflow_runs DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION contractor_require_audit_completion();
+
+-- Trigger: workflow_runs workflow_runs_require_audit_completion_on_update
+
+CREATE CONSTRAINT TRIGGER workflow_runs_require_audit_completion_on_update AFTER UPDATE ON workflow_runs DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN ((old.audit_completion IS DISTINCT FROM new.audit_completion)) EXECUTE FUNCTION contractor_require_audit_completion();
+
+-- Trigger: workflow_runs workflow_runs_require_complete_audit_binding
+
+CREATE CONSTRAINT TRIGGER workflow_runs_require_complete_audit_binding AFTER INSERT OR UPDATE ON workflow_runs DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN ((new.publication_mode = 'audit-managed'::text)) EXECUTE FUNCTION contractor_require_complete_audit_run_binding();
+
+-- Fk constraint: allocation_execution_reports allocation_execution_reports_stage_execution_id_allocation_fkey
+
+ALTER TABLE ONLY allocation_execution_reports
     ADD CONSTRAINT allocation_execution_reports_stage_execution_id_allocation_fkey FOREIGN KEY (stage_execution_id, allocation_id, logical_agent_name) REFERENCES stage_allocations(stage_execution_id, allocation_id, logical_agent_name) ON DELETE CASCADE;
 
-ALTER TABLE artifact_binding_revisions
+-- Fk constraint: artifact_binding_revisions artifact_binding_revisions_scope_kind_scope_id_fkey
+
+ALTER TABLE ONLY artifact_binding_revisions
     ADD CONSTRAINT artifact_binding_revisions_scope_kind_scope_id_fkey FOREIGN KEY (scope_kind, scope_id) REFERENCES artifact_scopes(scope_kind, scope_id);
 
-ALTER TABLE artifact_binding_revisions
+-- Fk constraint: artifact_binding_revisions artifact_binding_revisions_version_id_fkey
+
+ALTER TABLE ONLY artifact_binding_revisions
     ADD CONSTRAINT artifact_binding_revisions_version_id_fkey FOREIGN KEY (version_id) REFERENCES artifact_versions(version_id);
 
-ALTER TABLE artifact_bindings
+-- Fk constraint: artifact_bindings artifact_bindings_scope_kind_scope_id_fkey
+
+ALTER TABLE ONLY artifact_bindings
     ADD CONSTRAINT artifact_bindings_scope_kind_scope_id_fkey FOREIGN KEY (scope_kind, scope_id) REFERENCES artifact_scopes(scope_kind, scope_id);
 
-ALTER TABLE artifact_bindings
+-- Fk constraint: artifact_bindings artifact_bindings_scope_kind_scope_id_namespace_name_curre_fkey
+
+ALTER TABLE ONLY artifact_bindings
     ADD CONSTRAINT artifact_bindings_scope_kind_scope_id_namespace_name_curre_fkey FOREIGN KEY (scope_kind, scope_id, namespace, name, current_revision) REFERENCES artifact_binding_revisions(scope_kind, scope_id, namespace, name, revision) DEFERRABLE INITIALLY DEFERRED;
 
-ALTER TABLE artifact_lineage
+-- Fk constraint: artifact_lineage artifact_lineage_source_scope_kind_source_scope_id_source__fkey
+
+ALTER TABLE ONLY artifact_lineage
     ADD CONSTRAINT artifact_lineage_source_scope_kind_source_scope_id_source__fkey FOREIGN KEY (source_scope_kind, source_scope_id, source_namespace, source_name, source_revision) REFERENCES artifact_binding_revisions(scope_kind, scope_id, namespace, name, revision);
 
-ALTER TABLE artifact_lineage
+-- Fk constraint: artifact_lineage artifact_lineage_target_scope_kind_target_scope_id_target__fkey
+
+ALTER TABLE ONLY artifact_lineage
     ADD CONSTRAINT artifact_lineage_target_scope_kind_target_scope_id_target__fkey FOREIGN KEY (target_scope_kind, target_scope_id, target_namespace, target_name, target_revision) REFERENCES artifact_binding_revisions(scope_kind, scope_id, namespace, name, revision);
 
-ALTER TABLE artifact_scopes
+-- Fk constraint: artifact_scopes artifact_scopes_project_id_fkey
+
+ALTER TABLE ONLY artifact_scopes
     ADD CONSTRAINT artifact_scopes_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(project_id);
 
-ALTER TABLE artifact_scopes
+-- Fk constraint: artifact_scopes artifact_scopes_run_id_fkey
+
+ALTER TABLE ONLY artifact_scopes
     ADD CONSTRAINT artifact_scopes_run_id_fkey FOREIGN KEY (run_id) REFERENCES workflow_runs(run_id);
 
-ALTER TABLE artifact_versions
+-- Fk constraint: artifact_versions artifact_versions_blob_sha256_fkey
+
+ALTER TABLE ONLY artifact_versions
     ADD CONSTRAINT artifact_versions_blob_sha256_fkey FOREIGN KEY (blob_sha256) REFERENCES artifact_blobs(sha256);
 
-ALTER TABLE audit_artifact_links
+-- Fk constraint: audit_artifact_links audit_artifact_links_audit_id_fkey
+
+ALTER TABLE ONLY audit_artifact_links
     ADD CONSTRAINT audit_artifact_links_audit_id_fkey FOREIGN KEY (audit_id) REFERENCES audits(audit_id) ON DELETE CASCADE;
 
-ALTER TABLE audit_controller_claims
+-- Fk constraint: audit_controller_claims audit_controller_claims_audit_id_fkey
+
+ALTER TABLE ONLY audit_controller_claims
     ADD CONSTRAINT audit_controller_claims_audit_id_fkey FOREIGN KEY (audit_id) REFERENCES audits(audit_id) ON DELETE CASCADE;
 
-ALTER TABLE audit_events
+-- Fk constraint: audit_events audit_events_audit_id_fkey
+
+ALTER TABLE ONLY audit_events
     ADD CONSTRAINT audit_events_audit_id_fkey FOREIGN KEY (audit_id) REFERENCES audits(audit_id) ON DELETE CASCADE;
 
-ALTER TABLE audit_execution_items
+-- Fk constraint: audit_execution_items audit_execution_items_execution_fkey
+
+ALTER TABLE ONLY audit_execution_items
     ADD CONSTRAINT audit_execution_items_execution_fkey FOREIGN KEY (execution_id, audit_id, round_id) REFERENCES audit_executions(execution_id, audit_id, round_id) ON DELETE CASCADE;
 
-ALTER TABLE audit_execution_items
+-- Fk constraint: audit_execution_items audit_execution_items_item_fkey
+
+ALTER TABLE ONLY audit_execution_items
     ADD CONSTRAINT audit_execution_items_item_fkey FOREIGN KEY (item_id, audit_id, round_id) REFERENCES audit_items(item_id, audit_id, round_id) ON DELETE CASCADE;
 
-ALTER TABLE audit_executions
+-- Fk constraint: audit_executions audit_executions_audit_id_fkey
+
+ALTER TABLE ONLY audit_executions
     ADD CONSTRAINT audit_executions_audit_id_fkey FOREIGN KEY (audit_id) REFERENCES audits(audit_id) ON DELETE CASCADE;
 
-ALTER TABLE audit_executions
+-- Fk constraint: audit_executions audit_executions_round_fkey
+
+ALTER TABLE ONLY audit_executions
     ADD CONSTRAINT audit_executions_round_fkey FOREIGN KEY (round_id, audit_id) REFERENCES audit_rounds(round_id, audit_id) ON DELETE CASCADE;
 
-ALTER TABLE audit_finding_assessments
+-- Fk constraint: audit_finding_assessments audit_finding_assessments_audit_fkey
+
+ALTER TABLE ONLY audit_finding_assessments
     ADD CONSTRAINT audit_finding_assessments_audit_fkey FOREIGN KEY (audit_id) REFERENCES audits(audit_id) ON DELETE CASCADE;
 
-ALTER TABLE audit_finding_assessments
+-- Fk constraint: audit_finding_assessments audit_finding_assessments_collection_fkey
+
+ALTER TABLE ONLY audit_finding_assessments
     ADD CONSTRAINT audit_finding_assessments_collection_fkey FOREIGN KEY (collection_receipt_id) REFERENCES audit_executions(collection_receipt_id) ON DELETE RESTRICT;
 
-ALTER TABLE audit_finding_assessments
+-- Fk constraint: audit_finding_assessments audit_finding_assessments_finding_fkey
+
+ALTER TABLE ONLY audit_finding_assessments
     ADD CONSTRAINT audit_finding_assessments_finding_fkey FOREIGN KEY (finding_id, audit_id) REFERENCES audit_findings(finding_id, audit_id) ON DELETE CASCADE;
 
-ALTER TABLE audit_finding_assessments
+-- Fk constraint: audit_finding_assessments audit_finding_assessments_item_fkey
+
+ALTER TABLE ONLY audit_finding_assessments
     ADD CONSTRAINT audit_finding_assessments_item_fkey FOREIGN KEY (execution_item_id, item_id) REFERENCES audit_execution_items(execution_item_id, item_id) ON DELETE RESTRICT;
 
-ALTER TABLE audit_finding_assessments
+-- Fk constraint: audit_finding_assessments audit_finding_assessments_receipt_id_fkey
+
+ALTER TABLE ONLY audit_finding_assessments
     ADD CONSTRAINT audit_finding_assessments_receipt_id_fkey FOREIGN KEY (receipt_id) REFERENCES finding_proposal_receipts(receipt_id) ON DELETE RESTRICT;
 
-ALTER TABLE audit_finding_contributions
+-- Fk constraint: audit_finding_contributions audit_finding_contributions_finding_fkey
+
+ALTER TABLE ONLY audit_finding_contributions
     ADD CONSTRAINT audit_finding_contributions_finding_fkey FOREIGN KEY (finding_id, audit_id) REFERENCES audit_findings(finding_id, audit_id) ON DELETE CASCADE;
 
-ALTER TABLE audit_finding_contributions
+-- Fk constraint: audit_finding_contributions audit_finding_contributions_receipt_id_fkey
+
+ALTER TABLE ONLY audit_finding_contributions
     ADD CONSTRAINT audit_finding_contributions_receipt_id_fkey FOREIGN KEY (receipt_id) REFERENCES finding_proposal_receipts(receipt_id) ON DELETE RESTRICT;
 
-ALTER TABLE audit_findings
+-- Fk constraint: audit_findings audit_findings_audit_id_fkey
+
+ALTER TABLE ONLY audit_findings
     ADD CONSTRAINT audit_findings_audit_id_fkey FOREIGN KEY (audit_id) REFERENCES audits(audit_id) ON DELETE CASCADE;
 
-ALTER TABLE audit_findings
+-- Fk constraint: audit_findings audit_findings_correlation_scope
+
+ALTER TABLE ONLY audit_findings
+    ADD CONSTRAINT audit_findings_correlation_scope FOREIGN KEY (audit_id, correlation_project_id) REFERENCES audits(audit_id, project_id) ON DELETE CASCADE;
+
+-- Fk constraint: audit_findings audit_findings_current_assessment_fkey
+
+ALTER TABLE ONLY audit_findings
     ADD CONSTRAINT audit_findings_current_assessment_fkey FOREIGN KEY (current_assessment_id) REFERENCES audit_finding_assessments(assessment_id) DEFERRABLE INITIALLY DEFERRED;
 
-ALTER TABLE audit_findings
+-- Fk constraint: audit_findings audit_findings_current_decision_fkey
+
+ALTER TABLE ONLY audit_findings
     ADD CONSTRAINT audit_findings_current_decision_fkey FOREIGN KEY (current_decision_id) REFERENCES audit_review_decisions(decision_id) DEFERRABLE INITIALLY DEFERRED;
 
-ALTER TABLE audit_findings
+-- Fk constraint: audit_findings audit_findings_duplicate_target_fkey
+
+ALTER TABLE ONLY audit_findings
     ADD CONSTRAINT audit_findings_duplicate_target_fkey FOREIGN KEY (duplicate_target_id, audit_id) REFERENCES audit_findings(finding_id, audit_id) DEFERRABLE INITIALLY DEFERRED;
 
-ALTER TABLE audit_findings
+-- Fk constraint: audit_findings audit_findings_first_receipt_id_fkey
+
+ALTER TABLE ONLY audit_findings
     ADD CONSTRAINT audit_findings_first_receipt_id_fkey FOREIGN KEY (first_receipt_id) REFERENCES finding_proposal_receipts(receipt_id) ON DELETE RESTRICT;
 
-ALTER TABLE audit_idempotency
-    ADD CONSTRAINT audit_idempotency_audit_id_fkey FOREIGN KEY (audit_id) REFERENCES audits(audit_id) ON DELETE CASCADE;
+-- Fk constraint: audit_items audit_items_last_execution_item_fkey
 
-ALTER TABLE audit_items
+ALTER TABLE ONLY audit_items
     ADD CONSTRAINT audit_items_last_execution_item_fkey FOREIGN KEY (last_execution_item_id, item_id) REFERENCES audit_execution_items(execution_item_id, item_id) DEFERRABLE INITIALLY DEFERRED;
 
-ALTER TABLE audit_items
+-- Fk constraint: audit_items audit_items_proposal_hold_fkey
+
+ALTER TABLE ONLY audit_items
     ADD CONSTRAINT audit_items_proposal_hold_fkey FOREIGN KEY (proposal_receipt_id, audit_id) REFERENCES finding_proposal_audit_holds(receipt_id, audit_id) ON DELETE CASCADE;
 
-ALTER TABLE audit_items
+-- Fk constraint: audit_items audit_items_round_fkey
+
+ALTER TABLE ONLY audit_items
     ADD CONSTRAINT audit_items_round_fkey FOREIGN KEY (round_id, audit_id) REFERENCES audit_rounds(round_id, audit_id) ON DELETE CASCADE;
 
-ALTER TABLE audit_review_decisions
+-- Fk constraint: audit_report_pages audit_report_pages_audit_fkey
+
+ALTER TABLE ONLY audit_report_pages
+    ADD CONSTRAINT audit_report_pages_audit_fkey FOREIGN KEY (audit_id) REFERENCES audits(audit_id) ON DELETE CASCADE;
+
+-- Fk constraint: audit_review_decisions audit_review_decisions_audit_fkey
+
+ALTER TABLE ONLY audit_review_decisions
     ADD CONSTRAINT audit_review_decisions_audit_fkey FOREIGN KEY (audit_id) REFERENCES audits(audit_id) ON DELETE CASCADE;
 
-ALTER TABLE audit_review_decisions
+-- Fk constraint: audit_review_decisions audit_review_decisions_duplicate_fkey
+
+ALTER TABLE ONLY audit_review_decisions
     ADD CONSTRAINT audit_review_decisions_duplicate_fkey FOREIGN KEY (duplicate_target_id, audit_id) REFERENCES audit_findings(finding_id, audit_id) DEFERRABLE INITIALLY DEFERRED;
 
-ALTER TABLE audit_review_decisions
+-- Fk constraint: audit_review_decisions audit_review_decisions_request_fkey
+
+ALTER TABLE ONLY audit_review_decisions
     ADD CONSTRAINT audit_review_decisions_request_fkey FOREIGN KEY (request_id, audit_id) REFERENCES audit_review_requests(request_id, audit_id) ON DELETE RESTRICT;
 
-ALTER TABLE audit_review_requests
+-- Fk constraint: audit_review_requests audit_review_requests_audit_id_fkey
+
+ALTER TABLE ONLY audit_review_requests
     ADD CONSTRAINT audit_review_requests_audit_id_fkey FOREIGN KEY (audit_id) REFERENCES audits(audit_id) ON DELETE CASCADE;
 
-ALTER TABLE audit_review_requests
+-- Fk constraint: audit_review_requests audit_review_requests_finding_fkey
+
+ALTER TABLE ONLY audit_review_requests
     ADD CONSTRAINT audit_review_requests_finding_fkey FOREIGN KEY (finding_id, audit_id) REFERENCES audit_findings(finding_id, audit_id) ON DELETE CASCADE;
 
-ALTER TABLE audit_review_requests
+-- Fk constraint: audit_review_requests audit_review_requests_report_round_fkey
+
+ALTER TABLE ONLY audit_review_requests
     ADD CONSTRAINT audit_review_requests_report_round_fkey FOREIGN KEY (report_round_id, audit_id) REFERENCES audit_rounds(round_id, audit_id) ON DELETE CASCADE;
 
-ALTER TABLE audit_rounds
+-- Fk constraint: audit_round_result_pages audit_round_result_pages_audit_id_fkey
+
+ALTER TABLE ONLY audit_round_result_pages
+    ADD CONSTRAINT audit_round_result_pages_audit_id_fkey FOREIGN KEY (audit_id) REFERENCES audits(audit_id) ON DELETE CASCADE;
+
+-- Fk constraint: audit_round_result_pages audit_round_result_pages_round_id_fkey
+
+ALTER TABLE ONLY audit_round_result_pages
+    ADD CONSTRAINT audit_round_result_pages_round_id_fkey FOREIGN KEY (round_id) REFERENCES audit_rounds(round_id) ON DELETE CASCADE;
+
+-- Fk constraint: audit_rounds audit_rounds_audit_id_fkey
+
+ALTER TABLE ONLY audit_rounds
     ADD CONSTRAINT audit_rounds_audit_id_fkey FOREIGN KEY (audit_id) REFERENCES audits(audit_id) ON DELETE CASCADE;
 
-ALTER TABLE audits
+-- Fk constraint: audits audits_current_round_fkey
+
+ALTER TABLE ONLY audits
     ADD CONSTRAINT audits_current_round_fkey FOREIGN KEY (current_round_id, audit_id) REFERENCES audit_rounds(round_id, audit_id) ON DELETE SET NULL (current_round_id) DEFERRABLE INITIALLY DEFERRED;
 
-ALTER TABLE audits
+-- Fk constraint: audits audits_project_owner_fkey
+
+ALTER TABLE ONLY audits
     ADD CONSTRAINT audits_project_owner_fkey FOREIGN KEY (project_id, owner_id) REFERENCES projects(project_id, owner_id) ON DELETE RESTRICT;
 
-ALTER TABLE eval_commands
+-- Fk constraint: eval_commands eval_commands_experiment_id_fkey
+
+ALTER TABLE ONLY eval_commands
     ADD CONSTRAINT eval_commands_experiment_id_fkey FOREIGN KEY (experiment_id) REFERENCES eval_experiments(experiment_id) ON DELETE CASCADE;
 
-ALTER TABLE eval_controller_claims
+-- Fk constraint: eval_controller_claims eval_controller_claims_experiment_id_fkey
+
+ALTER TABLE ONLY eval_controller_claims
     ADD CONSTRAINT eval_controller_claims_experiment_id_fkey FOREIGN KEY (experiment_id) REFERENCES eval_experiments(experiment_id) ON DELETE CASCADE;
 
-ALTER TABLE eval_dataset_revisions
+-- Fk constraint: eval_dataset_revisions eval_dataset_revisions_owner_id_project_id_fkey
+
+ALTER TABLE ONLY eval_dataset_revisions
     ADD CONSTRAINT eval_dataset_revisions_owner_id_project_id_fkey FOREIGN KEY (owner_id, project_id) REFERENCES projects(owner_id, project_id) ON DELETE RESTRICT;
 
-ALTER TABLE eval_evidence_refs
+-- Fk constraint: eval_evidence_refs eval_evidence_refs_experiment_id_member_id_fkey
+
+ALTER TABLE ONLY eval_evidence_refs
     ADD CONSTRAINT eval_evidence_refs_experiment_id_member_id_fkey FOREIGN KEY (experiment_id, member_id) REFERENCES eval_members(experiment_id, member_id) ON DELETE CASCADE;
 
-ALTER TABLE eval_execution_tombstones
+-- Fk constraint: eval_execution_tombstones eval_execution_tombstones_experiment_id_member_id_fkey
+
+ALTER TABLE ONLY eval_execution_tombstones
     ADD CONSTRAINT eval_execution_tombstones_experiment_id_member_id_fkey FOREIGN KEY (experiment_id, member_id) REFERENCES eval_members(experiment_id, member_id) ON DELETE CASCADE;
 
-ALTER TABLE eval_experiments
+-- Fk constraint: eval_experiments eval_experiments_owner_id_project_id_fkey
+
+ALTER TABLE ONLY eval_experiments
     ADD CONSTRAINT eval_experiments_owner_id_project_id_fkey FOREIGN KEY (owner_id, project_id) REFERENCES projects(owner_id, project_id) ON DELETE RESTRICT;
 
-ALTER TABLE eval_experiments
+-- Fk constraint: eval_experiments eval_experiments_project_id_dataset_id_dataset_revision_fkey
+
+ALTER TABLE ONLY eval_experiments
     ADD CONSTRAINT eval_experiments_project_id_dataset_id_dataset_revision_fkey FOREIGN KEY (project_id, dataset_id, dataset_revision) REFERENCES eval_dataset_revisions(project_id, dataset_id, revision) ON DELETE RESTRICT;
 
-ALTER TABLE eval_frozen_plans
+-- Fk constraint: eval_frozen_plans eval_frozen_plans_experiment_id_fkey
+
+ALTER TABLE ONLY eval_frozen_plans
     ADD CONSTRAINT eval_frozen_plans_experiment_id_fkey FOREIGN KEY (experiment_id) REFERENCES eval_experiments(experiment_id) ON DELETE CASCADE;
 
-ALTER TABLE eval_member_projections
+-- Fk constraint: eval_member_projections eval_member_projections_experiment_id_member_id_fkey
+
+ALTER TABLE ONLY eval_member_projections
     ADD CONSTRAINT eval_member_projections_experiment_id_member_id_fkey FOREIGN KEY (experiment_id, member_id) REFERENCES eval_members(experiment_id, member_id) ON DELETE CASCADE;
 
-ALTER TABLE eval_members
+-- Fk constraint: eval_members eval_members_experiment_id_fkey
+
+ALTER TABLE ONLY eval_members
     ADD CONSTRAINT eval_members_experiment_id_fkey FOREIGN KEY (experiment_id) REFERENCES eval_frozen_plans(experiment_id) ON DELETE CASCADE;
 
-ALTER TABLE eval_mutation_receipts
-    ADD CONSTRAINT eval_mutation_receipts_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(project_id) ON DELETE RESTRICT;
+-- Fk constraint: eval_plan_resources eval_plan_resources_experiment_id_fkey
 
-ALTER TABLE eval_plan_resources
+ALTER TABLE ONLY eval_plan_resources
     ADD CONSTRAINT eval_plan_resources_experiment_id_fkey FOREIGN KEY (experiment_id) REFERENCES eval_frozen_plans(experiment_id) ON DELETE CASCADE;
 
-ALTER TABLE eval_progress_observations
+-- Fk constraint: eval_progress_observations eval_progress_observations_experiment_id_fkey
+
+ALTER TABLE ONLY eval_progress_observations
     ADD CONSTRAINT eval_progress_observations_experiment_id_fkey FOREIGN KEY (experiment_id) REFERENCES eval_experiments(experiment_id) ON DELETE CASCADE;
 
-ALTER TABLE eval_projection_queue
+-- Fk constraint: eval_projection_queue eval_projection_queue_experiment_id_fkey
+
+ALTER TABLE ONLY eval_projection_queue
     ADD CONSTRAINT eval_projection_queue_experiment_id_fkey FOREIGN KEY (experiment_id) REFERENCES eval_experiments(experiment_id) ON DELETE CASCADE;
 
-ALTER TABLE eval_records
+-- Fk constraint: eval_records eval_records_experiment_id_member_id_fkey
+
+ALTER TABLE ONLY eval_records
     ADD CONSTRAINT eval_records_experiment_id_member_id_fkey FOREIGN KEY (experiment_id, member_id) REFERENCES eval_members(experiment_id, member_id) ON DELETE CASCADE;
 
-ALTER TABLE eval_selections
+-- Fk constraint: eval_selections eval_selections_experiment_id_member_id_assessment_kind_as_fkey
+
+ALTER TABLE ONLY eval_selections
     ADD CONSTRAINT eval_selections_experiment_id_member_id_assessment_kind_as_fkey FOREIGN KEY (experiment_id, member_id, assessment_kind, assessment_sha256) REFERENCES eval_records(experiment_id, member_id, kind, record_sha256);
 
-ALTER TABLE eval_selections
+-- Fk constraint: eval_selections eval_selections_experiment_id_member_id_result_kind_result_fkey
+
+ALTER TABLE ONLY eval_selections
     ADD CONSTRAINT eval_selections_experiment_id_member_id_result_kind_result_fkey FOREIGN KEY (experiment_id, member_id, result_kind, result_sha256) REFERENCES eval_records(experiment_id, member_id, kind, record_sha256);
 
-ALTER TABLE eval_submissions
+-- Fk constraint: eval_submissions eval_submissions_experiment_id_member_id_execution_kind_fkey
+
+ALTER TABLE ONLY eval_submissions
     ADD CONSTRAINT eval_submissions_experiment_id_member_id_execution_kind_fkey FOREIGN KEY (experiment_id, member_id, execution_kind) REFERENCES eval_members(experiment_id, member_id, execution_kind) ON DELETE CASCADE;
 
-ALTER TABLE eval_suboperations
+-- Fk constraint: eval_suboperations eval_suboperations_experiment_id_member_id_fkey
+
+ALTER TABLE ONLY eval_suboperations
     ADD CONSTRAINT eval_suboperations_experiment_id_member_id_fkey FOREIGN KEY (experiment_id, member_id) REFERENCES eval_submissions(experiment_id, member_id) ON DELETE CASCADE;
 
-ALTER TABLE eval_view_charts
+-- Fk constraint: eval_view_charts eval_view_charts_experiment_id_fkey
+
+ALTER TABLE ONLY eval_view_charts
     ADD CONSTRAINT eval_view_charts_experiment_id_fkey FOREIGN KEY (experiment_id) REFERENCES eval_projection_queue(experiment_id) ON DELETE CASCADE;
 
-ALTER TABLE eval_view_pairs
+-- Fk constraint: eval_view_pairs eval_view_pairs_experiment_id_fkey
+
+ALTER TABLE ONLY eval_view_pairs
     ADD CONSTRAINT eval_view_pairs_experiment_id_fkey FOREIGN KEY (experiment_id) REFERENCES eval_projection_queue(experiment_id) ON DELETE CASCADE;
 
-ALTER TABLE finding_proposal_audit_holds
+-- Fk constraint: finding_correlation_fences finding_correlation_fences_project_id_fkey
+
+ALTER TABLE ONLY finding_correlation_fences
+    ADD CONSTRAINT finding_correlation_fences_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(project_id) ON DELETE CASCADE;
+
+-- Fk constraint: finding_proposal_audit_holds finding_proposal_audit_holds_audit_id_fkey
+
+ALTER TABLE ONLY finding_proposal_audit_holds
     ADD CONSTRAINT finding_proposal_audit_holds_audit_id_fkey FOREIGN KEY (audit_id) REFERENCES audits(audit_id) ON DELETE CASCADE;
 
-ALTER TABLE finding_proposal_audit_holds
+-- Fk constraint: finding_proposal_audit_holds finding_proposal_audit_holds_project_id_fkey
+
+ALTER TABLE ONLY finding_proposal_audit_holds
     ADD CONSTRAINT finding_proposal_audit_holds_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(project_id) ON DELETE CASCADE;
 
-ALTER TABLE finding_proposal_audit_holds
+-- Fk constraint: finding_proposal_audit_holds finding_proposal_audit_holds_receipt_id_fkey
+
+ALTER TABLE ONLY finding_proposal_audit_holds
     ADD CONSTRAINT finding_proposal_audit_holds_receipt_id_fkey FOREIGN KEY (receipt_id) REFERENCES finding_proposal_receipts(receipt_id) ON DELETE CASCADE;
 
-ALTER TABLE gateway_allocation_routes
+-- Fk constraint: gateway_allocation_routes gateway_allocation_routes_allocation_id_fkey
+
+ALTER TABLE ONLY gateway_allocation_routes
     ADD CONSTRAINT gateway_allocation_routes_allocation_id_fkey FOREIGN KEY (allocation_id) REFERENCES stage_allocations(allocation_id) ON DELETE CASCADE;
 
-ALTER TABLE gateway_allocation_routes
+-- Fk constraint: gateway_allocation_routes gateway_allocation_routes_route_key_fkey
+
+ALTER TABLE ONLY gateway_allocation_routes
     ADD CONSTRAINT gateway_allocation_routes_route_key_fkey FOREIGN KEY (route_key) REFERENCES gateway_recovery_routes(route_key);
 
-ALTER TABLE gateway_allocation_routes
+-- Fk constraint: gateway_allocation_routes gateway_allocation_routes_run_id_fkey
+
+ALTER TABLE ONLY gateway_allocation_routes
     ADD CONSTRAINT gateway_allocation_routes_run_id_fkey FOREIGN KEY (run_id) REFERENCES workflow_runs(run_id) ON DELETE CASCADE;
 
-ALTER TABLE gateway_recovery_failures
+-- Fk constraint: gateway_recovery_failures gateway_recovery_failures_route_key_fkey
+
+ALTER TABLE ONLY gateway_recovery_failures
     ADD CONSTRAINT gateway_recovery_failures_route_key_fkey FOREIGN KEY (route_key) REFERENCES gateway_recovery_routes(route_key);
 
-ALTER TABLE gateway_recovery_failures
+-- Fk constraint: gateway_recovery_failures gateway_recovery_failures_run_id_fkey
+
+ALTER TABLE ONLY gateway_recovery_failures
     ADD CONSTRAINT gateway_recovery_failures_run_id_fkey FOREIGN KEY (run_id) REFERENCES workflow_runs(run_id) ON DELETE CASCADE;
 
-ALTER TABLE gateway_recovery_waits
+-- Fk constraint: gateway_recovery_waits gateway_recovery_waits_route_key_fkey
+
+ALTER TABLE ONLY gateway_recovery_waits
     ADD CONSTRAINT gateway_recovery_waits_route_key_fkey FOREIGN KEY (route_key) REFERENCES gateway_recovery_routes(route_key);
 
-ALTER TABLE gateway_recovery_waits
+-- Fk constraint: gateway_recovery_waits gateway_recovery_waits_run_id_fkey
+
+ALTER TABLE ONLY gateway_recovery_waits
     ADD CONSTRAINT gateway_recovery_waits_run_id_fkey FOREIGN KEY (run_id) REFERENCES workflow_runs(run_id) ON DELETE CASCADE;
 
-ALTER TABLE gateway_run_routes
+-- Fk constraint: gateway_run_routes gateway_run_routes_route_key_fkey
+
+ALTER TABLE ONLY gateway_run_routes
     ADD CONSTRAINT gateway_run_routes_route_key_fkey FOREIGN KEY (route_key) REFERENCES gateway_recovery_routes(route_key);
 
-ALTER TABLE gateway_run_routes
+-- Fk constraint: gateway_run_routes gateway_run_routes_run_id_fkey
+
+ALTER TABLE ONLY gateway_run_routes
     ADD CONSTRAINT gateway_run_routes_run_id_fkey FOREIGN KEY (run_id) REFERENCES workflow_runs(run_id) ON DELETE CASCADE;
 
-ALTER TABLE planner_execution_reports
+-- Fk constraint: mutation_receipts mutation_receipts_audit_id_fkey
+
+ALTER TABLE ONLY mutation_receipts
+    ADD CONSTRAINT mutation_receipts_audit_id_fkey FOREIGN KEY (audit_id) REFERENCES audits(audit_id) ON DELETE CASCADE;
+
+-- Fk constraint: mutation_receipts mutation_receipts_project_id_fkey
+
+ALTER TABLE ONLY mutation_receipts
+    ADD CONSTRAINT mutation_receipts_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(project_id) ON DELETE RESTRICT;
+
+-- Fk constraint: planner_execution_reports planner_execution_reports_session_id_fkey
+
+ALTER TABLE ONLY planner_execution_reports
     ADD CONSTRAINT planner_execution_reports_session_id_fkey FOREIGN KEY (session_id) REFERENCES planner_sessions(session_id) ON DELETE CASCADE;
 
-ALTER TABLE planner_execution_reports
+-- Fk constraint: planner_execution_reports planner_execution_reports_stage_execution_id_fkey
+
+ALTER TABLE ONLY planner_execution_reports
     ADD CONSTRAINT planner_execution_reports_stage_execution_id_fkey FOREIGN KEY (stage_execution_id) REFERENCES stage_executions(stage_execution_id) ON DELETE CASCADE;
 
-ALTER TABLE planner_sessions
+-- Fk constraint: planner_sessions planner_sessions_stage_execution_id_fkey
+
+ALTER TABLE ONLY planner_sessions
     ADD CONSTRAINT planner_sessions_stage_execution_id_fkey FOREIGN KEY (stage_execution_id) REFERENCES stage_executions(stage_execution_id) ON DELETE CASCADE;
 
-ALTER TABLE projects
+-- Fk constraint: projects projects_http_target_credential_fkey
+
+ALTER TABLE ONLY projects
     ADD CONSTRAINT projects_http_target_credential_fkey FOREIGN KEY (http_target_credential_id, http_target_credential_kind) REFERENCES runtime_credentials(credential_id, credential_kind);
 
-ALTER TABLE run_stage_resumptions
+-- Fk constraint: run_stage_resumptions run_stage_resumptions_run_id_fkey
+
+ALTER TABLE ONLY run_stage_resumptions
     ADD CONSTRAINT run_stage_resumptions_run_id_fkey FOREIGN KEY (run_id) REFERENCES workflow_runs(run_id) ON DELETE CASCADE;
 
-ALTER TABLE run_stage_resumptions
+-- Fk constraint: run_stage_resumptions run_stage_resumptions_source_execution_id_fkey
+
+ALTER TABLE ONLY run_stage_resumptions
     ADD CONSTRAINT run_stage_resumptions_source_execution_id_fkey FOREIGN KEY (source_execution_id) REFERENCES stage_executions(stage_execution_id) ON DELETE CASCADE;
 
-ALTER TABLE run_stage_resumptions
+-- Fk constraint: run_stage_resumptions run_stage_resumptions_target_execution_id_fkey
+
+ALTER TABLE ONLY run_stage_resumptions
     ADD CONSTRAINT run_stage_resumptions_target_execution_id_fkey FOREIGN KEY (target_execution_id) REFERENCES stage_executions(stage_execution_id) ON DELETE CASCADE;
 
-ALTER TABLE runtime_label_bindings
+-- Fk constraint: runtime_label_bindings runtime_label_bindings_config_name_config_version_config_d_fkey
+
+ALTER TABLE ONLY runtime_label_bindings
     ADD CONSTRAINT runtime_label_bindings_config_name_config_version_config_d_fkey FOREIGN KEY (config_name, config_version, config_digest) REFERENCES runtime_config_versions(name, version, digest);
 
-ALTER TABLE stage_allocations
+-- Fk constraint: scan_sweep_members scan_sweep_members_sweep_id_fkey
+
+ALTER TABLE ONLY scan_sweep_members
+    ADD CONSTRAINT scan_sweep_members_sweep_id_fkey FOREIGN KEY (sweep_id) REFERENCES scan_sweeps(sweep_id) ON DELETE CASCADE;
+
+-- Fk constraint: stage_allocations stage_allocations_stage_execution_id_fkey
+
+ALTER TABLE ONLY stage_allocations
     ADD CONSTRAINT stage_allocations_stage_execution_id_fkey FOREIGN KEY (stage_execution_id) REFERENCES stage_executions(stage_execution_id) ON DELETE CASCADE;
 
-ALTER TABLE stage_executions
+-- Fk constraint: stage_executions stage_execution_lineage
+
+ALTER TABLE ONLY stage_executions
     ADD CONSTRAINT stage_execution_lineage FOREIGN KEY (run_id, stage_name, previous_execution_id) REFERENCES stage_executions(run_id, stage_name, stage_execution_id) DEFERRABLE INITIALLY DEFERRED;
 
-ALTER TABLE stage_executions
+-- Fk constraint: stage_executions stage_execution_planner_session
+
+ALTER TABLE ONLY stage_executions
     ADD CONSTRAINT stage_execution_planner_session FOREIGN KEY (stage_execution_id, planner_session_id, planner_invocation_id) REFERENCES planner_sessions(stage_execution_id, session_id, invocation_id) DEFERRABLE INITIALLY DEFERRED;
 
-ALTER TABLE stage_executions
+-- Fk constraint: stage_executions stage_execution_resume_receipt
+
+ALTER TABLE ONLY stage_executions
     ADD CONSTRAINT stage_execution_resume_receipt FOREIGN KEY (stage_execution_id, resume_source_execution_id) REFERENCES run_stage_resumptions(target_execution_id, source_execution_id) DEFERRABLE INITIALLY DEFERRED;
 
-ALTER TABLE stage_executions
+-- Fk constraint: stage_executions stage_executions_run_id_fkey
+
+ALTER TABLE ONLY stage_executions
     ADD CONSTRAINT stage_executions_run_id_fkey FOREIGN KEY (run_id) REFERENCES workflow_runs(run_id) ON DELETE CASCADE;
 
-ALTER TABLE stage_metrics
+-- Fk constraint: stage_metrics stage_metrics_stage_execution_id_fkey
+
+ALTER TABLE ONLY stage_metrics
     ADD CONSTRAINT stage_metrics_stage_execution_id_fkey FOREIGN KEY (stage_execution_id) REFERENCES stage_executions(stage_execution_id) ON DELETE CASCADE;
 
-ALTER TABLE stage_transition_decisions
+-- Fk constraint: stage_transition_decisions stage_transition_source_run
+
+ALTER TABLE ONLY stage_transition_decisions
     ADD CONSTRAINT stage_transition_source_run FOREIGN KEY (run_id, source_execution_id) REFERENCES stage_executions(run_id, stage_execution_id) ON DELETE CASCADE;
 
-ALTER TABLE stage_transition_decisions
+-- Fk constraint: stage_transition_decisions stage_transition_target_run_stage
+
+ALTER TABLE ONLY stage_transition_decisions
     ADD CONSTRAINT stage_transition_target_run_stage FOREIGN KEY (run_id, target_stage_name, target_execution_id) REFERENCES stage_executions(run_id, stage_name, stage_execution_id) DEFERRABLE INITIALLY DEFERRED;
 
-ALTER TABLE workflow_run_events
+-- Fk constraint: workflow_run_events workflow_run_events_run_id_fkey
+
+ALTER TABLE ONLY workflow_run_events
     ADD CONSTRAINT workflow_run_events_run_id_fkey FOREIGN KEY (run_id) REFERENCES workflow_runs(run_id) ON DELETE CASCADE;
 
-ALTER TABLE workflow_run_output_publications
+-- Fk constraint: workflow_run_output_publications workflow_run_output_publicati_source_scope_kind_run_id_sou_fkey
+
+ALTER TABLE ONLY workflow_run_output_publications
     ADD CONSTRAINT workflow_run_output_publicati_source_scope_kind_run_id_sou_fkey FOREIGN KEY (source_scope_kind, run_id, source_namespace, source_name, source_revision) REFERENCES artifact_binding_revisions(scope_kind, scope_id, namespace, name, revision);
 
-ALTER TABLE workflow_run_output_publications
+-- Fk constraint: workflow_run_output_publications workflow_run_output_publicati_target_scope_kind_project_id_fkey
+
+ALTER TABLE ONLY workflow_run_output_publications
     ADD CONSTRAINT workflow_run_output_publicati_target_scope_kind_project_id_fkey FOREIGN KEY (target_scope_kind, project_id, target_namespace, target_name, target_revision) REFERENCES artifact_binding_revisions(scope_kind, scope_id, namespace, name, revision);
 
-ALTER TABLE workflow_run_output_publications
+-- Fk constraint: workflow_run_output_publications workflow_run_output_publications_run_id_project_id_fkey
+
+ALTER TABLE ONLY workflow_run_output_publications
     ADD CONSTRAINT workflow_run_output_publications_run_id_project_id_fkey FOREIGN KEY (run_id, project_id) REFERENCES workflow_runs(run_id, project_id);
 
-ALTER TABLE workflow_runs
+-- Fk constraint: workflow_runs workflow_runs_audit_submission_fkey
+
+ALTER TABLE ONLY workflow_runs
     ADD CONSTRAINT workflow_runs_audit_submission_fkey FOREIGN KEY (audit_execution_id, audit_submission_key) REFERENCES audit_executions(execution_id, submission_key) ON DELETE RESTRICT;
 
-ALTER TABLE workflow_runs
+-- Fk constraint: workflow_runs workflow_runs_project_owner_fkey
+
+ALTER TABLE ONLY workflow_runs
     ADD CONSTRAINT workflow_runs_project_owner_fkey FOREIGN KEY (project_id, owner_id) REFERENCES projects(project_id, owner_id);
 
-
--- Rows every database starts with
-
-INSERT INTO artifact_blob_settings (singleton, backend)
-VALUES (true, NULL);
-
-INSERT INTO runtime_config_versions (name, version, digest, canonical_document, built_in, actor_id, created_at, idempotency_key_digest, request_digest)
-VALUES ('contractor-empty', '1', 'sha256:80a1754c01f8443c29fdc8f650a2254b2461694819918b204a55a7ad3425dc5f', '{"apiVersion":"contractor/v1alpha1","kind":"RuntimeConfig","metadata":{"name":"contractor-empty","version":"1"},"spec":{}}', true, 'contractor-bootstrap', '1970-01-01 00:00:00+00', NULL, NULL);
-
-INSERT INTO runtime_label_bindings (label, config_name, config_version, config_digest, revision, created_by, created_at, updated_by, updated_at)
-VALUES ('default', 'contractor-empty', '1', 'sha256:80a1754c01f8443c29fdc8f650a2254b2461694819918b204a55a7ad3425dc5f', 1, 'contractor-bootstrap', '1970-01-01 00:00:00+00', 'contractor-bootstrap', '1970-01-01 00:00:00+00');
-
-INSERT INTO scheduler_settings (singleton, max_concurrent_runs, revision)
-VALUES (true, 1, 1);
+-- Rows every database starts with.
+INSERT INTO runtime_config_versions (name, version, digest, canonical_document, built_in, actor_id, created_at, idempotency_key_digest, request_digest) VALUES ('contractor-empty', '1', 'sha256:80a1754c01f8443c29fdc8f650a2254b2461694819918b204a55a7ad3425dc5f', '{"apiVersion":"contractor/v1alpha1","kind":"RuntimeConfig","metadata":{"name":"contractor-empty","version":"1"},"spec":{}}', true, 'contractor-bootstrap', '1970-01-01 00:00:00+00', NULL, NULL);
+INSERT INTO runtime_label_bindings (label, config_name, config_version, config_digest, revision, created_by, created_at, updated_by, updated_at) VALUES ('default', 'contractor-empty', '1', 'sha256:80a1754c01f8443c29fdc8f650a2254b2461694819918b204a55a7ad3425dc5f', 1, 'contractor-bootstrap', '1970-01-01 00:00:00+00', 'contractor-bootstrap', '1970-01-01 00:00:00+00');
+INSERT INTO scheduler_settings (singleton, max_concurrent_runs, revision, max_concurrent_tool_runs) VALUES (true, 1, 1, 2);
 
 RESET check_function_bodies;

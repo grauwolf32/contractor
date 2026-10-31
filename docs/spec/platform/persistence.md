@@ -640,6 +640,14 @@ or deleted. A later migration that redefines a function with `CREATE OR
 REPLACE` is a successive schema version, not a duplicate to remove: the
 installed schema holds one current definition.
 
+The user-authorized pre-production fold on 2026-10-31 replaces the previous
+baseline and versions 000002–000065 with one current baseline. Its installed
+catalog and initial rows equal those of the complete retired chain. Existing
+ledgers are not rewritten or accepted: they fail the same drift check and the
+operator must recreate such a database. There is no compatibility reader or
+upgrade path for the retired chain. This one-time fold does not relax
+immutability for subsequent migrations.
+
 **PER-R31.** The migration budget is the operation budget (PER-R19) of the
 migrator's transaction. The operator chooses it for each run, with
 `--statement-timeout` and `--lock-timeout` or with
@@ -756,7 +764,10 @@ less than its call deadline and a run far less than the run deadline, so
 neither could fail it, and the deadlines have their own test (invariant 26). A test that measures a file near the default
 budget applies it through a pool opened as the migrator opens it. Like
 PER-R32, this requirement is checked when the migration is written and
-reviewed (AGENTS.md section 6, Go server), not by a gate.
+reviewed (AGENTS.md section 6, Go server), not by a gate. Upgrade tests of
+the retired pre-production chain in PER-R30 are removed with that chain;
+current-schema and migrator protocol tests remain. Any later data-moving
+migration again requires its own upgrade test.
 
 Rationale: one transaction keeps every database at one complete schema
 version, so the ledger is the only record a run or the Server's startup check
@@ -1483,18 +1494,13 @@ outlasts its retries is the retryable `503 storage_transaction_conflict`
     (PER-R31, PER-R32); test
     `TestEmbeddedMigrationsStayInsideTheMigrationTransaction` in
     [`internal/persistence/postgres/migrate_test.go`](../../../internal/persistence/postgres/migrate_test.go).
-27. Upgraded data keeps the rules of its data-moving migrations (PER-R33).
-    After the revision-count backfill every RunScope counts exactly its
-    revisions outside outputs, User and Project scopes count none, later
-    writes keep counting and stop at LIM-ART-6, and the purge removes the
-    counter with its scope; test
-    `TestPostgresRunArtifactRevisionLimitMigrationBackfillsRunScopes` in
-    [`internal/persistence/postgres/run_artifact_revision_limit_migration_test.go`](../../../internal/persistence/postgres/run_artifact_revision_limit_migration_test.go).
-    After the controller claim shape migration every Eval claim is free at
-    its previous epoch, no pre-upgrade lease proves a write and the next
-    lease advances the epoch (PER-R25); test
-    `TestPostgresControllerClaimShapeMigrationReleasesEvalLeases` in
-    [`internal/persistence/postgres/controller_claim_shape_migration_test.go`](../../../internal/persistence/postgres/controller_claim_shape_migration_test.go).
+27. A fresh database obtains the current schema and initial rows from the
+    folded baseline (PER-R30). Real PostgreSQL tests exercise creation,
+    replay, ledger verification and current constraints in
+    `TestPostgresIntegrationMigrationsAndConstraints`; subsequent data-moving
+    migrations require real-store upgrade tests under PER-R33. The baseline
+    preserves domain validators, retention counters and claim fencing; their
+    current-schema repository tests remain independent of retired versions.
 28. A lease proof holds only for its own live lease session: it fails once
     that session ended, while another session holds the lease and for a
     backend that reuses the session's process ID. The handover is granted

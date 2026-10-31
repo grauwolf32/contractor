@@ -11,15 +11,10 @@ import (
 	"time"
 )
 
-// A migration run applies every pending migration and its ledger row in one
-// transaction under the budget the operator chose (PER-R29, PER-R31). A
-// reader of eval_controller_claims keeps a later pending migration
-// (controller_claim_shape) from locking the table within the selected lock
-// timeout: the run fails as a timeout, and the migrations it had already
-// applied, run_artifact_revision_limit among them, roll back with it, so the
-// ledger and the schema stay at the version the run started from. A drifted ledger is refused without
-// running anything; once the reader is gone and the ledger matches, the next
-// run applies the same migrations.
+// Pending files and ledger rows commit in one transaction (PER-R29, PER-R31).
+// Synthetic versions keep this protocol independent of the current baseline:
+// a reader blocks the last file after an earlier pending file ran, so both
+// pending files must roll back. Drift refuses the same run before any DDL.
 func TestPostgresMigrationRunCommitsEveryPendingMigrationOrNone(t *testing.T) {
 	url := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
 	if url == "" {
@@ -28,80 +23,63 @@ func TestPostgresMigrationRunCommitsEveryPendingMigrationOrNone(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
 	defer cancel()
 	pool, other := isolatedPools(t, ctx, url)
-	start, _ := embeddedMigration(t, "run_artifact_revision_limit")
-	if blocked, _ := embeddedMigration(t, "controller_claim_shape"); blocked <= start {
-		t.Fatal("controller_claim_shape does not follow run_artifact_revision_limit")
+	available := []migration{}
+	for i, sql := range []string{
+		"CREATE TABLE migration_fixture (id integer PRIMARY KEY);",
+		"CREATE TABLE migration_marker (id integer);",
+		"ALTER TABLE migration_fixture ADD COLUMN value text;",
+	} {
+		contents := []byte(sql)
+		available = append(available, migration{version: int64(i + 1), name: fmt.Sprintf("%06d_fixture.sql", i+1), contents: contents, checksum: sha256.Sum256(contents)})
 	}
-	installMigrationPrefix(t, ctx, pool, start)
-	available, err := loadMigrations()
-	if err != nil {
+	if _, err := applyMigrations(ctx, pool, MigrationBudgets{}, available[:1]); err != nil {
 		t.Fatal(err)
-	}
-	var startChecksum []byte
-	for _, item := range available {
-		if item.version == start {
-			startChecksum = item.checksum[:]
-		}
 	}
 	reader, err := other.Begin(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer reader.Rollback(context.Background())
-	if _, err := reader.Exec(ctx, `LOCK TABLE eval_controller_claims IN ACCESS SHARE MODE`); err != nil {
+	if _, err := reader.Exec(ctx, `LOCK TABLE migration_fixture IN ACCESS SHARE MODE`); err != nil {
 		t.Fatal(err)
 	}
-
-	_, err = ApplyMigrations(ctx, pool, MigrationBudgets{StatementTimeout: 30 * time.Second, LockTimeout: 200 * time.Millisecond})
-	if Classify(err) != ClassTimeout || !strings.Contains(err.Error(), "_controller_claim_shape.sql") {
-		t.Fatalf("run blocked by a reader = %v, want the lock timeout of controller_claim_shape", err)
+	_, err = applyMigrations(ctx, pool, MigrationBudgets{StatementTimeout: 30 * time.Second, LockTimeout: 200 * time.Millisecond}, available)
+	if Classify(err) != ClassTimeout || !strings.Contains(err.Error(), "000003_fixture.sql") {
+		t.Fatalf("blocked run=%v, want lock timeout of the last file", err)
 	}
-	version := func() (int64, bool) {
+	state := func(wantVersion int64, wantMarker bool) {
 		t.Helper()
 		var latest int64
-		var counted bool
-		if err := pool.QueryRow(ctx, `
-SELECT (SELECT max(version) FROM contractor_schema_migrations),
-       EXISTS (SELECT 1 FROM information_schema.columns
-                WHERE table_schema = current_schema() AND table_name = 'artifact_scopes'
-                  AND column_name = 'revision_count')`).Scan(&latest, &counted); err != nil {
+		var marker bool
+		if err := pool.QueryRow(ctx, `SELECT (SELECT max(version) FROM contractor_schema_migrations), to_regclass('migration_marker') IS NOT NULL`).Scan(&latest, &marker); err != nil {
 			t.Fatal(err)
 		}
-		return latest, counted
+		if latest != wantVersion || marker != wantMarker {
+			t.Fatalf("ledger=%d marker=%t, want %d/%t", latest, marker, wantVersion, wantMarker)
+		}
 	}
-	// run_artifact_revision_limit adds artifact_scopes.revision_count; it ran
-	// before controller_claim_shape failed.
-	if latest, counted := version(); latest != start || counted {
-		t.Fatalf("after the failed run: ledger at %d, revision counter present %t; want %d and absent", latest, counted, start)
-	}
-
+	state(1, false)
 	if err := reader.Rollback(ctx); err != nil {
 		t.Fatal(err)
 	}
-	// A ledger row that no longer matches its embedded file is drift: the
-	// run refuses it before any pending migration runs (PER-R30).
-	if _, err := pool.Exec(ctx, `UPDATE contractor_schema_migrations SET checksum = sha256(checksum) WHERE version = $1`, start); err != nil {
+	if _, err := pool.Exec(ctx, `UPDATE contractor_schema_migrations SET checksum=sha256(checksum) WHERE version=1`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := ApplyMigrations(ctx, pool, MigrationBudgets{}); !errors.Is(err, ErrMigrationDrift) {
-		t.Fatalf("run on a drifted ledger = %v, want migration drift", err)
+	if _, err := applyMigrations(ctx, pool, MigrationBudgets{}, available); !errors.Is(err, ErrMigrationDrift) {
+		t.Fatalf("drifted run=%v", err)
 	}
-	if latest, counted := version(); latest != start || counted {
-		t.Fatalf("after the refused run: ledger at %d, revision counter present %t; want %d and absent", latest, counted, start)
-	}
-	if _, err := pool.Exec(ctx, `UPDATE contractor_schema_migrations SET checksum = $1 WHERE version = $2`, startChecksum, start); err != nil {
+	state(1, false)
+	if _, err := pool.Exec(ctx, `UPDATE contractor_schema_migrations SET checksum=$1 WHERE version=1`, available[0].checksum[:]); err != nil {
 		t.Fatal(err)
 	}
-	result, err := ApplyMigrations(ctx, pool, MigrationBudgets{})
-	if err != nil {
-		t.Fatalf("run after the reader left: %v", err)
+	result, err := applyMigrations(ctx, pool, MigrationBudgets{}, available)
+	if err != nil || result.CurrentVersion != 3 || len(result.AppliedVersions) != 2 || result.AppliedVersions[0] != 2 || result.AppliedVersions[1] != 3 {
+		t.Fatalf("retry=%+v, %v", result, err)
 	}
-	last := available[len(available)-1].version
-	if len(result.AppliedVersions) == 0 || result.AppliedVersions[0] != start+1 || result.CurrentVersion != last {
-		t.Fatalf("run after the reader left = %+v, want versions %d to %d", result, start+1, last)
-	}
-	if latest, counted := version(); latest != last || !counted {
-		t.Fatalf("after the second run: ledger at %d, revision counter present %t", latest, counted)
+	state(3, true)
+	var column bool
+	if err := pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='migration_fixture' AND column_name='value')`).Scan(&column); err != nil || !column {
+		t.Fatalf("last file missing after retry: column=%t, %v", column, err)
 	}
 }
 

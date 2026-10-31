@@ -50,6 +50,15 @@ context:
     current; configs/workflows/project_analysis.yaml and tests/e2e/audit_preparation_test.go do not
     exist. The shipped catalog may change in place before the first release (CAT-R74), and tests
     must use testdata fixtures rather than configs/.
+  baseline_fold: >-
+    User decision on 2026-10-31 (V428-001): the previous baseline and
+    migrations 000002-000065 are replaced by one current 000001_baseline.sql.
+    Migration numbers and file/line references in the dated revalidation
+    above describe the retired chain. On explicit reactivation, inspect the
+    current baseline and choose the next free migration number from the
+    directory; keep PER-R33 upgrade coverage for any new data-moving change.
+    This maintenance note does not reactivate the deferred task or alter its
+    scope or deferral conditions.
 scope:
   in:
     - Add project-analysis@1 with source ZIP input and required dependency_report/project_report Markdown outputs using existing workspace analysis capabilities.

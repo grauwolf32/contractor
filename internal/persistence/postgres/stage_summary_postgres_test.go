@@ -3,23 +3,20 @@ package postgres
 import (
 	"encoding/json"
 	"os"
-	"slices"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
-func TestPostgresSummaryMigrationConstrainsVariantsAndOrdinalRoots(t *testing.T) {
+func TestPostgresSummaryConstraintsAndOrdinalRoots(t *testing.T) {
 	url := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
 	if url == "" {
 		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
 	}
 	ctx := t.Context()
 	pool, _ := isolatedPools(t, ctx, url)
-	installMigrationPrefix(t, ctx, pool, 15)
-	result, err := ApplyMigrations(ctx, pool, MigrationBudgets{})
-	if err != nil || !slices.Contains(result.AppliedVersions, 16) {
-		t.Fatalf("summary migration: %+v %v", result, err)
+	if _, err := ApplyMigrations(ctx, pool, MigrationBudgets{}); err != nil {
+		t.Fatal(err)
 	}
 	// LIKE copies the actual migrated CHECK definitions, without unrelated
 	// FK/lifecycle triggers. The ordinal predicate comes from the real index.
