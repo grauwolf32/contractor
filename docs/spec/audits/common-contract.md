@@ -56,7 +56,10 @@ before returning any canonical document. The closed rejection is
 
 **ACT-R2.** The real configuration Snapshot resolves every selected exact
 Workflow and validates required/unknown input and parameter slots, required
-outputs and compatible canonical media types. An input mapping selects an
+outputs and compatible canonical media types. The same catalog checks apply to
+each effective initial-task input after selected-material overrides: a required
+Workflow slot must select a required Audit input; optional Workflow slots may
+select optional inputs. An input mapping selects an
 explicit Audit material, trusted task context or prior-results JSON; no arbitrary
 object paths, per-provider parsing, second Workflow graph or automatic
 cross-Workflow dependencies are interpreted by this validator. Workflow closures
