@@ -1,0 +1,50 @@
+schema_version: "1.0"
+id: V425-027
+title: Consolidate schema-isolated PostgreSQL test pool setup
+milestone: hub-audit-defects-2026-10
+epic: quality
+kind: chore
+introduced_by: V38-004
+priority: P3
+status: in_progress
+depends_on: []
+languages: [go]
+goal: Remove repeated PostgreSQL test setup while preserving real-store isolation and each suite's explicit settings.
+context:
+  authority: "User decision 2026-10-31: preserve the Server reduction research in .local and implement its first item, a shared PostgreSQL test harness."
+  finding: >-
+    internal/evalstore/postgres_test.go:25 and internal/evalservice/service_postgres_test.go:1258
+    repeat schema creation, pool configuration and cleanup. Equivalent helpers recur across internal/.
+    git log -S traces the Eval copies to V38-003 (d4c4e8854d73fe44f52c8b3f6d461cfc56dcbcc1)
+    and V38-004 (859cc500f829fb88051cc6e47036ba5c43543b8a).
+  boundary: >-
+    A dependency-light postgrestest package owns random schema creation, search_path, verified
+    connections and reverse-order cleanup. Callers retain migrations, fixtures, tracers, budgets,
+    dense Audit event checks and production pool configuration tests. A callback configures the
+    isolated work pool; its search_path remains owned by the helper. No migration framework,
+    new dependency or fake persistence is introduced. Specialized multi-pool, production OpenPool
+    and startup/migration fixtures remain local where their setup is the behavior under test.
+  related: V425-013 retains wall-clock and listener-budget work; its Eval pool consolidation moves here.
+scope:
+  in:
+    - One shared schema-isolated pgx pool helper, classified in the architecture layer table.
+    - Migrate equivalent single-pool helpers across internal/, preserving explicit caller configuration and migrations.
+    - Real PostgreSQL tests for independent schemas, caller configuration and cleanup after cancellation.
+    - Record remaining specialized fixtures and net code reduction.
+  out:
+    - Production Server behavior, SQL contracts, migrations or database business data.
+    - Wall-clock and listener fixes owned by V425-013; research items 2 through 6.
+acceptance_criteria:
+  - id: A1
+    text: Equivalent single-pool schema setup uses one helper and the change removes more handwritten Go than it adds.
+  - id: A2
+    text: A missing test URL skips, a configured unreachable URL fails, isolated schemas do not share rows, and cleanup runs after cancellation and setup failures.
+  - id: A3
+    text: Caller-specific pool settings, tracers, migrations and Audit event cleanup checks remain explicit; specialized fixtures are documented.
+  - id: A4
+    text: Full suites of every changed Go package and make lint pass, with real PostgreSQL exercised rather than skipped.
+tests:
+  - command: CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -tags=integration -count=1 -p=2 ./internal/...
+    covers: [A1, A2, A3, A4]
+  - command: make lint
+    covers: [A1, A3, A4]
