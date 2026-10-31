@@ -3,6 +3,7 @@ package pgstore
 import (
 	"context"
 	"fmt"
+	"github.com/jackc/pgx/v5"
 )
 
 // LockRunDeletionAudits locks FOR UPDATE, in audit_id order, the owner's
@@ -18,16 +19,8 @@ func (s *RunDeletionTx) LockRunDeletionAudits(
 	if err != nil {
 		return nil, fmt.Errorf("lock deleted WorkflowRun %q Audit projections: %w", runID, err)
 	}
-	defer rows.Close()
-	ids := make([]string, 0)
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			return nil, fmt.Errorf("read deleted WorkflowRun %q Audit identity: %w", runID, err)
-		}
-		ids = append(ids, id)
-	}
-	if err := rows.Err(); err != nil {
+	ids, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	if err != nil {
 		return nil, fmt.Errorf("read deleted WorkflowRun %q Audit identities: %w", runID, err)
 	}
 	return ids, nil

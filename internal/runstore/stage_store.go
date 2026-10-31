@@ -102,16 +102,10 @@ ORDER BY pending.next_attempt_at, execution.stage_execution_id`, terminalRelease
 	if err != nil {
 		return nil, fmt.Errorf("list terminal StageExecutions with allocations: %w", err)
 	}
-	defer rows.Close()
-	result := make([]StageExecution, 0)
-	for rows.Next() {
-		execution, err := scanStageExecution(rows)
-		if err != nil {
-			return nil, fmt.Errorf("scan terminal StageExecution with allocations: %w", err)
-		}
-		result = append(result, execution)
-	}
-	if err := rows.Err(); err != nil {
+	result, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (StageExecution, error) {
+		return scanStageExecution(row)
+	})
+	if err != nil {
 		return nil, fmt.Errorf("iterate terminal StageExecutions with allocations: %w", err)
 	}
 	return result, nil
@@ -131,16 +125,10 @@ func (s *PostgresStore) GetActiveStageExecution(ctx context.Context, runID strin
 	if err != nil {
 		return StageExecution{}, fmt.Errorf("get active StageExecution of WorkflowRun %q: %w", runID, err)
 	}
-	defer rows.Close()
-	var active []StageExecution
-	for rows.Next() {
-		execution, scanErr := scanStageExecution(rows)
-		if scanErr != nil {
-			return StageExecution{}, fmt.Errorf("scan active StageExecution of WorkflowRun %q: %w", runID, scanErr)
-		}
-		active = append(active, execution)
-	}
-	if err := rows.Err(); err != nil {
+	active, err := pgx.AppendRows([]StageExecution(nil), rows, func(row pgx.CollectableRow) (StageExecution, error) {
+		return scanStageExecution(row)
+	})
+	if err != nil {
 		return StageExecution{}, fmt.Errorf("iterate active StageExecutions of WorkflowRun %q: %w", runID, err)
 	}
 	switch len(active) {
@@ -166,16 +154,10 @@ func (s *PostgresStore) ListStageExecutionsWithUnreleasedAllocations(
 	if err != nil {
 		return nil, fmt.Errorf("list StageExecutions with unreleased allocations for WorkflowRun %q: %w", runID, err)
 	}
-	defer rows.Close()
-	var result []StageExecution
-	for rows.Next() {
-		execution, scanErr := scanStageExecution(rows)
-		if scanErr != nil {
-			return nil, fmt.Errorf("scan StageExecution with unreleased allocations for WorkflowRun %q: %w", runID, scanErr)
-		}
-		result = append(result, execution)
-	}
-	if err := rows.Err(); err != nil {
+	result, err := pgx.AppendRows([]StageExecution(nil), rows, func(row pgx.CollectableRow) (StageExecution, error) {
+		return scanStageExecution(row)
+	})
+	if err != nil {
 		return nil, fmt.Errorf("iterate StageExecutions with unreleased allocations for WorkflowRun %q: %w", runID, err)
 	}
 	return result, nil
@@ -237,16 +219,10 @@ func (s *PostgresStore) ListStageExecutions(ctx context.Context, runID string) (
 	if err != nil {
 		return nil, fmt.Errorf("list StageExecutions for WorkflowRun %q: %w", runID, err)
 	}
-	defer rows.Close()
-	var result []StageExecution
-	for rows.Next() {
-		execution, scanErr := scanStageExecution(rows)
-		if scanErr != nil {
-			return nil, fmt.Errorf("scan StageExecution for WorkflowRun %q: %w", runID, scanErr)
-		}
-		result = append(result, execution)
-	}
-	if err := rows.Err(); err != nil {
+	result, err := pgx.AppendRows([]StageExecution(nil), rows, func(row pgx.CollectableRow) (StageExecution, error) {
+		return scanStageExecution(row)
+	})
+	if err != nil {
 		return nil, fmt.Errorf("iterate StageExecutions for WorkflowRun %q: %w", runID, err)
 	}
 	return result, nil

@@ -51,16 +51,10 @@ func (s *QueryStore) ListReviews(
 	if err != nil {
 		return nil, fmt.Errorf("list Audit reviews: %w", err)
 	}
-	defer rows.Close()
-	result := make([]auditstore.ReviewRequest, 0, params.Limit)
-	for rows.Next() {
-		request, scanErr := scanReviewRequest(rows)
-		if scanErr != nil {
-			return nil, scanErr
-		}
-		result = append(result, request)
-	}
-	if err := rows.Err(); err != nil {
+	result, err := pgx.AppendRows(make([]auditstore.ReviewRequest, 0, params.Limit), rows, func(row pgx.CollectableRow) (auditstore.ReviewRequest, error) {
+		return scanReviewRequest(row)
+	})
+	if err != nil {
 		return nil, err
 	}
 	rows.Close()

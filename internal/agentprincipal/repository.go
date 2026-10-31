@@ -65,16 +65,10 @@ LIMIT $2`, afterRuntimeAgentID, limit)
 	if err != nil {
 		return nil, persistencepostgres.WrapError("list Runtime Agent principals", err)
 	}
-	defer rows.Close()
-	result := make([]Principal, 0, limit)
-	for rows.Next() {
-		principal, scanErr := scanPrincipal(rows)
-		if scanErr != nil {
-			return nil, scanErr
-		}
-		result = append(result, principal)
-	}
-	if err := rows.Err(); err != nil {
+	result, err := pgx.AppendRows(make([]Principal, 0, limit), rows, func(row pgx.CollectableRow) (Principal, error) {
+		return scanPrincipal(row)
+	})
+	if err != nil {
 		return nil, persistencepostgres.WrapError("iterate Runtime Agent principals", err)
 	}
 	return result, nil
@@ -113,16 +107,10 @@ ORDER BY runtime_agent_id`, label)
 	if err != nil {
 		return nil, persistencepostgres.WrapError("list Runtime Agent principals by label", err)
 	}
-	defer rows.Close()
-	result := make([]Principal, 0)
-	for rows.Next() {
-		principal, scanErr := scanPrincipal(rows)
-		if scanErr != nil {
-			return nil, scanErr
-		}
-		result = append(result, principal)
-	}
-	if err := rows.Err(); err != nil {
+	result, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (Principal, error) {
+		return scanPrincipal(row)
+	})
+	if err != nil {
 		return nil, persistencepostgres.WrapError("iterate Runtime Agent principals by label", err)
 	}
 	return result, nil
@@ -152,15 +140,10 @@ func (r *Repository) LockMany(ctx context.Context, runtimeAgentIDs []string) ([]
 	if err != nil {
 		return nil, persistencepostgres.WrapError("lock Runtime Agent principals", err)
 	}
-	defer rows.Close()
-	for rows.Next() {
-		principal, scanErr := scanPrincipal(rows)
-		if scanErr != nil {
-			return nil, scanErr
-		}
-		result = append(result, principal)
-	}
-	if err := rows.Err(); err != nil {
+	result, err = pgx.AppendRows(result, rows, func(row pgx.CollectableRow) (Principal, error) {
+		return scanPrincipal(row)
+	})
+	if err != nil {
 		return nil, persistencepostgres.WrapError("lock Runtime Agent principals", err)
 	}
 	if len(result) != len(ordered) {
