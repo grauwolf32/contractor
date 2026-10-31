@@ -6,7 +6,7 @@ epic: ui
 kind: chore
 introduced_by: V425-008
 priority: P1
-status: in_progress
+status: completed
 depends_on: [V425-008]
 languages: [typescript]
 goal: The real Node 24 browser gate discovers and executes its tests after shared error retryability generation.
@@ -43,3 +43,9 @@ tests:
     covers: [A2]
   - command: make lint
     covers: [A1, A2]
+
+implementation_commit: f550bf2c6617add8310e22e9295281a384257185
+verification:
+  - Mocked browser gate ran and passed all 113 tests across 23 specs under Node 24.20.
+  - The complete responses helper suite passed 2 tests; UI typecheck passed.
+  - make lint passed on the integrated tree, including registered error-code and fixture checks.
