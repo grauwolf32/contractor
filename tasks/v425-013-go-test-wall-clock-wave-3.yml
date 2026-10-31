@@ -32,6 +32,8 @@ context:
     state drive the listed scenarios. Use a deterministic synctest preflight
     for cancellation renewal lifetime before its real-store lease proof, and
     monitor outcome events before asserting failed release gates are gone.
+    A failed attempt is acknowledged before firing the next poll, so the
+    test cannot race the monitor's in-flight accounting.
     Migration leader progress is observed through PostgreSQL query_start with
     a short DDL lock budget, replacing the fixed 11-second pause. LISTEN uses
     a pool with short server timeouts and generous clients; its tracer verifies

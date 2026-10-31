@@ -400,6 +400,19 @@ func (f pacedTerminalRelease) attempted(t *testing.T, ctx context.Context) map[s
 	return attempted
 }
 
+// requireOperationsEnded checks gates only after the monitor acknowledged
+// the corresponding outcomes, so a retained gate fails without polling.
+func (f pacedTerminalRelease) requireOperationsEnded(t *testing.T, ids ...string) {
+	t.Helper()
+	f.h.scheduler.releaseMu.Lock()
+	defer f.h.scheduler.releaseMu.Unlock()
+	for _, id := range ids {
+		if _, held := f.h.scheduler.releasing[id]; held {
+			t.Fatalf("completed recovery retained gate %s", id)
+		}
+	}
+}
+
 // The monitor reports a failed recovery only after recoverTerminalStage has
 // returned and released its gate. These events replace polling releaseMu.
 type releaseFailureHandler struct{ failed chan struct{} }
@@ -540,6 +553,8 @@ func TestPostgresTerminalReleaseRecoveryRotatesFailuresBehindUnattemptedStages(t
 	if id := receiveStage(t, f.paced.returned, "Runtime conflict"); id != conflict {
 		t.Fatalf("first Runtime answer from %s, want the conflict of %s", id, conflict)
 	}
+	awaitValue(t, t.Context(), f.failed, "first failed recovery outcome")
+	f.requireOperationsEnded(t, conflict)
 	// Nothing lists again before the poll: the failure is not useful work.
 	attempted := f.attempted(t, ctx)
 	if f.paced.callCount(healthy) != 0 || f.paced.callCount(lost) != 0 || attempted[healthy] || attempted[lost] {
@@ -569,18 +584,12 @@ func TestPostgresTerminalReleaseRecoveryRotatesFailuresBehindUnattemptedStages(t
 	}
 
 	f.paced.finish(timedOut, context.DeadlineExceeded)
-	// Two conflict attempts and the injected cleanup timeout have ended.
-	// At this event boundary a retained gate is an immediate failure.
-	for range 3 {
+	// The conflict retry and injected cleanup timeout have ended. The
+	// initial conflict was acknowledged before its retry above.
+	for range 2 {
 		awaitValue(t, t.Context(), f.failed, "failed recovery outcome")
 	}
-	f.h.scheduler.releaseMu.Lock()
-	_, timeoutHeld := f.h.scheduler.releasing[timedOut]
-	_, conflictHeld := f.h.scheduler.releasing[conflict]
-	f.h.scheduler.releaseMu.Unlock()
-	if timeoutHeld || conflictHeld {
-		t.Fatalf("completed failures retained their gates: timeout=%t conflict=%t", timeoutHeld, conflictHeld)
-	}
+	f.requireOperationsEnded(t, timedOut, conflict)
 	requireUnreleasedAllocations(t, ctx, f.h, f.allocations, conflict, timedOut, slowA, slowB)
 	if !f.paced.isLive(f.allocations[timedOut]) {
 		t.Fatal("release past its cleanup deadline lost its grant")
