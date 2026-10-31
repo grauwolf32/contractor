@@ -1497,3 +1497,8 @@ states. Navigation carries a validated read descriptor, never a browser-storage
 snapshot of business records. Direct or unsupported origins show ordinary Run
 detail without an invented list. Mobile uses the existing back-to-source and
 focus behavior, retaining router return state.
+
+**UI-R220.** Available Run outputs use a concise visible `details` link while
+retaining their exact Artifact destination and an accessible name identifying
+the output revision. On narrow cards Preview and download form a separate row
+below metadata badges; desktop actions remain beside the output title.

@@ -1,6 +1,9 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { runRuntimeConfiguration } from "../src/test/builders-execution";
+import {
+  runRuntimeConfiguration,
+  workflowResource,
+} from "../src/test/builders-execution";
 import {
   fulfillEmptyPageOrNotFound,
   fulfillJSON,
@@ -12,6 +15,21 @@ const LONG_REVISION = `rev_${"a".repeat(64)}`;
 
 async function installRunAPI(page: Page): Promise<void> {
   await mockAPI(page, async (route, _request, url) => {
+    if (url.pathname === "/v1/workflows/responsive-layout/versions/1") {
+      await fulfillJSON(
+        route,
+        workflowResource("responsive-layout", "1", {
+          outputs: {
+            validation_report: {
+              required: true,
+              primary: true,
+              mediaTypes: ["text/markdown"],
+            },
+          },
+        }),
+      );
+      return;
+    }
     if (url.pathname === `/v1/runs/${RUN_ID}`) {
       await fulfillJSON(route, {
         runId: RUN_ID,
@@ -478,6 +496,31 @@ for (const theme of ["light", "dark", "black"] as const) {
         card.getByRole("button", { name: /Download/ }),
       ).toBeVisible();
       expect(artifactReads).toBe(0);
+      const details = card.locator(".run-output-detail-link");
+      if (width <= 390) {
+        const actionLines = await card.evaluate((node) => {
+          const actions = node.querySelector(".runs-result-actions")!;
+          const badges = Array.from(
+            actions.querySelectorAll(".ui-status-chip"),
+          );
+          const preview = Array.from(actions.querySelectorAll("button")).find(
+            (button) => button.textContent?.includes("Preview"),
+          )!;
+          return {
+            badgeCount: badges.length,
+            previewTop: preview.getBoundingClientRect().top,
+            badgesBottom: Math.max(
+              ...badges.map((badge) => badge.getBoundingClientRect().bottom),
+            ),
+          };
+        });
+        expect(actionLines.badgeCount).toBeGreaterThan(0);
+        expect(actionLines.previewTop).toBeGreaterThan(
+          actionLines.badgesBottom,
+        );
+      }
+      await expect(details).toHaveText("details");
+      await expect(details).toHaveAttribute("href", /\?revision=/);
       const fonts = await page.evaluate(() => ({
         base: getComputedStyle(document.body).fontFamily,
         heading: getComputedStyle(document.querySelector("h1")!).fontFamily,

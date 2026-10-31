@@ -95,35 +95,38 @@ function RunOutputPreview({
               {entry.declaration.mediaTypes.join(" / ")}
             </StatusChip>
           ) : null}
-          {requested ? null : (
-            <Button
+          <div className="runs-result-buttons">
+            {requested ? null : (
+              <Button
+                size="sm"
+                variant={primary ? "primary" : undefined}
+                onClick={requestPreview}
+                icon={<Icon name="arrow-right" size={15} />}
+              >
+                Preview
+              </Button>
+            )}
+            <IconButton
               size="sm"
-              variant={primary ? "primary" : undefined}
-              onClick={requestPreview}
-              icon={<Icon name="arrow-right" size={15} />}
-            >
-              Preview
-            </Button>
-          )}
-          <IconButton
-            size="sm"
-            label={
-              download.isPending
-                ? `Downloading ${entry.slot}…`
-                : `Download ${entry.slot}`
-            }
-            pending={download.isPending}
-            icon={<Icon name="download" />}
-            onClick={() => download.mutate()}
-          />
+              label={
+                download.isPending
+                  ? `Downloading ${entry.slot}…`
+                  : `Download ${entry.slot}`
+              }
+              pending={download.isPending}
+              icon={<Icon name="download" />}
+              onClick={() => download.mutate()}
+            />
+          </div>
         </div>
       </div>
       <ContextLink
         returnLabel="Run results"
         className="run-output-detail-link runs-result-link"
+        aria-label={`Open ${exactRef} details`}
         to={detailPath}
       >
-        Open {exactRef} details →
+        details
       </ContextLink>
       {download.error === null ? null : (
         <ErrorNotice
