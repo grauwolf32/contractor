@@ -178,9 +178,10 @@ paths:
     migration.
 - prefix: api/audit-dependencies/
   action: replace
-  owner: V64-004
-  facts: Use ordinary exact selected dependencies and grants; retain source lineage without rewriting
-    refs.
+  owner: V64-010
+  facts: Retire the old item dependency format after its actual consumers migrate. V64-004 supplies
+    per-artifact exact forks only; the concrete SMT snapshot/original-input case remains domain-owned
+    in V410-025, without a replacement universal dependency manifest.
 - prefix: api/audit-priority/
   action: preserve
   owner: V64-010
