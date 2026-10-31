@@ -5,7 +5,7 @@ milestone: hub-audit-defects-2026-10
 epic: quality
 kind: chore
 priority: P3
-status: in_progress
+status: completed
 depends_on: [V425-027]
 languages: [go]
 goal: Delete repeated row iteration and cleanup without changing SQL, domain validation or public read behavior.
@@ -68,3 +68,10 @@ implementation_notes:
     cancellation identity and reuse of a one-connection pool. Stage read regressions hold
     nil history/unreleased lists and the non-nil empty terminal-recovery list to their
     existing shapes. No API, schema, dependency or transaction boundary changed.
+implementation_commit: c0080a267720f4dd7ca2129df78376a28a43a5d4
+verification: >-
+  The complete integration-tagged suites of all ten changed owner packages passed
+  with the dedicated PostgreSQL 17 TCP database configured. The focused new Project
+  and Stage collection regressions also passed. make lint passed. Existing SQL,
+  imports between internal packages, limits and row-decoder implementations remain
+  unchanged. The implementation is on codex/pgx-collect-rows and is not merged.
