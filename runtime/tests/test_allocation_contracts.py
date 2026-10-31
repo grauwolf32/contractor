@@ -54,8 +54,7 @@ def test_omitted_summarizer_is_absent_and_behaviorally_disabled() -> None:
         lambda value: value["modelPolicy"].__setitem__("maxToolCalls", 1),
         lambda value: value["modelPolicy"].__setitem__("maxWorkerCalls", 1),
         lambda value: value.__setitem__("unknown", True),
-        # Omission is the only false (TPL-R47); aliases are unknown members.
-        lambda value: value.__setitem__("includeReasoning", False),
+        lambda value: value.pop("includeReasoning"),
         lambda value: value.__setitem__("includeReasoning", None),
         lambda value: value.__setitem__("includeReasoning", "true"),
         lambda value: value.__setitem__("includeReasoning", 1),
@@ -124,7 +123,7 @@ def test_shared_summary_instruction_golden_and_digest_tampering() -> None:
         verify_template_digests(template)
 
 
-def test_shared_include_reasoning_is_true_or_omitted_and_digested() -> None:
+def test_shared_include_reasoning_is_explicit_and_digested() -> None:
     enabled_raw = (FIXTURES / "allocation-spec-summarizer-instructions.json").read_text(
         encoding="utf-8"
     )
@@ -134,14 +133,15 @@ def test_shared_include_reasoning_is_true_or_omitted_and_digested() -> None:
     assert enabled.summarizer is not None and enabled.summarizer.include_reasoning is True
     assert disabled.summarizer is not None and disabled.summarizer.include_reasoning is False
     assert enabled.summarizer.model_dump(by_alias=True)["includeReasoning"] is True
-    assert "includeReasoning" not in disabled.summarizer.model_dump(by_alias=True)
+    assert disabled.summarizer.model_dump(by_alias=True)["includeReasoning"] is False
     verify_template_digests(enabled)
     verify_template_digests(disabled)
 
-    # The member is part of the AgentTemplate digest manifest when true.
-    enabled.summarizer.include_reasoning = False
-    with pytest.raises(TemplateDigestMismatch, match="AgentTemplate"):
-        verify_template_digests(enabled)
+    # Both values are part of the exact AgentTemplate digest manifest.
+    for template in (enabled, disabled):
+        template.summarizer.include_reasoning = not template.summarizer.include_reasoning
+        with pytest.raises(TemplateDigestMismatch, match="AgentTemplate"):
+            verify_template_digests(template)
 
 
 @pytest.mark.parametrize(

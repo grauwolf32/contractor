@@ -21,7 +21,7 @@
       "temperature": 0.1
     },
     "ref": {
-      "digest": "sha256:10c32aaa7f78adc3c42e0041e11d4b738e4bb5e769ae2da1a7fe1158dfd56c05",
+      "digest": "sha256:48a3217a6514e971c1e7b2d5915ec6fff43318b6c1abcd0ed43dff2d5bca9f48",
       "templateId": "summarizer_enabled_worker",
       "version": "1"
     },
@@ -47,7 +47,8 @@
           "version": "1"
         },
         "temperature": 0.1
-      }
+      },
+      "includeReasoning": false
     },
     "toolsets": [
       {
@@ -151,7 +152,9 @@
   },
   "stageExecutionId": "019c-stage-summarizer",
   "workerSessionMode": "isolated",
-  "contextManagement": {"strategy": "terminal@1"},
+  "contextManagement": {
+    "strategy": "terminal@1"
+  },
   "summarizerModelPolicy": {
     "contextWindowTokens": 65536,
     "maxModelCalls": 2,

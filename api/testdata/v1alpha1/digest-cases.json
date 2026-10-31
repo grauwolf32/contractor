@@ -284,7 +284,7 @@
         "temperature": 0.1
       },
       "ref": {
-        "digest": "sha256:03a249ff27bcea328018253cb1c3dfea0c2512f82bce1fe0c24705db8c2cbc66",
+        "digest": "sha256:e587b6825c433cf4a9def33d514a238f6a27892b910b84daec038a8c816bf4ac",
         "templateId": "summarizer_enabled_worker",
         "version": "1"
       },
@@ -315,7 +315,8 @@
             "version": "1"
           },
           "temperature": 0.1
-        }
+        },
+        "includeReasoning": false
       },
       "toolsets": [
         {
@@ -353,7 +354,7 @@
       "ref": {
         "templateId": "unicode_worker",
         "version": "1",
-        "digest": "sha256:13647dfae43a82105df16d5c82b59b79557951492660a3cff1af83f350100be4"
+        "digest": "sha256:717d76f6c4d5f759826c8282250f9d7e81634f8edc08e061508d263291a73f27"
       },
       "runtime": {
         "runtimeId": "adk",
@@ -382,7 +383,8 @@
             "version": "1"
           },
           "temperature": 0.1
-        }
+        },
+        "includeReasoning": false
       },
       "toolsets": [
         {

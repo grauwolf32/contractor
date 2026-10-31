@@ -22,7 +22,10 @@ context:
     or change existing delivery priorities. User decision on 2026-10-30: start implementation now; the coordinator session runs it in lane cmp-worker together with V417-001, V417-003 and V420-002.
     User decision on 2026-10-31: the database contains test data; conflicting records may be
     manually repaired or deleted. Keeping pre-change snapshots readable is not a requirement
-    for this transition; retain the explicit contextManagement strategy required by R1.'
+    for this transition; retain the explicit contextManagement strategy required by R1.
+    User decision on 2026-10-31: terminal summarizer includeReasoning also uses an
+    explicit true/false boolean below authoring, matching compact@1; its earlier
+    true-only encoding is superseded by V417-001.'
   proposal: docs/proposals/0046-workflow-context-compaction.md
   specification:
   - docs/spec/configuration/workflows.md#WFL-R86
@@ -325,8 +328,9 @@ decisions:
   2026-10-31 (lane cmp-worker): contextManagement is one flat tagged union on the binding and
   on AllocationSpec ({strategy} alone, or compact@1 with every member beside it), decoded with
   strictjson in Go and a discriminated union in Python. compact@1 keeps the explicit JSON/YAML
-  boolean includeReasoning that R2 requires; the terminal summarizer's true-only encoding
-  (TPL-R116, V417-001) is not reused here pending the coordinator's decision on it.
+  boolean includeReasoning that R2 requires. User decision on 2026-10-31 restores the
+  same explicit boolean for the terminal summarizer (TPL-R116, V417-001), superseding
+  that lane's earlier true-only encoding.
 - >-
   2026-10-31 (lane cmp-worker): the compactor policy is pinned by the Workflow binding
   (WFL-R94). Deployment model selection does not retarget it; scripts/generate_model_config.py

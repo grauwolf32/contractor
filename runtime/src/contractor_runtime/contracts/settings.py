@@ -750,16 +750,11 @@ class WorkerSummarizerConfig(StrictWireModel):
     model_policy: ResolvedModelPolicy
     cumulative_budget: int | None = Field(default=None, gt=0, le=100_000_000)
     context_window_ratio: float = Field(gt=0, lt=1)
-    # Like the summarizer block itself, omission is the only representation of
-    # false; a present member must be true (TPL-R47, WRK-R181).
-    include_reasoning: bool = Field(
-        default=False, strict=True, exclude_if=lambda value: value is False
-    )
+    # Required below authoring, including when false (TPL-R116).
+    include_reasoning: bool
 
     @model_validator(mode="after")
     def validate_summarizer(self) -> Self:
-        if "include_reasoning" in self.model_fields_set and self.include_reasoning is not True:
-            raise ValueError("Worker summarizer includeReasoning must be omitted or true")
         if self.instructions is not None and len(self.instructions.text) > 8000:
             raise ValueError(
                 "Worker summarizer instructions must contain at most 8000 Unicode characters"

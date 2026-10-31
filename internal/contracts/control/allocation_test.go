@@ -260,9 +260,8 @@ func TestSharedAllocationSpecRequiresValidWorkerSummarizer(t *testing.T) {
 		"Worker-call budget": func(summarizer map[string]any) {
 			summarizer["modelPolicy"].(map[string]any)["maxWorkerCalls"] = float64(1)
 		},
-		// Omission is the only representation of false (TPL-R47).
-		"explicit false reasoning": func(summarizer map[string]any) {
-			summarizer["includeReasoning"] = false
+		"missing reasoning": func(summarizer map[string]any) {
+			delete(summarizer, "includeReasoning")
 		},
 		"null reasoning": func(summarizer map[string]any) {
 			summarizer["includeReasoning"] = nil
@@ -323,7 +322,7 @@ func TestSharedAllocationSpecRequiresValidWorkerSummarizer(t *testing.T) {
 	}
 }
 
-func TestSharedAllocationSpecIncludeReasoningIsTrueOrOmitted(t *testing.T) {
+func TestSharedAllocationSpecIncludeReasoningIsExplicit(t *testing.T) {
 	t.Parallel()
 
 	enabled, err := contracts.DecodePrivateStrict[AllocationSpec](
@@ -350,8 +349,7 @@ func TestSharedAllocationSpecIncludeReasoningIsTrueOrOmitted(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if bytes.Contains(encoded, []byte(`"includeReasoning":true`)) != test.want ||
-			bytes.Contains(encoded, []byte(`"includeReasoning":false`)) {
+		if !bytes.Contains(encoded, []byte(fmt.Sprintf(`"includeReasoning":%t`, test.want))) {
 			t.Fatalf("encoded includeReasoning for %v: %s", test.want, encoded)
 		}
 		decoded, err := contracts.DecodePrivateStrict[AllocationSpec](encoded)
