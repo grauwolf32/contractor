@@ -5,6 +5,7 @@ import (
 	_ "embed"
 	"errors"
 	"sync"
+	"testing"
 
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/documentnumber"
@@ -13,7 +14,6 @@ import (
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
-const schemaURI = "https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json"
 const schemaDigest = "sha256:c3b4bb2d6093897483348925aaa73af03b3e3f4bd4ca38cef26dcb4212a2682e"
 
 //go:embed schema/sarif-schema-2.1.0.json
@@ -63,4 +63,29 @@ func validateSchema(data []byte) (map[string]any, error) {
 		return nil, findingexport.ErrInvalid
 	}
 	return object, nil
+}
+
+func TestSchemaValidatorRejectsMalformedOutput(t *testing.T) {
+	data, _, _ := rendered(t, noAnalysisSnapshot(t, 1))
+	cases := map[string][]byte{
+		"malformed-json":     []byte(`{"version":`),
+		"duplicate-key":      []byte(`{"version":"2.1.0","version":"2.1.0","runs":[]}`),
+		"trailing-value":     append(bytes.Clone(data), []byte(`{}`)...),
+		"wrong-version":      bytes.Replace(data, []byte(`"version":"2.1.0"`), []byte(`"version":"2.0.0"`), 1),
+		"missing-driver":     bytes.Replace(data, []byte(`"driver":`), []byte(`"unexpectedDriver":`), 1),
+		"wrong-results-type": []byte(`{"version":"2.1.0","runs":[{"tool":{"driver":{"name":"Contractor"}},"results":{}}]}`),
+	}
+	for name, mutated := range cases {
+		t.Run(name, func(t *testing.T) {
+			if _, err := validateSchema(mutated); !errors.Is(err, findingexport.ErrInvalid) {
+				t.Fatalf("accepted invalid output: %v", err)
+			}
+		})
+	}
+}
+
+func TestSchemaLoaderRefusesExternalResources(t *testing.T) {
+	if _, err := (embeddedOnly{}).Load("https://example.test/schema.json"); err == nil {
+		t.Fatal("accepted external schema resource")
+	}
 }
