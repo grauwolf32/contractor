@@ -5,7 +5,7 @@ milestone: audit-check-prioritization
 epic: audits
 kind: feature
 priority: P1
-status: pending
+status: completed
 depends_on:
 - V64-000
 - V62-001
@@ -38,10 +38,14 @@ context:
     This amendment clarifies that agent's task without assigning implementation to the amending agent
     or authorizing dependent tasks. Ordinary dependency/status rules still apply; the delegate sets
     in_progress when starting. Approval removal is settled and must not be reopened as a cutover choice.
+  contract_decisions: User confirmed soft pause/drain, Resume of accepted work and terminal Cancel on 2026-10-31; also confirmed 10000 hypotheses, 50000 revisions, 32 KiB per document, 256 MiB revision bytes, 128 records and 1 MiB metadata per mutation.
+  verification_prerequisite: V64-019 separately removes inherited export exceptions that referenced archived V64-006; its completed cleanup restores the mandatory lint gate without changing priority behavior.
+  execution_authority: User requested implementation in this chat on 2026-10-31. Work is isolated on codex/audit-task-contracts; dependent tasks are not started.
   design:
   - docs/proposals/0050-audit-common-hypothesis-model.md
   - docs/plans/2026-10-31-audit-redesign.md
   specification:
+  - docs/spec/audits/common-contract.md
   - docs/spec/audits/audits.md
   - docs/spec/audits/execution.md
   - docs/spec/audits/review-and-reports.md
@@ -61,11 +65,8 @@ context:
   implementation_boundary: Every new state, export, relation or capability needs its real production caller
     in this task. Reuse RunService, Scheduler, ArtifactStore, finding intake, ControllerClaims and existing
     keyed/natural receipts. No new collector, admission engine, lease store or compatibility reader.
-  review_choices: The accepted task/Run/result skeleton and result/finding distinction are settled. Do
-    not reopen them. Proposal 0050 still labels exact new hypothesis/mutation budgets, soft-pause/terminal-cancel
-    guarantees as proposals; finalize these explicit contract choices without silently treating an agent
-    recommendation as a user decision. Formal approval removal is a user decision, not an open choice;
-    do not design a migration/compatibility lifecycle for old approval-required policy.
+  review_choices: The common task/Run/result skeleton, result/finding distinction and removal of formal approvals are settled. User confirmation in this chat on 2026-10-31 finalized soft pause/drain, terminal Cancel and the exact hypothesis/mutation budgets recorded in contract_decisions. Do not reopen them or introduce old-policy migration, waiting or compatibility states. Hypothesis formulation guidance remains an agent recommendation and adds no required polarity/type classifier.
+  boundary_decision: Common documents are validated through the existing config validate command with an explicit audit-document input and optional trusted audit-context, using the real loaded Workflow Snapshot. This supplies a production contract-validation caller without registering a second program catalog, execution mode, controller, queue or database relation. Actual Runtime assembly, state mutation, retention and public resource replacement remain with dependent owners in the checked removal map. Shared JSON Schema reuses existing wire primitives; Go owns admission validation, and Python conformance checks the same contract without advertising completion support.
   agent_proposal: 'For review: formulate a hypothesis as one observable assertion with object/actor and
     conditions, plus grounds and a way to check it. For problem search prefer a suspected violation; positive
     properties remain valid. Use existing statement/scope/grounds rather than new mandatory types or polarity
@@ -105,7 +106,7 @@ requirements:
     to every hypothesis in its Run.
 - id: R3
   text: Preserve current task/iteration/batch ceilings and evidence/report bounds until an explicitly
-    reviewed change; proposed new hypothesis bounds are finite and recorded once in LIM/shared fixtures.
+    reviewed change; confirmed hypothesis bounds are recorded once in LIM/shared fixtures, separately from the owner-independent exact revision counter.
 - id: R4
   text: Remove formal approval requests, waiting/expiry/renewal states, approval-required policy and report
     acceptance from the target contract. Keep ordinary scope, allowed/prohibited operations and access
@@ -166,6 +167,10 @@ acceptance_criteria:
     rejected by the target contract, with no old-policy waiting/resume or compatibility branch. The removal
     map assigns runtime/API/UI/storage caller deletion to the dependent implementation tasks; V64-001
     does not expand into the whole Audit replacement
+- id: A5
+  given: target limits, control transitions and bounded continuation contracts
+  when: shared boundary fixtures and configuration validators evaluate them
+  then: at-limit values pass, over-limit values fail, pause/resume/cancel/deadline guarantees are explicit, and continuation requires new accepted inputs or an explicit decision
 tests:
 - command: go test -count=1 ./internal/config/... ./internal/contracts/... ./internal/auditdomain
   covers:
@@ -173,21 +178,30 @@ tests:
   - A2
   - A3
   - A4
+  - A5
 - command: make test-wire-cross-language
   covers:
   - A1
   - A2
   - A3
   - A4
+  - A5
 - command: make verify-public-api verify-public-api-postgres
   covers:
   - A1
   - A2
   - A3
   - A4
+  - A5
+- command: go test -count=1 ./internal/app ./internal/archtest
+  covers:
+  - A1
+  - A3
+  - A4
+  - A5
 - command: make lint
 test_prerequisites:
-- Commands below are future implementation acceptance, not results of this planning update.
+- The implementation results below were obtained with a dedicated disposable PostgreSQL database and canonical macOS TMPDIR.
 - Use disposable PostgreSQL with CONTRACTOR_TEST_DATABASE_URL set; configured/unavailable DB or mandatory
   skips fail. A focused selector matching zero tests fails.
 - Use testdata catalogs and pseudo-Skills, not live configs in unit/integration tests. Run whole touched-package
@@ -201,7 +215,18 @@ verification_requirements:
   dependencies and strict reads/writes.
 - Delete the replaced vertical path and its exclusive schemas/states/tests as its callers migrate. Final
   V64-011 proves no parallel legacy pipeline remains.
-implementation_commit: null
+deliverables:
+- path: api/audit/v1/contract.schema.json
+  description: Single strict common document schema reusing existing wire primitives.
+- path: internal/contracts/auditcontract
+  description: Bounded strict decoder, automatic per-item result association and frozen program proposal validation, exercised by actual offline CLI validation.
+- path: internal/config/audit_program.go
+  description: Required Workflow input/parameter/output and media checks against a real loaded configuration Snapshot.
+- path: docs/spec/audits/common-contract.md
+  description: Owning contract, control/continuation guarantees and registered limits/failure/lifecycle entries.
+- path: docs/proposals/0050-audit-removal-map.yml
+  description: Relation/profile/operation/wire/source dispositions assigned to dependent owners, checked against current relation and public operation inventories.
+implementation_commit: 36d93a45f021dca043126b5baeb487f4c2a046c2
 replanning:
   date: '2026-10-31'
   previous_title: Specify optional Audit research contracts and deterministic bypass
@@ -211,3 +236,19 @@ replanning:
   - V25-011
   reason: Replaces earlier scope and acceptance with the common Audit research plan; this is not implementation
     or completion.
+
+verification:
+  date: '2026-11-01'
+  environment: Go 1.26.9, Node 24.20.0, locked Runtime dependencies and a dedicated disposable PostgreSQL database.
+  results:
+  - command: go test -count=1 ./internal/contracts/auditcontract ./internal/config/... ./internal/contracts/... ./internal/auditdomain ./internal/app ./internal/archtest
+    outcome: Passed the complete touched-package suites, including the real catalog, offline CLI, source-removal inventory and architecture checks.
+  - command: make test-wire-cross-language
+    outcome: Passed; 363 shared fixture files, 391 Go shared test functions and 288 Python shared test functions were checked. The Runtime shared selection ran 1583 tests successfully; 4353 unrelated tests were deselected.
+  - command: make verify-public-api verify-public-api-postgres
+    outcome: Passed the public operation/error/schema checks and PostgreSQL race checks. This task adds no public HTTP field or operation; generated public clients remain current.
+  - command: make lint
+    outcome: Passed the final sequential run, including generators, staticcheck, export ownership, UI lint, task/spec/source gates, Runtime lint and import layers.
+  observations:
+  - One earlier concurrent lint run hit PermissionError from os.killpg in the existing report-capture test. The isolated report suite and final complete sequential lint both passed; report-capture code was not changed.
+  boundary: Ordinary execution, storage migration, Project ownership changes and Runtime completion activation remain assigned to the dependent tasks. No live-model quality result is claimed by contract conformance.

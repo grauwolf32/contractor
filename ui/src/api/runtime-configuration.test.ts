@@ -28,7 +28,7 @@ function allocation(
     agentLabels: [pin("debug")],
     runtimeAdapters: ["caido-graphql@1", "otlp-http@1"],
     origins: {
-      caido: { layer: "run_execution_config" },
+      caido: { layer: "workflow_execution_config" },
       workerTelemetry: {
         layer: "agent_labels",
         configs: [{ name: "debug", version: "1", digest }],
@@ -78,7 +78,7 @@ describe("Runtime configuration invariants", () => {
         allocation("reviewer", {
           origins: {
             caido: {
-              layer: "run_execution_config",
+              layer: "workflow_execution_config",
               configs: [{ name: "debug", version: "1", digest }],
             },
           },

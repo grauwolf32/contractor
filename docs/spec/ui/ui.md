@@ -532,7 +532,7 @@ accessible in a disclosure.
 ### Run setup
 
 The capabilities the Workflow user surface offers (Workflow and version
-listing, parameter and input rendering, uploads, execution overrides, Runtime
+listing, parameter and input rendering, uploads, Runtime
 label selection through `runtimeLabels` such as `debug` or `caido`, metadata
 labels, creating, cancelling, continuing and
 repeating Runs, Stage and Planner progress, artifact previews and bounded
@@ -1279,8 +1279,8 @@ authoritative REST snapshot (UI-R29). Shared rules are in
 
 1. The UI can request domain operations but cannot manufacture execution state
    (UI-R2, UI-R26).
-2. Run overrides contain exact published refs only; no inline model, budget,
-   URL, token or provider parameter is accepted
+2. Run forms select authored Workflows; their execution policies contain exact
+   published refs
    ([AgentTemplates](../configuration/agent-templates.md),
    [Runs](../execution/runs.md)).
 3. Immutable base and escalation-variant ResolvedExecutionConfigs are

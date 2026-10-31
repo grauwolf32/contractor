@@ -1,10 +1,8 @@
 package runservice
 
 import (
-	"encoding/json"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
@@ -21,9 +19,9 @@ func TestPublicRequestDigestIsPinned(t *testing.T) {
 		want   string
 	}{
 		{"run", PublicCreateParams{Workflow: "scan", RuntimeLabels: []string{"linux"}},
-			"sha256:1b762ef9ccd8b775816c9e4eec1ce46c60d08115647966ac58cccc40aecb711a"},
+			"sha256:c80ac1684eebe6e1cc407c2bebed94694a3fdea58f74a2aa8370253ff1dbad42"},
 		{"project run", PublicCreateParams{Workflow: "scan", ProjectID: &projectID},
-			"sha256:558a08c1a75206f4c99e8318fcad51e411d581b4fbf87b4614806a31299d05b9"},
+			"sha256:5c327e88b95acdbd378c326188e609eb934fc2157fcd25039dcfddde37fcb668"},
 	} {
 		if got, err := PublicRequestDigest(test.params); err != nil || got != test.want {
 			t.Errorf("%s digest = %s, %v; want %s", test.name, got, err, test.want)
@@ -48,13 +46,6 @@ func TestPublicRequestDigestNormalizesEquivalentRequests(t *testing.T) {
 	}
 	if explicit := digest(PublicCreateParams{Workflow: "empty@1", MetadataLabels: runstore.RunMetadataLabels{}}); explicit != omitted {
 		t.Fatalf("empty metadata label digest = %q, omitted = %q", explicit, omitted)
-	}
-	var emptyExecutionConfig resolved.ExecutionConfigPatch
-	if err := json.Unmarshal([]byte(`{"stages":{}}`), &emptyExecutionConfig); err != nil {
-		t.Fatal(err)
-	}
-	if explicit := digest(PublicCreateParams{Workflow: "empty@1", ExecutionConfig: emptyExecutionConfig}); explicit != omitted {
-		t.Fatalf("empty executionConfig digest = %q, omitted = %q", explicit, omitted)
 	}
 	ordered := digest(PublicCreateParams{Workflow: "empty@1", RuntimeLabels: []string{"debug", "trace"}})
 	reversed := digest(PublicCreateParams{Workflow: "empty@1", RuntimeLabels: []string{"trace", "debug"}})

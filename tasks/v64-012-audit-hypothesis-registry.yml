@@ -9,6 +9,7 @@ status: pending
 depends_on:
 - V64-002
 - V64-014
+- V64-022
 languages:
 - go
 - python
@@ -57,6 +58,9 @@ context:
   agent_proposal: 'For review: checklist/manual hypotheses state one observable claim under explicit conditions.
     A suspected violation is the recommended AppSec search formulation, without forbidding positive properties
     or requiring a formal claim/polarity classifier.'
+  contract_review_followup: User-requested implementation review on 2026-11-01 found a V64-001 contract
+    defect. V64-022 supplies this consumer's corrected boundary before implementation; the accepted Audit
+    skeleton and this task's remaining scope are unchanged.
 scope:
   in:
   - Create the Audit-owned hypothesis registry and real seed/manual write/read callers, with stable opaque

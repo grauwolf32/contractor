@@ -8,5 +8,3 @@
 # arrive with the priority verdict and selection tasks.
 internal/auditpriority.BindVerdict V64-005
 internal/auditpriority.DecodeVerdict V64-005
-internal/auditpriority.ResolveTopN V64-012
-internal/auditpriority.SelectionDigest V64-012

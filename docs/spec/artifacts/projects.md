@@ -269,7 +269,7 @@ required by a candidate Workflow.
 ordinary create-Run body and idempotency header ([Runs](../execution/runs.md)).
 
 **PRJ-R97.** In a Project Run the selected Workflow, string parameters, Runtime
-labels, metadata labels and execution overrides keep their meanings; only the
+labels and metadata labels keep their meanings; only the
 source scope of `artifacts` changes, as shown in
 [Artifact source scope of a Run](#artifact-source-scope-of-a-run).
 

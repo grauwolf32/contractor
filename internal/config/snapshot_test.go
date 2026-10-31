@@ -109,7 +109,7 @@ func TestSnapshotAccessorResultsShareNoMemoryWithSnapshot(t *testing.T) {
 		selector := listed.Ref.Name + "@" + listed.Ref.Version
 		workflow, err := snapshot.Workflow(selector)
 		record("Workflow", selector, workflow, err)
-		runWorkflow, err := snapshot.ResolveRunWorkflow(t.Context(), selector, resolved.ExecutionConfigPatch{}, credentials)
+		runWorkflow, err := snapshot.ResolveRunWorkflow(t.Context(), selector, credentials)
 		record("ResolveRunWorkflow", selector, runWorkflow, err)
 		pinnedWorkflow, err := snapshot.ResolvePinnedRunWorkflow(t.Context(), runWorkflow, credentials)
 		record("ResolvePinnedRunWorkflow", selector, pinnedWorkflow, err)
@@ -117,9 +117,6 @@ func TestSnapshotAccessorResultsShareNoMemoryWithSnapshot(t *testing.T) {
 			instructionRefs[stage.Instructions.Ref] = struct{}{}
 		}
 	}
-	patched, err := snapshot.ResolveRunWorkflow(t.Context(), "artifact-copy@1", decodeExecutionConfigPatch(t,
-		`{"workers":{"llmGateway":"local-litellm@1","credential":"development-worker"}}`), credentials)
-	record("ResolveRunWorkflow", "artifact-copy@1 with a Worker patch", patched, err)
 	for _, ref := range slices.Sorted(maps.Keys(instructionRefs)) {
 		instructions, err := snapshot.Instructions(ref)
 		record("Instructions", ref, instructions, err)

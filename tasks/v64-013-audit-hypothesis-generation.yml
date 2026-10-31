@@ -10,6 +10,7 @@ depends_on:
 - V64-012
 - V64-004
 - V411-011
+- V64-020
 languages:
 - go
 - python
@@ -58,6 +59,9 @@ context:
   agent_proposal: 'For review: producer methodology proposes a scoped observable assertion and a way to
     check it; prefer a suspected violation for AppSec search. This is guidance in existing statement/scope/grounds,
     not a mandatory new schema, polarity enum or semantic-validation engine.'
+  contract_review_followup: User-requested implementation review on 2026-11-01 found a V64-001 contract
+    defect. V64-020 supplies this consumer's corrected boundary before implementation; the accepted Audit
+    skeleton and this task's remaining scope are unchanged.
 scope:
   in:
   - Ship one ordinary producer Workflow with a real program caller and typed Runtime result assembly;
@@ -86,7 +90,8 @@ requirements:
   text: Supported, refuted and inconclusive results as well as problem findings can motivate next work.
     Preserve tested conditions and gaps; a failed prerequisite, failed probe or confidence score cannot
     establish truth. No finding-only context bias or automatic rerun of unchanged rejected hypotheses
-    is introduced.
+    is introduced. An explicitly empty proposal result is successful no-new-work; admit no fabricated
+    candidate/task and do not trigger another generator call from that result. Generation remains optional.
 - id: R3
   text: Response loss and restart reconcile the original producer Run and accepted batch instead of regenerating
     or replaying target work.
@@ -135,9 +140,10 @@ acceptance_criteria:
   then: the selected ordinary result reaches the producer, changed work has a recorded reason, and no
     fabricated finding or unsupported truth claim is needed to continue
 - id: A3
-  given: lost acknowledgement, restart and unchanged tick input
+  given: lost acknowledgement, restart, unchanged tick input and a successful generator returning no new proposals
   when: continuation reconciles
-  then: one producer/result batch exists and no repeated generation or target request repairs storage
+  then: one producer/result batch exists and no repeated generation or target request repairs storage;
+    an empty result settles successfully without fabricated work or a same-context self-loop
 - id: A4
   given: foreign/oversized/invalid or unsupported proposals
   when: the real output/intake path processes them

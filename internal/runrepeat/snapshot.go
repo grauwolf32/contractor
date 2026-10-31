@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	SchemaVersion   = "contractor.run-repeat-request/v2"
+	SchemaVersion   = "contractor.run-repeat-request/v3"
 	MaxSnapshotSize = 1 << 20
 )
 
@@ -28,14 +28,12 @@ type InputSource struct {
 	Artifact    contracts.ArtifactRef `json:"artifact"`
 }
 
-// Snapshot is the retained authority for source inputs and requested execution
-// overrides. Credential values are identities, never token bytes.
+// Snapshot retains the Workflow identity and exact authorized source inputs.
 type Snapshot struct {
-	SchemaVersion   string                        `json:"schemaVersion"`
-	Workflow        resolved.WorkflowRef          `json:"workflow"`
-	ProjectID       *string                       `json:"projectId,omitempty"`
-	Inputs          map[string]InputSource        `json:"inputs"`
-	ExecutionConfig resolved.ExecutionConfigPatch `json:"executionConfig"`
+	SchemaVersion string                 `json:"schemaVersion"`
+	Workflow      resolved.WorkflowRef   `json:"workflow"`
+	ProjectID     *string                `json:"projectId,omitempty"`
+	Inputs        map[string]InputSource `json:"inputs"`
 }
 
 func Encode(snapshot Snapshot) ([]byte, error) {
@@ -59,25 +57,11 @@ func Decode(encoded []byte) (Snapshot, error) {
 	if len(encoded) == 0 || len(encoded) > MaxSnapshotSize {
 		return Snapshot{}, fmt.Errorf("%w: invalid size", ErrInvalidSnapshot)
 	}
-	// A missing patch is not an explicitly retained empty patch.
-	var stored struct {
-		SchemaVersion   string                         `json:"schemaVersion"`
-		Workflow        resolved.WorkflowRef           `json:"workflow"`
-		ProjectID       *string                        `json:"projectId,omitempty"`
-		Inputs          map[string]InputSource         `json:"inputs"`
-		ExecutionConfig *resolved.ExecutionConfigPatch `json:"executionConfig"`
-	}
-	if err := strictjson.Decode(encoded, &stored); errors.Is(err, strictjson.ErrTrailingData) {
+	var snapshot Snapshot
+	if err := strictjson.Decode(encoded, &snapshot); errors.Is(err, strictjson.ErrTrailingData) {
 		return Snapshot{}, fmt.Errorf("%w: trailing JSON value", ErrInvalidSnapshot)
 	} else if err != nil {
 		return Snapshot{}, fmt.Errorf("%w: decode: %v", ErrInvalidSnapshot, err)
-	}
-	if stored.ExecutionConfig == nil {
-		return Snapshot{}, fmt.Errorf("%w: executionConfig must be an object", ErrInvalidSnapshot)
-	}
-	snapshot := Snapshot{
-		SchemaVersion: stored.SchemaVersion, Workflow: stored.Workflow, ProjectID: stored.ProjectID,
-		Inputs: stored.Inputs, ExecutionConfig: *stored.ExecutionConfig,
 	}
 	if err := validate(snapshot); err != nil {
 		return Snapshot{}, err

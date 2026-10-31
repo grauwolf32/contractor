@@ -397,9 +397,9 @@ executing it.
 ([LIM-CAT-4](../platform/limits.md)), counted in bytes of the Server's JSON
 encoding of the resolved Workflow (CAT-R33), never in the text PostgreSQL
 returns for the stored `jsonb`, which spaces separators and expands numbers.
-WorkflowCatalog rejects a Workflow whose snapshot without Run overrides exceeds
+WorkflowCatalog rejects a Workflow whose resolved catalog snapshot exceeds
 the bound, so the configuration set does not load (CAT-R24). Run Workflow
-resolution measures the snapshot after the Run's `executionConfig` overrides
+resolution measures the snapshot after materializing captured deployment defaults
 and before any credential lookup, so Run creation, eval preflight and the
 repeat draft reject an oversized snapshot before a Run exists; `POST /v1/runs`
 answers the permanent `400 invalid_request` and stores nothing. Audit-managed

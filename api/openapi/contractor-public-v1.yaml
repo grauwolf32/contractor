@@ -5012,7 +5012,7 @@ paths:
         after owner and source-scope verification; frozen RunScope inputs are
         never presented as reusable sources. Audit-managed Runs return their
         owning Audit context without a draft. The draft requires the Run's
-        retained executionConfig fragment, valid and matching its Workflow and
+        retained request fragment, valid and matching its Workflow and
         Project; a missing or invalid fragment returns a blocking notice and no
         draft, and neither lineage nor current or effective configuration
         reconstructs the original request.
@@ -8749,79 +8749,6 @@ components:
       ],
       "additionalProperties": false
     }
-    EvalExecutionSelection: {
-      "type": "object",
-      "properties": {
-        "modelPolicy": {
-          "$ref": "#/components/schemas/EvalSelector"
-        },
-        "llmGateway": {
-          "$ref": "#/components/schemas/EvalSelector"
-        },
-        "credential": {
-          "anyOf": [
-            {
-              "$ref": "#/components/schemas/EvalOpaque"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "summarizerModelPolicy": {
-          "$ref": "#/components/schemas/EvalSelector"
-        },
-        "compactorModelPolicy": {
-          "$ref": "#/components/schemas/EvalSelector"
-        }
-      },
-      "required": [],
-      "additionalProperties": false,
-      "minProperties": 1
-    }
-    EvalStageOverride: {
-      "type": "object",
-      "properties": {
-        "planner": {
-          "$ref": "#/components/schemas/EvalExecutionSelection"
-        },
-        "agents": {
-          "type": "object",
-          "propertyNames": {
-            "$ref": "#/components/schemas/EvalId"
-          },
-          "additionalProperties": {
-            "$ref": "#/components/schemas/EvalExecutionSelection"
-          },
-          "maxProperties": 128
-        }
-      },
-      "required": [],
-      "additionalProperties": false
-    }
-    EvalExecutionConfig: {
-      "type": "object",
-      "properties": {
-        "planner": {
-          "$ref": "#/components/schemas/EvalExecutionSelection"
-        },
-        "workers": {
-          "$ref": "#/components/schemas/EvalExecutionSelection"
-        },
-        "stages": {
-          "type": "object",
-          "propertyNames": {
-            "$ref": "#/components/schemas/EvalId"
-          },
-          "additionalProperties": {
-            "$ref": "#/components/schemas/EvalStageOverride"
-          },
-          "maxProperties": 128
-        }
-      },
-      "required": [],
-      "additionalProperties": false
-    }
     EvalVariant: {
       "type": "object",
       "properties": {
@@ -8841,9 +8768,6 @@ components:
         },
         "selector": {
           "$ref": "#/components/schemas/EvalSelector"
-        },
-        "executionConfig": {
-          "$ref": "#/components/schemas/EvalExecutionConfig"
         },
         "runtimeLabels": {
           "type": "array",
@@ -8890,8 +8814,7 @@ components:
       "required": [
         "id",
         "kind",
-        "selector",
-        "executionConfig"
+        "selector"
       ],
       "additionalProperties": false
     }
@@ -15670,7 +15593,7 @@ components:
       properties:
         layer:
           type: string
-          enum: [default, workflow_execution_config, run_labels, run_execution_config, escalation_execution_config, agent_labels]
+          enum: [default, workflow_execution_config, run_labels, escalation_execution_config, agent_labels]
         configs:
           type: array
           maxItems: 32
@@ -15913,13 +15836,6 @@ components:
         severity: {type: string, enum: [warning, blocking]}
         field: {type: string, minLength: 1, maxLength: 256}
         message: {type: string, minLength: 1, maxLength: 2048}
-    RunRepeatExecutionConfig:
-      type: object
-      additionalProperties: false
-      required: [status, value]
-      properties:
-        status: {type: string, enum: [available]}
-        value: {$ref: '#/components/schemas/ExecutionConfigPatch'}
     RunRepeatInput:
       type: object
       additionalProperties: false
@@ -15934,7 +15850,7 @@ components:
     RunRepeatDraft:
       type: object
       additionalProperties: false
-      required: [parameters, runtimeLabels, labels, executionConfig, inputs]
+      required: [parameters, runtimeLabels, labels, inputs]
       properties:
         requiredPlacementLabels: {$ref: '#/components/schemas/PlacementLabels'}
         parameters:
@@ -15950,7 +15866,6 @@ components:
           uniqueItems: true
           items: {$ref: '#/components/schemas/ConfigId'}
         labels: {$ref: '#/components/schemas/RunMetadataLabels'}
-        executionConfig: {$ref: '#/components/schemas/RunRepeatExecutionConfig'}
         inputs:
           type: object
           maxProperties: 128
@@ -16055,38 +15970,6 @@ components:
         runId: {$ref: '#/components/schemas/ResourceId'}
         state: {$ref: '#/components/schemas/WorkflowRunState'}
         cancellation: {$ref: '#/components/schemas/Cancellation'}
-    ExecutionSelectionPatch:
-      type: object
-      additionalProperties: false
-      minProperties: 1
-      properties:
-        modelPolicy: {$ref: '#/components/schemas/Selector'}
-        summarizerModelPolicy: {$ref: '#/components/schemas/Selector'}
-        compactorModelPolicy:
-          $ref: '#/components/schemas/Selector'
-          description: Exact compactor ModelPolicy; valid only in a Planner selection that applies to a compact@1 Stage (PLN-R125).
-        llmGateway: {$ref: '#/components/schemas/Selector'}
-        credential:
-          oneOf:
-            - {$ref: '#/components/schemas/ConfigId'}
-            - {type: 'null'}
-    StageExecutionConfigPatch:
-      type: object
-      additionalProperties: false
-      properties:
-        planner: {$ref: '#/components/schemas/ExecutionSelectionPatch'}
-        agents:
-          type: object
-          additionalProperties: {$ref: '#/components/schemas/ExecutionSelectionPatch'}
-    ExecutionConfigPatch:
-      type: object
-      additionalProperties: false
-      properties:
-        planner: {$ref: '#/components/schemas/ExecutionSelectionPatch'}
-        workers: {$ref: '#/components/schemas/ExecutionSelectionPatch'}
-        stages:
-          type: object
-          additionalProperties: {$ref: '#/components/schemas/StageExecutionConfigPatch'}
     CreateRunRequest:
       type: object
       additionalProperties: false
@@ -16109,7 +15992,6 @@ components:
         artifacts:
           type: [object, 'null']
           additionalProperties: {$ref: '#/components/schemas/ArtifactRef'}
-        executionConfig: {$ref: '#/components/schemas/ExecutionConfigPatch'}
 
     PlannerSubtask:
       type: object

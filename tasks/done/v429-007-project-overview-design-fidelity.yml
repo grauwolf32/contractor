@@ -1,5 +1,5 @@
 schema_version: "1.0"
-id: V429-004
+id: V429-007
 title: Match Run and Project to the reviewed OpenDesign presentation
 milestone: ui-journey-usability
 epic: ui
@@ -11,6 +11,10 @@ depends_on: [V429-003]
 languages: [typescript, css]
 goal: Run and Project reproduce the reviewed OpenDesign presentation using coherent shared typography and controls while preserving real data and actions.
 context:
+  integration: >-
+    Renumbered from V429-004 to V429-007 on 2026-11-01 because main had
+    independently assigned V429-004 to the Workflow error-fixture repair.
+    Original implementation commits and requirements remain unchanged.
   authority: >-
     On 2026-11-01 the user rejected the visual fidelity of merge 55bb0593a and
     asked to preserve all OpenDesign-created data. Later in the same turn the user

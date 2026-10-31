@@ -6,7 +6,7 @@ epic: ui
 kind: feature
 priority: P2
 status: completed
-depends_on: [V429-004]
+depends_on: [V429-007]
 languages: [typescript, css]
 goal: A Run opened from an existing list keeps that list beside its detail, without independent Queue/Completed switches.
 demonstration: Open a filtered Run list, select a Run, navigate to another row in the retained list and return to the same source filters/page. Repeat from a Project list and on mobile.

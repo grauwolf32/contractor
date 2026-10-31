@@ -2,6 +2,8 @@
 
 Дата: 2026-10-31. **План для ревью пользователя. Реализацию не начинать до
 следующего разрешения после просмотра [схем и деталей](../proposals/0050-audit-common-hypothesis-model.md).**
+Исключение по последующему решению пользователя от 2026-10-31: реализация
+контрактного этапа V64-001 разрешена, включая подтверждённые лимиты и pause/cancel.
 Текущие правила продукта остаются в `docs/spec/`; task files задают будущую
 реализацию после ревью. Нормативные изменения выполняются вместе с кодом.
 
@@ -38,11 +40,26 @@ Workflow запускает Audit controller через RunService после п
 Новый collector, Scheduler или research admission не создаются. Меняются
 существующие Audit service/controller, Runtime result assembly и owner APIs.
 
+## Исправления после реализации V64-001
+
+Ревью реализации от 2026-11-01 выявило три локальных дефекта контракта.
+V64-001 остаётся завершённой историей; исправления отслеживаются отдельно с
+`introduced_by: V64-001` в том же milestone и входят в зависимости базового gate.
+
+| Задача | Исправление | До какого consumer |
+| --- | --- | --- |
+| [V64-020](../../tasks/v64-020-accept-empty-hypothesis-proposals.yml) | Явный ответ генератора «новых предложений нет» успешно принимается; генерация остаётся необязательной, текст гипотезы — непустым | V64-013 |
+| [V64-021](../../tasks/v64-021-validate-effective-audit-input-requiredness.yml) | Обязательность Workflow input проверяется после переопределения выбранного материала | V64-002 |
+| [V64-022](../../tasks/v64-022-bound-hypothesis-seed-bytes.yml) | Размер содержимого начальных и генерируемых гипотез проверяется до принятия; полный документ отдельно остаётся ограничен 32 KiB | V64-012 |
+
+Это задачи на исправление валидаторов, без новых состояний, сервисов и
+автоматического запуска генератора. Создание задач не начинает их реализацию.
+
 ## Основные задачи
 
 | Порядок | Задача | Конкретный результат |
 | --- | --- | --- |
-| 1 | [V64-001](../../tasks/v64-001-audit-priority-contracts.yml) | Общие строгие program/task/result contracts, owning boundaries, fixtures, лимиты и карта удаления/cutover |
+| 1 | [V64-001](../../tasks/done/v64-001-audit-priority-contracts.yml) | Общие строгие program/task/result contracts, owning boundaries, fixtures, лимиты и карта удаления/cutover |
 | 2 | [V64-004](../../tasks/v64-004-audit-priority-context.yml) | Audit workspace, exact handoff и публикация в Project через существующий ArtifactStore с реальным caller |
 | 3 | [V64-014](../../tasks/v64-014-audit-hypothesis-assessments.yml) | Project findings, источники, evidence, дедупликация и миграция существующих фактов |
 | 4 | [V64-002](../../tasks/v64-002-audit-priority-store.yml) | Один coordinator, обычные Runs, pause/recovery и первый сквозной exploratory сценарий |
@@ -93,7 +110,8 @@ flowchart TD
     HTTP --> EXIT
 ```
 
-Диаграмма сокращает транзитивные рёбра; YAML — точный граф. HTTP demo не зависит
+Диаграмма показывает основную цепочку функций и сокращает транзитивные рёбра;
+исправления контракта перечислены отдельно выше. YAML — точный граф. HTTP demo не зависит
 от generator, UI, sitemap, sandbox, browser, callback или ranker. Первый generic
 exploratory E2E в V64-002 появляется раньше полного базового exit.
 

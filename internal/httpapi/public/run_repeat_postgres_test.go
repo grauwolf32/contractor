@@ -78,7 +78,7 @@ func TestPostgresRunRepeatRequiresRetainedAuthorityWithoutMutation(t *testing.T)
 			if _, err := sources.Write(ctx, contracts.ArtifactRef{Namespace: "sources", Name: "original"}, artifacts.Payload{MediaType: "text/plain", Data: []byte("new current source")}, source.Ref.Revision); err != nil {
 				t.Fatal(err)
 			}
-			for _, variant := range []string{"current", "missing", "malformed", "missing-patch", "null-patch", "wrong-workflow", "wrong-project", "wrong-media-type"} {
+			for _, variant := range []string{"current", "missing", "malformed", "empty-patch", "null-patch", "wrong-workflow", "wrong-project", "wrong-media-type"} {
 				t.Run(variant, func(t *testing.T) {
 					runID := "repeat-" + scope + "-" + variant
 					if _, err := runstoretest.CreateRun(ctx, runs, runstore.CreateRunParams{
@@ -111,8 +111,8 @@ func TestPostgresRunRepeatRequiresRetainedAuthorityWithoutMutation(t *testing.T)
 						t.Fatal(err)
 					}
 					switch variant {
-					case "missing-patch":
-						delete(stored, "executionConfig")
+					case "empty-patch":
+						stored["executionConfig"] = json.RawMessage(`{}`)
 					case "null-patch":
 						stored["executionConfig"] = json.RawMessage(`null`)
 					case "wrong-workflow":
@@ -159,9 +159,8 @@ func TestPostgresRunRepeatRequiresRetainedAuthorityWithoutMutation(t *testing.T)
 								t.Fatalf("current request lost its draft: %+v", repeat)
 							}
 							input := repeat.Draft.Inputs["source"]
-							patch, err := json.Marshal(repeat.Draft.ExecutionConfig.Value)
-							if input.Artifact == nil || !input.Artifact.Equal(source.Ref) || input.Metadata == nil || input.Metadata.Current || input.SourceScope != artifacts.ScopeKind(scope) || err != nil || string(patch) != "{}" {
-								t.Fatalf("current request lost exact source/empty patch: %+v, %s (%v)", input, patch, err)
+							if input.Artifact == nil || !input.Artifact.Equal(source.Ref) || input.Metadata == nil || input.Metadata.Current || input.SourceScope != artifacts.ScopeKind(scope) {
+								t.Fatalf("current request lost exact source: %+v", input)
 							}
 						} else {
 							code := "repeat_request_invalid"

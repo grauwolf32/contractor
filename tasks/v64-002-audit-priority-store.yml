@@ -10,6 +10,7 @@ depends_on:
 - V64-001
 - V64-004
 - V64-014
+- V64-021
 languages:
 - go
 - python
@@ -57,6 +58,9 @@ context:
     keyed/natural receipts. No new collector, admission engine, lease store or compatibility reader.
   planned_gate: Create test-audit-basic-e2e with real Server/Runtime/PostgreSQL and fail-on-missing cases;
     V64-011 later registers the integrated core exit.
+  contract_review_followup: User-requested implementation review on 2026-11-01 found a V64-001 contract
+    defect. V64-021 supplies this consumer's corrected boundary before implementation; the accepted Audit
+    skeleton and this task's remaining scope are unchanged.
 scope:
   in:
   - Reuse and simplify the existing Audit controller/service/store and ordinary RunService submission

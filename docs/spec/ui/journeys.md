@@ -174,9 +174,7 @@ the selected Workflow contract.
 **UIJ-R7.** For an input, the user can upload a UserScope Artifact or select an
 existing exact version.
 
-**UIJ-R8.** When a Run execution override is desired, the user selects
-published ModelPolicy, LLMGatewayConfig and credential refs; the surface shows
-any Workflow-pinned inline escalation variants.
+**UIJ-R8.** The user selects an authored Workflow, including a distinct Workflow for a model experiment. The surface shows its pinned execution policies and inline escalation variants; Run setup has no execution override controls.
 
 **UIJ-R9.** The user can select zero or more active `runtimeLabels`, such as
 `debug` or `caido`, for the concrete Run, and the surface shows their exact
@@ -685,8 +683,7 @@ This document owns no error codes.
 ## Security
 
 Security-relevant requirements: scenario roles grant no authorization and
-Server determines access (UIJ-R1); execution overrides select published refs,
-including credential refs, rather than secret values (UIJ-R8); displayed
+Server determines access (UIJ-R1); Run forms select authored Workflows with pinned policy and credential refs (UIJ-R8); displayed
 metrics never expose prompts, tool payloads, provider bodies or secrets
 (UIJ-R20); sensitive Run-setup input is not automatically written to browser
 storage (UIJ-R42); and Server remains authoritative for Audit control

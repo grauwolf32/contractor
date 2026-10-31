@@ -750,5 +750,33 @@
     "file": "invalid/registration-human-review-parameters.json",
     "valid": false,
     "errorCode": "eval_invalid"
+  },
+  {
+    "name": "create-workflow-execution-config-empty",
+    "kind": "CreateExperiment",
+    "file": "invalid/create-workflow-execution-config-empty.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
+  },
+  {
+    "name": "create-workflow-execution-config-selection",
+    "kind": "CreateExperiment",
+    "file": "invalid/create-workflow-execution-config-selection.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
+  },
+  {
+    "name": "create-audit-execution-config-empty",
+    "kind": "CreateExperiment",
+    "file": "invalid/create-audit-execution-config-empty.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
+  },
+  {
+    "name": "create-audit-execution-config-selection",
+    "kind": "CreateExperiment",
+    "file": "invalid/create-audit-execution-config-selection.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
   }
 ]

@@ -54,6 +54,9 @@ It leaves to other documents:
   [failure model](../platform/failure-model.md) and
   [lifecycle](../platform/lifecycle.md).
 
+The offline [common document contract](common-contract.md) defines strict program,
+task and result validation without registering an executable AuditProfile.
+
 ## Concepts
 
 Terms are defined once in [the glossary](../glossary.md); the ones this

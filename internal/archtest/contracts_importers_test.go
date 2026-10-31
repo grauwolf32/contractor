@@ -52,6 +52,7 @@ var contractsImporters = map[string][]string{
 	"internal/config":                       {"ResolvedAgentTemplate", "ResolvedModelPolicy", "ToolsetSelection"},
 	"internal/config/auditprofile":          {"AuditCheckResultsV1", "ValidConfigVersion"},
 	"internal/config/resolved":              {"ResolvedAgentTemplate", "ResolvedModelPolicy", "ToolsetSelection"},
+	"internal/contracts/auditcontract":      {"ValidConfigID", "ValidConfigVersion"},
 	"internal/contracts/control":            {"ResolvedAgentTemplate", "WorkerCompletionContract", "WorkerHandle"},
 	"internal/contracts/llmgateway":         {"ValidConfigID", "ValidateDigest"},
 	"internal/contracts/engagementcontract": {"ArtifactRef", "ValidateOpaqueID"},

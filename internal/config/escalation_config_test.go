@@ -23,15 +23,16 @@ const openAPIValidationEscalationYAML = `        failed:
 `
 
 func TestInlineEscalationPinsResolvedStageVariant(t *testing.T) {
-	snapshot := mustLoad(t, copyEscalationConfigTree(t))
-	patch := decodeExecutionConfigPatch(t, `{"stages":{"openapi_validate":{"agents":{"validator":{"modelPolicy":"test-worker@1"}}}}}`)
-	workflow, err := snapshot.ResolveRunWorkflow(t.Context(), "openapi-from-workspace@5", patch, developmentCredentialLookup(t, snapshot))
+	root := copyEscalationConfigTree(t)
+	writeWorkflowExecutionConfig(t, root, "openapi_from_workspace_v5.yaml", `{"stages":{"openapi_validate":{"agents":{"validator":{"modelPolicy":"test-worker@1"}}}}}`)
+	snapshot := mustLoad(t, root)
+	workflow, err := snapshot.ResolveRunWorkflow(t.Context(), "openapi-from-workspace@5", developmentCredentialLookup(t, snapshot))
 	if err != nil {
 		t.Fatal(err)
 	}
 	stage := workflow.Stages["openapi_validate"]
 	if stage.ExecutionConfig.Agents["validator"].ModelPolicy.Ref.PolicyID != "test-worker" {
-		t.Fatal("Run override was lost")
+		t.Fatal("Workflow selection was lost")
 	}
 	variant := stage.On.Failed.Escalate.ExecutionConfig
 	if variant.Effective.Agents["validator"].ModelPolicy.Ref.PolicyID != "test-strong-worker" ||
@@ -43,7 +44,7 @@ func TestInlineEscalationPinsResolvedStageVariant(t *testing.T) {
 func TestInlineEscalationSnapshotSurvivesWorkflowChange(t *testing.T) {
 	root := copyEscalationConfigTree(t)
 	first := mustLoad(t, root)
-	stored, err := first.ResolveRunWorkflow(t.Context(), "openapi-from-workspace@5", resolved.ExecutionConfigPatch{}, developmentCredentialLookup(t, first))
+	stored, err := first.ResolveRunWorkflow(t.Context(), "openapi-from-workspace@5", developmentCredentialLookup(t, first))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,13 +140,13 @@ func TestRunCreationValidatesCredentialsInEveryEscalationVariant(t *testing.T) {
 	replaceEscalation(t, root, strings.Replace(openAPIValidationEscalationYAML, "modelPolicy: test-strong-worker@1", "modelPolicy: test-strong-worker@1\n                  credential: escalation-credential", 1))
 	snapshot := mustLoad(t, root)
 	lookup := developmentCredentialLookup(t, snapshot)
-	_, err := snapshot.ResolveRunWorkflow(t.Context(), "openapi-from-workspace@5", resolved.ExecutionConfigPatch{}, lookup)
+	_, err := snapshot.ResolveRunWorkflow(t.Context(), "openapi-from-workspace@5", lookup)
 	if err == nil || !strings.Contains(err.Error(), "failed escalation") || !strings.Contains(err.Error(), "credential is unavailable") {
 		t.Fatalf("missing escalation credential error = %v", err)
 	}
 	gateway, _ := snapshot.LLMGateway("local-litellm@1")
 	lookup["escalation-credential"] = credentialMetadata("escalation-credential", gateway.Ref)
-	if _, err := snapshot.ResolveRunWorkflow(t.Context(), "openapi-from-workspace@5", resolved.ExecutionConfigPatch{}, lookup); err != nil {
+	if _, err := snapshot.ResolveRunWorkflow(t.Context(), "openapi-from-workspace@5", lookup); err != nil {
 		t.Fatal(err)
 	}
 }

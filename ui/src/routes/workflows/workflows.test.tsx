@@ -1283,7 +1283,7 @@ describe("Workflow routes", () => {
     },
   );
 
-  it("isolates infinite Run inventories from finite Operations picker cache", async () => {
+  it("loads Runtime labels separately from model and credential catalogs", async () => {
     const queryClient = createApplicationQueryClient();
     queryClient.setQueryData(queryKeys.configurations.picker("llm-gateways"), {
       items: [],
@@ -1306,11 +1306,17 @@ describe("Workflow routes", () => {
     await screen.findByRole("option", { name: /projects\/source@revision-7/ });
     expect(paths()).toEqual(["/v1/artifacts"]);
 
-    await user.click(screen.getByText("Execution overrides", { exact: true }));
     expect(
-      await screen.findAllByRole("option", { name: /worker-strong@2/ }),
-    ).toHaveLength(3);
-    expect(paths()).not.toContain("/v1/operations/runtime-labels");
+      screen.queryByText("Execution overrides", { exact: true }),
+    ).not.toBeInTheDocument();
+    await user.click(
+      screen.getByText("Runtime configuration", { exact: true }),
+    );
+    await waitFor(() =>
+      expect(paths()).toContain("/v1/operations/runtime-labels"),
+    );
+    expect(paths()).not.toContain("/v1/model-policies");
+    expect(paths()).not.toContain("/v1/credentials");
   });
 
   it("loads all published Workflow pages before presenting grouped cards", async () => {
@@ -1351,7 +1357,7 @@ describe("Workflow routes", () => {
     ).toBeVisible();
   });
 
-  it("submits declared strings, an exact Artifact, and published overrides", async () => {
+  it("submits the selected Workflow, declared strings and an exact Artifact", async () => {
     const posts: Array<{ request: Request; body: unknown }> = [];
     const labels = {
       "eval.id": "eval-ui-01",
@@ -1443,20 +1449,6 @@ describe("Workflow routes", () => {
       screen.getByLabelText(/^source/i),
       "projects/source@revision-7",
     );
-    await user.click(screen.getByText("Execution overrides", { exact: true }));
-    const workerOverrides = screen.getByRole("group", { name: "Workers" });
-    await user.selectOptions(
-      within(workerOverrides).getByLabelText("Model policy"),
-      "worker-strong@2",
-    );
-    await user.selectOptions(
-      within(workerOverrides).getByLabelText("LLM Gateway"),
-      "local@1",
-    );
-    await user.selectOptions(
-      within(workerOverrides).getByLabelText("Credential"),
-      "worker-budget",
-    );
     expect(screen.queryByLabelText(/Gateway URL/i)).not.toBeInTheDocument();
     await user.click(
       screen.getByRole("button", { name: "Start Workflow Run" }),
@@ -1485,13 +1477,6 @@ describe("Workflow routes", () => {
           namespace: "projects",
           name: "source",
           revision: "revision-7",
-        },
-      },
-      executionConfig: {
-        workers: {
-          modelPolicy: "worker-strong@2",
-          llmGateway: "local@1",
-          credential: "worker-budget",
         },
       },
     });
@@ -1545,16 +1530,9 @@ describe("Workflow routes", () => {
       screen.getByText("Choose a revision for this required input."),
     ).toBeInTheDocument();
     expect(postCount).toBe(0);
-    await user.click(screen.getByText("Execution overrides", { exact: true }));
     expect(
-      await screen.findByText("No ModelPolicy versions published."),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("No LLMGatewayConfig versions published."),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("No active credentials available."),
-    ).toBeInTheDocument();
+      screen.queryByText("Execution overrides", { exact: true }),
+    ).not.toBeInTheDocument();
   });
 
   it("reuses one key for exact response-loss retry and rotates it after edits", async () => {

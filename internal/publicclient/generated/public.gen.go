@@ -5614,21 +5614,6 @@ func (e RunRepeatDraftResponseAuthority) Valid() bool {
 	}
 }
 
-// Defines values for RunRepeatExecutionConfigStatus.
-const (
-	RunRepeatExecutionConfigStatusAvailable RunRepeatExecutionConfigStatus = "available"
-)
-
-// Valid indicates whether the value is a known member of the RunRepeatExecutionConfigStatus enum.
-func (e RunRepeatExecutionConfigStatus) Valid() bool {
-	switch e {
-	case RunRepeatExecutionConfigStatusAvailable:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for RunRepeatInputSourceScope.
 const (
 	RunRepeatInputSourceScopeProject RunRepeatInputSourceScope = "project"
@@ -6012,7 +5997,6 @@ const (
 	AgentLabels               RuntimeFieldOriginLayer = "agent_labels"
 	Default                   RuntimeFieldOriginLayer = "default"
 	EscalationExecutionConfig RuntimeFieldOriginLayer = "escalation_execution_config"
-	RunExecutionConfig        RuntimeFieldOriginLayer = "run_execution_config"
 	RunLabels                 RuntimeFieldOriginLayer = "run_labels"
 	WorkflowExecutionConfig   RuntimeFieldOriginLayer = "workflow_execution_config"
 )
@@ -6025,8 +6009,6 @@ func (e RuntimeFieldOriginLayer) Valid() bool {
 	case Default:
 		return true
 	case EscalationExecutionConfig:
-		return true
-	case RunExecutionConfig:
 		return true
 	case RunLabels:
 		return true
@@ -9226,8 +9208,7 @@ type CreateProjectRequest struct {
 
 // CreateRunRequest defines model for CreateRunRequest.
 type CreateRunRequest struct {
-	Artifacts       nullable.Nullable[map[string]ArtifactRef] `json:"artifacts,omitempty"`
-	ExecutionConfig *ExecutionConfigPatch                     `json:"executionConfig,omitempty"`
+	Artifacts nullable.Nullable[map[string]ArtifactRef] `json:"artifacts,omitempty"`
 
 	// Labels Immutable ordinary key/value labels. cloud and local derive Runtime placement; an empty value selects the namespace and a non-empty value selects its provider/site child path. Other keys are descriptive.
 	Labels     *RunMetadataLabels                   `json:"labels,omitempty"`
@@ -9987,13 +9968,6 @@ type EvalExecution struct {
 // EvalExecutionState defines model for EvalExecution.State.
 type EvalExecutionState string
 
-// EvalExecutionConfig defines model for EvalExecutionConfig.
-type EvalExecutionConfig struct {
-	Planner *EvalExecutionSelection       `json:"planner,omitempty"`
-	Stages  *map[string]EvalStageOverride `json:"stages,omitempty"`
-	Workers *EvalExecutionSelection       `json:"workers,omitempty"`
-}
-
 // EvalExecutionPage defines model for EvalExecutionPage.
 type EvalExecutionPage struct {
 	Gaps              []string             `json:"gaps"`
@@ -10011,15 +9985,6 @@ type EvalExecutionRef struct {
 
 // EvalExecutionRefKind defines model for EvalExecutionRef.Kind.
 type EvalExecutionRefKind string
-
-// EvalExecutionSelection defines model for EvalExecutionSelection.
-type EvalExecutionSelection struct {
-	CompactorModelPolicy  *EvalSelector                 `json:"compactorModelPolicy,omitempty"`
-	Credential            nullable.Nullable[EvalOpaque] `json:"credential,omitempty"`
-	LlmGateway            *EvalSelector                 `json:"llmGateway,omitempty"`
-	ModelPolicy           *EvalSelector                 `json:"modelPolicy,omitempty"`
-	SummarizerModelPolicy *EvalSelector                 `json:"summarizerModelPolicy,omitempty"`
-}
 
 // EvalExperiment defines model for EvalExperiment.
 type EvalExperiment struct {
@@ -10499,12 +10464,6 @@ type EvalSource struct {
 	System       EvalId                        `json:"system"`
 }
 
-// EvalStageOverride defines model for EvalStageOverride.
-type EvalStageOverride struct {
-	Agents  *map[string]EvalExecutionSelection `json:"agents,omitempty"`
-	Planner *EvalExecutionSelection            `json:"planner,omitempty"`
-}
-
 // EvalSubmission defines model for EvalSubmission.
 type EvalSubmission struct {
 	PlanSha256 EvalDigest `json:"planSha256"`
@@ -10558,14 +10517,13 @@ type EvalUsage struct {
 
 // EvalVariant defines model for EvalVariant.
 type EvalVariant struct {
-	ExecutionConfig EvalExecutionConfig `json:"executionConfig"`
-	Id              EvalId              `json:"id"`
-	InputMapping    *map[string]EvalId  `json:"inputMapping,omitempty"`
-	Kind            EvalVariantKind     `json:"kind"`
-	OutputMapping   *map[string]EvalId  `json:"outputMapping,omitempty"`
-	Parameters      *map[string]string  `json:"parameters,omitempty"`
-	RuntimeLabels   *[]EvalId           `json:"runtimeLabels,omitempty"`
-	Selector        EvalSelector        `json:"selector"`
+	Id            EvalId             `json:"id"`
+	InputMapping  *map[string]EvalId `json:"inputMapping,omitempty"`
+	Kind          EvalVariantKind    `json:"kind"`
+	OutputMapping *map[string]EvalId `json:"outputMapping,omitempty"`
+	Parameters    *map[string]string `json:"parameters,omitempty"`
+	RuntimeLabels *[]EvalId          `json:"runtimeLabels,omitempty"`
+	Selector      EvalSelector       `json:"selector"`
 }
 
 // EvalVariantKind defines model for EvalVariant.Kind.
@@ -10585,23 +10543,6 @@ type ExactArtifactRef struct {
 	Name      ArtifactName `json:"name"`
 	Namespace ArtifactName `json:"namespace"`
 	Revision  Revision     `json:"revision"`
-}
-
-// ExecutionConfigPatch defines model for ExecutionConfigPatch.
-type ExecutionConfigPatch struct {
-	Planner *ExecutionSelectionPatch              `json:"planner,omitempty"`
-	Stages  *map[string]StageExecutionConfigPatch `json:"stages,omitempty"`
-	Workers *ExecutionSelectionPatch              `json:"workers,omitempty"`
-}
-
-// ExecutionSelectionPatch defines model for ExecutionSelectionPatch.
-type ExecutionSelectionPatch struct {
-	// CompactorModelPolicy Exact compactor ModelPolicy; valid only in a Planner selection that applies to a compact@1 Stage (PLN-R125).
-	CompactorModelPolicy  *Selector                   `json:"compactorModelPolicy,omitempty"`
-	Credential            nullable.Nullable[ConfigId] `json:"credential,omitempty"`
-	LlmGateway            *Selector                   `json:"llmGateway,omitempty"`
-	ModelPolicy           *Selector                   `json:"modelPolicy,omitempty"`
-	SummarizerModelPolicy *Selector                   `json:"summarizerModelPolicy,omitempty"`
 }
 
 // FindingAnchorBasis defines model for FindingAnchorBasis.
@@ -12311,8 +12252,7 @@ type RunRecoveryCode string
 
 // RunRepeatDraft defines model for RunRepeatDraft.
 type RunRepeatDraft struct {
-	ExecutionConfig RunRepeatExecutionConfig  `json:"executionConfig"`
-	Inputs          map[string]RunRepeatInput `json:"inputs"`
+	Inputs map[string]RunRepeatInput `json:"inputs"`
 
 	// Labels Immutable ordinary key/value labels. cloud and local derive Runtime placement; an empty value selects the namespace and a non-empty value selects its provider/site child path. Other keys are descriptive.
 	Labels     RunMetadataLabels `json:"labels"`
@@ -12349,15 +12289,6 @@ type RunRepeatDraftResponse struct {
 
 // RunRepeatDraftResponseAuthority defines model for RunRepeatDraftResponse.Authority.
 type RunRepeatDraftResponseAuthority string
-
-// RunRepeatExecutionConfig defines model for RunRepeatExecutionConfig.
-type RunRepeatExecutionConfig struct {
-	Status RunRepeatExecutionConfigStatus `json:"status"`
-	Value  ExecutionConfigPatch           `json:"value"`
-}
-
-// RunRepeatExecutionConfigStatus defines model for RunRepeatExecutionConfig.Status.
-type RunRepeatExecutionConfigStatus string
 
 // RunRepeatInput defines model for RunRepeatInput.
 type RunRepeatInput struct {
@@ -13174,12 +13105,6 @@ type StageExecutionConfig struct {
 
 // StageExecutionConfigVariant defines model for StageExecutionConfig.Variant.
 type StageExecutionConfigVariant string
-
-// StageExecutionConfigPatch defines model for StageExecutionConfigPatch.
-type StageExecutionConfigPatch struct {
-	Agents  *map[string]ExecutionSelectionPatch `json:"agents,omitempty"`
-	Planner *ExecutionSelectionPatch            `json:"planner,omitempty"`
-}
 
 // StageExecutionState defines model for StageExecutionState.
 type StageExecutionState string
@@ -21816,7 +21741,7 @@ type ClientInterface interface {
 
 	// GetRunRepeatDraft Project a terminal Run into a reviewed new-Run draft
 	//
-	// Reads immutable Run request provenance without creating or changing a Run. Original UserScope or ProjectScope revisions are returned only after owner and source-scope verification; frozen RunScope inputs are never presented as reusable sources. Audit-managed Runs return their owning Audit context without a draft. The draft requires the Run's retained executionConfig fragment, valid and matching its Workflow and Project; a missing or invalid fragment returns a blocking notice and no draft, and neither lineage nor current or effective configuration reconstructs the original request.
+	// Reads immutable Run request provenance without creating or changing a Run. Original UserScope or ProjectScope revisions are returned only after owner and source-scope verification; frozen RunScope inputs are never presented as reusable sources. Audit-managed Runs return their owning Audit context without a draft. The draft requires the Run's retained request fragment, valid and matching its Workflow and Project; a missing or invalid fragment returns a blocking notice and no draft, and neither lineage nor current or effective configuration reconstructs the original request.
 	//
 	// Corresponds with GET /v1/runs/{runId}/repeat-draft (the `GetRunRepeatDraft` operationId).
 	GetRunRepeatDraft(ctx context.Context, runId RunId, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -24902,7 +24827,7 @@ func (c *Client) DownloadRunOutput(ctx context.Context, runId RunId, slot Artifa
 
 // GetRunRepeatDraft Project a terminal Run into a reviewed new-Run draft
 //
-// Reads immutable Run request provenance without creating or changing a Run. Original UserScope or ProjectScope revisions are returned only after owner and source-scope verification; frozen RunScope inputs are never presented as reusable sources. Audit-managed Runs return their owning Audit context without a draft. The draft requires the Run's retained executionConfig fragment, valid and matching its Workflow and Project; a missing or invalid fragment returns a blocking notice and no draft, and neither lineage nor current or effective configuration reconstructs the original request.
+// Reads immutable Run request provenance without creating or changing a Run. Original UserScope or ProjectScope revisions are returned only after owner and source-scope verification; frozen RunScope inputs are never presented as reusable sources. Audit-managed Runs return their owning Audit context without a draft. The draft requires the Run's retained request fragment, valid and matching its Workflow and Project; a missing or invalid fragment returns a blocking notice and no draft, and neither lineage nor current or effective configuration reconstructs the original request.
 //
 // Corresponds with GET /v1/runs/{runId}/repeat-draft (the `GetRunRepeatDraft` operationId).
 func (c *Client) GetRunRepeatDraft(ctx context.Context, runId RunId, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -37409,7 +37334,7 @@ type ClientWithResponsesInterface interface {
 
 	// GetRunRepeatDraftWithResponse Project a terminal Run into a reviewed new-Run draft
 	//
-	// Reads immutable Run request provenance without creating or changing a Run. Original UserScope or ProjectScope revisions are returned only after owner and source-scope verification; frozen RunScope inputs are never presented as reusable sources. Audit-managed Runs return their owning Audit context without a draft. The draft requires the Run's retained executionConfig fragment, valid and matching its Workflow and Project; a missing or invalid fragment returns a blocking notice and no draft, and neither lineage nor current or effective configuration reconstructs the original request.
+	// Reads immutable Run request provenance without creating or changing a Run. Original UserScope or ProjectScope revisions are returned only after owner and source-scope verification; frozen RunScope inputs are never presented as reusable sources. Audit-managed Runs return their owning Audit context without a draft. The draft requires the Run's retained request fragment, valid and matching its Workflow and Project; a missing or invalid fragment returns a blocking notice and no draft, and neither lineage nor current or effective configuration reconstructs the original request.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -61633,7 +61558,7 @@ func (c *ClientWithResponses) DownloadRunOutputWithResponse(ctx context.Context,
 
 // GetRunRepeatDraftWithResponse Project a terminal Run into a reviewed new-Run draft
 //
-// Reads immutable Run request provenance without creating or changing a Run. Original UserScope or ProjectScope revisions are returned only after owner and source-scope verification; frozen RunScope inputs are never presented as reusable sources. Audit-managed Runs return their owning Audit context without a draft. The draft requires the Run's retained executionConfig fragment, valid and matching its Workflow and Project; a missing or invalid fragment returns a blocking notice and no draft, and neither lineage nor current or effective configuration reconstructs the original request.
+// Reads immutable Run request provenance without creating or changing a Run. Original UserScope or ProjectScope revisions are returned only after owner and source-scope verification; frozen RunScope inputs are never presented as reusable sources. Audit-managed Runs return their owning Audit context without a draft. The draft requires the Run's retained request fragment, valid and matching its Workflow and Project; a missing or invalid fragment returns a blocking notice and no draft, and neither lineage nor current or effective configuration reconstructs the original request.
 //
 // Returns a wrapper object for the known response body format(s).
 //

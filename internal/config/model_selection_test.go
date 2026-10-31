@@ -136,9 +136,9 @@ func TestDeploymentModelSelectionPinsMainSummaryPlannerAndExplicitVariants(t *te
 	store := &memoryModelSettings{}
 	manager := configuredModelManager(t, root, store)
 	credentials := developmentCredentialLookup(t, manager.Snapshot())
-	resolve := func(patch resolved.ExecutionConfigPatch) resolved.ResolvedWorkflow {
+	resolve := func() resolved.ResolvedWorkflow {
 		t.Helper()
-		workflow, err := manager.ResolveRunWorkflow(t.Context(), "artifact-modeled@1", patch, credentials)
+		workflow, err := manager.ResolveRunWorkflow(t.Context(), "artifact-modeled@1", credentials)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -146,7 +146,7 @@ func TestDeploymentModelSelectionPinsMainSummaryPlannerAndExplicitVariants(t *te
 	}
 	// The deployed passthrough workflow starts a modeled Planner only after
 	// a terminal summary; it must receive the same captured Planner choice.
-	before := resolve(resolved.ExecutionConfigPatch{})
+	before := resolve()
 	original, _ := json.Marshal(before)
 	stage := before.Stages["copy"]
 	if stage.ExecutionConfig.Planner.ModelPolicy.Model != "fixture/fixture-a@"+strings.Repeat("a", 16)+"/planner" {
@@ -164,14 +164,14 @@ func TestDeploymentModelSelectionPinsMainSummaryPlannerAndExplicitVariants(t *te
 	if err != nil {
 		t.Fatal(err)
 	}
-	continuation, err := manager.ResolveRunWorkflow(t.Context(), "artifact-copy@1", resolved.ExecutionConfigPatch{}, credentials)
+	continuation, err := manager.ResolveRunWorkflow(t.Context(), "artifact-copy@1", credentials)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if continuation.Stages["copy"].On.Summarized.Escalate.ExecutionConfig.Effective.Planner.ModelPolicy.ContextWindowTokens != 65536 {
 		t.Fatal("summary continuation ignored the selected Planner model")
 	}
-	after := resolve(resolved.ExecutionConfigPatch{})
+	after := resolve()
 	selected := after.Stages["copy"].ExecutionConfig.Agents["builder"]
 	if changed.Revision != "2" || selected.ModelPolicy.ContextWindowTokens != 65536 || selected.ModelPolicy.MaxTotalTokens != 32768 || selected.SummarizerModelPolicy.Model != main.SummarizerModelPolicy.Model {
 		t.Fatal("model change changed spend or lost summary override")
@@ -189,10 +189,15 @@ func TestDeploymentModelSelectionPinsMainSummaryPlannerAndExplicitVariants(t *te
 	if data, _ := json.Marshal(pinned); string(data) != string(original) {
 		t.Fatal("prepared Eval was reinterpreted through current defaults")
 	}
-	override := decodeExecutionConfigPatch(t, `{"workers":{"modelPolicy":"`+models[0].Policies["worker"]+`","summarizerModelPolicy":"`+models[1].Policies["summarizer"]+`"}}`)
-	explicit := resolve(override).Stages["copy"].ExecutionConfig.Agents["builder"]
+	writeWorkflowExecutionConfig(t, root, "artifact_modeled.yaml", `{"planner":{"modelPolicy":"planner@1","llmGateway":"local-litellm@1"},"workers":{"modelPolicy":"`+models[0].Policies["worker"]+`","summarizerModelPolicy":"`+models[1].Policies["summarizer"]+`","llmGateway":"local-litellm@1","credential":"development-worker"}}`)
+	explicitManager := configuredModelManager(t, root, store)
+	explicitWorkflow, err := explicitManager.ResolveRunWorkflow(t.Context(), "artifact-modeled@1", credentials)
+	if err != nil {
+		t.Fatal(err)
+	}
+	explicit := explicitWorkflow.Stages["copy"].ExecutionConfig.Agents["builder"]
 	if explicit.ModelPolicy.Ref.PolicyID != strings.TrimSuffix(models[0].Policies["worker"], "@1") || explicit.SummarizerModelPolicy.ContextWindowTokens != 65536 {
-		t.Fatal("explicit Eval choices did not win")
+		t.Fatal("explicit Workflow choices did not win")
 	}
 	restarted := configuredModelManager(t, root, store)
 	saved, err := restarted.GetModelSelection(t.Context())

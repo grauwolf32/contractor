@@ -1,0 +1,114 @@
+{
+  "cases": [
+    {
+      "name": "draft-start",
+      "document": "{\"schema\": \"contractor.audit.control.v1\", \"from\": \"draft\", \"command\": \"start\", \"to\": \"active\"}",
+      "valid": true
+    },
+    {
+      "name": "active-pause",
+      "document": "{\"schema\": \"contractor.audit.control.v1\", \"from\": \"active\", \"command\": \"pause\", \"to\": \"paused\"}",
+      "valid": true
+    },
+    {
+      "name": "active-deadline",
+      "document": "{\"schema\": \"contractor.audit.control.v1\", \"from\": \"active\", \"command\": \"deadline\", \"to\": \"paused\"}",
+      "valid": true
+    },
+    {
+      "name": "paused-resume",
+      "document": "{\"schema\": \"contractor.audit.control.v1\", \"from\": \"paused\", \"command\": \"resume\", \"to\": \"active\"}",
+      "valid": true
+    },
+    {
+      "name": "active-cancel",
+      "document": "{\"schema\": \"contractor.audit.control.v1\", \"from\": \"active\", \"command\": \"cancel\", \"to\": \"cancelling\"}",
+      "valid": true
+    },
+    {
+      "name": "paused-cancel",
+      "document": "{\"schema\": \"contractor.audit.control.v1\", \"from\": \"paused\", \"command\": \"cancel\", \"to\": \"cancelling\"}",
+      "valid": true
+    },
+    {
+      "name": "finalizing-cancel",
+      "document": "{\"schema\": \"contractor.audit.control.v1\", \"from\": \"finalizing\", \"command\": \"cancel\", \"to\": \"cancelling\"}",
+      "valid": true
+    },
+    {
+      "name": "draft-delete",
+      "document": "{\"schema\": \"contractor.audit.control.v1\", \"from\": \"draft\", \"command\": \"delete\", \"to\": \"deleting\"}",
+      "valid": true
+    },
+    {
+      "name": "completed-delete",
+      "document": "{\"schema\": \"contractor.audit.control.v1\", \"from\": \"completed\", \"command\": \"delete\", \"to\": \"deleting\"}",
+      "valid": true
+    },
+    {
+      "name": "failed-delete",
+      "document": "{\"schema\": \"contractor.audit.control.v1\", \"from\": \"failed\", \"command\": \"delete\", \"to\": \"deleting\"}",
+      "valid": true
+    },
+    {
+      "name": "cancelled-delete",
+      "document": "{\"schema\": \"contractor.audit.control.v1\", \"from\": \"cancelled\", \"command\": \"delete\", \"to\": \"deleting\"}",
+      "valid": true
+    },
+    {
+      "name": "active-delete",
+      "document": "{\"schema\": \"contractor.audit.control.v1\", \"from\": \"active\", \"command\": \"delete\", \"to\": \"cancelling\"}",
+      "valid": true
+    },
+    {
+      "name": "paused-delete",
+      "document": "{\"schema\": \"contractor.audit.control.v1\", \"from\": \"paused\", \"command\": \"delete\", \"to\": \"cancelling\"}",
+      "valid": true
+    },
+    {
+      "name": "finalizing-delete",
+      "document": "{\"schema\": \"contractor.audit.control.v1\", \"from\": \"finalizing\", \"command\": \"delete\", \"to\": \"cancelling\"}",
+      "valid": true
+    },
+    {
+      "name": "invalid-cancelled-resume",
+      "document": "{\"schema\": \"contractor.audit.control.v1\", \"from\": \"cancelled\", \"command\": \"resume\", \"to\": \"active\"}",
+      "valid": false
+    },
+    {
+      "name": "invalid-completed-resume",
+      "document": "{\"schema\": \"contractor.audit.control.v1\", \"from\": \"completed\", \"command\": \"resume\", \"to\": \"active\"}",
+      "valid": false
+    },
+    {
+      "name": "invalid-failed-resume",
+      "document": "{\"schema\": \"contractor.audit.control.v1\", \"from\": \"failed\", \"command\": \"resume\", \"to\": \"active\"}",
+      "valid": false
+    },
+    {
+      "name": "invalid-active-resume",
+      "document": "{\"schema\": \"contractor.audit.control.v1\", \"from\": \"active\", \"command\": \"resume\", \"to\": \"active\"}",
+      "valid": false
+    },
+    {
+      "name": "invalid-paused-start",
+      "document": "{\"schema\": \"contractor.audit.control.v1\", \"from\": \"paused\", \"command\": \"start\", \"to\": \"active\"}",
+      "valid": false
+    },
+    {
+      "name": "invalid-active-pause",
+      "document": "{\"schema\": \"contractor.audit.control.v1\", \"from\": \"active\", \"command\": \"pause\", \"to\": \"cancelled\"}",
+      "valid": false
+    },
+    {
+      "name": "invalid-active-deadline",
+      "document": "{\"schema\": \"contractor.audit.control.v1\", \"from\": \"active\", \"command\": \"deadline\", \"to\": \"failed\"}",
+      "valid": false
+    },
+    {
+      "name": "invalid-waiting_review-resume",
+      "document": "{\"schema\": \"contractor.audit.control.v1\", \"from\": \"waiting_review\", \"command\": \"resume\", \"to\": \"active\"}",
+      "valid": false
+    }
+  ]
+}

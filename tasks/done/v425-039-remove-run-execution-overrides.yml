@@ -6,8 +6,8 @@ epic: workflows
 kind: chore
 introduced_by: V3-006
 priority: P3
-status: pending
-depends_on: [V425-038]
+status: completed
+depends_on: [V425-038, V425-040]
 languages: [go, python, typescript]
 goal: >-
   Run and Eval callers select a Workflow with its authored policies instead of
@@ -20,8 +20,12 @@ context:
     future capability. The user explicitly said that the current refactoring only
     needs that direction, without implementing publication as a prerequisite.
     The user then requested merging proposal 0051 and asked for a concrete task
-    approach. The end-to-end removal scope below is the agent's proposal for
-    review; implementation has not started.
+    approach. User authorization 2026-11-01: merge the task into main and
+    implement the proposed removal. Dynamic publication remains outside this task.
+  verification_prerequisite: >-
+    V425-040 repairs two pre-existing test-only-export baseline references left
+    behind by Audit task archival on main. It landed separately; no Audit
+    implementation or additional export exception belongs to this refactoring.
   proposal: docs/proposals/0051-dynamic-workflow-publication.md
   specification:
     - docs/spec/configuration/agent-templates.md
@@ -118,7 +122,7 @@ acceptance_criteria:
     when: The listed checks run.
     then: The complete touched-package suites and relevant process/wire/UI gates pass; no new compatibility path, receipt, table or speculative authoring subsystem is added.
 tests:
-  - command: go test -tags=integration ./internal/config/... ./internal/runservice ./internal/runrepeat ./internal/evaldomain ./internal/evalservice ./internal/runtimeconfig ./internal/controlplane ./internal/httpapi/public ./internal/publicclient/... ./internal/app
+  - command: go test -tags=integration ./internal/config/... ./internal/runservice ./internal/runrepeat ./internal/evaldomain ./internal/evalservice ./internal/runtimeconfig ./internal/controlplane ./internal/httpapi/public ./internal/publicclient/... ./internal/app ./internal/scheduler
     covers: [A1, A2, A3, A4, A5]
   - command: make verify-public-api
     covers: [A1, A4, A5]
@@ -132,3 +136,42 @@ tests:
     covers: [A3, A5]
   - command: make lint
     covers: [A1, A4, A5]
+  - command: go test -tags=e2e -count=1 -timeout=15m ./tests/ui-stack -run '^TestManagedEvalsNativeStack$'
+    covers: [A1, A2, A4, A5]
+  - command: go test -tags=e2e -count=1 -timeout=15m ./tests/ui-stack -run '^TestManagedEvalsExternalStack$'
+    covers: [A1, A2, A4, A5]
+
+notes: >-
+  Removed launch executionConfig end to end, including custom JSON patch types,
+  optional Run provenance and route layer, idempotency input, retained repeat
+  patches and UI override inventories/controls. The YAML loader now owns its
+  private authoring selections. Repeat fragments use strict v3; prior versions
+  and patch-bearing shapes are unsupported. Effective history and exact base,
+  escalation, compactor and terminal-summary policy snapshots remain.
+  Ordinary public API PostgreSQL tests select two authored Workflows with equal
+  contracts/budgets and distinct exact Worker policies, then retain their
+  snapshots after a changed catalog loads. A managed Eval submits four members
+  per authored variant from its frozen bindings even when mutable resolution is
+  unavailable. Strict shared fixtures reject removed fields for Workflow and
+  Audit variants, including empty objects. The real-stack producer uses the
+  simplified shape. Dynamic Workflow publication remains proposal 0051.
+  Net handwritten production Go/TypeScript/CSS reduction is 991 lines, with a
+  further 289 lines removed from generated clients; counts include formatting.
+  Verification on 2026-11-01: the full listed integration-tagged Go package
+  suites passed against disposable PostgreSQL, including Scheduler. Public API,
+  cross-language wire/shared fixtures (385 Go and 286 Python shared tests),
+  shipped configuration and real Server/Runtime routing/escalation gates passed.
+  Native and external managed-Eval browser stacks passed independently in
+  508.631s and 481.044s, each using its own disposable database because the
+  single-active-Server lease is database-scoped. The initial combined browser
+  invocation was stopped before its insufficient aggregate deadline; a parallel
+  external attempt sharing the native database was also stopped as a standby.
+  Both final isolated invocations passed and their processes joined. The two
+  disposable databases were removed. No demo database or live model was changed.
+  Core source implementation is 3e08e7e9113be6718287d555b8cd626ad674002f.
+  Integrated the concurrent Project Overview and Sitemap planning changes from
+  main, then reran make ui-verify and make lint successfully. UI 0.10.31 passed
+  all 216 test files (2666 tests, one pre-existing expected failure), static
+  Server tests and production build. No source changes followed those checks.
+
+implementation_commit: 3e08e7e9113be6718287d555b8cd626ad674002f

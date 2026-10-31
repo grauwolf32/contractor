@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-78 open tasks: 10 in progress, 57 pending, 11 deferred. 1303 finished: 1285 completed, 18 archived.
+79 open tasks: 10 in progress, 58 pending, 11 deferred. 1307 finished: 1289 completed, 18 archived.
 
 ## In progress
 
@@ -84,26 +84,27 @@ the epics are in [epics.yml](epics.yml).
 | [V411-014](v411-014-pentest-discovery-surface.yml) | feature | P1 | V411-015, V410-025 | Discover URL-only targets using HTTP tools and the shared sitemap |
 | [V411-015](v411-015-http-pentest-workflow-presets.yml) | feature | P1 | V64-002, V411-007, V411-019 | Demonstrate an ordinary HTTP Workflow on the lean Audit path |
 | [V412-003](v412-003-browser-pentest-profiles-and-gate.yml) | feature | P2 | V412-001, V410-009, V411-020 | Compose optional browser investigation with truthful availability and results |
-| [V425-039](v425-039-remove-run-execution-overrides.yml) | chore | P3 | — | Select execution policies through Workflows instead of Run overrides |
 
 ### Audits (`audits`)
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V64-001](v64-001-audit-priority-contracts.yml) | feature | P1 | — | Define the lean Audit task and result contract |
-| [V64-002](v64-002-audit-priority-store.yml) | feature | P1 | V64-001, V64-004, V64-014 | Coordinate durable Audit tasks through ordinary Runs |
-| [V64-004](v64-004-audit-priority-context.yml) | feature | P1 | V64-001 | Add Audit artifact ownership and exact Project publication |
+| [V64-002](v64-002-audit-priority-store.yml) | feature | P1 | V64-004, V64-014, V64-021 | Coordinate durable Audit tasks through ordinary Runs |
+| [V64-004](v64-004-audit-priority-context.yml) | feature | P1 | — | Add Audit artifact ownership and exact Project publication |
 | [V64-005](v64-005-independent-priority-verdicts.yml) | feature | P2 | V64-012, V64-013 | Optionally rank the common Audit ready-task shortlist |
 | [V64-008](v64-008-audit-priority-api-coverage.yml) | feature | P1 | V64-012, V64-013, V411-010 | Expose Audit tasks check results findings and selected materials |
 | [V64-010](v64-010-audit-priority-profile.yml) | feature | P1 | V64-012, V64-013, V411-010 | Migrate shipped Audit programs and retire the old pipeline |
 | [V64-011](v64-011-audit-priority-release.yml) | feature | P1 | V64-009, V64-010, V411-015, V425-017 | Gate the basic Audit research scenario and complexity reduction |
-| [V64-012](v64-012-audit-hypothesis-registry.yml) | feature | P1 | V64-002, V64-014 | Verify fixed and manual hypotheses through Audit tasks |
-| [V64-013](v64-013-audit-hypothesis-generation.yml) | feature | P1 | V64-012, V64-004, V411-011 | Generate scoped hypotheses from selected materials and check results |
-| [V64-014](v64-014-audit-hypothesis-assessments.yml) | feature | P1 | V64-001, V64-004 | Retain Project problem findings and exact source contributions |
+| [V64-012](v64-012-audit-hypothesis-registry.yml) | feature | P1 | V64-002, V64-014, V64-022 | Verify fixed and manual hypotheses through Audit tasks |
+| [V64-013](v64-013-audit-hypothesis-generation.yml) | feature | P1 | V64-012, V64-004, V411-011, V64-020 | Generate scoped hypotheses from selected materials and check results |
+| [V64-014](v64-014-audit-hypothesis-assessments.yml) | feature | P1 | V64-004 | Retain Project problem findings and exact source contributions |
 | [V64-015](v64-015-audit-research-frontier.yml) | feature | P2 | V64-011 | Measure whether a larger Audit frontier needs incremental indexing |
 | [V64-016](v64-016-audit-research-ranking-evaluation.yml) | chore | P2 | V64-005, V64-011 | Evaluate optional Audit ranking against the deterministic baseline |
 | [V64-017](v64-017-audit-attack-tree-projection.yml) | feature | P2 | V64-011 | Project optional attack trees over retained research conclusions |
 | [V64-018](v64-018-audit-research-pentest-integration.yml) | feature | P2 | V64-011, V411-020 | Compose optional hypothesis generation with ordinary HTTP Audit tasks |
+| [V64-020](v64-020-accept-empty-hypothesis-proposals.yml) | defect | P1 | — | Accept no-new-work results from ordinary hypothesis generation |
+| [V64-021](v64-021-validate-effective-audit-input-requiredness.yml) | defect | P1 | — | Validate required inputs after initial Audit material overrides |
+| [V64-022](v64-022-bound-hypothesis-seed-bytes.yml) | defect | P1 | — | Reject oversized hypothesis seeds in programs and proposals |
 | [V411-010](v411-010-pentest-program-availability.yml) | feature | P1 | V64-002, V64-014 | Remove formal Audit approvals and keep direct analyst actions |
 | [V411-016](v411-016-pentest-proof-report.yml) | feature | P1 | V411-015, V411-014, V64-008 | Show HTTP engagement context and gaps in ordinary retained Audit reports |
 | [V417-005](v417-005-audit-worker-context-compaction.yml) | feature | P1 | V417-003, V417-004, V64-012 | Admit compaction without bypassing trusted Audit completion |
@@ -189,12 +190,12 @@ tasks in `introduced_by`.
 | HTTP and Caido tools (`http-tools`) | 4 | 22 | 27 | 9 | 25 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 2 | 17 | 10 | 9 | 20 |
 | Findings tools and collections (`findings`) | 2 | 17 | 8 | 9 | 14 |
-| Workflow catalog and document workflows (`workflows`) | 6 | 19 | 15 | 14 | 19 |
+| Workflow catalog and document workflows (`workflows`) | 5 | 19 | 15 | 14 | 19 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 36 | 37 | 11 | 60 |
-| Audits (`audits`) | 19 | 67 | 84 | 35 | 124 |
+| Audits (`audits`) | 21 | 67 | 87 | 36 | 128 |
 | Evaluations (`evals`) | 6 | 21 | 39 | 15 | 49 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |
-| Web UI (`ui`) | 2 | 30 | 68 | 16 | 61 |
+| Web UI (`ui`) | 2 | 30 | 68 | 17 | 62 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 18 | 45 | 8 | 20 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 38 | 25 | 16 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 27 | 46 | 15 |

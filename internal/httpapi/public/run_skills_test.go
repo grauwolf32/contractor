@@ -49,7 +49,7 @@ func TestCreateRunCommitsExactSkillSelectionBeforeDeferredInitialization(t *test
 		t.Fatal(err)
 	}
 
-	body := []byte(`{"workflow":"artifact-copy@1","parameters":{},"artifacts":{"source":{"namespace":"projects","name":"source"}},"executionConfig":{}}`)
+	body := []byte(`{"workflow":"artifact-copy@1","parameters":{},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`)
 	request := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(body))
 	response := httptest.NewRecorder()
 	fixture.handler.ServeHTTP(response, request)

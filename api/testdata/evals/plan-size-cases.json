@@ -16,14 +16,12 @@
           {
             "id": "a",
             "kind": "workflow",
-            "selector": "trace-a@1",
-            "executionConfig": {}
+            "selector": "trace-a@1"
           },
           {
             "id": "b",
             "kind": "workflow",
-            "selector": "trace-b@1",
-            "executionConfig": {}
+            "selector": "trace-b@1"
           }
         ],
         "repetitions": 1,
@@ -71,7 +69,7 @@
           "maxObservedTotalTokens": null
         }
       },
-      "estimatedBytes": 38691,
+      "estimatedBytes": 38565,
       "withinLimit": true
     },
     {
@@ -91,7 +89,6 @@
             "id": "a",
             "kind": "workflow",
             "selector": "trace-a@1",
-            "executionConfig": {},
             "runtimeLabels": [
               "gpu",
               "eu-west"
@@ -104,15 +101,14 @@
             },
             "parameters": {
               "focus": "<script>&amp;</script>",
-              "notes": "line\u2028break\u2029para",
-              "locale": "\u00e9 \u4e2d\u6587 \u03a9"
+              "notes": "line break para",
+              "locale": "é 中文 Ω"
             }
           },
           {
             "id": "b",
             "kind": "workflow",
-            "selector": "trace-b@1",
-            "executionConfig": {}
+            "selector": "trace-b@1"
           }
         ],
         "repetitions": 4,
@@ -172,11 +168,11 @@
           "maxObservedTotalTokens": 250000
         }
       },
-      "estimatedBytes": 60135,
+      "estimatedBytes": 60009,
       "withinLimit": true
     },
     {
-      "name": "execution-config-patch",
+      "name": "distinct-workflow-selections",
       "draft": {
         "dataset": {
           "id": "trace-small",
@@ -189,31 +185,12 @@
           {
             "id": "a",
             "kind": "workflow",
-            "selector": "trace-a@1",
-            "executionConfig": {}
+            "selector": "trace-a@1"
           },
           {
             "id": "b",
             "kind": "workflow",
-            "selector": "trace-b@1",
-            "executionConfig": {
-              "workers": {
-                "modelPolicy": "small-worker@2",
-                "llmGateway": "local-litellm@1"
-              },
-              "stages": {
-                "triage": {
-                  "planner": {
-                    "modelPolicy": "planner@3"
-                  },
-                  "agents": {
-                    "worker": {
-                      "credential": null
-                    }
-                  }
-                }
-              }
-            }
+            "selector": "trace-b@1"
           }
         ],
         "repetitions": 1,
@@ -257,7 +234,7 @@
           "maxObservedTotalTokens": null
         }
       },
-      "estimatedBytes": 38512,
+      "estimatedBytes": 37867,
       "withinLimit": true
     },
     {
@@ -278,14 +255,12 @@
           {
             "id": "a",
             "kind": "workflow",
-            "selector": "trace-a@1",
-            "executionConfig": {}
+            "selector": "trace-a@1"
           },
           {
             "id": "b",
             "kind": "workflow",
-            "selector": "trace-b@1",
-            "executionConfig": {}
+            "selector": "trace-b@1"
           }
         ],
         "repetitions": 100,
@@ -334,7 +309,7 @@
       },
       "padding": {
         "unit": "x",
-        "repeat": 37225
+        "repeat": 37267
       },
       "estimatedBytes": 1048576,
       "withinLimit": true
@@ -357,14 +332,12 @@
           {
             "id": "a",
             "kind": "workflow",
-            "selector": "trace-a@1",
-            "executionConfig": {}
+            "selector": "trace-a@1"
           },
           {
             "id": "b",
             "kind": "workflow",
-            "selector": "trace-b@1",
-            "executionConfig": {}
+            "selector": "trace-b@1"
           }
         ],
         "repetitions": 100,
@@ -413,7 +386,7 @@
       },
       "padding": {
         "unit": "x",
-        "repeat": 37226
+        "repeat": 37268
       },
       "estimatedBytes": 1048579,
       "withinLimit": false
