@@ -1,3 +1,5 @@
+import { readRunListOrigin } from "./source-context";
+import { RunSourceWorkspace } from "./source-pane";
 import "./runs.css";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -527,10 +529,19 @@ function RunPage({ runId }: { runId: string }) {
 
 export function RunDetailRoute() {
   const { runId = "" } = useParams();
+  const { state } = useLocation();
+  const origin = readRunListOrigin(state);
   if (!RUN_ID_PATTERN.test(runId)) {
     return <InvalidRunRoute />;
   }
-  return <RunPage key={runId} runId={runId} />;
+  const page = <RunPage key={runId} runId={runId} />;
+  return origin === undefined ? (
+    page
+  ) : (
+    <RunSourceWorkspace origin={origin} runId={runId}>
+      {page}
+    </RunSourceWorkspace>
+  );
 }
 
 function InvalidRunRoute() {

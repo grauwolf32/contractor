@@ -94,6 +94,8 @@ function renderMeta(meta: ReactNode): ReactNode {
 interface ListRowProps {
   /** Selecting the row navigates here (selection lives in the URL). */
   to?: To | undefined;
+  /** Additional router context retained by this row. */
+  state?: unknown;
   /** Selects the row: the title becomes a button, or with `to` also runs on click. */
   onSelect?: (() => void) | undefined;
   /** Selected rows get aria-current="true", the tint and the left bar. */
@@ -126,6 +128,7 @@ interface ListRowProps {
  */
 export function ListRow({
   to,
+  state,
   onSelect,
   selected = false,
   glyph,
@@ -151,6 +154,7 @@ export function ListRow({
     control = (
       <Link
         to={to}
+        state={state}
         className="ui-row-control"
         aria-current={current}
         aria-keyshortcuts={ariaKeyShortcuts}

@@ -1015,6 +1015,38 @@ describe("Project overview", () => {
     ).toHaveAttribute("href", "/projects/project_a/runs");
   });
 
+  it.each([
+    ["Recent Runs", "Recent Runs", { limit: 5 }],
+    ["Recent results", "Successful Runs", { limit: 3, state: "succeeded" }],
+  ])(
+    "keeps the %s source when opening its producing Run",
+    async (region, label, options) => {
+      const { user, router } = renderAt(overviewServer, "/projects/project_a");
+      const source = await screen.findByRole("region", {
+        name: region as string,
+      });
+      const link = await waitFor(() => {
+        const found = within(source)
+          .getAllByRole("link")
+          .find((node) => node.getAttribute("href") === "/runs/run_ok");
+        expect(found).toBeDefined();
+        return found!;
+      });
+      await user.click(link);
+      await waitFor(() =>
+        expect(router.state.location.pathname).toBe("/runs/run_ok"),
+      );
+      expect(router.state.location.state).toMatchObject({
+        returnTo: "/projects/project_a",
+        returnLabel: "Project Overview",
+        runSource: { kind: "project", label, projectId: "project_a", options },
+      });
+      expect(
+        await screen.findByRole("region", { name: "Source Runs" }),
+      ).toBeVisible();
+    },
+  );
+
   it("previews only the selected exact output and requires a new action after its revision changes", async () => {
     const source = "note: selected exact output";
     const outputs = {
@@ -1425,7 +1457,7 @@ describe("Project settings", () => {
 
 describe("Project Runs", () => {
   it("keeps view, state and cursor in the URL and links a check's Runs to the check", async () => {
-    const { requests } = renderAt(
+    const { requests, user, router } = renderAt(
       {
         projects: [projectA],
         runs: [run("run_item", "succeeded", { "audit.id": "audit_running" })],
@@ -1453,6 +1485,24 @@ describe("Project Runs", () => {
     expect(read?.searchParams.get("state")).toBe("succeeded");
     expect(read?.searchParams.get("limit")).toBe("25");
     expect(screen.getByText("Identity & labels (1)")).toBeVisible();
+    await user.click(
+      screen.getByRole("link", { name: "openapi-from-source@1" }),
+    );
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe("/runs/run_item"),
+    );
+    expect(router.state.location.state).toMatchObject({
+      returnTo: "/projects/project_a/runs?view=completed&state=succeeded",
+      runSource: {
+        kind: "project",
+        label: "Project Runs",
+        projectId: "project_a",
+        options: { limit: 25, lifecycle: "terminal", state: "succeeded" },
+      },
+    });
+    expect(
+      await screen.findByRole("region", { name: "Source Runs" }),
+    ).toBeVisible();
   });
 });
 

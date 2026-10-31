@@ -1486,3 +1486,14 @@ header/facts, a single vertical outcome/next-step surface for non-success states
 and result actions at the top right beside their title. Shared icons represent
 check type selection, forward actions, output documents, copy/download and
 navigation; existing state/action eligibility and explicit exact previews remain.
+
+**UI-R219.** A Run opened from a supported Run list retains that source list in
+an adjacent shared list/detail pane. Queue/Completed filters, metadata labels,
+Project context, cursor and Overview sample bounds belong to the source and
+survive sibling Run selection and return. The pane has no separate view
+switches and reads only the same bounded page through existing APIs/query keys,
+with the source polling policy and explicit read-error/empty/absent-selection
+states. Navigation carries a validated read descriptor, never a browser-storage
+snapshot of business records. Direct or unsupported origins show ordinary Run
+detail without an invented list. Mobile uses the existing back-to-source and
+focus behavior, retaining router return state.

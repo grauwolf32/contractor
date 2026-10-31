@@ -1956,3 +1956,30 @@ a.runs-publication-ref {
     grid-column: 2;
   }
 }
+
+/* The left pane is the originating list, not a second Runs destination. */
+.runs-source-workspace {
+  min-width: 0;
+}
+.runs-source-workspace .runs-detail-page {
+  max-width: none;
+}
+.runs-source-workspace .ui-list-pane {
+  background: var(--surface);
+}
+.runs-source-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.runs-source-note {
+  display: block;
+  padding: var(--space-3) var(--space-4);
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+.runs-source-workspace > .ui-panes-detail {
+  padding: var(--space-5);
+  background: var(--background);
+}

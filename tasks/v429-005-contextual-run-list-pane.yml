@@ -1,0 +1,77 @@
+schema_version: "1.0"
+id: V429-005
+title: Retain the originating Run list beside Run detail
+milestone: ui-journey-usability
+epic: ui
+kind: feature
+priority: P2
+status: in_progress
+depends_on: [V429-004]
+languages: [typescript, css]
+goal: A Run opened from an existing list keeps that list beside its detail, without independent Queue/Completed switches.
+demonstration: Open a filtered Run list, select a Run, navigate to another row in the retained list and return to the same source filters/page. Repeat from a Project list and on mobile.
+context:
+  authority: >-
+    On 2026-11-01 the user proposed a left Run list like Projects, then clarified
+    that it should be the list from which the user opened the Run and must have
+    no separate switches. This extends the same requested Run/Project preview.
+  specification: docs/spec/ui/ui.md
+  design: docs/design/ui/README.md
+  decision: >-
+    Carry a bounded source-list descriptor through Run navigation, preserve its
+    filters and cursor, and reuse existing list API/query owners. Do not store
+    business records in browser storage, invent another list, fetch every page
+    or add Server endpoints. Direct/unknown-origin links show ordinary detail.
+    Narrow screens use the shared list/detail navigation and focus behavior.
+scope:
+  in:
+    - Existing global Queue/Completed and Project recent/successful/history Run list origins.
+    - Shared list/detail presentation, selection, exact return context and bounded live list reads.
+    - UI specification, release patch, tests and preview.
+  out:
+    - New Server API, arbitrary source-page embedding, a new global navigation destination or independent view switches.
+    - User data mutation, browser storage snapshots and automatic whole-list traversal.
+requirements:
+  - id: R1
+    text: Source filters/page survive selection and sibling Run navigation; selected Run is highlighted and return context remains exact.
+  - id: R2
+    text: A direct or unsupported origin has no invented list; read failures and selected Runs absent from the source page remain explicit.
+  - id: R3
+    text: The source list stays bounded and uses existing API/query contracts; source changes and live Run state remain truthful.
+  - id: R4
+    text: Shared PaneLayout provides mobile back/focus behavior, global typography and accessible row actions, without separate view switches.
+failure_outcomes:
+  - operation: Existing bounded Run-list reads
+    permanent: Show the existing read error and explicit retry; keep exact detail accessible.
+    retryable: Preserve existing query backoff, with no new mutation or replay.
+    ambiguous: No new mutation is introduced.
+    cancelled: Query/route ownership remains with the current source descriptor.
+    timeout: Existing API deadlines remain authoritative.
+cardinality:
+  - collection: One source list page
+    expected: A few Runs.
+    maximum: The existing Queue/Completed/Project list-page limit or Overview five/three-Run samples.
+    bound: No automatic traversal or per-row detail read; preserve source cursors.
+lifecycle:
+  - entity: Transient source-list navigation context
+    delete: Source deletion or an unavailable Run remains a read outcome; this feature deletes nothing.
+    cascade: No durable entity.
+    retention: In-memory router/query ownership only; no localStorage/sessionStorage business snapshots.
+acceptance_criteria:
+  - id: A1
+    text: Global and Project source list navigation retain filters, page, selected identity and exact return context, with no sidebar switches.
+  - id: A2
+    text: Direct/unknown origins, failed reads and an absent selected Run render truthfully without unbounded work.
+  - id: A3
+    text: Desktop/mobile keyboard, back-to-list and focus behavior work with shared primitives and all themes.
+tests:
+  - command: make ui-verify
+    covers: [A1, A2, A3]
+  - command: make ui-gates
+    covers: [A1, A2, A3]
+  - command: python3 scripts/check_spec.py
+    covers: [A1, A2, A3]
+  - command: node /tmp/contractor-run-source-browser.mjs
+    covers: [A1, A2, A3]
+  - command: python3 scripts/check_tasks.py
+    covers: [A1, A2, A3]

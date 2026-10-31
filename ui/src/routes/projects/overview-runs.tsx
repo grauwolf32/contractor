@@ -24,6 +24,9 @@ import { workflowFormats } from "../workflows/formats";
 import { projectPath } from "./project-sections";
 import { runStateLabel } from "../../app/vocabulary";
 import { Icon } from "../../app/icon";
+import { RunListSourceContext } from "../runs/source-context";
+import { RunSourceLink } from "../runs/source-link";
+import { OVERVIEW_POLL_MS, SUCCESSFUL_RUNS_POLL_MS } from "./overview-data";
 
 /** A Run's exact outputs and its Workflow's published output roles. */
 function useRunOutputs(summary: RunSummary) {
@@ -99,12 +102,12 @@ export function RunPrimaryResult({
 function ResultProvenance({ summary }: { summary: RunSummary }) {
   return (
     <div className="projects-result-provenance">
-      <ContextLink
+      <RunSourceLink
         returnLabel="Project Overview"
         to={`/runs/${encodeURIComponent(summary.runId)}`}
       >
         {summary.workflow}
-      </ContextLink>
+      </RunSourceLink>
       <IdChip value={summary.runId} label="Run ID" />
       <span className="projects-run-time">
         {summary.finishedAt ? "Finished" : "Updated"}{" "}
@@ -297,46 +300,56 @@ export function RecentResults({
 }) {
   const heading = useId();
   return (
-    <section className="projects-recent-results" aria-labelledby={heading}>
-      <div className="projects-section-heading">
-        <h3 id={heading}>Recent results</h3>
-        <Link
-          to={`${projectPath(projectId, "runs")}?view=completed&state=succeeded`}
+    <RunListSourceContext
+      value={{
+        kind: "project",
+        label: "Successful Runs",
+        projectId,
+        options: { limit: 3, state: "succeeded" },
+        refreshMs: SUCCESSFUL_RUNS_POLL_MS,
+      }}
+    >
+      <section className="projects-recent-results" aria-labelledby={heading}>
+        <div className="projects-section-heading">
+          <h3 id={heading}>Recent results</h3>
+          <Link
+            to={`${projectPath(projectId, "runs")}?view=completed&state=succeeded`}
+          >
+            Successful Runs
+          </Link>
+        </div>
+        <p className="ui-caption">
+          Outputs of the three most recent successful Runs.
+        </p>
+        <QueryView
+          query={results}
+          loading={
+            <p className="loading-copy" role="status">
+              Loading successful Runs…
+            </p>
+          }
+          onRetry={() => void results.refetch()}
+          isEmpty={(data) => data.items.length === 0}
+          empty={
+            <p className="ui-caption">
+              No successful Runs yet. Published results appear here.
+            </p>
+          }
         >
-          Successful Runs
-        </Link>
-      </div>
-      <p className="ui-caption">
-        Outputs of the three most recent successful Runs.
-      </p>
-      <QueryView
-        query={results}
-        loading={
-          <p className="loading-copy" role="status">
-            Loading successful Runs…
-          </p>
-        }
-        onRetry={() => void results.refetch()}
-        isEmpty={(data) => data.items.length === 0}
-        empty={
-          <p className="ui-caption">
-            No successful Runs yet. Published results appear here.
-          </p>
-        }
-      >
-        {(data) => (
-          <ul role="list" className="projects-results">
-            {data.items.map((run) => (
-              <RecentRunResult
-                key={run.runId}
-                summary={run}
-                projectId={projectId}
-              />
-            ))}
-          </ul>
-        )}
-      </QueryView>
-    </section>
+          {(data) => (
+            <ul role="list" className="projects-results">
+              {data.items.map((run) => (
+                <RecentRunResult
+                  key={run.runId}
+                  summary={run}
+                  projectId={projectId}
+                />
+              ))}
+            </ul>
+          )}
+        </QueryView>
+      </section>
+    </RunListSourceContext>
   );
 }
 
@@ -350,69 +363,79 @@ export function RecentRuns({
 }) {
   const heading = useId();
   return (
-    <section className="projects-recent-runs" aria-labelledby={heading}>
-      <div className="projects-section-heading">
-        <h3 id={heading}>Recent Runs</h3>
-        <Link to={projectPath(projectId, "runs")}>All Runs</Link>
-      </div>
-      <QueryView
-        query={runs}
-        loading={
-          <p className="loading-copy" role="status">
-            Loading recent Runs…
-          </p>
-        }
-        onRetry={() => void runs.refetch()}
-        isEmpty={(data) => data.items.length === 0}
-        empty={
-          <p className="ui-caption">
-            No Runs yet. Checks and Workflows start Runs.
-          </p>
-        }
-      >
-        {(data) => (
-          <ul role="list" className="projects-recent-run-list">
-            {data.items.map((run) => {
-              const state = runStateLabel(run.state);
-              return (
-                <li className="projects-recent-run" key={run.runId}>
-                  <div className="projects-recent-run-top">
-                    <ContextLink
-                      className="projects-recent-run-link"
-                      returnLabel="Project Overview"
-                      to={`/runs/${encodeURIComponent(run.runId)}`}
-                    >
-                      <strong>
-                        {parseWorkflowIdentity(run.workflow)?.name ??
-                          run.workflow}
-                      </strong>
-                      {parseWorkflowIdentity(run.workflow) ? (
-                        <small>
-                          @{parseWorkflowIdentity(run.workflow)?.version}
-                        </small>
-                      ) : null}
-                    </ContextLink>
-                    <StatusChip tone={state.tone} size="sm">
-                      {state.label}
-                    </StatusChip>
-                  </div>
-                  <div className="projects-result-provenance">
-                    <IdChip value={run.runId} label="Run ID" />
-                    <span className="projects-run-time">
-                      {run.finishedAt ? "Finished" : "Updated"}{" "}
-                      <RecordedTime
-                        display="clock"
-                        value={run.finishedAt ?? run.updatedAt}
-                      />
-                    </span>
-                    <Icon name="chevron-right" size={14} />
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </QueryView>
-    </section>
+    <RunListSourceContext
+      value={{
+        kind: "project",
+        label: "Recent Runs",
+        projectId,
+        options: { limit: 5 },
+        refreshMs: OVERVIEW_POLL_MS,
+      }}
+    >
+      <section className="projects-recent-runs" aria-labelledby={heading}>
+        <div className="projects-section-heading">
+          <h3 id={heading}>Recent Runs</h3>
+          <Link to={projectPath(projectId, "runs")}>All Runs</Link>
+        </div>
+        <QueryView
+          query={runs}
+          loading={
+            <p className="loading-copy" role="status">
+              Loading recent Runs…
+            </p>
+          }
+          onRetry={() => void runs.refetch()}
+          isEmpty={(data) => data.items.length === 0}
+          empty={
+            <p className="ui-caption">
+              No Runs yet. Checks and Workflows start Runs.
+            </p>
+          }
+        >
+          {(data) => (
+            <ul role="list" className="projects-recent-run-list">
+              {data.items.map((run) => {
+                const state = runStateLabel(run.state);
+                return (
+                  <li className="projects-recent-run" key={run.runId}>
+                    <div className="projects-recent-run-top">
+                      <RunSourceLink
+                        className="projects-recent-run-link"
+                        returnLabel="Project Overview"
+                        to={`/runs/${encodeURIComponent(run.runId)}`}
+                      >
+                        <strong>
+                          {parseWorkflowIdentity(run.workflow)?.name ??
+                            run.workflow}
+                        </strong>
+                        {parseWorkflowIdentity(run.workflow) ? (
+                          <small>
+                            @{parseWorkflowIdentity(run.workflow)?.version}
+                          </small>
+                        ) : null}
+                      </RunSourceLink>
+                      <StatusChip tone={state.tone} size="sm">
+                        {state.label}
+                      </StatusChip>
+                    </div>
+                    <div className="projects-result-provenance">
+                      <IdChip value={run.runId} label="Run ID" />
+                      <span className="projects-run-time">
+                        {run.finishedAt ? "Finished" : "Updated"}{" "}
+                        <RecordedTime
+                          display="clock"
+                          value={run.finishedAt ?? run.updatedAt}
+                        />
+                      </span>
+                      <Icon name="chevron-right" size={14} />
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </QueryView>
+      </section>
+    </RunListSourceContext>
   );
 }
