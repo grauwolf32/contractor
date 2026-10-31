@@ -17,7 +17,12 @@ from contractor_runtime.artifacts import (
     ArtifactResponseLimitError,
 )
 from contractor_runtime.contracts import ArtifactRef
-from contractor_runtime.contracts.base import DIGEST_PATTERN, NAME_PATTERN, StrictWireModel
+from contractor_runtime.contracts.base import (
+    DIGEST_PATTERN,
+    MAX_EXACT_INTEGER,
+    NAME_PATTERN,
+    StrictWireModel,
+)
 from contractor_runtime.strict_json import strict_json_loads
 from contractor_runtime.toolsets.common.observation_metadata import normalize_http_observation
 
@@ -25,7 +30,7 @@ REPORT_FORMATS = {"scan_ffuf": "ffuf-report@1", "scan_katana": "katana-report@1"
 MAX_REPORT_BYTES = 512 << 10
 MAX_RESULT_BYTES = 128 << 10
 MAX_RESULTS = 100
-MAX_COUNT = 2**53 - 1
+MAX_COUNT = MAX_EXACT_INTEGER
 Count = Annotated[int, Field(ge=0, le=MAX_COUNT)]
 Nonnegative = Annotated[int, Field(ge=0, le=2**63 - 1)]
 Digest = Annotated[str, Field(pattern=DIGEST_PATTERN.pattern)]

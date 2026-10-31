@@ -9,7 +9,7 @@ from typing import Any
 from google.adk.tools.tool_context import ToolContext
 
 from contractor_runtime.contracts import ArtifactRef
-from contractor_runtime.contracts.base import is_blank
+from contractor_runtime.contracts.base import MAX_EXACT_INTEGER, is_blank
 from contractor_runtime.core.tool_metrics import ToolCallCancelled, ToolMetrics, elapsed_ms
 from contractor_runtime.toolsets.audit_results.arguments import (
     AuditArgumentError,
@@ -96,7 +96,11 @@ def _normalize(key, value, captures=None, invocation_id=None, retained=None):
         capture, observation = None, None
         if "http_request_id" in entry:
             request_id = entry["http_request_id"]
-            if type(request_id) is not int or not 1 <= request_id <= 2**53 - 1 or captures is None:
+            if (
+                type(request_id) is not int
+                or not 1 <= request_id <= MAX_EXACT_INTEGER
+                or captures is None
+            ):
                 raise AuditCollectionError(
                     "evidence.http_request_id",
                     "Choose an HTTP request from this invocation.",

@@ -15,6 +15,8 @@ import (
 	"strings"
 	"time"
 	"unicode"
+
+	"github.com/grauwolf32/contractor/internal/exactinteger"
 )
 
 const MaxGPUDevices = 8
@@ -137,7 +139,7 @@ func parseNVIDIAGPUs(raw []byte) ([]GPUDevice, Reason) {
 		for i, target := range []**uint64{&d.MemoryUsedBytes, &d.MemoryTotalBytes} {
 			if value := values[i+1]; value != nil {
 				// nvidia-smi reports framebuffer memory in MiB, not decimal MB.
-				if *value > float64(1<<53-1)/(1024*1024) {
+				if *value > float64(exactinteger.Max)/(1024*1024) {
 					return nil, ReadFailed
 				}
 				n := uint64(*value * 1024 * 1024)
@@ -166,7 +168,7 @@ func validGPUDevice(d GPUDevice) bool {
 		}
 	}
 	for _, v := range []*uint64{d.MemoryUsedBytes, d.MemoryTotalBytes} {
-		if v != nil && *v > 1<<53-1 {
+		if v != nil && *v > exactinteger.Max {
 			return false
 		}
 	}

@@ -6,6 +6,7 @@ import (
 	"math"
 	"os"
 
+	"github.com/grauwolf32/contractor/internal/exactinteger"
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/process"
 )
@@ -45,7 +46,7 @@ func readProcessMetrics(current processMetrics) (Process, Reason) {
 		}
 	}
 	memory, err := current.MemoryInfo()
-	if err != nil || memory == nil || memory.RSS == 0 || memory.RSS > 1<<53-1 {
+	if err != nil || memory == nil || memory.RSS == 0 || memory.RSS > exactinteger.Max {
 		// A live self process cannot have zero RSS. Some platform APIs return
 		// zero-filled records on failure; never publish that as an observation.
 		reason = ReadFailed

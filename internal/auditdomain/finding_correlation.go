@@ -4,12 +4,13 @@ import (
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/contentdigest"
+	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 const (
 	FindingCorrelationSchema          = "contractor.finding.correlation.v1"
 	FindingCorrelationPolicy          = "qualified-snapshot/v1"
-	MaximumFindingCorrelationRevision = 1<<53 - 1
+	MaximumFindingCorrelationRevision = contracts.MaxExactInteger
 )
 
 type FindingCorrelationScope struct {

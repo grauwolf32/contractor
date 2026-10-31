@@ -15,6 +15,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
+	"github.com/grauwolf32/contractor/internal/exactinteger"
 	"github.com/grauwolf32/contractor/internal/strictjson"
 	"github.com/ucarion/jcs"
 )
@@ -29,7 +30,7 @@ const (
 	MaximumDescription       = 512
 	MaximumTags              = 3
 	MaximumTagBytes          = 64
-	MaximumExactOrdinal      = uint64(1<<53 - 1)
+	MaximumExactOrdinal      = uint64(exactinteger.Max)
 )
 
 var (

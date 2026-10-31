@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-82 open tasks: 9 in progress, 62 pending, 11 deferred. 1269 finished: 1254 completed, 15 archived.
+82 open tasks: 10 in progress, 61 pending, 11 deferred. 1269 finished: 1254 completed, 15 archived.
 
 ## In progress
 
@@ -20,6 +20,7 @@ the epics are in [epics.yml](epics.yml).
 | [V417-003](v417-003-isolated-worker-context-compaction.yml) | planner-worker | feature | P1 | Continue an isolated Worker through workflow-selected context compaction |
 | [V420-002](v420-002-planner-compaction-vertical-slice.yml) | planner-worker | feature | P1 | Implement opt-in bounded compaction for Streamline and Router Planners |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Enable shared Planner compaction and reuse native YAML in shipped Workflows |
+| [V425-006](v425-006-one-exact-integer-bound.yml) | api-contracts | chore | P3 | Take the exact JSON integer bound from one definition in Go and one in Python |
 
 ## Pending
 
@@ -143,7 +144,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V411-017](v411-017-pentest-api-cli.yml) | feature | P1 | V411-015, V411-016, V411-010 | Expose HTTP engagement setup and results through existing API and CLI |
-| [V425-006](v425-006-one-exact-integer-bound.yml) | chore | P3 | — | Take the exact JSON integer bound from one definition in Go and one in Python |
 | [V425-010](v425-010-composite-byte-bounds-server.yml) | defect | P2 | — | Validate per-part byte bounds of Run label selectors and sitemap rules in the Server and drop their gate exceptions |
 
 ### PostgreSQL persistence and schema (`persistence`)

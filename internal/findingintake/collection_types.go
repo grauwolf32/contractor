@@ -82,7 +82,7 @@ func canonicalCollectionRequest(input PublishCollectionRequest) (PublishCollecti
 			}
 		}
 		for j, finding := range source.Findings {
-			if !validIdentity(finding.FindingID) || finding.Revision == 0 || finding.Revision > 1<<53-1 ||
+			if !validIdentity(finding.FindingID) || finding.Revision == 0 || finding.Revision > contracts.MaxExactInteger ||
 				j > 0 && finding.FindingID == source.Findings[j-1].FindingID {
 				return PublishCollectionRequest{}, "", ErrInvalid
 			}

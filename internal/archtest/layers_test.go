@@ -42,6 +42,7 @@ var layers = []layerSpec{
 			"internal/contracts/contractstest",
 			"internal/credentialerrors",
 			"internal/documentnumber",
+			"internal/exactinteger",
 			// The YAML scalar and member-name rule of JSON-compatible source
 			// documents (SCN-R124) that scan preparation and the Audit
 			// inventories share.

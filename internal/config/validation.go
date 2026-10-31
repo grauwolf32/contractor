@@ -10,7 +10,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
-const maxJSONSafeInteger = 1<<53 - 1
+const maxJSONSafeInteger = contracts.MaxExactInteger
 
 func validateMetadata(metadata *metadataSource) (resolved.Selector, error) {
 	if metadata == nil {

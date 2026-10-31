@@ -1,6 +1,10 @@
 package performance
 
-import "time"
+import (
+	"time"
+
+	"github.com/grauwolf32/contractor/internal/exactinteger"
+)
 
 type GPUAggregate struct {
 	Freshness Freshness         `json:"freshness"`
@@ -116,7 +120,7 @@ func (g GPUAggregate) Validate(until time.Time) error {
 			if i == 0 && v.Max > 100 {
 				return errInvalidRecord
 			}
-			if (i == 1 || i == 2) && v.Max > 1<<53-1 {
+			if (i == 1 || i == 2) && v.Max > exactinteger.Max {
 				return errInvalidRecord
 			}
 		}

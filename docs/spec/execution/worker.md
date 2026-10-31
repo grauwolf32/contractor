@@ -548,6 +548,10 @@ doubles, and the Runtime renders every integer that way (`7.0`); a number
 written as an integral double therefore counts as that integer, while a
 fractional number or one outside the member's range is rejected.
 
+The contiguous exact-integer boundary is a fixed format property, not Runtime
+or Server configuration. Go and Python each define it once; shared boundary
+cases hold the definitions and decimal parsing to the same value.
+
 Because a double carries integers exactly only up to 2^53-1, every
 `WorkerCompletion` integer, `state_revision` (1 to 2^53-1) and each lean@1
 observation count (tool calls and failures, scoped, discovered, read,

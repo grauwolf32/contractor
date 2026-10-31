@@ -11,13 +11,13 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from pydantic.json_schema import SkipJsonSchema
 
 from contractor_runtime.contracts import ArtifactRef
+from contractor_runtime.contracts.base import MAX_EXACT_INTEGER
 from contractor_runtime.core.http_limits import MAX_URL_BYTES
 
 # V63-001 / docs/spec/27: match the retained Go contract, not tool display limits.
 MAX_LOCATIONS = 256  # Same bound as finding evidence links.
 MAX_PATH_BYTES = 4096
 MAX_METHOD_BYTES = 64
-MAX_EXACT_INTEGER = 2**53 - 1  # JSON/JavaScript lossless integer boundary.
 HTTP_TOKEN = re.compile(r"^[!#$%&'*+.^_`|~0-9A-Za-z-]+$")
 INVALID_PERCENT_ESCAPE = re.compile(r"%(?![0-9a-fA-F]{2})")
 LineNumber = Annotated[int, Field(strict=True, ge=1, le=MAX_EXACT_INTEGER)]

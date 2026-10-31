@@ -6,6 +6,8 @@ import (
 	"errors"
 	"math"
 	"strings"
+
+	"github.com/grauwolf32/contractor/internal/exactinteger"
 )
 
 var errInvalidRecord = errors.New("invalid bounded performance record")
@@ -123,7 +125,7 @@ func validNumbers(value any) bool {
 	case json.Number:
 		if !strings.ContainsAny(string(value), ".eE") {
 			number, err := value.Int64()
-			return err == nil && number >= 0 && number <= 1<<53-1
+			return err == nil && number >= 0 && number <= exactinteger.Max
 		}
 		number, err := value.Float64()
 		return err == nil && number >= 0 && !math.IsNaN(number) && !math.IsInf(number, 0)

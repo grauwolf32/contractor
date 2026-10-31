@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contentdigest"
+	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 func EncodeWorklist(value WorklistManifest) ([]byte, error) {
@@ -613,7 +614,7 @@ func validateEvidence(value EvidenceEnvelope) error {
 		}
 		if evidence.HTTPRequestID != "" || evidence.HTTPRequestTag != "" {
 			id, err := strconv.ParseUint(evidence.HTTPRequestID, 10, 64)
-			if err != nil || id == 0 || id > 9007199254740991 || strconv.FormatUint(id, 10) != evidence.HTTPRequestID ||
+			if err != nil || id == 0 || id > contracts.MaxExactInteger || strconv.FormatUint(id, 10) != evidence.HTTPRequestID ||
 				validateIdentifier(evidence.HTTPRequestTag, "evidence.http_request_tag") != nil || evidence.ObservedAt == "" || !strings.HasSuffix(evidence.ObservedAt, "Z") || evidence.ContentMemberID == "" ||
 				len(evidence.DeploymentMarker) > 256 || strings.IndexFunc(evidence.DeploymentMarker, func(r rune) bool { return r < 32 }) >= 0 {
 				return invalid(CodeInvalid, "evidence.http_observation")
