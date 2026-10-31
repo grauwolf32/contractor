@@ -662,9 +662,7 @@ inputs and rejects a Stage of another Run before the transaction, and the
 transaction reads the Stage again for provenance and authorization. The transaction revalidates selected evidence and stores the
 projection atomically with the receipt. Reconcile replay from the receipt
 before reading optional sources, including after source Run deletion; equal
-keys from independent calls retain independent receipts. Migration marks
-existing rows explicitly `not_recorded` without changing their existing data.
-Audit-held projections survive source deletion and one destination's purge;
+keys from independent calls retain independent receipts. Audit-held projections survive source deletion and one destination's purge;
 when their receipt becomes discarded, erase all derived key content and
 record only `discarded` (LIFE-FND-1). Project purge owns final row deletion.
 
@@ -765,8 +763,7 @@ Server-computed keys, or one unavailable reason. The owner finding view exposes
 Reasons are `not_recorded`, `not_provided`, `input_limit`, `asset_unavailable`,
 `selector_unavailable`, `anchor_language_unsupported`, `anchor_parser_unavailable`, `source_invalid`,
 `source_missing`, `parse_error`, `anchor_ambiguous` and `discarded`.
-Migration marks existing rows `not_recorded` without reparsing. Existing receipt
-replay precedes source reads; transport retries use byte-identical prepared
+Existing receipt replay precedes source reads; transport retries use byte-identical prepared
 submissions. Independent calls remain separate observations. Audit holds retain
 exact sources and derivations after source Run deletion, another Audit's purge
 does not remove them, and discard clears every derived field to the unavailable
@@ -791,9 +788,7 @@ actual Audit Project and group hash on the existing finding row. The group hash
 is SHA-256 hex of RFC 8785 JSON
 `["contractor/finding-group/v1", project_id, algorithm, value]`.
 The database derives scope from the Audit, enforces its composite foreign key,
-validates the group shape and rejects primary/first-receipt mutation. Migration
-freezes already retained projections without changing receipts or reparsing
-source. There is no global identity, membership table, extra receipt or
+validates the group shape and rejects primary/first-receipt mutation. There is no global identity, membership table, extra receipt or
 background controller.
 
 **FND-R176.** Authorized finding detail/list responses include the closed

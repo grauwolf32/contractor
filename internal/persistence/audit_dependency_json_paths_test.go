@@ -36,7 +36,7 @@ func TestSharedRetainedDependencySQLReadsSharedDescriptorPaths(t *testing.T) {
 		path []string
 		sql  string
 	}{
-		{[]string{"dependencies", "*", "retained", "ref", "revision"}, "contractor_artifact_ref_key('project',project,dependency #> '{retained,ref}')"},
+		{[]string{"dependencies", "*", "retained", "ref", "revision"}, "contractor_artifact_ref_key('project'::text, contractor_audit_dependency_holds.project, (dependency.dependency #> '{retained,ref}'::text[]))"},
 		{[]string{"dependencies", "*", "source", "ref", "revision"}, "dependency #> '{source,ref}'"},
 		{[]string{"dependencies", "*", "origin", "kind"}, "dependency #>> '{origin,kind}'"},
 		{[]string{"dependencies", "*", "requires"}, "dependency->'requires'"},

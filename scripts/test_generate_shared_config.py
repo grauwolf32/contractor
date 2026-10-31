@@ -39,12 +39,12 @@ def fixture_root(root):
     historical = "CONSTRAINT artifact_blobs_size_check CHECK (size_bytes <= 42);\n"
     historical += f"CONSTRAINT artifact_versions_git_repository_url_check CHECK (octet_length(git_repository_url) BETWEEN 1 AND {3 * config['limits']['gitImportUrlMaxBytes']});\n"
     sql = (
-        generator.ROOT / "internal/persistence/migrations/000063_restorable_table_functions.sql"
+        generator.ROOT / "internal/persistence/migrations/000001_baseline.sql"
     ).read_text()
     historical += (
         generator.metadata_routine_with_limits(
             generator.re.search(
-                r"CREATE OR REPLACE FUNCTION contractor_valid_run_metadata_labels[\s\S]*?^END;",
+                r"CREATE(?: OR REPLACE)? FUNCTION contractor_valid_run_metadata_labels[\s\S]*?^END;",
                 sql,
                 generator.re.MULTILINE,
             )[0],

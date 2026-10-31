@@ -3,43 +3,11 @@ package postgres
 import (
 	"context"
 	"encoding/json"
-	"maps"
 	"os"
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
-
-// tableFunctionAttributesSQL describes every function of the current schema
-// by everything a caller sees except its language and body: arguments,
-// result, volatility, strictness, parallel safety, security, leakproofness
-// and planner estimates.
-const tableFunctionAttributesSQL = `
-SELECT oid::regprocedure::text,
-       concat_ws(' ', pg_get_function_arguments(oid), pg_get_function_result(oid), provolatile, proisstrict,
-                 proparallel, prosecdef, proleakproof, procost, prorows)
-FROM pg_proc
-WHERE pronamespace = current_schema()::regnamespace`
-
-func tableFunctionAttributes(t *testing.T, ctx context.Context, pool *pgxpool.Pool) map[string]string {
-	t.Helper()
-	rows, err := pool.Query(ctx, tableFunctionAttributesSQL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	attributes := map[string]string{}
-	var signature, described string
-	if _, err := pgx.ForEachRow(rows, []any{&signature, &described}, func() error {
-		attributes[signature] = described
-		return nil
-	}); err != nil {
-		t.Fatal(err)
-	}
-	return attributes
-}
 
 // runtimeSnapshotCase is an argument pair of contractor_valid_run_runtime_snapshot.
 type runtimeSnapshotCase struct {
@@ -166,77 +134,63 @@ func runtimeSnapshotCases(t *testing.T) []runtimeSnapshotCase {
 	return cases
 }
 
-func runtimeSnapshotVerdicts(t *testing.T, ctx context.Context, pool *pgxpool.Pool, cases []runtimeSnapshotCase) map[string]*bool {
-	t.Helper()
-	verdicts := make(map[string]*bool, len(cases))
-	for _, item := range cases {
-		var verdict *bool
-		if err := pool.QueryRow(ctx, `SELECT contractor_valid_run_runtime_snapshot($1::jsonb, $2::text[])`,
-			item.candidate, item.labels).Scan(&verdict); err != nil {
-			t.Fatalf("%s: %v", item.name, err)
-		}
-		verdicts[item.name] = verdict
-	}
-	return verdicts
-}
-
-// TestPostgresRestorableTableFunctionsMigrationKeepsEveryVerdict upgrades a
-// schema to the migration that gives table functions SQL-standard bodies
-// (PER-R46). Every function keeps what callers see of it, and the Run
-// snapshot validator, rewritten from PL/pgSQL, gives the verdict its
-// predecessor gave for every case, including inputs whose JSON types made the
-// predecessor's functions fail into its exception handler.
-func TestPostgresRestorableTableFunctionsMigrationKeepsEveryVerdict(t *testing.T) {
-	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
-	if databaseURL == "" {
+// Exercise the current installed validator, including every boundary retained
+// from the SQL-standard function conversion corpus.
+func TestPostgresRuntimeSnapshotValidationBoundaries(t *testing.T) {
+	url := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
+	if url == "" {
 		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
 	}
 	ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
 	defer cancel()
-	pool, _ := isolatedPools(t, ctx, databaseURL)
-	previous, _ := embeddedMigration(t, "restorable_table_functions")
-	installMigrationPrefix(t, ctx, pool, previous)
+	pool, _ := isolatedPools(t, ctx, url)
+	if _, err := ApplyMigrations(ctx, pool, MigrationBudgets{}); err != nil {
+		t.Fatal(err)
+	}
+	valid := map[string]bool{
+		"default: config version of 128 bytes":      true,
+		"default: revision 2^64-1":                  true,
+		"first label: config version of 128 bytes":  true,
+		"first label: revision 2^64-1":              true,
+		"llmCredentialIds: 128 bytes":               true,
+		"llmCredentialIds: ascending":               true,
+		"llmCredentialIds: empty":                   true,
+		"llmCredentialIds: prefix sorts first":      true,
+		"runtimeCredentialIds: 128 bytes":           true,
+		"runtimeCredentialIds: ascending":           true,
+		"runtimeCredentialIds: empty":               true,
+		"runtimeCredentialIds: prefix sorts first":  true,
+		"second label: config version of 128 bytes": true,
+		"second label: revision 2^64-1":             true,
+		"valid":                                     true,
+		"valid without labels":                      true,
+	}
 	cases := runtimeSnapshotCases(t)
-	attributes := tableFunctionAttributes(t, ctx, pool)
-	verdicts := runtimeSnapshotVerdicts(t, ctx, pool, cases)
-	valid := 0
-	for _, verdict := range verdicts {
-		if verdict != nil && *verdict {
-			valid++
-		}
-	}
-	if len(verdicts) != len(cases) || valid < 8 || valid == len(cases) {
-		t.Fatalf("%d cases with %d distinct names, %d valid; the corpus is broken", len(cases), len(verdicts), valid)
-	}
-	if result := applyMigrationsThrough(t, ctx, pool, "restorable_table_functions"); len(result.AppliedVersions) != 1 || result.AppliedVersions[0] != previous+1 {
-		t.Fatalf("migration=%+v", result)
-	}
-	if after := tableFunctionAttributes(t, ctx, pool); !maps.Equal(after, attributes) {
-		for signature, described := range attributes {
-			if after[signature] != described {
-				t.Errorf("%s: %q, before %q", signature, after[signature], described)
-			}
-		}
-		t.Fatalf("the migration changed what callers see of a function")
-	}
-	after := runtimeSnapshotVerdicts(t, ctx, pool, cases)
-	show := func(verdict *bool) string {
-		if verdict == nil {
-			return "NULL"
-		}
-		if *verdict {
-			return "true"
-		}
-		return "false"
-	}
+	seen := map[string]bool{}
 	for _, item := range cases {
-		if show(after[item.name]) != show(verdicts[item.name]) {
-			t.Errorf("%s: %s, before %s", item.name, show(after[item.name]), show(verdicts[item.name]))
+		if seen[item.name] {
+			t.Fatalf("duplicate case %q", item.name)
 		}
+		seen[item.name] = true
+		t.Run(item.name, func(t *testing.T) {
+			var got *bool
+			if err := pool.QueryRow(ctx, `SELECT contractor_valid_run_runtime_snapshot($1::jsonb, $2::text[])`, item.candidate, item.labels).Scan(&got); err != nil {
+				t.Fatal(err)
+			}
+			if item.candidate == nil || item.labels == nil {
+				if got != nil {
+					t.Fatalf("SQL NULL input returned %v, want NULL", *got)
+				}
+				return
+			}
+			if got == nil || *got != valid[item.name] {
+				t.Fatalf("validity=%v, want %t", got, valid[item.name])
+			}
+		})
 	}
-	var language string
-	if err := pool.QueryRow(ctx, `SELECT l.lanname FROM pg_proc p JOIN pg_language l ON l.oid = p.prolang
-WHERE p.oid = 'contractor_valid_run_runtime_snapshot'::regproc`).Scan(&language); err != nil || language != "sql" {
-		t.Fatalf("the Run snapshot validator is written in %q, %v", language, err)
+	for name := range valid {
+		if !seen[name] {
+			t.Errorf("missing valid case %q", name)
+		}
 	}
 }

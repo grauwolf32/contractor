@@ -1,0 +1,72 @@
+schema_version: '1.0'
+id: V428-001
+title: Fold the current migration chain into one baseline
+milestone: hub-audit-defects-2026-10
+epic: persistence
+kind: chore
+priority: P2
+status: in_progress
+depends_on: []
+languages: [go, sql, python]
+goal: >-
+  A fresh database reaches the current schema and initial data through one
+  readable baseline instead of replaying the accumulated migration history.
+context:
+  authority: >-
+    User decision on 2026-10-31: collapse migrations into one. The project is
+    pre-production and has no compatibility requirement; this explicitly
+    replaces the previous baseline and removes historical upgrade paths.
+  specification: docs/spec/platform/persistence.md
+  decision: >-
+    Apply the complete current chain to a disposable PostgreSQL 17 database,
+    obtain its final schema and initial rows, and assemble one baseline from
+    that installed state. Prove equivalence against the unchanged chain before
+    deleting it. Keep the migrator's ledger/checksum/drift protocol unchanged;
+    previous ledgers fail closed and require operator recreation. No live or
+    demo database is changed. Concatenation would retain obsolete intermediate
+    states; manual schema redesign would risk changing behavior.
+scope:
+  in:
+    - One current baseline SQL file, including functions, constraints, indexes, triggers, views and seeds.
+    - Remove historical upgrade tests and text checks that only describe deleted migrations; preserve current-schema contracts and migrator lifecycle tests.
+    - Update gates, requirement matrices, shared-policy generator tests and documentation that reference the removed chain.
+    - Compare installed catalogs and initial data on disposable PostgreSQL and verify all repository consumers.
+  out:
+    - Domain behavior, current schema shape, seed values, migration protocol or compatibility shims.
+    - Deployment, migration, reset or deletion of demo or other user databases.
+acceptance_criteria:
+  - id: A1
+    text: The migrations directory contains exactly one baseline SQL file and fresh creation plus migration verification succeeds through the production migrator.
+  - id: A2
+    text: The unchanged chain and folded baseline produce equivalent tables, columns/types/defaults, constraints, indexes, triggers, functions, views, sequences and seed rows, ignoring only retired column ordinals and equivalent deparser formatting.
+  - id: A3
+    text: Ledger drift, transaction rollback, locking, budgets and current-schema invariants remain tested; tests and gates do not retain dependencies on removed migration files or versions.
+  - id: A4
+    text: Persistence/PostgreSQL suites, relevant matrices, shared-policy generation and lint pass; the finished task and branch delivery status are recorded.
+tests:
+  - command: go test -tags integration ./internal/persistence/...
+    covers: [A1, A2, A3]
+  - command: make test-postgres
+    covers: [A1, A3, A4]
+  - command: go test -count=1 -run Matrix ./tests/e2e
+    covers: [A3, A4]
+  - command: python3 -m unittest discover -s scripts -p test_generate_shared_config.py
+    covers: [A3, A4]
+  - command: make shared-config-check
+    covers: [A3, A4]
+  - command: make test-wire-cross-language
+    covers: [A1, A3, A4]
+  - command: make test-project-sitemap-postgres
+    covers: [A1, A3, A4]
+  - command: make test-artifact-history-postgres
+    covers: [A1, A3, A4]
+  - command: make lint
+    covers: [A3, A4]
+
+verification:
+  - Catalog equivalence is recorded in tasks/evidence/v428-001-schema-equivalence.json against the unchanged 65-file chain at bfa7bffa42f2cc29507ee0dc98dc818b1ab89ecf.
+  - PostgreSQL 17.11 catalogs match across 74 tables, 880 columns, 755 constraints, 290 indexes, 141 triggers, 146 functions, one view and one sequence, including every table row count and the three seed rows.
+  - Normalization is limited to physical dropped-column gaps, three flattened AND expressions and an unused UNION ALL branch alias; scheduler updated_at remains a fresh clock_timestamp() default.
+  - Production CLI applies one baseline, replays zero migrations and refuses the retired chain ledger as drift without changing its schema or data.
+  - Full persistence integration and make test-postgres passed with a disposable database; the generator passed all three tests, and the Matrix suite passed.
+  - make shared-config-check and make test-wire-cross-language passed; all 357 fixtures retain readers, with 385 Go and 286 Python shared tests.

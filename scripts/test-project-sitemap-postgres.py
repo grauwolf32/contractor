@@ -58,7 +58,6 @@ REQUIRED_CASES = {(PREFIX + "internal/scheduler", case) for case in {
     (PREFIX + "internal/httpapi/public", "TestPostgresPublicArtifactUploadAvailability"),
     (PREFIX + "internal/httpapi/public", "TestPostgresRepeatArtifactUploadAvailabilityFollowsSourceProject"),
     (PREFIX + "internal/runstore", "TestPostgresDescribeOriginalInputsKeepsCreationRevisionsInCallerTransaction"),
-    (PREFIX + "internal/persistence/postgres", "TestPostgresProjectReceiptMigrationPreservesAcceptedIntent"),
     (PREFIX + "internal/persistence/postgres", "TestPostgresProjectReceiptScopesAndStrictShape"),
     (PREFIX + "internal/persistence/postgres", "TestPostgresProjectReceiptPurgeIsBoundedAndIsolated"),
 }
