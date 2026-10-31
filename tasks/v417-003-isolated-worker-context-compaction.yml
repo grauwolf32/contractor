@@ -19,22 +19,11 @@ goal: A normal isolated Worker selected by compact@1 in a Workflow continues the
 context:
   authority: 'User request on 2026-10-25: split proposal 0046 into tasks and make terminal summarizer
     includeReasoning independently deliverable. This record plans work; it does not start implementation
-    or change existing delivery priorities. User decision on 2026-10-30: start implementation now; the coordinator session runs it in lane cmp-worker together with V417-001, V417-003 and V420-002.'
+    or change existing delivery priorities. User decision on 2026-10-30: start implementation now; the coordinator session runs it in lane cmp-worker together with V417-001, V417-003 and V420-002.
+    User decision on 2026-10-31: the database contains test data; conflicting records may be
+    manually repaired or deleted. Keeping pre-change snapshots readable is not a requirement
+    for this transition; retain the explicit contextManagement strategy required by R1.'
   proposal: docs/proposals/0046-workflow-context-compaction.md
-  decision_needed: >-
-    2026-10-31 (lane cmp-worker): R1 is implemented as written: resolved bindings,
-    Workflow/Stage snapshots and AuditProfile-embedded Workflows always carry the explicit
-    contextManagement strategy (template@1 included), and a persisted snapshot without it is
-    invalid on read (WFL-R91, as WFL-R34 did for session). Consequence: every Workflow
-    closure digest changes, and Runs, Audits and Eval pins created before this revision are
-    unreadable or rejected after deployment (the demo database keeps the rows, but reads of
-    those snapshots fail). V420-002 chose the other encoding for Planner compaction: none is
-    an absent member, so existing digests stay unchanged. Options: (a) keep R1 (current
-    state; no legacy reader, consistent with WFL-R34); (b) encode template@1 as an absent
-    member in resolved snapshots and AllocationSpec-derived digests, matching V420-002 and
-    keeping old snapshots readable, at the cost of reworking the Go, Python, UI and fixture
-    readers of this slice. Recommendation: (a), unless the demo history must stay readable,
-    then (b) in a follow-up task before the demo deployment.
   specification:
   - docs/spec/configuration/workflows.md#WFL-R86
   - docs/spec/configuration/agent-templates.md#TPL-R48
@@ -321,6 +310,17 @@ delivery_note: 'This slice is intentionally vertical: splitting unsupported conf
   errors until V417-004 and V417-005 land. Basic safety, archive recovery and limits are not postponed
   to the exit task.'
 decisions:
+- >-
+  2026-10-31 (user decision): retain R1's explicit contextManagement strategy in
+  resolved bindings, Workflow/Stage snapshots and AuditProfile-embedded Workflows
+  (WFL-R91). Pre-change Runs, Audits and Eval pins may fail strict reads or digest
+  validation; the database is test-only and the user permits manual repair or
+  deletion of conflicting data. This closes the snapshot-encoding decision without
+  a compatibility reader, omission-based encoding or a re-pinning migration to
+  preserve old data. No database records were changed while recording this decision.
+  At deployment, identify and repair or remove conflicting test records if needed;
+  any manual repair must satisfy current strict validation and dependent digest/pin
+  checks. Reopen before a deployment whose data must be retained.
 - >-
   2026-10-31 (lane cmp-worker): contextManagement is one flat tagged union on the binding and
   on AllocationSpec ({strategy} alone, or compact@1 with every member beside it), decoded with
