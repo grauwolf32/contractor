@@ -15,149 +15,225 @@ languages:
 - sql
 - json
 - markdown
-goal: Ordinary Audit Runs share selected exact outputs through ArtifactStore and can publish reusable
-  material into their Project without the old dependency-remapping pipeline.
-demonstration: An actual Audit output publication/input caller passes a small JSON artifact between two
-  ordinary Workflows and publishes its exact revision to Project; source cleanup leaves the Project material
-  readable.
+goal: One ordinary Run output can be retained in Audit scope, selected as an exact input of another Run,
+  and explicitly published to the owning Project through the existing ArtifactStore.
+demonstration: The existing Audit role-output collection and dependent-Run submission path executes two
+  small ordinary Workflows. Run A writes one self-contained JSON material; collection forks its exact
+  output into Audit scope; RunService forks that selected revision into Run B. An owner publishes the
+  exact material into Project through a minimal authenticated operation, then source Run/Audit deletion
+  leaves the independently owned Project bytes and lineage readable. This is the material handoff slice,
+  not the new coordinator or the complete lean Audit journey.
 context:
-  authority: 'User decisions and task-formation request on 2026-10-31: Audit durably coordinates ordinary
-    tasks/Runs for investigation, checking, supporting work and generation. There is no mandatory discovery-finding-generator
-    sequence. Assertion checks use common hypotheses; exploratory work may have none. Check results retain
-    support/refutation/inconclusive with tested conditions; AppSec findings record evidenced problems
-    and are optional. Preserve Project finding deduplication, independent source contributions, exact
-    Audit/task/Run origin and automatic per-item hypothesis ID/revision associations. Reuse Audit/Project
-    Artifact mechanisms for selected inputs, outputs and explicit publication. Hypothesis references must
-    allow future Project ownership. Remove almost all formal approvals and keep complexity controlled.
-    Generation can use selected materials, findings and ordinary results including refutations and gaps.
-    The user accepted the common execution skeleton and requested concrete tasks; implementation is a
-    subsequent step, not part of this task-formation request.'
-  implementation_gate: Task formation only, requested on 2026-10-31 after acceptance of the common execution
-    skeleton. Keep pending until implementation is requested and dependencies are complete. Do not start
-    code, migrations, live Runs or deployment in this planning turn. Resolve the explicitly labelled remaining
-    contract proposals in V64-001 before dependent implementation.
+  authority: 'User decisions on 2026-10-31 require exact Audit/Project materials through existing ArtifactStore,
+    explicit publication and controlled complexity. On 2026-11-01 the user selected a first slice of self-contained
+    materials, confirmed that automatic collection of everything referenced by a report is not a priority,
+    and kept composite behavior with a separate concrete consumer. Existing V410-025 owns the SMT snapshot
+    case. This amendment starts no implementation. User concern on 2026-11-01: avoid accumulating redundant
+    artifact copies during handoff/publication.'
+  implementation_gate: V64-001 and V410-010 are completed. A user assignment of V64-004 is sufficient
+    under normal dependency/status rules; settled V64-001 decisions are not pending review. This amendment
+    itself starts no code.
   design:
   - docs/proposals/0050-audit-common-hypothesis-model.md
   - docs/plans/2026-10-31-audit-redesign.md
+  - docs/proposals/0050-audit-removal-map.yml
   specification:
   - docs/spec/audits/audits.md
   - docs/spec/audits/execution.md
-  - docs/spec/audits/review-and-reports.md
   - docs/spec/artifacts/artifact-store.md
-  - docs/spec/findings/findings.md
   - docs/spec/platform/failure-model.md
   - docs/spec/platform/persistence.md
   - docs/spec/artifacts/retention-and-deletion.md
   - docs/spec/artifacts/projects.md
   - docs/spec/platform/lifecycle.md
   - docs/spec/execution/runs.md
-  specification_baseline: Named specifications describe current behavior. Update their owning requirements,
-    API/wire contracts and fixtures with implementation; proposal 0050 governs the reviewed replacement
-    direction.
+  - docs/spec/audits/common-contract.md#ACT-R2
+  - docs/spec/audits/common-contract.md#ACT-R10
+  - docs/spec/audits/common-contract.md#ACT-R11
+  - docs/spec/artifacts/artifact-store.md#ART-R72
+  - docs/spec/artifacts/artifact-store.md#ART-R77
+  - docs/spec/platform/limits.md#LIM-ACT-2
+  specification_baseline: Completed V64-001 owns the common contract, especially ACT-R11. Update current
+    Artifact/Audit execution requirements, public/wire contracts and fixtures with implementation. The
+    removal map governs only migrated callers.
   implementation_boundary: Every new state, export, relation or capability needs its real production caller
     in this task. Reuse RunService, Scheduler, ArtifactStore, finding intake, ControllerClaims and existing
     keyed/natural receipts. No new collector, admission engine, lease store or compatibility reader.
+  production_caller:
+    producer: auditimport.Importer.collectRoleSuccess -> ServiceArtifactAccess.RetainRunExact/retainRunExact
+      (importer.go/artifacts.go). Move declared ordinary role-output retention from protected Project
+      namespace to real Audit scope, reusing its receipt and authority.
+    consumer: PinnedSubmissionBuilder.resolveRoleInputs/preparationOutput (auditcontroller/builder.go)
+      -> runservice.Service.CreateAudit (runservice/audit.go). Resolve an accepted exact Audit descriptor
+      and fork it into child inputs before scheduling; retain existing claim/execution-intent checks.
+    publication: Add only the actual owner-authenticated material read/publication action to existing
+      Artifact/Audit services and public handlers. Source is exact namespace/name/revision; destination
+      Project comes from Audit ownership. Reuse ordinary target binding names, create-only/If-Match CAS
+      and receipts. Full API/CLI and UI remain V64-008/009.
+    sequencing: Existing controller role sequencing invokes these operations; V64-002 later replaces orchestration
+      and reuses them. No new coordinator, execution mode, compatibility path or preservation requirement
+      for old preparation/ZIP/remapping machinery.
+  material_boundary: Opaque bytes and one selected artifact per fork/publication; ordinary multi-input/multi-output
+    Workflows remain supported. Zero implicit external dependency descriptors or retention promises. No
+    JSON/$ref/URL scan, selfContained flag, format whitelist, universal manifest or recursive resolver.
+    The demo JSON needs no sidecar; V410-025 owns its explicit SMT composite case.
+  verification_boundary: Extend the existing composition matrix/runner with mandatory workspace cases
+    and focused --case-set workspace; include them in default/release evidence. Old preparation/Round/approval
+    cases alone are not proof. Use real Server/Scheduler/Runtime/PostgreSQL and testdata; the focused
+    set needs no scanners, browser or live model.
 scope:
   in:
-  - Extend existing ArtifactStore scope/fork/read/grant/retention mechanisms for Audit ownership, using
-    the real Audit/Run output/input caller in the same change.
-  - Publish declared Run outputs into Audit workspace with stable producer/output identity. Later Runs
-    receive selected exact inputs through ordinary Run initialization; no broad model-selected scope access.
-  - Implement explicit exact Audit-to-Project publication with lineage, independent retention, create-only
-    collision and explicit CAS replacement semantics.
-  - Handle an explicitly bounded dependency set for actual composite input callers; do not recursively
-    trust refs inside model-authored JSON.
-  - Cover lost publication replies, concurrent sources, source Run/Audit deletion, Project deletion, grants
-    and future-scope migration through real store/process tests.
+  - Add real Audit scope to existing ArtifactStore addressing, ownership, authorization, fork, metadata/read,
+    lineage and purge/retention mechanisms. Keep the existing scoped store and downward component dependencies.
+  - Migrate the named production output-collection and RunService input-initialization callers in the
+    same change. The first demonstration uses one ordinary exact JSON output and one selected child input;
+    source bytes are not repackaged or rewritten.
+  - Preserve ordinary multi-input/multi-output Workflows. Each explicitly selected input receives its
+    own exact fork under existing Run initialization; this adds no automatic dependency discovery or atomic
+    whole-report bundle promise.
+  - Expose the minimal owner-authenticated read/publication operation needed to publish one exact Audit
+    material into its owning Project, with ordinary create-only collision, explicit CAS replacement, lineage
+    and independent destination lifetime.
+  - Keep source Run/Audit data usable by already accepted consumers. Preserve and reconcile the existing
+    output/publication identity after response loss without repeating a Workflow or target action.
+  - Register and execute the new mandatory workspace handoff/publication/failure cases through the existing
+    composition matrix/runner; update owning specs, strict public/wire contracts and both generated clients
+    when affected.
   out:
-  - A separate Artifact store, transfer job/controller, copy of every Project artifact, universal dependency
-    walker or old/new format fallback.
-  - Implementation during this planning-only update; changing user model configuration or deploying/migrating
+  - Composite material dependency discovery, closure manifests, recursive traversal, generic JSON/ref
+    rewriting and a dependency graph/store. Existing composite consumers retain their current independent
+    contracts; V410-025 owns the later sitemap snapshot case.
+  - The new coordinator, task/iteration model, hypothesis execution/generation, finding migration, formal
+    approval removal, broad API/UI redesign or whole-Audit completion. Those remain their existing V64/V411
+    owners.
+  - A separate Artifact service, transfer job/controller, new receipt/lease system, compatibility reader
+    or test-only production API.
+  - Implementation during this task-amendment turn, changing user model configuration or deploying/migrating
     the demo.
 requirements:
 - id: R1
-  text: Source inputs and accepted consumers keep their pinned revisions; publication does not mutate
-    or relocate the source.
+  text: Every handoff/publication selects an exact existing revision. Input and published copies are independent
+    bindings with truthful source scope/lineage; source mutation/deletion never substitutes latest or
+    destructively relocates accepted data.
 - id: R2
-  text: Reuse immutable blobs where possible. Acquisition/release of required exact revisions uses ordinary
-    Artifact owner APIs and the existing transaction/idempotency mechanisms.
+  text: Ownership transfer must use the existing fork of the same immutable version/blob, not read/reupload
+    or a new payload version merely to change scope. Keep one Audit binding per accepted producer Run/output,
+    and reuse it for consumers; replay of the same fork/publication adds no binding/revision. Project
+    publication is explicit. Existing owner retention/purge and reference-safe GC release unused data;
+    do not add a cleanup controller or retention policy.
 - id: R3
-  text: Audit identity/grants come from trusted owner/Run context. Runtime tools keep their allocation
-    authority and see only selected permitted material.
+  text: Audit owner/Project/Run membership and allocation grants come from trusted existing records. Run
+    B receives only selected authorized inputs. Source references or matching Project IDs alone grant
+    no cross-Audit reads.
+- id: R4
+  text: The first caller is the named existing collection -> accepted output lookup -> RunService path,
+    plus the minimal owner publication action. A helper, standalone store test or the future V64-002 coordinator
+    is not a substitute for that production caller.
+- id: R5
+  text: The slice guarantees one exact artifact, with no implicit external dependency retention. Self-contained
+    payloads are a deliberate caller scope, not a new model declaration, file-type registry or universal
+    parser. Ordinary explicit multi-input Workflows remain valid; each selected artifact is transferred
+    independently of references embedded in its payload.
+- id: R6
+  text: Workspace-specific required cases must actually execute and report actual Audit-scope forks/publications.
+    Old Project audit-* bindings, old composition cases, zero-match selections or mandatory skips cannot
+    satisfy this acceptance.
 failure_outcomes:
-- operation: Publish and consume selected Audit/Project artifacts
-  permanent: Reject invalid/foreign/unsupported content and exact-revision or collision conflicts through
-    the owning API/ERR contract fixed by V64-001. A deterministic ErrInvalid is permanent; no partial
-    authoritative result or endless retry.
-  retryable: Use existing classified storage_transaction_conflict 503 and bounded retries of the same
-    operation, with owning operation/Run timeout and attempt limits.
-  ambiguous: Reconcile the original task/Run/publication/intake identity through existing keyed mutations
-    or natural receipts. Never repeat target activity or create a new logical result to recover an acknowledgement.
-  cancelled: Honor the Audit/Run owner fence, allow authorized terminal collection, and join in-flight
-    work before allocation release or scope cleanup.
-  timeout: Use the owning operation deadline. Audit deadline pauses new work and drains; model/HTTP/Run
-    timeouts remain with their owners. No post-deadline semantic work to repair persistence.
+- operation: Collect an exact declared output into Audit scope and initialize a dependent Run input
+  permanent: Missing/nonexact/unauthorized output, digest/media/size mismatch, source membership or scope
+    fence rejects through the existing classified owner error. No runnable partial input, latest substitution
+    or endless retry.
+  retryable: Existing classified storage_transaction_conflict 503 and bounded owner retries keep the same
+    collection/submission identity and deadline.
+  ambiguous: Resolve the accepted output, original fork/collection receipt and Run association before
+    repeating a mutation. Never rerun producer or consumer to repair storage acknowledgement.
+  cancelled: Existing Audit/Run claim and allocation fences join in-flight writes/readers before cleanup.
+    No new dispatch after pause/cancel; authorized terminal collection remains possible.
+  timeout: Existing collection, Run initialization and Artifact operation deadlines remain separate; introduce
+    no material-transfer clock/controller.
+- operation: Publish one selected exact Audit artifact into the owning Project
+  permanent: Reject unavailable/foreign source, create-only collision, stale explicit target CAS or deleting
+    scope through the registered owner errors. PostgreSQL-backed handlers document storage_transaction_conflict.
+    No partial destination/grant.
+  retryable: Existing bounded Artifact/transaction conflict policy retries the same request/identity only.
+  ambiguous: Replay the original publication key/receipt and exact destination. Do not create another
+    revision or copy another source after an acknowledgement loss.
+  cancelled: Existing owner/purge fencing joins publication; source deletion cannot release already committed
+    Project ownership.
+  timeout: Use the existing publication operation deadline; a possibly committed result remains reconcilable
+    under its original identity.
 cardinality:
-- collection: Publish and consume selected Audit/Project artifacts
-  expected: 'Base fixture: 2 ordinary Runs, 2 seeded hypotheses, 1 generated hypothesis and several conclusions.'
-  maximum: Keep applicable published LIM-AUD/LIM-FND ceilings unless proposal 0050 explicitly identifies
-    a reviewed change; no new full-pool work.
-  bound: At most 128 admitted primary records / 1 MiB metadata per mutation slice; lists use existing
-    page/byte bounds and explicit continuation.
+- collection: One handoff/publication selection and its containing Run/Audit
+  expected: Two ordinary Runs, one selected JSON output/input and one Project publication.
+  maximum: One exact artifact per selected operation; zero external dependencies. Existing Artifact payload,
+    declared-output, pagination and Audit task/evidence ceilings remain in force.
+  bound: Use indexed selected descriptors and existing bounded output/collection slices. No full Run/Audit/Project
+    history scan; no payload read merely to infer dependencies.
 lifecycle:
-- entity: Task-owned records and exact artifacts
-  delete: Authenticated Audit/Project deletion uses the owning drain/purge path. No work or reader may
-    outlive its authorization.
-  cascade: Remove only owner-local task data; shared Project findings retain their source contributions
-    and independently retained evidence. Use registered FK/Artifact ownership and bounded cleanup.
-  retention: Accepted exact references and original provenance survive pause/restart and permitted source
-    deletion until their owner releases them. Reading alone creates no hold.
+- entity: Audit-owned exact Artifact bindings and dependent Run inputs
+  delete: Existing authenticated Audit deletion fences new work and joins child work before bounded scope
+    purge.
+  cascade: Purge owner-local Audit bindings and release its holds; retain independent Run input forks
+    and Project publications according to their own owners.
+  retention: Accepted input and Project bindings retain exact bytes and provenance independently. Read-only
+    metadata access creates no hold.
 acceptance_criteria:
 - id: A1
-  given: two ordinary Workflow Runs under one Audit
-  when: the second consumes the first output
-  then: exact bytes/revision/lineage match; another Audit/Project cannot read the material
+  given: the named existing production caller, real Server/Scheduler/Runtime/PostgreSQL and two small
+    ordinary Workflows
+  when: Run A declares one JSON output, it is collected into Audit scope and Run B consumes its selected
+    exact revision
+  then: bytes/digest/revision and Run -> Audit -> Run lineage agree; metadata proves real Audit scope,
+    not a Project audit-* namespace; no new coordinator or hypothesis/approval workflow is required; ordinary
+    explicit multi-input behavior remains supported, without an implicit dependency list; real-store checks
+    prove the forks reuse the immutable version/blob, rather than duplicating payload bytes
 - id: A2
-  given: a Project publication with its required dependencies
-  when: acknowledgement is lost, publication replays and the source Audit is purged
-  then: one logical publication remains usable under Project ownership without another target/producer
-    execution
+  given: an owner-selected Audit material and the actual authenticated publication/read operation
+  when: the exact material is published into Project, its acknowledgement is lost/replayed and the drained
+    source Run/Audit is purged
+  then: one logical Project publication and exact readable bytes/lineage remain under independent Project
+    ownership; replay adds no binding/revision, surviving consumers retain their inputs until their own
+    owner releases them, and no producer execution repairs publication
 - id: A3
-  given: collision, stale CAS, unavailable exact input or deletion race
-  when: publication/initialization runs
-  then: classified failure leaves no runnable partial input set, unauthorized grant or lost retained evidence
+  given: create collision, valid replacement, stale CAS, foreign owner/Audit, unavailable exact source
+    and deletion/cancellation races
+  when: the actual publication/initialization operations run
+  then: valid explicit CAS replaces exactly once; invalid cases return classified errors with no latest
+    fallback, unauthorized grant, runnable partial input or lost accepted bytes
+- id: A4
+  given: the existing composition runner/matrix with a new workspace case set
+  when: the focused workspace selection and owning release selector execute
+  then: mandatory exact-handoff, publication-after-purge, replay, collision/CAS and authority/fence cases
+    all report execution with zero skips; removing these cases or selecting only old preparation/Round/approval
+    tests fails acceptance
 tests:
 - command: make require-database
-- command: go test -tags=integration -count=1 ./internal/artifacts/... ./internal/runservice ./internal/auditservice
-    ./internal/auditstore/...
-  covers:
+- command: go test -tags=integration -count=1 ./internal/artifacts/... ./internal/auditimport/... ./internal/runservice
+    ./internal/auditservice ./internal/auditstore/... ./internal/auditcontroller/... ./internal/httpapi/public/...
+  covers: &id001
   - A1
   - A2
   - A3
-- command: make test-audit-composition-e2e
-  covers:
-  - A1
-  - A2
-  - A3
+  - A4
+- command: python3 scripts/test-audit-composition-e2e.py --case-set workspace
+  covers: *id001
 - command: make verify-public-api verify-public-api-postgres
-  covers:
-  - A1
-  - A2
-  - A3
+  covers: *id001
 - command: make test-runtime test-wire-cross-language
-  covers:
-  - A1
-  - A2
-  - A3
+  covers: *id001
 - command: make lint
+  covers: *id001
 test_prerequisites:
-- Commands below are future implementation acceptance, not results of this planning update.
-- Use disposable PostgreSQL with CONTRACTOR_TEST_DATABASE_URL set; configured/unavailable DB or mandatory
-  skips fail. A focused selector matching zero tests fails.
-- Use testdata catalogs and pseudo-Skills, not live configs in unit/integration tests. Run whole touched-package
-  suites and required release selectors.
-- Create and register any named future gate in this task before claiming it ran. Use deterministic clocks/work
-  counters; live model quality is outside deterministic acceptance.
+- These commands are future implementation acceptance, not results of this amendment. Add --case-set workspace
+  to the existing runner/matrix before claiming it ran.
+- Use disposable PostgreSQL with CONTRACTOR_TEST_DATABASE_URL set and actual Server/Scheduler/Runtime.
+  Configured/unavailable DB, mandatory skips or zero-match cases fail; unit/config tests use testdata,
+  not live configs.
+- Run whole touched-package suites and required public/wire/release selectors. The focused workspace set
+  does not require sqlmap/nuclei/Chromium or live models; unrelated composition regressions keep their
+  own prerequisites.
+- Existing preparation Runs are only the production calling site. Prove real Audit-scope material operations;
+  do not claim the new coordinator or whole-Audit completion from these cases.
 verification_requirements:
 - Update OpenAPI and both generated clients for public changes; shared wire fixtures cover every changed
   cross-language rule.

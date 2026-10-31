@@ -1,0 +1,128 @@
+schema_version: "1.0"
+id: V429-007
+title: Match Run and Project to the reviewed OpenDesign presentation
+milestone: ui-journey-usability
+epic: ui
+kind: defect
+introduced_by: V429-003
+priority: P2
+status: completed
+depends_on: [V429-003]
+languages: [typescript, css]
+goal: Run and Project reproduce the reviewed OpenDesign presentation using coherent shared typography and controls while preserving real data and actions.
+context:
+  integration: >-
+    Renumbered from V429-004 to V429-007 on 2026-11-01 because main had
+    independently assigned V429-004 to the Workflow error-fixture repair.
+    Original implementation commits and requirements remain unchanged.
+  authority: >-
+    On 2026-11-01 the user rejected the visual fidelity of merge 55bb0593a and
+    asked to preserve all OpenDesign-created data. Later in the same turn the user
+    explicitly requested matching BOTH Run and Project, restoring missing icons
+    and Timeline checkboxes, applying the latest prototype fonts globally, and
+    avoiding typography/control divergence across the application. Show previews.
+    Repair the production transfer
+    against the reviewed prototype, not the prototype itself. Issue-detail
+    exploration is deferred while this feedback is handled.
+  specification: docs/spec/ui/ui.md#UI-R217
+  design: docs/design/ui/README.md
+  finding: >-
+    ui/src/routes/projects/overview.tsx:506 and projects.css:650 onward retain
+    nested white panels, oversized headings and a two-by-two glance block instead
+    of the approved canvas/card contrast, outside section labels, row-based
+    sidebar, individual attention rows and collapsed Timeline. The visual sample
+    in ui/test-results/project-design reproduces this mismatch on real components.
+  siblings: >-
+    Populated, empty and partial Overview states share these components. Keep
+    other Project sections, global shell, Run output behavior and Eval Workspace
+    actions unchanged. Timeline disclosure must preserve its real ActivityLog,
+    filters, direct filtered URLs and selected-tab navigation.
+  reference: >-
+    Original reviewed OpenDesign project contractor-project-overview-20261031,
+    conversation 2b2e106b-f83f-4a1c-9e9b-265294845099. Source prototype and all
+    iterations remain in the sandbox and state volume. A verified full backup,
+    including database, files, sandbox, previews and relay history, is retained
+    under /Users/ruslan/src/third-party/open-design-backups/20261031T213753Z;
+    SQLite integrity is ok and every archive has a recorded SHA-256.
+  boundary: >-
+    Change existing Run/Project presentation and the common font tokens only. Reuse bounded per-check finding
+    pages for at most three attention links, without new reads or aggregate
+    counts. Material links displaying an exact revision retain that exact
+    scope/revision through the existing Artifact route. Output names remain
+    actual names; generic YAML still does not establish an OpenAPI title.
+scope:
+  in:
+    - Shared system-font stacks actually rendered by both standalone prototypes, applied through global theme tokens and shared controls.
+    - Run and Overview canvas, compact headers/composer, outside section labels and flat result/history surfaces.
+    - Icon parity through the central Icon registry and existing shared controls.
+    - Glance-before-materials sidebar with row facts, exact material references and live-target context.
+    - Existing review attention rows and a bounded sample of already-read possible issues.
+    - Collapsible Timeline retaining connectors, glyphs, real checkbox filters, multi-kind URL selection and truthful bounded entry count.
+    - UI patch version, specification, real-component comparison and browser regression checks.
+  out:
+    - OpenDesign source data, conversations, prototypes and intermediate versions; no pruning or overwriting originals.
+    - Server/API, persistence, model choice, new reads, polling changes and production deployment.
+    - Unrelated Issue detail, shell navigation replacement or other screen composition changes; shared typography remains global.
+acceptance_criteria:
+  - id: A1
+    text: Real Run detail and the populated Overview match the reviewed canvas/card contrast, section headings, sidebar order and compact dimensions, without nested result panels.
+  - id: A2
+    text: Empty/partial states keep truthful counts, errors and actual actions; no data is invented or removed and original OpenDesign data remains preserved.
+  - id: A3
+    text: A browser regression fails on the original transfer and verifies the final presentation, exact Preview/details, navigation and collapsed Timeline with its expanded connector/icons.
+  - id: A4
+    text: Desktop, 390 and 320 px layouts work in light/dark/black; exact identities, confirmation and setup-only behavior remain intact.
+tests:
+  - command: make ui-verify
+    covers: [A1, A2, A3, A4]
+  - command: make ui-gates
+    covers: [A1, A2, A3, A4]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+
+verification:
+  - >-
+    The original OpenDesign state volume and sandbox were preserved before
+    repair, including four projects, seven conversations, 24 messages, 63 project
+    files, prototypes, original model output, screenshots, references and relay
+    history. The backup was recovered into an independent temporary SQLite copy
+    and passed integrity_check; archive contents and SHA-256 values are recorded
+    in its private manifest. Original OpenDesign files were not edited.
+  - >-
+    Verified that both standalone prototypes declare Manrope/JetBrains names
+    without loading those font faces. Their actual system fallbacks are now the
+    global production font tokens, and the competing font imports/dependencies
+    were removed. Run, Project, shell, buttons and code share the common tokens;
+    no route-specific font family was introduced.
+  - >-
+    Restored compact canvas/card composition, small section labels, icon parity,
+    row-based Glance-before-Materials, exact material refs, bounded existing
+    possible-issue links, copyable identities, compact clock times with full
+    timestamp titles, and independent Run technical cards with right chevrons.
+    Real output names and all original read/action eligibility remain truthful.
+  - >-
+    Timeline uses actual native checkboxes and bounded combined URL filters,
+    a collapsed disclosure, shared ActivityLog time/connector/colored markers,
+    and review pills. No new Server read or mutation was added. URL and real
+    client tests retain all/none, single and multiple selections, unknown-input
+    rejection, selected-section state, draft protection and exact output preview.
+  - >-
+    The visual browser regression first failed on the original transferred
+    design because its canvas and cards were both white. The final immutable
+    production-build snapshot passed 42 browser cases across Project workspace,
+    Run responsive layout, lifecycle, preset and draft consumers, without skips
+    or flaky retries. Both screens have 1440/390/320 by light/dark/black coverage,
+    including font inheritance, icons, colored Timeline, exact preview reads,
+    fixed actions, selected-tab resizing and zero horizontal document overflow.
+  - >-
+    make ui-verify passed: 217 files, 2667 passing tests and one existing expected
+    failure, 17 static-server tests, generated-client checks, ESLint/formatting,
+    typecheck and production build. Preview-renderer chunk warnings remain.
+  - >-
+    make lint and its ui-gates target passed after regenerating the backlog for
+    the updated task title. The scripts suite retains one existing skip; spec,
+    task, Go/Python, CSS/exports and layer checks passed. The initial backlog
+    mismatch and stale unused row styles were corrected without changing gates.
+    Comparison screenshots were saved beside both original prototypes in new
+    production-fidelity-20261101 directories, leaving reviewed originals intact.
+implementation_commit: ce2424dc50eb7793c100e54d9cece77349a0247f

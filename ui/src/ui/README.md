@@ -28,10 +28,11 @@ Optional props also accept `undefined`, so values can be passed through under
 
 ```ts
 PaneLayout(props: {
+  className?: string;
   list: ReactNode;
   detail: ReactNode;
   showDetail: boolean;
-  backLink?: { to: To; label: string };
+  backLink?: { to: To; label: string; state?: unknown };
   listLabel: string;
   detailLabel: string;
 })
@@ -54,6 +55,8 @@ hairline.
   list pane, scrolled to its top.
 
 Selection belongs in the URL. `showDetail` is usually "an item is selected".
+`backLink.state` retains the source page's router context when returning.
+`className` scopes route-owned pane styling without another layout wrapper.
 
 ```tsx
 <PaneLayout

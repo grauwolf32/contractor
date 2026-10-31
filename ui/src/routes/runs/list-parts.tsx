@@ -1,4 +1,4 @@
-import { ContextLink } from "../../app/context-navigation";
+import { RunSourceLink } from "./source-link";
 import { compactId } from "../../app/format";
 import { FilterChips, type FilterChipOption } from "../../ui";
 
@@ -44,7 +44,7 @@ export function RunIdLink({
   returnLabel: string;
 }) {
   return (
-    <ContextLink
+    <RunSourceLink
       returnLabel={returnLabel}
       className="runs-id-link"
       to={`/runs/${encodeURIComponent(runId)}`}
@@ -52,6 +52,6 @@ export function RunIdLink({
       title={runId}
     >
       {compactId(runId)}
-    </ContextLink>
+    </RunSourceLink>
   );
 }

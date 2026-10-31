@@ -1,4 +1,4 @@
-import { formatRelative, formatTimestamp } from "./format";
+import { formatClock, formatRelative, formatTimestamp } from "./format";
 import { useEffect, useState } from "react";
 
 /**
@@ -9,19 +9,26 @@ import { useEffect, useState } from "react";
 export function RecordedTime({
   value,
   className,
+  display = "relative",
 }: {
   value: string;
   className?: string;
+  display?: "relative" | "clock";
 }) {
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
+    if (display === "clock") return;
     const timer = setInterval(() => setNow(Date.now()), 60000);
     return () => clearInterval(timer);
-  }, []);
+  }, [display]);
   const exact = `${formatTimestamp(value)} · ${Intl.DateTimeFormat().resolvedOptions().timeZone}`;
   return (
     <time className={className} dateTime={value} title={exact}>
-      {formatRelative(value, now) ?? "Unknown date"}
+      {display === "clock"
+        ? Number.isFinite(Date.parse(value))
+          ? formatClock(new Date(value))
+          : "Unknown date"
+        : (formatRelative(value, now) ?? "Unknown date")}
     </time>
   );
 }

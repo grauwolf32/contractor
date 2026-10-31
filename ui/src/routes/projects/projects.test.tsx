@@ -33,7 +33,7 @@ describe("Project routes", () => {
     );
     const { router } = renderApplication("/projects/project_example", { api });
     const user = userEvent.setup();
-    await screen.findByRole("heading", { name: "Timeline" });
+    await screen.findByRole("region", { name: "Timeline" });
     const reads = (suffix: string) =>
       requests.filter(
         (url) => url.pathname === `/v1/projects/project_example/${suffix}`,
