@@ -25,6 +25,8 @@ import {
   IdChip,
   StatusGlyph,
 } from "../../ui";
+import { RunListSourceContext } from "../runs/source-context";
+import { RunSourceLink } from "../runs/source-link";
 import { RunMetadataLabelChips } from "../runs/components";
 import { ProjectSectionActions } from "./navigation";
 import { projectPath } from "./project-sections";
@@ -76,12 +78,13 @@ export function ProjectRunHistory({ projectId }: { projectId: string }) {
     ...(state === undefined ? {} : { state }),
     ...(cursor === undefined ? {} : { cursor }),
   };
+  const refreshMs = 5_000;
   const runs = useQuery({
     queryKey: queryKeys.projects.runView(projectId, options),
     queryFn: () => listProjectRuns(api, { projectId, ...options }),
     // The active view always polls; others until every listed Run ended.
     refetchInterval: pollInterval<RunPage>({
-      interval: 5_000,
+      interval: refreshMs,
       settled: (page) =>
         view !== "active" &&
         page.items.every((run) => isTerminalRunState(run.state)),
@@ -103,130 +106,141 @@ export function ProjectRunHistory({ projectId }: { projectId: string }) {
     setFilters(next, { state: location.state });
   }
   return (
-    <section
-      className="projects-runs"
-      id="project-runs"
-      aria-label="Project Runs"
+    <RunListSourceContext
+      value={{
+        kind: "project",
+        label: "Project Runs",
+        projectId,
+        options,
+        refreshMs,
+        settleWhenTerminal: view !== "active",
+      }}
     >
-      <ProjectSectionActions>
-        <ButtonLink size="sm" to={projectPath(projectId, "workflows")}>
-          Choose workflow
-        </ButtonLink>
-      </ProjectSectionActions>
-      <div className="projects-toolbar">
-        <FilterChips
-          label="Run views"
-          options={RUN_VIEWS}
-          value={view}
-          onChange={chooseView}
-        />
-        <label className="projects-inline-field">
-          <span>State</span>
-          <select
-            value={state ?? ""}
-            onChange={(event) =>
-              chooseState(event.target.value as WorkflowRunState | "")
-            }
-          >
-            <option value="">All states</option>
-            {states.map((value) => (
-              <option key={value} value={value}>
-                {runStateLabel(value).label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <RefreshButton
-          isFetching={runs.isFetching}
-          onRefresh={() => void runs.refetch()}
-        />
-      </div>
-      <QueryView
-        query={runs}
-        loading={
-          <p className="loading-copy" role="status">
-            Loading Project Runs…
-          </p>
-        }
-        onRetry={() => void runs.refetch()}
-        isEmpty={(runsData) => runsData.items.length === 0}
-        empty={
-          <EmptyState title="No Runs in this view">
-            {view === "all" && !state
-              ? "Choose a Workflow to start a Project Run."
-              : "Choose another state or view to inspect the rest of the history."}
-          </EmptyState>
-        }
+      <section
+        className="projects-runs"
+        id="project-runs"
+        aria-label="Project Runs"
       >
-        {(runsData) => (
-          <ul role="list" className="projects-run-list">
-            {runsData.items.map((run) => {
-              const auditId = run.labels["audit.id"];
-              const runState = runStateLabel(run.state);
-              const labelCount = Object.keys(run.labels).length;
-              return (
-                <li className="projects-run" key={run.runId}>
-                  <StatusGlyph tone={runState.tone} />
-                  <div className="projects-run-main">
-                    <ContextLink
-                      className="projects-run-title"
-                      returnLabel="Project Runs"
-                      to={`/runs/${encodeURIComponent(run.runId)}`}
-                      title={run.workflow}
-                    >
-                      {run.workflow}
-                    </ContextLink>
-                    <div className="projects-row-meta">
-                      <strong
-                        className="projects-row-status"
-                        data-tone={runState.tone}
+        <ProjectSectionActions>
+          <ButtonLink size="sm" to={projectPath(projectId, "workflows")}>
+            Choose workflow
+          </ButtonLink>
+        </ProjectSectionActions>
+        <div className="projects-toolbar">
+          <FilterChips
+            label="Run views"
+            options={RUN_VIEWS}
+            value={view}
+            onChange={chooseView}
+          />
+          <label className="projects-inline-field">
+            <span>State</span>
+            <select
+              value={state ?? ""}
+              onChange={(event) =>
+                chooseState(event.target.value as WorkflowRunState | "")
+              }
+            >
+              <option value="">All states</option>
+              {states.map((value) => (
+                <option key={value} value={value}>
+                  {runStateLabel(value).label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <RefreshButton
+            isFetching={runs.isFetching}
+            onRefresh={() => void runs.refetch()}
+          />
+        </div>
+        <QueryView
+          query={runs}
+          loading={
+            <p className="loading-copy" role="status">
+              Loading Project Runs…
+            </p>
+          }
+          onRetry={() => void runs.refetch()}
+          isEmpty={(runsData) => runsData.items.length === 0}
+          empty={
+            <EmptyState title="No Runs in this view">
+              {view === "all" && !state
+                ? "Choose a Workflow to start a Project Run."
+                : "Choose another state or view to inspect the rest of the history."}
+            </EmptyState>
+          }
+        >
+          {(runsData) => (
+            <ul role="list" className="projects-run-list">
+              {runsData.items.map((run) => {
+                const auditId = run.labels["audit.id"];
+                const runState = runStateLabel(run.state);
+                const labelCount = Object.keys(run.labels).length;
+                return (
+                  <li className="projects-run" key={run.runId}>
+                    <StatusGlyph tone={runState.tone} />
+                    <div className="projects-run-main">
+                      <RunSourceLink
+                        className="projects-run-title"
+                        returnLabel="Project Runs"
+                        to={`/runs/${encodeURIComponent(run.runId)}`}
+                        title={run.workflow}
                       >
-                        {runState.label}
-                      </strong>
-                      <span>
-                        {auditId && AUDIT_ID_PATTERN.test(auditId) ? (
-                          <ContextLink
-                            returnLabel="Project Runs"
-                            to={`${projectPath(projectId, "audits")}/${encodeURIComponent(auditId)}`}
-                          >
-                            Check · {auditId.slice(-8)}
-                          </ContextLink>
-                        ) : (
-                          "Workflow Run"
-                        )}
-                      </span>
-                      <span>
-                        Updated{" "}
-                        <time dateTime={run.updatedAt}>
-                          {formatTimestamp(run.updatedAt)}
-                        </time>
-                      </span>
-                    </div>
-                    <details className="project-run-labels">
-                      <summary>
-                        Identity & labels
-                        {labelCount ? ` (${labelCount})` : ""}
-                      </summary>
-                      <div className="projects-run-identity">
-                        <IdChip
-                          value={run.runId}
-                          display={run.runId}
-                          label="Run ID"
-                        />
-                        <RunMetadataLabelChips labels={run.labels} />
+                        {run.workflow}
+                      </RunSourceLink>
+                      <div className="projects-row-meta">
+                        <strong
+                          className="projects-row-status"
+                          data-tone={runState.tone}
+                        >
+                          {runState.label}
+                        </strong>
+                        <span>
+                          {auditId && AUDIT_ID_PATTERN.test(auditId) ? (
+                            <ContextLink
+                              returnLabel="Project Runs"
+                              to={`${projectPath(projectId, "audits")}/${encodeURIComponent(auditId)}`}
+                            >
+                              Check · {auditId.slice(-8)}
+                            </ContextLink>
+                          ) : (
+                            "Workflow Run"
+                          )}
+                        </span>
+                        <span>
+                          Updated{" "}
+                          <time dateTime={run.updatedAt}>
+                            {formatTimestamp(run.updatedAt)}
+                          </time>
+                        </span>
                       </div>
-                    </details>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </QueryView>
-      <CursorControls
-        label="Project Run pages"
-        {...pages.controls(runs.data?.page)}
-      />
-    </section>
+                      <details className="project-run-labels">
+                        <summary>
+                          Identity & labels
+                          {labelCount ? ` (${labelCount})` : ""}
+                        </summary>
+                        <div className="projects-run-identity">
+                          <IdChip
+                            value={run.runId}
+                            display={run.runId}
+                            label="Run ID"
+                          />
+                          <RunMetadataLabelChips labels={run.labels} />
+                        </div>
+                      </details>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </QueryView>
+        <CursorControls
+          label="Project Run pages"
+          {...pages.controls(runs.data?.page)}
+        />
+      </section>
+    </RunListSourceContext>
   );
 }

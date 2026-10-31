@@ -15,6 +15,21 @@ import {
 
 async function installRunsAPI(page: Page): Promise<void> {
   await mockAPI(page, async (route, _request, url) => {
+    if (url.pathname === "/v1/runs/run-completed-browser") {
+      await fulfillJSON(
+        route,
+        runStatus("run-completed-browser", {
+          workflow: "browser-workflow@1",
+          state: "succeeded",
+          deletable: true,
+        }),
+      );
+      return;
+    }
+    if (url.pathname === "/v1/workflows/browser-workflow/versions/1") {
+      await fulfillJSON(route, workflowResource("browser-workflow", "1"));
+      return;
+    }
     if (url.pathname === "/v1/queue/control") {
       await fulfillJSON(route, { paused: false, revision: "0" }, 200, {
         etag: '"0"',
@@ -197,3 +212,65 @@ test("Run results expose the declared primary output with one bounded action", a
     page.getByRole("button", { name: "Load preview", exact: true }),
   ).toHaveCount(0);
 });
+
+for (const theme of ["light", "dark", "black"]) {
+  test(`retains the source Runs list without switches in ${theme}`, async ({
+    page,
+  }, testInfo) => {
+    await page.addInitScript(
+      (theme) => localStorage.setItem("contractor.theme", theme),
+      theme,
+    );
+    await installRunsAPI(page);
+    const requests: string[] = [];
+    page.on("request", (request) => {
+      if (new URL(request.url()).pathname === "/v1/runs")
+        requests.push(request.url());
+    });
+    const source = "/runs?view=completed&state=succeeded&cursor=kept-page";
+    await page.goto(source);
+    await page
+      .getByRole("link", { name: "run-completed-browser", exact: true })
+      .click();
+    const pane = page.getByRole("region", { name: "Source Runs", exact: true });
+    const row = pane.getByRole("link", { name: /run-completed-browser/ });
+    await expect(row).toHaveAttribute("aria-current", "true");
+    await expect(pane.getByRole("combobox")).toHaveCount(0);
+    await expect(pane.getByRole("tab")).toHaveCount(0);
+    await expect(
+      pane.getByRole("link", { name: "Queue", exact: true }),
+    ).toHaveCount(0);
+    expect(requests.length).toBeGreaterThan(0);
+    for (const request of requests) {
+      const params = new URL(request).searchParams;
+      expect(params.get("cursor")).toBe("kept-page");
+      expect(params.get("state")).toBe("succeeded");
+      expect(params.get("lifecycle")).toBe("terminal");
+    }
+    await page.screenshot({
+      path: testInfo.outputPath(`source-runs-${theme}-1440.png`),
+    });
+    for (const width of [390, 320]) {
+      await page.setViewportSize({ width, height: 844 });
+      await expect(pane).toBeHidden();
+      await expect(
+        page.getByRole("heading", { name: "browser-workflow", exact: true }),
+      ).toBeVisible();
+      await expect
+        .poll(() => page.evaluate(() => document.documentElement.scrollWidth))
+        .toBe(width);
+      await page.screenshot({
+        path: testInfo.outputPath(`source-runs-${theme}-${width}.png`),
+      });
+    }
+    await page
+      .getByRole("link", { name: "Back to Completed", exact: true })
+      .click();
+    await expect(page).toHaveURL(
+      new RegExp("/runs\\?view=completed&state=succeeded&cursor=kept-page$"),
+    );
+    await expect(
+      page.getByRole("link", { name: "run-completed-browser", exact: true }),
+    ).toBeVisible();
+  });
+}

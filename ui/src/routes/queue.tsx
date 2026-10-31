@@ -21,11 +21,13 @@ import { RecordedTime } from "../app/recorded-time";
 import { QueryView } from "../app/query-view";
 import { EmptyState } from "../ui";
 import { RunMetadataLabelChips, RunStateChip } from "./runs/components";
+import { RunListSourceContext } from "./runs/source-context";
 import { RunIdLink, RunsFilter } from "./runs/list-parts";
 import { MEMBERSHIP_LABELS } from "./runs/run-state";
 import { RUN_STATE_LABELS } from "../app/vocabulary";
 
 const LIVE_SUBSCRIPTION_LIMIT = 24;
+const QUEUE_POLL_MS = 10_000;
 // Live subscriptions left waiting by a failed resync, or by a live session
 // the Server refused, are retried at the Queue's own polling pace so neither
 // a failing read nor a refused socket can spin.
@@ -164,17 +166,15 @@ export function QueuePanel() {
   ) as QueueMembership | undefined;
   const pages = useURLCursorStack();
   const cursor = pages.cursor;
+  const options = {
+    ...(state === undefined ? {} : { state }),
+    ...(membership === undefined ? {} : { membership }),
+    ...(cursor === undefined ? {} : { cursor }),
+  };
   const query = useQuery({
     queryKey: queryKeys.queue.list(state, membership, cursor),
-    queryFn: () =>
-      listRunQueue(api, {
-        ...(state === undefined ? {} : { state }),
-        ...(membership === undefined ? {} : { membership }),
-        ...(cursor === undefined ? {} : { cursor }),
-      }),
-    // The active queue never settles: read it every 10 s, backing off while
-    // reads fail.
-    refetchInterval: pollInterval({ interval: 10_000 }),
+    queryFn: () => listRunQueue(api, options),
+    refetchInterval: pollInterval({ interval: QUEUE_POLL_MS }),
   });
 
   useQueueInvalidation(query.data?.items ?? []);
@@ -191,111 +191,120 @@ export function QueuePanel() {
   }
 
   return (
-    <div className="runs-view">
-      <div className="runs-toolbar">
-        <div className="runs-filters">
-          <RunsFilter
-            label="State"
-            options={STATE_OPTIONS}
-            value={state ?? ""}
-            onChange={(value) => replaceFilter("state", value)}
-          />
-          <RunsFilter
-            label="Context"
-            options={MEMBERSHIP_OPTIONS}
-            value={membership ?? ""}
-            onChange={(value) => replaceFilter("membership", value)}
+    <RunListSourceContext
+      value={{
+        kind: "queue",
+        label: "Queue",
+        options,
+        refreshMs: QUEUE_POLL_MS,
+      }}
+    >
+      <div className="runs-view">
+        <div className="runs-toolbar">
+          <div className="runs-filters">
+            <RunsFilter
+              label="State"
+              options={STATE_OPTIONS}
+              value={state ?? ""}
+              onChange={(value) => replaceFilter("state", value)}
+            />
+            <RunsFilter
+              label="Context"
+              options={MEMBERSHIP_OPTIONS}
+              value={membership ?? ""}
+              onChange={(value) => replaceFilter("membership", value)}
+            />
+          </div>
+          <RefreshButton
+            className="runs-icon-button"
+            size="sm"
+            isFetching={query.isFetching}
+            onRefresh={() => void query.refetch()}
           />
         </div>
-        <RefreshButton
-          className="runs-icon-button"
+        <p className="runs-note">
+          Oldest first. Position here is not Scheduler priority.
+        </p>
+
+        <div className="runs-results">
+          <QueryView
+            query={query}
+            loading={
+              <p className="ui-caption" role="status">
+                Loading Queue…
+              </p>
+            }
+            isEmpty={(queryData) => queryData.items.length === 0}
+            empty={
+              <EmptyState title="No active Runs match this view.">
+                <p>Terminal Runs remain available in Completed.</p>
+              </EmptyState>
+            }
+          >
+            {(queryData) => (
+              <table className="runs-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Run</th>
+                    <th scope="col">Workflow</th>
+                    <th scope="col">State</th>
+                    <th scope="col">Context</th>
+                    <th scope="col">Labels</th>
+                    <th scope="col">Created</th>
+                    <th scope="col">Updated</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {queryData.items.map((item) => {
+                    const unlabelled = Object.keys(item.labels).length === 0;
+                    return (
+                      <tr key={item.runId}>
+                        <td className="run-list-id-cell">
+                          <RunIdLink runId={item.runId} returnLabel="Queue" />
+                        </td>
+                        <td className="run-list-workflow-cell">
+                          <span className="runs-cell-label">Workflow</span>
+                          <code>{item.workflow}</code>
+                        </td>
+                        <td className="run-list-state-cell">
+                          <RunStateChip state={item.state} />
+                        </td>
+                        <td className="queue-context-cell">
+                          <span className="runs-cell-label">Context</span>
+                          <QueueContext item={item} />
+                        </td>
+                        <td
+                          className="run-list-labels-cell"
+                          data-empty={unlabelled ? "" : undefined}
+                        >
+                          <span className="runs-cell-label">Labels</span>
+                          <RunMetadataLabelChips
+                            labels={item.labels}
+                            empty="None"
+                          />
+                        </td>
+                        <td className="run-list-created-cell">
+                          <RecordedTime value={item.createdAt} />
+                        </td>
+                        <td className="run-list-updated-cell">
+                          <span className="runs-cell-label">Updated</span>
+                          <RecordedTime value={item.updatedAt} />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </QueryView>
+        </div>
+
+        <CursorControls
           size="sm"
-          isFetching={query.isFetching}
-          onRefresh={() => void query.refetch()}
+          label="Queue pages"
+          {...pages.controls(query.data?.page)}
         />
       </div>
-      <p className="runs-note">
-        Oldest first. Position here is not Scheduler priority.
-      </p>
-
-      <div className="runs-results">
-        <QueryView
-          query={query}
-          loading={
-            <p className="ui-caption" role="status">
-              Loading Queue…
-            </p>
-          }
-          isEmpty={(queryData) => queryData.items.length === 0}
-          empty={
-            <EmptyState title="No active Runs match this view.">
-              <p>Terminal Runs remain available in Completed.</p>
-            </EmptyState>
-          }
-        >
-          {(queryData) => (
-            <table className="runs-table">
-              <thead>
-                <tr>
-                  <th scope="col">Run</th>
-                  <th scope="col">Workflow</th>
-                  <th scope="col">State</th>
-                  <th scope="col">Context</th>
-                  <th scope="col">Labels</th>
-                  <th scope="col">Created</th>
-                  <th scope="col">Updated</th>
-                </tr>
-              </thead>
-              <tbody>
-                {queryData.items.map((item) => {
-                  const unlabelled = Object.keys(item.labels).length === 0;
-                  return (
-                    <tr key={item.runId}>
-                      <td className="run-list-id-cell">
-                        <RunIdLink runId={item.runId} returnLabel="Queue" />
-                      </td>
-                      <td className="run-list-workflow-cell">
-                        <span className="runs-cell-label">Workflow</span>
-                        <code>{item.workflow}</code>
-                      </td>
-                      <td className="run-list-state-cell">
-                        <RunStateChip state={item.state} />
-                      </td>
-                      <td className="queue-context-cell">
-                        <span className="runs-cell-label">Context</span>
-                        <QueueContext item={item} />
-                      </td>
-                      <td
-                        className="run-list-labels-cell"
-                        data-empty={unlabelled ? "" : undefined}
-                      >
-                        <span className="runs-cell-label">Labels</span>
-                        <RunMetadataLabelChips
-                          labels={item.labels}
-                          empty="None"
-                        />
-                      </td>
-                      <td className="run-list-created-cell">
-                        <RecordedTime value={item.createdAt} />
-                      </td>
-                      <td className="run-list-updated-cell">
-                        <span className="runs-cell-label">Updated</span>
-                        <RecordedTime value={item.updatedAt} />
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
-        </QueryView>
-      </div>
-
-      <CursorControls
-        size="sm"
-        label="Queue pages"
-        {...pages.controls(query.data?.page)}
-      />
-    </div>
+    </RunListSourceContext>
   );
 }

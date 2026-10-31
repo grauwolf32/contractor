@@ -30,7 +30,8 @@ import { MATERIAL_KIND_ORDER, materialKindOf } from "../artifacts/kinds";
 import { AUDIT_STATES, AUDIT_STATES_WITH_FINDINGS } from "../../api/states";
 
 /** How often the overview refreshes checks and Runs while it is open. */
-const OVERVIEW_POLL_MS = 10_000;
+export const OVERVIEW_POLL_MS = 10_000;
+export const SUCCESSFUL_RUNS_POLL_MS = 15_000;
 
 /** Overview reads poll while shown and back off while reads fail. */
 const overviewPoll = pollInterval({ interval: OVERVIEW_POLL_MS });
@@ -238,7 +239,7 @@ export function useSuccessfulRuns(projectId: string) {
   return useQuery({
     queryKey: queryKeys.projects.runView(projectId, options),
     queryFn: () => listProjectRuns(api, { projectId, ...options }),
-    refetchInterval: pollInterval({ interval: 15_000 }),
+    refetchInterval: pollInterval({ interval: SUCCESSFUL_RUNS_POLL_MS }),
   });
 }
 
