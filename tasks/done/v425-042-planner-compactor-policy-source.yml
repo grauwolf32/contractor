@@ -6,7 +6,7 @@ epic: workflows
 kind: chore
 introduced_by: V420-002
 priority: P3
-status: in_progress
+status: completed
 depends_on: [V425-041]
 languages: [go, python, yaml]
 goal: >-
@@ -85,3 +85,29 @@ tests:
     covers: [A2, A3]
   - command: make lint
     covers: [A1, A4]
+
+notes: >-
+  Removed the context-block ModelPolicy source, the pre-seeded Planner policy
+  and origin, and the parser's ordinary/summary mode branch. Both consumers now
+  use one strict behavior-only grammar; existing executionConfig validation
+  requires their exact compatible compactor selections. Native YAML reuse,
+  Stage overrides and inline escalation retain their effective policy behavior.
+  Migrated 11 ordinary compacting Stage selections across eight production
+  Stages, two examples and one test fixture; static comparison confirmed every
+  exact policy selector stayed equal. No ModelPolicy body or budget changed.
+  Regression tests reject removed fields, null and YAML merges, validate missing
+  and inapplicable selections, verify Workflow/Stage/escalation origins and keep
+  old policy bodies pinned after a changed catalog reloads. The public/wire
+  Planner context shape was already behavior-only, so no generated API or Runtime
+  type changes were necessary. The dependency graph now follows compactor
+  execution selections. Earlier authoring notes in V420-002 and V420-006 are
+  explicitly superseded without taking over or completing those tasks.
+  Verification on 2026-11-01: every listed Go package passed with integration
+  tags against disposable PostgreSQL, including config, Run, Scheduler, public
+  API and Planner compaction. make test-config, verify-public-api,
+  ui-generate-check, test-hardening-matrices and lint passed. The real production
+  Memory Server/Runtime process gate passed in 106.043s. Both disposable test
+  databases were removed. Unrelated Runtime suites/environment work were not
+  started, as the user directed. No demo database or live model was changed.
+
+implementation_commit: 851a547b529eb8740431f5377268346d70d8164a
