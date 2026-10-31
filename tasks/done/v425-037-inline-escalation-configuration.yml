@@ -6,7 +6,7 @@ epic: workflows
 kind: chore
 introduced_by: V3-007
 priority: P3
-status: in_progress
+status: completed
 depends_on: []
 languages: [go, typescript]
 goal: Author reusable escalation settings inside one Workflow with YAML anchors instead of independently published ExecutionConfig profiles.
@@ -108,3 +108,5 @@ verification: >-
   checks. Go used the installed 1.26.9 toolchain and canonical TMPDIR=/private/tmp;
   UI used Node 24.20.0 and the pinned pnpm through Corepack. No live-model
   quality experiment, deployment or merge into main was performed.
+
+implementation_commit: 87b6ded01858ccb18b10d4f1f735f0b41ab53fce
