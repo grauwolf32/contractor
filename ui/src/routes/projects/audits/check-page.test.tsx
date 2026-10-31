@@ -39,7 +39,7 @@ import {
   workspaceOf,
   type Handler,
 } from "./check-test-support";
-import { json } from "../../../test/responses";
+import { failure, json } from "../../../test/responses";
 
 import {
   compositionAudit,
@@ -767,6 +767,14 @@ describe("Check page", () => {
           {
             gaps: ["The identity service is outside this code."],
             resultSummary: "Anyone signed in can read any report.",
+            evidence: [
+              {
+                id: "handler-source",
+                kind: "source-analysis",
+                summary:
+                  "The handler fetches reports by ID without an owner check.",
+              },
+            ],
           },
         ),
         endpointRow(
@@ -794,6 +802,13 @@ describe("Check page", () => {
         }),
       ],
       findings: () => [finding],
+      handle: (_request, url) => {
+        if (url.pathname === "/v1/audits/audit_example/findings/finding_1")
+          return json(finding, 200, { ETag: `"${finding.revision}"` });
+        if (url.pathname.endsWith("/finding_1/provenance"))
+          return failure(404, "not_found", "No retained provenance");
+        return undefined;
+      },
       workspace: (audit) =>
         workspaceOf(audit, {
           totalChecks: 2,
@@ -803,7 +818,9 @@ describe("Check page", () => {
           unreviewedFindings: 1,
         }),
     });
-    renderApplication(`${ROOT}/coverage#check-item_1`, { api });
+    const { router } = renderApplication(`${ROOT}/coverage#check-item_1`, {
+      api,
+    });
     const list = await screen.findByRole("region", {
       name: "Check and endpoints",
     });
@@ -828,6 +845,14 @@ describe("Check page", () => {
       within(view).getByText("Endpoint 1 of 2 · mechanic area"),
     ).toBeVisible();
     expect(within(view).getByText("Why only partially")).toBeVisible();
+    expect(
+      await within(view).findByText(
+        "The handler fetches reports by ID without an owner check.",
+      ),
+    ).toBeVisible();
+    expect(
+      within(view).getByRole("link", { name: "Next endpoint" }),
+    ).toBeVisible();
     const issue = within(view).getByRole("link", {
       name: "Any user reads any service report",
     });
@@ -851,7 +876,84 @@ describe("Check page", () => {
       }),
     ).toBeVisible();
     expect(within(regions().list()).getByText("Live")).toBeVisible();
+    await userEvent.setup().click(
+      within(view).getByRole("link", {
+        name: "Review Any user reads any service report",
+      }),
+    );
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe(
+        "/issues/audit_example/finding_1",
+      ),
+    );
+    expect(router.state.location.state).toMatchObject({
+      returnTo: `${ROOT}/coverage#check-item_1`,
+      returnLabel: "Check",
+    });
+    expect(
+      await screen.findByRole("heading", {
+        name: "Any user reads any service report",
+      }),
+    ).toBeVisible();
+    await act(() => router.navigate(-1));
+    expect(
+      await screen.findByRole("article", {
+        name: "GET /workshop/api/mechanic/mechanic_report",
+      }),
+    ).toBeVisible();
   });
+
+  it.each([
+    "proposed",
+    "needs-evidence",
+    "confirmed",
+    "rejected",
+    "duplicate",
+  ] as const)(
+    "offers item review only while a finding needs it (%s)",
+    async (state) => {
+      const current = auditAt("completed", 3);
+      const finding = makeFinding(
+        "audit_example",
+        "finding_1",
+        "An owner check may be missing",
+        "A01:2025",
+        { state },
+      );
+      const { api } = serveCheck({
+        audit: () => current,
+        coverage: () => [
+          requirementRow(
+            "item_1",
+            0,
+            "A01:2025",
+            "Access control.",
+            "violated",
+          ),
+        ],
+        findings: () => [finding],
+      });
+      renderApplication(`${ROOT}/coverage#check-item_1`, { api });
+      const view = await screen.findByRole("article", {
+        name: "A01:2025 Access control.",
+      });
+      await within(view).findByRole("link", {
+        name: "An owner check may be missing",
+      });
+      const review = within(view).queryByRole("link", {
+        name: "Review An owner check may be missing",
+      });
+      if (state === "proposed" || state === "needs-evidence") {
+        expect(review).toHaveAttribute(
+          "href",
+          "/issues/audit_example/finding_1",
+        );
+      } else {
+        expect(review).toBeNull();
+      }
+      expect(within(view).getByText("Severity not set")).toBeVisible();
+    },
+  );
 
   it("keeps every section reachable under the new names", async () => {
     const current = auditAt("completed", 3);
@@ -1264,7 +1366,11 @@ describe("Check page", () => {
       within(onItem)
         .getAllByRole("link")
         .map((link) => link.textContent),
-    ).toEqual(["Refunds skip the owner check", "Orders leak to other users"]);
+    ).toEqual([
+      "Refunds skip the owner check",
+      "Orders leak to other users",
+      "Review",
+    ]);
     const setAside = within(view).getByRole("region", { name: "Set aside" });
     expect(
       within(setAside).getByRole("link", {

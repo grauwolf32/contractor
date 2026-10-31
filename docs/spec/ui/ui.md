@@ -896,6 +896,14 @@ Findings / Checks / Reviews / Runs / Report.
 **UI-R140.** Audit pages display technical Run outcome separately from semantic
 assessment, and proposed findings separately from confirmed findings.
 
+**UI-R215.** A selected Audit item visually separates its written conclusion
+and labelled limitations from supporting evidence and activity. Evidence stays
+expanded. Proposed and needs-evidence findings offer an explicit **Review**
+link to their existing issue route with return context; confirmed and set-aside
+findings retain their state and title links without a pending-review action.
+This presentation preserves item navigation, coverage facts and the existing
+check-level primary action.
+
 **UI-R141.** The generic Runs and Queue UI remains authoritative for execution
 and links back to the Audit; an Audit does not create a second Runtime queue.
 
