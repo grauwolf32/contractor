@@ -469,7 +469,7 @@ func runWorkerSessionADKProbes(t *testing.T, h workerSessionProbeHarness) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if stage.Session != contracts.WorkerSessionMode(session) || allocation.AgentTemplateRef != stage.Agents["builder"].Template.Ref || allocation.RuntimeConfiguration == nil || allocation.RuntimeConfiguration.ModelPolicy != stage.Agents["builder"].Template.ModelPolicy.Ref {
+				if stage.Session != contracts.WorkerSessionMode(session) || allocation.AgentTemplateRef != stage.Agents["builder"].Template.Ref || allocation.RuntimeConfiguration == nil || allocation.RuntimeConfiguration.ModelPolicy != stage.ExecutionConfig.Agents["builder"].ModelPolicy.Ref {
 					t.Fatal("resolved template/model/session pin changed between snapshot and allocation")
 				}
 				for index := range h.runtimes {

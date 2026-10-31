@@ -530,8 +530,9 @@ filtering and tool-call accounting are owned by [Skills](../tools/skills.md).
 When `skills` is non-empty, AgentTemplateCatalog rejects any selected
 Contractor Toolset operation named `list_skills`, `load_skill` or
 `load_skill_resource`, so the model-visible function namespace remains
-unambiguous, and it validates the Worker ModelPolicy as tool-using (TPL-R28)
-even when the ordinary `toolsets` list is empty.
+unambiguous. Workflow and allocation validation treat the effective Worker
+ModelPolicy as tool-using (TPL-R28), even when the ordinary `toolsets` list is
+empty.
 
 No Toolset is implicit: memory tools, workspace filesystem and edit tools, and
 every other Toolset reach a Worker only through this allowlist. Their
@@ -645,7 +646,7 @@ changes with it ([CAT-R74](catalog.md)).
 `<id>@<version>` selector ([Configuration catalog](catalog.md)); `latest`,
 ranges and unversioned aliases are invalid.
 
-**TPL-R56.** Any change to the template's instructions, policy, summarizer,
+**TPL-R56.** Any change to the template's instructions, summarizer behavior,
 tools or normalized logical skill-ref set creates a new digest and, outside the
 pre-production shipped catalog ([CAT-R74](catalog.md)), a new version.
 Omitted `skills` and explicit `skills: []` are the same empty body. Writing a

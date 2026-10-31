@@ -157,11 +157,12 @@ or lineage. It allows domain-owned immutable views to check authority after
 source history eviction; it creates no hold and cannot recover an evicted revision.
 The owning contract is ART-R135.
 
-`AllocationSpec.agentTemplate.modelPolicy` remains the immutable template
-default covered by the AgentTemplate digest. The separate required
-`AllocationSpec.modelPolicy` is the effective Worker policy pinned by the Run;
-Runtime validates its own digest and uses it without mutating or re-signing the
-AgentTemplate. `RuntimeSettings.llmGatewayToken` is omitted for an
+AgentTemplate carries reusable behavior without main or summary model policies.
+Required `AllocationSpec.modelPolicy` is the effective Worker policy selected by
+Workflow and pinned by the Run. A terminal allocation also requires the separate
+`summarizerModelPolicy`. Runtime validates their digests independently of the
+AgentTemplate and rejects the removed template fields, including null.
+`RuntimeSettings.llmGatewayToken` is omitted for an
 unauthenticated Gateway; when present it is non-empty, and the Server, Runtime
 and schema reject an empty token.
 

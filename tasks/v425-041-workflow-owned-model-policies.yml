@@ -126,3 +126,8 @@ tests:
     covers: [A2, A3, A4]
   - command: make lint
     covers: [A1, A3, A5]
+
+  - command: go test ./tests/eval/project_workflows ./tests/integration/lease
+    covers: [A2, A3, A4]
+  - command: go test -tags=e2e -count=1 ./tests/e2e -run '^(TestCodeAnalysisE2EConfigurationLoads|TestProductionMemoryConfigurationStaging)$'
+    covers: [A2, A4]

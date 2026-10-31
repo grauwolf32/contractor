@@ -624,9 +624,6 @@ export function Inspector({
               {field("Runtime", ["spec", "runtime"])}
             </>
           ) : null}
-          {node.type === "modelPolicy"
-            ? catalogField(node.title, p, "model-policies")
-            : null}
           {node.type === "sandboxProfile" ? field(node.title, p) : null}
           {node.type === "instructions"
             ? field("Instructions file", [...p, "ref"])
