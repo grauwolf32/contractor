@@ -65,7 +65,12 @@ class RuntimePlacement(unittest.TestCase):
 
     def test_init_explicitly_declares_cloud_without_inventing_a_provider(self):
         args = SimpleNamespace(
-            state=self.state, hosts=["fixture"], network="10.77.0.0/24", port=51821
+            state=self.state,
+            hosts=["fixture"],
+            network="10.77.0.0/24",
+            port=51821,
+            egress_network="172.25.18.0/30",
+            egress_check_url="https://provider.example/models",
         )
         with (
             patch.object(mesh, "ssh_hostname", return_value="192.0.2.1"),

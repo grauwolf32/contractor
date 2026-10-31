@@ -19,7 +19,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "hybrid"))
 from common import (
     DEFAULT_STATE,
     apply_remote,
+    egress_settings,
     load_state,
+    mesh_network,
     run,
     secret,
     secure_write,
@@ -43,9 +45,7 @@ def init(args):
         raise RuntimeError("state already exists; use render/apply without regenerating identities")
     if len(set(args.hosts)) != len(args.hosts) or not 1 <= len(args.hosts) <= 16:
         raise ValueError("provide 1..16 distinct SSH aliases")
-    network = ipaddress.ip_network(args.network)
-    if network.version != 4 or network.prefixlen != 24 or not network.is_private:
-        raise ValueError("mesh network must be a private IPv4 /24")
+    network = mesh_network(args.network)
     if not 1024 <= args.port <= 65535:
         raise ValueError("invalid mesh UDP port")
     hosts = [
@@ -67,7 +67,9 @@ def init(args):
         "controller_address": str(network.network_address + 10),
         "hosts": hosts,
         "gateway_host": hosts[0]["ssh"],
+        "egress": {"network": args.egress_network, "check_url": args.egress_check_url},
     }
+    egress_settings(doc)
     secure_write(state / "deployment.json", json.dumps(doc, indent=2) + "\n", replace=False)
     render(state, doc)
     print(f"Mesh state prepared: {state}; private keys were not printed")
@@ -108,10 +110,13 @@ def render(state, doc):
 
 def apply(args):
     state, doc = load_state(args.state)
-    render(state, doc)
     script = (Path(__file__).parent / "linux-mesh.sh").read_text()
-    if args.ubuntu_mirror:
-        parsed = urlsplit(args.ubuntu_mirror)
+    if bool(args.ubuntu_mirror) != bool(args.ubuntu_mirror_source):
+        raise ValueError("provide both --ubuntu-mirror-source and --ubuntu-mirror")
+    for mirror in (args.ubuntu_mirror_source, args.ubuntu_mirror):
+        if not mirror:
+            continue
+        parsed = urlsplit(mirror)
         if (
             parsed.scheme != "https"
             or not parsed.hostname
@@ -119,10 +124,11 @@ def apply(args):
             or parsed.query
             or parsed.fragment
         ):
-            raise ValueError("--ubuntu-mirror must be a plain HTTPS mirror URL")
+            raise ValueError("Ubuntu mirrors must be plain HTTPS URLs")
     selected = args.hosts or [host["ssh"] for host in doc["hosts"]]
     if not set(selected) <= {host["ssh"] for host in doc["hosts"]}:
         raise ValueError("host is absent from deployment.json")
+    render(state, doc)
     for alias in selected:
         ssh(
             alias,
@@ -144,6 +150,7 @@ def apply(args):
                 "/opt/contractor-hybrid/bin/mesh.sh",
                 "up",
                 args.ubuntu_mirror,
+                args.ubuntu_mirror_source,
             ],
             timeout=600,
         )
@@ -376,15 +383,18 @@ def main():
     commands = parser.add_subparsers(dest="command", required=True)
     p = commands.add_parser("init")
     p.add_argument("hosts", nargs="+")
-    p.add_argument("--network", default="10.77.0.0/24")
+    p.add_argument("--network", required=True, help="Private IPv4 /24 for the mesh")
+    p.add_argument("--egress-network", required=True, help="Non-overlapping private IPv4 /30")
+    p.add_argument("--egress-check-url", required=True, help="HTTPS URL reachable via provider VPN")
     p.add_argument("--port", type=int, default=51821)
     p = commands.add_parser("apply")
     p.add_argument("hosts", nargs="*")
     p.add_argument(
         "--ubuntu-mirror",
         default="",
-        help="Replace the Cloud.ru Ubuntu mirror; retain Ubuntu signature verification",
+        help="Replacement Ubuntu mirror; retain Ubuntu signature verification",
     )
+    p.add_argument("--ubuntu-mirror-source", default="", help="Exact mirror URL to replace")
     commands.add_parser("render")
     commands.add_parser("local-up")
     commands.add_parser("local-down")
