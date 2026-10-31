@@ -81,3 +81,9 @@ verification:
     state predicate is registered against runstore's canonical state set.
     The separate release lookup retains its established globally-unreleased
     allocation budget; no new ownership projection or store was introduced.
+  final_integration:
+    base: ac80ec0c1067d5d3ee5f7968bc8cf94a0fad881d
+    checks:
+      - After merging the independently delivered pagination policy, the complete drain plan regression passed again, including its tenfold history growth and custom/generic negative controls.
+      - The canonical active-state predicate guard, persistence SQL/ERD source guards, task/specification checks and schema-65 ERD check passed.
+      - Shared-config, private sitemap and both generated-client consistency checks and the dependency-document check passed.
