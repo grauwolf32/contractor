@@ -5,7 +5,7 @@ milestone: ui-journey-usability
 epic: ui
 kind: chore
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V429-007, V429-005, V429-006]
 languages: [typescript, css]
 goal: Deliver an OpenDesign-generated Issue detail candidate and a reproducible isolated preview in the shared Run/Project visual language.
@@ -57,3 +57,41 @@ tests:
     covers: [A1, A2, A3, A4]
   - command: python3 scripts/check_spec.py
     covers: [A2]
+
+verification:
+  - >-
+    OpenDesign generated the original candidate and the explicit grid-repair
+    artifact in its preserved Issue project/conversation through the configured
+    Contractor model. Original sources and source hashes are retained alongside
+    the selected preview; no generated original was replaced by the preview
+    corrections. Production Issue behavior and the UI release are unchanged.
+  - >-
+    The human-reported cramped layout failed the added desktop geometry guard.
+    OpenDesign's revised artifact uses a main/supporting-column composition,
+    with single-column mobile cards. Preview-only fixes retain hidden states,
+    focus, filtered list navigation, explicit evidence preview, source-identity
+    truthfulness, viewport scroll ownership and narrow min-content bounds.
+  - >-
+    The final standalone verifier passed all nine 1440/390/320 by
+    light/dark/black cases. It checks canvas use, two desktop columns, readable
+    mobile cards, no document overflow, common system fonts, separate proposal/
+    AI-suggestion/verification states, Summary/Evidence/History, explicit local
+    evidence preview, required rationale/severity, no recorded Server decision,
+    filtered selection and mobile back. No page error or external request was
+    observed. make ui-gates and task/spec/diff checks passed.
+  - >-
+    A fresh independent backup recovery passed SQLite integrity_check before
+    generation; the final verified backup is
+    /Users/ruslan/src/third-party/open-design-backups/20261031T232515Z.
+    It preserves four projects, seven conversations, 33 messages and 72 project
+    files, plus the host sandbox and intermediate outputs. Archives were read
+    and SHA-256 verified. Both ephemeral model relays were stopped and their
+    upstream-credential files removed after the bounded design iterations.
+    The preview is GET-only on a separate loopback origin, with an opaque
+    sandbox frame, connect-src none and form-action none.
+  - >-
+    Sources, provenance, reproduction commands, proof reports and screenshots
+    are preserved on codex/issue-design and beside the original OpenDesign
+    project. This design exploration has not been merged or deployed; transfer
+    to the real Issue UI is a separate follow-up after reviewing the candidate.
+implementation_commit: 085f4b054305bb44f2783ac2de55e43ee005e8a5
