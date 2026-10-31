@@ -14,7 +14,7 @@ import (
 
 const HTTPExchangeMediaType = "application/vnd.contractor.http-exchange+json"
 const HTTPExchangeSchema = "contractor.http.exchange.v1"
-const MaximumHTTPResponseBodyBytes = 16 << 20
+const MaximumHTTPResponseBodyBytes = contracts.MaxHTTPResponseBodyBytes
 
 // CapturedHTTPExchange is trusted Runtime capture submitted with a finding.
 // It has no ArtifactRef: intake publishes it and its finding atomically.

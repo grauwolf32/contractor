@@ -15,12 +15,10 @@ from contractor_runtime import threads
 from contractor_runtime.contracts.base import MAX_EXACT_INTEGER
 from contractor_runtime.core.http_limits import (
     MAX_EXCHANGE_ATTEMPTS,
-    MAX_HEADER_BYTES,
     MAX_HISTORY,
-    MAX_REQUEST_BODY_BYTES,
-    MAX_RESPONSE_BODY_BYTES,
     header_block_bytes,
 )
+from contractor_runtime.shared_config import get_shared_config
 from contractor_runtime.toolsets.common.finding_locations import ClosedModel, WebLocation
 from contractor_runtime.toolsets.common.http_evidence import HTTPHeader
 
@@ -46,7 +44,10 @@ class StructuredHTTPMessage(ClosedModel):
     @field_validator("headers")
     @classmethod
     def bounded_headers(cls, value: list[HTTPHeader]) -> list[HTTPHeader]:
-        if header_block_bytes((row.name, row.value) for row in value) > MAX_HEADER_BYTES:
+        if (
+            header_block_bytes((row.name, row.value) for row in value)
+            > get_shared_config().http_header_block_max_bytes
+        ):
             raise ValueError("HTTP evidence headers exceed their byte limit")
         return value
 
@@ -70,7 +71,7 @@ class CapturedHTTPRequest(WebLocation):
             raise ValueError("a captured raw request cannot be empty")
         decode_bytes(
             value.body_base64 if isinstance(value, StructuredHTTPMessage) else value.data_base64,
-            MAX_REQUEST_BODY_BYTES,
+            get_shared_config().http_request_body_max_bytes,
         )
         return self
 
@@ -85,7 +86,7 @@ class CapturedHTTPResponse(ClosedModel):
         value = self.message
         decode_bytes(
             value.body_base64 if isinstance(value, StructuredHTTPMessage) else value.data_base64,
-            MAX_RESPONSE_BODY_BYTES,
+            get_shared_config().http_response_body_max_bytes,
         )
         return self
 

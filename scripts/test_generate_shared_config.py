@@ -37,6 +37,9 @@ class SharedConfigGenerationTests(unittest.TestCase):
             )
             changed = copy.deepcopy(config)
             changed["limits"]["artifactPayloadMaxBytes"] = 43
+            changed["limits"]["httpRequestBodyMaxBytes"] = 11
+            changed["limits"]["httpResponseBodyMaxBytes"] = 19
+            changed["limits"]["httpHeaderBlockMaxBytes"] = 13
             changed["limits"]["workerResultMaxBytes"] = 1000
             changed["limits"]["workerCompletionMaxBytes"] = 8000
             changed["limits"]["workerFailureMessageMaxBytes"] = 23
@@ -75,6 +78,11 @@ class SharedConfigGenerationTests(unittest.TestCase):
                     "maxLimit"
                 ],
                 11,
+            )
+            http = json.loads((root / "api/testdata/http-capture-cases.json").read_text())["limits"]
+            self.assertEqual(
+                [http["requestBodyBytes"], http["responseBodyBytes"], http["headerBytes"]],
+                [11, 19, 13],
             )
             worker = json.loads((root / "api/v1alpha1/worker-completion.schema.json").read_text())
             self.assertEqual(

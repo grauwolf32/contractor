@@ -12,6 +12,10 @@ class SharedConfigSnapshot:
     artifact_payload_max_bytes: int
     public_page_max_items: int
     artifact_list_max_items: int
+    http_request_body_max_bytes: int
+    http_response_body_max_bytes: int
+    http_header_block_max_bytes: int
+
     worker_result_max_bytes: int
     worker_completion_max_bytes: int
     worker_failure_message_max_bytes: int

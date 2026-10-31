@@ -12,16 +12,14 @@ from contractor_runtime.core.http_session import (
 from contractor_runtime.core.http_session import (
     MAX_COOKIES as MAX_COOKIES,
 )
+from contractor_runtime.shared_config import get_shared_config
 
-MAX_REQUEST_BODY_BYTES = 1 * 1024 * 1024
-MAX_RESPONSE_BODY_BYTES = 16 * 1024 * 1024
 MAX_PREVIEW_CHARACTERS = 8192
 MAX_READ_UNITS = 8192
 MAX_HEADERS = 64
 MAX_QUERY_KEYS = 64
 MAX_HEADER_VALUE_BYTES = 8192
 # One header block as finding evidence retains it (a Server wire limit).
-MAX_HEADER_BYTES = 64 * 1024
 # Model-supplied session defaults plus per-request headers. The rest of a
 # request block is reserved for headers the Runtime adds (request tag, Host,
 # session Authorization, httpx defaults), so a request that is sent stays
@@ -39,3 +37,8 @@ def header_block_bytes(pairs: Iterable[tuple[str, str]]) -> int:
     """UTF-8 size of header name/value pairs, as finding evidence measures it."""
 
     return sum(len(name.encode("utf-8")) + len(value.encode("utf-8")) for name, value in pairs)
+
+
+def request_header_max_bytes() -> int:
+    """Model/IPC header input may not exceed the shared retained-header bound."""
+    return min(MAX_REQUEST_HEADER_BYTES, get_shared_config().http_header_block_max_bytes)

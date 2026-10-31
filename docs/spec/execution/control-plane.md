@@ -1774,6 +1774,11 @@ The `reporting` State constants supply `workerStateMaxBytes`,
 `workerStateWorkspaceMaxPaths`, and `workerStateWorkspacePathsMaxBytes`.
 These settings retain their independent result, envelope and workspace meanings;
 Planner requests and Stage results are not aliases of these policies.
+`httpRequestBodyMaxBytes`, `httpResponseBodyMaxBytes` and
+`httpHeaderBlockMaxBytes` come from the normalized HTTP evidence constants in
+`contracts`; Server domain validation and Runtime transport/capture share them.
+Provider envelopes, private transport headers and per-Run engagement budgets
+remain independent.
 The digest is `sha256:` of canonical JSON containing only `limits` and
 `version`; integers must be positive and exactly representable JSON integers.
 Unknown fields, unsupported versions and digest mismatches are permanent

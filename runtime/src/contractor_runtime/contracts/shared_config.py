@@ -18,6 +18,10 @@ from contractor_runtime.shared_config import SharedConfigSnapshot
 
 
 class SharedLimits(WireModel):
+    http_request_body_max_bytes: int = Field(strict=True, gt=0, le=MAX_EXACT_INTEGER)
+    http_response_body_max_bytes: int = Field(strict=True, gt=0, le=MAX_EXACT_INTEGER)
+    http_header_block_max_bytes: int = Field(strict=True, gt=0, le=MAX_EXACT_INTEGER)
+
     worker_result_max_bytes: int = Field(strict=True, gt=0, le=MAX_EXACT_INTEGER)
     worker_completion_max_bytes: int = Field(strict=True, gt=0, le=MAX_EXACT_INTEGER)
     worker_failure_message_max_bytes: int = Field(strict=True, gt=0, le=MAX_EXACT_INTEGER)

@@ -6,6 +6,7 @@ import asyncio
 import gzip
 import tracemalloc
 import zlib
+from dataclasses import replace
 from pathlib import Path
 
 import httpx
@@ -16,7 +17,7 @@ from test_caido_read_tools import create_tools as create_caido_tools
 from test_http_toolset import FakeArtifactClient, close_tools, create_tools
 
 import contractor_runtime.adapters.caido_graphql as caido_graphql
-import contractor_runtime.toolsets.http.tools as http_tools
+from contractor_runtime import shared_config
 from contractor_runtime.http_body import (
     DECODED_CONTENT_CODINGS,
     BodyTooLarge,
@@ -103,7 +104,11 @@ def test_content_already_read_by_httpx_is_only_size_checked() -> None:
 def test_http_request_rejects_a_compression_bomb(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(http_tools, "MAX_RESPONSE_BODY_BYTES", 1024 * 1024)
+    monkeypatch.setattr(
+        shared_config,
+        "_snapshot",
+        replace(shared_config.get_shared_config(), http_response_body_max_bytes=1024 * 1024),
+    )
 
     async def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(

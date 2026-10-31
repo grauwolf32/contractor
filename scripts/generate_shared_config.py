@@ -240,6 +240,20 @@ def outputs(root, config):
         for name, bindings in files.items():
             source = result.get(name, (root / name).read_text())
             result[name] = replace_scalars(source, bindings, config["limits"][policy])
+    name = "api/testdata/http-capture-cases.json"
+    result[name] = replace_scalars(
+        result[name], [("limits", "requestBodyBytes")], config["limits"]["httpRequestBodyMaxBytes"]
+    )
+    name = "api/testdata/http-capture-cases.json"
+    result[name] = replace_scalars(
+        result[name],
+        [("limits", "responseBodyBytes")],
+        config["limits"]["httpResponseBodyMaxBytes"],
+    )
+    name = "api/testdata/http-capture-cases.json"
+    result[name] = replace_scalars(
+        result[name], [("limits", "headerBytes")], config["limits"]["httpHeaderBlockMaxBytes"]
+    )
     public_cap = config["limits"]["publicPageMaxItems"]
     source = result[PUBLIC]
     result[PUBLIC] = replace_scalars(source, pagination_bindings(source), public_cap)
@@ -272,6 +286,9 @@ def outputs(root, config):
         f"MAX_AGENT_STATE_SNAPSHOT_BYTES = {config['limits']['workerStateMaxBytes']}\n"
         f"MAX_STATE_WORKSPACE_PATHS = {config['limits']['workerStateWorkspaceMaxPaths']}\n"
         f"MAX_STATE_WORKSPACE_PATH_BYTES = {config['limits']['workerStateWorkspacePathsMaxBytes']}\n"
+        f"MAX_REQUEST_BODY_BYTES = {config['limits']['httpRequestBodyMaxBytes']}\n"
+        f"MAX_RESPONSE_BODY_BYTES = {config['limits']['httpResponseBodyMaxBytes']}\n"
+        f"MAX_HEADER_BYTES = {config['limits']['httpHeaderBlockMaxBytes']}\n"
     )
     migrations = root / "internal/persistence/migrations"
     effective = None

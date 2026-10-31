@@ -17,6 +17,10 @@ type SharedConfig struct {
 }
 
 type SharedLimits struct {
+	HttpRequestBodyMaxBytes  int `json:"httpRequestBodyMaxBytes" strictjson:"required"`
+	HttpResponseBodyMaxBytes int `json:"httpResponseBodyMaxBytes" strictjson:"required"`
+	HttpHeaderBlockMaxBytes  int `json:"httpHeaderBlockMaxBytes" strictjson:"required"`
+
 	WorkerResultMaxBytes              int `json:"workerResultMaxBytes" strictjson:"required"`
 	WorkerCompletionMaxBytes          int `json:"workerCompletionMaxBytes" strictjson:"required"`
 	WorkerFailureMessageMaxBytes      int `json:"workerFailureMessageMaxBytes" strictjson:"required"`
@@ -36,6 +40,10 @@ type SharedLimits struct {
 func DefaultSharedConfig() (SharedConfig, error) {
 	c := SharedConfig{APIVersion: contracts.APIVersion, Version: 1,
 		Limits: SharedLimits{
+			HttpRequestBodyMaxBytes:  contracts.MaxHTTPRequestBodyBytes,
+			HttpResponseBodyMaxBytes: contracts.MaxHTTPResponseBodyBytes,
+			HttpHeaderBlockMaxBytes:  contracts.MaxHTTPHeaderBlockBytes,
+
 			WorkerResultMaxBytes:              contracts.MaxWorkerResultBytes,
 			WorkerCompletionMaxBytes:          contracts.MaxWorkerCompletionBytes,
 			WorkerFailureMessageMaxBytes:      contracts.MaxWorkerFailureMessageBytes,
@@ -73,7 +81,7 @@ func (c SharedConfig) Validate() error {
 	if c.Version != 1 {
 		return contracts.Invalidf("unsupported shared config version")
 	}
-	for _, limit := range []int64{int64(c.Limits.WorkerResultMaxBytes), int64(c.Limits.WorkerCompletionMaxBytes), int64(c.Limits.WorkerFailureMessageMaxBytes), int64(c.Limits.WorkerResultMaxArtifacts), int64(c.Limits.WorkerObservationMaxTools), int64(c.Limits.WorkerWorkspaceMaxFilesRead), int64(c.Limits.WorkerStateMaxBytes), int64(c.Limits.WorkerStateWorkspaceMaxPaths), int64(c.Limits.WorkerStateWorkspacePathsMaxBytes), c.Limits.ArtifactPayloadMaxBytes, int64(c.Limits.PublicPageMaxItems), int64(c.Limits.ArtifactListMaxItems)} {
+	for _, limit := range []int64{int64(c.Limits.HttpRequestBodyMaxBytes), int64(c.Limits.HttpResponseBodyMaxBytes), int64(c.Limits.HttpHeaderBlockMaxBytes), int64(c.Limits.WorkerResultMaxBytes), int64(c.Limits.WorkerCompletionMaxBytes), int64(c.Limits.WorkerFailureMessageMaxBytes), int64(c.Limits.WorkerResultMaxArtifacts), int64(c.Limits.WorkerObservationMaxTools), int64(c.Limits.WorkerWorkspaceMaxFilesRead), int64(c.Limits.WorkerStateMaxBytes), int64(c.Limits.WorkerStateWorkspaceMaxPaths), int64(c.Limits.WorkerStateWorkspacePathsMaxBytes), c.Limits.ArtifactPayloadMaxBytes, int64(c.Limits.PublicPageMaxItems), int64(c.Limits.ArtifactListMaxItems)} {
 		if limit <= 0 || limit > contracts.MaxExactInteger {
 			return contracts.Invalidf("invalid shared config limit")
 		}

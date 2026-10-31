@@ -2636,6 +2636,9 @@ export interface components {
                 workerStateMaxBytes: number;
                 workerStateWorkspaceMaxPaths: number;
                 workerStateWorkspacePathsMaxBytes: number;
+                httpRequestBodyMaxBytes: number;
+                httpResponseBodyMaxBytes: number;
+                httpHeaderBlockMaxBytes: number;
             };
         };
         SitemapDocument: {

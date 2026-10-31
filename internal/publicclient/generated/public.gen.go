@@ -13105,6 +13105,9 @@ type SharedConfig struct {
 	Limits     struct {
 		ArtifactListMaxItems              int `json:"artifactListMaxItems"`
 		ArtifactPayloadMaxBytes           int `json:"artifactPayloadMaxBytes"`
+		HttpHeaderBlockMaxBytes           int `json:"httpHeaderBlockMaxBytes"`
+		HttpRequestBodyMaxBytes           int `json:"httpRequestBodyMaxBytes"`
+		HttpResponseBodyMaxBytes          int `json:"httpResponseBodyMaxBytes"`
 		PublicPageMaxItems                int `json:"publicPageMaxItems"`
 		WorkerCompletionMaxBytes          int `json:"workerCompletionMaxBytes"`
 		WorkerFailureMessageMaxBytes      int `json:"workerFailureMessageMaxBytes"`

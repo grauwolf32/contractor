@@ -25,7 +25,10 @@
             "workerWorkspaceMaxFilesRead",
             "workerStateMaxBytes",
             "workerStateWorkspaceMaxPaths",
-            "workerStateWorkspacePathsMaxBytes"
+            "workerStateWorkspacePathsMaxBytes",
+            "httpRequestBodyMaxBytes",
+            "httpResponseBodyMaxBytes",
+            "httpHeaderBlockMaxBytes"
           ],
           "properties": {
             "artifactPayloadMaxBytes": {
@@ -84,6 +87,21 @@
               "maximum": 9007199254740991
             },
             "workerStateWorkspacePathsMaxBytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "httpRequestBodyMaxBytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "httpResponseBodyMaxBytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "httpHeaderBlockMaxBytes": {
               "type": "integer",
               "minimum": 1,
               "maximum": 9007199254740991
