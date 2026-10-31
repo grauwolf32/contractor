@@ -680,11 +680,6 @@
 
 /* ---------- Run page header (DetailHeader) ---------- */
 
-.runs-run-version {
-  color: var(--muted);
-  font-weight: 700;
-}
-
 /* Facts on one line each: "Run ID [chip]", not term above value. */
 .runs-facts {
   display: flex;
@@ -790,8 +785,19 @@
 /* Triage summary. */
 .runs-triage {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--space-3-5);
+  grid-template-columns: minmax(0, 1.35fr) minmax(16rem, 0.85fr);
+  gap: var(--space-4) var(--space-5);
+  min-width: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xl);
+  background: var(--surface-subtle);
+}
+
+.runs-triage-outcome {
+  display: grid;
+  align-content: start;
+  gap: var(--space-3);
   min-width: 0;
 }
 
@@ -806,7 +812,13 @@
 }
 
 .runs-triage-heading {
+  display: grid;
+  gap: var(--space-1);
   min-width: 0;
+}
+
+.runs-triage-heading > .runs-h2 {
+  font-size: var(--text-lg);
 }
 
 .runs-triage-text {
@@ -818,8 +830,7 @@
 }
 
 .runs-cause,
-.runs-recovery,
-.runs-next {
+.runs-recovery {
   min-width: 0;
   padding: var(--space-3) var(--space-3-5);
   border: 1px solid var(--line);
@@ -895,7 +906,11 @@
 .runs-next {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
+  align-content: start;
   gap: var(--space-1);
+  min-width: 0;
+  padding-left: var(--space-5);
+  border-left: 1px solid var(--line);
 }
 
 .runs-next-title {
@@ -922,8 +937,11 @@
 
 .runs-shortcuts {
   display: flex;
+  grid-column: 1 / -1;
   flex-wrap: wrap;
   gap: var(--space-1) var(--space-5);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
   font-size: var(--text-sm);
   font-weight: 700;
 }
@@ -951,7 +969,8 @@
 }
 
 .runs-result.run-result-primary {
-  border-color: var(--info-line);
+  border-color: var(--accent-line);
+  box-shadow: inset 3px 0 0 var(--accent);
 }
 
 .runs-result-head {
@@ -991,8 +1010,10 @@
 }
 
 .runs-result-link {
+  display: block;
   min-width: 0;
-  margin-left: auto;
+  width: fit-content;
+  max-width: 100%;
   font-size: var(--text-sm);
   font-weight: 700;
   text-decoration: none;
@@ -1747,6 +1768,17 @@ a.runs-publication-ref {
     padding: var(--space-4);
   }
 
+  .runs-triage {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .runs-next {
+    padding-top: var(--space-3);
+    padding-left: 0;
+    border-top: 1px solid var(--line);
+    border-left: 0;
+  }
+
   .runs-section-body {
     padding-left: var(--space-3-5);
   }
@@ -1764,11 +1796,6 @@ a.runs-publication-ref {
 
   .runs-facts-list > div {
     grid-template-columns: minmax(0, 1fr);
-  }
-
-  .runs-result-link {
-    flex-basis: 100%;
-    margin-left: 0;
   }
 }
 

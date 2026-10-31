@@ -310,7 +310,7 @@ test("Project recommendation launches an exact Project Run", async ({
 
   await expect(page).toHaveURL(/\/runs\/run_project_browser$/);
   await expect(
-    page.getByRole("heading", { name: "openapi-from-source@1" }),
+    page.getByRole("heading", { name: "openapi-from-source" }),
   ).toBeVisible();
   expect(runRequests).toHaveLength(1);
   expect(new URL(runRequests[0]!.url).origin).toBe(apiOrigin);

@@ -15,9 +15,10 @@ import { getWorkflow } from "../../api/workflows";
 import { ContextLink } from "../../app/context-navigation";
 import { saveBlob } from "../../app/download";
 import { ErrorNotice } from "../../app/error-notice";
+import { Icon } from "../../app/icon";
 import { QueryView } from "../../app/query-view";
 import { RecordedTime } from "../../app/recorded-time";
-import { Button, EmptyState, StatusChip } from "../../ui";
+import { Button, EmptyState, IconButton, StatusChip } from "../../ui";
 import { artifactDetailPath } from "../artifacts/paths";
 import { ArtifactPreviewPanel } from "../artifacts/preview";
 import {
@@ -132,30 +133,28 @@ function RunOutputPreview({
             variant={primary ? "primary" : undefined}
             onClick={() => setRequested(true)}
           >
-            Preview result
+            Preview
           </Button>
         )}
-        <Button
+        <IconButton
           size="sm"
-          aria-label={
+          label={
             download.isPending
               ? `Downloading ${entry.slot}…`
               : `Download ${entry.slot}`
           }
           pending={download.isPending}
-          pendingLabel="Downloading…"
+          icon={<Icon name="download" />}
           onClick={() => download.mutate()}
-        >
-          Download
-        </Button>
-        <ContextLink
-          returnLabel="Run results"
-          className="run-output-detail-link runs-result-link"
-          to={detailPath}
-        >
-          Open {exactRef} details →
-        </ContextLink>
+        />
       </div>
+      <ContextLink
+        returnLabel="Run results"
+        className="run-output-detail-link runs-result-link"
+        to={detailPath}
+      >
+        Open {exactRef} details →
+      </ContextLink>
       {download.error === null ? null : (
         <ErrorNotice
           error={download.error}

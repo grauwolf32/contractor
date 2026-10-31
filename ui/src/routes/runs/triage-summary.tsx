@@ -1,5 +1,4 @@
 import type { RunStatus } from "../../api/runs";
-import { plural } from "../../app/format";
 import { runStateLabel } from "../../app/vocabulary";
 import { useSession } from "../../auth/session";
 import { ButtonLink, StatusChip, StatusGlyph, type StatusTone } from "../../ui";
@@ -7,13 +6,13 @@ import { recoveryProgress } from "./recovery";
 import type { RunTriage } from "./triage";
 import { runRecoveryReason } from "../../app/vocabulary";
 
-function triageTitle(run: RunStatus, triage: RunTriage): string {
+type AttentionState = Exclude<RunStatus["state"], "succeeded">;
+
+function triageTitle(state: AttentionState, triage: RunTriage): string {
   const stage = triage.stage === undefined ? "" : ` in ${triage.stage}`;
-  switch (run.state) {
+  switch (state) {
     case "failed":
       return `Run failed${stage}`;
-    case "succeeded":
-      return "Run completed successfully";
     case "cancelled":
       return "Run was cancelled";
     case "cancelling":
@@ -31,17 +30,13 @@ function triageTitle(run: RunStatus, triage: RunTriage): string {
   }
 }
 
-function triageDescription(run: RunStatus, triage: RunTriage): string {
+function triageDescription(state: AttentionState, triage: RunTriage): string {
   if (triage.issue !== undefined) {
     return triage.issue.message;
   }
-  switch (run.state) {
+  switch (state) {
     case "failed":
       return "No failure reason was reported. Inspect the latest attempt for details.";
-    case "succeeded":
-      return triage.outputCount === 0
-        ? "All work completed. This Run has no outputs."
-        : `${plural(triage.outputCount, "output is", "outputs are")} ready to inspect.`;
     case "cancelled":
       return "Work stopped and cleanup completed.";
     case "cancelling":
@@ -94,9 +89,8 @@ function RecoveryStatus({ run }: { run: RunStatus }) {
 }
 
 /**
- * The top of the Run page: what happened (state, primary cause, model
- * recovery), the next step and shortcuts to the focused attempt and the
- * results.
+ * Guidance for Runs that still need attention. Successful Runs lead straight
+ * to results; the header already reports their state.
  */
 export function RunTriageSummary({
   run,
@@ -108,6 +102,7 @@ export function RunTriageSummary({
   onOpenAttempt: (stageExecutionId: string) => void;
 }) {
   const { session } = useSession();
+  if (run.state === "succeeded") return null;
   const canOperate =
     session?.principal.capabilities.includes("operations") === true;
   const focusedAttempt = triage.stageExecutionId;
@@ -119,40 +114,49 @@ export function RunTriageSummary({
       className={`runs-triage run-triage run-triage-${run.state}`}
       aria-labelledby="run-triage-title"
     >
-      <div className="runs-triage-head">
-        <StatusGlyph tone={state.tone} size={20} />
-        <div className="runs-triage-heading">
-          <h2 className="runs-h2" id="run-triage-title">
-            {triageTitle(run, triage)}
-          </h2>
-          {issue === undefined ? (
-            <p className="runs-triage-text">{triageDescription(run, triage)}</p>
-          ) : null}
-        </div>
-      </div>
-      {issue === undefined || retry === undefined ? null : (
-        <div className="runs-cause" data-source={issue.source}>
-          <p className="runs-label">
-            {issue.source === "cancellation"
-              ? "Lifecycle reason"
-              : "Primary cause"}
-          </p>
-          <div className="runs-cause-line">
-            <code>{issue.code}</code>
-            <StatusChip tone={retry.tone} size="sm" glyph={false}>
-              {retry.label}
-            </StatusChip>
+      <div className="runs-triage-outcome">
+        <div className="runs-triage-head">
+          <StatusGlyph tone={state.tone} size={20} />
+          <div className="runs-triage-heading">
+            <p className="runs-label">Outcome</p>
+            <h2 className="runs-h2" id="run-triage-title">
+              {triageTitle(run.state, triage)}
+            </h2>
+            {issue === undefined ? (
+              <p className="runs-triage-text">
+                {triageDescription(run.state, triage)}
+              </p>
+            ) : null}
           </div>
-          <p className="runs-cause-message">{triageDescription(run, triage)}</p>
-          {issue.participant === undefined ? null : (
-            <small>
-              Reported by {issue.participant}
-              {issue.logicalAgent === undefined ? "" : ` ${issue.logicalAgent}`}
-            </small>
-          )}
         </div>
-      )}
-      <RecoveryStatus run={run} />
+        {issue === undefined || retry === undefined ? null : (
+          <div className="runs-cause" data-source={issue.source}>
+            <p className="runs-label">
+              {issue.source === "cancellation"
+                ? "Lifecycle reason"
+                : "Primary cause"}
+            </p>
+            <div className="runs-cause-line">
+              <code>{issue.code}</code>
+              <StatusChip tone={retry.tone} size="sm" glyph={false}>
+                {retry.label}
+              </StatusChip>
+            </div>
+            <p className="runs-cause-message">
+              {triageDescription(run.state, triage)}
+            </p>
+            {issue.participant === undefined ? null : (
+              <small>
+                Reported by {issue.participant}
+                {issue.logicalAgent === undefined
+                  ? ""
+                  : ` ${issue.logicalAgent}`}
+              </small>
+            )}
+          </div>
+        )}
+        <RecoveryStatus run={run} />
+      </div>
       <div className="runs-next" data-kind={triage.guidance.kind}>
         <p className="runs-label">Next step</p>
         <p className="runs-next-title">{triage.guidance.title}</p>
@@ -170,27 +174,13 @@ export function RunTriageSummary({
             results, and gives the failed stage a new attempt.
           </p>
         )}
-        {(run.state === "succeeded" && triage.outputCount > 0) ||
-        (triage.guidance.operationsPath !== undefined && canOperate) ? (
+        {triage.guidance.operationsPath === undefined || !canOperate ? null : (
           <div className="runs-next-links">
-            {run.state === "succeeded" && triage.outputCount > 0 ? (
-              <a
-                className="ui-btn"
-                data-size="sm"
-                data-variant="primary"
-                href="#run-outputs"
-              >
-                Read results
-              </a>
-            ) : null}
-            {triage.guidance.operationsPath === undefined ||
-            !canOperate ? null : (
-              <ButtonLink size="sm" to={triage.guidance.operationsPath}>
-                Open Operations diagnostics
-              </ButtonLink>
-            )}
+            <ButtonLink size="sm" to={triage.guidance.operationsPath}>
+              Open Operations diagnostics
+            </ButtonLink>
           </div>
-        ) : null}
+        )}
       </div>
       {focusedAttempt === undefined && triage.outputCount === 0 ? null : (
         <nav className="runs-shortcuts" aria-label="Run triage shortcuts">
