@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-76 open tasks: 10 in progress, 55 pending, 11 deferred. 1294 finished: 1276 completed, 18 archived.
+77 open tasks: 10 in progress, 56 pending, 11 deferred. 1294 finished: 1276 completed, 18 archived.
 
 ## In progress
 
@@ -79,8 +79,9 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V410-006](v410-006-sitemap-workflow-composition.yml) | feature | P1 | — | Ship ordinary sitemap discovery and reconciliation Workflows |
-| [V411-014](v411-014-pentest-discovery-surface.yml) | feature | P1 | V411-015, V410-006 | Discover URL-only targets using HTTP tools and the shared sitemap |
+| [V410-006](v410-006-sitemap-workflow-composition.yml) | feature | P1 | — | Ship standalone sitemap discovery and reconciliation Workflows |
+| [V410-025](v410-025-sitemap-audit-composition.yml) | feature | P1 | V410-007, V64-002 | Compose exact sitemap artifacts through ordinary Audit tasks |
+| [V411-014](v411-014-pentest-discovery-surface.yml) | feature | P1 | V411-015, V410-025 | Discover URL-only targets using HTTP tools and the shared sitemap |
 | [V411-015](v411-015-http-pentest-workflow-presets.yml) | feature | P1 | V64-002, V411-007, V411-019 | Demonstrate an ordinary HTTP Workflow on the lean Audit path |
 | [V412-003](v412-003-browser-pentest-profiles-and-gate.yml) | feature | P2 | V412-001, V410-009, V411-020 | Compose optional browser investigation with truthful availability and results |
 
@@ -148,8 +149,8 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V347-001](v347-001-protect-main-branch.yml) | chore | P1 | — | Protect main with a required check |
-| [V410-007](v410-007-sitemap-release-gate.yml) | chore | P1 | V410-006 | Verify the first sitemap slice across scale and lifecycle boundaries |
-| [V411-020](v411-020-pentest-http-release-gate.yml) | chore | P1 | V64-011, V411-011, V411-013, V411-014, V411-016, V411-017, V411-018, V411-019, V410-007 | Gate the composed ordinary HTTP pentest through real processes |
+| [V410-007](v410-007-sitemap-release-gate.yml) | chore | P1 | V410-006 | Verify the standalone sitemap slice across scale and lifecycle boundaries |
+| [V411-020](v411-020-pentest-http-release-gate.yml) | chore | P1 | V64-011, V411-011, V411-013, V411-014, V411-016, V411-017, V411-018, V411-019, V410-025 | Gate the composed ordinary HTTP pentest through real processes |
 | [V417-009](v417-009-context-compaction-release-gate.yml) | chore | P1 | V417-003, V417-004, V417-005, V417-006, V417-007 | Verify context compaction across real processes and close the deterministic milestone |
 | [V420-005](v420-005-planner-compaction-release-gate.yml) | chore | P1 | V420-006, V420-003, V420-004 | Accept Planner compaction through real-process and integrated release gates |
 | [V425-014](v425-014-runtime-tests-fail-on-macos.yml) | chore | P3 | — | Make the Runtime process-liveness assertions able to fail on macOS |
@@ -187,7 +188,7 @@ tasks in `introduced_by`.
 | HTTP and Caido tools (`http-tools`) | 4 | 22 | 27 | 9 | 25 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 2 | 17 | 10 | 9 | 20 |
 | Findings tools and collections (`findings`) | 2 | 17 | 8 | 9 | 14 |
-| Workflow catalog and document workflows (`workflows`) | 4 | 18 | 15 | 12 | 19 |
+| Workflow catalog and document workflows (`workflows`) | 5 | 19 | 15 | 12 | 19 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 36 | 37 | 11 | 60 |
 | Audits (`audits`) | 19 | 67 | 84 | 35 | 123 |
 | Evaluations (`evals`) | 6 | 21 | 39 | 15 | 49 |
