@@ -6,7 +6,7 @@ epic: quality
 kind: defect
 introduced_by: V35-002
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages: [go]
 goal: "The real read-only Git import proof runs from macOS through Podman Machine as well as native Linux, using a Linux binary for the container architecture."
@@ -50,3 +50,10 @@ tests:
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A3]
+implementation_commit: 0fafab86194a46f6f431e936018e6b8419c088f4
+verification_results:
+  - "2026-10-31: go test -tags=integration -count=1 -timeout=10m ./internal/gitimport passed, including the real Podman Machine container on macOS arm64."
+  - "The verbose container proof reported linux/arm64 ELF EM_AARCH64, successful HTTPS and private SSH imports, and passing read-only filesystem checks. The test container was removed."
+  - "Negative regression through a temporary Go overlay that removed GOOS/GOARCH failed before launch with 'probe must be Linux ELF: bad magic number'; tracked source was unchanged."
+  - "make lint passed. Native Linux execution was not separately rerun on a Linux client; its existing host-network path is retained."
+  - "Local Podman prerequisite repaired: empty subuid/subgid files gained core:100000:65536, podman system migrate applied the mapping, and Alpine pulled successfully. No running containers existed before migration."
