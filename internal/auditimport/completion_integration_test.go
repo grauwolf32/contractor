@@ -13,8 +13,6 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
-	"github.com/grauwolf32/contractor/internal/findingintake"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -33,6 +31,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
+	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
@@ -43,6 +42,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/controlplane/controlplanetest"
 	"github.com/grauwolf32/contractor/internal/credentials"
+	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/httpapi/privateartifacts"
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/grauwolf32/contractor/internal/mtls"
@@ -275,7 +275,7 @@ func newCompletionFixtureWithOptions(t *testing.T, pool *pgxpool.Pool, options c
 		}
 		mustCompletion(t, os.WriteFile(path, data, 0600))
 	}
-	catalog, err := configload.Load(catalogRoot)
+	catalog, _, err := configload.LoadUnionReadOnly(catalogRoot, filepath.Join(t.TempDir(), "managed"))
 	mustCompletion(t, err)
 	f.profile, err = catalog.AuditProfile("source-checklist@1")
 	mustCompletion(t, err)

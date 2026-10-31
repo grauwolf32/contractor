@@ -160,7 +160,7 @@ func stageProductionMemoryConfiguration(t *testing.T, repositoryRoot, target str
 			t.Fatal(err)
 		}
 	}
-	if _, err := configload.Load(target); err != nil {
+	if _, _, err := configload.LoadUnionReadOnly(target, filepath.Join(t.TempDir(), "managed")); err != nil {
 		t.Fatal(err)
 	}
 	return workflow

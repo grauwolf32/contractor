@@ -123,6 +123,8 @@ var layers = []layerSpec{
 			"internal/config/resolved",
 			// Loads catalogs together with the bundled skill and Audit standard checks.
 			"internal/configload",
+			// Test readers of resolved templates through production Workflow bindings.
+			"internal/configload/configloadtest",
 		},
 	},
 	{

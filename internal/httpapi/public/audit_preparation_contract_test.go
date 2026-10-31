@@ -2,6 +2,7 @@ package public
 
 import (
 	"encoding/json"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -44,7 +45,7 @@ func TestSharedPublicAuditPreparationContracts(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) { validate(tc.Schema, tc.Value, tc.Valid) })
 	}
-	snapshot, err := configload.Load(publicCatalogFixture)
+	snapshot, _, err := configload.LoadUnionReadOnly(publicCatalogFixture, filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -9,16 +9,17 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/configload"
+	"github.com/grauwolf32/contractor/internal/configload/configloadtest"
 )
 
 func TestCodeAnalysisE2EConfigurationLoads(t *testing.T) {
 	root := stageE2EConfiguration(t, filepath.Join(repoRoot(t), "configs"), filepath.Join(t.TempDir(), "configs"), "http://127.0.0.1:1/v1")
 	writeCodeAnalysisE2EConfiguration(t, root)
-	snapshot, err := configload.Load(root)
+	snapshot, _, err := configload.LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatalf("generated Code Analysis process configuration must load: %v", err)
 	}
-	production, err := snapshot.AgentTemplate("workspace_source_graph_analyst@3")
+	production, err := configloadtest.AgentTemplate(snapshot, "workspace_source_graph_analyst@3")
 	if err != nil {
 		t.Fatal(err)
 	}

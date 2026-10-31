@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"testing"
 
@@ -38,7 +39,7 @@ func TestSharedPublicPlannerSubtaskContracts(t *testing.T) {
 		t.Fatal(err)
 	}
 	document := loadPublicOpenAPI(t)
-	catalog, err := configload.Load(publicCatalogFixture)
+	catalog, _, err := configload.LoadUnionReadOnly(publicCatalogFixture, filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatal(err)
 	}

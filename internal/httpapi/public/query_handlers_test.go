@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -152,7 +153,7 @@ const publicCatalogFixture = "testdata/catalog"
 
 func catalogWorkflow(t *testing.T, selector string) resolved.ResolvedWorkflow {
 	t.Helper()
-	snapshot, err := configload.Load(publicCatalogFixture)
+	snapshot, _, err := configload.LoadUnionReadOnly(publicCatalogFixture, filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -487,7 +488,7 @@ func TestOwnerQueueControlIsDurableCASAndIdempotent(t *testing.T) {
 
 func TestRunDetailJoinsImmutableObjectiveTypedPlanInputsAndCursor(t *testing.T) {
 	fixture := newHandlerFixture(t)
-	snapshot, err := configload.Load("../../config/testdata/valid")
+	snapshot, _, err := configload.LoadUnionReadOnly("../../config/testdata/valid", filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatal(err)
 	}

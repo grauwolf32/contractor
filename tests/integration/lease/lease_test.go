@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/configload"
+	"github.com/grauwolf32/contractor/internal/configload/configloadtest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
@@ -286,13 +287,13 @@ func sendHeartbeat(
 
 func reservationRequest(t *testing.T, runID, stageID string) controlplane.ReservationRequest {
 	t.Helper()
-	snapshot, err := configload.Load(
-		filepath.Join("..", "..", "..", "internal", "config", "testdata", "valid"),
+	snapshot, _, err := configload.LoadUnionReadOnly(
+		filepath.Join("..", "..", "..", "internal", "config", "testdata", "valid"), filepath.Join(t.TempDir(), "managed"),
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	template, err := snapshot.AgentTemplate("artifact_builder@1")
+	template, err := configloadtest.AgentTemplate(snapshot, "artifact_builder@1")
 	if err != nil {
 		t.Fatal(err)
 	}

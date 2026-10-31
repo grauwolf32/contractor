@@ -595,7 +595,7 @@ func TestParseConfigReadsConfigurationRootsAndDerivesManagedFlagDefault(t *testi
 
 func TestDevelopmentCredentialsBindNamedTokensToPinnedLocalGateway(t *testing.T) {
 	t.Parallel()
-	snapshot, err := configload.Load("../../testdata/configs")
+	snapshot, _, err := configload.LoadUnionReadOnly("../../testdata/configs", filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatal(err)
 	}

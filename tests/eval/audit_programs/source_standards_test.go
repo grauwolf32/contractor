@@ -93,7 +93,7 @@ func TestWSTGUsesActiveVersionQualifiedScenariosWithoutRetiredAliases(t *testing
 
 func TestExpandedSourcePresetsBuildExactRunnableInventories(t *testing.T) {
 	t.Parallel()
-	snapshot, err := configload.Load(configRoot())
+	snapshot, _, err := configload.LoadUnionReadOnly(configRoot(), filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -197,7 +197,7 @@ func TestWSTGHTTPPresetHasSameScenariosAndDistinctExecutionEvidence(t *testing.T
 			t.Fatalf("active WSTG changed its scenario or lost the HTTP method: %s", entry.ID)
 		}
 	}
-	snapshot, err := configload.Load(root)
+	snapshot, _, err := configload.LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatal(err)
 	}

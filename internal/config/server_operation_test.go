@@ -74,7 +74,7 @@ func TestSharedServerOperationStageCases(t *testing.T) {
 			}
 			root := copyCoreFixture(t)
 			writeFile(t, filepath.Join(root, "workflows", "join.yaml"), data)
-			_, err = Load(root)
+			_, err = LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
 			if (err == nil) != tc.Valid {
 				t.Fatalf("valid=%t, want %t: %v", err == nil, tc.Valid, err)
 			}
@@ -100,7 +100,7 @@ func TestServerOperationRejectsConflictingOrUnboundConfiguration(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			root := copyCoreFixture(t)
 			writeFile(t, filepath.Join(root, "workflows", "join.yaml"), []byte(strings.Replace(valid, tc.from, tc.to, 1)))
-			if _, err := Load(root); err == nil {
+			if _, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed")); err == nil {
 				t.Fatal("accepted invalid operation")
 			}
 		})

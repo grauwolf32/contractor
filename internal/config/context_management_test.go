@@ -7,11 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	"go.yaml.in/yaml/v4"
-
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
+	"go.yaml.in/yaml/v4"
 )
 
 const compactWorkflowPath = "workflows/compact_copy.yaml"
@@ -57,7 +56,7 @@ func TestSharedWorkflowContextManagementCases(t *testing.T) {
 			}
 			root := copyCoreFixture(t, "context-compaction")
 			writeFile(t, filepath.Join(root, compactWorkflowPath), data)
-			_, err = Load(root)
+			_, err = LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
 			if (err == nil) != tc.Valid {
 				t.Fatalf("valid=%t, want %t: %v", err == nil, tc.Valid, err)
 			}
@@ -95,7 +94,7 @@ func TestCompactBindingResolvesExplicitPinsWithoutChangingTemplate(t *testing.T)
 
 	// The binding keeps the selected template and its digest unchanged; the
 	// compact branch replaces the summarizer only in the effective branch.
-	template, err := snapshot.AgentTemplate("compact_builder@1")
+	template, err := snapshot.agentTemplateForTest("compact_builder@1")
 	if err != nil {
 		t.Fatal(err)
 	}

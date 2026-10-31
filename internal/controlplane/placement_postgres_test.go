@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -517,7 +518,7 @@ func newPlacementFixture(
 			metadata[root] = value
 		}
 	}
-	configuration, err := configload.Load("../../testdata/configs")
+	configuration, _, err := configload.LoadUnionReadOnly("../../testdata/configs", filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatal(err)
 	}

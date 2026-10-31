@@ -156,21 +156,6 @@ func (s *Snapshot) Workflows() []resolved.ResolvedWorkflow {
 	return result
 }
 
-// AgentTemplate resolves one exact id@version and returns a caller-owned copy.
-// Cross-package conformance tests use it to inspect pinned template bodies;
-// production execution reads templates through resolved Workflows.
-func (s *Snapshot) AgentTemplate(raw string) (contracts.ResolvedAgentTemplate, error) {
-	selector, err := resolved.ParseSelector(raw)
-	if err != nil {
-		return contracts.ResolvedAgentTemplate{}, err
-	}
-	template, ok := s.templates[selector.String()]
-	if !ok {
-		return contracts.ResolvedAgentTemplate{}, fmt.Errorf("unknown AgentTemplate %q", selector)
-	}
-	return template.Clone(), nil
-}
-
 // ModelPolicy resolves one exact id@version and returns a caller-owned copy.
 func (s *Snapshot) ModelPolicy(raw string) (contracts.ResolvedModelPolicy, error) {
 	selector, err := resolved.ParseSelector(raw)

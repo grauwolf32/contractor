@@ -7,7 +7,7 @@ kind: chore
 priority: P3
 status: in_progress
 depends_on: [V369-007]
-languages: [go]
+languages: [go, python, json]
 goal: "tools/testonlyexports/baseline.txt names no entry of this task: each identifier below has a production caller, lives in a test file or a test helper package, or is gone."
 context:
   review: "V369-007 (tools/testonlyexports) and V370-008, 2026-10-12, on b2b09ea"
@@ -89,6 +89,12 @@ context:
     files of nearly every package while five lanes were landing; do them
     together in a quiet period, routing the loads through
     configload.LoadUnionReadOnly with a missing managed root.
+    2026-10-31 continuation: all three remaining entries are now removed.
+    The transitive test-only config.Load wrapper is also removed. Production
+    readers are unchanged; cross-package tests follow resolved Workflow bindings
+    and LoadUnionReadOnly, and findings destinations come from the shared fixture
+    exercised by the Runtime reader. Final acceptance is being verified on
+    codex/v372-030-test-only-exports with a disposable PostgreSQL database.
   decision: >-
     Open choices, to settle in this task: whether the error kinds become the
     typed values evaldomain and the Audit package errors raise (preferred,
@@ -155,3 +161,14 @@ decisions:
     bound to one RunScope. The function adapters of PlannerTelemetryAdapterCatalog and
     TransactionLLMCredentialLookupFactory moved to runtimeconfigtest (internal/runtimeconfig's own
     tests keep unexported copies, since they cannot import runtimeconfigtest).
+
+  - >-
+    2026-10-31 (user-authorized continuation): remove the remaining production
+    accessors and wrappers. Tests load through LoadUnionReadOnly with a missing
+    managed root; config.Load is removed with configload.Load. Cross-package
+    template readers use a test-only configloadtest helper over resolved Workflow
+    bindings, without importing the core loader. Core catalog tests inspect
+    unbound templates through a private test-only accessor. Finding consumer
+    destinations are frozen in the shared fixture, checked by the real Runtime
+    reader and used by the process regression; the Go production copy is removed.
+    This preserves production behavior and leaves the V64 baseline entries alone.

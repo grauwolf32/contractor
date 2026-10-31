@@ -4,13 +4,6 @@
 # entry has a production reference again or no longer exists, and when its
 # task is finished or missing, so the list only shrinks.
 
-# A rule the Runtime applies in production; a Go process test reads it.
-internal/auditdomain.FindingCollectionTargets V372-030
-
-# Configuration loading that tests use instead of the production entry points.
-internal/config.Snapshot.AgentTemplate V372-030
-internal/configload.Load V372-030
-
 # The Audit priority library has no production importer yet; its callers
 # arrive with the priority verdict and selection tasks.
 internal/auditpriority.BindVerdict V64-005

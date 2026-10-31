@@ -2,11 +2,13 @@ package controlplane
 
 import (
 	"context"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
+	"github.com/grauwolf32/contractor/internal/configload/configloadtest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
@@ -16,11 +18,11 @@ func TestPlacementPostgresToolWorkerWithoutModel(t *testing.T) {
 	defer cancel()
 	pool := isolatedPlacementPool(t, ctx)
 	fixture := newPlacementFixture(t, ctx, pool, nil)
-	catalog, err := configload.Load("../../testdata/configs-scan")
+	catalog, _, err := configload.LoadUnionReadOnly("../../testdata/configs-scan", filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	fixture.template, err = catalog.AgentTemplate("nuclei-scan@1")
+	fixture.template, err = configloadtest.AgentTemplate(catalog, "nuclei-scan@1")
 	if err != nil {
 		t.Fatal(err)
 	}

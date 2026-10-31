@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"reflect"
 	"sort"
-	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
@@ -59,14 +59,20 @@ func TestSharedFindingCollectionConformanceAndConsumerTargets(t *testing.T) {
 	if err != nil || !bytes.Equal(again, payload) {
 		t.Fatalf("rebuilding the snapshot changed bytes: %v", err)
 	}
-	targets, err := FindingCollectionTargets(payload)
-	if err != nil {
+	var fixture struct {
+		Targets map[string]contracts.ArtifactRef `json:"consumer_targets"`
+	}
+	if err := json.Unmarshal(contractstest.ReadFile(t, "api", "testdata", "findings", "finding-collection-v1.fixture.json"), &fixture); err != nil {
 		t.Fatal(err)
+	}
+	targets := fixture.Targets
+	if len(targets) != len(decoded.Documents) {
+		t.Fatal("fixture must name every consumer target")
 	}
 	seen := make(map[string]bool)
 	for _, document := range decoded.Documents {
 		ref, ok := targets[document.ID]
-		if !ok || ref.Validate() != nil || ref.Revision != nil || ref.Namespace != "findings-"+strings.TrimPrefix(packageDigest, "sha256:") || ref.Name != document.ID {
+		if !ok || ref.Validate() != nil || ref.Revision != nil || ref.Name != document.ID {
 			t.Fatalf("invalid consumer write target: %+v", ref)
 		}
 		key := ref.Namespace + "/" + ref.Name
@@ -91,9 +97,9 @@ func TestSharedFindingCollectionConformanceAndConsumerTargets(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	changedTargets, err := FindingCollectionTargets(changed)
-	if err != nil || changedTargets[first.ProposalDocumentID].Namespace == targets[first.ProposalDocumentID].Namespace {
-		t.Fatalf("different snapshot reused consumer namespace: %v", err)
+	_, changedPackage, err := DecodeFindingCollectionPackage(changed)
+	if err != nil || changedPackage.Digest == pkg.Digest {
+		t.Fatalf("different snapshot reused package digest: %v", err)
 	}
 	if _, err := DecodeCheckResultPackage(payload); ErrorCode(err) != CodePackageInvalid {
 		t.Fatalf("collection was accepted as check results: %v", err)
@@ -335,9 +341,6 @@ func TestSharedFindingCollectionDecoderChecksArchiveAgainstMetadata(t *testing.T
 			}
 			if _, _, err := DecodeFindingCollectionPackage(payload); err == nil {
 				t.Fatal("valid ZIP with inconsistent collection was accepted")
-			}
-			if targets, err := FindingCollectionTargets(payload); err == nil || targets != nil {
-				t.Fatal("invalid collection exposed consumer write targets")
 			}
 		})
 	}

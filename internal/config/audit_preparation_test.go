@@ -2,6 +2,7 @@ package config
 
 import (
 	"encoding/json"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -31,7 +32,7 @@ func TestSharedAuditPreparationAuthoringFixtures(t *testing.T) {
 				data = strings.ReplaceAll(data, replacement[0], replacement[1])
 			}
 			writeAuditProfile(t, root, "prepared-openapi-scan", data)
-			snapshot, err := Load(root)
+			snapshot, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
 			if !tc.Valid {
 				if err == nil {
 					t.Fatal("invalid preparation profile accepted")

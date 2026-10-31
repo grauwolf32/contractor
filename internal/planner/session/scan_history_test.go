@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/config/resolved"
@@ -30,7 +31,7 @@ func (s *scanHistoryTestStore) ListStageExecutions(context.Context, string) ([]r
 
 func newScanHistoryFixture(t *testing.T) *scanHistoryTestStore {
 	t.Helper()
-	snapshot, err := configload.Load("../../../testdata/configs-scan")
+	snapshot, _, err := configload.LoadUnionReadOnly("../../../testdata/configs-scan", filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatal(err)
 	}

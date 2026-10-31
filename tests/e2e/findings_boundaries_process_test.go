@@ -21,12 +21,8 @@ import (
 )
 
 func TestFindingsReaderBoundariesAcrossProcesses(t *testing.T) {
-	collection, contents := findingsCollectionFixture(t)
+	collection, contents, targets := findingsCollectionFixture(t)
 	payload, err := auditdomain.BuildFindingCollectionPackage(collection, contents)
-	if err != nil {
-		t.Fatal(err)
-	}
-	targets, err := auditdomain.FindingCollectionTargets(payload)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -154,7 +150,7 @@ func findingsBoundaryReaderStage() domainGatewayStage {
 	}}
 }
 
-func findingsCollectionFixture(t *testing.T) (auditdomain.FindingCollection, map[string][]byte) {
+func findingsCollectionFixture(t *testing.T) (auditdomain.FindingCollection, map[string][]byte, map[string]contracts.ArtifactRef) {
 	t.Helper()
 	// A copy of api/testdata/findings/finding-collection-v1.fixture.json;
 	// TestSharedFindingCollectionProcessCopyMatches keeps it identical.
@@ -163,8 +159,9 @@ func findingsCollectionFixture(t *testing.T) (auditdomain.FindingCollection, map
 		t.Fatal(err)
 	}
 	var fixture struct {
-		Collection auditdomain.FindingCollection `json:"collection"`
-		Contents   map[string]string             `json:"contents"`
+		Collection auditdomain.FindingCollection    `json:"collection"`
+		Contents   map[string]string                `json:"contents"`
+		Targets    map[string]contracts.ArtifactRef `json:"consumer_targets"`
 	}
 	if err := json.Unmarshal(data, &fixture); err != nil {
 		t.Fatal(err)
@@ -173,5 +170,5 @@ func findingsCollectionFixture(t *testing.T) (auditdomain.FindingCollection, map
 	for key, value := range fixture.Contents {
 		contents[key] = []byte(value)
 	}
-	return fixture.Collection, contents
+	return fixture.Collection, contents, fixture.Targets
 }

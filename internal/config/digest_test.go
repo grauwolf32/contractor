@@ -21,8 +21,8 @@ func TestSemanticDigestsIgnoreYAMLPresentationAndToolOrder(t *testing.T) {
 	if baselinePolicy.Ref.Digest != variantPolicy.Ref.Digest {
 		t.Fatalf("presentation changed ModelPolicy digest: %s != %s", baselinePolicy.Ref.Digest, variantPolicy.Ref.Digest)
 	}
-	baselineTemplate, _ := baseline.AgentTemplate("artifact_builder@1")
-	variantTemplate, _ := variant.AgentTemplate("artifact_builder@1")
+	baselineTemplate, _ := baseline.agentTemplateForTest("artifact_builder@1")
+	variantTemplate, _ := variant.agentTemplateForTest("artifact_builder@1")
 	if baselineTemplate.Ref.Digest != variantTemplate.Ref.Digest {
 		t.Fatalf("presentation changed AgentTemplate digest: %s != %s", baselineTemplate.Ref.Digest, variantTemplate.Ref.Digest)
 	}
@@ -53,9 +53,9 @@ func TestSemanticAndInstructionChangesAlterDigests(t *testing.T) {
 		t.Fatal("instruction change unexpectedly altered ModelPolicy digest")
 	}
 
-	baselineTemplate, _ := baseline.AgentTemplate("artifact_builder@1")
-	semanticTemplate, _ := semantic.AgentTemplate("artifact_builder@1")
-	instructionTemplate, _ := instruction.AgentTemplate("artifact_builder@1")
+	baselineTemplate, _ := baseline.agentTemplateForTest("artifact_builder@1")
+	semanticTemplate, _ := semantic.agentTemplateForTest("artifact_builder@1")
+	instructionTemplate, _ := instruction.agentTemplateForTest("artifact_builder@1")
 	if baselineTemplate.Ref.Digest == semanticTemplate.Ref.Digest {
 		t.Fatal("resolved ModelPolicy change did not alter AgentTemplate digest")
 	}
@@ -72,7 +72,7 @@ func TestEachWorkerBudgetChangesPolicyAndTemplateDigests(t *testing.T) {
 
 	baseline := mustLoad(t, copyCoreFixture(t))
 	baselinePolicy, _ := baseline.ModelPolicy("test-worker@1")
-	baselineTemplate, _ := baseline.AgentTemplate("artifact_builder@1")
+	baselineTemplate, _ := baseline.agentTemplateForTest("artifact_builder@1")
 	for _, test := range []struct{ field, from, to string }{
 		{"maxModelCalls", "maxModelCalls: 8", "maxModelCalls: 9"},
 		{"maxToolCalls", "maxToolCalls: 16", "maxToolCalls: 17"},
@@ -83,7 +83,7 @@ func TestEachWorkerBudgetChangesPolicyAndTemplateDigests(t *testing.T) {
 			replaceFile(t, filepath.Join(root, "model-policies/test-worker.yaml"), test.from, test.to)
 			variant := mustLoad(t, root)
 			policy, _ := variant.ModelPolicy("test-worker@1")
-			template, _ := variant.AgentTemplate("artifact_builder@1")
+			template, _ := variant.agentTemplateForTest("artifact_builder@1")
 			if policy.Ref.Digest == baselinePolicy.Ref.Digest ||
 				template.Ref.Digest == baselineTemplate.Ref.Digest {
 				t.Fatalf("changing %s did not alter both digests", test.field)

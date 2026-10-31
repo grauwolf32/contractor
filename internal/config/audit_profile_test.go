@@ -243,7 +243,7 @@ func TestAuditProfileRejectsInvalidDocumentsAtomically(t *testing.T) {
 			t.Parallel()
 			root := copyAuditProfileConfigTree(t)
 			writeAuditProfile(t, root, "api-security-review", test.manifest)
-			snapshot, err := Load(root)
+			snapshot, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
 			if err == nil || snapshot != nil || !strings.Contains(err.Error(), "audit-profiles/api-security-review.yaml") ||
 				!strings.Contains(err.Error(), test.wantMessage) {
 				t.Fatalf("Load invalid AuditProfile = (%+v, %v), want path and %q", snapshot, err, test.wantMessage)
@@ -257,7 +257,7 @@ func TestAuditProfileRejectsRetainedOutputCycles(t *testing.T) {
 
 	root := copyAuditProfileConfigTree(t)
 	writeAuditProfile(t, root, "cycle-review", retainedCycleAuditProfileYAML)
-	_, err := Load(root)
+	_, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
 	if err == nil || !strings.Contains(err.Error(), "output dependencies contain a cycle") {
 		t.Fatalf("retained-output cycle error = %v", err)
 	}

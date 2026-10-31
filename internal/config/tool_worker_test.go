@@ -93,7 +93,7 @@ func TestSharedToolWorkerGoldenDigest(t *testing.T) {
 
 func TestToolWorkerRejectsModelAndInvalidBindings(t *testing.T) {
 	snapshot := mustLoad(t, scanFixtureRoot)
-	original, _ := snapshot.AgentTemplate("nuclei-scan@1")
+	original, _ := snapshot.agentTemplateForTest("nuclei-scan@1")
 	for _, change := range []func(*contracts.ResolvedAgentTemplate){
 		func(t *contracts.ResolvedAgentTemplate) { t.Execution = nil },
 		func(t *contracts.ResolvedAgentTemplate) { t.Instructions.Text = "unused" },

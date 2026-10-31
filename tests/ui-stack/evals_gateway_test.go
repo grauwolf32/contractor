@@ -143,7 +143,7 @@ func TestUIStackConfigurationClosure(t *testing.T) {
 			if managedEvals {
 				stageManagedEvalConfiguration(t, root, target)
 			}
-			snapshot, err := configload.Load(target)
+			snapshot, _, err := configload.LoadUnionReadOnly(target, filepath.Join(t.TempDir(), "managed"))
 			if err != nil {
 				t.Fatal(err)
 			}

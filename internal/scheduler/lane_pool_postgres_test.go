@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -22,7 +23,7 @@ func TestPostgresSchedulerSupervisorRunsSeparatePools(t *testing.T) {
 	defer cancel()
 	pool := isolatedSchedulerPool(t, ctx)
 	postgresStore := runstore.NewPostgresStore(pool)
-	snapshot, err := configload.Load("../../testdata/configs-scan")
+	snapshot, _, err := configload.LoadUnionReadOnly("../../testdata/configs-scan", filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/configload"
+	"github.com/grauwolf32/contractor/internal/configload/configloadtest"
 	"github.com/grauwolf32/contractor/internal/localpki"
 	contractormemory "github.com/grauwolf32/contractor/internal/memory"
 	publicapi "github.com/grauwolf32/contractor/internal/publicclient/generated"
@@ -92,11 +93,11 @@ func runSharedMemoryProcesses(t *testing.T, production bool) {
 		productionWorkflow = stageProductionMemoryConfiguration(t, repositoryRoot, configRoot)
 		workerTemplate = "artifact_builder@2"
 	}
-	catalog, err := configload.Load(configRoot)
+	catalog, _, err := configload.LoadUnionReadOnly(configRoot, filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	template, err := catalog.AgentTemplate(workerTemplate)
+	template, err := configloadtest.AgentTemplate(catalog, workerTemplate)
 	if err != nil {
 		t.Fatal(err)
 	}

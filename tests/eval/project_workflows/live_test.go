@@ -262,7 +262,7 @@ func startLiveStack(t *testing.T, settings liveSettings) *liveStack {
 	setupContext, cancelSetup := context.WithTimeout(context.Background(), 2*time.Minute)
 	t.Cleanup(cancelSetup)
 	configRoot := filepath.Join(temporaryRoot, "configs")
-	modelSelections, err := copyLiveConfiguration(repositoryRoot, configRoot, settings)
+	modelSelections, err := copyLiveConfiguration(t, repositoryRoot, configRoot, settings)
 	if err != nil {
 		t.Fatal(err)
 	}

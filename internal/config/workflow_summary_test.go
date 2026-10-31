@@ -113,7 +113,7 @@ func TestSummaryEscalationRejectsInvalidOrUnboundedPolicies(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			root, path := summaryWorkflowFixture(t)
 			replaceFile(t, path, test.old, test.replacement)
-			if _, err := Load(root); err == nil {
+			if _, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed")); err == nil {
 				t.Fatal("invalid summary escalation was accepted")
 			}
 		})
@@ -121,7 +121,7 @@ func TestSummaryEscalationRejectsInvalidOrUnboundedPolicies(t *testing.T) {
 	t.Run("no summarizer", func(t *testing.T) {
 		root, _ := summaryWorkflowFixture(t)
 		replaceFile(t, templatePath(root), workerSummarizerBlock, "")
-		if _, err := Load(root); err == nil {
+		if _, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed")); err == nil {
 			t.Fatal("summary Worker without a summarizer was accepted")
 		}
 	})
@@ -148,7 +148,7 @@ func TestSummaryStrategyFieldsCannotChangeOrdinaryEscalation(t *testing.T) {
 	data = strings.Replace(data, "        failed: {fail: {}}\n", "", 1)
 	data = strings.Replace(data, "        summarized:\n", "        failed:\n", 1)
 	writeFile(t, path, []byte(data))
-	if _, err := Load(root); err == nil {
+	if _, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed")); err == nil {
 		t.Fatal("on.failed accepted a strategy override intended for summarized work")
 	}
 }
@@ -228,7 +228,7 @@ func TestSummaryPlannerCompactionRejectsInvalidAndInapplicableChoices(t *testing
 		t.Run(test.name, func(t *testing.T) {
 			root, path := summaryCompactionWorkflowFixture(t)
 			replaceFile(t, path, test.old, test.replacement)
-			if _, err := Load(root); err == nil {
+			if _, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed")); err == nil {
 				t.Fatal("invalid continuation compaction was accepted")
 			}
 		})
@@ -236,7 +236,7 @@ func TestSummaryPlannerCompactionRejectsInvalidAndInapplicableChoices(t *testing
 	t.Run("omitted context cannot consume compactor", func(t *testing.T) {
 		root, path := summaryCompactionWorkflowFixture(t)
 		replaceFile(t, path, summaryPlannerContextBlock, "")
-		if _, err := Load(root); err == nil {
+		if _, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed")); err == nil {
 			t.Fatal("compactor selection without context strategy was accepted")
 		}
 	})

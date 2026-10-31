@@ -155,7 +155,7 @@ func runBrowserStack(t *testing.T, evalMode string) {
 	if err := os.MkdirAll(managedConfigRoot, 0o750); err != nil {
 		t.Fatal(err)
 	}
-	snapshot, err := configload.Load(configRoot)
+	snapshot, _, err := configload.LoadUnionReadOnly(configRoot, filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatalf("load staged UI configuration: %v", err)
 	}

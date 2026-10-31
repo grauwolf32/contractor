@@ -93,8 +93,7 @@ func TestSnapshotAccessorResultsShareNoMemoryWithSnapshot(t *testing.T) {
 	}
 	instructionRefs := make(map[string]struct{})
 	for _, selector := range selectors[ConfigurationAgentTemplates] {
-		template, err := snapshot.AgentTemplate(selector)
-		record("AgentTemplate", selector, template, err)
+		template := snapshot.templates[selector]
 		if !template.IsToolWorker() {
 			instructionRefs[template.Instructions.Ref] = struct{}{}
 			instructions, err := snapshot.AgentInstructions(selector)
@@ -298,14 +297,6 @@ func TestSnapshotAccessorsReturnDeepCopies(t *testing.T) {
 		gatewayAgain.CredentialManager.ManagementURL != "http://127.0.0.1:4000" {
 		t.Fatalf("LLMGatewayConfig mutation leaked into Snapshot: %+v", gatewayAgain)
 	}
-	template, _ := snapshot.AgentTemplate("artifact_builder@1")
-	template.Toolsets[0].Tools[0] = "corrupted"
-	*template.ModelPolicy.Temperature = 99
-	templateAgain, _ := snapshot.AgentTemplate("artifact_builder@1")
-	if templateAgain.Toolsets[0].Tools[0] != "list_artifacts" || *templateAgain.ModelPolicy.Temperature != 0.1 {
-		t.Fatalf("AgentTemplate mutation leaked into Snapshot: %+v", templateAgain)
-	}
-
 	workflow, _ := snapshot.Workflow("artifact-copy@1")
 	workflow.Inputs["source"] = resolved.ArtifactSlot{Required: false, MediaTypes: []string{"corrupted/type"}}
 	stage := workflow.Stages["copy"]

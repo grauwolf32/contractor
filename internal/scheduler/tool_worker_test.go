@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"path/filepath"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/configload"
@@ -9,7 +10,7 @@ import (
 )
 
 func TestToolWorkerMaterializesSettingsWithoutGatewayOrCredentialServices(t *testing.T) {
-	snapshot, err := configload.Load("../../testdata/configs-scan")
+	snapshot, _, err := configload.LoadUnionReadOnly("../../testdata/configs-scan", filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -11,6 +11,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
+	"github.com/grauwolf32/contractor/internal/configload/configloadtest"
 	"go.yaml.in/yaml/v4"
 )
 
@@ -61,11 +62,11 @@ func TestProductionMemoryConfigurationStaging(t *testing.T) {
 			if err := os.WriteFile(path, data, 0o600); err != nil {
 				t.Fatal(err)
 			}
-			expectedCatalog, err := configload.Load(configRoot)
+			expectedCatalog, _, err := configload.LoadUnionReadOnly(configRoot, filepath.Join(t.TempDir(), "managed"))
 			if err != nil {
 				t.Fatal(err)
 			}
-			expected, err := expectedCatalog.AgentTemplate("artifact_builder@2")
+			expected, err := configloadtest.AgentTemplate(expectedCatalog, "artifact_builder@2")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -74,11 +75,11 @@ func TestProductionMemoryConfigurationStaging(t *testing.T) {
 			}
 			target := stageE2EConfiguration(t, filepath.Join(configRoot, "e2e"), filepath.Join(t.TempDir(), "configs"), "http://127.0.0.1:1/v1")
 			stageProductionMemoryConfiguration(t, source, target)
-			actualCatalog, err := configload.Load(target)
+			actualCatalog, _, err := configload.LoadUnionReadOnly(target, filepath.Join(t.TempDir(), "managed"))
 			if err != nil {
 				t.Fatal(err)
 			}
-			actual, err := actualCatalog.AgentTemplate("artifact_builder@2")
+			actual, err := configloadtest.AgentTemplate(actualCatalog, "artifact_builder@2")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -134,7 +135,7 @@ func TestProductionMemoryConfigurationStaging(t *testing.T) {
 func assertProductionPlannerCompactionCatalog(t *testing.T) {
 	t.Helper()
 	root := filepath.Join(repoRoot(t), "configs")
-	catalog, err := configload.Load(root)
+	catalog, _, err := configload.LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -195,7 +196,7 @@ func assertProductionPlannerCompactionCatalog(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	inline, err := configload.Load(loaded)
+	inline, _, err := configload.LoadUnionReadOnly(loaded, filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -211,7 +212,7 @@ func assertProductionPlannerCompactionCatalog(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if _, err := configload.Load(loaded); err != nil {
+	if _, _, err := configload.LoadUnionReadOnly(loaded, filepath.Join(t.TempDir(), "managed")); err != nil {
 		t.Fatalf("Planner examples cannot use the shipped compactor policy: %v", err)
 	}
 }

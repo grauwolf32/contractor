@@ -96,7 +96,7 @@ func TestLLMGatewayManagerOriginRules(t *testing.T) {
 			root := copyCoreFixture(t)
 			replaceFile(t, filepath.Join(root, "llm-gateways/local_litellm.yaml"),
 				"http://127.0.0.1:4000\n", raw+"\n")
-			if snapshot, err := Load(root); err == nil || snapshot != nil {
+			if snapshot, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed")); err == nil || snapshot != nil {
 				t.Fatalf("Load(%q) = (%v, %v), want origin error", raw, snapshot, err)
 			}
 		})
@@ -126,7 +126,7 @@ func TestInvalidLLMGatewayPreventsSnapshotPublication(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			root := copyCoreFixture(t)
 			test.mutate(t, root)
-			snapshot, err := Load(root)
+			snapshot, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
 			if err == nil || snapshot != nil || !strings.Contains(err.Error(), test.want) {
 				t.Fatalf("Load() = (%v, %v), want error containing %q", snapshot, err, test.want)
 			}
@@ -217,7 +217,7 @@ func TestSharedLLMGatewayFailureSignaturesAreExplicitDigestedAndDefaulted(t *tes
 	} {
 		invalidRoot := copyCoreFixture(t)
 		writeFile(t, filepath.Join(invalidRoot, "llm-gateways/local_litellm.yaml"), []byte(manifest))
-		if _, err := Load(invalidRoot); err == nil {
+		if _, err := LoadUnionReadOnly(invalidRoot, filepath.Join(t.TempDir(), "managed")); err == nil {
 			t.Errorf("%s: invalid failure signature manifest was accepted", name)
 		}
 	}

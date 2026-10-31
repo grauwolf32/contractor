@@ -34,7 +34,7 @@ func TestPodmanAuthoringChecksWithoutFleetLookup(t *testing.T) {
 				replaceFile(t, workflow, "      context:\n", "      context:\n        workspace:\n          mode: "+test.mode+"\n          sources: [{artifact: source, target: \"\"}]\n")
 				replaceFile(t, workflow, "source: {required: true, mediaTypes: [text/plain]}", "source: {required: true, mediaTypes: [application/zip]}")
 			}
-			snapshot, err := Load(root)
+			snapshot, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
 			if test.want == "" {
 				if err != nil || snapshot == nil {
 					t.Fatalf("valid Podman authoring: %v", err)

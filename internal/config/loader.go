@@ -70,15 +70,6 @@ type loadOptions struct {
 	operatorRootChecks          []OperatorRootCheck
 }
 
-// Load validates the complete configuration root and publishes one immutable
-// snapshot. On any error the returned Snapshot is nil.
-func Load(root string, checks ...OperatorRootCheck) (*Snapshot, error) {
-	return loadConfigurationRoots(
-		[]configurationRoot{{path: root, source: ConfigurationSourceOperator}},
-		loadOptions{operatorRootChecks: checks},
-	)
-}
-
 // LoadUnion validates operator and managed roots as one namespace. Duplicate
 // manifest identities, logical paths, and any symlink below a fixed subtree
 // reject the complete snapshot; neither root has precedence. Every managed

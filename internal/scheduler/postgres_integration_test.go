@@ -10,6 +10,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -1442,7 +1443,7 @@ func createBoundProjectRunOutput(
 
 func loadSchedulerWorkflow(t *testing.T) resolved.ResolvedWorkflow {
 	t.Helper()
-	snapshot, err := configload.Load("../../testdata/configs")
+	snapshot, _, err := configload.LoadUnionReadOnly("../../testdata/configs", filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatal(err)
 	}

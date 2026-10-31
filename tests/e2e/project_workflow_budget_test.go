@@ -12,7 +12,7 @@ import (
 )
 
 func TestProjectWorkerBudgetMatchesPinnedPolicy(t *testing.T) {
-	catalog, err := configload.Load(filepath.Join(repoRoot(t), "configs"))
+	catalog, _, err := configload.LoadUnionReadOnly(filepath.Join(repoRoot(t), "configs"), filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatal(err)
 	}

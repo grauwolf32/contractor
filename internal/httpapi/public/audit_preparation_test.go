@@ -36,7 +36,7 @@ func preparedHandlerAudit(t *testing.T) (auditstore.Audit, map[string]auditservi
 	if err := os.WriteFile(filepath.Join(root, "audit-profiles/prepared.yaml"), profileYAML, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	catalog, err := configload.Load(root)
+	catalog, _, err := configload.LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatal(err)
 	}

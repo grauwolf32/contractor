@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/config/resolved"
@@ -10,7 +11,7 @@ import (
 )
 
 func TestPodmanWorkspaceRequirementsStayBindingSpecific(t *testing.T) {
-	snapshot, err := configload.Load("../../testdata/configs")
+	snapshot, _, err := configload.LoadUnionReadOnly("../../testdata/configs", filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatal(err)
 	}
