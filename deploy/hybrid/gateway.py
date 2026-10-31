@@ -16,6 +16,7 @@ from common import (
     DEFAULT_STATE,
     ROOT,
     apply_remote,
+    egress_settings,
     load_state,
     secret,
     secure_write,
@@ -67,6 +68,10 @@ def main():
         return
     if not (state / "egress.json").exists():
         raise RuntimeError("apply deploy/wireguard/egress.py first")
+    egress = egress_settings(doc)
+    installed = json.loads((state / "egress.json").read_text())
+    if installed["egress"] != egress:
+        raise ValueError("egress settings changed; reapply egress.py before gateway.py")
     for name, prefix in (
         ("litellm-master-key", "sk-"),
         ("litellm-salt-key", "sk-"),
@@ -89,7 +94,11 @@ def main():
             "LITELLM_MASTER_KEY": master,
             "LITELLM_SALT_KEY": salt,
             "OPENROUTER_API_KEY": upstream,
-            "DATABASE_URL": "postgresql://litellm:" + password + "@172.30.91.1:54329/litellm",
+            "DATABASE_URL": "postgresql://litellm:"
+            + password
+            + "@"
+            + egress["host_address"]
+            + ":54329/litellm",
         }
     )
     db_env = environment(
@@ -101,7 +110,8 @@ def main():
     )
     public = {
         "images": images,
-        "dns": json.loads((state / "egress.json").read_text())["dns"],
+        "dns": installed["dns"],
+        "egress": egress,
     }
     files = {
         "/etc/contractor-hybrid/litellm.env": (proxy_env, 0o600),

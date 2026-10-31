@@ -5,10 +5,12 @@ test "$(id -u)" = 0
 ns=contractor-llm
 base=/etc/contractor-hybrid
 ownership=/var/lib/contractor-hybrid/egress-owned
-read -r address mtu mesh_ip mesh_net < <(python3 - <<'PY'
+read -r address mtu mesh_ip mesh_net host_ip namespace_ip prefix check_url < <(python3 - <<'PY'
 import json
 d=json.load(open('/etc/contractor-hybrid/egress.json'))
-print(d['address'],d['mtu'],d['mesh_address'],d['mesh_network'])
+e=d['egress']
+print(d['address'],d['mtu'],d['mesh_address'],d['mesh_network'],
+      e['host_address'],e['namespace_address'],e['prefix_length'],e['check_url'])
 PY
 )
 ipt() { ip netns exec "$ns" iptables "$@"; }
@@ -16,7 +18,7 @@ host_rule() { local table=$1; shift; iptables -t "$table" -C "$@" 2>/dev/null ||
 check_route() {
   ip netns exec "$ns" curl -4 --fail --silent --show-error \
     --connect-timeout 5 --max-time 20 --output /dev/null \
-    --write-out 'OpenRouter HTTP %{http_code}\n' https://openrouter.ai/api/v1/models
+    --write-out 'Provider HTTP %{http_code}\n' "$check_url"
 }
 case "$1" in
   install)
@@ -44,9 +46,9 @@ case "$1" in
       ip link add hc-llm0 type veth peer name llm0-ns
       ip link set llm0-ns netns "$ns"
       ip -n "$ns" link set llm0-ns name eth0
-      ip address add 172.30.91.1/30 dev hc-llm0
+      ip address add "$host_ip/$prefix" dev hc-llm0
       ip link set hc-llm0 up
-      ip -n "$ns" address add 172.30.91.2/30 dev eth0
+      ip -n "$ns" address add "$namespace_ip/$prefix" dev eth0
       ip -n "$ns" link set eth0 up
       ip -n "$ns" link set lo up
       # The UDP socket remains in the host namespace and uses its original route.
@@ -56,7 +58,7 @@ case "$1" in
     ip netns exec "$ns" wg setconf wg-egress "$base/wg-egress.conf"
     ip -n "$ns" address replace "$address" dev wg-egress
     ip -n "$ns" link set wg-egress mtu "$mtu" up
-    ip -n "$ns" route replace "$mesh_net" via 172.30.91.1 dev eth0
+    ip -n "$ns" route replace "$mesh_net" via "$host_ip" dev eth0
     ip -n "$ns" route replace default dev wg-egress
     mkdir -p /etc/netns/contractor-llm
     python3 - <<'PY'
@@ -76,18 +78,18 @@ PY
     ipt -A OUTPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
     ipt -A OUTPUT -o wg-egress -j ACCEPT
     ipt -A INPUT -i eth0 -s "$mesh_net" -p tcp --dport 4000 -j ACCEPT
-    ipt -A INPUT -i eth0 -s 172.30.91.1/32 -p tcp --dport 4000 -j ACCEPT
-    ipt -A OUTPUT -o eth0 -d 172.30.91.1/32 -p tcp --dport 54329 -j ACCEPT
+    ipt -A INPUT -i eth0 -s "$host_ip/32" -p tcp --dport 4000 -j ACCEPT
+    ipt -A OUTPUT -o eth0 -d "$host_ip/32" -p tcp --dport 54329 -j ACCEPT
     # No IPv6 bypass when the provider profile only has an IPv4 source address.
     ip netns exec "$ns" sysctl -q -w net.ipv6.conf.all.disable_ipv6=1
     iptables -t nat -N CONTRACTOR_LLM_NAT 2>/dev/null || true
     iptables -t nat -F CONTRACTOR_LLM_NAT
-    iptables -t nat -A CONTRACTOR_LLM_NAT -d "$mesh_ip/32" -p tcp --dport 4000 -j DNAT --to-destination 172.30.91.2:4000
+    iptables -t nat -A CONTRACTOR_LLM_NAT -d "$mesh_ip/32" -p tcp --dport 4000 -j DNAT --to-destination "$namespace_ip:4000"
     host_rule nat PREROUTING -j CONTRACTOR_LLM_NAT
     host_rule nat OUTPUT -j CONTRACTOR_LLM_NAT
     iptables -N CONTRACTOR_LLM_FWD 2>/dev/null || true
     iptables -F CONTRACTOR_LLM_FWD
-    iptables -A CONTRACTOR_LLM_FWD -i wg-mesh -o hc-llm0 -d 172.30.91.2/32 -p tcp --dport 4000 -j ACCEPT
+    iptables -A CONTRACTOR_LLM_FWD -i wg-mesh -o hc-llm0 -d "$namespace_ip/32" -p tcp --dport 4000 -j ACCEPT
     iptables -A CONTRACTOR_LLM_FWD -i hc-llm0 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
     iptables -A CONTRACTOR_LLM_FWD -j DROP
     host_rule filter FORWARD -i hc-llm0 -j CONTRACTOR_LLM_FWD
@@ -111,7 +113,7 @@ PY
     }
     trap restore_tunnel EXIT
     if ip netns exec "$ns" curl -4 --silent --connect-timeout 2 --max-time 4 \
-        --output /dev/null https://openrouter.ai/api/v1/models; then
+        --output /dev/null "$check_url"; then
       printf '%s\n' 'FAIL: traffic escaped while WireGuard was down' >&2
       exit 1
     fi

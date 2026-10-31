@@ -14,7 +14,7 @@ from urllib.error import HTTPError
 from urllib.parse import quote, urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
-from common import DEFAULT_STATE, load_state, run, secret, secure_write
+from common import DEFAULT_STATE, egress_settings, load_state, run, secret, secure_write
 
 
 class NoRedirect(HTTPRedirectHandler):
@@ -291,6 +291,7 @@ def assign(api, state, doc, args):
 
 
 def tunnel(state, doc):
+    address = egress_settings(doc)["namespace_address"]
     control = state / "gateway-admin.sock"
     existing = subprocess.run(
         ["ssh", "-S", str(control), "-O", "check", doc["gateway_host"]],
@@ -317,7 +318,7 @@ def tunnel(state, doc):
                 "-o",
                 "ServerAliveCountMax=3",
                 "-L",
-                "127.0.0.1:14000:172.30.91.2:4000",
+                f"127.0.0.1:14000:{address}:4000",
                 doc["gateway_host"],
             ]
         )

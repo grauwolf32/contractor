@@ -237,9 +237,9 @@ launcher; selecting a profile does not provision provider credentials.
 
 The run script uses digest-pinned LiteLLM
 and PostgreSQL images, retains LiteLLM's virtual-key database in a named Podman
-volume, and keeps the proxy itself in the foreground. Create two owner-only
-local bootstrap keys before the first start, and save a dedicated OpenRouter
-inference key in `.local/secrets/openrouter-api-key` with mode `0600`. An
+volume, and keeps the proxy itself in the foreground. Create owner-only
+local bootstrap keys and a database password before the first start, and save a
+dedicated OpenRouter inference key in `.local/secrets/openrouter-api-key` with mode `0600`. An
 OpenRouter management key provisions inference keys; keep it separate from
 LiteLLM and never use it as the upstream inference key:
 
@@ -248,8 +248,10 @@ umask 077
 mkdir -p .local/secrets
 printf 'sk-%s\n' "$(openssl rand -hex 32)" > .local/secrets/litellm-master-key
 printf 'sk-%s\n' "$(openssl rand -hex 32)" > .local/secrets/litellm-salt-key
+openssl rand -hex 32 > .local/secrets/litellm-postgres-password
 CONTRACTOR_LITELLM_MASTER_KEY_FILE="$(pwd)/.local/secrets/litellm-master-key" \
 CONTRACTOR_LITELLM_SALT_KEY_FILE="$(pwd)/.local/secrets/litellm-salt-key" \
+CONTRACTOR_LITELLM_POSTGRES_PASSWORD_FILE="$(pwd)/.local/secrets/litellm-postgres-password" \
 CONTRACTOR_OPENROUTER_API_KEY_FILE="$(pwd)/.local/secrets/openrouter-api-key" \
   deploy/litellm/run.sh
 ```
@@ -258,8 +260,14 @@ CONTRACTOR_OPENROUTER_API_KEY_FILE="$(pwd)/.local/secrets/openrouter-api-key" \
 `contractor-litellm-postgres` and its named volume intact. The master key file
 is also the `adminKeyFile` used by Contractor's exact Gateway binding; the salt
 key remains LiteLLM-only. The upstream inference key is read from its file and
-passed to Podman by environment name, keeping all three credential values out
-of process arguments. None of these files belongs in repository YAML.
+passed to Podman by environment name. The database password and derived DSN
+also travel by environment name, keeping all credential values out of process
+arguments. All credential files must be regular, owner-only files with one
+nonempty value. Use a URL-safe password (letters, digits, `_` and `-`), as
+generated above. The launcher needs Python 3 for portable file validation.
+None of these files belongs in repository YAML. Retain the original password
+for an existing PostgreSQL volume: editing its file does not rotate the stored
+password. Only generate these files once, before initial installation.
 
 Restart the proxy to load new model routes and restart the Server to load
 newly generated catalog content. Existing Run snapshots retain their selection. Existing named PostgreSQL
@@ -406,7 +414,9 @@ rebuilt and restarted independently.
 
 For running services, use the [operations index](operations/README.md) for
 timeouts, credentials, metrics, profiling and cleanup. Use [testing](testing/README.md)
-to choose release checks. Deployment examples under `deploy/` cover the
+to choose release checks. [Deployment tooling](../deploy/README.md) separates
+reusable operations from concrete installation inputs in ignored `.local/` state.
+Deployment examples under `deploy/` cover the
 [independent UI](../deploy/ui/README.md), [Server blob storage without PVC](operations/artifact-blob-storage.md#deployment-without-pvc)
 (PostgreSQL by default, with an opt-in filesystem overlay),
 [Runtime labels](../deploy/runtime-labels/README.md), [Podman](../deploy/podman/README.md)
