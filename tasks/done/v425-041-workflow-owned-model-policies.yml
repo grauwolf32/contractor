@@ -6,7 +6,7 @@ epic: workflows
 kind: chore
 introduced_by: V3-006
 priority: P3
-status: in_progress
+status: completed
 depends_on: [V425-039]
 languages: [go, python, typescript]
 goal: >-
@@ -136,3 +136,37 @@ tests:
     covers: [A2, A4]
   - command: go test -tags=e2e -count=1 -timeout=8m ./tests/e2e -run '^TestWorkerSummarizerProductionBoundaries$'
     covers: [A2, A3, A4]
+
+notes: >-
+  AgentTemplate and its terminal-summary behavior no longer carry model policies
+  in authoring, resolved Go/Python types, digests, projections or generated
+  public clients. Workflow effective selections alone own main and summary
+  policies. Consumer compatibility, role defaults, exact snapshots, credential
+  checks, compact/none behavior and escalation remain validated. Strict shared
+  fixtures reject removed fields including null; terminal allocations require
+  a separate summary policy. Static migration comparison preserved all 66 shipped
+  consumer selections. Existing Studio controls/readers follow the reduced shape;
+  its rewrite and dynamic Workflow publication remain outside this change.
+  Verification on 2026-11-01: all listed integration-tagged Go packages passed
+  against disposable PostgreSQL, as did the full lease and Eval configuration
+  producer suites. The required focused Runtime selection passed 680 tests.
+  make test-config, verify-public-api and test-wire-cross-language passed; the
+  shared gate checked 372 fixtures with 392 Go and 288 Python shared tests.
+  Routing/escalation processes passed in 121.647s; terminal-summary processes
+  passed in 367.104s. Production Memory and Code Analysis staging passed.
+  UI verification passed 216 files, 2668 tests and one existing expected failure,
+  plus typecheck, server tests and build; VITEST_MAX_WORKERS=2 avoided initial
+  timeout failures under concurrent machine load. make lint passed. Integrated
+  the reviewed Run/Project UI from main and advanced the combined UI release to
+  0.10.34; the integrated typecheck passed.
+  The user explicitly waived unrelated broad Runtime failures and additional
+  test-environment work before closing and merging this task. The unfiltered
+  macOS run reported 5809 passed, 133 skipped and the already-tracked V425-001
+  APFS and V425-002 PATH_MAX failures; their owning source/tests are unchanged
+  from main. Both tests pass on Linux. A separate Linux diagnostic run had only
+  missing-Go PKI setup failures/errors, so it is not reported as a passing full
+  gate and its environment setup was stopped at the user's request. Neither
+  unrelated defect is changed or marked completed here. No demo database or live
+  model was changed; both disposable PostgreSQL databases were removed.
+
+implementation_commit: 34d65e4206f61a2353f34b8155016982d2ed6aed
