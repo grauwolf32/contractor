@@ -279,7 +279,7 @@ function serve(server: FakeServer) {
       if (path === "/v1/workflows") return json(page([workflow]));
       if (path === "/v1/workflows/openapi-from-source/versions/1")
         return server.workflowUnavailable
-          ? failure(503, "unavailable", "Workflow unavailable")
+          ? failure(404, "not_found", "Workflow unavailable")
           : json({ ...workflow, stages: { analyze: stageContract() } });
       match = /^\/v1\/projects\/([^/]+)\/artifacts$/.exec(path);
       if (match !== null) {

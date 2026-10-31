@@ -1,0 +1,56 @@
+schema_version: "1.0"
+id: V429-004
+title: Align the Project output-role failure fixture with the Workflow API
+milestone: ui-journey-usability
+epic: ui
+kind: chore
+introduced_by: V429-003
+priority: P3
+status: in_progress
+depends_on: [V429-003]
+languages: [typescript]
+goal: Restore public API verification while preserving the Project output-role failure scenario.
+context:
+  authority: >-
+    Routine verification repair discovered on 2026-11-01 while carrying out
+    the user's explicit request to merge V64-001 into main.
+  specification: docs/spec/platform/errors.md#ERR-R14
+  finding: >-
+    ui/src/routes/projects/projects-v3b.test.tsx:282, introduced by commit
+    260b6d9b7, answers 503/unavailable for a missing Workflow. The code is not
+    registered and TestBrowserTestDoublesAnswerRegisteredCodes fails. The real
+    getWorkflow handler answers 404/not_found when catalog lookup fails.
+  boundary: >-
+    Use the existing handler's failure envelope in the test double. Keep the
+    existing unknown-output-role and exact-metadata retry assertions; add no
+    error code, endpoint or production behavior.
+scope:
+  in:
+    - Correct the Workflow failure status and code in the Project test double.
+    - Verify the real-client Project scenario and the public API contract gate.
+  out:
+    - Production UI, Server behavior, schema, API and configuration changes.
+acceptance_criteria:
+  - id: A1
+    text: The missing-Workflow test double answers the registered 404/not_found envelope used by getWorkflow, and the API registry guard passes.
+  - id: A2
+    text: Existing UI assertions still prove unknown output roles, denied metadata reads and explicit exact-artifact retry.
+tests:
+  - command: go test -count=1 ./internal/apierror
+    covers: [A1]
+  - command: make verify-public-api verify-public-api-postgres
+    covers: [A1]
+  - command: make ui-verify
+    covers: [A2]
+  - command: python3 scripts/check_tasks.py
+    covers: [A1, A2]
+verification:
+  - >-
+    On 2026-11-01 all listed commands passed. The complete internal/apierror
+    package and both public API gates passed, including the PostgreSQL race
+    selection against a dedicated disposable database. make ui-verify passed
+    generated-client checks, lint, typecheck, all 216 test files (2666 passes
+    and one existing expected failure), 17 static-server tests and the build.
+    The production bundle retains its existing preview-renderer size warning.
+    Only the test fixture's status and code changed; the real-client output
+    role, denied-read and explicit-retry assertions passed unchanged.
