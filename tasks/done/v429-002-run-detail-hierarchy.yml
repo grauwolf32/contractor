@@ -5,7 +5,7 @@ milestone: ui-journey-usability
 epic: ui
 kind: feature
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V429-001]
 languages: [typescript, css]
 goal: >-
@@ -165,3 +165,4 @@ verification:
     responsive-layout.spec.ts, runs-navigation.spec.ts and run-repeat.spec.ts.
     The opt-in real scan-tools and stack selectors were updated consistently;
     those live-process suites were not executed for this presentation change.
+implementation_commit: ce4e0e06d477665a1ebb3ca1f8ef708973e4df80
