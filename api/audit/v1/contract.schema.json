@@ -1,0 +1,1122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:contractor:audit:v1",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/program"
+    },
+    {
+      "$ref": "#/$defs/hypothesis"
+    },
+    {
+      "$ref": "#/$defs/task"
+    },
+    {
+      "$ref": "#/$defs/context"
+    },
+    {
+      "$ref": "#/$defs/conclusions"
+    },
+    {
+      "$ref": "#/$defs/result"
+    },
+    {
+      "$ref": "#/$defs/mutation"
+    },
+    {
+      "$ref": "#/$defs/control"
+    },
+    {
+      "$ref": "#/$defs/proposals"
+    }
+  ],
+  "$defs": {
+    "key": {
+      "$ref": "https://contractor.local/schema/v1alpha1/common.schema.json#/$defs/name"
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 65536,
+      "pattern": "[^\\s]",
+      "x-maxUtf8Bytes": 65536
+    },
+    "digest": {
+      "$ref": "https://contractor.local/schema/v1alpha1/common.schema.json#/$defs/digest"
+    },
+    "hypothesis_ref": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/resource_id"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50000
+        }
+      },
+      "required": [
+        "id",
+        "revision"
+      ],
+      "additionalProperties": false
+    },
+    "ref": {
+      "$ref": "https://contractor.local/schema/v1alpha1/common.schema.json#/$defs/exactArtifactRef"
+    },
+    "artifact": {
+      "type": "object",
+      "properties": {
+        "scope_kind": {
+          "enum": [
+            "audit",
+            "project",
+            "run"
+          ]
+        },
+        "scope_id": {
+          "$ref": "#/$defs/resource_id"
+        },
+        "ref": {
+          "$ref": "#/$defs/ref"
+        },
+        "digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "media_type": {
+          "$ref": "https://contractor.local/schema/v1alpha1/common.schema.json#/$defs/mediaType"
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 67108864
+        }
+      },
+      "required": [
+        "scope_kind",
+        "scope_id",
+        "ref",
+        "digest",
+        "media_type",
+        "size_bytes"
+      ],
+      "additionalProperties": false
+    },
+    "seed": {
+      "type": "object",
+      "properties": {
+        "statement": {
+          "$ref": "#/$defs/text"
+        },
+        "scope": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/key"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/text"
+          },
+          "maxProperties": 64
+        },
+        "grounds": {
+          "$ref": "#/$defs/text"
+        }
+      },
+      "required": [
+        "statement",
+        "scope",
+        "grounds"
+      ],
+      "additionalProperties": false
+    },
+    "input": {
+      "type": "object",
+      "properties": {
+        "required": {
+          "type": "boolean"
+        },
+        "media_types": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "$ref": "https://contractor.local/schema/v1alpha1/common.schema.json#/$defs/mediaType"
+              },
+              {
+                "const": "*/*"
+              }
+            ]
+          },
+          "maxItems": 16,
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "required",
+        "media_types"
+      ],
+      "additionalProperties": false
+    },
+    "input_mapping": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "source": {
+              "const": "audit-input"
+            },
+            "name": {
+              "$ref": "#/$defs/key"
+            }
+          },
+          "required": [
+            "source",
+            "name"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "source": {
+              "enum": [
+                "task-context",
+                "prior-results"
+              ]
+            }
+          },
+          "required": [
+            "source"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "workflow": {
+      "type": "object",
+      "properties": {
+        "ref": {
+          "$ref": "https://contractor.local/schema/v1alpha1/common.schema.json#/$defs/selector",
+          "maxLength": 193
+        },
+        "inputs": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/key"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/input_mapping"
+          },
+          "maxProperties": 128
+        },
+        "parameters": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/key"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "maxLength": 4096,
+            "x-maxUtf8Bytes": 4096
+          },
+          "maxProperties": 128
+        },
+        "outputs": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/key"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/key"
+          },
+          "maxProperties": 128
+        }
+      },
+      "required": [
+        "ref",
+        "inputs",
+        "parameters",
+        "outputs"
+      ],
+      "additionalProperties": false
+    },
+    "initial": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "$ref": "#/$defs/key"
+        },
+        "workflow": {
+          "$ref": "#/$defs/key"
+        },
+        "objective": {
+          "$ref": "#/$defs/text"
+        },
+        "hypothesis": {
+          "$ref": "#/$defs/key"
+        }
+      },
+      "required": [
+        "key",
+        "workflow",
+        "objective"
+      ],
+      "additionalProperties": false
+    },
+    "limits": {
+      "type": "object",
+      "properties": {
+        "max_tasks": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100000
+        },
+        "max_iterations": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 32
+        },
+        "max_tasks_per_iteration": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000
+        },
+        "batch_size": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 64
+        },
+        "max_submitted_runs": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000000
+        },
+        "max_attempts": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10
+        },
+        "deadline_seconds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 31536000
+        },
+        "max_evidence_bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1073741824
+        },
+        "max_hypotheses": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000
+        },
+        "max_hypothesis_revisions": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50000
+        },
+        "max_hypothesis_bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 268435456
+        }
+      },
+      "required": [
+        "max_tasks",
+        "max_iterations",
+        "max_tasks_per_iteration",
+        "batch_size",
+        "max_submitted_runs",
+        "max_attempts",
+        "deadline_seconds",
+        "max_evidence_bytes",
+        "max_hypotheses",
+        "max_hypothesis_revisions",
+        "max_hypothesis_bytes"
+      ],
+      "additionalProperties": false
+    },
+    "program": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "const": "contractor.audit.program.v1"
+        },
+        "inputs": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/key"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/input"
+          },
+          "maxProperties": 32
+        },
+        "workflows": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/key"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/workflow"
+          },
+          "maxProperties": 16,
+          "minProperties": 1
+        },
+        "hypotheses": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/key"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/seed"
+          },
+          "maxProperties": 10000
+        },
+        "initial_work": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/initial"
+          },
+          "maxItems": 10000,
+          "minItems": 1
+        },
+        "continuation": {
+          "type": "object",
+          "properties": {
+            "workflow": {
+              "$ref": "#/$defs/key"
+            }
+          },
+          "required": [
+            "workflow"
+          ],
+          "additionalProperties": false
+        },
+        "limits": {
+          "$ref": "#/$defs/limits"
+        },
+        "policy": {
+          "type": "object",
+          "properties": {
+            "active_operations": {
+              "enum": [
+                "allowed",
+                "prohibited"
+              ]
+            }
+          },
+          "required": [
+            "active_operations"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "schema",
+        "inputs",
+        "workflows",
+        "hypotheses",
+        "initial_work",
+        "limits",
+        "policy"
+      ],
+      "additionalProperties": false,
+      "x-maxEncodedBytes": 4194304
+    },
+    "hypothesis": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "const": "contractor.audit.hypothesis.v1"
+        },
+        "id": {
+          "$ref": "#/$defs/resource_id"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50000
+        },
+        "statement": {
+          "$ref": "#/$defs/text"
+        },
+        "scope": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/key"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/text"
+          },
+          "maxProperties": 64
+        },
+        "grounds": {
+          "$ref": "#/$defs/text"
+        },
+        "origin": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "audit_id"
+          ],
+          "properties": {
+            "kind": {
+              "enum": [
+                "manual",
+                "checklist",
+                "run"
+              ]
+            },
+            "audit_id": {
+              "$ref": "#/$defs/resource_id"
+            },
+            "task_id": {
+              "$ref": "#/$defs/resource_id"
+            },
+            "run_id": {
+              "$ref": "#/$defs/resource_id"
+            },
+            "source": {
+              "$ref": "#/$defs/artifact"
+            }
+          },
+          "oneOf": [
+            {
+              "properties": {
+                "kind": {
+                  "const": "run"
+                }
+              },
+              "required": [
+                "task_id",
+                "run_id"
+              ]
+            },
+            {
+              "properties": {
+                "kind": {
+                  "enum": [
+                    "manual",
+                    "checklist"
+                  ]
+                }
+              },
+              "not": {
+                "anyOf": [
+                  {
+                    "required": [
+                      "task_id"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "run_id"
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "required": [
+        "schema",
+        "id",
+        "revision",
+        "statement",
+        "scope",
+        "grounds",
+        "origin"
+      ],
+      "additionalProperties": false,
+      "x-maxEncodedBytes": 32768
+    },
+    "task": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "const": "contractor.audit.task.v1"
+        },
+        "audit_id": {
+          "$ref": "#/$defs/resource_id"
+        },
+        "task_id": {
+          "$ref": "#/$defs/resource_id"
+        },
+        "workflow": {
+          "$ref": "#/$defs/key"
+        },
+        "inputs": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/key"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/artifact"
+          },
+          "maxProperties": 32
+        },
+        "parameters": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/key"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "maxLength": 4096,
+            "x-maxUtf8Bytes": 4096
+          },
+          "maxProperties": 128
+        },
+        "hypothesis": {
+          "$ref": "#/$defs/hypothesis_ref"
+        }
+      },
+      "required": [
+        "schema",
+        "audit_id",
+        "task_id",
+        "workflow",
+        "inputs",
+        "parameters"
+      ],
+      "additionalProperties": false
+    },
+    "member": {
+      "type": "object",
+      "properties": {
+        "item_key": {
+          "$ref": "#/$defs/key"
+        },
+        "task_id": {
+          "$ref": "#/$defs/resource_id"
+        },
+        "hypothesis": {
+          "$ref": "#/$defs/hypothesis_ref"
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/artifact"
+          },
+          "maxItems": 256,
+          "uniqueItems": true
+        },
+        "finding_receipts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/resource_id"
+          },
+          "maxItems": 128,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "item_key",
+        "task_id",
+        "evidence"
+      ],
+      "additionalProperties": false
+    },
+    "context": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "const": "contractor.audit.context.v1"
+        },
+        "audit_id": {
+          "$ref": "#/$defs/resource_id"
+        },
+        "run_id": {
+          "$ref": "#/$defs/resource_id"
+        },
+        "workflow_ref": {
+          "$ref": "https://contractor.local/schema/v1alpha1/common.schema.json#/$defs/selector",
+          "maxLength": 193
+        },
+        "workflow_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/member"
+          },
+          "maxItems": 64,
+          "minItems": 1
+        }
+      },
+      "required": [
+        "schema",
+        "audit_id",
+        "run_id",
+        "workflow_ref",
+        "workflow_digest",
+        "items"
+      ],
+      "additionalProperties": false
+    },
+    "origin": {
+      "type": "object",
+      "properties": {
+        "audit_id": {
+          "$ref": "#/$defs/resource_id"
+        },
+        "task_id": {
+          "$ref": "#/$defs/resource_id"
+        },
+        "run_id": {
+          "$ref": "#/$defs/resource_id"
+        },
+        "hypothesis": {
+          "$ref": "#/$defs/hypothesis_ref"
+        }
+      },
+      "required": [
+        "audit_id",
+        "task_id",
+        "run_id"
+      ],
+      "additionalProperties": false
+    },
+    "conclusion_item": {
+      "type": "object",
+      "properties": {
+        "item_key": {
+          "$ref": "#/$defs/key"
+        },
+        "verdict": {
+          "enum": [
+            "supported",
+            "refuted",
+            "inconclusive"
+          ]
+        },
+        "rationale": {
+          "$ref": "#/$defs/text"
+        },
+        "tested_conditions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/text"
+          },
+          "maxItems": 512,
+          "uniqueItems": true
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/artifact"
+          },
+          "maxItems": 256,
+          "uniqueItems": true
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512,
+            "x-maxUtf8Bytes": 512,
+            "pattern": "[^\\s]"
+          },
+          "maxItems": 512,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "item_key",
+        "rationale",
+        "tested_conditions",
+        "evidence",
+        "limitations"
+      ],
+      "additionalProperties": false
+    },
+    "result_item": {
+      "type": "object",
+      "properties": {
+        "item_key": {
+          "$ref": "#/$defs/key"
+        },
+        "verdict": {
+          "enum": [
+            "supported",
+            "refuted",
+            "inconclusive"
+          ]
+        },
+        "rationale": {
+          "$ref": "#/$defs/text"
+        },
+        "tested_conditions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/text"
+          },
+          "maxItems": 512,
+          "uniqueItems": true
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/artifact"
+          },
+          "maxItems": 256,
+          "uniqueItems": true
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512,
+            "x-maxUtf8Bytes": 512,
+            "pattern": "[^\\s]"
+          },
+          "maxItems": 512,
+          "uniqueItems": true
+        },
+        "origin": {
+          "$ref": "#/$defs/origin"
+        },
+        "finding_receipts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/resource_id"
+          },
+          "maxItems": 128,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "item_key",
+        "rationale",
+        "tested_conditions",
+        "evidence",
+        "limitations",
+        "origin"
+      ],
+      "additionalProperties": false
+    },
+    "conclusions": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "const": "contractor.audit.conclusions.v1"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/conclusion_item"
+          },
+          "maxItems": 64,
+          "minItems": 1
+        }
+      },
+      "required": [
+        "schema",
+        "items"
+      ],
+      "additionalProperties": false
+    },
+    "result": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "const": "contractor.audit.result.v1"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/result_item"
+          },
+          "maxItems": 64,
+          "minItems": 1
+        }
+      },
+      "required": [
+        "schema",
+        "items"
+      ],
+      "additionalProperties": false
+    },
+    "mutation": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "const": "contractor.audit.mutation.v1"
+        },
+        "records": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "$ref": "#/$defs/task"
+              },
+              {
+                "$ref": "#/$defs/hypothesis"
+              }
+            ]
+          },
+          "maxItems": 128,
+          "minItems": 1
+        }
+      },
+      "required": [
+        "schema",
+        "records"
+      ],
+      "additionalProperties": false,
+      "x-maxEncodedBytes": 1048576
+    },
+    "resource_id": {
+      "$ref": "https://contractor.local/schema/v1alpha1/common.schema.json#/$defs/resourceId"
+    },
+    "control": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "from",
+        "command",
+        "to"
+      ],
+      "properties": {
+        "schema": {
+          "const": "contractor.audit.control.v1"
+        },
+        "from": {
+          "type": "string"
+        },
+        "command": {
+          "type": "string"
+        },
+        "to": {
+          "type": "string"
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "from": {
+              "const": "draft"
+            },
+            "command": {
+              "const": "start"
+            },
+            "to": {
+              "const": "active"
+            }
+          }
+        },
+        {
+          "properties": {
+            "from": {
+              "const": "active"
+            },
+            "command": {
+              "const": "pause"
+            },
+            "to": {
+              "const": "paused"
+            }
+          }
+        },
+        {
+          "properties": {
+            "from": {
+              "const": "active"
+            },
+            "command": {
+              "const": "deadline"
+            },
+            "to": {
+              "const": "paused"
+            }
+          }
+        },
+        {
+          "properties": {
+            "from": {
+              "const": "paused"
+            },
+            "command": {
+              "const": "resume"
+            },
+            "to": {
+              "const": "active"
+            }
+          }
+        },
+        {
+          "properties": {
+            "from": {
+              "const": "active"
+            },
+            "command": {
+              "const": "cancel"
+            },
+            "to": {
+              "const": "cancelling"
+            }
+          }
+        },
+        {
+          "properties": {
+            "from": {
+              "const": "paused"
+            },
+            "command": {
+              "const": "cancel"
+            },
+            "to": {
+              "const": "cancelling"
+            }
+          }
+        },
+        {
+          "properties": {
+            "from": {
+              "const": "finalizing"
+            },
+            "command": {
+              "const": "cancel"
+            },
+            "to": {
+              "const": "cancelling"
+            }
+          }
+        },
+        {
+          "properties": {
+            "from": {
+              "const": "draft"
+            },
+            "command": {
+              "const": "delete"
+            },
+            "to": {
+              "const": "deleting"
+            }
+          }
+        },
+        {
+          "properties": {
+            "from": {
+              "const": "completed"
+            },
+            "command": {
+              "const": "delete"
+            },
+            "to": {
+              "const": "deleting"
+            }
+          }
+        },
+        {
+          "properties": {
+            "from": {
+              "const": "failed"
+            },
+            "command": {
+              "const": "delete"
+            },
+            "to": {
+              "const": "deleting"
+            }
+          }
+        },
+        {
+          "properties": {
+            "from": {
+              "const": "cancelled"
+            },
+            "command": {
+              "const": "delete"
+            },
+            "to": {
+              "const": "deleting"
+            }
+          }
+        },
+        {
+          "properties": {
+            "from": {
+              "const": "active"
+            },
+            "command": {
+              "const": "delete"
+            },
+            "to": {
+              "const": "cancelling"
+            }
+          }
+        },
+        {
+          "properties": {
+            "from": {
+              "const": "paused"
+            },
+            "command": {
+              "const": "delete"
+            },
+            "to": {
+              "const": "cancelling"
+            }
+          }
+        },
+        {
+          "properties": {
+            "from": {
+              "const": "finalizing"
+            },
+            "command": {
+              "const": "delete"
+            },
+            "to": {
+              "const": "cancelling"
+            }
+          }
+        }
+      ]
+    },
+    "proposals": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "hypotheses",
+        "work"
+      ],
+      "properties": {
+        "schema": {
+          "const": "contractor.audit.proposals.v1"
+        },
+        "hypotheses": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/key"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/seed"
+          },
+          "maxProperties": 128
+        },
+        "work": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/initial"
+          },
+          "maxItems": 128
+        }
+      }
+    }
+  },
+  "x-maxEncodedBytes": 8388608
+}

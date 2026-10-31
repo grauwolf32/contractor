@@ -8,6 +8,9 @@ import (
 
 	contractorconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configload"
+	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
+	"github.com/grauwolf32/contractor/internal/securefile"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 func runConfigCLI(args []string, logger *slog.Logger) error {
@@ -19,10 +22,13 @@ func runConfigCLI(args []string, logger *slog.Logger) error {
 		return fmt.Errorf("config command requires the validate subcommand")
 	}
 
+	var auditDocument, auditContext string
 	root := "./configs"
 	managedRoot := ""
 	flags := flag.NewFlagSet("contractor-server config validate", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
+	flags.StringVar(&auditDocument, "audit-document", "", "strict Audit JSON document to validate offline against the loaded catalog")
+	flags.StringVar(&auditContext, "audit-context", "", "exact trusted context for offline conclusion/result validation")
 	flags.StringVar(&root, "root", root, "configuration root")
 	flags.StringVar(&managedRoot, "managed-root", managedRoot, "managed configuration root (default: sibling managed-configs)")
 	if err := parseCommandFlags(flags, args[1:]); err != nil {
@@ -41,6 +47,39 @@ func runConfigCLI(args []string, logger *slog.Logger) error {
 	}
 	if err := validateBundledCatalogStandards(bundles.Standards, snapshot); err != nil {
 		return fmt.Errorf("validate configuration: %w", err)
+	}
+	if auditContext != "" && auditDocument == "" {
+		return fmt.Errorf("audit-context requires audit-document")
+	}
+	if auditDocument != "" {
+		data, readErr := securefile.Read(auditDocument, auditcontract.MaximumDocumentBytes)
+		if readErr != nil {
+			return fmt.Errorf("read Audit document: %w", readErr)
+		}
+		var context []byte
+		if auditContext != "" {
+			context, readErr = securefile.Read(auditContext, auditcontract.MaximumDocumentBytes)
+			if readErr != nil {
+				return fmt.Errorf("read Audit context: %w", readErr)
+			}
+		}
+		canonical, decodeErr := auditcontract.Decode(data, context)
+		if decodeErr != nil {
+			return decodeErr
+		}
+		var document map[string]any
+		if err := strictjson.Decode(canonical, &document); err != nil {
+			return err
+		}
+		if document["schema"] == "contractor.audit.program.v1" {
+			if err := contractorconfig.ValidateAuditProgram(snapshot, canonical); err != nil {
+				return err
+			}
+		} else if document["schema"] == "contractor.audit.proposals.v1" {
+			if err := contractorconfig.ValidateAuditProgram(snapshot, context); err != nil {
+				return err
+			}
+		}
 	}
 	counts := snapshot.Counts()
 	logger.Info(

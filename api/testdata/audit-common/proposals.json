@@ -1,0 +1,22 @@
+{
+  "cases": [
+    {
+      "name": "generation-without-finding",
+      "document": "{\"schema\": \"contractor.audit.proposals.v1\", \"hypotheses\": {\"candidate\": {\"statement\": \"A reader can access a foreign document\", \"scope\": {\"actor\": \"reader\"}, \"grounds\": \"Selected material suggests object IDs are accepted\"}}, \"work\": [{\"key\": \"check-candidate\", \"workflow\": \"inspect\", \"objective\": \"Check the assertion under the selected conditions\", \"hypothesis\": \"candidate\"}]}",
+      "context": "{\"schema\": \"contractor.audit.program.v1\", \"inputs\": {\"source\": {\"required\": true, \"media_types\": [\"text/plain\"]}}, \"workflows\": {\"inspect\": {\"ref\": \"artifact-copy@1\", \"inputs\": {\"source\": {\"source\": \"audit-input\", \"name\": \"source\"}}, \"parameters\": {}, \"outputs\": {\"material\": \"result\"}}}, \"hypotheses\": {}, \"initial_work\": [{\"key\": \"inspect-1\", \"workflow\": \"inspect\", \"objective\": \"Inspect selected source\"}], \"limits\": {\"max_tasks\": 100000, \"max_iterations\": 32, \"max_tasks_per_iteration\": 10000, \"batch_size\": 64, \"max_submitted_runs\": 1000000, \"max_attempts\": 10, \"deadline_seconds\": 31536000, \"max_evidence_bytes\": 1073741824, \"max_hypotheses\": 10000, \"max_hypothesis_revisions\": 50000, \"max_hypothesis_bytes\": 268435456}, \"policy\": {\"active_operations\": \"prohibited\"}}",
+      "valid": true
+    },
+    {
+      "name": "forged-workflow",
+      "document": "{\"schema\": \"contractor.audit.proposals.v1\", \"hypotheses\": {\"candidate\": {\"statement\": \"A reader can access a foreign document\", \"scope\": {\"actor\": \"reader\"}, \"grounds\": \"Selected material suggests object IDs are accepted\"}}, \"work\": [{\"key\": \"check-candidate\", \"workflow\": \"missing\", \"objective\": \"Check the assertion under the selected conditions\", \"hypothesis\": \"candidate\"}]}",
+      "context": "{\"schema\": \"contractor.audit.program.v1\", \"inputs\": {\"source\": {\"required\": true, \"media_types\": [\"text/plain\"]}}, \"workflows\": {\"inspect\": {\"ref\": \"artifact-copy@1\", \"inputs\": {\"source\": {\"source\": \"audit-input\", \"name\": \"source\"}}, \"parameters\": {}, \"outputs\": {\"material\": \"result\"}}}, \"hypotheses\": {}, \"initial_work\": [{\"key\": \"inspect-1\", \"workflow\": \"inspect\", \"objective\": \"Inspect selected source\"}], \"limits\": {\"max_tasks\": 100000, \"max_iterations\": 32, \"max_tasks_per_iteration\": 10000, \"batch_size\": 64, \"max_submitted_runs\": 1000000, \"max_attempts\": 10, \"deadline_seconds\": 31536000, \"max_evidence_bytes\": 1073741824, \"max_hypotheses\": 10000, \"max_hypothesis_revisions\": 50000, \"max_hypothesis_bytes\": 268435456}, \"policy\": {\"active_operations\": \"prohibited\"}}",
+      "valid": false
+    },
+    {
+      "name": "model-hypothesis-identity",
+      "document": "{\"schema\": \"contractor.audit.proposals.v1\", \"hypotheses\": {\"candidate\": {\"statement\": \"A reader can access a foreign document\", \"scope\": {\"actor\": \"reader\"}, \"grounds\": \"Selected material suggests object IDs are accepted\", \"id\": \"forged\"}}, \"work\": [{\"key\": \"check-candidate\", \"workflow\": \"inspect\", \"objective\": \"Check the assertion under the selected conditions\", \"hypothesis\": \"candidate\"}]}",
+      "context": "{\"schema\": \"contractor.audit.program.v1\", \"inputs\": {\"source\": {\"required\": true, \"media_types\": [\"text/plain\"]}}, \"workflows\": {\"inspect\": {\"ref\": \"artifact-copy@1\", \"inputs\": {\"source\": {\"source\": \"audit-input\", \"name\": \"source\"}}, \"parameters\": {}, \"outputs\": {\"material\": \"result\"}}}, \"hypotheses\": {}, \"initial_work\": [{\"key\": \"inspect-1\", \"workflow\": \"inspect\", \"objective\": \"Inspect selected source\"}], \"limits\": {\"max_tasks\": 100000, \"max_iterations\": 32, \"max_tasks_per_iteration\": 10000, \"batch_size\": 64, \"max_submitted_runs\": 1000000, \"max_attempts\": 10, \"deadline_seconds\": 31536000, \"max_evidence_bytes\": 1073741824, \"max_hypotheses\": 10000, \"max_hypothesis_revisions\": 50000, \"max_hypothesis_bytes\": 268435456}, \"policy\": {\"active_operations\": \"prohibited\"}}",
+      "valid": false
+    }
+  ]
+}

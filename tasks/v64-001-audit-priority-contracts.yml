@@ -5,7 +5,7 @@ milestone: audit-check-prioritization
 epic: audits
 kind: feature
 priority: P1
-status: pending
+status: in_progress
 depends_on:
 - V64-000
 - V62-001
@@ -38,10 +38,13 @@ context:
     This amendment clarifies that agent's task without assigning implementation to the amending agent
     or authorizing dependent tasks. Ordinary dependency/status rules still apply; the delegate sets
     in_progress when starting. Approval removal is settled and must not be reopened as a cutover choice.
+  contract_decisions: User confirmed soft pause/drain, Resume of accepted work and terminal Cancel on 2026-10-31; also confirmed 10000 hypotheses, 50000 revisions, 32 KiB per document, 256 MiB revision bytes, 128 records and 1 MiB metadata per mutation.
+  execution_authority: User requested implementation in this chat on 2026-10-31. Work is isolated on codex/audit-task-contracts; dependent tasks are not started.
   design:
   - docs/proposals/0050-audit-common-hypothesis-model.md
   - docs/plans/2026-10-31-audit-redesign.md
   specification:
+  - docs/spec/audits/common-contract.md
   - docs/spec/audits/audits.md
   - docs/spec/audits/execution.md
   - docs/spec/audits/review-and-reports.md
@@ -61,11 +64,8 @@ context:
   implementation_boundary: Every new state, export, relation or capability needs its real production caller
     in this task. Reuse RunService, Scheduler, ArtifactStore, finding intake, ControllerClaims and existing
     keyed/natural receipts. No new collector, admission engine, lease store or compatibility reader.
-  review_choices: The accepted task/Run/result skeleton and result/finding distinction are settled. Do
-    not reopen them. Proposal 0050 still labels exact new hypothesis/mutation budgets, soft-pause/terminal-cancel
-    guarantees as proposals; finalize these explicit contract choices without silently treating an agent
-    recommendation as a user decision. Formal approval removal is a user decision, not an open choice;
-    do not design a migration/compatibility lifecycle for old approval-required policy.
+  review_choices: The common task/Run/result skeleton, result/finding distinction and removal of formal approvals are settled. User confirmation in this chat on 2026-10-31 finalized soft pause/drain, terminal Cancel and the exact hypothesis/mutation budgets recorded in contract_decisions. Do not reopen them or introduce old-policy migration, waiting or compatibility states. Hypothesis formulation guidance remains an agent recommendation and adds no required polarity/type classifier.
+  boundary_decision: Common documents are validated through the existing config validate command with an explicit audit-document input and optional trusted audit-context, using the real loaded Workflow Snapshot. This supplies a production contract-validation caller without registering a second program catalog, execution mode, controller, queue or database relation. Actual Runtime assembly, state mutation, retention and public resource replacement remain with dependent owners in the checked removal map. Shared JSON Schema reuses existing wire primitives; Go owns admission validation, and Python conformance checks the same contract without advertising completion support.
   agent_proposal: 'For review: formulate a hypothesis as one observable assertion with object/actor and
     conditions, plus grounds and a way to check it. For problem search prefer a suspected violation; positive
     properties remain valid. Use existing statement/scope/grounds rather than new mandatory types or polarity
@@ -166,6 +166,10 @@ acceptance_criteria:
     rejected by the target contract, with no old-policy waiting/resume or compatibility branch. The removal
     map assigns runtime/API/UI/storage caller deletion to the dependent implementation tasks; V64-001
     does not expand into the whole Audit replacement
+- id: A5
+  given: target limits, control transitions and bounded continuation contracts
+  when: shared boundary fixtures and configuration validators evaluate them
+  then: at-limit values pass, over-limit values fail, pause/resume/cancel/deadline guarantees are explicit, and continuation requires new accepted inputs or an explicit decision
 tests:
 - command: go test -count=1 ./internal/config/... ./internal/contracts/... ./internal/auditdomain
   covers:
@@ -173,18 +177,27 @@ tests:
   - A2
   - A3
   - A4
+  - A5
 - command: make test-wire-cross-language
   covers:
   - A1
   - A2
   - A3
   - A4
+  - A5
 - command: make verify-public-api verify-public-api-postgres
   covers:
   - A1
   - A2
   - A3
   - A4
+  - A5
+- command: go test -count=1 ./internal/app ./internal/archtest
+  covers:
+  - A1
+  - A3
+  - A4
+  - A5
 - command: make lint
 test_prerequisites:
 - Commands below are future implementation acceptance, not results of this planning update.
@@ -201,6 +214,17 @@ verification_requirements:
   dependencies and strict reads/writes.
 - Delete the replaced vertical path and its exclusive schemas/states/tests as its callers migrate. Final
   V64-011 proves no parallel legacy pipeline remains.
+deliverables:
+- path: api/audit/v1/contract.schema.json
+  description: Single strict common document schema reusing existing wire primitives.
+- path: internal/contracts/auditcontract
+  description: Bounded strict decoder, automatic per-item result association and frozen program proposal validation, exercised by actual offline CLI validation.
+- path: internal/config/audit_program.go
+  description: Required Workflow input/parameter/output and media checks against a real loaded configuration Snapshot.
+- path: docs/spec/audits/common-contract.md
+  description: Owning contract, control/continuation guarantees and registered limits/failure/lifecycle entries.
+- path: docs/proposals/0050-audit-removal-map.yml
+  description: Relation/profile/operation/wire/source dispositions assigned to dependent owners, checked against current relation and public operation inventories.
 implementation_commit: null
 replanning:
   date: '2026-10-31'

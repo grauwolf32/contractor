@@ -1,0 +1,156 @@
+{
+  "cases": [
+    {
+      "name": "exploratory",
+      "document": "{\"schema\":\"contractor.audit.program.v1\",\"inputs\":{\"source\":{\"required\":true,\"media_types\":[\"text/plain\"]}},\"workflows\":{\"inspect\":{\"ref\":\"artifact-copy@1\",\"inputs\":{\"source\":{\"source\":\"audit-input\",\"name\":\"source\"}},\"parameters\":{},\"outputs\":{\"material\":\"result\"}}},\"hypotheses\":{},\"initial_work\":[{\"key\":\"inspect-1\",\"workflow\":\"inspect\",\"objective\":\"Inspect selected source\"}],\"limits\":{\"max_tasks\":100000,\"max_iterations\":32,\"max_tasks_per_iteration\":10000,\"batch_size\":64,\"max_submitted_runs\":1000000,\"max_attempts\":10,\"deadline_seconds\":31536000,\"max_evidence_bytes\":1073741824,\"max_hypotheses\":10000,\"max_hypothesis_revisions\":50000,\"max_hypothesis_bytes\":268435456},\"policy\":{\"active_operations\":\"prohibited\"}}",
+      "valid": true
+    },
+    {
+      "name": "fixed-checklist",
+      "document": "{\"schema\":\"contractor.audit.program.v1\",\"inputs\":{\"source\":{\"required\":true,\"media_types\":[\"text/plain\"]}},\"workflows\":{\"inspect\":{\"ref\":\"artifact-copy@1\",\"inputs\":{\"source\":{\"source\":\"audit-input\",\"name\":\"source\"}},\"parameters\":{},\"outputs\":{\"material\":\"result\"}}},\"hypotheses\":{\"claim\":{\"statement\":\"Reader A can read B document under the selected conditions\",\"scope\":{\"actor\":\"reader A\"},\"grounds\":\"Observed object identifier\"}},\"initial_work\":[{\"key\":\"inspect-1\",\"workflow\":\"inspect\",\"objective\":\"Inspect selected source\",\"hypothesis\":\"claim\"}],\"limits\":{\"max_tasks\":100000,\"max_iterations\":32,\"max_tasks_per_iteration\":10000,\"batch_size\":64,\"max_submitted_runs\":1000000,\"max_attempts\":10,\"deadline_seconds\":31536000,\"max_evidence_bytes\":1073741824,\"max_hypotheses\":10000,\"max_hypothesis_revisions\":50000,\"max_hypothesis_bytes\":268435456},\"policy\":{\"active_operations\":\"prohibited\"}}",
+      "valid": true
+    },
+    {
+      "name": "unknown-workflow",
+      "document": "{\"schema\":\"contractor.audit.program.v1\",\"inputs\":{\"source\":{\"required\":true,\"media_types\":[\"text/plain\"]}},\"workflows\":{\"inspect\":{\"ref\":\"artifact-copy@1\",\"inputs\":{\"source\":{\"source\":\"audit-input\",\"name\":\"source\"}},\"parameters\":{},\"outputs\":{\"material\":\"result\"}}},\"hypotheses\":{},\"initial_work\":[{\"key\":\"inspect-1\",\"workflow\":\"missing\",\"objective\":\"Inspect selected source\"}],\"limits\":{\"max_tasks\":100000,\"max_iterations\":32,\"max_tasks_per_iteration\":10000,\"batch_size\":64,\"max_submitted_runs\":1000000,\"max_attempts\":10,\"deadline_seconds\":31536000,\"max_evidence_bytes\":1073741824,\"max_hypotheses\":10000,\"max_hypothesis_revisions\":50000,\"max_hypothesis_bytes\":268435456},\"policy\":{\"active_operations\":\"prohibited\"}}",
+      "valid": false
+    },
+    {
+      "name": "unknown-hypothesis",
+      "document": "{\"schema\":\"contractor.audit.program.v1\",\"inputs\":{\"source\":{\"required\":true,\"media_types\":[\"text/plain\"]}},\"workflows\":{\"inspect\":{\"ref\":\"artifact-copy@1\",\"inputs\":{\"source\":{\"source\":\"audit-input\",\"name\":\"source\"}},\"parameters\":{},\"outputs\":{\"material\":\"result\"}}},\"hypotheses\":{},\"initial_work\":[{\"key\":\"inspect-1\",\"workflow\":\"inspect\",\"objective\":\"Inspect selected source\",\"hypothesis\":\"missing\"}],\"limits\":{\"max_tasks\":100000,\"max_iterations\":32,\"max_tasks_per_iteration\":10000,\"batch_size\":64,\"max_submitted_runs\":1000000,\"max_attempts\":10,\"deadline_seconds\":31536000,\"max_evidence_bytes\":1073741824,\"max_hypotheses\":10000,\"max_hypothesis_revisions\":50000,\"max_hypothesis_bytes\":268435456},\"policy\":{\"active_operations\":\"prohibited\"}}",
+      "valid": false
+    },
+    {
+      "name": "unknown-material",
+      "document": "{\"schema\":\"contractor.audit.program.v1\",\"inputs\":{\"source\":{\"required\":true,\"media_types\":[\"text/plain\"]}},\"workflows\":{\"inspect\":{\"ref\":\"artifact-copy@1\",\"inputs\":{\"source\":{\"source\":\"audit-input\",\"name\":\"missing\"}},\"parameters\":{},\"outputs\":{\"material\":\"result\"}}},\"hypotheses\":{},\"initial_work\":[{\"key\":\"inspect-1\",\"workflow\":\"inspect\",\"objective\":\"Inspect selected source\"}],\"limits\":{\"max_tasks\":100000,\"max_iterations\":32,\"max_tasks_per_iteration\":10000,\"batch_size\":64,\"max_submitted_runs\":1000000,\"max_attempts\":10,\"deadline_seconds\":31536000,\"max_evidence_bytes\":1073741824,\"max_hypotheses\":10000,\"max_hypothesis_revisions\":50000,\"max_hypothesis_bytes\":268435456},\"policy\":{\"active_operations\":\"prohibited\"}}",
+      "valid": false
+    },
+    {
+      "name": "approval-policy",
+      "document": "{\"schema\":\"contractor.audit.program.v1\",\"inputs\":{\"source\":{\"required\":true,\"media_types\":[\"text/plain\"]}},\"workflows\":{\"inspect\":{\"ref\":\"artifact-copy@1\",\"inputs\":{\"source\":{\"source\":\"audit-input\",\"name\":\"source\"}},\"parameters\":{},\"outputs\":{\"material\":\"result\"}}},\"hypotheses\":{},\"initial_work\":[{\"key\":\"inspect-1\",\"workflow\":\"inspect\",\"objective\":\"Inspect selected source\"}],\"limits\":{\"max_tasks\":100000,\"max_iterations\":32,\"max_tasks_per_iteration\":10000,\"batch_size\":64,\"max_submitted_runs\":1000000,\"max_attempts\":10,\"deadline_seconds\":31536000,\"max_evidence_bytes\":1073741824,\"max_hypotheses\":10000,\"max_hypothesis_revisions\":50000,\"max_hypothesis_bytes\":268435456},\"policy\":{\"active_operations\":\"approval-required\"}}",
+      "valid": false
+    },
+    {
+      "name": "unknown-member",
+      "document": "{\"schema\":\"contractor.audit.program.v1\",\"inputs\":{\"source\":{\"required\":true,\"media_types\":[\"text/plain\"]}},\"workflows\":{\"inspect\":{\"ref\":\"artifact-copy@1\",\"inputs\":{\"source\":{\"source\":\"audit-input\",\"name\":\"source\"}},\"parameters\":{},\"outputs\":{\"material\":\"result\"}}},\"hypotheses\":{},\"initial_work\":[{\"key\":\"inspect-1\",\"workflow\":\"inspect\",\"objective\":\"Inspect selected source\"}],\"limits\":{\"max_tasks\":100000,\"max_iterations\":32,\"max_tasks_per_iteration\":10000,\"batch_size\":64,\"max_submitted_runs\":1000000,\"max_attempts\":10,\"deadline_seconds\":31536000,\"max_evidence_bytes\":1073741824,\"max_hypotheses\":10000,\"max_hypothesis_revisions\":50000,\"max_hypothesis_bytes\":268435456},\"policy\":{\"active_operations\":\"prohibited\"},\"mystery\":true}",
+      "valid": false
+    },
+    {
+      "name": "null-work",
+      "document": "{\"schema\":\"contractor.audit.program.v1\",\"inputs\":{\"source\":{\"required\":true,\"media_types\":[\"text/plain\"]}},\"workflows\":{\"inspect\":{\"ref\":\"artifact-copy@1\",\"inputs\":{\"source\":{\"source\":\"audit-input\",\"name\":\"source\"}},\"parameters\":{},\"outputs\":{\"material\":\"result\"}}},\"hypotheses\":{},\"initial_work\":null,\"limits\":{\"max_tasks\":100000,\"max_iterations\":32,\"max_tasks_per_iteration\":10000,\"batch_size\":64,\"max_submitted_runs\":1000000,\"max_attempts\":10,\"deadline_seconds\":31536000,\"max_evidence_bytes\":1073741824,\"max_hypotheses\":10000,\"max_hypothesis_revisions\":50000,\"max_hypothesis_bytes\":268435456},\"policy\":{\"active_operations\":\"prohibited\"}}",
+      "valid": false
+    },
+    {
+      "name": "batch-over",
+      "document": "{\"schema\":\"contractor.audit.program.v1\",\"inputs\":{\"source\":{\"required\":true,\"media_types\":[\"text/plain\"]}},\"workflows\":{\"inspect\":{\"ref\":\"artifact-copy@1\",\"inputs\":{\"source\":{\"source\":\"audit-input\",\"name\":\"source\"}},\"parameters\":{},\"outputs\":{\"material\":\"result\"}}},\"hypotheses\":{},\"initial_work\":[{\"key\":\"inspect-1\",\"workflow\":\"inspect\",\"objective\":\"Inspect selected source\"}],\"limits\":{\"max_tasks\":100000,\"max_iterations\":32,\"max_tasks_per_iteration\":10000,\"batch_size\":65,\"max_submitted_runs\":1000000,\"max_attempts\":10,\"deadline_seconds\":31536000,\"max_evidence_bytes\":1073741824,\"max_hypotheses\":10000,\"max_hypothesis_revisions\":50000,\"max_hypothesis_bytes\":268435456},\"policy\":{\"active_operations\":\"prohibited\"}}",
+      "valid": false
+    },
+    {
+      "name": "negative-deadline",
+      "document": "{\"schema\":\"contractor.audit.program.v1\",\"inputs\":{\"source\":{\"required\":true,\"media_types\":[\"text/plain\"]}},\"workflows\":{\"inspect\":{\"ref\":\"artifact-copy@1\",\"inputs\":{\"source\":{\"source\":\"audit-input\",\"name\":\"source\"}},\"parameters\":{},\"outputs\":{\"material\":\"result\"}}},\"hypotheses\":{},\"initial_work\":[{\"key\":\"inspect-1\",\"workflow\":\"inspect\",\"objective\":\"Inspect selected source\"}],\"limits\":{\"max_tasks\":100000,\"max_iterations\":32,\"max_tasks_per_iteration\":10000,\"batch_size\":64,\"max_submitted_runs\":1000000,\"max_attempts\":10,\"deadline_seconds\":-1,\"max_evidence_bytes\":1073741824,\"max_hypotheses\":10000,\"max_hypothesis_revisions\":50000,\"max_hypothesis_bytes\":268435456},\"policy\":{\"active_operations\":\"prohibited\"}}",
+      "valid": false
+    },
+    {
+      "name": "task-over",
+      "document": "{\"schema\":\"contractor.audit.program.v1\",\"inputs\":{\"source\":{\"required\":true,\"media_types\":[\"text/plain\"]}},\"workflows\":{\"inspect\":{\"ref\":\"artifact-copy@1\",\"inputs\":{\"source\":{\"source\":\"audit-input\",\"name\":\"source\"}},\"parameters\":{},\"outputs\":{\"material\":\"result\"}}},\"hypotheses\":{},\"initial_work\":[{\"key\":\"inspect-1\",\"workflow\":\"inspect\",\"objective\":\"Inspect selected source\"}],\"limits\":{\"max_tasks\":100001,\"max_iterations\":32,\"max_tasks_per_iteration\":10000,\"batch_size\":64,\"max_submitted_runs\":1000000,\"max_attempts\":10,\"deadline_seconds\":31536000,\"max_evidence_bytes\":1073741824,\"max_hypotheses\":10000,\"max_hypothesis_revisions\":50000,\"max_hypothesis_bytes\":268435456},\"policy\":{\"active_operations\":\"prohibited\"}}",
+      "valid": false
+    },
+    {
+      "name": "hypotheses-over",
+      "document": "{\"schema\":\"contractor.audit.program.v1\",\"inputs\":{\"source\":{\"required\":true,\"media_types\":[\"text/plain\"]}},\"workflows\":{\"inspect\":{\"ref\":\"artifact-copy@1\",\"inputs\":{\"source\":{\"source\":\"audit-input\",\"name\":\"source\"}},\"parameters\":{},\"outputs\":{\"material\":\"result\"}}},\"hypotheses\":{},\"initial_work\":[{\"key\":\"inspect-1\",\"workflow\":\"inspect\",\"objective\":\"Inspect selected source\"}],\"limits\":{\"max_tasks\":100000,\"max_iterations\":32,\"max_tasks_per_iteration\":10000,\"batch_size\":64,\"max_submitted_runs\":1000000,\"max_attempts\":10,\"deadline_seconds\":31536000,\"max_evidence_bytes\":1073741824,\"max_hypotheses\":10001,\"max_hypothesis_revisions\":50000,\"max_hypothesis_bytes\":268435456},\"policy\":{\"active_operations\":\"prohibited\"}}",
+      "valid": false
+    },
+    {
+      "name": "revisions-over",
+      "document": "{\"schema\":\"contractor.audit.program.v1\",\"inputs\":{\"source\":{\"required\":true,\"media_types\":[\"text/plain\"]}},\"workflows\":{\"inspect\":{\"ref\":\"artifact-copy@1\",\"inputs\":{\"source\":{\"source\":\"audit-input\",\"name\":\"source\"}},\"parameters\":{},\"outputs\":{\"material\":\"result\"}}},\"hypotheses\":{},\"initial_work\":[{\"key\":\"inspect-1\",\"workflow\":\"inspect\",\"objective\":\"Inspect selected source\"}],\"limits\":{\"max_tasks\":100000,\"max_iterations\":32,\"max_tasks_per_iteration\":10000,\"batch_size\":64,\"max_submitted_runs\":1000000,\"max_attempts\":10,\"deadline_seconds\":31536000,\"max_evidence_bytes\":1073741824,\"max_hypotheses\":10000,\"max_hypothesis_revisions\":50001,\"max_hypothesis_bytes\":268435456},\"policy\":{\"active_operations\":\"prohibited\"}}",
+      "valid": false
+    },
+    {
+      "name": "bytes-over",
+      "document": "{\"schema\":\"contractor.audit.program.v1\",\"inputs\":{\"source\":{\"required\":true,\"media_types\":[\"text/plain\"]}},\"workflows\":{\"inspect\":{\"ref\":\"artifact-copy@1\",\"inputs\":{\"source\":{\"source\":\"audit-input\",\"name\":\"source\"}},\"parameters\":{},\"outputs\":{\"material\":\"result\"}}},\"hypotheses\":{},\"initial_work\":[{\"key\":\"inspect-1\",\"workflow\":\"inspect\",\"objective\":\"Inspect selected source\"}],\"limits\":{\"max_tasks\":100000,\"max_iterations\":32,\"max_tasks_per_iteration\":10000,\"batch_size\":64,\"max_submitted_runs\":1000000,\"max_attempts\":10,\"deadline_seconds\":31536000,\"max_evidence_bytes\":1073741824,\"max_hypotheses\":10000,\"max_hypothesis_revisions\":50000,\"max_hypothesis_bytes\":268435457},\"policy\":{\"active_operations\":\"prohibited\"}}",
+      "valid": false
+    },
+    {
+      "name": "duplicate-initial-key",
+      "document": "{\"schema\":\"contractor.audit.program.v1\",\"inputs\":{\"source\":{\"required\":true,\"media_types\":[\"text/plain\"]}},\"workflows\":{\"inspect\":{\"ref\":\"artifact-copy@1\",\"inputs\":{\"source\":{\"source\":\"audit-input\",\"name\":\"source\"}},\"parameters\":{},\"outputs\":{\"material\":\"result\"}}},\"hypotheses\":{},\"initial_work\":[{\"key\":\"inspect-1\",\"workflow\":\"inspect\",\"objective\":\"Inspect selected source\"},{\"key\":\"inspect-1\",\"workflow\":\"inspect\",\"objective\":\"Inspect selected source\"}],\"limits\":{\"max_tasks\":100000,\"max_iterations\":32,\"max_tasks_per_iteration\":10000,\"batch_size\":64,\"max_submitted_runs\":1000000,\"max_attempts\":10,\"deadline_seconds\":31536000,\"max_evidence_bytes\":1073741824,\"max_hypotheses\":10000,\"max_hypothesis_revisions\":50000,\"max_hypothesis_bytes\":268435456},\"policy\":{\"active_operations\":\"prohibited\"}}",
+      "valid": false
+    },
+    {
+      "name": "bounded-continuation",
+      "document": "{\"schema\": \"contractor.audit.program.v1\", \"inputs\": {\"source\": {\"required\": true, \"media_types\": [\"text/plain\"]}}, \"workflows\": {\"inspect\": {\"ref\": \"artifact-copy@1\", \"inputs\": {\"source\": {\"source\": \"audit-input\", \"name\": \"source\"}}, \"parameters\": {}, \"outputs\": {\"material\": \"result\"}}}, \"hypotheses\": {}, \"initial_work\": [{\"key\": \"inspect-1\", \"workflow\": \"inspect\", \"objective\": \"Inspect selected source\"}], \"limits\": {\"max_tasks\": 100000, \"max_iterations\": 32, \"max_tasks_per_iteration\": 10000, \"batch_size\": 64, \"max_submitted_runs\": 1000000, \"max_attempts\": 10, \"deadline_seconds\": 31536000, \"max_evidence_bytes\": 1073741824, \"max_hypotheses\": 10000, \"max_hypothesis_revisions\": 50000, \"max_hypothesis_bytes\": 268435456}, \"policy\": {\"active_operations\": \"prohibited\"}, \"continuation\": {\"workflow\": \"inspect\"}}",
+      "valid": true
+    },
+    {
+      "name": "unknown-continuation",
+      "document": "{\"schema\": \"contractor.audit.program.v1\", \"inputs\": {\"source\": {\"required\": true, \"media_types\": [\"text/plain\"]}}, \"workflows\": {\"inspect\": {\"ref\": \"artifact-copy@1\", \"inputs\": {\"source\": {\"source\": \"audit-input\", \"name\": \"source\"}}, \"parameters\": {}, \"outputs\": {\"material\": \"result\"}}}, \"hypotheses\": {}, \"initial_work\": [{\"key\": \"inspect-1\", \"workflow\": \"inspect\", \"objective\": \"Inspect selected source\"}], \"limits\": {\"max_tasks\": 100000, \"max_iterations\": 32, \"max_tasks_per_iteration\": 10000, \"batch_size\": 64, \"max_submitted_runs\": 1000000, \"max_attempts\": 10, \"deadline_seconds\": 31536000, \"max_evidence_bytes\": 1073741824, \"max_hypotheses\": 10000, \"max_hypothesis_revisions\": 50000, \"max_hypothesis_bytes\": 268435456}, \"policy\": {\"active_operations\": \"prohibited\"}, \"continuation\": {\"workflow\": \"missing\"}}",
+      "valid": false
+    },
+    {
+      "name": "batch-run-budget-at-bound",
+      "document": "{\"schema\": \"contractor.audit.program.v1\", \"inputs\": {\"source\": {\"required\": true, \"media_types\": [\"text/plain\"]}}, \"workflows\": {\"inspect\": {\"ref\": \"artifact-copy@1\", \"inputs\": {\"source\": {\"source\": \"audit-input\", \"name\": \"source\"}}, \"parameters\": {}, \"outputs\": {\"material\": \"result\"}}}, \"hypotheses\": {}, \"initial_work\": [{\"key\": \"inspect-1\", \"workflow\": \"inspect\", \"objective\": \"Inspect selected source\"}], \"limits\": {\"max_tasks\": 100000, \"max_iterations\": 32, \"max_tasks_per_iteration\": 10000, \"batch_size\": 64, \"max_submitted_runs\": 1563, \"max_attempts\": 10, \"deadline_seconds\": 31536000, \"max_evidence_bytes\": 1073741824, \"max_hypotheses\": 10000, \"max_hypothesis_revisions\": 50000, \"max_hypothesis_bytes\": 268435456}, \"policy\": {\"active_operations\": \"prohibited\"}}",
+      "valid": true
+    },
+    {
+      "name": "batch-run-budget-under-bound",
+      "document": "{\"schema\": \"contractor.audit.program.v1\", \"inputs\": {\"source\": {\"required\": true, \"media_types\": [\"text/plain\"]}}, \"workflows\": {\"inspect\": {\"ref\": \"artifact-copy@1\", \"inputs\": {\"source\": {\"source\": \"audit-input\", \"name\": \"source\"}}, \"parameters\": {}, \"outputs\": {\"material\": \"result\"}}}, \"hypotheses\": {}, \"initial_work\": [{\"key\": \"inspect-1\", \"workflow\": \"inspect\", \"objective\": \"Inspect selected source\"}], \"limits\": {\"max_tasks\": 100000, \"max_iterations\": 32, \"max_tasks_per_iteration\": 10000, \"batch_size\": 64, \"max_submitted_runs\": 1562, \"max_attempts\": 10, \"deadline_seconds\": 31536000, \"max_evidence_bytes\": 1073741824, \"max_hypotheses\": 10000, \"max_hypothesis_revisions\": 50000, \"max_hypothesis_bytes\": 268435456}, \"policy\": {\"active_operations\": \"prohibited\"}}",
+      "valid": false
+    },
+    {
+      "name": "incoherent-revision-budget",
+      "document": "{\"schema\": \"contractor.audit.program.v1\", \"inputs\": {\"source\": {\"required\": true, \"media_types\": [\"text/plain\"]}}, \"workflows\": {\"inspect\": {\"ref\": \"artifact-copy@1\", \"inputs\": {\"source\": {\"source\": \"audit-input\", \"name\": \"source\"}}, \"parameters\": {}, \"outputs\": {\"material\": \"result\"}}}, \"hypotheses\": {}, \"initial_work\": [{\"key\": \"inspect-1\", \"workflow\": \"inspect\", \"objective\": \"Inspect selected source\"}], \"limits\": {\"max_tasks\": 100000, \"max_iterations\": 32, \"max_tasks_per_iteration\": 10000, \"batch_size\": 64, \"max_submitted_runs\": 1000000, \"max_attempts\": 10, \"deadline_seconds\": 31536000, \"max_evidence_bytes\": 1073741824, \"max_hypotheses\": 10000, \"max_hypothesis_revisions\": 9999, \"max_hypothesis_bytes\": 268435456}, \"policy\": {\"active_operations\": \"prohibited\"}}",
+      "valid": false
+    },
+    {
+      "name": "obsolete-approval_requests",
+      "document": "{\"schema\": \"contractor.audit.program.v1\", \"inputs\": {\"source\": {\"required\": true, \"media_types\": [\"text/plain\"]}}, \"workflows\": {\"inspect\": {\"ref\": \"artifact-copy@1\", \"inputs\": {\"source\": {\"source\": \"audit-input\", \"name\": \"source\"}}, \"parameters\": {}, \"outputs\": {\"material\": \"result\"}}}, \"hypotheses\": {}, \"initial_work\": [{\"key\": \"inspect-1\", \"workflow\": \"inspect\", \"objective\": \"Inspect selected source\"}], \"limits\": {\"max_tasks\": 100000, \"max_iterations\": 32, \"max_tasks_per_iteration\": 10000, \"batch_size\": 64, \"max_submitted_runs\": 1000000, \"max_attempts\": 10, \"deadline_seconds\": 31536000, \"max_evidence_bytes\": 1073741824, \"max_hypotheses\": 10000, \"max_hypothesis_revisions\": 50000, \"max_hypothesis_bytes\": 268435456}, \"policy\": {\"active_operations\": \"prohibited\"}, \"approval_requests\": {}}",
+      "valid": false
+    },
+    {
+      "name": "obsolete-report_acceptance",
+      "document": "{\"schema\": \"contractor.audit.program.v1\", \"inputs\": {\"source\": {\"required\": true, \"media_types\": [\"text/plain\"]}}, \"workflows\": {\"inspect\": {\"ref\": \"artifact-copy@1\", \"inputs\": {\"source\": {\"source\": \"audit-input\", \"name\": \"source\"}}, \"parameters\": {}, \"outputs\": {\"material\": \"result\"}}}, \"hypotheses\": {}, \"initial_work\": [{\"key\": \"inspect-1\", \"workflow\": \"inspect\", \"objective\": \"Inspect selected source\"}], \"limits\": {\"max_tasks\": 100000, \"max_iterations\": 32, \"max_tasks_per_iteration\": 10000, \"batch_size\": 64, \"max_submitted_runs\": 1000000, \"max_attempts\": 10, \"deadline_seconds\": 31536000, \"max_evidence_bytes\": 1073741824, \"max_hypotheses\": 10000, \"max_hypothesis_revisions\": 50000, \"max_hypothesis_bytes\": 268435456}, \"policy\": {\"active_operations\": \"prohibited\"}, \"report_acceptance\": {}}",
+      "valid": false
+    },
+    {
+      "name": "obsolete-interaction",
+      "document": "{\"schema\": \"contractor.audit.program.v1\", \"inputs\": {\"source\": {\"required\": true, \"media_types\": [\"text/plain\"]}}, \"workflows\": {\"inspect\": {\"ref\": \"artifact-copy@1\", \"inputs\": {\"source\": {\"source\": \"audit-input\", \"name\": \"source\"}}, \"parameters\": {}, \"outputs\": {\"material\": \"result\"}}}, \"hypotheses\": {}, \"initial_work\": [{\"key\": \"inspect-1\", \"workflow\": \"inspect\", \"objective\": \"Inspect selected source\"}], \"limits\": {\"max_tasks\": 100000, \"max_iterations\": 32, \"max_tasks_per_iteration\": 10000, \"batch_size\": 64, \"max_submitted_runs\": 1000000, \"max_attempts\": 10, \"deadline_seconds\": 31536000, \"max_evidence_bytes\": 1073741824, \"max_hypotheses\": 10000, \"max_hypothesis_revisions\": 50000, \"max_hypothesis_bytes\": 268435456}, \"policy\": {\"active_operations\": \"prohibited\"}, \"interaction\": {}}",
+      "valid": false
+    }
+  ],
+  "loader_cases": [
+    {
+      "name": "unknown-workflow",
+      "document": "{\"schema\":\"contractor.audit.program.v1\",\"inputs\":{\"source\":{\"required\":true,\"media_types\":[\"text/plain\"]}},\"workflows\":{\"inspect\":{\"ref\":\"missing@1\",\"inputs\":{\"source\":{\"source\":\"audit-input\",\"name\":\"source\"}},\"parameters\":{},\"outputs\":{\"material\":\"result\"}}},\"hypotheses\":{},\"initial_work\":[{\"key\":\"inspect-1\",\"workflow\":\"inspect\",\"objective\":\"Inspect selected source\"}],\"limits\":{\"max_tasks\":100000,\"max_iterations\":32,\"max_tasks_per_iteration\":10000,\"batch_size\":64,\"max_submitted_runs\":1000000,\"max_attempts\":10,\"deadline_seconds\":31536000,\"max_evidence_bytes\":1073741824,\"max_hypotheses\":10000,\"max_hypothesis_revisions\":50000,\"max_hypothesis_bytes\":268435456},\"policy\":{\"active_operations\":\"prohibited\"}}",
+      "valid": false
+    },
+    {
+      "name": "unknown-slot",
+      "document": "{\"schema\":\"contractor.audit.program.v1\",\"inputs\":{\"source\":{\"required\":true,\"media_types\":[\"text/plain\"]}},\"workflows\":{\"inspect\":{\"ref\":\"artifact-copy@1\",\"inputs\":{\"source\":{\"source\":\"audit-input\",\"name\":\"source\"},\"extra\":{\"source\":\"audit-input\",\"name\":\"source\"}},\"parameters\":{},\"outputs\":{\"material\":\"result\"}}},\"hypotheses\":{},\"initial_work\":[{\"key\":\"inspect-1\",\"workflow\":\"inspect\",\"objective\":\"Inspect selected source\"}],\"limits\":{\"max_tasks\":100000,\"max_iterations\":32,\"max_tasks_per_iteration\":10000,\"batch_size\":64,\"max_submitted_runs\":1000000,\"max_attempts\":10,\"deadline_seconds\":31536000,\"max_evidence_bytes\":1073741824,\"max_hypotheses\":10000,\"max_hypothesis_revisions\":50000,\"max_hypothesis_bytes\":268435456},\"policy\":{\"active_operations\":\"prohibited\"}}",
+      "valid": false
+    },
+    {
+      "name": "missing-input",
+      "document": "{\"schema\":\"contractor.audit.program.v1\",\"inputs\":{\"source\":{\"required\":true,\"media_types\":[\"text/plain\"]}},\"workflows\":{\"inspect\":{\"ref\":\"artifact-copy@1\",\"inputs\":{},\"parameters\":{},\"outputs\":{\"material\":\"result\"}}},\"hypotheses\":{},\"initial_work\":[{\"key\":\"inspect-1\",\"workflow\":\"inspect\",\"objective\":\"Inspect selected source\"}],\"limits\":{\"max_tasks\":100000,\"max_iterations\":32,\"max_tasks_per_iteration\":10000,\"batch_size\":64,\"max_submitted_runs\":1000000,\"max_attempts\":10,\"deadline_seconds\":31536000,\"max_evidence_bytes\":1073741824,\"max_hypotheses\":10000,\"max_hypothesis_revisions\":50000,\"max_hypothesis_bytes\":268435456},\"policy\":{\"active_operations\":\"prohibited\"}}",
+      "valid": false
+    },
+    {
+      "name": "optional-source",
+      "document": "{\"schema\":\"contractor.audit.program.v1\",\"inputs\":{\"source\":{\"required\":false,\"media_types\":[\"text/plain\"]}},\"workflows\":{\"inspect\":{\"ref\":\"artifact-copy@1\",\"inputs\":{\"source\":{\"source\":\"audit-input\",\"name\":\"source\"}},\"parameters\":{},\"outputs\":{\"material\":\"result\"}}},\"hypotheses\":{},\"initial_work\":[{\"key\":\"inspect-1\",\"workflow\":\"inspect\",\"objective\":\"Inspect selected source\"}],\"limits\":{\"max_tasks\":100000,\"max_iterations\":32,\"max_tasks_per_iteration\":10000,\"batch_size\":64,\"max_submitted_runs\":1000000,\"max_attempts\":10,\"deadline_seconds\":31536000,\"max_evidence_bytes\":1073741824,\"max_hypotheses\":10000,\"max_hypothesis_revisions\":50000,\"max_hypothesis_bytes\":268435456},\"policy\":{\"active_operations\":\"prohibited\"}}",
+      "valid": false
+    },
+    {
+      "name": "media-mismatch",
+      "document": "{\"schema\":\"contractor.audit.program.v1\",\"inputs\":{\"source\":{\"required\":true,\"media_types\":[\"application/json\"]}},\"workflows\":{\"inspect\":{\"ref\":\"artifact-copy@1\",\"inputs\":{\"source\":{\"source\":\"audit-input\",\"name\":\"source\"}},\"parameters\":{},\"outputs\":{\"material\":\"result\"}}},\"hypotheses\":{},\"initial_work\":[{\"key\":\"inspect-1\",\"workflow\":\"inspect\",\"objective\":\"Inspect selected source\"}],\"limits\":{\"max_tasks\":100000,\"max_iterations\":32,\"max_tasks_per_iteration\":10000,\"batch_size\":64,\"max_submitted_runs\":1000000,\"max_attempts\":10,\"deadline_seconds\":31536000,\"max_evidence_bytes\":1073741824,\"max_hypotheses\":10000,\"max_hypothesis_revisions\":50000,\"max_hypothesis_bytes\":268435456},\"policy\":{\"active_operations\":\"prohibited\"}}",
+      "valid": false
+    },
+    {
+      "name": "unknown-output",
+      "document": "{\"schema\":\"contractor.audit.program.v1\",\"inputs\":{\"source\":{\"required\":true,\"media_types\":[\"text/plain\"]}},\"workflows\":{\"inspect\":{\"ref\":\"artifact-copy@1\",\"inputs\":{\"source\":{\"source\":\"audit-input\",\"name\":\"source\"}},\"parameters\":{},\"outputs\":{\"material\":\"missing\"}}},\"hypotheses\":{},\"initial_work\":[{\"key\":\"inspect-1\",\"workflow\":\"inspect\",\"objective\":\"Inspect selected source\"}],\"limits\":{\"max_tasks\":100000,\"max_iterations\":32,\"max_tasks_per_iteration\":10000,\"batch_size\":64,\"max_submitted_runs\":1000000,\"max_attempts\":10,\"deadline_seconds\":31536000,\"max_evidence_bytes\":1073741824,\"max_hypotheses\":10000,\"max_hypothesis_revisions\":50000,\"max_hypothesis_bytes\":268435456},\"policy\":{\"active_operations\":\"prohibited\"}}",
+      "valid": false
+    },
+    {
+      "name": "unknown-parameter",
+      "document": "{\"schema\":\"contractor.audit.program.v1\",\"inputs\":{\"source\":{\"required\":true,\"media_types\":[\"text/plain\"]}},\"workflows\":{\"inspect\":{\"ref\":\"artifact-copy@1\",\"inputs\":{\"source\":{\"source\":\"audit-input\",\"name\":\"source\"}},\"parameters\":{\"missing\":\"x\"},\"outputs\":{\"material\":\"result\"}}},\"hypotheses\":{},\"initial_work\":[{\"key\":\"inspect-1\",\"workflow\":\"inspect\",\"objective\":\"Inspect selected source\"}],\"limits\":{\"max_tasks\":100000,\"max_iterations\":32,\"max_tasks_per_iteration\":10000,\"batch_size\":64,\"max_submitted_runs\":1000000,\"max_attempts\":10,\"deadline_seconds\":31536000,\"max_evidence_bytes\":1073741824,\"max_hypotheses\":10000,\"max_hypothesis_revisions\":50000,\"max_hypothesis_bytes\":268435456},\"policy\":{\"active_operations\":\"prohibited\"}}",
+      "valid": false
+    }
+  ]
+}

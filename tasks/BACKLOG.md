@@ -5,13 +5,14 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-76 open tasks: 10 in progress, 55 pending, 11 deferred. 1298 finished: 1280 completed, 18 archived.
+76 open tasks: 11 in progress, 54 pending, 11 deferred. 1298 finished: 1280 completed, 18 archived.
 
 ## In progress
 
 | Task | Epic | Kind | Priority | Title |
 | --- | --- | --- | --- | --- |
 | [V40-002](v40-002-agent-instruction-paired-runner.yml) | evals | feature | P1 | Prepare instruction experiment bindings and a frozen plan after format readiness |
+| [V64-001](v64-001-audit-priority-contracts.yml) | audits | feature | P1 | Define the lean Audit task and result contract |
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V401-007](v401-007-runtime-suite-on-macos.yml) | quality | chore | P3 | Make the Runtime suite pass on macOS: declare the Linux-only Podman tests, make the other tests portable and file the macOS defects |
@@ -88,7 +89,6 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V64-001](v64-001-audit-priority-contracts.yml) | feature | P1 | — | Define the lean Audit task and result contract |
 | [V64-002](v64-002-audit-priority-store.yml) | feature | P1 | V64-001, V64-004, V64-014 | Coordinate durable Audit tasks through ordinary Runs |
 | [V64-004](v64-004-audit-priority-context.yml) | feature | P1 | V64-001 | Add Audit artifact ownership and exact Project publication |
 | [V64-005](v64-005-independent-priority-verdicts.yml) | feature | P2 | V64-012, V64-013 | Optionally rank the common Audit ready-task shortlist |
