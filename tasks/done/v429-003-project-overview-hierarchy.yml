@@ -5,7 +5,7 @@ milestone: ui-journey-usability
 epic: ui
 kind: feature
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V429-002]
 languages: [typescript, css]
 goal: >-
@@ -159,3 +159,4 @@ verification:
     owner on the starting main revision was already repaired by V425-040; this
     branch fast-forwarded to main 2cae252f2 before its successful full lint run,
     without making an unrelated Audit change in this task.
+implementation_commit: 260b6d9b7fd56aa25dc818b261b7af9f0b1b7c84
