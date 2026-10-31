@@ -2,16 +2,13 @@ package scanstore
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/persistence/explaintest"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
-	"github.com/jackc/pgx/v5"
+	"github.com/grauwolf32/contractor/internal/persistence/postgrestest"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -160,36 +157,7 @@ type sweepGroup struct {
 // CONTRACTOR_TEST_DATABASE_URL, dropped when the test ends.
 func isolatedSweepPool(t *testing.T, ctx context.Context) *pgxpool.Pool {
 	t.Helper()
-	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
-	if databaseURL == "" {
-		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
-	}
-	admin, err := pgxpool.New(ctx, databaseURL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(admin.Close)
-	random := make([]byte, 8)
-	if _, err := rand.Read(random); err != nil {
-		t.Fatal(err)
-	}
-	schema := pgx.Identifier{"contractor_scan_sweep_test_" + hex.EncodeToString(random)}
-	if _, err := admin.Exec(ctx, `CREATE SCHEMA `+schema.Sanitize()); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		_, _ = admin.Exec(context.Background(), `DROP SCHEMA `+schema.Sanitize()+` CASCADE`)
-	})
-	config, err := pgxpool.ParseConfig(databaseURL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	config.ConnConfig.RuntimeParams["search_path"] = schema[0]
-	pool, err := pgxpool.NewWithConfig(ctx, config)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(pool.Close)
+	pool := postgrestest.NewPool(t, ctx, "", postgrestest.Options{})
 	if _, err := persistencepostgres.ApplyMigrations(ctx, pool, persistencepostgres.MigrationBudgets{}); err != nil {
 		t.Fatal(err)
 	}

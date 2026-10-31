@@ -50,6 +50,8 @@ var layers = []layerSpec{
 			"internal/mtlstest",
 			// The public list page bound shared by handlers, stores and the CLI.
 			"internal/pagelimit",
+			// Schema-isolated test pools; pgx and standard library only.
+			"internal/persistence/postgrestest",
 			"internal/profiling",
 			"internal/publicclient/generated",
 			"internal/randomid",

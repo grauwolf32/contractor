@@ -2,8 +2,6 @@ package runtimeconfig
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"os"
 	"strings"
@@ -16,6 +14,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/persistence/postgrestest"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -361,45 +360,7 @@ func TestPostgresRuntimeManagementBindingMutationIsCASAndReplaySafe(t *testing.T
 
 func isolatedRuntimeConfigPool(t *testing.T, ctx context.Context, databaseURL string) *pgxpool.Pool {
 	t.Helper()
-	admin, err := pgxpool.New(ctx, databaseURL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := admin.Ping(ctx); err != nil {
-		admin.Close()
-		t.Fatal(err)
-	}
-	randomBytes := make([]byte, 8)
-	if _, err := rand.Read(randomBytes); err != nil {
-		admin.Close()
-		t.Fatal(err)
-	}
-	schema := "runtime_config_test_" + hex.EncodeToString(randomBytes)
-	identifier := pgx.Identifier{schema}.Sanitize()
-	if _, err := admin.Exec(ctx, `CREATE SCHEMA `+identifier); err != nil {
-		admin.Close()
-		t.Fatal(err)
-	}
-	config, err := pgxpool.ParseConfig(databaseURL)
-	if err != nil {
-		admin.Close()
-		t.Fatal(err)
-	}
-	config.ConnConfig.RuntimeParams["search_path"] = schema
-	pool, err := pgxpool.NewWithConfig(ctx, config)
-	if err != nil {
-		admin.Close()
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		pool.Close()
-		cleanupCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		if _, err := admin.Exec(cleanupCtx, `DROP SCHEMA `+identifier+` CASCADE`); err != nil {
-			t.Logf("drop isolated schema: %v", err)
-		}
-		admin.Close()
-	})
+	pool := postgrestest.NewPool(t, ctx, databaseURL, postgrestest.Options{})
 	return pool
 }
 

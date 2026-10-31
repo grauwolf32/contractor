@@ -48,3 +48,11 @@ tests:
     covers: [A1, A2, A3, A4]
   - command: make lint
     covers: [A1, A3, A4]
+  - command: CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -race -count=1 ./internal/persistence/postgrestest
+    covers: [A2, A3]
+implementation_notes:
+  - 33 single-pool fixture helpers use postgrestest.NewPool; the helper is 87 lines and its real-store regression tests are 164 lines. The Go diff removes 1138 lines net, including the new helper and tests.
+  - Migrations remain in callers; raw-schema fixtures remain unmigrated. SQL tracers, MaxConns=1, statement_timeout=10000, lock_timeout=50ms, 30-second/minute cleanup budgets and dense Audit event checks remain explicit.
+  - Specialized fixtures retained are settingsstore.isolatedSettingsPool and postgres.isolatedPools (shared-schema reopening/multiple pools), app.isolatedRecoveryPool and performance.databaseFixture (production OpenPool), and app.isolatedStartupDatabase (startup/migration URL).
+  - A comparison against the original sources confirmed that the 33 migrated files change only imports and their single setup helper; test scenarios are unchanged.
+  - V425-028 separately fixes the pre-existing V425-024 Git wire import inventory omission discovered by the first aggregate test pass.

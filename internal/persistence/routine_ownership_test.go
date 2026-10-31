@@ -2,11 +2,8 @@ package persistence
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"fmt"
 	"maps"
-	"os"
 	"slices"
 	"strings"
 	"testing"
@@ -14,6 +11,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/persistence/explaintest"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/persistence/postgrestest"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -293,42 +291,11 @@ func checkRoutineOwnership(registry ownershipRegistry, routines migrationRoutine
 // CONTRACTOR_TEST_DATABASE_URL is unset.
 func migratedSchema(t *testing.T) *pgxpool.Pool {
 	t.Helper()
-	url := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
-	if url == "" {
-		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
-	random := make([]byte, 8)
-	if _, err := rand.Read(random); err != nil {
-		t.Fatal(err)
-	}
-	schema := "ownership_" + hex.EncodeToString(random)
-	admin, err := pgxpool.New(ctx, url)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(admin.Close)
-	if _, err := admin.Exec(ctx, `CREATE SCHEMA `+schema); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		cleanup, cancel := context.WithTimeout(context.Background(), time.Minute)
-		defer cancel()
-		if _, err := admin.Exec(cleanup, `DROP SCHEMA `+schema+` CASCADE`); err != nil {
-			t.Errorf("drop schema %s: %v", schema, err)
-		}
+	pool := postgrestest.NewPool(t, ctx, "", postgrestest.Options{
+		CleanupTimeout: time.Minute,
 	})
-	config, err := pgxpool.ParseConfig(url)
-	if err != nil {
-		t.Fatal(err)
-	}
-	config.ConnConfig.RuntimeParams["search_path"] = schema
-	pool, err := pgxpool.NewWithConfig(ctx, config)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(pool.Close)
 	if _, err := persistencepostgres.ApplyMigrations(ctx, pool, persistencepostgres.MigrationBudgets{}); err != nil {
 		t.Fatal(err)
 	}

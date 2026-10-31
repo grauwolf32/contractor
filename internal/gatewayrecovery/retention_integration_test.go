@@ -3,19 +3,16 @@
 package gatewayrecovery
 
 import (
-	"context"
-	cryptorand "crypto/rand"
-	"encoding/hex"
 	"encoding/json"
-	"github.com/grauwolf32/contractor/internal/config/resolved"
-	"os"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/persistence/postgrestest"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
@@ -27,44 +24,8 @@ import (
 // while CONTRACTOR_TEST_DATABASE_URL is unset; an unreachable database fails.
 func recoveryTestPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
-	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
-	if databaseURL == "" {
-		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
-	}
 	ctx := t.Context()
-	admin, err := pgxpool.New(ctx, databaseURL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	random := make([]byte, 8)
-	if _, err := cryptorand.Read(random); err != nil {
-		admin.Close()
-		t.Fatal(err)
-	}
-	schema := pgx.Identifier{"gateway_recovery_" + hex.EncodeToString(random)}.Sanitize()
-	if _, err := admin.Exec(ctx, `CREATE SCHEMA `+schema); err != nil {
-		admin.Close()
-		t.Fatal(err)
-	}
-	config, err := pgxpool.ParseConfig(databaseURL)
-	if err != nil {
-		admin.Close()
-		t.Fatal(err)
-	}
-	config.ConnConfig.RuntimeParams["search_path"] = strings.Trim(schema, `"`)
-	pool, err := pgxpool.NewWithConfig(ctx, config)
-	if err != nil {
-		admin.Close()
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		pool.Close()
-		_, err := admin.Exec(context.Background(), `DROP SCHEMA `+schema+` CASCADE`)
-		admin.Close()
-		if err != nil {
-			t.Error(err)
-		}
-	})
+	pool := postgrestest.NewPool(t, ctx, "", postgrestest.Options{})
 	if _, err := persistencepostgres.ApplyMigrations(ctx, pool, persistencepostgres.MigrationBudgets{}); err != nil {
 		t.Fatal(err)
 	}

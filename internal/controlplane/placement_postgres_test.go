@@ -2,12 +2,9 @@ package controlplane
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
@@ -25,6 +22,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/persistence/postgrestest"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -803,51 +801,9 @@ func (f placementGuardFunc) WithAllocationReferences(ctx context.Context, fn fun
 
 func isolatedPlacementPool(t *testing.T, ctx context.Context) *pgxpool.Pool {
 	t.Helper()
-	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
-	if databaseURL == "" {
-		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
-	}
-	admin, err := pgxpool.New(ctx, databaseURL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := admin.Ping(ctx); err != nil {
-		admin.Close()
-		t.Fatal(err)
-	}
-	random := make([]byte, 8)
-	if _, err := rand.Read(random); err != nil {
-		admin.Close()
-		t.Fatal(err)
-	}
-	schema := "placement_test_" + hex.EncodeToString(random)
-	identifier := pgx.Identifier{schema}.Sanitize()
-	if _, err := admin.Exec(ctx, `CREATE SCHEMA `+identifier); err != nil {
-		admin.Close()
-		t.Fatal(err)
-	}
-	config, err := pgxpool.ParseConfig(databaseURL)
-	if err != nil {
-		admin.Close()
-		t.Fatal(err)
-	}
-	config.ConnConfig.RuntimeParams["search_path"] = schema
-	pool, err := pgxpool.NewWithConfig(ctx, config)
-	if err != nil {
-		admin.Close()
-		t.Fatal(err)
-	}
+	pool := postgrestest.NewPool(t, ctx, "", postgrestest.Options{})
 	if _, err := persistencepostgres.ApplyMigrations(ctx, pool, persistencepostgres.MigrationBudgets{}); err != nil {
-		pool.Close()
-		admin.Close()
 		t.Fatal(err)
 	}
-	t.Cleanup(func() {
-		pool.Close()
-		cleanupContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		_, _ = admin.Exec(cleanupContext, `DROP SCHEMA `+identifier+` CASCADE`)
-		admin.Close()
-	})
 	return pool
 }
