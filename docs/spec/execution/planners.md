@@ -969,7 +969,8 @@ management with `plannerContextManagement`
 ([WFL-R90](../configuration/workflows.md)); both Planners share one Server-side
 compaction engine. `none` keeps the whole conversation. `compact@1` lets the
 invocation replace earlier turns with one rolling summary; its compactor is the
-Planner selection's exact `compactorModelPolicy`
+Planner execution selection's exact `compactorModelPolicy`, selected through
+Workflow executionConfig rather than the context block
 ([TPL-R117](../configuration/agent-templates.md),
 [TPL-R118](../configuration/agent-templates.md)) and calls the Planner's
 effective Gateway with the Planner's credential, with no tools and without

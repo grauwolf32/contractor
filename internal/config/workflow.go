@@ -289,7 +289,7 @@ func (l *loader) resolveStage(
 	if err != nil {
 		return resolved.ResolvedStage{}, err
 	}
-	contextManagement, compactor, err := l.resolvePlannerContextManagement(
+	contextManagement, err := l.resolvePlannerContextManagement(
 		source.PlannerContextManagement, source.Operation != nil,
 	)
 	if err != nil {
@@ -313,16 +313,7 @@ func (l *loader) resolveStage(
 		WorkflowOutputs:          mappings,
 		On:                       transitions,
 	}
-	if compactor != nil {
-		// The Stage's compactor is the lowest-precedence compactor selection;
-		// executionConfig layers may replace it (PLN-R125, TPL-R79).
-		stage.ExecutionConfig.Planner = &resolved.ResolvedConsumerExecutionConfig{
-			CompactorModelPolicy: compactor,
-			Origins: resolved.ExecutionConfigOrigins{
-				CompactorModelPolicy: "workflow.stages." + stageName + ".plannerContextManagement",
-			},
-		}
-	}
+
 	if source.Operation != nil && source.Planner != "" {
 		return resolved.ResolvedStage{}, fmt.Errorf("Stage must select exactly one of planner or operation")
 	}
@@ -689,7 +680,7 @@ func (l *loader) resolveTransitionAction(
 		if plannerRef == nil && source.Escalate.PlannerContextManagement.Kind != 0 {
 			return resolved.TransitionAction{}, fmt.Errorf("%s: plannerContextManagement requires on.summarized Planner continuation", field)
 		}
-		plannerContext, _, err := l.resolvePlannerContextPolicy(source.Escalate.PlannerContextManagement, false, false)
+		plannerContext, err := l.resolvePlannerContextManagement(source.Escalate.PlannerContextManagement, false)
 		if err != nil {
 			return resolved.TransitionAction{}, fmt.Errorf("%s.escalate.plannerContextManagement: %w", field, err)
 		}

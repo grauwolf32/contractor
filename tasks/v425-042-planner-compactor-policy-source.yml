@@ -8,7 +8,7 @@ introduced_by: V420-002
 priority: P3
 status: in_progress
 depends_on: [V425-041]
-languages: [go, yaml, typescript]
+languages: [go, python, yaml]
 goal: >-
   Choose the Planner's main and compactor models in executionConfig while
   plannerContextManagement describes only compaction behavior.
@@ -42,8 +42,8 @@ context:
     concrete consumer that cannot express its selection through executionConfig.
   demonstration: >-
     Load a real fixture Workflow using a Workflow-wide compactor policy and a
-    Stage-specific selection, execute normal and summary-continuation Planner
-    compaction through existing process gates, and retain the exact policies in
+    Stage-specific selection, check ordinary and summary-continuation Planner
+    resolution and execute the existing production Memory process gate, retaining policies in
     snapshots after catalog changes. Existing YAML anchors and merges reuse
     behavior without reintroducing the removed model field.
 scope:
@@ -71,7 +71,7 @@ acceptance_criteria:
   - id: A4
     text: Specs, authoring producers and validators agree; generated outputs are regenerated only when their source changes and no unrelated subsystem is expanded.
 tests:
-  - command: go test -tags=integration ./internal/config/... ./internal/configload/... ./internal/runservice ./internal/scheduler ./internal/httpapi/public
+  - command: go test -tags=integration ./internal/config/... ./internal/configload/... ./internal/runservice ./internal/scheduler ./internal/httpapi/public ./internal/planner/streamline
     covers: [A1, A2, A3]
   - command: make test-config
     covers: [A1, A2, A3]
@@ -79,9 +79,9 @@ tests:
     covers: [A3, A4]
   - command: make test-hardening-matrices
     covers: [A3, A4]
-  - command: make ui-verify
+  - command: make ui-generate-check
     covers: [A4]
-  - command: go test -tags=e2e -count=1 -timeout=8m ./tests/e2e -run '^TestPlannerCompactionProductionBoundaries$'
+  - command: go test -tags=e2e -count=1 -timeout=8m ./tests/e2e -run '^TestProductionMemoryTemplatesAcrossProcesses$'
     covers: [A2, A3]
   - command: make lint
     covers: [A1, A4]

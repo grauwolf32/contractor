@@ -437,3 +437,8 @@ needs `summarizerModelPolicy`. Use Workflow-wide defaults for shared selections
 and Stage/agent selections for exceptions, for example a small model for a
 bounded secret review Worker and a stronger model for a deeper source review.
 YAML anchors can reuse these selections within the same Workflow document.
+
+Planner compaction follows the same split: select its `compactorModelPolicy`
+in Workflow `executionConfig.planner` or the Stage's Planner execution selection.
+`plannerContextManagement` contains the strategy, instructions and thresholds.
+It contains no model selection; summary continuations use the same grammar.

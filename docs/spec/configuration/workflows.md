@@ -255,14 +255,17 @@ mappings and transitions remain in force. Execution and recovery are owned by
 `plannerContextManagement`, a strict union whose `strategy` selects the branch.
 `strategy: none`, the default when the member is omitted, accepts no other
 field and keeps the whole Planner conversation. `strategy: compact@1` requires
-an exact compactor `modelPolicy` selector and an `instructions.ref` resource
-pinned by digest like Planner instructions (WFL-R19), and accepts
+an `instructions.ref` resource pinned by digest like Planner instructions
+(WFL-R19), and accepts
 `contextWindowRatio` (exclusive 0 to 1, default 0.75, LIM-PLN-10),
 `keepRecentGroups` (1 to 16, default 4, LIM-PLN-11) and `maxCompactions` (1 to
 16, default 8, LIM-PLN-12). A null member, a null or unknown field, a
 duplicate key, a mixed branch, a Planner summarizer or terminal setting and any
 other strategy are invalid. The member is invalid on a `passthrough@1`, other
-model-free or operation Stage. `compact@1` also requires the Stage's effective
+model-free or operation Stage. The context block forbids `modelPolicy`, including
+null or a value inherited through YAML merge. Workflow executionConfig must
+select its effective `compactorModelPolicy` (TPL-R117); there is no context-block
+base policy. `compact@1` also requires the Stage's effective
 Planner ModelPolicy to declare `contextWindowTokens` with `maxOutputTokens`
 below it; the compactor policy rules are TPL-R118. The resolved Stage carries
 the `compact@1` branch with every default made explicit and no member for

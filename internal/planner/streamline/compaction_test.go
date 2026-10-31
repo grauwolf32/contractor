@@ -45,7 +45,7 @@ func compactionInvocation(profile string) planner.Invocation {
 	}
 	invocation.Stage.ExecutionConfig.Planner = &resolved.ResolvedConsumerExecutionConfig{
 		ModelPolicy: main, CompactorModelPolicy: &compactor,
-		Origins: resolved.ExecutionConfigOrigins{CompactorModelPolicy: "workflow.stages.review.plannerContextManagement"},
+		Origins: resolved.ExecutionConfigOrigins{CompactorModelPolicy: "workflow.executionConfig.planner"},
 	}
 	return invocation
 }
