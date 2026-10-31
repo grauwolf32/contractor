@@ -166,12 +166,12 @@ func (node explainNode) scansOf(relation string) []explainNode {
 	return result
 }
 
-func TestPostgresIntegrationUserListingSkipsSweepSnapshotsByIndex(t *testing.T) {
+func TestPostgresIntegrationUserListingSkipsSystemBindingsByIndex(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
 	service := NewService(NewPostgresRepository(pool))
-	user, _ := service.User("sweep-library-owner")
+	user, _ := service.User("system-library-owner")
 	refs := []ArtifactRef{{Namespace: "notes", Name: "first"}, {Namespace: "notes", Name: "second"}, {Namespace: "zeta", Name: "third"}}
 	var source WriteResult
 	for _, ref := range refs {
@@ -182,15 +182,15 @@ func TestPostgresIntegrationUserListingSkipsSweepSnapshotsByIndex(t *testing.T) 
 		source = written
 	}
 	var version string
-	if err := pool.QueryRow(ctx, `SELECT version_id FROM artifact_binding_revisions WHERE scope_kind='user' AND scope_id='sweep-library-owner' AND namespace=$1 AND name=$2 AND revision=$3`, source.Ref.Namespace, source.Ref.Name, source.Ref.Revision).Scan(&version); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT version_id FROM artifact_binding_revisions WHERE scope_kind='user' AND scope_id='system-library-owner' AND namespace=$1 AND name=$2 AND revision=$3`, source.Ref.Namespace, source.Ref.Name, source.Ref.Revision).Scan(&version); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `INSERT INTO artifact_binding_revisions(scope_kind,scope_id,namespace,name,revision,version_id)
-SELECT 'user','sweep-library-owner',$1,'scan-sweep.'||i||'.rulepack','rev-sweep-'||i,$2 FROM generate_series(1,6000) i`, artifactpolicy.RunSystemNamespace, version); err != nil {
+SELECT 'user','system-library-owner',$1,'system-fixture.'||i||'.rulepack','rev-system-'||i,$2 FROM generate_series(1,6000) i`, artifactpolicy.RunSystemNamespace, version); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `INSERT INTO artifact_bindings(scope_kind,scope_id,namespace,name,current_revision,frozen,retained_revisions,retained_bytes)
-SELECT scope_kind,scope_id,namespace,name,revision,true,1,0 FROM artifact_binding_revisions WHERE scope_kind='user' AND scope_id='sweep-library-owner' AND namespace=$1`, artifactpolicy.RunSystemNamespace); err != nil {
+SELECT scope_kind,scope_id,namespace,name,revision,true,1,0 FROM artifact_binding_revisions WHERE scope_kind='user' AND scope_id='system-library-owner' AND namespace=$1`, artifactpolicy.RunSystemNamespace); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `ANALYZE artifact_bindings`); err != nil {
@@ -199,7 +199,7 @@ SELECT scope_kind,scope_id,namespace,name,revision,true,1,0 FROM artifact_bindin
 	var reads int64
 	var listed []string
 	if err := postgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		pages, _ := NewService(NewPostgresRepository(tx)).User("sweep-library-owner")
+		pages, _ := NewService(NewPostgresRepository(tx)).User("system-library-owner")
 		query := BindingPageQuery{HiddenNamespace: artifactpolicy.AuditStandardCatalogNamespace, Limit: 2}
 		for {
 			items, err := pages.ListMetadata(ctx, query)

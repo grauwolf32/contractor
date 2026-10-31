@@ -744,26 +744,6 @@
     "Разрешение конфигурации Run, Audit и Eval"
    ]
   ],
-  "scan_sweeps": [
-   "projects",
-   "Sweep: неизменяемый снимок правил, целей и конфигурации; счётчики и controller claim",
-   "Объединяет обычные Project Runs с возобновлением без повторного сканирования.",
-   [
-    "Sweep API: admission, replay, cancellation, results",
-    "Sweep controller: до 25 участников за тик",
-    "Очистка terminal sweeps через 30 дней"
-   ]
-  ],
-  "scan_sweep_members": [
-   "projects",
-   "Участник sweep: Project, цель, точный запрос и ключ дочернего Run",
-   "Фиксирует admission и Run ID независимо от удаления Project или Run.",
-   [
-    "Обычный Run admission в общей транзакции с участником",
-    "Постраничные результаты с фактическим состоянием Run",
-    "Ограниченная отмена, восстановление и purge"
-   ]
-  ],
   "audit_round_result_pages": [
    "audits",
    "Immutable settled-Round snapshot construction pages",

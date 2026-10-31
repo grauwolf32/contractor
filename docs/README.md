@@ -17,6 +17,9 @@ the deployment guide.
 
 [Proposals](proposals/) hold designs of capabilities that are not implemented
 yet; each is folded into the specification once implemented.
+[Target scanning through Audit](proposals/0049-audit-owned-target-scanning.md)
+records the decision to remove independent local and durable sweeps and use the
+existing Project Audit and selected check Workflow for a concrete target scan.
 [Compressed HTTP traffic export](proposals/0036-compressed-http-traffic-export.md)
 is a deferred idea. The
 [autonomous pentest Audit proposal](proposals/0033-autonomous-pentest-audits.md)

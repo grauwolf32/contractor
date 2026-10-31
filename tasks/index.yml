@@ -9,6 +9,13 @@ project:
 
 execution_policy:
   current_delivery_focus: >-
+    User decision 2026-10-31: Sweep is not a product entity. Concrete target
+    scans belong to ordinary Project Audits and selected Workflows. V425-033
+    removes the independent local and durable sweeps, their API/CLI and
+    persistence through the existing web-scan Audit path. This supersedes
+    preservation of cross-Project sweeps in V406-018. Implementation was authorized
+    on 2026-10-31; V425-034 separately repairs the existing custom-rule Audit
+    input read bound required by the replacement demonstration.
     Pentest delivery revised by the user on 2026-10-30: V422-002 and V422-003
     are completed on main; preserve their recorded implementation and verification.
     Next V411-007 connects actual HTTP evidence, V411-019 supplies small
@@ -181,8 +188,8 @@ milestones:
     exit_task: V405-005
     outcome: Startup-owned cloud and local labels dynamically constrain WorkflowRun and Audit Worker placement through UI selections, with immutable launch requirements and retained allocation provenance.
   - id: web-nuclei-rule-sweeps-2026-10
-    exit_task: V406-007
-    outcome: Parameterized model-free Nuclei web scans pin rule content, custom packs are uploaded once to UserScope and forked into standalone or Project Runs, and bounded Project sweeps resume and cancel through ordinary Runs with UI and CLI controls.
+    exit_task: V425-033
+    outcome: Target Nuclei checks use ordinary Project Audits and their selected Workflows with pinned target/settings/rules, real child Runs and normal evidence/results. Independent local and durable Sweep orchestration, API/CLI, tables and primary standalone launch paths are removed; installed/custom rule and lifecycle behavior is proved through the existing Audit flow. This replaces the earlier cross-Project batch outcome by user decision on 2026-10-31.
   - id: runtime-host-provisioning-2026-10
     exit_task: V402-001
     outcome: One Ansible run provisions a Linux host with the Runtime Agents and the capability prerequisites chosen per host or per process, and fails unless each process registered and probed what it was configured for.

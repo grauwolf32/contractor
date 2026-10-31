@@ -552,18 +552,15 @@ report publication retain their ownership.
 
 ### Pinned installed Nuclei web scans
 
-**SCN-R225.** `nuclei-web@1` accepts a required explicit `target` and optional
-string `template_ids`, `tags`, `severity` and `rate_limit`. Its passthrough Stage
-uses `nuclei-web-scan@1`, `tool@1`, `local-workdir@1` and `scan@1.scan_nuclei`,
-without a model or OpenAPI input. Empty filter defaults select the engine's
-eligible HTTP templates; omitted rate defaults to integer 10. Explicit rate
-text follows SCN-R222 and must project to 1..1000. The adapter deadline is
-300 seconds and Worker deadline 330 seconds to allow diagnostic publication.
-Server admission and Runtime share scanner-owned input fixtures: URLs use the
-bounded printable ASCII HTTP request URL grammar and shared host syntax;
-filters are at most 2048 bytes of comma-separated names matching
-`[A-Za-z0-9_*][A-Za-z0-9_.*-]*`; severity names are exactly info, low, medium,
-high, critical and unknown. Inputs are never rewritten in the durable Run.
+**SCN-R225.** User-facing target scanning belongs to the Project's ordinary
+`web-scan@1` Audit, whose `audit-web-nuclei-scan@1` Workflow executes one
+explicit target without a model or OpenAPI input. Target, filter/rate settings
+and optional exact Project rulepack are baseline inputs; ASC-R151 to ASC-R153
+own admission, authority and result collection. The primary catalog has no
+standalone `nuclei-web` launcher. Generic tool Workflows remain available.
+The adapter deadline is 300 seconds and Worker deadline 330 seconds for
+publication. Shared scanner-owned fixtures define URL, filter, severity and
+rate grammar; inputs are not rewritten in the retained Run.
 
 **SCN-R226.** The AgentTemplate pins the installed package using a literal
 `templates_digest` (`sha256:` and 64 lowercase hexadecimal characters), covered
@@ -616,8 +613,9 @@ content digest, all verified file records, and selected templates with
 ID/path/content digest/size. Publication ambiguity or failure stops before
 scanning; existing receipt semantics prevent another invocation.
 
-**SCN-R230.** The web Workflow declares the `template_manifest` result and
-output as `application/vnd.contractor.nuclei-manifest+json`. The bounded ordinary
+**SCN-R230.** Nuclei publishes its internal template manifest as
+`application/vnd.contractor.nuclei-manifest+json`. It exposes the exact reference
+in its report without declaring another Worker result slot. The bounded ordinary
 report contains expectedPackageDigest, actualPackageDigest when computed,
 engineVersion when known, selectedTemplateCount, resolved filters/rateLimit and
 the exact templateManifest ArtifactRef. The separate manifest carries compact
@@ -637,80 +635,30 @@ and invalid selection as incomplete through the shared outcome table. Timeout,
 process/output failure, cancellation and ambiguous receipt delivery retain their
 existing outcomes; none implies a clean scan or automatic rescan (FAIL-SCN-12).
 
-### Resumable client Project sweeps
+**SCN-R232.** Retired: independent client scan orchestration was removed.
 
-**SCN-R232.** `contractor scan-sweep create MANIFEST` captures a bounded
-selection of explicit `--project` IDs or every owner-authorized Project page
-with `--all`, before any child POST. The default Workflow is `nuclei-web@1`;
-`--workflow` requires an exact selector. Capture Project IDs, explicit target
-URLs from `httpTarget.url`, supplied `--param` values, exact declared-source input
-Artifact revisions from `--artifact` (SCN-R243), child requests and per-member create keys.
-Target cannot be supplied through `--param`. Runs use the ordinary Project Run
-API and include a `scan-sweep` metadata label. Missing/deleting/targetless
-Projects and inaccessible required source refs are explicit member skips; no
-Project credential material enters the manifest.
+**SCN-R233.** Retired: local scan manifests were removed.
 
-**SCN-R233.** The version-1 local manifest contains one immutable snapshot
-(Server origin, sweep ID and ordered members), its RFC 8785 SHA-256 digest,
-per-request digests and mutable member outcomes. The strict reader rejects
-unknown/duplicate/case-aliased fields, malformed/nonexact inputs, altered
-requests/keys/digests and other Server origins before dispatch. A request is
-canonical CreateRunRequest JSON, not a lossy re-creation from a Project. The
-checksum detects accidental modification; this owner-controlled local file is
-not an authorization boundary. Changed inputs require a new `create` invocation,
-new sweep identity and new keys. `resume` accepts no input/selection flags.
-This client freezes requests and Artifact revisions; ordinary Run admission
-still resolves the selected catalog content. The operator keeps published
-catalog content stable during a client sweep; per-Run package digests in the
-reports detect drift. Server-owned sweeps must pin resolved configuration to
-remove that pre-production operational condition.
+**SCN-R234.** Retired: client fan-out bounds were removed.
 
-**SCN-R234.** A client scope contains at most 1000 unique Projects
-(LIM-SCN-76); the manifest is at most 8 MiB (LIM-SCN-77), each captured child
-request 16 KiB (LIM-SCN-78) and each API response 4 MiB (LIM-SCN-79). Every
-Project page requests at most 200 rows; duplicate members, repeated/empty
-continuation cursors and empty continuing pages fail. Only one child request
-runs at a time. Capture completes before the first POST; local outcome writes
-replace at most 8 MiB after each member (at most 1001 bounded writes for a full
-invocation). The expected scope is about 7 Projects.
+**SCN-R235.** Retired: client scan recovery was removed; ordinary Audit keys own replay.
 
-**SCN-R235.** The existing Go public client retries replayable calls at most
-three times (within the sweep's five-attempt ceiling) using the unchanged body
-and idempotency key. Respect a valid Retry-After in seconds or HTTP-date;
-waiting more than 30 seconds returns the retryable response for explicit later
-resume rather than retrying early. API attempts retain the CLI `--timeout`;
-`--deadline` independently bounds the whole invocation (default 30 minutes,
-maximum 24 hours; LIM-SCN-80). Exhausted/ambiguous calls leave a member unknown;
-resume repeats only pending/unknown requests with the original key. Permanent
-member failures never block other eligible Projects and are not automatically
-resubmitted. Create/resume prints the bounded outcomes and exits nonzero if
-unknown/permanently failed members remain. `created` means Run accepted, not
-scan completed (FAIL-SCN-13).
+**SCN-R236.** Retired: scan manifest persistence and locking were removed.
 
-**SCN-R236.** Publish the initial manifest create-only before dispatch; each
-update uses a mode-0600 temporary file, fsync, atomic replacement and directory
-sync. A persistent sidecar inode and Unix advisory lock exclude concurrent CLI
-writers; process death releases the kernel lock. Never remove that sidecar
-while a command is active. Cancellation joins the in-flight HTTP call and saves
-its known/unknown outcome; if local persistence fails, the previous valid file
-still preserves the child key/request for idempotent resume. The operator owns
-manifest/sidecar removal while idle, independently of ordinary Run retention
-(LIFE-SCN-8). `status` reads local membership; ordinary Run/Project APIs show
-execution and reports.
-
-**SCN-R237.** A required production-process gate exercises the shipped web
-Workflow and client sweep with a deterministic scanner protocol fixture,
-without host scanner dependencies. It covers admission, HTTP invocation,
-exact report/manifest publication, Project grouping, lost-create acknowledgement
-and settled-member replay. A separate explicit gate retains real installed
-Nuclei smoke coverage. A zero-test or skipped acceptance selection is not a pass.
+**SCN-R237.** The required production-process gate exercises the shipped Web
+scan Audit through real Server, Scheduler, Runtime and Artifact collection with
+a deterministic scanner fixture. It proves installed/custom rules, exact
+accepted inputs after source edits, active-check approval, create/start replay,
+ordinary child cancellation, bounded failures and retained results after Run
+deletion. A separate explicit gate retains real installed Nuclei smoke coverage.
+A zero-test or skipped acceptance selection is not a pass.
 
 ### Owner-uploaded custom Nuclei rulepacks
 
 **SCN-R238.** `scan_nuclei` accepts optional `rulepack_ref`, an exact
 visible RunScope ArtifactRef. An absent binding selects installed mode; a
-supplied invalid/inaccessible pack fails without fallback. The web Workflow's
-optional `rulepack` input declares `sourceScope: user`; trusted Run admission
+supplied invalid/inaccessible pack fails without fallback. An ordinary tool Workflow's
+optional `rulepack` input may declare `sourceScope: user`; trusted Run admission
 derives its UserScope from the authenticated owner even for Project Runs,
 validates media/size and forks the exact source to `inputs/rulepack` in the
 same create transaction. No request selects a scope ID. Other Project inputs
@@ -727,7 +675,7 @@ names. Names contain at most 128 UTF-8 bytes, no leading dot, surrounding
 whitespace, separators, colon or controls (LIM-SCN-85). ZIP entry preflight and
 streaming expansion enforce limits before unbounded allocation or writes.
 The encoded media/size predicate is owned by `contracts/scan` and shared
-fixtures cover Run, sweep, Audit admission/dispatch, UI and Runtime checks.
+fixtures cover Run, Audit admission/dispatch, UI and Runtime checks.
 Metadata admits zero bytes; content validation separately rejects an empty pack (SCN-R240).
 The predicate grants no source authority: ordinary Workflow admission uses
 SCN-R238's per-slot scope, Project Audit admission uses its exact Project inputs
@@ -762,113 +710,25 @@ accepted non-goal owned by the operator; reconsider before accepting untrusted
 or shared rulepacks. Pack size, structure, source scope and provenance remain
 strictly enforced. No arbitrary scope/owner selection is added.
 
-**SCN-R243.** Client sweeps inspect the selected Workflow input contract when
-artifact inputs are supplied. Resolve each owner-scoped rulepack once to an
-exact UserScope revision before dispatch and reuse it across Projects; resolve
-ordinary inputs per Project. Resume reads no mutable source. Repeat snapshots
-retain each original exact source with its explicit sourceScope; a catalog
-change to that scope makes the repeat input unavailable rather than selecting
-another scope's same-named artifact.
+**SCN-R243.** Retired: independent target-scan orchestration was removed; use the Audit contract in ASC-R151 to ASC-R153.
 
-### Durable server Project sweeps
+**SCN-R244.** Retired: independent target-scan orchestration was removed; use the Audit contract in ASC-R151 to ASC-R153.
 
-**SCN-R244.** `POST /v1/scan-sweeps` selects either 1..1000 unique owner
-Project IDs or all owner Projects. Admission captures concrete membership,
-`httpTarget.url`, resolved model-free single-stage passthrough Nuclei Workflow
-and templates, RuntimeConfig pins, defaulted parameters, exact source revision
-and digest, and canonical child requests with independent opaque create keys.
-The ordinary Run endpoint still requires an explicit target. Missing, deleting
-or targetless Projects become skipped members with explicit reasons; a changed
-Project after capture never supplies a new target to a pending member.
+**SCN-R245.** Retired: independent target-scan orchestration was removed; use the Audit contract in ASC-R151 to ASC-R153.
 
-**SCN-R245.** Sweep creation is one bounded transaction under the existing
-KeyedMutation receipt (PER-R24). Replay precedes configuration and source reads.
-Changed requests under that owner key return `idempotency_conflict`. Resolved
-configuration remains pinned; unavailable or drifted catalog dependencies fail
-admission rather than substitute new content. Installed mode requires a literal
-package digest. Custom mode retains exactly one frozen input fork in the same
-owner UserScope under `contractor-system/scan-sweep.<id>.rulepack`; generic
-uploads cannot write this namespace and public library reads/listings hide it.
-The source can advance or disappear after capture. Children fork the retained
-bytes, while their repeat fragment records the original exact owner source.
-No Project copy, new model scope, scanner path or receipt/lease mechanism is
-introduced. Custom template destinations retain SCN-R242's accepted policy.
+**SCN-R246.** Retired: independent target-scan orchestration was removed; use the Audit contract in ASC-R151 to ASC-R153.
 
-**SCN-R246.** A parent stores immutable closure and membership identities;
-only counters, claim state, retry deadlines and member outcomes advance.
-The total closure plus child request bytes is at most 8 MiB and every child is
-at most 16 KiB. Expected scope size is seven Projects; maximum is 1000
-(LIM-SCN-88). Admission reads at most 1001 owner Projects to detect overflow,
-without per-Project lookups. Source bytes obey LIM-SCN-81 and LIM-SCN-84 and
-are shared through ordinary Artifact versions rather than copied per Project.
+**SCN-R247.** Retired: independent target-scan orchestration was removed; use the Audit contract in ASC-R151 to ASC-R153.
 
-**SCN-R247.** The sweep controller leases one parent through ControllerClaims
-(PER-R25), then processes at most 25 members and 4 MiB of serialized child
-requests per tick. A partial index orders unsettled members by next attempt
-and ordinal, so polling settled members cannot starve pending admissions.
-Parent read views use maintained counters; neither polling nor a tick scans
-the whole collection. Leasing reads only the active and cancelling parents,
-in next-tick order through their partial index, so settled sweeps kept for
-their history add nothing to it. Members and owner sweeps use authenticated
-keyset pages of at most 200 items (LIM-SCN-89).
+**SCN-R248.** Retired: independent target-scan orchestration was removed; use the Audit contract in ASC-R151 to ASC-R153.
 
-**SCN-R248.** Ordinary Project Run creation and binding its Run ID to the
-member commit in the same Run-creation transaction, under the parent's live
-claim and row lock. Cancellation takes that same parent lock. A lost response
-therefore leaves either both facts or neither; reconciliation uses exactly the
-captured request and key. Admitted facts never become pending or disappear.
-The Scheduler and Runtime's existing receipts alone own scan delivery and
-execution; the sweep never repeats active or terminal scans independently.
+**SCN-R249.** Retired: independent target-scan orchestration was removed; use the Audit contract in ASC-R151 to ASC-R153.
 
-**SCN-R249.** Member states are `pending`, `admitted`, `skipped`, `failed` and
-`cancelled`. Admitted members report the actual current Run state, including
-`cancelling`; a removed child retains its Run ID and settles with `run_removed`.
-The counts classify member admission outcomes, not scanner findings. A sweep is
-`active` until every pending admission and admitted Run has settled,
-then `completed`. A later independent ordinary Run resume does not reopen the
-sweep. Permanent member admission errors settle only that member.
-Retryable or ambiguous errors retain its captured key and body with bounded
-exponential backoff; admission expires after 24 hours or 100 attempts. A tick
-has a separate 30-second budget, child admission 10 seconds, claim 60 seconds,
-and claim release five seconds (LIM-SCN-90, LIM-SCN-91; FAIL-SCN-15). These
-bounds do not extend ordinary Run execution or scanner deadlines. The claim
-is released after every tick, also a cancelled one, as
-[PER-R26](../platform/persistence.md) describes: a lost claim is not a
-failure, and a definite release failure is reported with the tick; the sweep
-then stays claimed until its lease ends.
+**SCN-R250.** Retired: independent target-scan orchestration was removed; use the Audit contract in ASC-R151 to ASC-R153.
 
-**SCN-R250.** Owner cancellation sets `cancelling`, blocks further child
-creation through the parent transaction fence, cancels unsent members, and
-requests ordinary cancellation of admitted Runs. Only actual terminal child
-states settle those members; the parent then becomes `cancelled`. Repeated
-cancellation is idempotent, so it accepts an `Idempotency-Key` that it
-validates but does not bind ([API-R28](../api/public-api.md)). Missing and
-foreign sweeps are indistinguishable.
+**SCN-R251.** Retired: independent target-scan orchestration was removed; use the Audit contract in ASC-R151 to ASC-R153.
 
-**SCN-R251.** Owner purge requires a terminal sweep with no live controller
-claim, cancels and joins in-process work before physical deletion, and holds
-the parent lock through cleanup. It removes only sweep membership, metadata
-and the one retained input; child Runs, their forks and owner sources have
-independent lifecycle. Terminal metadata and snapshots become eligible for
-automatic purge 30 days after settlement. Maintenance selects one expired
-parent per minute and deletes at most 25 members per transaction; a resource
-being physically purged is hidden from reads. Creation receipts retain only
-the original identity and request digest indefinitely. Replay after purge is
-`not_found`, never a new sweep or new child traffic (LIFE-SCN-10).
-
-**SCN-R252.** `contractor scan-sweep remote` creates and manages the durable
-server resource through the generated public client. `create` selects `--all`
-or repeated `--project`, optional rule `--param` values and an exact owner
-`--rulepack namespace/name@revision`; target overrides are rejected. One body
-and create key survive transport retry; a generated key is printed on a
-transient creation failure for explicit replay. `list` returns one keyset
-page. `show` and `cancel` print the actual Server state. `members` returns one
-page, or an explicit `--all-pages` bounded array of at most 1000 members,
-including actual child Run states; it rejects duplicate members, repeated
-cursors, empty continuation pages and oversized responses. Reads reuse the
-4 MiB bound and existing transport deadlines/retry policy. `purge` requires
-`--yes`; Server lifecycle checks remain authoritative. The Phase 1 local
-manifest commands retain their own format and lifecycle.
+**SCN-R252.** Retired: independent target-scan orchestration was removed; use the Audit contract in ASC-R151 to ASC-R153.
 
 ### SQLMap HTTP request artifacts
 
@@ -1927,13 +1787,6 @@ Metrics and receipts carry no argument values or output (SCN-R50, SCN-R39).
 Tool Workers update Worker State revisions and tool counts through
 WorkerStateStore and keep model counters at zero (SCN-R51). RequestSet bytes
 and preparation option values never reach logs (SCN-R119).
-
-## Invariants
-
-1. A durable sweep claim reads, in its custom and generic plans, at most the
-   active and cancelling parents, and no more when settled sweeps are added
-   (SCN-R247); test `TestPostgresSweepClaimReadsOnlyActiveSweeps` in
-   [`internal/scanstore/claim_postgres_test.go`](../../../internal/scanstore/claim_postgres_test.go).
 
 ## Examples
 

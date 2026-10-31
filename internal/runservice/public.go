@@ -7,7 +7,6 @@ import (
 	"sort"
 
 	"github.com/grauwolf32/contractor/internal/agentskills"
-	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
@@ -22,18 +21,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
-
-// CreatePublicIn uses the ordinary admission path with a trusted transaction
-// boundary. A controller can fence its parent and bind the resulting Run in
-// the very transaction that creates it. The Service itself is never mutated.
-func (s *Service) CreatePublicIn(ctx context.Context, params PublicCreateParams, transaction PublicTransaction) (CreateResult, error) {
-	if transaction == nil {
-		return CreateResult{}, ErrNotConfigured
-	}
-	bound := *s
-	bound.publicTransaction = transaction
-	return bound.CreatePublic(ctx, params)
-}
 
 // CreatePublic preserves the public create/replay contract while keeping all
 // mutable resolution behind a replay-first boundary. A committed response-loss
@@ -110,9 +97,6 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 					return projectstore.ErrDeleting
 				}
 				projectTarget = project.HTTPTarget.Clone()
-				if normalized.CapturedTargetURL != "" {
-					projectTarget = &runtimesettings.HTTPOriginTargetRef{URL: normalized.CapturedTargetURL}
-				}
 				if projectTarget != nil && projectTarget.Credential != nil {
 					// The target was authorized when it was attached; pinning it
 					// re-checks that the requesting owner may still use it.
@@ -135,13 +119,7 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 				if catalogErr != nil {
 					return catalogErr
 				}
-				var runtimeSnapshot runtimeconfig.RunSnapshot
-				var pinErr error
-				if normalized.PinnedRuntimeConfig != nil {
-					runtimeSnapshot = normalized.PinnedRuntimeConfig.Clone()
-				} else {
-					runtimeSnapshot, pinErr = runs.PinRuntimeLabels(ctx, normalized.RuntimeLabels, resolved.WorkflowToolWorkersOnly(workflow))
-				}
+				runtimeSnapshot, pinErr := runs.PinRuntimeLabels(ctx, normalized.RuntimeLabels, resolved.WorkflowToolWorkersOnly(workflow))
 				if pinErr != nil {
 					return pinErr
 				}
@@ -203,9 +181,6 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 						return fmt.Errorf("%w: rulepack input exceeds its byte limit", ErrInvalid)
 					}
 					exactSources[slot] = runrepeat.InputSource{SourceScope: sourceScope.Kind(), Artifact: fork.SourceRef}
-					if original, ok := normalized.OriginalInputSources[slot]; ok {
-						exactSources[slot] = original
-					}
 				}
 				repeatRequest, encodeErr := runrepeat.Encode(runrepeat.Snapshot{
 					Workflow: workflow.Ref, ProjectID: normalized.ProjectID,
@@ -260,27 +235,6 @@ func normalizePublicCreate(params PublicCreateParams) (PublicCreateParams, error
 		pinned := params.PinnedWorkflow.Clone()
 		params.PinnedWorkflow = &pinned
 	}
-	if params.CapturedTargetURL != "" {
-		if params.PinnedWorkflow == nil || !resolved.WorkflowToolWorkersOnly(*params.PinnedWorkflow) || params.Parameters["target"] != params.CapturedTargetURL || scan.ValidateNucleiArguments(map[string]any{"url": params.CapturedTargetURL}) != nil {
-			return PublicCreateParams{}, ErrInvalid
-		}
-	}
-	if params.PinnedRuntimeConfig != nil {
-		if params.PinnedWorkflow == nil || !resolved.WorkflowToolWorkersOnly(*params.PinnedWorkflow) || params.PinnedRuntimeConfig.Validate() != nil {
-			return PublicCreateParams{}, ErrInvalid
-		}
-		pin := params.PinnedRuntimeConfig.Clone()
-		params.PinnedRuntimeConfig = &pin
-	}
-	originalSources := make(map[string]runrepeat.InputSource, len(params.OriginalInputSources))
-	for slot, source := range params.OriginalInputSources {
-		if slot != "rulepack" || source.SourceScope != artifacts.ScopeUser || source.Artifact.ValidateExact() != nil || params.Inputs[slot].Namespace != artifactpolicy.RunSystemNamespace || params.PinnedWorkflow == nil {
-			return PublicCreateParams{}, ErrInvalid
-		}
-		source.Artifact = source.Artifact.Clone()
-		originalSources[slot] = source
-	}
-	params.OriginalInputSources = originalSources
 	labels, err := runtimeconfig.NormalizeLabels(params.RuntimeLabels)
 	if err != nil {
 		return PublicCreateParams{}, err

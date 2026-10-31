@@ -21,8 +21,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
-	"github.com/grauwolf32/contractor/internal/scanservice"
-	"github.com/grauwolf32/contractor/internal/scanstore"
 )
 
 // keyedRequest is a request of a keyed operation that, with any well formed
@@ -48,7 +46,6 @@ func keyedOperationRequests(t *testing.T) (handlerFixture, *reusedKeyAudits, map
 		newTestAuthentication(t), mustTestOrigins(t), false, nil,
 		func(dependencies *testServices) {
 			dependencies.Sitemap = &fakeSitemap{err: reused}
-			dependencies.ScanSweeps = reusedKeySweeps{fakeScanSweeps: &fakeScanSweeps{}, err: scanstore.ErrIdempotency}
 			dependencies.Audits = audits
 			dependencies.RunCreator = reusedKeyRuns{err: reused}
 			dependencies.Projects = reusedKeyProjects{ProjectManagement: dependencies.Projects, err: reused}
@@ -99,7 +96,6 @@ func keyedOperationRequests(t *testing.T) (handlerFixture, *reusedKeyAudits, map
 	runBody := `{"workflow":"artifact-copy@1","parameters":{},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`
 	requests := map[string]keyedRequest{
 		"mutateProjectSitemap": {http.MethodPost, "/v1/projects/project-one/sitemap/mutations", `{"operation":"declare","expectedRevision":"absent","url":"https://example.test/users","method":"GET"}`, nil},
-		"createScanSweep":      {http.MethodPost, "/v1/scan-sweeps", `{"projectIds":["project-one"],"workflow":"nuclei-web@1","parameters":{}}`, nil},
 		"createProject":        {http.MethodPost, "/v1/projects", `{"kind":"project","name":"Keyed"}`, nil},
 		"createRun":            {http.MethodPost, "/v1/runs", runBody, nil},
 		"createProjectRun":     {http.MethodPost, "/v1/projects/project-one/runs", runBody, nil},
@@ -355,13 +351,4 @@ func (a *reusedKeyAudits) DecideActionReview(
 	context.Context, auditservice.DecideActionReviewParams,
 ) (auditservice.ActionReviewDecisionResult, error) {
 	return auditservice.ActionReviewDecisionResult{}, a.reach("DecideActionReview")
-}
-
-type reusedKeySweeps struct {
-	*fakeScanSweeps
-	err error
-}
-
-func (s reusedKeySweeps) Create(context.Context, string, string, scanservice.Request) (scanstore.Sweep, bool, error) {
-	return scanstore.Sweep{}, false, s.err
 }

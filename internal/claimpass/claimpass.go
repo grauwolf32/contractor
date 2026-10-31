@@ -3,9 +3,7 @@
 // Audit controller and the Eval coordinator. A pass handles each claim it
 // leased in its own goroutine, joins that handler before it releases the
 // claim under a budget of its own, and reports the failures of every claim
-// once all of them were released (PER-R26). The durable sweep controller,
-// which leases one sweep per tick and joins that tick through its own drain,
-// keeps its own pass but gives its claim back through the same Release.
+// once all of them were released (PER-R26).
 //
 // The package owns no scheduling policy. Each controller leases its own
 // bounded batch, which bounds the goroutines of a pass, gives each handler

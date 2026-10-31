@@ -1183,7 +1183,7 @@ func TestSQLAccessScanDistinguishesProseFromSQL(t *testing.T) {
 		name, text string
 		want       []relationAccess
 	}{
-		{name: "scan sweep help", text: "rule parameter key=value; targets come from Projects"},
+		{name: "CLI help", text: "parameter key=value; inputs come from Projects"},
 		{name: "diagnostic", text: "could not read results from projects using runs"},
 		{name: "parenthesized prose", text: "(results come from projects)"},
 		{name: "commented prose", text: "/* a diagnostic */ results come from projects"},

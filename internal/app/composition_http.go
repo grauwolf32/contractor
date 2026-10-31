@@ -76,10 +76,6 @@ func configureHTTP(
 	if err != nil {
 		return serverHandlers{}, fmt.Errorf("configure Run detail reader: %w", err)
 	}
-	sweeps, sweepController, err := configureSweeps(pool, configurationManager, runCreationCredentials{provider: credentialSet.provider, guard: credentialSet.lifecycle, runtime: credentialSet.runtime, transactionLookup: credentialSet.transactionLookup}, audits.runs, workflows.scheduler, logger)
-	if err != nil {
-		return serverHandlers{}, fmt.Errorf("configure scan sweeps: %w", err)
-	}
 	projects := projectstore.NewPostgresStore(pool)
 	publicHandler, err := publicapi.NewHandler(publicapi.Dependencies{
 		BearerToken:  cfg.PublicBearerToken,
@@ -114,8 +110,7 @@ func configureHTTP(
 		Artifacts: publicapi.ArtifactDependencies{
 			Artifacts: catalogs.artifacts, Projects: projects, Runs: runStore, GitImports: gitImporter,
 		},
-		ScanSweeps: publicapi.ScanSweepDependencies{Sweeps: sweeps},
-		Audits:     publicapi.AuditDependencies{Audits: audits.service, Projects: projects, NewID: randomid.New},
+		Audits: publicapi.AuditDependencies{Audits: audits.service, Projects: projects, NewID: randomid.New},
 		Findings: publicapi.FindingDependencies{
 			FindingProposals: catalogs.findings, FindingCollections: collectionPublisher, FindingExports: collectionPublisher,
 			Audits: audits.service, Runs: runStore,
@@ -165,7 +160,7 @@ func configureHTTP(
 		func() *performance.Collector { return performanceCollector },
 	)
 	runners := backgroundRunnerGroup{
-		workflows.scheduler, workflows.telemetryRetention, audits.controller, workflows.projectDeletion, sweepController, sweeps,
+		workflows.scheduler, workflows.telemetryRetention, audits.controller, workflows.projectDeletion,
 	}
 	if performanceCollector != nil {
 		runners = append(runners, performanceCollector)

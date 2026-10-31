@@ -19,7 +19,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
-	"github.com/grauwolf32/contractor/internal/scanstore"
 )
 
 // Every fake behind a public paged list applies the bound of the real store
@@ -56,14 +55,6 @@ func TestPublicListFakesRejectReadsBeyondThePageFetchBound(t *testing.T) {
 		invalid error
 		read    func(rows int) error
 	}{
-		{"scan sweeps", pagelimit.MaxFetchRows, scanstore.ErrInvalid, func(rows int) error {
-			_, err := (&fakeScanSweeps{}).List(ctx, "user-1", "", rows)
-			return err
-		}},
-		{"scan sweep members", pagelimit.MaxFetchRows, scanstore.ErrInvalid, func(rows int) error {
-			_, err := (&fakeScanSweeps{}).Members(ctx, "user-1", "sweep-pages", -1, rows)
-			return err
-		}},
 		{"projects", pagelimit.MaxFetchRows, projectstore.ErrInvalid, func(rows int) error {
 			_, err := fixture.projects.List(ctx, projectstore.ListParams{OwnerID: "user-1", Limit: rows})
 			return err

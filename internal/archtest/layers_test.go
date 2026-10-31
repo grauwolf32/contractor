@@ -196,9 +196,6 @@ var layers = []layerSpec{
 			"internal/operations/sitemapjoin",
 			"internal/rundeletion",
 			"internal/runservice",
-			"internal/scanstore",
-			"internal/scanservice",
-			"internal/scancontroller",
 		},
 	},
 	{

@@ -284,7 +284,7 @@ func TestRunRejectsAnIncompleteLifecycle(t *testing.T) {
 
 type releaseKey struct{}
 
-// Release on its own, as the sweep controller uses it: it keeps the caller's
+// Release on its own: it keeps the caller's
 // values but not its cancellation, reports a definite failure, and treats a
 // lost claim as released (PER-R26).
 func TestReleaseReportsADefiniteFailureAndNotALostClaim(t *testing.T) {

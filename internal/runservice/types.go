@@ -17,7 +17,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/projectstore"
-	"github.com/grauwolf32/contractor/internal/runrepeat"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
@@ -108,10 +107,7 @@ type Service struct {
 
 type PublicCreateParams struct {
 	requiredPlacementLabels []string
-	// Trusted preparation expectations and the retained binding are not public request fields.
-	CapturedTargetURL      string
-	PinnedRuntimeConfig    *runtimeconfig.RunSnapshot
-	OriginalInputSources   map[string]runrepeat.InputSource
+	// Trusted preparation expectations are not public request fields.
 	PinnedWorkflow         *resolved.ResolvedWorkflow
 	ExpectedWorkflowSHA256 string
 	ExpectedRuntimeSHA256  string

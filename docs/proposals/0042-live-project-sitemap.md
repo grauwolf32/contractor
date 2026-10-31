@@ -557,7 +557,7 @@ tie-breaker. It protects:
   Worker results awaiting Scheduler, durable finalizing candidates, accepted
   StageResults and published outputs that still require the revision;
 - Audit preparation/evidence/report and finding holds, retained Eval evidence,
-  frozen scan-sweep inputs and surviving fork/lineage dependencies.
+  surviving fork/lineage dependencies.
 
 Pin/hold release follows its owning lifecycle, never quota pressure. Ordinary
 metadata references, mutation receipts and successive CAS publications do not

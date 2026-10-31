@@ -118,7 +118,7 @@ grants no write or delete authority.
 **DEL-R63.** These holders protect the exact revisions they name, from the
 transaction that records the reference until the holder's own lifecycle
 releases it: the current pointer of a binding; both ends of every lineage
-edge (`input_fork`, including Skill forks and retained sweep inputs,
+edge (`input_fork`, including Skill forks,
 `output_bind`, `project_output_publish` and `audit_import`); both ends of a
 Run output publication; a Stage's context snapshot, including its
 continuation, and its candidate StageResult, which the accepted StageResult
@@ -161,7 +161,7 @@ scope purge removes the revisions of its own scope whatever their holds
 | Holder | Stored in | Recorded by | Acquires | Released when |
 | --- | --- | --- | --- | --- |
 | Current revision | `artifact_bindings.current_revision` | every Artifact write and fork | always protected; not counted | the binding's next write |
-| Lineage edge, both ends (Run input and Skill forks, retained sweep inputs, `output_bind`, `project_output_publish`, `audit_import`) | `artifact_lineage` | the trusted fork of each flow | foreign keys and a counted hold | the scope purge that owns the edge |
+| Lineage edge, both ends (Run input and Skill forks, `output_bind`, `project_output_publish`, `audit_import`) | `artifact_lineage` | the trusted fork of each flow | foreign keys and a counted hold | the scope purge that owns the edge |
 | Run output publication, both ends | `workflow_run_output_publications` | Scheduler output publication | foreign keys and a counted hold | Run purge |
 | StageExecution context snapshot with its continuation, candidate StageResult and accepted StageResult | `stage_executions` | Scheduler and Stage finalization | strict | Run purge |
 | Planner session completed result, scan plan, scan inputs and reports | `planner_sessions.state` | Planner session store | lenient; the StageExecution's candidate proves what it accepts | the state that replaces them, or Run purge |

@@ -330,9 +330,22 @@ func scanAuditItem(t *testing.T, h *scanProcessHarness, auditID string) auditPro
 
 func assertScanAuditRetention(t *testing.T, h *scanProcessHarness, audit auditProgramAudit, scanner string, completed bool, runs int) auditdomain.CheckResultPackage {
 	t.Helper()
+	return assertScanAuditRetentionForOperation(t, h, audit, scanner, "#/paths/~1pets~1{id}/post", completed, runs)
+}
+
+func assertScanAuditRetentionForOperation(t *testing.T, h *scanProcessHarness, audit auditProgramAudit, scanner, operation string, completed bool, runs int) auditdomain.CheckResultPackage {
+	t.Helper()
 	item := scanAuditItem(t, h, audit.AuditID)
 	if len(item.Attempts) != runs {
 		t.Fatalf("unexpected Audit item attempts: %+v", item)
+	}
+	if operation == "target" && completed {
+		var workflow, version string
+		var allocations int
+		err := h.pool.QueryRow(h.ctx, `SELECT r.workflow_name,r.workflow_version,count(a.allocation_id) FROM workflow_runs r JOIN stage_executions s USING(run_id) LEFT JOIN stage_allocations a USING(stage_execution_id) WHERE r.run_id=$1 GROUP BY r.workflow_name,r.workflow_version`, item.Attempts[0].RunID).Scan(&workflow, &version, &allocations)
+		if err != nil || workflow != "audit-web-nuclei-scan" || version != "1" || allocations == 0 {
+			t.Fatalf("Web Audit child Workflow/Allocation=%s@%s/%d: %v", workflow, version, allocations, err)
+		}
 	}
 	var retained []byte
 	if err := h.pool.QueryRow(h.ctx, `SELECT collection_retained_refs FROM audit_executions WHERE audit_id = $1 AND collection_receipt_id IS NOT NULL ORDER BY collected_at DESC LIMIT 1`, audit.AuditID).Scan(&retained); err != nil {
@@ -378,7 +391,7 @@ func assertScanAuditRetention(t *testing.T, h *scanProcessHarness, audit auditPr
 		t.Fatal(err)
 	}
 	task := journal.Task
-	if task.Scan == nil || task.Scan.Scanner != scanner || task.Scan.Operation != "#/paths/~1pets~1{id}/post" || task.SourceRef.Revision == nil || task.Scan.Settings.Ref.Revision == nil || !strings.HasPrefix(task.SourceContentDigest, "sha256:") || !strings.HasPrefix(task.Scan.Settings.Digest, "sha256:") || !strings.HasPrefix(task.Scan.PreparationDigest, "sha256:") {
+	if task.Scan == nil || task.Scan.Scanner != scanner || task.Scan.Operation != operation || task.SourceRef.Revision == nil || task.Scan.Settings.Ref.Revision == nil || !strings.HasPrefix(task.SourceContentDigest, "sha256:") || !strings.HasPrefix(task.Scan.Settings.Digest, "sha256:") || !strings.HasPrefix(task.Scan.PreparationDigest, "sha256:") {
 		t.Fatalf("incomplete exact scan provenance: %+v", task)
 	}
 	jobs := 0

@@ -312,17 +312,16 @@ foreign key to their own parent with `ON DELETE CASCADE`.
 - **Callers and authority.** Every lease, live/held proof, release, renewal and
   direct claim join must include the correct kind. Preserve epoch advancement,
   stale-holder rejection and the narrower rule allowing an expired holder only
-  to release or purge its own work. The same helper also operates inline on
-  `scan_sweeps` (`scanstore/store_sql.go:5-14`, `store.go:175-183`); replacing
-  its constructor with a kind-only API must not remove that capability.
+  to release or purge its own work. The standalone Sweep caller is removed by the user decision of 2026-10-31
+  (V425-033); preserving its inline claim path is no longer a requirement.
 - **Acceptance for any fold.** Real-store migration and concurrency tests must
   cover equal textual IDs in different kinds, rejection of missing/wrong-kind
   parents, both cascades, free and held claims, takeover, release and deletion.
   Migration must not reset epochs or revive an expired/released lease. Retain
-  scan-sweep claim tests and audit every direct join. Compare representative
+  remaining controller claim tests and audit every direct join. Compare representative
   lease/release and deletion-renewal work before claiming a performance result.
 - **Decision and owner.** Keep the current tables until the Persistence owner,
-  with Audit, Eval and Scan owners, has a complete FK-preserving design and
+  with Audit and Eval owners, has a complete FK-preserving design and
   evidence of a maintenance or workload benefit. This is an optional chore,
   not an approved implementation task. Record any changed storage decision in
   [PER-R25](../spec/platform/persistence.md). Reopen an inline Audit
