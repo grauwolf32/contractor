@@ -7,13 +7,14 @@ import { describe, expect, it } from "vitest";
 import type { ArtifactMetadata } from "../../api/artifacts";
 import type { Audit, AuditFinding, AuditProfile } from "../../api/audits";
 import type { Project } from "../../api/projects";
+import { queryKeys } from "../../api/query-keys";
 import type { RunSummary } from "../../api/runs";
 import type { WorkflowSummary } from "../../api/workflows";
 import { createApplicationQueryClient } from "../../app/query-client";
 import { renderApplication } from "../../test/application";
 import { stageContract } from "../../test/builders-execution";
 import { fakeServer } from "../../test/fake-server";
-import { failure, json, page } from "../../test/responses";
+import { bytes, failure, json, page } from "../../test/responses";
 import { testAPI, testSession } from "../../test/render";
 import { auditFixture, projectFixture } from "../../test/shell-harness";
 import { makeFinding } from "../decisions/test-support";
@@ -134,6 +135,8 @@ interface FakeServer {
   outputs?: Record<string, Record<string, unknown>>;
   artifacts?: ArtifactMetadata[];
   profiles?: AuditProfile[];
+  outputRead?: (request: Request, url: URL) => Response;
+  workflowUnavailable?: boolean;
   capabilities?: Parameters<typeof testSession>[0];
   /** Answers POST /v1/projects. */
   createProject?: (request: Request) => Response | Promise<Response>;
@@ -153,6 +156,12 @@ function serve(server: FakeServer) {
     fakeServer({}, async (request, url) => {
       requests.push(request.clone());
       const path = url.pathname;
+      if (
+        path.startsWith("/v1/runs/") &&
+        path.includes("/artifacts/") &&
+        server.outputRead
+      )
+        return server.outputRead(request, url);
       if (path === "/v1/audits" && server.holdAudits?.())
         await new Promise(() => {});
       if (path === "/v1/findings")
@@ -269,7 +278,9 @@ function serve(server: FakeServer) {
       }
       if (path === "/v1/workflows") return json(page([workflow]));
       if (path === "/v1/workflows/openapi-from-source/versions/1")
-        return json({ ...workflow, stages: { analyze: stageContract() } });
+        return server.workflowUnavailable
+          ? failure(503, "unavailable", "Workflow unavailable")
+          : json({ ...workflow, stages: { analyze: stageContract() } });
       match = /^\/v1\/projects\/([^/]+)\/artifacts$/.exec(path);
       if (match !== null) {
         const namespace = query.get("namespace");
@@ -741,12 +752,10 @@ describe("Project sections", () => {
         "page",
       ),
     );
-    expect(
-      screen.getByRole("combobox", { name: "Project section" }),
-    ).toHaveValue(segment);
+    expect(within(nav).getAllByRole("link")).toHaveLength(7);
   });
 
-  it("names the sections in V3B words and keeps Runs and Workflows under Advanced", async () => {
+  it("keeps all seven labelled destinations in one navigation", async () => {
     const { router, user } = renderAt(
       { projects: [projectA] },
       "/projects/project_a",
@@ -767,16 +776,8 @@ describe("Project sections", () => {
       "Runs",
       "Workflows",
     ]);
-    const advanced = within(nav).getByRole("group", { name: "Advanced" });
-    expect(
-      within(advanced)
-        .getAllByRole("link")
-        .map((link) => link.getAttribute("href")),
-    ).toEqual(["/projects/project_a/runs", "/projects/project_a/workflows"]);
-    await user.selectOptions(
-      screen.getByRole("combobox", { name: "Project section" }),
-      "findings",
-    );
+    expect(within(nav).queryByText("Advanced")).toBeNull();
+    await user.click(within(nav).getByRole("link", { name: "Issues" }));
     await waitFor(() =>
       expect(router.state.location.pathname).toBe(
         "/projects/project_a/findings",
@@ -880,7 +881,10 @@ describe("Project overview", () => {
   });
 
   it("starts a check with the objective and offers check types whose formats match", async () => {
-    const { router, user } = renderAt(overviewServer, "/projects/project_a");
+    const { router, user, requests } = renderAt(
+      overviewServer,
+      "/projects/project_a",
+    );
     const composer = await screen.findByRole("form", {
       name: "What do you want to check?",
     });
@@ -898,7 +902,7 @@ describe("Project overview", () => {
       within(composer).queryByRole("link", { name: /docs review/ }),
     ).toBeNull();
     expect(
-      within(composer).getByRole("link", { name: "All check types" }),
+      within(composer).getByRole("link", { name: "Choose check type" }),
     ).toHaveAttribute("href", "/checks/new?project=project_a");
     await user.type(
       screen.getByRole("textbox", { name: "What do you want to check?" }),
@@ -918,6 +922,7 @@ describe("Project overview", () => {
     expect(params.get("objective")).toBe(
       "Can one customer read another's orders?",
     );
+    expect(requests.every((request) => request.method === "GET")).toBe(true);
   });
 
   it("lists checks waiting for a decision with a way to review them", async () => {
@@ -982,7 +987,7 @@ describe("Project overview", () => {
     });
     expect(
       await within(results).findByRole("link", {
-        name: /openapi.*Primary result/,
+        name: "openapi details",
       }),
     ).toHaveAttribute(
       "href",
@@ -996,6 +1001,119 @@ describe("Project overview", () => {
     expect(
       within(runs).getByRole("link", { name: "All Runs" }),
     ).toHaveAttribute("href", "/projects/project_a/runs");
+  });
+
+  it("previews only the selected exact output and requires a new action after its revision changes", async () => {
+    const source = "note: selected exact output";
+    const outputs = {
+      run_ok: {
+        openapi: { namespace: "outputs", name: "openapi", revision: "r1" },
+      },
+    };
+    const { user, requests, queryClient } = renderAt(
+      {
+        ...overviewServer,
+        outputs,
+        outputRead: (_request, url) => {
+          expect(url.searchParams.get("revision")).toBe(
+            outputs.run_ok.openapi.revision,
+          );
+          if (url.pathname.endsWith("/metadata"))
+            return json({
+              ...material("outputs", "openapi", "application/yaml"),
+              artifact: outputs.run_ok.openapi,
+              size: source.length,
+            });
+          return bytes(source, "application/yaml");
+        },
+      },
+      "/projects/project_a",
+    );
+    const results = await screen.findByRole("region", {
+      name: "Recent results",
+    });
+    const card = await within(results).findByRole("article", {
+      name: "openapi",
+    });
+    expect(within(card).getByText("outputs/openapi@r1")).toBeVisible();
+    const artifactReads = () =>
+      requests.filter(
+        (request) =>
+          new URL(request.url).pathname.includes("/runs/") &&
+          new URL(request.url).pathname.includes("/artifacts/"),
+      );
+    expect(artifactReads()).toHaveLength(0);
+    await user.click(within(card).getByRole("button", { name: "Preview" }));
+    await within(card).findByText(source.trim());
+    expect(
+      artifactReads().map((request) => new URL(request.url).pathname),
+    ).toEqual([
+      "/v1/runs/run_ok/artifacts/outputs/openapi/metadata",
+      "/v1/runs/run_ok/artifacts/outputs/openapi",
+    ]);
+    outputs.run_ok.openapi = { ...outputs.run_ok.openapi, revision: "r2" };
+    await act(async () => {
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.runs.detail("run_ok"),
+      });
+    });
+    const updated = await within(results).findByText("outputs/openapi@r2");
+    expect(updated).toBeVisible();
+    expect(artifactReads()).toHaveLength(2);
+    const nextCard = within(results).getByRole("article", { name: "openapi" });
+    expect(
+      within(nextCard).getByRole("button", { name: "Preview" }),
+    ).toBeVisible();
+    await user.click(within(nextCard).getByRole("button", { name: "Preview" }));
+    await within(nextCard).findByText(source.trim());
+    expect(artifactReads()).toHaveLength(4);
+  });
+
+  it("keeps outputs unclassified when roles fail and allows exact metadata retry", async () => {
+    let failed = true;
+    const source = "paths: {}";
+    const { user, requests } = renderAt(
+      {
+        ...overviewServer,
+        workflowUnavailable: true,
+        outputRead: (_request, url) => {
+          if (url.pathname.endsWith("/metadata"))
+            return failed
+              ? failure(403, "forbidden", "Output access denied")
+              : json({
+                  ...material("outputs", "openapi", "application/yaml"),
+                  artifact: {
+                    namespace: "outputs",
+                    name: "openapi",
+                    revision: "r1",
+                  },
+                  size: source.length,
+                });
+          return bytes(source, "application/yaml");
+        },
+      },
+      "/projects/project_a",
+    );
+    const results = await screen.findByRole("region", {
+      name: "Recent results",
+    });
+    const card = await within(results).findByRole("article", {
+      name: "openapi",
+    });
+    await within(results).findAllByText(/Output roles unavailable/);
+    expect(within(card).getByText("Run output")).toBeVisible();
+    expect(within(card).queryByText("Primary result")).toBeNull();
+    await user.click(within(card).getByRole("button", { name: "Preview" }));
+    await within(card).findByText("Output access denied");
+    expect(reads(requests, "/v1/runs/run_ok/artifacts/outputs/openapi")).toBe(
+      0,
+    );
+    failed = false;
+    await user.click(within(card).getByRole("button", { name: "Try again" }));
+    await within(card).findByText(source);
+    expect(reads(requests, "/v1/runs/run_ok/artifacts/outputs/openapi")).toBe(
+      1,
+    );
   });
 
   it("offers the materials and the live target as chips", async () => {

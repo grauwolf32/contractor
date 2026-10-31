@@ -1,10 +1,8 @@
-import { useContext, useEffect, useId, useRef, type ReactNode } from "react";
+import { useContext, useEffect, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { NavLink, useLocation, useNavigate } from "react-router";
+import { NavLink, useLocation } from "react-router";
 
 import {
-  ADVANCED_SECTIONS,
-  MAIN_SECTIONS,
   PROJECT_SECTIONS,
   projectPath,
   projectSectionOf,
@@ -29,8 +27,6 @@ export function ProjectNavigation({
   const root = projectPath(projectId);
   const location = useLocation();
   const { pathname, hash } = location;
-  const navigate = useNavigate();
-  const advancedLabel = useId();
   const bar = useRef<HTMLDivElement>(null);
   const current = projectSectionOf(pathname, projectId);
   // Each section keeps its own query (filters, cursors, versions) in the
@@ -75,9 +71,34 @@ export function ProjectNavigation({
       ?.scrollIntoView?.({ block: "start" });
   }, [hash, pathname]);
 
+  // Reveal only along the horizontal axis: scrollIntoView would also move
+  // the page or its detail pane when opening a section or resizing it.
+  useEffect(() => {
+    const nav = bar.current?.querySelector("nav");
+    if (!nav) return;
+    function revealSelected() {
+      const active = nav?.querySelector('[aria-current="page"]');
+      if (!active || !nav) return;
+      const viewport = nav.getBoundingClientRect();
+      const item = active.getBoundingClientRect();
+      if (item.left < viewport.left)
+        nav.scrollLeft += item.left - viewport.left;
+      else if (item.right > viewport.right)
+        nav.scrollLeft += item.right - viewport.right;
+    }
+    revealSelected();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(revealSelected);
+    observer.observe(nav);
+    return () => observer.disconnect();
+  }, [pathname]);
+
   function tab([segment, label]: readonly [string, string]) {
     return (
-      <li key={segment}>
+      <li
+        key={segment}
+        className={segment === "runs" ? "projects-tab-divider" : undefined}
+      >
         <NavLink
           className="projects-tab"
           to={destination(segment)}
@@ -90,52 +111,13 @@ export function ProjectNavigation({
     );
   }
 
-  // Wide panes show the tabs; narrow ones (phones, and the detail pane next
-  // to the list on small laptops) show the labelled select instead.
   return (
     <div className="projects-tabs-bar" ref={bar}>
       <nav className="projects-tabs" aria-label="Project sections">
         <ul role="list" className="projects-tabs-list">
-          {MAIN_SECTIONS.map(tab)}
+          {PROJECT_SECTIONS.map(tab)}
         </ul>
-        <div
-          className="projects-tabs-advanced"
-          role="group"
-          aria-labelledby={advancedLabel}
-        >
-          <span className="projects-tabs-label" id={advancedLabel}>
-            Advanced
-          </span>
-          <ul role="list" className="projects-tabs-list">
-            {ADVANCED_SECTIONS.map(tab)}
-          </ul>
-        </div>
       </nav>
-      <label className="projects-section-picker">
-        <span>Project section</span>
-        <select
-          aria-label="Project section"
-          value={current}
-          onChange={(event) =>
-            void navigate(destination(event.target.value), {
-              state: navigationState,
-            })
-          }
-        >
-          {MAIN_SECTIONS.map(([segment, label]) => (
-            <option key={segment} value={segment}>
-              {label}
-            </option>
-          ))}
-          <optgroup label="Advanced">
-            {ADVANCED_SECTIONS.map(([segment, label]) => (
-              <option key={segment} value={segment}>
-                {label}
-              </option>
-            ))}
-          </optgroup>
-        </select>
-      </label>
       <div className="projects-section-actions" ref={actionsRef} />
     </div>
   );

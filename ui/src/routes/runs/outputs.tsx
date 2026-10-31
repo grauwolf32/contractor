@@ -1,19 +1,12 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useId, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useId } from "react";
 import { Link } from "react-router";
 
 import { usePublicAPI } from "../../api/context";
 import { queryKeys } from "../../api/query-keys";
-import {
-  downloadRunArtifact,
-  getRunArtifactMetadata,
-  isTerminalRunState,
-  previewRunArtifact,
-  type RunStatus,
-} from "../../api/runs";
+import { isTerminalRunState, type RunStatus } from "../../api/runs";
 import { getWorkflow } from "../../api/workflows";
 import { ContextLink } from "../../app/context-navigation";
-import { saveBlob } from "../../app/download";
 import { ErrorNotice } from "../../app/error-notice";
 import { Icon } from "../../app/icon";
 import { QueryView } from "../../app/query-view";
@@ -21,6 +14,7 @@ import { RecordedTime } from "../../app/recorded-time";
 import { Button, EmptyState, IconButton, StatusChip } from "../../ui";
 import { artifactDetailPath } from "../artifacts/paths";
 import { ArtifactPreviewPanel } from "../artifacts/preview";
+import { useRunArtifactActions } from "../artifacts/use-run-artifact-actions";
 import {
   missingOutputCopy,
   organizeRunOutputs,
@@ -40,40 +34,10 @@ function RunOutputPreview({
   entry: OutputEntry;
   runState: RunStatus["state"];
 }) {
-  const api = usePublicAPI();
-  const queryClient = useQueryClient();
-  const [requested, setRequested] = useState(false);
   const titleId = useId();
   const artifact = entry.artifact;
-  const metadataKey = queryKeys.runs.artifactMetadata(
-    runId,
-    artifact?.namespace ?? "missing",
-    artifact?.name ?? entry.slot,
-    artifact?.revision,
-  );
-  function readMetadata() {
-    if (artifact === undefined) {
-      throw new Error("Run output is unavailable");
-    }
-    return getRunArtifactMetadata(api, { runId, ...artifact });
-  }
-  const metadata = useQuery({
-    queryKey: metadataKey,
-    queryFn: readMetadata,
-    enabled: requested && artifact !== undefined,
-  });
-  // Download fallback (US-05): one action reads the exact revision's
-  // metadata, then saves its original bytes.
-  const download = useMutation({
-    mutationFn: async () => {
-      const exact = await queryClient.fetchQuery({
-        queryKey: metadataKey,
-        queryFn: readMetadata,
-      });
-      return downloadRunArtifact(api, runId, exact);
-    },
-    onSuccess: (downloaded) => saveBlob(downloaded.blob, downloaded.filename),
-  });
+  const { requested, requestPreview, metadata, download, loadPreview } =
+    useRunArtifactActions(runId, artifact);
   const primary = entry.kind === "primary";
   if (artifact === undefined) {
     return (
@@ -131,7 +95,7 @@ function RunOutputPreview({
           <Button
             size="sm"
             variant={primary ? "primary" : undefined}
-            onClick={() => setRequested(true)}
+            onClick={requestPreview}
           >
             Preview
           </Button>
@@ -173,7 +137,7 @@ function RunOutputPreview({
                 key={data.artifact.revision}
                 metadata={data}
                 unavailableCopy="Inline preview is unavailable for this file. Use Download for the original bytes, or open its details."
-                loadPreview={() => previewRunArtifact(api, runId, data)}
+                loadPreview={() => loadPreview(data)}
                 loadOnMountKey={[
                   "run-output-preview",
                   runId,

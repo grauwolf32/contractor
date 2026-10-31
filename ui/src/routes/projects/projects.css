@@ -464,53 +464,39 @@
   min-width: 0;
 }
 
-/* The "Project actions" trigger stays on the title row at every width. */
-.projects-workspace
-  > .ui-detail-pane
-  > .ui-detail-header
-  > .ui-detail-header-main {
-  flex-wrap: nowrap;
-  align-items: flex-start;
-}
-
-.projects-workspace
-  > .ui-detail-pane
-  > .ui-detail-header
-  > .ui-detail-header-main
-  > .ui-detail-header-title {
-  flex: 1 1 0;
-  min-width: 0;
-}
-
 .projects-tabs-bar {
   position: sticky;
   top: 0;
   z-index: 3;
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2) var(--space-4);
+  gap: var(--space-3);
   padding: 0 var(--ui-pad-end, 1.75rem) 0 var(--ui-pad-start, 1.75rem);
   border-bottom: 1px solid var(--line);
   background: var(--surface);
 }
 
 .projects-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0 var(--space-4);
+  flex: 1 1 0;
   min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
 }
 
 .projects-tabs-list {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0 var(--space-4);
+  align-items: center;
+  gap: var(--space-4);
+  width: max-content;
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+.projects-tab-divider {
+  padding-left: var(--space-4);
+  border-left: 1px solid var(--line);
 }
 
 .projects-tab {
@@ -540,29 +526,11 @@
   outline-offset: -2px;
 }
 
-.projects-tabs-advanced {
-  display: flex;
-  align-items: center;
-  gap: 0 var(--space-3);
-  padding-left: var(--space-4);
-  border-left: 1px solid var(--line);
-}
-
-.projects-tabs-label {
-  color: var(--faint);
-  font-size: var(--text-2xs);
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.projects-section-picker {
-  display: none;
-}
-
 .projects-section-actions,
 .project-section-actions {
   display: flex;
+  flex: 0 1 auto;
+  max-width: 55%;
   flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
@@ -584,43 +552,6 @@
 /* The bar is as tall as the tabs: section buttons there are compact. */
 .projects-section-actions :is(button, a.ui-btn) {
   min-height: 2rem;
-}
-
-/* Narrow detail panes (phones; the pane beside the list on small laptops)
-   trade the tabs for the labelled section picker. */
-@container (max-width: 40rem) {
-  .projects-tabs {
-    display: none;
-  }
-
-  .projects-section-picker {
-    display: flex;
-    flex: 1 1 12rem;
-    align-items: center;
-    gap: var(--space-2);
-    min-width: 0;
-    padding-block: var(--space-2);
-    color: var(--muted);
-    font-size: var(--text-sm);
-    font-weight: 700;
-  }
-
-  .projects-section-picker select {
-    flex: 1 1 auto;
-    min-width: 0;
-    height: 2.25rem;
-    padding: 0 var(--space-2-5);
-    border: 1px solid var(--line-strong);
-    border-radius: var(--radius-lg);
-    background: var(--surface);
-    color: var(--text);
-    font-size: var(--text-md);
-    font-weight: 600;
-  }
-
-  .projects-section-actions {
-    padding-block: 0 var(--space-2);
-  }
 }
 
 /* Sections owned by other areas keep today's flat look inside the pane. */
@@ -802,35 +733,21 @@ a.projects-chip:hover {
   font-weight: 700;
 }
 
-/* The four-cell "at a glance" strip. */
-/* One, two or four columns, never an orphan cell: the gaps are hairlines. */
 .projects-glance dl {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--space-0-5);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
   margin: 0;
-  overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-xl);
-  background: var(--line);
 }
 
-@container (min-width: 22rem) {
-  .projects-glance dl {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@container (min-width: 52rem) {
-  .projects-glance dl {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
+.projects-glance h3,
+.projects-materials h3 {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-md);
 }
 
 .projects-glance-cell {
   min-width: 0;
-  padding: var(--space-2-5) var(--space-3-5);
-  background: var(--surface);
 }
 
 .projects-glance-cell dt {
@@ -875,12 +792,8 @@ a.projects-chip:hover {
 .projects-composer {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: var(--space-3-5);
+  gap: var(--space-3);
   min-width: 0;
-  padding: var(--space-5) 1.375rem;
-  border: 1px solid var(--line-strong);
-  border-radius: 16px;
-  background: var(--surface);
 }
 
 .projects-composer-title {
@@ -888,24 +801,30 @@ a.projects-chip:hover {
   font-size: var(--text-lg);
   font-weight: 800;
   letter-spacing: -0.018em;
-  line-height: 1.2;
+  line-height: 1.3;
 }
 
-.projects-composer-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: stretch;
-  gap: var(--space-2-5);
+.projects-composer-field {
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-xl);
+  background: var(--surface);
+}
+
+.projects-composer-field:focus-within {
+  border-color: var(--focus);
+  box-shadow: 0 0 0 1px var(--focus);
 }
 
 .projects-composer textarea {
-  flex: 1 1 20rem;
-  min-width: 0;
-  min-height: 4.5rem;
-  padding: var(--space-3) var(--space-3-5);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-xl);
-  background: var(--sunken);
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 6rem;
+  padding: var(--space-4);
+  border: 0;
+  border-radius: 0;
+  background: var(--surface);
   color: var(--text);
   font-size: var(--text-base);
   line-height: 1.5;
@@ -913,14 +832,24 @@ a.projects-chip:hover {
 }
 
 .projects-composer textarea::placeholder {
-  color: var(--faint);
+  color: var(--muted);
   opacity: 1;
 }
 
-.projects-composer-row > .ui-btn {
-  align-self: flex-end;
-  height: 2.75rem;
-  padding-inline: 1.125rem;
+.projects-composer-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--line);
+  background: var(--sunken);
+  font-size: var(--text-sm);
+}
+
+.projects-composer-footer > .ui-btn {
+  min-height: 2.75rem;
 }
 
 .projects-suggestions {
@@ -938,10 +867,6 @@ a.projects-chip:hover {
   color: var(--muted);
   font-size: var(--text-sm);
   font-weight: 700;
-}
-
-.projects-suggestions-heading > a {
-  font-size: var(--text-sm);
 }
 
 .projects-suggestion-list {
@@ -1027,90 +952,97 @@ a.projects-chip:hover {
   vertical-align: 0.05em;
 }
 
-.projects-overview-columns {
+.projects-overview-columns,
+.projects-overview-main,
+.projects-overview-support {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(18rem, 100%), 1fr));
+  grid-template-columns: minmax(0, 1fr);
   align-items: start;
-  gap: var(--space-4);
+  gap: var(--space-5);
+  min-width: 0;
 }
 
-.projects-results {
+@container (min-width: 52rem) {
+  .projects-overview-columns {
+    grid-template-columns: minmax(0, 1fr) minmax(14rem, 0.45fr);
+  }
+}
+
+.projects-overview-support .projects-chips {
+  display: grid;
+}
+
+.projects-overview-support .projects-chip {
+  display: flex;
+  flex-wrap: wrap;
+  width: 100%;
+  border-radius: var(--radius-lg);
+}
+
+.projects-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.projects-delete.ui-btn {
+  color: var(--danger);
+}
+
+.projects-delete.ui-btn:hover {
+  background: var(--danger-bg);
+}
+
+.projects-results,
+.projects-outputs {
+  display: grid;
+  gap: var(--space-3);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
 .projects-result {
-  display: grid;
-  gap: var(--space-2);
-  padding: var(--space-3) 0;
-  border-top: 1px solid var(--line);
-}
-
-.projects-result:first-child {
-  padding-top: 0;
-  border-top: 0;
-}
-
-.projects-result:last-child {
-  padding-bottom: 0;
-}
-
-.projects-result-head {
-  display: grid;
-  gap: var(--space-1);
   min-width: 0;
-}
-
-.projects-result-workflow {
-  color: var(--text);
-  font-size: var(--text-md);
-  font-weight: 700;
-  overflow-wrap: anywhere;
-}
-
-.projects-outputs {
-  display: grid;
-  gap: var(--space-1-5);
-  margin: 0;
-  padding: 0;
-  list-style: none;
 }
 
 .projects-output {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
+  display: grid;
+  gap: var(--space-3);
   min-width: 0;
-  padding: var(--space-2) var(--space-2-5);
+  padding: var(--space-4);
   border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  background: var(--sunken);
-  color: var(--text);
-  text-decoration: none;
+  border-radius: var(--radius-xl);
+  background: var(--surface);
 }
 
-.projects-output:hover {
-  background: var(--surface-hover);
+.projects-output-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-2-5);
 }
 
 .projects-output-icon {
   display: grid;
   flex: none;
-  width: 1.625rem;
-  height: 1.625rem;
+  width: 2rem;
+  height: 2rem;
   border-radius: var(--radius-md);
-  background: var(--chrome);
+  background: var(--info-bg);
+  color: var(--info);
   place-items: center;
 }
 
 .projects-output-text {
-  display: grid;
+  flex: 1 1 7rem;
   min-width: 0;
-  font-size: var(--text-sm);
 }
 
-.projects-output-text strong {
+.projects-output-text h4 {
+  margin: 0;
+  font-size: var(--text-md);
   overflow-wrap: anywhere;
 }
 
@@ -1119,27 +1051,111 @@ a.projects-chip:hover {
   font-size: var(--text-xs);
 }
 
-/* A Run: Workflow link over its shortened ID (Overview, Recent Runs). */
-.project-run-identity {
-  display: grid;
-  gap: var(--space-0-5);
-  min-width: 0;
+.projects-output-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  margin-left: auto;
 }
 
-.project-run-identity > a {
-  color: var(--text);
-  font-weight: 700;
-  overflow-wrap: anywhere;
-  text-decoration: none;
-}
-
-.project-run-identity > a:hover {
-  text-decoration: underline;
-}
-
-.project-run-identity > code {
+.projects-output-ref {
   color: var(--muted);
   font-size: var(--text-xs);
+  overflow-wrap: anywhere;
+}
+
+.projects-output-footer {
+  display: grid;
+  gap: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+  font-size: var(--text-sm);
+}
+
+.projects-result-provenance {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  min-width: 0;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  overflow-wrap: anywhere;
+}
+
+.projects-result-provenance > a {
+  color: var(--muted-strong);
+}
+
+.projects-recent-run {
+  position: relative;
+  display: grid;
+  gap: var(--space-1-5);
+  min-width: 0;
+  padding-block: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+
+.projects-recent-run:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.projects-recent-run:last-child {
+  padding-bottom: 0;
+}
+
+.projects-recent-run-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.projects-recent-run-top > .ui-status-chip {
+  margin-left: auto;
+}
+
+.projects-recent-run-link {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  color: var(--text);
+  font-size: var(--text-md);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.projects-recent-run-link::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+}
+
+.projects-recent-run-link small {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.projects-recent-run .ui-id-chip-copy {
+  position: relative;
+  z-index: 1;
+}
+
+.projects-recent-run:hover {
+  background: var(--surface-hover);
+}
+
+@container (max-width: 28rem) {
+  .projects-composer-footer {
+    justify-content: center;
+  }
+
+  .projects-composer-footer > .ui-btn {
+    width: 100%;
+  }
 }
 
 /* ---------- Settings ---------- */
@@ -1276,21 +1292,6 @@ a.projects-chip:hover {
 
   .projects-search {
     flex: 1 1 100%;
-  }
-
-  .projects-composer {
-    padding: var(--space-4);
-  }
-
-  .projects-composer-row > .ui-btn {
-    flex: 1 1 100%;
-  }
-}
-
-/* Touch screens and narrow composers have no key hint on the button. */
-@media (hover: none) and (pointer: coarse), (max-width: 820px) {
-  .projects-composer-keys {
-    display: none;
   }
 }
 
