@@ -5,7 +5,7 @@ milestone: hub-audit-defects-2026-10
 epic: operations
 kind: chore
 priority: P3
-status: in_progress
+status: completed
 depends_on: []
 languages: [python, shell]
 goal: Keep deployment scripts reusable and ready to publish while preserving the existing environment and secrets under ignored .local state.
@@ -85,3 +85,5 @@ verification_results:
   - "sh deploy/litellm/test-run-argv.sh: passed for database creation and reuse; all credential values and the DSN stay out of argv."
   - "make lint: passed with local Go 1.26.9, Node 24.20.0 and independent worktree dependencies."
   - "Private local manifest backups were verified; original fields are unchanged, new explicit egress inputs match the running layout, and private files have mode 0600 and are ignored. No live deployment or database operation was run."
+  - "After rebasing only this change onto current main: make lint passed again; no unrelated Planner changes are included."
+implementation_commit: 0726f9b0bdc7318db7fe9bff8c19a25f484017e5
