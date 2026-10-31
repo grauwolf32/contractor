@@ -6,7 +6,7 @@ epic: http-tools
 kind: defect
 introduced_by: V411-027
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages:
 - go
@@ -55,3 +55,22 @@ tests:
 - command: make lint
   covers:
   - A1
+implementation_commit: 6d76efb77ed817784d2d47b23a45c2807bb876ba
+verification_results:
+- >-
+  2026-10-31: make test-http-caido-e2e passed against disposable PostgreSQL
+  and real Server/Runtime processes, including a repeat on the final shared
+  helper implementation (76.154s). No live model was used.
+- >-
+  The four sibling process tests listed above passed together in 305.220s:
+  Code Analysis, taint annotations, sitemap HTTP collection and Production
+  Memory. The commands did not use -short and supplied a reachable test database.
+- "make lint passed, including the release graph, task policy, test-only exports and Runtime import boundaries."
+- "go test ./tests/e2e passed the complete untagged e2e matrix suite (6.443s)."
+- "go test ./internal/config/resolved passed; Runtime's uv run --locked pytest -q tests/test_capabilities.py::test_shared_toolset_descriptor_parity passed."
+- >-
+  Expected tool names remain independent of actual Runtime requests and are
+  compared exactly by domainGateway.next, so omitting or adding an exposed
+  tool still fails. Full exports follow the descriptor registry; deliberate
+  template subsets remain explicit. The implementation is committed on
+  codex/v425-004-http-tool-descriptor and has not yet been merged into main.
