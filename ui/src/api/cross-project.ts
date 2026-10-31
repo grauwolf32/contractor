@@ -45,7 +45,7 @@ import {
 import { loadAllPages, type LoadedPages } from "./pages";
 
 /** Page size is enforced by the Server; collections have no fixed cap. */
-export const CROSS_PROJECT_LIMITS = { pageSize: 200, pollMs: 20_000 } as const;
+export const CROSS_PROJECT_LIMITS = { pollMs: 20_000 } as const;
 
 type AuditReviewKind = AuditReviewRequest["kind"];
 type AuditReportStatus = components["schemas"]["AuditReportStatus"];

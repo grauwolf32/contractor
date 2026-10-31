@@ -1,1 +1,1 @@
-{"apiVersion":"contractor/v1alpha1","digest":"sha256:2449cb1016352894b366d3c6def0f71ebbb18524f40f38ff60814529139f458b","limits":{"artifactPayloadMaxBytes":67108864},"version":1}
+{"apiVersion":"contractor/v1alpha1","digest":"sha256:2035a54767ff10ea665e4d06bb43f480a6a23f85aee563911caa5691962c4cf1","limits":{"artifactListMaxItems":256,"artifactPayloadMaxBytes":67108864,"publicPageMaxItems":200},"version":1}

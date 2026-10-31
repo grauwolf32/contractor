@@ -1298,7 +1298,9 @@ describe("Workflow routes", () => {
       queryClient,
     );
     const paths = () =>
-      requests.map((request) => new URL(request.url).pathname);
+      requests
+        .map((request) => new URL(request.url).pathname)
+        .filter((path) => path !== "/v1/config");
 
     expect(
       await screen.findByRole("heading", { name: "Start Workflow Run" }),

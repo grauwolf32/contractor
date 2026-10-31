@@ -9,6 +9,7 @@ import { ARTIFACT_STORAGE_TIMESTAMPS } from "../test/builders";
 import { readAuditArtifact } from "./audit-artifacts";
 import { canBrowseArchive } from "./artifact-archive";
 import { getSharedConfig } from "./shared-config";
+import { PUBLIC_PAGED_OPERATIONS } from "./generated/response-schemas";
 
 describe("Server shared policy", () => {
   it("restarts a cancelled bootstrap without discarding a completed snapshot", async () => {
@@ -142,6 +143,36 @@ describe("Server shared policy", () => {
         (await getSharedConfig(api)).limits.artifactPayloadMaxBytes,
       ),
     ).toBe(false);
+    expect(server.sent("GET", "/v1/config")).toHaveLength(1);
+  });
+});
+
+describe("shared pagination policy", () => {
+  it("keeps specialized Eval and allocation-history policies independent", () => {
+    expect(PUBLIC_PAGED_OPERATIONS).toContain("GET /v1/projects");
+    expect(PUBLIC_PAGED_OPERATIONS).not.toContain("GET /v1/evals");
+    expect(PUBLIC_PAGED_OPERATIONS).not.toContain(
+      "GET /v1/runs/{runId}/allocations",
+    );
+  });
+  it("caps preferred sizes and keeps cursors and filters on every common list", async () => {
+    const server = fakeServer({
+      "GET /v1/config": () =>
+        json(testSharedConfig(17, { publicPageMaxItems: 2 })),
+      "GET /v1/projects": () => json({ items: [], page: { hasMore: false } }),
+    });
+    const { api } = testAPI(server);
+    await api.request((client) =>
+      client.GET("/v1/projects", {
+        params: { query: { limit: 50, cursor: "next" } },
+      }),
+    );
+    await api.request((client) => client.GET("/v1/projects"));
+    const requests = server.sent("GET", "/v1/projects");
+    expect(requests).toHaveLength(2);
+    expect(new URL(requests[0]!.url).searchParams.get("limit")).toBe("2");
+    expect(new URL(requests[0]!.url).searchParams.get("cursor")).toBe("next");
+    expect(new URL(requests[1]!.url).searchParams.get("limit")).toBe("2");
     expect(server.sent("GET", "/v1/config")).toHaveLength(1);
   });
 });

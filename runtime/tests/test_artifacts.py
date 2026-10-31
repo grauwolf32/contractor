@@ -371,7 +371,7 @@ def test_paged_list_validates_query_cursor_and_page_without_widening_scope() -> 
 
 def test_shared_list_limits_and_cursor_grammar_match_the_shared_cases() -> None:
     cases = json.loads(SHARED_LIST_CASES.read_text(encoding="utf-8"))
-    assert cases["maxLimit"] == artifacts.MAX_BINDING_LIST_LIMIT
+    assert cases["maxLimit"] == artifacts.artifact_list_max_items()
     assert cases["maxCursorLength"] == MAX_ARTIFACT_LIST_CURSOR_LENGTH
     ref = {"namespace": "analysis", "name": "report"}
     for cursor in cases["cursors"]["valid"]:

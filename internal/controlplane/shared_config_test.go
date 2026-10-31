@@ -39,8 +39,12 @@ func TestStartupConfigRequiresMTLSWithoutRegisteringPrincipal(t *testing.T) {
 				t.Fatalf("status %d body %s", response.Code, response.Body)
 			}
 			if tc.status == http.StatusOK {
+				expected, err := control.DefaultSharedConfig()
+				if err != nil {
+					t.Fatal(err)
+				}
 				got, err := contracts.DecodePrivateStrict[control.SharedConfig](response.Body.Bytes())
-				if err != nil || got != control.DefaultSharedConfig() {
+				if err != nil || got != expected {
 					t.Fatalf("config = %+v, %v", got, err)
 				}
 				if response.Header().Get("Cache-Control") != "no-store" {

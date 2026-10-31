@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { RuntimeConfig } from "../config/runtime-config";
 import { auditItem } from "../test/builders";
-import { PublicAPI } from "./client";
+import { TestPublicAPI as PublicAPI } from "../test/shared-config";
 import { listAwaitingReviewItems } from "./inbox";
 
 const runtimeConfig: RuntimeConfig = {

@@ -3593,14 +3593,18 @@
         "/apiVersion",
         "/digest",
         "/limits",
+        "/limits/artifactListMaxItems",
         "/limits/artifactPayloadMaxBytes",
+        "/limits/publicPageMaxItems",
         "/version"
       ],
       "null": [
         "/apiVersion",
         "/digest",
         "/limits",
+        "/limits/artifactListMaxItems",
         "/limits/artifactPayloadMaxBytes",
+        "/limits/publicPageMaxItems",
         "/version"
       ]
     },

@@ -104,7 +104,12 @@ func (h *privateHTTPHandler) sharedConfig(w http.ResponseWriter, r *http.Request
 		return
 	}
 	w.Header().Set("Cache-Control", "no-store")
-	writePrivateJSON(w, http.StatusOK, control.DefaultSharedConfig())
+	config, err := control.DefaultSharedConfig()
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	writePrivateJSON(w, http.StatusOK, config)
 }
 
 func (h *privateHTTPHandler) register(w http.ResponseWriter, r *http.Request) {

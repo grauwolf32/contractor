@@ -110,7 +110,7 @@ export async function listOwnerAudits(
   const result = await api.request((client) =>
     client.GET("/v1/audits", {
       ...(signal === undefined ? {} : { signal }),
-      params: { query: { limit: 200, ...request } },
+      params: { query: request },
     }),
   );
   const page = requireData(result);
@@ -129,7 +129,7 @@ export async function listOwnerFindings(
   const result = await api.request((client) =>
     client.GET("/v1/findings", {
       ...(signal === undefined ? {} : { signal }),
-      params: { query: { limit: 200, ...request } },
+      params: { query: request },
     }),
   );
   return requireData(result);
@@ -146,7 +146,7 @@ export async function listOwnerReviews(
   const result = await api.request((client) =>
     client.GET("/v1/reviews", {
       ...(signal === undefined ? {} : { signal }),
-      params: { query: { limit: 200, ...request } },
+      params: { query: request },
     }),
   );
   return requireData(result);
