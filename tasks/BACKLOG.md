@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-80 open tasks: 10 in progress, 59 pending, 11 deferred. 1282 finished: 1267 completed, 15 archived.
+79 open tasks: 9 in progress, 59 pending, 11 deferred. 1283 finished: 1268 completed, 15 archived.
 
 ## In progress
 
@@ -20,7 +20,6 @@ the epics are in [epics.yml](epics.yml).
 | [V417-003](v417-003-isolated-worker-context-compaction.yml) | planner-worker | feature | P1 | Continue an isolated Worker through workflow-selected context compaction |
 | [V420-002](v420-002-planner-compaction-vertical-slice.yml) | planner-worker | feature | P1 | Implement opt-in bounded compaction for Streamline and Router Planners |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Enable shared Planner compaction and reuse native YAML in shipped Workflows |
-| [V427-003](v427-003-shared-input-policy.yml) | execution-core | feature | P1 | Enforce fetched Git and metadata-label limits in UI and Runtime |
 
 ## Pending
 
@@ -181,7 +180,7 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 2 | 47 | 56 | 21 | 84 |
+| Run execution core (`execution-core`) | 1 | 47 | 56 | 21 | 84 |
 | Planners and the Worker model boundary (`planner-worker`) | 9 | 35 | 47 | 28 | 67 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 13 | 5 | 43 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 2 | 12 |
