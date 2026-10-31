@@ -607,6 +607,22 @@ request uses that same identity (FAIL-UI-4).
 **UI-R89.** A configured Scheduler retry is shown as an attempt within the
 existing Run, while a terminal failure has no implied retry.
 
+**UI-R216.** Run detail leads with a Workflow-name heading, copyable exact
+Run/Workflow identity, Created and available Finished timestamps and duration.
+Started and Updated timestamps and a Timestamps disclosure do not appear in
+the header. Successful Runs proceed directly to outputs: their header status
+is sufficient, without a repeated success summary, next-step guidance or result
+shortcuts. Other states show authoritative outcome and guidance in a responsive
+surface before outputs and Technical details; causes, recovery controls and
+focused-attempt links preserve their behavior. Declared primary outputs receive
+visual emphasis for display order only. Preview remains explicit; opening the
+page fetches no output payloads.
+
+The heading omits the version already shown in Workflow. Run/Workflow copy and
+output download controls show only their icon, retaining accessible names and
+hover tooltips. The exact artifact-details link sits below the preview/download
+controls on a separate line at every width.
+
 **UI-R90.** Known placement and Gateway states link only to diagnostics the
 current user is authorized to read; unknown causes recommend inspecting the
 durable attempt without inventing a capacity or recovery claim.

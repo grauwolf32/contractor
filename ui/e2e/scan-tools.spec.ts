@@ -279,7 +279,7 @@ test("uploads a Project wordlist, pins its revision and opens a real ffuf report
       has: page.getByRole("heading", { name: "report", exact: true }),
     });
     await output
-      .getByRole("button", { name: "Preview result", exact: true })
+      .getByRole("button", { name: "Preview", exact: true })
       .click();
     const summary = output.getByRole("region", { name: "Scanner execution" });
     await expect(summary).toBeVisible();

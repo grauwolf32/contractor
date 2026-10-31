@@ -1,0 +1,167 @@
+schema_version: "1.0"
+id: V429-002
+title: Put Run outcome and useful results ahead of metadata
+milestone: ui-journey-usability
+epic: ui
+kind: feature
+priority: P2
+status: in_progress
+depends_on: [V429-001]
+languages: [typescript, css]
+goal: >-
+  A user opening a Run can quickly understand its current outcome, what to do
+  next and which result to read, without losing exact identities, timing,
+  recovery controls or diagnostics.
+demonstration: >-
+  Open a successful Run with a declared primary output, inspect its outcome
+  and result, read Created/Finished, and explicitly preview the
+  exact output. Open a failed Run and follow the existing focused-attempt
+  shortcut without changing the lifecycle or available recovery actions.
+context:
+  authority: >-
+    User decision on 2026-10-31: improve the Run viewing screen next after
+    accepting useful ideas from the OpenDesign Check exploration. User clarification
+    on the same date: use OpenDesign for the Run exploration as well; keep
+    copy and download controls icon-only, show only Created/Finished instead
+    of a timestamp disclosure, shorten the displayed Run ID while copying its
+    full value, omit the repeated version in the main heading,
+    and place the exact artifact-details link below Preview/Download on its own
+    line. The user then removed the redundant successful-Run summary, next-step
+    text and shortcuts; success now leads directly to results. The result
+    action is labelled Preview, per the final user wording. Then
+    adapt the successful ideas into real components. Agent proposal:
+    simplify header metadata, group outcome with next step and emphasize the
+    existing primary result, while retaining current behavior.
+  specification: docs/spec/ui/ui.md#UI-R216
+  design: docs/design/ui/README.md
+  decision: >-
+    Run detail components and runs.css own presentation. Keep exact Run ID and
+    Workflow copy controls visible, with Project, Created, available Finished
+    and duration; remove Started/Updated and the proposed timestamp disclosure.
+    The main heading shows the Workflow name; its exact version remains in the
+    Workflow fact. Group existing
+    triage outcome and guidance in a responsive neutral surface for non-success
+    states, leaving causes, recovery and focused-attempt links intact. Successful
+    Runs lead directly to results, with their state already in the header.
+    Results retain Workflow-authored
+    order and explicit byte-loading actions; the primary result's Preview
+    remains the main inspection action. A new Run backend/read model or tab system
+    would widen scope without improving this concrete flow. Reopen only if
+    actual usage shows the compact facts hide information users need first.
+scope:
+  in:
+    - Run detail header, outcome/guidance layout and result presentation.
+    - Existing exact identifiers, icon controls, Created/Finished and accessible anchors.
+    - UI patch version, focused behavior regressions and real-component visual verification.
+  out:
+    - Run list, lifecycle, polling, model configuration, API or Server changes.
+    - Automatic output payload loading, invented summary/verdict/metrics or new actions.
+requirements:
+  - id: R1
+    text: Keep exact identity and Created/available Finished visible, omit header Started/Updated and Timestamps, and show only the Workflow name in the main heading.
+  - id: R2
+    text: Present authoritative state, cause and next step distinctly without changing derivation, recovery eligibility or confirmations.
+  - id: R3
+    text: Retain output ordering, missing/unknown roles and exact preview/download behavior; only explicit preview reads payloads.
+failure_outcomes:
+  - operation: Existing Run, Workflow contract and output preview reads
+    permanent: Existing classified errors and missing-output states remain visible.
+    retryable: Existing query backoff and explicit retry behavior remains unchanged.
+    ambiguous: No new mutation or request; existing lifecycle action receipts are unchanged.
+    cancelled: Existing route/query cancellation and stale snapshot ownership is unchanged.
+    timeout: No timeout is added or changed.
+cardinality:
+  - collection: One Run's metadata, attempts, metrics, Workflow output slots and present outputs
+    expected: A few attempts and output slots.
+    maximum: Existing Server-bounded collections; no new collection, duplicate reads or expansion.
+    bound: Reuse existing linear derivation and rendering; extra timing facts are constant-size.
+lifecycle:
+  - entity: Mounted Run detail
+    delete: Existing Run deletion and route behavior remains.
+    cascade: No new entity or retained state; all remaining disclosure state belongs to the selected Run.
+    retention: Exact artifact revisions and current disclosure ownership are unchanged.
+acceptance_criteria:
+  - id: A1
+    given: A loaded Run with exact identity and all timestamp fields
+    when: It is opened
+    then: Exact identity copy controls and Created/available Finished are visible, while the main heading omits the version and no timestamp disclosure, Started or Updated is shown in the header.
+  - id: A2
+    given: Successful, failed, running, waiting and cancelled Runs
+    when: Their detail pages render
+    then: Success shows its header status and results without a redundant guidance block; other states retain truthful cause, recovery eligibility, focused-attempt access and action confirmations.
+  - id: A3
+    given: Declared primary, secondary, unavailable and unclassified outputs
+    when: The page opens and one result is previewed
+    then: Workflow order and exact preview/download behavior remain; no payload is fetched before the user's action.
+  - id: A4
+    given: Light, dark and black themes at 1440, 390 and 320 px
+    when: Real Run components render and the result preview is used
+    then: Text and actions remain reachable without horizontal document overflow.
+tests:
+  - command: make ui-verify
+    covers: [A1, A2, A3, A4]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+verification:
+  - >-
+    OpenDesign generated index.html and rationale.md in project
+    contractor-run-design-20261031, conversation a99a5bad-8b79-4287-984f-7a2d6aa2eb35,
+    through nine requests to the existing Contractor worker model. Only UI text,
+    styling references and production tokens were supplied; no checkout mount
+    or unrestricted network access. The temporary relay was stopped and its
+    upstream credential copy removed after generation.
+  - >-
+    Adopted the unified outcome/next-step surface for non-success states and
+    primary-output accent. The user removed the redundant success guidance;
+    successful Runs lead from their header directly to results.
+    User follow-ups replaced the suggested timestamp disclosure with visible
+    Created/Finished and removed the repeated version from the main heading.
+    Rejected the prototype's failed-Run Retry model connection
+    offer without Server recovery eligibility; existing production action hooks
+    and recovery semantics remain unchanged.
+  - >-
+    User follow-ups were applied to both the OpenDesign prototype and production
+    components: icon-only copy/download controls with accessible names/tooltips,
+    Created/Finished only, a Workflow-name heading, no success guidance block, and the
+    exact artifact-details link on a separate line below Preview/Download.
+  - >-
+    make ui-verify passed before the final Preview wording refinement:
+    216 files, 2661 passing tests
+    and one existing expected failure; all 17 server tests passed, together
+    with generated-client, lint, typecheck and production-build checks.
+  - >-
+    make lint passed. The final follow-up UI layout change was also checked
+    with make ui-gates: CSS references/breakpoints, production exports, rule
+    regressions and ESLint passed. The scripts unittest suite retains its
+    existing skip.
+  - >-
+    Run suite regressions retain state/action eligibility and explicit exact
+    output preview behavior. New tests cover visible Created/Finished and exact
+    identity controls, omitted success guidance,
+    omitted header Started/Updated/Timestamps, the Workflow-name heading and a
+    queued Run with no invented finish time.
+  - >-
+    The two changed heading-selector consumers passed their browser gates:
+    responsive-layout.spec.ts (9 tests) and project-workspace.spec.ts (5 tests).
+    The latter used separate UI/API origins as required by its upload-origin
+    test; an initial ad-hoc same-origin harness was corrected before its pass.
+  - >-
+    Final real-component read-only fixtures were inspected at 1440/light,
+    390/dark and 320/black: document widths matched their viewports. Success
+    went straight to Results, explicit preview rendered the exact Markdown
+    report, and failure retained its cause and focused attempt without offering
+    ineligible recovery actions. Earlier theme/width matrix checks covered
+    light, dark and black at 1440, 390 and 320 px.
+  - >-
+    A preceding full UI run hit the pre-existing Audit event-history fake-clock
+    race at ui/src/routes/projects/audits/event-history.test.tsx:78 (zero initial
+    reads after advanceTimersByTimeAsync(0), expected one). The final full gate
+    passed without changing that test or its production path. This remains a
+    UI test-maintenance issue; if it recurs, investigate initial-request
+    synchronization separately from the Run presentation change.
+  - >-
+    After renaming the action to Preview, the complete Run suite passed again
+    (10 files, 79 tests), followed by 21 passing browser tests across
+    responsive-layout.spec.ts, runs-navigation.spec.ts and run-repeat.spec.ts.
+    The opt-in real scan-tools and stack selectors were updated consistently;
+    those live-process suites were not executed for this presentation change.

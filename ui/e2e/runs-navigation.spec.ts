@@ -184,7 +184,7 @@ test("Run results expose the declared primary output with one bounded action", a
     "/v1/workflows/browser-result/versions/1",
   ]);
 
-  await page.getByRole("button", { name: "Preview result" }).click();
+  await page.getByRole("button", { name: "Preview" }).click();
   await expect(page.locator("pre.artifact-preview")).toContainText(
     "browser primary result",
   );

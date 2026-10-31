@@ -130,7 +130,7 @@ describe("Run primary output preview", () => {
 
     await user.click(
       within(resultCard("report")).getByRole("button", {
-        name: "Preview result",
+        name: "Preview",
       }),
     );
 
@@ -176,7 +176,7 @@ describe("Run primary output preview", () => {
     await screen.findAllByText("Declared primary result");
     await user.click(
       within(resultCard("report")).getByRole("button", {
-        name: "Preview result",
+        name: "Preview",
       }),
     );
 
@@ -210,7 +210,7 @@ describe("Run primary output preview", () => {
     await screen.findAllByText("Declared primary result");
     await user.click(
       within(resultCard("report")).getByRole("button", {
-        name: "Preview result",
+        name: "Preview",
       }),
     );
 
@@ -265,7 +265,7 @@ describe("Run primary output preview", () => {
     // Downloading does not open the inline preview.
     expect(
       within(resultCard("trace")).getByRole("button", {
-        name: "Preview result",
+        name: "Preview",
       }),
     ).toBeInTheDocument();
   });

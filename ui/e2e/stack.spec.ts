@@ -728,7 +728,7 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
     .locator(".run-result-card")
     .filter({ hasText: "outputs/result@" });
   await streamlineOutput
-    .getByRole("button", { name: "Preview result" })
+    .getByRole("button", { name: "Preview" })
     .click();
   await expect(
     streamlineOutput.locator(".run-output-preview-body"),

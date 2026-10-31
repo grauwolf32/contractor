@@ -337,7 +337,7 @@ for (const viewport of [
       const result = page.locator(".run-result-primary");
       await expect(result.getByText("Primary", { exact: true })).toBeVisible();
       expect(reads).toHaveLength(0);
-      await result.getByRole("button", { name: "Preview result" }).click();
+      await result.getByRole("button", { name: "Preview" }).click();
       await expect(result.locator("pre.artifact-preview")).toContainText(
         "Retained primary result",
       );

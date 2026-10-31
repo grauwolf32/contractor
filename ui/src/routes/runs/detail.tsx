@@ -155,17 +155,10 @@ function RunHeader({
   );
 }
 
-/** "router-analysis@1" with the version quieter. */
+/** The Workflow name; its exact version remains in the copyable facts. */
 function RunTitle({ workflow }: { workflow: string }) {
   const identity = parseWorkflowIdentity(workflow);
-  return identity === undefined ? (
-    workflow
-  ) : (
-    <>
-      {identity.name}
-      <span className="runs-run-version">@{identity.version}</span>
-    </>
-  );
+  return identity?.name ?? workflow;
 }
 
 function RunFacts({ run }: { run: RunStatus }) {
@@ -200,8 +193,6 @@ function RunFacts({ run }: { run: RunStatus }) {
             ),
         },
         { term: "Created", value: time(run.createdAt) },
-        { term: "Started", value: time(run.startedAt) },
-        { term: "Updated", value: time(run.updatedAt) },
         { term: "Finished", value: time(run.finishedAt) },
         {
           term: "Duration",
