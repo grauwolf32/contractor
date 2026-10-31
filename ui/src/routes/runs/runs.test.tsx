@@ -414,12 +414,7 @@ describe("Run routes", () => {
         ...RUN_PAGE,
         "GET /v1/runs/{runId}": () =>
           fail
-            ? failure(
-                503,
-                "storage_transaction_conflict",
-                "Server unavailable",
-                true,
-              )
+            ? failure(503, "storage_transaction_conflict", "Server unavailable")
             : json(runFixture()),
       }),
     });
@@ -1314,7 +1309,6 @@ describe("Run routes", () => {
               500,
               "internal_error",
               "Cancellation service unavailable",
-              true,
             );
           }
           currentRun = runFixture({

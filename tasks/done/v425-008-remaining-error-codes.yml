@@ -6,7 +6,7 @@ epic: api-contracts
 kind: chore
 introduced_by: V372-020
 priority: P3
-status: pending
+status: completed
 depends_on: []
 languages:
 - go
@@ -20,6 +20,12 @@ context:
     :888, :902, :936) and unsupported_toolset (service.py:817, allocation/validation.py:150, :205); neither
     code has a row in docs/spec/platform/errors.md, and the V372-020 vocabulary checks do not scan Runtime
     AllocationError codes.
+  revalidated: >-
+    2026-10-31: AST scan of allocation modules and the private lifecycle handler
+    finds 23 directly constructed codes without registry rows, including the two
+    named codes, and interactsh_not_configured without a numbered owner. All are
+    sibling paths already in scope; preserve every emitted status and retryability.
+    Wrapped domain errors retain their existing domain vocabulary.
   siblings: Every other AllocationError code raised by the Runtime allocation path; extend the V372-020
     check to scan them.
 scope:
@@ -38,3 +44,15 @@ tests:
 - command: make test-wire-cross-language
   covers:
   - A1
+implementation_commit: 0168924720abd54970067365cf13fac204b8244e
+verification:
+  date: '2026-10-31'
+  environment: macOS arm64; Go 1.26.9; Node 24.20.0; pnpm 11.24.0; locked Runtime; disposable contractor_test_v425_quick PostgreSQL database.
+  commands:
+  - make lint passed, including all 184 script tests and the new AllocationError source gate.
+  - make test-wire-cross-language passed; 355 fixtures, 393 Go and 284 Python shared tests; Runtime contract tests 375 passed.
+  - go test -count=1 ./internal/apierror passed.
+  regression: >-
+    Before registry fixes the new source gate failed on 23 missing code rows
+    and one existing row without a numbered owner. Its negative probes reject
+    an unregistered code, duplicate/unowned rows and unresolved constructed codes.

@@ -25,7 +25,7 @@
     }
   ],
   "$defs": {
-    "ProtocolVersion": { "const": "contractor.events.v1" },
+    "ProtocolVersion": { "type": "string", "const": "contractor.events.v1" },
     "SafeIdentifier": {
       "type": "string",
       "minLength": 1,
@@ -43,7 +43,7 @@
       "additionalProperties": false,
       "required": ["kind", "id"],
       "properties": {
-        "kind": { "const": "run" },
+        "kind": { "type": "string", "const": "run" },
         "id": {
           "$ref": "https://contractor.local/schemas/contractor-events-v1.schema.json#/$defs/SafeIdentifier"
         }
@@ -53,7 +53,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["kind"],
-      "properties": { "kind": { "const": "operations" } }
+      "properties": { "kind": { "type": "string", "const": "operations" } }
     },
     "Stream": {
       "oneOf": [
@@ -89,7 +89,7 @@
         "version": {
           "$ref": "https://contractor.local/schemas/contractor-events-v1.schema.json#/$defs/ProtocolVersion"
         },
-        "type": { "const": "subscribe" },
+        "type": { "type": "string", "const": "subscribe" },
         "subscriptionId": {
           "$ref": "https://contractor.local/schemas/contractor-events-v1.schema.json#/$defs/SubscriptionId"
         },
@@ -109,7 +109,7 @@
         "version": {
           "$ref": "https://contractor.local/schemas/contractor-events-v1.schema.json#/$defs/ProtocolVersion"
         },
-        "type": { "const": "unsubscribe" },
+        "type": { "type": "string", "const": "unsubscribe" },
         "subscriptionId": {
           "$ref": "https://contractor.local/schemas/contractor-events-v1.schema.json#/$defs/SubscriptionId"
         }
@@ -123,7 +123,7 @@
         "version": {
           "$ref": "https://contractor.local/schemas/contractor-events-v1.schema.json#/$defs/ProtocolVersion"
         },
-        "type": { "const": "subscribed" },
+        "type": { "type": "string", "const": "subscribed" },
         "subscriptionId": {
           "$ref": "https://contractor.local/schemas/contractor-events-v1.schema.json#/$defs/SubscriptionId"
         },
@@ -143,7 +143,7 @@
         "version": {
           "$ref": "https://contractor.local/schemas/contractor-events-v1.schema.json#/$defs/ProtocolVersion"
         },
-        "type": { "const": "unsubscribed" },
+        "type": { "type": "string", "const": "unsubscribed" },
         "subscriptionId": {
           "$ref": "https://contractor.local/schemas/contractor-events-v1.schema.json#/$defs/SubscriptionId"
         }
@@ -161,7 +161,10 @@
           "minLength": 1,
           "maxLength": 32768
         },
-        "status": { "enum": ["pending", "running", "succeeded", "failed"] }
+        "status": {
+          "type": "string",
+          "enum": ["pending", "running", "succeeded", "failed"]
+        }
       }
     },
     "ActiveDispatch": {
@@ -223,6 +226,7 @@
           "$ref": "https://contractor.local/schemas/contractor-events-v1.schema.json#/$defs/SafeIdentifier"
         },
         "eventKind": {
+          "type": "string",
           "enum": [
             "planner.started",
             "planner.request_recorded",
@@ -250,7 +254,10 @@
         "workerName": {
           "$ref": "https://contractor.local/schemas/contractor-events-v1.schema.json#/$defs/SafeIdentifier"
         },
-        "outcome": { "enum": ["succeeded", "failed", "failure"] },
+        "outcome": {
+          "type": "string",
+          "enum": ["succeeded", "failed", "failure"]
+        },
         "code": {
           "$ref": "https://contractor.local/schemas/contractor-events-v1.schema.json#/$defs/SafeIdentifier"
         },
@@ -260,6 +267,7 @@
           "required": ["kind", "author", "functionCalls", "functionResults"],
           "properties": {
             "kind": {
+              "type": "string",
               "enum": [
                 "adk_event",
                 "scan_owner_acquired",
@@ -269,6 +277,7 @@
               ]
             },
             "author": {
+              "type": "string",
               "enum": [
                 "user",
                 "streamline_planner",
@@ -299,10 +308,15 @@
           },
           "allOf": [
             {
-              "if": { "properties": { "kind": { "const": "adk_event" } } },
+              "if": {
+                "properties": {
+                  "kind": { "type": "string", "const": "adk_event" }
+                }
+              },
               "then": {
                 "properties": {
                   "author": {
+                    "type": "string",
                     "enum": [
                       "user",
                       "streamline_planner",
@@ -314,14 +328,14 @@
               },
               "else": {
                 "properties": {
-                  "author": { "const": "scan_planner" },
+                  "author": { "type": "string", "const": "scan_planner" },
                   "functionCalls": { "maxItems": 0 },
                   "functionResults": { "maxItems": 0 },
-                  "inputTokens": { "const": 0 },
-                  "outputTokens": { "const": 0 },
-                  "skipSummarization": { "const": false },
-                  "escalate": { "const": false },
-                  "truncated": { "const": false }
+                  "inputTokens": { "type": "integer", "const": 0 },
+                  "outputTokens": { "type": "integer", "const": 0 },
+                  "skipSummarization": { "type": "boolean", "const": false },
+                  "escalate": { "type": "boolean", "const": false },
+                  "truncated": { "type": "boolean", "const": false }
                 }
               }
             }
@@ -333,6 +347,7 @@
           "if": {
             "properties": {
               "eventKind": {
+                "type": "string",
                 "enum": ["planner.started", "planner.request_recorded"]
               }
             }
@@ -354,7 +369,9 @@
         },
         {
           "if": {
-            "properties": { "eventKind": { "const": "planner.activity" } }
+            "properties": {
+              "eventKind": { "type": "string", "const": "planner.activity" }
+            }
           },
           "then": {
             "required": ["activity"],
@@ -373,7 +390,9 @@
         },
         {
           "if": {
-            "properties": { "eventKind": { "const": "planner.plan_changed" } }
+            "properties": {
+              "eventKind": { "type": "string", "const": "planner.plan_changed" }
+            }
           },
           "then": {
             "required": ["plan"],
@@ -403,7 +422,10 @@
         {
           "if": {
             "properties": {
-              "eventKind": { "const": "planner.current_changed" }
+              "eventKind": {
+                "type": "string",
+                "const": "planner.current_changed"
+              }
             }
           },
           "then": {
@@ -424,7 +446,10 @@
         {
           "if": {
             "properties": {
-              "eventKind": { "const": "planner.dispatch_selected" }
+              "eventKind": {
+                "type": "string",
+                "const": "planner.dispatch_selected"
+              }
             }
           },
           "then": {
@@ -443,7 +468,10 @@
         {
           "if": {
             "properties": {
-              "eventKind": { "const": "planner.dispatch_started" }
+              "eventKind": {
+                "type": "string",
+                "const": "planner.dispatch_started"
+              }
             }
           },
           "then": {
@@ -471,7 +499,10 @@
         {
           "if": {
             "properties": {
-              "eventKind": { "const": "planner.dispatch_completed" }
+              "eventKind": {
+                "type": "string",
+                "const": "planner.dispatch_completed"
+              }
             }
           },
           "then": {
@@ -483,7 +514,7 @@
               "outcome"
             ],
             "properties": {
-              "outcome": { "enum": ["succeeded", "failed"] },
+              "outcome": { "type": "string", "enum": ["succeeded", "failed"] },
               "plan": {
                 "allOf": [
                   {
@@ -505,15 +536,24 @@
         {
           "if": {
             "properties": {
-              "eventKind": { "const": "planner.finish_requested" }
+              "eventKind": {
+                "type": "string",
+                "const": "planner.finish_requested"
+              }
             }
           },
           "then": {
             "required": ["planRevision", "outcome"],
-            "properties": { "outcome": { "enum": ["succeeded", "failed"] } },
+            "properties": {
+              "outcome": { "type": "string", "enum": ["succeeded", "failed"] }
+            },
             "allOf": [
               {
-                "if": { "properties": { "outcome": { "const": "succeeded" } } },
+                "if": {
+                  "properties": {
+                    "outcome": { "type": "string", "const": "succeeded" }
+                  }
+                },
                 "then": { "properties": { "planRevision": { "minimum": 1 } } }
               }
             ],
@@ -531,11 +571,15 @@
         },
         {
           "if": {
-            "properties": { "eventKind": { "const": "planner.completed" } }
+            "properties": {
+              "eventKind": { "type": "string", "const": "planner.completed" }
+            }
           },
           "then": {
             "required": ["outcome"],
-            "properties": { "outcome": { "enum": ["succeeded", "failed"] } },
+            "properties": {
+              "outcome": { "type": "string", "enum": ["succeeded", "failed"] }
+            },
             "not": {
               "anyOf": [
                 { "required": ["plan"] },
@@ -551,11 +595,15 @@
         },
         {
           "if": {
-            "properties": { "eventKind": { "const": "planner.failed" } }
+            "properties": {
+              "eventKind": { "type": "string", "const": "planner.failed" }
+            }
           },
           "then": {
             "required": ["outcome", "code"],
-            "properties": { "outcome": { "const": "failure" } },
+            "properties": {
+              "outcome": { "type": "string", "const": "failure" }
+            },
             "not": {
               "anyOf": [
                 { "required": ["plan"] },
@@ -578,7 +626,7 @@
         "runId": {
           "$ref": "https://contractor.local/schemas/contractor-events-v1.schema.json#/$defs/SafeIdentifier"
         },
-        "resource": { "enum": ["run", "stageExecution"] },
+        "resource": { "type": "string", "enum": ["run", "stageExecution"] },
         "stageExecutionId": {
           "$ref": "https://contractor.local/schemas/contractor-events-v1.schema.json#/$defs/SafeIdentifier"
         },
@@ -588,7 +636,11 @@
       },
       "allOf": [
         {
-          "if": { "properties": { "resource": { "const": "stageExecution" } } },
+          "if": {
+            "properties": {
+              "resource": { "type": "string", "const": "stageExecution" }
+            }
+          },
           "then": { "required": ["stageExecutionId"] },
           "else": { "not": { "required": ["stageExecutionId"] } }
         }
@@ -600,6 +652,7 @@
       "required": ["resource", "revision"],
       "properties": {
         "resource": {
+          "type": "string",
           "enum": [
             "runtimeAgent",
             "allocation",
@@ -623,7 +676,10 @@
         {
           "if": {
             "properties": {
-              "resource": { "enum": ["schedulerSettings", "modelSelection"] }
+              "resource": {
+                "type": "string",
+                "enum": ["schedulerSettings", "modelSelection"]
+              }
             }
           },
           "then": { "not": { "required": ["resourceId"] } }
@@ -649,7 +705,7 @@
             "version": {
               "$ref": "https://contractor.local/schemas/contractor-events-v1.schema.json#/$defs/ProtocolVersion"
             },
-            "type": { "const": "event" },
+            "type": { "type": "string", "const": "event" },
             "subscriptionId": {
               "$ref": "https://contractor.local/schemas/contractor-events-v1.schema.json#/$defs/SubscriptionId"
             },
@@ -659,7 +715,7 @@
             "cursor": {
               "$ref": "https://contractor.local/schemas/contractor-events-v1.schema.json#/$defs/Cursor"
             },
-            "kind": { "const": "planner.event" },
+            "kind": { "type": "string", "const": "planner.event" },
             "occurredAt": { "type": "string", "format": "date-time" },
             "data": {
               "$ref": "https://contractor.local/schemas/contractor-events-v1.schema.json#/$defs/PlannerEventData"
@@ -683,7 +739,7 @@
             "version": {
               "$ref": "https://contractor.local/schemas/contractor-events-v1.schema.json#/$defs/ProtocolVersion"
             },
-            "type": { "const": "event" },
+            "type": { "type": "string", "const": "event" },
             "subscriptionId": {
               "$ref": "https://contractor.local/schemas/contractor-events-v1.schema.json#/$defs/SubscriptionId"
             },
@@ -693,7 +749,7 @@
             "cursor": {
               "$ref": "https://contractor.local/schemas/contractor-events-v1.schema.json#/$defs/Cursor"
             },
-            "kind": { "const": "lifecycle.changed" },
+            "kind": { "type": "string", "const": "lifecycle.changed" },
             "occurredAt": { "type": "string", "format": "date-time" },
             "data": {
               "$ref": "https://contractor.local/schemas/contractor-events-v1.schema.json#/$defs/LifecycleEventData"
@@ -717,7 +773,7 @@
             "version": {
               "$ref": "https://contractor.local/schemas/contractor-events-v1.schema.json#/$defs/ProtocolVersion"
             },
-            "type": { "const": "event" },
+            "type": { "type": "string", "const": "event" },
             "subscriptionId": {
               "$ref": "https://contractor.local/schemas/contractor-events-v1.schema.json#/$defs/SubscriptionId"
             },
@@ -727,7 +783,7 @@
             "cursor": {
               "$ref": "https://contractor.local/schemas/contractor-events-v1.schema.json#/$defs/Cursor"
             },
-            "kind": { "const": "operations.changed" },
+            "kind": { "type": "string", "const": "operations.changed" },
             "occurredAt": { "type": "string", "format": "date-time" },
             "data": {
               "$ref": "https://contractor.local/schemas/contractor-events-v1.schema.json#/$defs/OperationsEventData"
@@ -744,7 +800,7 @@
         "version": {
           "$ref": "https://contractor.local/schemas/contractor-events-v1.schema.json#/$defs/ProtocolVersion"
         },
-        "type": { "const": "resync_required" },
+        "type": { "type": "string", "const": "resync_required" },
         "subscriptionId": {
           "$ref": "https://contractor.local/schemas/contractor-events-v1.schema.json#/$defs/SubscriptionId"
         },
@@ -752,6 +808,7 @@
           "$ref": "https://contractor.local/schemas/contractor-events-v1.schema.json#/$defs/Stream"
         },
         "reason": {
+          "type": "string",
           "enum": ["generation_changed", "cursor_unavailable", "sequence_gap"]
         }
       }
@@ -764,11 +821,12 @@
         "version": {
           "$ref": "https://contractor.local/schemas/contractor-events-v1.schema.json#/$defs/ProtocolVersion"
         },
-        "type": { "const": "error" },
+        "type": { "type": "string", "const": "error" },
         "subscriptionId": {
           "$ref": "https://contractor.local/schemas/contractor-events-v1.schema.json#/$defs/SubscriptionId"
         },
         "code": {
+          "type": "string",
           "enum": [
             "invalid_frame",
             "subscription_limit",

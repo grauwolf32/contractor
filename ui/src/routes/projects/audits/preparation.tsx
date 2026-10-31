@@ -1,4 +1,5 @@
 import type { Audit } from "../../../api/audits";
+import { auditPastPreparation } from "../../../api/states";
 import { ContextLink } from "../../../app/context-navigation";
 import { formatNumber, plural } from "../../../app/format";
 import {
@@ -26,7 +27,7 @@ export function CheckJourney({
   audit: Audit;
   kind: ItemKind;
 }) {
-  const prepared = audit.phase === "inventory" || audit.phase === "rounds";
+  const prepared = auditPastPreparation(audit.phase);
   const report =
     audit.phase === "rounds" &&
     ["finalizing", "completed"].includes(audit.state);

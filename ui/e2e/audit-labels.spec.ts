@@ -58,7 +58,6 @@ for (const theme of ["light", "dark", "black"] as const) {
             503,
             "storage_transaction_conflict",
             "Please retry",
-            { retryable: true },
           );
           return;
         } else if (url.pathname === "/v1/audits/audit_new") {

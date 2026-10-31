@@ -86,7 +86,7 @@ describe("Server shared policy", () => {
 
   it("does not substitute a local default for a failed read", async () => {
     const server = fakeServer({
-      "GET /v1/config": () => failure(503, "server_standby", "Try later", true),
+      "GET /v1/config": () => failure(503, "server_standby", "Try later"),
     });
     const { api } = testAPI(server);
     await expect(getSharedConfig(api)).rejects.toMatchObject({

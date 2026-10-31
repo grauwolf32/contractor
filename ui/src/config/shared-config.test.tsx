@@ -51,7 +51,7 @@ describe("UI policy bootstrap", () => {
 
   it("blocks on failure and admits content only after explicit successful retry", async () => {
     const server = fakeServer({
-      "GET /v1/config": () => failure(500, "internal_error", "Try later"),
+      "GET /v1/config": () => failure(400, "invalid_request", "Try later"),
     });
     const { user } = renderWithAPI(
       <SharedConfigGate>

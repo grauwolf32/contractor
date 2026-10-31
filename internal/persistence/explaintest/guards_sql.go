@@ -6,6 +6,9 @@ package explaintest
 // with the language and source of its function, its definition, which holds
 // its WHEN condition, and its UPDATE OF columns, if any. Used by
 // RequireColumnScopedGuards.
+// Trigger functions cannot have LANGUAGE sql SQL-standard bodies, so this
+// trigger-only reader can use prosrc directly. Ordinary routine inspections
+// use RoutineBodySQL instead, including helpers a trigger calls.
 var beforeUpdateTriggersSQL = `
 SELECT trigger.tgname::text, language.lanname::text, function.prosrc, pg_get_triggerdef(trigger.oid),
        ARRAY(SELECT attribute.attname::text

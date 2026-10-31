@@ -57,7 +57,7 @@ var notAlias = map[string]bool{
 	"natural": true, "using": true, "tablesample": true, "and": true, "or": true,
 }
 
-// ReadBody reads the text of a routine body, such as pg_proc.prosrc. Text
+// ReadBody reads routine text obtained with RoutineBodySQL. Text
 // the lexer cannot split, such as an unterminated constant, is an error.
 func ReadBody(source string) (Body, error) {
 	tokens, err := tokenize(source)

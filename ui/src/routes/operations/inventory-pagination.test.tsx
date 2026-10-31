@@ -292,7 +292,6 @@ describe("Operations inventories beyond the first page", () => {
                 503,
                 "storage_transaction_conflict",
                 "Runtime credentials are unavailable",
-                true,
               );
         return emptyPageOrNotFound(request, url);
       },

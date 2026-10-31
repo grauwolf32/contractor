@@ -6,8 +6,8 @@ epic: persistence
 kind: defect
 introduced_by: V425-003
 priority: P3
-status: pending
-depends_on: []
+status: completed
+depends_on: [V426-001]
 languages: [go, sql]
 goal: >-
   Every test or guard that inspects what a database routine does reads its
@@ -29,6 +29,14 @@ context:
     writing function with a SQL-standard body would pass these checks
     unseen. V425-003 already switched the PER-R23 routine-ownership check to
     pg_get_function_sqlbody.
+  specification:
+    - docs/spec/platform/persistence.md#PER-R46
+  implementation_decision: >-
+    2026-10-31: Put the shared pg_proc body expression in the existing
+    explaintest helper package and use it in every ordinary routine reader.
+    Keep the existing trigger-only guards query as the documented exception:
+    SQL functions cannot return trigger. Extend the existing lint persistence
+    source checks with the direct-reader guard and negative Go/Python/SQL probes.
   siblings: >-
     Every git grep hit for prosrc under internal/, tests/ and scripts/,
     including internal/persistence/explaintest/guards_sql.go:10 (trigger
@@ -50,3 +58,17 @@ tests:
     covers: [A1, A2]
   - command: make lint
     covers: [A2]
+implementation_commit: c9f90eb704430d36ae67d7d2b9d34fb0ead54314
+verification:
+  date: '2026-10-31'
+  environment: "macOS arm64, Go 1.26.9, disposable contractor_test_v425_quick PostgreSQL database."
+  commands:
+    - go test -count=1 ./internal/auditstore/... ./internal/persistence/... ./internal/evalstore/... passed after V426-001 repaired the pre-existing SQLSTATE source-guard failure.
+    - make lint passed, including the new direct-reader guard and its negative Go/Python/SQL probes.
+  regression: >-
+    Replacing the shared body expression temporarily with a prosrc-only reader
+    made all five real-PostgreSQL inspection tests fail: Audit event allocation,
+    routine ownership, Project correlation fences, mutation receipts and Eval
+    purge coverage. Restoring it passed the complete owner-package suites.
+    The trigger-only source reader is explicitly documented because SQL
+    functions cannot return trigger. No production functions or limits changed.

@@ -131,6 +131,11 @@ export function auditPrecedesRounds(phase: AuditPhase): boolean {
   return phase === "preparing" || phase === "inventory";
 }
 
+/** Whether material preparation has finished and inventory or Rounds can run. */
+export function auditPastPreparation(phase: AuditPhase): boolean {
+  return phase === "inventory" || phase === "rounds";
+}
+
 /** Whether `state` is one of `states`, for a narrowly typed list. */
 export function isStateIn<S extends string>(
   states: readonly S[],

@@ -424,6 +424,21 @@ func (e AttemptDiagnosticParticipant) Valid() bool {
 	}
 }
 
+// Defines values for Audit0Phase.
+const (
+	Audit0PhaseNotStarted Audit0Phase = "not-started"
+)
+
+// Valid indicates whether the value is a known member of the Audit0Phase enum.
+func (e Audit0Phase) Valid() bool {
+	switch e {
+	case Audit0PhaseNotStarted:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for Audit1Phase.
 const (
 	Audit1PhaseInventory Audit1Phase = "inventory"
@@ -436,6 +451,21 @@ func (e Audit1Phase) Valid() bool {
 	case Audit1PhaseInventory:
 		return true
 	case Audit1PhasePreparing:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for Audit2Phase.
+const (
+	Audit2PhaseRounds Audit2Phase = "rounds"
+)
+
+// Valid indicates whether the value is a known member of the Audit2Phase enum.
+func (e Audit2Phase) Valid() bool {
+	switch e {
+	case Audit2PhaseRounds:
 		return true
 	default:
 		return false
@@ -493,6 +523,21 @@ func (e AuditCheckMethodMappingMethod) Valid() bool {
 	case StaticTrace:
 		return true
 	case Verify:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditCheckMethodMappingPlanSchema.
+const (
+	ContractorAuditFindingCheckPlanV1 AuditCheckMethodMappingPlanSchema = "contractor.audit.finding-check-plan.v1"
+)
+
+// Valid indicates whether the value is a known member of the AuditCheckMethodMappingPlanSchema enum.
+func (e AuditCheckMethodMappingPlanSchema) Valid() bool {
+	switch e {
+	case ContractorAuditFindingCheckPlanV1:
 		return true
 	default:
 		return false
@@ -1063,6 +1108,21 @@ func (e AuditInventoryImplementation) Valid() bool {
 	}
 }
 
+// Defines values for AuditInventory0Implementation.
+const (
+	AuditInventory0ImplementationStandardMappings1 AuditInventory0Implementation = "standard-mappings@1"
+)
+
+// Valid indicates whether the value is a known member of the AuditInventory0Implementation enum.
+func (e AuditInventory0Implementation) Valid() bool {
+	switch e {
+	case AuditInventory0ImplementationStandardMappings1:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AuditInventory1Implementation.
 const (
 	AuditInventory1ImplementationOpenapiScans1 AuditInventory1Implementation = "openapi-scans@1"
@@ -1114,6 +1174,36 @@ func (e AuditInventoryArtifactSource) Valid() bool {
 	case AuditInventoryArtifactSourceAuditInput:
 		return true
 	case AuditInventoryArtifactSourcePrepareOutput:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditInventoryArtifact0Source.
+const (
+	AuditInventoryArtifact0SourceAuditInput AuditInventoryArtifact0Source = "audit-input"
+)
+
+// Valid indicates whether the value is a known member of the AuditInventoryArtifact0Source enum.
+func (e AuditInventoryArtifact0Source) Valid() bool {
+	switch e {
+	case AuditInventoryArtifact0SourceAuditInput:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditInventoryArtifact1Source.
+const (
+	AuditInventoryArtifact1SourcePrepareOutput AuditInventoryArtifact1Source = "prepare-output"
+)
+
+// Valid indicates whether the value is a known member of the AuditInventoryArtifact1Source enum.
+func (e AuditInventoryArtifact1Source) Valid() bool {
+	switch e {
+	case AuditInventoryArtifact1SourcePrepareOutput:
 		return true
 	default:
 		return false
@@ -1234,6 +1324,36 @@ func (e AuditPreparationRoleStatus) Valid() bool {
 	}
 }
 
+// Defines values for AuditPreparationRole0Attempts.
+const (
+	N0 AuditPreparationRole0Attempts = 0
+)
+
+// Valid indicates whether the value is a known member of the AuditPreparationRole0Attempts enum.
+func (e AuditPreparationRole0Attempts) Valid() bool {
+	switch e {
+	case N0:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditPreparationRole0Status.
+const (
+	AuditPreparationRole0StatusPending AuditPreparationRole0Status = "pending"
+)
+
+// Valid indicates whether the value is a known member of the AuditPreparationRole0Status enum.
+func (e AuditPreparationRole0Status) Valid() bool {
+	switch e {
+	case AuditPreparationRole0StatusPending:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AuditPreparationRole1Status.
 const (
 	AuditPreparationRole1StatusFailed  AuditPreparationRole1Status = "failed"
@@ -1246,6 +1366,21 @@ func (e AuditPreparationRole1Status) Valid() bool {
 	case AuditPreparationRole1StatusFailed:
 		return true
 	case AuditPreparationRole1StatusRunning:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditPreparationRole2Status.
+const (
+	AuditPreparationRole2StatusAccepted AuditPreparationRole2Status = "accepted"
+)
+
+// Valid indicates whether the value is a known member of the AuditPreparationRole2Status enum.
+func (e AuditPreparationRole2Status) Valid() bool {
+	switch e {
+	case AuditPreparationRole2StatusAccepted:
 		return true
 	default:
 		return false
@@ -1312,6 +1447,21 @@ func (e AuditProfileWorkflowKind) Valid() bool {
 	case AuditProfileWorkflowKindDiscovery:
 		return true
 	case AuditProfileWorkflowKindPrepare:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditProfileWorkflow0Kind.
+const (
+	AuditProfileWorkflow0KindPrepare AuditProfileWorkflow0Kind = "prepare"
+)
+
+// Valid indicates whether the value is a known member of the AuditProfileWorkflow0Kind enum.
+func (e AuditProfileWorkflow0Kind) Valid() bool {
+	switch e {
+	case AuditProfileWorkflow0KindPrepare:
 		return true
 	default:
 		return false
@@ -1795,6 +1945,51 @@ func (e AuditStandardMappingMethod) Valid() bool {
 	case AuditStandardMappingMethodManualReview:
 		return true
 	case AuditStandardMappingMethodSourceAnalysis:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditStandardPackagePageApiVersion.
+const (
+	AuditStandardPackagePageApiVersionContractorv1alpha1 AuditStandardPackagePageApiVersion = "contractor/v1alpha1"
+)
+
+// Valid indicates whether the value is a known member of the AuditStandardPackagePageApiVersion enum.
+func (e AuditStandardPackagePageApiVersion) Valid() bool {
+	switch e {
+	case AuditStandardPackagePageApiVersionContractorv1alpha1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditStandardPackageResponseApiVersion.
+const (
+	AuditStandardPackageResponseApiVersionContractorv1alpha1 AuditStandardPackageResponseApiVersion = "contractor/v1alpha1"
+)
+
+// Valid indicates whether the value is a known member of the AuditStandardPackageResponseApiVersion enum.
+func (e AuditStandardPackageResponseApiVersion) Valid() bool {
+	switch e {
+	case AuditStandardPackageResponseApiVersionContractorv1alpha1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditStartResponse0AuditPhase.
+const (
+	AuditStartResponse0AuditPhaseRounds AuditStartResponse0AuditPhase = "rounds"
+)
+
+// Valid indicates whether the value is a known member of the AuditStartResponse0AuditPhase enum.
+func (e AuditStartResponse0AuditPhase) Valid() bool {
+	switch e {
+	case AuditStartResponse0AuditPhaseRounds:
 		return true
 	default:
 		return false
@@ -2323,6 +2518,21 @@ func (e EvalArtifactScope) Valid() bool {
 	}
 }
 
+// Defines values for EvalAssessmentInputSchemaVersion.
+const (
+	ContractorEvalAssessmentInputv1 EvalAssessmentInputSchemaVersion = "contractor.eval-assessment-input/v1"
+)
+
+// Valid indicates whether the value is a known member of the EvalAssessmentInputSchemaVersion enum.
+func (e EvalAssessmentInputSchemaVersion) Valid() bool {
+	switch e {
+	case ContractorEvalAssessmentInputv1:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for EvalAssessmentSourceKind.
 const (
 	EvalAssessmentSourcePropertiesKindExternal EvalAssessmentSourceKind = "external"
@@ -2485,6 +2695,36 @@ func (e EvalChartUnit) Valid() bool {
 	}
 }
 
+// Defines values for EvalChart0Chart.
+const (
+	Quality EvalChart0Chart = "quality"
+)
+
+// Valid indicates whether the value is a known member of the EvalChart0Chart enum.
+func (e EvalChart0Chart) Valid() bool {
+	switch e {
+	case Quality:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EvalChart0Unit.
+const (
+	Fraction EvalChart0Unit = "fraction"
+)
+
+// Valid indicates whether the value is a known member of the EvalChart0Unit enum.
+func (e EvalChart0Unit) Valid() bool {
+	switch e {
+	case Fraction:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for EvalChart1Chart.
 const (
 	EvalChartOneof1PropertiesChartDuration EvalChart1Chart = "duration"
@@ -2497,6 +2737,81 @@ func (e EvalChart1Chart) Valid() bool {
 	case EvalChartOneof1PropertiesChartDuration:
 		return true
 	case EvalChartOneof1PropertiesChartTokens:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EvalChart2Chart.
+const (
+	PairDeltas EvalChart2Chart = "pair-deltas"
+)
+
+// Valid indicates whether the value is a known member of the EvalChart2Chart enum.
+func (e EvalChart2Chart) Valid() bool {
+	switch e {
+	case PairDeltas:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EvalChart3Chart.
+const (
+	Progress EvalChart3Chart = "progress"
+)
+
+// Valid indicates whether the value is a known member of the EvalChart3Chart enum.
+func (e EvalChart3Chart) Valid() bool {
+	switch e {
+	case Progress:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EvalChart3Unit.
+const (
+	Members EvalChart3Unit = "members"
+)
+
+// Valid indicates whether the value is a known member of the EvalChart3Unit enum.
+func (e EvalChart3Unit) Valid() bool {
+	switch e {
+	case Members:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EvalCheckRequestSchemaVersion.
+const (
+	ContractorEvalCheckRequestv1 EvalCheckRequestSchemaVersion = "contractor.eval-check-request/v1"
+)
+
+// Valid indicates whether the value is a known member of the EvalCheckRequestSchemaVersion enum.
+func (e EvalCheckRequestSchemaVersion) Valid() bool {
+	switch e {
+	case ContractorEvalCheckRequestv1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EvalCheckRequestSourceKind.
+const (
+	Native EvalCheckRequestSourceKind = "native"
+)
+
+// Valid indicates whether the value is a known member of the EvalCheckRequestSourceKind enum.
+func (e EvalCheckRequestSourceKind) Valid() bool {
+	switch e {
+	case Native:
 		return true
 	default:
 		return false
@@ -2632,6 +2947,36 @@ func (e EvalCreateExperimentControlMode) Valid() bool {
 	case EvalCreateExperimentPropertiesControlmodeExternal:
 		return true
 	case EvalCreateExperimentPropertiesControlmodeServer:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EvalCreateExperiment0ControlMode.
+const (
+	Server EvalCreateExperiment0ControlMode = "server"
+)
+
+// Valid indicates whether the value is a known member of the EvalCreateExperiment0ControlMode enum.
+func (e EvalCreateExperiment0ControlMode) Valid() bool {
+	switch e {
+	case Server:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EvalCreateExperiment1ControlMode.
+const (
+	External EvalCreateExperiment1ControlMode = "external"
+)
+
+// Valid indicates whether the value is a known member of the EvalCreateExperiment1ControlMode enum.
+func (e EvalCreateExperiment1ControlMode) Valid() bool {
+	switch e {
+	case External:
 		return true
 	default:
 		return false
@@ -3043,6 +3388,21 @@ func (e EvalExperimentSummaryState) Valid() bool {
 	}
 }
 
+// Defines values for EvalExternalRegistrationSchemaVersion.
+const (
+	ContractorEvalRegistrationv1 EvalExternalRegistrationSchemaVersion = "contractor.eval-registration/v1"
+)
+
+// Valid indicates whether the value is a known member of the EvalExternalRegistrationSchemaVersion enum.
+func (e EvalExternalRegistrationSchemaVersion) Valid() bool {
+	switch e {
+	case ContractorEvalRegistrationv1:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for EvalInventoryEntryState.
 const (
 	EvalInventoryEntryPropertiesStateAccepted     EvalInventoryEntryState = "accepted"
@@ -3292,6 +3652,36 @@ func (e EvalPublicPlanMembersEligibility) Valid() bool {
 	}
 }
 
+// Defines values for EvalPublicPlanSchemaVersion.
+const (
+	PlaygroundPublicProjectionv1 EvalPublicPlanSchemaVersion = "playground.public-projection/v1"
+)
+
+// Valid indicates whether the value is a known member of the EvalPublicPlanSchemaVersion enum.
+func (e EvalPublicPlanSchemaVersion) Valid() bool {
+	switch e {
+	case PlaygroundPublicProjectionv1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EvalPublicPlanSourceSchemaVersion.
+const (
+	PlaygroundPlanv1 EvalPublicPlanSourceSchemaVersion = "playground.plan/v1"
+)
+
+// Valid indicates whether the value is a known member of the EvalPublicPlanSourceSchemaVersion enum.
+func (e EvalPublicPlanSourceSchemaVersion) Valid() bool {
+	switch e {
+	case PlaygroundPlanv1:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for EvalReadinessPinBaselineOrigin.
 const (
 	EvalReadinessPinPropertiesBaselineoriginObserved         EvalReadinessPinBaselineOrigin = "observed"
@@ -3355,6 +3745,21 @@ func (e EvalReadinessPinStatus) Valid() bool {
 	}
 }
 
+// Defines values for EvalReportSchemaVersion.
+const (
+	ContractorEvalReportv1 EvalReportSchemaVersion = "contractor.eval-report/v1"
+)
+
+// Valid indicates whether the value is a known member of the EvalReportSchemaVersion enum.
+func (e EvalReportSchemaVersion) Valid() bool {
+	switch e {
+	case ContractorEvalReportv1:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for EvalResultInputCollectionStatus.
 const (
 	EvalResultInputPropertiesCollectionPropertiesStatusComplete    EvalResultInputCollectionStatus = "complete"
@@ -3370,6 +3775,21 @@ func (e EvalResultInputCollectionStatus) Valid() bool {
 	case EvalResultInputPropertiesCollectionPropertiesStatusPartial:
 		return true
 	case EvalResultInputPropertiesCollectionPropertiesStatusUnavailable:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EvalResultInputSchemaVersion.
+const (
+	ContractorEvalResultInputv1 EvalResultInputSchemaVersion = "contractor.eval-result-input/v1"
+)
+
+// Valid indicates whether the value is a known member of the EvalResultInputSchemaVersion enum.
+func (e EvalResultInputSchemaVersion) Valid() bool {
+	switch e {
+	case ContractorEvalResultInputv1:
 		return true
 	default:
 		return false
@@ -3439,6 +3859,96 @@ func (e EvalVariantKind) Valid() bool {
 	}
 }
 
+// Defines values for FindingAnchorBasisAvailability.
+const (
+	FindingAnchorBasisAvailabilityAvailable FindingAnchorBasisAvailability = "available"
+)
+
+// Valid indicates whether the value is a known member of the FindingAnchorBasisAvailability enum.
+func (e FindingAnchorBasisAvailability) Valid() bool {
+	switch e {
+	case FindingAnchorBasisAvailabilityAvailable:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FindingAnchorBasisSchema.
+const (
+	ContractorFindingAnchorsDerivedV1 FindingAnchorBasisSchema = "contractor.finding.anchors-derived.v1"
+)
+
+// Valid indicates whether the value is a known member of the FindingAnchorBasisSchema enum.
+func (e FindingAnchorBasisSchema) Valid() bool {
+	switch e {
+	case ContractorFindingAnchorsDerivedV1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FindingAnchorContextRuleId.
+const (
+	SourcePrivateKeyLiteralEd25519v1 FindingAnchorContextRuleId = "source.private-key-literal.ed25519/v1"
+)
+
+// Valid indicates whether the value is a known member of the FindingAnchorContextRuleId enum.
+func (e FindingAnchorContextRuleId) Valid() bool {
+	switch e {
+	case SourcePrivateKeyLiteralEd25519v1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FindingAnchorContextScheme.
+const (
+	NodeLocalv1 FindingAnchorContextScheme = "node-local/v1"
+)
+
+// Valid indicates whether the value is a known member of the FindingAnchorContextScheme enum.
+func (e FindingAnchorContextScheme) Valid() bool {
+	switch e {
+	case NodeLocalv1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FindingAnchorKeys1IssueReason.
+const (
+	IssueContextUnavailable FindingAnchorKeys1IssueReason = "issue_context_unavailable"
+)
+
+// Valid indicates whether the value is a known member of the FindingAnchorKeys1IssueReason enum.
+func (e FindingAnchorKeys1IssueReason) Valid() bool {
+	switch e {
+	case IssueContextUnavailable:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FindingAnchorProjection0Availability.
+const (
+	FindingAnchorProjection0AvailabilityUnavailable FindingAnchorProjection0Availability = "unavailable"
+)
+
+// Valid indicates whether the value is a known member of the FindingAnchorProjection0Availability enum.
+func (e FindingAnchorProjection0Availability) Valid() bool {
+	switch e {
+	case FindingAnchorProjection0AvailabilityUnavailable:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for FindingAnchorProjection0Reason.
 const (
 	FindingAnchorProjection0ReasonAnchorAmbiguous           FindingAnchorProjection0Reason = "anchor_ambiguous"
@@ -3481,6 +3991,51 @@ func (e FindingAnchorProjection0Reason) Valid() bool {
 	case FindingAnchorProjection0ReasonSourceInvalid:
 		return true
 	case FindingAnchorProjection0ReasonSourceMissing:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FindingAnchorProjection0Schema.
+const (
+	FindingAnchorProjection0SchemaContractorFindingAnchorsProjectionV1 FindingAnchorProjection0Schema = "contractor.finding.anchors-projection.v1"
+)
+
+// Valid indicates whether the value is a known member of the FindingAnchorProjection0Schema enum.
+func (e FindingAnchorProjection0Schema) Valid() bool {
+	switch e {
+	case FindingAnchorProjection0SchemaContractorFindingAnchorsProjectionV1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FindingAnchorProjection1Availability.
+const (
+	FindingAnchorProjection1AvailabilityAvailable FindingAnchorProjection1Availability = "available"
+)
+
+// Valid indicates whether the value is a known member of the FindingAnchorProjection1Availability enum.
+func (e FindingAnchorProjection1Availability) Valid() bool {
+	switch e {
+	case FindingAnchorProjection1AvailabilityAvailable:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FindingAnchorProjection1Schema.
+const (
+	FindingAnchorProjection1SchemaContractorFindingAnchorsProjectionV1 FindingAnchorProjection1Schema = "contractor.finding.anchors-projection.v1"
+)
+
+// Valid indicates whether the value is a known member of the FindingAnchorProjection1Schema enum.
+func (e FindingAnchorProjection1Schema) Valid() bool {
+	switch e {
+	case FindingAnchorProjection1SchemaContractorFindingAnchorsProjectionV1:
 		return true
 	default:
 		return false
@@ -3547,6 +4102,36 @@ func (e FindingCandidateSourceHintsReason) Valid() bool {
 	}
 }
 
+// Defines values for FindingCandidatesPagePolicyVersion.
+const (
+	FindingCandidatesPagePolicyVersionQualifiedSnapshotv1 FindingCandidatesPagePolicyVersion = "qualified-snapshot/v1"
+)
+
+// Valid indicates whether the value is a known member of the FindingCandidatesPagePolicyVersion enum.
+func (e FindingCandidatesPagePolicyVersion) Valid() bool {
+	switch e {
+	case FindingCandidatesPagePolicyVersionQualifiedSnapshotv1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FindingCandidatesPageTargetBasis.
+const (
+	ImmutableFirstReceipt FindingCandidatesPageTargetBasis = "immutable-first-receipt"
+)
+
+// Valid indicates whether the value is a known member of the FindingCandidatesPageTargetBasis enum.
+func (e FindingCandidatesPageTargetBasis) Valid() bool {
+	switch e {
+	case ImmutableFirstReceipt:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for FindingCollectionSourceSelectionKind.
 const (
 	FindingCollectionSourceSelectionKindAudit FindingCollectionSourceSelectionKind = "audit"
@@ -3565,6 +4150,51 @@ func (e FindingCollectionSourceSelectionKind) Valid() bool {
 	}
 }
 
+// Defines values for FindingComparisonAuditBaselineDigestEncoding.
+const (
+	PostgresJsonbTextv1 FindingComparisonAuditBaselineDigestEncoding = "postgres-jsonb-text/v1"
+)
+
+// Valid indicates whether the value is a known member of the FindingComparisonAuditBaselineDigestEncoding enum.
+func (e FindingComparisonAuditBaselineDigestEncoding) Valid() bool {
+	switch e {
+	case PostgresJsonbTextv1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FindingComparisonAuditCoverage.
+const (
+	NotCompared FindingComparisonAuditCoverage = "not-compared"
+)
+
+// Valid indicates whether the value is a known member of the FindingComparisonAuditCoverage enum.
+func (e FindingComparisonAuditCoverage) Valid() bool {
+	switch e {
+	case NotCompared:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FindingComparisonPagePolicyVersion.
+const (
+	FindingComparisonPagePolicyVersionQualifiedSnapshotv1 FindingComparisonPagePolicyVersion = "qualified-snapshot/v1"
+)
+
+// Valid indicates whether the value is a known member of the FindingComparisonPagePolicyVersion enum.
+func (e FindingComparisonPagePolicyVersion) Valid() bool {
+	switch e {
+	case FindingComparisonPagePolicyVersionQualifiedSnapshotv1:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for FindingComparisonPreviewCorrelationRole.
 const (
 	AutomaticDuplicate FindingComparisonPreviewCorrelationRole = "automatic-duplicate"
@@ -3577,6 +4207,21 @@ func (e FindingComparisonPreviewCorrelationRole) Valid() bool {
 	case AutomaticDuplicate:
 		return true
 	case Representative:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FindingComparisonPreviewPreview.
+const (
+	FindingComparisonPreviewPreviewTrue FindingComparisonPreviewPreview = true
+)
+
+// Valid indicates whether the value is a known member of the FindingComparisonPreviewPreview enum.
+func (e FindingComparisonPreviewPreview) Valid() bool {
+	switch e {
+	case FindingComparisonPreviewPreviewTrue:
 		return true
 	default:
 		return false
@@ -3658,6 +4303,66 @@ func (e FindingComparisonRowUnavailableReason) Valid() bool {
 	}
 }
 
+// Defines values for FindingCorrelation0AutomaticDuplicate.
+const (
+	FindingCorrelation0AutomaticDuplicateFalse FindingCorrelation0AutomaticDuplicate = false
+)
+
+// Valid indicates whether the value is a known member of the FindingCorrelation0AutomaticDuplicate enum.
+func (e FindingCorrelation0AutomaticDuplicate) Valid() bool {
+	switch e {
+	case FindingCorrelation0AutomaticDuplicateFalse:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FindingCorrelation0Availability.
+const (
+	FindingCorrelation0AvailabilityUnavailable FindingCorrelation0Availability = "unavailable"
+)
+
+// Valid indicates whether the value is a known member of the FindingCorrelation0Availability enum.
+func (e FindingCorrelation0Availability) Valid() bool {
+	switch e {
+	case FindingCorrelation0AvailabilityUnavailable:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FindingCorrelation0HasOtherObservations.
+const (
+	FindingCorrelation0HasOtherObservationsFalse FindingCorrelation0HasOtherObservations = false
+)
+
+// Valid indicates whether the value is a known member of the FindingCorrelation0HasOtherObservations enum.
+func (e FindingCorrelation0HasOtherObservations) Valid() bool {
+	switch e {
+	case FindingCorrelation0HasOtherObservationsFalse:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FindingCorrelation0PolicyVersion.
+const (
+	FindingCorrelation0PolicyVersionQualifiedSnapshotv1 FindingCorrelation0PolicyVersion = "qualified-snapshot/v1"
+)
+
+// Valid indicates whether the value is a known member of the FindingCorrelation0PolicyVersion enum.
+func (e FindingCorrelation0PolicyVersion) Valid() bool {
+	switch e {
+	case FindingCorrelation0PolicyVersionQualifiedSnapshotv1:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for FindingCorrelation0Reason.
 const (
 	FindingCorrelation0ReasonNoQualifiedKey      FindingCorrelation0Reason = "no_qualified_key"
@@ -3679,18 +4384,198 @@ func (e FindingCorrelation0Reason) Valid() bool {
 	}
 }
 
+// Defines values for FindingCorrelation0Schema.
+const (
+	FindingCorrelation0SchemaContractorFindingCorrelationV1 FindingCorrelation0Schema = "contractor.finding.correlation.v1"
+)
+
+// Valid indicates whether the value is a known member of the FindingCorrelation0Schema enum.
+func (e FindingCorrelation0Schema) Valid() bool {
+	switch e {
+	case FindingCorrelation0SchemaContractorFindingCorrelationV1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FindingCorrelation1Availability.
+const (
+	FindingCorrelation1AvailabilityAvailable FindingCorrelation1Availability = "available"
+)
+
+// Valid indicates whether the value is a known member of the FindingCorrelation1Availability enum.
+func (e FindingCorrelation1Availability) Valid() bool {
+	switch e {
+	case FindingCorrelation1AvailabilityAvailable:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FindingCorrelation1MatchedDomain.
+const (
+	FindingCorrelation1MatchedDomainSnapshot FindingCorrelation1MatchedDomain = "snapshot"
+)
+
+// Valid indicates whether the value is a known member of the FindingCorrelation1MatchedDomain enum.
+func (e FindingCorrelation1MatchedDomain) Valid() bool {
+	switch e {
+	case FindingCorrelation1MatchedDomainSnapshot:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FindingCorrelation1PolicyVersion.
+const (
+	FindingCorrelation1PolicyVersionQualifiedSnapshotv1 FindingCorrelation1PolicyVersion = "qualified-snapshot/v1"
+)
+
+// Valid indicates whether the value is a known member of the FindingCorrelation1PolicyVersion enum.
+func (e FindingCorrelation1PolicyVersion) Valid() bool {
+	switch e {
+	case FindingCorrelation1PolicyVersionQualifiedSnapshotv1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FindingCorrelation1Schema.
+const (
+	FindingCorrelation1SchemaContractorFindingCorrelationV1 FindingCorrelation1Schema = "contractor.finding.correlation.v1"
+)
+
+// Valid indicates whether the value is a known member of the FindingCorrelation1Schema enum.
+func (e FindingCorrelation1Schema) Valid() bool {
+	switch e {
+	case FindingCorrelation1SchemaContractorFindingCorrelationV1:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for FindingCorrelationBasisAlgorithm.
 const (
-	ContractorproducerIssuev1       FindingCorrelationBasisAlgorithm = "contractor/producer-issue/v1"
-	ContractorsnapshotIssueAnchorv1 FindingCorrelationBasisAlgorithm = "contractor/snapshot-issue-anchor/v1"
+	FindingCorrelationBasisAlgorithmContractorproducerIssuev1       FindingCorrelationBasisAlgorithm = "contractor/producer-issue/v1"
+	FindingCorrelationBasisAlgorithmContractorsnapshotIssueAnchorv1 FindingCorrelationBasisAlgorithm = "contractor/snapshot-issue-anchor/v1"
 )
 
 // Valid indicates whether the value is a known member of the FindingCorrelationBasisAlgorithm enum.
 func (e FindingCorrelationBasisAlgorithm) Valid() bool {
 	switch e {
-	case ContractorproducerIssuev1:
+	case FindingCorrelationBasisAlgorithmContractorproducerIssuev1:
 		return true
-	case ContractorsnapshotIssueAnchorv1:
+	case FindingCorrelationBasisAlgorithmContractorsnapshotIssueAnchorv1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FindingCorrelationPageInfo0HasMore.
+const (
+	FindingCorrelationPageInfo0HasMoreFalse FindingCorrelationPageInfo0HasMore = false
+)
+
+// Valid indicates whether the value is a known member of the FindingCorrelationPageInfo0HasMore enum.
+func (e FindingCorrelationPageInfo0HasMore) Valid() bool {
+	switch e {
+	case FindingCorrelationPageInfo0HasMoreFalse:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FindingCorrelationPageInfo1HasMore.
+const (
+	FindingCorrelationPageInfo1HasMoreTrue FindingCorrelationPageInfo1HasMore = true
+)
+
+// Valid indicates whether the value is a known member of the FindingCorrelationPageInfo1HasMore enum.
+func (e FindingCorrelationPageInfo1HasMore) Valid() bool {
+	switch e {
+	case FindingCorrelationPageInfo1HasMoreTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FindingCorrelationReadScope0Kind.
+const (
+	FindingCorrelationReadScope0KindProject FindingCorrelationReadScope0Kind = "project"
+)
+
+// Valid indicates whether the value is a known member of the FindingCorrelationReadScope0Kind enum.
+func (e FindingCorrelationReadScope0Kind) Valid() bool {
+	switch e {
+	case FindingCorrelationReadScope0KindProject:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FindingCorrelationReadScope1Kind.
+const (
+	FindingCorrelationReadScope1KindAudit FindingCorrelationReadScope1Kind = "audit"
+)
+
+// Valid indicates whether the value is a known member of the FindingCorrelationReadScope1Kind enum.
+func (e FindingCorrelationReadScope1Kind) Valid() bool {
+	switch e {
+	case FindingCorrelationReadScope1KindAudit:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FindingCorrelationReadScope2Kind.
+const (
+	AuditPair FindingCorrelationReadScope2Kind = "audit-pair"
+)
+
+// Valid indicates whether the value is a known member of the FindingCorrelationReadScope2Kind enum.
+func (e FindingCorrelationReadScope2Kind) Valid() bool {
+	switch e {
+	case AuditPair:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FindingCorrelationScopeKind.
+const (
+	FindingCorrelationScopeKindProject FindingCorrelationScopeKind = "project"
+)
+
+// Valid indicates whether the value is a known member of the FindingCorrelationScopeKind enum.
+func (e FindingCorrelationScopeKind) Valid() bool {
+	switch e {
+	case FindingCorrelationScopeKindProject:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FindingFingerprintProjection0Availability.
+const (
+	FindingFingerprintProjection0AvailabilityUnavailable FindingFingerprintProjection0Availability = "unavailable"
+)
+
+// Valid indicates whether the value is a known member of the FindingFingerprintProjection0Availability enum.
+func (e FindingFingerprintProjection0Availability) Valid() bool {
+	switch e {
+	case FindingFingerprintProjection0AvailabilityUnavailable:
 		return true
 	default:
 		return false
@@ -3733,6 +4618,81 @@ func (e FindingFingerprintProjection0Reason) Valid() bool {
 	}
 }
 
+// Defines values for FindingFingerprintProjection0Schema.
+const (
+	FindingFingerprintProjection0SchemaContractorFindingFingerprintProjectionV1 FindingFingerprintProjection0Schema = "contractor.finding.fingerprint-projection.v1"
+)
+
+// Valid indicates whether the value is a known member of the FindingFingerprintProjection0Schema enum.
+func (e FindingFingerprintProjection0Schema) Valid() bool {
+	switch e {
+	case FindingFingerprintProjection0SchemaContractorFindingFingerprintProjectionV1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FindingFingerprintProjection1Adapter.
+const (
+	PinnedSarifNativev1 FindingFingerprintProjection1Adapter = "pinned-sarif-native/v1"
+)
+
+// Valid indicates whether the value is a known member of the FindingFingerprintProjection1Adapter enum.
+func (e FindingFingerprintProjection1Adapter) Valid() bool {
+	switch e {
+	case PinnedSarifNativev1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FindingFingerprintProjection1Algorithm.
+const (
+	FindingFingerprintProjection1AlgorithmContractorproducerIssuev1 FindingFingerprintProjection1Algorithm = "contractor/producer-issue/v1"
+)
+
+// Valid indicates whether the value is a known member of the FindingFingerprintProjection1Algorithm enum.
+func (e FindingFingerprintProjection1Algorithm) Valid() bool {
+	switch e {
+	case FindingFingerprintProjection1AlgorithmContractorproducerIssuev1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FindingFingerprintProjection1Availability.
+const (
+	FindingFingerprintProjection1AvailabilityAvailable FindingFingerprintProjection1Availability = "available"
+)
+
+// Valid indicates whether the value is a known member of the FindingFingerprintProjection1Availability enum.
+func (e FindingFingerprintProjection1Availability) Valid() bool {
+	switch e {
+	case FindingFingerprintProjection1AvailabilityAvailable:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FindingFingerprintProjection1Schema.
+const (
+	FindingFingerprintProjection1SchemaContractorFindingFingerprintProjectionV1 FindingFingerprintProjection1Schema = "contractor.finding.fingerprint-projection.v1"
+)
+
+// Valid indicates whether the value is a known member of the FindingFingerprintProjection1Schema enum.
+func (e FindingFingerprintProjection1Schema) Valid() bool {
+	switch e {
+	case FindingFingerprintProjection1SchemaContractorFindingFingerprintProjectionV1:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for FindingHTTPAttemptError.
 const (
 	FindingHTTPAttemptErrorCancelled      FindingHTTPAttemptError = "cancelled"
@@ -3745,6 +4705,21 @@ func (e FindingHTTPAttemptError) Valid() bool {
 	case FindingHTTPAttemptErrorCancelled:
 		return true
 	case FindingHTTPAttemptErrorTransportError:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FindingMembersPagePolicyVersion.
+const (
+	FindingMembersPagePolicyVersionQualifiedSnapshotv1 FindingMembersPagePolicyVersion = "qualified-snapshot/v1"
+)
+
+// Valid indicates whether the value is a known member of the FindingMembersPagePolicyVersion enum.
+func (e FindingMembersPagePolicyVersion) Valid() bool {
+	switch e {
+	case FindingMembersPagePolicyVersionQualifiedSnapshotv1:
 		return true
 	default:
 		return false
@@ -3811,6 +4786,21 @@ func (e FindingProposalReceiptRetention) Valid() bool {
 	case FindingProposalReceiptRetentionDiscarded:
 		return true
 	case FindingProposalReceiptRetentionSourceHeld:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FindingStructuralAnchorGrammar.
+const (
+	TreeSitterLanguagePack1143TreeSitter0252 FindingStructuralAnchorGrammar = "tree-sitter-language-pack/1.14.3;tree-sitter/0.25.2"
+)
+
+// Valid indicates whether the value is a known member of the FindingStructuralAnchorGrammar enum.
+func (e FindingStructuralAnchorGrammar) Valid() bool {
+	switch e {
+	case TreeSitterLanguagePack1143TreeSitter0252:
 		return true
 	default:
 		return false
@@ -3915,16 +4905,16 @@ func (e GitAnalysisReportPath) Valid() bool {
 
 // Defines values for GitImportRequestMode.
 const (
-	Analysis GitImportRequestMode = "analysis"
-	Snapshot GitImportRequestMode = "snapshot"
+	GitImportRequestModeAnalysis GitImportRequestMode = "analysis"
+	GitImportRequestModeSnapshot GitImportRequestMode = "snapshot"
 )
 
 // Valid indicates whether the value is a known member of the GitImportRequestMode enum.
 func (e GitImportRequestMode) Valid() bool {
 	switch e {
-	case Analysis:
+	case GitImportRequestModeAnalysis:
 		return true
-	case Snapshot:
+	case GitImportRequestModeSnapshot:
 		return true
 	default:
 		return false
@@ -4042,6 +5032,21 @@ func (e OutputPublicationStatus) Valid() bool {
 	}
 }
 
+// Defines values for PerformanceAggregateHistoryPointKind.
+const (
+	Aggregate PerformanceAggregateHistoryPointKind = "aggregate"
+)
+
+// Valid indicates whether the value is a known member of the PerformanceAggregateHistoryPointKind enum.
+func (e PerformanceAggregateHistoryPointKind) Valid() bool {
+	switch e {
+	case Aggregate:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for PerformanceAggregateHistoryPointStatus.
 const (
 	PerformanceAggregateHistoryPointStatusOk          PerformanceAggregateHistoryPointStatus = "ok"
@@ -4093,6 +5098,21 @@ const (
 func (e PerformanceAggregateHistoryPointVersion) Valid() bool {
 	switch e {
 	case PerformanceAggregateHistoryPointVersionN1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PerformanceFineHistoryPointKind.
+const (
+	Sample PerformanceFineHistoryPointKind = "sample"
+)
+
+// Valid indicates whether the value is a known member of the PerformanceFineHistoryPointKind enum.
+func (e PerformanceFineHistoryPointKind) Valid() bool {
+	switch e {
+	case Sample:
 		return true
 	default:
 		return false
@@ -4300,6 +5320,36 @@ const (
 func (e PerformanceSnapshotSampleIntervalSeconds) Valid() bool {
 	switch e {
 	case PerformanceSnapshotSampleIntervalSecondsN15:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PerformanceSnapshot0Enabled.
+const (
+	PerformanceSnapshot0EnabledFalse PerformanceSnapshot0Enabled = false
+)
+
+// Valid indicates whether the value is a known member of the PerformanceSnapshot0Enabled enum.
+func (e PerformanceSnapshot0Enabled) Valid() bool {
+	switch e {
+	case PerformanceSnapshot0EnabledFalse:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PerformanceSnapshot1Enabled.
+const (
+	PerformanceSnapshot1EnabledTrue PerformanceSnapshot1Enabled = true
+)
+
+// Valid indicates whether the value is a known member of the PerformanceSnapshot1Enabled enum.
+func (e PerformanceSnapshot1Enabled) Valid() bool {
+	switch e {
+	case PerformanceSnapshot1EnabledTrue:
 		return true
 	default:
 		return false
@@ -5083,6 +6133,21 @@ func (e RuntimeResourceSummaryReason) Valid() bool {
 	}
 }
 
+// Defines values for RuntimeResourceSummaryScope.
+const (
+	RuntimeProcess RuntimeResourceSummaryScope = "runtime_process"
+)
+
+// Valid indicates whether the value is a known member of the RuntimeResourceSummaryScope enum.
+func (e RuntimeResourceSummaryScope) Valid() bool {
+	switch e {
+	case RuntimeProcess:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for RuntimeResourceSummaryStatus.
 const (
 	RuntimeResourceSummaryStatusComplete    RuntimeResourceSummaryStatus = "complete"
@@ -5113,6 +6178,21 @@ const (
 func (e RuntimeResourceSummaryVersion) Valid() bool {
 	switch e {
 	case RuntimeResourceSummaryVersionN1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RuntimeResourceSummary0Status.
+const (
+	RuntimeResourceSummary0StatusComplete RuntimeResourceSummary0Status = "complete"
+)
+
+// Valid indicates whether the value is a known member of the RuntimeResourceSummary0Status enum.
+func (e RuntimeResourceSummary0Status) Valid() bool {
+	switch e {
+	case RuntimeResourceSummary0StatusComplete:
 		return true
 	default:
 		return false
@@ -5916,16 +6996,31 @@ func (e WorkflowRunState) Valid() bool {
 
 // Defines values for WorkflowStageContractSession.
 const (
-	Isolated WorkflowStageContractSession = "isolated"
-	Shared   WorkflowStageContractSession = "shared"
+	WorkflowStageContractSessionIsolated WorkflowStageContractSession = "isolated"
+	WorkflowStageContractSessionShared   WorkflowStageContractSession = "shared"
 )
 
 // Valid indicates whether the value is a known member of the WorkflowStageContractSession enum.
 func (e WorkflowStageContractSession) Valid() bool {
 	switch e {
-	case Isolated:
+	case WorkflowStageContractSessionIsolated:
 		return true
-	case Shared:
+	case WorkflowStageContractSessionShared:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for WorkflowStageContract1Session.
+const (
+	WorkflowStageContract1SessionIsolated WorkflowStageContract1Session = "isolated"
+)
+
+// Valid indicates whether the value is a known member of the WorkflowStageContract1Session enum.
+func (e WorkflowStageContract1Session) Valid() bool {
+	switch e {
+	case WorkflowStageContract1SessionIsolated:
 		return true
 	default:
 		return false
@@ -5971,6 +7066,36 @@ const (
 func (e WorkflowSummaryTransitionMaxAttempts) Valid() bool {
 	switch e {
 	case WorkflowSummaryTransitionMaxAttemptsN1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for WorkflowSummaryTransitionPlannerPlannerId.
+const (
+	Streamline WorkflowSummaryTransitionPlannerPlannerId = "streamline"
+)
+
+// Valid indicates whether the value is a known member of the WorkflowSummaryTransitionPlannerPlannerId enum.
+func (e WorkflowSummaryTransitionPlannerPlannerId) Valid() bool {
+	switch e {
+	case Streamline:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for WorkflowSummaryTransitionPlannerVersion.
+const (
+	WorkflowSummaryTransitionPlannerVersionN1 WorkflowSummaryTransitionPlannerVersion = "1"
+)
+
+// Valid indicates whether the value is a known member of the WorkflowSummaryTransitionPlannerVersion enum.
+func (e WorkflowSummaryTransitionPlannerVersion) Valid() bool {
+	switch e {
+	case WorkflowSummaryTransitionPlannerVersionN1:
 		return true
 	default:
 		return false
@@ -6828,8 +7953,11 @@ type Audit struct {
 
 // Audit0 defines model for Audit.0.
 type Audit0 struct {
-	Phase interface{} `json:"phase,omitempty"`
+	Phase *Audit0Phase `json:"phase,omitempty"`
 }
+
+// Audit0Phase defines model for Audit.0.Phase.
+type Audit0Phase string
 
 // Audit1 defines model for Audit.1.
 type Audit1 struct {
@@ -6841,8 +7969,11 @@ type Audit1Phase string
 
 // Audit2 defines model for Audit.2.
 type Audit2 struct {
-	Phase interface{} `json:"phase,omitempty"`
+	Phase *Audit2Phase `json:"phase,omitempty"`
 }
+
+// Audit2Phase defines model for Audit.2.Phase.
+type Audit2Phase string
 
 // AuditActionDecisionResult defines model for AuditActionDecisionResult.
 type AuditActionDecisionResult struct {
@@ -6905,13 +8036,16 @@ type AuditCheckCapabilityRequirement struct {
 // AuditCheckMethodMapping defines model for AuditCheckMethodMapping.
 type AuditCheckMethodMapping struct {
 	Method               AuditCheckMethodMappingMethod     `json:"method"`
-	PlanSchema           interface{}                       `json:"planSchema"`
+	PlanSchema           AuditCheckMethodMappingPlanSchema `json:"planSchema"`
 	RequiredCapabilities []AuditCheckCapabilityRequirement `json:"requiredCapabilities"`
 	WorkflowRole         string                            `json:"workflowRole"`
 }
 
 // AuditCheckMethodMappingMethod defines model for AuditCheckMethodMapping.Method.
 type AuditCheckMethodMappingMethod string
+
+// AuditCheckMethodMappingPlanSchema defines model for AuditCheckMethodMapping.PlanSchema.
+type AuditCheckMethodMappingPlanSchema string
 
 // AuditCollectionDisposition defines model for AuditCollectionDisposition.
 type AuditCollectionDisposition string
@@ -7233,8 +8367,11 @@ type AuditInventoryImplementation string
 
 // AuditInventory0 defines model for AuditInventory.0.
 type AuditInventory0 struct {
-	Implementation interface{} `json:"implementation,omitempty"`
+	Implementation *AuditInventory0Implementation `json:"implementation,omitempty"`
 }
+
+// AuditInventory0Implementation defines model for AuditInventory.0.Implementation.
+type AuditInventory0Implementation string
 
 // AuditInventory1 defines model for AuditInventory.1.
 type AuditInventory1 struct {
@@ -7265,13 +8402,19 @@ type AuditInventoryArtifactSource string
 
 // AuditInventoryArtifact0 defines model for AuditInventoryArtifact.0.
 type AuditInventoryArtifact0 struct {
-	Source interface{} `json:"source,omitempty"`
+	Source *AuditInventoryArtifact0Source `json:"source,omitempty"`
 }
+
+// AuditInventoryArtifact0Source defines model for AuditInventoryArtifact.0.Source.
+type AuditInventoryArtifact0Source string
 
 // AuditInventoryArtifact1 defines model for AuditInventoryArtifact.1.
 type AuditInventoryArtifact1 struct {
-	Source interface{} `json:"source,omitempty"`
+	Source *AuditInventoryArtifact1Source `json:"source,omitempty"`
 }
+
+// AuditInventoryArtifact1Source defines model for AuditInventoryArtifact.1.Source.
+type AuditInventoryArtifact1Source string
 
 // AuditItem defines model for AuditItem.
 type AuditItem struct {
@@ -7417,10 +8560,16 @@ type AuditPreparationRoleStatus string
 
 // AuditPreparationRole0 defines model for AuditPreparationRole.0.
 type AuditPreparationRole0 struct {
-	Attempts interface{} `json:"attempts,omitempty"`
-	Outputs  interface{} `json:"outputs,omitempty"`
-	Status   interface{} `json:"status,omitempty"`
+	Attempts *AuditPreparationRole0Attempts `json:"attempts,omitempty"`
+	Outputs  interface{}                    `json:"outputs,omitempty"`
+	Status   *AuditPreparationRole0Status   `json:"status,omitempty"`
 }
+
+// AuditPreparationRole0Attempts defines model for AuditPreparationRole.0.Attempts.
+type AuditPreparationRole0Attempts int
+
+// AuditPreparationRole0Status defines model for AuditPreparationRole.0.Status.
+type AuditPreparationRole0Status string
 
 // AuditPreparationRole1 defines model for AuditPreparationRole.1.
 type AuditPreparationRole1 struct {
@@ -7434,10 +8583,13 @@ type AuditPreparationRole1Status string
 
 // AuditPreparationRole2 defines model for AuditPreparationRole.2.
 type AuditPreparationRole2 struct {
-	Attempts interface{} `json:"attempts,omitempty"`
-	Outputs  interface{} `json:"outputs,omitempty"`
-	Status   interface{} `json:"status,omitempty"`
+	Attempts interface{}                  `json:"attempts,omitempty"`
+	Outputs  interface{}                  `json:"outputs,omitempty"`
+	Status   *AuditPreparationRole2Status `json:"status,omitempty"`
 }
+
+// AuditPreparationRole2Status defines model for AuditPreparationRole.2.Status.
+type AuditPreparationRole2Status string
 
 // AuditProfile defines model for AuditProfile.
 type AuditProfile struct {
@@ -7515,8 +8667,11 @@ type AuditProfileWorkflowKind string
 
 // AuditProfileWorkflow0 defines model for AuditProfileWorkflow.0.
 type AuditProfileWorkflow0 struct {
-	Kind interface{} `json:"kind,omitempty"`
+	Kind *AuditProfileWorkflow0Kind `json:"kind,omitempty"`
 }
+
+// AuditProfileWorkflow0Kind defines model for AuditProfileWorkflow.0.Kind.
+type AuditProfileWorkflow0Kind string
 
 // AuditProfileWorkflow1 defines model for AuditProfileWorkflow.1.
 type AuditProfileWorkflow1 struct {
@@ -7810,15 +8965,21 @@ type AuditStandardPackage struct {
 
 // AuditStandardPackagePage defines model for AuditStandardPackagePage.
 type AuditStandardPackagePage struct {
-	ApiVersion interface{}            `json:"apiVersion"`
-	Items      []AuditStandardPackage `json:"items"`
+	ApiVersion AuditStandardPackagePageApiVersion `json:"apiVersion"`
+	Items      []AuditStandardPackage             `json:"items"`
 }
+
+// AuditStandardPackagePageApiVersion defines model for AuditStandardPackagePage.ApiVersion.
+type AuditStandardPackagePageApiVersion string
 
 // AuditStandardPackageResponse defines model for AuditStandardPackageResponse.
 type AuditStandardPackageResponse struct {
-	ApiVersion interface{}          `json:"apiVersion"`
-	Standard   AuditStandardPackage `json:"standard"`
+	ApiVersion AuditStandardPackageResponseApiVersion `json:"apiVersion"`
+	Standard   AuditStandardPackage                   `json:"standard"`
 }
+
+// AuditStandardPackageResponseApiVersion defines model for AuditStandardPackageResponse.ApiVersion.
+type AuditStandardPackageResponseApiVersion string
 
 // AuditStandardRef defines model for AuditStandardRef.
 type AuditStandardRef struct {
@@ -7851,9 +9012,12 @@ type AuditStartResponse struct {
 // AuditStartResponse0 defines model for AuditStartResponse.0.
 type AuditStartResponse0 struct {
 	Audit *struct {
-		Phase interface{} `json:"phase,omitempty"`
+		Phase *AuditStartResponse0AuditPhase `json:"phase,omitempty"`
 	} `json:"audit,omitempty"`
 }
+
+// AuditStartResponse0AuditPhase defines model for AuditStartResponse.0.Audit.Phase.
+type AuditStartResponse0AuditPhase string
 
 // AuditStartResponse1 defines model for AuditStartResponse.1.
 type AuditStartResponse1 struct {
@@ -8450,12 +9614,15 @@ type EvalArtifactName = string
 
 // EvalAssessmentInput defines model for EvalAssessmentInput.
 type EvalAssessmentInput struct {
-	Checks                   []EvalCheckResult             `json:"checks"`
-	PreviousAssessmentSha256 nullable.Nullable[EvalDigest] `json:"previousAssessmentSha256"`
-	ResultSha256             EvalDigest                    `json:"resultSha256"`
-	SchemaVersion            interface{}                   `json:"schemaVersion"`
-	Source                   EvalAssessmentSource          `json:"source"`
+	Checks                   []EvalCheckResult                `json:"checks"`
+	PreviousAssessmentSha256 nullable.Nullable[EvalDigest]    `json:"previousAssessmentSha256"`
+	ResultSha256             EvalDigest                       `json:"resultSha256"`
+	SchemaVersion            EvalAssessmentInputSchemaVersion `json:"schemaVersion"`
+	Source                   EvalAssessmentSource             `json:"source"`
 }
+
+// EvalAssessmentInputSchemaVersion defines model for EvalAssessmentInput.SchemaVersion.
+type EvalAssessmentInputSchemaVersion string
 
 // EvalAssessmentSource defines model for EvalAssessmentSource.
 type EvalAssessmentSource struct {
@@ -8597,9 +9764,15 @@ type EvalChartUnit string
 
 // EvalChart0 defines model for EvalChart.0.
 type EvalChart0 struct {
-	Chart interface{} `json:"chart,omitempty"`
-	Unit  interface{} `json:"unit,omitempty"`
+	Chart *EvalChart0Chart `json:"chart,omitempty"`
+	Unit  *EvalChart0Unit  `json:"unit,omitempty"`
 }
+
+// EvalChart0Chart defines model for EvalChart.0.Chart.
+type EvalChart0Chart string
+
+// EvalChart0Unit defines model for EvalChart.0.Unit.
+type EvalChart0Unit string
 
 // EvalChart1 defines model for EvalChart.1.
 type EvalChart1 struct {
@@ -8611,14 +9784,23 @@ type EvalChart1Chart string
 
 // EvalChart2 defines model for EvalChart.2.
 type EvalChart2 struct {
-	Chart interface{} `json:"chart,omitempty"`
+	Chart *EvalChart2Chart `json:"chart,omitempty"`
 }
+
+// EvalChart2Chart defines model for EvalChart.2.Chart.
+type EvalChart2Chart string
 
 // EvalChart3 defines model for EvalChart.3.
 type EvalChart3 struct {
-	Chart interface{} `json:"chart,omitempty"`
-	Unit  interface{} `json:"unit,omitempty"`
+	Chart *EvalChart3Chart `json:"chart,omitempty"`
+	Unit  *EvalChart3Unit  `json:"unit,omitempty"`
 }
+
+// EvalChart3Chart defines model for EvalChart.3.Chart.
+type EvalChart3Chart string
+
+// EvalChart3Unit defines model for EvalChart.3.Unit.
+type EvalChart3Unit string
 
 // EvalCheck defines model for EvalCheck.
 type EvalCheck struct {
@@ -8635,13 +9817,19 @@ type EvalCheck struct {
 
 // EvalCheckRequest defines model for EvalCheckRequest.
 type EvalCheckRequest struct {
-	CheckIds      []EvalId    `json:"checkIds"`
-	ResultSha256  EvalDigest  `json:"resultSha256"`
-	SchemaVersion interface{} `json:"schemaVersion"`
+	CheckIds      []EvalId                      `json:"checkIds"`
+	ResultSha256  EvalDigest                    `json:"resultSha256"`
+	SchemaVersion EvalCheckRequestSchemaVersion `json:"schemaVersion"`
 	Source        struct {
-		Kind interface{} `json:"kind"`
+		Kind EvalCheckRequestSourceKind `json:"kind"`
 	} `json:"source"`
 }
+
+// EvalCheckRequestSchemaVersion defines model for EvalCheckRequest.SchemaVersion.
+type EvalCheckRequestSchemaVersion string
+
+// EvalCheckRequestSourceKind defines model for EvalCheckRequest.Source.Kind.
+type EvalCheckRequestSourceKind string
 
 // EvalCheckResult defines model for EvalCheckResult.
 type EvalCheckResult struct {
@@ -8731,13 +9919,19 @@ type EvalCreateExperimentControlMode string
 
 // EvalCreateExperiment0 defines model for EvalCreateExperiment.0.
 type EvalCreateExperiment0 struct {
-	ControlMode interface{} `json:"controlMode,omitempty"`
+	ControlMode *EvalCreateExperiment0ControlMode `json:"controlMode,omitempty"`
 }
+
+// EvalCreateExperiment0ControlMode defines model for EvalCreateExperiment.0.ControlMode.
+type EvalCreateExperiment0ControlMode string
 
 // EvalCreateExperiment1 defines model for EvalCreateExperiment.1.
 type EvalCreateExperiment1 struct {
-	ControlMode interface{} `json:"controlMode,omitempty"`
+	ControlMode *EvalCreateExperiment1ControlMode `json:"controlMode,omitempty"`
 }
+
+// EvalCreateExperiment1ControlMode defines model for EvalCreateExperiment.1.ControlMode.
+type EvalCreateExperiment1ControlMode string
 
 // EvalDataset defines model for EvalDataset.
 type EvalDataset struct {
@@ -8997,16 +10191,19 @@ type EvalExperimentSummaryState string
 
 // EvalExternalRegistration defines model for EvalExternalRegistration.
 type EvalExternalRegistration struct {
-	Budgets          EvalBudgets        `json:"budgets"`
-	Checks           []EvalCheck        `json:"checks"`
-	Comparison       EvalComparison     `json:"comparison"`
-	Manifest         EvalPublicPlan     `json:"manifest"`
-	Recipes          []EvalMemberRecipe `json:"recipes"`
-	SchemaVersion    interface{}        `json:"schemaVersion"`
-	Source           EvalSource         `json:"source"`
-	SourcePlanSha256 EvalDigest         `json:"sourcePlanSha256"`
-	Variants         []EvalVariant      `json:"variants"`
+	Budgets          EvalBudgets                           `json:"budgets"`
+	Checks           []EvalCheck                           `json:"checks"`
+	Comparison       EvalComparison                        `json:"comparison"`
+	Manifest         EvalPublicPlan                        `json:"manifest"`
+	Recipes          []EvalMemberRecipe                    `json:"recipes"`
+	SchemaVersion    EvalExternalRegistrationSchemaVersion `json:"schemaVersion"`
+	Source           EvalSource                            `json:"source"`
+	SourcePlanSha256 EvalDigest                            `json:"sourcePlanSha256"`
+	Variants         []EvalVariant                         `json:"variants"`
 }
+
+// EvalExternalRegistrationSchemaVersion defines model for EvalExternalRegistration.SchemaVersion.
+type EvalExternalRegistrationSchemaVersion string
 
 // EvalGates defines model for EvalGates.
 type EvalGates struct {
@@ -9218,13 +10415,19 @@ type EvalPublicPlan struct {
 		SuiteId       EvalId                           `json:"suite_id"`
 		VariantId     EvalId                           `json:"variant_id"`
 	} `json:"members"`
-	SchemaVersion       interface{} `json:"schema_version"`
-	SourceRecordSha256  EvalDigest  `json:"source_record_sha256"`
-	SourceSchemaVersion interface{} `json:"source_schema_version"`
+	SchemaVersion       EvalPublicPlanSchemaVersion       `json:"schema_version"`
+	SourceRecordSha256  EvalDigest                        `json:"source_record_sha256"`
+	SourceSchemaVersion EvalPublicPlanSourceSchemaVersion `json:"source_schema_version"`
 }
 
 // EvalPublicPlanMembersEligibility defines model for EvalPublicPlan.Members.Eligibility.
 type EvalPublicPlanMembersEligibility string
+
+// EvalPublicPlanSchemaVersion defines model for EvalPublicPlan.SchemaVersion.
+type EvalPublicPlanSchemaVersion string
+
+// EvalPublicPlanSourceSchemaVersion defines model for EvalPublicPlan.SourceSchemaVersion.
+type EvalPublicPlanSourceSchemaVersion string
 
 // EvalQuality defines model for EvalQuality.
 type EvalQuality struct {
@@ -9282,14 +10485,17 @@ type EvalRecordReceipt struct {
 
 // EvalReport defines model for EvalReport.
 type EvalReport struct {
-	ExperimentId  EvalOpaque   `json:"experimentId"`
-	PairCount     int          `json:"pairCount"`
-	PlanSha256    EvalDigest   `json:"planSha256"`
-	SchemaVersion interface{}  `json:"schemaVersion"`
-	Sources       []EvalSource `json:"sources"`
-	Summary       EvalSummary  `json:"summary"`
-	ViewSnapshot  EvalOpaque   `json:"viewSnapshot"`
+	ExperimentId  EvalOpaque              `json:"experimentId"`
+	PairCount     int                     `json:"pairCount"`
+	PlanSha256    EvalDigest              `json:"planSha256"`
+	SchemaVersion EvalReportSchemaVersion `json:"schemaVersion"`
+	Sources       []EvalSource            `json:"sources"`
+	Summary       EvalSummary             `json:"summary"`
+	ViewSnapshot  EvalOpaque              `json:"viewSnapshot"`
 }
+
+// EvalReportSchemaVersion defines model for EvalReport.SchemaVersion.
+type EvalReportSchemaVersion string
 
 // EvalResultInput defines model for EvalResultInput.
 type EvalResultInput struct {
@@ -9303,13 +10509,16 @@ type EvalResultInput struct {
 	Outputs              map[string]EvalArtifact       `json:"outputs"`
 	PlanSha256           EvalDigest                    `json:"planSha256"`
 	PreviousResultSha256 nullable.Nullable[EvalDigest] `json:"previousResultSha256"`
-	SchemaVersion        interface{}                   `json:"schemaVersion"`
+	SchemaVersion        EvalResultInputSchemaVersion  `json:"schemaVersion"`
 	Source               EvalSource                    `json:"source"`
 	Usage                EvalUsage                     `json:"usage"`
 }
 
 // EvalResultInputCollectionStatus defines model for EvalResultInput.Collection.Status.
 type EvalResultInputCollectionStatus string
+
+// EvalResultInputSchemaVersion defines model for EvalResultInput.SchemaVersion.
+type EvalResultInputSchemaVersion string
 
 // EvalReview defines model for EvalReview.
 type EvalReview struct {
@@ -9481,20 +10690,32 @@ type ExecutionSelectionPatch struct {
 
 // FindingAnchorBasis defines model for FindingAnchorBasis.
 type FindingAnchorBasis struct {
-	Anchors      []FindingStructuralAnchor `json:"anchors"`
-	Availability interface{}               `json:"availability"`
-	Schema       interface{}               `json:"schema"`
-	SourceDigest Digest                    `json:"sourceDigest"`
-	SourceRef    ExactArtifactRef          `json:"sourceRef"`
+	Anchors      []FindingStructuralAnchor      `json:"anchors"`
+	Availability FindingAnchorBasisAvailability `json:"availability"`
+	Schema       FindingAnchorBasisSchema       `json:"schema"`
+	SourceDigest Digest                         `json:"sourceDigest"`
+	SourceRef    ExactArtifactRef               `json:"sourceRef"`
 }
+
+// FindingAnchorBasisAvailability defines model for FindingAnchorBasis.Availability.
+type FindingAnchorBasisAvailability string
+
+// FindingAnchorBasisSchema defines model for FindingAnchorBasis.Schema.
+type FindingAnchorBasisSchema string
 
 // FindingAnchorContext defines model for FindingAnchorContext.
 type FindingAnchorContext struct {
-	ContextDigest Digest      `json:"contextDigest"`
-	LiteralDigest Digest      `json:"literalDigest"`
-	RuleId        interface{} `json:"ruleId"`
-	Scheme        interface{} `json:"scheme"`
+	ContextDigest Digest                     `json:"contextDigest"`
+	LiteralDigest Digest                     `json:"literalDigest"`
+	RuleId        FindingAnchorContextRuleId `json:"ruleId"`
+	Scheme        FindingAnchorContextScheme `json:"scheme"`
 }
+
+// FindingAnchorContextRuleId defines model for FindingAnchorContext.RuleId.
+type FindingAnchorContextRuleId string
+
+// FindingAnchorContextScheme defines model for FindingAnchorContext.Scheme.
+type FindingAnchorContextScheme string
 
 // FindingAnchorKeys defines model for FindingAnchorKeys.
 type FindingAnchorKeys struct {
@@ -9509,9 +10730,12 @@ type FindingAnchorKeys0 struct {
 
 // FindingAnchorKeys1 defines model for FindingAnchorKeys.1.
 type FindingAnchorKeys1 struct {
-	IssueReason interface{} `json:"issueReason"`
-	SiteKey     string      `json:"siteKey"`
+	IssueReason FindingAnchorKeys1IssueReason `json:"issueReason"`
+	SiteKey     string                        `json:"siteKey"`
 }
+
+// FindingAnchorKeys1IssueReason defines model for FindingAnchorKeys.1.IssueReason.
+type FindingAnchorKeys1IssueReason string
 
 // FindingAnchorProjection Immutable exact-source correlation evidence. Sites alone are candidates; qualified issue keys require the same source snapshot and never set analyst verdicts.
 type FindingAnchorProjection struct {
@@ -9520,24 +10744,36 @@ type FindingAnchorProjection struct {
 
 // FindingAnchorProjection0 defines model for FindingAnchorProjection.0.
 type FindingAnchorProjection0 struct {
-	Availability interface{}                    `json:"availability"`
-	Reason       FindingAnchorProjection0Reason `json:"reason"`
-	Schema       interface{}                    `json:"schema"`
+	Availability FindingAnchorProjection0Availability `json:"availability"`
+	Reason       FindingAnchorProjection0Reason       `json:"reason"`
+	Schema       FindingAnchorProjection0Schema       `json:"schema"`
 }
+
+// FindingAnchorProjection0Availability defines model for FindingAnchorProjection.0.Availability.
+type FindingAnchorProjection0Availability string
 
 // FindingAnchorProjection0Reason defines model for FindingAnchorProjection.0.Reason.
 type FindingAnchorProjection0Reason string
 
+// FindingAnchorProjection0Schema defines model for FindingAnchorProjection.0.Schema.
+type FindingAnchorProjection0Schema string
+
 // FindingAnchorProjection1 defines model for FindingAnchorProjection.1.
 type FindingAnchorProjection1 struct {
-	Availability interface{}          `json:"availability"`
-	Basis        FindingAnchorBasis   `json:"basis"`
-	Commit       string               `json:"commit"`
-	Keys         []FindingAnchorKeys  `json:"keys"`
-	Repository   string               `json:"repository"`
-	Schema       interface{}          `json:"schema"`
-	Source       FindingExactArtifact `json:"source"`
+	Availability FindingAnchorProjection1Availability `json:"availability"`
+	Basis        FindingAnchorBasis                   `json:"basis"`
+	Commit       string                               `json:"commit"`
+	Keys         []FindingAnchorKeys                  `json:"keys"`
+	Repository   string                               `json:"repository"`
+	Schema       FindingAnchorProjection1Schema       `json:"schema"`
+	Source       FindingExactArtifact                 `json:"source"`
 }
+
+// FindingAnchorProjection1Availability defines model for FindingAnchorProjection.1.Availability.
+type FindingAnchorProjection1Availability string
+
+// FindingAnchorProjection1Schema defines model for FindingAnchorProjection.1.Schema.
+type FindingAnchorProjection1Schema string
 
 // FindingAuditHold defines model for FindingAuditHold.
 type FindingAuditHold struct {
@@ -9597,16 +10833,22 @@ type FindingCandidateSourceHintsReason string
 
 // FindingCandidatesPage defines model for FindingCandidatesPage.
 type FindingCandidatesPage struct {
-	Fence         FindingCorrelationFence     `json:"fence"`
-	Items         []FindingCandidate          `json:"items"`
-	Page          FindingCorrelationPageInfo  `json:"page"`
-	PolicyVersion interface{}                 `json:"policyVersion"`
-	RowsExamined  int                         `json:"rowsExamined"`
-	Scope         FindingCorrelationReadScope `json:"scope"`
-	Source        FindingCandidateSource      `json:"source"`
-	TargetBasis   interface{}                 `json:"targetBasis"`
-	WorkLimited   bool                        `json:"workLimited"`
+	Fence         FindingCorrelationFence            `json:"fence"`
+	Items         []FindingCandidate                 `json:"items"`
+	Page          FindingCorrelationPageInfo         `json:"page"`
+	PolicyVersion FindingCandidatesPagePolicyVersion `json:"policyVersion"`
+	RowsExamined  int                                `json:"rowsExamined"`
+	Scope         FindingCorrelationReadScope        `json:"scope"`
+	Source        FindingCandidateSource             `json:"source"`
+	TargetBasis   FindingCandidatesPageTargetBasis   `json:"targetBasis"`
+	WorkLimited   bool                               `json:"workLimited"`
 }
+
+// FindingCandidatesPagePolicyVersion defines model for FindingCandidatesPage.PolicyVersion.
+type FindingCandidatesPagePolicyVersion string
+
+// FindingCandidatesPageTargetBasis defines model for FindingCandidatesPage.TargetBasis.
+type FindingCandidatesPageTargetBasis string
 
 // FindingCollectionFindingSelection defines model for FindingCollectionFindingSelection.
 type FindingCollectionFindingSelection struct {
@@ -9631,14 +10873,20 @@ type FindingCollectionSourceSelectionKind string
 
 // FindingComparisonAudit defines model for FindingComparisonAudit.
 type FindingComparisonAudit struct {
-	AuditId                ResourceId               `json:"auditId"`
-	BaselineDigest         *string                  `json:"baselineDigest,omitempty"`
-	BaselineDigestEncoding interface{}              `json:"baselineDigestEncoding"`
-	Coverage               interface{}              `json:"coverage"`
-	Profile                FindingComparisonProfile `json:"profile"`
-	Revision               int                      `json:"revision"`
-	State                  AuditState               `json:"state"`
+	AuditId                ResourceId                                   `json:"auditId"`
+	BaselineDigest         *string                                      `json:"baselineDigest,omitempty"`
+	BaselineDigestEncoding FindingComparisonAuditBaselineDigestEncoding `json:"baselineDigestEncoding"`
+	Coverage               FindingComparisonAuditCoverage               `json:"coverage"`
+	Profile                FindingComparisonProfile                     `json:"profile"`
+	Revision               int                                          `json:"revision"`
+	State                  AuditState                                   `json:"state"`
 }
+
+// FindingComparisonAuditBaselineDigestEncoding defines model for FindingComparisonAudit.BaselineDigestEncoding.
+type FindingComparisonAuditBaselineDigestEncoding string
+
+// FindingComparisonAuditCoverage defines model for FindingComparisonAudit.Coverage.
+type FindingComparisonAuditCoverage string
 
 // FindingComparisonOrigin defines model for FindingComparisonOrigin.
 type FindingComparisonOrigin struct {
@@ -9653,15 +10901,18 @@ type FindingComparisonOrigin struct {
 
 // FindingComparisonPage defines model for FindingComparisonPage.
 type FindingComparisonPage struct {
-	Fence         FindingCorrelationFence     `json:"fence"`
-	Items         []FindingComparisonRow      `json:"items"`
-	LeftAuditId   ResourceId                  `json:"leftAuditId"`
-	Limitations   []string                    `json:"limitations"`
-	Page          FindingCorrelationPageInfo  `json:"page"`
-	PolicyVersion interface{}                 `json:"policyVersion"`
-	RightAuditId  ResourceId                  `json:"rightAuditId"`
-	Scope         FindingCorrelationReadScope `json:"scope"`
+	Fence         FindingCorrelationFence            `json:"fence"`
+	Items         []FindingComparisonRow             `json:"items"`
+	LeftAuditId   ResourceId                         `json:"leftAuditId"`
+	Limitations   []string                           `json:"limitations"`
+	Page          FindingCorrelationPageInfo         `json:"page"`
+	PolicyVersion FindingComparisonPagePolicyVersion `json:"policyVersion"`
+	RightAuditId  ResourceId                         `json:"rightAuditId"`
+	Scope         FindingCorrelationReadScope        `json:"scope"`
 }
+
+// FindingComparisonPagePolicyVersion defines model for FindingComparisonPage.PolicyVersion.
+type FindingComparisonPagePolicyVersion string
 
 // FindingComparisonPreview defines model for FindingComparisonPreview.
 type FindingComparisonPreview struct {
@@ -9673,7 +10924,7 @@ type FindingComparisonPreview struct {
 	DecisionId         *ResourceId                                `json:"decisionId,omitempty"`
 	FindingId          ResourceId                                 `json:"findingId"`
 	Origin             FindingComparisonOrigin                    `json:"origin"`
-	Preview            interface{}                                `json:"preview"`
+	Preview            FindingComparisonPreviewPreview            `json:"preview"`
 	Revision           int                                        `json:"revision"`
 	SemanticAssessment *string                                    `json:"semanticAssessment,omitempty"`
 	SeveritySuggestion FindingComparisonPreviewSeveritySuggestion `json:"severitySuggestion"`
@@ -9684,6 +10935,9 @@ type FindingComparisonPreview struct {
 
 // FindingComparisonPreviewCorrelationRole defines model for FindingComparisonPreview.CorrelationRole.
 type FindingComparisonPreviewCorrelationRole string
+
+// FindingComparisonPreviewPreview defines model for FindingComparisonPreview.Preview.
+type FindingComparisonPreviewPreview bool
 
 // FindingComparisonPreviewSeveritySuggestion defines model for FindingComparisonPreview.SeveritySuggestion.
 type FindingComparisonPreviewSeveritySuggestion string
@@ -9721,33 +10975,60 @@ type FindingCorrelation struct {
 
 // FindingCorrelation0 defines model for FindingCorrelation.0.
 type FindingCorrelation0 struct {
-	AutomaticDuplicate   interface{}               `json:"automaticDuplicate"`
-	Availability         interface{}               `json:"availability"`
-	HasOtherObservations interface{}               `json:"hasOtherObservations"`
-	PolicyVersion        interface{}               `json:"policyVersion"`
-	ProjectRevision      int                       `json:"projectRevision"`
-	Reason               FindingCorrelation0Reason `json:"reason"`
-	Schema               interface{}               `json:"schema"`
-	Scope                FindingCorrelationScope   `json:"scope"`
+	AutomaticDuplicate   FindingCorrelation0AutomaticDuplicate   `json:"automaticDuplicate"`
+	Availability         FindingCorrelation0Availability         `json:"availability"`
+	HasOtherObservations FindingCorrelation0HasOtherObservations `json:"hasOtherObservations"`
+	PolicyVersion        FindingCorrelation0PolicyVersion        `json:"policyVersion"`
+	ProjectRevision      int                                     `json:"projectRevision"`
+	Reason               FindingCorrelation0Reason               `json:"reason"`
+	Schema               FindingCorrelation0Schema               `json:"schema"`
+	Scope                FindingCorrelationScope                 `json:"scope"`
 }
+
+// FindingCorrelation0AutomaticDuplicate defines model for FindingCorrelation.0.AutomaticDuplicate.
+type FindingCorrelation0AutomaticDuplicate bool
+
+// FindingCorrelation0Availability defines model for FindingCorrelation.0.Availability.
+type FindingCorrelation0Availability string
+
+// FindingCorrelation0HasOtherObservations defines model for FindingCorrelation.0.HasOtherObservations.
+type FindingCorrelation0HasOtherObservations bool
+
+// FindingCorrelation0PolicyVersion defines model for FindingCorrelation.0.PolicyVersion.
+type FindingCorrelation0PolicyVersion string
 
 // FindingCorrelation0Reason defines model for FindingCorrelation.0.Reason.
 type FindingCorrelation0Reason string
 
+// FindingCorrelation0Schema defines model for FindingCorrelation.0.Schema.
+type FindingCorrelation0Schema string
+
 // FindingCorrelation1 defines model for FindingCorrelation.1.
 type FindingCorrelation1 struct {
-	AutomaticDuplicate   bool                        `json:"automaticDuplicate"`
-	Availability         interface{}                 `json:"availability"`
-	Basis                FindingCorrelationBasis     `json:"basis"`
-	GroupKey             string                      `json:"groupKey"`
-	HasOtherObservations bool                        `json:"hasOtherObservations"`
-	MatchedDomain        interface{}                 `json:"matchedDomain"`
-	PolicyVersion        interface{}                 `json:"policyVersion"`
-	ProjectRevision      int                         `json:"projectRevision"`
-	Representative       FindingCorrelationReference `json:"representative"`
-	Schema               interface{}                 `json:"schema"`
-	Scope                FindingCorrelationScope     `json:"scope"`
+	AutomaticDuplicate   bool                             `json:"automaticDuplicate"`
+	Availability         FindingCorrelation1Availability  `json:"availability"`
+	Basis                FindingCorrelationBasis          `json:"basis"`
+	GroupKey             string                           `json:"groupKey"`
+	HasOtherObservations bool                             `json:"hasOtherObservations"`
+	MatchedDomain        FindingCorrelation1MatchedDomain `json:"matchedDomain"`
+	PolicyVersion        FindingCorrelation1PolicyVersion `json:"policyVersion"`
+	ProjectRevision      int                              `json:"projectRevision"`
+	Representative       FindingCorrelationReference      `json:"representative"`
+	Schema               FindingCorrelation1Schema        `json:"schema"`
+	Scope                FindingCorrelationScope          `json:"scope"`
 }
+
+// FindingCorrelation1Availability defines model for FindingCorrelation.1.Availability.
+type FindingCorrelation1Availability string
+
+// FindingCorrelation1MatchedDomain defines model for FindingCorrelation.1.MatchedDomain.
+type FindingCorrelation1MatchedDomain string
+
+// FindingCorrelation1PolicyVersion defines model for FindingCorrelation.1.PolicyVersion.
+type FindingCorrelation1PolicyVersion string
+
+// FindingCorrelation1Schema defines model for FindingCorrelation.1.Schema.
+type FindingCorrelation1Schema string
 
 // FindingCorrelationBasis defines model for FindingCorrelationBasis.
 type FindingCorrelationBasis struct {
@@ -9772,14 +11053,20 @@ type FindingCorrelationPageInfo struct {
 
 // FindingCorrelationPageInfo0 defines model for FindingCorrelationPageInfo.0.
 type FindingCorrelationPageInfo0 struct {
-	HasMore interface{} `json:"hasMore"`
+	HasMore FindingCorrelationPageInfo0HasMore `json:"hasMore"`
 }
+
+// FindingCorrelationPageInfo0HasMore defines model for FindingCorrelationPageInfo.0.HasMore.
+type FindingCorrelationPageInfo0HasMore bool
 
 // FindingCorrelationPageInfo1 defines model for FindingCorrelationPageInfo.1.
 type FindingCorrelationPageInfo1 struct {
-	HasMore    interface{} `json:"hasMore"`
-	NextCursor string      `json:"nextCursor"`
+	HasMore    FindingCorrelationPageInfo1HasMore `json:"hasMore"`
+	NextCursor string                             `json:"nextCursor"`
 }
+
+// FindingCorrelationPageInfo1HasMore defines model for FindingCorrelationPageInfo.1.HasMore.
+type FindingCorrelationPageInfo1HasMore bool
 
 // FindingCorrelationReadScope defines model for FindingCorrelationReadScope.
 type FindingCorrelationReadScope struct {
@@ -9788,24 +11075,33 @@ type FindingCorrelationReadScope struct {
 
 // FindingCorrelationReadScope0 defines model for FindingCorrelationReadScope.0.
 type FindingCorrelationReadScope0 struct {
-	AuditIds  []ResourceId `json:"auditIds"`
-	Kind      interface{}  `json:"kind"`
-	ProjectId ResourceId   `json:"projectId"`
+	AuditIds  []ResourceId                     `json:"auditIds"`
+	Kind      FindingCorrelationReadScope0Kind `json:"kind"`
+	ProjectId ResourceId                       `json:"projectId"`
 }
+
+// FindingCorrelationReadScope0Kind defines model for FindingCorrelationReadScope.0.Kind.
+type FindingCorrelationReadScope0Kind string
 
 // FindingCorrelationReadScope1 defines model for FindingCorrelationReadScope.1.
 type FindingCorrelationReadScope1 struct {
-	AuditIds  []ResourceId `json:"auditIds"`
-	Kind      interface{}  `json:"kind"`
-	ProjectId ResourceId   `json:"projectId"`
+	AuditIds  []ResourceId                     `json:"auditIds"`
+	Kind      FindingCorrelationReadScope1Kind `json:"kind"`
+	ProjectId ResourceId                       `json:"projectId"`
 }
+
+// FindingCorrelationReadScope1Kind defines model for FindingCorrelationReadScope.1.Kind.
+type FindingCorrelationReadScope1Kind string
 
 // FindingCorrelationReadScope2 defines model for FindingCorrelationReadScope.2.
 type FindingCorrelationReadScope2 struct {
-	AuditIds  []ResourceId `json:"auditIds"`
-	Kind      interface{}  `json:"kind"`
-	ProjectId ResourceId   `json:"projectId"`
+	AuditIds  []ResourceId                     `json:"auditIds"`
+	Kind      FindingCorrelationReadScope2Kind `json:"kind"`
+	ProjectId ResourceId                       `json:"projectId"`
 }
+
+// FindingCorrelationReadScope2Kind defines model for FindingCorrelationReadScope.2.Kind.
+type FindingCorrelationReadScope2Kind string
 
 // FindingCorrelationReference defines model for FindingCorrelationReference.
 type FindingCorrelationReference struct {
@@ -9815,9 +11111,12 @@ type FindingCorrelationReference struct {
 
 // FindingCorrelationScope defines model for FindingCorrelationScope.
 type FindingCorrelationScope struct {
-	Kind      interface{} `json:"kind"`
-	ProjectId ResourceId  `json:"projectId"`
+	Kind      FindingCorrelationScopeKind `json:"kind"`
+	ProjectId ResourceId                  `json:"projectId"`
 }
+
+// FindingCorrelationScopeKind defines model for FindingCorrelationScope.Kind.
+type FindingCorrelationScopeKind string
 
 // FindingExactArtifact defines model for FindingExactArtifact.
 type FindingExactArtifact struct {
@@ -9850,29 +11149,47 @@ type FindingFingerprintProjection struct {
 
 // FindingFingerprintProjection0 defines model for FindingFingerprintProjection.0.
 type FindingFingerprintProjection0 struct {
-	Availability interface{}                         `json:"availability"`
-	Reason       FindingFingerprintProjection0Reason `json:"reason"`
-	Schema       interface{}                         `json:"schema"`
+	Availability FindingFingerprintProjection0Availability `json:"availability"`
+	Reason       FindingFingerprintProjection0Reason       `json:"reason"`
+	Schema       FindingFingerprintProjection0Schema       `json:"schema"`
 }
+
+// FindingFingerprintProjection0Availability defines model for FindingFingerprintProjection.0.Availability.
+type FindingFingerprintProjection0Availability string
 
 // FindingFingerprintProjection0Reason defines model for FindingFingerprintProjection.0.Reason.
 type FindingFingerprintProjection0Reason string
 
+// FindingFingerprintProjection0Schema defines model for FindingFingerprintProjection.0.Schema.
+type FindingFingerprintProjection0Schema string
+
 // FindingFingerprintProjection1 defines model for FindingFingerprintProjection.1.
 type FindingFingerprintProjection1 struct {
-	Adapter       interface{}          `json:"adapter"`
-	Algorithm     interface{}          `json:"algorithm"`
-	Availability  interface{}          `json:"availability"`
-	Commit        string               `json:"commit"`
-	RecordLocator string               `json:"recordLocator"`
-	Report        FindingExactArtifact `json:"report"`
-	Repository    string               `json:"repository"`
-	RuleId        string               `json:"ruleId"`
-	Schema        interface{}          `json:"schema"`
-	Source        FindingExactArtifact `json:"source"`
-	SourceDigest  Digest               `json:"sourceDigest"`
-	Value         string               `json:"value"`
+	Adapter       FindingFingerprintProjection1Adapter      `json:"adapter"`
+	Algorithm     FindingFingerprintProjection1Algorithm    `json:"algorithm"`
+	Availability  FindingFingerprintProjection1Availability `json:"availability"`
+	Commit        string                                    `json:"commit"`
+	RecordLocator string                                    `json:"recordLocator"`
+	Report        FindingExactArtifact                      `json:"report"`
+	Repository    string                                    `json:"repository"`
+	RuleId        string                                    `json:"ruleId"`
+	Schema        FindingFingerprintProjection1Schema       `json:"schema"`
+	Source        FindingExactArtifact                      `json:"source"`
+	SourceDigest  Digest                                    `json:"sourceDigest"`
+	Value         string                                    `json:"value"`
 }
+
+// FindingFingerprintProjection1Adapter defines model for FindingFingerprintProjection.1.Adapter.
+type FindingFingerprintProjection1Adapter string
+
+// FindingFingerprintProjection1Algorithm defines model for FindingFingerprintProjection.1.Algorithm.
+type FindingFingerprintProjection1Algorithm string
+
+// FindingFingerprintProjection1Availability defines model for FindingFingerprintProjection.1.Availability.
+type FindingFingerprintProjection1Availability string
+
+// FindingFingerprintProjection1Schema defines model for FindingFingerprintProjection.1.Schema.
+type FindingFingerprintProjection1Schema string
 
 // FindingHTTPAttempt Exactly one of status or error; each header block is at most 64 KiB.
 type FindingHTTPAttempt struct {
@@ -9926,14 +11243,17 @@ type FindingLocation struct {
 
 // FindingMembersPage defines model for FindingMembersPage.
 type FindingMembersPage struct {
-	Fence          FindingCorrelationFence     `json:"fence"`
-	GroupKey       string                      `json:"groupKey"`
-	Items          []FindingComparisonPreview  `json:"items"`
-	Page           FindingCorrelationPageInfo  `json:"page"`
-	PolicyVersion  interface{}                 `json:"policyVersion"`
-	Representative FindingCorrelationReference `json:"representative"`
-	Scope          FindingCorrelationReadScope `json:"scope"`
+	Fence          FindingCorrelationFence         `json:"fence"`
+	GroupKey       string                          `json:"groupKey"`
+	Items          []FindingComparisonPreview      `json:"items"`
+	Page           FindingCorrelationPageInfo      `json:"page"`
+	PolicyVersion  FindingMembersPagePolicyVersion `json:"policyVersion"`
+	Representative FindingCorrelationReference     `json:"representative"`
+	Scope          FindingCorrelationReadScope     `json:"scope"`
 }
+
+// FindingMembersPagePolicyVersion defines model for FindingMembersPage.PolicyVersion.
+type FindingMembersPagePolicyVersion string
 
 // FindingOrigin defines model for FindingOrigin.
 type FindingOrigin struct {
@@ -10029,7 +11349,7 @@ type FindingStructuralAnchor struct {
 	EndLine         int                             `json:"endLine"`
 	File            string                          `json:"file"`
 	FileDigest      Digest                          `json:"fileDigest"`
-	Grammar         interface{}                     `json:"grammar"`
+	Grammar         FindingStructuralAnchorGrammar  `json:"grammar"`
 	Language        FindingStructuralAnchorLanguage `json:"language"`
 	NodeDigest      Digest                          `json:"nodeDigest"`
 	Path            []int                           `json:"path"`
@@ -10037,6 +11357,9 @@ type FindingStructuralAnchor struct {
 	SignatureDigest Digest                          `json:"signatureDigest"`
 	StartLine       int                             `json:"startLine"`
 }
+
+// FindingStructuralAnchorGrammar defines model for FindingStructuralAnchor.Grammar.
+type FindingStructuralAnchorGrammar string
 
 // FindingStructuralAnchorLanguage defines model for FindingStructuralAnchor.Language.
 type FindingStructuralAnchorLanguage string
@@ -10389,13 +11712,13 @@ type PerformanceAggregateHistoryPoint struct {
 	Generation   string                       `json:"generation"`
 
 	// Gpu NVIDIA devices visible to the Server host, including other applications. Unsupported metrics are omitted. Device UUIDs keep history separate across reorder or replacement.
-	Gpu             *PerformanceGPUAggregate  `json:"gpu,omitempty"`
-	Http            *[]PerformanceHTTPSurface `json:"http,omitempty"`
-	Kind            interface{}               `json:"kind"`
-	MinuteStart     time.Time                 `json:"minuteStart"`
-	ObservedMinutes PerformanceInteger        `json:"observedMinutes"`
-	OmittedWindows  PerformanceInteger        `json:"omittedWindows"`
-	Pool            PerformancePoolGauges     `json:"pool"`
+	Gpu             *PerformanceGPUAggregate             `json:"gpu,omitempty"`
+	Http            *[]PerformanceHTTPSurface            `json:"http,omitempty"`
+	Kind            PerformanceAggregateHistoryPointKind `json:"kind"`
+	MinuteStart     time.Time                            `json:"minuteStart"`
+	ObservedMinutes PerformanceInteger                   `json:"observedMinutes"`
+	OmittedWindows  PerformanceInteger                   `json:"omittedWindows"`
+	Pool            PerformancePoolGauges                `json:"pool"`
 
 	// PoolLast Working pgx pool counters. Successful acquisition duration/count is a mean, not p95 or cancelled-acquire latency.
 	PoolLast    *PerformancePool                            `json:"poolLast,omitempty"`
@@ -10404,6 +11727,9 @@ type PerformanceAggregateHistoryPoint struct {
 	StepSeconds PerformanceAggregateHistoryPointStepSeconds `json:"stepSeconds"`
 	Version     PerformanceAggregateHistoryPointVersion     `json:"version"`
 }
+
+// PerformanceAggregateHistoryPointKind defines model for PerformanceAggregateHistoryPoint.Kind.
+type PerformanceAggregateHistoryPointKind string
 
 // PerformanceAggregateHistoryPointStatus defines model for PerformanceAggregateHistoryPoint.Status.
 type PerformanceAggregateHistoryPointStatus string
@@ -10528,16 +11854,19 @@ type PerformanceFineHistoryPoint struct {
 	Generation   string                   `json:"generation"`
 
 	// Gpu NVIDIA devices visible to the Server host, including other applications. Unsupported metrics are omitted. Device UUIDs keep history separate across reorder or replacement.
-	Gpu        *PerformanceGPU  `json:"gpu,omitempty"`
-	Http       *PerformanceHTTP `json:"http,omitempty"`
-	Kind       interface{}      `json:"kind"`
-	ObservedAt time.Time        `json:"observedAt"`
+	Gpu        *PerformanceGPU                 `json:"gpu,omitempty"`
+	Http       *PerformanceHTTP                `json:"http,omitempty"`
+	Kind       PerformanceFineHistoryPointKind `json:"kind"`
+	ObservedAt time.Time                       `json:"observedAt"`
 
 	// Pool Working pgx pool counters. Successful acquisition duration/count is a mean, not p95 or cancelled-acquire latency.
 	Pool    *PerformancePool                   `json:"pool,omitempty"`
 	Process *PerformanceProcess                `json:"process,omitempty"`
 	Version PerformanceFineHistoryPointVersion `json:"version"`
 }
+
+// PerformanceFineHistoryPointKind defines model for PerformanceFineHistoryPoint.Kind.
+type PerformanceFineHistoryPointKind string
 
 // PerformanceFineHistoryPointVersion defines model for PerformanceFineHistoryPoint.Version.
 type PerformanceFineHistoryPointVersion int
@@ -10787,13 +12116,19 @@ type PerformanceSnapshotSampleIntervalSeconds int
 
 // PerformanceSnapshot0 defines model for PerformanceSnapshot.0.
 type PerformanceSnapshot0 struct {
-	Enabled interface{} `json:"enabled,omitempty"`
+	Enabled *PerformanceSnapshot0Enabled `json:"enabled,omitempty"`
 }
+
+// PerformanceSnapshot0Enabled defines model for PerformanceSnapshot.0.Enabled.
+type PerformanceSnapshot0Enabled bool
 
 // PerformanceSnapshot1 defines model for PerformanceSnapshot.1.
 type PerformanceSnapshot1 struct {
-	Enabled interface{} `json:"enabled,omitempty"`
+	Enabled *PerformanceSnapshot1Enabled `json:"enabled,omitempty"`
 }
+
+// PerformanceSnapshot1Enabled defines model for PerformanceSnapshot.1.Enabled.
+type PerformanceSnapshot1Enabled bool
 
 // PinnedRuntimeConfig defines model for PinnedRuntimeConfig.
 type PinnedRuntimeConfig struct {
@@ -11538,7 +12873,7 @@ type RuntimeResourceSummary struct {
 	RssPeakObservedBytes *PerformanceInteger           `json:"rssPeakObservedBytes,omitempty"`
 	RssSampleCount       *PerformanceInteger           `json:"rssSampleCount,omitempty"`
 	RssStartBytes        *PerformanceInteger           `json:"rssStartBytes,omitempty"`
-	Scope                interface{}                   `json:"scope"`
+	Scope                RuntimeResourceSummaryScope   `json:"scope"`
 	Status               RuntimeResourceSummaryStatus  `json:"status"`
 	Version              RuntimeResourceSummaryVersion `json:"version"`
 	union                json.RawMessage
@@ -11546,6 +12881,9 @@ type RuntimeResourceSummary struct {
 
 // RuntimeResourceSummaryReason defines model for RuntimeResourceSummary.Reason.
 type RuntimeResourceSummaryReason string
+
+// RuntimeResourceSummaryScope defines model for RuntimeResourceSummary.Scope.
+type RuntimeResourceSummaryScope string
 
 // RuntimeResourceSummaryStatus defines model for RuntimeResourceSummary.Status.
 type RuntimeResourceSummaryStatus string
@@ -11555,10 +12893,13 @@ type RuntimeResourceSummaryVersion int
 
 // RuntimeResourceSummary0 defines model for RuntimeResourceSummary.0.
 type RuntimeResourceSummary0 struct {
-	MaxSampleGapSeconds interface{} `json:"maxSampleGapSeconds"`
-	RssSampleCount      interface{} `json:"rssSampleCount"`
-	Status              interface{} `json:"status,omitempty"`
+	MaxSampleGapSeconds interface{}                    `json:"maxSampleGapSeconds"`
+	RssSampleCount      interface{}                    `json:"rssSampleCount"`
+	Status              *RuntimeResourceSummary0Status `json:"status,omitempty"`
 }
+
+// RuntimeResourceSummary0Status defines model for RuntimeResourceSummary.0.Status.
+type RuntimeResourceSummary0Status string
 
 // RuntimeResourceSummary1 defines model for RuntimeResourceSummary.1.
 type RuntimeResourceSummary1 struct {
@@ -12364,9 +13705,12 @@ type WorkflowStageContract0 struct {
 
 // WorkflowStageContract1 defines model for WorkflowStageContract.1.
 type WorkflowStageContract1 struct {
-	Agents  interface{} `json:"agents,omitempty"`
-	Session interface{} `json:"session,omitempty"`
+	Agents  interface{}                    `json:"agents,omitempty"`
+	Session *WorkflowStageContract1Session `json:"session,omitempty"`
 }
+
+// WorkflowStageContract1Session defines model for WorkflowStageContract.1.Session.
+type WorkflowStageContract1Session string
 
 // WorkflowSucceedTransition defines model for WorkflowSucceedTransition.
 type WorkflowSucceedTransition struct {
@@ -12402,8 +13746,8 @@ type WorkflowSummaryTransition struct {
 	Kind            WorkflowSummaryTransitionKind        `json:"kind"`
 	MaxAttempts     WorkflowSummaryTransitionMaxAttempts `json:"maxAttempts"`
 	Planner         struct {
-		PlannerId interface{} `json:"plannerId"`
-		Version   interface{} `json:"version"`
+		PlannerId WorkflowSummaryTransitionPlannerPlannerId `json:"plannerId"`
+		Version   WorkflowSummaryTransitionPlannerVersion   `json:"version"`
 	} `json:"planner"`
 
 	// PlannerContextManagement Resolved Planner context management of a Planner Stage (PLN-R125). Always present for a Planner Stage: none keeps the whole Planner conversation, compact@1 carries every threshold explicitly. The compactor ModelPolicy is the Planner execution selection compactorModelPolicy.
@@ -12415,6 +13759,12 @@ type WorkflowSummaryTransitionKind string
 
 // WorkflowSummaryTransitionMaxAttempts defines model for WorkflowSummaryTransition.MaxAttempts.
 type WorkflowSummaryTransitionMaxAttempts int
+
+// WorkflowSummaryTransitionPlannerPlannerId defines model for WorkflowSummaryTransition.Planner.PlannerId.
+type WorkflowSummaryTransitionPlannerPlannerId string
+
+// WorkflowSummaryTransitionPlannerVersion defines model for WorkflowSummaryTransition.Planner.Version.
+type WorkflowSummaryTransitionPlannerVersion string
 
 // WorkflowTemplateContextManagement defines model for WorkflowTemplateContextManagement.
 type WorkflowTemplateContextManagement struct {

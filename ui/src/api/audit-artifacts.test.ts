@@ -71,7 +71,6 @@ describe("exact Audit receipt content", () => {
             503,
             "storage_transaction_conflict",
             "Retry the read.",
-            true,
           );
         },
       }),

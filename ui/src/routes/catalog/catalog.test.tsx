@@ -132,7 +132,6 @@ function setup(
             503,
             "storage_transaction_conflict",
             "Catalog index unavailable",
-            true,
           );
         }
         if (exactName === "researcher") {

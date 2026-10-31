@@ -8220,6 +8220,7 @@ components:
         - auditIds
         properties:
           kind:
+            type: string
             const: project
           projectId: &correlationResourceId
             $ref: '#/components/schemas/ResourceId'
@@ -8237,6 +8238,7 @@ components:
         - auditIds
         properties:
           kind:
+            type: string
             const: audit
           projectId: *correlationResourceId
           auditIds:
@@ -8253,6 +8255,7 @@ components:
         - auditIds
         properties:
           kind:
+            type: string
             const: audit-pair
           projectId: *correlationResourceId
           auditIds:
@@ -8302,8 +8305,10 @@ components:
           type: string
           pattern: ^sha256:[0-9a-f]{64}$
         baselineDigestEncoding:
+          type: string
           const: postgres-jsonb-text/v1
         coverage:
+          type: string
           const: not-compared
     FindingCorrelationFence:
       type: object
@@ -8362,6 +8367,7 @@ components:
         auditId: *correlationResourceId
         revision: *correlationId002
         preview:
+          type: boolean
           const: true
         title:
           type: string
@@ -8405,6 +8411,7 @@ components:
         - hasMore
         properties:
           hasMore:
+            type: boolean
             const: false
       - type: object
         additionalProperties: false
@@ -8413,6 +8420,7 @@ components:
         - nextCursor
         properties:
           hasMore:
+            type: boolean
             const: true
           nextCursor:
             type: string
@@ -8523,6 +8531,7 @@ components:
       - page
       properties:
         policyVersion:
+          type: string
           const: qualified-snapshot/v1
         scope:
           $ref: '#/components/schemas/FindingCorrelationReadScope'
@@ -8531,6 +8540,7 @@ components:
         source:
           $ref: '#/components/schemas/FindingCandidateSource'
         targetBasis:
+          type: string
           const: immutable-first-receipt
         items:
           type: array
@@ -8598,6 +8608,7 @@ components:
       - page
       properties:
         policyVersion:
+          type: string
           const: qualified-snapshot/v1
         scope:
           $ref: '#/components/schemas/FindingCorrelationReadScope'
@@ -8632,6 +8643,7 @@ components:
       - page
       properties:
         policyVersion:
+          type: string
           const: qualified-snapshot/v1
         scope:
           $ref: '#/components/schemas/FindingCorrelationReadScope'
@@ -9209,7 +9221,7 @@ components:
       ],
       "allOf": [
         {
-          "if": {"properties": {"evaluator": {"const": "human-review@1"}}},
+          "if": {"properties": {"evaluator": {type: string, "const": "human-review@1"}}},
           "then": {"properties": {"parameters": {"maxProperties": 0}}}
         }
       ],
@@ -9279,7 +9291,7 @@ components:
           "if": {
             "properties": {
               "kind": {
-                "const": "seeded_shuffle"
+                type: string, "const": "seeded_shuffle"
               }
             }
           },
@@ -9489,10 +9501,10 @@ components:
       "type": "object",
       "properties": {
         "schema_version": {
-          "const": "playground.public-projection/v1"
+          type: string, "const": "playground.public-projection/v1"
         },
         "source_schema_version": {
-          "const": "playground.plan/v1"
+          type: string, "const": "playground.plan/v1"
         },
         "source_record_sha256": {
           "$ref": "#/components/schemas/EvalDigest"
@@ -9591,7 +9603,7 @@ components:
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "contractor.eval-registration/v1"
+          type: string, "const": "contractor.eval-registration/v1"
         },
         "sourcePlanSha256": {
           "$ref": "#/components/schemas/EvalDigest"
@@ -9681,7 +9693,7 @@ components:
         {
           "properties": {
             "controlMode": {
-              "const": "server"
+              type: string, "const": "server"
             }
           },
           "required": [
@@ -9696,7 +9708,7 @@ components:
         {
           "properties": {
             "controlMode": {
-              "const": "external"
+              type: string, "const": "external"
             }
           },
           "required": [
@@ -10105,7 +10117,7 @@ components:
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "contractor.eval-result-input/v1"
+          type: string, "const": "contractor.eval-result-input/v1"
         },
         "planSha256": {
           "$ref": "#/components/schemas/EvalDigest"
@@ -10284,7 +10296,7 @@ components:
           "if": {
             "properties": {
               "kind": {
-                "const": "external"
+                type: string, "const": "external"
               }
             }
           },
@@ -10317,7 +10329,7 @@ components:
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "contractor.eval-assessment-input/v1"
+          type: string, "const": "contractor.eval-assessment-input/v1"
         },
         "source": {
           "$ref": "#/components/schemas/EvalAssessmentSource"
@@ -10357,13 +10369,13 @@ components:
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "contractor.eval-check-request/v1"
+          type: string, "const": "contractor.eval-check-request/v1"
         },
         "source": {
           "type": "object",
           "properties": {
             "kind": {
-              "const": "native"
+              type: string, "const": "native"
             }
           },
           "required": [
@@ -11059,7 +11071,7 @@ components:
           "if": {
             "properties": {
               "controlMode": {
-                "const": "server"
+                type: string, "const": "server"
               },
               "state": {
                 "enum": [
@@ -11734,7 +11746,7 @@ components:
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "contractor.eval-report/v1"
+          type: string, "const": "contractor.eval-report/v1"
         },
         "experimentId": {
           "$ref": "#/components/schemas/EvalOpaque"
@@ -12162,10 +12174,10 @@ components:
         {
           "properties": {
             "chart": {
-              "const": "quality"
+              type: string, "const": "quality"
             },
             "unit": {
-              "const": "fraction"
+              type: string, "const": "fraction"
             }
           },
           "required": [
@@ -12194,7 +12206,7 @@ components:
         {
           "properties": {
             "chart": {
-              "const": "pair-deltas"
+              type: string, "const": "pair-deltas"
             }
           },
           "required": [
@@ -12205,10 +12217,10 @@ components:
         {
           "properties": {
             "chart": {
-              "const": "progress"
+              type: string, "const": "progress"
             },
             "unit": {
-              "const": "members"
+              type: string, "const": "members"
             }
           },
           "required": [
@@ -13268,7 +13280,7 @@ components:
       additionalProperties: false
       required: [apiVersion, items]
       properties:
-        apiVersion: {const: contractor/v1alpha1}
+        apiVersion: {type: string, const: contractor/v1alpha1}
         items:
           type: array
           maxItems: 64
@@ -13278,7 +13290,7 @@ components:
       additionalProperties: false
       required: [apiVersion, standard]
       properties:
-        apiVersion: {const: contractor/v1alpha1}
+        apiVersion: {type: string, const: contractor/v1alpha1}
         standard: {$ref: '#/components/schemas/AuditStandardPackage'}
     AuditStandardExactPackage:
       type: object
@@ -13317,14 +13329,14 @@ components:
       additionalProperties: false
       required: [schema, url]
       properties:
-        schema: {const: contractor.audit.web-target.v1}
+        schema: {type: string, const: contractor.audit.web-target.v1}
         url: {type: string, minLength: 1, maxLength: 8192, pattern: '^https?://[^\s]+$'}
     AuditWebScanSettings:
       type: object
       additionalProperties: false
       required: [schema, templateIds, tags, severity, rateLimit]
       properties:
-        schema: {const: contractor.audit.web-scan-settings.v1}
+        schema: {type: string, const: contractor.audit.web-scan-settings.v1}
         templateIds: {$ref: '#/components/schemas/NucleiRuleFilter'}
         tags: {$ref: '#/components/schemas/NucleiRuleFilter'}
         severity:
@@ -13347,7 +13359,7 @@ components:
         itemWorkflowRole: {$ref: '#/components/schemas/ArtifactName'}
         standardSelection: {$ref: '#/components/schemas/AuditStandardSelection'}
       oneOf:
-        - properties: {implementation: {const: standard-mappings@1}}
+        - properties: {implementation: {type: string, const: standard-mappings@1}}
           not:
             anyOf: [{required: [source]}, {required: [settings]}]
         - properties: {implementation: {type: string, enum: [openapi-scans@1, web-scans@1]}}
@@ -13366,9 +13378,9 @@ components:
         name: {$ref: '#/components/schemas/ArtifactName'}
         role: {$ref: '#/components/schemas/ArtifactName'}
       oneOf:
-        - properties: {source: {const: audit-input}}
+        - properties: {source: {type: string, const: audit-input}}
           not: {required: [role]}
-        - properties: {source: {const: prepare-output}}
+        - properties: {source: {type: string, const: prepare-output}}
           required: [role]
     AuditStandardSelection:
       type: object
@@ -13438,7 +13450,7 @@ components:
       additionalProperties: false
       required: [planSchema, method, workflowRole, requiredCapabilities]
       properties:
-        planSchema: {const: contractor.audit.finding-check-plan.v1}
+        planSchema: {type: string, const: contractor.audit.finding-check-plan.v1}
         method: {type: string, enum: [verify, replay, applicability, alternative, static-trace, http-probe]}
         workflowRole: {type: string, minLength: 1, maxLength: 128}
         requiredCapabilities:
@@ -13468,7 +13480,7 @@ components:
           maxProperties: 128
           additionalProperties: {$ref: '#/components/schemas/ArtifactName'}
       oneOf:
-        - properties: {kind: {const: prepare}}
+        - properties: {kind: {type: string, const: prepare}}
           required: [maxRunAttempts]
         - properties: {kind: {type: string, enum: [check, discovery, assessment]}}
           not: {required: [maxRunAttempts]}
@@ -13724,8 +13736,8 @@ components:
           additionalProperties: {$ref: '#/components/schemas/AuditPreparationOutput'}
       oneOf:
         - properties:
-            status: {const: pending}
-            attempts: {const: 0}
+            status: {type: string, const: pending}
+            attempts: {type: integer, const: 0}
             outputs: {maxProperties: 0}
           not:
             anyOf: [{required: [executionId]}, {required: [runId]}]
@@ -13735,7 +13747,7 @@ components:
             outputs: {maxProperties: 0}
           required: [executionId]
         - properties:
-            status: {const: accepted}
+            status: {type: string, const: accepted}
             attempts: {minimum: 1}
             outputs: {minProperties: 1}
           required: [executionId, runId]
@@ -13820,13 +13832,13 @@ components:
         finishedAt: {type: string, format: date-time}
         deletionRequestedAt: {type: string, format: date-time}
       oneOf:
-        - properties: {phase: {const: not-started}}
+        - properties: {phase: {type: string, const: not-started}}
           not:
             anyOf: [{required: [currentRoundId]}, {required: [preparation]}]
         - properties: {phase: {type: string, enum: [preparing, inventory]}}
           required: [preparation, baseline]
           not: {required: [currentRoundId]}
-        - properties: {phase: {const: rounds}}
+        - properties: {phase: {type: string, const: rounds}}
           required: [currentRoundId]
     AuditEventSummary:
       type: object
@@ -14162,7 +14174,7 @@ components:
       oneOf:
         - required: [round]
           properties:
-            audit: {properties: {phase: {const: rounds}}}
+            audit: {properties: {phase: {type: string, const: rounds}}}
         - not: {required: [round]}
           properties:
             audit: {properties: {phase: {type: string, enum: [preparing, inventory]}}}
@@ -14183,18 +14195,18 @@ components:
           additionalProperties: false
           required: [schema, availability, reason]
           properties:
-            schema: {const: contractor.finding.fingerprint-projection.v1}
-            availability: {const: unavailable}
+            schema: {type: string, const: contractor.finding.fingerprint-projection.v1}
+            availability: {type: string, const: unavailable}
             reason: {type: string, enum: [not_recorded, not_provided, input_limit, producer_key_unavailable, producer_report_invalid, producer_record_ambiguous, asset_unavailable, discarded]}
         - type: object
           additionalProperties: false
           required: [schema, availability, algorithm, value, adapter, ruleId, repository, commit, sourceDigest, report, source, recordLocator]
           properties:
-            schema: {const: contractor.finding.fingerprint-projection.v1}
-            availability: {const: available}
-            algorithm: {const: contractor/producer-issue/v1}
+            schema: {type: string, const: contractor.finding.fingerprint-projection.v1}
+            availability: {type: string, const: available}
+            algorithm: {type: string, const: contractor/producer-issue/v1}
             value: {type: string, pattern: '^[0-9a-f]{64}$'}
-            adapter: {const: pinned-sarif-native/v1}
+            adapter: {type: string, const: pinned-sarif-native/v1}
             ruleId: {type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9._:/-]{0,159}$'}
             repository: {type: string, maxLength: 4096, pattern: '^(https|ssh)://'}
             commit: {type: string, pattern: '^[0-9a-f]{40}$'}
@@ -14207,8 +14219,8 @@ components:
       additionalProperties: false
       required: [scheme, ruleId, literalDigest, contextDigest]
       properties:
-        scheme: {const: node-local/v1}
-        ruleId: {const: source.private-key-literal.ed25519/v1}
+        scheme: {type: string, const: node-local/v1}
+        ruleId: {type: string, const: source.private-key-literal.ed25519/v1}
         literalDigest: {$ref: '#/components/schemas/Digest'}
         contextDigest: {$ref: '#/components/schemas/Digest'}
     FindingStructuralAnchor:
@@ -14221,7 +14233,7 @@ components:
         endLine: {type: integer, minimum: 1, maximum: 9007199254740991}
         language: {type: string, enum: [python, javascript, typescript]}
         profile: {type: string, enum: [python/statement-v1, javascript/statement-v1, typescript/statement-v1]}
-        grammar: {const: 'tree-sitter-language-pack/1.14.3;tree-sitter/0.25.2'}
+        grammar: {type: string, const: 'tree-sitter-language-pack/1.14.3;tree-sitter/0.25.2'}
         fileDigest: {$ref: '#/components/schemas/Digest'}
         signatureDigest: {$ref: '#/components/schemas/Digest'}
         nodeDigest: {$ref: '#/components/schemas/Digest'}
@@ -14232,8 +14244,8 @@ components:
       additionalProperties: false
       required: [schema, availability, sourceRef, sourceDigest, anchors]
       properties:
-        schema: {const: contractor.finding.anchors-derived.v1}
-        availability: {const: available}
+        schema: {type: string, const: contractor.finding.anchors-derived.v1}
+        availability: {type: string, const: available}
         sourceRef: {$ref: '#/components/schemas/ExactArtifactRef'}
         sourceDigest: {$ref: '#/components/schemas/Digest'}
         anchors: {type: array, minItems: 1, maxItems: 32, items: {$ref: '#/components/schemas/FindingStructuralAnchor'}}
@@ -14250,7 +14262,7 @@ components:
           required: [siteKey, issueReason]
           properties:
             siteKey: {type: string, pattern: '^[0-9a-f]{64}$'}
-            issueReason: {const: issue_context_unavailable}
+            issueReason: {type: string, const: issue_context_unavailable}
     FindingAnchorProjection:
       description: Immutable exact-source correlation evidence. Sites alone are candidates; qualified issue keys require the same source snapshot and never set analyst verdicts.
       oneOf:
@@ -14258,15 +14270,15 @@ components:
           additionalProperties: false
           required: [schema, availability, reason]
           properties:
-            schema: {const: contractor.finding.anchors-projection.v1}
-            availability: {const: unavailable}
+            schema: {type: string, const: contractor.finding.anchors-projection.v1}
+            availability: {type: string, const: unavailable}
             reason: {type: string, enum: [not_recorded, not_provided, input_limit, asset_unavailable, selector_unavailable, anchor_language_unsupported, anchor_parser_unavailable, source_invalid, source_missing, parse_error, anchor_ambiguous, discarded]}
         - type: object
           additionalProperties: false
           required: [schema, availability, repository, commit, source, basis, keys]
           properties:
-            schema: {const: contractor.finding.anchors-projection.v1}
-            availability: {const: available}
+            schema: {type: string, const: contractor.finding.anchors-projection.v1}
+            availability: {type: string, const: available}
             repository: {type: string, maxLength: 4096, pattern: '^(https|ssh)://'}
             commit: {type: string, pattern: '^[0-9a-f]{40}$'}
             source: {$ref: '#/components/schemas/FindingExactArtifact'}
@@ -14277,7 +14289,7 @@ components:
       additionalProperties: false
       required: [kind, projectId]
       properties:
-        kind: {const: project}
+        kind: {type: string, const: project}
         projectId: {$ref: '#/components/schemas/ResourceId'}
     FindingCorrelationReference:
       type: object
@@ -14300,32 +14312,32 @@ components:
           additionalProperties: false
           required: [schema, policyVersion, scope, projectRevision, availability, reason, automaticDuplicate, hasOtherObservations]
           properties:
-            schema: {const: contractor.finding.correlation.v1}
-            policyVersion: {const: qualified-snapshot/v1}
+            schema: {type: string, const: contractor.finding.correlation.v1}
+            policyVersion: {type: string, const: qualified-snapshot/v1}
             scope: {$ref: '#/components/schemas/FindingCorrelationScope'}
             projectRevision: {type: integer, minimum: 1, maximum: 9007199254740991}
-            availability: {const: unavailable}
+            availability: {type: string, const: unavailable}
             reason: {type: string, enum: [not_recorded, no_qualified_key, primary_key_ambiguous]}
-            automaticDuplicate: {const: false}
-            hasOtherObservations: {const: false}
+            automaticDuplicate: {type: boolean, const: false}
+            hasOtherObservations: {type: boolean, const: false}
         - type: object
           additionalProperties: false
           required: [schema, policyVersion, scope, projectRevision, availability, groupKey, basis, matchedDomain, representative, automaticDuplicate, hasOtherObservations]
           properties:
-            schema: {const: contractor.finding.correlation.v1}
-            policyVersion: {const: qualified-snapshot/v1}
+            schema: {type: string, const: contractor.finding.correlation.v1}
+            policyVersion: {type: string, const: qualified-snapshot/v1}
             scope: {$ref: '#/components/schemas/FindingCorrelationScope'}
             projectRevision: {type: integer, minimum: 1, maximum: 9007199254740991}
-            availability: {const: available}
+            availability: {type: string, const: available}
             groupKey: {type: string, pattern: '^[0-9a-f]{64}$'}
             basis: {$ref: '#/components/schemas/FindingCorrelationBasis'}
-            matchedDomain: {const: snapshot}
+            matchedDomain: {type: string, const: snapshot}
             representative: {$ref: '#/components/schemas/FindingCorrelationReference'}
             automaticDuplicate: {type: boolean}
             hasOtherObservations: {type: boolean}
           allOf:
-            - if: {properties: {automaticDuplicate: {const: true}}}
-              then: {properties: {hasOtherObservations: {const: true}}}
+            - if: {properties: {automaticDuplicate: {type: boolean, const: true}}}
+              then: {properties: {hasOtherObservations: {type: boolean, const: true}}}
     FindingSubject:
       type: object
       additionalProperties: false
@@ -15287,9 +15299,9 @@ components:
         message: {type: string, minLength: 1, maxLength: 4096}
         retryable: {type: boolean}
       allOf:
-        - if: {properties: {participant: {const: planner}}}
+        - if: {properties: {participant: {type: string, const: planner}}}
           then: {not: {required: [logicalAgent]}}
-        - if: {properties: {participant: {const: worker}}}
+        - if: {properties: {participant: {type: string, const: worker}}}
           then: {required: [logicalAgent]}
     DiagnosticUnsignedDecimal:
       type: string
@@ -15373,9 +15385,9 @@ components:
           oneOf: [{$ref: '#/components/schemas/DiagnosticInt64Decimal'}, {type: 'null'}]
         error: {$ref: '#/components/schemas/ToolCallDiagnosticError'}
       allOf:
-        - if: {properties: {outcome: {const: succeeded}}}
+        - if: {properties: {outcome: {type: string, const: succeeded}}}
           then: {not: {required: [error]}}
-        - if: {properties: {outcome: {const: failed}}}
+        - if: {properties: {outcome: {type: string, const: failed}}}
           then: {required: [error]}
     ToolDiagnosticPage:
       type: object
@@ -15394,9 +15406,9 @@ components:
           items: {$ref: '#/components/schemas/ToolCallDiagnostic'}
         page: {$ref: '#/components/schemas/PageInfo'}
       allOf:
-        - if: {properties: {participant: {const: planner}}}
+        - if: {properties: {participant: {type: string, const: planner}}}
           then: {not: {required: [logicalAgent]}}
-        - if: {properties: {participant: {const: worker}}}
+        - if: {properties: {participant: {type: string, const: worker}}}
           then: {required: [logicalAgent]}
     RuntimeDiagnosticPage:
       type: object
@@ -16642,8 +16654,8 @@ components:
           allOf:
             - {$ref: '#/components/schemas/PlannerRef'}
             - properties:
-                plannerId: {const: streamline}
-                version: {const: '1'}
+                plannerId: {type: string, const: streamline}
+                version: {type: string, const: '1'}
         deadlineSeconds:
           type: integer
           minimum: 1
@@ -16682,7 +16694,7 @@ components:
               - {required: [plannerContextManagement]}
           properties:
             agents: {maxProperties: 0}
-            session: {const: isolated}
+            session: {type: string, const: isolated}
       properties:
         objective: {type: string, minLength: 1, maxLength: 65536}
         instructions: {$ref: '#/components/schemas/InstructionsRef'}
@@ -16719,7 +16731,7 @@ components:
                   additionalProperties: true
                   required: [source]
                   properties:
-                    source: {const: artifact}
+                    source: {type: string, const: artifact}
     WorkflowResource:
       type: object
       additionalProperties: false
@@ -16898,7 +16910,7 @@ components:
       type: object
       additionalProperties: false
       required: [description, runtime, toolsets, sandboxProfile]
-      if: {properties: {runtime: {const: 'tool@1'}}}
+      if: {properties: {runtime: {type: string, const: 'tool@1'}}}
       then:
         required: [execution]
         properties: {instructions: {not: {}}, modelPolicy: {not: {}}, summarizer: {not: {}}}
@@ -17554,9 +17566,9 @@ components:
         current: {$ref: '#/components/schemas/PerformanceSample'}
         diagnostics: {$ref: '#/components/schemas/PerformanceDiagnostics'}
       oneOf:
-        - properties: {enabled: {const: false}}
+        - properties: {enabled: {type: boolean, const: false}}
           not: {required: [current]}
-        - properties: {enabled: {const: true}}
+        - properties: {enabled: {type: boolean, const: true}}
       example:
         enabled: false
         generation: performance-generation-example
@@ -17570,7 +17582,7 @@ components:
       additionalProperties: false
       required: [kind, version, generation, observedAt]
       properties:
-        kind: {const: sample}
+        kind: {type: string, const: sample}
         version: {type: integer, const: 1}
         generation: {type: string, minLength: 1, maxLength: 128}
         observedAt: {type: string, format: date-time}
@@ -17619,7 +17631,7 @@ components:
       additionalProperties: false
       required: [kind, version, generation, minuteStart, status, omittedWindows, coverageSeconds, process, pool, droppedMinutes, stepSeconds, observedMinutes, expectedMinutes]
       properties:
-        kind: {const: aggregate}
+        kind: {type: string, const: aggregate}
         version: {type: integer, const: 1}
         generation: {type: string, minLength: 1, maxLength: 128}
         minuteStart: {type: string, format: date-time}
@@ -17669,7 +17681,7 @@ components:
       required: [version, scope, status]
       oneOf:
         - properties:
-            status: {const: complete}
+            status: {type: string, const: complete}
             rssSampleCount: {minimum: 2}
             maxSampleGapSeconds: {maximum: 30}
           required: [durationSeconds, cpuUserSeconds, cpuSystemSeconds, rssStartBytes, rssEndBytes, rssPeakObservedBytes, rssSampleCount, maxSampleGapSeconds]
@@ -17679,7 +17691,7 @@ components:
       description: Allocation-local CPU deltas and observed RSS of the entire Runtime process, not child/container resources or a guaranteed RSS peak. Unknowns are omitted. Go/Python additionally validate boundary/count/peak and duration/gap consistency.
       properties:
         version: {type: integer, const: 1}
-        scope: {const: runtime_process}
+        scope: {type: string, const: runtime_process}
         status: {type: string, enum: [complete, partial, unavailable]}
         reason: {type: string, enum: [unsupported_platform, read_failed, sampling_gap, counter_reset, invalid_report]}
         durationSeconds: {$ref: '#/components/schemas/PerformanceNumber'}

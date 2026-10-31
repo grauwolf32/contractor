@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/persistence/explaintest"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -102,7 +103,7 @@ VALUES ('upgrade-experiment', 4, 'old-holder', clock_timestamp() + interval '1 m
 	if err := pool.QueryRow(ctx, `
 SELECT to_regclass('audit_idempotency') IS NULL, to_regclass('eval_mutation_receipts') IS NULL,
        to_regclass('runtime_management_operations') IS NULL,
-       (SELECT prosrc LIKE '%FROM mutation_receipts i%' FROM pg_proc
+       (SELECT `+explaintest.RoutineBodySQL("")+` LIKE '%FROM mutation_receipts i%' FROM pg_proc
          WHERE proname = 'contractor_eval_retain_deleted_execution'
            AND pronamespace = current_schema()::regnamespace)`).Scan(
 		&auditGone, &evalGone, &runtimeGone, &tombstoneReadsReceipts,
@@ -113,6 +114,19 @@ SELECT to_regclass('audit_idempotency') IS NULL, to_regclass('eval_mutation_rece
 		t.Fatalf("folded tables gone = (%t, %t, %t), tombstone trigger reads receipts = %t",
 			auditGone, evalGone, runtimeGone, tombstoneReadsReceipts)
 	}
+	if _, err := pool.Exec(ctx, `CREATE FUNCTION contractor_test_receipt_body() RETURNS bigint LANGUAGE sql
+BEGIN ATOMIC
+    INSERT INTO mutation_receipts SELECT * FROM mutation_receipts WHERE false;
+    SELECT count(*) FROM mutation_receipts i;
+END`); err != nil {
+		t.Fatal(err)
+	}
+	var readsReceipts bool
+	if err := pool.QueryRow(ctx, `SELECT `+explaintest.RoutineBodySQL("")+` LIKE '%FROM mutation_receipts i%' FROM pg_proc
+ WHERE proname = 'contractor_test_receipt_body' AND pronamespace = current_schema()::regnamespace`).Scan(&readsReceipts); err != nil || !readsReceipts {
+		t.Fatalf("SQL-standard receipt body = %t, %v", readsReceipts, err)
+	}
+
 	var released bool
 	var epoch int64
 	if err := pool.QueryRow(ctx, `

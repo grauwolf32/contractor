@@ -746,7 +746,7 @@
           "additionalProperties": false,
           "required": ["kind", "projectId", "auditIds"],
           "properties": {
-            "kind": { "const": "project" },
+            "kind": { "type": "string", "const": "project" },
             "projectId": {
               "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
             },
@@ -766,7 +766,7 @@
           "additionalProperties": false,
           "required": ["kind", "projectId", "auditIds"],
           "properties": {
-            "kind": { "const": "audit" },
+            "kind": { "type": "string", "const": "audit" },
             "projectId": {
               "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
             },
@@ -786,7 +786,7 @@
           "additionalProperties": false,
           "required": ["kind", "projectId", "auditIds"],
           "properties": {
-            "kind": { "const": "audit-pair" },
+            "kind": { "type": "string", "const": "audit-pair" },
             "projectId": {
               "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
             },
@@ -845,8 +845,11 @@
           "type": "string",
           "pattern": "^sha256:[0-9a-f]{64}$"
         },
-        "baselineDigestEncoding": { "const": "postgres-jsonb-text/v1" },
-        "coverage": { "const": "not-compared" }
+        "baselineDigestEncoding": {
+          "type": "string",
+          "const": "postgres-jsonb-text/v1"
+        },
+        "coverage": { "type": "string", "const": "not-compared" }
       }
     },
     "FindingCorrelationFence": {
@@ -934,7 +937,7 @@
           "minimum": 1,
           "maximum": 9007199254740991
         },
-        "preview": { "const": true },
+        "preview": { "type": "boolean", "const": true },
         "title": { "type": "string", "minLength": 1, "maxLength": 256 },
         "titleTruncated": { "type": "boolean" },
         "state": {
@@ -976,14 +979,14 @@
           "type": "object",
           "additionalProperties": false,
           "required": ["hasMore"],
-          "properties": { "hasMore": { "const": false } }
+          "properties": { "hasMore": { "type": "boolean", "const": false } }
         },
         {
           "type": "object",
           "additionalProperties": false,
           "required": ["hasMore", "nextCursor"],
           "properties": {
-            "hasMore": { "const": true },
+            "hasMore": { "type": "boolean", "const": true },
             "nextCursor": {
               "type": "string",
               "minLength": 1,
@@ -1105,7 +1108,7 @@
         "page"
       ],
       "properties": {
-        "policyVersion": { "const": "qualified-snapshot/v1" },
+        "policyVersion": { "type": "string", "const": "qualified-snapshot/v1" },
         "scope": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingCorrelationReadScope"
         },
@@ -1115,7 +1118,7 @@
         "source": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingCandidateSource"
         },
-        "targetBasis": { "const": "immutable-first-receipt" },
+        "targetBasis": { "type": "string", "const": "immutable-first-receipt" },
         "items": {
           "type": "array",
           "items": {
@@ -1174,7 +1177,7 @@
         "page"
       ],
       "properties": {
-        "policyVersion": { "const": "qualified-snapshot/v1" },
+        "policyVersion": { "type": "string", "const": "qualified-snapshot/v1" },
         "scope": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingCorrelationReadScope"
         },
@@ -1217,7 +1220,7 @@
         "page"
       ],
       "properties": {
-        "policyVersion": { "const": "qualified-snapshot/v1" },
+        "policyVersion": { "type": "string", "const": "qualified-snapshot/v1" },
         "scope": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingCorrelationReadScope"
         },
@@ -1698,7 +1701,9 @@
       "allOf": [
         {
           "if": {
-            "properties": { "evaluator": { "const": "human-review@1" } }
+            "properties": {
+              "evaluator": { "type": "string", "const": "human-review@1" }
+            }
           },
           "then": { "properties": { "parameters": { "maxProperties": 0 } } }
         }
@@ -1733,7 +1738,11 @@
       "additionalProperties": false,
       "allOf": [
         {
-          "if": { "properties": { "kind": { "const": "seeded_shuffle" } } },
+          "if": {
+            "properties": {
+              "kind": { "type": "string", "const": "seeded_shuffle" }
+            }
+          },
           "then": { "required": ["seed"] },
           "else": { "not": { "required": ["seed"] } }
         }
@@ -1896,8 +1905,14 @@
     "EvalPublicPlan": {
       "type": "object",
       "properties": {
-        "schema_version": { "const": "playground.public-projection/v1" },
-        "source_schema_version": { "const": "playground.plan/v1" },
+        "schema_version": {
+          "type": "string",
+          "const": "playground.public-projection/v1"
+        },
+        "source_schema_version": {
+          "type": "string",
+          "const": "playground.plan/v1"
+        },
         "source_record_sha256": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/EvalDigest"
         },
@@ -1978,7 +1993,10 @@
     "EvalExternalRegistration": {
       "type": "object",
       "properties": {
-        "schemaVersion": { "const": "contractor.eval-registration/v1" },
+        "schemaVersion": {
+          "type": "string",
+          "const": "contractor.eval-registration/v1"
+        },
         "sourcePlanSha256": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/EvalDigest"
         },
@@ -2048,12 +2066,16 @@
       "additionalProperties": false,
       "oneOf": [
         {
-          "properties": { "controlMode": { "const": "server" } },
+          "properties": {
+            "controlMode": { "type": "string", "const": "server" }
+          },
           "required": ["draft"],
           "not": { "required": ["registration"] }
         },
         {
-          "properties": { "controlMode": { "const": "external" } },
+          "properties": {
+            "controlMode": { "type": "string", "const": "external" }
+          },
           "required": ["registration"],
           "not": { "required": ["draft"] }
         }
@@ -2312,7 +2334,10 @@
     "EvalResultInput": {
       "type": "object",
       "properties": {
-        "schemaVersion": { "const": "contractor.eval-result-input/v1" },
+        "schemaVersion": {
+          "type": "string",
+          "const": "contractor.eval-result-input/v1"
+        },
         "planSha256": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/EvalDigest"
         },
@@ -2438,7 +2463,9 @@
       "additionalProperties": false,
       "allOf": [
         {
-          "if": { "properties": { "kind": { "const": "external" } } },
+          "if": {
+            "properties": { "kind": { "type": "string", "const": "external" } }
+          },
           "then": { "required": ["producerId", "recordSha256"] },
           "else": {
             "not": {
@@ -2454,7 +2481,10 @@
     "EvalAssessmentInput": {
       "type": "object",
       "properties": {
-        "schemaVersion": { "const": "contractor.eval-assessment-input/v1" },
+        "schemaVersion": {
+          "type": "string",
+          "const": "contractor.eval-assessment-input/v1"
+        },
         "source": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/EvalAssessmentSource"
         },
@@ -2490,10 +2520,13 @@
     "EvalCheckRequest": {
       "type": "object",
       "properties": {
-        "schemaVersion": { "const": "contractor.eval-check-request/v1" },
+        "schemaVersion": {
+          "type": "string",
+          "const": "contractor.eval-check-request/v1"
+        },
         "source": {
           "type": "object",
-          "properties": { "kind": { "const": "native" } },
+          "properties": { "kind": { "type": "string", "const": "native" } },
           "required": ["kind"],
           "additionalProperties": false
         },
@@ -2946,7 +2979,7 @@
         {
           "if": {
             "properties": {
-              "controlMode": { "const": "server" },
+              "controlMode": { "type": "string", "const": "server" },
               "state": { "enum": ["draft", "preparing"], "type": "string" }
             }
           },
@@ -3428,7 +3461,10 @@
     "EvalReport": {
       "type": "object",
       "properties": {
-        "schemaVersion": { "const": "contractor.eval-report/v1" },
+        "schemaVersion": {
+          "type": "string",
+          "const": "contractor.eval-report/v1"
+        },
         "experimentId": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/EvalOpaque"
         },
@@ -3691,8 +3727,8 @@
       "oneOf": [
         {
           "properties": {
-            "chart": { "const": "quality" },
-            "unit": { "const": "fraction" }
+            "chart": { "type": "string", "const": "quality" },
+            "unit": { "type": "string", "const": "fraction" }
           },
           "required": ["quality"]
         },
@@ -3703,13 +3739,15 @@
           "required": ["bins", "distributions"]
         },
         {
-          "properties": { "chart": { "const": "pair-deltas" } },
+          "properties": {
+            "chart": { "type": "string", "const": "pair-deltas" }
+          },
           "required": ["differences", "page"]
         },
         {
           "properties": {
-            "chart": { "const": "progress" },
-            "unit": { "const": "members" }
+            "chart": { "type": "string", "const": "progress" },
+            "unit": { "type": "string", "const": "members" }
           },
           "required": ["points", "bucketMs"]
         }
@@ -4933,7 +4971,7 @@
       "additionalProperties": false,
       "required": ["apiVersion", "items"],
       "properties": {
-        "apiVersion": { "const": "contractor/v1alpha1" },
+        "apiVersion": { "type": "string", "const": "contractor/v1alpha1" },
         "items": {
           "type": "array",
           "maxItems": 64,
@@ -4948,7 +4986,7 @@
       "additionalProperties": false,
       "required": ["apiVersion", "standard"],
       "properties": {
-        "apiVersion": { "const": "contractor/v1alpha1" },
+        "apiVersion": { "type": "string", "const": "contractor/v1alpha1" },
         "standard": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditStandardPackage"
         }
@@ -5024,7 +5062,10 @@
       "additionalProperties": false,
       "required": ["schema", "url"],
       "properties": {
-        "schema": { "const": "contractor.audit.web-target.v1" },
+        "schema": {
+          "type": "string",
+          "const": "contractor.audit.web-target.v1"
+        },
         "url": {
           "type": "string",
           "minLength": 1,
@@ -5038,7 +5079,10 @@
       "additionalProperties": false,
       "required": ["schema", "templateIds", "tags", "severity", "rateLimit"],
       "properties": {
-        "schema": { "const": "contractor.audit.web-scan-settings.v1" },
+        "schema": {
+          "type": "string",
+          "const": "contractor.audit.web-scan-settings.v1"
+        },
         "templateIds": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/NucleiRuleFilter"
         },
@@ -5090,7 +5134,10 @@
       "oneOf": [
         {
           "properties": {
-            "implementation": { "const": "standard-mappings@1" }
+            "implementation": {
+              "type": "string",
+              "const": "standard-mappings@1"
+            }
           },
           "not": {
             "anyOf": [{ "required": ["source"] }, { "required": ["settings"] }]
@@ -5145,11 +5192,15 @@
       },
       "oneOf": [
         {
-          "properties": { "source": { "const": "audit-input" } },
+          "properties": {
+            "source": { "type": "string", "const": "audit-input" }
+          },
           "not": { "required": ["role"] }
         },
         {
-          "properties": { "source": { "const": "prepare-output" } },
+          "properties": {
+            "source": { "type": "string", "const": "prepare-output" }
+          },
           "required": ["role"]
         }
       ]
@@ -5291,7 +5342,10 @@
         "requiredCapabilities"
       ],
       "properties": {
-        "planSchema": { "const": "contractor.audit.finding-check-plan.v1" },
+        "planSchema": {
+          "type": "string",
+          "const": "contractor.audit.finding-check-plan.v1"
+        },
         "method": {
           "type": "string",
           "enum": [
@@ -5352,7 +5406,7 @@
       },
       "oneOf": [
         {
-          "properties": { "kind": { "const": "prepare" } },
+          "properties": { "kind": { "type": "string", "const": "prepare" } },
           "required": ["maxRunAttempts"]
         },
         {
@@ -5885,8 +5939,8 @@
       "oneOf": [
         {
           "properties": {
-            "status": { "const": "pending" },
-            "attempts": { "const": 0 },
+            "status": { "type": "string", "const": "pending" },
+            "attempts": { "type": "integer", "const": 0 },
             "outputs": { "maxProperties": 0 }
           },
           "not": {
@@ -5906,7 +5960,7 @@
         },
         {
           "properties": {
-            "status": { "const": "accepted" },
+            "status": { "type": "string", "const": "accepted" },
             "attempts": { "minimum": 1 },
             "outputs": { "minProperties": 1 }
           },
@@ -6100,7 +6154,9 @@
       },
       "oneOf": [
         {
-          "properties": { "phase": { "const": "not-started" } },
+          "properties": {
+            "phase": { "type": "string", "const": "not-started" }
+          },
           "not": {
             "anyOf": [
               { "required": ["currentRoundId"] },
@@ -6116,7 +6172,7 @@
           "not": { "required": ["currentRoundId"] }
         },
         {
-          "properties": { "phase": { "const": "rounds" } },
+          "properties": { "phase": { "type": "string", "const": "rounds" } },
           "required": ["currentRoundId"]
         }
       ]
@@ -6924,7 +6980,9 @@
         {
           "required": ["round"],
           "properties": {
-            "audit": { "properties": { "phase": { "const": "rounds" } } }
+            "audit": {
+              "properties": { "phase": { "type": "string", "const": "rounds" } }
+            }
           }
         },
         {
@@ -6968,9 +7026,10 @@
           "required": ["schema", "availability", "reason"],
           "properties": {
             "schema": {
+              "type": "string",
               "const": "contractor.finding.fingerprint-projection.v1"
             },
-            "availability": { "const": "unavailable" },
+            "availability": { "type": "string", "const": "unavailable" },
             "reason": {
               "type": "string",
               "enum": [
@@ -7005,12 +7064,16 @@
           ],
           "properties": {
             "schema": {
+              "type": "string",
               "const": "contractor.finding.fingerprint-projection.v1"
             },
-            "availability": { "const": "available" },
-            "algorithm": { "const": "contractor/producer-issue/v1" },
+            "availability": { "type": "string", "const": "available" },
+            "algorithm": {
+              "type": "string",
+              "const": "contractor/producer-issue/v1"
+            },
             "value": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
-            "adapter": { "const": "pinned-sarif-native/v1" },
+            "adapter": { "type": "string", "const": "pinned-sarif-native/v1" },
             "ruleId": {
               "type": "string",
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,159}$"
@@ -7043,8 +7106,11 @@
       "additionalProperties": false,
       "required": ["scheme", "ruleId", "literalDigest", "contextDigest"],
       "properties": {
-        "scheme": { "const": "node-local/v1" },
-        "ruleId": { "const": "source.private-key-literal.ed25519/v1" },
+        "scheme": { "type": "string", "const": "node-local/v1" },
+        "ruleId": {
+          "type": "string",
+          "const": "source.private-key-literal.ed25519/v1"
+        },
         "literalDigest": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/Digest"
         },
@@ -7098,6 +7164,7 @@
           ]
         },
         "grammar": {
+          "type": "string",
           "const": "tree-sitter-language-pack/1.14.3;tree-sitter/0.25.2"
         },
         "fileDigest": {
@@ -7131,8 +7198,11 @@
         "anchors"
       ],
       "properties": {
-        "schema": { "const": "contractor.finding.anchors-derived.v1" },
-        "availability": { "const": "available" },
+        "schema": {
+          "type": "string",
+          "const": "contractor.finding.anchors-derived.v1"
+        },
+        "availability": { "type": "string", "const": "available" },
         "sourceRef": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ExactArtifactRef"
         },
@@ -7166,7 +7236,10 @@
           "required": ["siteKey", "issueReason"],
           "properties": {
             "siteKey": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
-            "issueReason": { "const": "issue_context_unavailable" }
+            "issueReason": {
+              "type": "string",
+              "const": "issue_context_unavailable"
+            }
           }
         }
       ]
@@ -7178,8 +7251,11 @@
           "additionalProperties": false,
           "required": ["schema", "availability", "reason"],
           "properties": {
-            "schema": { "const": "contractor.finding.anchors-projection.v1" },
-            "availability": { "const": "unavailable" },
+            "schema": {
+              "type": "string",
+              "const": "contractor.finding.anchors-projection.v1"
+            },
+            "availability": { "type": "string", "const": "unavailable" },
             "reason": {
               "type": "string",
               "enum": [
@@ -7212,8 +7288,11 @@
             "keys"
           ],
           "properties": {
-            "schema": { "const": "contractor.finding.anchors-projection.v1" },
-            "availability": { "const": "available" },
+            "schema": {
+              "type": "string",
+              "const": "contractor.finding.anchors-projection.v1"
+            },
+            "availability": { "type": "string", "const": "available" },
             "repository": {
               "type": "string",
               "maxLength": 4096,
@@ -7243,7 +7322,7 @@
       "additionalProperties": false,
       "required": ["kind", "projectId"],
       "properties": {
-        "kind": { "const": "project" },
+        "kind": { "type": "string", "const": "project" },
         "projectId": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
         }
@@ -7293,8 +7372,14 @@
             "hasOtherObservations"
           ],
           "properties": {
-            "schema": { "const": "contractor.finding.correlation.v1" },
-            "policyVersion": { "const": "qualified-snapshot/v1" },
+            "schema": {
+              "type": "string",
+              "const": "contractor.finding.correlation.v1"
+            },
+            "policyVersion": {
+              "type": "string",
+              "const": "qualified-snapshot/v1"
+            },
             "scope": {
               "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingCorrelationScope"
             },
@@ -7303,7 +7388,7 @@
               "minimum": 1,
               "maximum": 9007199254740991
             },
-            "availability": { "const": "unavailable" },
+            "availability": { "type": "string", "const": "unavailable" },
             "reason": {
               "type": "string",
               "enum": [
@@ -7312,8 +7397,8 @@
                 "primary_key_ambiguous"
               ]
             },
-            "automaticDuplicate": { "const": false },
-            "hasOtherObservations": { "const": false }
+            "automaticDuplicate": { "type": "boolean", "const": false },
+            "hasOtherObservations": { "type": "boolean", "const": false }
           }
         },
         {
@@ -7333,8 +7418,14 @@
             "hasOtherObservations"
           ],
           "properties": {
-            "schema": { "const": "contractor.finding.correlation.v1" },
-            "policyVersion": { "const": "qualified-snapshot/v1" },
+            "schema": {
+              "type": "string",
+              "const": "contractor.finding.correlation.v1"
+            },
+            "policyVersion": {
+              "type": "string",
+              "const": "qualified-snapshot/v1"
+            },
             "scope": {
               "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingCorrelationScope"
             },
@@ -7343,12 +7434,12 @@
               "minimum": 1,
               "maximum": 9007199254740991
             },
-            "availability": { "const": "available" },
+            "availability": { "type": "string", "const": "available" },
             "groupKey": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
             "basis": {
               "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingCorrelationBasis"
             },
-            "matchedDomain": { "const": "snapshot" },
+            "matchedDomain": { "type": "string", "const": "snapshot" },
             "representative": {
               "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingCorrelationReference"
             },
@@ -7358,10 +7449,14 @@
           "allOf": [
             {
               "if": {
-                "properties": { "automaticDuplicate": { "const": true } }
+                "properties": {
+                  "automaticDuplicate": { "type": "boolean", "const": true }
+                }
               },
               "then": {
-                "properties": { "hasOtherObservations": { "const": true } }
+                "properties": {
+                  "hasOtherObservations": { "type": "boolean", "const": true }
+                }
               }
             }
           ]
@@ -9273,11 +9368,19 @@
       },
       "allOf": [
         {
-          "if": { "properties": { "participant": { "const": "planner" } } },
+          "if": {
+            "properties": {
+              "participant": { "type": "string", "const": "planner" }
+            }
+          },
           "then": { "not": { "required": ["logicalAgent"] } }
         },
         {
-          "if": { "properties": { "participant": { "const": "worker" } } },
+          "if": {
+            "properties": {
+              "participant": { "type": "string", "const": "worker" }
+            }
+          },
           "then": { "required": ["logicalAgent"] }
         }
       ]
@@ -9468,11 +9571,17 @@
       },
       "allOf": [
         {
-          "if": { "properties": { "outcome": { "const": "succeeded" } } },
+          "if": {
+            "properties": {
+              "outcome": { "type": "string", "const": "succeeded" }
+            }
+          },
           "then": { "not": { "required": ["error"] } }
         },
         {
-          "if": { "properties": { "outcome": { "const": "failed" } } },
+          "if": {
+            "properties": { "outcome": { "type": "string", "const": "failed" } }
+          },
           "then": { "required": ["error"] }
         }
       ]
@@ -9509,11 +9618,19 @@
       },
       "allOf": [
         {
-          "if": { "properties": { "participant": { "const": "planner" } } },
+          "if": {
+            "properties": {
+              "participant": { "type": "string", "const": "planner" }
+            }
+          },
           "then": { "not": { "required": ["logicalAgent"] } }
         },
         {
-          "if": { "properties": { "participant": { "const": "worker" } } },
+          "if": {
+            "properties": {
+              "participant": { "type": "string", "const": "worker" }
+            }
+          },
           "then": { "required": ["logicalAgent"] }
         }
       ]
@@ -11853,8 +11970,8 @@
             },
             {
               "properties": {
-                "plannerId": { "const": "streamline" },
-                "version": { "const": "1" }
+                "plannerId": { "type": "string", "const": "streamline" },
+                "version": { "type": "string", "const": "1" }
               }
             }
           ]
@@ -11934,7 +12051,7 @@
           },
           "properties": {
             "agents": { "maxProperties": 0 },
-            "session": { "const": "isolated" }
+            "session": { "type": "string", "const": "isolated" }
           }
         }
       ],
@@ -12008,7 +12125,9 @@
                   "type": "object",
                   "additionalProperties": true,
                   "required": ["source"],
-                  "properties": { "source": { "const": "artifact" } }
+                  "properties": {
+                    "source": { "type": "string", "const": "artifact" }
+                  }
                 }
               }
             ]
@@ -12260,7 +12379,9 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["description", "runtime", "toolsets", "sandboxProfile"],
-      "if": { "properties": { "runtime": { "const": "tool@1" } } },
+      "if": {
+        "properties": { "runtime": { "type": "string", "const": "tool@1" } }
+      },
       "then": {
         "required": ["execution"],
         "properties": {
@@ -13591,10 +13712,10 @@
       },
       "oneOf": [
         {
-          "properties": { "enabled": { "const": false } },
+          "properties": { "enabled": { "type": "boolean", "const": false } },
           "not": { "required": ["current"] }
         },
-        { "properties": { "enabled": { "const": true } } }
+        { "properties": { "enabled": { "type": "boolean", "const": true } } }
       ]
     },
     "PerformanceFineHistoryPoint": {
@@ -13602,7 +13723,7 @@
       "additionalProperties": false,
       "required": ["kind", "version", "generation", "observedAt"],
       "properties": {
-        "kind": { "const": "sample" },
+        "kind": { "type": "string", "const": "sample" },
         "version": { "type": "integer", "const": 1 },
         "generation": { "type": "string", "minLength": 1, "maxLength": 128 },
         "observedAt": { "type": "string", "format": "date-time" },
@@ -13717,7 +13838,7 @@
         "expectedMinutes"
       ],
       "properties": {
-        "kind": { "const": "aggregate" },
+        "kind": { "type": "string", "const": "aggregate" },
         "version": { "type": "integer", "const": 1 },
         "generation": { "type": "string", "minLength": 1, "maxLength": 128 },
         "minuteStart": { "type": "string", "format": "date-time" },
@@ -13806,7 +13927,7 @@
       "oneOf": [
         {
           "properties": {
-            "status": { "const": "complete" },
+            "status": { "type": "string", "const": "complete" },
             "rssSampleCount": { "minimum": 2 },
             "maxSampleGapSeconds": { "maximum": 30 }
           },
@@ -13830,7 +13951,7 @@
       ],
       "properties": {
         "version": { "type": "integer", "const": 1 },
-        "scope": { "const": "runtime_process" },
+        "scope": { "type": "string", "const": "runtime_process" },
         "status": {
           "type": "string",
           "enum": ["complete", "partial", "unavailable"]

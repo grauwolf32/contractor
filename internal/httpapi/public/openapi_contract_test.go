@@ -119,7 +119,7 @@ func TestPublicOpenAPIContractIsValidAndPolicySafe(t *testing.T) {
 	if privateKey := gitKeyBody.Properties["privateKey"]; privateKey == nil || privateKey.Value == nil || !privateKey.Value.WriteOnly {
 		t.Error("Git private key must be write-only")
 	}
-	for _, violation := range enumTypeViolations(source, "$") {
+	for _, violation := range literalTypeViolations(source, "$") {
 		t.Error(violation)
 	}
 
@@ -188,6 +188,9 @@ func TestPublicEventSchemaIsClosedAndExamplesValidate(t *testing.T) {
 	}
 	assertClosedObjectSchemas(t, source, "$")
 	assertExamplesContainNoSecrets(t, source, "$")
+	for _, violation := range literalTypeViolations(source, "$") {
+		t.Error(violation)
+	}
 
 	definitions, ok := source["$defs"].(map[string]any)
 	if !ok {
@@ -978,73 +981,117 @@ func assertClosedObjectSchemas(t *testing.T, value any, path string) {
 	}
 }
 
-// TestEnumTypeCheckFindsProbes pins that the enum rule of the contract test
-// can fail: an enum without a type, or with a type its values do not satisfy.
+// TestEnumTypeCheckFindsProbes pins that the enum/const rule of both contract
+// tests can fail: a missing type or one that does not admit the literal values.
 func TestEnumTypeCheckFindsProbes(t *testing.T) {
 	for name, probe := range map[string]any{
-		"untyped":           map[string]any{"enum": []any{"15s", "1m"}},
-		"untyped parameter": map[string]any{"parameters": []any{map[string]any{"schema": map[string]any{"enum": []any{"a"}}}}},
-		"untyped boolean":   map[string]any{"properties": map[string]any{"summarized": map[string]any{"enum": []any{false}}}},
-		"wrong type":        map[string]any{"type": "string", "enum": []any{true}},
-		"null not allowed":  map[string]any{"type": "string", "enum": []any{"a", nil}},
-		"fraction":          map[string]any{"type": "integer", "enum": []any{1.5}},
+		"untyped":             map[string]any{"enum": []any{"15s", "1m"}},
+		"untyped parameter":   map[string]any{"parameters": []any{map[string]any{"schema": map[string]any{"enum": []any{"a"}}}}},
+		"untyped boolean":     map[string]any{"properties": map[string]any{"summarized": map[string]any{"enum": []any{false}}}},
+		"wrong type":          map[string]any{"type": "string", "enum": []any{true}},
+		"null not allowed":    map[string]any{"type": "string", "enum": []any{"a", nil}},
+		"fraction":            map[string]any{"type": "integer", "enum": []any{1.5}},
+		"untyped const":       map[string]any{"const": "completed"},
+		"untyped false const": map[string]any{"const": false},
+		"untyped null const":  map[string]any{"const": nil},
+		"wrong const type":    map[string]any{"type": "boolean", "const": "false"},
+		"fractional const":    map[string]any{"type": "integer", "const": 1.5},
+		"nested const":        map[string]any{"oneOf": []any{map[string]any{"const": "completed"}}},
 	} {
-		if violations := enumTypeViolations(probe, "$"); len(violations) == 0 {
+		if violations := literalTypeViolations(probe, "$"); len(violations) == 0 {
 			t.Errorf("%s: the check missed %#v", name, probe)
 		}
 	}
 	for name, valid := range map[string]any{
-		"string":   map[string]any{"type": "string", "enum": []any{"a", ""}},
-		"nullable": map[string]any{"type": []any{"string", "null"}, "enum": []any{"a", nil}},
-		"boolean":  map[string]any{"type": "boolean", "enum": []any{true}},
-		"integer":  map[string]any{"type": "integer", "enum": []any{1, 2.0}},
-		"number":   map[string]any{"type": "number", "enum": []any{1, 1.5}},
-		"property": map[string]any{"properties": map[string]any{"enum": map[string]any{"type": "string"}}},
+		"string":        map[string]any{"type": "string", "enum": []any{"a", ""}},
+		"nullable":      map[string]any{"type": []any{"string", "null"}, "enum": []any{"a", nil}},
+		"boolean":       map[string]any{"type": "boolean", "enum": []any{true}},
+		"integer":       map[string]any{"type": "integer", "enum": []any{1, 2.0}},
+		"number":        map[string]any{"type": "number", "enum": []any{1, 1.5}},
+		"property":      map[string]any{"properties": map[string]any{"enum": map[string]any{"type": "string"}, "const": map[string]any{"type": "string"}}},
+		"string const":  map[string]any{"type": "string", "const": "completed"},
+		"boolean const": map[string]any{"type": "boolean", "const": false},
+		"null const":    map[string]any{"type": "null", "const": nil},
+		"numeric const": map[string]any{"type": "number", "const": 1},
+		"object const":  map[string]any{"type": "object", "const": map[string]any{"enum": []any{"data"}, "const": true}},
+		"example data":  map[string]any{"examples": []any{map[string]any{"enum": []any{"data"}, "const": true}}},
 	} {
-		if violations := enumTypeViolations(valid, "$"); len(violations) != 0 {
+		if violations := literalTypeViolations(valid, "$"); len(violations) != 0 {
 			t.Errorf("%s: valid enum reported: %v", name, violations)
 		}
 	}
 }
 
-// enumTypeViolations reports every enum without a type and every enum value
-// its declared type does not admit. OpenAPI 3.1 allows an untyped enum, but
-// the Go client generator (API-R68) then emits interface{} and the compiler
-// checks nothing; the UI generator infers the union either way.
-func enumTypeViolations(value any, path string) []string {
+// literalTypeViolations reports enum/const schemas without an explicit type
+// and literal values that do not satisfy it. API-R68 forbids untyped literals
+// because the Go client generator otherwise emits interface{}. Schema maps
+// (whose keys are field/definition names) and literal example/default data are
+// not themselves schemas, even when their data keys are named enum or const.
+func literalTypeViolations(value any, path string) []string {
 	var violations []string
-	switch current := value.(type) {
-	case map[string]any:
-		if values, ok := current["enum"].([]any); ok {
-			types := map[string]bool{}
-			switch declared := current["type"].(type) {
-			case string:
-				types[declared] = true
-			case []any:
-				for _, candidate := range declared {
-					if name, ok := candidate.(string); ok {
-						types[name] = true
+	var walk func(any, string, bool)
+	walk = func(value any, path string, schemaMap bool) {
+		switch current := value.(type) {
+		case map[string]any:
+			if !schemaMap {
+				for _, keyword := range []string{"enum", "const"} {
+					literal, exists := current[keyword]
+					if !exists {
+						continue
+					}
+					values := []any{literal}
+					if keyword == "enum" {
+						var ok bool
+						values, ok = literal.([]any)
+						if !ok {
+							continue
+						}
+					}
+					types := map[string]bool{}
+					switch declared := current["type"].(type) {
+					case string:
+						types[declared] = true
+					case []any:
+						for _, candidate := range declared {
+							if name, ok := candidate.(string); ok {
+								types[name] = true
+							}
+						}
+					}
+					if len(types) == 0 {
+						violations = append(violations, fmt.Sprintf("%s %s declares no type", keyword, path))
+					}
+					for _, literalValue := range values {
+						actual := jsonSchemaType(literalValue)
+						if len(types) != 0 && !types[actual] && (actual != "integer" || !types["number"]) {
+							violations = append(violations, fmt.Sprintf("%s %s value %#v is not of its type %v", keyword, path, literalValue, current["type"]))
+						}
 					}
 				}
 			}
-			if len(types) == 0 {
-				violations = append(violations, fmt.Sprintf("enum %s declares no type", path))
-			}
-			for _, enumValue := range values {
-				if len(types) != 0 && !types[jsonSchemaType(enumValue)] &&
-					(jsonSchemaType(enumValue) != "integer" || !types["number"]) {
-					violations = append(violations, fmt.Sprintf("enum %s value %#v is not of its type %v", path, enumValue, current["type"]))
+			for key, child := range current {
+				if !schemaMap {
+					switch key {
+					case "enum", "const", "example", "examples", "default":
+						continue
+					}
 				}
+				dictionary := false
+				if !schemaMap {
+					switch key {
+					case "properties", "patternProperties", "$defs", "definitions", "dependentSchemas", "schemas":
+						dictionary = true
+					}
+				}
+				walk(child, path+"/"+key, dictionary)
 			}
-		}
-		for key, child := range current {
-			violations = append(violations, enumTypeViolations(child, path+"/"+key)...)
-		}
-	case []any:
-		for index, child := range current {
-			violations = append(violations, enumTypeViolations(child, fmt.Sprintf("%s/%d", path, index))...)
+		case []any:
+			for index, child := range current {
+				walk(child, fmt.Sprintf("%s/%d", path, index), false)
+			}
 		}
 	}
+	walk(value, path, false)
 	return violations
 }
 

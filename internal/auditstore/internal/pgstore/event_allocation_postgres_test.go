@@ -13,6 +13,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/persistence/explaintest"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/jackc/pgx/v5"
@@ -149,7 +150,7 @@ func TestPostgresAuditEventAllocatorIsTheOnlyEventWriter(t *testing.T) {
 SELECT routine.proname
   FROM pg_proc AS routine
   JOIN pg_namespace AS namespace ON namespace.oid = routine.pronamespace
- WHERE namespace.nspname = current_schema() AND routine.prosrc ~* $1
+ WHERE namespace.nspname = current_schema() AND `+explaintest.RoutineBodySQL("routine")+` ~* $1
  ORDER BY routine.proname`, pattern)
 		if err != nil {
 			t.Fatal(err)
@@ -167,13 +168,32 @@ SELECT routine.proname
 	if !slices.Equal(reservations, []string{"contractor_admit_audit_finding"}) {
 		t.Errorf("routines advancing Audit event counters = %q", reservations)
 	}
+	callsAllocatorSQL := `SELECT ` + explaintest.RoutineBodySQL("") + ` ~ 'contractor_append_audit_events\(' FROM pg_proc
+ WHERE proname = $1 AND pronamespace = current_schema()::regnamespace`
 	for _, name := range reservations {
 		var callsAllocator bool
-		if err := pool.QueryRow(ctx, `
-SELECT prosrc ~ 'contractor_append_audit_events\(' FROM pg_proc
- WHERE proname = $1 AND pronamespace = current_schema()::regnamespace`, name).Scan(&callsAllocator); err != nil || !callsAllocator {
+		if err := pool.QueryRow(ctx, callsAllocatorSQL, name).Scan(&callsAllocator); err != nil || !callsAllocator {
 			t.Errorf("%s reserves Audit events without the allocator (%t, %v)", name, callsAllocator, err)
 		}
+	}
+	// The same three inspections must also see a SQL-standard routine.
+	// It is parsed and stored, never invoked, so no Audit/event is mutated.
+	if _, err := pool.Exec(ctx, `CREATE FUNCTION contractor_test_event_source() RETURNS void LANGUAGE sql
+BEGIN ATOMIC
+    SELECT contractor_append_audit_events(NULL::text, '[]'::jsonb);
+    INSERT INTO audit_events SELECT * FROM audit_events WHERE false;
+    UPDATE audits SET next_event_sequence = next_event_sequence WHERE false;
+END`); err != nil {
+		t.Fatal(err)
+	}
+	for _, pattern := range []string{`insert\s+into\s+audit_events\M`, `next_event_sequence\s*=`} {
+		if !slices.Contains(routines(pattern), "contractor_test_event_source") {
+			t.Errorf("SQL-standard routine is invisible to %s", pattern)
+		}
+	}
+	var callsAllocator bool
+	if err := pool.QueryRow(ctx, callsAllocatorSQL, "contractor_test_event_source").Scan(&callsAllocator); err != nil || !callsAllocator {
+		t.Fatalf("SQL-standard allocator call = %t, %v", callsAllocator, err)
 	}
 }
 

@@ -27,7 +27,7 @@ lint: shared-config-check generate-public-client-check docs-dependencies-check m
 	python3 scripts/check_spec.py
 	python3 scripts/shared_fixture_gate.py --sources-only
 	python3 scripts/check_database_erd.py
-	CONTRACTOR_ERD_USAGE_OUT= go test -count=1 -run '^TestERDUsageMatchesTheSQLScan$$' ./internal/persistence
+	CONTRACTOR_ERD_USAGE_OUT= go test -count=1 -run '^(TestERDUsageMatchesTheSQLScan|TestRoutineInspectionsUseTheSharedBodyReader|TestRoutineSourceGuardRejectsDirectReaders)$$' ./internal/persistence
 	cd runtime && uv run ruff check .
 	cd runtime && uv run ruff format --check .
 	cd runtime && uv run lint-imports --no-cache --no-logo
@@ -96,9 +96,9 @@ docs-dependencies:
 docs-dependencies-check:
 	cd runtime && uv run python ../scripts/dependencies/build_graph.py --check
 
-# Regenerates the public error code table of docs/spec/platform/errors.md from
-# the Server's error registry in internal/apierror; its tests fail while the
-# table lags the registry.
+# Regenerates the public error code table of docs/spec/platform/errors.md and
+# the browser test retryability fixture from internal/apierror; its tests fail
+# while either generated document lags the registry.
 docs-error-registry:
 	go test -count=1 ./internal/apierror -run '^TestRegistryTableIsCurrent$$' -update
 
