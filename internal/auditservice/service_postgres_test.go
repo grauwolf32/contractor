@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -142,6 +143,39 @@ func TestAuditDraftStartReplayAndAtomicUnsupportedRollback(t *testing.T) {
 	}
 	if baseline.Standards == nil || ValidateBaseline(baseline) != nil {
 		t.Fatalf("decoded baseline lost its required empty-array shape: %+v", baseline)
+	}
+	owned, err := DecodeBaseline(started.Audit.BaselineSnapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	owned.Labels["team"] = "changed"
+	owned.RequiredPlacementLabels[0] = "local"
+	owned.LLMCredentialIDs[0] = "changed"
+	item := &owned.Inventory.ExecutionManifest.Items[0]
+	*item.TaskRef.Revision = "changed-task"
+	*owned.Inputs["checklist"].Ref.Revision = "changed-input"
+	stored, err := service.Get(ctx, project.OwnerID, draft.AuditID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	again, err := DecodeBaseline(stored.BaselineSnapshot)
+	if err != nil || !reflect.DeepEqual(baseline, again) {
+		t.Fatalf("decoded baseline mutation changed another read: %v", err)
+	}
+	// Nil RuntimeConfig collections and empty manifest inputs retain the
+	// decoder's existing empty-array/null representation without a deep copy.
+	shape := again
+	shape.RuntimeConfig.Labels = nil
+	shape.RuntimeConfig.LLMCredentialIDs = nil
+	shape.RuntimeConfig.RuntimeCredentialIDs = nil
+	shape.Inventory.ExecutionManifest.Items[0].Inputs = []auditdomain.ExactInput{}
+	shapeBytes, err := EncodeBaseline(shape)
+	if err != nil {
+		t.Fatal(err)
+	}
+	normalized, err := DecodeBaseline(shapeBytes)
+	if err != nil || normalized.RuntimeConfig.Labels == nil || normalized.RuntimeConfig.LLMCredentialIDs == nil || normalized.RuntimeConfig.RuntimeCredentialIDs == nil || normalized.Inventory.ExecutionManifest.Items[0].Inputs != nil {
+		t.Fatalf("baseline collection representation changed: %v", err)
 	}
 	var baselineFields map[string]json.RawMessage
 	if err := json.Unmarshal(started.Audit.BaselineSnapshot, &baselineFields); err != nil {

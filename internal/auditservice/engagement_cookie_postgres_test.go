@@ -44,7 +44,11 @@ func TestEngagementCookieAdmissionPinsHeldPrivateMaterial(t *testing.T) {
 	if _, err = f.credentials.Delete(f.ctx, "cookies-a", f.project.OwnerID); !errors.Is(err, credentials.ErrRuntimeCredentialInUse) {
 		t.Fatalf("cookie hold missing: %v", err)
 	}
-	clone := cloneEngagement(baseline.Engagement)
+	decoded, err := DecodeBaseline(started.Audit.BaselineSnapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	clone := decoded.Engagement
 	clone.Document.Identities[1].Credential.CredentialID = "other"
 	if baseline.Engagement.Document.Identities[1].Credential.CredentialID != "cookies-a" {
 		t.Fatal("identity clone retained mutable aliases")

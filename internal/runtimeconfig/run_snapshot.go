@@ -182,14 +182,6 @@ func (s RunSnapshot) ExplicitLabels() []string {
 	return result
 }
 
-func (s RunSnapshot) Clone() RunSnapshot {
-	result := s
-	result.Labels = append([]PinnedLabel{}, s.Labels...)
-	result.LLMCredentialIDs = append([]string{}, s.LLMCredentialIDs...)
-	result.RuntimeCredentialIDs = append([]string{}, s.RuntimeCredentialIDs...)
-	return result
-}
-
 func validateRunLLMCredential(
 	ctx context.Context, spec Spec, lookup resolved.CredentialLookup,
 ) error {

@@ -95,24 +95,6 @@ func (l HTTPLimits) Validate() error {
 	return nil
 }
 
-func (l HTTPLimits) Clone() HTTPLimits {
-	result := l
-	for _, pair := range []struct {
-		source *uint32
-		target **uint32
-	}{
-		{l.TargetRequests, &result.TargetRequests}, {l.RequestsPerSecond, &result.RequestsPerSecond},
-		{l.ConcurrentRequests, &result.ConcurrentRequests}, {l.RequestBodyBytes, &result.RequestBodyBytes},
-		{l.ResponseBodyBytes, &result.ResponseBodyBytes},
-	} {
-		if pair.source != nil {
-			value := *pair.source
-			*pair.target = &value
-		}
-	}
-	return result
-}
-
 func invalid() error { return fmt.Errorf("engagement engagement is invalid") }
 
 // Decode rejects unknown/duplicate members, omitted arrays, null optionals and

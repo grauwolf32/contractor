@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"slices"
@@ -320,11 +321,30 @@ func newFakeOperationsReader() *fakeOperationsReader {
 func (f *fakeOperationsReader) SnapshotOperations() controlplane.OperationsSnapshot {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	result := f.snapshot
-	result.RuntimeAgents = make([]controlplane.RuntimeAgentObservation, len(f.snapshot.RuntimeAgents))
-	copy(result.RuntimeAgents, f.snapshot.RuntimeAgents)
-	result.Allocations = make([]controlplane.AllocationObservation, len(f.snapshot.Allocations))
-	copy(result.Allocations, f.snapshot.Allocations)
+	// Match the Registry's detached, sorted snapshot contract.
+	data, err := json.Marshal(f.snapshot)
+	if err != nil {
+		panic(err)
+	}
+	var result controlplane.OperationsSnapshot
+	if err := json.Unmarshal(data, &result); err != nil {
+		panic(err)
+	}
+	result.Cursor = f.snapshot.Cursor
+	for i := range result.RuntimeAgents {
+		agent := &result.RuntimeAgents[i]
+		sort.Strings(agent.SupportedRuntimes)
+		sort.Strings(agent.SupportedSandboxProfiles)
+		sort.Strings(agent.SupportedRuntimeAdapters)
+		for j := range agent.SupportedToolsets {
+			sort.Strings(agent.SupportedToolsets[j].Tools)
+		}
+		sort.Slice(agent.SupportedToolsets, func(i, j int) bool {
+			return agent.SupportedToolsets[i].Ref < agent.SupportedToolsets[j].Ref
+		})
+	}
+	sort.Slice(result.RuntimeAgents, func(i, j int) bool { return result.RuntimeAgents[i].InstanceID < result.RuntimeAgents[j].InstanceID })
+	sort.Slice(result.Allocations, func(i, j int) bool { return result.Allocations[i].AllocationID < result.Allocations[j].AllocationID })
 	return result
 }
 
@@ -1189,7 +1209,7 @@ func (f *fakeRunStore) CreateRun(_ context.Context, params runstore.CreateRunPar
 		WorkflowSchemaVersion: params.WorkflowSchemaVersion, WorkflowSnapshot: params.WorkflowSnapshot,
 		Parameters:     clone.Map(params.Parameters),
 		MetadataLabels: params.MetadataLabels.Clone(),
-		RuntimeLabels:  params.RuntimeConfig.ExplicitLabels(), RuntimeConfig: params.RuntimeConfig.Clone(),
+		RuntimeLabels:  params.RuntimeConfig.ExplicitLabels(), RuntimeConfig: params.RuntimeConfig,
 		RequiredPlacementLabels: append([]string{}, params.RequiredPlacementLabels...),
 		ProjectHTTPTarget:       params.ProjectHTTPTarget.Clone(),
 		State:                   runstore.RunInitializing, CreatedAt: time.Now(), UpdatedAt: time.Now(),
@@ -1271,6 +1291,9 @@ func cloneFakeWorkflowRun(run runstore.WorkflowRun) runstore.WorkflowRun {
 	}
 	run.ProjectHTTPTarget = run.ProjectHTTPTarget.Clone()
 	run.MetadataLabels = run.MetadataLabels.Clone()
+	run.RuntimeConfig.Labels = append([]runtimeconfig.PinnedLabel{}, run.RuntimeConfig.Labels...)
+	run.RuntimeConfig.LLMCredentialIDs = append([]string{}, run.RuntimeConfig.LLMCredentialIDs...)
+	run.RuntimeConfig.RuntimeCredentialIDs = append([]string{}, run.RuntimeConfig.RuntimeCredentialIDs...)
 	run.RuntimeLabels = append([]string{}, run.RuntimeLabels...)
 	run.RequiredPlacementLabels = append([]string{}, run.RequiredPlacementLabels...)
 	run.Parameters = clone.Map(run.Parameters)

@@ -5,12 +5,10 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"sort"
 	"strconv"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/config"
-	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/pagelimit"
 	"github.com/grauwolf32/contractor/internal/performance"
@@ -18,6 +16,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/telemetry"
 )
 
+// OperationsReader returns a caller-owned, detached snapshot, sorted by instance
+// and allocation ID. Capability lists (including tool names) are sorted too.
 type OperationsReader interface {
 	SnapshotOperations() controlplane.OperationsSnapshot
 }
@@ -163,52 +163,8 @@ func (h *operationsHandlers) operationsSnapshot() (controlplane.OperationsSnapsh
 	if err := snapshot.Validate(); err != nil {
 		return controlplane.OperationsSnapshot{}, fmt.Errorf("invalid Operations snapshot: %w", err)
 	}
-	runtimeAgents := make([]controlplane.RuntimeAgentObservation, len(snapshot.RuntimeAgents))
-	for index, agent := range snapshot.RuntimeAgents {
-		runtimeAgents[index] = cloneRuntimeAgentObservation(agent)
-	}
-	snapshot.RuntimeAgents = runtimeAgents
-	allocations := make([]controlplane.AllocationObservation, len(snapshot.Allocations))
-	copy(allocations, snapshot.Allocations)
-	snapshot.Allocations = allocations
-	sort.Slice(snapshot.RuntimeAgents, func(left, right int) bool {
-		return snapshot.RuntimeAgents[left].InstanceID < snapshot.RuntimeAgents[right].InstanceID
-	})
-	sort.Slice(snapshot.Allocations, func(left, right int) bool {
-		return snapshot.Allocations[left].AllocationID < snapshot.Allocations[right].AllocationID
-	})
-	return snapshot, nil
-}
 
-func cloneRuntimeAgentObservation(
-	source controlplane.RuntimeAgentObservation,
-) controlplane.RuntimeAgentObservation {
-	result := source
-	result.SupportedRuntimes = append([]string{}, source.SupportedRuntimes...)
-	result.SupportedSandboxProfiles = append([]string{}, source.SupportedSandboxProfiles...)
-	result.SupportedRuntimeAdapters = append([]string{}, source.SupportedRuntimeAdapters...)
-	if source.WorkspaceCapabilities != nil {
-		capabilities := *source.WorkspaceCapabilities
-		capabilities.Modes = append([]contracts.WorkspaceMode{}, source.WorkspaceCapabilities.Modes...)
-		result.WorkspaceCapabilities = &capabilities
-	}
-	result.SupportedToolsets = make(
-		[]controlplane.RuntimeToolsetCapability,
-		len(source.SupportedToolsets),
-	)
-	for index, capability := range source.SupportedToolsets {
-		result.SupportedToolsets[index] = controlplane.RuntimeToolsetCapability{
-			Ref: capability.Ref, Tools: append([]string{}, capability.Tools...),
-		}
-		sort.Strings(result.SupportedToolsets[index].Tools)
-	}
-	sort.Strings(result.SupportedRuntimes)
-	sort.Strings(result.SupportedSandboxProfiles)
-	sort.Strings(result.SupportedRuntimeAdapters)
-	sort.Slice(result.SupportedToolsets, func(left, right int) bool {
-		return result.SupportedToolsets[left].Ref < result.SupportedToolsets[right].Ref
-	})
-	return result
+	return snapshot, nil
 }
 
 func (h *operationsHandlers) operationsPageAfter(

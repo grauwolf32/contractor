@@ -310,6 +310,8 @@ type storedReservation struct {
 	exhaustedDimension *string
 }
 
+// SnapshotOperations returns a mutex-consistent, caller-owned deep snapshot.
+// Agents, allocations, and their capability lists are in canonical order.
 func (r *InMemoryRegistry) SnapshotOperations() OperationsSnapshot {
 	r.mu.Lock()
 	defer r.mu.Unlock()
