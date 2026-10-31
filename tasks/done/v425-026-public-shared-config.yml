@@ -5,7 +5,7 @@ milestone: runtime-shared-config-2026-10
 epic: execution-core
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on: [V425-025, V426-002]
 languages: [go, typescript]
 goal: >-
@@ -79,3 +79,14 @@ tests:
     covers: [A2, A3, A4]
   - command: make lint
     covers: [A1, A3, A4]
+
+implementation_commit: 8aabc012b0136deb46f40ea5ad2cf69e7c660811
+verification:
+  - Feature implementation 21a19a75f and integration 5922e5dc0 expose the same constructor over both endpoints; the final UI release commit records version 0.10.23.
+  - Full public API suites passed against disposable PostgreSQL after integrating main; make verify-public-api passed with the new operation in the coverage gate.
+  - Shared wire gate passed 356 fixtures, 394 Go shared tests and 284 Python shared tests; Runtime shared selection passed 1579 tests.
+  - Final UI verification passed 2645 tests plus one expected failure, generated-client checks, lint, typecheck, server tests and production build.
+  - Node 24 mocked browser gate passed 113 tests across 23 specs, including mobile widths and themes; its discovered import prerequisite is completed as V426-002.
+  - make lint passed on the integrated tree; final UI context/export checks and UI verification also covered the centralized startup retry rule.
+  - Config cancellation and replacement tests verify that an aborted bootstrap cannot poison a subsequent read or discard a completed snapshot.
+  - Existing test interactions now await settled navigation/download readiness instead of observing intermediate UI state after asynchronous bootstrap.
