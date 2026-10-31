@@ -1,15 +1,14 @@
 schema_version: '1.0'
 id: V64-005
-title: Add optional model evaluation of bounded experiment shortlists
+title: Optionally rank the common Audit ready-task shortlist
 milestone: audit-research-ranking-quality-2026-10
 epic: audits
 kind: feature
 priority: P2
 status: pending
 depends_on:
-- V64-003
-- V64-004
-- V64-006
+- V64-012
+- V64-013
 languages:
 - go
 - python
@@ -18,19 +17,23 @@ languages:
 goal: Let a selected research policy use bounded model judgments while retaining deterministic eligibility,
   selection and direct execution independence.
 context:
-  authority: >-
-    On 2026-10-24 the user explicitly requested pending status for the reviewed
-    proposal 0045 plan, including shared V62 prerequisites. The earlier deferral
-    is historical; dependency completion still gates implementation start.
+  authority: 'User decisions on 2026-10-31: Contractor is a research platform. Audit provides durable
+    coordination over ordinary Runs, fixed assertions use common hypotheses, exploratory findings may
+    have no hypothesis, deduplication and exact Audit/Run origin remain, hypothesis associations are automatic
+    and owner-independent, formal approvals are removed almost completely, and complexity must decrease
+    or stay controlled. The user requested task replanning and diagrams for review before implementation.'
   proposal: docs/proposals/0045-audit-hypothesis-search.md
-  design: docs/plans/2026-10-24-audit-hypothesis-search.md
+  design:
+  - docs/proposals/0050-audit-common-hypothesis-model.md
+  - docs/plans/2026-10-31-audit-redesign.md
   specification:
   - docs/spec/audits/audits.md
   - docs/spec/audits/execution.md
   - docs/spec/artifacts/artifact-store.md
   - docs/spec/platform/persistence.md
-  deterministic_boundary: Direct Runs and current deterministic Audit inventories bypass research; no
-    mandatory hypotheses, generation, ranking, new Scheduler mode or attack tree.
+  deterministic_boundary: All Audit assertion checks use common hypotheses. Fixed checklist/standard seeds
+    remain deterministic without generation, ranking or a separate research phase. Direct Runs and supporting
+    non-assertion work need no hypotheses.
   implementation_boundary: Each new table, state, export and schema must have its named production writer/reader
     in this task; include the smallest actual integration caller, not a test-only placeholder waiting
     for another task.
@@ -39,10 +42,19 @@ context:
     path: tasks/v64-005-independent-priority-verdicts.yml
     title: Produce durable independent model verdicts for every remaining candidate
     depends_on:
-    - V64-003
+    - V64-002
     - V64-004
     note: The former fixed-checklist/minimum-ten integration scope is replaced by this task. Its original
       definition and deferral history remain in Git; completed V64-000 is unchanged.
+  implementation_gate: Planning only. The user will review the revised task graph and proposal 0050 before
+    authorizing implementation. Keep pending and do not start code, migrations, live Runs or deployment
+    from this planning update.
+  extension_boundary: Use the existing deterministic task order as the baseline; optional model judgments
+    cannot invent work, metadata authority, scope or human attention. No separate research admission or
+    ranker controller.
+  execution_scope: Optional follow-up outside the requested basic scenario and V64-011 exit. Its pending
+    status does not add it to the current base implementation scope; select it separately after the reviewed
+    prerequisites.
 scope:
   in:
   - Implement an ordinary evaluation Workflow/Worker and typed result tooling for a frozen shortlist under
@@ -60,13 +72,13 @@ scope:
     task records.
 requirements:
 - id: R1
-  text: Model outputs do not select Workflows, expand inputs or authorize Run admission; the V64-006 selector
+  text: Model outputs do not select Workflows, expand inputs or authorize Run admission; the V64-012 selector
     owns final selection.
 - id: R2
   text: Every accepted verdict belongs to one exact shortlist/context/rubric. Missing or malformed declared-batch
     verdicts fail that batch, not a fabricated partial top-N.
 - id: R3
-  text: No model ranking dependency is added to V64-007, V64-011, V62 or baseline V411 release. Keep the
+  text: No model ranking dependency is added to V64-002, V64-011, V62 or baseline V411 release. Keep the
     configured model route unchanged in live evaluation.
 - id: R4
   text: Optional model judgments may assess experiment usefulness but cannot overwrite trusted human authorship
@@ -138,7 +150,8 @@ reactivation:
   date: '2026-10-24'
   previous_status: deferred
   reason: Explicit user request to queue the reviewed proposal 0045 tasks as pending.
-  execution_rule: Implementation may start after declared dependencies complete; this update starts no implementation.
+  execution_rule: Implementation may start after declared dependencies complete; this update starts no
+    implementation.
 previous_deferral:
   date: '2026-10-21'
   previous_status: pending

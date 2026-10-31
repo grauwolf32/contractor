@@ -1,54 +1,58 @@
 schema_version: '1.0'
 id: V64-015
-title: Maintain indexed research readiness and bounded priority refresh
+title: Measure whether a larger Audit frontier needs incremental indexing
 milestone: audit-check-prioritization
 epic: audits
 kind: feature
 priority: P2
 status: pending
 depends_on:
-- V64-012
-- V64-014
-- V64-006
+- V64-011
 languages:
 - go
 - json
-goal: Make a large hypothesis history cheap to query and revisit by updating only affected eligibility
-  and priority projections.
+goal: Establish whether the common bounded selector needs extra machinery, and add only a measured, concrete
+  missing capability.
 context:
-  authority: >-
-    On 2026-10-24 the user explicitly requested pending status for the reviewed
-    proposal 0045 plan, including shared V62 prerequisites. The earlier deferral
-    is historical; dependency completion still gates implementation start.
+  authority: 'User decisions on 2026-10-31: Contractor is a research platform. Audit provides durable
+    coordination over ordinary Runs, fixed assertions use common hypotheses, exploratory findings may
+    have no hypothesis, deduplication and exact Audit/Run origin remain, hypothesis associations are automatic
+    and owner-independent, formal approvals are removed almost completely, and complexity must decrease
+    or stay controlled. The user requested task replanning and diagrams for review before implementation.'
   proposal: docs/proposals/0045-audit-hypothesis-search.md
-  design: docs/plans/2026-10-24-audit-hypothesis-search.md
+  design:
+  - docs/proposals/0050-audit-common-hypothesis-model.md
+  - docs/plans/2026-10-31-audit-redesign.md
   specification:
   - docs/spec/audits/audits.md
   - docs/spec/audits/execution.md
   - docs/spec/artifacts/artifact-store.md
   - docs/spec/platform/persistence.md
-  deterministic_boundary: Direct Runs and current deterministic Audit inventories bypass research; no
-    mandatory hypotheses, generation, ranking, new Scheduler mode or attack tree.
+  deterministic_boundary: All Audit assertion checks use common hypotheses. Fixed checklist/standard seeds
+    remain deterministic without generation, ranking or a separate research phase. Direct Runs and supporting
+    non-assertion work need no hypotheses.
   implementation_boundary: Each new table, state, export and schema must have its named production writer/reader
     in this task; include the smallest actual integration caller, not a test-only placeholder waiting
     for another task.
+  implementation_gate: Planning only. The user will review the revised task graph and proposal 0050 before
+    authorizing implementation. Keep pending and do not start code, migrations, live Runs or deployment
+    from this planning update.
+  extension_boundary: First measure the simple common ready-task query at supported scale. Add dirty propagation/projections
+    only for an evidenced failure and a concrete reader; do not make this task a base release prerequisite.
+  execution_scope: Optional follow-up outside the requested basic scenario and V64-011 exit. Its pending
+    status does not add it to the current base implementation scope; select it separately after the reviewed
+    prerequisites.
 scope:
   in:
-  - Implement indexed ready, due, dirty and relationship queries plus bounded propagation from accepted
-    contributions and changed prerequisite conditions.
-  - Provide a production frontier query/readiness service consumed by V64 selection; register update hooks
-    with existing ingestion/result/lifecycle paths in this change.
-  - Persist score generation and aging buckets so pagination and tie-breaking are stable; no arbitrary
-    wall-clock function in the hot sort.
-  - Test real-store sparse ready frontiers and high-fan-out updates at declared lifetime ceilings; continue
-    work across ticks rather than hiding scans.
-  - Integrate actual hypothesis/result/lifecycle mutation hooks and replace the already used V64-006 frontier
-    read with incremental projections in this change. Name the existing selector/preview reader and test
-    that real path; a table waiting for a future caller is insufficient.
+  - Measure the common selector through its real reader at realistic/published ceilings and record processed
+    rows/bytes.
+  - If the simple query cannot meet the registered bounds, implement the smallest indexed projection/continuation
+    in the same owner with actual update/read callers.
+  - Otherwise record the no-additional-machinery outcome and remove obsolete frontier-only APIs/gates
+    from this task.
   out:
-  - Whole-pool model rescoring, a separate queue owner or changing accepted Round membership.
-  - Implementation during this planning change, changing existing task statuses, or modifying completed/in-progress
-    task records.
+  - Mandatory base frontier, new queue/lease/controller, whole-pool model rescoring or speculative graph
+    propagation.
 requirements:
 - id: R1
   text: A ready query cannot check unbounded per-row dependencies after scanning a huge pool. Pending
@@ -88,38 +92,27 @@ lifecycle:
     acquire no artificial persistent state.
 acceptance_criteria:
 - id: A1
-  given: 10,000 hypotheses and 100,000 edges with very few ready records
-  when: frontier pages are requested
-  then: Indexed queries process bounded rows/bytes rather than scanning settled history; ordering and
-    continuation are stable.
+  given: supported-scale common task/hypothesis data with sparse ready work
+  when: the actual selector is measured by deterministic row/byte counters
+  then: the result either proves the simple query sufficient or names the precise missing indexed capability
 - id: A2
-  given: One result affects a large dependency fan-out
-  when: dirty propagation executes over several ticks
-  then: Each slice stays within declared limits and no dependent is eligible before its checks complete.
-- id: A3
-  given: Duplicate events, lost acknowledgements or concurrent refresh
-  when: projection reconciliation repeats
-  then: The accepted generation is idempotent and does not overwrite newer evidence or duplicate ready
-    work.
-- id: A4
-  given: Unchanged context and deterministic policy
-  when: successive reads and aging boundaries are evaluated with an injected clock
-  then: No model calls or needless full rescoring occurs; starvation controls are explicit and reproducible.
+  given: the selected outcome
+  when: the task closes
+  then: no unused projection/export/loop remains and the base path depends on no optional frontier
 tests:
 - command: make require-database
 - command: go test -tags=integration -count=1 ./internal/auditstore/... ./internal/auditservice ./internal/auditcontroller
   covers:
   - A1
   - A2
-  - A3
-  - A4
 - command: make lint
 implementation_commit: null
 reactivation:
   date: '2026-10-24'
   previous_status: deferred
   reason: Explicit user request to queue the reviewed proposal 0045 tasks as pending.
-  execution_rule: Implementation may start after declared dependencies complete; this update starts no implementation.
+  execution_rule: Implementation may start after declared dependencies complete; this update starts no
+    implementation.
 previous_deferral:
   date: '2026-10-24'
   previous_status: pending

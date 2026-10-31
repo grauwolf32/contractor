@@ -1,126 +1,162 @@
 schema_version: '1.0'
 id: V411-007
-title: Retain actual engagement HTTP exchanges through ordinary Audit evidence
+title: Retain actual HTTP exchanges in ordinary check results and findings
 milestone: autonomous-http-pentest-2026-10
 epic: findings
-kind: defect
+kind: feature
 priority: P1
 status: pending
 depends_on:
 - V422-002
 - V421-001
+- V64-002
 languages:
 - go
 - python
 - json
-- sql
-goal: An engagement HTTP check can select its actual invocation-owned exchange as ordinary Audit evidence,
-  with truthful attempt provenance and no separate trusted-proof channel.
-introduced_by: V411-027
+- markdown
+goal: A real HTTP check selects invocation-owned sent exchanges as ordinary retained evidence under the
+  revised task/Run/finding context.
+demonstration: A controlled local request with redirect is selected by the actual Runtime result tool
+  and remains readable with exact provenance after Project finding intake and source cleanup.
 context:
-  authority: 'User direction on 2026-10-30: replan stalled pentest tasks against the selected V422 contracts
-    and archive obsolete work. This edit changes the plan only; it does not start implementation.'
+  authority: 'User decisions and task-formation request on 2026-10-31: Audit durably coordinates ordinary
+    tasks/Runs for investigation, checking, supporting work and generation. There is no mandatory discovery-finding-generator
+    sequence. Assertion checks use common hypotheses; exploratory work may have none. Check results retain
+    support/refutation/inconclusive with tested conditions; AppSec findings record evidenced problems
+    and are optional. Preserve Project finding deduplication, independent source contributions, exact
+    Audit/task/Run origin and automatic per-item hypothesis ID/revision associations. Reuse Audit/Project
+    Artifact mechanisms for selected inputs, outputs and explicit publication. Hypothesis references must
+    allow future Project ownership. Remove almost all formal approvals and keep complexity controlled.
+    Generation can use selected materials, findings and ordinary results including refutations and gaps.
+    The user accepted the common execution skeleton and requested concrete tasks; implementation is a
+    subsequent step, not part of this task-formation request.'
+  implementation_gate: Task formation only, requested on 2026-10-31 after acceptance of the common execution
+    skeleton. Keep pending until implementation is requested and dependencies are complete. Do not start
+    code, migrations, live Runs or deployment in this planning turn. Resolve the explicitly labelled remaining
+    contract proposals in V64-001 before dependent implementation.
+  design:
+  - docs/proposals/0050-audit-common-hypothesis-model.md
+  - docs/plans/2026-10-31-audit-redesign.md
   specification:
-  - docs/spec/tools/http-caido.md
-  - docs/spec/audits/worker-completion.md
+  - docs/spec/audits/audits.md
+  - docs/spec/audits/execution.md
   - docs/spec/audits/review-and-reports.md
   - docs/spec/artifacts/artifact-store.md
-  - docs/spec/audits/execution.md
-  replanned: '2026-10-30: replaces the earlier scope and acceptance in this task. Proposal 0033 is historical
-    design wherever it conflicts with current normative contracts and this reviewed delivery scope.'
-  boundary: Runtime owns actual HTTP attempt interpretation/capture. Existing Audit result selection,
-    importer and ArtifactStore own accepted evidence and retention; Server has no request journal.
-  finding: runtime/src/contractor_runtime/toolsets/http/controlled.py:167 builds one capture after sending
-    from tool arguments, while the transport may redirect/retry and the common Audit evidence contract
-    requires actual attempt provenance. Revalidate and fix this path with the common capture mechanism.
-  siblings: Controlled and standalone HTTP capture, selected finding and audit-results evidence, redirects/retries,
-    failed/truncated responses, common timestamp/deployment attribution, retained result importer and
-    source Run deletion.
-  provenance: git blame attributes reconstructed capture creation to V411-027, commit 27af751d90648be6630e181d6e4d158c91a9c471;
-    reuse the ordinary evidence contract implemented by V421-001.
+  - docs/spec/findings/findings.md
+  - docs/spec/platform/failure-model.md
+  - docs/spec/platform/persistence.md
+  specification_baseline: Named specifications describe current behavior. Update their owning requirements,
+    API/wire contracts and fixtures with implementation; proposal 0050 governs the reviewed replacement
+    direction.
+  implementation_boundary: Every new state, export, relation or capability needs its real production caller
+    in this task. Reuse RunService, Scheduler, ArtifactStore, finding intake, ControllerClaims and existing
+    keyed/natural receipts. No new collector, admission engine, lease store or compatibility reader.
 scope:
   in:
-  - Inspect ControlledHTTPSession and HTTPTransport capture ownership, including redirects, failures and
-    truncation; reuse the common capture builder and recent buffer.
-  - Capture request-attempt facts at the Runtime transport boundary instead of reconstructing them from
-    model arguments after the response. Preserve exact observed attempts, first-attempt time and available
-    pinned deployment attribution.
-  - Connect the existing http_request_id selection to audit-results@2, the ordinary encoder/importer and
-    retained evidence readers; add real producer/store/process regressions.
+  - Reuse ControlledHTTPSession/HTTPTransport capture ownership and existing recent buffer, selected exchange
+    publisher and credential handling.
+  - Bind normalized selected evidence to the revised finding/result intake and ordinary Artifact publication;
+    Server derives task/Audit/Run association.
+  - Retain attempted request time, redirects/failures/truncation and available pinned deployment attribution
+    without fabricating omitted bytes or capture facts.
   out:
-  - New pentest exchange/observation schemas, capture-registration APIs, durable action receipts, proof
-    promotion, recipe execution or full traffic archival.
-  - Changing standalone HTTP semantics or treating an interactive response as independently reproduced
-    vulnerability proof.
+  - A new collector/service, special trusted-proof channel, resending target requests to recover evidence
+    or generic transport redesign.
+  - Implementation during this planning-only update; changing user model configuration or deploying/migrating
+    the demo.
 requirements:
 - id: R1
-  text: Reuse AWC-R126 and REV-R8; model-selected IDs cannot author observation facts. A summary alone
-    remains an attributed assertion.
+  text: Model-selected request IDs select only actual invocation-owned captures; no arguments or summaries
+    author observation facts.
 - id: R2
-  text: Apply existing selected-exchange credential handling to actual sent attempts; never persist injected
-    secrets or invent omitted response bytes, request tags or timestamps.
-- id: R3
-  text: An evicted/foreign/unavailable capture rejects selection before collector mutation; the Worker
-    may submit an explicit gap. Evidence publication never sends another target request.
+  text: Foreign/evicted/unavailable captures fail before result mutation and remain visible gaps. Preserve
+    injected credential redaction and original transport cancellation. Exact captures can support an ordinary
+    check result with no finding; retaining negative/inconclusive evidence does not require a problem
+    publication or another HTTP request.
 failure_outcomes:
-- operation: Retain actual engagement HTTP exchanges through ordinary Audit evidence
-  permanent: Reject invalid, unauthorized or unsupported input through the owning existing classified
-    error; a missing exact dependency stays unavailable without a latest-ref substitution.
-  retryable: Use only existing bounded storage/publication retries under the original operation identity
-    and deadline. HTTP retry is exclusively HTP-R139; no possibly sent request or failed engagement item
-    is automatically repeated.
-  ambiguous: Reconcile ordinary Artifact, Run or Audit receipts where publication may have committed.
-    Never send target traffic to reconstruct a missing acknowledgement.
-  cancelled: Existing allocation/Run ownership cancels and joins all work before release and secret cleanup;
-    no special transport-stop proof or background controller is added.
-  timeout: Use the ordinary Audit, Run and operation deadlines. No separate cumulative clock, post-deadline
-    target work or new default HTTP quota.
+- operation: Select a real invocation-owned HTTP exchange as retained evidence
+  permanent: Reject invalid/foreign/unsupported content and exact-revision or collision conflicts through
+    the owning API/ERR contract fixed by V64-001. A deterministic ErrInvalid is permanent; no partial
+    authoritative result or endless retry.
+  retryable: Use existing classified storage_transaction_conflict 503 and bounded retries of the same
+    operation, with owning operation/Run timeout and attempt limits.
+  ambiguous: Reconcile the original task/Run/publication/intake identity through existing keyed mutations
+    or natural receipts. Never repeat target activity or create a new logical result to recover an acknowledgement.
+  cancelled: Honor the Audit/Run owner fence, allow authorized terminal collection, and join in-flight
+    work before allocation release or scope cleanup.
+  timeout: Use the owning operation deadline. Audit deadline pauses new work and drains; model/HTTP/Run
+    timeouts remain with their owners. No post-deadline semantic work to repair persistence.
 cardinality:
-- collection: Recent exchanges and selected evidence
-  expected: A few requests and selected members per check
-  bound: Existing recent-buffer, attempt, result-member/package and Audit evidence limits; no scan of
-    all traffic or Run artifacts.
+- collection: Select a real invocation-owned HTTP exchange as retained evidence
+  expected: 'Base fixture: 2 ordinary Runs, 2 seeded hypotheses, 1 generated hypothesis and several conclusions.'
+  maximum: Keep applicable published LIM-AUD/LIM-FND ceilings unless proposal 0050 explicitly identifies
+    a reviewed change; no new full-pool work.
+  bound: At most 128 admitted primary records / 1 MiB metadata per mutation slice; lists use existing
+    page/byte bounds and explicit continuation.
 lifecycle:
-- entity: Existing Run/Audit artifacts and allocation-owned state
-  delete: Existing drained Run/Audit/Project deletion and Artifact retention rules remain authoritative.
-  retention: Only explicitly selected exact evidence/context uses existing holds. A read or metadata reference
-    creates no new hold, table or lifetime.
+- entity: Task-owned records and exact artifacts
+  delete: Authenticated Audit/Project deletion uses the owning drain/purge path. No work or reader may
+    outlive its authorization.
+  cascade: Remove only owner-local task data; shared Project findings retain their source contributions
+    and independently retained evidence. Use registered FK/Artifact ownership and bounded cleanup.
+  retention: Accepted exact references and original provenance survive pause/restart and permitted source
+    deletion until their owner releases them. Reading alone creates no hold.
 acceptance_criteria:
 - id: A1
-  text: A real engagement request, including a redirect, is selected by the actual result tool and retains
-    matching request/attempt/response facts and observation attribution through PostgreSQL collection.
+  given: a real HTTP request and redirect
+  when: actual Runtime selection and PostgreSQL finding intake run
+  then: retained attempts/time/response/evidence match the transport for ordinary results both with and
+    without an optional problem finding
 - id: A2
-  text: Foreign/evicted IDs, missing observations and truncated or failed exchanges cannot produce fabricated
-    complete evidence or a conclusive result requiring unavailable HTTP observation.
+  given: foreign/evicted/truncated/failed captures
+  when: selection is attempted
+  then: no fabricated complete evidence or secret-bearing projection is accepted
 - id: A3
-  text: Duplicate result publication, cancellation and permitted source Run deletion preserve ordinary
-    receipt, retention and cleanup behavior without new proof authority.
+  given: publication reply loss, cancellation and source deletion
+  when: ordinary reconciliation executes
+  then: one evidence result remains without another HTTP request
 tests:
-- command: go test -count=1 ./internal/auditimport/... ./internal/auditservice/... ./internal/artifacts/...
+- command: make require-database
+- command: go test -tags=integration -count=1 ./internal/findingintake/... ./internal/auditimport/...
+    ./internal/auditstore/... ./internal/artifacts/...
   covers:
   - A1
   - A2
   - A3
-- command: make test-runtime test-wire-cross-language
+- command: make test-runtime test-wire-cross-language test-engagement-http-process
   covers:
   - A1
   - A2
   - A3
-- command: make test-engagement-http-process test-audit-completion-e2e
+- command: make verify-public-api verify-public-api-postgres
   covers:
   - A1
   - A2
   - A3
 - command: make lint
-  covers:
-  - A1
-  - A2
-  - A3
 test_prerequisites:
-- Run complete suites of touched packages. Store behavior uses disposable PostgreSQL; an explicitly configured
-  unreachable database fails rather than skips. Mandatory process selections must execute at least one
-  test with no unexpected skips.
-- Unit/config tests use testdata fixtures; validate the shipped catalog separately. These commands are
-  future implementation acceptance, not claimed results of this planning change.
-demonstration: A real engagement request, including a redirect, is selected by the actual result tool
-  and retains matching request/attempt/response facts and observation attribution through PostgreSQL collection.
+- Commands below are future implementation acceptance, not results of this planning update.
+- Use disposable PostgreSQL with CONTRACTOR_TEST_DATABASE_URL set; configured/unavailable DB or mandatory
+  skips fail. A focused selector matching zero tests fails.
+- Use testdata catalogs and pseudo-Skills, not live configs in unit/integration tests. Run whole touched-package
+  suites and required release selectors.
+- Create and register any named future gate in this task before claiming it ran. Use deterministic clocks/work
+  counters; live model quality is outside deterministic acceptance.
+verification_requirements:
+- Update OpenAPI and both generated clients for public changes; shared wire fixtures cover every changed
+  cross-language rule.
+- Classify new packages in the layer registry and register relation ownership/ERD changes; preserve downward
+  dependencies and strict reads/writes.
+- Delete the replaced vertical path and its exclusive schemas/states/tests as its callers migrate. Final
+  V64-011 proves no parallel legacy pipeline remains.
+implementation_commit: null
+replanning:
+  date: '2026-10-31'
+  previous_title: Retain actual engagement HTTP exchanges through ordinary Audit evidence
+  previous_depends_on:
+  - V422-002
+  - V421-001
+  reason: Replaces earlier scope and acceptance with the common Audit research plan; this is not implementation
+    or completion.
+introduced_by: V411-027
