@@ -38,6 +38,8 @@ context:
     its existing derived 320-byte envelope (63+1+256, LIM-RUN-11), while its
     description preserves the independent part bounds. Sitemap parts declare
     their 8 KiB envelope and their description preserves the shared sum bound.
+    The existing sitemap generator carries the public byte declarations into
+    the private command schema; regenerate it without a second definition.
     Splitting public fields would widen this contract-only correction without
     removing the need for domain validation. Reopen if the selector syntax changes.
   siblings: Every public parameter or body string that joins bounded parts (search requestStringsWithoutByteBound
@@ -65,6 +67,8 @@ tests:
   covers: [A1]
 - command: make test-wire-cross-language
   covers: [A1, A2]
+- command: cd runtime && uv run pytest -q tests/test_sitemap_contracts.py tests/test_sitemap_views.py tests/test_sitemap_tools.py tests/test_contracts.py
+  covers: [A1]
 - command: make verify-public-api
   covers:
   - A1
