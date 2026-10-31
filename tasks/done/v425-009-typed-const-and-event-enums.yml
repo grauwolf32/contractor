@@ -6,7 +6,7 @@ epic: api-contracts
 kind: chore
 introduced_by: V372-025
 priority: P3
-status: in_progress
+status: completed
 depends_on: []
 languages:
 - go
@@ -55,3 +55,18 @@ tests:
   covers:
   - A1
   - A2
+implementation_commit: 30b688deff53232208738bf78ac06c424ec24ca9
+verification:
+  date: '2026-10-31'
+  commands:
+  - make generate-public-client ui-generate regenerated the Go client and UI schema bundles; the TypeScript literal types already matched and needed no byte changes.
+  - make verify-public-api passed.
+  - make ui-verify passed on UI 0.10.22, including all 214 test files and the production build.
+  - go test -count=1 ./internal/httpapi/public/... ./internal/publicclient/... ./internal/cli passed with the disposable PostgreSQL database configured.
+  - make lint passed.
+  regression: >-
+    The extended gate failed on all 140 missing types before the schema edits.
+    Probes cover missing and mismatched const/enum types, false/null constants,
+    nested schemas, nullable types, schema dictionaries and literal example data.
+    A structural comparison against the pre-change documents confirmed that
+    only the 91 OpenAPI and 49 event type declarations changed existing data.
