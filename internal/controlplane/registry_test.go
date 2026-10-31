@@ -11,12 +11,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/configload/configloadtest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 )
 
 func TestConfirmedLeaseRequiresEchoOfIssuedAck(t *testing.T) {
@@ -1463,5 +1465,32 @@ func TestAuthenticatedPrincipalValidationSurvivesResponseProjection(t *testing.T
 				t.Fatalf("invalid principal accepted: %v", err)
 			}
 		})
+	}
+}
+
+func TestReservationFingerprintPreservesEmptyRuntimeSnapshotShape(t *testing.T) {
+	snapshot := runtimeconfigtest.BuiltInRunSnapshot()
+	snapshot.Labels, snapshot.LLMCredentialIDs, snapshot.RuntimeCredentialIDs = nil, nil, nil
+	binding := testBinding(t, "builder", "builder", testTemplate(t))
+	binding.RuntimeSelection = &resolved.ResolvedConsumerExecutionConfig{
+		ModelPolicy: binding.AgentTemplate.ModelPolicy,
+		Origins:     resolved.ExecutionConfigOrigins{ModelPolicy: "agentTemplate.modelPolicy"},
+	}
+	request := ReservationRequest{
+		RunID: "run-fingerprint-shape", StageExecutionID: "stage-fingerprint-shape",
+		Bindings: []BindingRequirement{binding}, RuntimeConfig: &snapshot,
+	}
+	fingerprint, _, err := normalizeReservationRequest(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snapshot.Labels != nil || snapshot.LLMCredentialIDs != nil || snapshot.RuntimeCredentialIDs != nil {
+		t.Fatal("fingerprint normalization changed the caller's snapshot")
+	}
+	canonical := runtimeconfigtest.BuiltInRunSnapshot()
+	request.RuntimeConfig = &canonical
+	other, _, err := normalizeReservationRequest(request)
+	if err != nil || other != fingerprint {
+		t.Fatalf("nil and empty collections have different replay fingerprints: %v", err)
 	}
 }

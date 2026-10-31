@@ -43,7 +43,7 @@ func (s *Service) LoadPlans(ctx context.Context, identities []planner.SessionIde
 		if state.Plan == nil {
 			continue
 		}
-		projection := clonePlanProjection(*state.Plan)
+		projection := canonicalPlanProjection(*state.Plan)
 		if err := projection.Validate(); err != nil {
 			return nil, fmt.Errorf("persisted Planner plan is invalid: %w", err)
 		}

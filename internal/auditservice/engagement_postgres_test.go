@@ -225,7 +225,11 @@ func TestEngagementAuditPinsOneAttemptAndHTTPLimits(t *testing.T) {
 	if err != nil || baseline.Engagement.Document.Budgets.TargetRequests == nil || *baseline.Engagement.Document.Budgets.TargetRequests != requests {
 		t.Fatalf("HTTP limits not pinned: %v", err)
 	}
-	clone := cloneEngagement(baseline.Engagement)
+	decoded, err := DecodeBaseline(started.Audit.BaselineSnapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	clone := decoded.Engagement
 	*clone.Document.Budgets.TargetRequests = 99
 	if *baseline.Engagement.Document.Budgets.TargetRequests != requests {
 		t.Fatal("cloned HTTP limits alias the baseline")
