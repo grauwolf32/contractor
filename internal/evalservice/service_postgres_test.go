@@ -2,8 +2,6 @@ package evalservice
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -30,6 +28,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/evalstore"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	pg "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/persistence/postgrestest"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runservice"
@@ -1257,44 +1256,13 @@ SELECT count(*) FROM eval_suboperations WHERE kind = 'run-create' AND state = 'i
 
 func serviceTestPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
-	url := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
-	if url == "" {
-		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
-	}
 	ctx := context.Background()
-	admin, err := pgxpool.New(ctx, url)
-	if err != nil {
-		t.Fatal(err)
-	}
-	random := make([]byte, 8)
-	if _, err = rand.Read(random); err != nil {
-		t.Fatal(err)
-	}
-	schema := "eval_test_" + hex.EncodeToString(random)
-	quoted := pgx.Identifier{schema}.Sanitize()
-	if _, err = admin.Exec(ctx, `CREATE SCHEMA `+quoted); err != nil {
-		admin.Close()
-		t.Fatal(err)
-	}
-	cfg, err := pgxpool.ParseConfig(url)
-	if err != nil {
-		t.Fatal(err)
-	}
-	cfg.ConnConfig.RuntimeParams["search_path"] = schema
-	cfg.ConnConfig.RuntimeParams["statement_timeout"] = "10000"
-	pool, err := pgxpool.NewWithConfig(ctx, cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		pool.Close()
-		_, err := admin.Exec(context.Background(), `DROP SCHEMA `+quoted+` CASCADE`)
-		admin.Close()
-		if err != nil {
-			t.Error(err)
-		}
+	pool := postgrestest.NewPool(t, ctx, "", postgrestest.Options{
+		Configure: func(poolConfig *pgxpool.Config) {
+			poolConfig.ConnConfig.RuntimeParams["statement_timeout"] = "10000"
+		},
 	})
-	if _, err = pg.ApplyMigrations(ctx, pool, pg.MigrationBudgets{}); err != nil {
+	if _, err := pg.ApplyMigrations(ctx, pool, pg.MigrationBudgets{}); err != nil {
 		t.Fatal(err)
 	}
 	return pool
