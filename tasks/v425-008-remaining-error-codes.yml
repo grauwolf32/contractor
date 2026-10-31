@@ -6,7 +6,7 @@ epic: api-contracts
 kind: chore
 introduced_by: V372-020
 priority: P3
-status: pending
+status: in_progress
 depends_on: []
 languages:
 - go
@@ -20,6 +20,12 @@ context:
     :888, :902, :936) and unsupported_toolset (service.py:817, allocation/validation.py:150, :205); neither
     code has a row in docs/spec/platform/errors.md, and the V372-020 vocabulary checks do not scan Runtime
     AllocationError codes.
+  revalidated: >-
+    2026-10-31: AST scan of allocation modules and the private lifecycle handler
+    finds 23 directly constructed codes without registry rows, including the two
+    named codes, and interactsh_not_configured without a numbered owner. All are
+    sibling paths already in scope; preserve every emitted status and retryability.
+    Wrapped domain errors retain their existing domain vocabulary.
   siblings: Every other AllocationError code raised by the Runtime allocation path; extend the V372-020
     check to scan them.
 scope:
