@@ -19,6 +19,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifactpreview"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
@@ -51,6 +52,7 @@ var utf8ByteBoundOwners = map[string]int{
 	"LIM-GIT-3":  credentials.MaximumGitKeyBytes,
 	"LIM-GIT-22": gitimport.MaximumRefBytes,
 	"LIM-GIT-23": gitimport.MaximumRemoteURLBytes,
+	"LIM-GIT-24": contracts.MaxGitSourceURLBytes,
 	"LIM-RCF-1":  llmgateway.MaximumGatewayFailureSignatureText,
 	"LIM-RCF-23": -1,
 	"LIM-SCN-94": -1,

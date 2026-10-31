@@ -12816,7 +12816,7 @@ components:
       additionalProperties: false
       required: [repositoryUrl, requestedRef, resolvedCommit, importedAt]
       properties:
-        repositoryUrl: {type: string, maxLength: 4096}
+        repositoryUrl: {type: string, minLength: 1, maxLength: 12288, x-max-utf8-bytes: 12288}
         requestedRef: {type: [string, 'null'], maxLength: 1024}
         resolvedCommit: {type: string, pattern: '^[0-9a-f]{40}$'}
         importedAt: {type: string, format: date-time}

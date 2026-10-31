@@ -303,6 +303,15 @@
       "rule": "LIM-GIT-23"
     },
     {
+      "schema": "GitSource",
+      "path": [
+        "properties",
+        "repositoryUrl"
+      ],
+      "maxBytes": 12288,
+      "rule": "LIM-GIT-24"
+    },
+    {
       "schema": "GitPrivateKey",
       "path": [],
       "maxBytes": 32768,

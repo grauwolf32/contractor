@@ -26,7 +26,7 @@
 
 artifact_blobs_sha256_check                                 invariant: a SHA-256 digest is 32 bytes
 artifact_blobs_storage_check                                invariant: the size of an inline payload equals its length
-artifact_versions_git_repository_url_check                  LIM-GIT-23
+artifact_versions_git_repository_url_check                  LIM-GIT-24
 artifact_versions_git_requested_ref_check                   LIM-GIT-22
 audit_artifact_links_artifact_ref_check                     LIM-PER-14
 audit_artifact_links_display_ref_check                      LIM-PER-15

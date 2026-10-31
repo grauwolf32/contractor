@@ -2,6 +2,7 @@ package artifacts_test
 
 import (
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -9,9 +10,78 @@ import (
 
 	. "github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
+
+func TestSharedGitSourceURLBoundsCountUTF8Bytes(t *testing.T) {
+	characters, fields := contractstest.ReadUTF8ByteBoundCases(t)
+	pool := isolatedArtifactPool(t, t.Context())
+	ctx := testBlobContext(t, t.Context(), pool)
+	scope, _ := UserScope("user-1")
+	user, _ := NewService(NewPostgresRepository(pool)).User("user-1")
+	checked := false
+	for _, field := range fields {
+		if field.Rule != "LIM-GIT-24" {
+			continue
+		}
+		checked = true
+		if field.MaxBytes != contracts.MaxGitSourceURLBytes {
+			t.Fatalf("Git source shared bound %d, Go bound %d", field.MaxBytes, contracts.MaxGitSourceURLBytes)
+		}
+		for index, value := range field.EmbeddedValues(characters, "https://example.test:443/", "") {
+			for _, direct := range []bool{false, true} {
+				name := fmt.Sprintf("git-url-%d-%t", index, direct)
+				source := GitSource{RepositoryURL: value.Value, ResolvedCommit: strings.Repeat("a", 40), ImportedAt: time.Now().UTC().Truncate(time.Microsecond)}
+				err := postgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+					repo := NewPostgresTxRepository(tx)
+					store, _ := NewService(repo).User("user-1")
+					written, err := store.Write(ctx, ArtifactRef{Namespace: "source", Name: name}, Payload{MediaType: "application/zip", Data: []byte("fixture")}, nil)
+					if err != nil {
+						return err
+					}
+					if !direct {
+						return repo.RecordGitSource(ctx, scope, written.Ref, source)
+					}
+					// Bypass only the Go validation to exercise the real CHECK
+					// independently, on a newly created version without provenance.
+					_, err = tx.Exec(ctx, `UPDATE artifact_versions
+SET git_repository_url=$1, git_resolved_commit=$2, git_imported_at=$3
+WHERE version_id=(SELECT version_id FROM artifact_binding_revisions
+WHERE scope_kind='user' AND scope_id='user-1' AND namespace='source' AND name=$4 AND revision=$5)`,
+						source.RepositoryURL, source.ResolvedCommit, source.ImportedAt, name, *written.Ref.Revision)
+					return err
+				})
+				if (err == nil) != value.Within {
+					t.Fatalf("direct=%t %q URL bytes=%d: error=%v within=%t", direct, value.Character, len(value.Value), err, value.Within)
+				}
+				if !value.Within {
+					var constraint *pgconn.PgError
+					if direct && (!errors.As(err, &constraint) || constraint.Code != "23514" || constraint.ConstraintName != "artifact_versions_git_repository_url_check") {
+						t.Fatalf("expected URL CHECK rejection, got %v", err)
+					}
+					if !direct && !errors.Is(err, ErrArtifactIntegrity) {
+						t.Fatalf("expected artifact integrity rejection, got %v", err)
+					}
+				}
+				metadata, readErr := user.Metadata(ctx, ArtifactRef{Namespace: "source", Name: name})
+				if value.Within {
+					if readErr != nil || metadata.GitSource == nil || !sameGitSource(metadata.GitSource, source) {
+						t.Fatalf("Git URL did not round-trip: %v", readErr)
+					}
+				} else if !errors.Is(readErr, ErrArtifactNotFound) {
+					t.Fatalf("rejected Git source published metadata: %v", readErr)
+				}
+			}
+		}
+	}
+	if !checked {
+		t.Fatal("shared Git provenance bound is missing")
+	}
+}
 
 func TestPostgresGitProvenanceRetainsExactRunInputAndRollsBack(t *testing.T) {
 	ctx := t.Context()

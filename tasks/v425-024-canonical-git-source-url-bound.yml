@@ -1,0 +1,62 @@
+schema_version: "1.0"
+id: V425-024
+title: "Separate canonical Git provenance URL bounds from the import input bound"
+milestone: hub-audit-defects-2026-10
+epic: projects-artifacts
+kind: defect
+introduced_by: V35-002
+priority: P3
+status: in_progress
+depends_on: []
+languages: [go, sql, json, yaml]
+goal: "Every allowed 4096-byte Git input URL can retain its normalized URL in PostgreSQL and the public API without a second, smaller effective limit."
+context:
+  authority: "2026-10-31: user chose to preserve the 4096 UTF-8-byte input limit and increase the canonical URL limit in storage and API while revalidating V425-011."
+  specification:
+    - docs/spec/artifacts/git-import.md#GIT-R29
+    - docs/spec/artifacts/git-import.md#GIT-R83
+    - docs/spec/platform/limits.md
+  severity: low
+  finding: >-
+    internal/artifacts/git_source.go:35 and artifact_versions_git_repository_url_check
+    limit normalized RepositoryURL to the raw input's 4096 bytes. Percent encoding
+    expands each path byte up to three ASCII bytes, so valid Unicode input cannot
+    be persisted. GitSource.repositoryUrl in OpenAPI independently caps it at 4096.
+  siblings: >-
+    The Go validator, PostgreSQL CHECK, GitSource public schema and generated
+    UI/client schemas must agree. GitImportRequest and ParseRemote keep their raw
+    input bound. Runtime has no GitSource provenance model; its public shared
+    fixture readers do not own this Server-only field.
+  decision: >-
+    Use separate shared Go constants for the 4096-byte input and 12288-byte
+    canonical provenance bound. Three times the input bound covers percent
+    encoding and the supported schemes' normalization overhead (the scheme,
+    authority and SCP prefix leave enough unexpanded bytes for inserted defaults).
+    Widen only the existing CHECK through a sequential migration, preserving rows.
+    V425-011 removes the redundant raw-input validation on the canonical value
+    after this prerequisite is complete.
+scope:
+  in:
+    - "Canonical provenance bound in Go, PostgreSQL, limits/spec, OpenAPI and generated clients."
+    - "Shared exact/one-byte-over cases and real PostgreSQL retention/rejection coverage."
+  out:
+    - "Changing which input URL lengths, protocols or credentials are accepted."
+    - "Removing Fetch's redundant validation (owned by dependent V425-011)."
+acceptance_criteria:
+  - id: A1
+    text: "Canonical provenance URLs at 12288 UTF-8 bytes are stored and returned unchanged; one byte over is refused without publishing an artifact."
+  - id: A2
+    text: "Input URLs retain the existing 4096-byte limit, while PostgreSQL and public response schemas share the canonical bound."
+  - id: A3
+    text: "The real-store regression fails against the previous bound and the shared Go/UI schema checks pass."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/artifacts/... ./internal/persistence/postgres ./internal/contracts/... ./internal/gitimport/... ./internal/httpapi/public"
+    covers: [A1, A2, A3]
+  - command: make verify-public-api
+    covers: [A2, A3]
+  - command: make test-wire-cross-language
+    covers: [A2, A3]
+  - command: make ui-verify
+    covers: [A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]

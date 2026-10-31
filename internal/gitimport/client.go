@@ -25,6 +25,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/apierror"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 const Deadline = 120 * time.Second
@@ -37,7 +38,7 @@ const maxReferences = 100000
 // (LIM-GIT-23), and MaximumRefBytes the requested branch or tag (LIM-GIT-22);
 // both count UTF-8 bytes, as the public schemas declare.
 const (
-	MaximumRemoteURLBytes = 4096
+	MaximumRemoteURLBytes = contracts.MaxGitImportURLBytes
 	MaximumRefBytes       = 1024
 )
 
