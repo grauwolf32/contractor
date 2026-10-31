@@ -1,0 +1,128 @@
+schema_version: "1.0"
+id: V425-041
+title: Select Worker and summarizer model policies only through Workflows
+milestone: hub-audit-structure-2026-10
+epic: workflows
+kind: chore
+introduced_by: V3-006
+priority: P3
+status: in_progress
+depends_on: [V425-039]
+languages: [go, python, typescript]
+goal: >-
+  Reuse one AgentTemplate with different explicitly selected Worker and terminal
+  summarizer policies in Workflows, without a hidden template model default.
+context:
+  authority: >-
+    User decision 2026-11-01: remove model selection from AgentTemplate and
+    select policies through Workflow, including a small model for a secret-finding
+    Worker and another model for another consumer. The user accepted moving the
+    main and summarizer model selections. Studio will be rewritten separately;
+    its broader simplification is explicitly skipped for now.
+  specification:
+    - docs/spec/configuration/agent-templates.md
+    - docs/spec/configuration/workflows.md
+    - docs/spec/configuration/catalog.md
+    - docs/spec/execution/worker.md
+    - docs/spec/configuration/runtime-config.md
+  finding: >-
+    internal/config/template.go resolves main and summarizer policies into
+    AgentTemplate. internal/config/execution_config.go uses the template's main
+    policy as a lower-priority default; internal/controlplane/placement.go and
+    runtime allocation/service.py still fall back to the template summary policy.
+    These duplicate the Workflow-owned effective consumer selections.
+  boundary: >-
+    AgentTemplate owns instructions, runtime/tool selection, sandbox and optional
+    terminal-summary behavior (instructions, ratio, cumulative trigger and reasoning
+    choice), without model policies. Workflow executionConfig selects the main
+    policy for every modeled Worker and summarizerModelPolicy for terminal@1.
+    Deployment role choices continue materializing explicit canonical role refs;
+    model-specific Workflow selections remain exact. Allocation carries effective
+    policies separately from the template, with no template fallback.
+  demonstration: >-
+    One test-only template is reused by differently configured Workflow consumers
+    with small/strong main policies and independently selected summary policies.
+    Their template identity/digest is the same; accepted Run and allocation
+    snapshots retain their own compatible exact policies after catalog/default
+    changes. Existing routing, escalation, terminal summary and compact branches
+    execute through real Server/Runtime/PostgreSQL boundaries.
+scope:
+  in:
+    - Remove modelPolicy and summarizer.modelPolicy from template authoring, resolved bodies, digests, projections and shared contracts.
+    - Require explicit effective main and terminal-summary policies from Workflow; keep global/Stage/binding selection syntax and inline escalation.
+    - Move compatibility checks that need effective policies to Workflow/Allocation validation; keep template-only checks local to templates.
+    - Remove Server/Runtime summary-policy fallbacks, preserving typed effective runtime configuration and immutable snapshots.
+    - Migrate shipped and active test/generated configuration producers without changing their intended models, budgets, tools or summary behavior.
+    - Adapt existing UI readers and affected Studio fields just enough to follow the removed fields, without rewriting Studio or reducing other authoring layers.
+    - Update specs, OpenAPI, shared schemas, strict/golden fixtures and generated clients together.
+  out:
+    - Dynamic Workflow publication, Studio rewrite, removing Workflow global/Stage/binding settings or deployment model selection.
+    - Removing terminal summarization, Worker/Planner compaction, escalation, credentials, Runtime labels or snapshots.
+    - A secret scanner feature, model quality claims, live model changes, demo deployment or data reset.
+    - Compatibility readers, inference of omitted policies, new receipts, tables, controllers or generic configuration frameworks.
+requirements:
+  - id: R1
+    text: Templates reject removed policy fields, including explicit null; their immutable digest depends on behavior/resources and never on selected model policies.
+  - id: R2
+    text: Every modeled Worker resolves a compatible main policy; terminal@1 additionally resolves a compatible summarizer policy. Missing or incompatible selections fail before Run acceptance/allocation.
+  - id: R3
+    text: Tool Workers remain model-free; compact@1 has its own explicit policy and does not consume the disabled terminal summarizer policy.
+  - id: R4
+    text: Exact effective policies, model authorization, deployment role defaults, escalation variants and prepared Eval pins retain their existing guarantees without reading a template model default.
+  - id: R5
+    text: Existing shipped and test scenarios preserve their actual selected models/budgets after the authoring migration; archived Eval evidence stays historical bytes.
+failure_outcomes:
+  - operation: Load a catalog, accept a Run or prepare an allocation
+    permanent: Removed template fields or missing/incompatible Workflow policies reject through existing classified validation outcomes, with no accepted partial execution.
+    retryable: Existing storage and credential lookup classifications remain; no retry loop is added.
+    ambiguous: Existing creation receipts and allocation ownership reconcile response loss; no new operation identity.
+    cancelled: Existing owner cancellation joins work before release; no new background operation.
+    timeout: Existing load/creation/allocation deadlines and bounds remain authoritative.
+cardinality:
+  - collection: Modeled consumers and their base/escalation policies
+    expected: Existing bounded Workflow graph and its selected consumers.
+    maximum: Existing Workflow/snapshot/allocation bounds.
+    bound: Reuse existing consumer walks and bounded snapshots; no new catalog scan per allocation or unbounded lookup.
+lifecycle:
+  - entity: Template, Workflow and accepted execution snapshots
+    delete: Existing immutable catalog and parent retention rules remain.
+    cascade: No new persistent entity or cascade.
+    retention: Pin policies in execution selections, not templates; reject unsupported old shapes without rewriting them or reinterpreting history.
+acceptance_criteria:
+  - id: A1
+    given: Authoring and resolved templates with either removed policy field, including null.
+    when: YAML, Go/Python wire and public shape validators read them.
+    then: They reject the removed fields; schemas and generated clients expose behavior-only templates and summarizers.
+  - id: A2
+    given: One template reused by differently configured Workflow consumers.
+    when: Workflows and Run/allocation snapshots resolve their explicit policies.
+    then: Template bodies/digests remain equal while the exact main and summary policies differ as authored and stay pinned.
+  - id: A3
+    given: Missing or incompatible main/summary policies, tool Workers and compact@1 bindings.
+    when: The real catalog/Run/allocation validation path processes them.
+    then: Invalid selections fail before effects, valid model-free/compact/terminal branches retain their behavior and no template fallback exists.
+  - id: A4
+    given: Shipped configurations, deployment defaults, escalation and prepared Evals.
+    when: Their relevant regression, process and schema gates run.
+    then: Selected models/budgets, authorization, snapshots, summary outcomes and pins remain correct after the migration.
+  - id: A5
+    given: Affected UI readers, producers and existing Studio forms.
+    when: The UI and shipped catalog checks execute.
+    then: They follow the new shape without stale model controls, fabricated defaults, a Studio rewrite or a dynamic-publication prerequisite.
+tests:
+  - command: go test -tags=integration ./internal/config/... ./internal/configload/... ./internal/contracts/... ./internal/controlplane ./internal/runtimeconfig ./internal/runservice ./internal/scheduler ./internal/evalservice ./internal/httpapi/public ./internal/publicclient/... ./internal/app
+    covers: [A1, A2, A3, A4]
+  - command: make test-runtime
+    covers: [A1, A2, A3, A4]
+  - command: make verify-public-api
+    covers: [A1, A5]
+  - command: make test-wire-cross-language
+    covers: [A1, A2, A3, A4]
+  - command: make test-config
+    covers: [A2, A3, A4]
+  - command: make ui-verify
+    covers: [A1, A5]
+  - command: go test -tags=e2e -count=1 -timeout=8m ./tests/e2e -run '^TestRoutingAndEscalationProductionBoundaries$'
+    covers: [A2, A3, A4]
+  - command: make lint
+    covers: [A1, A3, A5]
