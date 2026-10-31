@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-88 open tasks: 9 in progress, 68 pending, 11 deferred. 1261 finished: 1246 completed, 15 archived.
+87 open tasks: 9 in progress, 67 pending, 11 deferred. 1262 finished: 1247 completed, 15 archived.
 
 ## In progress
 
@@ -59,7 +59,6 @@ the epics are in [epics.yml](epics.yml).
 | [V410-009](v410-009-sitemap-browser-collection.yml) | feature | P2 | V410-007, V412-001 | Collect managed Playwright network observations into the sitemap |
 | [V412-001](v412-001-managed-pentest-browser.yml) | feature | P2 | — | Add allocation-owned browser investigation with explicit network authority |
 | [V412-004](v412-004-trusted-pentest-callback-proof.yml) | feature | P2 | V411-015, V411-016 | Use existing Interactsh tools as bounded HTTP investigation evidence |
-| [V425-004](v425-004-http-gateway-e2e-tool-list.yml) | defect | P2 | — | Derive the HTTP gateway process test's expected tools from the toolset descriptor |
 
 ### Scanner tool Workers and scan planning (`scan-tools`)
 
@@ -201,7 +200,7 @@ tasks in `introduced_by`.
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
 | Run workspaces and project filesystem (`workspaces`) | 1 | 16 | 15 | 5 | 16 |
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
-| HTTP and Caido tools (`http-tools`) | 5 | 22 | 27 | 9 | 25 |
+| HTTP and Caido tools (`http-tools`) | 4 | 22 | 27 | 9 | 25 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 2 | 17 | 10 | 9 | 19 |
 | Findings tools and collections (`findings`) | 2 | 16 | 9 | 8 | 13 |
 | Workflow catalog and document workflows (`workflows`) | 4 | 18 | 15 | 12 | 19 |

@@ -15,6 +15,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 )
 
 const (
@@ -539,18 +541,25 @@ func (g *domainGateway) writeFailure(w http.ResponseWriter, status int, message 
 	})
 }
 
+// These selectors name complete exports. Explicit per-template subsets stay
+// in their gateway stage so the test still detects overexposure of tools.
+func gatewayToolsetTools(selector string) []string {
+	tools, ok := resolved.ToolsetTools(selector)
+	if !ok {
+		panic(fmt.Sprintf("gateway fixture selects unregistered Toolset %q", selector))
+	}
+	return tools
+}
+
 func withMemoryTools(tools []string) []string {
 	return append(append([]string(nil), tools...),
-		"append_memory", "list_memories", "list_memory_tags", "read_memory", "search_memory", "write_memory")
+		gatewayToolsetTools("memory-tools@1")...)
 }
 
 func domainGatewayStages() []domainGatewayStage {
-	analystTools := []string{
-		"attack_surface", "complexity_hotspots", "entrypoint_paths_to", "find_callees",
-		"find_callers", "find_symbol", "functions_that_raise", "glob", "graph_summary",
-		"grep", "list_symbols", "ls", "paths_between", "read_file", "read_text_artifact",
-		"search_def", "write_text_artifact",
-	}
+	analystTools := append([]string{
+		"glob", "grep", "ls", "read_file", "read_text_artifact", "write_text_artifact",
+	}, completeCodeAnalysisTools...)
 	openAPIBuilderTools := []string{
 		"changed_paths", "diff", "get_openapi_component", "get_openapi_info", "get_openapi_path",
 		"glob", "grep", "initialize_openapi", "list_openapi_components", "list_openapi_paths",

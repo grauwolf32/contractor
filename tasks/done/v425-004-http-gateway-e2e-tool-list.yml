@@ -1,0 +1,76 @@
+schema_version: '1.0'
+id: V425-004
+title: Derive the HTTP gateway process test's expected tools from the toolset descriptor
+milestone: hub-audit-defects-2026-10
+epic: http-tools
+kind: defect
+introduced_by: V411-027
+priority: P2
+status: completed
+depends_on: []
+languages:
+- go
+goal: make test-http-caido-e2e checks the HTTP tools the Runtime actually exports, so a tool change cannot
+  leave the gate stale again.
+context:
+  decision: >-
+    2026-10-31: read complete HTTP, Caido, text-artifacts, Memory and Code
+    Analysis exports through resolved.ToolsetTools, whose shared fixture
+    parity is already checked against Runtime factories. Keep explicit
+    per-template subsets: the Caido Worker's three HTTP tools, engagement's
+    three HTTP tools, the single selected scan_nuclei operation, and the
+    OpenAPI/LikeC4 builder versus validator selections. Integration lease tests
+    construct explicit tool selections rather than asserting a whole export.
+    Runtime tool requests are still compared exactly with expected names;
+    deriving expectations never reads them from the actual request.
+  origin: Reported by a lane of the 2026-10-30 defect wave and rechecked on main fde39a943 by the coordinator.
+  severity: medium
+  finding: 'tests/e2e/http_caido_gateway_test.go:33-36 (httpCaidoHTTPGatewayStage) hard-codes the HTTP
+    tool list from before 27af751d9 (V411-027): it lacks http_credentials and http_credential_read, which
+    runtime/src/contractor_runtime/toolsets/http/tools.py:141-153 now exports, so the process gate fails
+    on current main and V386-004 could not run it.'
+  siblings: Every e2e or integration test that spells out a toolset's tool names instead of reading api/testdata/toolset-descriptors.json
+    (search tests/e2e and tests/integration for http_request, caido_ and scan tool names); each is fixed
+    or ruled out in this task.
+scope:
+  in:
+  - Take the expected tool names from the shared toolset descriptor fixture (or the Server's descriptor
+    registry) instead of a copied list.
+  - Fix or rule out every sibling listed in context.siblings.
+  out:
+  - Changing the HTTP toolset itself.
+acceptance_criteria:
+- id: A1
+  text: make test-http-caido-e2e passes on main.
+- id: A2
+  text: Adding a tool to the HTTP toolset descriptor without touching the e2e test keeps the test correct;
+    removing one from the Runtime export fails it.
+tests:
+- command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -tags=e2e -count=1 -timeout=12m ./tests/e2e -run '^(TestCodeAnalysisAcrossHeterogeneousRuntimeProcesses|TestTaintAnnotationsAcrossRealRuntimeProcess|TestProjectSitemapHTTPCollectionAcrossProductionProcesses|TestProductionMemoryTemplatesAcrossProcesses)$'"
+  covers: [A1, A2]
+- command: make test-http-caido-e2e
+  covers:
+  - A1
+  - A2
+- command: make lint
+  covers:
+  - A1
+implementation_commit: 6d76efb77ed817784d2d47b23a45c2807bb876ba
+verification_results:
+- >-
+  2026-10-31: make test-http-caido-e2e passed against disposable PostgreSQL
+  and real Server/Runtime processes, including a repeat on the final shared
+  helper implementation (76.154s). No live model was used.
+- >-
+  The four sibling process tests listed above passed together in 305.220s:
+  Code Analysis, taint annotations, sitemap HTTP collection and Production
+  Memory. The commands did not use -short and supplied a reachable test database.
+- "make lint passed, including the release graph, task policy, test-only exports and Runtime import boundaries."
+- "go test ./tests/e2e passed the complete untagged e2e matrix suite (6.443s)."
+- "go test ./internal/config/resolved passed; Runtime's uv run --locked pytest -q tests/test_capabilities.py::test_shared_toolset_descriptor_parity passed."
+- >-
+  Expected tool names remain independent of actual Runtime requests and are
+  compared exactly by domainGateway.next, so omitting or adding an exposed
+  tool still fails. Full exports follow the descriptor registry; deliberate
+  template subsets remain explicit. The implementation is committed on
+  codex/v425-004-http-tool-descriptor and has not yet been merged into main.
