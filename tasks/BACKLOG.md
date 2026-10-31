@@ -5,14 +5,13 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-78 open tasks: 12 in progress, 55 pending, 11 deferred. 1305 finished: 1287 completed, 18 archived.
+77 open tasks: 11 in progress, 55 pending, 11 deferred. 1306 finished: 1288 completed, 18 archived.
 
 ## In progress
 
 | Task | Epic | Kind | Priority | Title |
 | --- | --- | --- | --- | --- |
 | [V40-002](v40-002-agent-instruction-paired-runner.yml) | evals | feature | P1 | Prepare instruction experiment bindings and a frozen plan after format readiness |
-| [V64-021](v64-021-validate-effective-audit-input-requiredness.yml) | audits | defect | P1 | Validate required inputs after initial Audit material overrides |
 | [V64-022](v64-022-bound-hypothesis-seed-bytes.yml) | audits | defect | P1 | Reject oversized hypothesis seeds in programs and proposals |
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
@@ -91,7 +90,7 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V64-002](v64-002-audit-priority-store.yml) | feature | P1 | V64-004, V64-014, V64-021 | Coordinate durable Audit tasks through ordinary Runs |
+| [V64-002](v64-002-audit-priority-store.yml) | feature | P1 | V64-004, V64-014 | Coordinate durable Audit tasks through ordinary Runs |
 | [V64-004](v64-004-audit-priority-context.yml) | feature | P1 | — | Add Audit artifact ownership and exact Project publication |
 | [V64-005](v64-005-independent-priority-verdicts.yml) | feature | P2 | V64-012, V64-013 | Optionally rank the common Audit ready-task shortlist |
 | [V64-008](v64-008-audit-priority-api-coverage.yml) | feature | P1 | V64-012, V64-013, V411-010 | Expose Audit tasks check results findings and selected materials |
@@ -191,7 +190,7 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 2 | 17 | 8 | 9 | 14 |
 | Workflow catalog and document workflows (`workflows`) | 5 | 19 | 15 | 14 | 19 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 36 | 37 | 11 | 60 |
-| Audits (`audits`) | 20 | 67 | 87 | 36 | 128 |
+| Audits (`audits`) | 19 | 67 | 87 | 36 | 128 |
 | Evaluations (`evals`) | 6 | 21 | 39 | 15 | 49 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |
 | Web UI (`ui`) | 2 | 29 | 66 | 17 | 60 |

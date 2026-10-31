@@ -6,7 +6,7 @@ epic: audits
 kind: defect
 introduced_by: V64-001
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V64-001
 languages:
@@ -119,8 +119,8 @@ test_prerequisites:
   selection is a failure.
 - On macOS use a canonical TMPDIR for the existing strict-root tests. If implementation expands into store
   behavior, report the scope change before proceeding.
-implementation_commit: null
+implementation_commit: 53a8c1d742ffaa229e85a9845ea5161d3e4c7005
 verification:
 - Before the fix, the required-to-optional override regression failed in both the loaded Snapshot suite and the actual offline CLI (2026-11-01).
 - Complete config/.../auditcontract/app suites passed after applying the same catalog-owned material check to defaults and effective selections. Required replacement and optional actual-slot scenarios pass; unknown/incompatible selections fail. The CLI now consumes loader_cases and asserts the classified error.
-- Full cross-language and lint gates remain required before completion.
+- make test-wire-cross-language and make lint passed on 2026-11-01. The existing cross-language gate used a dedicated disposable PostgreSQL database and validated 367 fixtures with 392 Go and 288 Python shared tests; its Runtime selection passed 1583 tests.
