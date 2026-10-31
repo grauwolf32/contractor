@@ -6,7 +6,7 @@ epic: quality
 kind: chore
 introduced_by: V425-022
 priority: P3
-status: in_progress
+status: completed
 depends_on: [V425-022]
 languages: [go, python, shell, yaml]
 goal: "The build pipeline selects Linux and builds the Git probe; ordinary macOS tests do not adapt a Linux-only container test to Podman Machine."
@@ -46,3 +46,17 @@ tests:
     covers: [A2]
   - command: make lint
     covers: [A1, A3]
+implementation_commit: 395a0d970516c38fb38e2d7d6f400cacc064ded3
+verification_results:
+  - "2026-10-31: go test -tags=integration -count=1 ./internal/gitimport passed natively on macOS; go test -list confirmed both Linux-only probe tests are absent from that binary."
+  - "make test-git-read-only on macOS failed at require-git-container-linux before build, with the documented Linux requirement."
+  - >-
+    The complete recipe emitted by make -n test-git-read-only was executed
+    with sh -e inside Podman Machine's Linux arm64 VM, using a SHA256-verified
+    Linux Go 1.26.9 SDK, native Git and local rootless Podman. The entire
+    integration-tagged Git package passed, including the nested read-only
+    probe's real HTTPS and private SSH imports. GNU Make is absent in that VM;
+    the emitted Make recipe was executed unchanged rather than claiming a
+    native make invocation there.
+  - "make lint passed, including release-graph validation and 56 focused guard tests with negative cases for removing the Linux proof or replacing its Ubuntu runner."
+  - "The hosted GitHub Actions job was updated and checked locally, not dispatched. Existing V372-030 verification remains recorded; no full project test rerun was needed for this pipeline-only adjustment."
