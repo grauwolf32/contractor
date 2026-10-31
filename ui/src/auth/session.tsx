@@ -9,7 +9,7 @@ import {
 } from "react";
 
 import type { AuthSession, LoginRequest, PublicAPI } from "../api/client";
-import { APICompatibilityError, PublicAPIError } from "../api/error";
+import { startupQueryRetry } from "../app/query-client";
 import { queryKeys } from "../api/query-keys";
 
 interface SessionContextValue {
@@ -39,12 +39,7 @@ export function SessionProvider({
   const sessionQuery = useQuery({
     queryKey: queryKeys.session,
     queryFn: () => api.getSession(),
-    retry: (failures, error) =>
-      failures < 3 &&
-      error instanceof PublicAPIError &&
-      !(error instanceof APICompatibilityError) &&
-      error.retryable,
-    retryDelay: (attempt) => Math.min(200 * 2 ** attempt, 800),
+    ...startupQueryRetry,
     staleTime: 30_000,
   });
   // Mutation results are new objects on every render; only their stable

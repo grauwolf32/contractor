@@ -61,6 +61,8 @@ func NewHTTPHandler(registry Registry, supplied ...HTTPOptions) (http.Handler, e
 	}
 	handler := &privateHTTPHandler{registry: registry, principals: options.Principals}
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /private/v1/config", handler.sharedConfig)
+	mux.HandleFunc("/private/v1/config", handler.methodNotAllowed)
 	mux.HandleFunc("POST /private/v1/agents/register", handler.register)
 	mux.HandleFunc("POST /private/v1/agents/{instanceID}/heartbeat", handler.heartbeat)
 	mux.HandleFunc("/private/v1/agents/{instanceID}/heartbeat", handler.methodNotAllowed)
@@ -89,6 +91,20 @@ func (h *privateHTTPHandler) requireMTLS(next http.Handler) http.Handler {
 		ctx := context.WithValue(r.Context(), runtimeAgentPrincipalContextKey{}, runtimeAgentID)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+// sharedConfig requires mTLS but deliberately performs no principal registration.
+func (h *privateHTTPHandler) sharedConfig(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		h.methodNotAllowed(w, r)
+		return
+	}
+	if r.URL.RawQuery != "" || r.ContentLength != 0 || len(r.TransferEncoding) != 0 {
+		h.handleError(w, fmt.Errorf("%w: config accepts no query or body", ErrInvalidRequest))
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	writePrivateJSON(w, http.StatusOK, control.DefaultSharedConfig())
 }
 
 func (h *privateHTTPHandler) register(w http.ResponseWriter, r *http.Request) {

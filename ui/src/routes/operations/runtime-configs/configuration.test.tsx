@@ -579,7 +579,7 @@ describe("Runtime configuration hub navigation", () => {
               "/v1/reviews",
             ].includes(request),
         ),
-      ).toEqual(["/v1/auth/session"]);
+      ).toEqual(["/v1/auth/session", "/v1/config"]);
     },
   );
 });

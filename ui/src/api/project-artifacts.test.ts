@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { RuntimeConfig } from "../config/runtime-config";
 import type { ArtifactMetadata } from "./artifacts";
-import { PublicAPI } from "./client";
+import { TestPublicAPI as PublicAPI } from "../test/shared-config";
 import {
   downloadProjectArtifact,
   listProjectArtifacts,

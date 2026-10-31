@@ -3392,6 +3392,22 @@
         "/telemetry/headers"
       ]
     },
+    "shared-config.json": {
+      "enum": [
+        "/apiVersion",
+        "/version"
+      ],
+      "maxLength": [],
+      "maxBytes": [],
+      "unknownMember": [
+        "",
+        "/limits"
+      ],
+      "duplicateKey": [
+        "",
+        "/limits"
+      ]
+    },
     "stage-content-request.json": {
       "enum": [
         "/apiVersion"

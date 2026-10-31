@@ -1,7 +1,6 @@
 import {
   ARTIFACT_NAME_PATTERN,
   ARTIFACT_REVISION_PATTERN,
-  MAXIMUM_ARTIFACT_BYTES,
   type ArtifactMetadata,
   type ExactArtifactRef,
 } from "./artifacts";
@@ -30,9 +29,12 @@ export type ArtifactArchiveScope =
   | { kind: "project"; id: string }
   | { kind: "run"; id: string };
 
-export function canBrowseArchive(metadata: ArtifactMetadata): boolean {
+export function canBrowseArchive(
+  metadata: ArtifactMetadata,
+  maximumBytes: number,
+): boolean {
   return (
-    metadata.size <= MAXIMUM_ARTIFACT_BYTES &&
+    metadata.size <= maximumBytes &&
     [
       "application/zip",
       "application/x-zip-compressed",

@@ -263,7 +263,11 @@ def test_cli_recovery_precedes_scratch_deletion_even_on_startup_failure(tmp_path
             runtime_cli, "cleanup_orphan_workdirs", lambda _: events.append("files")
         )
         with pytest.raises(RuntimeError, match="unresolved"):
-            await runtime_cli.serve(settings, install_signal_handlers=False)
+            from test_cli import ConfigTransport
+
+            await runtime_cli.serve(
+                settings, transport=ConfigTransport(), install_signal_handlers=False
+            )
         assert events == ["recover", "close"]
 
     asyncio.run(scenario())

@@ -233,3 +233,5 @@ from contractor_runtime.contracts.workspace import WorkspaceLimits as WorkspaceL
 from contractor_runtime.contracts.workspace import (
     WorkspaceObservationSummary as WorkspaceObservationSummary,
 )
+
+from .shared_config import SharedConfig as SharedConfig

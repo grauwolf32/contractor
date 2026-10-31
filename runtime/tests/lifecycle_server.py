@@ -31,6 +31,15 @@ async def serve(args: argparse.Namespace) -> None:
         port=args.port,
         work_root=args.work_root,
     )
+    # Component probes bypass the production CLI bootstrap deliberately.
+    from contractor_runtime.contracts import SharedConfig, decode_private
+    from contractor_runtime.shared_config import install_shared_config
+
+    install_shared_config(
+        decode_private(
+            SharedConfig, (Path(__file__).parent / "testdata/shared-config.json").read_bytes()
+        ).snapshot()
+    )
     cleanup_orphan_workdirs(settings.work_root)
     factories = built_in_factories(settings.work_root)
     faults = None

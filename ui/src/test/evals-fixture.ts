@@ -1,3 +1,4 @@
+import sharedConfigFixture from "../../../api/testdata/v1alpha1/valid/shared-config.json" with { type: "json" };
 import draftExample from "../../../api/testdata/evals/valid/draft-experiment.json" with { type: "json" };
 import experimentExample from "../../../api/testdata/evals/valid/experiment.json" with { type: "json" };
 import datasetExample from "../../../api/testdata/evals/valid/dataset.json" with { type: "json" };
@@ -162,6 +163,7 @@ export function createEvalFixture(
     const e = fixture.experiment;
     let result: FixtureResponse;
     if (path === "/v1/auth/session") return response(EVAL_FIXTURE_SESSION);
+    if (path === "/v1/config") return response(sharedConfigFixture);
     if (path === "/v1/projects")
       return response({ items: [project], page: ownerPage });
     if (["/v1/audits", "/v1/findings", "/v1/reviews"].includes(path))

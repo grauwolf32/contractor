@@ -35,7 +35,7 @@ export default tseslint.config(
         "warn",
         {
           allowConstantExport: true,
-          allowExportNames: ["usePublicAPI", "useSession"],
+          allowExportNames: ["usePublicAPI", "useSession", "useSharedConfig"],
         },
       ],
     },

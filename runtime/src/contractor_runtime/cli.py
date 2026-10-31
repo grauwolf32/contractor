@@ -23,6 +23,7 @@ from contractor_runtime.control_client import (
     ControlTransport,
     MTLSJSONTransport,
     RegistrationRejectedError,
+    SharedConfigError,
 )
 from contractor_runtime.core.target_policy import TargetPolicyConfig
 from contractor_runtime.factories import built_in_factories
@@ -55,51 +56,19 @@ async def serve(
     server_factory: Callable[..., RuntimeServer] = RuntimeServer,
     install_signal_handlers: bool = True,
 ) -> None:
-    lifecycle = PodmanLifecycle(settings.podman) if settings.podman.enabled else None
     project_root = settings.workspace.work_root if settings.workspace is not None else None
     with hold_work_roots(settings.work_root, project_root):
-        archive_cache = None
-        try:
-            roots = [settings.work_root]
-            if project_root is not None:
-                roots.append(project_root)
-            for root in roots:
-                await to_thread_until_done(
-                    check_root_policy,
-                    root,
-                    settings.podman.owner if lifecycle is not None else None,
-                    name="runtime-root-policy",
-                )
-            if lifecycle is not None:
-                await lifecycle.recover(
-                    deadline=time.monotonic() + settings.podman.prepare_max_seconds
-                )
-            if project_root is not None and settings.workspace.storage == "local":
-                archive_cache = await ImmutableArchiveCache.open(project_root)
-            await _serve(
-                settings,
-                state=state,
-                transport=transport,
-                stop_requested=stop_requested,
-                server_factory=server_factory,
-                install_signal_handlers=install_signal_handlers,
-                lifecycle=lifecycle,
-                archive_cache=archive_cache,
-            )
-        finally:
-            try:
-                if archive_cache is not None:
-                    await asyncio.wait_for(archive_cache.close(), settings.shutdown_grace_seconds)
-            finally:
-                if lifecycle is not None:
-                    # EOF still delegates cleanup to the surviving owner if this
-                    # bounded graceful close cannot confirm it. Never kill the owner.
-                    await lifecycle.close(
-                        deadline=time.monotonic() + settings.shutdown_grace_seconds
-                    )
+        await _bootstrap(
+            settings,
+            state=state,
+            transport=transport,
+            stop_requested=stop_requested,
+            server_factory=server_factory,
+            install_signal_handlers=install_signal_handlers,
+        )
 
 
-async def _serve(
+async def _bootstrap(
     settings: Settings,
     *,
     state: RuntimeState | None,
@@ -107,11 +76,102 @@ async def _serve(
     stop_requested: asyncio.Event | None,
     server_factory: Callable[..., RuntimeServer],
     install_signal_handlers: bool,
+) -> None:
+    stop = stop_requested or asyncio.Event()
+    runtime_state = state or RuntimeState()
+    connections = None
+    loop = asyncio.get_running_loop()
+    handled_signals = (signal.SIGINT, signal.SIGTERM)
+    if install_signal_handlers:
+        for handled_signal in handled_signals:
+            loop.add_signal_handler(handled_signal, stop.set)
+    try:
+        if transport is None:
+            outgoing_tls = runtime_agent_client_context(
+                ca_file=settings.ca_file,
+                certificate_file=settings.certificate_file,
+                private_key_file=settings.private_key_file,
+            )
+            connections = PrivateConnections(outgoing_tls, verify_control_plane_peer)
+            transport = MTLSJSONTransport(
+                settings.control_plane_url, connections, settings.request_timeout_seconds
+            )
+        control = ControlClient(settings, runtime_state, transport)
+        if not await control.configure_until_stopped(stop) or stop.is_set():
+            return
+        await _serve_configured(
+            settings,
+            state=runtime_state,
+            transport=transport,
+            stop_requested=stop,
+            server_factory=server_factory,
+        )
+    finally:
+        if install_signal_handlers:
+            for handled_signal in handled_signals:
+                loop.remove_signal_handler(handled_signal)
+        if connections is not None:
+            await connections.aclose()
+
+
+async def _serve_configured(
+    settings: Settings,
+    *,
+    state: RuntimeState,
+    transport: ControlTransport,
+    stop_requested: asyncio.Event,
+    server_factory: Callable[..., RuntimeServer],
+) -> None:
+    lifecycle = PodmanLifecycle(settings.podman) if settings.podman.enabled else None
+    project_root = settings.workspace.work_root if settings.workspace is not None else None
+    archive_cache = None
+    try:
+        roots = [settings.work_root]
+        if project_root is not None:
+            roots.append(project_root)
+        for root in roots:
+            await to_thread_until_done(
+                check_root_policy,
+                root,
+                settings.podman.owner if lifecycle is not None else None,
+                name="runtime-root-policy",
+            )
+        if lifecycle is not None:
+            await lifecycle.recover(deadline=time.monotonic() + settings.podman.prepare_max_seconds)
+        if project_root is not None and settings.workspace.storage == "local":
+            archive_cache = await ImmutableArchiveCache.open(project_root)
+        await _serve(
+            settings,
+            state=state,
+            transport=transport,
+            stop_requested=stop_requested,
+            server_factory=server_factory,
+            lifecycle=lifecycle,
+            archive_cache=archive_cache,
+        )
+    finally:
+        try:
+            if archive_cache is not None:
+                await asyncio.wait_for(archive_cache.close(), settings.shutdown_grace_seconds)
+        finally:
+            if lifecycle is not None:
+                # EOF still delegates cleanup to the surviving owner if this
+                # bounded graceful close cannot confirm it. Never kill the owner.
+                await lifecycle.close(deadline=time.monotonic() + settings.shutdown_grace_seconds)
+
+
+async def _serve(
+    settings: Settings,
+    *,
+    state: RuntimeState,
+    transport: ControlTransport,
+    stop_requested: asyncio.Event,
+    server_factory: Callable[..., RuntimeServer],
     lifecycle: PodmanLifecycle | None,
     archive_cache: ImmutableArchiveCache | None,
 ) -> None:
-    runtime_state = state or RuntimeState()
-    stop = stop_requested or asyncio.Event()
+    runtime_state = state
+    stop = stop_requested
     await to_thread_until_done(
         cleanup_orphan_workdirs, settings.work_root, name="runtime-orphan-cleanup"
     )
@@ -132,11 +192,7 @@ async def _serve(
     )
     # The process owns its private connections and closes them last (CTL-R164):
     # registration and heartbeats never wait behind Artifact transfers.
-    control_connections = PrivateConnections(outgoing_tls, verify_control_plane_peer)
     artifact_connections = PrivateConnections(outgoing_tls, verify_control_plane_peer)
-    control_transport = transport or MTLSJSONTransport(
-        settings.control_plane_url, control_connections, settings.request_timeout_seconds
-    )
     trust_fingerprint = await to_thread_until_done(
         tls_trust_fingerprint, outgoing_tls, name="archive-cache-trust"
     )
@@ -179,18 +235,12 @@ async def _serve(
     control = ControlClient(
         settings,
         runtime_state,
-        control_transport,
+        transport,
         watchdog=watchdog,
         reconciliation=allocation_service,
     )
     application = create_app(runtime_state, allocation_service=allocation_service)
     server = server_factory(create_server_config(settings, application, incoming_tls))
-
-    loop = asyncio.get_running_loop()
-    handled_signals = (signal.SIGINT, signal.SIGTERM)
-    if install_signal_handlers:
-        for handled_signal in handled_signals:
-            loop.add_signal_handler(handled_signal, stop.set)
 
     server_task = asyncio.create_task(server.serve(), name="runtime-private-server")
     registration_task: asyncio.Task[bool] | None = None
@@ -267,10 +317,6 @@ async def _serve(
             server_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await server_task
-        if install_signal_handlers:
-            for handled_signal in handled_signals:
-                loop.remove_signal_handler(handled_signal)
-        await control_connections.aclose()
         await artifact_connections.aclose()
         logger.info("runtime agent stopped")
 
@@ -314,8 +360,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         asyncio.run(serve(settings))
     except KeyboardInterrupt:
         logger.info("runtime agent interrupted")
-    except (WorkRootLockError, RegistrationRejectedError) as error:
-        # Both messages are built from safe, bounded fields for the operator.
+    except (WorkRootLockError, RegistrationRejectedError, SharedConfigError) as error:
+        # These messages contain only safe, bounded fields for the operator.
         logger.error("runtime agent failed: %s", error)
         raise SystemExit(1) from None
     except Exception as error:

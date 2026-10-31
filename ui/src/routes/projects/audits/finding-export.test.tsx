@@ -1,5 +1,5 @@
 import { webcrypto } from "node:crypto";
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import type { FindingExportRequest } from "../../../api/finding-exports";
@@ -185,7 +185,7 @@ describe("check SARIF export", () => {
     await view.user.click(
       screen.getByRole("checkbox", { name: "Include duplicates" }),
     );
-    await view.router.navigate("/other");
+    await act(() => view.router.navigate("/other"));
     await screen.findByText("Missing object authorization");
     open();
     expect(screen.getByText("0 selected for export")).toBeVisible();

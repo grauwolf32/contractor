@@ -7,7 +7,6 @@ from typing import Literal, Self
 from pydantic import Field, model_validator
 
 from contractor_runtime.contracts.artifacts import (
-    MAX_ARTIFACT_BYTES,
     ArtifactRef,
     validate_media_type,
 )
@@ -19,6 +18,7 @@ from contractor_runtime.contracts.base import (
     _require_resource_id,
     _require_sorted_unique,
 )
+from contractor_runtime.shared_config import artifact_payload_max_bytes
 
 MAX_SITEMAP_SNAPSHOT_INPUTS = 8
 
@@ -49,7 +49,13 @@ class SitemapInputDescriptor(WireModel):
     ref: ArtifactRef
     digest: str = Field(pattern=DIGEST_PATTERN.pattern)
     media_type: str
-    size_bytes: int = Field(ge=0, le=MAX_ARTIFACT_BYTES)
+    size_bytes: int = Field(ge=0)
+
+    @model_validator(mode="after")
+    def validate_payload_size(self) -> Self:
+        if self.size_bytes > artifact_payload_max_bytes():
+            raise ValueError("Artifact size exceeds the shared payload limit")
+        return self
 
     @model_validator(mode="after")
     def validate_descriptor(self) -> Self:

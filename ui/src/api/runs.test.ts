@@ -2,7 +2,7 @@ import { ARTIFACT_STORAGE_TIMESTAMPS } from "../test/builders";
 import { describe, expect, it, vi } from "vitest";
 
 import type { RuntimeConfig } from "../config/runtime-config";
-import { PublicAPI } from "./client";
+import { TestPublicAPI as PublicAPI } from "../test/shared-config";
 import { schemaLimit } from "./contract";
 import {
   CANCELLATION_REASON_BYTES,

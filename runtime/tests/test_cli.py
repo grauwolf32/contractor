@@ -85,7 +85,13 @@ _LABELS_REJECTED = (
 )
 
 
-class RejectingTransport:
+class ConfigTransport:
+    async def get_json(self, path: str) -> bytes:
+        assert path == "/private/v1/config"
+        return (Path(__file__).parent / "testdata/shared-config.json").read_bytes()
+
+
+class RejectingTransport(ConfigTransport):
     """A Control Plane that rejects every registration permanently."""
 
     def __init__(self) -> None:
@@ -183,7 +189,9 @@ def test_startup_orphan_cleanup_runs_off_the_event_loop(
 
         monkeypatch.setattr(runtime_cli, "cleanup_orphan_workdirs", observe_cleanup)
         with pytest.raises(CleanupObserved):
-            await runtime_cli.serve(make_settings(tmp_path), install_signal_handlers=False)
+            await runtime_cli.serve(
+                make_settings(tmp_path), transport=ConfigTransport(), install_signal_handlers=False
+            )
         assert cleanup_threads and cleanup_threads[0] != loop_thread
 
     asyncio.run(scenario())
@@ -202,7 +210,9 @@ def test_cancelled_startup_holds_root_lock_until_cleanup_thread_finishes(
             assert release.wait(timeout=5)
 
         monkeypatch.setattr(runtime_cli, "cleanup_orphan_workdirs", delayed_cleanup)
-        task = asyncio.create_task(runtime_cli.serve(settings, install_signal_handlers=False))
+        task = asyncio.create_task(
+            runtime_cli.serve(settings, transport=ConfigTransport(), install_signal_handlers=False)
+        )
         try:
             assert await asyncio.to_thread(started.wait, 2)
             task.cancel()
@@ -270,6 +280,15 @@ def test_process_sigterm_during_real_mtls_heartbeat_exits_cleanly(tmp_path: Path
 
     class Handler(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
+
+        def do_GET(self) -> None:
+            assert self.path == "/private/v1/config"
+            encoded = (Path(__file__).parent / "testdata/shared-config.json").read_bytes()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(encoded)))
+            self.end_headers()
+            self.wfile.write(encoded)
 
         def do_POST(self) -> None:
             length = int(self.headers["Content-Length"])
@@ -381,7 +400,7 @@ class FakeServer:
         self.stopped = True
 
 
-class InflightTransport:
+class InflightTransport(ConfigTransport):
     def __init__(self) -> None:
         self.heartbeat_started = asyncio.Event()
         self.heartbeat_cancelled = False

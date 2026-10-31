@@ -10,12 +10,12 @@ from pathlib import Path
 
 import pytest
 from fakes.artifact_reads import CountingPayload, count_derivations, hold_preparation
+from shared_config_defaults import MAX_ARTIFACT_BYTES
 
 import contractor_runtime.toolsets.common.artifact_read_cache as read_cache
 import contractor_runtime.toolsets.text_artifacts.tools as text_module
 from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import (
-    MAX_ARTIFACT_BYTES,
     ArtifactAPIError,
     ArtifactResponseLimitError,
     ArtifactValue,
@@ -203,7 +203,7 @@ def test_exact_artifact_cache_is_shared_bounded_and_cleared_on_close(
             assert cache._entry is None
             assert (await read_text("inputs", "report", updated.revision))["text"] == "new\n"
             assert text_client.read_calls == 2
-            monkeypatch.setattr(read_cache, "MAX_ARTIFACT_READ_CACHE_BYTES", 3)
+            monkeypatch.setattr(read_cache, "artifact_read_cache_max_bytes", lambda: 3)
             await read_text("inputs", "report", source.revision)
             assert cache._entry is None
             await read_text("inputs", "report", source.revision)
@@ -313,11 +313,11 @@ def test_cache_budget_holds_for_worst_case_inputs_of_the_largest_artifact(
         assert peak < 16 * 1024 * 1024
         entry = state._artifact_read_cache._entry
         assert entry is not None and entry.lines is not None and entry.value.data is data
-        index_budget = read_cache.MAX_ARTIFACT_READ_CACHE_BYTES - MAX_ARTIFACT_BYTES
+        index_budget = read_cache.artifact_read_cache_max_bytes() - MAX_ARTIFACT_BYTES
         starts = entry.lines._starts_before_block
         index_bytes = len(starts) * starts.itemsize
         assert index_bytes == index_budget
-        assert len(data) + index_bytes <= read_cache.MAX_ARTIFACT_READ_CACHE_BYTES
+        assert len(data) + index_bytes <= read_cache.artifact_read_cache_max_bytes()
         assert client.read_calls == 1
 
     asyncio.run(scenario())
@@ -325,8 +325,11 @@ def test_cache_budget_holds_for_worst_case_inputs_of_the_largest_artifact(
 
 def test_cache_budget_is_the_documented_limit() -> None:
     # LIM-ART-7: one 64 MiB payload plus 16,385 eight-byte line counts.
-    assert read_cache.MAX_CACHED_ARTIFACT_BYTES == MAX_ARTIFACT_BYTES == 67_108_864
-    assert read_cache.MAX_ARTIFACT_READ_CACHE_BYTES == 67_239_944
+    assert read_cache.artifact_payload_max_bytes() == MAX_ARTIFACT_BYTES
+    assert (
+        read_cache.artifact_read_cache_max_bytes()
+        == MAX_ARTIFACT_BYTES + read_cache._line_index_bytes(MAX_ARTIFACT_BYTES)
+    )
 
 
 def test_concurrent_first_reads_share_one_preparation(

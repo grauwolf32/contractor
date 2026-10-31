@@ -51,7 +51,7 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 	case errors.Is(err, errArtifactAccessDenied), errors.Is(err, artifacts.ErrReservedNamespace):
 		h.writeError(w, http.StatusForbidden, "artifact_access_denied", "allocation does not permit this artifact operation", false)
 	case errors.Is(err, artifacts.ErrPayloadTooLarge):
-		h.writeError(w, http.StatusRequestEntityTooLarge, "artifact_too_large", "artifact exceeds the 64 MiB limit", false)
+		h.writeError(w, http.StatusRequestEntityTooLarge, "artifact_too_large", "artifact exceeds the configured payload limit", false)
 	case errors.Is(err, artifacts.ErrTransferCapacity):
 		h.writeError(w, http.StatusServiceUnavailable, "artifact_transfer_capacity", "artifact transfer capacity is exhausted", true)
 	case errors.Is(err, artifacts.ErrArtifactIntegrity):

@@ -1,4 +1,5 @@
 import "./login.css";
+import { SharedConfigGate } from "../auth/shared-config-gate";
 import { useIsFetching, useQueryClient } from "@tanstack/react-query";
 import { Navigate, Outlet, useLocation } from "react-router";
 
@@ -61,7 +62,9 @@ export function AuthenticatedRoute() {
           />
         </div>
       )}
-      <Outlet />
+      <SharedConfigGate>
+        <Outlet />
+      </SharedConfigGate>
     </>
   );
 }

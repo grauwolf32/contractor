@@ -3,7 +3,8 @@ import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, type RouteObject } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 
-import { PublicAPI, type AuthSession } from "../api/client";
+import type { AuthSession } from "../api/client";
+import { TestPublicAPI as PublicAPI } from "../test/shared-config";
 import { APICompatibilityError } from "../api/error";
 import { UI_VERSION } from "../build";
 import type { RuntimeConfig } from "../config/runtime-config";

@@ -6391,6 +6391,36 @@ func (e ServerOperationConfigRef) Valid() bool {
 	}
 }
 
+// Defines values for SharedConfigApiVersion.
+const (
+	SharedConfigApiVersionContractorv1alpha1 SharedConfigApiVersion = "contractor/v1alpha1"
+)
+
+// Valid indicates whether the value is a known member of the SharedConfigApiVersion enum.
+func (e SharedConfigApiVersion) Valid() bool {
+	switch e {
+	case SharedConfigApiVersionContractorv1alpha1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SharedConfigVersion.
+const (
+	SharedConfigVersionN1 SharedConfigVersion = 1
+)
+
+// Valid indicates whether the value is a known member of the SharedConfigVersion enum.
+func (e SharedConfigVersion) Valid() bool {
+	switch e {
+	case SharedConfigVersionN1:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for SitemapMutationOperation.
 const (
 	Annotate      SitemapMutationOperation = "annotate"
@@ -13064,6 +13094,22 @@ type ServerOperationConfig_Arguments_AdditionalProperties struct {
 
 // ServerOperationConfigRef defines model for ServerOperationConfig.Ref.
 type ServerOperationConfigRef string
+
+// SharedConfig defines model for SharedConfig.
+type SharedConfig struct {
+	ApiVersion SharedConfigApiVersion `json:"apiVersion"`
+	Digest     string                 `json:"digest"`
+	Limits     struct {
+		ArtifactPayloadMaxBytes int `json:"artifactPayloadMaxBytes"`
+	} `json:"limits"`
+	Version SharedConfigVersion `json:"version"`
+}
+
+// SharedConfigApiVersion defines model for SharedConfig.ApiVersion.
+type SharedConfigApiVersion string
+
+// SharedConfigVersion defines model for SharedConfig.Version.
+type SharedConfigVersion int
 
 // SitemapEditorRule defines model for SitemapEditorRule.
 type SitemapEditorRule struct {
@@ -21077,6 +21123,13 @@ type ClientInterface interface {
 	// Corresponds with GET /v1/auth/session (the `GetSession` operationId).
 	GetSession(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetSharedConfig Read shared non-secret application limits
+	//
+	// Immutable startup policy, also served to Runtime over mTLS. No query or body is accepted.
+	//
+	// Corresponds with GET /v1/config (the `GetSharedConfig` operationId).
+	GetSharedConfig(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetAgentInstructions Read the loaded base instructions of an exact AgentTemplate
 	//
 	// Authenticated catalog read; excludes invocation context and performs no filesystem lookup.
@@ -22905,6 +22958,23 @@ func (c *Client) Logout(ctx context.Context, params *LogoutParams, reqEditors ..
 // Corresponds with GET /v1/auth/session (the `GetSession` operationId).
 func (c *Client) GetSession(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetSessionRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetSharedConfig Read shared non-secret application limits
+//
+// Immutable startup policy, also served to Runtime over mTLS. No query or body is accepted.
+//
+// Corresponds with GET /v1/config (the `GetSharedConfig` operationId).
+func (c *Client) GetSharedConfig(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetSharedConfigRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -28381,6 +28451,33 @@ func NewGetSessionRequest(server string) (*http.Request, error) {
 	}
 
 	operationPath := fmt.Sprintf("/v1/auth/session")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetSharedConfigRequest constructs an http.Request for the GetSharedConfig method
+func NewGetSharedConfigRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/config")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -36930,6 +37027,15 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with GET /v1/auth/session (the `GetSession` operationId).
 	GetSessionWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetSessionResponse, error)
 
+	// GetSharedConfigWithResponse Read shared non-secret application limits
+	//
+	// Immutable startup policy, also served to Runtime over mTLS. No query or body is accepted.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /v1/config (the `GetSharedConfig` operationId).
+	GetSharedConfigWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetSharedConfigResponse, error)
+
 	// GetAgentInstructionsWithResponse Read the loaded base instructions of an exact AgentTemplate
 	//
 	// Authenticated catalog read; excludes invocation context and performs no filesystem lookup.
@@ -43996,6 +44102,99 @@ func (r GetSessionResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r GetSessionResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// GetSharedConfigResponse200Headers the declared response headers of an HTTP 200 response for GetSharedConfig
+type GetSharedConfigResponse200Headers struct {
+	CacheControl *string
+	XRequestID   RequestId
+}
+
+// GetSharedConfigResponse400Headers the declared response headers of an HTTP 400 response for GetSharedConfig
+type GetSharedConfigResponse400Headers struct {
+	XRequestID RequestId
+}
+
+// GetSharedConfigResponse401Headers the declared response headers of an HTTP 401 response for GetSharedConfig
+type GetSharedConfigResponse401Headers struct {
+	WWWAuthenticate       *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// GetSharedConfigResponse500Headers the declared response headers of an HTTP 500 response for GetSharedConfig
+type GetSharedConfigResponse500Headers struct {
+	XRequestID RequestId
+}
+
+type GetSharedConfigResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *SharedConfig
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON500 the response for an HTTP 500 `application/json` response
+	JSON500 *InternalError
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *GetSharedConfigResponse200Headers
+	// Headers400 the parsed response headers for an HTTP 400 response
+	Headers400 *GetSharedConfigResponse400Headers
+	// Headers401 the parsed response headers for an HTTP 401 response
+	Headers401 *GetSharedConfigResponse401Headers
+	// Headers500 the parsed response headers for an HTTP 500 response
+	Headers500 *GetSharedConfigResponse500Headers
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetSharedConfigResponse) GetJSON200() *SharedConfig {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r GetSharedConfigResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetSharedConfigResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON500 returns the response for an HTTP 500 `application/json` response
+func (r GetSharedConfigResponse) GetJSON500() *InternalError {
+	return r.JSON500
+}
+
+// GetBody returns the raw response body bytes
+func (r GetSharedConfigResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetSharedConfigResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetSharedConfigResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetSharedConfigResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -61303,6 +61502,21 @@ func (c *ClientWithResponses) GetSessionWithResponse(ctx context.Context, reqEdi
 	return ParseGetSessionResponse(rsp)
 }
 
+// GetSharedConfigWithResponse Read shared non-secret application limits
+//
+// Immutable startup policy, also served to Runtime over mTLS. No query or body is accepted.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /v1/config (the `GetSharedConfig` operationId).
+func (c *ClientWithResponses) GetSharedConfigWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetSharedConfigResponse, error) {
+	rsp, err := c.GetSharedConfig(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetSharedConfigResponse(rsp)
+}
+
 // GetAgentInstructionsWithResponse Read the loaded base instructions of an exact AgentTemplate
 //
 // Authenticated catalog read; excludes invocation context and performs no filesystem lookup.
@@ -70650,6 +70864,117 @@ func ParseGetSessionResponse(rsp *http.Response) (*GetSessionResponse, error) {
 		response.Headers401 = &headers
 	case rsp.StatusCode == 500:
 		var headers GetSessionResponse500Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers500 = &headers
+	}
+
+	return response, nil
+}
+
+// ParseGetSharedConfigResponse parses an HTTP response from a GetSharedConfigWithResponse call
+func ParseGetSharedConfigResponse(rsp *http.Response) (*GetSharedConfigResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetSharedConfigResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest SharedConfig
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers GetSharedConfigResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.CacheControl = &value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers200 = &headers
+	case rsp.StatusCode == 400:
+		var headers GetSharedConfigResponse400Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers400 = &headers
+	case rsp.StatusCode == 401:
+		var headers GetSharedConfigResponse401Headers
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers401 = &headers
+	case rsp.StatusCode == 500:
+		var headers GetSharedConfigResponse500Headers
 		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
 			var value RequestId
 			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {

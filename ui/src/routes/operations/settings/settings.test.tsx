@@ -105,7 +105,7 @@ describe("Operations Scheduler settings", () => {
               "/v1/reviews",
             ].includes(path),
         ),
-    ).toEqual(["/v1/auth/session"]);
+    ).toEqual(["/v1/auth/session", "/v1/config"]);
   });
 
   it("shows Settings as an Operations section to operators", async () => {

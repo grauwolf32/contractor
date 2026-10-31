@@ -184,6 +184,10 @@
     "allocation-spec-compact.json": {
       "type": "AllocationSpec",
       "schema": "allocation.schema.json"
+    },
+    "shared-config.json": {
+      "type": "SharedConfig",
+      "schema": "shared-config.schema.json"
     }
   },
   "invalid": {
