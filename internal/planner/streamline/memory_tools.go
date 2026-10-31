@@ -70,35 +70,8 @@ func (t *plannerMemoryTool) Declaration() *genai.FunctionDeclaration {
 	}
 }
 
-// ProcessRequest deliberately mirrors ADK's function-tool packing without
-// delegating invocation to functiontool.New. That helper validates the
-// advertised JSON Schema before calling the handler and would expose the
-// framework's open-ended validation errors instead of Memory's closed error
-// vocabulary. The declaration remains exact; Run owns bounded validation.
 func (t *plannerMemoryTool) ProcessRequest(_ agent.Context, request *model.LLMRequest) error {
-	if request == nil {
-		return fmt.Errorf("Planner model request is required")
-	}
-	if request.Tools == nil {
-		request.Tools = make(map[string]any)
-	}
-	if _, duplicate := request.Tools[t.operation]; duplicate {
-		return fmt.Errorf("duplicate tool %q", t.operation)
-	}
-	request.Tools[t.operation] = t
-	if request.Config == nil {
-		request.Config = &genai.GenerateContentConfig{}
-	}
-	for _, packed := range request.Config.Tools {
-		if packed != nil && packed.FunctionDeclarations != nil {
-			packed.FunctionDeclarations = append(packed.FunctionDeclarations, t.Declaration())
-			return nil
-		}
-	}
-	request.Config.Tools = append(request.Config.Tools, &genai.Tool{
-		FunctionDeclarations: []*genai.FunctionDeclaration{t.Declaration()},
-	})
-	return nil
+	return packLocalTool(request, t, t.Declaration())
 }
 
 func (t *plannerMemoryTool) Run(
@@ -111,13 +84,13 @@ func (t *plannerMemoryTool) Run(
 	// memory_forbidden class even when the same model call also contains a
 	// malformed note argument.
 	if t.router && args.WorkerName != "" {
-		if _, allowed := t.planner.resolveMemoryBinding(t.bindings, args.WorkerName); !allowed {
+		if _, allowed := t.planner.resolveWorkerBinding(t.bindings, args.WorkerName); !allowed {
 			code = plannermemory.CodeForbidden
 		}
 	}
 	if code != "" {
 		started := time.Now()
-		binding, _ := t.planner.resolveMemoryBinding(t.bindings, args.WorkerName)
+		binding, _ := t.planner.resolveWorkerBinding(t.bindings, args.WorkerName)
 		failure := planner.Failure{
 			Code: code, Message: "Memory operation failed (" + code + ")", Retryable: false,
 		}
@@ -148,7 +121,7 @@ func (p *streamlinePlanner) callMemoryTool(
 	args memoryToolArgs,
 ) map[string]any {
 	started := time.Now()
-	binding, ok := p.resolveMemoryBinding(bindings, args.WorkerName)
+	binding, ok := p.resolveWorkerBinding(bindings, args.WorkerName)
 	safeArguments := memoryMetricArguments(operation, binding, args)
 	if !ok || binding.memory == nil {
 		failure := planner.Failure{
@@ -338,24 +311,6 @@ func stringArray(value any) ([]string, bool) {
 	default:
 		return nil, false
 	}
-}
-
-func (p *streamlinePlanner) resolveMemoryBinding(
-	bindings []workerBinding,
-	workerName string,
-) (workerBinding, bool) {
-	if !p.profile.routesWorkers {
-		if len(bindings) == 1 && workerName == "" {
-			return bindings[0], true
-		}
-		return workerBinding{}, false
-	}
-	for _, binding := range bindings {
-		if binding.logicalName == workerName {
-			return binding, true
-		}
-	}
-	return workerBinding{}, false
 }
 
 func memoryFailure(err error) planner.Failure {
