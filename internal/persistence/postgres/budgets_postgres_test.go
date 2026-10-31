@@ -384,7 +384,7 @@ func TestPostgresMigrationLeaderWaitOutlivesDDLLockTimeout(t *testing.T) {
 	}
 	pid := int32(connection.Conn().PgConn().PID())
 	connection.Release()
-	ddl := MigrationBudgets{StatementTimeout: time.Minute, LockTimeout: time.Millisecond}
+	ddl := MigrationBudgets{StatementTimeout: time.Minute, LockTimeout: 100 * time.Millisecond}
 	var result MigrationResult
 	done := make(chan error, 1)
 	go func() {
