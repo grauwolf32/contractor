@@ -5,7 +5,7 @@ milestone: ui-journey-usability
 epic: ui
 kind: feature
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages: [typescript, css]
 goal: >-
@@ -91,3 +91,4 @@ verification:
   - Native browser review rendered the real CheckItemView, CheckListPane and PaneLayout with isolated contract-checked fixtures, using existing local fonts and production CSS. Desktop and narrow viewports preserve evidence and navigation without horizontal document overflow.
   - Review regression follows the real issue route and browser Back to the same selected endpoint, retains return context, and covers all five finding states; evidence and Next endpoint remain visible.
   - No Server, API, generated client, runtime dependency, model configuration or demo data changes.
+implementation_commit: 54fa58954e9ccf3d75d7d39029a393ee46fc43fd
