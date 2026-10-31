@@ -828,7 +828,6 @@ def test_shared_nuclei_pinned_worker_manifest_receipt_and_private_bytes(
     from test_tool_worker import ArtifactStore, request, tool_spec, worker
 
     from contractor_runtime.artifacts import ArtifactClient
-    from contractor_runtime.contracts import ArtifactRef
     from contractor_runtime.contracts.tool_execution import ToolArgumentBinding
     from contractor_runtime.digests import _agent_template_digest
 
@@ -854,9 +853,6 @@ def test_shared_nuclei_pinned_worker_manifest_receipt_and_private_bytes(
             )
         spec.agent_template.ref.digest = _agent_template_digest(spec.agent_template)
         value = request(spec, target="http://target.invalid/")
-        value.result_artifacts["template_manifest"] = ArtifactRef(
-            namespace=spec.namespace, name="template-manifest"
-        )
         runtime = await worker(tmp_path, store, tool, spec=spec)
         store.fail_terminal = outcome == "unknown"
         completion = await runtime.invoke(value)
@@ -883,6 +879,8 @@ def test_shared_nuclei_pinned_worker_manifest_receipt_and_private_bytes(
             observation = report["observation"]
             assert observation["results"][0]["privateBytes"] == NUCLEI_PIN_FIXTURE
             assert observation["templateManifest"]["revision"] == revision
+            assert "artifacts" not in observation
+            assert set(completion.result.artifacts) == {"report"}
             assert (
                 observation["expectedPackageDigest"] == observation["actualPackageDigest"] == digest
             )
@@ -905,7 +903,6 @@ def test_shared_nuclei_large_package_manifest_survives_worker_and_replay(tmp_pat
     from test_tool_worker import ArtifactStore, request, tool_spec, worker
 
     from contractor_runtime.artifacts import ArtifactClient
-    from contractor_runtime.contracts import ArtifactRef
     from contractor_runtime.contracts.tool_execution import ToolArgumentBinding
     from contractor_runtime.digests import _agent_template_digest
 
@@ -929,9 +926,6 @@ def test_shared_nuclei_large_package_manifest_survives_worker_and_replay(tmp_pat
         )
         spec.agent_template.ref.digest = _agent_template_digest(spec.agent_template)
         value = request(spec)
-        value.result_artifacts["template_manifest"] = ArtifactRef(
-            namespace=spec.namespace, name="template-manifest"
-        )
         runtime = await worker(tmp_path, store, tool, spec=spec)
         completion = await runtime.invoke(value)
         assert completion.failure is None, completion
@@ -1065,7 +1059,6 @@ def test_shared_nuclei_cancel_joins_process_and_never_rescans(tmp_path, monkeypa
     from test_tool_worker import ArtifactStore, request, tool_spec, worker
 
     from contractor_runtime.artifacts import ArtifactClient
-    from contractor_runtime.contracts import ArtifactRef
     from contractor_runtime.contracts.tool_execution import ToolArgumentBinding
     from contractor_runtime.digests import _agent_template_digest
 
@@ -1084,9 +1077,6 @@ def test_shared_nuclei_cancel_joins_process_and_never_rescans(tmp_path, monkeypa
         )
         spec.agent_template.ref.digest = _agent_template_digest(spec.agent_template)
         value = request(spec)
-        value.result_artifacts["template_manifest"] = ArtifactRef(
-            namespace=spec.namespace, name="template-manifest"
-        )
         runtime = await worker(tmp_path, store, tool, spec=spec)
         task = asyncio.create_task(runtime.invoke(value))
         async with asyncio.timeout(5):
@@ -1114,7 +1104,6 @@ def test_shared_nuclei_manifest_publication_failure_never_scans(tmp_path, monkey
     from test_tool_worker import ArtifactStore, request, tool_spec, worker
 
     from contractor_runtime.artifacts import ArtifactClient, ArtifactTransportError
-    from contractor_runtime.contracts import ArtifactRef
     from contractor_runtime.contracts.tool_execution import ToolArgumentBinding
     from contractor_runtime.digests import _agent_template_digest
 
@@ -1141,9 +1130,6 @@ def test_shared_nuclei_manifest_publication_failure_never_scans(tmp_path, monkey
         )
         spec.agent_template.ref.digest = _agent_template_digest(spec.agent_template)
         value = request(spec)
-        value.result_artifacts["template_manifest"] = ArtifactRef(
-            namespace=spec.namespace, name="template-manifest"
-        )
         runtime = await worker(tmp_path, store, tool, spec=spec)
         assert (await runtime.invoke(value)).failure.code == "tool_execution_failed"
         recreated = await worker(tmp_path, store, tool, spec=spec)

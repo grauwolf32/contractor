@@ -728,10 +728,7 @@ func TestMutationPrecedenceTable(t *testing.T) {
 		{name: "putSchedulerSettings text/plain", method: http.MethodPut, path: "/v1/operations/settings/scheduler",
 			headers: map[string]string{"Content-Type": "text/plain"}, body: `{}`,
 			status: http.StatusUnsupportedMediaType, code: "unsupported_media_type"},
-		// Scan sweeps.
 		{name: "mutateProjectSitemap without key", method: http.MethodPost, path: "/v1/projects/project-one/sitemap/mutations", headers: jsonBody, body: `{}`, status: http.StatusBadRequest, code: "invalid_request"},
-		{name: "createScanSweep without key", method: http.MethodPost, path: "/v1/scan-sweeps", headers: jsonBody,
-			body: `{}`, status: http.StatusBadRequest, code: "invalid_request"},
 	}
 	for _, c := range cases {
 		c.run(t, fixture)

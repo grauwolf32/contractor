@@ -348,26 +348,6 @@
       "rule": "LIM-RCF-23"
     },
     {
-      "schema": "CreateScanSweepRequest",
-      "path": [
-        "properties",
-        "parameters",
-        "propertyNames"
-      ],
-      "maxBytes": 128,
-      "rule": "LIM-SCN-94"
-    },
-    {
-      "schema": "CreateScanSweepRequest",
-      "path": [
-        "properties",
-        "parameters",
-        "additionalProperties"
-      ],
-      "maxBytes": 2048,
-      "rule": "LIM-SCN-94"
-    },
-    {
       "schema": "ArchiveFilePath",
       "path": [],
       "maxBytes": 1024,

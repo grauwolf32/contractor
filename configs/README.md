@@ -23,9 +23,8 @@ not valid `ServerConfig` fields.
 
 The current user-facing Workflow set is:
 
-- `nuclei-web@1` for one explicit HTTP(S) URL with optional rule/filter/rate
-  parameters and a pinned installed rules package; see [scanner setup](../runtime/README.md#cli-scanners);
-
+- `audit-web-nuclei-scan@1` for the `web-scan@1` AuditProfile: one explicit
+  target with installed or exact custom rules; see [scanner setup](../runtime/README.md#cli-scanners);
 - `openapi-from-workspace@7` and `likec4-from-workspace@7` for four-Stage local
   graph-backed analysis and document generation;
 - `openapi-from-workspace-streamline@2` and `likec4-from-workspace-streamline@4`

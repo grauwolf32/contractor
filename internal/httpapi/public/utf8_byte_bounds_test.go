@@ -34,8 +34,8 @@ import (
 // utf8ByteBoundOwners binds each shared byte-bounded rule to the Go bound
 // that enforces it. A rule marked -1 is bound field by field by its owner's
 // own test: LIM-AUD-29 is unexported in auditservice
-// (TestSharedAuditTextBoundsCountUTF8Bytes), and LIM-RCF-23 and LIM-SCN-94
-// carry two bounds each (credentials and scanservice tests).
+// (TestSharedAuditTextBoundsCountUTF8Bytes), and LIM-RCF-23
+// carries two bounds (credential tests).
 var utf8ByteBoundOwners = map[string]int{
 	"LIM-SMT-2":  projectsitemap.MaxMemberKeyBytes,
 	"LIM-SMT-6":  projectsitemap.MaxNoteBytes,
@@ -56,7 +56,6 @@ var utf8ByteBoundOwners = map[string]int{
 	"LIM-GIT-24": contracts.MaxGitSourceURLBytes,
 	"LIM-RCF-1":  llmgateway.MaximumGatewayFailureSignatureText,
 	"LIM-RCF-23": -1,
-	"LIM-SCN-94": -1,
 	"LIM-API-27": artifactpreview.MaximumPathBytes,
 }
 

@@ -64,7 +64,7 @@ func publicRequestBodyBounds() map[string]requestBodyBound {
 		"importAuditFindingProposal", "createAuditFindingReview", "decideAuditReview", "putOwnerQueueControl",
 		"createRun", "retryRunGateway", "resumeRun", "cancelRun", "publishConfiguration", "putRuntimeLabel",
 		"createRuntimeCredential", "replaceRuntimeAgentPrincipalLabels", "createCredential", "putModelSelection",
-		"putSchedulerSettings", "createScanSweep",
+		"putSchedulerSettings",
 	} {
 		bounds[operation] = tooLarge(maxJSONRequestSize)
 	}

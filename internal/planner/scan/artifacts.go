@@ -9,6 +9,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	contractscan "github.com/grauwolf32/contractor/internal/contracts/scan"
 	"github.com/grauwolf32/contractor/internal/planner"
 )
 
@@ -50,7 +51,7 @@ func (s *ServiceArtifacts) Resolve(ctx context.Context, runID string, target con
 }
 
 func (s *ServiceArtifacts) Read(ctx context.Context, runID string, ref contracts.ArtifactRef, limit int) (artifacts.Payload, error) {
-	if ref.ValidateExact() != nil || limit < 1 || limit > planner.MaxScanArtifactBytes {
+	if ref.ValidateExact() != nil || limit < 1 || limit > max(planner.MaxScanArtifactBytes, contractscan.MaxNucleiRulepackZIPBytes) {
 		return artifacts.Payload{}, fmt.Errorf("invalid exact scan artifact read: %w", contracts.ErrValidation)
 	}
 	store, err := s.service.Run(runID)

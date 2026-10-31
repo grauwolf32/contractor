@@ -192,7 +192,7 @@ its owning requirement.
 | `LIM-API-16` | 500 ms | Initial UI reconnect delay (exponential backoff with full jitter) | Web UI live event client | [API-R66](../api/public-api.md) |
 | `LIM-API-17` | 30 seconds | Maximum UI reconnect delay (delay doubles up to this value, full jitter) | Web UI live event client | [API-R66](../api/public-api.md) |
 | `LIM-API-18` | 200 items (default 50) | Page of every public collection that takes the shared `limit` parameter; the stores behind it accept the 201-row read that includes the look-ahead row | Server public API, its stores and the CLI; UI receives `publicPageMaxItems` through CTL-R171 | [API-R67](../api/public-api.md) |
-| `LIM-API-19` | 1 to 256 characters in `[A-Za-z0-9][A-Za-z0-9_.:-]*` | Public `ResourceId`, `Revision` and live event `SafeIdentifier` values (Run, StageExecution, allocation, Project, Audit and Eval identities, Artifact revisions, event stream identities) | Server handlers, live event protocol and stores at write (contracts.ValidResourceID); PostgreSQL CHECK constraints `audit_events_entity_id_check`, `audit_executions_terminal_run_generation_check` and `scan_sweep_members_project_id_check` on the stored identity | [API-R70](../api/public-api.md) |
+| `LIM-API-19` | 1 to 256 characters in `[A-Za-z0-9][A-Za-z0-9_.:-]*` | Public `ResourceId`, `Revision` and live event `SafeIdentifier` values (Run, StageExecution, allocation, Project, Audit and Eval identities, Artifact revisions, event stream identities) | Server handlers, live event protocol and stores at write (contracts.ValidResourceID); PostgreSQL CHECK constraints `audit_events_entity_id_check`, `audit_executions_terminal_run_generation_check` on the stored identity | [API-R70](../api/public-api.md) |
 | `LIM-API-20` | 1 to 128 characters in `[A-Za-z0-9][A-Za-z0-9_.-]*` | Public `ConfigId` and `ArtifactName` values (principal user ID, diagnostic code, Artifact namespace and name, Stage and logical Agent names) | Server handlers, authentication and stores (contracts.ValidName) | [API-R70](../api/public-api.md) |
 | `LIM-API-21` | 1 second | Interval after which a Run with live subscriptions catches up without a wake-up while Server has no established Run event notification listener | Server live event WebSocket | [API-R72](../api/public-api.md) |
 | `LIM-API-22` | 15 seconds | Interval after which a Run with live subscriptions catches up without a wake-up while the Run event notification listener is established; bounds the delivery delay of a lost notification | Server live event WebSocket | [API-R72](../api/public-api.md) |
@@ -650,7 +650,7 @@ its owning requirement.
 | `LIM-PRJ-3` | 1 character to 160 bytes of UTF-8 (non-empty) | Project name | Server (Project API and store); declared as x-max-utf8-bytes; PostgreSQL CHECK constraint `projects_name_check` | [PRJ-R2](../artifacts/projects.md) |
 | `LIM-PRJ-4` | 5 counted transient publication failures; the next replay attempts no publication | Terminal transactions of one finalizing StageExecution of a successful Project Run aborted by a transient output publication failure | Workflow Scheduler (finalization recovery and the terminal Run transaction) | [PRJ-R58](../artifacts/projects.md) |
 | `LIM-PRJ-5` | at most 4,096 bytes of UTF-8 | Project description | Server Project API and store; declared as x-max-utf8-bytes; PostgreSQL CHECK constraint `projects_description_check` | [PRJ-R96](../artifacts/projects.md) |
-| `LIM-PRJ-6` | 1 to 2,048 bytes of UTF-8 | Project HTTP target URL, and the copies a Run's Project target snapshot and a scan sweep member keep | Server Project store and Run creation (runtimesettings endpoint validation through HTTPOriginTargetRef.Validate); declared as maxLength 2048 on ProjectHTTPTarget.url; PostgreSQL CHECK constraints `projects_http_target_shape`, `workflow_runs_project_http_target_shape` and `scan_sweep_members_target_check` | [PRJ-R69](../artifacts/projects.md) |
+| `LIM-PRJ-6` | 1 to 2,048 bytes of UTF-8 | Project HTTP target URL, and its Run Project-target snapshot | Server Project store and Run creation (runtimesettings endpoint validation through HTTPOriginTargetRef.Validate); declared as maxLength 2048 on ProjectHTTPTarget.url; PostgreSQL CHECK constraints `projects_http_target_shape`, `workflow_runs_project_http_target_shape` | [PRJ-R69](../artifacts/projects.md) |
 | `LIM-RCF-1` | 512 bytes (trimmed UTF-8) | Text of each failureSignatures.modelUnavailable entry (messageEquals or litellmWrapped) | Server configuration loading (LLMGatewayConfig validation); declared as x-max-utf8-bytes | [RCF-R20](../configuration/runtime-config.md) |
 | `LIM-RCF-2` | 32 distinct entries per list | failureSignatures.modelUnavailable and failureSignatures.permanentCodes lists | Server configuration loading (LLMGatewayConfig validation) | [RCF-R23](../configuration/runtime-config.md) |
 | `LIM-RCF-3` | 1–16,384 UTF-8 bytes | Secret token returned by the Gateway credential manager for an LLM credential | Server credential creation; PostgreSQL CHECK constraint `llm_credentials_ciphertext_check` on the stored AES-GCM ciphertext, the token plus its 16-byte tag (17 to 16,400 bytes) | [RCF-R39](../configuration/runtime-config.md) |
@@ -813,11 +813,11 @@ its owning requirement.
 | `LIM-SCN-73` | 100000 entries | pinned Nuclei package tree including directories | Runtime private snapshot traversal | [SCN-R227](../tools/scanners.md) |
 | `LIM-SCN-74` | 64 directories | pinned Nuclei package nesting depth | Runtime private snapshot traversal | [SCN-R227](../tools/scanners.md) |
 | `LIM-SCN-75` | 1024 UTF-8 bytes | pinned Nuclei package-relative path | Runtime private snapshot traversal | [SCN-R227](../tools/scanners.md) |
-| `LIM-SCN-76` | 1000 unique Projects | client scan-sweep selection | CLI capture and strict manifest reader | [SCN-R234](../tools/scanners.md) |
-| `LIM-SCN-77` | 8 MiB | local client sweep manifest and each replacement | CLI capture/read/atomic persistence | [SCN-R234](../tools/scanners.md) |
-| `LIM-SCN-78` | 16 KiB | one captured sweep child CreateRunRequest | CLI capture and strict manifest reader | [SCN-R234](../tools/scanners.md) |
-| `LIM-SCN-79` | 4 MiB | each client sweep API response | CLI and UI bounded response decoders | [SCN-R234](../tools/scanners.md) |
-| `LIM-SCN-80` | default 30 minutes; maximum 24 hours | one scan-sweep command invocation | CLI overall deadline, independent of API attempt timeout | [SCN-R235](../tools/scanners.md) |
+| `LIM-SCN-76` | Retired | Independent scan orchestration removed | No current bound | [SCN-R225](../tools/scanners.md) |
+| `LIM-SCN-77` | Retired | Independent scan orchestration removed | No current bound | [SCN-R225](../tools/scanners.md) |
+| `LIM-SCN-78` | Retired | Independent scan orchestration removed | No current bound | [SCN-R225](../tools/scanners.md) |
+| `LIM-SCN-79` | Retired | Independent scan orchestration removed | No current bound | [SCN-R225](../tools/scanners.md) |
+| `LIM-SCN-80` | Retired | Independent scan orchestration removed | No current bound | [SCN-R225](../tools/scanners.md) |
 | `LIM-SCN-81` | 16 MiB | one custom ZIP | Artifact admission and Runtime bounded read | [SCN-R239](../tools/scanners.md), [SCN-R240](../tools/scanners.md) |
 | `LIM-SCN-82` | 64 MiB | expanded custom pack | Streaming extraction before writes | [SCN-R239](../tools/scanners.md), [SCN-R240](../tools/scanners.md) |
 | `LIM-SCN-83` | 1000 | custom pack files | ZIP preflight and extraction | [SCN-R239](../tools/scanners.md), [SCN-R240](../tools/scanners.md) |
@@ -825,13 +825,13 @@ its owning requirement.
 | `LIM-SCN-85` | 128 UTF-8 bytes | flat custom filename | Extraction name validation | [SCN-R239](../tools/scanners.md), [SCN-R240](../tools/scanners.md) |
 | `LIM-SCN-86` | 100000 | YAML tokens per template | Streaming token validation | [SCN-R239](../tools/scanners.md), [SCN-R240](../tools/scanners.md) |
 | `LIM-SCN-87` | 64 | YAML nesting depth | Streaming token validation | [SCN-R239](../tools/scanners.md), [SCN-R240](../tools/scanners.md) |
-| `LIM-SCN-88` | 1000 Projects; 8 MiB closure plus requests; 16 KiB per child | one durable server sweep | Transactional admission, 1001-row overflow read; PostgreSQL CHECK constraints `scan_sweeps_snapshot_check`, at most 8 MiB for the snapshot alone, and `scan_sweep_members_child_check`, 2 bytes to 16 KiB per child | [SCN-R246](../tools/scanners.md) |
-| `LIM-SCN-89` | 25 members / 4 MiB per fan-out tick; 200 items per public page | sweep progression and reads | Indexed bounded reads and maintained counters | [SCN-R247](../tools/scanners.md) |
-| `LIM-SCN-90` | 24 hours; at most 100 attempts; backoff at most 300 seconds | pending member admission | Captured admission deadline and retry count | [SCN-R249](../tools/scanners.md) |
-| `LIM-SCN-91` | 30-second tick; 10-second child; 60-second claim; 5-second release; 1-second poll | sweep controller | Independent contexts, existing claims and joined release | [SCN-R249](../tools/scanners.md) |
-| `LIM-SCN-92` | 30 days after settlement; one parent and at most 25 member deletions per minute | automatic sweep retention | Terminal-only indexed maintenance | [SCN-R251](../tools/scanners.md) |
+| `LIM-SCN-88` | Retired | Independent scan orchestration removed | No current bound | [SCN-R225](../tools/scanners.md) |
+| `LIM-SCN-89` | Retired | Independent scan orchestration removed | No current bound | [SCN-R225](../tools/scanners.md) |
+| `LIM-SCN-90` | Retired | Independent scan orchestration removed | No current bound | [SCN-R225](../tools/scanners.md) |
+| `LIM-SCN-91` | Retired | Independent scan orchestration removed | No current bound | [SCN-R225](../tools/scanners.md) |
+| `LIM-SCN-92` | Retired | Independent scan orchestration removed | No current bound | [SCN-R225](../tools/scanners.md) |
 | `LIM-SCN-93` | 5 seconds each | tool Worker State admission and terminal publication | Runtime tool Worker; joined cleanup and fencing on terminal publication failure | [SCN-R51](../tools/scanners.md) |
-| `LIM-SCN-94` | 32 parameters; name at most 128 and value at most 2,048 bytes of UTF-8 | parameters of one scan sweep request | Server scan sweep admission; declared as x-max-utf8-bytes | [SCN-R244](../tools/scanners.md) |
+| `LIM-SCN-94` | Retired | Independent scan orchestration removed | No current bound | [SCN-R225](../tools/scanners.md) |
 | `LIM-SEC-1` | 256 bits (exactly 32 decoded bytes) | Credential-encryption master key in the --credential-master-key-file (RFC 4648 base64) | Server startup (master key loader) | [SEC-R17](security.md) |
 | `LIM-SEC-2` | at most 1 trailing newline | Content of the credential master key file | Server startup (master key loader) | [SEC-R17](security.md) |
 | `LIM-SEC-3` | 1 active master key | Credential-encryption keyring | Server | [SEC-R20](security.md) |

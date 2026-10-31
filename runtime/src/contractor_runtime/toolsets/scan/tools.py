@@ -864,11 +864,6 @@ class NucleiTool(JSONLinesScanTool):
                     value["rateLimit"] = rate_limit
                 else:
                     value["httpLimits"] = self._session.controlled_http.configured_limits()
-                value["artifacts"] = (
-                    {"template_manifest": prepared.template_manifest}
-                    if prepared.template_manifest is not None
-                    else {}
-                )
             return value
 
         return await self._call(

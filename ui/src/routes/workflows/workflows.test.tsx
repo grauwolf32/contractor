@@ -859,7 +859,7 @@ describe("Workflow routes", () => {
     });
     const nucleiWorkflow: WorkflowResource = {
       ...workflow,
-      ref: { name: "nuclei-web", version: "1" },
+      ref: { name: "fixture-http-scanner", version: "1" },
       parameters: { target: { required: true } },
       inputs: {
         rulepack: {
@@ -910,7 +910,7 @@ describe("Workflow routes", () => {
     );
     await waitFor(() => expect(posts).toHaveLength(1));
     expect(posts[0]).toMatchObject({
-      workflow: "nuclei-web@1",
+      workflow: "fixture-http-scanner@1",
       parameters: { target: "https://example.test" },
     });
     expect((posts[0] as { artifacts?: unknown }).artifacts).toEqual({});
@@ -928,7 +928,7 @@ describe("Workflow routes", () => {
     });
     const nucleiWorkflow: WorkflowResource = {
       ...workflow,
-      ref: { name: "nuclei-web", version: "1" },
+      ref: { name: "fixture-http-scanner", version: "1" },
       parameters: { target: { required: true } },
       inputs: {
         rulepack: {

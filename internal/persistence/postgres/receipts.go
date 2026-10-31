@@ -52,12 +52,6 @@ func RuntimeManagementReceiptKey(keyDigest string) ReceiptKey {
 	return ReceiptKey{scope: []string{"runtime-management"}, key: keyDigest}
 }
 
-// ScanSweepReceiptKey keeps owner-bound creation replayable after sweep purge.
-// It retains only the original sweep identity and request digest.
-func ScanSweepReceiptKey(ownerID, idempotencyKey string) ReceiptKey {
-	return ReceiptKey{scope: []string{"scan-sweep", ownerID, "scan-sweep.create"}, key: idempotencyKey}
-}
-
 // ProjectReceiptKey binds a resource operation to its owner and Project. Its
 // receipt survives resource changes and leaves only in Project purge.
 func ProjectReceiptKey(ownerID, projectID, resourceID, operation, idempotencyKey string) ReceiptKey {

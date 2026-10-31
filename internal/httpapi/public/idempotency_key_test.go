@@ -14,7 +14,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/credentials"
-	"github.com/grauwolf32/contractor/internal/scanstore"
 )
 
 // TestSharedIdempotencyKeyCasesMatchPublicHeaderParameters holds both public
@@ -166,18 +165,6 @@ func TestSharedIdempotencyKeyCasesGateEvalMutations(t *testing.T) {
 	}
 }
 
-// countingSweepCancels counts the scan sweep cancellations that reach the
-// service.
-type countingSweepCancels struct {
-	*fakeScanSweeps
-	cancels *int
-}
-
-func (s countingSweepCancels) Cancel(ctx context.Context, owner, sweepID string) (scanstore.Sweep, error) {
-	*s.cancels++
-	return s.fakeScanSweeps.Cancel(ctx, owner, sweepID)
-}
-
 // countingCredentialDeletes counts the RuntimeCredential deletions that reach
 // the service.
 type countingCredentialDeletes struct {
@@ -199,17 +186,15 @@ func (s countingCredentialDeletes) Delete(ctx context.Context, id, actor string)
 // it without a request here, or a request whose operation does not declare
 // it, fails the test.
 func TestSharedIdempotencyKeyCasesGateOptionalKeys(t *testing.T) {
-	calls := map[string]*int{"cancelScanSweep": new(int), "deleteRuntimeCredential": new(int)}
+	calls := map[string]*int{"deleteRuntimeCredential": new(int)}
 	fixture := newHandlerFixtureWithAuth(t, "../../config/testdata/valid", newTestAuthentication(t), mustTestOrigins(t), false, nil,
 		func(services *testServices) {
-			services.ScanSweeps = countingSweepCancels{fakeScanSweeps: &fakeScanSweeps{}, cancels: calls["cancelScanSweep"]}
 			services.RuntimeCredentials = countingCredentialDeletes{
 				fakeRuntimeCredentialManagement: services.RuntimeCredentials.(*fakeRuntimeCredentialManagement),
 				deletes:                         calls["deleteRuntimeCredential"],
 			}
 		})
 	requests := map[string]struct{ method, path string }{
-		"cancelScanSweep":         {http.MethodPost, "/v1/scan-sweeps/sweep-one/cancel"},
 		"deleteRuntimeCredential": {http.MethodDelete, "/v1/operations/runtime-credentials/otel-debug"},
 	}
 	document := loadPublicOpenAPI(t)
@@ -282,7 +267,7 @@ func TestSharedIdempotencyKeyCasesGateOptionalKeys(t *testing.T) {
 // TestSharedIdempotencyKeyCasesGateEveryKeyedOperation sends each keyed
 // operation other than the Eval mutations (Runs, Projects, Audits and their
 // reviews, configuration, RuntimeConfig, credentials, Runtime Agent
-// principals and scan sweeps) a key outside the grammar of the shared cases,
+// principals) a key outside the grammar of the shared cases,
 // such as a/b or -a, and every duplicate header set. Each is 400
 // invalid_request before its dependency is reached: the dependencies of
 // keyedOperationRequests answer any request that reaches them with an

@@ -178,8 +178,7 @@ example/default data and property names are not schema constraints. The Go publi
 client replays only requests with a replayable method or idempotency key and a
 rewindable body, at most three attempts per call. It honours a valid Retry-After
 up to 30 seconds; a longer delay returns the response for explicit later resume,
-without an early retry. Scanner sweep recovery uses that existing transport
-([SCN-R235](../tools/scanners.md)).
+without an early retry.
 
 **API-R70.** Every identity the public API shows as a `ResourceId` (or as the
 `Revision` and live event `SafeIdentifier` it equals) uses the resource
@@ -261,7 +260,7 @@ LIM-PRJ-5), Audit scope fields (LIM-AUD-29), review rationales (LIM-REV-11),
 Run metadata label values (LIM-RUN-5), the login password (LIM-SEC-7), Git
 import refs and repository URLs (LIM-GIT-22, LIM-GIT-23), the Git SSH key
 (LIM-GIT-3), Gateway failure signature texts (LIM-RCF-1), Basic credentials
-(LIM-RCF-23), scan sweep parameters (LIM-SCN-94), archive file paths
+(LIM-RCF-23), archive file paths
 (LIM-API-27), Audit artifact keys and item subject keys (LIM-AUD-39,
 LIM-AUD-40), sitemap mutation URLs (LIM-SMT-2) and sitemap rule pointers
 (LIM-SMT-16). Every other request string with a `maxLength`, in a body or a
@@ -444,15 +443,12 @@ retryability. Managed Eval mutations report the same outcome as
 client never retries a response marked `retryable` false, whatever its
 status.
 
-**API-R28.** RuntimeCredential deletion and scan sweep cancellation are the
-exceptions (the OpenAPI `OptionalIdempotencyKey` parameter): a durable
-tombstone or the sweep's own state makes each idempotent by resource identity,
-so it accepts but neither requires nor binds an idempotency key. A supplied
-key is still one header in the API-R69 grammar, or the request is
-`400 invalid_request` and changes nothing. The RuntimeCredential replay
-response is in Runtime configuration
-([RCF-R176](../configuration/runtime-config.md)); sweep cancellation is in
-Scanners ([SCN-R250](../tools/scanners.md)).
+**API-R28.** RuntimeCredential deletion is idempotent by resource identity
+through its durable tombstone (the OpenAPI `OptionalIdempotencyKey` parameter).
+It accepts but neither requires nor binds an idempotency key. A supplied key
+is still one header in the API-R69 grammar, or the request is
+`400 invalid_request` and changes nothing. The replay response is defined in
+[RCF-R176](../configuration/runtime-config.md).
 
 **API-R112.** A mutation checks its request metadata before it reads its
 body or a store, and a request that fails one of these checks reads no byte
@@ -888,16 +884,8 @@ and the route table tests in
    `TestHeadNeverReachesAPublicOperationHandler` and
    `TestHeadOnEveryPublicGetRouteIsRejectedAfterAuthentication`.
 
-### Durable scan sweeps
-
-**API-R109.** The authenticated owner creates, lists, reads, pages members,
-cancels and purges durable scan sweeps through `/v1/scan-sweeps`. Creation
-requires `Idempotency-Key`; cancellation is idempotent by resource identity.
-Foreign and absent identities return `not_found`. Storage-reaching routes
-document retryable `503 storage_transaction_conflict`. The scanner owner
-defines snapshot, bounds and lifecycle in [SCN-R244](../tools/scanners.md)
-through [SCN-R251](../tools/scanners.md); OpenAPI defines the exact fields.
-
+**API-R109.** Retired: independent scan resources and their public operations
+were removed. Target scans use ordinary Project Audit APIs (ASC-R151 to ASC-R153).
 
 **API-R113.** Authenticated `GET /v1/config` returns the non-secret shared
 startup policy owned by CTL-R171, with the same version, limits and digest as

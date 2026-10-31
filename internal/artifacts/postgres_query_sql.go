@@ -143,7 +143,7 @@ WHERE revision.scope_kind = $1 AND revision.scope_id = $2
 ORDER BY revision.created_at DESC, revision.revision DESC
 LIMIT $7`
 
-// listUserMetadataSQL uses the library-only partial index. Sweep snapshots
+// listUserMetadataSQL uses the library-only partial index. Server-owned bindings
 // and catalog packages do not enter the scan before LIMIT (ART-R119).
 var listUserMetadataSQL = `
 SELECT binding.namespace, binding.name, revision.revision,

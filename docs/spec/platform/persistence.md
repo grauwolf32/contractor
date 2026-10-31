@@ -180,7 +180,6 @@ own the rules of particular state are indexed in the next section.
 | `internal/projectstore` | `projects` |
 | `internal/runstore` | `owner_queue_controls`, `planner_sessions`, `run_stage_resumptions`, `stage_allocations`, `stage_executions`, `stage_transition_decisions`, `workflow_run_events`, `workflow_run_output_publications`, `workflow_runs` |
 | `internal/runtimeconfig` | `runtime_config_versions`, `runtime_label_bindings` |
-| `internal/scanstore` | `scan_sweeps`, `scan_sweep_members` |
 | `internal/settingsstore` | `scheduler_settings`, `model_selection_settings` |
 | `internal/telemetry` | `allocation_execution_reports`, `planner_execution_reports`, `stage_metrics` |
 
@@ -412,7 +411,7 @@ or read again. The work that runs from startup:
 | LLM credential operation journal and records, Runtime credentials | Lease-fenced (PER-R34) |
 | Scheduler Run claims and the work under them | A Server claims only a Run whose claim is free or expired, and a lane gives its claim up before it expires ([SCH-R120, SCH-R166](../execution/scheduler.md)); the Scheduler reads Run state on every pass |
 | Gateway recovery probe | A leased probe whose lease ends with its holder's request timeout ([SCH-R106](../execution/scheduler.md)), read on every admission |
-| Audit, Eval and sweep controller claims | Claims whose epoch fences a stale holder (PER-R25) |
+| Audit and Eval controller claims | Claims whose epoch fences a stale holder (PER-R25) |
 | Scheduler pool sizes | Read again by the bounded periodic refresh ([SCH-R133](../execution/scheduler.md)) |
 | Deployment model selection | Read from PostgreSQL on every use |
 | Credential references: Run creation, Audit start and resume, Eval preflight, allocation pinning, RuntimeConfig binding mutation and Project target credential attachment | Not fenced; accepted risk below |
@@ -887,7 +886,7 @@ must still restore with an empty search path.
 **PER-R24.** A keyed mutation is a request its caller may repeat under an
 idempotency key and whose receipt is kept apart from the entity it changes:
 an owner's Audit mutation (create, start, pause, cancel, resume and delete),
-a durable scan-sweep creation, a Project-scoped domain mutation,
+a Project-scoped domain mutation,
 a managed Eval mutation, and a Runtime label binding or Agent label set
 operation. Each records one receipt in `mutation_receipts`, in the
 transaction of its effect, through one flow:
@@ -902,9 +901,7 @@ transaction of its effect, through one flow:
 A key is unique within the scope of its family: an Audit key per owner and
 operation, an Eval key per owner, Project, resource and operation, and a
 Runtime management key across every operation, held only as the digest of the
-operator's key. A scan-sweep create key is scoped by owner and operation; its receipt survives
-purge and a replay resolves the original identity or returns `not_found`,
-never creates new traffic. A Project mutation key is scoped by owner, Project,
+operator's key. A Project mutation key is scoped by owner, Project,
 resource and operation; its immutable receipt leaves only in the drained
 deleting Project's purge. The common Project receipt family admits domain
 operations without registering their names in persistence or cleanup code.
@@ -933,8 +930,7 @@ key. Two locks keep their own keys: the advisory lease of the active Server
 lock, which is scoped to the schema being migrated.
 
 **PER-R25.** A controller that leases the subjects it reconciles, the Audit
-controller ([AUX-R74](../audits/execution.md)), the durable sweep controller
-([SCN-R247](../tools/scanners.md)), and the Eval coordinator
+controller ([AUX-R74](../audits/execution.md)) and the Eval coordinator
 ([EVM-R108](../evals/managed-evals.md)), keeps one claim row per subject in
 its own claim table or on its primary resource row, with one shape: the subject, an
 epoch, and the holder with the start and the end of its lease, all three set
@@ -972,14 +968,7 @@ a failure: the epoch already fences the stale holder (PER-R25). The pass ends
 once every claim was released and reports, per subject in claim order, the
 handler's failure joined with the release's (FAIL-PER-3). The lifecycle owns
 no scheduling policy: each controller keeps its own handler budgets, wake
-hints, poll interval and decision whether to pass again at once. The durable
-sweep controller leases one sweep per tick and joins that tick through its
-own drain, so it keeps its own pass, but it gives the claim back through the
-same release step: after the tick, also a cancelled one, under a budget of its
-own that keeps the tick's values but not its cancellation. A lost claim is not
-a failure there either, and a definite release failure joins the tick's
-error, which the controller logs with the sweep's identity and the failed
-step but no statement or database message (FAIL-PER-3, FAIL-SCN-15).
+hints, poll interval and decision whether to pass again at once.
 
 Rationale: the two controllers pace their passes differently on purpose. The
 Audit controller passes again at once after a pass that changed something
@@ -1423,12 +1412,6 @@ outlasts its retries is the retryable `503 storage_transaction_conflict`
     cancellation, reports a definite failure and not a lost claim; test
     `TestReleaseReportsADefiniteFailureAndNotALostClaim` in
     [`internal/claimpass/claimpass_test.go`](../../../internal/claimpass/claimpass_test.go).
-    A durable sweep tick reports a refused release with the sweep's identity
-    and no database message, keeping the sweep claimed, and a takeover during
-    the tick is no failure and leaves the new holder's claim intact (PER-R26,
-    FAIL-SCN-15); tests `TestPostgresScanSweepTickReportsADefiniteReleaseFailure`
-    and `TestPostgresScanSweepTickToleratesAClaimTakenOverDuringIt` in
-    [`internal/app/scan_sweep_release_postgres_test.go`](../../../internal/app/scan_sweep_release_postgres_test.go).
 23. The lease session carries the working pool's connect timeout, query
     budget tracer and server-side timeouts; each startup lease step runs under
     its configured budget, or exactly under an earlier caller deadline; a

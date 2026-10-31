@@ -28,11 +28,6 @@ export type PublicSchemaName =
   | "SitemapEditorRule"
   | "SitemapResult"
   | "SitemapExactArtifact"
-  | "CreateScanSweepRequest"
-  | "ScanSweep"
-  | "ScanSweepMember"
-  | "ScanSweepPage"
-  | "ScanSweepMemberPage"
   | "FindingCorrelationReadScope"
   | "FindingComparisonProfile"
   | "FindingComparisonAudit"
@@ -2103,72 +2098,6 @@ export const RESPONSE_SCHEMAS = {
     "500": "Error",
     "503": "Error",
   },
-  "GET /v1/scan-sweeps": {
-    "200": "ScanSweepPage",
-    "400": "Error",
-    "401": "Error",
-    "403": "Error",
-    "404": "Error",
-    "409": "Error",
-    "413": "Error",
-    "500": "Error",
-    "503": "Error",
-  },
-  "POST /v1/scan-sweeps": {
-    "201": "ScanSweep",
-    "400": "Error",
-    "401": "Error",
-    "403": "Error",
-    "404": "Error",
-    "409": "Error",
-    "413": "Error",
-    "500": "Error",
-    "503": "Error",
-  },
-  "GET /v1/scan-sweeps/{sweepId}": {
-    "200": "ScanSweep",
-    "400": "Error",
-    "401": "Error",
-    "403": "Error",
-    "404": "Error",
-    "409": "Error",
-    "413": "Error",
-    "500": "Error",
-    "503": "Error",
-  },
-  "DELETE /v1/scan-sweeps/{sweepId}": {
-    "204": null,
-    "400": "Error",
-    "401": "Error",
-    "403": "Error",
-    "404": "Error",
-    "409": "Error",
-    "413": "Error",
-    "500": "Error",
-    "503": "Error",
-  },
-  "GET /v1/scan-sweeps/{sweepId}/members": {
-    "200": "ScanSweepMemberPage",
-    "400": "Error",
-    "401": "Error",
-    "403": "Error",
-    "404": "Error",
-    "409": "Error",
-    "413": "Error",
-    "500": "Error",
-    "503": "Error",
-  },
-  "POST /v1/scan-sweeps/{sweepId}/cancel": {
-    "200": "ScanSweep",
-    "400": "Error",
-    "401": "Error",
-    "403": "Error",
-    "404": "Error",
-    "409": "Error",
-    "413": "Error",
-    "500": "Error",
-    "503": "Error",
-  },
 } as const satisfies Record<string, Record<string, PublicSchemaName | null>>;
 
 export type ResponseOperation = keyof typeof RESPONSE_SCHEMAS;
@@ -2211,8 +2140,6 @@ export const PUBLIC_PAGED_OPERATIONS: readonly string[] = [
   "GET /v1/operations/credentials",
   "GET /v1/operations/runtime-agents",
   "GET /v1/operations/allocations",
-  "GET /v1/scan-sweeps",
-  "GET /v1/scan-sweeps/{sweepId}/members",
 ];
 
 /** The PublicSchemaName of each request header an operation declares. */
@@ -2464,10 +2391,6 @@ export const REQUEST_HEADER_SCHEMAS = {
     Origin: "OriginHeader",
     "Sec-WebSocket-Protocol":
       "connectEventsWebSocketSecWebSocketProtocolHeader",
-  },
-  "POST /v1/scan-sweeps": { "Idempotency-Key": "IdempotencyKeyHeader" },
-  "POST /v1/scan-sweeps/{sweepId}/cancel": {
-    "Idempotency-Key": "OptionalIdempotencyKeyHeader",
   },
 } as const satisfies Partial<
   Record<ResponseOperation, Record<string, PublicSchemaName>>

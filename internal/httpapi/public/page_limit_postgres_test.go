@@ -27,9 +27,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
-	"github.com/grauwolf32/contractor/internal/scanstore"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // Every paged public list accepts the documented limit=200 on the real
@@ -110,7 +108,6 @@ func TestPostgresPublicPagedListsAcceptTheLargestPage(t *testing.T) {
 		t.Fatal(err)
 	}
 	findingID := seedPublicPaginationFinding(t, ctx, pool, owner, projectID, auditID, "largest-page")
-	seedLargestSweepPage(t, ctx, pool, owner)
 	registry, err := controlplane.NewRegistry(controlplane.RegistryOptions{})
 	if err != nil {
 		t.Fatal(err)
@@ -148,7 +145,6 @@ func TestPostgresPublicPagedListsAcceptTheLargestPage(t *testing.T) {
 			dependencies.Artifacts = artifactService
 			dependencies.Audits = audits
 			dependencies.FindingProposals = findings
-			dependencies.ScanSweeps = postgresSweepList{&fakeScanSweeps{}, scanstore.New(pool)}
 			dependencies.RuntimeAgentPrincipals = principals
 			// The services in front of these repositories pass the limit
 			// through unchanged; the repositories own the page validation.
@@ -168,8 +164,6 @@ func TestPostgresPublicPagedListsAcceptTheLargestPage(t *testing.T) {
 		"listProjectArtifactVersions":       "/v1/projects/" + projectID + "/artifacts/inputs/source/versions",
 		"getProjectArtifactLineage":         "/v1/projects/" + projectID + "/artifacts/inputs/source/lineage",
 		"listProjectRuns":                   "/v1/projects/" + projectID + "/runs",
-		"listScanSweeps":                    "/v1/scan-sweeps",
-		"listScanSweepMembers":              "/v1/scan-sweeps/sweep-pages/members",
 		"listAuditProfiles":                 "/v1/audit-profiles",
 		"listProjectAudits":                 "/v1/projects/" + projectID + "/audits",
 		"listOwnerAudits":                   "/v1/audits",
@@ -200,53 +194,7 @@ func TestPostgresPublicPagedListsAcceptTheLargestPage(t *testing.T) {
 		"listCredentials":                   "/v1/operations/credentials",
 		"listRuntimeAgents":                 "/v1/operations/runtime-agents",
 		"listAllocations":                   "/v1/operations/allocations",
-	}, "listProjects", "listScanSweeps", "listScanSweepMembers")
-}
-
-func seedLargestSweepPage(t *testing.T, ctx context.Context, pool *pgxpool.Pool, owner string) {
-	t.Helper()
-	tx, err := pool.Begin(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer tx.Rollback(ctx)
-	store := scanstore.New(tx)
-	child := json.RawMessage(`{"workflow":"nuclei-web@1","parameters":{},"artifacts":{},"labels":{}}`)
-	for index := range pagelimit.MaxFetchRows {
-		id, count := fmt.Sprintf("sweep-%03d", index), 1
-		if index == 0 {
-			id, count = "sweep-pages", pagelimit.MaxFetchRows
-		}
-		members := make([]scanstore.Member, count)
-		for ordinal := range members {
-			members[ordinal] = scanstore.Member{
-				Ordinal: ordinal, ProjectID: fmt.Sprintf("project-%03d", ordinal),
-				State: "skipped", Reason: "target_missing", Child: child,
-				Key: fmt.Sprintf("%s-%03d", id, ordinal), Digest: auditHandlerDigest(string(child)),
-			}
-		}
-		if err := store.Insert(ctx, id, owner, "nuclei-web@1", auditHandlerDigest("sweep-pages"), []byte(`{}`), members); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if err := tx.Commit(ctx); err != nil {
-		t.Fatal(err)
-	}
-}
-
-type postgresSweepList struct {
-	*fakeScanSweeps
-	repository *scanstore.Store
-}
-
-func (l postgresSweepList) Get(ctx context.Context, owner, id string) (scanstore.Sweep, error) {
-	return l.repository.Get(ctx, owner, id)
-}
-func (l postgresSweepList) List(ctx context.Context, owner, after string, limit int) ([]scanstore.Sweep, error) {
-	return l.repository.List(ctx, owner, after, limit)
-}
-func (l postgresSweepList) Members(ctx context.Context, owner, id string, after, limit int) ([]scanstore.Member, error) {
-	return l.repository.Members(ctx, owner, id, after, limit)
+	}, "listProjects")
 }
 
 type postgresCredentialList struct {

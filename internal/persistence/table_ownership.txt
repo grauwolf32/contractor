@@ -20,8 +20,6 @@
 # continues the reason of the entry above it.
 
 [relations]
-scan_sweeps                         internal/scanstore                projects
-scan_sweep_members                  internal/scanstore                projects
 # Every table and view of the migrated schema, its owner package, which alone
 # may write it, and the scripts/erd/meta.json group that draws it ("-" for a
 # view or the migration ledger, which the ERD does not draw).
@@ -111,8 +109,6 @@ audit_live_item_reviews              internal/auditstore/internal/pgstore -
 contractor_schema_migrations         internal/persistence/postgres    -
 
 [reads]
-internal/scanstore          workflow_runs                  Sweep members report actual child states without owning their lifecycle.
-internal/scanservice        projects                       Sweep admission captures owner-authorized membership and HTTP target URLs.
 # Reads of another package's relation that the design accepts, each with the
 # reason. A package that writes a relation needs a [known] entry instead. A
 # read of a relation whose owner sits higher in the layer stack of

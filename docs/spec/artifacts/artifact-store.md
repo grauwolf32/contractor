@@ -1436,18 +1436,10 @@ Neither user source changed during this Run. If requested after success,
 - Contractor core has no `ProjectSnapshot` or `ProjectSnapshotManifest` domain
   type; Project inputs are ordinary artifacts ([Projects](projects.md)).
 
-### Retained sweep inputs
-
-**ART-R119.** The trusted sweep flow may fork an exact owner input into a
-frozen binding in the same UserScope under the reserved `contractor-system`
-namespace. This narrow primitive does not permit arbitrary User-to-User
-forks. Generic owner uploads cannot write the namespace; public library
-reads and listings hide it. The generic UserScope library uses a partial
-index excluding both reserved namespaces before its page limit, so retained
-sweeps never enter the page scan. The sweep's terminal purge removes that binding
-and its lineage edges while preserving versions/blobs still referenced by
-child Runs or the owner's source. [SCN-R245](../tools/scanners.md) and
-[SCN-R251](../tools/scanners.md) own admission and retention.
+**ART-R119.** Retired: feature-specific retained scan inputs and their purge
+primitive were removed. Ordinary Audit baseline and Run input forks own scan
+inputs. Generic UserScope library queries still exclude reserved namespaces
+before the page limit through their partial index (ART-R26).
 
 **ART-R128.** Generic Project writes apply the shared purpose-reserved namespace
 policy. Domain publishers own managed namespaces, including Audit outputs and

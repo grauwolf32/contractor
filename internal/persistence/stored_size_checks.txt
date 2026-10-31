@@ -153,12 +153,6 @@ runtime_credentials_credential_id_check                     LIM-CAT-1
 runtime_credentials_deleted_by_check                        above:LIM-API-20
 runtime_credentials_nonce_check                             invariant: an AES-256-GCM nonce is 12 bytes
 runtime_credentials_request_mac_check                       invariant: an HMAC-SHA-256 request MAC is 32 bytes
-scan_sweep_members_child_check                              LIM-SCN-88
-scan_sweep_members_project_id_check                         LIM-API-19
-scan_sweep_members_target_check                             LIM-PRJ-6
-scan_sweeps_owner_id_check                                  above:LIM-API-20
-scan_sweeps_snapshot_check                                  LIM-SCN-88
-scan_sweeps_sweep_id_check                                  invariant: a Server-generated randomid identity, its prefix and 32 hexadecimal digits
 workflow_run_events_data_check                              LIM-API-25
 workflow_run_output_publications_check1                     LIM-PER-20
 workflow_run_output_publications_output_name_check          LIM-ART-1

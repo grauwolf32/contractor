@@ -5,7 +5,7 @@ query/poll lifecycles, creation keys, navigation and authorized evidence links.
 The shared `src/ui` building blocks still own controls, focus and themes.
 
 - `src/workflow-widgets`: exact Workflow contract dispatch and Nuclei launch
-  controls. Both single scans and durable sweeps render the same registered
+  controls. Audit scan results render the registered
   React fields. Compatibility checks cover version, parameters and input scope.
 - `scan-reports`: versioned scanner result presentation, dispatched by the
   report's tool. Nuclei, Naabu and SQLMap use the shared outcome view; ffuf
