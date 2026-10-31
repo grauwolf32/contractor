@@ -6,7 +6,7 @@ epic: ui
 kind: defect
 introduced_by: V429-003
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V429-003]
 languages: [typescript, css]
 goal: Run and Project reproduce the reviewed OpenDesign presentation using coherent shared typography and controls while preserving real data and actions.
@@ -121,3 +121,4 @@ verification:
     mismatch and stale unused row styles were corrected without changing gates.
     Comparison screenshots were saved beside both original prototypes in new
     production-fidelity-20261101 directories, leaving reviewed originals intact.
+implementation_commit: ce2424dc50eb7793c100e54d9cece77349a0247f
