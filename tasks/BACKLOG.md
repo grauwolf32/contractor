@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-82 open tasks: 10 in progress, 61 pending, 11 deferred. 1278 finished: 1263 completed, 15 archived.
+83 open tasks: 10 in progress, 62 pending, 11 deferred. 1278 finished: 1263 completed, 15 archived.
 
 ## In progress
 
@@ -30,6 +30,7 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V425-016](v425-016-run-event-history-bound.yml) | chore | P3 | — | Bound or detect the per-Run event history and delete it in bounded batches |
 | [V425-031](v425-031-shared-http-policy.yml) | feature | P1 | V425-030 | Fetch common HTTP evidence byte ceilings at Runtime startup |
+| [V425-032](v425-032-shared-input-policy.yml) | feature | P1 | V425-031 | Enforce fetched Git and metadata-label limits in UI and Runtime |
 
 ### Planners and the Worker model boundary (`planner-worker`)
 
@@ -188,7 +189,7 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 3 | 46 | 56 | 21 | 84 |
+| Run execution core (`execution-core`) | 4 | 47 | 56 | 21 | 84 |
 | Planners and the Worker model boundary (`planner-worker`) | 9 | 35 | 47 | 28 | 67 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 13 | 5 | 43 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 2 | 12 |
