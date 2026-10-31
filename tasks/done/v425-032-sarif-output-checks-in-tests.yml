@@ -6,7 +6,7 @@ epic: findings
 kind: chore
 introduced_by: V397-008
 priority: P3
-status: in_progress
+status: completed
 depends_on: []
 languages: [go, markdown]
 goal: Remove post-render validation of Contractor's own SARIF from production while preserving valid export bytes, validated inputs and independent regression coverage.
@@ -139,3 +139,5 @@ line_changes:
   production_go: -565
   test_go: 586
   total_go: 21
+  repository_net: 171
+implementation_commit: 9c4bcb62f22b6c8a095dcbebb73de9925c725741
