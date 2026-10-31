@@ -81,7 +81,11 @@ function MaterialChips({
   const target = project.httpTarget;
   const settings = `${projectPath(projectId, "settings")}#${LIVE_TARGET_ANCHOR}`;
   return (
-    <div className="projects-materials">
+    <section
+      className="projects-panel projects-materials"
+      aria-label="Project materials"
+    >
+      <h3>Materials</h3>
       <ul role="list" aria-label="Materials" className="projects-chips">
         {materials.isPending ? (
           <li>
@@ -179,7 +183,7 @@ function MaterialChips({
           retryPending={materials.isFetching}
         />
       )}
-    </div>
+    </section>
   );
 }
 
@@ -236,7 +240,7 @@ function lastActivity(
   );
 }
 
-/** The four-cell "at a glance" strip. */
+/** Qualified summary counts from the existing bounded reads. */
 function GlanceStrip({
   project,
   checks,
@@ -343,9 +347,7 @@ function GlanceStrip({
 
   return (
     <section className="projects-glance" aria-labelledby={heading}>
-      <h3 className="ui-visually-hidden" id={heading}>
-        At a glance
-      </h3>
+      <h3 id={heading}>At a glance</h3>
       <dl>
         <Cell
           label="Possible issues"
@@ -438,9 +440,8 @@ function Attention({
 }
 
 /**
- * The project Overview (V3B): materials, the "at a glance" strip, checks
- * waiting for a decision, the check composer, the timeline, recent results
- * and recent Runs. Every read is bounded (S06 "Project section navigation");
+ * Objective and review needs lead; results, Runs and Timeline follow with
+ * materials and qualified counts as supporting context. Every read is bounded;
  * counts say when they cover only the newest checks.
  */
 export function ProjectOverview({ project }: { project: Project }) {
@@ -495,18 +496,8 @@ export function ProjectOverview({ project }: { project: Project }) {
           }}
         />
       </ProjectSectionActions>
-      <MaterialChips project={project} materials={materials} />
-      <GlanceStrip
-        project={project}
-        checks={checkItems}
-        checksTruncated={checks.data?.page.hasMore === true}
-        checksState={checksState}
-        issues={issues}
-        runs={runs.data?.items ?? []}
-        materials={materials}
-      />
-      <Attention projectId={projectId} waiting={waiting} />
       <CheckComposer project={project} materials={materials.items} />
+      <Attention projectId={projectId} waiting={waiting} />
       {checks.error !== null && checks.data === undefined ? (
         <ErrorNotice
           error={checks.error}
@@ -515,24 +506,41 @@ export function ProjectOverview({ project }: { project: Project }) {
           retryPending={checks.isFetching}
         />
       ) : null}
-      {checksState === "pending" ? (
-        <p className="loading-copy" role="status">
-          Loading the timeline…
-        </p>
-      ) : (
-        <ProjectTimeline
-          project={project}
-          checks={checkItems}
-          issues={issues.checks}
-          runs={runs.data?.items ?? []}
-          materials={materials.items}
-          filter={timelineFilter}
-          onFilter={setTimelineFilter}
-        />
-      )}
       <div className="projects-overview-columns">
-        <RecentResults projectId={projectId} results={results} />
-        <RecentRuns projectId={projectId} runs={runs} />
+        <div className="projects-overview-main">
+          <RecentResults projectId={projectId} results={results} />
+          <RecentRuns projectId={projectId} runs={runs} />
+          {checksState === "pending" ? (
+            <p className="loading-copy" role="status">
+              Loading the timeline…
+            </p>
+          ) : (
+            <ProjectTimeline
+              project={project}
+              checks={checkItems}
+              issues={issues.checks}
+              runs={runs.data?.items ?? []}
+              materials={materials.items}
+              filter={timelineFilter}
+              onFilter={setTimelineFilter}
+            />
+          )}
+        </div>
+        <aside
+          className="projects-overview-support"
+          aria-label="Project context"
+        >
+          <MaterialChips project={project} materials={materials} />
+          <GlanceStrip
+            project={project}
+            checks={checkItems}
+            checksTruncated={checks.data?.page.hasMore === true}
+            checksState={checksState}
+            issues={issues}
+            runs={runs.data?.items ?? []}
+            materials={materials}
+          />
+        </aside>
       </div>
     </div>
   );

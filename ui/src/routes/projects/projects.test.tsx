@@ -215,7 +215,6 @@ describe("Project routes", () => {
     renderApplication("/projects/project_example", { api });
     const user = userEvent.setup();
     await screen.findByRole("heading", { name: "Payment service" });
-    await user.click(screen.getByLabelText("Project actions"));
     await user.click(screen.getByRole("button", { name: "Delete Project" }));
     const dialog = screen.getByRole("alertdialog", {
       name: "Delete Payment service?",
@@ -396,7 +395,6 @@ describe("Project routes", () => {
     const user = userEvent.setup();
 
     await screen.findByRole("heading", { name: "Payment service" });
-    await user.click(screen.getByLabelText("Project actions"));
     await user.click(screen.getByRole("button", { name: "Delete Project" }));
     const dialog = screen.getByRole("alertdialog", {
       name: "Delete Payment service?",

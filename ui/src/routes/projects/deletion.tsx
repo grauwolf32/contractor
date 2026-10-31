@@ -3,8 +3,9 @@ import { useId, useState } from "react";
 import type { Project, ProjectDeletionPhase } from "../../api/projects";
 import { ActionMenu } from "../../app/action-menu";
 import { ErrorNotice } from "../../app/error-notice";
+import { Icon } from "../../app/icon";
 import { formatTimestamp } from "../../app/format";
-import { AlertDialog, Button, Field, StatusGlyph } from "../../ui";
+import { AlertDialog, Button, Field, IconButton, StatusGlyph } from "../../ui";
 import type { WorkspaceProject } from "./use-project-deletion";
 
 import "./projects.css";
@@ -43,8 +44,8 @@ const DELETION_PHASES: readonly ProjectDeletionPhase[] = [
 ];
 
 /**
- * The workspace's action menu: refresh the project and, while it is active,
- * ask to delete it. `noun` names it ("Project", "Workspace").
+ * Explicit Project header actions; the Eval Workspace keeps its own menu.
+ * Both use the existing controller and named deletion confirmation.
  */
 export function ProjectActions({
   workspace,
@@ -54,6 +55,29 @@ export function ProjectActions({
   noun: "Project" | "Workspace";
 }) {
   const { project } = workspace;
+  if (noun === "Project")
+    return (
+      <div className="projects-header-actions">
+        <IconButton
+          label="Refresh project details"
+          size="sm"
+          icon={<Icon name="refresh" />}
+          pending={project.isFetching}
+          onClick={() => void project.refetch()}
+        />
+        {workspace.activeProject === undefined ? null : (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="projects-delete"
+            icon={<Icon name="delete" />}
+            onClick={workspace.requestDeletion}
+          >
+            Delete Project
+          </Button>
+        )}
+      </div>
+    );
   return (
     <ActionMenu label={`${noun} actions`}>
       <Button

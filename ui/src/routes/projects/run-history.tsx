@@ -9,12 +9,11 @@ import { queryKeys } from "../../api/query-keys";
 import {
   isTerminalRunState,
   RUN_STATES,
-  type RunSummary,
   type WorkflowRunState,
 } from "../../api/runs";
 import { ContextLink } from "../../app/context-navigation";
 import { CursorControls } from "../../app/cursor-controls";
-import { compactId, formatTimestamp } from "../../app/format";
+import { formatTimestamp } from "../../app/format";
 import { useURLCursorStack } from "../../app/pagination";
 import { pollInterval } from "../../app/polling";
 import { QueryView } from "../../app/query-view";
@@ -41,28 +40,6 @@ const RUN_VIEWS: readonly { value: RunView; label: string }[] = [
   { value: "active", label: "Active" },
   { value: "completed", label: "Completed" },
 ];
-
-/** A Run's Workflow (linking to the Run) and its shortened ID. */
-export function ProjectRunIdentity({
-  run,
-  returnLabel = "Project Runs",
-}: {
-  run: RunSummary;
-  returnLabel?: string;
-}) {
-  return (
-    <div className="project-run-identity">
-      <ContextLink
-        returnLabel={returnLabel}
-        to={`/runs/${encodeURIComponent(run.runId)}`}
-        title={run.workflow}
-      >
-        {run.workflow}
-      </ContextLink>
-      <code title={run.runId}>{compactId(run.runId)}</code>
-    </div>
-  );
-}
 
 /**
  * The project's Runs, 25 per page with Server-side lifecycle and state
