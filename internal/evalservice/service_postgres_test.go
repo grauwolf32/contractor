@@ -1391,7 +1391,7 @@ spec:
 	}
 	files["instructions/audit-openapi-scan.md"] = "Execute the exact scan assignment."
 	for _, directory := range []string{
-		"instructions", "llm-gateways", "model-policies", "execution-configs",
+		"instructions", "llm-gateways", "model-policies",
 		"agent-templates", "workflows", "audit-profiles", "skills",
 	} {
 		if err := os.MkdirAll(filepath.Join(root, directory), 0o755); err != nil {

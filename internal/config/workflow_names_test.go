@@ -98,20 +98,6 @@ spec:
 `, d.executionConfigStages, yamlString(t, d.entry), d.extraStages, yamlString(t, d.stage), yamlString(t, d.agent), succeeded)
 }
 
-func namesExecutionConfig(t *testing.T, agent string) string {
-	t.Helper()
-	return `apiVersion: contractor/v1alpha1
-kind: ExecutionConfig
-metadata:
-  name: names
-  version: "1"
-spec:
-  agents:
-    ` + yamlString(t, agent) + `:
-      modelPolicy: worker@1
-`
-}
-
 func loadNames(t *testing.T, files map[string]string) (*Snapshot, error) {
 	t.Helper()
 	root := copyCoreFixture(t)
@@ -131,7 +117,7 @@ func TestSharedWorkflowNamesUseTheOperationsNameGrammar(t *testing.T) {
 	valid, invalid := sharedNameCases(t)
 	base := namesDocument{entry: "copy", stage: "copy", agent: "builder"}
 	if _, err := loadNames(t, map[string]string{
-		"workflows/names.yaml": base.yaml(t), "execution-configs/names.yaml": namesExecutionConfig(t, "builder"),
+		"workflows/names.yaml": base.yaml(t),
 	}); err != nil {
 		t.Fatalf("base names Workflow: %v", err)
 	}
@@ -139,7 +125,7 @@ func TestSharedWorkflowNamesUseTheOperationsNameGrammar(t *testing.T) {
 	for _, name := range valid {
 		document := namesDocument{entry: name, stage: name, agent: name}
 		snapshot, err := loadNames(t, map[string]string{
-			"workflows/names.yaml": document.yaml(t), "execution-configs/names.yaml": namesExecutionConfig(t, name),
+			"workflows/names.yaml": document.yaml(t),
 		})
 		if err != nil {
 			t.Errorf("name %q: Load error = %v", name, err)
@@ -183,9 +169,6 @@ func TestSharedWorkflowNamesUseTheOperationsNameGrammar(t *testing.T) {
 			"Workflow executionConfig Agent key": {map[string]string{"workflows/names.yaml": withStages(
 				"      copy:\n        agents:\n          " + quoted + ": {modelPolicy: worker@1}\n",
 			).yaml(t)}, "executionConfig logical Agent name"},
-			"ExecutionConfig agents key": {map[string]string{
-				"execution-configs/names.yaml": namesExecutionConfig(t, name),
-			}, "spec logical Agent name"},
 		} {
 			snapshot, err := loadNames(t, test.files)
 			if err == nil || snapshot != nil || !strings.Contains(err.Error(), test.field) {

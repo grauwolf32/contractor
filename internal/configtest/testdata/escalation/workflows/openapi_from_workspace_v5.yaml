@@ -47,7 +47,9 @@ spec:
           escalate:
             maxAttempts: 1
             executionConfig:
-              ref: strong-oas-review@1
+              agents:
+                validator:
+                  modelPolicy: test-strong-worker@1
             then:
               fail: {}
         interrupted: {fail: {}}

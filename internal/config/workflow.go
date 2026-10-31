@@ -738,34 +738,6 @@ func (l *loader) resolveEscalationExecutionConfig(
 	if source == nil {
 		return resolved.ResolvedEscalationExecutionConfig{}, fmt.Errorf("%s is required", field)
 	}
-	refPresent := source.refPresent
-	inlinePresent := source.plannerPresent || source.agentsPresent
-	if refPresent == inlinePresent {
-		return resolved.ResolvedEscalationExecutionConfig{}, fmt.Errorf(
-			"%s must contain exactly ref or inline planner/agents", field,
-		)
-	}
-	if refPresent {
-		value, err := optionalStringFromYAML(source.Ref, false, field+".ref")
-		if err != nil {
-			return resolved.ResolvedEscalationExecutionConfig{}, err
-		}
-		selector, err := resolved.ParseSelector(value.Value)
-		if err != nil {
-			return resolved.ResolvedEscalationExecutionConfig{}, fmt.Errorf("%s.ref: %w", field, err)
-		}
-		profile, ok := l.executionConfigs[selector.String()]
-		if !ok {
-			return resolved.ResolvedEscalationExecutionConfig{}, fmt.Errorf(
-				"%s.ref selects unknown ExecutionConfig %q", field, selector,
-			)
-		}
-		ref := profile.Ref
-		return resolved.ResolvedEscalationExecutionConfig{
-			Ref: &ref, Override: profile.Override.Clone(),
-		}, nil
-	}
-
 	patch, err := stageExecutionConfigPatchFromEscalationSource(source, field)
 	if err != nil {
 		return resolved.ResolvedEscalationExecutionConfig{}, err

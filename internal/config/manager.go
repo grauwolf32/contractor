@@ -35,7 +35,6 @@ var configurationSubtrees = []string{
 	"agent-templates",
 	"model-policies",
 	"llm-gateways",
-	"execution-configs",
 	"audit-profiles",
 	"instructions",
 }
@@ -558,7 +557,7 @@ func preparePublication(request PublicationRequest) (publicationCandidate, error
 			requestDigest: gateway.Ref.Digest, subtree: "llm-gateways",
 		}, nil
 
-	case ConfigurationAgentTemplates, ConfigurationExecutionConfigs:
+	case ConfigurationAgentTemplates:
 		return publicationCandidate{}, fmt.Errorf("%w: %s is read-only", ErrInvalidPublication, request.Kind)
 	default:
 		return publicationCandidate{}, ErrInvalidConfigurationKind
@@ -586,7 +585,7 @@ func (s *Snapshot) withPublication(candidate publicationCandidate) *Snapshot {
 	sources := clone.Map(s.sources)
 	sources[configurationSourceKey(candidate.resource.Ref.Kind, candidate.selector.String())] = ConfigurationSourceManaged
 	return newSnapshot(
-		s.workflows, s.templates, policies, gateways, s.executionConfigs, s.auditProfiles,
+		s.workflows, s.templates, policies, gateways, s.auditProfiles,
 		s.instructions, sources,
 	)
 }

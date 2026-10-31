@@ -57,7 +57,7 @@ type ConfigurationDiscovery struct {
 
 // configurationKinds lists every kind ParseConfigurationKind accepts.
 var configurationKinds = []ConfigurationKind{
-	ConfigurationAgentTemplates, ConfigurationExecutionConfigs,
+	ConfigurationAgentTemplates,
 	ConfigurationModelPolicies, ConfigurationLLMGateways,
 }
 

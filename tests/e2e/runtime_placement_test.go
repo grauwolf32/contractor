@@ -198,7 +198,7 @@ func startPlacementStackWithConfiguration(t *testing.T, configure func(string)) 
 	if err := os.CopyFS(configRoot, os.DirFS(filepath.Join(h.root, "tests", "e2e", "testdata", "runtime-placement"))); err != nil {
 		t.Fatal(err)
 	}
-	for _, directory := range []string{"model-policies", "llm-gateways", "execution-configs", "audit-profiles", "audit-standards", "skills"} {
+	for _, directory := range []string{"model-policies", "llm-gateways", "audit-profiles", "audit-standards", "skills"} {
 		if err := os.MkdirAll(filepath.Join(configRoot, directory), 0700); err != nil {
 			t.Fatal(err)
 		}

@@ -10,20 +10,18 @@ import (
 const (
 	modelPolicyKind      = "ModelPolicy"
 	llmGatewayConfigKind = "LLMGatewayConfig"
-	executionConfigKind  = "ExecutionConfig"
 	agentTemplateKind    = "AgentTemplate"
 	workflowKind         = "Workflow"
 )
 
 // Counts summarizes a successfully published configuration snapshot.
 type Counts struct {
-	Workflows        int
-	AgentTemplates   int
-	ModelPolicies    int
-	LLMGateways      int
-	ExecutionConfigs int
-	AuditProfiles    int
-	Instructions     int
+	Workflows      int
+	AgentTemplates int
+	ModelPolicies  int
+	LLMGateways    int
+	AuditProfiles  int
+	Instructions   int
 }
 
 type metadataSource struct {
@@ -81,20 +79,6 @@ type llmGatewayFailureSignatureSource struct {
 type llmCredentialManagerSpecSource struct {
 	Implementation string `yaml:"implementation"`
 	ManagementURL  string `yaml:"managementUrl"`
-}
-
-type executionConfigDocument struct {
-	APIVersion string                            `yaml:"apiVersion"`
-	Kind       string                            `yaml:"kind"`
-	Metadata   *metadataSource                   `yaml:"metadata"`
-	Spec       *executionConfigProfileSpecSource `yaml:"spec"`
-}
-
-type executionConfigProfileSpecSource struct {
-	Planner        *executionSelectionSource            `yaml:"planner,omitempty"`
-	Agents         *map[string]executionSelectionSource `yaml:"agents,omitempty"`
-	plannerPresent bool
-	agentsPresent  bool
 }
 
 type agentTemplateDocument struct {
@@ -304,10 +288,8 @@ type escalateSource struct {
 }
 
 type escalationExecutionConfigSource struct {
-	Ref            yaml.Node                            `yaml:"ref,omitempty"`
 	Planner        *executionSelectionSource            `yaml:"planner,omitempty"`
 	Agents         *map[string]executionSelectionSource `yaml:"agents,omitempty"`
-	refPresent     bool
 	plannerPresent bool
 	agentsPresent  bool
 }

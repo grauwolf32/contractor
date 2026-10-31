@@ -13,17 +13,12 @@ import { Button, Field } from "../../ui";
 import { record, textValue } from "./document";
 
 export type CatalogKind =
-  | "agent-templates"
-  | "workflows"
-  | "model-policies"
-  | "llm-gateways"
-  | "execution-configs";
+  "agent-templates" | "workflows" | "model-policies" | "llm-gateways";
 const titles: Record<CatalogKind, string> = {
   "agent-templates": "Choose an agent template",
   workflows: "Choose a Workflow",
   "model-policies": "Choose a model policy",
   "llm-gateways": "Choose an LLM gateway",
-  "execution-configs": "Choose an execution configuration",
 };
 interface Choice {
   selector: string;

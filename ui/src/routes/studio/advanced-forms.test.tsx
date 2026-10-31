@@ -19,7 +19,7 @@ import {
 import { Inspector } from "./inspector";
 import { buildGraph } from "./graph";
 import { validateDraft } from "./validation";
-import { setEscalationMode, setSelectionField } from "./advanced-edits";
+import { setSelectionField } from "./advanced-edits";
 import { renameArgument, setArgumentSource } from "./advanced-edits";
 
 // The media type of a workspace overlay state (the export's state slot).
@@ -241,7 +241,7 @@ describe("Advanced Studio forms", () => {
       validateDraft(renamed).filter((p) => p.severity === "error"),
     ).toEqual([]);
   });
-  it("switches escalation forms exclusively, retains opaque siblings and permits explicit credential clearing only inline", () => {
+  it("edits inline escalation selections, retains opaque siblings and permits credential clearing", () => {
     const path: Path = [
       "spec",
       "stages",
@@ -255,11 +255,13 @@ describe("Advanced Studio forms", () => {
       escalate: {
         maxAttempts: 1,
         then: { fail: {} },
-        executionConfig: { ref: "stronger@2", "x-future": { note: "keep" } },
+        executionConfig: {
+          planner: { modelPolicy: "planner@1" },
+          "x-future": { note: "keep" },
+        },
       },
     });
     draft = editDraft(draft, (doc) => {
-      setEscalationMode(doc, path, "inline");
       setSelectionField(doc, [...path, "planner"], "modelPolicy", "planner@2");
       setSelectionField(doc, [...path, "planner"], "credential", null);
     });
@@ -270,14 +272,6 @@ describe("Advanced Studio forms", () => {
     expect(validateDraft(draft).filter((p) => p.severity === "error")).toEqual(
       [],
     );
-    draft = editDraft(draft, (doc) => {
-      setEscalationMode(doc, path, "reference");
-      doc.setIn([...path, "ref"], "stronger@3");
-    });
-    expect(at(draft.value, path)).toEqual({
-      ref: "stronger@3",
-      "x-future": { note: "keep" },
-    });
   });
   it("renames argument syntax keys, rejects duplicates and retains untouched binding comments", () => {
     const initial = tool(),
@@ -387,6 +381,30 @@ describe("Authored advanced contracts", () => {
       ),
     ).toBe(true);
   });
+  it.each(["failed", "interrupted", "summarized"])(
+    "rejects a removed profile ref in %s",
+    (outcome) => {
+      const path = [
+        "spec",
+        "stages",
+        "start",
+        "on",
+        outcome,
+        "escalate",
+        "executionConfig",
+      ];
+      const draft = patchDraft(workflow(), path, { ref: "stronger@1" });
+      expect(validateDraft(draft)).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            severity: "error",
+            path: [...path, "ref"],
+            message: "Unknown escalation configuration field.",
+          }),
+        ]),
+      );
+    },
+  );
   it("permits restoring state in direct mode", () => {
     const draft = patchDraft(workflow(), workspacePath, {
       mode: "direct",

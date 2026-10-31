@@ -32,13 +32,12 @@ import { FakeEventSocket, renderApplication } from "../../test/application";
 const executionConfig: StageAttempt["executionConfig"] = {
   variant: "failed_escalation",
   escalationOrdinal: 1,
-  ref: { configId: "strong-review", version: "2", digest: DIGEST },
   planner: {
     modelPolicy: { policyId: "planner-strong", version: "2", digest: DIGEST },
     llmGateway: { gatewayId: "local", version: "1", digest: DIGEST },
     credential: { credentialId: "planner-budget" },
     origins: {
-      modelPolicy: "executionConfig:strong-review@2",
+      modelPolicy: "workflow.stages.review.on.failed.escalate.executionConfig",
       llmGateway: "workflow:router-analysis@1",
       credential: "run override",
     },
@@ -49,7 +48,8 @@ const executionConfig: StageAttempt["executionConfig"] = {
       llmGateway: { gatewayId: "local", version: "1", digest: DIGEST },
       credential: { credentialId: "worker-budget" },
       origins: {
-        modelPolicy: "executionConfig:strong-review@2",
+        modelPolicy:
+          "workflow.stages.review.on.failed.escalate.executionConfig",
         llmGateway: "workflow:router-analysis@1",
         credential: "run override",
       },
@@ -1873,7 +1873,6 @@ describe("Run routes", () => {
       screen.getByRole("heading", { name: "Summary", level: 2 }),
     ).toBeInTheDocument();
     expect(view.container.querySelector(".result-summary")).not.toBeNull();
-    expect(screen.getByText("strong-review@2")).toBeInTheDocument();
     expect(screen.getByText("Model calls")).toBeInTheDocument();
     expect(screen.getByText("1600")).toBeInTheDocument();
     expect(

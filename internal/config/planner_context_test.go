@@ -246,24 +246,14 @@ func TestPinnedWorkflowRejectsChangedPlannerContextManagement(t *testing.T) {
 	}
 }
 
-func TestExecutionConfigProfileReplacesCompactorOnEscalation(t *testing.T) {
+func TestInlineEscalationReplacesCompactor(t *testing.T) {
 	root := compactionFixture(t)
 	writeFile(t, filepath.Join(root, "model-policies/test-compactor-2.yaml"), []byte(strings.ReplaceAll(
 		string(readFile(t, filepath.Join(root, "model-policies/test-compactor.yaml"))), "name: test-compactor", "name: test-compactor-two",
 	)))
-	writeFile(t, filepath.Join(root, "execution-configs/compact_review.yaml"), []byte(`kind: ExecutionConfig
-apiVersion: contractor/v1alpha1
-metadata: {name: compact-review, version: "1"}
-spec:
-  planner: {compactorModelPolicy: test-compactor-two@1}
-`))
 	replaceFile(t, compactingWorkflowPath(root), "        failed:\n          fail: {}\n",
-		"        failed:\n          escalate:\n            maxAttempts: 1\n            executionConfig:\n              ref: compact-review@1\n            then:\n              fail: {}\n")
+		"        failed:\n          escalate:\n            maxAttempts: 1\n            executionConfig:\n              planner: {compactorModelPolicy: test-compactor-two@1}\n            then:\n              fail: {}\n")
 	snapshot := mustLoad(t, root)
-	profile := resolvedExecutionConfigForTest(t, snapshot, "compact-review@1")
-	if body := executionConfigResourceBody(profile); body["planner"].(map[string]any)["compactorModelPolicy"] == nil {
-		t.Fatalf("ExecutionConfig resource body = %v", body)
-	}
 	workflow, err := snapshot.Workflow(compactingSelector)
 	if err != nil {
 		t.Fatal(err)
@@ -271,15 +261,15 @@ spec:
 	stage := workflow.Stages["review"]
 	escalated := stage.On.Failed.Escalate.ExecutionConfig.Effective.Planner
 	if escalated.CompactorModelPolicy.Ref.PolicyID != "test-compactor-two" ||
-		escalated.Origins.CompactorModelPolicy != "executionConfig.compact-review@1.planner" ||
+		escalated.Origins.CompactorModelPolicy != "workflow.stages.review.on.failed.escalate.executionConfig.planner" ||
 		stage.ExecutionConfig.Planner.CompactorModelPolicy.Ref.PolicyID != "test-compactor" {
 		t.Fatalf("escalated compactor = %s from %s", escalated.CompactorModelPolicy.Ref.PolicyID, escalated.Origins.CompactorModelPolicy)
 	}
 
-	// The same profile on a Stage without compaction is an ignored selection.
+	// The same override on a Stage without compaction is an ignored selection.
 	replaceFile(t, compactingWorkflowPath(root), compactBlock, "")
 	if _, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed")); err == nil {
-		t.Fatal("compactor profile applied to a none Stage loaded")
+		t.Fatal("compactor override applied to a none Stage loaded")
 	}
 }
 

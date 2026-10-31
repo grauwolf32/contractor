@@ -20,7 +20,7 @@ It leaves to other documents:
 - Workflow content: Stages, transitions, Agent bindings, input and output
   slots, Stage `objective` and the placement of `instructions`, and the
   `presentation` metadata: [Workflows](workflows.md).
-- AgentTemplate, ModelPolicy and ExecutionConfig content, their canonical
+- AgentTemplate and ModelPolicy content, their canonical
   digests, consumer compatibility and executionConfig layering:
   [AgentTemplates](agent-templates.md).
 - LLMGatewayConfig, LLM credentials, RuntimeConfig and runtime labels:
@@ -77,7 +77,6 @@ configs/
   agent-templates/    # AgentTemplate YAML manifests
   model-policies/     # ModelPolicy YAML manifests
   llm-gateways/       # LLMGatewayConfig YAML manifests; never secret values
-  execution-configs/  # reusable Stage-local ExecutionConfig YAML manifests
   audit-profiles/      # operator-authored resolved multi-Run Audit programs
   instructions/       # UTF-8 instruction resources
 ```
@@ -88,7 +87,7 @@ flowchart LR
   MG["Managed root<br/>(UI publications)"] --> NS
   NS["One logical configuration namespace<br/>duplicate key or instruction path: whole set invalid"] --> L1
   L1["1. load and validate<br/>ModelPolicies, LLMGatewayConfigs"] --> L2
-  L2["2. resolve AgentTemplates,<br/>reusable ExecutionConfigs"] --> L3
+  L2["2. resolve AgentTemplates"] --> L3
   L3["3. resolve Workflows<br/>(selectors, instruction refs)"] --> V{"every manifest, instruction ref<br/>and cross-document selector valid?"}
   V -- yes --> P["publish the complete configuration set"]
   V -- no --> N["publish nothing"]
@@ -106,7 +105,6 @@ publication.
 | AgentTemplate | `agent-templates/` | operator | `AgentTemplateRef(template_id, version, digest)` ([TPL-R57](agent-templates.md); summarizer included in the digest: [TPL-R52](agent-templates.md)) | [AgentTemplates](agent-templates.md) |
 | ModelPolicy | `model-policies/` | operator or managed publication | `ModelPolicyRef` with digest ([TPL-R34](agent-templates.md)) | [AgentTemplates](agent-templates.md) |
 | LLMGatewayConfig | `llm-gateways/` | operator or managed publication | digest-bearing ref ([RCF-R26](runtime-config.md)) | [Runtime configuration](runtime-config.md) |
-| ExecutionConfig | `execution-configs/` | operator | `ExecutionConfigRef` with digest ([TPL-R86](agent-templates.md)) | [AgentTemplates](agent-templates.md) |
 | AuditProfile | `audit-profiles/` | operator; accepted only from the operator root (CAT-R8) | see [Audits](../audits/audits.md) | [Audits](../audits/audits.md) |
 | instruction resource | `instructions/` | operator | `ResolvedInstructions` ref and digest (CAT-R41) | this document |
 
@@ -136,12 +134,10 @@ flowchart LR
   WS["Workflow selector<br/>(Run creation)"] -->|WorkflowCatalog| WD["exact Workflow document<br/>(metadata.name, metadata.version)"]
   PL["planner"] -->|PlannerFactory registry| PR["(planner_id, version)<br/>implementation ref"]
   TP["Agent binding template"] -->|AgentTemplateCatalog| TR["AgentTemplateRef(template_id, version, digest)<br/>+ validated body"]
-  EC["escalation ExecutionConfig ref"] --> ER["digest-bearing ExecutionConfigRef<br/>+ normalized Stage-local body"]
   IR["instructions.ref"] --> RI["ResolvedInstructions<br/>(ref, digest, text)"]
   WD --> SN["immutable Run snapshot"]
   PR --> SN
   TR --> SN
-  ER --> SN
   RI --> SN
 ```
 
@@ -194,9 +190,9 @@ directory from the final operator-root path.
 
 ### Subtrees
 
-**CAT-R4.** Both roots use the same seven fixed manifest/resource
+**CAT-R4.** Both roots use the same six fixed manifest/resource
 subtrees: `workflows`, `agent-templates`, `model-policies`, `llm-gateways`,
-`execution-configs`, `audit-profiles` and `instructions`.
+`audit-profiles` and `instructions`.
 
 **CAT-R5.** The operator root may also hold the non-YAML source
 subtrees `configs/skills` and `configs/audit-standards`. `configs/skills` holds
@@ -231,8 +227,8 @@ holds both sides to the registry.
 ### Manifest files
 
 **CAT-R7.** The local loader recursively discovers regular files
-ending in `.yaml` below the six YAML subtrees `workflows`, `agent-templates`,
-`model-policies`, `llm-gateways`, `execution-configs` and `audit-profiles`, in
+ending in `.yaml` below the YAML manifest subtrees `workflows`, `agent-templates`,
+`model-policies`, `llm-gateways` and `audit-profiles`, in
 either root.
 
 **CAT-R8.** AuditProfile manifests are accepted only from the
@@ -289,8 +285,7 @@ the same normalized path in both roots is invalid rather than an override.
 ### Selectors
 
 **CAT-R18.** The Workflow selector accepted when creating a
-Run, the `planner` field, every Agent binding's `template` field and an
-escalation ExecutionConfig `ref` use the same compact authoring syntax and
+Run, the `planner` field and every Agent binding's `template` field use the same compact authoring syntax and
 grammar:
 
 ```text
@@ -332,7 +327,7 @@ configuration set if any manifest, instruction ref or cross-document selector
 is invalid ([FAIL-CAT-1](../platform/failure-model.md)).
 
 **CAT-R25.** The Server first loads and validates ModelPolicies and
-LLMGatewayConfigs, then resolves AgentTemplates and reusable ExecutionConfigs,
+LLMGatewayConfigs, then resolves AgentTemplates,
 and finally resolves Workflows. LLMGatewayConfig schema and digest validation
 before `executionConfig` resolution is specified in
 [RCF-R26](runtime-config.md).
@@ -350,9 +345,7 @@ configuration root; it is not a new network service, Kubernetes CRD or runtime
 service locator.
 
 **CAT-R70.** Cross-document validation rules owned elsewhere are part of the
-same all-or-nothing load, for example: a missing or incompatible
-ExecutionConfig profile rejects the consuming Workflow
-([TPL-R86](agent-templates.md)); each model consumer rejects a ModelPolicy
+same all-or-nothing load, for example: each model consumer rejects a ModelPolicy
 missing one of its required finite limits ([TPL-R27](agent-templates.md)); and
 configuration validation rejects a code-analysis Worker binding without a Stage
 `context.workspace` ([CAN-R17](../tools/code-analysis.md)).
@@ -371,10 +364,11 @@ implementation ref.
 AgentTemplateCatalog to an exact `AgentTemplateRef(template_id, version,
 digest)` and a validated template body.
 
-**CAT-R31.** WorkflowCatalog resolves every escalation
-ExecutionConfig selector to its exact digest-bearing ref and normalized
-Stage-local body; the `ExecutionConfigRef` digest is specified in
-[TPL-R86](agent-templates.md).
+**CAT-R31.** WorkflowCatalog resolves each inline escalation override against
+its Stage and pins the normalized override and effective configuration in the Run
+snapshot ([TPL-R86](agent-templates.md)). Standard YAML anchors and aliases may
+reuse a block within the same Workflow document; there is no independently
+published escalation configuration or cross-file configuration reference.
 
 **CAT-R32.** An unknown or ambiguous selector makes the
 Workflow invalid.
@@ -383,7 +377,7 @@ Workflow invalid.
 dependency-resolved and normalized Workflow snapshot used by that Run: its
 resolved Planner
 factory refs, the exact digest-bearing AgentTemplate, ModelPolicy,
-LLMGatewayConfig and referenced ExecutionConfig dependencies, every resolved
+LLMGatewayConfig dependencies, every resolved
 execution configuration, the resolved instruction dependencies
 (CAT-R43) and the exact Agent Skill artifact refs and digests
 selected under [Skills](../tools/skills.md). Later file or
@@ -520,7 +514,7 @@ first release. For ModelPolicy and LLMGatewayConfig see also
 
 **CAT-R74.** Until the first release, the shipped catalog is
 pre-production: the Workflow, AgentTemplate, ModelPolicy, LLMGatewayConfig,
-ExecutionConfig and AuditProfile manifests and the instruction resources of the
+and AuditProfile manifests and the instruction resources of the
 operator root, which the repository ships under `configs/`, may change in place
 without a new `metadata.version`. The Server loads the changed content under
 the existing lookup key at its next start (CAT-R26, CAT-R72); nothing records
@@ -531,8 +525,8 @@ What a Run used stays exact, because the identity of executed content never
 rests on `name@version` alone:
 
 - every Run snapshot stores the complete resolved Workflow with the
-  digest-bearing AgentTemplate, ModelPolicy, LLMGatewayConfig and
-  ExecutionConfig refs and the instruction digests (CAT-R33, CAT-R34,
+  digest-bearing AgentTemplate, ModelPolicy and LLMGatewayConfig
+  refs and the instruction digests (CAT-R33, CAT-R34,
   CAT-R41), and an edit never changes an existing Run (CAT-R35, CAT-R43);
 - a started Audit runs its child Runs from the Workflow closures it pinned at
   start ([AUD-R31](../audits/audits.md));
@@ -550,7 +544,7 @@ whichever comes first: then a committed digest lock (`kind name@version ->
 digest`) for the shipped catalog, checked by `contractor server config
 validate` and the release gate, replaces this requirement.
 
-**CAT-R45.** Workflow, AgentTemplate, ExecutionConfig and
+**CAT-R45.** Workflow, AgentTemplate and
 instruction resources are operator-authored and read-only; UI publication
 accepts only ModelPolicy and LLMGatewayConfig manifests.
 
@@ -749,7 +743,7 @@ Server is the permanent `409 configuration_drift` (CAT-R75).
   manifest/resource subtrees to prefixes and preserves the same document keys
   and relative instruction refs, so the instruction resource rule can be
   backed by an S3 prefix without changing Workflow YAML.
-- Editors for Workflow, AgentTemplate, ExecutionConfig and instruction
+- Editors for Workflow, AgentTemplate and instruction
   resources; they require a separate contract.
 - A standalone path-indexed instruction API. Instruction resources are not
   given an invented `name@version` identity; their refs and digests are visible

@@ -1592,8 +1592,7 @@ func TestCreateRunPinsNamedEscalationVariant(t *testing.T) {
 		t.Fatal(err)
 	}
 	variant := workflow.Stages["openapi_validate"].On.Failed.Escalate.ExecutionConfig
-	if variant.Ref == nil || variant.Ref.ConfigID != "strong-oas-review" ||
-		variant.Effective.Agents["validator"].ModelPolicy.Ref.PolicyID != "test-strong-worker" {
+	if variant.Effective.Agents["validator"].ModelPolicy.Ref.PolicyID != "test-strong-worker" {
 		t.Fatalf("stored escalation variant = %+v", variant)
 	}
 }
@@ -1904,8 +1903,8 @@ func TestRunStatusExposesEscalationLineageAndSafeEffectiveRefs(t *testing.T) {
 	}
 	stage := workflow.Stages["openapi_validate"]
 	action := stage.On.Failed
-	if action.Escalate == nil || action.Escalate.ExecutionConfig.Ref == nil {
-		t.Fatal("repository Workflow has no named failed escalation")
+	if action.Escalate == nil {
+		t.Fatal("repository Workflow has no failed escalation")
 	}
 	baseSnapshot, err := json.Marshal(stage)
 	if err != nil {
@@ -1961,8 +1960,6 @@ func TestRunStatusExposesEscalationLineageAndSafeEffectiveRefs(t *testing.T) {
 	}
 	if len(result.Attempts) != 2 || len(result.Transitions) != 2 ||
 		result.Attempts[1].PreviousExecutionID == nil || *result.Attempts[1].PreviousExecutionID != "stage-base" ||
-		result.Attempts[1].ExecutionConfig.Ref == nil ||
-		result.Attempts[1].ExecutionConfig.Ref.ConfigID != "strong-oas-review" ||
 		result.Attempts[1].ExecutionConfig.Agents["validator"].ModelPolicy.PolicyID != "test-strong-worker" ||
 		result.Attempts[1].ExecutionConfig.Agents["validator"].Credential == nil ||
 		result.Attempts[1].ExecutionConfig.Agents["validator"].Credential.CredentialID != "development-worker" ||

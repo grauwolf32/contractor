@@ -2184,7 +2184,7 @@ func loadResultProfileFixture(
 	t.Helper()
 	root := t.TempDir()
 	for _, directory := range []string{
-		"instructions", "llm-gateways", "model-policies", "execution-configs",
+		"instructions", "llm-gateways", "model-policies",
 		"agent-templates", "workflows", "audit-profiles", "skills",
 	} {
 		if err := os.MkdirAll(filepath.Join(root, directory), 0o755); err != nil {

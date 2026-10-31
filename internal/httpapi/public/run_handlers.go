@@ -644,27 +644,15 @@ func stageExecutionConfigReadModel(
 	case runstore.StageExecutionConfigBase:
 	case runstore.StageExecutionConfigFailedEscalation:
 		if stage.On.Failed.Escalate == nil {
-			return stageExecutionConfigResponse{}, fmt.Errorf("failed escalation Stage spec has no profile")
-		}
-		if stage.On.Failed.Escalate.ExecutionConfig.Ref != nil {
-			ref := *stage.On.Failed.Escalate.ExecutionConfig.Ref
-			result.Ref = &ref
+			return stageExecutionConfigResponse{}, fmt.Errorf("failed escalation Stage spec has no escalation")
 		}
 	case runstore.StageExecutionConfigInterruptedEscalation:
 		if stage.On.Interrupted.Escalate == nil {
-			return stageExecutionConfigResponse{}, fmt.Errorf("interrupted escalation Stage spec has no profile")
-		}
-		if stage.On.Interrupted.Escalate.ExecutionConfig.Ref != nil {
-			ref := *stage.On.Interrupted.Escalate.ExecutionConfig.Ref
-			result.Ref = &ref
+			return stageExecutionConfigResponse{}, fmt.Errorf("interrupted escalation Stage spec has no escalation")
 		}
 	case runstore.StageExecutionConfigSummaryEscalation:
 		if stage.On.Summarized == nil || stage.On.Summarized.Escalate == nil || execution.StageContext.Continuation == nil {
 			return stageExecutionConfigResponse{}, fmt.Errorf("summary escalation Stage spec has no saved policy/context")
-		}
-		if stage.On.Summarized.Escalate.ExecutionConfig.Ref != nil {
-			ref := *stage.On.Summarized.Escalate.ExecutionConfig.Ref
-			result.Ref = &ref
 		}
 	default:
 		return stageExecutionConfigResponse{}, fmt.Errorf("unknown Stage executionConfig variant %q", variant)

@@ -1,0 +1,110 @@
+schema_version: "1.0"
+id: V425-037
+title: Keep escalation execution configuration inside its Workflow
+milestone: hub-audit-structure-2026-10
+epic: workflows
+kind: chore
+introduced_by: V3-007
+priority: P3
+status: in_progress
+depends_on: []
+languages: [go, typescript]
+goal: Author reusable escalation settings inside one Workflow with YAML anchors instead of independently published ExecutionConfig profiles.
+context:
+  authority: >-
+    User decision 2026-10-31 in this chat: remove the standalone kind
+    ExecutionConfig and executionConfig.ref; reuse inline settings within one
+    Workflow through standard YAML anchors and aliases. Preserve executionConfig
+    itself, Workflow and Run overrides, model escalation and resolved snapshots.
+  specification:
+    - docs/spec/configuration/catalog.md
+    - docs/spec/configuration/workflows.md
+    - docs/spec/configuration/agent-templates.md
+  finding: >-
+    internal/config/execution_config_profile.go:58 loads a separately versioned
+    configuration kind solely to substitute a Stage-local override into a Workflow.
+    The default shipped catalog has no such profiles. V3-007 introduced the
+    profile path in 2d99eab2292cc33c102070e64d4692daf07b5983.
+  boundary: >-
+    YAML resolves same-document anchors before the existing strict inline
+    validator. Workflow identity and snapshot own the override and its resolved
+    effective variants. Referenced ModelPolicy and Gateway identities remain exact.
+    There is no cross-file substitution or compatibility reader for removed refs.
+  failure_outcomes: >-
+    Unknown ref fields and the removed public configuration kind are rejected.
+    Existing inline validation, credential checks, recovery and bounded snapshots
+    remain authoritative; missing or incompatible selections reject the load.
+scope:
+  in:
+    - Remove the standalone catalog kind, profile loader, publication and discovery branches, profile refs and public/UI projections.
+    - Convert owned profile fixtures to inline YAML and prove anchor reuse, strict rejection and pinned escalation behavior.
+    - Update specifications, shipped config documentation, OpenAPI and generated clients together.
+  out:
+    - Changing Workflow/Run override precedence, model escalation, RuntimeConfig or Planner/Worker ownership.
+    - Introducing another template language, profile resource, compatibility shim or persistence migration.
+    - Archived instruction Eval catalogs, which preserve exact historical bytes and are not loaded by the current Server.
+    - Alias-aware visual Studio editing; the existing visual editor requires expanded YAML, while Server and CLI accept aliases.
+acceptance_criteria:
+  - id: A1
+    text: No standalone ExecutionConfig kind, public configuration enum value, profile reference or profile snapshot field remains; removed inputs fail strictly.
+  - id: A2
+    text: Inline overrides and YAML anchors resolve to independently cloned pinned effective variants; retry/escalation and summary continuation retain their behavior.
+  - id: A3
+    text: Authoritative specs, OpenAPI, generated clients, CLI and Studio agree on inline-only escalation authoring, and all listed checks pass.
+tests:
+  - command: go test -tags=integration -p 2 ./internal/config/... ./internal/configtest ./internal/app ./internal/httpapi/public ./internal/apierror ./internal/publicclient/... ./internal/auditcontroller ./internal/auditimport ./internal/auditservice ./internal/evalservice ./internal/runservice
+    covers: [A1, A2, A3]
+  - command: make verify-public-api
+    covers: [A1, A3]
+  - command: make test-config
+    covers: [A2, A3]
+  - command: make ui-verify
+    covers: [A1, A3]
+  - command: cd runtime && uv run pytest tests/test_contracts.py
+    covers: [A1, A3]
+  - command: go test -tags=e2e -count=1 -timeout=8m ./tests/e2e -run '^TestRoutingAndEscalationProductionBoundaries$'
+    covers: [A2, A3]
+  - command: make verify-architecture
+    covers: [A3]
+  - command: go test ./tests/eval/agent_instructions
+    covers: [A3]
+  - command: make lint
+    covers: [A1, A3]
+implementation_notes:
+  - >-
+    Removed the standalone catalog kind, loader, identity/digest, cloned profile,
+    source map, publication/discovery branches, public profile refs and Operations/
+    Studio selectors. Inline resolution remains in escalation_config.go; Gateway,
+    credential, policy and effective-variant validation retain their existing owners.
+  - >-
+    Converted current test fixtures and the real-process escalation Workflow to
+    inline settings. Loader regressions compare expanded YAML against aliases and
+    merge keys, verify independent clones and stored snapshots, cover credential
+    clearing and availability, and reject removed ref fields on write and read.
+    Public handlers/OpenAPI and Studio reject the removed kind/ref as appropriate.
+  - >-
+    Regenerated both public clients and response schemas with their make targets,
+    and regenerated the dependency diagram. Updated the owning specs and LikeC4
+    model. Handwritten production Go/TypeScript shrank by 420 physical lines,
+    excluding generated files and tests. No controller, receipt, lease, table or
+    persistence migration was added.
+  - >-
+    Archived instruction Eval catalogs retain their exact historical bytes; their
+    archive tests pass. Alias-aware Studio visual import remains a separate
+    capability: the current editor requires expanded YAML, while the Server and CLI
+    accept standard aliases and merges within the owning Workflow.
+verification: >-
+  All listed commands passed on 2026-10-31. The tagged Go package suites ran
+  against a dedicated disposable PostgreSQL database with CREATEDB privileges;
+  the final config and public-handler suites were also rerun successfully after
+  the last test changes. The database was removed after all tests joined.
+  make verify-public-api, make test-config, make verify-architecture and the
+  archived instruction Eval tests passed. Runtime contract tests: 335 passed.
+  make ui-verify passed generation checks, lint, both TypeScript projects,
+  216 test files (2656 passed, one existing expected failure), 17 static-server
+  tests and production build. The real-process routing/escalation gate passed
+  in 119.474 seconds. make lint passed all generated-source, static analysis,
+  test-only-export, script, task/spec/ERD, release-graph, Ruff and import-layer
+  checks. Go used the installed 1.26.9 toolchain and canonical TMPDIR=/private/tmp;
+  UI used Node 24.20.0 and the pinned pnpm through Corepack. No live-model
+  quality experiment, deployment or merge into main was performed.

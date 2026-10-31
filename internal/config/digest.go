@@ -53,17 +53,6 @@ func llmGatewayConfigDigest(
 	})
 }
 
-func executionConfigDigest(selector resolved.Selector, patch resolved.StageExecutionConfigPatch) (string, error) {
-	return contentdigest.CanonicalJSON(map[string]any{
-		"apiVersion": contracts.APIVersion,
-		"kind":       executionConfigKind,
-		"metadata": map[string]any{
-			"name": selector.ID, "version": selector.Version,
-		},
-		"spec": patch.CanonicalValue(),
-	})
-}
-
 func agentTemplateDigest(selector resolved.Selector, template contracts.ResolvedAgentTemplate) (string, error) {
 	toolsets := make([]any, 0, len(template.Toolsets))
 	for _, selection := range template.Toolsets {

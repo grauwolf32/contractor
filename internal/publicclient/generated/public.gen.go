@@ -2226,18 +2226,15 @@ func (e CancellationCode) Valid() bool {
 
 // Defines values for ConfigurationKind.
 const (
-	AgentTemplates   ConfigurationKind = "agent-templates"
-	ExecutionConfigs ConfigurationKind = "execution-configs"
-	LlmGateways      ConfigurationKind = "llm-gateways"
-	ModelPolicies    ConfigurationKind = "model-policies"
+	AgentTemplates ConfigurationKind = "agent-templates"
+	LlmGateways    ConfigurationKind = "llm-gateways"
+	ModelPolicies  ConfigurationKind = "model-policies"
 )
 
 // Valid indicates whether the value is a known member of the ConfigurationKind enum.
 func (e ConfigurationKind) Valid() bool {
 	switch e {
 	case AgentTemplates:
-		return true
-	case ExecutionConfigs:
 		return true
 	case LlmGateways:
 		return true
@@ -10590,32 +10587,11 @@ type ExactArtifactRef struct {
 	Revision  Revision     `json:"revision"`
 }
 
-// ExecutionConfigBody defines model for ExecutionConfigBody.
-type ExecutionConfigBody struct {
-	Agents  *map[string]ExecutionConfigSelection `json:"agents,omitempty"`
-	Planner *ExecutionConfigSelection            `json:"planner,omitempty"`
-}
-
 // ExecutionConfigPatch defines model for ExecutionConfigPatch.
 type ExecutionConfigPatch struct {
 	Planner *ExecutionSelectionPatch              `json:"planner,omitempty"`
 	Stages  *map[string]StageExecutionConfigPatch `json:"stages,omitempty"`
 	Workers *ExecutionSelectionPatch              `json:"workers,omitempty"`
-}
-
-// ExecutionConfigRef defines model for ExecutionConfigRef.
-type ExecutionConfigRef struct {
-	ConfigId ConfigurationName `json:"configId"`
-	Digest   Digest            `json:"digest"`
-	Version  ConfigVersion     `json:"version"`
-}
-
-// ExecutionConfigSelection defines model for ExecutionConfigSelection.
-type ExecutionConfigSelection struct {
-	CompactorModelPolicy *ModelPolicyRef                  `json:"compactorModelPolicy,omitempty"`
-	Credential           nullable.Nullable[CredentialRef] `json:"credential,omitempty"`
-	LlmGateway           *LLMGatewayConfigRef             `json:"llmGateway,omitempty"`
-	ModelPolicy          *ModelPolicyRef                  `json:"modelPolicy,omitempty"`
 }
 
 // ExecutionSelectionPatch defines model for ExecutionSelectionPatch.
@@ -13193,7 +13169,6 @@ type StageExecutionConfig struct {
 	Agents            map[string]ConsumerExecutionConfig `json:"agents"`
 	EscalationOrdinal *int                               `json:"escalationOrdinal,omitempty"`
 	Planner           *ConsumerExecutionConfig           `json:"planner,omitempty"`
-	Ref               *ExecutionConfigRef                `json:"ref,omitempty"`
 	Variant           StageExecutionConfigVariant        `json:"variant"`
 }
 
@@ -13500,7 +13475,6 @@ type WorkflowEscalateTransitionKind string
 // WorkflowEscalationConfig defines model for WorkflowEscalationConfig.
 type WorkflowEscalationConfig struct {
 	Effective ResolvedStageExecutionConfig `json:"effective"`
-	Ref       *ExecutionConfigRef          `json:"ref,omitempty"`
 }
 
 // WorkflowFailTransition defines model for WorkflowFailTransition.
@@ -16903,32 +16877,6 @@ func (t *ConfigurationResource_Body) FromAgentTemplateBody(v AgentTemplateBody) 
 
 // MergeAgentTemplateBody performs a merge with any union data inside the ConfigurationResource_Body, using the provided AgentTemplateBody
 func (t *ConfigurationResource_Body) MergeAgentTemplateBody(v AgentTemplateBody) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsExecutionConfigBody returns the union data inside the ConfigurationResource_Body as a ExecutionConfigBody
-func (t ConfigurationResource_Body) AsExecutionConfigBody() (ExecutionConfigBody, error) {
-	var body ExecutionConfigBody
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromExecutionConfigBody overwrites any union data inside the ConfigurationResource_Body as the provided ExecutionConfigBody
-func (t *ConfigurationResource_Body) FromExecutionConfigBody(v ExecutionConfigBody) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeExecutionConfigBody performs a merge with any union data inside the ConfigurationResource_Body, using the provided ExecutionConfigBody
-func (t *ConfigurationResource_Body) MergeExecutionConfigBody(v ExecutionConfigBody) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err

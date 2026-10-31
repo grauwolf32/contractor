@@ -712,7 +712,7 @@ PostgreSQL; they do not add another YAML configuration subtree.
 **RCF-R180.** Operations manages database-backed immutable RuntimeConfig
 versions, revisioned label bindings, write-only encrypted adapter credentials
 and durable Runtime Agent label assignments. These resources are not part of
-the six YAML configuration subtrees and have no disabled state.
+the fixed configuration subtrees and have no disabled state.
 
 **RCF-R80.** Every section of a RuntimeConfig is optional. A user-published
 RuntimeConfig must contain at least one setting or explicit-null patch

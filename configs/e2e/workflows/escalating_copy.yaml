@@ -60,7 +60,11 @@ spec:
           escalate:
             maxAttempts: 1
             executionConfig:
-              ref: strong-routing@1
+              planner:
+                modelPolicy: strong_planner@1
+              agents:
+                builder:
+                  modelPolicy: strong_worker@1
             then:
               fail: {}
         interrupted:

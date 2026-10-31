@@ -4,19 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
-
-func validateExecutionConfigRef(ref ExecutionConfigRef) error {
-	if _, err := ParseSelector(ref.ConfigID + "@" + ref.Version); err != nil {
-		return err
-	}
-	if !contentdigest.Valid(ref.Digest) {
-		return fmt.Errorf("digest %q must use sha256:<64 lowercase hex>", ref.Digest)
-	}
-	return nil
-}
 
 // The checks below are shared by the catalog loader, which applies them to
 // authored manifests, and by the rules here and in auditprofile, which apply
@@ -32,7 +21,7 @@ func ValidateIdentifier(field, value string) error {
 }
 
 // ValidateWorkflowName applies the shared name grammar of contracts.ValidName
-// to a Stage or logical Agent name, wherever a Workflow, ExecutionConfig or
+// to a Stage or logical Agent name, wherever a Workflow or
 // persisted snapshot declares or references one. The public API and
 // Operations show both as ConfigId values (WFL-R84), so the catalog accepts
 // no name they could not show.

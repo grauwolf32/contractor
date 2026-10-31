@@ -30,7 +30,7 @@ func TestPostgresUserRulepackForksAcrossProjectsAndRejectsInvalidSourcesAtomical
 	defer cancel()
 	pool := isolatedRunServicePool(t, ctx, databaseURL)
 	root := t.TempDir()
-	for _, directory := range []string{"agent-templates", "workflows", "instructions", "model-policies", "llm-gateways", "execution-configs", "audit-profiles"} {
+	for _, directory := range []string{"agent-templates", "workflows", "instructions", "model-policies", "llm-gateways", "audit-profiles"} {
 		if err := os.MkdirAll(filepath.Join(root, directory), 0700); err != nil {
 			t.Fatal(err)
 		}

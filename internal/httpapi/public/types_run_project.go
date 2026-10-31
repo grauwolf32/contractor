@@ -425,7 +425,6 @@ type updateOwnerQueueControlRequest struct {
 type stageExecutionConfigResponse struct {
 	Variant           runstore.StageExecutionConfigVariant           `json:"variant"`
 	EscalationOrdinal *int                                           `json:"escalationOrdinal,omitempty"`
-	Ref               *resolved.ExecutionConfigRef                   `json:"ref,omitempty"`
 	Planner           *consumerExecutionConfigRefsResponse           `json:"planner,omitempty"`
 	Agents            map[string]consumerExecutionConfigRefsResponse `json:"agents"`
 }

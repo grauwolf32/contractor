@@ -223,8 +223,8 @@ their Runtime owners; the State contract rejects these unused exported fields. T
 `llm-gateway-config-manifest.schema.json` describes the strict non-secret YAML
 manifest after YAML-to-JSON conversion. `llm-gateway-config.schema.json`
 describes its normalized, digest-bearing resolved value inside the Go Server.
-`execution-config-manifest.schema.json` describes immutable Stage-local
-escalation profiles.
+Escalation execution settings are inline in the owning Workflow and may reuse
+standard YAML anchors within that document.
 
 Registration requires `initialLabels` and `supportedRuntimeAdapters`, including
 empty arrays when nothing is selected. The response carries the durable

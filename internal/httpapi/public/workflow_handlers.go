@@ -201,7 +201,6 @@ func workflowTransitionReadModel(action resolved.TransitionAction) workflowTrans
 		}
 		result.DeadlineSeconds = action.Escalate.DeadlineSeconds
 		result.ExecutionConfig = &workflowEscalationConfigResponse{
-			Ref: action.Escalate.ExecutionConfig.Ref,
 			Effective: resolvedStageExecutionConfigReadModel(
 				action.Escalate.ExecutionConfig.Effective,
 			),

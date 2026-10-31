@@ -15,16 +15,6 @@ func (execution ResolvedStageExecutionConfig) Clone() ResolvedStageExecutionConf
 	return cloneStageExecutionConfig(execution)
 }
 
-// Clone returns a deep copy of override.
-func (override ResolvedStageExecutionConfigOverride) Clone() ResolvedStageExecutionConfigOverride {
-	return cloneStageExecutionConfigOverride(override)
-}
-
-// Clone returns a deep copy of profile.
-func (profile ResolvedExecutionConfigProfile) Clone() ResolvedExecutionConfigProfile {
-	return cloneExecutionConfigProfile(profile)
-}
-
 func cloneWorkflow(source ResolvedWorkflow) ResolvedWorkflow {
 	result := source
 	result.AuditTask = cloneAuditTask(source.AuditTask)
@@ -156,12 +146,6 @@ func cloneConsumerExecutionConfig(source ResolvedConsumerExecutionConfig) Resolv
 	return result
 }
 
-func cloneExecutionConfigProfile(source ResolvedExecutionConfigProfile) ResolvedExecutionConfigProfile {
-	result := source
-	result.Override = cloneStageExecutionConfigOverride(source.Override)
-	return result
-}
-
 func cloneStageExecutionConfigOverride(
 	source ResolvedStageExecutionConfigOverride,
 ) ResolvedStageExecutionConfigOverride {
@@ -238,10 +222,6 @@ func cloneEscalationExecutionConfig(
 	source ResolvedEscalationExecutionConfig,
 ) ResolvedEscalationExecutionConfig {
 	result := source
-	if source.Ref != nil {
-		ref := *source.Ref
-		result.Ref = &ref
-	}
 	result.Override = cloneStageExecutionConfigOverride(source.Override)
 	result.Effective = cloneStageExecutionConfig(source.Effective)
 	return result

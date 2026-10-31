@@ -56,19 +56,12 @@ function FailureTransitionView({
     );
   }
   if (transition.kind === "escalate") {
-    const ref = transition.executionConfig.ref;
     return (
       <div className="workflow-escalation">
         <span>
           escalate up to {plural(transition.maxAttempts, "attempt")} using{" "}
-          {ref === undefined ? (
-            "an inline resolved profile"
-          ) : (
-            <code>
-              {ref.configId}@{ref.version}
-            </code>
-          )}
-          , then <TerminalTransition transition={transition.then} />
+          inline execution settings, then{" "}
+          <TerminalTransition transition={transition.then} />
         </span>
         <ConsumerConfigList
           config={transition.executionConfig.effective}

@@ -10672,22 +10672,6 @@
         }
       }
     },
-    "ExecutionConfigRef": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["configId", "version", "digest"],
-      "properties": {
-        "configId": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ConfigurationName"
-        },
-        "version": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ConfigVersion"
-        },
-        "digest": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/Digest"
-        }
-      }
-    },
     "ConsumerExecutionConfig": {
       "type": "object",
       "additionalProperties": false,
@@ -10770,9 +10754,6 @@
           ]
         },
         "escalationOrdinal": { "type": "integer", "minimum": 1 },
-        "ref": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ExecutionConfigRef"
-        },
         "planner": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ConsumerExecutionConfig"
         },
@@ -11874,9 +11855,6 @@
       "additionalProperties": false,
       "required": ["effective"],
       "properties": {
-        "ref": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ExecutionConfigRef"
-        },
         "effective": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResolvedStageExecutionConfig"
         }
@@ -12165,12 +12143,7 @@
     },
     "ConfigurationKind": {
       "type": "string",
-      "enum": [
-        "agent-templates",
-        "execution-configs",
-        "model-policies",
-        "llm-gateways"
-      ]
+      "enum": ["agent-templates", "model-policies", "llm-gateways"]
     },
     "ConfigurationRef": {
       "type": "object",
@@ -12478,47 +12451,6 @@
         }
       ]
     },
-    "ExecutionConfigSelection": {
-      "type": "object",
-      "additionalProperties": false,
-      "minProperties": 1,
-      "properties": {
-        "modelPolicy": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ModelPolicyRef"
-        },
-        "compactorModelPolicy": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ModelPolicyRef"
-        },
-        "llmGateway": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/LLMGatewayConfigRef"
-        },
-        "credential": {
-          "oneOf": [
-            {
-              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/CredentialRef"
-            },
-            { "type": "null" }
-          ]
-        }
-      }
-    },
-    "ExecutionConfigBody": {
-      "type": "object",
-      "additionalProperties": false,
-      "minProperties": 1,
-      "properties": {
-        "planner": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ExecutionConfigSelection"
-        },
-        "agents": {
-          "type": "object",
-          "minProperties": 1,
-          "additionalProperties": {
-            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ExecutionConfigSelection"
-          }
-        }
-      }
-    },
     "ConfigurationResource": {
       "type": "object",
       "additionalProperties": false,
@@ -12537,9 +12469,6 @@
             },
             {
               "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AgentTemplateBody"
-            },
-            {
-              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ExecutionConfigBody"
             }
           ]
         },

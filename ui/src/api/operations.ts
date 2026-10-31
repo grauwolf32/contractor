@@ -53,7 +53,6 @@ export type PublishConfigurationRequest =
 export type ModelPolicyBody = components["schemas"]["ModelPolicyBody"];
 export type LLMGatewayBody = components["schemas"]["LLMGatewayBody"];
 export type AgentTemplateBody = components["schemas"]["AgentTemplateBody"];
-export type ExecutionConfigBody = components["schemas"]["ExecutionConfigBody"];
 export type ModelPolicyRef = components["schemas"]["ModelPolicyRef"];
 export type LLMGatewayConfigRef = components["schemas"]["LLMGatewayConfigRef"];
 export type CredentialResource = components["schemas"]["CredentialResource"];

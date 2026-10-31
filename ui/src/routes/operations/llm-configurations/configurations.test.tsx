@@ -53,12 +53,7 @@ describe("LLM configurations", () => {
       within(kinds)
         .getAllByRole("button")
         .map((button) => button.textContent),
-    ).toEqual([
-      "Model policies",
-      "LLM gateways",
-      "Agent templates",
-      "Execution configs",
-    ]);
+    ).toEqual(["Model policies", "LLM gateways", "Agent templates"]);
     expect(
       within(kinds).getByRole("button", { name: "LLM gateways" }),
     ).toHaveAttribute("aria-pressed", "true");

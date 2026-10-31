@@ -869,10 +869,7 @@ def test_shared_config_identity_cases_match_runtime_and_schemas() -> None:
     wire_versions.append(gateway_ref["version"])
     manifests = [
         schemas[name]["properties"]["metadata"]["properties"]
-        for name in (
-            "execution-config-manifest.schema.json",
-            "llm-gateway-config-manifest.schema.json",
-        )
+        for name in ("llm-gateway-config-manifest.schema.json",)
     ]
 
     def wire_accepts(identifier: str, version: str) -> bool:
