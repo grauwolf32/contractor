@@ -1,0 +1,47 @@
+schema_version: "1.0"
+id: V429-008
+title: Use a registered source Run-list failure fixture
+milestone: ui-journey-usability
+epic: ui
+kind: chore
+introduced_by: V429-005
+priority: P3
+status: in_progress
+depends_on: [V429-005]
+languages: [typescript]
+goal: The source-list retry test models the real public API storage-conflict failure and passes the API registry guard.
+context:
+  authority: Discovered on 2026-11-01 during the user's authorized main merge and combined UI/API verification.
+  specification: docs/spec/platform/errors.md#ERR-R14
+  finding: >-
+    ui/src/routes/runs/source-pane.test.tsx:278, introduced by 9a3be29ef,
+    answers the unregistered storage_unavailable code. The real Run-list API
+    documents retryable 503 storage_transaction_conflict. The registry guard
+    fails, and the strict test helper converts this invented failure into a
+    thrown fixture error instead of the intended storage-failure envelope.
+  siblings: >-
+    Search all UI source and browser tests for the same invented code. The
+    single source-pane fixture is in scope; the Project missing-Workflow
+    fixture on main was independently repaired by V429-004.
+scope:
+  in:
+    - Use the registered retryable storage_transaction_conflict response in the source-list read/retry test.
+    - Verify existing detail-retention/retry assertions, the full API-error package and combined UI/lint gates.
+  out:
+    - Production behavior, new API codes, Server data, model configuration and OpenDesign data changes.
+acceptance_criteria:
+  - id: A1
+    text: The browser test-double registry guard accepts the fixture and no storage_unavailable copy remains.
+  - id: A2
+    text: The real-client source-list test still keeps detail accessible during failure and recovers after an explicit refresh.
+tests:
+  - command: go test -count=1 ./internal/apierror
+    covers: [A1]
+  - command: cd ui && corepack pnpm exec vitest run src/routes/runs/source-pane.test.tsx
+    covers: [A2]
+  - command: VITEST_MAX_WORKERS=2 make ui-verify
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2]
+  - command: python3 scripts/check_tasks.py
+    covers: [A1, A2]

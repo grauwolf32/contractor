@@ -275,7 +275,11 @@ describe("originating Run list", () => {
           ...routes,
           "GET /v1/runs": () =>
             unavailable
-              ? failure(503, "storage_unavailable", "Source unavailable")
+              ? failure(
+                  503,
+                  "storage_transaction_conflict",
+                  "Source unavailable",
+                )
               : json(page([])),
         },
       },
