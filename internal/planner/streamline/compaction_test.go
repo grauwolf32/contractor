@@ -20,12 +20,7 @@ import (
 	"google.golang.org/genai"
 )
 
-const (
-	compactorPolicyID = "compactor-test"
-	// compactionThreshold is min(floor(4096*0.75), 4096-512) of the main
-	// policy in compactionInvocation.
-	compactionThreshold = 3072
-)
+const compactorPolicyID = "compactor-test"
 
 func compactionInvocation(profile string) planner.Invocation {
 	invocation := testInvocation("builder")

@@ -1,0 +1,37 @@
+schema_version: "1.0"
+id: V425-020
+title: "Remove the unused Planner compaction test threshold"
+milestone: planner-context-compaction-2026-10
+epic: quality
+kind: chore
+introduced_by: V420-002
+priority: P3
+status: in_progress
+depends_on: []
+languages: [go]
+goal: "The merged Planner compaction tests no longer block make lint with an unused threshold constant."
+context:
+  origin: "Reproduced while executing the user-requested V372-030 cleanup on 2026-10-31."
+  authority: >-
+    Agent-proposed minimal prerequisite for V372-030's mandatory lint acceptance;
+    not a change to the user-selected compaction design or its unfinished tasks.
+  finding: >-
+    internal/planner/streamline/compaction_test.go:27 declares compactionThreshold
+    without any reference. staticcheck U1000 stops make lint. git blame names
+    003f6e044 (V420-002). Existing tests already supply their measured token values.
+  boundary: "Test declaration only; production trigger computation and test assertions stay unchanged."
+scope:
+  in:
+    - "Remove compactionThreshold and its now-obsolete explanatory comment."
+  out:
+    - "Changing compaction policy, production code, assertions or completion status of V417/V420 tasks."
+acceptance_criteria:
+  - id: A1
+    text: "The unused declaration is gone and make lint passes."
+  - id: A2
+    text: "The full Planner package suites pass against disposable PostgreSQL without changing assertions."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/planner/..."
+    covers: [A2]
