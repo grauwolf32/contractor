@@ -52,14 +52,11 @@ NATIVE_SKILL_TOOL_NAMES = frozenset({"list_skills", "load_skill", "load_skill_re
 WORKER_SUBTASK_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 WORKER_FAILURE_CODE_PATTERN = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
 RUN_METADATA_LABEL_KEY_PATTERN = re.compile(r"^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$")
-MAX_RUN_METADATA_LABELS = 32
 # A Runtime label set (RCF-R117 to RCF-R120, LIM-RCF-25, LIM-RCF-26); the
 # Server defines it in internal/contracts/runtimesettings/runtime_labels.go.
 DEFAULT_RUNTIME_LABEL = "default"
 MAX_RUNTIME_LABELS = 32
 MAX_RUNTIME_LABEL_BYTES = 63
-MAX_RUN_METADATA_LABEL_KEY_BYTES = 63
-MAX_RUN_METADATA_LABEL_VALUE_BYTES = 256
 # The relative workspace path grammar (WSP-R13): workspace targets and the
 # files a Worker reports reading, and the larger Worker State paths.
 MAX_WORKSPACE_TARGET_BYTES = 1024
@@ -446,8 +443,10 @@ def _require_worker_subtask_id(value: str) -> str:
 def normalize_run_metadata_labels(value: dict[str, str]) -> dict[str, str]:
     if not isinstance(value, dict):
         raise ValueError("runMetadataLabels must be an object")
-    if len(value) > MAX_RUN_METADATA_LABELS:
-        raise ValueError("runMetadataLabels exceed 32 entries")
+    if len(value) > get_shared_config().run_metadata_max_labels:
+        raise ValueError(
+            f"runMetadataLabels exceed {get_shared_config().run_metadata_max_labels} entries"
+        )
     if any(not isinstance(key, str) for key in value):
         raise ValueError("runMetadataLabels contain an invalid key")
     result: dict[str, str] = {}
@@ -455,7 +454,7 @@ def normalize_run_metadata_labels(value: dict[str, str]) -> dict[str, str]:
         label_value = value[key]
         if (
             not key
-            or len(key.encode("utf-8")) > MAX_RUN_METADATA_LABEL_KEY_BYTES
+            or len(key.encode("utf-8")) > get_shared_config().run_metadata_key_max_bytes
             or RUN_METADATA_LABEL_KEY_PATTERN.fullmatch(key) is None
             or key.startswith("contractor.")
         ):
@@ -463,7 +462,7 @@ def normalize_run_metadata_labels(value: dict[str, str]) -> dict[str, str]:
         if not isinstance(label_value, str):
             raise ValueError("runMetadataLabels contain an invalid value")
         encoded = label_value.encode("utf-8")
-        if len(encoded) > MAX_RUN_METADATA_LABEL_VALUE_BYTES or "\0" in label_value:
+        if len(encoded) > get_shared_config().run_metadata_value_max_bytes or "\0" in label_value:
             raise ValueError("runMetadataLabels contain an invalid value")
         result[key] = label_value
     return result

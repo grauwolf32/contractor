@@ -1,5 +1,5 @@
+import { useSharedConfig } from "../../../config/shared-config";
 import { auditPresetPath } from "../../../api/audit-presets";
-import { AUDIT_LABEL_LIMIT } from "../../../api/audit-labels";
 import { ContextLink } from "../../../app/context-navigation";
 import { compactDigest } from "../../../app/format";
 import { Icon } from "../../../app/icon";
@@ -17,6 +17,7 @@ import type { StartCheck } from "./use-start-check";
  * runtime labels. The digest and input check sit behind Technical details.
  */
 export function AdvancedOptions({ model }: { model: StartCheck }) {
+  const { limits } = useSharedConfig();
   const { selection, exact } = model;
   if (selection === undefined) return null;
   const profile = exact ?? selection.profile;
@@ -82,7 +83,7 @@ export function AdvancedOptions({ model }: { model: StartCheck }) {
           <LabelsEditor
             entries={model.labels}
             onChange={model.setLabels}
-            maximum={AUDIT_LABEL_LIMIT}
+            maximum={limits.auditMaxLabels}
             suggestions={["cloud", "local"]}
             hint="cloud or local chooses where to run. Add a value for a provider or site, such as aws or lab. Labels are fixed at start and passed to every step."
             error={model.labelError}

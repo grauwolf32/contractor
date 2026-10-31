@@ -1,3 +1,5 @@
+import { RunMetadata } from "./run-form-settings";
+import { testSharedConfig } from "../../test/shared-config";
 import {
   act,
   fireEvent,
@@ -2218,4 +2220,32 @@ describe("Workflow routes", () => {
     ).toHaveLength(2);
     expect(postCount).toBe(0);
   });
+});
+
+it("disables label additions at the received Run metadata capacity", () => {
+  const config = testSharedConfig(17, { runMetadataMaxLabels: 1 });
+  renderWithAPI(
+    <RunMetadata
+      labels={[{ id: "1", key: "team", value: "one" }]}
+      labelInput=""
+      errors={{}}
+      editor={{
+        add: vi.fn(),
+        addEvalPreset: vi.fn(),
+        update: vi.fn(),
+        remove: vi.fn(),
+        setInput: vi.fn(),
+      }}
+      open
+      onOpenChange={vi.fn()}
+    />,
+    { sharedConfig: config },
+  );
+  expect(
+    screen.getByRole("button", { name: "Add metadata label" }),
+  ).toBeDisabled();
+  expect(
+    screen.getByRole("button", { name: "Add eval metadata preset" }),
+  ).toBeDisabled();
+  expect(screen.getByText("1/1 labels")).toBeVisible();
 });

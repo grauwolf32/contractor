@@ -223,6 +223,178 @@ def worker_result_cases(root, limits):
     return json.dumps(cases, ensure_ascii=False, indent=2) + "\n"
 
 
+def input_bindings():
+    public = ("components", "schemas")
+    private = ("$defs", "runMetadataLabels")
+    return {
+        "gitImportUrlMaxBytes": {
+            PUBLIC: [
+                public + ("GitImportRequest", "properties", "repositoryUrl", key)
+                for key in ("maxLength", "x-max-utf8-bytes")
+            ]
+        },
+        "runMetadataMaxLabels": {
+            PUBLIC: [public + ("RunMetadataLabels", "maxProperties")],
+            "api/v1alpha1/allocation.schema.json": [private + ("maxProperties",)],
+        },
+        "runMetadataKeyMaxBytes": {
+            PUBLIC: [public + ("RunMetadataLabels", "propertyNames", "allOf", "0", "maxLength")],
+            "api/v1alpha1/allocation.schema.json": [
+                private + ("propertyNames", "allOf", "0", "maxLength")
+            ],
+        },
+        "runMetadataValueMaxBytes": {
+            PUBLIC: [
+                public + ("RunMetadataLabels", "additionalProperties", key)
+                for key in ("maxLength", "x-max-utf8-bytes")
+            ],
+            "api/v1alpha1/allocation.schema.json": [
+                private + ("additionalProperties", key) for key in ("maxLength", "x-maxBytes")
+            ],
+        },
+        "auditMaxLabels": {PUBLIC: [public + ("AuditLabels", "allOf", "1", "maxProperties")]},
+    }
+
+
+def bind_input_policy(root, limits, result):
+    for policy, files in input_bindings().items():
+        for name, bindings in files.items():
+            result[name] = replace_scalars(
+                result.get(name, (root / name).read_text()), bindings, limits[policy]
+            )
+    # Selector envelopes and canonical provenance derive from different concrete encodings.
+    source = result[PUBLIC]
+    document = yaml.safe_load(source)
+    selector_paths = []
+    for route, item in document["paths"].items():
+        for method, operation in item.items():
+            if not isinstance(operation, dict):
+                continue
+            for index, parameter in enumerate(operation.get("parameters", [])):
+                if (
+                    parameter.get("schema", {}).get("items", {}).get("$ref")
+                    == "#/components/schemas/RunMetadataLabelSelector"
+                ):
+                    selector_paths.append(
+                        ("paths", route, method, "parameters", str(index), "schema", "maxItems")
+                    )
+    source = replace_scalars(source, selector_paths, limits["runMetadataMaxLabels"])
+    for schema, cap in (
+        ("GitSource", 3 * limits["gitImportUrlMaxBytes"]),
+        (
+            "RunMetadataLabelSelector",
+            limits["runMetadataKeyMaxBytes"] + 1 + limits["runMetadataValueMaxBytes"],
+        ),
+    ):
+        base = ("components", "schemas", schema)
+        if schema == "GitSource":
+            base += ("properties", "repositoryUrl")
+        source = replace_scalars(
+            source, [base + (key,) for key in ("maxLength", "x-max-utf8-bytes")], cap
+        )
+    result[PUBLIC] = source
+    name = "api/testdata/public/utf8-byte-bound-cases.json"
+    fixture = json.loads((root / name).read_text())
+    rules = {
+        "LIM-GIT-23": limits["gitImportUrlMaxBytes"],
+        "LIM-GIT-24": 3 * limits["gitImportUrlMaxBytes"],
+        "LIM-RUN-5": limits["runMetadataValueMaxBytes"],
+        "LIM-RUN-11": limits["runMetadataKeyMaxBytes"] + 1 + limits["runMetadataValueMaxBytes"],
+    }
+    for field in fixture["fields"]:
+        if field["rule"] in rules:
+            field["maxBytes"] = rules[field["rule"]]
+    result[name] = json.dumps(fixture, ensure_ascii=False, indent=2) + "\n"
+    name = "api/testdata/v1alpha1/run-metadata-label-cases.json"
+    cases = json.loads((root / name).read_text())
+    for category, case_name, key, value in (
+        ("valid", "maximum-ascii-value", "note", "a" * limits["runMetadataValueMaxBytes"]),
+        ("invalid", "oversized-value", "purpose", "a" * (limits["runMetadataValueMaxBytes"] + 1)),
+        ("valid", "maximum-ascii-key", "a" * limits["runMetadataKeyMaxBytes"], "v"),
+        ("invalid", "oversized-key", "a" * (limits["runMetadataKeyMaxBytes"] + 1), "v"),
+    ):
+        case = next((c for c in cases[category] if c["name"] == case_name), None)
+        if case is None:
+            case = {"name": case_name}
+            cases[category].append(case)
+        case["value"] = {key: value}
+    next(c for c in cases["invalid"] if c["name"] == "too-many")["value"] = {
+        f"k{i:02d}": "v" for i in range(limits["runMetadataMaxLabels"] + 1)
+    }
+    result[name] = json.dumps(cases, sort_keys=True, separators=(",", ":")) + "\n"
+    name = "api/testdata/v1alpha1/placement-label-cases.json"
+    result[name] = replace_scalars(
+        (root / name).read_text(), [("maxAuditLabels",)], limits["auditMaxLabels"]
+    )
+
+
+def metadata_routine_with_limits(routine, limits):
+    patterns = [
+        (r"(jsonb_object_keys\(labels\)\)\s*<=\s*)\d+", limits["runMetadataMaxLabels"]),
+        (r"(octet_length\(entry.key\) NOT BETWEEN 1 AND )\d+", limits["runMetadataKeyMaxBytes"]),
+        (r"(octet_length\(entry.value #>> '\{\}'\) > )\d+", limits["runMetadataValueMaxBytes"]),
+    ]
+    changed = routine
+    for pattern, cap in patterns:
+        changed, count = re.subn(pattern, lambda m: m[1] + str(cap), changed)
+        if count != 1:
+            raise ValueError("metadata SQL policy binding changed")
+    return changed
+
+
+def append_input_migrations(root, limits, result):
+    paths = sorted((root / "internal/persistence/migrations").glob("*.sql"))
+    latest_git = None
+    routine = None
+    for path in paths:
+        sql = path.read_text()
+        matches = re.findall(
+            r"artifact_versions_git_repository_url_check[\s\S]*?octet_length\(git_repository_url\)[\s\S]*?(?:<=|BETWEEN\s+1\s+AND)\s*(\d+)",
+            sql,
+        )
+        if matches:
+            latest_git = int(matches[-1])
+        matches = re.findall(
+            r"CREATE(?: OR REPLACE)? FUNCTION contractor_valid_run_metadata_labels\([^;]*?[\s\S]*?^(?:END;|\$[_a-zA-Z0-9]*\$;)",
+            sql,
+            re.MULTILINE,
+        )
+        if matches:
+            routine = matches[-1]
+    if latest_git is None or routine is None:
+        raise ValueError("Git/metadata persistence policy not found")
+    numbers = [int(p.name.split("_")[0]) for p in paths]
+    numbers += [
+        int(Path(name).name.split("_")[0])
+        for name in result
+        if name.startswith("internal/persistence/migrations/")
+    ]
+    number = max(numbers) + 1
+    cap = 3 * limits["gitImportUrlMaxBytes"]
+    if latest_git != cap:
+        result[f"internal/persistence/migrations/{number:06d}_shared_git_source_limit.sql"] = (
+            "-- Generated by make shared-config-generate; preserve historical migrations.\n"
+            "ALTER TABLE artifact_versions\n"
+            "    DROP CONSTRAINT artifact_versions_git_repository_url_check,\n"
+            "    ADD CONSTRAINT artifact_versions_git_repository_url_check\n"
+            f"        CHECK (octet_length(git_repository_url) BETWEEN 1 AND {cap});\n"
+        )
+        number += 1
+    changed = metadata_routine_with_limits(routine, limits)
+    if changed != routine:
+        changed = re.sub(r"^CREATE(?: OR REPLACE)? FUNCTION", "CREATE OR REPLACE FUNCTION", changed)
+        result[f"internal/persistence/migrations/{number:06d}_shared_run_metadata_limits.sql"] = (
+            "-- Generated by make shared-config-generate; preserve historical migrations.\n"
+            + changed
+            + "\n"
+            "-- Revalidate existing rows, so a decrease cannot silently invalidate data.\n"
+            "ALTER TABLE workflow_runs\n"
+            "    DROP CONSTRAINT workflow_runs_metadata_labels_check,\n"
+            "    ADD CONSTRAINT workflow_runs_metadata_labels_check\n"
+            "        CHECK (contractor_valid_run_metadata_labels(metadata_labels));\n"
+        )
+
+
 def outputs(root, config):
     cap = config["limits"]["artifactPayloadMaxBytes"]
     result = {}
@@ -269,6 +441,7 @@ def outputs(root, config):
     result["api/testdata/v1alpha1/worker-result-size-cases.json"] = worker_result_cases(
         root, config["limits"]
     )
+    bind_input_policy(root, config["limits"], result)
     schema = json.loads((root / "api/v1alpha1/shared-config.schema.json").read_text())
     result[PUBLIC] = bind_config_schema(result[PUBLIC], schema)
     raw = json.dumps(config, sort_keys=True, separators=(",", ":")) + "\n"
@@ -289,6 +462,9 @@ def outputs(root, config):
         f"MAX_REQUEST_BODY_BYTES = {config['limits']['httpRequestBodyMaxBytes']}\n"
         f"MAX_RESPONSE_BODY_BYTES = {config['limits']['httpResponseBodyMaxBytes']}\n"
         f"MAX_HEADER_BYTES = {config['limits']['httpHeaderBlockMaxBytes']}\n"
+        f"MAX_RUN_METADATA_LABELS = {config['limits']['runMetadataMaxLabels']}\n"
+        f"MAX_RUN_METADATA_LABEL_KEY_BYTES = {config['limits']['runMetadataKeyMaxBytes']}\n"
+        f"MAX_RUN_METADATA_LABEL_VALUE_BYTES = {config['limits']['runMetadataValueMaxBytes']}\n"
     )
     migrations = root / "internal/persistence/migrations"
     effective = None
@@ -312,6 +488,7 @@ def outputs(root, config):
             "    ADD CONSTRAINT artifact_blobs_size_check\n"
             f"        CHECK (size_bytes >= 0 AND size_bytes <= {cap});\n"
         )
+    append_input_migrations(root, config["limits"], result)
     return result
 
 

@@ -1,3 +1,4 @@
+import { getSharedConfig } from "./shared-config";
 import { RESOURCE_ID, schemaLimit, stringRule } from "./contract";
 import { isStateIn, TERMINAL_RUN_STATES } from "./states";
 import {
@@ -140,6 +141,7 @@ export async function listRuns(
 ): Promise<RunPage> {
   const labelSelectors = normalizeRunMetadataLabelSelectors(
     request.labelSelectors ?? [],
+    (await getSharedConfig(api)).limits,
   );
   const result = await api.request((client) =>
     client.GET("/v1/runs", {

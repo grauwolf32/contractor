@@ -18,6 +18,12 @@ from contractor_runtime.shared_config import SharedConfigSnapshot
 
 
 class SharedLimits(WireModel):
+    git_import_url_max_bytes: int = Field(strict=True, gt=0, le=MAX_EXACT_INTEGER)
+    run_metadata_max_labels: int = Field(strict=True, gt=0, le=MAX_EXACT_INTEGER)
+    run_metadata_key_max_bytes: int = Field(strict=True, gt=0, le=MAX_EXACT_INTEGER)
+    run_metadata_value_max_bytes: int = Field(strict=True, gt=0, le=MAX_EXACT_INTEGER)
+    audit_max_labels: int = Field(strict=True, gt=0, le=MAX_EXACT_INTEGER)
+
     http_request_body_max_bytes: int = Field(strict=True, gt=0, le=MAX_EXACT_INTEGER)
     http_response_body_max_bytes: int = Field(strict=True, gt=0, le=MAX_EXACT_INTEGER)
     http_header_block_max_bytes: int = Field(strict=True, gt=0, le=MAX_EXACT_INTEGER)

@@ -7520,7 +7520,12 @@ components:
             "workerStateWorkspacePathsMaxBytes",
             "httpRequestBodyMaxBytes",
             "httpResponseBodyMaxBytes",
-            "httpHeaderBlockMaxBytes"
+            "httpHeaderBlockMaxBytes",
+            "gitImportUrlMaxBytes",
+            "runMetadataMaxLabels",
+            "runMetadataKeyMaxBytes",
+            "runMetadataValueMaxBytes",
+            "auditMaxLabels"
           ],
           "properties": {
             "artifactPayloadMaxBytes": {
@@ -7594,6 +7599,31 @@ components:
               "maximum": 9007199254740991
             },
             "httpHeaderBlockMaxBytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "gitImportUrlMaxBytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "runMetadataMaxLabels": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "runMetadataKeyMaxBytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "runMetadataValueMaxBytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "auditMaxLabels": {
               "type": "integer",
               "minimum": 1,
               "maximum": 9007199254740991
@@ -13143,9 +13173,9 @@ components:
       description: >-
         Exact metadata-label key=value selector after query decoding. The first
         '=' separates the key from the value. Server validates the key with the
-        RunMetadataLabels key grammar (1–63 ASCII bytes, LIM-RUN-4) and the value
-        with its value bound (0–256 UTF-8 bytes, no U+0000, LIM-RUN-5).
-        The combined bound is 320 UTF-8 bytes (LIM-RUN-11); a shorter key does
+        RunMetadataLabels key grammar and byte bound (LIM-RUN-4) and the value
+        with its byte bound (no U+0000, LIM-RUN-5).
+        The combined byte bound is LIM-RUN-11; a shorter key does
         not increase the value allowance. Invalid parts return 400 invalid_request.
     RunMetadataLabels:
       description: Immutable ordinary key/value labels. cloud and local derive Runtime placement; an empty value selects the namespace and a non-empty value selects its provider/site child path. Other keys are descriptive.
@@ -13163,7 +13193,7 @@ components:
         minLength: 0
         maxLength: 256
         x-max-utf8-bytes: 256
-        description: Opaque non-NUL UTF-8 value bounded by the Server to 256 encoded bytes. An empty string represents a key-only label.
+        description: Opaque non-NUL UTF-8 value bounded by the shared Server byte policy. An empty string represents a key-only label.
     CreateProjectRequest:
       type: object
       additionalProperties: false

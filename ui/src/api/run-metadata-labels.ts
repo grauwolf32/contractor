@@ -1,16 +1,12 @@
-import { schemaLimit } from "./contract";
+import type { SharedConfig } from "./shared-config";
 
 const RUN_METADATA_LABEL_KEY = /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/;
 const encoder = new TextEncoder();
 
-export const RUN_METADATA_LABEL_LIMIT = 32;
-const RUN_METADATA_LABEL_KEY_BYTE_LIMIT = 63;
-// The Server bounds a label value in UTF-8 bytes (x-max-utf8-bytes).
-const RUN_METADATA_LABEL_VALUE_BYTE_LIMIT = schemaLimit(
-  "RunMetadataLabels",
-  "x-max-utf8-bytes",
-  "additionalProperties",
-);
+type RunMetadataLimits = Pick<
+  SharedConfig["limits"],
+  "runMetadataMaxLabels" | "runMetadataKeyMaxBytes" | "runMetadataValueMaxBytes"
+>;
 
 export interface RunMetadataLabelDraft {
   id: string;
@@ -23,12 +19,15 @@ export interface RunMetadataLabelSelector {
   value: string;
 }
 
-export function runMetadataLabelKeyError(key: string): string | undefined {
+export function runMetadataLabelKeyError(
+  key: string,
+  limits: RunMetadataLimits,
+): string | undefined {
   if (key.length === 0) {
     return "Label key is required.";
   }
-  if (encoder.encode(key).length > RUN_METADATA_LABEL_KEY_BYTE_LIMIT) {
-    return `Label key must be at most ${RUN_METADATA_LABEL_KEY_BYTE_LIMIT} UTF-8 bytes.`;
+  if (encoder.encode(key).length > limits.runMetadataKeyMaxBytes) {
+    return `Label key must be at most ${limits.runMetadataKeyMaxBytes} UTF-8 bytes.`;
   }
   if (key.startsWith("contractor.")) {
     return "The contractor. prefix is reserved.";
@@ -39,7 +38,10 @@ export function runMetadataLabelKeyError(key: string): string | undefined {
   return undefined;
 }
 
-export function runMetadataLabelValueError(value: unknown): string | undefined {
+export function runMetadataLabelValueError(
+  value: unknown,
+  limits: RunMetadataLimits,
+): string | undefined {
   if (typeof value !== "string") {
     return "Label value must be a string.";
   }
@@ -47,15 +49,19 @@ export function runMetadataLabelValueError(value: unknown): string | undefined {
   if (value.includes("\0")) {
     return "Label value cannot contain U+0000.";
   }
-  if (length > RUN_METADATA_LABEL_VALUE_BYTE_LIMIT) {
-    return `Label value must be at most ${RUN_METADATA_LABEL_VALUE_BYTE_LIMIT} UTF-8 bytes.`;
+  if (length > limits.runMetadataValueMaxBytes) {
+    return `Label value must be at most ${limits.runMetadataValueMaxBytes} UTF-8 bytes.`;
   }
   return undefined;
 }
 
-function validateRunMetadataLabel(key: string, value: unknown): string {
-  const keyError = runMetadataLabelKeyError(key);
-  const valueError = runMetadataLabelValueError(value);
+function validateRunMetadataLabel(
+  key: string,
+  value: unknown,
+  limits: RunMetadataLimits,
+): string {
+  const keyError = runMetadataLabelKeyError(key, limits);
+  const valueError = runMetadataLabelValueError(value, limits);
   if (keyError !== undefined || valueError !== undefined) {
     throw new TypeError(
       `Run metadata label ${JSON.stringify(key)} is invalid: ${keyError ?? valueError}`,
@@ -66,17 +72,18 @@ function validateRunMetadataLabel(key: string, value: unknown): string {
 
 export function normalizeRunMetadataLabelSelectors(
   source: readonly RunMetadataLabelSelector[],
+  limits: RunMetadataLimits,
 ): RunMetadataLabelSelector[] {
-  if (source.length > RUN_METADATA_LABEL_LIMIT) {
+  if (source.length > limits.runMetadataMaxLabels) {
     throw new TypeError(
-      `Run metadata label selectors exceed ${RUN_METADATA_LABEL_LIMIT} entries`,
+      `Run metadata label selectors exceed ${limits.runMetadataMaxLabels} entries`,
     );
   }
   const unique = new Map<string, RunMetadataLabelSelector>();
   for (const selector of source) {
     const normalized = {
       key: selector.key,
-      value: validateRunMetadataLabel(selector.key, selector.value),
+      value: validateRunMetadataLabel(selector.key, selector.value, limits),
     };
     unique.set(JSON.stringify([normalized.key, normalized.value]), normalized);
   }
