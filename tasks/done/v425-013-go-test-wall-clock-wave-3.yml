@@ -6,7 +6,7 @@ epic: quality
 kind: chore
 introduced_by: V371-021
 priority: P3
-status: in_progress
+status: completed
 depends_on: []
 languages:
 - go
@@ -74,3 +74,37 @@ tests:
 - command: make lint
   covers:
   - A1
+implementation_commit: eeb43d4cb977486c3ab875b335424c116d29ad80
+verification:
+  date: '2026-10-31'
+  full_suite_base: 38f17eb4b92b3e96521125303eb2f24d84c418d9
+  integrated_base: abe03c347dd3f4bcd56d6be99252d23024e8523b
+  commands:
+    - The listed go test -p 2 -tags=integration -count=1 suites passed with disposable PostgreSQL configured for Scheduler, persistence, EvalStore, EvalService, AuditController, AuditStore and RunStore.
+    - After final review and integration with current startup limits, full persistence and RunStore suites passed again; the full Scheduler suite passed after the failure-acknowledgement correction.
+    - Cancellation renewal lifetime passed under -race, and the complete focused Scheduler selection passed under -race against PostgreSQL.
+    - The release-recovery ordering test passed five consecutive runs under -race after synchronizing the first failed outcome before its retry poll.
+    - make lint passed on the final code, including format, vet, static checks, layers, task/specification checks, shared fixture gates and generated-policy consistency.
+  negative_controls: >-
+    Temporary production mutations were restored after each probe. Connecting
+    renewal lifetime to the cancelled execution context fails at synctest
+    quiescence before the real-store phase. Omitting every release-gate removal
+    fails at the first monitor-acknowledged error, without a polling deadline.
+    Restoring a blocking advisory migration wait is detected by pg_stat_activity
+    or its short DDL lock failure. Putting LISTEN inside an idle transaction
+    fails on the real PostgreSQL idle-in-transaction timeout. None reaches the
+    negative-control runner's test watchdog. Migration and LISTEN controls were
+    repeated after the final backend/probe guards were added.
+  outcome: >-
+    The mandatory 11-second migration pause is gone. Leader progress is proved
+    by PostgreSQL query timestamps beyond a configured 100 ms DDL lock budget.
+    Named Scheduler scenarios use event acknowledgements and existing manual
+    clocks without local 5/10/45-second watchdogs or release-gate Sleep polling.
+    LISTEN's actual backend carries 200 ms statement, 50 ms lock and 100 ms idle
+    transaction budgets; client acquisition/query budgets are one minute and
+    notifying commits use an independent ordinary pool and unique Run identity.
+    Readiness must execute the session-budget probe, and the subscription must
+    survive already-ended operation contexts and continue delivering notifications.
+    The Audit collection fixture uses the parent test context instead of 45 seconds.
+    Production behavior and V425-017 are unchanged; unexpected hangs retain the
+    shared go test watchdog rather than being interpreted as business outcomes.
