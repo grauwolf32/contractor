@@ -6,7 +6,7 @@ epic: quality
 kind: chore
 introduced_by: V425-024
 priority: P3
-status: in_progress
+status: completed
 depends_on: []
 languages: [go]
 goal: "The canonical Git provenance regression preserves its exact CHECK and rollback assertions while satisfying the shared SQLSTATE guard."
@@ -41,3 +41,14 @@ tests:
     covers: [A1, A2]
   - command: make lint
     covers: [A1, A2]
+implementation_commit: 3d2c21f4576a11c5f51d225e0e48390ae9d4915b
+verification:
+  date: '2026-10-31'
+  commands:
+    - go test -count=1 ./internal/artifacts/... ./internal/persistence/... passed against disposable PostgreSQL.
+    - make lint passed.
+  regression: >-
+    The persistence suite before this fix failed solely on the raw SQLSTATE
+    in git_source_postgres_test.go. The existing real-store Git URL boundary
+    and rollback regression passes with the exact named constraint and the
+    shared permanent-invalid classification; no guard exceptions were added.
