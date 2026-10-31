@@ -84,33 +84,39 @@ function RunOutputPreview({
           </h3>
           <code className="runs-result-ref">{exactRef}</code>
         </div>
-        {primary ? (
-          <StatusChip tone="info" size="sm" glyph={false}>
-            Primary
-          </StatusChip>
-        ) : null}
-      </div>
-      <div className="runs-result-actions">
-        {requested ? null : (
-          <Button
+        <div className="runs-result-actions">
+          {primary ? (
+            <StatusChip tone="info" size="sm" glyph={false}>
+              Primary
+            </StatusChip>
+          ) : null}
+          {entry.declaration ? (
+            <StatusChip tone="neutral" size="sm" glyph={false}>
+              {entry.declaration.mediaTypes.join(" / ")}
+            </StatusChip>
+          ) : null}
+          {requested ? null : (
+            <Button
+              size="sm"
+              variant={primary ? "primary" : undefined}
+              onClick={requestPreview}
+              icon={<Icon name="arrow-right" size={15} />}
+            >
+              Preview
+            </Button>
+          )}
+          <IconButton
             size="sm"
-            variant={primary ? "primary" : undefined}
-            onClick={requestPreview}
-          >
-            Preview
-          </Button>
-        )}
-        <IconButton
-          size="sm"
-          label={
-            download.isPending
-              ? `Downloading ${entry.slot}…`
-              : `Download ${entry.slot}`
-          }
-          pending={download.isPending}
-          icon={<Icon name="download" />}
-          onClick={() => download.mutate()}
-        />
+            label={
+              download.isPending
+                ? `Downloading ${entry.slot}…`
+                : `Download ${entry.slot}`
+            }
+            pending={download.isPending}
+            icon={<Icon name="download" />}
+            onClick={() => download.mutate()}
+          />
+        </div>
       </div>
       <ContextLink
         returnLabel="Run results"

@@ -11,11 +11,9 @@
 :root {
   color-scheme: light;
   --font-sans:
-    "Manrope Variable", ui-sans-serif, system-ui, -apple-system,
-    BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-mono:
-    "JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, Consolas,
-    monospace;
+    ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
   /* Spacing: a 4 px grid, --space-N = N x 0.25rem, with half steps. */
   --space-0-5: 0.125rem;

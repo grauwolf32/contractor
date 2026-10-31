@@ -766,7 +766,16 @@ from the same per-Audit reads, so the list and the Overview agree.
 Workflow output roles; missing or unavailable primary outputs are not replaced
 with guessed results.
 
-**UI-R217.** Project Overview leads with the objective composer, then decisions
+**UI-R217.** Project Overview uses the reviewed canvas/card contrast: compact
+composer, small section labels outside individual result/history surfaces,
+review attention rows, and a row-based At a glance card before Materials in
+the supporting column. Timeline is a collapsed disclosure by default; its
+native checkboxes select any combination of four event kinds and retain the
+bounded selection in the URL, with explicit All/none behavior. Expanding it
+keeps the shared connector, status icons and time column. Filtered direct URLs
+open the disclosure. Existing per-check reads supply at most three possible-issue
+attention links, without a new read or a guessed aggregate count.
+Project Overview leads with the objective composer, then decisions
 waiting for review, recent results, recent Runs and the existing Timeline with
 its connectors, status icons and filters. Materials and qualified summary counts
 form supporting context. The composer uses one input/action surface and opens
@@ -1467,3 +1476,13 @@ uses the received derived count that leaves space for child Run provenance.
 Reusable pure validators receive policy explicitly; they do not consult global
 mutable settings or compiled numeric defaults. Runtime placement labels retain
 their separate grammar and bounds.
+
+**UI-R218.** The common UI font tokens use the system sans-serif and monospace
+stacks actually rendered by the reviewed standalone OpenDesign prototypes.
+They apply globally, including Run, Project, shell, controls and code; routes
+must not introduce their own font family or load a competing bundled face.
+Run detail uses the same canvas and independent-card composition, with compact
+header/facts, a single vertical outcome/next-step surface for non-success states,
+and result actions at the top right beside their title. Shared icons represent
+check type selection, forward actions, output documents, copy/download and
+navigation; existing state/action eligibility and explicit exact previews remain.

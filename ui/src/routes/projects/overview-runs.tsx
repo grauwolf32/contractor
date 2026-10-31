@@ -106,9 +106,12 @@ function ResultProvenance({ summary }: { summary: RunSummary }) {
         {summary.workflow}
       </ContextLink>
       <IdChip value={summary.runId} label="Run ID" />
-      <span>
+      <span className="projects-run-time">
         {summary.finishedAt ? "Finished" : "Updated"}{" "}
-        <RecordedTime value={summary.finishedAt ?? summary.updatedAt} />
+        <RecordedTime
+          display="clock"
+          value={summary.finishedAt ?? summary.updatedAt}
+        />
       </span>
     </div>
   );
@@ -131,7 +134,7 @@ function ProjectResult({
     <article className="projects-output" aria-labelledby={titleId}>
       <div className="projects-output-head">
         <span className="projects-output-icon">
-          <Icon name="result" />
+          <Icon name="document-code" />
         </span>
         <div className="projects-output-text">
           <h4 id={titleId}>{entry.slot}</h4>
@@ -294,7 +297,7 @@ export function RecentResults({
 }) {
   const heading = useId();
   return (
-    <section className="projects-panel" aria-labelledby={heading}>
+    <section className="projects-recent-results" aria-labelledby={heading}>
       <div className="projects-section-heading">
         <h3 id={heading}>Recent results</h3>
         <Link
@@ -347,7 +350,7 @@ export function RecentRuns({
 }) {
   const heading = useId();
   return (
-    <section className="projects-panel" aria-labelledby={heading}>
+    <section className="projects-recent-runs" aria-labelledby={heading}>
       <div className="projects-section-heading">
         <h3 id={heading}>Recent Runs</h3>
         <Link to={projectPath(projectId, "runs")}>All Runs</Link>
@@ -368,7 +371,7 @@ export function RecentRuns({
         }
       >
         {(data) => (
-          <ul role="list" className="projects-rows">
+          <ul role="list" className="projects-recent-run-list">
             {data.items.map((run) => {
               const state = runStateLabel(run.state);
               return (
@@ -388,7 +391,6 @@ export function RecentRuns({
                           @{parseWorkflowIdentity(run.workflow)?.version}
                         </small>
                       ) : null}
-                      <Icon name="chevron-right" size={14} />
                     </ContextLink>
                     <StatusChip tone={state.tone} size="sm">
                       {state.label}
@@ -396,10 +398,14 @@ export function RecentRuns({
                   </div>
                   <div className="projects-result-provenance">
                     <IdChip value={run.runId} label="Run ID" />
-                    <span>
+                    <span className="projects-run-time">
                       {run.finishedAt ? "Finished" : "Updated"}{" "}
-                      <RecordedTime value={run.finishedAt ?? run.updatedAt} />
+                      <RecordedTime
+                        display="clock"
+                        value={run.finishedAt ?? run.updatedAt}
+                      />
                     </span>
+                    <Icon name="chevron-right" size={14} />
                   </div>
                 </li>
               );

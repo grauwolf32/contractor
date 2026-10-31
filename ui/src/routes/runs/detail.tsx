@@ -479,7 +479,7 @@ function RunPage({ runId }: { runId: string }) {
     />
   );
   return (
-    <div className="runs-page">
+    <div className="runs-page runs-detail-page">
       <article className="runs-surface runs-run" aria-labelledby="run-title">
         {run === undefined ? (
           <RunHeader
@@ -536,7 +536,7 @@ export function RunDetailRoute() {
 function InvalidRunRoute() {
   useDocumentTitle("Run");
   return (
-    <div className="runs-page">
+    <div className="runs-page runs-detail-page">
       <section className="runs-surface runs-run-empty">
         <ErrorNotice error={new Error("Run route is invalid")} />
         <Link to="/runs">Return to Runs</Link>

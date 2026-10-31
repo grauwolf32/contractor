@@ -1,6 +1,6 @@
 /*
  * Operations and Settings in the V3B look (docs/design/ui/v3b-build-contract.md
- * §4): one flat page sheet with hairlines, Manrope text, JetBrains Mono for
+ * §4): one flat page sheet with hairlines, shared sans-serif text and monospace for
  * identifiers, status chips from src/ui. New classes start with ops-. Older
  * class names kept on elements (allocation-card, runtime-binding-card,
  * operations-snapshot-record, configuration-body) are hooks for browser specs

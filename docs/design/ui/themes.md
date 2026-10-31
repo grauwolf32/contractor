@@ -100,5 +100,11 @@ white). Hairlines (`--line-strong`) are decorative and not held to 3:1.
 
 ## Typography
 
-Text is set in Manrope and mono in JetBrains Mono. Mono is used for endpoints, file:line references, code and key hints only,
+Text uses the shared system sans-serif stack and code uses the shared system monospace stack. Mono is used for endpoints, file:line references, code and key hints only,
 never for titles.
+
+The 2026-11-01 visual review selected the system sans-serif and monospace stacks
+actually rendered by the standalone OpenDesign Run/Project prototypes. Their
+Manrope/JetBrains family names had no loaded font faces, so the browser used the
+system fallbacks. The production font tokens now use those same system stacks
+throughout the application; controls and routes inherit the common tokens.

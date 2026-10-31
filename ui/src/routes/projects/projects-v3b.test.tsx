@@ -510,11 +510,19 @@ describe("Projects list pane", () => {
       name: "What do you want to check?",
     });
     await user.type(objective, "Can one customer read another's orders?");
-    await user.click(screen.getByRole("heading", { name: "Timeline" }));
+    await user.click(
+      within(screen.getByRole("region", { name: "Timeline" })).getByText(
+        "Timeline",
+      ),
+    );
     await user.keyboard("j");
     expect(router.state.location.pathname).toBe("/projects/project_a");
     await user.clear(objective);
-    await user.click(screen.getByRole("heading", { name: "Timeline" }));
+    await user.click(
+      within(screen.getByRole("region", { name: "Timeline" })).getByText(
+        "Timeline",
+      ),
+    );
     await user.keyboard("j");
     await waitFor(() =>
       expect(router.state.location.pathname).toBe("/projects/project_b"),
@@ -942,6 +950,7 @@ describe("Project overview", () => {
   it("mixes checks, possible issues, Runs and materials in the timeline and filters it in the URL", async () => {
     const { router, user } = renderAt(overviewServer, "/projects/project_a");
     const timeline = await screen.findByRole("region", { name: "Timeline" });
+    await user.click(within(timeline).getByText("Timeline"));
     await within(timeline).findByRole("link", { name: "Order IDOR" });
     expect(
       within(timeline).getByRole("link", { name: "Order IDOR" }),
@@ -965,8 +974,11 @@ describe("Project overview", () => {
     );
     expect(within(timeline).getAllByText(/Primary result/)).toHaveLength(1);
     expect(within(timeline).getByText("Project created")).toBeVisible();
+    await user.click(within(timeline).getByRole("checkbox", { name: "All" }));
     await user.click(
-      within(timeline).getByRole("button", { name: "Possible issues" }),
+      within(timeline).getByRole("checkbox", {
+        name: "Possible issues",
+      }),
     );
     expect(router.state.location.search).toBe("?timeline=issues");
     expect(within(timeline).getAllByText("Possible issue found")).toHaveLength(
@@ -1118,13 +1130,21 @@ describe("Project overview", () => {
 
   it("offers the materials and the live target as chips", async () => {
     renderAt(overviewServer, "/projects/project_a");
-    const chips = await screen.findByRole("list", { name: "Materials" });
+    const chips = await screen.findByRole("region", {
+      name: "Project materials",
+    });
     expect(
       await within(chips).findByRole("link", { name: /Source code/ }),
-    ).toHaveAttribute("href", "/projects/project_a/artifacts/sources/shop");
+    ).toHaveAttribute(
+      "href",
+      "/projects/project_a/artifacts/sources/shop?revision=shop-r1",
+    );
     expect(
       within(chips).getByRole("link", { name: /API spec/ }),
-    ).toHaveAttribute("href", "/projects/project_a/artifacts/openapi/shop-api");
+    ).toHaveAttribute(
+      "href",
+      "/projects/project_a/artifacts/openapi/shop-api?revision=shop-api-r1",
+    );
     expect(
       within(chips).getByRole("link", { name: "Add a live target" }),
     ).toHaveAttribute("href", "/projects/project_a/settings#live-target");
@@ -1358,7 +1378,9 @@ describe("Project settings", () => {
       { projects: [projectA] },
       "/projects/project_a",
     );
-    const chips = await screen.findByRole("list", { name: "Materials" });
+    const chips = await screen.findByRole("region", {
+      name: "Project materials",
+    });
     await user.click(
       within(chips).getByRole("link", { name: "Add a live target" }),
     );

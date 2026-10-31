@@ -449,3 +449,53 @@ for (const theme of ["light", "dark", "black"] as const) {
     });
   });
 }
+
+for (const theme of ["light", "dark", "black"] as const) {
+  for (const width of [1440, 390, 320]) {
+    test(`Run design fidelity at ${width}px in ${theme}`, async ({
+      page,
+    }, testInfo) => {
+      await page.setViewportSize({ width, height: 1000 });
+      await page.addInitScript(
+        (theme) => localStorage.setItem("contractor.theme", theme),
+        theme,
+      );
+      let artifactReads = 0;
+      page.on("request", (request) => {
+        if (new URL(request.url()).pathname.includes("/artifacts/"))
+          artifactReads++;
+      });
+      await installRunAPI(page);
+      await page.goto(`/runs/${RUN_ID}`);
+      const frame = page.locator(".runs-run");
+      const card = page.locator(".run-result-card").first();
+      await expect(card).toBeVisible();
+      await expect(frame).toHaveCSS("border-top-width", "0px");
+      await expect(
+        card.getByRole("button", { name: "Preview", exact: true }),
+      ).toBeVisible();
+      await expect(
+        card.getByRole("button", { name: /Download/ }),
+      ).toBeVisible();
+      expect(artifactReads).toBe(0);
+      const fonts = await page.evaluate(() => ({
+        base: getComputedStyle(document.body).fontFamily,
+        heading: getComputedStyle(document.querySelector("h1")!).fontFamily,
+        button: getComputedStyle(
+          document.querySelector(".runs-result-actions button")!,
+        ).fontFamily,
+        documentWidth: document.documentElement.scrollWidth,
+      }));
+      expect(fonts.heading).toBe(fonts.base);
+      expect(fonts.button).toBe(fonts.base);
+      expect(fonts.base).not.toMatch(/Manrope|JetBrains/);
+      expect(fonts.documentWidth).toBe(width);
+      const sections = page.locator(".runs-sections");
+      await expect(sections).toHaveCSS("border-top-width", "0px");
+      await page.screenshot({
+        path: testInfo.outputPath(`run-fidelity-${width}-${theme}.png`),
+        fullPage: true,
+      });
+    });
+  }
+}
