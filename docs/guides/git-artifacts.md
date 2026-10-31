@@ -121,6 +121,10 @@ or recovery is provided.
 Install the locked UI/Runtime dependencies and Chromium (`make ui-install
 ui-browser-install`). Native Git is used only by fixtures. Podman and a real
 PostgreSQL test database are required; release tests fail if they are absent.
+The full Git artifacts gate runs on Linux. Its focused
+`make test-git-read-only` pipeline builds the static Linux probe and runs the
+read-only Podman proof. macOS package tests exclude this Linux-only fixture;
+use a Linux host or VM for the container gate.
 Use an account allowed to create/drop isolated schemas. Run the gates
 sequentially; concurrent suites in one database contend on its migration lock:
 

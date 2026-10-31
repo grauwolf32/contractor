@@ -11,6 +11,11 @@ depends_on: []
 languages: [go]
 goal: "The real read-only Git import proof runs from macOS through Podman Machine as well as native Linux, using a Linux binary for the container architecture."
 context:
+  superseded: >-
+    2026-10-31 user decision, implemented by V425-023: select Linux and compile
+    the probe in the build pipeline. The container proof becomes Linux-only;
+    remove test-side cross-compilation, ELF inspection and macOS VM networking.
+    This task's earlier passing results remain historical evidence.
   authority: "2026-10-31: user corrected the host-native build of a binary intended to execute in a Linux container while continuing V372-030 verification."
   severity: low
   finding: >-

@@ -21,12 +21,12 @@ BUILD_TAG = re.compile(r"^//go:build (.+)$", re.MULTILINE)
 # The target and reason are reviewed alongside the test instead of making a
 # directory-wide exception, which would silently hide future regressions.
 EXCEPTIONS = {
-    ("internal/gitimport/real_git_integration_test.go", "TestRealGitReadOnlyContainer"): (
-        "test-git-artifacts",
-        "requires Podman and the pinned read-only container image",
+    ("internal/gitimport/read_only_integration_linux_test.go", "TestRealGitReadOnlyContainer"): (
+        "test-git-read-only",
+        "requires the Linux pipeline, Podman and the read-only container image",
     ),
-    ("internal/gitimport/real_git_integration_test.go", "TestReadOnlyGitProbe"): (
-        "test-git-artifacts",
+    ("internal/gitimport/read_only_integration_linux_test.go", "TestReadOnlyGitProbe"): (
+        "test-git-read-only",
         "runs only inside the read-only Podman container started by its parent",
     ),
     ("tests/integration/restore/restore_test.go", "TestBackupRestorePreservesExactArtifactsAndCAS"): (

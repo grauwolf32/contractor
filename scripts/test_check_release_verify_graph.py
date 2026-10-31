@@ -28,12 +28,17 @@ jobs:
         run: python3 scripts/select_ci_stages.py
   stage:
     needs: select
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.select.outputs.matrix) }}
     steps:
       - run: |
           make -k ${{ matrix.stage }} 2>&1 | tee log
+      - name: Run Linux Git container proof
+        if: matrix.stage == 'release-verify-integration'
+        shell: bash
+        run: make test-git-read-only
   pr-verify:
     needs: stage
   release-verify:
@@ -78,6 +83,16 @@ class StageOrderTest(unittest.TestCase):
 
 
 class WorkflowTest(unittest.TestCase):
+    def test_macos_stage_runner_is_rejected(self) -> None:
+        workflow = WORKFLOW.replace("needs: select\n    runs-on: ubuntu-24.04", "needs: select\n    runs-on: macos-15")
+        with self.assertRaisesRegex(SystemExit, "Linux Ubuntu runner"):
+            guard.check_ci_workflow(CI_STAGES, workflow)
+
+    def test_removed_linux_container_pipeline_is_rejected(self) -> None:
+        workflow = WORKFLOW.replace("make test-git-read-only", "true")
+        with self.assertRaisesRegex(SystemExit, "Linux Git container pipeline"):
+            guard.check_ci_workflow(CI_STAGES, workflow)
+
     def test_complete_workflow_passes(self) -> None:
         guard.check_ci_workflow(CI_STAGES, WORKFLOW)
 

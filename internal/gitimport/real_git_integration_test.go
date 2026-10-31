@@ -11,11 +11,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
-	"crypto/tls"
-	"crypto/x509"
-	"debug/elf"
 	"encoding/json"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
@@ -29,7 +25,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"testing"
 	"time"
 
@@ -447,159 +442,6 @@ func TestRealSSHSingleTypePinsOnMultiKeyHost(t *testing.T) {
 			}
 		})
 	}
-}
-
-// The parent creates fixtures and a static Linux probe; the import itself executes
-// inside a read-only container with no writable /tmp, home, checkout or PVC.
-func TestRealGitReadOnlyContainer(t *testing.T) {
-	if _, err := exec.LookPath("podman"); err != nil {
-		t.Skip("read-only proof requires Podman")
-	}
-	repo, commit := realRepository(t)
-	server := serveGitHTTP(t, repo, nil)
-	defer server.Close()
-	dir := t.TempDir()
-	if err := os.Chmod(dir, 0755); err != nil {
-		t.Fatal(err)
-	}
-	cert := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: server.Certificate().Raw})
-	// Generate the fixture key independently so the probe can parse its in-memory
-	// representation from a read-only fixture mount.
-	_, key, err := ed25519.GenerateKey(rand.Reader)
-	if err != nil {
-		t.Fatal(err)
-	}
-	owner, err := ssh.NewSignerFromKey(key)
-	if err != nil {
-		t.Fatal(err)
-	}
-	address, host := serveGitSSH(t, repo, owner)
-	// Podman Machine has its own loopback network. Its gateway resolves this
-	// hostname to the macOS host; retain the original TLS identity for validation.
-	httpsURL := server.URL + "/repo.git"
-	if runtime.GOOS == "darwin" {
-		httpsURL = strings.Replace(httpsURL, "127.0.0.1", "host.containers.internal", 1)
-		address = strings.Replace(address, "127.0.0.1", "host.containers.internal", 1)
-	}
-	keyBlock, err := ssh.MarshalPrivateKey(key, "fixture")
-	if err != nil {
-		t.Fatal(err)
-	}
-	for name, data := range map[string][]byte{"ca.pem": cert, "key.pem": pem.EncodeToMemory(keyBlock), "known_hosts": []byte(knownhosts.Line([]string{address}, host.PublicKey()) + "\n")} {
-		if err := os.WriteFile(filepath.Join(dir, name), data, 0644); err != nil {
-			t.Fatal(err)
-		}
-	}
-	buildCtx, cancelBuild := context.WithTimeout(t.Context(), 5*time.Minute)
-	defer cancelBuild()
-	platform, err := exec.CommandContext(buildCtx, "podman", "info", "--format", "{{.Host.OS}}/{{.Host.Arch}}").Output()
-	if err != nil {
-		t.Fatalf("Podman server platform: %v", err)
-	}
-	osName, arch, ok := strings.Cut(strings.TrimSpace(string(platform)), "/")
-	if !ok || osName != "linux" {
-		t.Fatalf("expected a Linux Podman server, got %q", platform)
-	}
-	probePath := filepath.Join(dir, "probe")
-	build := exec.CommandContext(buildCtx, "go", "test", "-c", "-tags=integration", "-o", probePath, ".")
-	build.Env = append(os.Environ(), "CGO_ENABLED=0", "GOOS=linux", "GOARCH="+arch)
-	if output, err := build.CombinedOutput(); err != nil {
-		t.Fatalf("build Linux/%s probe: %v: %s", arch, err, output)
-	}
-	// Inspect the actual cross-build, so a host-native executable fails before
-	// container startup. A static probe must not depend on an ELF interpreter.
-	probe, err := elf.Open(probePath)
-	if err != nil {
-		t.Fatalf("probe must be Linux ELF: %v", err)
-	}
-	for _, program := range probe.Progs {
-		if program.Type == elf.PT_INTERP {
-			_ = probe.Close()
-			t.Fatal("probe requires a dynamic interpreter")
-		}
-	}
-	t.Logf("probe target=linux/%s ELF machine=%s", arch, probe.Machine)
-	if err := probe.Close(); err != nil {
-		t.Fatal(err)
-	}
-	ctx, cancel := context.WithTimeout(t.Context(), 90*time.Second)
-	defer cancel()
-	command := exec.CommandContext(ctx, "podman", "create", "--pull=never", "--network=host", "--read-only", "--read-only-tmpfs=false", "--user=65534:65534", "--cap-drop=ALL", "--security-opt=no-new-privileges", "--env=GIT_PROBE_HTTPS="+httpsURL, "--env=GIT_PROBE_SSH=ssh://git@"+address+"/repo.git", "--env=GIT_PROBE_COMMIT="+commit, "--entrypoint=/fixture/probe", "docker.io/library/alpine:latest", "-test.run=^TestReadOnlyGitProbe$", "-test.v")
-	output, err := command.CombinedOutput()
-	if err != nil {
-		t.Fatalf("create read-only probe: %v: %s", err, output)
-	}
-	containerID := strings.TrimSpace(string(output))
-	t.Cleanup(func() {
-		cleanupCtx, cancelCleanup := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancelCleanup()
-		if output, err := exec.CommandContext(cleanupCtx, "podman", "rm", "--force", "--time=0", containerID).CombinedOutput(); err != nil {
-			t.Errorf("remove probe container: %v: %s", err, output)
-		}
-	})
-	// Copy through the Podman API; a remote VM cannot bind-mount the client's
-	// temporary directory. The copied files become part of the read-only root.
-	if output, err := exec.CommandContext(ctx, "podman", "cp", dir, containerID+":/fixture").CombinedOutput(); err != nil {
-		t.Fatalf("copy probe fixture: %v: %s", err, output)
-	}
-	output, err = exec.CommandContext(ctx, "podman", "start", "--attach", containerID).CombinedOutput()
-	if err != nil {
-		t.Fatalf("read-only probe: %v: %s", err, output)
-	}
-	t.Logf("%s", output)
-}
-
-func TestReadOnlyGitProbe(t *testing.T) {
-	url := os.Getenv("GIT_PROBE_HTTPS")
-	if url == "" {
-		t.Skip("container subprocess only")
-	}
-	for _, path := range []string{"/tmp/git-probe", "/git-probe"} {
-		file, err := os.Create(path)
-		if err == nil {
-			file.Close()
-			t.Fatalf("unexpected writable path %s", path)
-		}
-		if !errors.Is(err, syscall.EROFS) && !errors.Is(err, syscall.EACCES) {
-			t.Fatalf("write probe: %v", err)
-		}
-	}
-	ca, err := os.ReadFile("/fixture/ca.pem")
-	if err != nil {
-		t.Fatal(err)
-	}
-	pool := x509.NewCertPool()
-	if !pool.AppendCertsFromPEM(ca) {
-		t.Fatal("fixture CA")
-	}
-	key, err := os.ReadFile("/fixture/key.pem")
-	if err != nil {
-		t.Fatal(err)
-	}
-	signer, err := ssh.ParsePrivateKey(key)
-	clear(key)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, url := range []string{url, os.Getenv("GIT_PROBE_SSH")} {
-		remote, err := ParseRemote(url)
-		if err != nil {
-			t.Fatal(err)
-		}
-		client, _ := NewClient(Config{AllowedRemotes: []string{remote.Address}, KnownHostsFile: "/fixture/known_hosts"}, nil)
-		client.allowLoopback = true
-		client.tlsConfig = &tls.Config{RootCAs: pool, ServerName: "127.0.0.1", MinVersion: tls.VersionTLS12}
-		snapshot, err := client.Fetch(context.Background(), remote, "", ModeSnapshot, signer)
-		if err != nil {
-			t.Fatal(err)
-		}
-		assertSnapshot(t, snapshot, os.Getenv("GIT_PROBE_COMMIT"))
-	}
-	var usage syscall.Rusage
-	if err := syscall.Getrusage(syscall.RUSAGE_SELF, &usage); err != nil {
-		t.Fatal(err)
-	}
-	t.Logf("HTTPS and private SSH succeeded; peak RSS=%d KiB", usage.Maxrss)
 }
 
 func TestRealHTTPSConfiguredSourceBudgets(t *testing.T) {

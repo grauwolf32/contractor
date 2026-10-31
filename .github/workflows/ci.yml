@@ -113,6 +113,15 @@ jobs:
           mkdir -p reports
           make -k ${{ matrix.stage }} 2>&1 | tee "reports/${{ matrix.stage }}.log"
 
+      - name: Run Linux Git container proof
+        if: matrix.stage == 'release-verify-integration'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y podman
+          podman pull docker.io/library/alpine:latest
+          make test-git-read-only 2>&1 | tee reports/git-read-only.log
+
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v4
