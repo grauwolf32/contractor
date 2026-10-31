@@ -33,7 +33,7 @@ func summaryWorkflowFixture(t *testing.T) (string, string) {
 func TestSummaryEscalationPinsItsIndependentPlannerAndClonesPolicy(t *testing.T) {
 	root, _ := summaryWorkflowFixture(t)
 	snapshot := mustLoad(t, root)
-	workflow, err := snapshot.ResolveRunWorkflow(t.Context(), "artifact-copy@1", resolved.ExecutionConfigPatch{}, developmentCredentialLookup(t, snapshot))
+	workflow, err := snapshot.ResolveRunWorkflow(t.Context(), "artifact-copy@1", developmentCredentialLookup(t, snapshot))
 	if err != nil {
 		t.Fatal(err)
 	}

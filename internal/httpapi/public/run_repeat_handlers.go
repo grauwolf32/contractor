@@ -30,7 +30,7 @@ const (
 type RepeatWorkflowResolver interface {
 	Workflow(string) (resolved.ResolvedWorkflow, error)
 	ResolveRunWorkflow(
-		context.Context, string, resolved.ExecutionConfigPatch, resolved.CredentialLookup,
+		context.Context, string, resolved.CredentialLookup,
 	) (resolved.ResolvedWorkflow, error)
 }
 
@@ -158,9 +158,6 @@ func (h *runRepeatHandlers) getRunRepeatDraft(w http.ResponseWriter, r *http.Req
 		RuntimeLabels:           append([]string{}, run.RuntimeLabels...),
 		RequiredPlacementLabels: append([]string{}, run.RequiredPlacementLabels...),
 		Labels:                  run.MetadataLabels.Clone(),
-		ExecutionConfig: runRepeatExecutionConfig{
-			Status: repeatStatusAvailable, Value: snapshot.ExecutionConfig,
-		},
 	}
 	response.Draft = draft
 	draft.Inputs, err = h.repeatInputsFromSnapshot(r.Context(), run, snapshot, projectUploadsAllowed)
@@ -179,15 +176,15 @@ func (h *runRepeatHandlers) getRunRepeatDraft(w http.ResponseWriter, r *http.Req
 			}
 		}
 		if _, resolveErr := h.Config.ResolveRunWorkflow(
-			r.Context(), selector, snapshot.ExecutionConfig, h.Credentials,
+			r.Context(), selector, h.Credentials,
 		); errors.Is(resolveErr, resolved.ErrCredentialLookup) {
 			// An outage is not an unavailable selection; let the client retry.
 			handleError(w, resolveErr)
 			return
 		} else if resolveErr != nil {
 			response.Notices = append(response.Notices, runRepeatDraftNotice{
-				Code: "execution_configuration_unavailable", Severity: "blocking", Field: "executionConfig",
-				Message: "At least one retained model, Gateway or credential selection is no longer available. Review the execution overrides before submitting.",
+				Code: "execution_configuration_unavailable", Severity: "blocking", Field: "workflow",
+				Message: "The Workflow's execution configuration is unavailable. Review the Workflow before submitting.",
 			})
 		}
 	}

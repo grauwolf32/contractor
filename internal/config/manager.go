@@ -297,14 +297,13 @@ func (m *Manager) ModelPolicy(raw string) (contracts.ResolvedModelPolicy, error)
 func (m *Manager) ResolveRunWorkflow(
 	ctx context.Context,
 	raw string,
-	patch resolved.ExecutionConfigPatch,
 	credentials resolved.CredentialLookup,
 ) (resolved.ResolvedWorkflow, error) {
 	defaults, err := m.modelDefaults(ctx)
 	if err != nil {
 		return resolved.ResolvedWorkflow{}, err
 	}
-	return m.Snapshot().resolveRunWorkflow(ctx, raw, patch, credentials, defaults)
+	return m.Snapshot().resolveRunWorkflow(ctx, raw, credentials, defaults)
 }
 
 func (m *Manager) ConfigurationDiscovery(kind ConfigurationKind) (ConfigurationDiscovery, error) {

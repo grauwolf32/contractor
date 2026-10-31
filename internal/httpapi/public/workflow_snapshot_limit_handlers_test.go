@@ -16,13 +16,9 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
-// TestCreateRunRejectsAnOversizedWorkflowSnapshotBeforeAcceptance is the
-// regression for a Run whose resolved Workflow snapshot exceeded its bound:
-// it was accepted with 202 and failed later in the Scheduler. A Run override
-// that enlarges a Workflow already at the bound is now a permanent 400 that
-// stores nothing, while the override-free Run at the bound is accepted
-// (CAT-R76).
-func TestCreateRunRejectsAnOversizedWorkflowSnapshotBeforeAcceptance(t *testing.T) {
+// TestCreateRunRejectsRemovedOverrideAndAcceptsSnapshotAtBound keeps the
+// 2 MiB boundary executable while rejecting the removed launch field.
+func TestCreateRunRejectsRemovedOverrideAndAcceptsSnapshotAtBound(t *testing.T) {
 	router, err := gorillamux.NewRouter(loadPublicOpenAPI(t))
 	if err != nil {
 		t.Fatal(err)
@@ -51,13 +47,13 @@ func TestCreateRunRejectsAnOversizedWorkflowSnapshotBeforeAcceptance(t *testing.
 
 	response := serveAndValidatePublicContract(t, router, fixture.handler, create(
 		"snapshot-over-bound", `,"executionConfig":{"workers":{"modelPolicy":"test-domain-worker@1"}}`,
-	), true)
+	), false)
 	var envelope errorResponse
 	if err := json.Unmarshal(response.Body.Bytes(), &envelope); err != nil {
 		t.Fatalf("decode error response %q: %v", response.Body.String(), err)
 	}
 	if response.Code != http.StatusBadRequest || envelope.Code != "invalid_request" || envelope.Retryable {
-		t.Fatalf("oversized Run snapshot = %d %+v, want permanent 400 invalid_request", response.Code, envelope)
+		t.Fatalf("removed Run override = %d %+v, want permanent 400 invalid_request", response.Code, envelope)
 	}
 	if len(fixture.runs.runs) != 0 || len(fixture.runs.idempotencyClaims) != 0 {
 		t.Fatalf("rejected Run stored state: runs=%d keys=%d", len(fixture.runs.runs), len(fixture.runs.idempotencyClaims))

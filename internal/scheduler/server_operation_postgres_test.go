@@ -95,7 +95,7 @@ func newOperationHarness(t *testing.T, apply bool, customize ...func(*resolved.R
 	if err != nil {
 		t.Fatal(err)
 	}
-	workflow, err := catalog.ResolveRunWorkflow(ctx, "sitemap-join@1", resolved.ExecutionConfigPatch{}, nil)
+	workflow, err := catalog.ResolveRunWorkflow(ctx, "sitemap-join@1", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

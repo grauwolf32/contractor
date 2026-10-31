@@ -245,7 +245,6 @@ def register(client, project, kind, cases):
             "id": arm,
             "kind": kind,
             "selector": f"eval-{'copy' if kind == 'workflow' else 'audit'}-{arm}@1",
-            "executionConfig": {},
             "outputMapping": {"report": "result" if kind == "workflow" else "report"},
         }
         for arm in ("a", "b")

@@ -1491,77 +1491,6 @@
       "required": ["id", "revision"],
       "additionalProperties": false
     },
-    "EvalExecutionSelection": {
-      "type": "object",
-      "properties": {
-        "modelPolicy": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/EvalSelector"
-        },
-        "llmGateway": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/EvalSelector"
-        },
-        "credential": {
-          "anyOf": [
-            {
-              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/EvalOpaque"
-            },
-            { "type": "null" }
-          ]
-        },
-        "summarizerModelPolicy": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/EvalSelector"
-        },
-        "compactorModelPolicy": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/EvalSelector"
-        }
-      },
-      "required": [],
-      "additionalProperties": false,
-      "minProperties": 1
-    },
-    "EvalStageOverride": {
-      "type": "object",
-      "properties": {
-        "planner": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/EvalExecutionSelection"
-        },
-        "agents": {
-          "type": "object",
-          "propertyNames": {
-            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/EvalId"
-          },
-          "additionalProperties": {
-            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/EvalExecutionSelection"
-          },
-          "maxProperties": 128
-        }
-      },
-      "required": [],
-      "additionalProperties": false
-    },
-    "EvalExecutionConfig": {
-      "type": "object",
-      "properties": {
-        "planner": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/EvalExecutionSelection"
-        },
-        "workers": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/EvalExecutionSelection"
-        },
-        "stages": {
-          "type": "object",
-          "propertyNames": {
-            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/EvalId"
-          },
-          "additionalProperties": {
-            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/EvalStageOverride"
-          },
-          "maxProperties": 128
-        }
-      },
-      "required": [],
-      "additionalProperties": false
-    },
     "EvalVariant": {
       "type": "object",
       "properties": {
@@ -1571,9 +1500,6 @@
         "kind": { "enum": ["workflow", "audit"], "type": "string" },
         "selector": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/EvalSelector"
-        },
-        "executionConfig": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/EvalExecutionConfig"
         },
         "runtimeLabels": {
           "type": "array",
@@ -1617,7 +1543,7 @@
           "maxProperties": 128
         }
       },
-      "required": ["id", "kind", "selector", "executionConfig"],
+      "required": ["id", "kind", "selector"],
       "additionalProperties": false
     },
     "EvalCheck": {
@@ -10549,7 +10475,6 @@
             "default",
             "workflow_execution_config",
             "run_labels",
-            "run_execution_config",
             "escalation_execution_config",
             "agent_labels"
           ]
@@ -11038,17 +10963,6 @@
         "message": { "type": "string", "minLength": 1, "maxLength": 2048 }
       }
     },
-    "RunRepeatExecutionConfig": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["status", "value"],
-      "properties": {
-        "status": { "type": "string", "enum": ["available"] },
-        "value": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ExecutionConfigPatch"
-        }
-      }
-    },
     "RunRepeatInput": {
       "type": "object",
       "additionalProperties": false,
@@ -11074,13 +10988,7 @@
     "RunRepeatDraft": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "parameters",
-        "runtimeLabels",
-        "labels",
-        "executionConfig",
-        "inputs"
-      ],
+      "required": ["parameters", "runtimeLabels", "labels", "inputs"],
       "properties": {
         "requiredPlacementLabels": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/PlacementLabels"
@@ -11100,9 +11008,6 @@
         },
         "labels": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/RunMetadataLabels"
-        },
-        "executionConfig": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/RunRepeatExecutionConfig"
         },
         "inputs": {
           "type": "object",
@@ -11338,66 +11243,6 @@
         }
       }
     },
-    "ExecutionSelectionPatch": {
-      "type": "object",
-      "additionalProperties": false,
-      "minProperties": 1,
-      "properties": {
-        "modelPolicy": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/Selector"
-        },
-        "summarizerModelPolicy": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/Selector"
-        },
-        "compactorModelPolicy": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/Selector"
-        },
-        "llmGateway": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/Selector"
-        },
-        "credential": {
-          "oneOf": [
-            {
-              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ConfigId"
-            },
-            { "type": "null" }
-          ]
-        }
-      }
-    },
-    "StageExecutionConfigPatch": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "planner": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ExecutionSelectionPatch"
-        },
-        "agents": {
-          "type": "object",
-          "additionalProperties": {
-            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ExecutionSelectionPatch"
-          }
-        }
-      }
-    },
-    "ExecutionConfigPatch": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "planner": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ExecutionSelectionPatch"
-        },
-        "workers": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ExecutionSelectionPatch"
-        },
-        "stages": {
-          "type": "object",
-          "additionalProperties": {
-            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/StageExecutionConfigPatch"
-          }
-        }
-      }
-    },
     "CreateRunRequest": {
       "type": "object",
       "additionalProperties": false,
@@ -11426,9 +11271,6 @@
           "additionalProperties": {
             "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ArtifactRef"
           }
-        },
-        "executionConfig": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ExecutionConfigPatch"
         }
       }
     },

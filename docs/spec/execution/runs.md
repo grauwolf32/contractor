@@ -22,7 +22,7 @@ It leaves to other documents:
 - Workflow loading and validation, the exact `(name, version)` configuration
   key, Workflow selector resolution and Stage instruction resolution:
   [Configuration catalog](../configuration/catalog.md).
-- The shape, layering and resolution order of the `executionConfig` override,
+- The shape, layering and resolution order of Workflow execution selections,
   AgentTemplate resolution, ModelPolicy and LLMGatewayConfig selection and the
   published LLM configurations a Run form selects:
   [AgentTemplates](../configuration/agent-templates.md).
@@ -90,7 +90,7 @@ One Workflow invocation creates one WorkflowRun. A Run durably records:
 
 - the Run snapshot (RUN-R23);
 - the immutable Workflow parameters;
-- the normalized executionConfig;
+- the resolved Workflow execution configuration;
 - the pinned default and Run-selected Runtime-label configurations;
 - the immutable required placement labels (RUN-R107–RUN-R109);
 - the immutable metadata labels;
@@ -143,7 +143,7 @@ stateDiagram-v2
 
 | State | Meaning |
 | --- | --- |
-| `initializing` | The validated Workflow snapshot, immutable Run parameters, normalized executionConfig, pinned default and Run-selected Runtime-label configurations, immutable metadata labels and exact input and Agent Skill forks are being committed. |
+| `initializing` | The validated Workflow snapshot, immutable Run parameters, resolved Workflow execution configuration, pinned default and Run-selected Runtime-label configurations, immutable metadata labels and exact input and Agent Skill forks are being committed. |
 | `pending` | Initialization or manual continuation has committed, but resource admission has not occurred. |
 | `running` | The admitted Stage may execute Planner, model and tool work. |
 | `waiting` | The current invocation waits for recovery of its model route (RUN-R30). |
@@ -175,7 +175,6 @@ class WorkflowRunCancellation(BaseModel):
 | `artifacts` | Workflow input slot to `ArtifactRef` | Input bindings in the source scope of the endpoint | [Artifact store](../artifacts/artifact-store.md) (ART-R74) |
 | `runtimeLabels` | optional sorted unique array of names | Runtime-label selection | this document for the field; [RuntimeConfig](../configuration/runtime-config.md) for resolution |
 | `labels` | optional key/value string map | Metadata labels | this document |
-| `executionConfig` | optional top-level object with the `planner`/`workers`/`stages` shape | Reference-only execution override | [AgentTemplates](../configuration/agent-templates.md) |
 | `Idempotency-Key` header | exactly one bounded key | Create idempotency | this document; header conventions in [Public API](../api/public-api.md) |
 
 ### Label domains
@@ -207,7 +206,7 @@ flowchart TD
 **RUN-R1.** `POST /v1/runs` accepts a Workflow selector, a string
 `parameters` mapping, `artifacts` input bindings, an optional top-level
 `runtimeLabels` array, an optional `labels` map and an optional top-level
-reference-only `executionConfig` override.
+authored Workflow execution selections.
 
 **RUN-R2.** At Run creation `WorkflowCatalog` resolves the Workflow selector
 to the exact Workflow document it names
@@ -226,8 +225,7 @@ stored lineage retains the common artifact integrity failure. The caller's
 transaction and authorization remain authoritative; this lookup adds neither
 file access nor a retention hold.
 
-**RUN-R4.** `executionConfig` is the reference-only override specified by
-[TPL-R70, TPL-R76 and TPL-R77](../configuration/agent-templates.md).
+**RUN-R4.** Run creation selects an authored Workflow. The request has no `executionConfig` field; strict decoding rejects it even when empty (TPL-R76). Execution policies resolve from Workflow authoring, AgentTemplates and captured deployment defaults ([TPL-R79](../configuration/agent-templates.md)).
 
 **RUN-R5.** A caller may select only published configurations
 it is authorized to use. The single-owner UI exposes all active published
@@ -330,9 +328,8 @@ not inspect a string merely because its contents happen to resemble JSON.
 **RUN-R18.** Server binds the key to the authenticated owner and a
 canonical digest of the validated request. The validated request includes the
 Workflow selector, parameters, input refs, the sorted `runtimeLabels`, the
-normalized metadata-label map and the optional reference-only executionConfig
-override. The digest includes the supplied executionConfig selectors, the
-sorted explicit `runtimeLabels` list and, independently of that list, the
+normalized metadata-label map. The digest includes the sorted explicit
+`runtimeLabels` list and, independently of that list, the
 complete metadata-label map sorted by key. The pinned `default` RuntimeConfig
 binding is a resolved dependency rather than caller input.
 
@@ -350,7 +347,7 @@ Scheduler notification (FAIL-RUN-1). Skill replay behaviour is specified in
 
 **RUN-R21.** Reusing the key with a different digest is the
 permanent `idempotency_conflict` (API-R69), including a changed label key or
-value when Workflow inputs and executionConfig are otherwise equal. The
+value when Workflow and inputs are otherwise equal. The
 original Run is unchanged (FAIL-RUN-1).
 
 Rationale: losing the successful HTTP response cannot create a second
@@ -763,7 +760,7 @@ precondition and idempotency errors of the
 secret-free.
 
 **RUN-R86.** Run detail shows the selected execution-config refs and
-their origin (`workflow`, `run override`, inline escalation) and never reconstructs authority from browser state.
+their origin (`workflow`, inline escalation) and never reconstructs authority from browser state.
 
 **RUN-R87.** A Run detail response includes the event cursor of the
 Run's `run` stream ([Public API](../api/public-api.md)). The Server reads the
@@ -837,7 +834,7 @@ mutation of execution history.
 **RUN-R97.** `GET /v1/runs/{run_id}/repeat-draft` is an owner-only,
 read-only projection. For an ordinary Run it returns the exact Workflow ref,
 Project membership, string parameters, requested Runtime labels, user metadata
-labels, the requested executionConfig patch and each verified original
+labels and each verified original
 UserScope or ProjectScope input ref. It is the only owner access to the
 retained `contractor-system` fragment and rechecks authorization and source
 scopes on every read.
@@ -847,14 +844,7 @@ input fork as a reusable source and never resolves a missing revision to the
 current binding. A repeat Run uses authorized exact source refs rather than
 treating RunScope refs as UserScope or ProjectScope inputs.
 
-**RUN-R99.** Run creation retains the bounded non-secret request
-fragment that the projection needs, in the same transaction as the input forks.
-The strict `contractor.run-repeat-request/v2` fragment stores each exact original
-source ref together with its `sourceScope` (`user` or `project`) and the requested execution
-selections; it may retain credential identities, and must not retain
-credential values or resolved RuntimeSettings. It is held in the `repeat-request`
-binding of the hidden `contractor-system` Namespace
-([ART-R17, ART-R18](../artifacts/artifact-store.md)).
+**RUN-R99.** Run creation retains the bounded non-secret request fragment in the same transaction as the input forks. The strict `contractor.run-repeat-request/v3` fragment stores the Workflow and Project identity and each exact original source ref with its `sourceScope` (`user` or `project`). It contains no execution patch, credential or RuntimeSettings. It is held in the `repeat-request` binding of the hidden `contractor-system` Namespace ([ART-R17, ART-R18](../artifacts/artifact-store.md)).
 
 **RUN-R100.** Existing durable Run fields remain authoritative
 for parameters, labels and Runtime-label selection.
@@ -864,11 +854,7 @@ matches its Run's Workflow and Project. A missing or invalid fragment returns a
 blocking notice and no draft; neither lineage nor current or effective
 configuration may reconstruct the original request (FAIL-RUN-8).
 
-**RUN-R102.** An explicitly retained empty executionConfig object
-is valid; an omitted or null object is invalid. Repeat-draft reads never
-repair or rewrite retained data. Unscoped prior fragment versions are invalid.
-If the current Workflow selects a different source scope for an input, its
-repeat selection is unavailable with `input_source_scope_changed`.
+**RUN-R102.** Repeat-draft reads never repair or rewrite retained data. Prior fragment versions and patch-bearing shapes are invalid. If the current Workflow selects a different source scope for an input, its repeat selection is unavailable with `input_source_scope_changed`.
 
 **RUN-R103.** The projection validates that the exact Workflow,
 Project, source revisions, selected configurations, credential identities and
@@ -982,8 +968,8 @@ Errors ([registry](../platform/errors.md)):
 ## Security
 
 Security-relevant requirements: parameters are not a secret channel
-(RUN-R15); Run creation accepts only reference-only execution overrides
-([TPL-R70](../configuration/agent-templates.md), RUN-R4) and only authorized
+(RUN-R15); Workflow execution selections contain only exact references
+([TPL-R70](../configuration/agent-templates.md), RUN-R4); Run creation selects only authorized
 published configurations (RUN-R5); Runtime-label pins hold only non-secret
 credential refs (RUN-R6); consumption is attributable without exposing a token
 (RUN-R25); metadata labels are not a secret container, grant no access and are

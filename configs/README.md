@@ -383,8 +383,8 @@ explicitly when the immutable Gateway digest changes.
 Workflow `spec.executionConfig` contains reference-only defaults. A modeled
 consumer resolves an exact `modelPolicy`, `llmGateway`, and optional non-secret
 credential ID; per-Stage and per-Agent leaves override Workflow-wide defaults.
-`POST /v1/runs` accepts the same shape as an override, with
-`credential: null` as the only explicit clear operation. The resolved bodies,
+Run and Eval callers select an authored Workflow. Inline escalation alone
+accepts `credential: null` to clear an inherited credential. The resolved bodies,
 digests, origins, and credential IDs are pinned in the Run snapshot, while
 token bytes are resolved only when constructing a Planner client or Worker
 allocation.
@@ -403,9 +403,8 @@ The shipped `workflows/` manifests select these IDs explicitly and separately
 for Workers and modeled Planners. They do not override the Gateway URL or model
 selected by configuration. If the corresponding token is absent, Run creation
 fails while resolving the selected credential, before a Stage or allocation is
-started. Deployments using different credentials must override these
-reference-only selections in the Run `executionConfig` or publish their own
-Workflow versions.
+started. Deployments using different credentials select those identities in their own
+Workflow definitions.
 
 `examples/` contains Memory-enabled Router and Streamline examples, plus
 copyable multi-Stage, bounded-retry, single-Worker
@@ -423,7 +422,7 @@ selection. Removing a selected model makes startup fail until a valid deployment
 and saved selection agree. The UI does not install provider credentials or
 provision remote routes.
 
-Run and Eval execution overrides can select exact model-specific policies,
+Workflow definitions can select exact model-specific policies for Run and Eval experiments,
 including `workers.summarizerModelPolicy` for a summary-enabled Worker. An Audit
 pins defaults at draft creation; a prepared Eval retains its binding through
 submission. Run history shows requested aliases and exact policy digests per

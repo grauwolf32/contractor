@@ -174,22 +174,13 @@ func TestCompactorModelPolicySelectionPrecedence(t *testing.T) {
 	if planner.CompactorModelPolicy.Ref.PolicyID != "test-compactor-two" || planner.Origins.CompactorModelPolicy != "workflow.executionConfig.planner" {
 		t.Fatalf("Workflow compactor = %s from %s", planner.CompactorModelPolicy.Ref.PolicyID, planner.Origins.CompactorModelPolicy)
 	}
-	run, err := snapshot.ResolveRunWorkflow(t.Context(), compactingSelector,
-		decodeExecutionConfigPatch(t, `{"planner":{"compactorModelPolicy":"test-compactor@1"}}`), developmentCredentialLookup(t, snapshot))
-	if err != nil {
-		t.Fatal(err)
-	}
-	planner = run.Stages["review"].ExecutionConfig.Planner
-	if planner.CompactorModelPolicy.Ref.PolicyID != "test-compactor" || !strings.HasPrefix(planner.Origins.CompactorModelPolicy, "run.") {
-		t.Fatalf("Run compactor = %s from %s", planner.CompactorModelPolicy.Ref.PolicyID, planner.Origins.CompactorModelPolicy)
-	}
 	for _, patch := range []string{
 		`{"workers":{"compactorModelPolicy":"test-compactor@1"}}`,
 		`{"planner":{"compactorModelPolicy":"test-worker@1"}}`,
 		`{"stages":{"review":{"agents":{"reviewer":{"compactorModelPolicy":"test-compactor@1"}}}}}`,
 	} {
-		if _, err := snapshot.ResolveRunWorkflow(t.Context(), compactingSelector,
-			decodeExecutionConfigPatch(t, patch), developmentCredentialLookup(t, snapshot)); err == nil {
+		writeWorkflowExecutionConfig(t, root, filepath.Base(compactingWorkflowPath(root)), patch)
+		if _, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed")); err == nil {
 			t.Fatalf("inapplicable compactor selection %s accepted", patch)
 		}
 	}
@@ -203,13 +194,7 @@ func TestCompactorSelectionRejectedWithoutCompactingStage(t *testing.T) {
 	if _, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed")); err == nil {
 		t.Fatal("ignored compactor selection on a none Workflow loaded")
 	}
-	root = compactionFixture(t)
-	replaceFile(t, compactingWorkflowPath(root), compactBlock, "")
-	snapshot := mustLoad(t, root)
-	if _, err := snapshot.ResolveRunWorkflow(t.Context(), compactingSelector,
-		decodeExecutionConfigPatch(t, `{"planner":{"compactorModelPolicy":"test-compactor@1"}}`), developmentCredentialLookup(t, snapshot)); err == nil {
-		t.Fatal("Run compactor selection on a none Stage accepted")
-	}
+
 }
 
 func TestPlannerContextManagementSnapshotRejectsNoneAndPartialBranches(t *testing.T) {

@@ -116,16 +116,6 @@ export function EvalReadiness({
                   .join("; ") || "Same role names"}
               </dd>
             </dl>
-            {Object.keys(v.executionConfig).length ? (
-              <details className="eval-disclosure">
-                <summary>Execution overrides</summary>
-                <div className="eval-disclosure-body">
-                  <pre className="eval-code">
-                    {JSON.stringify(v.executionConfig, null, 2)}
-                  </pre>
-                </div>
-              </details>
-            ) : null}
           </section>
         ))}
       </div>

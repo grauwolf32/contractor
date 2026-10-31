@@ -37,7 +37,7 @@ describe("Experiment setup vocabulary", () => {
     );
     expect(
       screen.getAllByText(
-        "Execution settings come from the pinned check type.",
+        "Execution policies come from the selected check type.",
       ),
     ).toHaveLength(2);
     expect(screen.getByLabelText("Check execution")).toHaveValue("different");

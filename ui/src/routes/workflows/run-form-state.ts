@@ -8,10 +8,7 @@ import type {
   RunDraftMemoryStore,
   RunDraftState,
 } from "../../run-drafts/memory";
-import {
-  artifactOptionKey,
-  type ConsumerOverrideDraft,
-} from "../../run-drafts/validation";
+import { artifactOptionKey } from "../../run-drafts/validation";
 
 /** The labels "Add eval metadata preset" adds when they are missing. */
 export const EVAL_METADATA_PRESET = [
@@ -232,16 +229,6 @@ export function useRunDraftState(
         artifactReviews: { ...current.artifactReviews, [slot]: selected },
       }));
       clearError(`artifactReview:${slot}`);
-    },
-    updateOverride(
-      role: "planner" | "workers",
-      field: keyof ConsumerOverrideDraft,
-      value: string,
-    ): void {
-      change("overrides", (current) => ({
-        ...current,
-        [role]: { ...current[role], [field]: value },
-      }));
     },
   };
 }

@@ -44,7 +44,6 @@ const (
 	LayerDefault     RuntimeLayer = "default"
 	LayerWorkflow    RuntimeLayer = "workflow_execution_config"
 	LayerRunLabels   RuntimeLayer = "run_labels"
-	LayerRunOverride RuntimeLayer = "run_execution_config"
 	LayerEscalation  RuntimeLayer = "escalation_execution_config"
 	LayerAgentLabels RuntimeLayer = "agent_labels"
 )
@@ -98,7 +97,7 @@ func (o RuntimeFieldOrigin) validate() error {
 		if len(o.Configs) == 0 || len(o.Configs) > runtimesettings.MaxRuntimeLabels {
 			return ErrInvalid
 		}
-	case LayerWorkflow, LayerRunOverride, LayerEscalation:
+	case LayerWorkflow, LayerEscalation:
 		if len(o.Configs) != 0 {
 			return ErrInvalid
 		}
@@ -154,7 +153,6 @@ type ResolveRuntimeConfigInput struct {
 	Default              PinnedRuntimeConfig
 	Workflow             WorkerRoutePatch
 	RunLabels            []PinnedRuntimeConfig
-	RunOverride          WorkerRoutePatch
 	Escalation           WorkerRoutePatch
 	AgentLabels          []PinnedRuntimeConfig
 	Gateways             map[llmgateway.LLMGatewayConfigRef]llmgateway.ResolvedLLMGatewayConfig
@@ -239,7 +237,7 @@ type layerOrigins struct {
 // the call; the result owns every returned slice and pointer.
 func ResolveRuntimeConfig(input ResolveRuntimeConfigInput) (ResolvedRuntimeConfig, error) {
 	if input.ModelFree {
-		if !input.ModelPolicy.IsZero() || input.SummarizerModelPolicy != nil || input.CompactorModelPolicy != nil || input.Workflow != (WorkerRoutePatch{}) || input.RunOverride != (WorkerRoutePatch{}) || input.Escalation != (WorkerRoutePatch{}) {
+		if !input.ModelPolicy.IsZero() || input.SummarizerModelPolicy != nil || input.CompactorModelPolicy != nil || input.Workflow != (WorkerRoutePatch{}) || input.Escalation != (WorkerRoutePatch{}) {
 			return ResolvedRuntimeConfig{}, resolutionError(ResolutionInvalid, "modelFree", ErrInvalid)
 		}
 		input.Default = WithoutWorkerModel(input.Default)
@@ -278,9 +276,6 @@ func ResolveRuntimeConfig(input ResolveRuntimeConfigInput) (ResolvedRuntimeConfi
 	if err := validateRoutePatch(input.Workflow, "workflow.executionConfig"); err != nil {
 		return ResolvedRuntimeConfig{}, err
 	}
-	if err := validateRoutePatch(input.RunOverride, "run.executionConfig"); err != nil {
-		return ResolvedRuntimeConfig{}, err
-	}
 	if err := validateRoutePatch(input.Escalation, "escalation.executionConfig"); err != nil {
 		return ResolvedRuntimeConfig{}, err
 	}
@@ -292,7 +287,6 @@ func ResolveRuntimeConfig(input ResolveRuntimeConfigInput) (ResolvedRuntimeConfi
 	applyRoutePatch(&effective, input.Workflow, RuntimeFieldOrigin{Layer: LayerWorkflow})
 	applyWorkerSpec(&effective, runSpec.Worker, runOrigins)
 	applyPlannerSpec(&effective, runSpec.Planner, runOrigins)
-	applyRoutePatch(&effective, input.RunOverride, RuntimeFieldOrigin{Layer: LayerRunOverride})
 	applyRoutePatch(&effective, input.Escalation, RuntimeFieldOrigin{Layer: LayerEscalation})
 	applyWorkerSpec(&effective, agentSpec.Worker, agentOrigins)
 
