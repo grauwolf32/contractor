@@ -251,8 +251,14 @@ class AllocationSpec(VersionedWireModel):
         summarizer = self.agent_template.summarizer
         if strategy == "none" and summarizer is not None:
             raise ValueError("contextManagement none requires a template without summarizer")
-        if strategy == "terminal@1" and (summarizer is None or self.agent_template.is_tool_worker):
-            raise ValueError("contextManagement terminal@1 requires the template summarizer")
+        if strategy == "terminal@1" and (
+            summarizer is None
+            or self.agent_template.is_tool_worker
+            or self.summarizer_model_policy is None
+        ):
+            raise ValueError(
+                "contextManagement terminal@1 requires template summarizer behavior and summarizerModelPolicy"
+            )
         if self.summarizer_model_policy is not None and strategy != "terminal@1":
             raise ValueError("summarizerModelPolicy requires terminal@1 context management")
         if strategy != "compact@1":

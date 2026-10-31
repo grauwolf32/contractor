@@ -212,7 +212,7 @@ func (s AllocationSpec) Validate() error {
 	// The compact@1 branch wholly replaces the template summarizer, so its
 	// terminal limits do not constrain the effective Worker policy.
 	if s.ContextManagement.Strategy == contracts.ContextStrategyTerminal {
-		if err := s.AgentTemplate.Summarizer.Validate(s.ModelPolicy); err != nil {
+		if err := s.AgentTemplate.Summarizer.ValidateForWorker(s.ModelPolicy); err != nil {
 			return err
 		}
 	}

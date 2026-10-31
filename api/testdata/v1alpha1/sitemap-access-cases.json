@@ -143,21 +143,8 @@
       "ref": "instructions/artifact-builder.md",
       "text": "Read the declared input and write the requested result."
     },
-    "modelPolicy": {
-      "maxModelCalls": 8,
-      "maxOutputTokens": 4096,
-      "maxToolCalls": 16,
-      "maxTotalTokens": 32768,
-      "model": "worker-model",
-      "ref": {
-        "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
-        "policyId": "worker",
-        "version": "1"
-      },
-      "temperature": 0.1
-    },
     "ref": {
-      "digest": "sha256:09ceb7cd6d83e725afafd802c995106e631bd5977339c87f9ee0f89e37c656d3",
+      "digest": "sha256:3d7d9601c7c0e2dad8016b2b221d566d88782ed9a6f6ec745638b512fa4bbb2b",
       "templateId": "artifact_builder",
       "version": "1"
     },

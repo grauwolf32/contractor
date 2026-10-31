@@ -745,9 +745,8 @@ class ResolvedRuntimeConfigProvenance(WireModel):
         return self
 
 
-class WorkerSummarizerConfig(StrictWireModel):
+class WorkerSummarizerSettings(StrictWireModel):
     instructions: ResolvedInstructions | None = None
-    model_policy: ResolvedModelPolicy
     cumulative_budget: int | None = Field(default=None, gt=0, le=100_000_000)
     context_window_ratio: float = Field(gt=0, lt=1)
     # Required below authoring, including when false (TPL-R116).
@@ -759,9 +758,19 @@ class WorkerSummarizerConfig(StrictWireModel):
             raise ValueError(
                 "Worker summarizer instructions must contain at most 8000 Unicode characters"
             )
-        _require_worker_summarizer_policy(self.model_policy)
         if not math.isfinite(self.context_window_ratio):
             raise ValueError("Worker summarizer contextWindowRatio must be finite")
+        return self
+
+
+class WorkerSummarizerConfig(WorkerSummarizerSettings):
+    """Effective internal summary consumer assembled from an allocation's policy."""
+
+    model_policy: ResolvedModelPolicy
+
+    @model_validator(mode="after")
+    def validate_effective_policy(self) -> Self:
+        _require_worker_summarizer_policy(self.model_policy)
         return self
 
 
@@ -829,13 +838,10 @@ class ResolvedAgentTemplate(WireModel):
     instructions: ResolvedInstructions | None = Field(
         default=None, exclude_if=lambda value: value is None
     )
-    model_policy: ResolvedModelPolicy | None = Field(
-        default=None, exclude_if=lambda value: value is None
-    )
     execution: ToolExecutionConfig | None = Field(
         default=None, exclude_if=lambda value: value is None
     )
-    summarizer: WorkerSummarizerConfig | None = None
+    summarizer: WorkerSummarizerSettings | None = None
     sitemap: ProjectSitemapPolicy | None = Field(
         default=None, exclude_if=lambda value: value is None
     )
@@ -880,10 +886,7 @@ class ResolvedAgentTemplate(WireModel):
         if self.is_tool_worker:
             if (
                 self.execution is None
-                or self.model_fields_set.intersection(
-                    {"model_policy", "instructions", "summarizer"}
-                )
-                or self.model_policy is not None
+                or self.model_fields_set.intersection({"instructions", "summarizer"})
                 or self.instructions is not None
                 or self.summarizer is not None
                 or self.skills
@@ -895,25 +898,6 @@ class ResolvedAgentTemplate(WireModel):
                     "tool@1 requires one tool/execution and forbids model fields or skills"
                 )
             return self
-        if (
-            "execution" in self.model_fields_set
-            or self.model_policy is None
-            or self.instructions is None
-        ):
-            raise ValueError(
-                "modeled Worker requires instructions/modelPolicy and forbids execution"
-            )
-        _require_worker_policy(self.model_policy, has_tools=bool(visible or self.skills))
-        if self.summarizer is not None:
-            _require_worker_summarizer_policy(self.summarizer.model_policy)
-            if self.model_policy.context_window_tokens is None:
-                raise ValueError("summarized Worker modelPolicy requires contextWindowTokens")
-            if (
-                self.summarizer.cumulative_budget is not None
-                and self.model_policy.max_total_tokens is not None
-                and self.summarizer.cumulative_budget >= self.model_policy.max_total_tokens
-            ):
-                raise ValueError(
-                    "Worker summarizer cumulativeBudget must be below Worker maxTotalTokens"
-                )
+        if "execution" in self.model_fields_set or self.instructions is None:
+            raise ValueError("modeled Worker requires instructions and forbids execution")
         return self

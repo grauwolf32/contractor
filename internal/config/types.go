@@ -92,7 +92,6 @@ type agentTemplateSpecSource struct {
 	Description    string                         `yaml:"description"`
 	Runtime        string                         `yaml:"runtime"`
 	Instructions   *instructionsRefSource         `yaml:"instructions"`
-	ModelPolicy    string                         `yaml:"modelPolicy"`
 	Execution      *contracts.ToolExecutionConfig `yaml:"execution,omitempty"`
 	Summarizer     *workerSummarizerSource        `yaml:"summarizer,omitempty"`
 	Sitemap        yaml.Node                      `yaml:"sitemap,omitempty"`
@@ -103,7 +102,6 @@ type agentTemplateSpecSource struct {
 
 type workerSummarizerSource struct {
 	Instructions       *instructionsRefSource `yaml:"instructions,omitempty"`
-	ModelPolicy        string                 `yaml:"modelPolicy"`
 	ContextWindowRatio *float64               `yaml:"contextWindowRatio,omitempty"`
 	CumulativeBudget   *int                   `yaml:"cumulativeBudget,omitempty"`
 	// A node, so an explicit null or a non-boolean scalar is rejected rather

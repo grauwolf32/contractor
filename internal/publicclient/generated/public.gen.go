@@ -7516,7 +7516,6 @@ type AgentTemplateBody struct {
 	Description    string                      `json:"description"`
 	Execution      *ToolExecutionConfig        `json:"execution,omitempty"`
 	Instructions   *InstructionsRef            `json:"instructions,omitempty"`
-	ModelPolicy    *ModelPolicyRef             `json:"modelPolicy,omitempty"`
 	Runtime        Selector                    `json:"runtime"`
 	SandboxProfile Selector                    `json:"sandboxProfile"`
 	Skills         *[]AgentSkillRef            `json:"skills,omitempty"`
@@ -13321,7 +13320,6 @@ type WorkerSummarizerConfigBody struct {
 	// IncludeReasoning Whether the terminal summarizer input includes the Worker model's provider-supplied reasoning as tagged, redacted and bounded text. Authoring omission resolves to false.
 	IncludeReasoning bool             `json:"includeReasoning"`
 	Instructions     *InstructionsRef `json:"instructions,omitempty"`
-	ModelPolicy      ModelPolicyRef   `json:"modelPolicy"`
 }
 
 // WorkerTelemetryExportConfig Worker telemetry export settings. Not supported under planner.telemetry. The pending byte limit must cover the batch size.

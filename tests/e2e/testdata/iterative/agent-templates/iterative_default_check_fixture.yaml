@@ -5,7 +5,6 @@ spec:
   description: Evaluate one deterministic inventory item with optional capabilities absent
   runtime: adk@1
   instructions: {ref: instructions/typed-check-fixture.md}
-  modelPolicy: audit_completion_worker@1
   toolsets:
     - ref: audit-results@2
       tools: [read_audit_task, submit_check_result]

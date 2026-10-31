@@ -85,7 +85,7 @@ func CopyWithModelVariants(t testing.TB, source string) string {
 			t.Fatal(err)
 		}
 		body = strings.Replace(string(workflow), "name: artifact-copy", "name: artifact-copy-"+variant, 1)
-		body = strings.Replace(body, "    workers:\n", "    workers:\n      modelPolicy: "+id+"@1\n", 1)
+		body = strings.Replace(body, "modelPolicy: test-worker@1", "modelPolicy: "+id+"@1", 1)
 		if err := os.WriteFile(filepath.Join(root, "workflows/artifact_copy_"+variant+".yaml"), []byte(body), 0o600); err != nil {
 			t.Fatal(err)
 		}

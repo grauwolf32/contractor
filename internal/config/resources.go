@@ -202,14 +202,12 @@ func agentTemplateResourceBody(template contracts.ResolvedAgentTemplate) map[str
 		"instructions": map[string]any{
 			"ref": template.Instructions.Ref, "digest": template.Instructions.Digest,
 		},
-		"modelPolicy": template.ModelPolicy.Ref,
-		"toolsets":    toolsets,
+		"toolsets": toolsets,
 		"sandboxProfile": template.SandboxProfile.SandboxProfileID + "@" +
 			template.SandboxProfile.Version,
 	}
 	if template.IsToolWorker() {
 		delete(result, "instructions")
-		delete(result, "modelPolicy")
 		result["execution"] = template.Execution.Clone()
 	}
 	if len(template.Skills) > 0 {
@@ -217,7 +215,6 @@ func agentTemplateResourceBody(template contracts.ResolvedAgentTemplate) map[str
 	}
 	if template.Summarizer != nil {
 		summarizer := map[string]any{
-			"modelPolicy":        template.Summarizer.ModelPolicy.Ref,
 			"contextWindowRatio": template.Summarizer.ContextWindowRatio,
 			"includeReasoning":   template.Summarizer.IncludeReasoning,
 		}

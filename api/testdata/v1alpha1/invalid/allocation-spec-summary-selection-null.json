@@ -6,22 +6,8 @@
       "ref": "instructions/worker-summarizer.md",
       "text": "Use the selected tools to complete the requested task."
     },
-    "modelPolicy": {
-      "contextWindowTokens": 131072,
-      "maxModelCalls": 8,
-      "maxOutputTokens": 4096,
-      "maxToolCalls": 16,
-      "maxTotalTokens": 32768,
-      "model": "worker-model",
-      "ref": {
-        "digest": "sha256:78460f8520d0ab876b164e4876fe2cfb9a2b8b54326ede4572c00614de6faf5c",
-        "policyId": "worker",
-        "version": "1"
-      },
-      "temperature": 0.1
-    },
     "ref": {
-      "digest": "sha256:48a3217a6514e971c1e7b2d5915ec6fff43318b6c1abcd0ed43dff2d5bca9f48",
+      "digest": "sha256:d00e755b2b87eeeae88824897b7e9205620f459484a01330289566b58a71a435",
       "templateId": "summarizer_enabled_worker",
       "version": "1"
     },
@@ -36,18 +22,6 @@
     "summarizer": {
       "contextWindowRatio": 0.9,
       "cumulativeBudget": 20000,
-      "modelPolicy": {
-        "contextWindowTokens": 131072,
-        "maxModelCalls": 1,
-        "maxOutputTokens": 2048,
-        "model": "worker-summarizer-model",
-        "ref": {
-          "digest": "sha256:55788bce43cad4ff515823b933910cd347a66efdb42641db7b7f09f1eb855970",
-          "policyId": "terminal_summarizer",
-          "version": "1"
-        },
-        "temperature": 0.1
-      },
       "includeReasoning": false
     },
     "toolsets": [

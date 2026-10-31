@@ -13,7 +13,6 @@ import (
 )
 
 const (
-	originAgentTemplate  = "agentTemplate.modelPolicy"
 	originWorkflowPrefix = "workflow.executionConfig"
 )
 
@@ -31,15 +30,8 @@ func (l *loader) resolveWorkflowExecutionConfig(
 			Planner: stage.ExecutionConfig.Planner,
 			Agents:  make(map[string]resolved.ResolvedConsumerExecutionConfig, len(stage.Agents)),
 		}
-		for logicalName, binding := range stage.Agents {
-			if binding.Template.IsToolWorker() {
-				base.Agents[logicalName] = resolved.ResolvedConsumerExecutionConfig{}
-				continue
-			}
-			base.Agents[logicalName] = resolved.ResolvedConsumerExecutionConfig{
-				ModelPolicy: binding.Template.ModelPolicy.Clone(),
-				Origins:     resolved.ExecutionConfigOrigins{ModelPolicy: originAgentTemplate},
-			}
+		for logicalName := range stage.Agents {
+			base.Agents[logicalName] = resolved.ResolvedConsumerExecutionConfig{}
 		}
 		stage.ExecutionConfig = base
 		workflow.Stages[stageName] = stage

@@ -26,6 +26,7 @@ spec:
       modelPolicy: test-window-planner@1
       llmGateway: local-litellm@1
     workers:
+      modelPolicy: test-worker@1
       llmGateway: local-litellm@1
 
   entryStage: review

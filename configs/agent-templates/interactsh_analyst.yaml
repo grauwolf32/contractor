@@ -8,7 +8,6 @@ spec:
   runtime: adk@1
   instructions:
     ref: instructions/interactsh-analyst.md
-  modelPolicy: worker@2
   toolsets:
     - ref: interactsh@1
       tools: [interactsh_register, interactsh_poll]

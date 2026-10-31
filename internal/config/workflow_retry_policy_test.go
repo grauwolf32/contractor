@@ -30,7 +30,7 @@ func TestResolveRunWorkflowKeepsWorkflowWorkerPolicyOnRetryingStage(t *testing.T
 		t.Fatalf("interrupted transition = %+v, want fail", baseStage.On.Interrupted)
 	}
 	if selection := baseStage.ExecutionConfig.Agents["builder"]; selection.ModelPolicy.Ref.PolicyID != "test-worker" ||
-		selection.Origins.ModelPolicy != "agentTemplate.modelPolicy" {
+		selection.Origins.ModelPolicy != "workflow.executionConfig.workers" {
 		t.Fatalf("default selection = %+v", selection)
 	}
 

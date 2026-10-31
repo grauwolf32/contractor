@@ -197,17 +197,12 @@ func TestSharedAllocationSpecRequiresBoundedWorkerBudgets(t *testing.T) {
 		{"too many total tokens", "maxTotalTokens", float64(contracts.MaxWorkerTotalTokens + 1), false},
 		{"Planner-only Worker calls", "maxWorkerCalls", float64(1), false},
 	} {
-		for _, target := range []string{"AgentTemplate default", "effective allocation"} {
+		for _, target := range []string{"effective allocation"} {
 			t.Run(test.name+"/"+target, func(t *testing.T) {
 				encoded, _ := json.Marshal(baseline)
 				var candidate map[string]any
 				_ = json.Unmarshal(encoded, &candidate)
-				var policy map[string]any
-				if target == "AgentTemplate default" {
-					policy = candidate["agentTemplate"].(map[string]any)["modelPolicy"].(map[string]any)
-				} else {
-					policy = candidate["modelPolicy"].(map[string]any)
-				}
+				policy := candidate["modelPolicy"].(map[string]any)
 				if test.remove {
 					delete(policy, test.field)
 				} else {
@@ -284,7 +279,9 @@ func TestSharedAllocationSpecRequiresValidWorkerSummarizer(t *testing.T) {
 			var candidate map[string]any
 			_ = json.Unmarshal(encoded, &candidate)
 			summarizer := candidate["agentTemplate"].(map[string]any)["summarizer"].(map[string]any)
+			summarizer["modelPolicy"] = candidate["summarizerModelPolicy"]
 			mutate(summarizer)
+			delete(summarizer, "modelPolicy")
 			encoded, _ = json.Marshal(candidate)
 			if _, err := contracts.DecodePrivateStrict[AllocationSpec](encoded); err == nil {
 				t.Fatal("invalid Worker summarizer was accepted")

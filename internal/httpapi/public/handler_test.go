@@ -1553,7 +1553,7 @@ func TestCreateRunPinsExecutionConfigAndDetectsSelectorIdempotencyConflict(t *te
 	}
 	selection := workflow.Stages["copy"].ExecutionConfig.Agents["builder"]
 	if selection.ModelPolicy.Ref.PolicyID != "test-worker" ||
-		selection.Origins.ModelPolicy != "agentTemplate.modelPolicy" {
+		selection.Origins.ModelPolicy != "workflow.executionConfig.workers" {
 		t.Fatalf("stored resolved executionConfig = %+v", selection)
 	}
 

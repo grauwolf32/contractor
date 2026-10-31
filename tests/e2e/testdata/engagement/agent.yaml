@@ -5,7 +5,6 @@ spec:
   description: Records a deterministic result using explicit controlled HTTP tools
   runtime: adk@1
   instructions: {ref: instructions/engagement-fixture.md}
-  modelPolicy: engagement_fixture_worker@1
   toolsets:
     - ref: audit-results@2
       tools: [read_audit_task, submit_check_result]

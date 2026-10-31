@@ -7,8 +7,6 @@ import type {
 import { Link } from "react-router";
 import { formatNumber } from "../../../app/format";
 import { Facts } from "../../../ui";
-import { ConfigurationRefLink } from "../common";
-import { exactConfigurationRef } from "../references";
 import { artifactDetailPath } from "../../artifacts/paths";
 
 function present(value: number | undefined): string {
@@ -106,14 +104,6 @@ function AgentTemplateView({ body }: { body: AgentTemplateBody }) {
               <code>{body.instructions.ref}</code>
               <code>{body.instructions.digest}</code>
             </span>
-          ),
-        },
-        {
-          term: "Default ModelPolicy",
-          value: body.modelPolicy && (
-            <ConfigurationRefLink
-              value={exactConfigurationRef(body.modelPolicy)}
-            />
           ),
         },
         {

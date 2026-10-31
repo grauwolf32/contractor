@@ -26,6 +26,10 @@ func TestOperationsSnapshotAndPagesAreCoherentStableAndObserved(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	policy, err := fixture.configs.Snapshot().ModelPolicy("test-worker@1")
+	if err != nil {
+		t.Fatal(err)
+	}
 	snapshot := controlplane.OperationsSnapshot{
 		Cursor: controlplane.OperationsCursor{
 			Generation: "operations-generation-fixed", Revision: 42,
@@ -61,7 +65,7 @@ func TestOperationsSnapshotAndPagesAreCoherentStableAndObserved(t *testing.T) {
 			StageExecutionID: "stage-operations", RuntimeAgentInstanceID: "runtime-a",
 			LogicalWorker: "builder", AgentTemplate: template.Ref,
 			ExecutionConfig: controlplane.AllocationExecutionConfig{
-				ModelPolicy: template.ModelPolicy.Ref, LLMGateway: gateway.Ref,
+				ModelPolicy: policy.Ref, LLMGateway: gateway.Ref,
 			},
 			AuthoritativePhase: controlplane.AllocationAborting,
 			ObservedPhase:      controlplane.AllocationObservedFenced,

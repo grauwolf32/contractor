@@ -5,7 +5,6 @@ spec:
   description: Reads exact local Round pages through ordinary Artifact tools
   runtime: adk@1
   instructions: {ref: instructions/snapshot-reader-fixture.md}
-  modelPolicy: worker@2
   toolsets:
     - ref: run-artifacts@1
       tools: [read_artifact, write_artifact]

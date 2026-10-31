@@ -1299,7 +1299,6 @@ spec:
   description: Produces one deterministic test result
   runtime: adk@1
   instructions: {ref: instructions/worker.md}
-  modelPolicy: worker@1
   toolsets:
     - ref: run-artifacts@1
       tools: [read_artifact, write_artifact]
@@ -1316,6 +1315,7 @@ spec:
     result: {required: true, mediaTypes: [application/zip]}
   executionConfig:
     workers:
+      modelPolicy: worker@1
       llmGateway: test-gateway@1
       credential: development-worker
   entryStage: check
@@ -1380,7 +1380,7 @@ spec:
 		policy := strings.Replace(files["model-policies/worker.yaml"], "name: worker", "name: variant-worker-"+variant, 1)
 		files["model-policies/variant-worker-"+variant+".yaml"] = strings.Replace(policy, "worker-model", "variant-model-"+variant, 1)
 		workflow := strings.Replace(files["workflows/check.yaml"], "name: audit-check", "name: variant-check-"+variant, 1)
-		files["workflows/variant-check-"+variant+".yaml"] = strings.Replace(workflow, "    workers:\n", "    workers:\n      modelPolicy: variant-worker-"+variant+"@1\n", 1)
+		files["workflows/variant-check-"+variant+".yaml"] = strings.Replace(workflow, "modelPolicy: worker@1", "modelPolicy: variant-worker-"+variant+"@1", 1)
 	}
 	for _, name := range []string{"agent-templates/nuclei.yaml", "workflows/nuclei.yaml"} {
 		data, err := os.ReadFile(filepath.Join("testdata", "source-scope", name))

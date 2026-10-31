@@ -139,7 +139,10 @@ def sample_spec(peer):
     ]
     policy = document("model-policies/worker.yaml")
     metadata = policy["metadata"]
-    assert authored["modelPolicy"] == f"{metadata['name']}@{metadata['version']}"
+    assert (
+        workflow["executionConfig"]["workers"]["modelPolicy"]
+        == f"{metadata['name']}@{metadata['version']}"
+    )
     spec.model_policy = ResolvedModelPolicy(
         ref=ModelPolicyRef(
             policyId=metadata["name"], version=metadata["version"], digest="sha256:" + "0" * 64
@@ -147,7 +150,6 @@ def sample_spec(peer):
         **policy["spec"],
     )
     spec.model_policy.ref.digest = _model_policy_digest(spec.model_policy)
-    spec.agent_template.model_policy = spec.model_policy.model_copy(deep=True)
     spec.agent_template.ref.digest = _agent_template_digest(spec.agent_template)
     spec.workspace = AllocationWorkspaceSpec(
         mode=stage["context"]["workspace"]["mode"],

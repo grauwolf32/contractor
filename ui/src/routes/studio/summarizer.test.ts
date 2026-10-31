@@ -12,7 +12,6 @@ describe("terminal summarizer reasoning option", () => {
   ])("validates includeReasoning $value", ({ value, valid }) => {
     let draft = starter("AgentTemplate");
     draft = patchDraft(draft, ["spec", "summarizer"], {
-      modelPolicy: "terminal_summarizer@1",
       includeReasoning: value,
     });
     const path = ["spec", "summarizer", "includeReasoning"];

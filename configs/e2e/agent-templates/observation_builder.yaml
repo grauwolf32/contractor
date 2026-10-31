@@ -10,7 +10,6 @@ spec:
   runtime: adk@1
   instructions:
     ref: instructions/worker-observations-builder.md
-  modelPolicy: worker@1
   toolsets:
     - ref: filesystem@1
       tools: [read_file, grep]

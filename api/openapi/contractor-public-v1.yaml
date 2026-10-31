@@ -16494,10 +16494,9 @@ components:
     WorkerSummarizerConfigBody:
       type: object
       additionalProperties: false
-      required: [modelPolicy, contextWindowRatio, includeReasoning]
+      required: [contextWindowRatio, includeReasoning]
       properties:
         instructions: {$ref: '#/components/schemas/InstructionsRef'}
-        modelPolicy: {$ref: '#/components/schemas/ModelPolicyRef'}
         cumulativeBudget: {type: integer, minimum: 1, maximum: 100000000}
         contextWindowRatio: {type: number, exclusiveMinimum: 0, exclusiveMaximum: 1}
         includeReasoning:
@@ -16513,16 +16512,15 @@ components:
       if: {properties: {runtime: {type: string, const: 'tool@1'}}}
       then:
         required: [execution]
-        properties: {instructions: {not: {}}, modelPolicy: {not: {}}, summarizer: {not: {}}}
+        properties: {instructions: {not: {}}, summarizer: {not: {}}}
       else:
-        required: [instructions, modelPolicy]
+        required: [instructions]
         properties: {execution: {not: {}}}
       properties:
         execution: {$ref: '#/components/schemas/ToolExecutionConfig'}
         description: {type: string, maxLength: 4096}
         runtime: {$ref: '#/components/schemas/Selector'}
         instructions: {$ref: '#/components/schemas/InstructionsRef'}
-        modelPolicy: {$ref: '#/components/schemas/ModelPolicyRef'}
         summarizer: {$ref: '#/components/schemas/WorkerSummarizerConfigBody'}
         skills:
           type: array

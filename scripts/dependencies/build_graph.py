@@ -194,7 +194,6 @@ def load_catalog(graph):
 def template_edges(graph, origin, spec, source):
     for field, kind in [
         ("runtime", "WorkerRuntime"),
-        ("modelPolicy", "ModelPolicy"),
         ("sandboxProfile", "SandboxProfile"),
     ]:
         if field in spec:
@@ -220,14 +219,6 @@ def template_edges(graph, origin, spec, source):
         )
     summarizer = spec.get("summarizer")
     if summarizer:
-        graph.reference(
-            origin,
-            "ModelPolicy",
-            summarizer["modelPolicy"],
-            source,
-            "spec.summarizer.modelPolicy",
-            "summarizer",
-        )
         graph.instructions(
             origin, summarizer.get("instructions"), source, "spec.summarizer.instructions"
         )

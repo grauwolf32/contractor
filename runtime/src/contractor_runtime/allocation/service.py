@@ -126,8 +126,11 @@ def _effective_summarizer(spec: AllocationSpec) -> WorkerSummarizerConfig | None
     if spec.context_management.strategy != "terminal@1" or summarizer is None:
         return None
     if spec.summarizer_model_policy is None:
-        return summarizer
-    return summarizer.model_copy(update={"model_policy": spec.summarizer_model_policy})
+        raise RuntimeError("terminal allocation is missing summarizerModelPolicy")
+    return WorkerSummarizerConfig(
+        **summarizer.model_dump(by_alias=True, exclude_none=True),
+        modelPolicy=spec.summarizer_model_policy,
+    )
 
 
 class _SourceObservationSink:

@@ -56,8 +56,8 @@ func TestSemanticAndInstructionChangesAlterDigests(t *testing.T) {
 	baselineTemplate, _ := baseline.agentTemplateForTest("artifact_builder@1")
 	semanticTemplate, _ := semantic.agentTemplateForTest("artifact_builder@1")
 	instructionTemplate, _ := instruction.agentTemplateForTest("artifact_builder@1")
-	if baselineTemplate.Ref.Digest == semanticTemplate.Ref.Digest {
-		t.Fatal("resolved ModelPolicy change did not alter AgentTemplate digest")
+	if baselineTemplate.Ref.Digest != semanticTemplate.Ref.Digest {
+		t.Fatal("ModelPolicy change altered AgentTemplate digest")
 	}
 	if baselineTemplate.Ref.Digest == instructionTemplate.Ref.Digest {
 		t.Fatal("instruction byte change did not alter AgentTemplate digest")
@@ -67,7 +67,7 @@ func TestSemanticAndInstructionChangesAlterDigests(t *testing.T) {
 	}
 }
 
-func TestEachWorkerBudgetChangesPolicyAndTemplateDigests(t *testing.T) {
+func TestEachWorkerBudgetChangesPolicyWithoutChangingTemplateDigest(t *testing.T) {
 	t.Parallel()
 
 	baseline := mustLoad(t, copyCoreFixture(t))
@@ -85,8 +85,8 @@ func TestEachWorkerBudgetChangesPolicyAndTemplateDigests(t *testing.T) {
 			policy, _ := variant.ModelPolicy("test-worker@1")
 			template, _ := variant.agentTemplateForTest("artifact_builder@1")
 			if policy.Ref.Digest == baselinePolicy.Ref.Digest ||
-				template.Ref.Digest == baselineTemplate.Ref.Digest {
-				t.Fatalf("changing %s did not alter both digests", test.field)
+				template.Ref.Digest != baselineTemplate.Ref.Digest {
+				t.Fatalf("changing %s must alter only the policy digest", test.field)
 			}
 		})
 	}
@@ -125,7 +125,6 @@ spec:
   toolsets:
     - tools: [write_artifact, read_artifact, list_artifacts]
       ref: run-artifacts@1
-  modelPolicy: test-worker@1
   instructions: {ref: instructions/artifact-builder.md}
   runtime: adk@1
   description: "Reads a declared input and writes the requested result"

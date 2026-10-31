@@ -4032,7 +4032,7 @@ def build_context(
         description=template.description,
         instruction=template.instructions.text,
         card_version=template.ref.version,
-        model_policy=template.model_policy.model_copy(deep=True),
+        model_policy=worker_policy(),
         workspace=AllocationWorkspace(root=tmp_path.parent, path=tmp_path),
         tools=tools,  # type: ignore[arg-type]
         state=state,
@@ -4092,15 +4092,6 @@ def agent_template() -> ResolvedAgentTemplate:
         runtime=WorkerRuntimeRef(runtimeId="adk", version="1"),
         instructions=ResolvedInstructions(
             ref="instructions/worker.md", digest="sha256:" + "1" * 64, text="Use tools."
-        ),
-        modelPolicy=ResolvedModelPolicy(
-            ref=ModelPolicyRef(policyId="worker", version="1", digest="sha256:" + "2" * 64),
-            model="worker-model",
-            maxOutputTokens=4096,
-            maxModelCalls=8,
-            maxToolCalls=16,
-            maxTotalTokens=32768,
-            temperature=0.1,
         ),
         toolsets=[
             ToolsetSelection(
@@ -4285,3 +4276,15 @@ class DeclaredSensitiveTool:
 
     async def __call__(self) -> dict[str, str]:
         return {"traffic": "tool-output-canary"}
+
+
+def worker_policy() -> ResolvedModelPolicy:
+    return ResolvedModelPolicy(
+        ref=ModelPolicyRef(policyId="worker", version="1", digest="sha256:" + "2" * 64),
+        model="worker-model",
+        maxOutputTokens=4096,
+        maxModelCalls=8,
+        maxToolCalls=16,
+        maxTotalTokens=32768,
+        temperature=0.1,
+    )

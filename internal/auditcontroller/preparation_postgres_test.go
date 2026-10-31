@@ -60,6 +60,9 @@ spec:
         succeeded: {succeed: {}}
         failed: {fail: {}}
         interrupted: {fail: {}}
+  executionConfig:
+    workers:
+      modelPolicy: worker@1
 `
 		roles := `    z-seed:
       kind: prepare

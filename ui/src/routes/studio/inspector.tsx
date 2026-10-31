@@ -633,11 +633,6 @@ export function Inspector({
             : null}
           {node.type === "summarizer" ? (
             <>
-              {catalogField(
-                "Model policy",
-                [...p, "modelPolicy"],
-                "model-policies",
-              )}
               {field("Instructions file", [...p, "instructions", "ref"])}
               {field(
                 "Context window ratio",

@@ -450,8 +450,7 @@ func TestSchedulerBuildsIndependentPinnedPlannerAndWorkerModelAccess(t *testing.
 	if worker.ModelPolicy.Ref != workerPolicy.Ref ||
 		worker.RuntimeSettings.LLMGatewayURL != workerGateway.URL ||
 		worker.RuntimeSettings.LLMGatewayToken.Reveal() != "worker-secret" ||
-		worker.RuntimeSettings.ArtifactAPIURL != "https://control.test/private/v1" ||
-		stage.Agents["builder"].Template.ModelPolicy.Ref == workerPolicy.Ref {
+		worker.RuntimeSettings.ArtifactAPIURL != "https://control.test/private/v1" {
 		t.Fatalf("Worker execution settings = %+v", worker)
 	}
 	plannerAccess, err := harness.scheduler.plannerModelAccess(t.Context(), stage)

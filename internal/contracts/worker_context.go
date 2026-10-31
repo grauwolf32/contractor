@@ -145,8 +145,8 @@ func (c WorkerContextManagement) ValidateAllocation(spec AllocationContext) erro
 			return Invalidf("contextManagement none requires a template without summarizer")
 		}
 	case ContextStrategyTerminal:
-		if c.WorkerCompaction != nil || spec.Template.Summarizer == nil || spec.Template.IsToolWorker() {
-			return Invalidf("contextManagement terminal@1 requires the template summarizer")
+		if c.WorkerCompaction != nil || spec.Template.Summarizer == nil || spec.Template.IsToolWorker() || spec.SummarizerModelPolicy == nil {
+			return Invalidf("contextManagement terminal@1 requires template summarizer behavior and summarizerModelPolicy")
 		}
 	case ContextStrategyCompact:
 		if err := c.validateCompaction(); err != nil {

@@ -78,7 +78,7 @@ func TestSharedEngagementPrivatePrepareRechecksAuthorityRedactsAndClearsMaterial
 				}
 				return material, nil
 			})
-			_, err = client.Prepare(ctx, reservation, runtimesettings.WorkerExecutionSettings{ModelPolicy: template.ModelPolicy, RuntimeSettings: testRuntimeSettings(), ResolvedRuntimeConfigProvenance: testRuntimeProvenance()})
+			_, err = client.Prepare(ctx, reservation, runtimesettings.WorkerExecutionSettings{ModelPolicy: testWorkerPolicy(t), RuntimeSettings: testRuntimeSettings(), ResolvedRuntimeConfigProvenance: testRuntimeProvenance()})
 			if err == nil || strings.Contains(err.Error(), "private-target-canary") {
 				t.Fatalf("unsafe material outcome: %v", err)
 			}
