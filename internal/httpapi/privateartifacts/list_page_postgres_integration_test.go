@@ -5,29 +5,25 @@ package privateartifacts
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
-
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/persistence/postgrestest"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 const (
@@ -236,48 +232,9 @@ func createPrivateArtifactRun(t *testing.T, ctx context.Context, pool *pgxpool.P
 
 func isolatedPrivateArtifactPool(t *testing.T, ctx context.Context) *pgxpool.Pool {
 	t.Helper()
-	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
-	if databaseURL == "" {
-		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
-	}
-	admin, err := pgxpool.New(ctx, databaseURL)
-	if err != nil {
-		t.Fatalf("open test admin pool: %v", err)
-	}
-	if err := admin.Ping(ctx); err != nil {
-		admin.Close()
-		t.Fatalf("ping test database: %v", err)
-	}
-	random := make([]byte, 8)
-	if _, err := rand.Read(random); err != nil {
-		admin.Close()
-		t.Fatal(err)
-	}
-	identifier := pgx.Identifier{"contractor_test_" + hex.EncodeToString(random)}.Sanitize()
-	if _, err := admin.Exec(ctx, `CREATE SCHEMA `+identifier); err != nil {
-		admin.Close()
-		t.Fatalf("create isolated schema: %v", err)
-	}
-	config, err := pgxpool.ParseConfig(databaseURL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	config.ConnConfig.RuntimeParams["search_path"] = "contractor_test_" + hex.EncodeToString(random)
-	pool, err := pgxpool.NewWithConfig(ctx, config)
-	if err != nil {
-		t.Fatalf("open isolated pool: %v", err)
-	}
-	t.Cleanup(func() {
-		pool.Close()
-		cleanupCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		if _, err := admin.Exec(cleanupCtx, `DROP SCHEMA `+identifier+` CASCADE`); err != nil {
-			t.Logf("drop isolated schema: %v", err)
-		}
-		admin.Close()
-	})
+	pool := postgrestest.NewPool(t, ctx, "", postgrestest.Options{})
 	if _, err := persistencepostgres.ApplyMigrations(ctx, pool, persistencepostgres.MigrationBudgets{}); err != nil {
-		t.Fatalf("apply migrations: %v", err)
+		t.Fatal(err)
 	}
 	return pool
 }

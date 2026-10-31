@@ -31,6 +31,26 @@ at most once per invocation.
 Gate definitions describe what a command checks; completed results are
 recorded in the corresponding task files.
 
+## Shared PostgreSQL test setup
+
+Use `internal/persistence/postgrestest.NewPool` for a single schema-isolated
+test pool. An empty URL reads `CONTRACTOR_TEST_DATABASE_URL`; only an unset
+variable skips the test. A configured but unavailable database fails it.
+The helper creates an empty schema, fixes the work pool's `search_path`, and
+registers cleanup before returning or running caller configuration. Cleanup
+closes the pool, drops the schema under an independent timeout and closes the
+admin pool, even after cancellation or failed setup.
+
+Callers apply their own migrations and seed domain fixtures. Use
+`postgrestest.Options.Configure` for pool limits, server timeouts or query
+tracers, and `CleanupTimeout` when a suite needs a different cleanup budget.
+Register domain cleanup checks after `NewPool` so they run before its pool
+closes. Audit store fixtures use this order to verify dense event sequences.
+
+Keep setup local when it is itself under test: production `OpenPool`, startup
+migration URLs and reconnecting or multiple pools sharing one schema.
+Database-wide query-budget isolation still belongs to `explaintest.Database`.
+
 ## Temporary directory on macOS
 
 Go's `t.TempDir()` uses `TMPDIR` as given. The default macOS `TMPDIR` lies

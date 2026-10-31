@@ -161,6 +161,7 @@ export type PublicSchemaName =
   | "AuditActor"
   | "ConfigId"
   | "AuditLabels"
+  | "RunMetadataLabelSelector"
   | "RunMetadataLabels"
   | "CreateProjectRequest"
   | "UpdateProjectRequest"

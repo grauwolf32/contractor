@@ -2,11 +2,8 @@ package scan
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"os"
 	"testing"
 	"time"
 
@@ -14,11 +11,11 @@ import (
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/persistence/postgrestest"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -104,48 +101,11 @@ func TestPostgresAuditResultReadLockTimeoutRetainsCompletedScan(t *testing.T) {
 
 func isolatedScanPool(t *testing.T, ctx context.Context) *pgxpool.Pool {
 	t.Helper()
-	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
-	if databaseURL == "" {
-		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
-	}
-	admin, err := pgxpool.New(ctx, databaseURL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := admin.Ping(ctx); err != nil {
-		admin.Close()
-		t.Fatal(err)
-	}
-	random := make([]byte, 8)
-	if _, err := rand.Read(random); err != nil {
-		admin.Close()
-		t.Fatal(err)
-	}
-	schema := "contractor_scan_" + hex.EncodeToString(random)
-	identifier := pgx.Identifier{schema}.Sanitize()
-	if _, err := admin.Exec(ctx, `CREATE SCHEMA `+identifier); err != nil {
-		admin.Close()
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		cleanup, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		if _, err := admin.Exec(cleanup, `DROP SCHEMA `+identifier+` CASCADE`); err != nil {
-			t.Errorf("drop scan test schema: %v", err)
-		}
-		admin.Close()
+	pool := postgrestest.NewPool(t, ctx, "", postgrestest.Options{
+		Configure: func(poolConfig *pgxpool.Config) {
+			poolConfig.ConnConfig.RuntimeParams["lock_timeout"] = "50ms"
+		},
 	})
-	config, err := pgxpool.ParseConfig(databaseURL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	config.ConnConfig.RuntimeParams["search_path"] = schema
-	config.ConnConfig.RuntimeParams["lock_timeout"] = "50ms"
-	pool, err := pgxpool.NewWithConfig(ctx, config)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(pool.Close)
 	if _, err := persistencepostgres.ApplyMigrations(ctx, pool, persistencepostgres.MigrationBudgets{}); err != nil {
 		t.Fatal(err)
 	}

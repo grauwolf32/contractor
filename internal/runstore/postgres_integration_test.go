@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"reflect"
 	"strings"
 	"sync"
@@ -23,6 +22,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/persistence/postgrestest"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
@@ -1751,58 +1751,9 @@ func testRunParams(runID string) CreateRunParams {
 
 func isolatedRunStorePool(t *testing.T, ctx context.Context) *pgxpool.Pool {
 	t.Helper()
-	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
-	if databaseURL == "" {
-		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
-	}
-	adminConfig, err := pgxpool.ParseConfig(databaseURL)
-	if err != nil {
-		t.Fatalf("parse test database URL: %v", err)
-	}
-	admin, err := pgxpool.NewWithConfig(ctx, adminConfig)
-	if err != nil {
-		t.Fatalf("open test admin pool: %v", err)
-	}
-	if err := admin.Ping(ctx); err != nil {
-		admin.Close()
-		t.Fatalf("ping test database: %v", err)
-	}
-	random := make([]byte, 8)
-	if _, err := rand.Read(random); err != nil {
-		admin.Close()
-		t.Fatal(err)
-	}
-	schema := "contractor_test_" + hex.EncodeToString(random)
-	identifier := pgx.Identifier{schema}.Sanitize()
-	if _, err := admin.Exec(ctx, `CREATE SCHEMA `+identifier); err != nil {
-		admin.Close()
-		t.Fatalf("create isolated schema: %v", err)
-	}
-	config, err := pgxpool.ParseConfig(databaseURL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	config.ConnConfig.RuntimeParams["search_path"] = schema
-	pool, err := pgxpool.NewWithConfig(ctx, config)
-	if err != nil {
-		t.Fatalf("open isolated pool: %v", err)
-	}
-	if err := pool.Ping(ctx); err != nil {
-		pool.Close()
-		t.Fatalf("ping isolated pool: %v", err)
-	}
+	pool := postgrestest.NewPool(t, ctx, "", postgrestest.Options{})
 	if _, err := persistencepostgres.ApplyMigrations(ctx, pool, persistencepostgres.MigrationBudgets{}); err != nil {
-		pool.Close()
-		t.Fatalf("apply migrations: %v", err)
+		t.Fatal(err)
 	}
-	t.Cleanup(func() {
-		pool.Close()
-		cleanupCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		if _, err := admin.Exec(cleanupCtx, `DROP SCHEMA `+identifier+` CASCADE`); err != nil {
-			t.Logf("drop isolated schema: %v", err)
-		}
-		admin.Close()
-	})
 	return pool
 }

@@ -2,12 +2,8 @@ package config
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
-	"os"
 	"reflect"
 	"testing"
-	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditservice"
@@ -17,6 +13,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/persistence/postgrestest"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/grauwolf32/contractor/internal/settingsstore"
@@ -136,42 +133,8 @@ func (modelAuditGuard) WithRunCreation(_ context.Context, fn func() error) error
 
 func modelAuditPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
-	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
-	if databaseURL == "" {
-		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
-	}
 	ctx := t.Context()
-	admin, err := pgxpool.New(ctx, databaseURL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(admin.Close)
-	suffix := make([]byte, 8)
-	if _, err := rand.Read(suffix); err != nil {
-		t.Fatal(err)
-	}
-	schema := "model_audit_" + hex.EncodeToString(suffix)
-	identifier := pgx.Identifier{schema}.Sanitize()
-	if _, err := admin.Exec(ctx, "CREATE SCHEMA "+identifier); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		cleanup, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		if _, err := admin.Exec(cleanup, "DROP SCHEMA "+identifier+" CASCADE"); err != nil {
-			t.Errorf("drop test schema: %v", err)
-		}
-	})
-	options, err := pgxpool.ParseConfig(databaseURL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	options.ConnConfig.RuntimeParams["search_path"] = schema
-	pool, err := pgxpool.NewWithConfig(ctx, options)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(pool.Close)
+	pool := postgrestest.NewPool(t, ctx, "", postgrestest.Options{})
 	if _, err := postgres.ApplyMigrations(ctx, pool, postgres.MigrationBudgets{}); err != nil {
 		t.Fatal(err)
 	}

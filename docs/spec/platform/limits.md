@@ -718,6 +718,7 @@ its owning requirement.
 | `LIM-RUN-8` | at most 4,096 bytes | AttemptDiagnostics entry message | Server Run status projection | [RUN-R91](../execution/runs.md) |
 | `LIM-RUN-9` | at most the newest 128 entries | AttemptDiagnostics entries returned in Run status | Server Run status projection | [RUN-R92](../execution/runs.md) |
 | `LIM-RUN-10` | 1 to 4,096 bytes of UTF-8 after trimming | Optional Run cancellation reason | Server cancel-Run handler; declared as x-max-utf8-bytes | [RUN-R40](../execution/runs.md) |
+| `LIM-RUN-11` | at most 320 decoded UTF-8 bytes, derived from 63-byte key + 1-byte separator + 256-byte value | Run-list `key=value` selector | Server validates each part through the metadata-label validator; both public Run lists declare x-max-utf8-bytes | [RUN-R80](../execution/runs.md) |
 | `LIM-SCH-1` | at most 1 active StageExecution | WorkflowRun | Workflow Scheduler (Run claim and atomic progression transaction) | [SCH-R114](../execution/scheduler.md) |
 | `LIM-SCH-2` | at most 1 root Planner instance, 1 Planner invocation and 1 Planner Session, and exactly 1 Planner invocation and 1 Planner Session in `running` and normal `finalizing` of a Planner Stage; Server operations have neither; for an ADK-backed strategy at most 1 live in-memory ADK conversation | StageExecution | Workflow Scheduler | [scheduler](../execution/scheduler.md) |
 | `LIM-SCH-4` | exactly 1 accepted StageResult or StageTermination, never both | terminal StageExecution | Workflow Scheduler (finalizing/aborting compare-and-set from running) | [scheduler](../execution/scheduler.md) |
@@ -987,7 +988,7 @@ its owning requirement.
 | ID | Value | Collection | Enforcement | Owner |
 | --- | --- | --- | --- | --- |
 | `LIM-SMT-1` | 10,000 groups and 32 MiB encoded JSON | One current map | projectsitemap reducer and strict reader | [SMT-R2](../artifacts/project-sitemap.md), [SMT-R5](../artifacts/project-sitemap.md) |
-| `LIM-SMT-2` | 64 members per group, 50,000 per map, 8 KiB concrete key | Concrete inventory | projectsitemap reducer; a sitemap mutation URL is bounded by the concrete key before projection and declared as x-max-utf8-bytes | [SMT-R5](../artifacts/project-sitemap.md) |
+| `LIM-SMT-2` | 64 members per group, 50,000 per map, 8 KiB concrete key | Concrete inventory | projectsitemap reducer; a sitemap mutation URL is bounded by the concrete key before projection; editor rule origin and path share the 8 KiB bound on their combined UTF-8 size; each public string declares x-max-utf8-bytes | [SMT-R5](../artifacts/project-sitemap.md) |
 | `LIM-SMT-3` | 8 examples per group, 2 KiB each | Representative descriptors | projectsitemap reducer and regrouping | [SMT-R5](../artifacts/project-sitemap.md) |
 | `LIM-SMT-4` | 16 behavior summaries and 8 exact evidence refs per member | Observations | projectsitemap reducer | [SMT-R5](../artifacts/project-sitemap.md) |
 | `LIM-SMT-5` | 128 sources, 256 rules, 10,000 suppression markers; at most 64 selected members per marker | One map | projectsitemap reducer | [SMT-R6](../artifacts/project-sitemap.md), [SMT-R7](../artifacts/project-sitemap.md) |

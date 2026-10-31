@@ -2,11 +2,8 @@ package projectsitemap
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -18,6 +15,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	postgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/persistence/postgrestest"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
@@ -28,48 +26,15 @@ import (
 
 func sitemapPool(t *testing.T, tracers ...pgx.QueryTracer) *pgxpool.Pool {
 	t.Helper()
-	url := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
-	if url == "" {
-		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
-	}
 	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
 	defer cancel()
-	admin, err := pgxpool.New(ctx, url)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := admin.Ping(ctx); err != nil {
-		admin.Close()
-		t.Fatal(err)
-	}
-	var random [8]byte
-	if _, err := rand.Read(random[:]); err != nil {
-		t.Fatal(err)
-	}
-	schema := pgx.Identifier{"sitemap_" + hex.EncodeToString(random[:])}.Sanitize()
-	if _, err := admin.Exec(ctx, "CREATE SCHEMA "+schema); err != nil {
-		t.Fatal(err)
-	}
-	config, err := pgxpool.ParseConfig(url)
-	if err != nil {
-		t.Fatal(err)
-	}
-	config.ConnConfig.RuntimeParams["search_path"] = schema
-	if len(tracers) > 0 {
-		config.ConnConfig.Tracer = tracers[0]
-	}
-	pool, err := pgxpool.NewWithConfig(ctx, config)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		pool.Close()
-		cleanup, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-		if _, err := admin.Exec(cleanup, "DROP SCHEMA "+schema+" CASCADE"); err != nil {
-			t.Error(err)
-		}
-		admin.Close()
+	pool := postgrestest.NewPool(t, ctx, "", postgrestest.Options{
+		CleanupTimeout: 30 * time.Second,
+		Configure: func(poolConfig *pgxpool.Config) {
+			if len(tracers) > 0 {
+				poolConfig.ConnConfig.Tracer = tracers[0]
+			}
+		},
 	})
 	if _, err := postgres.ApplyMigrations(ctx, pool, postgres.MigrationBudgets{}); err != nil {
 		t.Fatal(err)

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/persistence/postgrestest"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -133,36 +134,10 @@ SELECT (SELECT count(*) FROM items WHERE pad = 'changed'), current_setting('plan
 // drops when it ends.
 func isolatedPool(t *testing.T, ctx context.Context, databaseURL string) *pgxpool.Pool {
 	t.Helper()
-	schema := fmt.Sprintf("explaintest_%d", time.Now().UnixNano())
-	admin, err := pgx.Connect(ctx, databaseURL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer admin.Close(context.WithoutCancel(ctx))
-	if _, err := admin.Exec(ctx, "CREATE SCHEMA "+schema); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		cleanup, err := pgx.Connect(context.Background(), databaseURL)
-		if err != nil {
-			t.Error(err)
-			return
-		}
-		defer cleanup.Close(context.Background())
-		if _, err := cleanup.Exec(context.Background(), "DROP SCHEMA "+schema+" CASCADE"); err != nil {
-			t.Error(err)
-		}
+	pool := postgrestest.NewPool(t, ctx, databaseURL, postgrestest.Options{
+		Configure: func(poolConfig *pgxpool.Config) {
+			poolConfig.MaxConns = 1
+		},
 	})
-	config, err := pgxpool.ParseConfig(databaseURL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	config.MaxConns = 1
-	config.ConnConfig.RuntimeParams["search_path"] = schema
-	pool, err := pgxpool.NewWithConfig(ctx, config)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(pool.Close)
 	return pool
 }
