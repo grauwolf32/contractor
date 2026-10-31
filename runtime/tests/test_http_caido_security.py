@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +14,7 @@ from test_http_toolset import FakeArtifactClient, close_tools, create_tools, mak
 
 import contractor_runtime.adapters.caido_graphql as caido_graphql
 import contractor_runtime.toolsets.http.tools as http_tools
+from contractor_runtime import shared_config
 from contractor_runtime.adapters.caido_graphql import CaidoClientError, CaidoGraphQLClient
 from contractor_runtime.adapters.host import RuntimeAdapterMetricsState
 from contractor_runtime.contracts import RuntimeSettings
@@ -22,7 +24,7 @@ from contractor_runtime.toolsets.http.tools import HTTPToolError
 def test_session_header_and_cookie_limits_apply_to_atomic_merged_state(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(http_tools, "MAX_REQUEST_HEADER_BYTES", 24)
+    monkeypatch.setattr(http_tools, "request_header_max_bytes", lambda: 24)
     monkeypatch.setattr(http_tools, "MAX_COOKIES", 2)
     transport_calls = 0
 
@@ -274,7 +276,11 @@ def test_redirect_limit_private_hop_and_cross_origin_auth_are_fail_closed(
 def test_http_response_stream_limit_is_exact_and_never_partially_selects_body(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(http_tools, "MAX_RESPONSE_BODY_BYTES", 64)
+    monkeypatch.setattr(
+        shared_config,
+        "_snapshot",
+        replace(shared_config.get_shared_config(), http_response_body_max_bytes=64),
+    )
     artifacts = FakeArtifactClient()
 
     async def handler(request: httpx.Request) -> httpx.Response:

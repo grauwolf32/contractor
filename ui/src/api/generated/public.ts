@@ -2636,6 +2636,14 @@ export interface components {
                 workerStateMaxBytes: number;
                 workerStateWorkspaceMaxPaths: number;
                 workerStateWorkspacePathsMaxBytes: number;
+                httpRequestBodyMaxBytes: number;
+                httpResponseBodyMaxBytes: number;
+                httpHeaderBlockMaxBytes: number;
+                gitImportUrlMaxBytes: number;
+                runMetadataMaxLabels: number;
+                runMetadataKeyMaxBytes: number;
+                runMetadataValueMaxBytes: number;
+                auditMaxLabels: number;
             };
         };
         SitemapDocument: {
@@ -3810,7 +3818,7 @@ export interface components {
         AuditLabels: components["schemas"]["RunMetadataLabels"] & {
             [key: string]: unknown;
         };
-        /** @description Exact metadata-label key=value selector after query decoding. The first '=' separates the key from the value. Server validates the key with the RunMetadataLabels key grammar (1–63 ASCII bytes, LIM-RUN-4) and the value with its value bound (0–256 UTF-8 bytes, no U+0000, LIM-RUN-5). The combined bound is 320 UTF-8 bytes (LIM-RUN-11); a shorter key does not increase the value allowance. Invalid parts return 400 invalid_request. */
+        /** @description Exact metadata-label key=value selector after query decoding. The first '=' separates the key from the value. Server validates the key with the RunMetadataLabels key grammar and byte bound (LIM-RUN-4) and the value with its byte bound (no U+0000, LIM-RUN-5). The combined byte bound is LIM-RUN-11; a shorter key does not increase the value allowance. Invalid parts return 400 invalid_request. */
         RunMetadataLabelSelector: string;
         /** @description Immutable ordinary key/value labels. cloud and local derive Runtime placement; an empty value selects the namespace and a non-empty value selects its provider/site child path. Other keys are descriptive. */
         RunMetadataLabels: {

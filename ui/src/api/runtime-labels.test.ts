@@ -1,3 +1,4 @@
+import { TEST_SHARED_CONFIG } from "../test/shared-config";
 import { describe, expect, it, vi } from "vitest";
 
 import fixture from "../../../api/testdata/v1alpha1/runtime-label-set-cases.json";
@@ -66,6 +67,7 @@ describe("Runtime label sets", () => {
         overrides: emptyExecutionOverrides(),
       },
       () => undefined,
+      TEST_SHARED_CONFIG.limits,
     );
     expect(draft.errors.runtimeLabels === undefined).toBe(test.valid);
     expect(draft.request?.runtimeLabels).toEqual(

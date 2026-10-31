@@ -12325,7 +12325,7 @@ type ResourceId = string
 // Revision defines model for Revision.
 type Revision = string
 
-// RunMetadataLabelSelector Exact metadata-label key=value selector after query decoding. The first '=' separates the key from the value. Server validates the key with the RunMetadataLabels key grammar (1–63 ASCII bytes, LIM-RUN-4) and the value with its value bound (0–256 UTF-8 bytes, no U+0000, LIM-RUN-5). The combined bound is 320 UTF-8 bytes (LIM-RUN-11); a shorter key does not increase the value allowance. Invalid parts return 400 invalid_request.
+// RunMetadataLabelSelector Exact metadata-label key=value selector after query decoding. The first '=' separates the key from the value. Server validates the key with the RunMetadataLabels key grammar and byte bound (LIM-RUN-4) and the value with its byte bound (no U+0000, LIM-RUN-5). The combined byte bound is LIM-RUN-11; a shorter key does not increase the value allowance. Invalid parts return 400 invalid_request.
 type RunMetadataLabelSelector = string
 
 // RunMetadataLabels Immutable ordinary key/value labels. cloud and local derive Runtime placement; an empty value selects the namespace and a non-empty value selects its provider/site child path. Other keys are descriptive.
@@ -13105,7 +13105,15 @@ type SharedConfig struct {
 	Limits     struct {
 		ArtifactListMaxItems              int `json:"artifactListMaxItems"`
 		ArtifactPayloadMaxBytes           int `json:"artifactPayloadMaxBytes"`
+		AuditMaxLabels                    int `json:"auditMaxLabels"`
+		GitImportUrlMaxBytes              int `json:"gitImportUrlMaxBytes"`
+		HttpHeaderBlockMaxBytes           int `json:"httpHeaderBlockMaxBytes"`
+		HttpRequestBodyMaxBytes           int `json:"httpRequestBodyMaxBytes"`
+		HttpResponseBodyMaxBytes          int `json:"httpResponseBodyMaxBytes"`
 		PublicPageMaxItems                int `json:"publicPageMaxItems"`
+		RunMetadataKeyMaxBytes            int `json:"runMetadataKeyMaxBytes"`
+		RunMetadataMaxLabels              int `json:"runMetadataMaxLabels"`
+		RunMetadataValueMaxBytes          int `json:"runMetadataValueMaxBytes"`
 		WorkerCompletionMaxBytes          int `json:"workerCompletionMaxBytes"`
 		WorkerFailureMessageMaxBytes      int `json:"workerFailureMessageMaxBytes"`
 		WorkerObservationMaxTools         int `json:"workerObservationMaxTools"`

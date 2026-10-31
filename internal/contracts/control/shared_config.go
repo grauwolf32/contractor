@@ -4,6 +4,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 	"github.com/grauwolf32/contractor/internal/pagelimit"
 )
 
@@ -17,6 +18,16 @@ type SharedConfig struct {
 }
 
 type SharedLimits struct {
+	GitImportUrlMaxBytes     int `json:"gitImportUrlMaxBytes" strictjson:"required"`
+	RunMetadataMaxLabels     int `json:"runMetadataMaxLabels" strictjson:"required"`
+	RunMetadataKeyMaxBytes   int `json:"runMetadataKeyMaxBytes" strictjson:"required"`
+	RunMetadataValueMaxBytes int `json:"runMetadataValueMaxBytes" strictjson:"required"`
+	AuditMaxLabels           int `json:"auditMaxLabels" strictjson:"required"`
+
+	HttpRequestBodyMaxBytes  int `json:"httpRequestBodyMaxBytes" strictjson:"required"`
+	HttpResponseBodyMaxBytes int `json:"httpResponseBodyMaxBytes" strictjson:"required"`
+	HttpHeaderBlockMaxBytes  int `json:"httpHeaderBlockMaxBytes" strictjson:"required"`
+
 	WorkerResultMaxBytes              int `json:"workerResultMaxBytes" strictjson:"required"`
 	WorkerCompletionMaxBytes          int `json:"workerCompletionMaxBytes" strictjson:"required"`
 	WorkerFailureMessageMaxBytes      int `json:"workerFailureMessageMaxBytes" strictjson:"required"`
@@ -36,6 +47,16 @@ type SharedLimits struct {
 func DefaultSharedConfig() (SharedConfig, error) {
 	c := SharedConfig{APIVersion: contracts.APIVersion, Version: 1,
 		Limits: SharedLimits{
+			GitImportUrlMaxBytes:     contracts.MaxGitImportURLBytes,
+			RunMetadataMaxLabels:     runlabels.MaxRunMetadataLabels,
+			RunMetadataKeyMaxBytes:   runlabels.MaxRunMetadataLabelKey,
+			RunMetadataValueMaxBytes: runlabels.MaxRunMetadataLabelValue,
+			AuditMaxLabels:           runlabels.MaxAuditLabels,
+
+			HttpRequestBodyMaxBytes:  contracts.MaxHTTPRequestBodyBytes,
+			HttpResponseBodyMaxBytes: contracts.MaxHTTPResponseBodyBytes,
+			HttpHeaderBlockMaxBytes:  contracts.MaxHTTPHeaderBlockBytes,
+
 			WorkerResultMaxBytes:              contracts.MaxWorkerResultBytes,
 			WorkerCompletionMaxBytes:          contracts.MaxWorkerCompletionBytes,
 			WorkerFailureMessageMaxBytes:      contracts.MaxWorkerFailureMessageBytes,
@@ -73,7 +94,7 @@ func (c SharedConfig) Validate() error {
 	if c.Version != 1 {
 		return contracts.Invalidf("unsupported shared config version")
 	}
-	for _, limit := range []int64{int64(c.Limits.WorkerResultMaxBytes), int64(c.Limits.WorkerCompletionMaxBytes), int64(c.Limits.WorkerFailureMessageMaxBytes), int64(c.Limits.WorkerResultMaxArtifacts), int64(c.Limits.WorkerObservationMaxTools), int64(c.Limits.WorkerWorkspaceMaxFilesRead), int64(c.Limits.WorkerStateMaxBytes), int64(c.Limits.WorkerStateWorkspaceMaxPaths), int64(c.Limits.WorkerStateWorkspacePathsMaxBytes), c.Limits.ArtifactPayloadMaxBytes, int64(c.Limits.PublicPageMaxItems), int64(c.Limits.ArtifactListMaxItems)} {
+	for _, limit := range []int64{int64(c.Limits.GitImportUrlMaxBytes), int64(c.Limits.RunMetadataMaxLabels), int64(c.Limits.RunMetadataKeyMaxBytes), int64(c.Limits.RunMetadataValueMaxBytes), int64(c.Limits.AuditMaxLabels), int64(c.Limits.HttpRequestBodyMaxBytes), int64(c.Limits.HttpResponseBodyMaxBytes), int64(c.Limits.HttpHeaderBlockMaxBytes), int64(c.Limits.WorkerResultMaxBytes), int64(c.Limits.WorkerCompletionMaxBytes), int64(c.Limits.WorkerFailureMessageMaxBytes), int64(c.Limits.WorkerResultMaxArtifacts), int64(c.Limits.WorkerObservationMaxTools), int64(c.Limits.WorkerWorkspaceMaxFilesRead), int64(c.Limits.WorkerStateMaxBytes), int64(c.Limits.WorkerStateWorkspaceMaxPaths), int64(c.Limits.WorkerStateWorkspacePathsMaxBytes), c.Limits.ArtifactPayloadMaxBytes, int64(c.Limits.PublicPageMaxItems), int64(c.Limits.ArtifactListMaxItems)} {
 		if limit <= 0 || limit > contracts.MaxExactInteger {
 			return contracts.Invalidf("invalid shared config limit")
 		}

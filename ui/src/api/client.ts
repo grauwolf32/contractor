@@ -153,7 +153,7 @@ type ClientCall = (
  * Idempotency-Key, If-None-Match) that breaks the schema its operation
  * declares for it.
  */
-function requireContractHeaders(
+export function requireContractHeaders(
   operation: ResponseOperation,
   headers: Record<string, unknown> | undefined,
 ): void {

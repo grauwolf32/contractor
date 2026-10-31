@@ -1,3 +1,4 @@
+import { useSharedConfig } from "../../config/shared-config";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
@@ -245,6 +246,7 @@ function WorkflowRunFormBody({
   draftStore: RunDraftMemoryStore;
   onDiscardDraft: () => void;
 }) {
+  const { limits } = useSharedConfig();
   const api = usePublicAPI();
   const navigate = useGuardedNavigate();
   const queryClient = useQueryClient();
@@ -312,6 +314,7 @@ function WorkflowRunFormBody({
         overrides: draft.overrides,
       },
       (slot) => inventories.inputs[slot]?.artifactMap,
+      limits,
     );
   }
   const currentValidation = validate();

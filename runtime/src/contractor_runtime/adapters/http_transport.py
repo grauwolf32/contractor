@@ -18,9 +18,9 @@ from contractor_runtime.adapters.http_session import IdentitySession, PrivateRes
 from contractor_runtime.adapters.http_stream import ControlledBackend, RequestBoundary
 from contractor_runtime.contracts import AllocationSpec
 from contractor_runtime.contracts.engagement import MAX_URL_BYTES, HTTPLimits, resolve_redirect_url
-from contractor_runtime.core.http_limits import MAX_RESPONSE_BODY_BYTES
 from contractor_runtime.core.http_session import basic_authorization
 from contractor_runtime.core.target_policy import Resolver, TargetDenied, TargetUnresolved
+from contractor_runtime.shared_config import get_shared_config
 from contractor_runtime.threads import to_thread_until_done
 
 TARGET_ADAPTER = "http-target@1"
@@ -554,8 +554,9 @@ class HTTPTransport:
                 async for chunk in response.aiter_stream():
                     available = (
                         min(
-                            MAX_RESPONSE_BODY_BYTES,
-                            self._http_limits.response_body_bytes or MAX_RESPONSE_BODY_BYTES,
+                            get_shared_config().http_response_body_max_bytes,
+                            self._http_limits.response_body_bytes
+                            or get_shared_config().http_response_body_max_bytes,
                         )
                         - count
                     )

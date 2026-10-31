@@ -1,3 +1,4 @@
+import { TEST_SHARED_CONFIG } from "../test/shared-config";
 import { ARTIFACT_STORAGE_TIMESTAMPS } from "../test/builders";
 import { describe, expect, it } from "vitest";
 
@@ -55,6 +56,7 @@ describe("Run draft validation", () => {
         overrides: emptyExecutionOverrides(),
       },
       () => new Map([[key, incompatible]]),
+      TEST_SHARED_CONFIG.limits,
     );
     expect(result.request).toBeUndefined();
     expect(result.errors).toEqual({
@@ -75,6 +77,7 @@ describe("Run draft validation", () => {
         overrides: emptyExecutionOverrides(),
       },
       () => new Map(),
+      TEST_SHARED_CONFIG.limits,
     );
     expect(missing.request).toBeUndefined();
     // The optional input may stay empty.
@@ -94,6 +97,7 @@ describe("Run draft validation", () => {
         overrides: emptyExecutionOverrides(),
       },
       () => new Map(),
+      TEST_SHARED_CONFIG.limits,
     );
     expect(unloaded.request).toBeUndefined();
     expect(unloaded.errors).toEqual({
@@ -119,6 +123,7 @@ describe("Run draft validation", () => {
         overrides: emptyExecutionOverrides(),
       },
       () => new Map([[key, source]]),
+      TEST_SHARED_CONFIG.limits,
     );
     expect(result.errors).toEqual({});
     expect(result.request).toEqual({
@@ -149,6 +154,7 @@ describe("Run draft validation", () => {
         overrides,
       },
       () => new Map([[key, source]]),
+      TEST_SHARED_CONFIG.limits,
     );
     expect(result.request?.executionConfig).toEqual({
       planner: { modelPolicy: "planner-strong@2", credential: null },
@@ -188,6 +194,7 @@ describe("Run draft validation", () => {
         overrides: emptyExecutionOverrides(),
       },
       () => new Map(),
+      TEST_SHARED_CONFIG.limits,
     );
     expect(result.request).toBeUndefined();
     expect(result.errors).toMatchObject({
@@ -214,6 +221,7 @@ describe("Run draft validation", () => {
         overrides: emptyExecutionOverrides(),
       },
       () => new Map([[key, source]]),
+      TEST_SHARED_CONFIG.limits,
     );
 
     expect(result.request).toBeUndefined();
@@ -248,6 +256,7 @@ describe("Run draft validation", () => {
         overrides: emptyExecutionOverrides(),
       },
       () => new Map([[key, report]]),
+      TEST_SHARED_CONFIG.limits,
     );
     expect(partial.errors).toEqual({
       "artifactReview:project_report":
@@ -265,6 +274,7 @@ describe("Run draft validation", () => {
         overrides: emptyExecutionOverrides(),
       },
       () => new Map([[key, report]]),
+      TEST_SHARED_CONFIG.limits,
     );
     expect(complete.request?.artifacts).toEqual({
       dependency_report: report.artifact,

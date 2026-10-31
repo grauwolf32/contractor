@@ -41,13 +41,6 @@ from contractor_runtime.contracts.base import (
     MAX_ARTIFACT_LIST_CURSOR_LENGTH as MAX_ARTIFACT_LIST_CURSOR_LENGTH,
 )
 from contractor_runtime.contracts.base import MAX_EXACT_INTEGER as MAX_EXACT_INTEGER
-from contractor_runtime.contracts.base import (
-    MAX_RUN_METADATA_LABEL_KEY_BYTES as MAX_RUN_METADATA_LABEL_KEY_BYTES,
-)
-from contractor_runtime.contracts.base import (
-    MAX_RUN_METADATA_LABEL_VALUE_BYTES as MAX_RUN_METADATA_LABEL_VALUE_BYTES,
-)
-from contractor_runtime.contracts.base import MAX_RUN_METADATA_LABELS as MAX_RUN_METADATA_LABELS
 from contractor_runtime.contracts.base import MAX_UINT64 as MAX_UINT64
 from contractor_runtime.contracts.base import MEDIA_TYPE_PATTERN as MEDIA_TYPE_PATTERN
 from contractor_runtime.contracts.base import NATIVE_SKILL_TOOL_NAMES as NATIVE_SKILL_TOOL_NAMES

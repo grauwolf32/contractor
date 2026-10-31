@@ -5,11 +5,11 @@ import time
 
 import httpx
 import pytest
+from shared_config_defaults import MAX_REQUEST_BODY_BYTES
 
 from contractor_runtime.adapters.http_proxy_bridge import HTTPProxyBridge
 from contractor_runtime.adapters.http_session import PrivateResponse
 from contractor_runtime.adapters.http_transport import HTTPOutcome
-from contractor_runtime.core.http_limits import MAX_REQUEST_BODY_BYTES
 
 
 class Owner:

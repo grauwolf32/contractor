@@ -1,10 +1,8 @@
+import { useSharedConfig } from "../../config/shared-config";
 import { useRef, type ReactNode } from "react";
 
 import type { RuntimeLabelBinding } from "../../api/operations";
-import {
-  RUN_METADATA_LABEL_LIMIT,
-  type RunMetadataLabelDraft,
-} from "../../api/run-metadata-labels";
+import { type RunMetadataLabelDraft } from "../../api/run-metadata-labels";
 import type {
   ConfigurationResource,
   CredentialResource,
@@ -349,9 +347,10 @@ export function RunMetadata({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const { limits } = useSharedConfig();
   const labelInputRef = useRef<HTMLInputElement>(null);
   const addButtonRef = useRef<HTMLButtonElement>(null);
-  const atLimit = labels.length >= RUN_METADATA_LABEL_LIMIT;
+  const atLimit = labels.length >= limits.runMetadataMaxLabels;
   const existingKeys = new Set(labels.map((label) => label.key));
   const missingEvalLabels = EVAL_METADATA_PRESET.filter(
     (label) => !existingKeys.has(label.key),
@@ -403,7 +402,7 @@ export function RunMetadata({
             label="Add a label"
             hint={
               atLimit
-                ? `Limit reached: ${RUN_METADATA_LABEL_LIMIT} labels.`
+                ? `Limit reached: ${limits.runMetadataMaxLabels} labels.`
                 : "Type key:value or just key and press Enter. Labels are fixed once the Run starts."
             }
           >
@@ -452,14 +451,14 @@ export function RunMetadata({
             size="sm"
             disabled={
               missingEvalLabels === 0 ||
-              labels.length + missingEvalLabels > RUN_METADATA_LABEL_LIMIT
+              labels.length + missingEvalLabels > limits.runMetadataMaxLabels
             }
             onClick={editor.addEvalPreset}
           >
             Add eval metadata preset
           </Button>
           <small>
-            {labels.length}/{RUN_METADATA_LABEL_LIMIT} labels
+            {labels.length}/{limits.runMetadataMaxLabels} labels
           </small>
         </div>
         {errors.metadataLabels === undefined ? null : (
