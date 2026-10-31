@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-81 open tasks: 10 in progress, 60 pending, 11 deferred. 1281 finished: 1266 completed, 15 archived.
+81 open tasks: 11 in progress, 59 pending, 11 deferred. 1281 finished: 1266 completed, 15 archived.
 
 ## In progress
 
@@ -20,6 +20,7 @@ the epics are in [epics.yml](epics.yml).
 | [V417-003](v417-003-isolated-worker-context-compaction.yml) | planner-worker | feature | P1 | Continue an isolated Worker through workflow-selected context compaction |
 | [V420-002](v420-002-planner-compaction-vertical-slice.yml) | planner-worker | feature | P1 | Implement opt-in bounded compaction for Streamline and Router Planners |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Enable shared Planner compaction and reuse native YAML in shipped Workflows |
+| [V425-013](v425-013-go-test-wall-clock-wave-3.yml) | quality | chore | P3 | Replace the remaining wall-clock waits in Go PostgreSQL tests and restore the listener budget coverage |
 | [V427-002](v427-002-shared-http-policy.yml) | execution-core | feature | P1 | Fetch common HTTP evidence byte ceilings at Runtime startup |
 
 ## Pending
@@ -156,7 +157,6 @@ the epics are in [epics.yml](epics.yml).
 | [V411-020](v411-020-pentest-http-release-gate.yml) | chore | P1 | V411-007, V411-010, V411-011, V411-013, V411-014, V411-015, V411-016, V411-017, V411-018, V411-019, V410-007 | Gate the composed ordinary HTTP pentest through real processes |
 | [V417-009](v417-009-context-compaction-release-gate.yml) | chore | P1 | V417-003, V417-004, V417-005, V417-006, V417-007 | Verify context compaction across real processes and close the deterministic milestone |
 | [V420-005](v420-005-planner-compaction-release-gate.yml) | chore | P1 | V420-006, V420-003, V420-004 | Accept Planner compaction through real-process and integrated release gates |
-| [V425-013](v425-013-go-test-wall-clock-wave-3.yml) | chore | P3 | — | Replace the remaining wall-clock waits in Go PostgreSQL tests and restore the listener budget coverage |
 | [V425-014](v425-014-runtime-tests-fail-on-macos.yml) | chore | P3 | — | Make the Runtime process-liveness assertions able to fail on macOS |
 
 ## Deferred

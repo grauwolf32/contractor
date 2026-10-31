@@ -6,7 +6,7 @@ epic: quality
 kind: chore
 introduced_by: V371-021
 priority: P3
-status: pending
+status: in_progress
 depends_on: []
 languages:
 - go
@@ -26,7 +26,30 @@ context:
     wall-clock budgets; evalstore and evalservice duplicate their test pool helpers. V371-021 made the
     listener test open its pool with default budgets, so short statement_timeout and idle_in_transaction_session_timeout
     on a listener connection are no longer tested.'
-  siblings: Search internal/ and tests/ for time.Sleep and literal time.Second deadlines in *_postgres_test.go.
+  implementation_decision: >-
+    2026-10-31 agent implementation choice: retain only the shared go-test
+    watchdog for unexpected hangs; event assertions and controlled clock/DB
+    state drive the listed scenarios. Use a deterministic synctest preflight
+    for cancellation renewal lifetime before its real-store lease proof, and
+    monitor outcome events before asserting failed release gates are gone.
+    Migration leader progress is observed through PostgreSQL query_start with
+    a short DDL lock budget, replacing the fixed 11-second pause. LISTEN uses
+    a pool with short server timeouts and generous clients; its tracer verifies
+    settings on the actual subscription connection, preserves the ordinary
+    acquire/query hooks, and proves the operation context has ended before
+    subscription delivery continues. A separate notifier keeps ordinary
+    budgets and each test has a unique notification identity.
+    Corrected source locations: the listener test belongs to runstore and
+    newCollectingAuditFixture belongs to auditstore/internal/pgstore, so both
+    package suites are included below. No production behavior or test-only
+    production hook is added.
+  siblings: >-
+    Search of internal/ and tests/ distinguishes the named remaining wave
+    cases from other integration watchdogs. Server timeout enforcement tests
+    intentionally exercise real PostgreSQL budgets; their SQLSTATE and
+    cancellation assertions remain. The shared manual-poll helper also keeps
+    its caller deadline entry point, so these tests arm it through t.Context
+    rather than its separate ten-second convenience watchdog.
 scope:
   in:
   - Event- or clock-driven waits for each listed test. Shared EvalStore/EvalService pool setup is owned by V425-027.
@@ -41,8 +64,8 @@ acceptance_criteria:
   text: The listener test fails if the listener connection inherits a short server-side timeout that would
     cancel the LISTEN wait.
 tests:
-- command: CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/scheduler/... ./internal/persistence/...
-    ./internal/evalstore/... ./internal/evalservice/... ./internal/auditcontroller/...
+- command: CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -p 2 -tags=integration -count=1 ./internal/scheduler/... ./internal/persistence/...
+    ./internal/evalstore/... ./internal/evalservice/... ./internal/auditcontroller/... ./internal/auditstore/... ./internal/runstore/...
   covers:
   - A1
   - A2

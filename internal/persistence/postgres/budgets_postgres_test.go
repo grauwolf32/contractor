@@ -329,31 +329,42 @@ func TestPostgresMigrationLockCancellationLeavesCapacityReusable(t *testing.T) {
 
 // awaitMigrationLeaderPoll waits until the backend pid has polled for the
 // migration lock, which the test holds, so its migrator waits for a leader.
-func awaitMigrationLeaderPoll(t *testing.T, ctx context.Context, observer *pgxpool.Pool, pid int32, done <-chan error) {
+func awaitMigrationLeaderPoll(t *testing.T, ctx context.Context, observer *pgxpool.Pool, pid int32, done <-chan error) time.Time {
+	return awaitMigrationLeaderPollAfter(t, ctx, observer, pid, time.Time{}, done)
+}
+
+// query_start is the PostgreSQL clock: a later observed poll proves the
+// follower kept waiting beyond its DDL budget without a client-side sleep.
+func awaitMigrationLeaderPollAfter(t *testing.T, ctx context.Context, observer *pgxpool.Pool, pid int32, after time.Time, done <-chan error) time.Time {
 	t.Helper()
 	tick := time.NewTicker(10 * time.Millisecond)
 	defer tick.Stop()
 	for {
-		var polled bool
-		if err := observer.QueryRow(ctx, `
-SELECT coalesce(bool_or(query LIKE '%pg_try_advisory_xact_lock%'), false) FROM pg_stat_activity WHERE pid = $1`,
-			pid).Scan(&polled); err != nil {
+		var query string
+		var started time.Time
+		var event *string
+		if err := observer.QueryRow(ctx, `SELECT query, query_start, wait_event FROM pg_stat_activity WHERE pid = $1`, pid).
+			Scan(&query, &started, &event); err != nil {
 			t.Fatal(err)
 		}
-		if polled {
-			return
+		if event != nil && *event == "advisory" {
+			t.Fatal("migration follower used a blocking advisory wait instead of polling its leader")
+		}
+		if strings.Contains(query, "pg_try_advisory_xact_lock") && started.After(after) {
+			return started
 		}
 		select {
 		case err := <-done:
 			t.Fatalf("migrator stopped before it waited for its leader: %v", err)
+		case <-ctx.Done():
+			t.Fatal(context.Cause(ctx))
 		case <-tick.C:
 		}
 	}
 }
 
 func TestPostgresMigrationLeaderWaitOutlivesDDLLockTimeout(t *testing.T) {
-	ctx, cancel := context.WithTimeout(t.Context(), 25*time.Second)
-	defer cancel()
+	ctx := t.Context()
 	leader, follower := isolatedPools(t, ctx, budgetTestDatabaseURL(t))
 	if _, err := ApplyMigrations(ctx, leader, MigrationBudgets{}); err != nil {
 		t.Fatal(err)
@@ -366,29 +377,29 @@ func TestPostgresMigrationLeaderWaitOutlivesDDLLockTimeout(t *testing.T) {
 	if _, err := locker.Exec(ctx, `SELECT pg_advisory_xact_lock(`+migrationLockKeySQL+`)`, migrationLockKey); err != nil {
 		t.Fatal(err)
 	}
-	type outcome struct {
-		result MigrationResult
-		err    error
+	connection, err := follower.Acquire(ctx)
+	if err != nil {
+		t.Fatal(err)
 	}
-	done := make(chan outcome, 1)
+	pid := int32(connection.Conn().PgConn().PID())
+	connection.Release()
+	ddl := MigrationBudgets{StatementTimeout: time.Minute, LockTimeout: time.Millisecond}
+	var result MigrationResult
+	done := make(chan error, 1)
 	go func() {
-		result, err := ApplyMigrations(ctx, follower, MigrationBudgets{})
-		done <- outcome{result, err}
+		var err error
+		result, err = ApplyMigrations(ctx, follower, ddl)
+		done <- err
 	}()
-	// The default migration DDL lock_timeout is 10s. A follower must still
-	// wait for its leader after that threshold has passed.
-	select {
-	case finished := <-done:
-		t.Fatalf("follower stopped before leader released lock: %v", finished.err)
-	case <-time.After(11 * time.Second):
-	}
+	first := awaitMigrationLeaderPoll(t, ctx, leader, pid, done)
+	awaitMigrationLeaderPollAfter(t, ctx, leader, pid, first.Add(ddl.LockTimeout), done)
 	if err := locker.Rollback(ctx); err != nil {
 		t.Fatal(err)
 	}
 	select {
-	case finished := <-done:
-		if finished.err != nil || len(finished.result.AppliedVersions) != 0 {
-			t.Fatalf("follower after leader release: %+v %v", finished.result, finished.err)
+	case err := <-done:
+		if err != nil || len(result.AppliedVersions) != 0 {
+			t.Fatalf("follower after leader release: %+v %v", result, err)
 		}
 	case <-ctx.Done():
 		t.Fatal("follower did not acquire released migration lock", ctx.Err())
@@ -421,8 +432,7 @@ SELECT (extract(epoch FROM current_setting('statement_timeout')::interval)*1000)
 }
 
 func TestPostgresOpenPoolDefaultsOverrideUnboundedServerSettings(t *testing.T) {
-	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
-	defer cancel()
+	ctx := t.Context()
 	base, _ := isolatedPools(t, ctx, budgetTestDatabaseURL(t))
 	pool := budgetTestPool(t, ctx, base, PoolOptions{})
 	var statement, lock, idle string
