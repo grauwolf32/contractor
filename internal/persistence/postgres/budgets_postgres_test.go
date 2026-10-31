@@ -365,7 +365,8 @@ func awaitMigrationLeaderPollAfter(t *testing.T, ctx context.Context, observer *
 
 func TestPostgresMigrationLeaderWaitOutlivesDDLLockTimeout(t *testing.T) {
 	ctx := t.Context()
-	leader, follower := isolatedPools(t, ctx, budgetTestDatabaseURL(t))
+	leader, _ := isolatedPools(t, ctx, budgetTestDatabaseURL(t))
+	follower := budgetTestPool(t, ctx, leader, PoolOptions{MaxConnections: 1, DisableWarmConnections: true})
 	if _, err := ApplyMigrations(ctx, leader, MigrationBudgets{}); err != nil {
 		t.Fatal(err)
 	}

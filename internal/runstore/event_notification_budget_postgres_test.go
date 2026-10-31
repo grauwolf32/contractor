@@ -33,7 +33,8 @@ func TestPostgresListenerOutlivesQueryBudgetsAndReleasesOnShutdown(t *testing.T)
 	}
 	// Check the actual LISTEN backend, after LISTEN has completed, rather
 	// than assuming another connection's settings represent the subscription.
-	config.ConnConfig.Tracer = &listenerBudgetTrace{query: config.ConnConfig.Tracer, t: t, budgets: budgets}
+	trace := &listenerBudgetTrace{query: config.ConnConfig.Tracer, t: t, budgets: budgets, checked: make(chan struct{}, 1)}
+	config.ConnConfig.Tracer = trace
 	pool, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {
 		t.Fatal(err)
@@ -81,6 +82,11 @@ func TestPostgresListenerOutlivesQueryBudgetsAndReleasesOnShutdown(t *testing.T)
 		t.Fatal(ctx.Err())
 	}
 	select {
+	case <-trace.checked:
+	default:
+		t.Fatal("LISTEN readiness did not execute the session-budget probe")
+	}
+	select {
 	case <-received:
 	case err := <-done:
 		t.Fatalf("listener failed: %v", err)
@@ -94,7 +100,7 @@ func TestPostgresListenerOutlivesQueryBudgetsAndReleasesOnShutdown(t *testing.T)
 	defer timer.Stop()
 	select {
 	case err := <-done:
-		t.Fatalf("listener inherited a short query budget: %v", err)
+		t.Fatalf("listener stopped between notifications under short server budgets: %v", err)
 	case <-timer.C:
 	}
 	if err := notify(); err != nil {
@@ -131,6 +137,7 @@ type listenerBudgetTrace struct {
 	query   pgx.QueryTracer
 	t       *testing.T
 	budgets persistencepostgres.Budgets
+	checked chan struct{}
 }
 
 func (h *listenerBudgetTrace) TraceQueryStart(ctx context.Context, conn *pgx.Conn, data pgx.TraceQueryStartData) context.Context {
@@ -141,6 +148,7 @@ func (h *listenerBudgetTrace) TraceQueryEnd(ctx context.Context, conn *pgx.Conn,
 	if data.Err != nil || data.CommandTag.String() != "LISTEN" {
 		return
 	}
+	defer func() { h.checked <- struct{}{} }()
 	if ctx.Err() == nil {
 		h.t.Error("the LISTEN query hook did not end its operation context")
 	}
