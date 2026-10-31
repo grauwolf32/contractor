@@ -7,7 +7,7 @@ epic: api-contracts
 kind: defect
 introduced_by: V414-009
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages:
 - go
@@ -79,3 +79,25 @@ tests:
 - command: make lint
   covers:
   - A2
+implementation_commit: ff79ed9de46048c718b020c4f4c3ea59a2d40c15
+verification:
+  date: '2026-10-31'
+  source_commit: 97a1f98e13c338bf259a6136d3342ff9ade0ca1f
+  commands:
+    - go test -count=1 ./internal/httpapi/public/... ./internal/contracts/... ./internal/projectsitemap/... ./internal/publicclient/... passed with disposable PostgreSQL configured.
+    - make verify-public-api passed with required operation coverage.
+    - make ui-verify passed; 216 test files, 2645 passing tests and one expected failure, static-server tests and the production build passed.
+    - make test-wire-cross-language passed; 357 fixtures, 396 Go and 285 Python shared tests. Its Runtime contract stage passed 377 tests.
+    - The listed sitemap and Runtime contract selection passed all 366 tests without skips.
+    - make lint passed, including shared-config and sitemap generator consistency, shared fixture declarations, layers and specification checks.
+    - make generate-public-client ui-generate and the existing sitemap schema generator refreshed every affected generated consumer.
+  outcome: >-
+    Existing Server validation already enforced these bounds and is unchanged.
+    The API and both generated clients now declare the selector's 320-byte
+    envelope and each sitemap part's 8 KiB envelope, with the independent label
+    part and sitemap sum checks stated in the contract. No composite exception
+    remains. Negative probes prove re-adding any of the four entries fails.
+    Public-handler regressions with PostgreSQL prove label values at 256 bytes
+    and route sums at 8192 bytes are accepted, one byte over returns classified
+    400 invalid_request, and a rejected sitemap command consumes neither a
+    publication nor its idempotency receipt. UI version is 0.10.24.
