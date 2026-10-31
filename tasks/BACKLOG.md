@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-77 open tasks: 10 in progress, 56 pending, 11 deferred. 1301 finished: 1283 completed, 18 archived.
+76 open tasks: 10 in progress, 55 pending, 11 deferred. 1304 finished: 1286 completed, 18 archived.
 
 ## In progress
 
@@ -89,16 +89,15 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V64-001](v64-001-audit-priority-contracts.yml) | feature | P1 | — | Define the lean Audit task and result contract |
-| [V64-002](v64-002-audit-priority-store.yml) | feature | P1 | V64-001, V64-004, V64-014 | Coordinate durable Audit tasks through ordinary Runs |
-| [V64-004](v64-004-audit-priority-context.yml) | feature | P1 | V64-001 | Add Audit artifact ownership and exact Project publication |
+| [V64-002](v64-002-audit-priority-store.yml) | feature | P1 | V64-004, V64-014 | Coordinate durable Audit tasks through ordinary Runs |
+| [V64-004](v64-004-audit-priority-context.yml) | feature | P1 | — | Add Audit artifact ownership and exact Project publication |
 | [V64-005](v64-005-independent-priority-verdicts.yml) | feature | P2 | V64-012, V64-013 | Optionally rank the common Audit ready-task shortlist |
 | [V64-008](v64-008-audit-priority-api-coverage.yml) | feature | P1 | V64-012, V64-013, V411-010 | Expose Audit tasks check results findings and selected materials |
 | [V64-010](v64-010-audit-priority-profile.yml) | feature | P1 | V64-012, V64-013, V411-010 | Migrate shipped Audit programs and retire the old pipeline |
 | [V64-011](v64-011-audit-priority-release.yml) | feature | P1 | V64-009, V64-010, V411-015, V425-017 | Gate the basic Audit research scenario and complexity reduction |
 | [V64-012](v64-012-audit-hypothesis-registry.yml) | feature | P1 | V64-002, V64-014 | Verify fixed and manual hypotheses through Audit tasks |
 | [V64-013](v64-013-audit-hypothesis-generation.yml) | feature | P1 | V64-012, V64-004, V411-011 | Generate scoped hypotheses from selected materials and check results |
-| [V64-014](v64-014-audit-hypothesis-assessments.yml) | feature | P1 | V64-001, V64-004 | Retain Project problem findings and exact source contributions |
+| [V64-014](v64-014-audit-hypothesis-assessments.yml) | feature | P1 | V64-004 | Retain Project problem findings and exact source contributions |
 | [V64-015](v64-015-audit-research-frontier.yml) | feature | P2 | V64-011 | Measure whether a larger Audit frontier needs incremental indexing |
 | [V64-016](v64-016-audit-research-ranking-evaluation.yml) | chore | P2 | V64-005, V64-011 | Evaluate optional Audit ranking against the deterministic baseline |
 | [V64-017](v64-017-audit-attack-tree-projection.yml) | feature | P2 | V64-011 | Project optional attack trees over retained research conclusions |
@@ -190,10 +189,10 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 2 | 17 | 8 | 9 | 14 |
 | Workflow catalog and document workflows (`workflows`) | 5 | 19 | 15 | 14 | 19 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 36 | 37 | 11 | 60 |
-| Audits (`audits`) | 19 | 67 | 84 | 35 | 124 |
+| Audits (`audits`) | 18 | 67 | 84 | 36 | 125 |
 | Evaluations (`evals`) | 6 | 21 | 39 | 15 | 49 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |
-| Web UI (`ui`) | 2 | 29 | 66 | 16 | 59 |
+| Web UI (`ui`) | 2 | 29 | 66 | 17 | 60 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 18 | 45 | 8 | 20 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 38 | 25 | 16 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 27 | 46 | 15 |

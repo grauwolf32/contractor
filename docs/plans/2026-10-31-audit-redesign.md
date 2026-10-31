@@ -2,6 +2,8 @@
 
 Дата: 2026-10-31. **План для ревью пользователя. Реализацию не начинать до
 следующего разрешения после просмотра [схем и деталей](../proposals/0050-audit-common-hypothesis-model.md).**
+Исключение по последующему решению пользователя от 2026-10-31: реализация
+контрактного этапа V64-001 разрешена, включая подтверждённые лимиты и pause/cancel.
 Текущие правила продукта остаются в `docs/spec/`; task files задают будущую
 реализацию после ревью. Нормативные изменения выполняются вместе с кодом.
 
@@ -42,7 +44,7 @@ Workflow запускает Audit controller через RunService после п
 
 | Порядок | Задача | Конкретный результат |
 | --- | --- | --- |
-| 1 | [V64-001](../../tasks/v64-001-audit-priority-contracts.yml) | Общие строгие program/task/result contracts, owning boundaries, fixtures, лимиты и карта удаления/cutover |
+| 1 | [V64-001](../../tasks/done/v64-001-audit-priority-contracts.yml) | Общие строгие program/task/result contracts, owning boundaries, fixtures, лимиты и карта удаления/cutover |
 | 2 | [V64-004](../../tasks/v64-004-audit-priority-context.yml) | Audit workspace, exact handoff и публикация в Project через существующий ArtifactStore с реальным caller |
 | 3 | [V64-014](../../tasks/v64-014-audit-hypothesis-assessments.yml) | Project findings, источники, evidence, дедупликация и миграция существующих фактов |
 | 4 | [V64-002](../../tasks/v64-002-audit-priority-store.yml) | Один coordinator, обычные Runs, pause/recovery и первый сквозной exploratory сценарий |

@@ -103,6 +103,7 @@ Project-bound assessments that coordinate many Runs.
 
 | Document | Prefix | Owns |
 | --- | --- | --- |
+| [Common Audit documents](audits/common-contract.md) | `ACT` | Strict offline program/task/result validation and trusted per-item provenance |
 | [Audits](audits/audits.md) | `AUD` | AuditProfile, baseline and scope, durable model, packages and schemas, inventories, Audit and Round lifecycle |
 | [Audit execution](audits/execution.md) | `AUX` | Audit Controller: submission, dispatch, collection, import, recovery, budgets |
 | [Review and reports](audits/review-and-reports.md) | `REV` | Human review, evidence, coverage, reports, Audit retention |
