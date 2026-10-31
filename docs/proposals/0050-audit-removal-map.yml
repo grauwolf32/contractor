@@ -53,12 +53,14 @@ relations:
   action: replace
   owner: V64-014
   facts: Move evidenced problem identities to Project, preserving independent origins; qualified correlation
-    alone does not justify merging arbitrary findings.
+    alone does not justify merging arbitrary findings. Proposals lacking problem admission facts remain
+    retained ordinary results/receipts; migration does not invent evidence or a current Project assessment.
 - name: audit_finding_contributions
   action: replace
   owner: V64-014
   facts: Retain every distinct source Audit/task/Run, exact evidence, time/conditions, original receipts
-    and optional existing check association.
+    and optional existing check association. Preserve source-specific assessments and annotations, including
+    contradictory ratings and original duplicate targets; no representative or latest-source verdict.
 - name: audit_finding_assessments
   action: replace
   owner: V64-014
@@ -73,7 +75,9 @@ relations:
   action: replace
   owner: V411-010
   facts: Transfer useful analyst finding annotations with actor/time/history; discard control approvals.
-    No historical decision grants future execution authority.
+    V64-014 retains finding annotations as source facts; V411-010 supplies direct Project commands and
+    removes obsolete control records after retention. Historical decisions neither set current Project
+    assessment automatically nor grant future execution authority.
 - name: audit_live_item_reviews
   action: delete
   owner: V411-010
