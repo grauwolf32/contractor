@@ -551,7 +551,9 @@ original automatic `fail` transition decision remains immutable.
 
 **RUN-R50.** The manual-continuation receipt is unique per source
 execution. Repeating the same request returns the same target even if that
-target has already failed; another manual attempt must name that newer failed
+target has already failed or its Project has begun deletion, while the Run and
+receipt still exist. Mutable eligibility applies only to a new attempt;
+another manual attempt must name that newer failed
 execution (FAIL-RUN-5).
 
 **RUN-R51.** Manual continuation does not reset automatic retry

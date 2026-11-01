@@ -2,6 +2,7 @@ package runstore
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -9,6 +10,53 @@ import (
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 )
+
+func TestPostgresResumeReplaysReceiptAfterProjectDeletionStarts(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
+	defer cancel()
+	pool := isolatedRunStorePool(t, ctx)
+	projects := projectstore.NewPostgresStore(pool)
+	project, _, err := projects.Create(ctx, projectstore.CreateParams{
+		ProjectID: "project-resume-replay", OwnerID: "user-1", Kind: projectstore.KindProject,
+		Name: "Resume replay", IdempotencyKey: "resume-replay", RequestDigest: "sha256:" + strings.Repeat("a", 64),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	params := testRunParams("run-resume-replay")
+	params.ProjectID = &project.ProjectID
+	store, source := failedResumeFixtureOf(t, ctx, pool, params)
+	first, err := store.ResumeFailedRun(ctx, "user-1", params.RunID, source.StageExecutionID, "replay-target")
+	if err != nil {
+		t.Fatal(err)
+	}
+	failResumeStage(t, ctx, store, params.RunID, first.StageExecutionID)
+	if _, _, err := projects.BeginDeletion(ctx, projectstore.BeginDeletionParams{
+		ProjectID: project.ProjectID, OwnerID: "user-1", ExpectedRevision: project.Revision,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	replay, err := store.ResumeFailedRun(ctx, "user-1", params.RunID, source.StageExecutionID, "unused-replay-target")
+	if err != nil || replay != first {
+		t.Fatalf("committed resume replay = (%+v, %v), want %+v", replay, err, first)
+	}
+	if _, err := store.ResumeFailedRun(ctx, "other-owner", params.RunID, source.StageExecutionID, "foreign-target"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("foreign receipt replay = %v, want ErrNotFound", err)
+	}
+	if _, err := store.ResumeFailedRun(ctx, "user-1", params.RunID, first.StageExecutionID, "new-target"); !errors.Is(err, ErrConflict) {
+		t.Fatalf("new resume in deleting Project = %v, want ErrConflict", err)
+	}
+	var stages, receipts int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM stage_executions WHERE run_id=$1`, params.RunID).Scan(&stages); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM run_stage_resumptions WHERE run_id=$1`, params.RunID).Scan(&receipts); err != nil {
+		t.Fatal(err)
+	}
+	if stages != 3 || receipts != 1 {
+		t.Fatalf("replay/new resume left %d Stages and %d receipts, want 3 and 1", stages, receipts)
+	}
+}
 
 // Resuming a Project's Run locks the Project before the Run, as Project
 // deletion does: while deletion holds the Project, the resume waits for it
