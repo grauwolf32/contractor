@@ -28,7 +28,8 @@
     "make ui-verify": "passed: 220 files, 2632 tests passed and one existing expected failure; generated client check, lint, typecheck, server tests and build",
     "make lint": "passed: UI gates, task/spec/release checks, Go vet/staticcheck/layers and Runtime lint/import checks",
     "make ui-gates": "passed again after final responsive navigation changes",
-    "production browser": "30 passed with workers=2 on isolated UI 0.11.2 production build; 84 seven-format theme/width paths, four scope/revision contexts, large OpenAPI paging/search, Swagger local definitions/path parameters and cross-path references"
+    "production browser": "30 passed with workers=2 on isolated UI 0.11.2 production build; 84 seven-format theme/width paths, four scope/revision contexts, large OpenAPI paging/search, Swagger local definitions/path parameters and cross-path references",
+    "final typecheck": "passed again after the final responsive handler change"
   },
   "preservation": "git diff against main is empty for both original OpenDesign experiment folders. No OpenDesign state mutation, model request or business-data write was made.",
   "captureSha256": {
@@ -44,5 +45,6 @@
   },
   "preview": "http://127.0.0.1:17560/test-results/material-production/index.html?case=source&theme=dark&width=390",
   "comparison": "http://127.0.0.1:17560/test-results/material-production/comparison/index.html?case=openapi&width=1440",
-  "delivery": "Verified feature branch; not merged into main."
+  "delivery": "Verified feature branch; not merged into main.",
+  "implementationCommit": "e1bbe211ebe1dc3d3cadc1b1f578ada0837fe68e"
 }

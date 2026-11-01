@@ -6,7 +6,7 @@ epic: ui
 kind: defect
 introduced_by: V429-018
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V429-018]
 languages: [typescript, css]
 goal: Correct the incomplete visual transfer so real material details closely match the approved OpenDesign examples, with selected-operation OpenAPI navigation, numbered source and the reviewed header/support hierarchy.
@@ -110,3 +110,5 @@ verification:
     generated data, conversations, prior evidence and sandbox backups remain intact.
     No model call or business-data write was made. Branch is ready for user review;
     main remains unchanged by this task.
+
+implementation_commit: e1bbe211ebe1dc3d3cadc1b1f578ada0837fe68e
