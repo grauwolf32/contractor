@@ -241,3 +241,85 @@ def test_stop_joins_tool_processing_and_erases_response_buffer(monkeypatch):
             await tools["http_read_body"](request_id=1)
 
     asyncio.run(scenario())
+
+
+def test_controlled_headers_merge_without_case_duplicates_or_losing_explicit_content_type():
+    async def scenario():
+        owner, _, network = owner_for()
+        tools, _ = await tools_for(owner)
+        owner._assignment.routes[0].methods.append("POST")
+        await tools["http_session_set"](headers={"X-Mode": "old"})
+        await tools["http_session_set"](headers={"x-mode": "new"})
+        assert (await tools["http_session_get"]())["default_headers"] == {"x-mode": "new"}
+        await tools["http_request"](
+            "http://target.example/",
+            method="POST",
+            body_type="json",
+            body={"ok": True},
+            headers={"X-MODE": "request", "content-type": "application/custom"},
+        )
+        wire = bytes(network.streams[0].written).lower()
+        assert wire.count(b"x-mode:") == 1 and b"x-mode: request" in wire
+        assert wire.count(b"content-type:") == 1 and b"content-type: application/custom" in wire
+        await tools["http_request"]._session.close()
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("bound", ["count", "bytes"])
+def test_controlled_header_updates_and_requests_enforce_aggregate_bounds(bound):
+    async def scenario():
+        owner, _, network = owner_for()
+        tools, _ = await tools_for(owner)
+        width, value = (40, "x") if bound == "count" else (4, "x" * 7500)
+        first = {f"X-First-{i}": value for i in range(width)}
+        second = {f"X-Second-{i}": value for i in range(width)}
+        await tools["http_session_set"](headers=first)
+        with pytest.raises(HTTPToolError) as update:
+            await tools["http_session_set"](headers=second)
+        assert update.value.code == "http_request_invalid"
+        assert (await tools["http_session_get"]())["default_headers"] == first
+        with pytest.raises(HTTPToolError) as request:
+            await tools["http_request"]("http://target.example/", headers=second)
+        assert request.value.code == "http_request_invalid"
+        assert not network.streams
+        await tools["http_request"]._session.close()
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("content_type", ["text/plain", "application/octet-stream"])
+def test_controlled_truncated_prefix_remains_explicit_in_reads_history_and_private_capture(
+    content_type,
+):
+    from test_engagement_target import Network, owner
+
+    from contractor_runtime.contracts.engagement import HTTPLimits
+
+    async def scenario():
+        network = Network(
+            [],
+            [
+                (
+                    f"HTTP/1.1 200 OK\r\nContent-Type: {content_type}\r\n"
+                    "Content-Length: 8\r\n\r\nsecretxx"
+                ).encode()
+            ],
+        )
+        transport = owner(network, limits=HTTPLimits(responseBodyBytes=3))
+        tools, state = await tools_for(transport)
+        result = await tools["http_request"]("http://target.example/start")
+        assert result["body_truncated"]
+        for _ in range(2):
+            page = await tools["http_read_body"](result["request_id"])
+            assert page["body_truncated"] and page["total"] == 3 and page["eof"]
+        assert (await tools["http_history"]())[0]["body_truncated"]
+        assert not state.resources.http_captures.contains("http", str(result["request_id"]))
+        capture = await tools["http_request"]._session._captures.get(
+            "http", str(result["request_id"])
+        )
+        assert not capture["attempts"][-1]["response"]["complete"]
+        assert capture["attempts"][-1]["error"] == "response_too_large"
+        await tools["http_request"]._session.close()
+
+    asyncio.run(scenario())

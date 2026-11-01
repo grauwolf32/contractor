@@ -6,7 +6,6 @@ import asyncio
 import base64
 import json
 import math
-import re
 import secrets
 import sys
 import time
@@ -46,7 +45,6 @@ from contractor_runtime.core.http_limits import (
     MAX_REDIRECTS,
     MAX_URL_BYTES,
     header_block_bytes,
-    request_header_max_bytes,
 )
 from contractor_runtime.core.http_session import (
     discard_expired_cookies,
@@ -87,6 +85,12 @@ from contractor_runtime.toolsets.http.cookies import (
 )
 from contractor_runtime.toolsets.http.errors import HTTPToolError
 from contractor_runtime.toolsets.http.fields import is_cookie_pair
+from contractor_runtime.toolsets.http.headers import (
+    body_headers,
+    merge_headers,
+    request_utf8_size,
+    validate_headers,
+)
 from contractor_runtime.toolsets.http.transport import PolicyHTTPTransport
 from contractor_runtime.workspace import AllocationWorkspace
 
@@ -111,23 +115,6 @@ _BODY_TYPES = frozenset({"none", "json", "form", "text"})
 _SENSITIVE_HEADERS = frozenset(
     {"authorization", "cookie", "proxy-authorization", "proxy-connection", "set-cookie"}
 )
-_FORBIDDEN_REQUEST_HEADERS = frozenset(
-    {
-        "connection",
-        "content-length",
-        "host",
-        "keep-alive",
-        "proxy-authenticate",
-        "proxy-authorization",
-        "proxy-connection",
-        "te",
-        "trailer",
-        "transfer-encoding",
-        "upgrade",
-        "x-request-id",
-    }
-)
-_HEADER_NAME = re.compile(rb"^[!#$%&'*+.^_`|~0-9A-Za-z-]+$")
 _TEXTUAL_CONTENT_TYPES = (
     "text/",
     "application/json",
@@ -264,6 +251,7 @@ class _CachedBody:
     request_id: int
     kind: Literal["text", "binary"]
     content: str | bytes
+    truncated: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -282,6 +270,7 @@ class _RequestRecord:
     preview: str | None
     headers: dict[str, str] = field(repr=False)
     headers_truncated: bool = False
+    retained_body_truncated: bool = False
     error: str | None = None
 
     def projection(self, *, include_preview: bool) -> dict[str, Any]:
@@ -295,6 +284,7 @@ class _RequestRecord:
             "content_length": self.body_bytes,
             "headers": dict(self.headers),
             "headers_truncated": self.headers_truncated,
+            "body_truncated": self.retained_body_truncated,
             "body_kind": self.body_kind,
             "redirects": self.redirects,
             "retries": self.retries,
@@ -306,7 +296,7 @@ class _RequestRecord:
             result["error"] = self.error
         if include_preview:
             result["body_preview"] = self.preview
-            result["body_truncated"] = (
+            result["body_truncated"] = self.retained_body_truncated or (
                 self.body_kind == "text"
                 and self.preview is not None
                 and len(self.preview) >= MAX_PREVIEW_CHARACTERS
@@ -397,17 +387,13 @@ class _HTTPSession:
             started_ns = time.perf_counter_ns()
             selected_method = _method(method)
             selected_url = _url_with_query(url, query)
-            selected_headers = _headers(headers)
+            selected_headers = validate_headers(headers)
             payload, content_type = _request_body(body_type, body)
-            if content_type is not None and "content-type" not in {
-                name.lower() for name in selected_headers
-            }:
-                selected_headers["Content-Type"] = content_type
             selected_timeout = _timeout(timeout_seconds, self._timeout_cap_seconds)
             if type(follow_redirects) is not bool:
                 raise HTTPToolError("http_request_invalid")
 
-            merged_headers = _merge_headers(self._default_headers, selected_headers)
+            merged_headers = body_headers(self._default_headers, selected_headers, content_type)
             merged_headers["X-Request-Id"] = f"r{self._nonce}-h{request_id:06d}"
             tag = merged_headers["X-Request-Id"]
             captured = CapturedExchange(request_id, tag)
@@ -843,15 +829,21 @@ class _HTTPSession:
             self._require_open()
             if not self._captures.contains("http", str(request_id)):
                 raise HTTPToolError("http_body_not_found")
+            # A controlled transport may retain a bounded prefix. Its private
+            # record permits inspection without claiming a complete response.
+            truncated = any(
+                record.request_id == request_id and record.retained_body_truncated
+                for record in self._history
+            )
             cached = self._cached_body
             if cached is not None and cached.request_id == request_id:
-                kind, content = cached.kind, cached.content
+                kind, content, truncated = cached.kind, cached.content, cached.truncated
             else:
                 self._cached_body = None
                 try:
                     capture = await self._captures.get("http", str(request_id))
                     response = capture["attempts"][-1].get("response")
-                    if response is None or not response["complete"]:
+                    if response is None or (not response["complete"] and not truncated):
                         raise HTTPToolError("http_body_not_found")
                     message = response["message"]
                     body_bytes = await threads.to_thread_until_done(
@@ -874,7 +866,7 @@ class _HTTPSession:
                     # other exception is an implementation failure.
                     raise HTTPToolError("http_body_not_found") from None
                 if sys.getsizeof(content) <= decoded_body_cache_max_bytes():
-                    self._cached_body = _CachedBody(request_id, kind, content)
+                    self._cached_body = _CachedBody(request_id, kind, content, truncated)
             if kind == "text":
                 if not (isinstance(content, str)):
                     raise RuntimeError("Expected isinstance(content, str)")
@@ -887,6 +879,7 @@ class _HTTPSession:
                     "length": len(selected),
                     "total": len(content),
                     "eof": offset + len(selected) >= len(content),
+                    "body_truncated": truncated,
                     "data": selected,
                 }
             if not (isinstance(content, bytes)):
@@ -900,6 +893,7 @@ class _HTTPSession:
                 "length": len(selected_bytes),
                 "total": len(content),
                 "eof": offset + len(selected_bytes) >= len(content),
+                "body_truncated": truncated,
                 "data_b64": base64.b64encode(selected_bytes).decode("ascii"),
             }
 
@@ -926,7 +920,7 @@ class _HTTPSession:
     ) -> dict[str, Any]:
         if type(replace_cookies) is not bool or type(replace_headers) is not bool:
             raise HTTPToolError("http_request_invalid")
-        selected_headers = None if headers is None else _headers(headers)
+        selected_headers = None if headers is None else validate_headers(headers)
         selected_cookies = None if cookies is None else _cookie_values(cookies)
         selected_auth = _auth(auth)
         async with self._lock:
@@ -934,7 +928,7 @@ class _HTTPSession:
             self._checkpoint.require_confirmed()
             candidate_headers = self._default_headers
             if selected_headers is not None:
-                candidate_headers = _merge_headers(
+                candidate_headers = merge_headers(
                     {} if replace_headers else self._default_headers,
                     selected_headers,
                 )
@@ -1213,6 +1207,9 @@ class HTTPReadBodyTool(_HTTPTool):
     name = "http_read_body"
     description = """Read a bounded slice of a response stored by http_request.
 
+    If body_truncated is true, only a response prefix was retained. Total and
+    eof describe the retained data, so eof does not prove the server body ended.
+
     Args:
         request_id: Integer request_id returned by http_request in this session.
         offset: Zero-based character offset for text or byte offset for binary.
@@ -1440,7 +1437,7 @@ def _method(value: object) -> str:
 
 
 def _url_with_query(url: object, query: Mapping[str, Any] | None) -> str:
-    if not isinstance(url, str) or not 1 <= _request_utf8_size(url) <= MAX_URL_BYTES:
+    if not isinstance(url, str) or not 1 <= request_utf8_size(url) <= MAX_URL_BYTES:
         raise HTTPToolError("http_request_invalid")
     # A fragment is client-side state that is never sent on the wire.
     url = url.partition("#")[0]
@@ -1492,56 +1489,12 @@ def _query_pairs(query: Mapping[str, Any] | None) -> list[tuple[str, str]]:
                 rendered = str(item).lower() if type(item) is bool else str(item)
             else:
                 raise HTTPToolError("http_request_invalid")
-            if _request_utf8_size(rendered) > MAX_HEADER_VALUE_BYTES:
+            if request_utf8_size(rendered) > MAX_HEADER_VALUE_BYTES:
                 raise HTTPToolError("http_request_invalid")
             result.append((key, rendered))
     if len(result) > MAX_QUERY_KEYS:
         raise HTTPToolError("http_request_invalid")
     return result
-
-
-def _headers(headers: Mapping[str, Any] | None) -> dict[str, str]:
-    if headers is None:
-        return {}
-    if not isinstance(headers, Mapping) or len(headers) > MAX_HEADERS:
-        raise HTTPToolError("http_request_invalid")
-    result: dict[str, str] = {}
-    seen: set[str] = set()
-    total = 0
-    for name, raw_value in headers.items():
-        try:
-            encoded_name = name.encode("ascii") if isinstance(name, str) else b""
-        except UnicodeEncodeError:
-            raise HTTPToolError("http_request_invalid") from None
-        if not isinstance(name, str) or _HEADER_NAME.fullmatch(encoded_name) is None:
-            raise HTTPToolError("http_request_invalid")
-        normalized = name.lower()
-        if normalized in seen or normalized in _FORBIDDEN_REQUEST_HEADERS:
-            raise HTTPToolError("http_request_invalid")
-        if not isinstance(raw_value, str) or not is_field_value(raw_value):
-            raise HTTPToolError("http_request_invalid")
-        size = _request_utf8_size(raw_value)
-        if size > MAX_HEADER_VALUE_BYTES:
-            raise HTTPToolError("http_request_invalid")
-        total += len(name) + size
-        if total > request_header_max_bytes():
-            raise HTTPToolError("http_request_invalid")
-        seen.add(normalized)
-        result[name] = raw_value
-    return result
-
-
-def _merge_headers(defaults: Mapping[str, str], request: Mapping[str, str]) -> dict[str, str]:
-    result: dict[str, tuple[str, str]] = {
-        name.lower(): (name, value) for name, value in defaults.items()
-    }
-    for name, value in request.items():
-        result[name.lower()] = (name, value)
-    if len(result) > MAX_HEADERS:
-        raise HTTPToolError("http_request_invalid")
-    if header_block_bytes(result.values()) > request_header_max_bytes():
-        raise HTTPToolError("http_request_invalid")
-    return {name: value for name, value in result.values()}
 
 
 def _request_body(body_type: object, body: Any) -> tuple[bytes, str | None]:
@@ -1708,10 +1661,10 @@ def _cookie_values(cookies: Mapping[str, Any]) -> dict[str, str]:
         if (
             not isinstance(name, str)
             or not name
-            or _request_utf8_size(name) > 256
+            or request_utf8_size(name) > 256
             or any(char in name for char in "\r\n\x00;,")
             or not isinstance(value, str)
-            or _request_utf8_size(value) > MAX_HEADER_VALUE_BYTES
+            or request_utf8_size(value) > MAX_HEADER_VALUE_BYTES
             or any(char in value for char in "\r\n\x00")
             or not is_cookie_pair(name, value)
         ):
@@ -1739,8 +1692,8 @@ def _auth(
             set(auth) != {"kind", "username", "password"}
             or not isinstance(username, str)
             or not isinstance(password, str)
-            or not 1 <= _request_utf8_size(username) <= 256
-            or not 1 <= _request_utf8_size(password) <= MAX_HEADER_VALUE_BYTES
+            or not 1 <= request_utf8_size(username) <= 256
+            or not 1 <= request_utf8_size(password) <= MAX_HEADER_VALUE_BYTES
             or any(char in username + password for char in "\r\n\x00")
         ):
             raise HTTPToolError("http_request_invalid")
@@ -1750,19 +1703,12 @@ def _auth(
         if (
             set(auth) != {"kind", "token"}
             or not isinstance(bearer_token, str)
-            or not 1 <= _request_utf8_size(bearer_token) <= MAX_HEADER_VALUE_BYTES
+            or not 1 <= request_utf8_size(bearer_token) <= MAX_HEADER_VALUE_BYTES
             or not is_field_value(bearer_token)
         ):
             raise HTTPToolError("http_request_invalid")
         return "bearer", None, bearer_token
     raise HTTPToolError("http_request_invalid")
-
-
-def _request_utf8_size(value: str) -> int:
-    try:
-        return len(value.encode("utf-8"))
-    except UnicodeError:
-        raise HTTPToolError("http_request_invalid") from None
 
 
 def _is_sensitive_header(name: str) -> bool:

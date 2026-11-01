@@ -156,6 +156,7 @@ def test_direct_text_binary_status_redirect_and_exact_body_reads(tmp_path: Path)
             "length": 5,
             "total": 11,
             "eof": True,
+            "body_truncated": False,
             "data": "world",
         }
 
@@ -212,6 +213,7 @@ def test_http_body_reads_cache_pages_and_evict_between_requests(tmp_path: Path) 
                 "length": 2,
                 "total": 4,
                 "eof": False,
+                "body_truncated": False,
                 "data": "😀é",
             }
             assert (await read(text_id, offset=3, length=2))["data"] == "z"
@@ -226,6 +228,7 @@ def test_http_body_reads_cache_pages_and_evict_between_requests(tmp_path: Path) 
                 "length": 3,
                 "total": 9,
                 "eof": False,
+                "body_truncated": False,
                 "data_b64": base64.b64encode(b"\xffpa").decode(),
             }
             assert base64.b64decode((await read(binary_id, offset=4))["data_b64"]) == b"yload"

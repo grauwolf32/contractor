@@ -344,7 +344,9 @@ and authorization, would still exceed 64 KiB (LIM-FND-8) fails
 `http_request_invalid` before it is sent, so every sent request can be selected
 as evidence. The evidence limits themselves are owned by
 [Findings](../findings/findings.md). Their shared byte ceilings are delivered
-through CTL-R171 at startup. Runtime input-header admission uses the smaller
+through CTL-R171 at startup. Ordinary and controlled HTTP use the same case-insensitive header replacement
+and aggregate count/byte admission, including session updates and inferred
+Content-Type. Runtime input-header admission uses the smaller
 of its local input budget and the received header ceiling; body reads,
 validation and derived decoded-string cache admission use the corresponding
 received request/response ceiling. Provider GraphQL and Control Plane transport
@@ -647,7 +649,11 @@ allocation, never an arbitrary ArtifactRef.
 
 **HTP-R68.** `http_read_body(request_id, offset, length)` returns at most 8192
 text characters or binary bytes (LIM-HTP-16). Offsets are characters for UTF-8
-text and bytes for binary bodies.
+text and bytes for binary bodies. The body reader reports `body_truncated`;
+for a controlled response retained only up to its transport limit, `total` and
+`eof` describe that retained prefix. History retains the transport truncation
+flag independently of preview truncation. Such a private prefix remains
+incomplete and acquires no trusted finding or Audit evidence authority.
 
 **HTP-R69.** A missing, expired, invalid or incomplete buffered final body
 fails with non-retryable `http_body_not_found` (FAIL-HTP-3). Reads use allocation

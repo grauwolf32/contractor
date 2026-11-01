@@ -13,6 +13,7 @@ from http_cookie_store import HTTPToolsetFactory
 from test_http_toolset import FakeArtifactClient, close_tools, create_tools, make_tools
 
 import contractor_runtime.adapters.caido_graphql as caido_graphql
+import contractor_runtime.toolsets.http.headers as http_headers
 import contractor_runtime.toolsets.http.tools as http_tools
 from contractor_runtime import shared_config
 from contractor_runtime.adapters.caido_graphql import CaidoClientError, CaidoGraphQLClient
@@ -24,7 +25,7 @@ from contractor_runtime.toolsets.http.tools import HTTPToolError
 def test_session_header_and_cookie_limits_apply_to_atomic_merged_state(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(http_tools, "request_header_max_bytes", lambda: 24)
+    monkeypatch.setattr(http_headers, "request_header_max_bytes", lambda: 24)
     monkeypatch.setattr(http_tools, "MAX_COOKIES", 2)
     transport_calls = 0
 
