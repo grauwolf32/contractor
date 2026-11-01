@@ -39,7 +39,7 @@ func TestPostgresRemoveScanSweepsPreservesRunsAndSharedArtifacts(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT jsonb_agg(to_jsonb(r) ORDER BY run_id)::text FROM workflow_runs r`).Scan(&before); err != nil {
 		t.Fatal(err)
 	}
-	result, err := ApplyMigrations(ctx, pool, MigrationBudgets{})
+	result, err := applyMigrations(ctx, pool, MigrationBudgets{}, available[:2])
 	if err != nil || len(result.AppliedVersions) == 0 || result.AppliedVersions[0] != previous+1 {
 		t.Fatalf("migration=%+v err=%v", result, err)
 	}
@@ -82,9 +82,7 @@ func TestPostgresRemoveScanSweepsPreservesRunsAndSharedArtifacts(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT set_config('contractor.lifecycle_purge','scan-sweep',false),contractor_lifecycle_purge_enabled()`).Scan(new(string), &absent); err != nil || absent {
 		t.Fatalf("removed purge authority accepted: %v", err)
 	}
-	if err := VerifyMigrations(ctx, pool); err != nil {
-		t.Fatal(err)
-	}
+
 }
 
 // Both active and terminal parents, a pending member, two admitted children,

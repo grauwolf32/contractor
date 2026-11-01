@@ -83,12 +83,7 @@ func TestPostgresResumeRenewalRecordsReviewEvents(t *testing.T) {
 	// Item two was approved and item four's request already expired; the
 	// paused clock then outlives every request except item three's.
 	for _, statement := range []string{
-		`INSERT INTO audit_review_decisions (
-    decision_id, request_id, audit_id, finding_id, actor_id, action, verdict, severity,
-    rationale, duplicate_target_id, subject_revision, subject_digest, idempotency_key, request_digest
-) SELECT 'decision-two', request_id, audit_id, NULL, 'owner-resume-renewal', 'approve', NULL, NULL,
-         'Approve the exact task.', NULL, 1, subject_digest, 'decision-two', subject_digest
-    FROM audit_review_requests WHERE request_id = 'review-item-two'`,
+		`INSERT INTO audit_review_decisions (decision_id, request_id, audit_id, actor_id, action, rationale, subject_revision, subject_digest, idempotency_key, request_digest) SELECT 'decision-two', request_id, audit_id, 'owner-resume-renewal', 'approve', 'Approve the exact task.', 1, subject_digest, 'decision-two', subject_digest FROM audit_review_requests WHERE request_id = 'review-item-two'`,
 		`UPDATE audit_review_requests SET state = 'decided', revision = 2 WHERE request_id = 'review-item-two'`,
 		`UPDATE audit_items SET state = 'ready' WHERE item_id = 'item-two'`,
 		`UPDATE audit_review_requests SET state = 'expired', revision = 2 WHERE request_id = 'review-item-four'`,

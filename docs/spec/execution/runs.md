@@ -407,7 +407,9 @@ can wait for capacity without consuming its execution deadline
 ([Scheduler](scheduler.md)).
 
 **RUN-R29.** Admission, Planner start, cancellation and finalization share
-Run-first transaction locking.
+Run-first transaction locking. Planner start checks under that lock that the
+Run is still `running` or `waiting`; a cancellation that committed first
+prevents the Stage start, session creation and event allocation.
 
 **RUN-R106.** RunStore alone changes the state of a Run or a
 StageExecution and takes their exclusive row locks
@@ -419,6 +421,12 @@ compares the stored state with the state its caller expects and changes
 nothing on a mismatch, and each edge of the Run lifecycle has exactly one
 operation that performs it: `running` and `waiting` move into each other only
 through the waiting operations of model-availability recovery (RUN-R30).
+Operations whose locks must outlive their call are available only on the
+caller-transaction-bound RunStore, including queue admission, Skill
+initialization and Audit input materialization. Materialization's lock is
+explicit in its operation name; a pool-backed store cannot expose it as an
+ordinary read. Run-creation credential lookups also stay on that transaction
+store, rather than adding optional transaction state to the general store.
 
 Rationale: transitions written as SQL in several components drifted apart,
 recording different reasons for the same edge and copying the lock-and-check
@@ -549,7 +557,9 @@ original automatic `fail` transition decision remains immutable.
 
 **RUN-R50.** The manual-continuation receipt is unique per source
 execution. Repeating the same request returns the same target even if that
-target has already failed; another manual attempt must name that newer failed
+target has already failed or its Project has begun deletion, while the Run and
+receipt still exist. Mutable eligibility applies only to a new attempt;
+another manual attempt must name that newer failed
 execution (FAIL-RUN-5).
 
 **RUN-R51.** Manual continuation does not reset automatic retry
@@ -777,6 +787,10 @@ related Stage data.
 Planner plans, and the Planner session store, must provide batch reads.
 PostgreSQL uses at most one query per related collection, independent of the
 number of Stages (LIM-RUN-7).
+Planner session batches deliver one raw state at a time to their consumer;
+Run detail and scan history retain only the validated projections they need,
+rather than a second map of every full JSON state. Streaming preserves full
+state validation, exact session identity checks and whole-read failure.
 
 **RUN-R90.** Metrics are optional diagnostics. Unavailable or malformed
 metrics omit diagnostics without hiding healthy peers or the durable Run

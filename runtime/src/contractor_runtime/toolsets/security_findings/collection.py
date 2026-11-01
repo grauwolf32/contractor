@@ -238,7 +238,7 @@ def _timestamp(value: Any) -> None:
 
 def _validate_metadata(value: dict[str, Any]) -> None:
     object_fields(value, "schema snapshot_at sources documents entries")
-    require(value["schema"] == "contractor.findings.collection.v1")
+    require(value["schema"] == "contractor.findings.collection.v2")
     _timestamp(value["snapshot_at"])
     source_keys = []
     for source in array(value["sources"], 64, 1):
@@ -280,8 +280,8 @@ def _validate_metadata(value: dict[str, Any]) -> None:
         object_fields(
             entry,
             "receipt_id proposal_id run_id invocation_id retention "
-            "proposal_document_id evidence reviews",
-            "audit_origin audit_holds",
+            "proposal_document_id evidence selected_sources",
+            "audit_origin audit_holds finding",
         )
         require(
             all(
@@ -297,17 +297,22 @@ def _validate_metadata(value: dict[str, Any]) -> None:
         require(entry["receipt_id"] > previous and entry["proposal_id"] not in proposals)
         previous = entry["receipt_id"]
         proposals.add(entry["proposal_id"])
-        require(entry["retention"] in {"source-held", "audit-held", "discarded"})
-        selected = ("run", entry["run_id"]) in sources
+        require(entry["retention"] in {"source-held", "project-held", "discarded"})
+        selected = array(entry["selected_sources"], 64, 1)
+        selected_keys = []
+        for source in selected:
+            object_fields(source, "kind id")
+            key = (source["kind"], source["id"])
+            require(key in sources, "findings_reference_invalid")
+            selected_keys.append(key)
+        require(selected_keys == sorted(set(selected_keys)))
         if "audit_origin" in entry:
             origin = entry["audit_origin"]
             object_fields(origin, "audit_id execution_id role")
             require(all(identifier(part) for part in origin.values()))
-            selected |= ("audit", origin["audit_id"]) in sources
         if "audit_holds" in entry:
             holds = array(entry["audit_holds"], 64, 1)
             require(all(identifier(hold) for hold in holds) and holds == sorted(set(holds)))
-            selected |= any(("audit", hold) in sources for hold in holds)
         proposal = documents[entry["proposal_document_id"]]
         require(
             proposal["media_type"] == "application/json"
@@ -321,35 +326,43 @@ def _validate_metadata(value: dict[str, Any]) -> None:
             evidence_ids.append(link["evidence_id"])
             used.add(link["document_id"])
         require(evidence_ids == sorted(set(evidence_ids)))
-        review_keys = []
-        for review in array(entry["reviews"], 32):
+        if "finding" in entry:
+            finding = entry["finding"]
             object_fields(
-                review,
-                "audit_id finding_id revision state",
-                "decision_id assessment_id duplicate_target_id",
+                finding,
+                "project_id finding_id revision state",
+                "verdict severity duplicate_target_id",
+            )
+            require(identifier(finding["project_id"]) and identifier(finding["finding_id"]))
+            require(
+                type(finding["revision"]) is int and 0 < finding["revision"] <= MAX_EXACT_INTEGER
             )
             require(
-                all(
-                    identifier(part)
-                    for key, part in review.items()
-                    if key not in {"revision", "state"}
+                finding["state"] is None
+                or finding["state"]
+                in {"proposed", "confirmed", "rejected", "duplicate", "needs-evidence"}
+            )
+            states = {
+                "true_positive": "confirmed",
+                "false_positive": "rejected",
+                "duplicate": "duplicate",
+                "reopen": "proposed",
+                "needs_evidence": "needs-evidence",
+            }
+            verdict = finding.get("verdict", "")
+            severity = finding.get("severity", "")
+            duplicate = finding.get("duplicate_target_id", "")
+            if finding["state"] is None:
+                require(verdict == severity == duplicate == "")
+            else:
+                require(verdict in states and states[verdict] == finding["state"])
+                require((verdict == "true_positive") == (severity != ""))
+                require(severity in {"", "informational", "low", "medium", "high", "critical"})
+                require((verdict == "duplicate") == (duplicate != ""))
+                require(
+                    duplicate == ""
+                    or (identifier(duplicate) and duplicate != finding["finding_id"])
                 )
-            )
-            require(type(review["revision"]) is int and 0 < review["revision"] <= MAX_EXACT_INTEGER)
-            require(
-                review["state"]
-                in {
-                    "proposed",
-                    "confirmed",
-                    "rejected",
-                    "duplicate",
-                    "needs-evidence",
-                }
-            )
-            review_keys.append((review["audit_id"], review["finding_id"]))
-            selected |= ("audit", review["audit_id"]) in sources
-        require(review_keys == sorted(set(review_keys)))
-        require(selected, "findings_reference_invalid")
     require(used == documents.keys(), "findings_reference_invalid")
 
 

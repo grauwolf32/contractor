@@ -44,7 +44,7 @@ func TestReportPreservesExplicitLocationsAndUnknownSubject(t *testing.T) {
 		t.Fatal(err)
 	}
 	finding := newReportFinding(auditstore.ReportFinding{
-		FindingID: "finding-1", State: "proposed", FirstProposal: artifact, Revision: 1, Projection: projection,
+		FindingID: "finding-1", State: reportState(auditstore.FindingProposed), FirstProposal: artifact, Revision: 1, Projection: projection,
 	})
 	if finding.Subject != nil || !reflect.DeepEqual(finding.Locations, document.Locations) || !reflect.DeepEqual(finding.HTTPExchange, document.HTTPExchange) {
 		t.Fatalf("report lost recorded context: %+v", finding)

@@ -39,8 +39,6 @@ func (s *AdmissionSession) commit(ctx context.Context, mutation auditstore.Admis
 		next.SourceUpper.Ordinal = 512
 		next.Budget = json.RawMessage(`{}`)
 		next.Exhausted = false
-		next.BlockedCode = ""
-		next.BlockedReceiptID = ""
 		next.StopCode = ""
 	} else if next.Schema != old.Schema || next.Generation != old.Generation || next.AuditID != old.AuditID || next.PreviousRoundID != old.PreviousRoundID || next.RoundID != old.RoundID || next.RoundOrdinal != old.RoundOrdinal ||
 		next.ProfileDigest != old.ProfileDigest || next.BaselineDigest != old.BaselineDigest || !next.DeadlineAt.Equal(old.DeadlineAt) || !next.SourceCutoffAt.Equal(old.SourceCutoffAt) || next.SourceUpper != old.SourceUpper {

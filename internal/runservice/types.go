@@ -39,7 +39,7 @@ type PublicRunWriter interface {
 }
 
 type AuditRunWriter interface {
-	GetAuditInputMaterialization(context.Context, string) (*runstore.AuditInputMaterialization, error)
+	LockAuditInputMaterialization(context.Context, string) (*runstore.AuditInputMaterialization, error)
 	SetAuditInputMaterialization(context.Context, string, uint32, runstore.AuditInputMaterialization) error
 	SetAuditCompletion(context.Context, string, runstore.AuditCompletionSnapshot) error
 	CreateAuditRun(context.Context, runstore.CreateAuditRunParams) (runstore.WorkflowRun, error)

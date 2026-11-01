@@ -13,10 +13,9 @@ import (
 // constant; internal/persistence pins each one against an encoded value and
 // the migrations.
 const (
-	AuditProfileWorkflowsMember         = "workflows"
-	AuditWorkflowKindMember             = "kind"
-	AuditWorkflowMaxRunAttemptsMember   = "maxRunAttempts"
-	AuditProfileFindingConfirmationPath = "{interaction,findingConfirmation}"
+	AuditProfileWorkflowsMember       = "workflows"
+	AuditWorkflowKindMember           = "kind"
+	AuditWorkflowMaxRunAttemptsMember = "maxRunAttempts"
 )
 
 // DecodeResolvedAuditProfileSnapshot strictly decodes and validates the

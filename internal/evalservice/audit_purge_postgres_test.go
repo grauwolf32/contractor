@@ -2,10 +2,11 @@ package evalservice
 
 import (
 	"encoding/json"
-	"github.com/grauwolf32/contractor/internal/findingintake"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/grauwolf32/contractor/internal/findingintake"
 
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -17,7 +18,7 @@ import (
 )
 
 // TestSharedPostgresEvalAuditWithDecidedHistoryPurges drains an Eval-managed Audit
-// that holds an owner decision and a collected finding assessment through the
+// that holds an item approval and a collected check result through the
 // ordinary purge, which must also record the Eval execution tombstone.
 func TestSharedPostgresEvalAuditWithDecidedHistoryPurges(t *testing.T) {
 	h := newHarness(t)
@@ -49,15 +50,15 @@ func TestSharedPostgresEvalAuditWithDecidedHistoryPurges(t *testing.T) {
 	tick(t, c)
 	e = h.get(t, e.ID)
 	if e.State != "cancelled" || e.Outstanding != 0 || count(t, h.pool, "audits") != 0 ||
-		count(t, h.pool, "audit_review_decisions") != 0 || count(t, h.pool, "audit_finding_assessments") != 0 ||
+		count(t, h.pool, "audit_review_decisions") != 0 || count(t, h.pool, "audit_execution_items") != 0 ||
 		count(t, h.pool, "eval_execution_tombstones") != 1 {
 		t.Fatal("Eval-managed Audit with decided history failed to drain", e.State)
 	}
 }
 
 // seedEvalAuditDecidedHistory records the rows an Audit keeps after its child
-// Run is deleted: a collected attempt whose result assessed a retained
-// finding, and the owner's decision confirming that finding.
+// Run is deleted: a collected check attempt and the owner's item approval.
+// Project Finding state is independent of the execution rows being purged.
 func seedEvalAuditDecidedHistory(t *testing.T, pool *pgxpool.Pool, audit auditstore.Audit) {
 	t.Helper()
 	digest := "sha256:" + strings.Repeat("d", 64)
@@ -81,41 +82,12 @@ func seedEvalAuditDecidedHistory(t *testing.T, pool *pgxpool.Pool, audit auditst
 	if err != nil {
 		t.Fatal(err)
 	}
-	proposalRef := `{"namespace":"audit-finding-proposals","name":"candidate-decided","revision":"proposal-r1"}`
 	taskRef := `{"namespace":"audit-task-packages","name":"check-decided","revision":"task-r1"}`
 	resultRef := `{"namespace":"audit-results","name":"check-decided","revision":"result-r1"}`
 	statements := []struct {
 		sql  string
 		args []any
 	}{
-		{`
-INSERT INTO finding_proposal_receipts (
-    receipt_id, proposal_id, allocation_id, runtime_agent_id,
-    runtime_instance_id, stage_execution_id, logical_agent_name,
-    invocation_id, submission_id, client_key, request_digest,
-    run_id, owner_id, project_id,
-    workflow_name, workflow_version, workflow_schema_version,
-    workflow_configuration_ref, workflow_closure_digest,
-    proposal_ref, proposal_digest, proposal_media_type,
-    proposal_size_bytes, evidence, report_projection
-) VALUES ('receipt-decided', 'proposal-decided', 'allocation-decided', 'runtime-decided',
-          'instance-decided', 'stage-decided', 'worker', 'invocation-decided',
-          'submission-decided', 'candidate-decided', $1, 'deleted-run-decided', $2, $3,
-          'finding-source', '1', 'contractor/v1alpha1',
-          '{"name":"finding-source","version":"1"}'::jsonb, $1,
-          $4::jsonb, $1, 'application/json', 128, '[]'::jsonb,
-          '{"description":"Test finding.","limitations":[],"preconditions":[],"severity_suggestion":"","standard_refs":[],"subject":null,"title":"Test finding."}')`,
-			[]any{digest, audit.OwnerID, audit.ProjectID, proposalRef}},
-		{`
-UPDATE finding_proposal_receipts
-   SET retention_state = 'audit-held', source_run_deleted_at = clock_timestamp()
- WHERE receipt_id = 'receipt-decided'`, nil},
-		{`
-INSERT INTO finding_proposal_audit_holds (receipt_id, audit_id, project_id, proposal_ref, evidence)
-VALUES ('receipt-decided', $1, $2,
-        jsonb_build_object('ref', $3::jsonb, 'digest', $4::text,
-                           'mediaType', 'application/json', 'sizeBytes', 128),
-        '[]'::jsonb)`, []any{audit.AuditID, audit.ProjectID, proposalRef, digest}},
 		{`
 INSERT INTO audit_rounds (
     round_id, audit_id, ordinal, manifest_ref, manifest_digest, state, expected_item_count
@@ -159,16 +131,6 @@ UPDATE audit_executions
  WHERE audit_id = $1 AND execution_id = 'execution-decided'`,
 			[]any{audit.AuditID, resultRef, digest}},
 		{`
-INSERT INTO audit_finding_assessments (
-    assessment_id, finding_id, audit_id, receipt_id, item_id,
-    execution_item_id, collection_receipt_id, semantic_assessment,
-    result_ref, result_digest
-)
-SELECT 'assessment-decided', finding_id, audit_id, first_receipt_id,
-       'item-decided', 'execution-item-decided', 'collection-decided', 'supported',
-       $2::jsonb, $3
-  FROM audit_findings WHERE audit_id = $1`, []any{audit.AuditID, resultRef, digest}},
-		{`
 UPDATE audit_items
    SET state = 'settled', final_disposition = 'accepted-result',
        accepted_result_ref = $2::jsonb, accepted_result_digest = $3,
@@ -176,28 +138,19 @@ UPDATE audit_items
  WHERE audit_id = $1 AND item_id = 'item-decided'`, []any{audit.AuditID, resultRef, digest}},
 		{`
 INSERT INTO audit_review_requests (
-    request_id, audit_id, finding_id, subject_kind, subject_id, kind,
+    request_id, audit_id, subject_kind, subject_id, kind,
     subject_revision, subject_digest, requested_actions, state,
     idempotency_key, request_digest
-)
-SELECT 'review-decided', audit_id, finding_id, 'finding', finding_id,
-       'finding-triage', 1, $2, '["true_positive","false_positive"]'::jsonb, 'decided',
-       'review-decided', $2
-  FROM audit_findings WHERE audit_id = $1`, []any{audit.AuditID, digest}},
+) VALUES ('review-decided', $1, 'audit-item-action', 'item-decided',
+          'active-check-approval', 1, $2, '["approve","reject"]'::jsonb, 'decided',
+          'review-decided', $2)`, []any{audit.AuditID, digest}},
 		{`
 INSERT INTO audit_review_decisions (
-    decision_id, request_id, audit_id, finding_id, actor_id, action, verdict,
-    severity, rationale, subject_revision, subject_digest, idempotency_key, request_digest
-)
-SELECT 'decision-decided', 'review-decided', audit_id, finding_id, $2,
-       'true_positive', 'true_positive', 'high', 'Confirmed before deletion.',
-       1, $3, 'decision-decided', $3
-  FROM audit_findings WHERE audit_id = $1`, []any{audit.AuditID, audit.OwnerID, digest}},
-		{`
-UPDATE audit_findings
-   SET state = 'confirmed', current_decision_id = 'decision-decided',
-       current_assessment_id = 'assessment-decided', revision = revision + 1
- WHERE audit_id = $1`, []any{audit.AuditID}},
+    decision_id, request_id, audit_id, actor_id, action,
+    rationale, subject_revision, subject_digest, idempotency_key, request_digest
+) VALUES ('decision-decided', 'review-decided', $1, $2, 'approve',
+          'Approve the exact check.', 1, $3, 'decision-decided', $3)`,
+			[]any{audit.AuditID, audit.OwnerID, digest}},
 	}
 	err = pg.InTx(t.Context(), pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		for _, statement := range statements {

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -53,14 +54,31 @@ func TestPostgresCollectionReceiptIDsReadsSelectedFindingsInOneStatement(t *test
 		proposal.MediaType, proposal.SizeBytes = "application/json", 128
 		ids[index] = insertAuditChildFinding(t, f, receipts[index], proposal)
 	}
-	if _, err := f.pool.Exec(f.ctx, `DELETE FROM audit_findings WHERE finding_id = $1`, ids[findings]); err != nil {
+	// Seed one canonical identity with two independent source memberships.
+	tx, err := f.pool.Begin(f.ctx)
+	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.pool.Exec(f.ctx, `
-INSERT INTO audit_finding_contributions (finding_id, audit_id, receipt_id, relation, proposal_ref)
-SELECT $1, $2, receipt_id, 'contributing', proposal_ref
-  FROM finding_proposal_audit_holds WHERE receipt_id = $3 AND audit_id = $2`,
-		ids[0], f.audit.AuditID, receipts[findings]); err != nil {
+	defer func() { _ = tx.Rollback(f.ctx) }()
+	for _, statement := range []string{
+		"ALTER TABLE project_finding_sources DISABLE TRIGGER project_finding_sources_immutable",
+		"UPDATE project_finding_sources SET finding_id=$1 WHERE finding_id=$2",
+		"DELETE FROM project_findings WHERE finding_id=$2",
+		"ALTER TABLE project_finding_sources ENABLE TRIGGER project_finding_sources_immutable",
+	} {
+		var err error
+		if strings.Contains(statement, "$1") {
+			_, err = tx.Exec(f.ctx, statement, ids[0], ids[findings])
+		} else if strings.Contains(statement, "$2") {
+			_, err = tx.Exec(f.ctx, strings.ReplaceAll(statement, "$2", "$1"), ids[findings])
+		} else {
+			_, err = tx.Exec(f.ctx, statement)
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := tx.Commit(f.ctx); err != nil {
 		t.Fatal(err)
 	}
 	ids = ids[:findings]

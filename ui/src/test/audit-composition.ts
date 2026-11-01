@@ -153,6 +153,7 @@ export function compositionRows(
     scanner === "sqlmap" ? "sqlmap-request-scan" : "nuclei-url-template-scan";
   return ["/orders", "/users/{id}", "/health"].map((path, ordinal) =>
     conforming("AuditCoverageRow", {
+      findingIds: [],
       roundId: "round_1",
       itemId: `item_${ordinal}`,
       ordinal,

@@ -2,7 +2,7 @@
  * Reading a finding proposal for display. Everything here selects or
  * reformats the Worker's own text; nothing adds words to it.
  */
-import type { AuditFinding } from "../../api/audits";
+import type { ProjectFinding } from "../../api/audits";
 import type { components } from "../../api/generated/public";
 
 type ProposalDocument = components["schemas"]["FindingProposalDocument"];
@@ -169,8 +169,9 @@ function shorten(text: string, limit: number): string {
  * proposal's title and the first sentence of what it found. Only inserted
  * when the user asks for it.
  */
-export function aiSummary(finding: AuditFinding): string {
-  const document = finding.firstProposal.document;
+export function aiSummary(finding: ProjectFinding): string {
+  const document = finding.claim;
+  if (document === undefined) return finding.title;
   const title = document.title.trim();
   const paragraph = plainText(
     firstParagraph(splitImpact(document.description).found),

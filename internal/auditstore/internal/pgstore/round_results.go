@@ -490,7 +490,7 @@ func readRoundResultsRelated(ctx context.Context, tx pgx.Tx, auditID, _ string, 
 		read = 0
 		for rows.Next() {
 			var finding auditdomain.RoundResultFinding
-			if err := rows.Scan(&finding.FindingID, &finding.Revision, &finding.State, &finding.AssessmentID, &finding.SemanticAssessment, &finding.DecisionID, &finding.Verdict); err != nil {
+			if err := rows.Scan(&finding.FindingID, &finding.ProjectID); err != nil {
 				rows.Close()
 				return nil, err
 			}

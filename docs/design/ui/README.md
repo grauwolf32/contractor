@@ -46,18 +46,24 @@ history.
 | Workflow, Run, Stage              | Hidden; at most "steps" inside a check           |
 | Artifact (source ZIP, OpenAPI)    | Materials: "Source code", "API spec"             |
 | Coverage or check item            | Endpoint (API checks) or requirement (standards) |
-| Finding proposal (unreviewed)     | Possible issue · needs your review               |
+| Project Finding (unassessed)      | Possible issue · needs your review               |
 | Confirmed finding                 | Issue                                            |
 | Report acceptance                 | Report                                           |
 | Runtime, allocation, queue, slots | Operations area only (admins)                    |
 
-The review decisions map onto `AuditFindingState`:
+Analyst edits map onto the canonical nullable `ProjectFindingState`. Project,
+Inbox and every check read the same assessment. Independent source ratings
+and check results remain visible in Evidence and History.
 
 | Button         | State            |
 | -------------- | ---------------- |
 | Confirm issue  | `confirmed`      |
 | Not an issue   | `rejected`       |
 | Needs evidence | `needs-evidence` |
+| Duplicate      | `duplicate`      |
+| Reopen         | `proposed`       |
+
+Before the first analyst edit, the assessment is unset (“Not assessed”).
 
 ## Mockups
 

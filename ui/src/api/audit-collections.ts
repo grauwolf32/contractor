@@ -7,7 +7,7 @@ import { loadAllPages } from "./pages";
  */
 const AUDIT_COLLECTION_MAX_PAGES = 5;
 
-export interface AuditCollectionPage<T> {
+interface AuditCollectionPage<T> {
   items: T[];
   page: { hasMore: boolean; nextCursor?: string };
 }

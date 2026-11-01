@@ -34,6 +34,5 @@ spec:
     incompleteRound: assess-with-gaps
   interaction:
     activeChecks: automatic
-    findingConfirmation: disabled
     notApplicable: profile-rule
     reportAcceptance: automatic

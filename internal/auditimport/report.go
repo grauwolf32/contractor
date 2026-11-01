@@ -19,7 +19,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 )
 
-const ReportSchema = "contractor.audit.report.v1"
+const ReportSchema = "contractor.audit.report.v2"
 
 type reportProfile struct {
 	Name              string                               `json:"name"`
@@ -88,29 +88,9 @@ type reportItem struct {
 	Task             auditstore.ExactArtifact    `json:"task"`
 }
 
-type reportFindingDecision struct {
-	DecisionID      string    `json:"decisionId"`
-	ActorID         string    `json:"actorId"`
-	Verdict         string    `json:"verdict"`
-	Severity        *string   `json:"severity,omitempty"`
-	Rationale       string    `json:"rationale"`
-	SubjectRevision uint64    `json:"subjectRevision"`
-	SubjectDigest   string    `json:"subjectDigest"`
-	CreatedAt       time.Time `json:"createdAt"`
-}
-
-type reportFindingAssessment struct {
-	AssessmentID       string                    `json:"assessmentId"`
-	SemanticAssessment string                    `json:"semanticAssessment"`
-	Result             auditstore.ExactArtifact  `json:"result"`
-	DirectVerification bool                      `json:"directVerification"`
-	Contract           *auditstore.ExactArtifact `json:"contract,omitempty"`
-	AcceptedAt         time.Time                 `json:"acceptedAt"`
-}
-
 type reportFinding struct {
 	FindingID          string                           `json:"findingId"`
-	State              string                           `json:"state"`
+	State              *auditstore.FindingState         `json:"state"`
 	Revision           uint64                           `json:"revision"`
 	FirstProposal      auditstore.ExactArtifact         `json:"firstProposal"`
 	Title              string                           `json:"title"`
@@ -123,8 +103,12 @@ type reportFinding struct {
 	SeveritySuggestion string                           `json:"severitySuggestion,omitempty"`
 	StandardRefs       []auditdomain.StandardReference  `json:"standardRefs"`
 	Limitations        []string                         `json:"limitations"`
-	Assessment         *reportFindingAssessment         `json:"assessment,omitempty"`
-	AnalystDecision    *reportFindingDecision           `json:"analystDecision,omitempty"`
+	ProjectID          string                           `json:"projectId"`
+	AnalystVerdict     *auditstore.AnalystVerdict       `json:"analystVerdict"`
+	AnalystSeverity    *auditstore.FindingSeverity      `json:"analystSeverity"`
+	Rationale          *string                          `json:"rationale"`
+	ActorID            *string                          `json:"actorId"`
+	AssessedAt         *time.Time                       `json:"assessedAt"`
 	DuplicateTargetID  *string                          `json:"duplicateTargetId,omitempty"`
 }
 
@@ -148,6 +132,7 @@ func (c reportFindingCounts) total() int {
 }
 
 type machineReport struct {
+	ProjectRevision     uint64                                 `json:"projectRevision"`
 	Schema              string                                 `json:"schema"`
 	AuditID             string                                 `json:"auditId"`
 	ProjectID           string                                 `json:"projectId"`
@@ -296,7 +281,7 @@ func (i *Importer) publishReport(
 		stopReason = &reportStopReason{Code: snapshot.Audit.StopReason.Code, Message: snapshot.Audit.StopReason.Message}
 	}
 	report := machineReport{
-		Schema: ReportSchema, AuditID: snapshot.Audit.AuditID, ProjectID: snapshot.Audit.ProjectID,
+		ProjectRevision: build.projectRevision, Schema: ReportSchema, AuditID: snapshot.Audit.AuditID, ProjectID: snapshot.Audit.ProjectID,
 		GeneratedFrom: snapshot.Audit.UpdatedAt.UTC().Round(0),
 		Profile: reportProfile{
 			Name: snapshot.Audit.Profile.Name, Version: snapshot.Audit.Profile.Version,
@@ -333,7 +318,7 @@ func (i *Importer) publishReport(
 	namespace := auditdomain.ArtifactNamespace(snapshot.Audit.AuditID)
 	machineArtifact, err := i.artifacts.PutImmutableProject(
 		ctx, snapshot.Audit.ProjectID,
-		contracts.ArtifactRef{Namespace: namespace, Name: "report.json"},
+		contracts.ArtifactRef{Namespace: namespace, Name: fmt.Sprintf("report-%d-%d.json", snapshot.Audit.Revision, build.projectRevision)},
 		artifacts.Payload{MediaType: "application/json", Data: machineBytes},
 	)
 	if err != nil {
@@ -341,7 +326,7 @@ func (i *Importer) publishReport(
 	}
 	summaryArtifact, err := i.artifacts.PutImmutableProject(
 		ctx, snapshot.Audit.ProjectID,
-		contracts.ArtifactRef{Namespace: namespace, Name: "report.md"},
+		contracts.ArtifactRef{Namespace: namespace, Name: fmt.Sprintf("report-%d-%d.md", snapshot.Audit.Revision, build.projectRevision)},
 		artifacts.Payload{MediaType: "text/markdown", Data: summaryBytes},
 	)
 	if err != nil {
@@ -385,7 +370,7 @@ func (i *Importer) publishReport(
 		return false, err
 	}
 	commit := auditstore.CommitReportParams{
-		Claim: claim, ExpectedAuditRevision: snapshot.Audit.Revision,
+		Claim: claim, ExpectedAuditRevision: snapshot.Audit.Revision, ExpectedProjectRevision: build.projectRevision,
 		RoundID: snapshot.Round.RoundID, ExpectedRoundRevision: snapshot.Round.Revision,
 		Machine: machineLink, Summary: summaryLink, RequestDigest: auditdomain.DigestBytes(identity),
 	}

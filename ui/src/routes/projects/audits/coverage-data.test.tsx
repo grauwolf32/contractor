@@ -35,6 +35,7 @@ function auditAt(state: Audit["state"], revision: number): Audit {
 function coverage(audit: Audit): AuditCoverageRow {
   return {
     itemId: "item_example",
+    findingIds: [],
     roundId: "round_example",
     itemKey: "check",
     subjectKey: "check",

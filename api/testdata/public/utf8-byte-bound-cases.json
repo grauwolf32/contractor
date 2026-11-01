@@ -116,42 +116,6 @@
       "rule": "LIM-AUD-29"
     },
     {
-      "schema": "DecideAuditFindingTruePositiveRequest",
-      "path": [
-        "properties",
-        "rationale"
-      ],
-      "maxBytes": 65536,
-      "rule": "LIM-REV-11"
-    },
-    {
-      "schema": "DecideAuditFindingDuplicateRequest",
-      "path": [
-        "properties",
-        "rationale"
-      ],
-      "maxBytes": 65536,
-      "rule": "LIM-REV-11"
-    },
-    {
-      "schema": "DecideAuditFindingOtherRequest",
-      "path": [
-        "properties",
-        "rationale"
-      ],
-      "maxBytes": 65536,
-      "rule": "LIM-REV-11"
-    },
-    {
-      "schema": "DecideAuditActionRequest",
-      "path": [
-        "properties",
-        "rationale"
-      ],
-      "maxBytes": 65536,
-      "rule": "LIM-REV-11"
-    },
-    {
       "schema": "AuditReviewDecision",
       "path": [
         "properties",
@@ -425,6 +389,18 @@
       ],
       "maxBytes": 8192,
       "rule": "LIM-SMT-2"
+    },
+    {
+      "schema": "DecisionRationale",
+      "path": [],
+      "maxBytes": 65536,
+      "rule": "LIM-REV-11"
+    },
+    {
+      "schema": "FindingActorIdentity",
+      "path": [],
+      "maxBytes": 256,
+      "rule": "LIM-FND-54"
     }
   ]
 }

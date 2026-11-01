@@ -40,52 +40,19 @@ func TestPostgresIterativeAdmissionBoundsCandidatesAtContainingCeiling(t *testin
 		"receipt_id": "'receipt-scale-'||lpad(n::text,6,'0')", "proposal_id": "'proposal-scale-'||n",
 		"allocation_id": "'allocation-scale-'||n", "invocation_id": "'invocation-scale-'||n", "submission_id": "'submission-scale-'||n",
 	})
-	// Build the same held-receipt/finding/event boundary in sets. The per-hold
-	// callbacks otherwise rewrite one Audit row 100000 times inside this seed
-	// transaction. Every FK/source/receipt-time constraint stays enabled;
-	// equivalent cache/finding/event derivation is completed before commit.
-	for _, trigger := range []string{"finding_proposal_audit_holds_reconcile", "finding_proposal_audit_holds_admit_finding"} {
-		if _, err = tx.Exec(ctx, `ALTER TABLE finding_proposal_audit_holds DISABLE TRIGGER `+trigger); err != nil {
-			t.Fatal(err)
-		}
-	}
+	// These are ordinary retained proposals, with no publication intent.
+	// Holds alone must never materialize Finding identities or events.
 	cloneWhere(t, ctx, tx, "finding_proposal_audit_holds", "receipt_id=$1", firstID, population-1, map[string]string{"receipt_id": "'receipt-scale-'||lpad(n::text,6,'0')"})
-	if _, err = tx.Exec(ctx, `INSERT INTO audit_findings(finding_id,audit_id,first_receipt_id,first_proposal_ref)
- SELECT 'finding-'||encode(sha256(convert_to(jsonb_build_array(hold.audit_id,hold.receipt_id)::text,'UTF8')),'hex'),hold.audit_id,hold.receipt_id,hold.proposal_ref
- FROM finding_proposal_audit_holds AS hold WHERE hold.audit_id=$1 AND hold.receipt_id<>$2`, f.audit.AuditID, firstID); err != nil {
-		t.Fatal(err)
-	}
-	if _, err = tx.Exec(ctx, `INSERT INTO audit_finding_contributions(finding_id,audit_id,receipt_id,relation,proposal_ref)
- SELECT finding_id,audit_id,first_receipt_id,'first',first_proposal_ref FROM audit_findings WHERE audit_id=$1 AND first_receipt_id<>$2`, f.audit.AuditID, firstID); err != nil {
-		t.Fatal(err)
-	}
-	if _, err = tx.Exec(ctx, `WITH advanced AS (
- UPDATE audits SET revision=revision+$3,next_event_sequence=next_event_sequence+$3,
-  updated_at=GREATEST(clock_timestamp(),updated_at+interval '1 microsecond') WHERE audit_id=$1 RETURNING next_event_sequence-$3 AS first_sequence
- ), findings AS (
- SELECT finding_id,audit_id,revision,row_number() OVER(ORDER BY first_receipt_id)-1 AS position
- FROM audit_findings WHERE audit_id=$1 AND first_receipt_id<>$2
- ) INSERT INTO audit_events(audit_id,sequence_number,kind,entity_id,entity_revision,summary)
- SELECT findings.audit_id,advanced.first_sequence+findings.position,'finding.proposed',findings.finding_id,findings.revision,'{"state":"proposed"}'
- FROM findings CROSS JOIN advanced`, f.audit.AuditID, firstID, population-1); err != nil {
-		t.Fatal(err)
-	}
-	for _, trigger := range []string{"finding_proposal_audit_holds_reconcile", "finding_proposal_audit_holds_admit_finding"} {
-		if _, err = tx.Exec(ctx, `ALTER TABLE finding_proposal_audit_holds ENABLE TRIGGER `+trigger); err != nil {
-			t.Fatal(err)
-		}
-	}
 	if err = tx.Commit(ctx); err != nil {
 		t.Fatal(err)
 	}
-	var holds, receipts, findings, contributions, events int
-	if err = f.pool.QueryRow(ctx, `SELECT (SELECT count(*) FROM finding_proposal_audit_holds WHERE audit_id=$1),(SELECT count(*) FROM finding_proposal_receipts WHERE project_id=$2),
- (SELECT count(*) FROM audit_findings WHERE audit_id=$1),
- (SELECT count(*) FROM audit_finding_contributions WHERE audit_id=$1),
- (SELECT count(*) FROM audit_events WHERE audit_id=$1 AND kind='finding.proposed')`, f.audit.AuditID, f.audit.ProjectID).Scan(&holds, &receipts, &findings, &contributions, &events); err != nil || holds != population || receipts != population || findings != population || contributions != population || events != population {
-		t.Fatalf("population holds=%d receipts=%d findings=%d contributions=%d events=%d error=%v", holds, receipts, findings, contributions, events, err)
+	var holds, receipts, findings int
+	if err = f.pool.QueryRow(ctx, `SELECT
+      (SELECT count(*) FROM finding_proposal_audit_holds WHERE audit_id=$1),
+      (SELECT count(*) FROM finding_proposal_receipts WHERE project_id=$2),
+      (SELECT count(*) FROM project_findings WHERE project_id=$2)`, f.audit.AuditID, f.audit.ProjectID).Scan(&holds, &receipts, &findings); err != nil || holds != population || receipts != population || findings != 0 {
+		t.Fatalf("ordinary proposal population holds=%d receipts=%d findings=%d error=%v", holds, receipts, findings, err)
 	}
-	t.Logf("seeded %d receipt/hold/finding/contribution/event identities", population)
 	// Unrelated retained links make the decision status lookup use its natural
 	// provenance index rather than relying on the complete link table being tiny.
 	if _, err = f.pool.Exec(ctx, `INSERT INTO audit_artifact_links(audit_id,logical_key,artifact_ref,artifact_digest,media_type,size_bytes,source_provenance)

@@ -50,6 +50,7 @@ func (s *PostgresStore) ResumeFailedRun(ctx context.Context, ownerID, runID, sou
 		if err != nil {
 			return err
 		}
+		projectAllowsResume := true
 		if projectID != nil {
 			var lifecycle, kind string
 			err = tx.QueryRow(ctx, `SELECT lifecycle_state,kind FROM projects WHERE project_id=$1 FOR SHARE`, *projectID).Scan(&lifecycle, &kind)
@@ -59,9 +60,7 @@ func (s *PostgresStore) ResumeFailedRun(ctx context.Context, ownerID, runID, sou
 			if err != nil {
 				return err
 			}
-			if lifecycle != "active" || kind == "evaluation" {
-				return ErrConflict
-			}
+			projectAllowsResume = lifecycle == "active" && kind != "evaluation"
 		}
 		// The source is the Run's latest StageExecution, whose lane class the
 		// Run still carries; the new attempt repeats its spec and so its class.
@@ -80,6 +79,11 @@ func (s *PostgresStore) ResumeFailedRun(ctx context.Context, ownerID, runID, sou
 		}
 		if !errors.Is(err, pgx.ErrNoRows) {
 			return err
+		}
+		// Mutable eligibility controls a new attempt, never a replay of the
+		// committed receipt. Keep the Project-before-Run lock order for both.
+		if !projectAllowsResume {
+			return ErrConflict
 		}
 		source, err := store.ResumableStage(ctx, ownerID, runID)
 		if err != nil {

@@ -313,7 +313,6 @@ VALUES('restore-allocation','restore-stage','worker','build','{}','{}','restore-
 VALUES('restore-audit','restore-owner','restore-project','restore-profile','1','sha256:'||repeat('b',64),
  '{"workflows":{"check":{"kind":"check"}}}','{"inputs":{}}','{"schema":"contractor.audit.baseline.v1","inputs":{},"skills":[]}',
  'active','rounds',1,1,1,1,1,1,67108864,clock_timestamp())`,
-	`INSERT INTO finding_correlation_fences(project_id) VALUES('restore-project')`,
 	`INSERT INTO audit_rounds(round_id,audit_id,ordinal,manifest_ref,manifest_digest,state,expected_item_count)
 VALUES('restore-round','restore-audit',1,'{"namespace":"audit-snapshot","name":"manifest","revision":"r1"}',
  'sha256:'||repeat('c',64),'executing',1)`,
@@ -350,15 +349,21 @@ VALUES('restore-audit','report','{"namespace":"audit-report","name":"report","re
 	`INSERT INTO finding_proposal_receipts(receipt_id,proposal_id,allocation_id,runtime_agent_id,runtime_instance_id,
  stage_execution_id,logical_agent_name,invocation_id,submission_id,client_key,request_digest,run_id,owner_id,project_id,
  workflow_name,workflow_version,workflow_schema_version,workflow_configuration_ref,workflow_closure_digest,proposal_ref,
- proposal_digest,proposal_media_type,proposal_size_bytes,evidence,report_projection,anchor_projection)
+ proposal_digest,proposal_media_type,proposal_size_bytes,evidence,report_projection,anchor_projection, checks_projection)
 VALUES('restore-receipt','restore-proposal','restore-allocation',repeat('e',64),'restore-instance','restore-stage','worker',
  'restore-invocation','restore-submission','restore-client','sha256:'||repeat('a',64),'restore-run','restore-owner',
  'restore-project','workflow','1','contractor/v1alpha1','{}','sha256:'||repeat('b',64),
  '{"namespace":"findings","name":"proposal","revision":"r1"}','sha256:'||repeat('c',64),'application/json',2,'[]',
  '{"preconditions":[]}',
- '{"schema":"contractor.finding.anchors-projection.v1","availability":"available","keys":[{"issueKey":"'||repeat('6',64)||'"}]}')`,
-	`INSERT INTO audit_findings(finding_id,audit_id,first_receipt_id,first_proposal_ref)
-VALUES('restore-finding','restore-audit','restore-receipt','{"namespace":"findings","name":"proposal","revision":"r1"}')`,
+ '{"schema":"contractor.finding.anchors-projection.v1","availability":"available","keys":[{"issueKey":"'||repeat('6',64)||'"}]}', json_build_object('schema','contractor.audit.finding-checks-projection.v1','proposal_digest',('sha256:'||repeat('c',64))::text,'size_bytes',(2)::bigint,'discarded',false,'subject',NULL,'limitations',NULL,'checks','[]'::json))`,
+	`INSERT INTO project_findings(owner_id,finding_id,project_id,first_receipt_id,first_proposal_ref,
+ title,subject_kind,subject_key,subject_truncated,severity_suggestion,
+ correlation_algorithm,correlation_value,correlation_group_key,correlation_reason)
+VALUES('restore-owner','restore-finding','restore-project','restore-receipt',
+ jsonb_build_object('ref',jsonb_build_object('namespace','findings','name','proposal','revision','r1'),
+ 'digest','sha256:'||repeat('c',64),'mediaType','application/json','sizeBytes',2),
+ 'Restored issue','','',false,'','contractor/snapshot-issue-anchor/v1',repeat('6',64),
+ contractor_finding_group_key('restore-project','contractor/snapshot-issue-anchor/v1',repeat('6',64)),'')`,
 }
 
 // tableFunctionTablesSQL lists the tables of the current schema whose CHECK

@@ -146,7 +146,7 @@ func (p *PostgresPersistence) CommitResultProgression(
 			return err
 		}
 		if value.Progression.NextStage != nil {
-			if err := store.LockRunQueueAdmission(ctx, value.RunID); err != nil {
+			if err := txStore.LockRunQueueAdmission(ctx, value.RunID); err != nil {
 				return err
 			}
 		}
@@ -233,7 +233,7 @@ func (p *PostgresPersistence) CommitTerminationProgression(
 		}
 		store := txStore.PostgresStore
 		if value.Progression.NextStage != nil {
-			if err := store.LockRunQueueAdmission(ctx, value.RunID); err != nil {
+			if err := txStore.LockRunQueueAdmission(ctx, value.RunID); err != nil {
 				return err
 			}
 		}

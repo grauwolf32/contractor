@@ -14,7 +14,7 @@ import (
 type ScanHistoryStore interface {
 	GetRun(context.Context, string) (runstore.WorkflowRun, error)
 	ListStageExecutions(context.Context, string) ([]runstore.StageExecution, error)
-	GetPlannerSessions(context.Context, []string) (map[string]runstore.PlannerSession, error)
+	ReadPlannerSessions(context.Context, []string, func(runstore.PlannerSession) error) error
 }
 
 func (s *Service) ReadAuditScanHistory(ctx context.Context, runID string) ([]planner.ScanAttempt, error) {
@@ -48,6 +48,7 @@ func ReadAuditScanHistory(ctx context.Context, store ScanHistoryStore, runID str
 	}
 	executors := make([]runstore.StageExecution, 0, len(stages))
 	sessionIDs := make([]string, 0, len(stages))
+	expected := make(map[string]runstore.StageExecution)
 	for _, stage := range stages {
 		if stage.RunID != runID {
 			return nil, fmt.Errorf("scan history Run identity differs")
@@ -59,12 +60,33 @@ func ReadAuditScanHistory(ctx context.Context, store ScanHistoryStore, runID str
 		}
 		executors = append(executors, stage)
 		if stage.PlannerSessionID != nil {
+			if _, duplicate := expected[*stage.PlannerSessionID]; duplicate {
+				return nil, fmt.Errorf("scan history session identity differs")
+			}
 			sessionIDs = append(sessionIDs, *stage.PlannerSessionID)
+			expected[*stage.PlannerSessionID] = stage
 		}
 	}
 	// Every attempt's session comes from one read, whatever the number of
 	// attempts in the Run's bounded Stage history.
-	sessions, err := store.GetPlannerSessions(ctx, sessionIDs)
+	scanStates := make(map[string]*planner.ScanState, len(sessionIDs))
+	err = store.ReadPlannerSessions(ctx, sessionIDs, func(stored runstore.PlannerSession) error {
+		stage, found := expected[stored.SessionID]
+		if !found || stored.StageExecutionID != stage.StageExecutionID || stored.StateSchemaVersion != contracts.APIVersion ||
+			stage.PlannerInvocationID == nil || stored.InvocationID != *stage.PlannerInvocationID {
+			return fmt.Errorf("scan history session identity differs")
+		}
+		state, err := decodeState(stored.State)
+		if err != nil {
+			return err
+		}
+		scanStates[stored.SessionID] = nil
+		if state.Scan != nil {
+			scan := cloneScanState(state.Scan.State)
+			scanStates[stored.SessionID] = &scan
+		}
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -82,20 +104,12 @@ func ReadAuditScanHistory(ctx context.Context, store ScanHistoryStore, runID str
 			State: planner.ScanState{Jobs: []planner.ScanJobRecord{}}, Terminal: stage.State.Terminal(),
 		}
 		if stage.PlannerSessionID != nil {
-			stored, found := sessions[*stage.PlannerSessionID]
+			scan, found := scanStates[*stage.PlannerSessionID]
 			if !found {
 				return nil, fmt.Errorf("load scan Planner session: %w", runstore.ErrNotFound)
 			}
-			if stored.SessionID != *stage.PlannerSessionID || stored.StageExecutionID != stage.StageExecutionID || stored.StateSchemaVersion != contracts.APIVersion ||
-				stage.PlannerInvocationID == nil || stored.InvocationID != *stage.PlannerInvocationID {
-				return nil, fmt.Errorf("scan history session identity differs")
-			}
-			state, err := decodeState(stored.State)
-			if err != nil {
-				return nil, err
-			}
-			if state.Scan != nil {
-				attempt.State = cloneScanState(state.Scan.State)
+			if scan != nil {
+				attempt.State = *scan
 			}
 		}
 		result = append(result, attempt)

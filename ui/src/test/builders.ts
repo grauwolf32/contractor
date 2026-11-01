@@ -135,70 +135,50 @@ export function audit(
   );
 }
 
-/** A possible issue proposed by one Run. */
+/** One canonical, initially unassessed Project Finding. */
 export function finding(
-  auditId: string,
+  projectId: string,
   findingId: string,
-  overrides: Overrides<Schemas["AuditFinding"]> = {},
-  document: Partial<Schemas["AuditFinding"]["firstProposal"]["document"]> = {},
-): Schemas["AuditFinding"] {
+  overrides: Overrides<Schemas["ProjectFinding"]> = {},
+  claim: Partial<Schemas["FindingClaim"]> = {},
+): Schemas["ProjectFinding"] {
+  const title = claim.title ?? "Missing object authorization";
   return conforming(
-    "AuditFinding",
-    merge<Schemas["AuditFinding"]>(
+    "ProjectFinding",
+    merge<Schemas["ProjectFinding"]>(
       {
+        projectId,
         findingId,
-        auditId,
-        state: "proposed",
+        firstReceiptId: `receipt_${findingId}`,
         firstProposal: {
-          receiptId: `receipt_${findingId}`,
-          proposalId: `proposal_${findingId}`,
-          requestDigest: DIGEST,
-          clientKey: findingId,
-          proposal: {
-            ref: {
-              namespace: "audit-findings",
-              name: findingId,
-              revision: "r1",
-            },
-            digest: DIGEST,
-            mediaType: "application/json",
-            sizeBytes: 512,
+          ref: {
+            namespace: "finding-materials",
+            name: findingId,
+            revision: "r1",
           },
-          document: {
-            schema: "contractor.audit.finding-proposal.v1",
-            client_key: findingId,
-            title: "Missing object authorization",
-            description:
-              "The **order endpoint** may read another owner's record.\n\nIt never compares `ownerId` with the caller.",
-            subject: null,
-            preconditions: [],
-            standard_refs: [],
-            evidence_ids: [],
-            proposed_checks: [],
-            severity_suggestion: "high",
-            limitations: [],
-            ...document,
-          },
-          evidence: [],
-          origin: {
-            runId: "run_1",
-            stageExecutionId: "stage_1",
-            allocationId: "allocation_1",
-            invocationId: "invocation_1",
-            logicalAgentName: "reviewer",
-            workflow: {
-              name: "source-review",
-              version: "1",
-              schemaVersion: "contractor/v1alpha1",
-              configurationRef: { name: "source-review", version: "1" },
-              closureDigest: DIGEST,
-            },
-            runDeleted: false,
-          },
-          retention: "audit-held",
-          auditHolds: [],
-          createdAt: NOW,
+          digest: DIGEST,
+          mediaType: "application/json",
+          sizeBytes: 512,
         },
+        title,
+        claim: {
+          title,
+          description:
+            "The **order endpoint** may read another owner's record.\n\nIt never compares `ownerId` with the caller.",
+          subject: null,
+          preconditions: [],
+          standard_refs: [],
+          severity_suggestion: "high",
+          limitations: [],
+          ...claim,
+        },
+        state: null,
+        analystVerdict: null,
+        analystSeverity: null,
+        duplicateTargetId: null,
+        rationale: null,
+        actorId: null,
+        assessedAt: null,
         revision: 1,
         createdAt: NOW,
         updatedAt: NOW,
@@ -208,7 +188,105 @@ export function finding(
   );
 }
 
-export const ALL_VERDICTS: Schemas["AuditReviewRequest"]["requestedActions"] = [
+/** The compact list projection returned without hydrating any source. */
+export function findingSummary(
+  value: Schemas["ProjectFinding"],
+): Schemas["ProjectFindingSummary"] {
+  return conforming("ProjectFindingSummary", {
+    findingId: value.findingId,
+    projectId: value.projectId,
+    title: value.title.slice(0, 256),
+    titleTruncated: value.title.length > 256,
+    subjectKind: value.claim?.subject?.kind ?? "",
+    subjectKey: value.claim?.subject?.key ?? "",
+    subjectTruncated: false,
+    severitySuggestion: value.claim?.severity_suggestion ?? "",
+    state: value.state,
+    analystVerdict: value.analystVerdict,
+    analystSeverity: value.analystSeverity,
+    duplicateTargetId: value.duplicateTargetId,
+    revision: value.revision,
+    createdAt: value.createdAt,
+    updatedAt: value.updatedAt,
+  });
+}
+
+/** Immutable producer receipt retained by its Project. */
+export function findingSource(
+  value: Schemas["ProjectFinding"],
+  overrides: Overrides<Schemas["FindingProposalReceipt"]> = {},
+  document: Partial<Schemas["FindingProposalDocument"]> = {},
+): Schemas["FindingProposalReceipt"] {
+  return conforming(
+    "FindingProposalReceipt",
+    merge<Schemas["FindingProposalReceipt"]>(
+      {
+        receiptId: value.firstReceiptId,
+        proposalId: `proposal_${value.findingId}`,
+        requestDigest: DIGEST,
+        clientKey: value.findingId,
+        projectId: value.projectId,
+        findingId: value.findingId,
+        publicationRequested: true,
+        proposal: value.firstProposal,
+        projectProposal: value.firstProposal,
+        document: {
+          schema: "contractor.audit.finding-proposal.v1",
+          client_key: value.findingId,
+          title: value.title,
+          description: "Original observation",
+          subject: null,
+          preconditions: [],
+          standard_refs: [],
+          evidence_ids: [],
+          proposed_checks: [],
+          severity_suggestion: "",
+          limitations: [],
+          ...value.claim,
+          ...document,
+        },
+        evidence: [],
+        projectEvidence: [],
+        retention: "project-held",
+        auditHolds: [],
+        origin: {
+          runId: `run_${value.findingId}`,
+          stageExecutionId: "stage",
+          allocationId: "allocation",
+          invocationId: "invocation",
+          logicalAgentName: "reviewer",
+          workflow: {
+            name: "source-review",
+            version: "1",
+            schemaVersion: "contractor/v1alpha1",
+            configurationRef: { name: "source-review", version: "1" },
+            closureDigest: DIGEST,
+          },
+          runDeleted: true,
+        },
+        createdAt: value.createdAt,
+      },
+      overrides,
+    ),
+  );
+}
+export function findingSourcePreview(
+  source: Schemas["FindingProposalReceipt"],
+): Schemas["ProjectFindingSourcePreview"] {
+  return conforming("ProjectFindingSourcePreview", {
+    receiptId: source.receiptId,
+    proposalId: source.proposalId,
+    projectId: source.projectId!,
+    ...(source.findingId === undefined ? {} : { findingId: source.findingId }),
+    proposal: source.projectProposal!,
+    origin: source.origin,
+    evidenceCount: source.projectEvidence?.length ?? 0,
+    publicationRequested: source.publicationRequested,
+    createdAt: source.createdAt,
+  });
+}
+
+export const ALL_VERDICTS: Schemas["FindingVerdict"][] = [
   "true_positive",
   "false_positive",
   "duplicate",
@@ -224,10 +302,6 @@ export function review(
   overrides: Overrides<Schemas["AuditReviewRequest"]> = {},
 ): Schemas["AuditReviewRequest"] {
   const subject = {
-    "finding-triage": {
-      subjectKind: "finding",
-      requestedActions: ALL_VERDICTS,
-    },
     "active-check-approval": {
       subjectKind: "audit-item-action",
       requestedActions: ["approve", "reject"],
@@ -275,9 +349,7 @@ export function decision(
         decisionId: `decision_${request.requestId}`,
         requestId: request.requestId,
         auditId: request.auditId,
-        ...(request.findingId === undefined
-          ? {}
-          : { findingId: request.findingId }),
+        action: "approve",
         actorId: "user_analyst",
         rationale: "Confirmed against the **retained** source.",
         subjectRevision: request.subjectRevision,
@@ -396,6 +468,7 @@ export function auditItem(
         state: "settled",
         approvalKind: "none",
         attempts: [],
+        findingIds: [],
         createdAt: NOW,
         updatedAt: NOW,
       },

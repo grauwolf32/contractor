@@ -245,7 +245,7 @@ func validateSemantics(document object, snapshot findingexport.Snapshot) error {
 }
 
 func expectedRating(result findingexport.Result) (string, string) {
-	if result.Review.State != "confirmed" {
+	if !result.Review.IsState("confirmed") {
 		return "review", "none"
 	}
 	switch result.Review.Severity {

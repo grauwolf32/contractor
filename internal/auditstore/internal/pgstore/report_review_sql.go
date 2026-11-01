@@ -81,9 +81,10 @@ WITH live_claim AS MATERIALIZED (
     SELECT audit.*, round.revision AS round_revision
       FROM audits AS audit
       JOIN live_claim USING (audit_id)
+      JOIN finding_correlation_fences AS fence USING(project_id)
       JOIN audit_rounds AS round
         ON round.audit_id = audit.audit_id AND round.round_id = $5
-     WHERE audit.audit_id = $1 AND audit.revision = $4
+     WHERE audit.audit_id = $1 AND audit.revision = $4 AND fence.revision=$11
        AND audit.state = 'finalizing' AND audit.dispatch_state = 'closed'
        AND audit.current_round_id = $5 AND audit.outstanding_run_count = 0
        AND round.revision = $6 AND round.state = 'closed'
@@ -98,15 +99,15 @@ WITH live_claim AS MATERIALIZED (
             WHERE existing.audit_id = audit.audit_id
               AND existing.logical_key IN ('report/machine', 'report/summary')
        )
-     FOR UPDATE OF audit, round
+     FOR UPDATE OF audit, round, fence
 ), inserted_request AS (
     INSERT INTO audit_review_requests (
-        request_id, audit_id, finding_id, subject_kind, subject_id, kind,
+        request_id, audit_id, subject_kind, subject_id, kind,
         subject_revision, subject_digest, requested_actions, state,
         expires_at, idempotency_key, request_digest,
         report_round_id, report_machine_link, report_summary_link
     )
-    SELECT $7, audit_id, NULL, 'audit-report', audit_id,
+    SELECT $7, audit_id, 'audit-report', audit_id,
            'report-acceptance', $4, $8, '["approve","reject"]'::jsonb,
            'pending', clock_timestamp() + interval '30 days',
            'auto-report:' || substr($8, 8, 64), $8,

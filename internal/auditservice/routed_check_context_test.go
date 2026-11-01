@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
@@ -17,7 +18,6 @@ func routedContextFixture(t *testing.T, policy contracts.ActiveChecksPolicy) (*R
 		t.Fatal(err)
 	}
 	profile.Interaction.ActiveChecks = contracts.ActiveChecksApprovalRequired
-	profile.Interaction.FindingConfirmation = auditprofile.AuditFindingHumanRequired
 	ordinary := profile.Workflows["check"]
 	profile.Workflows["replay-looking-name"] = ordinary
 	active := profile.Workflows["check"]
@@ -53,7 +53,7 @@ func routedContextFixture(t *testing.T, policy contracts.ActiveChecksPolicy) (*R
 	ordinal := 7
 	original := contracts.ExactArtifact{Ref: contracts.ArtifactRef{Namespace: "findings", Name: "proposal", Revision: &revision}, Digest: auditdomain.DigestBytes([]byte("proposal")), MediaType: auditdomain.JSONMediaType, SizeBytes: 8}
 	retained := original.Clone()
-	retained.Ref.Namespace = auditdomain.ArtifactNamespace("audit")
+	retained.Ref.Namespace = artifactpolicy.FindingMaterialsNamespace
 	return context, profile, auditdomain.AcceptedPlanSource{Kind: "finding-receipt", ReceiptID: "receipt", ProposedCheckOrdinal: &ordinal, RunID: "producer", Proposal: original, RetainedProposal: retained}
 }
 

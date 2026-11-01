@@ -1,13 +1,11 @@
 import { Fragment, type ReactNode } from "react";
 import type { To } from "react-router";
 
-import type { AuditFinding } from "../../api/audits";
+import type { ProjectFindingSummary } from "../../api/audits";
 import { formatShortDateTime, formatTimestamp } from "../../app/format";
 import { findingStateLabel, severityLabel } from "../../app/vocabulary";
 import { ListRow, MethodChip, StatusGlyph, StatusChip } from "../../ui";
-import { httpOperation, weaknessReferences } from "../decisions/text";
-
-import { CorrelationMark } from "./correlation-mark";
+import { httpOperation } from "../decisions/text";
 
 import "./issues.css";
 
@@ -45,10 +43,13 @@ function BreakablePath({ path }: { path: string }) {
  * The analyst's rating, and apart from it the AI's suggestion while the
  * analyst has not rated: the two are never mixed (S19:1791-1793).
  */
-function severityParts(finding: AuditFinding, badges: boolean): ReactNode[] {
+function severityParts(
+  finding: ProjectFindingSummary,
+  badges: boolean,
+): ReactNode[] {
   function rating(
     text: string,
-    value: NonNullable<AuditFinding["analystSeverity"]>,
+    value: NonNullable<ProjectFindingSummary["analystSeverity"]>,
   ) {
     if (!badges) return text;
     const tone =
@@ -65,17 +66,17 @@ function severityParts(finding: AuditFinding, badges: boolean): ReactNode[] {
       </StatusChip>
     );
   }
-  const suggestion = finding.firstProposal.document.severity_suggestion;
+  const suggestion = finding.severitySuggestion;
   return [
     <span className="issues-row-severity">
-      {finding.analystSeverity === undefined
+      {finding.analystSeverity === null
         ? "Severity not set"
         : rating(
             `Severity: ${severityLabel(finding.analystSeverity)}`,
             finding.analystSeverity,
           )}
     </span>,
-    finding.analystSeverity !== undefined || suggestion === "" ? null : (
+    finding.analystSeverity !== null || suggestion === "" ? null : (
       <span className="issues-row-suggestion">
         {rating(`AI suggestion: ${severityLabel(suggestion)}`, suggestion)}
       </span>
@@ -100,7 +101,7 @@ function separated(parts: readonly ReactNode[]): ReactNode {
 }
 
 interface IssueRowProps {
-  finding: AuditFinding;
+  finding: ProjectFindingSummary;
   to: To;
   selected?: boolean | undefined;
   /** First part of the context line: the project or the check. */
@@ -128,11 +129,10 @@ export function IssueRow({
   showCreated = true,
   severityBadges = false,
 }: IssueRowProps) {
-  const document = finding.firstProposal.document;
+  const document = finding;
   const state = findingStateLabel(finding.state);
   const operation =
-    document.subject === null ? undefined : httpOperation(document.subject.key);
-  const weakness = weaknessReferences(document)[0]?.requirement_id;
+    document.subjectKey === "" ? undefined : httpOperation(document.subjectKey);
   return (
     <ListRow
       to={to}
@@ -155,14 +155,12 @@ export function IssueRow({
               context === undefined || context === null ? null : (
                 <span className="issues-row-context">{context}</span>
               ),
-              weakness,
               showCreated ? <FoundTime value={finding.createdAt} /> : null,
             ])}
           </span>
           <span className="issues-row-line">
             {separated([
               <span className="issues-row-state">{state.label}</span>,
-              <CorrelationMark finding={finding} />,
               ...severityParts(finding, severityBadges),
             ])}
           </span>

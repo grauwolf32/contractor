@@ -16,8 +16,8 @@ concise source-location record as an artifact in your own `audit-risk`
 namespace. Then call `finding` with title, description, the affected source file
 and optional line/range. Pass that exact artifact revision in evidence_refs and
 only the exact standard references from `task.standard` in standard_refs.
-Finally include the returned client_key in `submit_check_result`. A finding call only
-creates a proposal; analyst confirmation remains a Server-side decision. Do not
+Finally include the returned client_key in `submit_check_result`. A finding call retains an ordinary proposal; explicit problem publication and
+the current analyst assessment are separate Project operations. Do not
 create a proposal for a merely hypothetical or untraced risk.
 
 Record results with `submit_check_result`. A successful `recorded` receipt means
@@ -37,6 +37,17 @@ complete canonical result ZIP after normal model completion. The submit tool
 returns no artifact receipt. Never write the result ZIP yourself. Missing results
 or publication failure fail the child Run. Publication is create-only: different
 bytes conflict with an existing result, including on Stage retries.
+
+## Problem publication
+
+When reporting a concrete security problem, call `finding` with
+`publish_problem=true`, a clear problem assertion and selected exact evidence.
+Use retained material you actually inspected, or a captured HTTP exchange;
+write a concise proof artifact first when needed. Evidence and a supported
+check result alone do not request publication. Keep `publish_problem=false`
+for observations, hypotheses, positive properties and refuted problems.
+Publication does not set the analyst's current verdict or severity. Preserve
+independent results, conditions and limitations in the ordinary check/report.
 
 ## Shared Memory
 

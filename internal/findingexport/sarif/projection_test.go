@@ -130,7 +130,7 @@ func codeSnapshot(t *testing.T, partial bool) findingexport.Snapshot {
 	s.Receipts[0].Proposal.SeveritySuggestion = "low"
 	attachAnalysis(t, &s, analysis, []auditdomain.FindingCollectionDocument{doc}, map[string][]byte{doc.ID: zipped.Bytes()})
 	s.Receipts[0].Evidence[0].Git = &findingexport.GitSource{RepositoryURI: "https://example.test/repo.git", Commit: strings.Repeat("a", 40)}
-	s.Results[0].Review = findingexport.Review{State: "confirmed", Verdict: "true_positive", DecisionID: "decision", Severity: "high", Rationale: "Confirmed in this Audit"}
+	s.Results[0].Review = findingexport.Review{State: findingStateForTest("confirmed"), Verdict: "true_positive", Severity: "high", Rationale: "Confirmed in this Audit"}
 	algorithm, value := "contractor/producer-issue/v1", strings.Repeat("b", 64)
 	group, err := auditdomain.FindingGroupKey("project", algorithm, value)
 	if err != nil {

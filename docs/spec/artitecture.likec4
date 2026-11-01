@@ -445,7 +445,7 @@ model {
         #contractor
       }
 
-      auditStore = component 'Audit Store — epoch-fenced claims, revisions, intents, receipts and exact holds' {
+      auditStore = component 'Audit Store + Project Findings — one canonical Finding state owner; Audit membership, claims and execution holds' {
         #contractor
       }
 
@@ -465,7 +465,7 @@ model {
         #contractor
       }
 
-      reviewService = component 'Audit Review — authenticated exact-subject decisions, finding triage and next-round approval' {
+      reviewService = component 'Audit Review — authenticated exact-subject item and report approvals' {
         #contractor
       }
 
@@ -541,7 +541,7 @@ model {
         #contractor
       }
 
-      findingCollectionPublisher = component 'Finding Collection Publisher — pinned receipts/reviews, exact evidence and ordinary ZIP artifacts' {
+      findingCollectionPublisher = component 'Finding Collection Publisher — canonical Project snapshots, independent sources, exact evidence and ordinary ZIP artifacts' {
         #contractor
       }
 

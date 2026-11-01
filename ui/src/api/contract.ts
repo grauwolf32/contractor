@@ -152,12 +152,34 @@ function schemaAt(
   path: readonly string[],
 ): SchemaObject {
   let value: unknown = (publicSchemas.$defs as Record<string, unknown>)[name];
+  const resolve = (input: unknown): unknown => {
+    let current = input;
+    const seen = new Set<string>();
+    while (
+      typeof current === "object" &&
+      current !== null &&
+      "$ref" in current &&
+      typeof current.$ref === "string"
+    ) {
+      const ref = current.$ref;
+      const prefix = `${publicSchemas.$id}#/$defs/`;
+      if (!ref.startsWith(prefix) || seen.has(ref))
+        throw new Error(`Invalid public schema reference ${ref}`);
+      seen.add(ref);
+      current = (publicSchemas.$defs as Record<string, unknown>)[
+        ref.slice(prefix.length)
+      ];
+    }
+    return current;
+  };
   for (const key of path) {
+    value = resolve(value);
     value =
       typeof value === "object" && value !== null
         ? (value as Record<string, unknown>)[key]
         : undefined;
   }
+  value = resolve(value);
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new Error(
       `Public contract has no schema at ${name}/${path.join("/")}`,

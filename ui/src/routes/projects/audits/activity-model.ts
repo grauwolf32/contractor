@@ -1,6 +1,10 @@
 /** Current item activity comes from its retained attempts and results.
  * Whole-check history uses the immutable event API in event-history.tsx. */
-import type { Audit, AuditFinding, AuditItem } from "../../../api/audits";
+import type {
+  Audit,
+  ProjectFindingSummary,
+  AuditItem,
+} from "../../../api/audits";
 import { formatNumber } from "../../../app/format";
 import type { StatusTone } from "../../../app/status-tone";
 import { itemNoun, verdictLabel, type ItemKind } from "../../../app/vocabulary";
@@ -96,22 +100,21 @@ function dispositionOf(attempt: AuditItemAttempt): {
 
 function findingEvents(
   entries: TimedEntry[],
-  finding: AuditFinding,
+  finding: ProjectFindingSummary,
   prefix: string,
 ): void {
-  const title = finding.firstProposal.document.title;
+  const title = finding.title;
   push(entries, `${prefix}finding-${finding.findingId}`, finding.createdAt, {
     tone: "review",
     title: "Proposed a possible issue:",
     text: title,
   });
-  const decision = finding.analystDecision;
-  if (decision !== undefined) {
-    const outcome = verdictLabel(decision.verdict);
+  if (finding.analystVerdict !== null) {
+    const outcome = verdictLabel(finding.analystVerdict);
     push(
       entries,
-      `${prefix}decision-${decision.decisionId}`,
-      decision.createdAt,
+      `${prefix}assessment-${finding.findingId}-${finding.revision}`,
+      finding.updatedAt,
       {
         tone: outcome.tone,
         title: `Decision recorded: ${outcome.label}.`,

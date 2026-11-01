@@ -14,6 +14,7 @@ import (
 )
 
 const terminalReleaseRecoveryBatchLimit = 32
+const terminalReleaseCandidateBatchLimit = 128
 
 // HasSummaryEscalation uses the unique ordinal-root index. It reads neither
 // attempt snapshots nor the whole Run history for a one-shot summary policy.
@@ -92,13 +93,14 @@ func (s *PostgresStore) GetStageExecution(ctx context.Context, stageExecutionID 
 // timestamps preserve immutable allocation provenance without rescanning the
 // complete execution history on every Scheduler poll.
 func (s *PostgresStore) ListTerminalStageExecutionsWithAllocations(
-	ctx context.Context,
+	ctx context.Context, excludedStageIDs []string,
 ) ([]StageExecution, error) {
 	rows, err := s.db.Query(ctx, listTerminalStageExecutionsWithAllocationsSQL+prefixedStageExecutionColumns("execution")+`
 FROM pending
 JOIN stage_executions AS execution
   ON execution.stage_execution_id = pending.stage_execution_id
-ORDER BY pending.next_attempt_at, execution.stage_execution_id`, terminalReleaseRecoveryBatchLimit)
+ORDER BY pending.next_attempt_at, execution.stage_execution_id`,
+		terminalReleaseCandidateBatchLimit, excludedStageIDs, terminalReleaseRecoveryBatchLimit)
 	if err != nil {
 		return nil, fmt.Errorf("list terminal StageExecutions with allocations: %w", err)
 	}

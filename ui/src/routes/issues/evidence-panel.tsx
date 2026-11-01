@@ -1,6 +1,11 @@
+import {
+  type ProjectFinding,
+  type FindingProposalReceipt,
+} from "../../api/audits";
+import { useFindingSource } from "./source-data";
+import { QueryView } from "../../app/query-view";
 import { useId } from "react";
 
-import type { AuditFinding } from "../../api/audits";
 import {
   CapturedExchange,
   LocationList,
@@ -16,12 +21,24 @@ import "./issues.css";
  * HTTP exchange (credential-looking header values masked until shown) and
  * the evidence files the check retained.
  */
-export function EvidencePanel({ finding }: { finding: AuditFinding }) {
+export function EvidencePanel({ finding }: { finding: ProjectFinding }) {
+  const source = useFindingSource(finding);
+  return (
+    <QueryView
+      query={source}
+      loading={<p role="status">Loading retained evidence…</p>}
+      errorContext="The source could not be loaded."
+    >
+      {(value) => <SourceEvidence source={value} />}
+    </QueryView>
+  );
+}
+export function SourceEvidence({ source }: { source: FindingProposalReceipt }) {
   const id = useId();
-  const document = finding.firstProposal.document;
+  const document = source.document;
   const locations = document.locations ?? [];
   const exchange = document.http_exchange;
-  const files = finding.firstProposal.evidence;
+  const files = source.projectEvidence ?? [];
   const masked =
     exchange?.attempts.some((attempt) =>
       [...attempt.headers, ...(attempt.response_headers ?? [])].some((header) =>
@@ -75,7 +92,7 @@ export function EvidencePanel({ finding }: { finding: AuditFinding }) {
           {files.map((artifact, index) => (
             <FindingEvidenceFile
               key={`${artifact.ref.namespace}/${artifact.ref.name}@${artifact.ref.revision}`}
-              finding={finding}
+              source={source}
               index={index}
               snippet={index < 2 && canShowEvidenceSnippet(artifact)}
             />

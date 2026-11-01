@@ -67,10 +67,10 @@ func validateAuditInputMaterialization(value AuditInputMaterialization) ([]byte,
 	return data, nil
 }
 
-// GetAuditInputMaterialization locks the child before any materialization work.
+// LockAuditInputMaterialization locks the child before any materialization work.
 // The existing claim-bound Audit row lock precedes this lock; cancellation
 // either wins first or waits until the bounded fork transaction finishes.
-func (s *PostgresStore) GetAuditInputMaterialization(ctx context.Context, runID string) (*AuditInputMaterialization, error) {
+func (s *PostgresTxStore) LockAuditInputMaterialization(ctx context.Context, runID string) (*AuditInputMaterialization, error) {
 	if err := validateOpaque("runID", runID); err != nil {
 		return nil, err
 	}

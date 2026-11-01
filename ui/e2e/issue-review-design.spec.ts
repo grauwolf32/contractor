@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { findingSourcePreview } from "../src/test/builders";
 import { issueReviewFixtures } from "../src/test/issue-review-fixtures";
 import { ownerListResponse } from "../src/test/owner-lists";
 import { page as listPage } from "../src/test/responses";
@@ -37,7 +38,7 @@ async function install(page: Page, data: Fixtures) {
       return fulfillJSON(route, audit, 200, { ETag: '"1"' });
     const finding = data.findings.find(
       (value) =>
-        path === `/v1/audits/${value.auditId}/findings/${value.findingId}`,
+        path === `/v1/projects/${value.projectId}/findings/${value.findingId}`,
     );
     if (finding !== undefined)
       return fulfillJSON(route, finding, 200, { ETag: '"1"' });
@@ -48,8 +49,6 @@ async function install(page: Page, data: Fixtures) {
       const items = data.reviews.filter(
         (value) =>
           value.auditId === check.auditId &&
-          (!url.searchParams.has("finding") ||
-            value.findingId === url.searchParams.get("finding")) &&
           (!url.searchParams.has("state") ||
             value.state === url.searchParams.get("state")),
       );
@@ -60,6 +59,32 @@ async function install(page: Page, data: Fixtures) {
         asOf: check.updatedAt,
       });
     }
+
+    const source = data.sources.find(
+      (value) =>
+        path ===
+        `/v1/projects/${value.projectId}/finding-sources/${value.receiptId}`,
+    );
+    if (source !== undefined) return fulfillJSON(route, source);
+    const sourceFinding = data.findings.find(
+      (value) =>
+        path ===
+        `/v1/projects/${value.projectId}/findings/${value.findingId}/sources`,
+    );
+    if (sourceFinding !== undefined)
+      return fulfillJSON(route, {
+        items: data.sources
+          .filter((value) => value.findingId === sourceFinding.findingId)
+          .map(findingSourcePreview),
+        projectRevision: 1,
+        page: { hasMore: false },
+      });
+    if (path.endsWith("/history"))
+      return fulfillJSON(route, {
+        items: [],
+        projectRevision: 1,
+        page: { hasMore: false },
+      });
     const evidence = data.evidence.find((value) => {
       const ref = value.metadata.artifact;
       return (
@@ -81,7 +106,7 @@ async function install(page: Page, data: Fixtures) {
   return { payloads, mutations };
 }
 function findingPath(finding: Fixtures["findings"][number]) {
-  return `/issues/${finding.auditId}/${finding.findingId}?state=all`;
+  return `/issues/${finding.projectId}/${finding.findingId}?state=all`;
 }
 
 for (const theme of ["light", "dark", "black"]) {
@@ -106,7 +131,7 @@ for (const theme of ["light", "dark", "black"]) {
         });
         await expect(
           review.getByRole("heading", {
-            name: finding.firstProposal.document.title,
+            name: finding.title,
             exact: true,
           }),
         ).toBeVisible();
@@ -114,7 +139,7 @@ for (const theme of ["light", "dark", "black"]) {
           review.getByLabel(/(?:Possible issue|Issue) \d of 6/),
         ).toBeVisible();
         await expect(review.getByText(/^Verification:/)).toBeVisible();
-        if (finding.firstProposal.document.subject?.kind === "file") {
+        if (finding.claim?.subject?.kind === "file") {
           await expect(review.locator(".issues-subject-kind")).toHaveText(
             "FILE",
           );
@@ -126,7 +151,7 @@ for (const theme of ["light", "dark", "black"]) {
         expect(await status.innerText()).toMatch(
           /Verification:.*\n(?:AI|Analyst)/,
         );
-        if (finding.analystDecision !== undefined)
+        if (finding.analystVerdict !== null)
           await expect(
             review.getByRole("region", { name: "Recorded decision" }),
           ).toBeVisible();
@@ -179,7 +204,7 @@ for (const theme of ["light", "dark", "black"]) {
             .getByLabel(/(?:Possible issue|Issue) \d of 6/)
             .boundingBox();
           const link = await review
-            .getByRole("link", { name: "View in its check" })
+            .getByRole("link", { name: "View in Project" })
             .boundingBox();
           expect(Math.abs(prev!.y - next!.y)).toBeLessThan(2);
           expect(count!.x).toBeGreaterThanOrEqual(prev!.x + prev!.width);

@@ -83,7 +83,7 @@ type Store interface {
 	// completed, not the rest of its Stage history (SCH-R179).
 	ListStageExecutionsWithUnreleasedAllocations(context.Context, string) ([]runstore.StageExecution, error)
 	HasSummaryEscalation(context.Context, string, string) (bool, error)
-	ListTerminalStageExecutionsWithAllocations(context.Context) ([]runstore.StageExecution, error)
+	ListTerminalStageExecutionsWithAllocations(context.Context, []string) ([]runstore.StageExecution, error)
 	GetStageExecution(context.Context, string) (runstore.StageExecution, error)
 	ListStageAllocations(context.Context, string) ([]runstore.StageAllocation, error)
 	// ListStageAllocationsBatch reads the allocations of several existing

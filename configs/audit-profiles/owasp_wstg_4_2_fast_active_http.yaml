@@ -44,6 +44,5 @@ spec:
     incompleteRound: assess-with-gaps
   interaction:
     activeChecks: approval-required
-    findingConfirmation: human-required
     notApplicable: human-required
     reportAcceptance: automatic

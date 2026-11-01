@@ -1,9 +1,7 @@
 import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-// The rules of decisions.css that go with the pinned pane footer's cap
-// (ui.css .ui-footer-record, tested in src/ui/ui-css.test.tsx), read from
-// the sheet as jsdom parses it: jsdom evaluates no media queries.
+// The focus ring for an item/report approval record inside a scrolling footer.
 let sheet: HTMLStyleElement;
 beforeAll(() => {
   sheet = document.createElement("style");
@@ -14,8 +12,6 @@ beforeAll(() => {
   document.head.append(sheet);
 });
 afterAll(() => sheet.remove());
-
-const PINNED = "(min-width: 821px) and (min-height: 560px)";
 
 /** The declarations of `selector`, at the top level or in @media `media`. */
 function rule(selector: string, media?: string): CSSStyleDeclaration {
@@ -42,28 +38,6 @@ function rule(selector: string, media?: string): CSSStyleDeclaration {
 }
 
 describe("decisions.css", () => {
-  it("keeps a capped current decision's actions in view while its reason scrolls", () => {
-    const actions = rule(
-      ".ui-detail-pane-footer .ui-footer-record .decisions-current-actions",
-      PINNED,
-    );
-    expect(actions.position).toBe("sticky");
-    expect(actions.bottom).toBe("0px");
-    expect(actions.zIndex).toBe("1");
-    expect(actions.getPropertyValue("background")).toBe("var(--surface)");
-    // The row carries the section's gap and bottom padding as its own, so it
-    // covers what scrolls under it and sits where it did when all fits.
-    expect(actions.getPropertyValue("padding-block")).toBe(
-      "var(--space-2) var(--space-3)",
-    );
-    const section = rule(
-      ".ui-detail-pane-footer .ui-footer-record > .decisions-current",
-      PINNED,
-    );
-    expect(section.gap).toBe("var(--space-0-5)");
-    expect(section.paddingBottom).toBe("0px");
-  });
-
   it("rings a scrolling decision record from inside, where no pane clips it", () => {
     const ring = rule('.decisions-request[tabindex="0"]:focus-visible');
     expect(ring.outline).toBe("2px solid var(--focus)");

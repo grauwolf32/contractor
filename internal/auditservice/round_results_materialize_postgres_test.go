@@ -115,7 +115,7 @@ func TestPostgresRoundResultsMaterializerResumesDependencyChunks(t *testing.T) {
 		var run runstore.WorkflowRun
 		err := persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 			var err error
-			run, err = runstore.NewPostgresStore(tx).CreateAuditRun(ctx, runstore.CreateAuditRunParams{
+			run, err = runstore.NewPostgresTxStore(tx).CreateAuditRun(ctx, runstore.CreateAuditRunParams{
 				CreateRunParams: runstore.CreateRunParams{RunID: runID, OwnerID: project.OwnerID, ProjectID: &project.ProjectID,
 					WorkflowName: workflow.Ref.Name, WorkflowVersion: workflow.Ref.Version, WorkflowSchemaVersion: contracts.APIVersion,
 					WorkflowSnapshot: workflowBytes, Parameters: map[string]string{}, MetadataLabels: runstore.RunMetadataLabels{},
@@ -233,7 +233,7 @@ func TestPostgresRoundResultsMaterializerResumesDependencyChunks(t *testing.T) {
 	slice := func(callback runservice.AuditInputMaterializer, rollback bool) (runstore.AuditInputMaterialization, error) {
 		var next runstore.AuditInputMaterialization
 		err := persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-			auditTx, runTx := auditstoretest.NewTxStore(tx), runstore.NewPostgresStore(tx)
+			auditTx, runTx := auditstoretest.NewTxStore(tx), runstore.NewPostgresTxStore(tx)
 			intent, err := auditTx.GetRunCreationIntent(ctx, claim, assessment.ExecutionID)
 			if err != nil {
 				return err
@@ -242,7 +242,7 @@ func TestPostgresRoundResultsMaterializerResumesDependencyChunks(t *testing.T) {
 			if err != nil || accepted.Verify(root) != nil {
 				return fmt.Errorf("accepted authority changed: %w", err)
 			}
-			state, err := runTx.GetAuditInputMaterialization(ctx, child.RunID)
+			state, err := runTx.LockAuditInputMaterialization(ctx, child.RunID)
 			if err != nil {
 				return err
 			}
@@ -287,7 +287,14 @@ func TestPostgresRoundResultsMaterializerResumesDependencyChunks(t *testing.T) {
 	if _, err := slice(materialize, true); err == nil || countForks() != 32 {
 		t.Fatalf("rollback leaked dependency forks: %v count=%d", err, countForks())
 	}
-	stored, err := runs.GetAuditInputMaterialization(ctx, child.RunID)
+	readTx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stored, err := runstore.NewPostgresTxStore(readTx).LockAuditInputMaterialization(ctx, child.RunID)
+	if rollbackErr := readTx.Rollback(context.WithoutCancel(ctx)); rollbackErr != nil {
+		t.Fatal(rollbackErr)
+	}
 	if err != nil || stored.Revision != 1 || !bytes.Equal(stored.Checkpoint, first.Checkpoint) {
 		t.Fatalf("rollback changed checkpoint: %+v %v", stored, err)
 	}

@@ -25,7 +25,7 @@ interface DecisionSeverityOption {
   label: string;
 }
 
-export interface DecisionSeverity {
+interface DecisionSeverity {
   options: readonly DecisionSeverityOption[];
   value?: string | undefined;
   onChange: (value: string) => void;
@@ -80,6 +80,8 @@ interface DecisionBarProps {
   error?: ReactNode;
   /** Why the user cannot decide here; disables deciding but not Next. */
   disabledReason?: string | undefined;
+  /** Incomplete/invalid draft: only recording locks, so the user can fix it. */
+  validationProblem?: string | undefined;
   /** Slot after the verdicts, e.g. a More menu with Duplicate and Reopen. */
   more?: ReactNode;
   /** Moves on to the next item. */
@@ -124,6 +126,7 @@ export function DecisionBar({
   pending = false,
   error,
   disabledReason,
+  validationProblem,
   more,
   next,
   extra,
@@ -143,7 +146,11 @@ export function DecisionBar({
     (severity.value === undefined || severity.value === "");
   const reasonMissing = rationale.value.trim() === "";
   const canSubmit =
-    !locked && chosen !== undefined && !severityMissing && !reasonMissing;
+    !locked &&
+    chosen !== undefined &&
+    !severityMissing &&
+    !reasonMissing &&
+    validationProblem === undefined;
   const hint =
     disabledReason ??
     (pending
@@ -154,7 +161,7 @@ export function DecisionBar({
           ? `Choose ${severityLabel.toLowerCase()}.`
           : reasonMissing
             ? "Write a short reason."
-            : undefined);
+            : validationProblem);
   const hintId = hint === undefined ? undefined : `${id}-hint`;
 
   useLayoutEffect(() => {

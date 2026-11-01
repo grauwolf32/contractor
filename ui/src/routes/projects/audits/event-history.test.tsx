@@ -73,7 +73,7 @@ describe("durable check history", () => {
         { ...audit, state: "active" },
       );
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(0);
+        await vi.waitFor(() => expect(reads).toBe(1));
       });
       expect(reads).toBe(1);
       await act(async () => {

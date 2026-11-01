@@ -126,46 +126,29 @@ export async function exerciseFindingDuplicates(
       `/v1/audits/${audits[1]!.auditId}/findings`,
     )
   ).items;
-  expect(right).toHaveLength(2);
-  expect(
-    left.correlation?.availability,
-    JSON.stringify({ anchors: left.anchors, correlation: left.correlation }),
-  ).toBe("available");
-  const mark = left.correlation!;
-  if (mark.availability !== "available")
-    throw new Error("Qualified literal did not produce a correlation");
-  expect(mark.hasOtherObservations).toBe(true);
-  expect(
-    new Set([left, ...right].map((finding) => finding.findingId)).size,
-  ).toBe(3);
-  expect(
-    right.every(
-      (finding) =>
-        finding.correlation?.availability === "available" &&
-        finding.correlation.groupKey === mark.groupKey,
-    ),
-  ).toBe(true);
-  await page.goto(`/issues/${left.auditId}/${left.findingId}`);
-  const disclosure = page.locator(".issues-duplicates");
-  await disclosure.locator("summary").first().click();
-  await expect(disclosure.getByText(/3 retained observations/)).toBeVisible();
-  await expect(disclosure.getByRole("link", { name: "Evidence" })).toHaveCount(
-    3,
+
+  expect(right).toHaveLength(1);
+  expect(right[0]!.findingId).toBe(left.findingId);
+  expect(left.state).toBeNull();
+  expect(right[0]!.state).toBeNull();
+  const sources = await read<Schemas["ProjectFindingSourcePage"]>(
+    `/v1/projects/${project.projectId}/finding-sources?findingId=${left.findingId}`,
   );
-  await expect(
-    disclosure.getByText(/Same source proposal as this finding/),
-  ).toHaveCount(2);
-  await expect(disclosure.getByText(/Different source proposal/)).toHaveCount(
-    1,
+  expect(sources.items.map((source) => source.receiptId).sort()).toEqual(
+    receipts.map((source) => source.receiptId).sort(),
   );
-  await disclosure.getByRole("link", { name: "Evidence" }).last().click();
+  await page.goto(`/issues/${project.projectId}/${left.findingId}`);
   await expect(
     page.getByRole("heading", { name: "Embedded private key", exact: true }),
-  ).toHaveText("Embedded private key");
-  const retained = await read<Schemas["AuditFinding"]>(
-    `/v1/audits/${right[1]!.auditId}/findings/${right[1]!.findingId}`,
+  ).toBeVisible();
+  await page.getByRole("tab", { name: "History" }).click();
+  const independent = page.getByRole("region", { name: "Independent sources" });
+  await expect(independent.getByRole("button", { pressed: true })).toHaveCount(
+    1,
   );
-  expect(retained.firstProposal.evidence.length).toBeGreaterThan(0);
-  expect(retained.analystVerdict).toBeUndefined();
+  const retained = await read<Schemas["FindingProposalReceipt"]>(
+    `/v1/projects/${project.projectId}/finding-sources/${receipts[1]!.receiptId}`,
+  );
+  expect(retained.projectEvidence!.length).toBeGreaterThan(0);
   await exerciseFindingExports(page, audits[1]!, right);
 }

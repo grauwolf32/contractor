@@ -41,7 +41,6 @@ export const webScanProfile = profileFixture("web-scan", {
   },
   interaction: {
     activeChecks: "approval-required",
-    findingConfirmation: "disabled",
     notApplicable: "profile-rule",
     reportAcceptance: "automatic",
   },
@@ -79,7 +78,6 @@ export function profileFixture(
     execution: limits(10),
     interaction: {
       activeChecks: "prohibited",
-      findingConfirmation: "human-required",
       notApplicable: "human-required",
       reportAcceptance: "automatic",
     },
@@ -112,7 +110,6 @@ export const observe = profileFixture("openapi-operation-observe", {
   execution: limits(256),
   interaction: {
     activeChecks: "prohibited",
-    findingConfirmation: "disabled",
     notApplicable: "profile-rule",
     reportAcceptance: "automatic",
   },
@@ -159,7 +156,6 @@ export const asvsPilot = profileFixture("owasp-asvs-5-0-l1-source-pilot", {
 
 const LIVE_INTERACTION = {
   activeChecks: "approval-required",
-  findingConfirmation: "human-required",
   notApplicable: "human-required",
   reportAcceptance: "automatic",
 } as const;
@@ -215,7 +211,6 @@ export const nuclei = profileFixture("openapi-nuclei-scan", {
   execution: limits(16),
   interaction: {
     activeChecks: "approval-required",
-    findingConfirmation: "disabled",
     notApplicable: "profile-rule",
     reportAcceptance: "automatic",
   },

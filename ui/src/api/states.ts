@@ -30,14 +30,6 @@ export const TERMINAL_RUN_STATES: readonly TerminalRunState[] = Object.freeze(
   ),
 );
 
-/** Every Audit state, in contract order. */
-export const AUDIT_STATES = schemaEnum<AuditState>("AuditState");
-
-/** Audits that ran and can hold possible issues: all but draft and deleting. */
-export const AUDIT_STATES_WITH_FINDINGS: readonly AuditState[] = Object.freeze(
-  AUDIT_STATES.filter((state) => state !== "draft" && state !== "deleting"),
-);
-
 /** Audits working or writing their report; they can still propose issues. */
 export const WORKING_AUDIT_STATES = [
   "active",

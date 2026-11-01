@@ -37,9 +37,8 @@ func TestPostgresAcceptedRetainedDependencyManifestMaximumReplayAndPurge(t *test
 		profile = strings.ReplaceAll(profile, "maxItemsPerRound: 10", "maxItemsPerRound: 40")
 		profile = strings.ReplaceAll(profile, "maxItemsTotal: 10", "maxItemsTotal: 40")
 		profile = strings.ReplaceAll(profile, "maxSubmittedRuns: 20", "maxSubmittedRuns: 80")
-		profile = strings.Replace(profile, "findingConfirmation: disabled", "findingConfirmation: human-required", 1)
 		var mappings, inputs, workflowInputs strings.Builder
-		for i := range 31 {
+		for i := range 30 {
 			name := fmt.Sprintf("guide%02d", i)
 			fmt.Fprintf(&inputs, "    %s: {required: false, mediaTypes: [application/json]}\n", name)
 			fmt.Fprintf(&workflowInputs, "    %s: {required: false, mediaTypes: [application/json]}\n", name)
@@ -67,7 +66,7 @@ func TestPostgresAcceptedRetainedDependencyManifestMaximumReplayAndPurge(t *test
 	inputs := map[string]contracts.ArtifactRef{"checklist": checklist.Ref}
 	sourcePayloads := map[string][]byte{}
 	var retainedBytes int64
-	for i := range 31 {
+	for i := range 30 {
 		name := fmt.Sprintf("guide%02d", i)
 		payload := []byte(fmt.Sprintf(`{"guide":%d}`, i))
 		written, err := projectArtifacts.Write(ctx, contracts.ArtifactRef{Namespace: "guides", Name: name}, artifacts.Payload{MediaType: "application/json", Data: payload}, nil)
@@ -98,7 +97,7 @@ func TestPostgresAcceptedRetainedDependencyManifestMaximumReplayAndPurge(t *test
 	for range 16 {
 		document.ProposedChecks = append(document.ProposedChecks, document.ProposedChecks[0])
 	}
-	seedAuditFindingProjected(t, ctx, pool, project, owner, id, "dependency", document, auditdomain.UnavailableFindingFingerprint("not_recorded"), auditdomain.UnavailableFindingAnchors("not_recorded"), auditdomain.ArtifactNamespace(id))
+	seedAuditFindingProjected(t, ctx, pool, project, owner, id, "dependency", document, auditdomain.UnavailableFindingFingerprint("not_recorded"), auditdomain.UnavailableFindingAnchors("not_recorded"))
 	// 2,000 unrelated bindings share one version; no dependency availability
 	// read or holder acquisition may scan this containing Project population.
 	unrelated, err := pool.Begin(ctx)
@@ -132,7 +131,7 @@ func TestPostgresAcceptedRetainedDependencyManifestMaximumReplayAndPurge(t *test
 		t.Fatalf("prepare: %+v %v items=%d", reason, err, len(params.Items))
 	}
 	manifest := params.Items[0].Dependencies
-	if manifest == nil || len(manifest.Dependencies) != 32 || len(params.Retained) != 31 {
+	if manifest == nil || len(manifest.Dependencies) != 32 || len(params.Retained) != 30 {
 		t.Fatalf("manifest/once-only retention: %+v links=%d", manifest, len(params.Retained))
 	}
 	for _, item := range params.Items {
@@ -260,7 +259,7 @@ func TestPostgresAcceptedRetainedDependencyManifestMaximumReplayAndPurge(t *test
  FOR EACH ROW WHEN (OLD.hold_count IS DISTINCT FROM NEW.hold_count) EXECUTE FUNCTION record_dependency_purge_work()`); err != nil {
 		t.Fatal(err)
 	}
-	for _, table := range []string{"audit_items", "audit_execution_items", "audit_executions", "audit_rounds", "audit_artifact_links", "audit_findings", "audit_finding_contributions", "audit_finding_assessments", "audit_review_requests", "audit_review_decisions", "audit_report_pages", "audit_events", "audits"} {
+	for _, table := range []string{"audit_items", "audit_execution_items", "audit_executions", "audit_rounds", "audit_artifact_links", "audit_review_requests", "audit_review_decisions", "audit_report_pages", "audit_events", "audits"} {
 		if _, err := pool.Exec(ctx, `CREATE TRIGGER count_dependency_domain_work AFTER DELETE ON `+table+` FOR EACH ROW EXECUTE FUNCTION record_dependency_purge_work()`); err != nil {
 			t.Fatal(err)
 		}

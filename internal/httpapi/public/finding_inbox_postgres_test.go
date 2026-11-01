@@ -69,9 +69,9 @@ invocation_id,submission_id,client_key,request_digest,run_id,owner_id,project_id
 audit_execution_id,audit_id,audit_role,workflow_name,workflow_version,
 workflow_schema_version,workflow_configuration_ref,workflow_closure_digest,proposal_ref,proposal_digest,proposal_media_type,
 proposal_size_bytes,evidence,report_projection
-) VALUES($1,$2,'allocation-inbox','runtime','instance','stage','worker',$3,$4,$5,$6,$7,$8,'inbox-project',
+, checks_projection) VALUES($1,$2,'allocation-inbox','runtime','instance','stage','worker',$3,$4,$5,$6,$7,$8,'inbox-project',
 CASE WHEN $9::text IS NOT NULL THEN $9 || '-execution' END,$9::text,CASE WHEN $9::text IS NOT NULL THEN 'discovery' END,
-'source','1','contractor/v1alpha1','{"name":"source","version":"1"}',$6,$10,$11,'application/json',$12,'[]',$13)`,
+'source','1','contractor/v1alpha1','{"name":"source","version":"1"}',$6,$10,$11,'application/json',$12,'[]',$13, json_build_object('schema','contractor.audit.finding-checks-projection.v1','proposal_digest',($11)::text,'size_bytes',($12)::bigint,'discarded',false,'subject',NULL,'limitations',NULL,'checks','[]'::json))`,
 		"receipt-"+key, "proposal-"+key, "invocation-"+key, "submission-"+key, key, auditHandlerDigest(key),
 		runID, owner, audit, refJSON, auditHandlerDigest(string(body)), written.Size, string(projection)); err != nil {
 		t.Fatal(err)
@@ -119,7 +119,7 @@ func TestPostgresPublicAuditInboxPagesThroughCursors(t *testing.T) {
 		if _, _, err := auditstoretest.NewStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{
 			AuditID: id, OwnerID: owner, ProjectID: projectID,
 			Profile:         auditstore.ProfileIdentity{Name: "profile", Version: "1", Digest: auditHandlerDigest("profile")},
-			ProfileSnapshot: json.RawMessage(`{"interaction":{"findingConfirmation":"human-required"}}`), InputSelection: selection,
+			ProfileSnapshot: json.RawMessage(`{"interaction":{}}`), InputSelection: selection,
 			Limits:         auditstore.Limits{MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: 100, MaxItemsTotal: 100, MaxSubmittedRuns: 100, MaxItemRunAttempts: 2, MaxEvidenceBytes: 1 << 20},
 			IdempotencyKey: id, RequestDigest: auditHandlerDigest(id),
 		}); err != nil {

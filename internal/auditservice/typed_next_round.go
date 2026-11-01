@@ -72,9 +72,6 @@ func (s *Service) prepareTypedNextRound(ctx context.Context, claim auditstore.Co
 	if progress.Exhausted && progress.SelectedCount == 0 && !progress.Changed {
 		return auditstore.AcceptRoundParams{}, typedAdmissionStopReason("round_complete"), nil
 	}
-	if !progress.Changed && progress.BlockedReceiptID != "" {
-		return auditstore.AcceptRoundParams{}, nil, ErrNextRoundAdmissionWaiting
-	}
 	return auditstore.AcceptRoundParams{}, nil, ErrNextRoundAdmissionPending
 }
 

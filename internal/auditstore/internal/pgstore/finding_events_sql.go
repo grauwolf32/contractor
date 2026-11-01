@@ -23,11 +23,10 @@ WITH advanced AS (
 )
 SELECT last_event_sequence FROM advanced`
 
-// directFindingAssessmentEvents record assessment $5 of finding $3 at
-// revision $4.
+// directFindingAssessmentEvents records result $4 for immutable source $3.
 var directFindingAssessmentEvents = auditEvents(auditEvent(
-	"'finding.assessed'", "$3::text", "$4::bigint",
-	"jsonb_build_object('assessmentId', $5::text, 'directVerification', true)",
+	"'finding.result_retained'", "$3::text", "NULL",
+	"jsonb_build_object('receiptId', $3::text, 'resultId', $4::text, 'directVerification', true)",
 ))
 
 // recordDirectFindingAssessmentSQL charges $2 retained evidence bytes to Audit
@@ -44,5 +43,18 @@ WITH advanced AS (
      WHERE audit.audit_id = $1
        AND audit.retained_evidence_bytes + $2 <= audit.max_evidence_bytes
     RETURNING ` + directFindingAssessmentEvents.appended() + `
+)
+SELECT last_event_sequence FROM advanced`
+
+var findingSourceAddedEvents = auditEvents(auditEvent(
+	"'finding.source_added'", "$2::text", "NULL", "jsonb_build_object('receiptId',$2::text,'runId',$3::text)",
+))
+
+// recordFindingSourceAddedSQL advances only this Audit's source selection.
+var recordFindingSourceAddedSQL = `
+WITH advanced AS (
+ UPDATE audits AS audit SET ` + findingSourceAddedEvents.advance() + `,
+ updated_at=GREATEST(clock_timestamp(),audit.updated_at+interval '1 microsecond')
+ WHERE audit.audit_id=$1 RETURNING ` + findingSourceAddedEvents.appended() + `
 )
 SELECT last_event_sequence FROM advanced`

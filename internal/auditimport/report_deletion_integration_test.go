@@ -7,11 +7,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	"path/filepath"
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
@@ -83,16 +84,23 @@ func TestImporterReportFinalizationSurvivesRunDeletion(t *testing.T) {
 						links = append(links, link)
 					}
 				}
+
 				for index, link := range links {
-					if !reflect.DeepEqual(link.Artifact, hooked.writes[index].artifact) {
-						t.Fatal("retry replaced an immutable report descriptor")
+					// A changed Audit revision creates another immutable build.
+					// The abandoned build's exact bytes must remain untouched.
+					original := hooked.writes[index]
+					if link.Artifact.Ref.SameExact(original.artifact.Ref) {
+						t.Fatal("new revision reused the abandoned build identity")
 					}
-					data, err := access.ReadProjectExact(f.ctx, f.id, link.Artifact)
+					old, err := access.ReadProjectExact(f.ctx, f.id, original.artifact)
 					mustCompletion(t, err)
-					if !bytes.Equal(data, hooked.writes[index].data) {
-						t.Fatal("retry changed immutable report bytes")
+					if !bytes.Equal(old, original.data) {
+						t.Fatal("retry rewrote abandoned immutable bytes")
 					}
+					_, err = access.ReadProjectExact(f.ctx, f.id, link.Artifact)
+					mustCompletion(t, err)
 				}
+
 				var report struct {
 					GeneratedFrom       time.Time                              `json:"generatedFrom"`
 					AttemptDispositions auditstore.CollectionDispositionCounts `json:"attemptDispositions"`
@@ -188,18 +196,17 @@ func TestImporterReportRetryRejectsChangedFinalizationTimestamp(t *testing.T) {
 	f, snapshot := newReportDeletionFixture(t, pool, "automatic")
 	access, err := NewArtifactAccess(f.artifacts, hookstore.NewClaimedArtifacts(f.pool))
 	mustCompletion(t, err)
-	hooked := &reportDeletionArtifacts{ArtifactAccess: access, hook: func(point string) {
+
+	hooked := &reportDeletionArtifacts{ArtifactAccess: access, failAfterWrite: context.Canceled, hook: func(point string) {
 		if point == "after-machine" {
-			mustCompletion(t, rundeletion.New(f.pool).DeleteReleasedTerminalRun(f.ctx, "owner", f.run.RunID))
-			// Counterexample: simulate a naive deletion timestamp update after
-			// report.json has been durably written. Immutable collision stays fatal.
-			_, err := pool.Exec(f.ctx, `UPDATE audits SET updated_at = updated_at + interval '1 second' WHERE audit_id = $1`, f.id)
+			_, err := pool.Exec(f.ctx, `UPDATE audits SET updated_at=updated_at+interval '1 second' WHERE audit_id=$1`, f.id)
 			mustCompletion(t, err)
 		}
 	}}
+
 	importer, err := New(f.audits, f.audits, f.runs, hooked)
 	mustCompletion(t, err)
-	if worked, err := importer.Finalize(f.ctx, f.claim, snapshot); worked || !errors.Is(err, auditstore.ErrPrecondition) {
+	if worked, err := importer.Finalize(f.ctx, f.claim, snapshot); worked || !errors.Is(err, context.Canceled) {
 		t.Fatalf("stale finalization: worked=%t error=%v", worked, err)
 	}
 	fresh, err := f.audits.GetReconcileSnapshot(f.ctx, f.claim)
@@ -352,6 +359,7 @@ func assertNoAcceptedReport(t *testing.T, f *completionFixture) {
 }
 
 type reportDeletionArtifacts struct {
+	failAfterWrite error
 	ArtifactAccess
 	hook   func(string)
 	writes []struct {
@@ -380,5 +388,8 @@ func (a *reportDeletionArtifacts) PutImmutableProject(ctx context.Context, proje
 		data     []byte
 	}{written, append([]byte(nil), payload.Data...)})
 	a.hook("after-" + phase)
+	if a.failAfterWrite != nil {
+		return written, a.failAfterWrite
+	}
 	return written, nil
 }

@@ -1,8 +1,14 @@
 package findingintake
 
-import "github.com/grauwolf32/contractor/internal/config/auditprofile"
-
 // SQL statements for postgres.go.
+
+// retainProjectReceiptSQL upgrades ordinary source ownership exactly once.
+// It changes no proposal, publication intent, finding identity or assessment.
+const retainProjectReceiptSQL = `
+UPDATE finding_proposal_receipts
+SET project_proposal=$2::jsonb,project_evidence=$3::jsonb,
+ retention_state='project-held',discarded_at=NULL,retention_updated_at=clock_timestamp()
+WHERE receipt_id=$1 AND project_proposal IS NULL`
 
 // readReceiptBySubmissionSQL reads the proposal receipt of submission $3 by
 // invocation $2 in allocation $1. Used by readReceiptBySubmission.
@@ -125,7 +131,8 @@ SELECT ` + receiptProjection + `
 var importIntoAuditWithTxSQL = `
 SELECT receipt.receipt_id, audit.project_id, receipt.proposal_ref, receipt.evidence,
        receipt.invocation_id, receipt.client_key, receipt.workflow_closure_digest,
-       receipt.proposal_digest, receipt.proposal_media_type, receipt.proposal_size_bytes
+       receipt.proposal_digest, receipt.proposal_media_type, receipt.proposal_size_bytes,
+       receipt.project_proposal,receipt.project_evidence
   FROM finding_proposal_receipts AS receipt
   JOIN workflow_runs AS run ON run.run_id = receipt.run_id
   JOIN audits AS audit ON audit.audit_id = $2
@@ -140,6 +147,4 @@ SELECT receipt.receipt_id, audit.project_id, receipt.proposal_ref, receipt.evide
         WHERE review.audit_id = audit.audit_id AND review.subject_kind = 'audit-report'
           AND review.state = 'pending'
    )
-   AND audit.profile_snapshot #>> '` + auditprofile.AuditProfileFindingConfirmationPath + `' = '` +
-	string(auditprofile.AuditFindingHumanRequired) + `'
  FOR UPDATE OF receipt`

@@ -589,7 +589,7 @@ func (s *laneTestStore) HasSummaryEscalation(context.Context, string, string) (b
 	return false, errors.New("unexpected summary escalation lookup")
 }
 
-func (s *laneTestStore) ListTerminalStageExecutionsWithAllocations(context.Context) ([]runstore.StageExecution, error) {
+func (s *laneTestStore) ListTerminalStageExecutionsWithAllocations(context.Context, []string) ([]runstore.StageExecution, error) {
 	return nil, nil
 }
 

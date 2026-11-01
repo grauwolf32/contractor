@@ -15,6 +15,24 @@ func (s *ClaimStore) Collect(
 	ctx context.Context,
 	params auditstore.CollectParams,
 ) (auditstore.CollectionReceipt, bool, error) {
+	var receipt auditstore.CollectionReceipt
+	var changed bool
+	err := persistencepostgres.Within(ctx, s.db, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		var err error
+		bound := NewClaimStore(tx)
+		receipt, changed, err = bound.collect(ctx, params)
+		if err != nil || !changed {
+			return err
+		}
+		return bound.retainFindingCheckResults(ctx, params)
+	})
+	if err != nil {
+		return auditstore.CollectionReceipt{}, false, err
+	}
+	return receipt, changed, nil
+}
+
+func (s *ClaimStore) collect(ctx context.Context, params auditstore.CollectParams) (auditstore.CollectionReceipt, bool, error) {
 	var err error
 	params, err = withPreparationLinks(params)
 	if err != nil {

@@ -5,6 +5,7 @@ import (
 	"sort"
 	"unicode/utf8"
 
+	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
@@ -191,7 +192,11 @@ func validateRetainedDependency(auditID string, dependency RetainedDependency) e
 		dependency.Source.SizeBytes != dependency.Retained.SizeBytes {
 		return invalid(CodeInvalid, "dependencies.descriptor")
 	}
-	if dependency.Retained.Ref.Namespace != ArtifactNamespace(auditID) {
+	namespace := ArtifactNamespace(auditID)
+	if dependency.Kind == "finding-receipt" {
+		namespace = artifactpolicy.FindingMaterialsNamespace
+	}
+	if dependency.Retained.Ref.Namespace != namespace && !(dependency.Kind == "accepted-item-result" && dependency.Retained.Ref.Namespace == artifactpolicy.FindingMaterialsNamespace) {
 		return invalid(CodeReferenceInvalid, "dependencies.retained")
 	}
 	if dependency.Kind != dependency.Origin.Kind {

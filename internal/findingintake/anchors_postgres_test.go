@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"reflect"
 	"testing"
 	"time"
 
@@ -140,16 +141,12 @@ func TestPostgresFindingAnchorRuntimeIntakeReplayAndRetention(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	var group string
+	// Evidence and a qualified structural key do not publish a problem.
 	for _, auditID := range []string{"anchor-audit-a", "anchor-audit-b"} {
 		rows, err := querystore.New(pool).ListFindings(ctx, auditstore.FindingListParams{OwnerID: owner, AuditID: auditID, Limit: 10})
-		if err != nil || len(rows) != 1 || rows[0].Correlation == nil || rows[0].Correlation.Basis == nil || rows[0].Correlation.Basis.Algorithm != "contractor/snapshot-issue-anchor/v1" || rows[0].Correlation.Basis.Value != fixture.Keys[0].IssueKey || !rows[0].Correlation.HasOtherObservations {
-			t.Fatalf("structural primary: %+v %v", rows, err)
+		if err != nil || len(rows) != 0 {
+			t.Fatalf("observation invented a Finding: %+v %v", rows, err)
 		}
-		if group != "" && rows[0].Correlation.GroupKey != group {
-			t.Fatal("qualified structural observations did not group")
-		}
-		group = rows[0].Correlation.GroupKey
 	}
 	runs := runstore.NewPostgresStore(pool)
 	if err := runs.MarkStageAllocationReleased(ctx, grant.AllocationID); err != nil {
@@ -167,7 +164,7 @@ func TestPostgresFindingAnchorRuntimeIntakeReplayAndRetention(t *testing.T) {
 	}
 	for _, auditID := range []string{"anchor-audit-a", "anchor-audit-b"} {
 		retained, err := service.GetAuditReceipt(ctx, owner, auditID, first.ReceiptID)
-		if err != nil || retained.Retention != RetentionAuditHeld || retained.Anchors.Keys[0] != first.Anchors.Keys[0] {
+		if err != nil || retained.Retention != RetentionProjectHeld || retained.Anchors.Keys[0] != first.Anchors.Keys[0] {
 			t.Fatalf("hold=%+v %v", retained.Anchors, err)
 		}
 
@@ -188,7 +185,7 @@ func TestPostgresFindingAnchorRuntimeIntakeReplayAndRetention(t *testing.T) {
 		}
 	}
 	discardedFirst, err := readReceiptByID(ctx, pool, first.ReceiptID)
-	if err != nil || discardedFirst.Anchors.Reason != "discarded" || len(discardedFirst.Anchors.Keys) != 0 {
+	if err != nil || discardedFirst.Retention != RetentionProjectHeld || !reflect.DeepEqual(discardedFirst.Anchors, first.Anchors) {
 		t.Fatalf("last hold discard=%+v %v", discardedFirst.Anchors, err)
 	}
 	discarded, err := readReceiptByID(ctx, pool, second.ReceiptID)

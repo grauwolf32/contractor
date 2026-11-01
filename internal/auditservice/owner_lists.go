@@ -6,16 +6,14 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 )
 
-// ListOwnerFindings lists the owner's findings across the Audits of listed
-// Projects, newest first. Hydration reads every receipt through its finding's
-// own Audit hold, for all Audits of the page at once; no unowned receipt can
-// enter the projection.
-func (s *Service) ListOwnerFindings(ctx context.Context, params auditstore.OwnerFindingListParams) ([]Finding, error) {
+// ListOwnerFindings examines one owner-scoped window of canonical Project
+// summaries. It never hydrates source history or depends on Audit execution.
+func (s *Service) ListOwnerFindings(ctx context.Context, params auditstore.OwnerFindingListParams) (auditstore.FindingWindow, error) {
 	rows, err := s.reads().ListOwnerFindings(ctx, params)
 	if err != nil {
-		return nil, err
+		return auditstore.FindingWindow{}, err
 	}
-	return s.hydrateFindings(ctx, params.OwnerID, rows)
+	return rows, nil
 }
 
 // ListOwnerReviews lists the owner's review requests newest first. The

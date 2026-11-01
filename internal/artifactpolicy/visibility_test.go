@@ -63,6 +63,10 @@ func TestPurposeReservedProjectNamespace(t *testing.T) {
 		want      bool
 	}{
 		{ProjectSitemapNamespace, true},
+		{FindingMaterialsNamespace, true},
+		{FindingHistoryNamespace, true},
+		{"finding-materials-copy", false},
+		{"finding-history-copy", false},
 		{"audit-evidence", true},
 		{"audit-reports", true},
 		{"sitemap-copy", false},

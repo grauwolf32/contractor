@@ -683,25 +683,22 @@ func TestPostgresCollectionRejectionKeepsEarlierDirectAssessments(t *testing.T) 
 		t.Fatalf("collection with one unretainable proposal: %v", err)
 	}
 	assertFixtureHolds(t, f, len(keys))
-	rows, err := f.pool.Query(f.ctx, `
-SELECT receipt.client_key
-  FROM audit_finding_assessments AS assessment
-  JOIN finding_proposal_receipts AS receipt USING (receipt_id)
- WHERE assessment.audit_id = $1 AND assessment.direct_verification
- ORDER BY receipt.client_key`, f.request.AuditID)
+	inbox, err := f.intake.ListAuditInbox(f.ctx, f.request.OwnerID, f.request.AuditID, ListQuery{Limit: 10})
 	if err != nil {
 		t.Fatal(err)
 	}
-	assessed := []string{}
-	for rows.Next() {
-		var clientKey string
-		if err := rows.Scan(&clientKey); err != nil {
-			t.Fatal(err)
+	var assessed []string
+	for _, receipt := range inbox {
+		if receipt.ProjectProposal == nil {
+			continue
 		}
-		assessed = append(assessed, clientKey)
+		if len(readDirectHistoryForTest(t, f.ctx, f.pool, f.request.OwnerID, "delete-project", receipt.ReceiptID, f.request.AuditID)) != 0 {
+			assessed = append(assessed, receipt.ClientKey)
+		}
 	}
-	if err := rows.Err(); err != nil || strings.Join(assessed, ",") != "direct-0,direct-1" {
-		t.Fatalf("direct assessments = %v, %v; want direct-0 and direct-1", assessed, err)
+	sort.Strings(assessed)
+	if strings.Join(assessed, ",") != "direct-0,direct-1" {
+		t.Fatalf("retained direct results=%v", assessed)
 	}
 	var rejected bool
 	if err := f.pool.QueryRow(f.ctx, `

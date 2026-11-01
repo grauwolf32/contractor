@@ -105,9 +105,9 @@ SELECT item.item_id,$1,$2,item.item_key,item.ordinal,item.kind,item.subject_key,
 FROM input AS item JOIN audit_rounds AS round ON round.audit_id=$1 AND round.round_id=$2 AND round.state='proposed'`
 
 const admissionStageReviewsSQL = `
-INSERT INTO audit_review_requests(request_id,audit_id,finding_id,subject_kind,subject_id,kind,subject_revision,subject_digest,
+INSERT INTO audit_review_requests(request_id,audit_id,subject_kind,subject_id,kind,subject_revision,subject_digest,
  requested_actions,state,expires_at,idempotency_key,request_digest)
-SELECT 'review-'||item.item_id,item.audit_id,NULL,'audit-item-action',item.item_id,item.approval_kind,1,item.approval_subject_digest,
+SELECT 'review-'||item.item_id,item.audit_id,'audit-item-action',item.item_id,item.approval_kind,1,item.approval_subject_digest,
  CASE WHEN item.approval_kind='requirement-applicability' THEN '["approve","reject","not_applicable"]'::jsonb
  ELSE '["approve","reject"]'::jsonb END,'pending',audit.deadline_at,'auto:'||item.item_id,item.approval_subject_digest
 FROM audit_items AS item JOIN audits AS audit USING(audit_id)

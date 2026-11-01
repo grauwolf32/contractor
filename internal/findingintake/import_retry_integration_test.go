@@ -574,7 +574,7 @@ func readIntakeState(t *testing.T, f deletionImportFixture) intakeState {
 	var state intakeState
 	if err := f.pool.QueryRow(f.ctx, `
 SELECT (SELECT count(*) FROM finding_proposal_audit_holds WHERE audit_id = $1),
-       (SELECT count(*) FROM audit_findings WHERE audit_id = $1),
+       (SELECT count(*) FROM project_finding_audits WHERE audit_id = $1),
        (SELECT count(*) FROM audit_events WHERE audit_id = $1),
        (SELECT count(*) FROM audit_events WHERE audit_id = $1 AND kind = 'finding.proposal_rejected'),
        (SELECT revision::bigint FROM audits WHERE audit_id = $1),
@@ -591,7 +591,6 @@ SELECT (SELECT count(*) FROM finding_proposal_audit_holds WHERE audit_id = $1),
 // and finding.proposed event and advances the Audit and Project revisions once.
 func (s intakeState) admitted(count int64) intakeState {
 	s.holds += count
-	s.findings += count
 	s.events += count
 	s.auditRevision += count
 	s.correlationRevision += count

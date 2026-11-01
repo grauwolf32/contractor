@@ -62,7 +62,7 @@ Terms used across the specification. Each entry names the document that owns the
 
 **Analyst severity** — The owner-assigned severity of a true_positive finding, distinct from the Worker's severity_suggestion. Owner: [Review and reports](audits/review-and-reports.md).
 
-**Analyst verdict** — An owner's true_positive or false_positive decision on a finding, recorded through the finding-triage review flow. Owner: [Review and reports](audits/review-and-reports.md).
+**Analyst verdict** — An owner's true_positive or false_positive decision on a finding, recorded through the canonical Project Finding owner command. Owner: [Review and reports](audits/review-and-reports.md).
 
 **Annotation block** — The contiguous canonical taint annotations immediately adjacent to a declaration, to which new annotation lines append. Owner: [Code analysis](tools/code-analysis.md).
 
@@ -883,7 +883,7 @@ Terms used across the specification. Each entry names the document that owns the
 
 **Retryable classification** — Whether another attempt may succeed after the failure a code reports: for Memory codes a retry without changing the input, for a Worker or Stage failure a fresh StageExecution. Owner: [Error and stop codes](platform/errors.md).
 
-**Review kind** — The purpose of a review request: active-check-approval, requirement-applicability, finding-triage or report-acceptance. Owner: [Review and reports](audits/review-and-reports.md).
+**Review kind** — The purpose of a review request: active-check-approval, requirement-applicability or report-acceptance. Owner: [Review and reports](audits/review-and-reports.md).
 
 **Review observation** — The captured Audit review state of one finding at one revision, recorded in a collection entry as provenance rather than as a dereference capability. Owner: [Findings](findings/findings.md).
 

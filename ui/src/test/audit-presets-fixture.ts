@@ -43,7 +43,6 @@ export const presetFixture: AuditProfile = conforming("AuditProfile", {
   },
   interaction: {
     activeChecks: "prohibited",
-    findingConfirmation: "human-required",
     notApplicable: "human-required",
     reportAcceptance: "automatic",
   },
