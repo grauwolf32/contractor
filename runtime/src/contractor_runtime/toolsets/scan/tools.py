@@ -42,6 +42,7 @@ from contractor_runtime.core.tool_metrics import ToolCallCancelled, ToolMetrics,
 from contractor_runtime.toolsets.common.artifact_visibility import require_model_visible_binding
 from contractor_runtime.toolsets.common.artifacts import ArtifactClientFactory, _unconfigured_client
 from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
+from contractor_runtime.toolsets.common.resources import ToolResources
 from contractor_runtime.toolsets.scan.ffuf import (
     ffuf_observation,
     validate_ffuf_filter,
@@ -1459,7 +1460,7 @@ class ScanToolsetFactory:
         namespace: str,
         runtime_settings: RuntimeSettings,
         workspace: AllocationWorkspace,
-        state: Any,
+        resources: ToolResources,
         adapter_handles: AdapterHandles = EMPTY_ADAPTER_HANDLES,
         project_workspace: Any = None,
         controlled_http: HTTPTransport | None = None,
@@ -1474,7 +1475,7 @@ class ScanToolsetFactory:
             self._scanners[name].http_proxy_arguments is None for name in selected
         ):
             raise ValueError("selected scanner cannot use the allocation HTTP transport")
-        metrics = require_metrics(state, "scan@1")
+        metrics = require_metrics(resources, "scan@1")
         session = _ScanSession(
             workspace.path,
             self._executables,

@@ -72,6 +72,7 @@ from contractor_runtime.state import ProcessState, RuntimeState
 from contractor_runtime.telemetry.resources import ProcessReading, ResourceCollector
 from contractor_runtime.threads import consume_task_exception
 from contractor_runtime.toolsets.common.report_observations import REPORT_FORMATS, prepare_report
+from contractor_runtime.toolsets.common.resources import ToolResources
 from contractor_runtime.toolsets.http.errors import HTTPToolError
 from contractor_runtime.toolsets.security_findings.collection import FindingsError
 from contractor_runtime.worker.adk_caches import release_adk_tool_caches
@@ -216,10 +217,7 @@ class AllocationService:
             context = self._context
             if context is None or context.allocation_id != allocation_id or context.worker is None:
                 return None
-            if (
-                context.worker_state is not None
-                and context.worker_state.execution.failure is not None
-            ):
+            if context.resources is not None and context.resources.execution.failure is not None:
                 return None
             state = await self._state.snapshot()
             if (
@@ -295,6 +293,7 @@ class AllocationService:
             workspace: AllocationWorkspace | None = None
             project_workspace: DirectWorkspaceSession | None = None
             tools: dict[str, ToolInstance] = {}
+            resources: ToolResources | None = None
             worker_state: WorkerStateStore | None = None
             collector: SitemapCollector | None = None
             worker: WorkerRuntime | None = None
@@ -357,6 +356,7 @@ class AllocationService:
                     )
                     await execution.prepare(deadline=adapter_deadline)
                 worker_state = WorkerStateStore()
+                resources = ToolResources(metrics=worker_state.metrics)
                 if (
                     spec.agent_template.sitemap is not None
                     and spec.agent_template.sitemap.collect_observations
@@ -373,13 +373,13 @@ class AllocationService:
                         report_projector=partial(prepare_report, collection_artifacts),
                         report_formats=REPORT_FORMATS,
                     )
-                    worker_state.http_observation_sink = _SourceObservationSink(collector, "http")
-                    worker_state.caido_observation_sink = _SourceObservationSink(collector, "caido")
-                    worker_state.report_publication_sink = collector
-                    worker_state.sitemap_read_flush = collector.checkpoint
-                    worker_state.before_completion = collector.checkpoint
+                    resources.http_observation_sink = _SourceObservationSink(collector, "http")
+                    resources.caido_observation_sink = _SourceObservationSink(collector, "caido")
+                    resources.report_publication_sink = collector
+                    resources.sitemap_read_flush = collector.checkpoint
+                    resources.before_completion = collector.checkpoint
                 if execution is not None:
-                    execution.bind_failure(worker_state.execution.fail)
+                    execution.bind_failure(resources.execution.fail)
                 if (
                     spec.engagement is not None
                     and spec.engagement.http is not None
@@ -394,7 +394,7 @@ class AllocationService:
                         spec,
                         workspace,
                         project_workspace,
-                        worker_state,
+                        resources,
                         adapter_host.handles,
                         execution,
                         tools,
@@ -426,6 +426,7 @@ class AllocationService:
                         workspace=workspace,
                         tools=tools,
                         state=worker_state,
+                        resources=resources,
                         a2a_base_url=self._a2a_base_url,
                         runtime_settings=worker_settings,
                         sensitive_output_tools=self._factories.sensitive_output_tools,
@@ -470,6 +471,7 @@ class AllocationService:
                     adapter_host=adapter_host,
                     tools=tools,
                     worker_state=worker_state,
+                    resources=resources,
                     runtime_settings=spec.runtime_settings,
                     worker=worker,
                     execution=execution,
@@ -653,6 +655,7 @@ class AllocationService:
         await context.adapter_host.rollback(deadline=deadline, now=self._now)
 
         context.tools.clear()
+        context.resources = None
         context.worker_state = None
         context.runtime_settings = None
         context.prepare_response = None
@@ -742,7 +745,7 @@ class AllocationService:
         spec: AllocationSpec,
         workspace: AllocationWorkspace,
         project_workspace: DirectWorkspaceSession | None,
-        worker_state: WorkerStateStore,
+        resources: ToolResources,
         adapter_handles: AdapterHandles,
         execution: PreparedExecution | None,
         result: dict[str, ToolInstance],
@@ -803,7 +806,7 @@ class AllocationService:
                 namespace=spec.namespace,
                 runtime_settings=spec.runtime_settings,
                 workspace=workspace,
-                state=worker_state,
+                resources=resources,
                 adapter_handles=adapter_handles.for_tool_channels(channels),
                 project_workspace=self._workspace_tool_view(factory, project_workspace),
             )
@@ -1194,6 +1197,7 @@ class AllocationService:
                 adapter_host=adapter_host,
                 tools=dict(tools),
                 worker_state=None,
+                resources=None,
                 runtime_settings=spec.runtime_settings,
                 worker=worker,
                 execution=execution,

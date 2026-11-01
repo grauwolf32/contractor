@@ -15,10 +15,10 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from fakes.worker_state import WorkerState
 
 import contractor_runtime.projectfs.paths as paths_module
 import contractor_runtime.toolsets.source_analysis.tools as source_tools_module
-from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import ArtifactValue
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.contracts.settings import default_source_archive_limits
@@ -644,7 +644,7 @@ def test_factory_descriptor_and_subset_are_exact(tmp_path: Path) -> None:
             namespace="analysis",
             runtime_settings=runtime_settings(),
             workspace=AllocationWorkspace(root=tmp_path.parent, path=tmp_path),
-            state=WorkerState(),
+            resources=WorkerState().resources,
         )
         assert set(selected) == {"read_source"}
         with pytest.raises(ValueError, match="unknown selected tools"):
@@ -655,7 +655,7 @@ def test_factory_descriptor_and_subset_are_exact(tmp_path: Path) -> None:
                 namespace="analysis",
                 runtime_settings=runtime_settings(),
                 workspace=AllocationWorkspace(root=tmp_path.parent, path=tmp_path),
-                state=WorkerState(),
+                resources=WorkerState().resources,
             )
 
     asyncio.run(scenario())
@@ -681,7 +681,7 @@ async def make_tools(
         namespace="analysis",
         runtime_settings=settings or runtime_settings(),
         workspace=AllocationWorkspace(root=tmp_path.parent, path=tmp_path),
-        state=state,
+        resources=state.resources,
     )
     return dict(selected)
 
@@ -897,7 +897,7 @@ def test_server_source_limits_reach_factory_and_extraction(tmp_path: Path) -> No
             namespace="analysis",
             runtime_settings=settings,
             workspace=AllocationWorkspace(root=tmp_path, path=work),
-            state=WorkerState(),
+            resources=WorkerState().resources,
         )
         result = await selected["open_source_archive"](ref.namespace, ref.name, ref.revision)
         assert result["fileCount"] == 1

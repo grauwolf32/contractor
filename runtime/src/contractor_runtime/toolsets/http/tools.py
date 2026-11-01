@@ -80,6 +80,7 @@ from contractor_runtime.toolsets.common.http_observations import (
     HTTPObservationSink,
     notify_http_observations,
 )
+from contractor_runtime.toolsets.common.resources import ToolResources
 from contractor_runtime.toolsets.http.capture import CapturedAttempt, CapturedExchange
 from contractor_runtime.toolsets.http.cookies import (
     CookieCheckpoint,
@@ -193,7 +194,7 @@ class HTTPToolsetFactory:
         namespace: str,
         runtime_settings: RuntimeSettings,
         workspace: AllocationWorkspace,
-        state: Any,
+        resources: ToolResources,
         adapter_handles: AdapterHandles = EMPTY_ADAPTER_HANDLES,
         project_workspace: Any = None,
         preparation_deadline: float | None = None,
@@ -202,7 +203,7 @@ class HTTPToolsetFactory:
     ) -> Mapping[str, Any]:
         del run_id, workspace, project_workspace
         require_selected_tools(selected, self.exported_tools)
-        metrics = require_metrics(state, "http-tools@1")
+        metrics = require_metrics(resources, "http-tools@1")
 
         if controlled_http is not None:
             from contractor_runtime.toolsets.http.controlled import ControlledHTTPSession
@@ -210,7 +211,6 @@ class HTTPToolsetFactory:
             session = ControlledHTTPSession(
                 controlled_http, runtime_settings.request_timeout_seconds
             )
-            state.http_session = session
             return _selected_http_tools(selected, session, metrics)
 
         proxy = adapter_handles.tool_http
@@ -240,10 +240,10 @@ class HTTPToolsetFactory:
             direct_client=direct_client,
             target_origin=_target_origin(runtime_settings),
             target_authorization=target_authorization(runtime_settings),
-            captures=allocation_http_captures(state),
+            captures=allocation_http_captures(resources),
             checkpoint=checkpoint,
             now=self._now,
-            observation_sink=getattr(state, "http_observation_sink", None),
+            observation_sink=resources.http_observation_sink,
             deployment_marker=deployment_marker,
         )
         try:
@@ -251,7 +251,6 @@ class HTTPToolsetFactory:
         except BaseException:
             await session.close()
             raise
-        state.http_session = session
         return _selected_http_tools(selected, session, metrics)
 
     def _new_direct_client(self, policy: TargetPolicy) -> httpx.AsyncClient:

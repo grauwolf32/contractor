@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 from fakes.model import scripted_model, text_result, thought_result, tool_call
+from fakes.worker_state import WorkerState
 from google.genai import types
 from test_adk_runtime import (
     CapturingScriptedLlm,
@@ -20,7 +21,6 @@ from test_adk_runtime import (
     stage_request,
 )
 
-from contractor_runtime.allocation import WorkerState
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.toolsets.code_analysis.tools import CodeAnalysisToolsetFactory
 from contractor_runtime.toolsets.code_execution.tools import ExecCommandTool

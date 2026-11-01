@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Set
-from typing import Any
 
 from contractor_runtime.core.tool_metrics import ToolMetrics
+from contractor_runtime.toolsets.common.resources import ToolResources
 
 
 def require_selected_tools(
@@ -19,8 +19,5 @@ def require_selected_tools(
         raise ValueError(f"{description}: {', '.join(missing)}")
 
 
-def require_metrics(state: Any, ref: str) -> ToolMetrics:
-    metrics = getattr(state, "metrics", None)
-    if metrics is None or not callable(getattr(metrics, "record_tool_call", None)):
-        raise TypeError(f"{ref} requires State.metrics")
-    return metrics
+def require_metrics(resources: ToolResources, ref: str) -> ToolMetrics:
+    return resources.metrics

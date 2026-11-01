@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -20,6 +19,7 @@ from contractor_runtime.projectfs.storage import WorkspaceObservationMetadata
 from contractor_runtime.telemetry.metrics import MetricsState
 from contractor_runtime.toolsets.code_analysis.languages import Language
 from contractor_runtime.toolsets.code_analysis.tools import CodeAnalysisToolsetFactory
+from contractor_runtime.toolsets.common.resources import ToolResources
 from contractor_runtime.toolsets.taint_annotations.tools import (
     EXPORTED_TOOLS,
     MAX_SOURCE_FILE_BYTES,
@@ -283,7 +283,7 @@ def test_header_definitions_found_by_search_def_are_annotatable(
                 requestTimeoutSeconds=30,
             ),
             workspace=AllocationWorkspace(root=tmp_path, path=tmp_path),
-            state=SimpleNamespace(metrics=MetricsState()),
+            resources=ToolResources(metrics=MetricsState()),
             project_workspace=session.reader_view(),
         )
         annotation_tools, _ = await make_tools(tmp_path, session.writer_view())
@@ -664,7 +664,7 @@ def test_factory_requires_a_writer_and_successful_positive_probe(
                 requestTimeoutSeconds=30,
             ),
             "workspace": AllocationWorkspace(root=tmp_path, path=tmp_path),
-            "state": SimpleNamespace(metrics=MetricsState()),
+            "resources": ToolResources(),
         }
         with pytest.raises(TaintAnnotationError) as missing:
             await TaintAnnotationsToolsetFactory().create_selected(**common)
@@ -737,7 +737,7 @@ async def make_tools(
             requestTimeoutSeconds=30,
         ),
         workspace=AllocationWorkspace(root=tmp_path, path=tmp_path),
-        state=SimpleNamespace(metrics=metrics),
+        resources=ToolResources(metrics=metrics),
         project_workspace=writer,
     )
     return dict(result), metrics

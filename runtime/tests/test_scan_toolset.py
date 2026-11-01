@@ -17,6 +17,7 @@ from urllib.parse import urlsplit
 import pytest
 from fakes.process_markers import atomic_marker_source
 from fakes.worker_runtime import StubADKWorkerRuntimeFactory
+from fakes.worker_state import WorkerState
 from google.adk.tools import FunctionTool
 from target_policy_fixtures import SCAN_TEST_POLICY
 
@@ -24,7 +25,6 @@ import contractor_runtime.threads as threads_module
 import contractor_runtime.toolsets.scan.process as process_module
 import contractor_runtime.toolsets.scan.tools as scan
 from contractor_runtime.adapters import AdapterHandles
-from contractor_runtime.allocation import WorkerState
 from contractor_runtime.capabilities import discover_capabilities
 from contractor_runtime.contracts import HTTPProxySettings, RuntimeSettings
 from contractor_runtime.core.target_policy import (
@@ -119,7 +119,7 @@ async def make_tools(tmp_path, *, selected=None, proxy=False, scanners=scan.SCAN
             requestTimeoutSeconds=60,
         ),
         workspace=AllocationWorkspace(root=tmp_path, path=workspace),
-        state=state,
+        resources=state.resources,
         adapter_handles=AdapterHandles(tool_subprocess=object() if proxy else None),
     )
     return tools, state
@@ -406,7 +406,7 @@ async def make_policy_tools(tmp_path, *, networks=(), http_proxy=None):
             requestTimeoutSeconds=60,
         ),
         workspace=AllocationWorkspace(root=tmp_path, path=workspace),
-        state=state,
+        resources=state.resources,
     )
     return tools, state
 

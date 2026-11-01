@@ -8,6 +8,7 @@ from types import SimpleNamespace
 
 import pytest
 from fakes.model import scripted_model, text_result
+from fakes.worker_state import WorkerStateStore
 from pydantic import ValidationError
 from shared_config_defaults import MAX_WORKER_RESULT_BYTES
 from test_adk_runtime import build_context, stage_request
@@ -28,7 +29,6 @@ from contractor_runtime.core.worker_completion import (
 )
 from contractor_runtime.worker import runtime as worker_runtime
 from contractor_runtime.worker.runtime import AdkWorkerRuntime
-from contractor_runtime.worker.state import WorkerStateStore
 
 
 class CollectedCompletion(PreparedWorkerCompletion):

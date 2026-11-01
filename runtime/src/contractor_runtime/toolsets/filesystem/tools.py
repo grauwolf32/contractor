@@ -46,6 +46,7 @@ from contractor_runtime.toolsets.common.cursors import (
 )
 from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
 from contractor_runtime.toolsets.common.filesystem_errors import FilesystemToolError
+from contractor_runtime.toolsets.common.resources import ToolResources
 from contractor_runtime.workspace import AllocationWorkspace
 
 MAX_PAGE_ITEMS = 100
@@ -84,7 +85,7 @@ class FilesystemToolsetFactory:
         namespace: str,
         runtime_settings: RuntimeSettings,
         workspace: AllocationWorkspace,
-        state: Any,
+        resources: ToolResources,
         adapter_handles: AdapterHandles = EMPTY_ADAPTER_HANDLES,
         project_workspace: WorkspaceReader | None = None,
     ) -> Mapping[str, Any]:
@@ -92,7 +93,7 @@ class FilesystemToolsetFactory:
         require_selected_tools(selected, self.exported_tools)
         if project_workspace is None:
             raise FilesystemToolError("workspace_required")
-        metrics = require_metrics(state, "filesystem@1")
+        metrics = require_metrics(resources, "filesystem@1")
         session = _FilesystemSession(project_workspace)
         builders: dict[str, Callable[[], Any]] = {
             "ls": lambda: ListWorkspaceTool(session, metrics),

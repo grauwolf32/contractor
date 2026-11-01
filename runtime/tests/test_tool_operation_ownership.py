@@ -16,6 +16,7 @@ import pytest
 from fakes.model import scripted_model, tool_call
 from fakes.process_markers import atomic_marker_source
 from fakes.spec import allocation_spec
+from fakes.worker_state import WorkerState
 from test_likec4_toolset import BASE_DOCUMENT
 from test_likec4_toolset import MemoryArtifactClient as LikeC4ArtifactClient
 from test_likec4_toolset import make_tools as make_likec4_tools
@@ -28,7 +29,7 @@ import contractor_runtime.toolsets.source_analysis.tools as source_tools
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.host import RuntimeAdapterMetricsState
 from contractor_runtime.adapters.http_proxy import ProxySubprocessLauncher
-from contractor_runtime.allocation import AllocationService, WorkerState
+from contractor_runtime.allocation import AllocationService
 from contractor_runtime.capabilities import CapabilitySnapshot
 from contractor_runtime.contracts import (
     API_VERSION,
@@ -221,7 +222,7 @@ def test_cancelled_validator_reaps_child_before_tool_and_workspace_close(
             run_id="run-test",
             namespace="builder",
             workspace=workspace,
-            state=WorkerState(),
+            resources=WorkerState().resources,
             runtime_settings=RuntimeSettings(
                 llmGatewayUrl="https://gateway.example/v1",
                 artifactApiUrl="https://control.example/private/v1",

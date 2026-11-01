@@ -23,6 +23,7 @@ from contractor_runtime.toolsets.common.finding_locations import (
     normalize_locations,
 )
 from contractor_runtime.toolsets.common.http_capture import RecentHTTPCaptures
+from contractor_runtime.toolsets.common.resources import ToolResources
 from contractor_runtime.toolsets.security_findings.anchors import (
     ExactSourceCache,
     prepare_anchors,
@@ -45,13 +46,13 @@ class FindingPublisher:
         client: FindingProposalClient,
         metrics: ToolMetrics,
         secrets: tuple[str, ...],
-        state: Any,
+        resources: ToolResources,
         artifacts: ArtifactClient | None = None,
     ):
         self.client = client
         self.metrics = metrics
         self.secrets = secrets
-        self.state = state
+        self.resources = resources
         self.artifacts = artifacts
         # The publisher lives as long as the allocation's tools.
         self.sources = ExactSourceCache()
@@ -112,8 +113,8 @@ class FindingPublisher:
                 proposal["locations"] = normalized
             if exchange is not None:
                 request["httpEvidence"] = exchange
-            audit_binding = getattr(self.state, "audit_completion_binding", None)
-            audit_collector = audit_binding.current() if audit_binding is not None else None
+            audit_binding = self.resources.proposal_collector
+            audit_collector = audit_binding() if audit_binding is not None else None
             if audit_collector is not None:
                 audit_collector.check_proposal_refs(
                     context.invocation_id, proposal["standard_refs"]
@@ -155,7 +156,7 @@ class FindingPublisher:
             not isinstance(caido_request_id, str) or not caido_request_id
         ):
             raise ToolInputError("caido_request_id must be an ID from inspected Caido traffic")
-        captures = getattr(self.state, "http_captures", None)
+        captures = self.resources.http_captures
         if not isinstance(captures, RecentHTTPCaptures):
             raise ToolInputError(
                 "captured HTTP evidence requires this worker's HTTP or Caido session"

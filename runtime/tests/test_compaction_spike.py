@@ -255,6 +255,7 @@ def test_real_runner_two_checkpoints_preserve_logical_owner_and_gateway_requests
 
         plugin = WorkerInstrumentationPlugin(
             state=state,
+            execution=state.resources.execution,
             budget=lambda: budget,
             instrumentation=None,
             model_alias="scripted",

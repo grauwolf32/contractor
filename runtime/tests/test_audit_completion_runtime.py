@@ -102,7 +102,7 @@ async def runtime_for(
         allocation_id="allocation-1",
         namespace="builder",
         runtime_settings=context.runtime_settings,
-        state=state,
+        resources=state.resources,
         completion_contract=contract(),
     )
     context = replace(
@@ -455,7 +455,7 @@ def test_exact_preparation_rejects_alias_receipt_and_toolset_without_contract(tm
             allocation_id="allocation-1",
             namespace="builder",
             runtime_settings=context.runtime_settings,
-            state=state,
+            resources=state.resources,
         )
         with pytest.raises(ValueError):
             await factory.create_selected(**kwargs)
@@ -563,7 +563,7 @@ def test_fatal_model_event_sandbox_or_deadline_prevents_audit_success(tmp_path, 
         if failure == "sandbox":
 
             async def fail_sandbox():
-                state.execution.fail(SandboxErrorCode.UNAVAILABLE)
+                state.resources.execution.fail(SandboxErrorCode.UNAVAILABLE)
 
             client.on_write = fail_sandbox
         result = await runtime.invoke(request)

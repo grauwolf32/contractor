@@ -154,7 +154,7 @@ def test_http_caido_allocation_tools_finalize_release_and_reuse(tmp_path: Path) 
         assert [request.url.host for request in http_requests] == ["target.example"]
         assert caido_operations == ["RequestsByOffset", "CreateScope"]
         assert all(not name.startswith("http.body.") for _, name in artifacts.bindings)
-        buffer = service._context.worker_state.http_captures
+        buffer = service._context.resources.http_captures
         assert not buffer._entries  # The scripted worker explicitly cleared its session.
 
         terminal = await service.finalize(

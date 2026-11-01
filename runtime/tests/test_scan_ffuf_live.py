@@ -8,9 +8,9 @@ from contextlib import suppress
 from types import SimpleNamespace
 
 import pytest
+from fakes.worker_state import WorkerState
 from target_policy_fixtures import SCAN_TEST_POLICY
 
-from contractor_runtime.allocation import WorkerState
 from contractor_runtime.contracts import RuntimeSettings
 from contractor_runtime.toolsets.scan.tools import FFUFTool, ScanToolsetFactory
 from contractor_runtime.workspace import AllocationWorkspace
@@ -45,7 +45,7 @@ async def make_live_ffuf(tmp_path, data):
             artifactApiUrl="https://artifacts.invalid", requestTimeoutSeconds=30
         ),
         workspace=AllocationWorkspace(root=tmp_path, path=workspace),
-        state=state,
+        resources=state.resources,
     )
     return tools["scan_ffuf"], state
 

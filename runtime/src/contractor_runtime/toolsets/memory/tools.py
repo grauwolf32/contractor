@@ -25,6 +25,7 @@ from contractor_runtime.contracts.artifacts import PURPOSE_RESERVED_NAMESPACES
 from contractor_runtime.core.tool_metrics import RecordedToolCall, ToolMetrics
 from contractor_runtime.toolsets.common.artifacts import ArtifactClientFactory, _unconfigured_client
 from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
+from contractor_runtime.toolsets.common.resources import ToolResources
 from contractor_runtime.toolsets.memory.codec import (
     ARTIFACT_NAME_PREFIX,
     MAXIMUM_EXACT_ORDINAL,
@@ -99,7 +100,7 @@ class MemoryToolsetFactory:
         namespace: str,
         runtime_settings: RuntimeSettings,
         workspace: AllocationWorkspace,
-        state: Any,
+        resources: ToolResources,
         adapter_handles: AdapterHandles = EMPTY_ADAPTER_HANDLES,
         project_workspace: Any = None,
     ) -> Mapping[str, Any]:
@@ -107,7 +108,7 @@ class MemoryToolsetFactory:
         if namespace in PURPOSE_RESERVED_NAMESPACES:
             raise ValueError("MemoryTools requires a non-purpose Agent Namespace")
         require_selected_tools(selected, self.exported_tools)
-        metrics = require_metrics(state, "memory-tools@1")
+        metrics = require_metrics(resources, "memory-tools@1")
         session = _MemorySession(self._client_factory(allocation_id, runtime_settings), namespace)
         builders: dict[str, Callable[[], Any]] = {
             "list_memories": lambda: ListMemoriesTool(session, metrics),

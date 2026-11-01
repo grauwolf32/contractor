@@ -160,6 +160,7 @@ class ToolWorkerRuntime:
                 name not in fields or self._input.model_fields[name].is_required()
             ):
                 raise ValueError("optional artifact binding requires a callable default")
+        self._resources = context.resources
         self._state = context.state
         self.allocation_id = context.allocation_id
         self._active: asyncio.Task | None = None
@@ -492,7 +493,7 @@ class ToolWorkerRuntime:
                 except Exception:
                     raise ToolWorkerError("tool_report_failed") from None
                 await notify_report_publication(
-                    self._state.report_publication_sink, self._execution.tool, report
+                    self._resources.report_publication_sink, self._execution.tool, report
                 )
                 if observation["status"] == "failed":
                     raise ToolWorkerError("tool_execution_failed")
@@ -550,8 +551,8 @@ class ToolWorkerRuntime:
             self._state.metrics.record_outcome("failed" if error else "succeeded")
 
             async def finish_state():
-                if begun and self._state.before_completion is not None:
-                    await self._state.before_completion()
+                if begun and self._resources.before_completion is not None:
+                    await self._resources.before_completion()
                 return await asyncio.wait_for(
                     self._state.complete_invocation(
                         invocation_id=invocation_id,

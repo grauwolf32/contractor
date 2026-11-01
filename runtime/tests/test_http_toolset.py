@@ -24,6 +24,7 @@ from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.x509.oid import NameOID
+from fakes.worker_state import WorkerState
 from http_cookie_store import HTTPToolsetFactory
 
 import contractor_runtime.toolsets.http.tools as http_tools
@@ -31,7 +32,6 @@ from contractor_runtime import shared_config
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.adapters.http_proxy import ProxyHTTPClient
-from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import (
     ArtifactAPIError,
     ArtifactTransportError,
@@ -197,7 +197,7 @@ def test_http_body_reads_cache_pages_and_evict_between_requests(tmp_path: Path) 
 
     async def scenario() -> None:
         artifacts = FakeArtifactClient()
-        tools, state = await create_tools(tmp_path, handler, artifacts=artifacts)
+        tools, _state = await create_tools(tmp_path, handler, artifacts=artifacts)
         read = tools["http_read_body"]
         try:
             text = await tools["http_request"]("https://target.example/text")
@@ -230,18 +230,18 @@ def test_http_body_reads_cache_pages_and_evict_between_requests(tmp_path: Path) 
             }
             assert base64.b64decode((await read(binary_id, offset=4))["data_b64"]) == b"yload"
             assert artifacts.reads == 0
-            assert state.http_session._cached_body.request_id == binary_id
-            assert sys.getsizeof(state.http_session._cached_body.content) <= (
+            assert tools["http_request"]._session._cached_body.request_id == binary_id
+            assert sys.getsizeof(tools["http_request"]._session._cached_body.content) <= (
                 http_tools.decoded_body_cache_max_bytes()
             )
 
             assert (await read(text_id, offset=4))["eof"] is True
             assert artifacts.reads == 0
-            assert state.http_session._cached_body.request_id == text_id
+            assert tools["http_request"]._session._cached_body.request_id == text_id
         finally:
             await close_tools(tools)
 
-        assert state.http_session._cached_body is None
+        assert tools["http_request"]._session._cached_body is None
         with pytest.raises(HTTPToolError) as failure:
             await read(text_id)
         assert failure.value.code == "http_request_failed"
@@ -260,14 +260,14 @@ def test_http_body_read_skips_content_above_cache_bound(
 
     async def scenario() -> None:
         artifacts = FakeArtifactClient()
-        tools, state = await create_tools(tmp_path, handler, artifacts=artifacts)
+        tools, _state = await create_tools(tmp_path, handler, artifacts=artifacts)
         try:
             result = await tools["http_request"]("https://target.example/body")
             monkeypatch.setattr(
                 http_tools, "decoded_body_cache_max_bytes", lambda: sys.getsizeof("body") - 1
             )
             assert (await tools["http_read_body"](result["request_id"]))["data"] == "body"
-            assert state.http_session._cached_body is None
+            assert tools["http_request"]._session._cached_body is None
             assert (await tools["http_read_body"](result["request_id"]))["data"] == "body"
             assert artifacts.reads == 0
         finally:
@@ -337,8 +337,8 @@ def test_http_body_read_expires_with_capture_eviction_and_session_clear(tmp_path
             assert expired.value.code == "http_body_not_found"
             assert len(await tools["http_history"]()) == http_tools.MAX_HISTORY
             await tools["http_session_clear"]()
-            assert not state.http_captures._entries
-            assert state.http_session._cached_body is None
+            assert not state.resources.http_captures._entries
+            assert tools["http_request"]._session._cached_body is None
             assert artifacts.writes == artifacts.reads == 0
         finally:
             await close_tools(tools)
@@ -1265,7 +1265,7 @@ async def make_tools(
         namespace="worker",
         runtime_settings=settings,
         workspace=AllocationWorkspace(root=tmp_path, path=workspace_path),
-        state=state,
+        resources=state.resources,
         adapter_handles=adapter_handles,
     )
     return dict(result)
@@ -1294,6 +1294,7 @@ class WorkerToolCallbacks:
     async def start(cls, state: WorkerState, tools: dict[str, Any]) -> WorkerToolCallbacks:
         plugin = WorkerInstrumentationPlugin(
             state=state,
+            execution=state.resources.execution,
             budget=lambda: None,
             instrumentation=None,
             model_alias="model",

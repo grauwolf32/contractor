@@ -9,11 +9,11 @@ from types import SimpleNamespace
 
 import jcs
 import pytest
+from fakes.worker_state import WorkerState
 from test_audit_result_publication import BlockingEncode, assigned
 from test_audit_results_toolset import digest, package
 from test_security_findings_toolset import FakeFindingClient
 
-from contractor_runtime.allocation import WorkerState
 from contractor_runtime.contracts import ArtifactRef
 from contractor_runtime.toolsets.audit_results.collector import (
     AuditCollectionError,
@@ -170,9 +170,9 @@ def test_shared_audit_finding_preflight_and_failed_submission_cannot_create_link
     async def scenario():
         collector, tool, _ = tool_for(fixture_assignment("standard", "requirements-verification"))
         state = WorkerState()
-        state.audit_completion_binding = SimpleNamespace(current=lambda: collector)
+        state.resources.proposal_collector = lambda: collector
         client = FakeFindingClient()
-        finding = GeneralFindingTool(FindingPublisher(client, state.metrics, (), state))
+        finding = GeneralFindingTool(FindingPublisher(client, state.metrics, (), state.resources))
         context = SimpleNamespace(invocation_id=CONTEXT.invocation_id, function_call_id="finding-1")
         bogus = StandardReference(scheme="other", version="1", requirement_id="unknown")
         with pytest.raises(AuditCollectionError) as error:
@@ -197,7 +197,9 @@ def test_shared_audit_finding_preflight_and_failed_submission_cannot_create_link
             async def submit(self, request):
                 raise RuntimeError("finding submission unavailable")
 
-        failed = GeneralFindingTool(FindingPublisher(FailingClient(), state.metrics, (), state))
+        failed = GeneralFindingTool(
+            FindingPublisher(FailingClient(), state.metrics, (), state.resources)
+        )
         with pytest.raises(RuntimeError, match="unavailable"):
             await failed(title="Candidate", description="Observed weakness.", tool_context=context)
         result = next(

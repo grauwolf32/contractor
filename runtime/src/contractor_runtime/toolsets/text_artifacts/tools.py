@@ -35,6 +35,7 @@ from contractor_runtime.toolsets.common.finding_analysis import (
 from contractor_runtime.toolsets.common.finding_analysis import (
     canonical_analysis,
 )
+from contractor_runtime.toolsets.common.resources import ToolResources
 from contractor_runtime.toolsets.common.tool_base import ArtifactTool
 from contractor_runtime.workspace import AllocationWorkspace
 
@@ -66,16 +67,18 @@ class TextArtifactsToolsetFactory:
         namespace: str,
         runtime_settings: RuntimeSettings,
         workspace: AllocationWorkspace,
-        state: Any,
+        resources: ToolResources,
         adapter_handles: AdapterHandles = EMPTY_ADAPTER_HANDLES,
         project_workspace: Any = None,
     ) -> Mapping[str, Any]:
         del run_id, workspace, adapter_handles
         require_selected_tools(selected, self.exported_tools)
-        metrics = require_metrics(state, "text-artifacts@1")
+        metrics = require_metrics(resources, "text-artifacts@1")
         client = self._client_factory(allocation_id, runtime_settings)
         secrets = runtime_secrets(runtime_settings)
-        cache = allocation_artifact_read_cache(state) if "read_text_artifact" in selected else None
+        cache = (
+            allocation_artifact_read_cache(resources) if "read_text_artifact" in selected else None
+        )
         builders: dict[str, Callable[[], Any]] = {
             "read_text_artifact": lambda: ReadTextArtifactTool(
                 client, metrics, secrets, cache=cache

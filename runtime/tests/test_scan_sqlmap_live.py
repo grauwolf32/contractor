@@ -11,9 +11,9 @@ from contextlib import suppress
 from types import SimpleNamespace
 
 import pytest
+from fakes.worker_state import WorkerState
 from target_policy_fixtures import SCAN_TEST_POLICY
 
-from contractor_runtime.allocation import WorkerState
 from contractor_runtime.contracts import RuntimeSettings
 from contractor_runtime.toolsets.scan.tools import ScanToolsetFactory, SQLMapTool
 from contractor_runtime.workspace import AllocationWorkspace
@@ -133,7 +133,7 @@ def test_installed_sqlmap_preserves_prepared_request_on_wire(tmp_path, scheme, m
                 runtime_settings=RuntimeSettings(
                     artifactApiUrl="https://artifacts.invalid", requestTimeoutSeconds=30
                 ),
-                state=state,
+                resources=state.resources,
                 workspace=AllocationWorkspace(root=tmp_path, path=workspace),
             )
             tool = tools["scan_sqlmap"]

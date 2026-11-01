@@ -11,10 +11,10 @@ from typing import Any
 from urllib.parse import parse_qs, unquote, urlsplit
 
 import pytest
+from fakes.worker_state import WorkerState
 from google.adk.tools import FunctionTool
 from shared_config_defaults import MAX_ARTIFACT_BYTES
 
-from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import (
     ArtifactAPIError,
     ArtifactClient,
@@ -812,7 +812,7 @@ def test_factory_rejects_purpose_reserved_memory_namespace(namespace: str) -> No
                 namespace=namespace,
                 runtime_settings=settings,
                 workspace=AllocationWorkspace(root=workspace_path.parent, path=workspace_path),
-                state=WorkerState(),
+                resources=WorkerState().resources,
             )
 
     asyncio.run(scenario())
@@ -884,7 +884,7 @@ async def create_tools(
             namespace="builder",
             runtime_settings=settings,
             workspace=AllocationWorkspace(root=workspace_path.parent, path=workspace_path),
-            state=state,
+            resources=state.resources,
         )
     )
 

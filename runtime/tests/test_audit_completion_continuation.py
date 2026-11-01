@@ -8,6 +8,7 @@ from types import SimpleNamespace
 
 import pytest
 from fakes.model import scripted_model, text_result, tool_call
+from fakes.worker_state import WorkerStateStore
 from google.adk.agents import LlmAgent
 from google.adk.apps import App
 from google.adk.runners import Runner
@@ -18,7 +19,6 @@ from google.genai import types
 from contractor_runtime.worker.budget import WorkerBudgetExceeded, _InvocationBudget
 from contractor_runtime.worker.function_tools import ContractorFunctionTool
 from contractor_runtime.worker.instrumentation import WorkerInstrumentationPlugin
-from contractor_runtime.worker.state import WorkerStateStore
 
 
 class CountedState(WorkerStateStore):
@@ -55,6 +55,7 @@ def test_real_runner_continuation_preserves_one_invocation_and_tool_order():
         probe.artifact_observation_cursor = 0
         plugin = WorkerInstrumentationPlugin(
             state=state,
+            execution=state.resources.execution,
             budget=lambda: budget,
             instrumentation=None,
             model_alias="scripted",
@@ -142,6 +143,7 @@ def test_continuation_is_explicit_one_use_and_cannot_change_invocation():
         state = CountedState()
         plugin = WorkerInstrumentationPlugin(
             state=state,
+            execution=state.resources.execution,
             budget=lambda: None,
             instrumentation=None,
             model_alias="scripted",

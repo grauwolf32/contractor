@@ -41,6 +41,7 @@ from contractor_runtime.toolsets.common.document_session import (
     validate_target_name,
 )
 from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
+from contractor_runtime.toolsets.common.resources import ToolResources
 from contractor_runtime.toolsets.common.tool_base import SessionArtifactTool
 from contractor_runtime.toolsets.openapi import yaml_scalars
 from contractor_runtime.toolsets.openapi.models import (
@@ -144,7 +145,7 @@ class OpenAPIToolsetFactory:
         namespace: str,
         runtime_settings: RuntimeSettings,
         workspace: AllocationWorkspace,
-        state: Any,
+        resources: ToolResources,
         adapter_handles: AdapterHandles = EMPTY_ADAPTER_HANDLES,
         project_workspace: WorkspaceReader | None = None,
     ) -> Mapping[str, Any]:
@@ -152,7 +153,7 @@ class OpenAPIToolsetFactory:
         require_selected_tools(selected, self.exported_tools)
         if project_workspace is None:
             raise ValueError("openapi@1 requires a project workspace")
-        metrics = require_metrics(state, "openapi@1")
+        metrics = require_metrics(resources, "openapi@1")
         client = self._client_factory(allocation_id, runtime_settings)
         launcher = adapter_handles.tool_subprocess
         if launcher is not None and not isinstance(launcher, ProxySubprocessLauncher):

@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 from fakes.clock import advance_clock, run_with_advanceable_clock
 from fakes.model import text_result, tool_call
+from fakes.worker_state import WorkerState
 from test_adk_runtime import (
     PAST_STAGE_DEADLINE_SECONDS,
     CapturingScriptedLlm,
@@ -22,7 +23,6 @@ from test_adk_runtime import (
 )
 
 import contractor_runtime.worker.runtime as runtime_module
-from contractor_runtime.allocation import WorkerState
 from contractor_runtime.contracts import WorkerSessionMode
 from contractor_runtime.worker.history import ToolHistory, ToolHistoryError
 from contractor_runtime.worker.one_shot import OneShotSession

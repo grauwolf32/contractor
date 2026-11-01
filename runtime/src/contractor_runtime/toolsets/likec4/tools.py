@@ -33,6 +33,7 @@ from contractor_runtime.toolsets.common.document_session import (
 )
 from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
 from contractor_runtime.toolsets.common.line_window import bounded_line_window
+from contractor_runtime.toolsets.common.resources import ToolResources
 from contractor_runtime.toolsets.common.tool_base import SessionArtifactTool
 from contractor_runtime.workspace import AllocationWorkspace
 
@@ -88,13 +89,13 @@ class LikeC4ToolsetFactory:
         namespace: str,
         runtime_settings: RuntimeSettings,
         workspace: AllocationWorkspace,
-        state: Any,
+        resources: ToolResources,
         adapter_handles: AdapterHandles = EMPTY_ADAPTER_HANDLES,
         project_workspace: Any = None,
     ) -> Mapping[str, Any]:
         del run_id
         require_selected_tools(selected, self.exported_tools)
-        metrics = require_metrics(state, "likec4@1")
+        metrics = require_metrics(resources, "likec4@1")
         client = self._client_factory(allocation_id, runtime_settings)
         launcher = adapter_handles.tool_subprocess
         if launcher is not None and not isinstance(launcher, ProxySubprocessLauncher):

@@ -9,6 +9,7 @@ from datetime import UTC, datetime, timedelta
 
 import httpx
 import pytest
+from fakes.worker_state import WorkerState
 from google.adk.tools import ToolContext
 from opentelemetry import trace
 from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import ExportTraceServiceRequest
@@ -25,7 +26,6 @@ from test_otlp_adapter import HEADER_SECRET, adapter_context, telemetry_settings
 
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.otlp_http import OTLPHTTPAdapterFactory
-from contractor_runtime.allocation import WorkerState
 from contractor_runtime.core.tool_metrics import RecordedToolCall
 from contractor_runtime.llm.client import new_gateway_client
 from contractor_runtime.llm.openai import OpenAICompatibleGatewayLlm

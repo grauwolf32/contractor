@@ -19,6 +19,7 @@ from contractor_runtime.toolsets.common.artifact_visibility import require_model
 from contractor_runtime.toolsets.common.artifacts import ArtifactClientFactory, _unconfigured_client
 from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
 from contractor_runtime.toolsets.common.report_observations import REPORT_FORMATS, prepare_report
+from contractor_runtime.toolsets.common.resources import ToolResources
 from contractor_runtime.toolsets.common.tool_base import SessionArtifactTool
 from contractor_runtime.toolsets.sitemap.session import SitemapSession
 from contractor_runtime.workspace import AllocationWorkspace
@@ -86,15 +87,15 @@ class SitemapToolsetFactory:
         namespace: str,
         runtime_settings: RuntimeSettings,
         workspace: AllocationWorkspace,
-        state: Any,
+        resources: ToolResources,
         adapter_handles: AdapterHandles = EMPTY_ADAPTER_HANDLES,
         project_workspace: Any = None,
     ) -> Mapping[str, Any]:
         del run_id, namespace, workspace, adapter_handles, project_workspace
         require_selected_tools(selected, await self.probe())
-        metrics = require_metrics(state, self.ref)
+        metrics = require_metrics(resources, self.ref)
         artifact = self._clients(allocation_id, runtime_settings)
-        session = SitemapSession(artifact, getattr(state, "sitemap_read_flush", None))
+        session = SitemapSession(artifact, resources.sitemap_read_flush)
         secrets = runtime_secrets(runtime_settings)
         classes = (
             ListSitemapEntries,

@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import json
 from pathlib import Path, PurePosixPath
-from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -27,6 +26,7 @@ from contractor_runtime.toolsets.code_analysis.tools import (
 from contractor_runtime.toolsets.code_analysis.trailmark_child import (
     _record_strongest_relationship,
 )
+from contractor_runtime.toolsets.common.resources import ToolResources
 from contractor_runtime.workspace import AllocationWorkspace
 
 
@@ -785,7 +785,7 @@ async def _tools(
             request_timeout_seconds=10,
         ),
         workspace=AllocationWorkspace(root=root, path=scratch),
-        state=SimpleNamespace(metrics=metrics),
+        resources=ToolResources(metrics=metrics),
         project_workspace=reader,
     )
     return dict(tools), metrics, scratch

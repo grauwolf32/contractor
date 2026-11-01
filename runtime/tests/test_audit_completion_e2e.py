@@ -81,7 +81,7 @@ def test_runtime_zip_for_go_importer(tmp_path, monkeypatch):
             allocation_id=spec["allocationID"],
             namespace=context.namespace,
             runtime_settings=context.runtime_settings,
-            state=state,
+            resources=state.resources,
             completion_contract=contract,
         )
         if mode == "http-observation":
@@ -116,7 +116,7 @@ def test_runtime_zip_for_go_importer(tmp_path, monkeypatch):
                     namespace=context.namespace,
                     runtime_settings=context.runtime_settings,
                     workspace=context.workspace,
-                    state=state,
+                    resources=state.resources,
                     deployment_marker="deployment-test",
                 )
             )
@@ -124,7 +124,7 @@ def test_runtime_zip_for_go_importer(tmp_path, monkeypatch):
             # This bridge tests create-only ZIP conflicts. A successful local
             # finding client supplies real tool-returned keys for its links.
             selected["finding"] = GeneralFindingTool(
-                FindingPublisher(FakeFindingClient(), state.metrics, (), state)
+                FindingPublisher(FakeFindingClient(), state.metrics, (), state.resources)
             )
 
         def finding(key):

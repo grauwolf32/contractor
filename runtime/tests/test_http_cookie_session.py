@@ -9,11 +9,11 @@ from typing import Any
 
 import httpx
 import pytest
+from fakes.worker_state import WorkerState
 from http_cookie_store import CookieArtifactStore
 
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.http_proxy import ProxyHTTPClient
-from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import ArtifactAPIError, ArtifactTransportError
 from contractor_runtime.contracts import HTTPOriginTargetSettings, RuntimeSettings
 from contractor_runtime.core.http_limits import MAX_COOKIE_SESSION_BYTES, MAX_COOKIES
@@ -59,7 +59,7 @@ async def tools_for(
             namespace=namespace,
             runtime_settings=settings,
             workspace=AllocationWorkspace(root=tmp_path, path=tmp_path / "slot"),
-            state=state,
+            resources=state.resources,
             adapter_handles=AdapterHandles(tool_http=ProxyHTTPClient(client))
             if proxy
             else AdapterHandles(),

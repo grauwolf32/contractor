@@ -23,6 +23,7 @@ from fakes.model import (
     tool_call,
 )
 from fakes.telemetry import SERVER_EXPORT
+from fakes.worker_state import WorkerState
 from google.adk.models.base_llm import BaseLlm
 from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
@@ -38,7 +39,6 @@ from contractor_runtime.adapters import (
     RuntimeSpan,
     TelemetryAttribute,
 )
-from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import ArtifactValue
 from contractor_runtime.contracts import (
     API_VERSION,
@@ -3997,7 +3997,7 @@ async def selected_tools(
         namespace="builder",
         runtime_settings=settings,
         workspace=AllocationWorkspace(root=tmp_path.parent, path=tmp_path),
-        state=state,
+        resources=state.resources,
     )
     return dict(result)
 
@@ -4013,7 +4013,7 @@ async def selected_memory_tools(
         namespace="builder",
         runtime_settings=runtime_settings(),
         workspace=AllocationWorkspace(root=tmp_path.parent, path=tmp_path),
-        state=state,
+        resources=state.resources,
     )
     return dict(result)
 
@@ -4036,6 +4036,7 @@ def build_context(
         workspace=AllocationWorkspace(root=tmp_path.parent, path=tmp_path),
         tools=tools,  # type: ignore[arg-type]
         state=state,
+        resources=state.resources,
         a2a_base_url="https://runtime.example",
         runtime_settings=runtime_settings(),
         # What AllocationService passes for the production registry.

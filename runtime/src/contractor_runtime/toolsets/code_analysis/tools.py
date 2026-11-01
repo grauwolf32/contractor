@@ -49,6 +49,7 @@ from contractor_runtime.toolsets.code_analysis.trailmark_host import (
 )
 from contractor_runtime.toolsets.common import cursors
 from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
+from contractor_runtime.toolsets.common.resources import ToolResources
 from contractor_runtime.workspace import AllocationWorkspace
 
 CODE_ANALYSIS_REF = "code-analysis@1"
@@ -163,7 +164,7 @@ class CodeAnalysisToolsetFactory:
         namespace: str,
         runtime_settings: RuntimeSettings,
         workspace: AllocationWorkspace,
-        state: Any,
+        resources: ToolResources,
         adapter_handles: AdapterHandles = EMPTY_ADAPTER_HANDLES,
         project_workspace: WorkspaceReader | None = None,
     ) -> Mapping[str, Any]:
@@ -173,7 +174,7 @@ class CodeAnalysisToolsetFactory:
         )
         if project_workspace is None:
             raise CodeAnalysisError("workspace_required")
-        metrics = require_metrics(state, "code-analysis@1")
+        metrics = require_metrics(resources, "code-analysis@1")
         graph_selected = bool(set(selected) & GRAPH_TOOLS)
         session = _CodeAnalysisSession(
             project_workspace,

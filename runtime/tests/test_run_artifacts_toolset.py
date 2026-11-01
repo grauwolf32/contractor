@@ -9,9 +9,9 @@ from urllib.parse import parse_qs, urlsplit
 
 import pytest
 from fakes.artifact_reads import CountingPayload, count_derivations
+from fakes.worker_state import WorkerState
 
 import contractor_runtime.toolsets.run_artifacts.tools as run_artifacts
-from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import (
     ArtifactAPIError,
     ArtifactClient,
@@ -484,7 +484,7 @@ async def create_tools(
         namespace="builder",
         runtime_settings=settings,
         workspace=AllocationWorkspace(root=workspace_path.parent, path=workspace_path),
-        state=state,
+        resources=state.resources,
     )
     return dict(result)
 

@@ -11,6 +11,7 @@ from typing import Any
 
 import pytest
 from fakes.model import json_result, scripted_model, text_result, tool_call
+from fakes.worker_state import WorkerState
 from google.adk.events import Event, EventActions
 from google.adk.models.llm_response import LlmResponse
 from google.genai import types
@@ -22,7 +23,6 @@ from test_adk_runtime import (
     stage_request,
 )
 
-from contractor_runtime.allocation import WorkerState
 from contractor_runtime.contracts import (
     CompactWorkerContextManagement,
     ModelPolicyRef,

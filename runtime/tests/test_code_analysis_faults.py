@@ -10,6 +10,7 @@ from typing import Any
 import pytest
 from fakes.clock import run_with_advanceable_clock
 from fakes.model import scripted_model, tool_call
+from fakes.worker_state import WorkerState
 from test_adk_runtime import create_runtime, stage_request, terminal_text
 from test_code_analysis_child_lifecycle import (
     CHILD_BUDGET_SECONDS,
@@ -19,7 +20,6 @@ from test_code_analysis_child_lifecycle import (
 
 import contractor_runtime.toolsets.code_analysis.languages as code_analysis_languages
 import contractor_runtime.toolsets.code_analysis.tools as code_analysis
-from contractor_runtime.allocation import WorkerState
 from contractor_runtime.contracts import RuntimeSettings
 from contractor_runtime.projectfs.storage import (
     ManagedWorkspaceTree,
@@ -286,7 +286,7 @@ def test_unexpected_parser_path_failure_is_a_tool_error_not_parse_error_coverage
                 request_timeout_seconds=10,
             ),
             workspace=AllocationWorkspace(root=tmp_path, path=tmp_path),
-            state=state,
+            resources=state.resources,
             project_workspace=reader,
         )
         model = scripted_model(

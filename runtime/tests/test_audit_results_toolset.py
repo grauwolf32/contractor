@@ -12,11 +12,11 @@ from types import SimpleNamespace
 
 import jcs
 import pytest
+from fakes.worker_state import WorkerState
 from google.adk.tools.function_tool import FunctionTool
 from test_adk_runtime import stage_request
 from test_security_findings_toolset import FakeFindingClient
 
-from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import ArtifactValue
 from contractor_runtime.contracts import (
     API_VERSION,
@@ -198,7 +198,9 @@ def test_successful_finding_links_through_late_bound_audit_factory():
         state = WorkerState()
         finding_client = FakeFindingClient()
         # The finding factory may run before Audit preparation in a template.
-        finding = GeneralFindingTool(FindingPublisher(finding_client, state.metrics, (), state))
+        finding = GeneralFindingTool(
+            FindingPublisher(finding_client, state.metrics, (), state.resources)
+        )
         task_package, execution_manifest = fixture_inputs()
         tools = await prepared_tools(
             FakeAuditArtifactClient(task_package, execution_manifest), state
@@ -748,7 +750,7 @@ async def prepared_tools(client, state):
         allocation_id=client.allocation_id,
         namespace="audit-check",
         runtime_settings=runtime_settings(),
-        state=state,
+        resources=state.resources,
         completion_contract=contract,
     )
     tools["submit_check_result"].completion_binding.begin("worker-invocation-1")
@@ -808,7 +810,7 @@ def test_http_capture_evidence_retains_trusted_time_identity_and_exact_content(
             )
             first = await submit(context, **kwargs)
             assert first["status"] == "recorded"
-            state.http_captures.clear("http")
+            state.resources.http_captures.clear("http")
             assert await submit(context, **kwargs) == first
             forged = await submit(
                 context,

@@ -8,10 +8,10 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
+from fakes.worker_state import WorkerState
 from google.adk.models.llm_request import LlmRequest
 from google.genai import types
 
-from contractor_runtime.allocation import WorkerState
 from contractor_runtime.contracts import (
     API_VERSION,
     ModelPolicyRef,
@@ -164,6 +164,7 @@ def test_live_worker_result_finalizer_separates_tools_and_schema(tmp_path: Path)
             maxTotalTokens=32_768,
             temperature=0,
         )
+        state = WorkerState()
         context = WorkerBuildContext(
             allocation_id="live-result-finalizer",
             run_id="live-run",
@@ -180,7 +181,8 @@ def test_live_worker_result_finalizer_separates_tools_and_schema(tmp_path: Path)
             model_policy=policy,
             workspace=AllocationWorkspace(root=tmp_path, path=workspace_path),
             tools={"inspect_marker": inspect_marker},  # type: ignore[dict-item]
-            state=WorkerState(),
+            state=state,
+            resources=state.resources,
             a2a_base_url="https://runtime.invalid",
             sensitive_output_tools=frozenset(),
             runtime_settings=RuntimeSettings(

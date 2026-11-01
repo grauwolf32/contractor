@@ -11,11 +11,11 @@ from typing import Any
 
 import pytest
 from fakes.model import scripted_model, text_result, tool_call
+from fakes.worker_state import WorkerState, WorkerStateStore
 from test_adk_runtime import create_runtime, stage_request
 from test_filesystem_toolset import create_tools, workspace
 
 from contractor_runtime import toolsets
-from contractor_runtime.allocation import WorkerState
 from contractor_runtime.factories import built_in_factories
 from contractor_runtime.observations import (
     WorkspaceToolObservation,
@@ -38,7 +38,6 @@ from contractor_runtime.worker.observations import (
     lean_workspace_summary,
     validate_workspace_observation,
 )
-from contractor_runtime.worker.state import WorkerStateStore
 
 SECRET = "recognizable-observation-content-secret"
 REVISION = "recognizable-observation-revision"
@@ -221,6 +220,7 @@ def test_decomposed_edit_path_keeps_workspace_observation_complete() -> None:
         )
         plugin = WorkerInstrumentationPlugin(
             state=state,
+            execution=state.resources.execution,
             budget=lambda: None,
             instrumentation=None,
             model_alias="model",
@@ -269,6 +269,7 @@ def test_plugin_records_only_successful_visible_workspace_facts() -> None:
         source = MetadataSource()
         plugin = WorkerInstrumentationPlugin(
             state=state,
+            execution=state.resources.execution,
             budget=lambda: None,
             instrumentation=None,
             model_alias="model",
@@ -407,6 +408,7 @@ def test_extractor_failure_is_non_fatal_and_sequential_invocations_reset() -> No
         source = MetadataSource()
         plugin = WorkerInstrumentationPlugin(
             state=state,
+            execution=state.resources.execution,
             budget=lambda: None,
             instrumentation=None,
             model_alias="model",

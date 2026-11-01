@@ -5,6 +5,7 @@ import json
 
 import httpx
 import pytest
+from fakes.worker_state import WorkerState
 
 from contractor_runtime.llm.client import GatewayRequestError, new_gateway_client
 from contractor_runtime.llm.recovery import RecoveryDecision
@@ -546,7 +547,6 @@ def test_worker_factory_shares_the_allocation_transport_with_model_recovery(tmp_
 
     from test_adk_runtime import build_context, runtime_settings
 
-    from contractor_runtime.allocation import WorkerState
     from contractor_runtime.artifacts import ArtifactClient
     from contractor_runtime.worker.factory import AdkWorkerRuntimeFactory
 

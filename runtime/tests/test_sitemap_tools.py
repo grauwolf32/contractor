@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 from fakes.sitemap import SitemapTransport, document, identity
+from fakes.worker_state import WorkerState
 
-from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import ArtifactClient, ArtifactTransportError
 from contractor_runtime.contracts import RuntimeSettings
 from contractor_runtime.core.input_errors import ToolInputError
@@ -28,7 +28,7 @@ async def tools_for(transport, selected, *, settings=None, dispatcher=None):
         runtime_settings=settings
         or RuntimeSettings(artifact_api_url="https://control.invalid", request_timeout_seconds=10),
         workspace=AllocationWorkspace("allocation", Path("/unused")),
-        state=state,
+        resources=state.resources,
     )
     return tools, state
 

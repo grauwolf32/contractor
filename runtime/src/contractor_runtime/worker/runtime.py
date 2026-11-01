@@ -217,6 +217,7 @@ class AdkWorkerRuntime:
         self._workspace_exporter = workspace_exporter
         if not isinstance(context.state, WorkerStateStore):
             raise TypeError("adk@1 requires WorkerStateStore")
+        self._resources = context.resources
         self._worker_state = context.state
 
         policy = context.model_policy
@@ -253,6 +254,7 @@ class AdkWorkerRuntime:
             )
         self._plugin = WorkerInstrumentationPlugin(
             state=self._worker_state,
+            execution=self._resources.execution,
             budget=lambda: self._active_budget,
             instrumentation=self._instrumentation,
             model_alias=policy.model,
@@ -368,11 +370,11 @@ class AdkWorkerRuntime:
     async def _invoke(
         self, request: StageContentRequest
     ) -> tuple[WorkerCompletion, dict[str, int]]:
-        if self._worker_state.execution.failure is not None:
+        if self._resources.execution.failure is not None:
             self._accepting = False
             return (
                 await self._untracked_failure_completion(
-                    self._worker_state.execution.failure.value, "Sandbox execution failed", False
+                    self._resources.execution.failure.value, "Sandbox execution failed", False
                 ),
                 {},
             )
@@ -554,7 +556,7 @@ class AdkWorkerRuntime:
                 exportable = False
             else:
                 outcome, exportable = await self._run_adk(request, invocation_id, session_id)
-            self._worker_state.execution.check()
+            self._resources.execution.check()
             exporter = self._workspace_exporter
             if exportable and exporter is not None:
                 try:
@@ -581,7 +583,7 @@ class AdkWorkerRuntime:
             invocation_phase = "cancelled"
             raise
         except Exception as error:
-            sandbox_failure = self._worker_state.execution.failure
+            sandbox_failure = self._resources.execution.failure
             gateway_error = _chained_error(error, GatewayModelError)
             if (
                 sandbox_failure is None
@@ -636,10 +638,10 @@ class AdkWorkerRuntime:
                     raise
         if state_snapshot is None:
             raise RuntimeError("Worker State did not produce a terminal revision")
-        if self._worker_state.execution.failure is not None:
+        if self._resources.execution.failure is not None:
             self._accepting = False
             outcome = _failure(
-                self._worker_state.execution.failure.value, "Sandbox execution failed", False
+                self._resources.execution.failure.value, "Sandbox execution failed", False
             )
         if isinstance(outcome, WorkerFailure) and self._completion is not None:
             await self._completion.record_phase("failed", outcome.code)
@@ -758,7 +760,7 @@ class AdkWorkerRuntime:
                                 if text is not None:
                                     candidate = text
                     except Exception as error:
-                        self._worker_state.execution.check()
+                        self._resources.execution.check()
                         # Work that ends after the deadline, including a
                         # summarization request, ends with the deadline.
                         deadline.check()
@@ -1019,7 +1021,7 @@ class AdkWorkerRuntime:
     def _raise_observed_tool_cancellation(self) -> None:
         if not self._plugin.tool_cancellation_observed:
             return
-        self._worker_state.execution.check()
+        self._resources.execution.check()
         if self._active_deadline is not None:
             self._active_deadline.check()
         # A refused budget can cause the SDK to cancel admitted siblings.
@@ -1102,7 +1104,7 @@ class AdkWorkerRuntime:
         task.result()
 
     def _check_active(self):
-        self._worker_state.execution.check()
+        self._resources.execution.check()
         task = asyncio.current_task()
         if not self._accepting or (task is not None and task.cancelling()):
             raise asyncio.CancelledError
@@ -1143,7 +1145,7 @@ class AdkWorkerRuntime:
         return await self._complete_ordinary_finish(request, candidate, invocation_id)
 
     async def _complete_ordinary_finish(self, request, candidate, invocation_id):
-        self._worker_state.execution.check()
+        self._resources.execution.check()
         if candidate is None:
             return self._build_runtime_result(
                 request, candidate, tuple(self._invocation_observed_refs)
@@ -1555,8 +1557,8 @@ class AdkWorkerRuntime:
         async def checkpoint_and_finish() -> dict[str, Any]:
             # Resource I/O has its own bounded allowance, separate from the
             # five-second State finalization budget.
-            if self._worker_state.before_completion is not None:
-                await self._worker_state.before_completion()
+            if self._resources.before_completion is not None:
+                await self._resources.before_completion()
             return await asyncio.wait_for(finish(), timeout=INVOCATION_CLEANUP_TIMEOUT_SECONDS)
 
         task = asyncio.create_task(
