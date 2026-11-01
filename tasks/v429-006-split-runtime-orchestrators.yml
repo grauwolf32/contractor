@@ -6,7 +6,7 @@ epic: execution-core
 kind: chore
 introduced_by: V17-002
 priority: P3
-status: pending
+status: in_progress
 depends_on: ["V429-001", "V429-002", "V429-003", "V429-004", "V429-005"]
 languages: [python]
 goal: "Worker and Allocation orchestrators expose their lifecycle clearly through focused ownership, execution, completion and resource-operation modules."

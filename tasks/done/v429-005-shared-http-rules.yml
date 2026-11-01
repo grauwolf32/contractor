@@ -6,7 +6,7 @@ epic: execution-core
 kind: defect
 introduced_by: V411-027
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages: [python]
 goal: "Ordinary and controlled HTTP merge and bound headers consistently and disclose retained response truncation in body reads and history."
@@ -52,3 +52,9 @@ tests:
     covers: [A1, A2, A3]
   - command: cd runtime && uv run ruff check . && uv run ruff format --check . && uv run lint-imports --no-cache --no-logo
     covers: [A1, A2, A3]
+implementation_commit: ca190ca2d8f8db9a7f37137a6808723cb2a60e73
+verification: >-
+  Complete HTTP/Caido family plus controlled credentials and target suites:
+  281 passed. New regressions use production HTTPTransport/httpcore for
+  case replacement, aggregate count/bytes, exact Content-Type and text/binary
+  retained prefixes. Ruff check/format and all four import contracts pass.
