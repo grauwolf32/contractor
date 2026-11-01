@@ -1,0 +1,84 @@
+schema_version: "1.0"
+id: V429-010
+title: Explore a more expressive OpenDesign Issue review
+milestone: ui-journey-usability
+epic: ui
+kind: chore
+priority: P2
+status: in_progress
+depends_on: [V429-009]
+languages: [typescript, css]
+goal: Give the user a distinct Issue review composition with clear visual roles for the problem, evidence and human decision, ready to compare with the preserved candidate.
+context:
+  authority: >-
+    On 2026-11-01 the user asked to bring OpenDesign back up and improve Issues
+    further because the design felt too repetitive. Their standing direction
+    preserves all OpenDesign-created data and keeps shared typography/themes
+    consistent across Contractor.
+  specification: docs/spec/ui/ui.md
+  design: docs/design/ui/README.md
+  decision: >-
+    Generate a new standalone candidate through the existing isolated OpenDesign
+    project and configured Contractor model. Give the designer freedom over the
+    content composition instead of repeating identical bordered cards. Keep the
+    existing shell and review semantics. The prior candidate remains available
+    for comparison; production transfer is a subsequent user-reviewed step.
+scope:
+  in:
+    - Restore existing local OpenDesign and comparison previews.
+    - Generate and preserve a separate original, provenance and an isolated review preview.
+    - Distinct narrative, evidence and decision treatments within common fonts and theme tokens.
+    - Check desktop/mobile layout and existing synthetic interaction truthfulness.
+  out:
+    - Production UI changes, release bump, new domain behavior, model selection changes or business-data writes.
+    - Overwriting or deleting any prior OpenDesign project, conversation or output.
+acceptance_criteria:
+  - id: A1
+    text: An actual new OpenDesign artifact has distinct narrative, evidence and decision treatments; original source and provenance are preserved alongside a comparison with the prior version.
+  - id: A2
+    text: Shared fonts/themes remain consistent, proposal/AI suggestion/verification/human decision remain separate, exact evidence identity and limitations remain accessible, and demo recording sends no decision.
+  - id: A3
+    text: The local preview and key interactions work at 1440/390/320 px in light/dark/black without horizontal page overflow or page errors.
+  - id: A4
+    text: Existing OpenDesign data is retained with verified recoverable backups, the preview has no network or mutation access, and temporary model-relay credentials are removed after generation.
+tests:
+  - command: node docs/design/ui/experiments/issues-review-opendesign-2026-11-01/verify.mjs
+    covers: [A1, A2, A3, A4]
+  - command: python3 scripts/check_tasks.py
+    covers: [A1, A2, A3, A4]
+  - command: python3 scripts/check_spec.py
+    covers: [A2]
+
+verification:
+  - >-
+    OpenDesign run a08d545c-3ddf-4cdb-bd56-0e19c82947bb completed through the
+    configured Contractor model. Its separate index-review-v4.html and rationale
+    are retained exactly, with SHA-256 provenance. The prior candidate is still
+    selectable. The new composition differentiates the unboxed proposal, impact,
+    source/file workbench, quiet supporting context and compact human review.
+  - >-
+    The first generated medium-width composition failed the readable-column
+    guard. Preview-only breakpoint, code-scroll and identifier-wrap corrections
+    repair that bound without replacing the original. Initial title focus is
+    deferred until actual selection, and copy success requires a clipboard
+    success. No production component, API, UI version or business state changed.
+  - >-
+    The standalone verifier passed twelve width/theme cases including
+    1440/1100/390/320 and light/dark/black. It verifies distinct visual roles,
+    common fonts, bounded layout, truthful separate states, Summary/Evidence/
+    History, explicit preview, required rationale/severity/duplicate target,
+    unchanged proposal/history after local recording, navigation bounds and
+    mobile back. No page error or external request occurred. Comparison and
+    GET-only opaque-sandbox CSP checks also passed; task/spec/diff checks passed.
+  - >-
+    Pre-generation backup 20261101T085400Z and final backup 20261101T090048Z
+    under /Users/ruslan/src/third-party/open-design-backups recovered independently
+    with SQLite integrity_check ok. The final snapshot retains four projects,
+    seven conversations, 35 messages and 79 project files; both archive hashes
+    were independently rechecked. The ephemeral model relay is stopped and its
+    upstream credential file removed. The original state volume and earlier
+    generated files remain intact. Preview listens only on loopback port 17562.
+  - >-
+    The preserved exploration is on codex/issue-design. It is not merged or
+    deployed; applying this design to the real Issue route remains a subsequent
+    user-reviewed step.

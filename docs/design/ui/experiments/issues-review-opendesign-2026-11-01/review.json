@@ -1,0 +1,46 @@
+{
+  "kind": "Non-normative synthetic OpenDesign exploration; no production UI transfer",
+  "authority": "User 2026-11-01: bring OpenDesign up and improve Issues further because it feels too repetitive; preserve all prior OpenDesign data and shared typography/themes.",
+  "project": "contractor-issue-detail-20261101",
+  "conversation": "9384ee82-ea37-413d-819f-f7f9f7529fb2",
+  "generationRun": "a08d545c-3ddf-4cdb-bd56-0e19c82947bb",
+  "generationOutcome": "completed",
+  "generator": "OpenDesign / isolated BYOK OpenCode through the existing Contractor gateway",
+  "model": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+  "sourceFile": "index-review-v4.html",
+  "previewFileInOpenDesign": "index-review-v4-preview.html",
+  "originalSha256": "ec22282916e859d08fd71543a640382f1570834bb8ba3703e669be7c01005caf",
+  "previewSha256": "96879d463ca7652399b015ba2fd7d77449cc79a8e315a24b0e26bc011e262b50",
+  "previous": "../issues-opendesign-2026-11-01/preview.html",
+  "composition": [
+    "Unboxed narrative and semantic icon badge",
+    "Impact as a short edge-accented block",
+    "Unified source/file evidence workbench",
+    "Quiet supporting column with visible verification, limitations and preconditions",
+    "Compact decision bar with a draft revealed only after selecting a verdict",
+    "Readable contextual list rows and underline tabs"
+  ],
+  "previewCorrections": [
+    "At medium desktop widths use a single main content track and a 300px list instead of compressing the narrative beside a fixed 300px supporting track",
+    "Constrain long source-revision and artifact identifiers and allow horizontal scrolling inside code blocks",
+    "Avoid initial programmatic title focus so it does not resemble an input; preserve focus on user selection",
+    "Show copy success only after an actual successful clipboard write"
+  ],
+  "preservation": {
+    "preGenerationBackup": "/Users/ruslan/src/third-party/open-design-backups/20261101T085400Z",
+    "finalBackup": "/Users/ruslan/src/third-party/open-design-backups/20261101T090048Z",
+    "sqliteIntegrity": "ok",
+    "counts": {
+      "projects": 4,
+      "conversations": 7,
+      "messages": 35,
+      "projectFiles": 79
+    },
+    "originals": "All earlier project files, conversations, versions and host trial artifacts retained"
+  },
+  "isolation": "Separate loopback origin, GET-only fixed routes, opaque sandbox frame, connect-src none, form-action none; synthetic local decision only. Ephemeral single-model relay stopped and upstream-credential file removed after generation.",
+  "verification": "12 browser cases: 1440/1100/390/320 \u00d7 light/dark/black, distinct composition, common fonts, bounded canvas, local tabs and evidence preview, mandatory rationale/severity/duplicate target, unchanged proposal/history, source-list bounds and mobile back; no page errors or external requests. Previous version remains selectable.",
+  "serve": "node docs/design/ui/experiments/issues-review-opendesign-2026-11-01/serve.mjs",
+  "verify": "node docs/design/ui/experiments/issues-review-opendesign-2026-11-01/verify.mjs",
+  "productionTransfer": "Separate follow-up after reviewing this candidate; no production Issue behavior, Server contract, release version or business record changed."
+}
