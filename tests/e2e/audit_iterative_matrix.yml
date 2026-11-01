@@ -314,20 +314,6 @@
     {
       "boundary": "postgres",
       "package": "github.com/grauwolf32/contractor/internal/auditcontroller",
-      "case": "TestPostgresTypedAdmissionWaitsForExplicitProjectionRebuildOrOriginalDeadline",
-      "covers": [
-        "A3"
-      ],
-      "purpose": "Missing projection waits without false completion and resumes only after rebuild, or stops on original deadline/cancellation.",
-      "limits": [
-        "same generation/deadline",
-        "no fabricated ordinal",
-        "no duplicate waiting decision"
-      ]
-    },
-    {
-      "boundary": "postgres",
-      "package": "github.com/grauwolf32/contractor/internal/auditcontroller",
       "case": "TestPostgresTypedAdmissionDefersAtNonTimeRoundBudgetWithoutTargetRetry",
       "covers": []
     },

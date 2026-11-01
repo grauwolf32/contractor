@@ -143,8 +143,8 @@ receipt_id, proposal_id, allocation_id, runtime_agent_id, runtime_instance_id, s
 invocation_id, submission_id, client_key, request_digest, run_id, owner_id, project_id, publication_requested, workflow_name, workflow_version,
 workflow_schema_version, workflow_configuration_ref, workflow_closure_digest, proposal_ref, proposal_digest, proposal_media_type, proposal_size_bytes, evidence,
 report_projection
-) VALUES ($1,$2,$3,'runtime','instance','stage','worker',$4,$5,$6,$7,$8,$9,(SELECT project_id FROM workflow_runs WHERE run_id=$8),$15,'source','1','contractor/v1alpha1',
-'{"name":"source","version":"1"}',$7,$10,$11,'application/json',$12,$13,$14)`,
+, checks_projection) VALUES ($1,$2,$3,'runtime','instance','stage','worker',$4,$5,$6,$7,$8,$9,(SELECT project_id FROM workflow_runs WHERE run_id=$8),$15,'source','1','contractor/v1alpha1',
+'{"name":"source","version":"1"}',$7,$10,$11,'application/json',$12,$13,$14, json_build_object('schema','contractor.audit.finding-checks-projection.v1','proposal_digest',($11)::text,'size_bytes',($12)::bigint,'discarded',false,'subject',NULL,'limitations',NULL,'checks','[]'::json))`,
 		"receipt-"+suffix, "proposal-"+suffix, "allocation-"+suffix, "invocation-"+suffix, "submission-"+suffix, suffix,
 		serviceTestDigest(suffix), runID, owner, ref, auditdomain.DigestBytes(body), written.Size, evidenceJSON,
 		string(projection), publishProblem)

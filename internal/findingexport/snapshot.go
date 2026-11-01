@@ -202,18 +202,10 @@ func validateSnapshot(value Snapshot) error {
 			}
 			used[id] = true
 		}
-		if r.Review.State != nil && !slices.Contains([]string{"proposed", "confirmed", "rejected", "duplicate", "needs-evidence"}, *r.Review.State) {
+		if auditdomain.ValidateFindingAssessment(r.Review.State, r.Review.Verdict, r.Review.Severity, r.Review.DuplicateTargetID) != nil || r.Review.DuplicateTargetID == r.FindingID || r.Review.DuplicateTargetID != "" && !contracts.ValidResourceID(r.Review.DuplicateTargetID) {
 			return ErrInvalid
 		}
-		if (r.Review.IsState("duplicate")) != (r.Review.DuplicateTargetID != "") || r.Review.DuplicateTargetID == r.FindingID || r.Review.DuplicateTargetID != "" && !contracts.ValidIdempotencyKey(r.Review.DuplicateTargetID) {
-			return ErrInvalid
-		}
-		if r.Review.Severity != "" && !slices.Contains([]string{"informational", "low", "medium", "high", "critical"}, r.Review.Severity) {
-			return ErrInvalid
-		}
-		if r.Review.Severity != "" && (!r.Review.IsState("confirmed") || r.Review.Verdict != "true_positive") {
-			return ErrInvalid
-		}
+
 		if p := r.PrimaryKey; p != nil {
 			key, err := auditdomain.FindingGroupKey(p.ProjectID, p.Algorithm, p.Value)
 			if err != nil || key != p.GroupKey || p.Policy == "" {

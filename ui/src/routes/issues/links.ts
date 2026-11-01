@@ -62,29 +62,12 @@ export function issuePath(projectId: string, findingId: string): string {
   return `/issues/${encodeURIComponent(projectId)}/${encodeURIComponent(findingId)}`;
 }
 
-/** The finding's exact retained evidence, in the existing Evidence tab. */
-export function issueEvidencePath(auditId: string, findingId: string): string {
-  return `${issuePath(auditId, findingId)}?tab=evidence`;
-}
-
 /** A possible issue on the Issues destination with the list's filters. */
 export function issueHref(
   finding: Pick<ProjectFinding, "projectId" | "findingId">,
   filters: IssueFilters,
 ): string {
   return `${issuePath(finding.projectId, finding.findingId)}${issueSearch(filters)}`;
-}
-
-/** The check page's possible issues section, focused on one of them. */
-export function checkIssuePath(
-  projectId: string,
-  auditId: string,
-  findingId?: string,
-): string {
-  const section = `/projects/${encodeURIComponent(projectId)}/audits/${encodeURIComponent(auditId)}/findings`;
-  return findingId === undefined
-    ? section
-    : `${section}?finding=${encodeURIComponent(findingId)}`;
 }
 
 /** True when a possible issue still belongs in a list with these filters. */

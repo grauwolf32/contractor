@@ -160,7 +160,7 @@ SELECT (SELECT count(*) FROM finding_proposal_audit_holds WHERE audit_id = $1),
 					} `json:"findings"`
 				}
 				if err := json.Unmarshal(report.Machine, &machine); err != nil ||
-					len(machine.Findings.Proposed) != 1 || machine.Findings.Proposed[0].Title != "Late candidate" {
+					len(machine.Findings.Proposed) != 0 {
 					t.Fatalf("report proposed findings = (%+v, %v)", machine.Findings, err)
 				}
 			}

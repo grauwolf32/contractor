@@ -18,7 +18,7 @@ async function downloadedJSON(
 export async function exerciseFindingExports(
   page: Page,
   audit: Schemas["Audit"],
-  findings: Schemas["AuditFinding"][],
+  findings: Schemas["ProjectFindingSummary"][],
 ) {
   await page.goto(
     `/projects/${audit.projectId}/audits/${audit.auditId}/findings`,
@@ -29,7 +29,7 @@ export async function exerciseFindingExports(
     page.getByRole("checkbox", {
       name: /Select Embedded private key for export/,
     }),
-  ).toHaveCount(2);
+  ).toHaveCount(findings.length);
   await panel.getByRole("button", { name: "Select this page" }).click();
   await expect(
     panel.getByRole("checkbox", { name: "Include duplicates" }),
@@ -46,7 +46,7 @@ export async function exerciseFindingExports(
     return (await value.json()) as Schemas["PublishedFindingExport"];
   };
   const first = await publish();
-  expect(first.selectedCount).toBe(2);
+  expect(first.selectedCount).toBe(findings.length);
   expect(first.resultCount).toBe(1);
   const downloadSARIF = async (count: number) => {
     const waiting = page.waitForEvent("download");
@@ -78,9 +78,9 @@ export async function exerciseFindingExports(
   await panel.getByRole("checkbox", { name: "Include duplicates" }).check();
   const expanded = await publish();
   expect(expanded.exportId).not.toBe(first.exportId);
-  expect(expanded.selectedCount).toBe(2);
-  expect(expanded.resultCount).toBe(2);
-  await downloadSARIF(2);
+  expect(expanded.selectedCount).toBe(findings.length);
+  expect(expanded.resultCount).toBe(findings.length);
+  await downloadSARIF(findings.length);
   await panel.getByText("Technical details", { exact: true }).click();
   const waiting = page.waitForEvent("download");
   await panel.getByRole("button", { name: "Download snapshot" }).click();

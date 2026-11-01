@@ -175,7 +175,7 @@ BEGIN
            AND (NEW.anchor_projection=OLD.anchor_projection OR NEW.retention_state='discarded')
            AND (NEW.fingerprint_projection=OLD.fingerprint_projection OR NEW.retention_state='discarded')
            AND (NEW.checks_projection::text IS NOT DISTINCT FROM OLD.checks_projection::text
-                OR OLD.checks_projection IS NULL OR NEW.retention_state='discarded') THEN RETURN NEW;
+                OR NEW.retention_state='discarded') THEN RETURN NEW;
         END IF;
     END IF;
     IF TG_OP='DELETE' AND current_setting('contractor.lifecycle_purge',true)='project'
@@ -313,6 +313,8 @@ DO $$ DECLARE receipt record; BEGIN
 END; $$;
 ALTER TABLE finding_proposal_receipts DISABLE TRIGGER finding_proposal_receipts_protect_immutable;
 DELETE FROM finding_proposal_receipts;
+ALTER TABLE finding_proposal_receipts ALTER COLUMN checks_projection SET NOT NULL;
+DROP INDEX finding_checks_projection_pending_idx;
 ALTER TABLE finding_proposal_receipts ENABLE TRIGGER finding_proposal_receipts_protect_immutable;
 ALTER TABLE finding_proposal_receipts DROP CONSTRAINT finding_proposal_receipts_retention_state_check;
 ALTER TABLE finding_proposal_receipts DROP CONSTRAINT finding_proposal_receipts_retention_shape;
@@ -414,3 +416,17 @@ BEGIN
  RETURN NEW;
 END;
 $$;
+
+-- Sparse canonical states still advance a bounded report membership window.
+ALTER TABLE audit_report_pages DROP CONSTRAINT audit_report_pages_entries_check,
+ DROP CONSTRAINT audit_report_pages_shape;
+ALTER TABLE audit_report_pages ADD CONSTRAINT audit_report_pages_entries_check CHECK(
+ entry_count>=0 AND ((entry_count=0)=(octet_length(content)=0)) AND (section<>'items' OR entry_count>0 OR exhausted)),
+ ADD CONSTRAINT audit_report_pages_shape CHECK(CASE WHEN section='items' THEN
+ round_id ~ '^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$' AND jsonb_typeof(coverage_counts)='object'
+ AND last_created_at IS NULL AND last_finding_id IS NULL
+ AND ((last_item_ordinal IS NULL)=(entry_count=0)) AND (last_item_ordinal IS NULL OR last_item_ordinal>=0)
+ ELSE round_id IS NULL AND coverage_counts IS NULL AND last_item_ordinal IS NULL
+ AND ((last_created_at IS NULL)=(last_finding_id IS NULL))
+ AND (exhausted AND entry_count=0 OR last_created_at IS NOT NULL)
+ AND (last_finding_id IS NULL OR last_finding_id ~ '^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$') END);

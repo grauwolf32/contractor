@@ -19,7 +19,6 @@ import (
 var (
 	ErrAdmissionDeadline       = errors.New("Audit admission validation deadline exceeded")
 	ErrAdmissionSliceFull      = errors.New("Audit admission slice work budget exhausted")
-	ErrChecksProjectionPending = errors.New("finding check index data migration pending")
 	ErrCorrelationStale        = apierror.New(apierror.FindingCorrelationStale, "finding correlation traversal is stale")
 	ErrCorrelationItemTooLarge = apierror.New(apierror.FindingCorrelationItemTooLarge, "finding correlation item exceeds preview bound")
 	ErrInvalid                 = apierror.New(apierror.InvalidRequest, "auditstore invalid argument")

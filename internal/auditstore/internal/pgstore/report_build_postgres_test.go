@@ -167,14 +167,14 @@ SELECT octet_length(receipt.report_projection)
 	}
 	read := func(after *auditstore.ReportFindingCursor, limit, bytes int) ([]auditstore.ReportFinding, bool) {
 		t.Helper()
-		page, more, err := f.store.ListReportFindings(f.ctx, auditstore.ReportFindingPageParams{
+		window, err := f.store.ListReportFindings(f.ctx, auditstore.ReportFindingPageParams{
 			AuditID: audit.AuditID, Section: auditstore.ReportSectionProposed, After: after,
 			Limit: limit, ProjectionBytes: bytes,
 		})
 		if err != nil {
 			t.Fatal(err)
 		}
-		return page, more
+		return window.Items, window.ContinueAfter != nil
 	}
 	// Equal creation times order by finding ID, the cursor's tie breaker.
 	ordered := append([]string(nil), findings...)
@@ -205,12 +205,12 @@ SELECT octet_length(receipt.report_projection)
 	if more || len(rest) != 2 || rest[0].FindingID != ordered[1] || rest[1].FindingID != ordered[2] {
 		t.Fatalf("page after %s = %+v, more=%t", cursor.FindingID, rest, more)
 	}
-	if page, more, err := f.store.ListReportFindings(f.ctx, auditstore.ReportFindingPageParams{
+	if window, err := f.store.ListReportFindings(f.ctx, auditstore.ReportFindingPageParams{
 		AuditID: audit.AuditID, Section: auditstore.ReportSectionConfirmed, Limit: 10, ProjectionBytes: 1 << 20,
-	}); err != nil || more || len(page) != 0 {
-		t.Fatalf("empty section = (%+v, %t, %v)", page, more, err)
+	}); err != nil || window.ContinueAfter != nil || len(window.Items) != 0 {
+		t.Fatalf("empty section = (%+v, %t, %v)", window, window.ContinueAfter != nil, err)
 	}
-	if _, _, err := f.store.ListReportFindings(f.ctx, auditstore.ReportFindingPageParams{
+	if _, err := f.store.ListReportFindings(f.ctx, auditstore.ReportFindingPageParams{
 		AuditID: audit.AuditID, Section: auditstore.ReportSectionItems, Limit: 10, ProjectionBytes: 1,
 	}); !errors.Is(err, auditstore.ErrInvalid) {
 		t.Fatalf("items section as findings = %v, want invalid", err)

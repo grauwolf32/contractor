@@ -71,9 +71,9 @@ INSERT INTO finding_proposal_receipts (
     workflow_schema_version, workflow_configuration_ref, workflow_closure_digest,
     proposal_ref, proposal_digest, proposal_media_type, proposal_size_bytes, evidence,
     report_projection, fingerprint_projection, project_proposal,project_evidence,publication_requested,retention_state,source_run_deleted_at
-) VALUES ($1, $2, $3, 'runtime-pages', 'instance-pages', 'stage-pages', 'worker', $4, $5, $6,
+, checks_projection) VALUES ($1, $2, $3, 'runtime-pages', 'instance-pages', 'stage-pages', 'worker', $4, $5, $6,
     $7, $8, $9, $10, 'finding-source', '1', 'contractor/v1alpha1',
-    '{"name":"finding-source","version":"1"}'::jsonb, $11, $12::jsonb, $13, 'application/json', $14, $17::jsonb, $15,$16,$18::jsonb,$17::jsonb,true,'project-held',clock_timestamp())`,
+    '{"name":"finding-source","version":"1"}'::jsonb, $11, $12::jsonb, $13, 'application/json', $14, $17::jsonb, $15,$16,$18::jsonb,$17::jsonb,true,'project-held',clock_timestamp(), json_build_object('schema','contractor.audit.finding-checks-projection.v1','proposal_digest',($13)::text,'size_bytes',($14)::bigint,'discarded',false,'subject',NULL,'limitations',NULL,'checks','[]'::json))`,
 		receiptID, "proposal-"+suffix, "allocation-"+suffix, "invocation-"+suffix, "submission-"+suffix,
 		document.ClientKey, auditHandlerDigest("request-"+suffix), "deleted-run-"+suffix,
 		ownerID, projectID, auditHandlerDigest("workflow"), refJSON, proposal.Digest, proposal.SizeBytes,

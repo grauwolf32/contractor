@@ -873,16 +873,11 @@ export interface InboxSummary {
    */
   needsDecision: number | undefined;
   /**
-   * Possible issues in state `proposed` (never decided, reopened, or assessed
-   * again since the last decision) of Inbox checks (INBOX_CHECK_STATES),
-   * counted by the Server per check.
+   * Loaded Project Findings that have no analyst assessment or were reopened.
+   * Their historical Audits may already be complete or deleted.
    */
   possibleIssues: number | undefined;
-  /**
-   * Pending active test approvals, requirement applicability and report
-   * acceptance requests of Inbox checks. Pending finding-triage requests are
-   * not counted again: their possible issue is.
-   */
+  /** Pending item approvals and report acceptance requests of Inbox checks. */
   otherDecisions: number | undefined;
   /** Some read failed: the counts are lower bounds. */
   partial: boolean;

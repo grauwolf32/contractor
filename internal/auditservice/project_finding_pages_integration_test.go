@@ -10,7 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/querystore"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/persistence/explaintest"
 	"github.com/jackc/pgx/v5"
@@ -77,6 +79,11 @@ func TestProjectFindingPagesStayBoundedAtTenThousandFindingsAndFiftyThousandSour
 	if _, err := f.pool.Exec(ctx, projectFindingForeignScaleFindingsSQL, foreignFinding); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := f.pool.Exec(ctx, `INSERT INTO project_finding_sources(receipt_id,project_id,finding_id,created_at)
+ SELECT first_receipt_id,project_id,finding_id,created_at FROM project_findings WHERE project_id='foreign-project' ON CONFLICT DO NOTHING`); err != nil {
+		t.Fatal(err)
+	}
+
 	if _, err := f.pool.Exec(ctx, `ANALYZE project_findings`); err != nil {
 		t.Fatal(err)
 	}
@@ -345,12 +352,137 @@ func TestProjectFindingPagesStayBoundedAtTenThousandFindingsAndFiftyThousandSour
 			}
 		}
 	}
+
+	// Report assembly uses the same bounded membership windows even when a
+	// section has no matching current states. Check real generic query plans.
+	for _, section := range []auditstore.ReportSection{auditstore.ReportSectionProposed, auditstore.ReportSectionConfirmed} {
+		var after *auditstore.ReportFindingCursor
+		seen := map[string]bool{}
+		var first, last *correlationQueryTrace
+		windows := 0
+		for {
+			trace.reads = nil
+			window, err := querystore.New(pool).ListReportFindings(ctx, auditstore.ReportFindingPageParams{AuditID: f.first, Section: section, After: after, Limit: 128, ProjectionBytes: 1 << 20})
+			if err != nil {
+				t.Fatal(err)
+			}
+			windows++
+			if windows > 80 {
+				t.Fatal("report window did not converge")
+			}
+			if len(trace.reads) != 1 {
+				t.Fatal("report window hydrated by multiple statements")
+			}
+			probe := trace.reads[0]
+			if first == nil {
+				first = &probe
+			}
+			last = &probe
+			for _, row := range window.Items {
+				if seen[row.FindingID] {
+					t.Fatal("report repeated a Finding")
+				}
+				seen[row.FindingID] = true
+			}
+			if window.ContinueAfter == nil {
+				break
+			}
+			after = window.ContinueAfter
+		}
+		want := 0
+		if section == auditstore.ReportSectionProposed {
+			want = 10000
+		}
+		if len(seen) != want || windows != 79 {
+			t.Fatalf("report %s rows=%d windows=%d", section, len(seen), windows)
+		}
+		for _, probe := range []*correlationQueryTrace{first, last} {
+			plan, err := explaintest.ExplainPrepared(ctx, f.pool, explaintest.Generic, probe.sql, probe.args...)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, table := range []string{"project_finding_audits", "project_findings", "finding_proposal_receipts"} {
+				if reads := plan.Reads.Of(table); reads > 160 {
+					t.Fatalf("report %s read %d %s rows, budget 160\n%s", section, reads, table, plan.Plan.String())
+				}
+			}
+		}
+	}
 	old := *revision
 	if _, err := f.service.EditProjectFinding(ctx, f.edit(t, 1, "scale-edit", auditstore.VerdictFalsePositive)); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := service.ListProjectFindings(ctx, ProjectFindingListParams{OwnerFindingListParams: auditstore.OwnerFindingListParams{OwnerID: f.owner, ProjectID: f.project, Limit: 128}, ProjectRevision: &old}); err == nil {
 		t.Fatal("a canonical edit did not invalidate the paginated Project snapshot")
+	}
+
+	// History uses ordinary Artifact metadata pages. Replicate a real retained
+	// edit version as immutable aliases to stress listing independently of fact
+	// production, whose operation identity/replay is covered by edit tests.
+	historySeed := auditdomain.FindingSourceHistoryName("receipt-shared-a", "analyst-edit", f.finding+":2")
+	prefix := auditdomain.FindingSourceHistoryPrefix("receipt-shared-a")
+	if _, err := f.pool.Exec(ctx, projectFindingScaleHistorySQL, f.project, historySeed, prefix); err != nil {
+		t.Fatal(err)
+	}
+	for _, table := range []string{"artifact_bindings", "artifact_binding_revisions"} {
+		if _, err := f.pool.Exec(ctx, "ANALYZE "+table); err != nil {
+			t.Fatal(err)
+		}
+	}
+	historySeen := map[string]bool{}
+	afterName := ""
+	var historyRevision *uint64
+	var firstHistory, lastHistory *correlationQueryTrace
+	for {
+		trace.reads = nil
+		page, err := intake.ListProjectSourceHistory(ctx, f.owner, f.project, "receipt-shared-a", afterName, 64, historyRevision)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(trace.reads) != 4 {
+			t.Fatalf("history page used %d statements", len(trace.reads))
+		}
+		historyRevision = &page.ProjectRevision
+		for _, probe := range trace.reads {
+			if strings.Contains(probe.sql, "artifact_bindings") && strings.Contains(probe.sql, "LIMIT") {
+				copy := probe
+				if firstHistory == nil {
+					firstHistory = &copy
+				}
+				lastHistory = &copy
+			}
+		}
+		encoded, _ := json.Marshal(page)
+		if len(page.Items) > 64 || len(encoded) > 1<<20 {
+			t.Fatal("oversized history page")
+		}
+		for _, record := range page.Items {
+			if historySeen[record.Ref.Name] || !record.Frozen || !strings.HasPrefix(record.Ref.Name, prefix) {
+				t.Fatal("history cursor repeated or crossed source")
+			}
+			historySeen[record.Ref.Name] = true
+		}
+		if len(page.Items) < 64 {
+			break
+		}
+		afterName = page.Items[len(page.Items)-1].Ref.Name
+	}
+	if len(historySeen) != 10001 {
+		t.Fatalf("reached %d of 10001 history artifacts", len(historySeen))
+	}
+	for _, probe := range []*correlationQueryTrace{firstHistory, lastHistory} {
+		if probe == nil {
+			t.Fatal("missing ordinary history query")
+		}
+		plan, err := explaintest.ExplainPrepared(ctx, f.pool, explaintest.Generic, probe.sql, probe.args...)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, table := range []string{"artifact_bindings", "artifact_binding_revisions"} {
+			if reads := plan.Reads.Of(table); reads > 80 {
+				t.Fatalf("history page read %d %s rows, budget 80\n%s", reads, table, plan.Plan.String())
+			}
+		}
 	}
 	t.Log(fmt.Sprintf("traversed %d canonical Findings and %d independent sources at fixed page cost", len(seen), len(visited)))
 }
@@ -401,3 +533,16 @@ const projectFindingForeignScaleFindingsSQL = `INSERT INTO project_findings
  'updated_at',timestamptz '2027-01-01 00:00:00+00'+n*interval '1 microsecond'))).*
  FROM project_findings AS seed CROSS JOIN generate_series(1,10000) AS n
  WHERE seed.finding_id=$1`
+
+const projectFindingScaleHistorySQL = `WITH copied AS (
+ INSERT INTO artifact_bindings
+ SELECT (jsonb_populate_record(NULL::artifact_bindings,to_jsonb(seed)||jsonb_build_object(
+ 'name',$3::text||'scale.'||lpad(n::text,6,'0')))).*
+ FROM artifact_bindings AS seed CROSS JOIN generate_series(1,10000) AS n
+ WHERE scope_kind='project' AND scope_id=$1 AND namespace='finding-history' AND name=$2
+ RETURNING name
+)
+ INSERT INTO artifact_binding_revisions
+ SELECT (jsonb_populate_record(NULL::artifact_binding_revisions,to_jsonb(seed)||jsonb_build_object('name',copied.name))).*
+ FROM artifact_binding_revisions AS seed CROSS JOIN copied
+ WHERE seed.scope_kind='project' AND seed.scope_id=$1 AND seed.namespace='finding-history' AND seed.name=$2`

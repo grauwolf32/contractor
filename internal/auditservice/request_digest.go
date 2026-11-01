@@ -59,12 +59,6 @@ func LifecycleRequestDigest(action, auditID string, revision uint64, deadlineSec
 	return digest, nil
 }
 
-// CreateFindingReviewRequestDigest binds a review request on a finding: the
-// Audit, the finding, the expected revision and the optional expiry.
-
-// DecideFindingRequestDigest binds a verdict on a finding review request:
-// the Audit, the review request, its expected revision and the decision.
-
 // ProjectFindingEditRequestDigest binds the ordinary Project owner command.
 func ProjectFindingEditRequestDigest(params ProjectFindingEditParams) (string, error) {
 	return contentdigest.CanonicalJSON([]any{"contractor/project-finding-edit/v1", params.ProjectID,
@@ -80,8 +74,7 @@ func DecideActionReviewRequestDigest(params DecideActionReviewParams) (string, e
 	})
 }
 
-// reviewDecision is the body of one public review decision; a verdict and an
-// action decision share it, so its member order is part of both digests.
+// reviewDecision binds one item/report approval body; field order is part of its digest.
 type reviewDecision struct {
 	Action    *auditstore.ReviewAction `json:"action,omitempty"`
 	Rationale string                   `json:"rationale"`

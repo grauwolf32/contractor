@@ -110,7 +110,7 @@ export const FINDING_STATE_LABELS: Readonly<
 };
 
 /** An analyst verdict, or "unreviewed" for a finding without one. */
-export type VerdictValue = FindingVerdict | "unreviewed";
+type VerdictValue = FindingVerdict | "unreviewed";
 
 export const VERDICT_LABELS: Readonly<Record<VerdictValue, VocabularyLabel>> = {
   true_positive: { label: "Confirmed", tone: "success" },

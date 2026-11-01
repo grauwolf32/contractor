@@ -17672,6 +17672,12 @@ components:
       - duplicate
       - reopen
       - needs_evidence
+    FindingActorIdentity:
+      type: string
+      minLength: 1
+      maxLength: 256
+      x-max-utf8-bytes: 256
+      description: Opaque authenticated actor identity, bounded in UTF-8 bytes.
     ProjectFinding:
       type: object
       additionalProperties: false
@@ -17728,10 +17734,7 @@ components:
           - type: 'null'
         actorId:
           oneOf:
-          - type: string
-            minLength: 1
-            maxLength: 256
-            x-max-utf8-bytes: 256
+          - $ref: '#/components/schemas/FindingActorIdentity'
           - type: 'null'
         assessedAt:
           oneOf:

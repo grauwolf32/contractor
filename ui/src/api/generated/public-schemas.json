@@ -13440,6 +13440,12 @@
         "needs_evidence"
       ]
     },
+    "FindingActorIdentity": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "x-max-utf8-bytes": 256
+    },
     "ProjectFinding": {
       "type": "object",
       "additionalProperties": false,
@@ -13520,10 +13526,7 @@
         "actorId": {
           "oneOf": [
             {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 256,
-              "x-max-utf8-bytes": 256
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingActorIdentity"
             },
             { "type": "null" }
           ]

@@ -9784,6 +9784,9 @@ type ExactArtifactRef struct {
 	Revision  Revision     `json:"revision"`
 }
 
+// FindingActorIdentity Opaque authenticated actor identity, bounded in UTF-8 bytes.
+type FindingActorIdentity = string
+
 // FindingAuditHold defines model for FindingAuditHold.
 type FindingAuditHold struct {
 	AuditId   ResourceId             `json:"auditId"`
@@ -11106,22 +11109,22 @@ type ProjectDeletionPhase string
 
 // ProjectFinding defines model for ProjectFinding.
 type ProjectFinding struct {
-	ActorId           nullable.Nullable[string]            `json:"actorId"`
-	AnalystSeverity   nullable.Nullable[FindingSeverity]   `json:"analystSeverity"`
-	AnalystVerdict    nullable.Nullable[FindingVerdict]    `json:"analystVerdict"`
-	AssessedAt        nullable.Nullable[time.Time]         `json:"assessedAt"`
-	Claim             *FindingClaim                        `json:"claim,omitempty"`
-	CreatedAt         time.Time                            `json:"createdAt"`
-	DuplicateTargetId nullable.Nullable[ResourceId]        `json:"duplicateTargetId"`
-	FindingId         ResourceId                           `json:"findingId"`
-	FirstProposal     FindingExactArtifact                 `json:"firstProposal"`
-	FirstReceiptId    ResourceId                           `json:"firstReceiptId"`
-	ProjectId         ResourceId                           `json:"projectId"`
-	Rationale         nullable.Nullable[DecisionRationale] `json:"rationale"`
-	Revision          int                                  `json:"revision"`
-	State             nullable.Nullable[FindingState]      `json:"state"`
-	Title             string                               `json:"title"`
-	UpdatedAt         time.Time                            `json:"updatedAt"`
+	ActorId           nullable.Nullable[FindingActorIdentity] `json:"actorId"`
+	AnalystSeverity   nullable.Nullable[FindingSeverity]      `json:"analystSeverity"`
+	AnalystVerdict    nullable.Nullable[FindingVerdict]       `json:"analystVerdict"`
+	AssessedAt        nullable.Nullable[time.Time]            `json:"assessedAt"`
+	Claim             *FindingClaim                           `json:"claim,omitempty"`
+	CreatedAt         time.Time                               `json:"createdAt"`
+	DuplicateTargetId nullable.Nullable[ResourceId]           `json:"duplicateTargetId"`
+	FindingId         ResourceId                              `json:"findingId"`
+	FirstProposal     FindingExactArtifact                    `json:"firstProposal"`
+	FirstReceiptId    ResourceId                              `json:"firstReceiptId"`
+	ProjectId         ResourceId                              `json:"projectId"`
+	Rationale         nullable.Nullable[DecisionRationale]    `json:"rationale"`
+	Revision          int                                     `json:"revision"`
+	State             nullable.Nullable[FindingState]         `json:"state"`
+	Title             string                                  `json:"title"`
+	UpdatedAt         time.Time                               `json:"updatedAt"`
 }
 
 // ProjectFindingPage defines model for ProjectFindingPage.

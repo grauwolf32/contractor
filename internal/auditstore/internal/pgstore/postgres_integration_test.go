@@ -600,7 +600,7 @@ INSERT INTO finding_proposal_receipts (
     workflow_configuration_ref, workflow_closure_digest,
     proposal_ref, proposal_digest, proposal_media_type,
     proposal_size_bytes, evidence, report_projection
-) VALUES (
+, checks_projection) VALUES (
     'finding-receipt-one', 'finding-proposal-one', 'allocation-finding-one',
     'runtime-finding-one', 'instance-finding-one', 'stage-finding-one', 'worker',
     'invocation-finding-one', 'submission-finding-one', 'candidate-one', $1,
@@ -609,7 +609,7 @@ INSERT INTO finding_proposal_receipts (
     '{"name":"audit-check","version":"1"}'::jsonb, $6,
     $7::jsonb, $8, 'application/json', 128, '[]'::jsonb,
     '{"description":"Test finding.","limitations":[],"preconditions":[],"severity_suggestion":"","standard_refs":[],"subject":null,"title":"Test finding."}'
-)`,
+, json_build_object('schema','contractor.audit.finding-checks-projection.v1','proposal_digest',($8)::text,'size_bytes',(128)::bigint,'discarded',false,'subject',NULL,'limitations',NULL,'checks','[]'::json))`,
 		testDigest("d"), create.OwnerID, project.ProjectID,
 		executionThree.ExecutionID, create.AuditID, testDigest("e"),
 		proposalRefJSON, proposal.Digest,

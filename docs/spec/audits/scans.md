@@ -1108,12 +1108,10 @@ disposition and creates no item or child. A receipt with no checks advances
 the cursor without fabricating a check. Profiles without method mappings
 retain their existing inventory role and whole-package next-Round path.
 
-**ASC-R180.** An absent private check projection blocks that exact receipt
-with `source_projection_pending`; it is neither empty input nor a rejected
-ordinal. Repeated readiness probes change no checkpoint or decision. Only
-an explicit bounded index rebuild makes the source ready; resumption keeps
-the original generation and validation deadline and never parses a whole
-proposal as an admission fallback.
+**ASC-R180.** Finding check admission strictly rejects an absent or invalid
+private check index as invalid stored data. It creates no waiting generation,
+rebuild operation or guessed empty check. New receipt publication supplies the
+validated index atomically (FND-R188, FND-R190).
 
 **ASC-R181.** Each candidate is prepared inside the current claimed
 transaction's savepoint. Its exact retained dependency closure, selected

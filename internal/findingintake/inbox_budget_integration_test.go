@@ -107,7 +107,7 @@ SELECT $1 || '-' || n, $1 || '-proposal-' || n, $1 || '-allocation', 'runtime',
        $6::timestamptz + n * $7::interval,
        CASE WHEN $10 THEN 'project-held' WHEN $8 THEN 'discarded' ELSE 'source-held' END,
        CASE WHEN $8 THEN $6::timestamptz END, CASE WHEN $8 AND NOT $10 THEN $6::timestamptz END,
-       CASE WHEN $8 AND NOT $10 THEN contractor_empty_finding_checks('sha256:' || repeat('c',64),1) END,
+       CASE WHEN $8 AND NOT $10 THEN contractor_empty_finding_checks('sha256:' || repeat('c',64),1) ELSE json_build_object('schema','contractor.audit.finding-checks-projection.v1','proposal_digest','sha256:'||repeat('c',64),'size_bytes',1,'discarded',false,'subject',NULL,'limitations',NULL,'checks','[]'::json) END,
        CASE WHEN $10 THEN jsonb_build_object('ref',jsonb_build_object('namespace','finding-materials','name',$1||'-proposal-'||n,'revision','r1'),'digest','sha256:'||repeat('c',64),'mediaType','application/json','sizeBytes',1) END,
        CASE WHEN $10 THEN '[]'::jsonb END
   FROM generate_series(1, $9::integer) AS n`,

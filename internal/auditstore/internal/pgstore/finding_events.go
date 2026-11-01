@@ -18,9 +18,8 @@ func (s *FindingEvents) RecordRejectedFindingProposal(
 	).Scan(&sequence)
 }
 
-// directFindingAssessmentEvent is the finding.assessed event of a direct
-// verification at the finding revision the assessment produced, with the
-// evidence bytes it charges to the Audit.
+// directFindingAssessmentEvent records an immutable direct verification result
+// and the evidence bytes charged to its Audit. It has no current Finding state.
 type directFindingAssessmentEvent struct {
 	AuditID       string
 	ReceiptID     string

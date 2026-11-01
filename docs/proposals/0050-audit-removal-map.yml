@@ -52,10 +52,10 @@ relations:
 - name: audit_findings
   action: replace
   owner: V64-014
-  facts: Move the existing Finding identity and sole current-state/write owner to Project. Remove Audit-owned
-    mutable Finding rows and their callers; do not add a parallel Project header over them. Preserve independent
-    source facts through receipts/results/history. Unadmitted proposals stay ordinary results; migration
-    invents neither evidence nor a current Project assessment.
+  facts: Project owns the sole runtime Finding identity and current-state command. The pre-release cutover
+    discards old operational Finding/intake rows and starts empty; old Audit snapshots, results and facts
+    survive as opaque immutable Project artifacts. New independent sources use current receipts/results/history,
+    with no old row promotion, compatibility reader or mutable Audit Finding wrapper.
 - name: audit_finding_contributions
   action: replace
   owner: V64-014
@@ -120,6 +120,11 @@ relations:
   owner: V64-014
   facts: Indexed execution membership for bounded Audit views over the same Project identity, state and revision; no source state synchronization.
 paths:
+- prefix: internal/app/data_migrate_command.go
+  action: delete
+  owner: V64-014
+  facts: Remove the finding-check index backfill CLI and its exclusive intake writer/tests. New receipts
+    contain an immutable non-NULL index at creation; no migration-pending admission state survives cutover.
 - prefix: internal/auditcontroller/
   action: replace
   owner: V64-002
@@ -566,10 +571,9 @@ operations:
 - path: /v1/audits/{auditId}/findings/{findingId}/provenance
   method: get
   operation_id: listAuditFindingProvenance
-  action: replace
+  action: delete
   owner: V64-014
-  facts: Preserve user purpose, owner authorization and exact data; adapt task/result/Project finding
-    projections. Independent SARIF/export bytes and routes keep their own contracts.
+  facts: Replaced by canonical Project source pages, exact receipt detail and ordinary immutable Artifact history. No old provenance DTO reader remains.
 - path: /v1/audits/{auditId}/findings/{findingId}/reviews
   method: post
   operation_id: createAuditFindingReview

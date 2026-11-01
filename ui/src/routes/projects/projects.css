@@ -808,9 +808,6 @@
   color: var(--muted);
   font-size: var(--text-xs);
 }
-.projects-attention-origin {
-  margin-left: auto;
-}
 
 /* "What do you want to check?" */
 .projects-composer {

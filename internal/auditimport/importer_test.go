@@ -1641,44 +1641,45 @@ func (f *fakeImportStore) ListReportItems(_ context.Context, _, roundID string, 
 // ListReportFindings pages like querystore.Store: one state in creation order,
 // at most Limit findings, and the first finding whose canonical projection
 // would take the page past ProjectionBytes starts the next page.
-func (f *fakeImportStore) ListReportFindings(
-	_ context.Context, params auditstore.ReportFindingPageParams,
-) ([]auditstore.ReportFinding, bool, error) {
+func (f *fakeImportStore) ListReportFindings(_ context.Context, params auditstore.ReportFindingPageParams) (auditstore.ReportFindingWindow, error) {
+	result := auditstore.ReportFindingWindow{Items: []auditstore.ReportFinding{}}
 	if params.Limit < 1 || params.Limit > auditstore.MaxReportPageRows || params.ProjectionBytes < 1 {
-		return nil, false, auditstore.ErrInvalid
+		return result, auditstore.ErrInvalid
 	}
-	selected := make([]auditstore.ReportFinding, 0)
+	selected := []auditstore.ReportFinding{}
 	for _, finding := range f.findings {
-		after := params.After == nil || finding.CreatedAt.After(params.After.CreatedAt) ||
-			finding.CreatedAt.Equal(params.After.CreatedAt) && finding.FindingID > params.After.FindingID
-		if (finding.State == nil && params.Section == auditstore.ReportSectionProposed || finding.State != nil && string(*finding.State) == string(params.Section)) && after {
+		if params.After == nil || finding.CreatedAt.After(params.After.CreatedAt) || finding.CreatedAt.Equal(params.After.CreatedAt) && finding.FindingID > params.After.FindingID {
 			selected = append(selected, finding)
 		}
 	}
-	sort.Slice(selected, func(left, right int) bool {
-		if !selected[left].CreatedAt.Equal(selected[right].CreatedAt) {
-			return selected[left].CreatedAt.Before(selected[right].CreatedAt)
+	sort.Slice(selected, func(i, j int) bool {
+		if !selected[i].CreatedAt.Equal(selected[j].CreatedAt) {
+			return selected[i].CreatedAt.Before(selected[j].CreatedAt)
 		}
-		return selected[left].FindingID < selected[right].FindingID
+		return selected[i].FindingID < selected[j].FindingID
 	})
-	result := make([]auditstore.ReportFinding, 0, params.Limit)
 	bytes := 0
+	var last *auditstore.ReportFindingCursor
 	for index, finding := range selected {
+		matches := finding.State == nil && params.Section == auditstore.ReportSectionProposed || finding.State != nil && string(*finding.State) == string(params.Section)
+		if index == params.Limit || matches && bytes >= params.ProjectionBytes {
+			result.ContinueAfter = last
+			break
+		}
+		last = &auditstore.ReportFindingCursor{CreatedAt: finding.CreatedAt, FindingID: finding.FindingID}
+		if !matches {
+			continue
+		}
 		encoded, err := auditdomain.EncodeFindingReportProjection(finding.Projection)
 		if err != nil {
-			return nil, false, err
-		}
-		if index == params.Limit || bytes >= params.ProjectionBytes {
-			return result, true, nil
+			return result, err
 		}
 		bytes += len(encoded)
-		result = append(result, finding)
+		result.Items = append(result.Items, finding)
 	}
-	return result, false, nil
+	return result, nil
 }
 
-// RecordReportPage keeps claimstore.Store's page contract: the shared request
-// validation, contiguous ordinals and discarding other revisions' pages.
 func (f *fakeImportStore) RecordReportPage(_ context.Context, params auditstore.RecordReportPageParams) error {
 	if err := auditstoretest.ValidateRecordReportPage(params); err != nil {
 		return err

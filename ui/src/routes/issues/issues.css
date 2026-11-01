@@ -408,10 +408,7 @@
   min-width: 0;
 }
 
-.issues-location-list,
-.issues-file-list,
-.issues-history-list,
-.issues-provenance-list {
+.issues-location-list {
   margin: 0;
   padding: 0;
   list-style: none;
@@ -419,8 +416,7 @@
   border-bottom: 1px solid var(--line);
 }
 
-.issues-location-list > li,
-.issues-file-list > li {
+.issues-location-list > li {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
@@ -430,10 +426,7 @@
   font-size: var(--text-md);
 }
 
-.issues-location-list > li + li,
-.issues-file-list > li + li,
-.issues-history-list > li + li,
-.issues-provenance-list > li + li {
+.issues-location-list > li + li {
   border-top: 1px solid var(--line);
 }
 
@@ -657,105 +650,7 @@ code.issues-attempt-request {
 
 /* ---------- Files, sources and facts ---------- */
 
-.issues-sources {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1-5);
-  min-width: 0;
-}
-
-.issues-sources > .issues-heading {
-  margin-bottom: 0;
-}
-
-.issues-file-name {
-  flex: 1 1 14rem;
-  min-width: 0;
-  font-family: var(--font-mono);
-  font-size: var(--text-sm);
-  overflow-wrap: anywhere;
-}
-
 /* ---------- History and provenance ---------- */
-
-.issues-history {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  min-width: 0;
-}
-
-.issues-history > .issues-heading {
-  margin-bottom: 0;
-}
-
-.issues-history-list > li {
-  padding: var(--space-2-5) 0;
-}
-
-.issues-history-request {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-1-5) var(--space-2-5);
-  margin: 0;
-}
-
-.issues-provenance {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-2-5);
-  min-width: 0;
-}
-
-.issues-provenance > div {
-  align-self: stretch;
-  min-width: 0;
-}
-
-.issues-provenance-list > li {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  min-width: 0;
-  padding: var(--space-2-5) 0;
-  font-size: var(--text-sm);
-}
-
-.issues-provenance-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-1) var(--space-2);
-  margin: 0;
-  overflow-wrap: anywhere;
-}
-
-.issues-provenance-head code,
-.issues-provenance-attempt code {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-}
-
-.issues-provenance-line {
-  margin: 0;
-  color: var(--muted);
-  overflow-wrap: anywhere;
-}
-
-.issues-provenance-attempt {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-0-5);
-  min-width: 0;
-  margin-top: var(--space-1);
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  background: var(--sunken);
-  overflow-wrap: anywhere;
-}
 
 /* ---------- Sections inside the check and project pages ---------- */
 
@@ -805,12 +700,6 @@ code.issues-attempt-request {
   background: var(--surface);
 }
 
-.issues-section-note {
-  margin: 0;
-  font-size: var(--text-sm);
-  font-weight: 700;
-}
-
 .issues-embedded-list {
   --ui-pad-start: var(--space-3-5);
   --ui-pad-end: var(--space-3-5);
@@ -854,14 +743,6 @@ code.issues-attempt-request {
   scroll-margin-top: 5rem;
 }
 
-.issues-card-decision {
-  min-width: 0;
-  padding: var(--space-3) var(--space-3-5);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-xl);
-  background: var(--sunken);
-}
-
 @media (max-width: 480px) {
   .issues-card {
     padding: var(--space-3-5);
@@ -899,70 +780,6 @@ code.issues-attempt-request {
 }
 
 /* Retained observations inside the existing finding card. */
-.issues-duplicates {
-  border-block-start: 1px solid var(--line);
-  padding-block: var(--space-4);
-  min-width: 0;
-}
-.issues-duplicates summary {
-  cursor: pointer;
-  font-weight: 600;
-  overflow-wrap: anywhere;
-}
-.issues-duplicates-body {
-  display: grid;
-  gap: var(--space-3);
-  padding-block-start: var(--space-3);
-  min-width: 0;
-}
-.issues-duplicates-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: grid;
-  gap: var(--space-4);
-}
-.issues-duplicates-list > li {
-  min-width: 0;
-}
-.issues-duplicate-observation {
-  display: grid;
-  gap: var(--space-2);
-  min-width: 0;
-  overflow-wrap: anywhere;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: var(--surface-subtle);
-  padding: var(--space-3);
-}
-.issues-duplicates-head,
-.issues-duplicates-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-}
-.issues-duplicates-head a {
-  overflow-wrap: anywhere;
-  font-weight: 600;
-}
-.issues-duplicates-code {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  font-size: var(--text-2xs);
-  max-height: 24rem;
-  overflow: auto;
-}
-
-.issues-duplicate-rating {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2) var(--space-4);
-  font-size: var(--text-xs);
-}
-.issues-duplicate-options {
-  padding-block: var(--space-2);
-}
 
 .issues-export {
   margin-block: var(--space-3);
@@ -1425,9 +1242,6 @@ code.issues-attempt-request {
   border-radius: var(--radius-md);
   background: var(--surface-subtle);
 }
-.issues-workspace .decisions-current {
-  padding: var(--space-3) var(--ui-pad-end) var(--space-3) var(--ui-pad-start);
-}
 @media (width > 1100px) {
   .issues-summary-grid {
     grid-template-columns: minmax(0, 1fr) 18.75rem;
@@ -1619,202 +1433,9 @@ code.issues-attempt-request {
   }
 }
 
-.issues-workspace .issues-duplicates {
-  margin-block-start: var(--space-3);
-}
-
-.issues-workspace .issues-duplicates summary {
-  display: inline-flex;
-  align-items: flex-start;
-  gap: var(--space-1-5);
-  list-style: none;
-  cursor: pointer;
-  font-weight: 500;
-  line-height: 1.5;
-}
-
-.issues-workspace .issues-duplicates summary::-webkit-details-marker {
-  display: none;
-}
-
-.issues-workspace .issues-duplicates > summary {
-  color: var(--muted-strong);
-  font-size: var(--text-sm);
-}
-
-.issues-workspace .issues-duplicates details > summary {
-  color: var(--muted);
-  font-size: var(--text-xs);
-}
-
-.issues-workspace .issues-duplicates summary::before {
-  content: "";
-  flex: none;
-  width: 0.4rem;
-  height: 0.4rem;
-  margin-block-start: 0.35em;
-  border-right: 1.5px solid currentColor;
-  border-bottom: 1.5px solid currentColor;
-  transform: rotate(-45deg);
-  transition: transform 150ms ease-out;
-}
-
-.issues-workspace .issues-duplicates[open] > summary::before,
-.issues-workspace .issues-duplicates details[open] > summary::before {
-  transform: rotate(45deg);
-}
-
-.issues-workspace .issues-duplicates summary:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
-  border-radius: var(--radius-sm);
-}
-
-.issues-workspace .issues-duplicates-body {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding-block-start: var(--space-2);
-  min-width: 0;
-}
-
-.issues-workspace .issues-duplicates-body > * {
-  margin-block: 0;
-  min-width: 0;
-}
-
-.issues-workspace .issues-duplicates-body > p:not(.ui-caption) {
-  font-size: var(--text-sm);
-  color: var(--muted-strong);
-}
-
-.issues-workspace
-  .issues-duplicates-body
-  > details:not(.issues-duplicate-options):not(.ui-tech) {
-  border-block-start: 1px solid var(--line);
-  margin-block-start: var(--space-1);
-  padding-block-start: var(--space-3);
-}
-
-.issues-workspace .issues-duplicates-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  min-width: 0;
-}
-
-.issues-workspace .issues-duplicates-list > li {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  min-width: 0;
-  padding-block: var(--space-3);
-  border-block-start: 1px solid var(--line);
-}
-
-.issues-workspace .issues-duplicates-list > li:first-child {
-  border-block-start: 0;
-  padding-block-start: 0;
-}
-
-.issues-workspace .issues-duplicates-list > li > p {
-  margin: 0;
-  font-size: var(--text-xs);
-  color: var(--muted-strong);
-}
-
-.issues-workspace .issues-duplicate-observation {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  min-width: 0;
-}
-
-.issues-workspace .issues-duplicate-observation > * {
-  margin-block: 0;
-  min-width: 0;
-}
-
-.issues-workspace .issues-duplicates-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-1-5) var(--space-2);
-}
-
-.issues-workspace .issues-duplicates-head > :first-child {
-  min-width: 0;
-  overflow-wrap: anywhere;
-  font-size: var(--text-sm);
-  font-weight: 600;
-  line-height: 1.4;
-}
-
-.issues-workspace .issues-duplicate-rating {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1) var(--space-3);
-  font-size: var(--text-xs);
-  color: var(--muted);
-}
-
-.issues-workspace .issues-duplicate-rating strong {
-  color: var(--text);
-  font-weight: 600;
-}
-
-.issues-workspace .issues-duplicates-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-1) var(--space-2);
-  font-size: var(--text-xs);
-}
-
-.issues-workspace .issues-duplicates-actions > .ui-caption {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.issues-workspace .issues-duplicates-code {
-  margin: 0;
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: var(--sunken);
-  font-family: var(--font-mono);
-  font-size: var(--text-2xs);
-  line-height: 1.5;
-  max-height: 20rem;
-  overflow: auto;
-}
-
-@media (max-width: 480px) {
-  .issues-workspace .issues-duplicates-body {
-    gap: var(--space-2);
-  }
-
-  .issues-workspace .issues-duplicates-list > li {
-    padding-block: var(--space-2);
-  }
-}
-
 /* Adapt v12 to the existing row styles and the latest mobile decision scope. */
-.issues-workspace .issues-duplicate-observation {
-  border: 0;
-  padding: 0;
-  background: transparent;
-}
 .issues-workspace .issues-row-line .ui-status-chip {
   font-size: var(--text-2xs);
   padding-inline: var(--space-1-5);
   min-height: 1.125rem;
-}
-
-.issues-workspace .issues-sources .issues-heading {
-  font-size: var(--text-2xs);
-  font-weight: 500;
-  color: var(--muted);
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
 }

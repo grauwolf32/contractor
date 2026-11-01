@@ -10,6 +10,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -322,3 +323,64 @@ func deleteChildRunForPurge(t *testing.T, f collectingAuditFixture) {
 
 // Populate the journal's audit ownership and composite action identity keys;
 // parent purge must remove attempts before intents without cascading a batch.
+
+func TestProjectFindingPurgeBoundsLargeAnalystMetadata(t *testing.T) {
+	f := newCollectingAuditFixture(t, "finding-metadata-purge", 1<<20)
+	base := collectPurgeFinding(t, f, "metadata-source")
+	// Size is the concern here; clone a schema-valid canonical identity, preserving
+	// its real retained first receipt. No legacy Finding schema participates.
+	_, err := f.pool.Exec(f.ctx, `INSERT INTO project_findings
+ SELECT (jsonb_populate_record(NULL::project_findings,to_jsonb(seed)||jsonb_build_object(
+ 'finding_id','metadata-'||n,'title',repeat('"',65536),'state','duplicate','analyst_verdict','duplicate',
+ 'rationale',repeat('"',65536),'actor_id','owner','assessed_at',clock_timestamp(),'duplicate_target_id',$1::text))).*
+ FROM project_findings AS seed CROSS JOIN generate_series(1,8) AS n WHERE finding_id=$1`, base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sizes := map[string]int{}
+	rows, err := f.pool.Query(f.ctx, `SELECT finding_id,octet_length(to_jsonb(finding)::text) FROM project_findings AS finding WHERE project_id=$1 AND duplicate_target_id IS NOT NULL`, f.project.ProjectID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for rows.Next() {
+		var id string
+		var bytes int
+		if err := rows.Scan(&id, &bytes); err != nil {
+			t.Fatal(err)
+		}
+		sizes[id] = bytes
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	rows.Close()
+	if _, _, err := projectstore.NewPostgresStore(f.pool).BeginDeletion(f.ctx, projectstore.BeginDeletionParams{OwnerID: f.project.OwnerID, ProjectID: f.project.ProjectID, ExpectedRevision: f.project.Revision}); err != nil {
+		t.Fatal(err)
+	}
+	if err := persistencepostgres.InTx(f.ctx, f.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		_, err := NewOwnerTxStore(tx).PurgeProjectFindings(f.ctx, f.project.ProjectID)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	rows, err = f.pool.Query(f.ctx, `SELECT finding_id FROM project_findings WHERE project_id=$1 AND finding_id LIKE 'metadata-%' AND state IS NULL`, f.project.ProjectID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	records, bytes := 0, 0
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			t.Fatal(err)
+		}
+		records++
+		bytes += sizes[id]
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	rows.Close()
+	if records == 0 || records > 128 || bytes > 1<<20 {
+		t.Fatalf("purge slice changed %d records/%d metadata bytes", records, bytes)
+	}
+}

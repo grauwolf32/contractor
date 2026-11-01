@@ -8,7 +8,6 @@ import {
   type FindingVerdict,
   type FindingSeverity,
   type AuditReviewAction,
-  type AuditReviewRequest,
   type EditProjectFindingRequest,
 } from "../../api/audits";
 import { schemaLimit } from "../../api/contract";
@@ -61,12 +60,8 @@ export const SEVERITY_OPTIONS: readonly {
   label: SEVERITY_LABELS[value],
 }));
 
-export function isSeverity(value: string): value is FindingSeverity {
-  return Object.hasOwn(SEVERITY_LABELS, value);
-}
-
 /** What the user chose for a possible issue, before it is sent. */
-export interface FindingDecisionDraft {
+interface FindingDecisionDraft {
   verdict: FindingVerdict;
   severity?: FindingSeverity | undefined;
   duplicateTargetId?: string | undefined;
@@ -122,16 +117,6 @@ export function findingDecisionBody(
     default:
       return { verdict: draft.verdict, rationale };
   }
-}
-
-/** True when the request's expiry has passed by `now` (milliseconds). */
-export function reviewExpired(
-  review: Pick<AuditReviewRequest, "expiresAt">,
-  now: number,
-): boolean {
-  if (review.expiresAt === undefined) return false;
-  const expires = Date.parse(review.expiresAt);
-  return Number.isFinite(expires) && expires <= now;
 }
 
 /** "Confirmed · High", "Not an issue", "Approved", … */

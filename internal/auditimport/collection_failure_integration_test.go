@@ -277,11 +277,11 @@ INSERT INTO finding_proposal_receipts (
     workflow_schema_version, workflow_configuration_ref, workflow_closure_digest,
     proposal_ref, proposal_digest, proposal_media_type, proposal_size_bytes, evidence,
     report_projection
-) VALUES (
+, checks_projection) VALUES (
     $1, $2, $3, 'runtime', 'instance', 'stage', 'checker', $3, $3,
     $14, $4, $5, 'owner', $6, $7, $6, 'check', $8, $9,
     'contractor/v1alpha1', '{}', $10, $11::jsonb, $4, 'application/json', $12, '[]', $13
-)`, receiptID, f.id+"-proposal-"+clientKey, f.proposalInvocation(), completionDigest(proposal),
+, json_build_object('schema','contractor.audit.finding-checks-projection.v1','proposal_digest',($4)::text,'size_bytes',($12)::bigint,'discarded',false,'subject',NULL,'limitations',NULL,'checks','[]'::json))`, receiptID, f.id+"-proposal-"+clientKey, f.proposalInvocation(), completionDigest(proposal),
 		f.run.RunID, f.id, f.execution.ExecutionID, f.run.WorkflowName,
 		f.run.WorkflowVersion, completionDigest(f.run.WorkflowSnapshot),
 		string(proposalRef), len(proposal), string(projection), clientKey)

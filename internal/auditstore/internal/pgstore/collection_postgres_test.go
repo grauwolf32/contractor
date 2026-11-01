@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"reflect"
 	"strconv"
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
@@ -67,7 +69,7 @@ func TestPostgresCollectionReportsEvidenceBudgetExhaustion(t *testing.T) {
 
 // A later Round expands one proposal into one item per proposed check, and a
 // batch may carry several of them. Each member keeps its own assessment; the
-// highest batch ordinal supplies the finding's current assessment.
+// accepted results never supply a current Finding assessment.
 func TestPostgresCollectionAcceptsBatchedChecksOfOneFindingProposal(t *testing.T) {
 	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
 	if databaseURL == "" {
@@ -258,7 +260,7 @@ INSERT INTO finding_proposal_receipts (
     workflow_configuration_ref, workflow_closure_digest,
     proposal_ref, proposal_digest, proposal_media_type,
     proposal_size_bytes, evidence, publication_requested, project_proposal, project_evidence, retention_state, report_projection
-) VALUES (
+, checks_projection) VALUES (
     $1, $1 || '-proposal', $1 || '-allocation', 'runtime-agent', 'runtime-instance',
     'stage-execution', 'worker', 'invocation', $1 || '-submission', 'candidate', $2,
     $3, $4, $5, $6, $7, 'check',
@@ -266,7 +268,7 @@ INSERT INTO finding_proposal_receipts (
     '{"name":"audit-check","version":"1"}'::jsonb, $8,
     $9::jsonb, $10, 'application/json', $11, '[]'::jsonb, true, $12::jsonb, jsonb_build_array($12::jsonb), 'project-held',
     '{"description":"Test finding.","limitations":[],"preconditions":[],"severity_suggestion":"","standard_refs":[],"subject":null,"title":"Test finding."}'
-)`,
+, json_build_object('schema','contractor.audit.finding-checks-projection.v1','proposal_digest',($10)::text,'size_bytes',($11)::bigint,'discarded',false,'subject',NULL,'limitations',NULL,'checks','[]'::json))`,
 		receiptID, testDigest("d"), *f.execution.RunID, f.audit.OwnerID, f.project.ProjectID,
 		f.execution.ExecutionID, f.audit.AuditID, testDigest("e"),
 		proposalRefJSON, proposal.Digest, proposal.SizeBytes, proposalJSON,
@@ -460,4 +462,58 @@ func writeCollectionFixtureArtifact(t *testing.T, ctx context.Context, pool *pgx
 		t.Fatal(err)
 	}
 	return auditstore.ExactArtifact{Ref: written.Ref, Digest: auditdomain.DigestBytes(data), MediaType: written.MediaType, SizeBytes: written.Size}
+}
+
+// A real accepted negative recheck retains its exact independent result while
+// leaving the sole explicit analyst assessment unchanged, including on replay.
+func TestPostgresNegativeRecheckRetainsHistoryWithoutChangingCanonicalFinding(t *testing.T) {
+	f := newCollectingAuditFixture(t, "negative-recheck", 1<<20)
+	proposal := writeCollectionFixtureArtifact(t, f.ctx, f.pool, f.project.ProjectID, artifactpolicy.FindingMaterialsNamespace, "negative-source")
+	receiptID := "negative-source-receipt"
+	findingID := insertAuditChildFinding(t, f, receiptID, proposal)
+	var before auditstore.ProjectFinding
+	err := persistencepostgres.InTx(f.ctx, f.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		high := auditstore.SeverityHigh
+		var err error
+		before, err = NewOwnerTxStore(tx).AssessProjectFinding(f.ctx, auditstore.ProjectFindingEdit{OwnerID: f.audit.OwnerID, ProjectID: f.project.ProjectID, FindingID: findingID, ExpectedRevision: 1, Verdict: auditstore.VerdictTruePositive, Severity: &high, Rationale: "Explicit human assessment before recheck"})
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result := writeCollectionFixtureArtifact(t, f.ctx, f.pool, f.project.ProjectID, auditdomain.ArtifactNamespace(f.audit.AuditID), "negative-result")
+	params := auditstore.CollectParams{Claim: f.claim, ReceiptID: "negative-check-collection", ExecutionID: f.execution.ExecutionID, Disposition: auditstore.CollectionAccepted, SourceOutput: &result, RequestDigest: testDigest("6"), Retained: []auditstore.ArtifactLink{{LogicalKey: "negative-result", Artifact: result, SourceProvenance: json.RawMessage(`{}`)}}, Items: []auditstore.CollectionItem{{ExecutionItemID: f.memberID, Disposition: auditstore.CollectionAccepted, FinalDisposition: auditstore.FinalAccepted, Result: &result, Coverage: auditstore.Coverage{Status: auditstore.CoverageInconclusive, Requested: []string{}, Completed: []string{}, Gaps: []string{}}, FindingAssociations: []auditstore.FindingAssociation{{AssessmentID: "negative-check-result", ReceiptID: receiptID, Proposal: proposal, SemanticAssessment: "refuted"}}}}}
+	for attempt := 0; attempt < 2; attempt++ {
+		_, inserted, err := f.store.Collect(f.ctx, params)
+		if err != nil || inserted != (attempt == 0) {
+			t.Fatalf("negative collection replay=%t err=%v", inserted, err)
+		}
+		current, err := NewQueryStore(f.pool).GetAuditProjectFinding(f.ctx, f.audit.OwnerID, f.audit.AuditID, findingID)
+		if err != nil || !reflect.DeepEqual(before, current) {
+			t.Fatalf("negative result changed current analyst state: %+v %v", current, err)
+		}
+	}
+	project, err := artifacts.NewService(artifacts.NewPostgresRepository(f.pool)).Project(f.project.ProjectID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ref := contracts.ArtifactRef{Namespace: artifactpolicy.FindingHistoryNamespace, Name: auditdomain.FindingSourceHistoryName(receiptID, "check-result", "negative-check-result")}
+	record, err := project.Read(f.ctx, ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fact struct {
+		Original struct {
+			Semantic string `json:"semanticAssessment"`
+		} `json:"original"`
+		Materials struct {
+			Result contracts.ExactArtifact `json:"result"`
+		} `json:"materials"`
+	}
+	if err := json.Unmarshal(record.Payload.Data, &fact); err != nil || fact.Original.Semantic != "refuted" || fact.Materials.Result.Ref.Namespace != artifactpolicy.FindingMaterialsNamespace {
+		t.Fatalf("negative history lost its independent result: %+v %v", fact, err)
+	}
+	if _, err := project.ReadExact(f.ctx, fact.Materials.Result); err != nil {
+		t.Fatal(err)
+	}
 }

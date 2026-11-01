@@ -36,9 +36,6 @@ UPDATE audit_review_requests
 	return tag.RowsAffected() == 1, err
 }
 
-// ExpireFindingReviews records every expired request before a replacement is
-// inserted. The caller holds the Audit and finding locks in the same transaction.
-
 // reviewWriteError classifies a refused review write. A CHECK violation is a
 // value the service should have rejected; nothing was written and repeating
 // the request cannot succeed.

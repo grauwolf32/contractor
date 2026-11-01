@@ -138,7 +138,7 @@ func TestProfileCompatibilityUsesExplicitToolAndOutputClassifications(t *testing
 	binding.Outputs["proposals"] = "result"
 	profile.Workflows["check"] = binding
 	if got := ProfileCompatibility(profile).Reasons; !reflect.DeepEqual(got, []CompatibilityReason{}) {
-		t.Fatalf("finding-confirmation compatibility reasons = %v", got)
+		t.Fatalf("proposal-output compatibility reasons = %v", got)
 	}
 }
 

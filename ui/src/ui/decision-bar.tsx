@@ -25,7 +25,7 @@ interface DecisionSeverityOption {
   label: string;
 }
 
-export interface DecisionSeverity {
+interface DecisionSeverity {
   options: readonly DecisionSeverityOption[];
   value?: string | undefined;
   onChange: (value: string) => void;

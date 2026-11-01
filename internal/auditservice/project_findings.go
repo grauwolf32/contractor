@@ -128,7 +128,7 @@ func (s *Service) ListProjectFindings(ctx context.Context, params ProjectFinding
 }
 
 func validateProjectFindingEdit(params ProjectFindingEditParams) error {
-	if !auditstore.ValidReviewIdentity(params.OwnerID, 256) || !contracts.ValidResourceID(params.ProjectID) ||
+	if !auditstore.ValidReviewIdentity(params.OwnerID, auditstore.MaxFindingActorBytes) || !contracts.ValidResourceID(params.ProjectID) ||
 		!contracts.ValidResourceID(params.FindingID) || params.ExpectedRevision < 1 ||
 		params.ExpectedRevision > contracts.MaxExactInteger || !params.Verdict.Valid() ||
 		!contracts.ValidIdempotencyKey(params.IdempotencyKey) || !contentdigest.Valid(params.RequestDigest) ||

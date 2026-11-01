@@ -1,8 +1,8 @@
-import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
+import { useId, useState } from "react";
 import { listProjectFindings } from "../../api/audits";
 import { usePublicAPI } from "../../api/context";
-import { loadAllPages } from "../../api/pages";
+import { collectAuditPages } from "../../api/audit-collections";
 import { Button } from "../../ui";
 
 export function DuplicatePicker({
@@ -19,20 +19,33 @@ export function DuplicatePicker({
   searchId?: string;
 }) {
   const api = usePublicAPI();
+  const client = useQueryClient();
+  const generatedId = useId();
+  const inputId = searchId ?? generatedId;
   const [search, setSearch] = useState("");
-  const candidates = useQuery({
-    queryKey: ["project-findings", projectId, "duplicate-targets"],
-    queryFn: () =>
-      loadAllPages((cursor) =>
-        listProjectFindings(
-          api,
-          projectId,
-          cursor === undefined ? {} : { cursor },
-        ),
+  const queryKey = ["project-findings", projectId, "duplicate-targets"];
+  const candidates = useInfiniteQuery({
+    queryKey,
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam }) =>
+      collectAuditPages(
+        (cursor) =>
+          listProjectFindings(
+            api,
+            projectId,
+            cursor === undefined ? {} : { cursor },
+          ),
+        pageParam === undefined ? {} : { cursor: pageParam },
       ),
+    getNextPageParam: (last) => (last.truncated ? last.nextCursor : undefined),
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
     retry: false,
   });
-  const choices = (candidates.data?.items ?? []).filter(
+  const choices = (
+    candidates.data?.pages.flatMap((page) => page.items) ?? []
+  ).filter(
     (item) =>
       item.findingId !== findingId &&
       (item.title + " " + item.findingId)
@@ -41,9 +54,9 @@ export function DuplicatePicker({
   );
   return (
     <div className="decisions-duplicate-picker">
-      <label htmlFor={searchId}>Original possible issue</label>
+      <label htmlFor={inputId}>Original possible issue</label>
       <input
-        id={searchId}
+        id={inputId}
         value={search}
         onChange={(event) => setSearch(event.target.value)}
         placeholder="Search this Project"
@@ -58,12 +71,18 @@ export function DuplicatePicker({
       {candidates.error === null ? null : (
         <p role="alert">
           Candidates could not be loaded. You can enter an ID, or{" "}
-          <Button size="xs" onClick={() => void candidates.refetch()}>
-            retry
+          <Button
+            size="xs"
+            onClick={() => void client.resetQueries({ queryKey, exact: true })}
+          >
+            restart the list
           </Button>
           .
         </p>
       )}
+      <p className="ui-caption">
+        Search covers loaded candidates. You can also enter an exact Finding ID.
+      </p>
       <ul>
         {choices.slice(0, 20).map((item) => (
           <li key={item.findingId}>
@@ -75,6 +94,15 @@ export function DuplicatePicker({
       </ul>
       {choices.length > 20 ? (
         <p className="ui-caption">Refine the search to see more matches.</p>
+      ) : null}
+      {candidates.hasNextPage ? (
+        <Button
+          size="xs"
+          pending={candidates.isFetchingNextPage}
+          onClick={() => void candidates.fetchNextPage()}
+        >
+          Load more candidates
+        </Button>
       ) : null}
     </div>
   );

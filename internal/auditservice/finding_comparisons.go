@@ -487,8 +487,10 @@ func (s *Service) CompareFindings(ctx context.Context, p FindingComparisonParams
 			row.Kind = "left-only"
 		}
 		if g.GroupKey == "" {
-			row.Kind = "unmatched"
-			row.RowKey = "unmatched:" + row.FindingID
+			row.RowKey = "finding:" + row.FindingID
+			if g.LeftFindingID == nil || g.RightFindingID == nil || *g.LeftFindingID != *g.RightFindingID {
+				row.Kind = "unmatched"
+			}
 		}
 
 		row.PreviewsShareReceipt = row.Left != nil && row.Right != nil && row.Left.Origin.ReceiptID == row.Right.Origin.ReceiptID
@@ -526,6 +528,3 @@ func (s *Service) CompareFindings(ctx context.Context, p FindingComparisonParams
 	out.Page.HasMore = out.Next != nil
 	return out, nil
 }
-
-// FindingGroupMembers pages every retained observation under the declared
-// Project/Audit/pair fence, preserving independent results and receipt origins.

@@ -74,7 +74,9 @@ function SourceHistory({
         {records.data?.pages
           .flatMap((page) => page.items)
           .map((record) => (
-            <li key={record.artifact.revision}>
+            <li
+              key={`${record.artifact.namespace}/${record.artifact.name}@${record.artifact.revision}`}
+            >
               <Link
                 to={artifactDetailPath(
                   { kind: "project", id: projectId },

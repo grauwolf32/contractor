@@ -112,13 +112,13 @@ INSERT INTO finding_proposal_receipts (
     workflow_schema_version, workflow_configuration_ref, workflow_closure_digest,
     proposal_ref, proposal_digest, proposal_media_type, proposal_size_bytes, evidence,
     report_projection
-) VALUES (
+, checks_projection) VALUES (
     $1, $1, $1, 'runtime', 'instance', 'stage', 'worker', $1, $1,
     $1, $2, $3, 'owner', $4, $5, $4, 'check', 'workflow', '1',
     'contractor/v1alpha1', '{}', $2,
     $6::jsonb,
     $2, 'application/json', 2, '[]', '{"description":"Test finding.","limitations":[],"preconditions":[],"severity_suggestion":"","standard_refs":[],"subject":null,"title":"Test finding."}'
-)`, id, completionDigest([]byte(id)), f.run.RunID, f.id, f.execution.ExecutionID, string(proposalRef))
+, json_build_object('schema','contractor.audit.finding-checks-projection.v1','proposal_digest',($2)::text,'size_bytes',(2)::bigint,'discarded',false,'subject',NULL,'limitations',NULL,'checks','[]'::json))`, id, completionDigest([]byte(id)), f.run.RunID, f.id, f.execution.ExecutionID, string(proposalRef))
 		mustCompletion(t, err)
 	}
 	access, err := NewArtifactAccess(f.artifacts, hookstore.NewClaimedArtifacts(f.pool))

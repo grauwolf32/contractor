@@ -253,3 +253,35 @@ func TestProjectFindingEditUsesExistingFenceAndRejectsConcurrentStaleWrites(t *t
 		t.Fatalf("cancelled edit: %v", err)
 	}
 }
+
+func TestFindingComparisonRecognizesSharedCanonicalIdentityWithoutQualifiedKey(t *testing.T) {
+	f := newProjectFindingFixture(t)
+	// The explicit membership represents the same already-published Project
+	// identity selected by another Audit; no qualified-key inference occurs.
+	if _, err := f.pool.Exec(f.ctx, `INSERT INTO project_finding_audits(audit_id,finding_id,project_id,finding_created_at,correlation_group_key)
+ SELECT $1,finding_id,project_id,created_at,correlation_group_key FROM project_findings WHERE finding_id=$2`, f.second, f.target); err != nil {
+		t.Fatal(err)
+	}
+	page, err := f.service.CompareFindings(f.ctx, FindingComparisonParams{OwnerID: f.owner, ProjectID: f.project, LeftAuditID: f.first, RightAuditID: f.second, Limit: 20})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for pages := 0; pages < 3; pages++ {
+		for _, row := range page.Items {
+			if row.FindingID == f.target {
+				if row.Kind != "both" || row.Left == nil || row.Right == nil || row.Left.FindingID != row.Right.FindingID {
+					t.Fatalf("shared identity presented as independent problems: %+v", row)
+				}
+				return
+			}
+		}
+		if page.Next == nil {
+			break
+		}
+		page, err = f.service.CompareFindings(f.ctx, FindingComparisonParams{OwnerID: f.owner, ProjectID: f.project, LeftAuditID: f.first, RightAuditID: f.second, Limit: 20, Cursor: page.Next})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Fatal("shared unqualified identity was unreachable")
+}

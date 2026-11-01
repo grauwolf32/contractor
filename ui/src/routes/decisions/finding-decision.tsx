@@ -17,6 +17,7 @@ import {
   SEVERITY_OPTIONS,
   VERDICT_ACTIONS,
 } from "./model";
+import { aiSummary } from "./text";
 import { DuplicatePicker } from "./duplicate-picker";
 import "./decisions.css";
 
@@ -60,15 +61,18 @@ function Editor({
   const refresh = async () => {
     await Promise.all([
       client.resetQueries({
-        queryKey: ["project-findings", finding.projectId, "list"],
-        exact: true,
+        queryKey: ["project-findings", finding.projectId],
+        predicate: (query) =>
+          query.queryKey.includes("list") ||
+          query.queryKey.includes("duplicate-targets"),
       }),
 
       client.invalidateQueries({
         queryKey: ["project-findings", finding.projectId],
         predicate: (query) =>
           !query.queryKey.includes("sources") &&
-          !query.queryKey.includes("list"),
+          !query.queryKey.includes("list") &&
+          !query.queryKey.includes("duplicate-targets"),
       }),
       client.invalidateQueries({
         queryKey: ["audits"],
@@ -187,6 +191,17 @@ function Editor({
                 }
               : {}),
           }))}
+        more={
+          finding.claim?.description ? (
+            <Button
+              size="xs"
+              disabled={mutation.isPending || stale}
+              onClick={() => setRationale(aiSummary(finding))}
+            >
+              Use issue summary
+            </Button>
+          ) : undefined
+        }
         selected={verdict}
         onSelect={(value) => {
           setVerdict(value as FindingVerdict);

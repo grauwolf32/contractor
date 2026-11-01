@@ -1413,7 +1413,7 @@ conventions are in [public API](../api/public-api.md).
 | `GET /v1/projects/{projectId}/findings` | Revision-pinned bounded canonical Finding summaries |
 | `GET /v1/projects/{projectId}/findings/{findingId}` | Canonical detail |
 | `PATCH /v1/projects/{projectId}/findings/{findingId}` | Direct CAS/idempotent analyst edit |
-| `GET /v1/projects/{projectId}/findings/{findingId}/sources` | Bounded independent source previews |
+| `GET /v1/projects/{projectId}/finding-sources?findingId={findingId}` | Bounded independent source previews |
 | `GET /v1/projects/{projectId}/finding-sources/{receiptId}` | Exact retained source detail |
 | `GET /v1/projects/{projectId}/finding-sources/{receiptId}/history` | Bounded ordinary immutable history metadata |
 | `GET /v1/audits/{auditId}/reviews` | Pending/completed item-action and report review requests |

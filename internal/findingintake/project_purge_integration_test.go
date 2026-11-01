@@ -155,7 +155,7 @@ INSERT INTO finding_proposal_receipts (
     workflow_configuration_ref, workflow_closure_digest,
     proposal_ref, proposal_digest, proposal_media_type,
     proposal_size_bytes, evidence, report_projection
-)
+, checks_projection)
 SELECT $1 || '-' || lpad(n::text, 4, '0'), $1 || '-proposal-' || n, $1 || '-allocation',
        'runtime', 'instance', 'stage', 'worker', 'invocation', $1 || '-submission-' || n,
        'candidate-' || n, 'sha256:' || repeat('a', 64), $1 || '-run', 'purge-owner', $2,
@@ -163,7 +163,7 @@ SELECT $1 || '-' || lpad(n::text, 4, '0'), $1 || '-proposal-' || n, $1 || '-allo
        'sha256:' || repeat('b', 64),
        jsonb_build_object('namespace', 'findings', 'name', 'candidate-' || n, 'revision', 'r1'),
        'sha256:' || repeat('c', 64), 'application/json', 128, '[]'::jsonb,
-       '{"description":"Test finding ' || n || '.","limitations":[],"preconditions":[],"severity_suggestion":"","standard_refs":[],"subject":null,"title":"Test finding."}'
+       '{"description":"Test finding ' || n || '.","limitations":[],"preconditions":[],"severity_suggestion":"","standard_refs":[],"subject":null,"title":"Test finding."}', json_build_object('schema','contractor.audit.finding-checks-projection.v1','proposal_digest',('sha256:' || repeat('c', 64))::text,'size_bytes',(128)::bigint,'discarded',false,'subject',NULL,'limitations',NULL,'checks','[]'::json)
   FROM generate_series(1, $3::integer) AS n`, prefix, projectID, count); err != nil {
 		t.Fatalf("seed finding proposal receipts: %v", err)
 	}

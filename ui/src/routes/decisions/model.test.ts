@@ -6,10 +6,9 @@ import {
   decisionOutcome,
   findingDecisionBody,
   findingDraftProblem,
-  reviewExpired,
   SEVERITY_OPTIONS,
 } from "./model";
-import { FINDING_ID, makeDecision, makeActionReview } from "./test-support";
+import { FINDING_ID, makeDecision } from "./test-support";
 
 function apiError(status: number, code: string) {
   return new PublicAPIError({ status, code, message: `${code} message` });
@@ -111,25 +110,6 @@ describe("finding decision drafts", () => {
       "High",
       "Critical",
     ]);
-  });
-});
-
-describe("item/report review expiry", () => {
-  it("knows expired requests by their expiry", () => {
-    const now = Date.parse("2026-10-05T10:00:00Z");
-    expect(reviewExpired(makeActionReview(), now)).toBe(false);
-    expect(
-      reviewExpired(
-        makeActionReview({ expiresAt: "2026-10-05T09:59:59Z" }),
-        now,
-      ),
-    ).toBe(true);
-    expect(
-      reviewExpired(
-        makeActionReview({ expiresAt: "2026-10-12T10:00:00Z" }),
-        now,
-      ),
-    ).toBe(false);
   });
 });
 

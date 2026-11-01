@@ -395,6 +395,12 @@
       "path": [],
       "maxBytes": 65536,
       "rule": "LIM-REV-11"
+    },
+    {
+      "schema": "FindingActorIdentity",
+      "path": [],
+      "maxBytes": 256,
+      "rule": "LIM-FND-54"
     }
   ]
 }

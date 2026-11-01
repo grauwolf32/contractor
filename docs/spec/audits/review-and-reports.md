@@ -67,7 +67,7 @@ document owns are:
   and normalized issue family; it never merges finding identities.
 - **Duplicate link.** An acyclic, human-decided link inside one Project from a
   finding to its canonical target.
-- **Backtrace.** The retained relations that lead from an Audit finding to its
+- **Backtrace.** The retained relations that lead from a canonical Project Finding to its
   source proposals, receipts and originating Runs, its verifying items,
   attempts and Runs, their Workflow closures and its checklist origins.
 - **Direct verification.** Discovery and verification of a finding inside the
@@ -813,20 +813,23 @@ explicit publication intent and does not mutate current assessment.
 **REV-R137.** The same exact receipt may be imported into multiple
 compatible Audits owned by the same owner.
 
-**REV-R138.** Each destination independently owns its finding, analyst
-review, assessment and exact evidence holds; replay within one Audit reuses
-that Audit's records (FAIL-REV-7).
+**REV-R138.** Each Audit independently retains its execution membership and accepted result history.
+The canonical Finding, current analyst assessment and retained exact material belong to
+Project. Replay reuses the destination operation and the same Project material without
+an additional current state (FAIL-REV-7).
 
-**REV-R139.** Finding and direct-assessment IDs are opaque and scoped to
-the destination Audit.
+**REV-R139.** Finding identity is Project-scoped. A direct result history operation is identified by
+its original Audit and receipt; it is immutable provenance, with no Audit-owned Finding
+identity.
 
-**REV-R140.** Deleting one destination does not release another
-destination's retained evidence or change its finding decisions
-(LIFE-REV-3).
+**REV-R140.** Deleting any destination Audit removes only its execution membership/links/holds. It
+does not change canonical Finding fields, independent result facts or exact Project-
+retained evidence (FND-R214).
 
-**REV-R141.** A receipt read through one Audit lists only that
-Audit's own hold and, after source Run deletion, reads the proposal from that
-Audit's retained copy, never from another destination's.
+**REV-R141.** A receipt read through an Audit exposes only that requesting Audit membership/hold,
+while the proposal bytes come from the same immutable Project copy used by every
+destination. It neither falls back to another Audit nor hydrates other Audit
+memberships.
 
 **REV-R142.** After source Run deletion, the Audit inbox omits a native
 child receipt the Audit never retained, such as a proposal whose collection
@@ -928,9 +931,10 @@ invalidation caused by Run deletion preserves its `updatedAt`: report
 `generatedFrom` uses that frozen timestamp, and Run availability is not part
 of the report payload.
 
-**REV-R156.** A conflict after an immutable report write can
-therefore retry with identical bytes and exact refs before the mandatory
-revision CAS (FAIL-REV-10).
+**REV-R156.** A report write conflicts if the same pinned build identity has different bytes. A
+changed Audit or Project revision starts another immutable build name and preserves
+abandoned exact artifacts. Run deletion preserves generatedFrom while invalidating
+execution availability; final commit checks both current revisions (FND-R218).
 
 **REV-R157.** In other Audit states, Run deletion advances
 `updatedAt` normally.
@@ -961,32 +965,10 @@ staging instead holds the draft Audit row; finding intake holds the Audit
 through its existing decision transaction. Artifact storage never reads Audit
 tables to infer this authority.
 
-**REV-R160.** The purge removes every row the Audit owns, including
-immutable review decisions and finding assessments that outlive the deleted
-child Runs; their restricting keys protect them only outside a purge.
-
-The deleting phase owns the two-minute cleanup budget independently of the
-ordinary reconcile budget. Before cleanup it renews the exact live claim for
-four minutes; an expired or replaced claim cannot be revived. The phase joins
-cleanup before releasing the claim. A child Run remains an atomic deletion,
-bounded by its Run revision quota. Project deletion already owns a separate
-purge budget and is unchanged.
-
-Each pass changes or deletes at most 1,000 domain and dependent rows in total
-(LIM-REV-10). Purge clears derived finding and item
-back-references before deleting immutable history, removes leaf rows before
-parents, and releases finding holds and mutation receipts through their
-owners before removing any retained material. Once these references and holds
-are gone, an Audit namespace commits at most one Artifact purge batch per
-pass. The creation receipt stays until the final Audit DELETE so Eval
-tombstone recovery can read it. Partial cleanup is visible only as a deleting
-Audit, never a completed report. A crash, cancellation or lost reply resumes
-from the rows remaining; no new purge journal is needed. The Audit row and
-its claim are removed last.
-
-Report reads of a deleting Audit return the existing `unavailable` state
-before inspecting report links, because a committed cleanup pass may have
-removed only one link of the pair.
+**REV-R160.** Audit purge removes its execution rows, item/report decisions, report pages, Audit links
+and memberships in bounded order. Canonical Project Findings, independent sources and
+Project history remain until Project cleanup. No removed Finding-assessment/review table
+participates.
 
 **REV-R161.** Audit deletion cleanup runs regardless of owner or Audit
 queue pause.
@@ -1190,11 +1172,12 @@ Registry entries owned by this document:
 - [FAIL-REV-11](../platform/failure-model.md): Audit deletion
   (REV-R159).
 - [FAIL-REV-12](../platform/failure-model.md): revision-fenced pagination of
-  findings, reviews and provenance (REV-R170, REV-R192).
+  Audit Findings and remaining approval requests (REV-R170); Project source/history
+  pages use the canonical Project fence (FND-R217).
 - [FAIL-REV-13](../platform/failure-model.md): bounded, resumable report
   finalization (REV-R196, REV-R197).
-- [LIFE-REV-1](../platform/lifecycle.md): backtrace provenance under Audit
-  ownership (REV-R104, REV-R108).
+- [LIFE-REV-1](../platform/lifecycle.md): source/result backtrace retained by the
+  Project (REV-R104, REV-R108).
 - [LIFE-REV-2](../platform/lifecycle.md): Audit-managed artifacts and their
   `AuditArtifactLink` records (REV-R143, REV-R126,
   REV-R133).
@@ -1282,7 +1265,7 @@ itself is specified in [audits](audits.md); shared rules are in
 4. Import retains provenance; Worker never chooses the Project/Audit or starts work.
 5. If the owner instead hard-deletes the source Run, unimported proposals are
    durably discarded and purged with the source Run; imported revisions remain
-   held by their destination Audits.
+   retained by their Project.
 
 The direct verification envelope example is shown with REV-R120.
 
@@ -1290,7 +1273,7 @@ The direct verification envelope example is shown with REV-R120.
 
 - A separate global Hypothesis entity or generic graph engine for backtrace
   (REV-R82).
-- Cross-Audit deduplication: it is not implied.
+- Semantic or model-based deduplication beyond existing qualified equality.
 - Cross-Audit snapshot export.
 - An analytics service, dashboard or direct SQL access for attribution
   (REV-R179, REV-R103).

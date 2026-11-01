@@ -203,13 +203,14 @@ func (i *Importer) itemsPage(
 func (i *Importer) findingsPage(
 	ctx context.Context, audit auditstore.Audit, build *reportBuild, page *auditstore.ReportPage,
 ) ([]byte, error) {
-	rows, more, err := i.reads.ListReportFindings(ctx, auditstore.ReportFindingPageParams{
+	window, err := i.reads.ListReportFindings(ctx, auditstore.ReportFindingPageParams{
 		AuditID: audit.AuditID, Section: page.Section, After: build.afterFinding,
 		Limit: i.budget.pageRows, ProjectionBytes: i.budget.pageBytes,
 	})
 	if err != nil {
 		return nil, err
 	}
+	rows := window.Items
 	if build.findings+len(rows) > auditstore.MaxReportFindings {
 		return nil, fmt.Errorf("%w: report findings exceed their bound", ErrPermanent)
 	}
@@ -221,8 +222,9 @@ func (i *Importer) findingsPage(
 		}
 		content = appendReportEntry(content, entry)
 	}
-	page.Exhausted, page.EntryCount = !more, len(rows)
-	if len(rows) != 0 {
+	page.Exhausted, page.EntryCount = window.ContinueAfter == nil, len(rows)
+	page.LastFinding = window.ContinueAfter
+	if page.LastFinding == nil && len(rows) != 0 {
 		last := rows[len(rows)-1]
 		page.LastFinding = &auditstore.ReportFindingCursor{CreatedAt: last.CreatedAt, FindingID: last.FindingID}
 	}

@@ -172,7 +172,8 @@ class ListFindingsTool:
 
     Returns:
         items with receipt identity, subject, title and description previews,
-        hypothesis presence, proposal and evidence refs, and the captured Project Finding when published;
+        hypothesis presence, proposal and evidence refs, and the captured
+        Project Finding when published;
         next_cursor is null when no matching entries remain. No matches returns
         an empty items list. Invalid filters or cursors and oversized individual
         items fail explicitly without dropping entries.

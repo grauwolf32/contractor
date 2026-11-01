@@ -540,6 +540,7 @@ export type PublicSchemaName =
   | "FindingState"
   | "FindingSeverity"
   | "FindingVerdict"
+  | "FindingActorIdentity"
   | "ProjectFinding"
   | "FindingClaim"
   | "ProjectFindingSummary"

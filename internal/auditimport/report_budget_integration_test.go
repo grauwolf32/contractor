@@ -56,7 +56,7 @@ func TestImporterFinalizesLargeAuditUnderPageBudgetAndResumes(t *testing.T) {
 	importer, err := New(store, store, runstore.NewPostgresStore(pool), access)
 	mustCompletion(t, err)
 	importer.budget = reportBudget{pageRows: 500, pageBytes: 256 << 10, pagesPerAttempt: 4}
-	const totalPages = largeReportItems/500 + 1 + 3 + 1 + 1 + 1
+	totalPages := largeReportItems/500 + len(largeReportFindingStates)*(largeReportFindings/500)
 
 	attempts, timedOut := 0, false
 	for {
@@ -93,7 +93,7 @@ func TestImporterFinalizesLargeAuditUnderPageBudgetAndResumes(t *testing.T) {
 		}
 		break
 	}
-	if !timedOut || store.recordedPages() != totalPages || attempts != 8 {
+	if !timedOut || store.recordedPages() != totalPages || attempts != 11 {
 		t.Fatalf("attempts=%d pages=%d timedOut=%t", attempts, store.recordedPages(), timedOut)
 	}
 	if duplicated := store.repeatedReads(); len(duplicated) != 0 {
@@ -233,13 +233,13 @@ INSERT INTO finding_proposal_receipts (
     workflow_schema_version, workflow_configuration_ref, workflow_closure_digest,
     proposal_ref, proposal_digest, proposal_media_type, proposal_size_bytes, evidence,
     report_projection
-)
+, checks_projection)
 SELECT 'receipt-' || n, 'proposal-' || n, 'allocation-large', 'runtime', 'instance',
        'stage', 'worker', 'invocation-large', 'submission-' || n, 'candidate-' || n,
        $1, 'run-large', $2, $3, 'source', '1', 'contractor/v1alpha1',
        '{"name":"source","version":"1"}'::jsonb, $1,
        jsonb_build_object('namespace', 'finding-proposals', 'name', 'candidate-' || n, 'revision', 'r1'),
-       $1, 'application/json', 64, '[]'::jsonb, $4
+       $1, 'application/json', 64, '[]'::jsonb, $4, json_build_object('schema','contractor.audit.finding-checks-projection.v1','proposal_digest',($1)::text,'size_bytes',(64)::bigint,'discarded',false,'subject',NULL,'limitations',NULL,'checks','[]'::json)
   FROM generate_series(1, $5::integer) AS n`,
 		completionDigest([]byte("large")), owner, id, string(projection), largeReportFindings)
 	mustCompletion(t, err)
@@ -372,7 +372,7 @@ func assertLargeReport(
 				!slices.Equal(finding.Preconditions, []string{"Только для роли читателя", "The account already owns an order."}) {
 				t.Fatalf("%s finding %d = %+v", state, index, finding)
 			}
-			if (state == "confirmed" || state == "rejected") != (finding.AnalystVerdict != nil) {
+			if finding.AnalystVerdict == nil {
 				t.Fatalf("%s finding decision = %+v", state, finding.AnalystVerdict)
 			}
 		}
@@ -412,14 +412,14 @@ func (s *budgetedReportStore) ListReportItems(
 
 func (s *budgetedReportStore) ListReportFindings(
 	ctx context.Context, params auditstore.ReportFindingPageParams,
-) ([]auditstore.ReportFinding, bool, error) {
-	rows, more, err := s.Store.ListReportFindings(ctx, params)
+) (auditstore.ReportFindingWindow, error) {
+	rows, err := s.Store.ListReportFindings(ctx, params)
 	cursor := "start"
 	if params.After != nil {
 		cursor = params.After.FindingID
 	}
 	s.noteRead(fmt.Sprintf("%s/%s", params.Section, cursor), err)
-	return rows, more, err
+	return rows, err
 }
 
 func (s *budgetedReportStore) RecordReportPage(ctx context.Context, params auditstore.RecordReportPageParams) error {

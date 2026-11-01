@@ -46,6 +46,8 @@ func TestProjectFindingMigrationArchivesAuditsAndDropsOldFindings(t *testing.T) 
 		{"SELECT count(*) FROM artifact_bindings WHERE namespace='historical-audits' AND name LIKE '%.snapshot.%'", 1},
 		{"SELECT count(*) FROM project_finding_sources", 0},
 		{"SELECT count(*) FROM finding_proposal_receipts", 0},
+		{"SELECT count(*) FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='finding_proposal_receipts' AND column_name='checks_projection' AND is_nullable='NO'", 1},
+		{"SELECT count(*) FROM pg_indexes WHERE schemaname=current_schema() AND indexname='finding_checks_projection_pending_idx'", 0},
 		{"SELECT count(*) FROM artifact_bindings WHERE namespace='historical-audits' AND name LIKE '%.review_decisions.%'", 2},
 		{"SELECT count(*) FROM artifact_bindings WHERE namespace='historical-audits' AND name LIKE '%.finding_assessments.%'", 1},
 		{"SELECT count(*) FROM artifact_blobs WHERE payload='frozen report snapshot'::bytea", 1},

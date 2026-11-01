@@ -8,7 +8,6 @@ import (
 )
 
 const (
-	FindingCorrelationSchema          = "contractor.finding.correlation.v1"
 	FindingCorrelationPolicy          = "qualified-snapshot/v1"
 	MaximumFindingCorrelationRevision = contracts.MaxExactInteger
 )

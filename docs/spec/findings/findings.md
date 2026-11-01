@@ -1493,7 +1493,7 @@ optional `includeDuplicates` defaulting to false. Limits are LIM-FND-49.
 
 **FND-R198.** The frozen snapshot retains every selected finding, its complete
 contribution membership, explicit presentation receipt (default first receipt),
-its own current decision/rating/assessment, qualified primary correlation key
+its nullable canonical current analyst fields, qualified primary correlation key
 and policy, resolved native analysis, exact original and retained evidence
 identities and trusted Git origin. Supporting contributions do not replace
 presentation fields or inherit another finding's rating. HTTP projections omit
@@ -1503,15 +1503,16 @@ policy versions plus normalized request digest. Rendering consults this snapshot
 alone and calls no model, network or store.
 
 **FND-R199.** `includeDuplicates: false` emits one selected representative per
-connected group of qualified primary-key equality and explicit same-Audit manual
-duplicate links. Prefer a selected non-duplicate, then the lexically first
+connected group of explicit same-Project manual duplicate links. Qualified
+equality has already selected one canonical identity during admission; export
+never reconstructs separate Audit Finding observations under that key. Prefer a selected non-duplicate, then the lexically first
 finding ID. Shared targets outside the selection may connect selected siblings,
 but neither targets nor peers are selected implicitly. Similar text, titles,
 weak candidates and overlapping contributions never establish equality. The
 representative retains its own triage and presentation; all selected member IDs
 remain in output properties, and all canonical decisions remain in the
-snapshot. `true` emits every selected finding. The option does not change native
-Audit state, and `resultCount` may be below `selectedCount`.
+snapshot. `true` emits every selected finding. The option does not change canonical
+Finding state, and `resultCount` may be below `selectedCount`.
 
 **FND-R200.** Snapshot, SARIF, diagnostics and replay receipt publish atomically
 as frozen bindings in the existing ProjectScope namespace of the owning Audit;
@@ -1520,7 +1521,7 @@ Audit-local `clientKey` and normalized request determine export identity. Omitte
 and explicit false duplicate inclusion normalize identically; changing the
 option or selection with the same key returns permanent `idempotency_conflict`.
 Replay verifies immutable descriptors/digests and returns original bytes before
-reading live findings, source evidence or current reviews (FAIL-FND-8).
+reading live findings, source evidence or current analyst fields (FAIL-FND-8).
 
 **FND-R201.** The public collection is
 `POST /v1/audits/{auditId}/findings/exports`. It returns 201 for publication,
@@ -1643,21 +1644,15 @@ otherwise valid ordinary finding.
 hold, then reads the exact original content or its byte-identical retained
 copy through ArtifactStore. It verifies and strictly decodes only selected
 check and context fragments, and recomputes registered plan digests. A missing
-index is data-migration-pending, never a fallback to a full proposal parser or
-mutable current content. Discard clears all index entries and context; existing
+index is invalid stored data and fails permanently; no source reparse or
+repair command runs in admission. Discard clears all index entries and context; existing
 Run/Audit/Project deletion owns its lifecycle (LIFE-FND-5).
 
-**FND-R190.** Existing retained receipts receive their indexes only through
-the explicit bounded `data-migrate finding-checks` operation. It reads actual
-exact proposal bytes using the configured inline or filesystem blob reader,
-strictly validates the current FindingProposal, and compare-and-sets the
-previously NULL index against the unchanged receipt descriptor. Each batch
-examines at most 128 small source headers and reads at most 32 exact proposals
-and 64 MiB payload. Committed indexes are durable progress and replay unchanged;
-the operation creates no receipt or lease. Missing, corrupt, unavailable or
-invalid sources fail explicitly without changing their provenance or inventing
-an empty index. Cancellation/transient I/O leaves remaining rows NULL. Ordinary
-finding readers and profiles without typed mappings retain their existing path.
+**FND-R190.** Retired. The pre-release cutover removes all old operational
+receipts (FND-R215). The check-index rebuild command and migration-pending
+reader/state are removed. Every new receipt includes its validated immutable
+index at insertion; PostgreSQL rejects a NULL index. Source deletion retains
+the same index with its exact Project-held materials.
 
 ## Limits, failures and errors
 
@@ -1876,6 +1871,8 @@ default missing revision or scans arbitrary foreign owners.
 **FND-R218.** A frozen report captures one Project revision throughout resumable
 page assembly and checks it when publishing accepted links. A concurrent edit
 restarts the build rather than mixing states from different Project revisions.
+Report sections scan bounded indexed membership windows before current-state filters;
+empty progress pages durably preserve the last examined identity.
 Artifacts of a different pinned build use different immutable names. Ordinary
 Round result associations retain canonical Project/Finding identities alongside
 their independent execution results; they do not copy current analyst state.

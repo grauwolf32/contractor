@@ -233,16 +233,10 @@ func validateFindingCollection(value FindingCollection) error {
 				finding.DuplicateTargetID != "" && validateIdentifier(finding.DuplicateTargetID, "duplicate_target_id") != nil {
 				return invalid(CodeInvalid, "collection.finding")
 			}
-			expected := map[string]string{"true_positive": "confirmed", "false_positive": "rejected", "duplicate": "duplicate", "reopen": "proposed", "needs_evidence": "needs-evidence"}
-			if finding.State == nil {
-				if finding.Verdict != "" || finding.Severity != "" || finding.DuplicateTargetID != "" {
-					return invalid(CodeInvalid, "collection.finding")
-				}
-			} else if expected[finding.Verdict] != *finding.State || expected[finding.Verdict] == "" ||
-				(finding.Verdict == "true_positive") != (finding.Severity != "") || !validSeverity(finding.Severity) ||
-				(finding.Verdict == "duplicate") != (finding.DuplicateTargetID != "") || finding.DuplicateTargetID == finding.FindingID {
+			if ValidateFindingAssessment(finding.State, finding.Verdict, finding.Severity, finding.DuplicateTargetID) != nil || finding.DuplicateTargetID == finding.FindingID {
 				return invalid(CodeInvalid, "collection.finding")
 			}
+
 		}
 		previous = entry.ReceiptID
 		proposals[entry.ProposalID] = true

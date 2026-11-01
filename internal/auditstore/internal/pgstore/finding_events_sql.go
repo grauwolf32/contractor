@@ -23,8 +23,7 @@ WITH advanced AS (
 )
 SELECT last_event_sequence FROM advanced`
 
-// directFindingAssessmentEvents record assessment $5 of finding $3 at
-// revision $4.
+// directFindingAssessmentEvents records result $4 for immutable source $3.
 var directFindingAssessmentEvents = auditEvents(auditEvent(
 	"'finding.result_retained'", "$3::text", "NULL",
 	"jsonb_build_object('receiptId', $3::text, 'resultId', $4::text, 'directVerification', true)",

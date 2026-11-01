@@ -130,8 +130,8 @@ func auditRoundReadModel(source auditstore.Round) auditRoundResponse {
 
 func auditItemReadModel(source auditstore.Item) auditItemResponse {
 	return auditItemResponse{
- FindingIDs:append([]string{},source.FindingIDs...),
-		ItemID: source.ItemID, RoundID: source.RoundID, ItemKey: source.ItemKey,
+		FindingIDs: append([]string{}, source.FindingIDs...),
+		ItemID:     source.ItemID, RoundID: source.RoundID, ItemKey: source.ItemKey,
 		Ordinal: source.Ordinal, Kind: source.Kind, SubjectKey: source.SubjectKey,
 		Task: source.Task, Origin: source.Origin, WorkflowRole: source.WorkflowRole, State: source.State,
 		ApprovalKind: source.ApprovalKind, ApprovalDigest: source.ApprovalDigest,

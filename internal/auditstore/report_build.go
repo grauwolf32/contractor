@@ -171,3 +171,10 @@ type ReportFindingPageParams struct {
 	Limit           int
 	ProjectionBytes int
 }
+
+// ReportFindingWindow advances through examined Audit membership independently
+// of the density of a report section. Empty progress pages are durable too.
+type ReportFindingWindow struct {
+	Items         []ReportFinding
+	ContinueAfter *ReportFindingCursor
+}

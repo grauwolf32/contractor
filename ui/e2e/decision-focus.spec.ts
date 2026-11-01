@@ -1,14 +1,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
 import type { components } from "../src/api/generated/public";
-import {
-  audit,
-  conforming,
-  decision,
-  finding,
-  project,
-  review,
-} from "../src/test/builders";
+import { audit, finding, findingSource, project } from "../src/test/builders";
 import { deferred } from "../src/test/deferred";
 import { ownerListResponse } from "../src/test/owner-lists";
 import {
@@ -27,30 +20,20 @@ const PROJECT = "project_shop";
 const AUDIT = "audit_shop";
 const REASON = "Only administrators reach this view.";
 
-/** A possible issue of the shop's check, proposed at `createdAt`. */
 function issue(
   findingId: string,
   title: string,
   createdAt: string,
-): Schemas["AuditFinding"] {
-  const base = finding(
-    AUDIT,
+): Schemas["ProjectFinding"] {
+  return finding(
+    PROJECT,
     findingId,
     { createdAt, updatedAt: createdAt },
     { title },
   );
-  return conforming("AuditFinding", {
-    ...base,
-    firstProposal: { ...base.firstProposal, createdAt },
-  });
 }
-
-/**
- * The shop's check with two possible issues and their open review requests.
- * A decision (always "Not an issue" here) is recorded once `answer` is
- * called; `decisions` holds the body of every request to record one, held
- * or not.
- */
+// One Project owner command from the approved Issue workspace. The response
+// is held so keyboard focus and duplicate-submission prevention run in Chromium.
 async function mockShop(page: Page) {
   const data = {
     projects: [project(PROJECT, { name: "Shop" })],
@@ -67,27 +50,13 @@ async function mockShop(page: Page) {
         "2026-10-04T09:00:00Z",
       ),
     ],
-    reviews: [] as Schemas["AuditReviewRequest"][],
   };
-  data.reviews = data.findings.map((item) =>
-    review(AUDIT, `review_${item.findingId}`, "finding-triage", {
-      findingId: item.findingId,
-      subjectId: item.findingId,
-      subjectRevision: item.revision,
-    }),
-  );
   const answer = deferred();
   const decisions: unknown[] = [];
-  const summary = () => ({
-    auditRevision: data.audits[0]!.revision,
-    asOf: data.audits[0]!.updatedAt,
-  });
   await mockAPI(page, async (route, request, url) => {
     const owned = ownerListResponse(url, data);
     if (owned !== undefined) return fulfillJSON(route, await owned.json());
     const path = url.pathname;
-    const findingOf = (findingId: string | undefined) =>
-      data.findings.find((item) => item.findingId === findingId);
     if (path === "/v1/projects")
       return fulfillJSON(route, {
         items: data.projects,
@@ -95,108 +64,44 @@ async function mockShop(page: Page) {
       });
     if (path === `/v1/projects/${PROJECT}`)
       return fulfillJSON(route, data.projects[0], 200, { ETag: '"1"' });
-    if (path === `/v1/audits/${AUDIT}`)
-      return fulfillJSON(route, data.audits[0], 200, {
-        ETag: `"${data.audits[0]!.revision}"`,
-      });
-    if (path === `/v1/audits/${AUDIT}/findings`) {
-      const state = url.searchParams.get("state");
-      const items = data.findings.filter(
-        (item) => state === null || item.state === state,
-      );
-      return fulfillJSON(route, {
-        ...summary(),
-        total: items.length,
-        items,
-        page: { hasMore: false },
-      });
-    }
-    const one = /^\/v1\/audits\/[^/]+\/findings\/([^/]+)(\/provenance)?$/.exec(
-      path,
-    );
+    const one = /^\/v1\/projects\/[^/]+\/findings\/([^/]+)$/.exec(path);
     if (one !== null) {
-      const item = findingOf(one[1]);
+      const item = data.findings.find((f) => f.findingId === one[1]);
       if (item === undefined) return fulfillEmptyPageOrNotFound(route);
-      if (one[2] === undefined)
-        return fulfillJSON(route, item, 200, { ETag: `"${item.revision}"` });
-      return fulfillJSON(route, {
-        ...summary(),
-        findingRevision: item.revision,
-        items: [
-          {
-            recordId: `source:${item.firstProposal.receiptId}`,
-            kind: "source-proposal",
-            relation: "first",
-            receiptId: item.firstProposal.receiptId,
-            proposal: item.firstProposal.proposal,
-            origin: item.firstProposal.origin,
-            supportsCurrentAssessment: false,
-            createdAt: item.createdAt,
-          },
-        ],
-        page: { hasMore: false },
-      });
+      if (request.method() === "PATCH") {
+        decisions.push(request.postDataJSON());
+        await answer.promise;
+        const body = request.postDataJSON() as { rationale: string };
+        const updated: Schemas["ProjectFinding"] = {
+          ...item,
+          state: "rejected",
+          revision: item.revision + 1,
+          analystVerdict: "false_positive",
+          analystSeverity: null,
+          rationale: body.rationale,
+          actorId: "demo",
+          assessedAt: "2026-11-01T10:00:00Z",
+        };
+        data.findings = data.findings.map((f) =>
+          f.findingId === updated.findingId ? updated : f,
+        );
+        return fulfillJSON(route, { finding: updated, replayed: false }, 200, {
+          ETag: `"${updated.revision}"`,
+        });
+      }
+      return fulfillJSON(route, item, 200, { ETag: `"${item.revision}"` });
     }
-    if (path === `/v1/audits/${AUDIT}/reviews`) {
-      const findingId = url.searchParams.get("finding");
-      const state = url.searchParams.get("state");
-      const items = data.reviews.filter(
-        (item) =>
-          (findingId === null || item.findingId === findingId) &&
-          (state === null || item.state === state),
-      );
-      return fulfillJSON(route, {
-        ...summary(),
-        total: items.length,
-        items,
-        page: { hasMore: false },
-      });
-    }
-    const decide = /^\/v1\/audits\/[^/]+\/reviews\/([^/]+)\/decisions$/.exec(
-      path,
+    const source = data.findings.find(
+      (f) =>
+        path === `/v1/projects/${PROJECT}/finding-sources/${f.firstReceiptId}`,
     );
-    if (decide !== null && request.method() === "POST") {
-      decisions.push(request.postDataJSON());
-      await answer.promise;
-      const open = data.reviews.find((item) => item.requestId === decide[1]);
-      const decided = findingOf(open?.findingId);
-      if (open === undefined || decided === undefined)
-        return fulfillEmptyPageOrNotFound(route);
-      const body = request.postDataJSON() as { rationale: string };
-      const recorded = decision(open, {
-        verdict: "false_positive",
-        rationale: body.rationale,
-      });
-      const updated: Schemas["AuditReviewRequest"] = {
-        ...open,
-        state: "decided",
-        revision: open.revision + 1,
-        decision: recorded,
-      };
-      const rejected: Schemas["AuditFinding"] = {
-        ...decided,
-        state: "rejected",
-        revision: decided.revision + 1,
-        analystVerdict: "false_positive",
-        analystDecision: recorded,
-      };
-      data.reviews = data.reviews.map((item) =>
-        item.requestId === open.requestId ? updated : item,
-      );
-      data.findings = data.findings.map((item) =>
-        item.findingId === rejected.findingId ? rejected : item,
-      );
-      data.audits = data.audits.map((item) => ({
-        ...item,
-        revision: item.revision + 1,
-      }));
+    if (source !== undefined) return fulfillJSON(route, findingSource(source));
+    if (path.endsWith("/sources") || path.endsWith("/history"))
       return fulfillJSON(route, {
-        finding: rejected,
-        request: updated,
-        decision: recorded,
-        replayed: false,
+        items: [],
+        projectRevision: 1,
+        page: { hasMore: false },
       });
-    }
     return fulfillEmptyPageOrNotFound(route);
   });
   return { decisions, answer: () => answer.resolve() };
@@ -318,7 +223,7 @@ const SUBMISSIONS: Submission[] = [
   {
     name: "a click that leaves focus in the slot above the reason",
     send: async (_page, bar) => {
-      await bar.getByRole("button", { name: "Use AI summary" }).focus();
+      await bar.getByRole("button", { name: "Use issue summary" }).focus();
       await recordButton(bar).dispatchEvent("click");
     },
     again: (_page, bar) => recordButton(bar).dispatchEvent("click"),
@@ -334,7 +239,7 @@ for (const submission of SUBMISSIONS) {
       const errors: string[] = [];
       page.on("pageerror", (error) => errors.push(error.message));
       const server = await mockShop(page);
-      await page.goto("/issues/audit_shop/finding_orders");
+      await page.goto("/issues/project_shop/finding_orders");
       const bar = page.getByRole("region", { name: "Your decision" });
       await bar.getByRole("button", { name: "Not an issue" }).click();
       const reason = bar.getByRole("textbox", { name: "Why" });
@@ -360,7 +265,7 @@ for (const submission of SUBMISSIONS) {
 
       // Once the Server answers, focus moves on to the next possible issue.
       server.answer();
-      await expect(page).toHaveURL(/\/issues\/audit_shop\/finding_invoices$/);
+      await expect(page).toHaveURL(/\/issues\/project_shop\/finding_invoices$/);
       await expect(
         page.locator(".ui-panes-detail .issues-detail-bar"),
       ).toBeFocused();

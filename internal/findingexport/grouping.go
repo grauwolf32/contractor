@@ -34,9 +34,6 @@ func (s Snapshot) ResultGroups() ([]ResultGroup, error) {
 	for _, r := range s.Results {
 		id := "finding:" + r.FindingID
 		root(id)
-		if r.PrimaryKey != nil {
-			join(id, "key:"+r.PrimaryKey.GroupKey)
-		}
 		if r.Review.IsState("duplicate") {
 			join(id, "finding:"+r.Review.DuplicateTargetID)
 		}

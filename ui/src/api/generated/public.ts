@@ -6828,6 +6828,8 @@ export interface components {
         FindingSeverity: "informational" | "low" | "medium" | "high" | "critical";
         /** @enum {string} */
         FindingVerdict: "true_positive" | "false_positive" | "duplicate" | "reopen" | "needs_evidence";
+        /** @description Opaque authenticated actor identity, bounded in UTF-8 bytes. */
+        FindingActorIdentity: string;
         ProjectFinding: {
             findingId: components["schemas"]["ResourceId"];
             projectId: components["schemas"]["ResourceId"];
@@ -6840,7 +6842,7 @@ export interface components {
             analystSeverity: components["schemas"]["FindingSeverity"] | null;
             duplicateTargetId: components["schemas"]["ResourceId"] | null;
             rationale: components["schemas"]["DecisionRationale"] | null;
-            actorId: string | null;
+            actorId: components["schemas"]["FindingActorIdentity"] | null;
             assessedAt: string | null;
             revision: number;
             /** Format: date-time */

@@ -77,23 +77,26 @@ SELECT item.item_id, item.round_id, item.item_key, item.ordinal, item.kind,
 // Bound the indexed membership window before reading projection bytes or
 // computing a running byte sum. NULL current assessments share the possible
 // issues section with reopened Findings; the actual state stays NULL.
-const listReportFindingsSQL = `WITH selected AS MATERIALIZED (
- SELECT finding.finding_id,finding.project_id,finding.state,finding.first_proposal_ref,
- finding.duplicate_target_id,finding.revision,finding.created_at,finding.first_receipt_id,
- finding.analyst_verdict,finding.analyst_severity,finding.rationale,finding.actor_id,finding.assessed_at
- FROM project_finding_audits AS membership JOIN project_findings AS finding USING(project_id,finding_id)
- WHERE membership.audit_id=$1 AND (finding.state=$2 OR (finding.state IS NULL AND $2='proposed'))
- AND ($3::timestamptz IS NULL OR (membership.finding_created_at,membership.finding_id)>($3,$4))
- ORDER BY membership.finding_created_at,membership.finding_id LIMIT $5
+const listReportFindingsSQL = `WITH candidates AS MATERIALIZED (
+ SELECT membership.* FROM project_finding_audits AS membership
+ WHERE membership.audit_id=$1
+ AND (membership.finding_created_at,membership.finding_id COLLATE "C")>(coalesce($3::timestamptz,'-infinity'),coalesce($4::text,'') COLLATE "C")
+ ORDER BY membership.finding_created_at,membership.finding_id COLLATE "C" LIMIT $5
+), selected AS MATERIALIZED (
+ SELECT finding.*,(finding.state=$2 OR (finding.state IS NULL AND $2='proposed')) IS TRUE AS matches
+ FROM candidates CROSS JOIN LATERAL (SELECT * FROM project_findings AS current
+ WHERE current.project_id=candidates.project_id AND current.finding_id=candidates.finding_id OFFSET 0) AS finding
 ), page AS MATERIALIZED (
- SELECT selected.*,receipt.report_projection,
- sum(octet_length(receipt.report_projection)) OVER (ORDER BY selected.created_at,selected.finding_id ROWS UNBOUNDED PRECEDING)
- -octet_length(receipt.report_projection)<$6 AS included
- FROM selected JOIN finding_proposal_receipts AS receipt ON receipt.receipt_id=selected.first_receipt_id
+ SELECT selected.*,CASE WHEN matches THEN receipt.report_projection END AS report_projection,
+ sum(CASE WHEN matches THEN octet_length(receipt.report_projection) ELSE 0 END)
+ OVER(ORDER BY selected.created_at,selected.finding_id COLLATE "C" ROWS UNBOUNDED PRECEDING)
+ -CASE WHEN matches THEN octet_length(receipt.report_projection) ELSE 0 END<$6 AS included
+ FROM selected CROSS JOIN LATERAL (SELECT report_projection FROM finding_proposal_receipts AS source
+ WHERE source.receipt_id=selected.first_receipt_id OFFSET 0) AS receipt
 )
- SELECT finding_id,project_id,state,first_proposal_ref,duplicate_target_id,revision,created_at,included,
+ SELECT finding_id,project_id,state,first_proposal_ref,duplicate_target_id,revision,created_at,included,matches,
  CASE WHEN included THEN report_projection END,analyst_verdict,analyst_severity,rationale,actor_id,assessed_at
- FROM page ORDER BY created_at,finding_id`
+ FROM page ORDER BY created_at,finding_id COLLATE "C"`
 
 const reportProjectRevisionSQL = `SELECT fence.revision FROM audits AS audit
  JOIN finding_correlation_fences AS fence USING(project_id) WHERE audit.audit_id=$1`

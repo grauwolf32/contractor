@@ -199,9 +199,6 @@ func (s *QueryStore) ComparisonGroups(ctx context.Context, p auditstore.FindingC
 	return result, rows.Err()
 }
 
-// CorrelationMembers returns one keyset page of retained member IDs in the
-// declared Project, Audit or two-Audit scope.
-
 // ComparisonPreviews reads only the bounded display projection and exact
 // current result references, in one owner-authorized batch without Artifact I/O.
 func (s *QueryStore) ComparisonPreviews(ctx context.Context, owner, project string, ids []string) (map[string]auditstore.FindingComparisonPreview, error) {

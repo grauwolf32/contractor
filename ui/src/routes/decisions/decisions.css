@@ -7,23 +7,6 @@
 
 /* ---------- Shared text ---------- */
 
-.decisions-heading {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin: 0 0 var(--space-1-5);
-  color: var(--text);
-  font-size: var(--text-md);
-  font-weight: 800;
-  line-height: 1.3;
-  letter-spacing: -0.005em;
-}
-
-.decisions-heading svg {
-  flex: none;
-  color: var(--muted);
-}
-
 /* ---------- Markdown ---------- */
 
 .decisions-markdown {
@@ -80,197 +63,9 @@
 
 /* ---------- Finding summary ---------- */
 
-.decisions-summary {
-  display: flex;
-  flex-direction: column;
-  gap: 1.125rem;
-  min-width: 0;
-  container-type: inline-size;
-}
-
-.decisions-summary-head {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  min-width: 0;
-}
-
-.decisions-summary-kicker {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-1-5) var(--space-2-5);
-  margin: 0;
-  color: var(--muted);
-  font-size: var(--text-sm);
-}
-
-.decisions-summary-kind {
-  color: var(--text);
-  font-weight: 700;
-}
-
-.decisions-summary-title {
-  max-width: 34ch;
-  margin: 0;
-  color: var(--text);
-  font-size: 1.75rem;
-  font-weight: 800;
-  line-height: 1.16;
-  letter-spacing: -0.028em;
-  overflow-wrap: anywhere;
-}
-
-.decisions-summary[data-variant="compact"] .decisions-summary-title {
-  font-size: 1.6875rem;
-  line-height: 1.18;
-  letter-spacing: -0.025em;
-}
-
-@container (max-width: 36rem) {
-  .decisions-summary .decisions-summary-title {
-    font-size: 1.375rem;
-  }
-}
-
 /* Facts (ui-facts, row layout) a little below the title. */
-.decisions-facts {
-  margin-top: var(--space-1);
-}
-
-.decisions-facts dd .ui-caption,
-.decisions-suggestion {
-  color: var(--muted);
-  font-size: var(--text-sm);
-  font-weight: 600;
-}
-
-.decisions-fact-endpoint {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1-5);
-}
-
-.decisions-fact-endpoint .ui-mono {
-  font-weight: 500;
-}
-
-.decisions-fact-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-0-5) var(--space-3);
-}
-
-.decisions-section {
-  min-width: 0;
-}
-
-.decisions-pair {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(20rem, 100%), 1fr));
-  gap: var(--space-4) 1.75rem;
-  align-items: start;
-}
-
-.decisions-unsure {
-  min-width: 0;
-  padding: var(--space-3) var(--space-3-5);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-xl);
-  background: var(--sunken);
-  font-size: var(--text-md);
-  line-height: 1.55;
-}
-
-.decisions-unsure p,
-.decisions-unsure ul {
-  margin: 0;
-}
-
-.decisions-unsure ul {
-  padding-left: 1.125rem;
-}
-
-.decisions-unsure li + li {
-  margin-top: var(--space-1);
-}
-
-.decisions-unsure .decisions-unsure-label {
-  margin-top: var(--space-2);
-  color: var(--muted);
-  font-size: var(--text-sm);
-  font-weight: 700;
-}
 
 /* Location and evidence rows: monospace references between hairlines. */
-.decisions-locations ul,
-.decisions-rows {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  border-top: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
-}
-
-.decisions-locations li,
-.decisions-rows > li {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-0-5) var(--space-4);
-  min-width: 0;
-  padding: var(--space-1-5) 0;
-  font-size: var(--text-md);
-}
-
-.decisions-locations li + li,
-.decisions-rows > li + li {
-  border-top: 1px solid var(--line);
-}
-
-.decisions-locations code {
-  font-family: var(--font-mono);
-  font-size: var(--text-sm);
-  overflow-wrap: anywhere;
-}
-
-.decisions-locations details {
-  margin-top: var(--space-2);
-  font-size: var(--text-sm);
-}
-
-.decisions-locations summary {
-  color: var(--muted);
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.decisions-locations details details {
-  margin-left: var(--space-4);
-}
-
-.decisions-locations pre {
-  max-width: 100%;
-  margin: var(--space-1) 0 var(--space-2);
-  padding: var(--space-2) var(--space-3);
-  overflow-x: auto;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: var(--code-bg);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-.decisions-locations > .ui-caption {
-  margin-top: var(--space-1-5);
-}
-
-.decisions-row-main {
-  flex: 1 1 14rem;
-  min-width: 0;
-}
 
 /* ---------- Decision footer blocks ---------- */
 
@@ -306,25 +101,11 @@
   border-top: 1px solid var(--line);
 }
 
-.decisions-current {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2-5);
-  padding: var(--space-3-5) var(--ui-pad-end, 1.75rem) var(--space-3)
-    var(--ui-pad-start, 1.75rem);
-  border-top: 1px solid var(--line);
-  background: var(--surface);
-}
-
 /* Where the pane footer is pinned, a component that shows a recorded
    decision (ui-footer-record) is capped and draws the divider above it
    (ui.css), so its first block drops its own. */
 @media (min-width: 821px) and (min-height: 560px) {
-  .ui-detail-pane-footer .ui-footer-record > .decisions-status:not(:empty),
-  .ui-detail-pane-footer
-    .ui-footer-record
-    > .decisions-status:empty
-    + .decisions-current {
+  .ui-detail-pane-footer .ui-footer-record > .decisions-status:not(:empty) {
     border-top: 0;
   }
 
@@ -332,40 +113,9 @@
      while a long reason scrolls under them. The row takes over the space
      around it as padding (the section gives up its gap and bottom padding),
      so it covers what scrolls under it, and nothing moves when all fits. */
-  .ui-detail-pane-footer .ui-footer-record > .decisions-current {
-    gap: var(--space-0-5);
-    padding-bottom: 0;
-  }
-
-  .ui-detail-pane-footer .ui-footer-record .decisions-current-actions {
-    position: sticky;
-    bottom: 0;
-    z-index: 1;
-    padding-block: var(--space-2) var(--space-3);
-    background: var(--surface);
-  }
-}
-
-.decisions-current-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-  container: decisions-actions / inline-size;
 }
 
 /* Key hints only where keys exist and the row has room, as in DecisionBar. */
-@container decisions-actions (max-width: 34rem) {
-  .decisions-current-actions .ui-kbd-hint {
-    display: none;
-  }
-}
-
-@media (hover: none) and (pointer: coarse) {
-  .decisions-current-actions .ui-kbd-hint {
-    display: none;
-  }
-}
 
 .decisions-record {
   display: flex;
@@ -374,8 +124,7 @@
   min-width: 0;
 }
 
-.decisions-record-head,
-.decisions-record-line {
+.decisions-record-head {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -400,17 +149,6 @@
 .decisions-record .markdown-artifact-preview {
   font-size: var(--text-md);
   line-height: 1.55;
-}
-
-.decisions-state-reason {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1-5);
-  font-size: var(--text-sm);
-}
-
-.decisions-state-reason > button {
-  align-self: flex-start;
 }
 
 .decisions-notice {
@@ -472,149 +210,10 @@
 
 /* The row right above the reason: "Use AI summary" as a quiet action at the
    end. The reason's helper text is DecisionBar's rationale hint. */
-.decisions-assist {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--space-1) var(--space-3);
-}
 
 /* ---------- More decisions ---------- */
 
-.decisions-more,
-.decisions-more-items {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-  min-width: 0;
-}
-
-.decisions-more-items[hidden] {
-  display: none;
-}
-
-.decisions-more .ui-btn {
-  max-width: 100%;
-  white-space: normal;
-}
-
-.decisions-more-chevron {
-  transition: transform 140ms ease;
-}
-
-.decisions-more > [aria-expanded="true"] .decisions-more-chevron {
-  transform: rotate(90deg);
-}
-
 /* ---------- Duplicate picker ---------- */
-
-.decisions-duplicate {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  min-width: 0;
-  margin: 0;
-  padding: 0;
-  border: 0;
-}
-
-.decisions-duplicate-legend {
-  margin-bottom: var(--space-2);
-  padding: 0;
-  color: var(--text);
-  font-size: var(--text-sm);
-  font-weight: 800;
-}
-
-.decisions-duplicate-search {
-  width: 100%;
-  max-width: 28rem;
-  height: var(--control-sm);
-  padding: 0 var(--space-3);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-md);
-  background: var(--surface);
-  color: var(--text);
-  font-size: var(--text-sm);
-}
-
-.decisions-duplicate-search::placeholder {
-  color: var(--faint);
-  opacity: 1;
-}
-
-.decisions-duplicate-search:focus-visible {
-  border-color: var(--focus);
-  outline: 2px solid var(--focus);
-  outline-offset: 1px;
-}
-
-.decisions-duplicate-options {
-  display: flex;
-  flex-direction: column;
-  max-height: 12rem;
-  overflow-y: auto;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  background: var(--surface);
-}
-
-.decisions-duplicate-option {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: start;
-  gap: var(--space-2-5);
-  padding: var(--space-2) var(--space-3);
-  cursor: pointer;
-  font-size: var(--text-sm);
-}
-
-.decisions-duplicate-text {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-0-5) var(--space-2-5);
-  min-width: 0;
-}
-
-.decisions-duplicate-option + .decisions-duplicate-option {
-  border-top: 1px solid var(--line);
-}
-
-.decisions-duplicate-option:hover {
-  background: var(--row-hover);
-}
-
-.decisions-duplicate-option:has(input:checked) {
-  background: var(--sel);
-}
-
-.decisions-duplicate-option > input {
-  margin: var(--space-1) 0 0;
-  accent-color: var(--sel-bar);
-}
-
-.decisions-duplicate-option > input:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
-}
-
-.decisions-duplicate-title {
-  flex: 1 1 12rem;
-  min-width: 0;
-  color: var(--text);
-  font-weight: 700;
-  overflow-wrap: anywhere;
-}
-
-.decisions-duplicate-id {
-  color: var(--muted);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  overflow-wrap: anywhere;
-}
 
 /* ---------- Inside a card instead of a pane ---------- */
 
@@ -624,17 +223,10 @@
   --ui-pad-end: 0;
 }
 
-.decisions-inline .ui-decision,
-.decisions-inline .decisions-current {
+.decisions-inline .ui-decision {
   padding-block: var(--space-1);
   border-top: 0;
   background: transparent;
-}
-
-.decisions-inline .decisions-current + .ui-decision {
-  margin-top: var(--space-3);
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--line);
 }
 
 .decisions-inline .decisions-status:not(:empty) {

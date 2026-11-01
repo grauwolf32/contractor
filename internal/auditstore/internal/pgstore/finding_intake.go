@@ -39,14 +39,14 @@ SELECT state FROM audits
 }
 
 // LockFindingCorrelationFence takes Project projectID's finding correlation
-// fence (FND-R177) until the caller's transaction ends, without waiting: the
+// fence (FND-R212) until the caller's transaction ends, without waiting: the
 // Project row FOR SHARE, then the fence row that only finding writers lock.
 // Finding intake takes it after LockFindingIntakeAudit and before any
 // retained artifact admission, so a Project deletion that holds the Project
 // row aborts the intake instead of waiting on its Audit. Another finding
 // writer of the Project, or a Project deletion or update, is a transaction
-// conflict (SQLSTATE 40001); a Project without a fence row has no Audit and is
-// a permanent internal failure.
+// conflict (SQLSTATE 40001); every ordinary Project receives its fence at
+// creation, so a missing fence is a permanent integrity failure.
 func (s *FindingEventsTx) LockFindingCorrelationFence(ctx context.Context, projectID string) error {
 	if _, err := s.tx.Exec(ctx, `SELECT contractor_lock_finding_correlation_fence($1)`, projectID); err != nil {
 		return fmt.Errorf("lock Project finding correlation fence: %w", err)

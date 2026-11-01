@@ -674,11 +674,11 @@ INSERT INTO finding_proposal_receipts (
     proposal_ref, proposal_digest, proposal_media_type,
     proposal_size_bytes, evidence, report_projection, fingerprint_projection, anchor_projection,
  retention_state,source_run_deleted_at,project_proposal,project_evidence,publication_requested
-) VALUES ($1, $2, $3, 'runtime-review', 'instance-review', 'stage-review', 'worker',
+, checks_projection) VALUES ($1, $2, $3, 'runtime-review', 'instance-review', 'stage-review', 'worker',
           $4, $5, $6, $7, $8, $9, $10,
           'finding-source', '1', 'contractor/v1alpha1',
           '{"name":"finding-source","version":"1"}'::jsonb, $11,
-          $12::jsonb, $13, 'application/json', $14, $18::jsonb, $15, $16,$17,'project-held',clock_timestamp(),$19::jsonb,$18::jsonb,true)`,
+          $12::jsonb, $13, 'application/json', $14, $18::jsonb, $15, $16,$17,'project-held',clock_timestamp(),$19::jsonb,$18::jsonb,true, json_build_object('schema','contractor.audit.finding-checks-projection.v1','proposal_digest',($13)::text,'size_bytes',($14)::bigint,'discarded',false,'subject',NULL,'limitations',NULL,'checks','[]'::json))`,
 		receiptID, "proposal-"+suffix, "allocation-"+suffix,
 		"invocation-"+suffix, "submission-"+suffix, document.ClientKey,
 		projectFindingDeletionDigest("request-"+suffix), "deleted-run-"+suffix, ownerID, projectID,
@@ -724,7 +724,7 @@ INSERT INTO finding_proposal_receipts (
     workflow_configuration_ref, workflow_closure_digest,
     proposal_ref, proposal_digest, proposal_media_type,
     proposal_size_bytes, evidence, report_projection
-)
+, checks_projection)
 SELECT $1 || '-' || lpad(n::text, 4, '0'), $1 || '-proposal-' || n, $1 || '-allocation',
        'runtime', 'instance', 'stage', 'worker', 'invocation', $1 || '-submission-' || n,
        'candidate-' || n, 'sha256:' || repeat('a', 64), $2, 'user-1', $3,
@@ -732,7 +732,7 @@ SELECT $1 || '-' || lpad(n::text, 4, '0'), $1 || '-proposal-' || n, $1 || '-allo
        'sha256:' || repeat('b', 64),
        jsonb_build_object('namespace', 'findings', 'name', 'candidate-' || n, 'revision', 'r1'),
        'sha256:' || repeat('c', 64), 'application/json', 128, '[]'::jsonb,
-       '{"description":"Test finding.","limitations":[],"preconditions":[],"severity_suggestion":"","standard_refs":[],"subject":null,"title":"Test finding."}'
+       '{"description":"Test finding.","limitations":[],"preconditions":[],"severity_suggestion":"","standard_refs":[],"subject":null,"title":"Test finding."}', json_build_object('schema','contractor.audit.finding-checks-projection.v1','proposal_digest',('sha256:' || repeat('c', 64))::text,'size_bytes',(128)::bigint,'discarded',false,'subject',NULL,'limitations',NULL,'checks','[]'::json)
   FROM generate_series(1, $4::integer) AS n`, prefix, runID, projectID, count); err != nil {
 		t.Fatalf("seed finding proposal receipts: %v", err)
 	}

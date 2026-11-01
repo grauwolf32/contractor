@@ -9,7 +9,6 @@ export interface OwnerListData {
   audits: Audit[];
   findings?: ProjectFinding[];
   reviews?: AuditReviewRequest[];
-  findingAudits?: Record<string, string[]>;
 }
 
 /**
@@ -68,17 +67,12 @@ export function ownerListResponse(
     case "/v1/audits":
       return offsetPage(url, audits("state"));
     case "/v1/findings": {
-      const auditIds = new Set(audits("auditState").map((a) => a.auditId));
       return offsetPage(
         url,
         (data.findings ?? [])
           .filter(
             (f) =>
               projects.has(f.projectId) &&
-              (!url.searchParams.has("auditState") ||
-                (data.findingAudits?.[f.findingId] ?? []).some((id) =>
-                  auditIds.has(id),
-                )) &&
               matches(url, "state", f.state ?? "") &&
               matches(url, "verdict", f.analystVerdict ?? "unreviewed") &&
               (!url.searchParams.has("severity") ||

@@ -3,26 +3,10 @@
  * header values look like credentials (masked until the user asks), what a
  * request body holds, and how much evidence there is.
  */
-import type { Audit, FindingProposalReceipt } from "../../api/audits";
+import type { FindingProposalReceipt } from "../../api/audits";
 import type { components } from "../../api/generated/public";
 
 type HTTPAttempt = components["schemas"]["FindingHTTPAttempt"];
-/**
- * The source materials a check read: its `source` input and every input
- * from the `sources` namespace, each exact revision once.
- */
-export function checkSources(audit: Audit): Audit["inputs"][string][] {
-  return [
-    ...new Map(
-      Object.entries(audit.inputs)
-        .filter(
-          ([name, artifact]) =>
-            name === "source" || artifact.ref.namespace === "sources",
-        )
-        .map(([, artifact]) => [JSON.stringify(artifact.ref), artifact]),
-    ).values(),
-  ];
-}
 
 /** Header names whose values are credentials. */
 const CREDENTIAL_HEADERS: ReadonlySet<string> = new Set([

@@ -371,7 +371,6 @@ type fakeAuditManagement struct {
 	findingListParams  auditstore.FindingListParams
 	reviewListParams   auditstore.ReviewListParams
 	decideActionParams auditservice.DecideActionReviewParams
-	reviewReplayed     bool
 	decisionReplayed   bool
 }
 

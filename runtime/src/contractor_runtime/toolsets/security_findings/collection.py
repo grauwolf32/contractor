@@ -360,7 +360,8 @@ def _validate_metadata(value: dict[str, Any]) -> None:
                 require(severity in {"", "informational", "low", "medium", "high", "critical"})
                 require((verdict == "duplicate") == (duplicate != ""))
                 require(
-                    duplicate == "" or identifier(duplicate) and duplicate != finding["finding_id"]
+                    duplicate == ""
+                    or (identifier(duplicate) and duplicate != finding["finding_id"])
                 )
     require(used == documents.keys(), "findings_reference_invalid")
 

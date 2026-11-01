@@ -31,24 +31,20 @@ func TestSharedGeneratedFindingDecisionRequestsPreserveVerdictFields(t *testing.
 			if err := json.Unmarshal(tc.Request, &fields); err != nil {
 				t.Fatal(err)
 			}
-			var finding publicapi.DecideAuditFindingRequest
+			var finding publicapi.EditProjectFindingRequest
 			var err error
 			switch fields["verdict"] {
 			case "true_positive":
-				err = finding.FromDecideAuditFindingTruePositiveRequest(publicapi.DecideAuditFindingTruePositiveRequest{Verdict: "true_positive", Severity: "high", Rationale: "Observed evidence"})
+				err = finding.FromEditProjectFindingRequest0(publicapi.EditProjectFindingRequest0{Verdict: "true_positive", Severity: "high", Rationale: "Observed evidence"})
 			case "duplicate":
-				err = finding.FromDecideAuditFindingDuplicateRequest(publicapi.DecideAuditFindingDuplicateRequest{Verdict: "duplicate", DuplicateTargetId: "finding-original", Rationale: "Observed evidence"})
+				err = finding.FromEditProjectFindingRequest2(publicapi.EditProjectFindingRequest2{Verdict: "duplicate", DuplicateTargetId: "finding-original", Rationale: "Observed evidence"})
 			default:
-				err = finding.FromDecideAuditFindingOtherRequest(publicapi.DecideAuditFindingOtherRequest{Verdict: publicapi.DecideAuditFindingOtherRequestVerdict(fields["verdict"].(string)), Rationale: "Observed evidence"})
+				err = finding.FromEditProjectFindingRequest1(publicapi.EditProjectFindingRequest1{Verdict: publicapi.EditProjectFindingRequest1Verdict(fields["verdict"].(string)), Rationale: "Observed evidence"})
 			}
 			if err != nil {
 				t.Fatal(err)
 			}
-			var body publicapi.DecideAuditReviewRequest
-			if err := body.FromDecideAuditFindingRequest(finding); err != nil {
-				t.Fatal(err)
-			}
-			request, err := publicapi.NewDecideAuditReviewRequest("https://contractor.example", "audit-1", "review-1", &publicapi.DecideAuditReviewParams{IdempotencyKey: "decision-1", IfMatch: `"1"`}, body)
+			request, err := publicapi.NewEditProjectFindingRequest("https://contractor.example", "project-1", "finding-1", &publicapi.EditProjectFindingParams{IdempotencyKey: "decision-1", IfMatch: `"1"`}, finding)
 			if err != nil {
 				t.Fatal(err)
 			}

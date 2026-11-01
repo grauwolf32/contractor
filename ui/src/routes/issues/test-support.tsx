@@ -53,7 +53,6 @@ export interface IssuesServer {
   findings: ProjectFinding[];
   sources: FindingProposalReceipt[];
   reviews: AuditReviewRequest[];
-  findingAudits?: Record<string, string[]>;
   failing: Set<string>;
   more: Set<string>;
   gate?: Promise<void> | undefined;

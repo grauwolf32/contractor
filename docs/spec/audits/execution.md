@@ -1036,8 +1036,8 @@ Registry entries owned by this document:
   `proposal_inventory_limit_exceeded` (AUX-R65), `next_round_invalid`
   (AUX-R66), `next_round_contract_invalid` (AUX-R67) and
   `role_dispatch_contract_invalid` (AUX-R99), plus typed admission's
-  `next_round_validation_deadline` and `source_projection_pending`
-  (AUX-R101, ASC-R180).
+  `next_round_validation_deadline` (AUX-R101). Invalid stored check indexes
+  fail permanently (ASC-R180).
 
 Entries owned elsewhere and used here: `batchSize` (LIM-AUD-3, LIM-AUD-8), the
 Audit package hard limits including 4,096 inventory items (LIM-AUD-9 to

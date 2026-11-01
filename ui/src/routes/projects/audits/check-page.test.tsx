@@ -43,7 +43,7 @@ import {
   workspaceOf,
   type Handler,
 } from "./check-test-support";
-import { failure, json } from "../../../test/responses";
+import { json } from "../../../test/responses";
 
 import {
   compositionAudit,
@@ -891,7 +891,7 @@ describe("Check page", () => {
     const progress = screen.getByRole("region", { name: "Check progress" });
     expect(
       within(progress).getByRole("link", { name: "Review 1 possible issue" }),
-    ).toHaveAttribute("href", "/issues?project=project_example&state=proposed");
+    ).toHaveAttribute("href", "/issues?project=project_example");
     expect(
       within(progress).getByRole("img", {
         name: "0 of 2 endpoints done: 1 partially traced, 1 checking now",
@@ -1207,7 +1207,7 @@ describe("Check page", () => {
     );
     expect(
       within(progress).getByRole("link", { name: "Review 51 possible issues" }),
-    ).toHaveAttribute("href", "/issues?project=project_example&state=proposed");
+    ).toHaveAttribute("href", "/issues?project=project_example");
     const user = userEvent.setup();
     await user.click(
       within(progress).getByRole("link", {

@@ -61,6 +61,17 @@ returns no artifact receipt. Never write the result ZIP yourself. Missing result
 or publication failure fail the child Run. Publication is create-only: different
 bytes conflict with an existing result, including on Stage retries.
 
+## Problem publication
+
+When reporting a concrete security problem, call `finding` with
+`publish_problem=true`, a clear problem assertion and selected exact evidence.
+Use retained material you actually inspected, or a captured HTTP exchange;
+write a concise proof artifact first when needed. Evidence and a supported
+check result alone do not request publication. Keep `publish_problem=false`
+for observations, hypotheses, positive properties and refuted problems.
+Publication does not set the analyst's current verdict or severity. Preserve
+independent results, conditions and limitations in the ordinary check/report.
+
 ## Shared Memory
 
 Use the selected Memory tools for durable coordination facts: confirmed evidence

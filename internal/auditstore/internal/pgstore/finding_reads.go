@@ -188,5 +188,11 @@ func scanProjectFindingSummary(row pgx.Row, extra ...any) (auditstore.ProjectFin
 		(value.AnalystSeverity != nil && !value.AnalystSeverity.Valid()) || (value.State == nil) != (value.AnalystVerdict == nil) {
 		return value, errors.New("stored Project Finding summary is invalid")
 	}
+	if value.DuplicateTargetID != nil && (!contracts.ValidResourceID(*value.DuplicateTargetID) || *value.DuplicateTargetID == value.FindingID) {
+		return value, errors.New("stored Finding duplicate target is invalid")
+	}
+	if (auditstore.ProjectFinding{State: value.State, AnalystVerdict: value.AnalystVerdict, AnalystSeverity: value.AnalystSeverity, DuplicateTargetID: value.DuplicateTargetID}).AssessmentShape() != nil {
+		return value, errors.New("stored Project Finding summary assessment is invalid")
+	}
 	return value, nil
 }

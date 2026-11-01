@@ -63,13 +63,18 @@ context:
     Archive the existing Audit facts/materials and remove their executable rows in the one-time migration;
     ordinary Artifact access supplies their history without a second Audit runtime model.
   implementation_progress: >-
-    Replacement in progress on codex/project-finding-ownership. Canonical Project commands, retained
-    source/result artifacts, active confirmation removal, opaque Audit cutover, current API/UI/CLI,
-    bounded Audit/Project/owner windows and report Project revision pins are implemented.
-    Full PostgreSQL intake/domain/store/service suites passed on 2026-11-01 before the next main merge;
-    owner/Audit 10000-Finding/50000-source scale and normal populated Project purge also passed.
-    Remaining importer/controller/Artifact fixtures, normative documentation and final consuming gates
-    are not yet all verified. This checkpoint does not complete the task.
+    Canonical Project ownership, direct manual assessment/CAS/replay, explicit evidenced publication,
+    independent retained sources/results/history, opaque drained Audit cutover and active confirmation
+    removal are implemented on codex/project-finding-ownership. No Finding review lifecycle, index
+    backfill command, migration-pending reader or second mutable Finding model remains. New indexes
+    are immutable and non-NULL. Main f9eaea44b was merged before final verification; the accepted Issue
+    workspace layout and keyboard/focus behavior are retained. PostgreSQL scale/cleanup, 14 real-process
+    cases, API/wire/config gates, ui-verify, 33 related browser scenarios and lint/architecture passed.
+    The final combined PostgreSQL command passed as well. Required Runtime verification still fails on
+    the documented macOS defects V425-001/002; wider Catalog/Studio browser fixtures and real UI-stack
+    setup also expose unrelated main model-policy fixture failures. The task remains in_progress;
+    implementation and known verification limits are recorded in tasks/evidence/v64-014-2026-11-01.json.
+  verification_evidence: tasks/evidence/v64-014-2026-11-01.json
   implementation_gate: >-
     User assigned the replacement implementation on 2026-11-01. V64-001 is completed and V64-004 is
     not a prerequisite. This authorizes implementation and disposable-database verification, not live

@@ -25,8 +25,8 @@ var reservedNamespaceOwners = map[string]string{
 	AuditStandardCatalogNamespace: "artifactpolicy.AuditStandardCatalogNamespace",
 	FindingProposalNamespace:      "artifactpolicy.FindingProposalNamespace",
 	FindingMaterialsNamespace:     "artifactpolicy.FindingMaterialsNamespace",
-	HistoricalAuditsNamespace: "artifactpolicy.HistoricalAuditsNamespace",
- FindingHistoryNamespace:       "artifactpolicy.FindingHistoryNamespace",
+	HistoricalAuditsNamespace:     "artifactpolicy.HistoricalAuditsNamespace",
+	FindingHistoryNamespace:       "artifactpolicy.FindingHistoryNamespace",
 	RunSystemNamespace:            "artifactpolicy.RunSystemNamespace",
 	AuditContextNamespace:         "artifactpolicy.AuditContextNamespace",
 }

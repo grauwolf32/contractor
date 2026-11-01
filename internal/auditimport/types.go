@@ -31,7 +31,7 @@ type Reader interface {
 	ListItemsByIDs(context.Context, string, []string) ([]auditstore.Item, error)
 	ListRounds(context.Context, string) ([]auditstore.Round, error)
 	ListReportItems(context.Context, string, string, int, int) ([]auditstore.ReportItem, error)
-	ListReportFindings(context.Context, auditstore.ReportFindingPageParams) ([]auditstore.ReportFinding, bool, error)
+	ListReportFindings(context.Context, auditstore.ReportFindingPageParams) (auditstore.ReportFindingWindow, error)
 	ReportProjectRevision(context.Context, string) (uint64, error)
 	ListReportPages(context.Context, string, uint64, uint64) ([]auditstore.ReportPage, error)
 	ReadReportSections(context.Context, string, uint64, uint64) (map[auditstore.ReportSection]auditstore.ReportSectionContent, error)
