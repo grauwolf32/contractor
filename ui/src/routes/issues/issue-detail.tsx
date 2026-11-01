@@ -7,7 +7,6 @@ import {
   getAuditFinding,
   getAuditReview,
   listAuditReviews,
-  type AuditFinding,
 } from "../../api/audits";
 import { usePublicAPI } from "../../api/context";
 import type { CrossProjectIssue } from "../../api/cross-project";
@@ -16,13 +15,9 @@ import { queryKeys } from "../../api/query-keys";
 import { ContextLink } from "../../app/context-navigation";
 import { Icon } from "../../app/icon";
 import { QueryView } from "../../app/query-view";
-import { capitalize, findingStateLabel, TERMS } from "../../app/vocabulary";
-import { Button, DetailPane, IconButton } from "../../ui";
-import {
-  FindingDecision,
-  FindingSummary,
-  type AuditFindingDecisionResult,
-} from "../decisions";
+import { capitalize, TERMS } from "../../app/vocabulary";
+import { Button, DetailPane } from "../../ui";
+import { FindingDecision, type AuditFindingDecisionResult } from "../decisions";
 import {
   FindingProvenance,
   FindingSources,
@@ -31,6 +26,11 @@ import {
 import { auditProfileLabel } from "../projects/audits/labels";
 import { evidenceCount } from "./evidence";
 import { EvidencePanel } from "./evidence-panel";
+import {
+  IssueIdentity,
+  IssueOverview,
+  IssueRecordedDecision,
+} from "./overview";
 import { DecisionHistory } from "./history";
 import { checkIssuePath } from "./links";
 import { TabPanel, Tabs } from "./tabs";
@@ -71,14 +71,6 @@ interface IssueDetailProps {
   onDecided: (result: AuditFindingDecisionResult) => void;
   /** Changes when focus should move to the top of the detail. */
   focusRequest?: number | undefined;
-}
-
-function PanelTitle({ finding }: { finding: AuditFinding }) {
-  return (
-    <h2 className="issues-panel-title">
-      {finding.firstProposal.document.title}
-    </h2>
-  );
 }
 
 /**
@@ -226,8 +218,6 @@ export function IssueDetail({
         candidate.subjectRevision === shown?.revision,
     );
 
-  const state =
-    shown === undefined ? undefined : findingStateLabel(shown.state);
   const kind =
     shown?.state === "confirmed"
       ? capitalize(TERMS.issue)
@@ -240,50 +230,78 @@ export function IssueDetail({
 
   const bar = (
     <header ref={header} tabIndex={-1} className="issues-detail-bar">
-      <p className="issues-detail-position">
-        <strong>
-          {position === undefined
-            ? kind
-            : `${kind} ${position.index + 1} of ${position.count}`}
-        </strong>
-        {state === undefined ? null : <span>{state.label}</span>}
-        {position === undefined && shown !== undefined ? (
-          <span>{listPending ? "Loading the list…" : "Not in this list"}</span>
-        ) : null}
-        {context.length === 0 ? null : (
-          <span className="issues-detail-context">{context.join(" · ")}</span>
-        )}
-      </p>
-      <div className="issues-detail-nav">
-        {projectId === undefined ? null : (
-          <ContextLink
-            returnLabel="Possible issue"
-            className="issues-detail-check"
-            to={checkIssuePath(projectId, auditId, findingId)}
+      <div className="issues-detail-top">
+        <p className="issues-detail-context">{context.join(" · ")}</p>
+        <nav className="issues-detail-nav" aria-label="Issue navigation">
+          <Button
+            className="issues-step"
+            size="xs"
+            aria-label="Previous possible issue"
+            aria-keyshortcuts="K"
+            disabled={onPrevious === undefined}
+            onClick={onPrevious}
           >
-            View in its check
-            <Icon name="chevron-right" size={16} />
-          </ContextLink>
-        )}
-        <IconButton
-          className="issues-step"
-          size="sm"
-          label="Previous possible issue"
-          aria-keyshortcuts="K"
-          icon={<Icon name="chevron-up" size={16} />}
-          disabled={onPrevious === undefined}
-          onClick={onPrevious}
-        />
-        <IconButton
-          className="issues-step"
-          size="sm"
-          label="Next possible issue"
-          aria-keyshortcuts="J"
-          icon={<Icon name="chevron-down" size={16} />}
-          disabled={onNext === undefined}
-          onClick={onNext}
-        />
+            ‹ Prev
+          </Button>
+          <span
+            className="issues-detail-position"
+            aria-label={
+              position === undefined
+                ? kind
+                : `${kind} ${position.index + 1} of ${position.count}`
+            }
+          >
+            <span className="ui-visually-hidden">{kind} </span>
+            {position === undefined
+              ? shown === undefined
+                ? "Loading…"
+                : listPending
+                  ? "Loading the list…"
+                  : "Not in this list"
+              : `${position.index + 1} of ${position.count}`}
+          </span>
+          <Button
+            className="issues-step"
+            size="xs"
+            aria-label="Next possible issue"
+            aria-keyshortcuts="J"
+            disabled={onNext === undefined}
+            onClick={onNext}
+          >
+            Next ›
+          </Button>
+          {projectId === undefined ? null : (
+            <ContextLink
+              returnLabel="Possible issue"
+              className="issues-detail-check"
+              to={checkIssuePath(projectId, auditId, findingId)}
+            >
+              View in its check
+              <Icon name="chevron-right" size={14} />
+            </ContextLink>
+          )}
+        </nav>
       </div>
+      {shown === undefined ? null : (
+        <>
+          <IssueIdentity finding={shown} />
+          <Tabs
+            label="Review sections"
+            items={[
+              { id: "summary", label: "Summary" },
+              {
+                id: "evidence",
+                label: "Evidence",
+                count: evidenceCount(shown),
+              },
+              { id: "history", label: "History" },
+            ]}
+            selected={tab}
+            onSelect={setTab}
+            idBase={idBase}
+          />
+        </>
+      )}
     </header>
   );
 
@@ -301,6 +319,7 @@ export function IssueDetail({
           <FindingDecision
             auditId={auditId}
             finding={shown}
+            presentation="review"
             pendingReview={pendingReview}
             next={
               onNext === undefined ? undefined : { label: "Next item", onNext }
@@ -338,53 +357,41 @@ export function IssueDetail({
                 </div>
               </div>
             )}
-            <Tabs
-              label="Review sections"
-              items={[
-                { id: "summary", label: "Summary" },
-                {
-                  id: "evidence",
-                  label: "Evidence",
-                  count: evidenceCount(shown),
-                },
-                { id: "history", label: "History" },
-              ]}
-              selected={tab}
-              onSelect={setTab}
-              idBase={idBase}
-            />
+            <IssueRecordedDecision finding={shown} />
             <TabPanel idBase={idBase} id={tab}>
               {tab === "summary" ? (
                 <>
-                  <FindingSummary auditId={auditId} finding={shown} />
-                  {auditShown === undefined ? null : (
-                    <>
-                      <FindingDuplicates
-                        key={`${auditId}:${findingId}`}
-                        audit={auditShown}
-                        finding={shown}
-                      />
-                      <FindingSources
-                        audit={auditShown}
-                        returnLabel="Possible issue"
-                      />
-                      <FindingTechnicalDetails
-                        audit={auditShown}
-                        finding={shown}
-                        pendingReview={openReview}
-                        showCheckId
-                      />
-                    </>
-                  )}
+                  <IssueOverview
+                    finding={shown}
+                    supporting={
+                      auditShown === undefined ? undefined : (
+                        <>
+                          <FindingDuplicates
+                            key={`${auditId}:${findingId}`}
+                            audit={auditShown}
+                            finding={shown}
+                          />
+                          <FindingSources
+                            audit={auditShown}
+                            returnLabel="Possible issue"
+                          />
+                          <FindingTechnicalDetails
+                            audit={auditShown}
+                            finding={shown}
+                            pendingReview={openReview}
+                            showCheckId
+                          />
+                        </>
+                      )
+                    }
+                  />
                 </>
               ) : tab === "evidence" ? (
                 <>
-                  <PanelTitle finding={shown} />
                   <EvidencePanel finding={shown} />
                 </>
               ) : (
                 <>
-                  <PanelTitle finding={shown} />
                   <DecisionHistory auditId={auditId} findingId={findingId} />
                   <section
                     className="issues-history"

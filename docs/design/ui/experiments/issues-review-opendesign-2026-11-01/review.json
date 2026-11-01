@@ -1,0 +1,82 @@
+{
+  "kind": "Non-normative synthetic OpenDesign exploration; no production UI transfer",
+  "authority": "User 2026-11-01: bring OpenDesign up and improve Issues further because it feels too repetitive; preserve all prior OpenDesign data and shared typography/themes.",
+  "project": "contractor-issue-detail-20261101",
+  "conversation": "9384ee82-ea37-413d-819f-f7f9f7529fb2",
+  "generationRun": "a08d545c-3ddf-4cdb-bd56-0e19c82947bb",
+  "generationOutcome": "completed",
+  "generator": "OpenDesign / isolated BYOK OpenCode through the existing Contractor gateway",
+  "model": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+  "sourceFile": "index-review-v4.html",
+  "previewFileInOpenDesign": "index-review-v10-mobile-flow.html",
+  "originalSha256": "ec22282916e859d08fd71543a640382f1570834bb8ba3703e669be7c01005caf",
+  "previewSha256": "07a4b25fade381a545b21e142baccf93c6c99f488aab844be4adfa98e555fb79",
+  "previous": "../issues-opendesign-2026-11-01/preview.html",
+  "composition": [
+    "Unboxed narrative and semantic icon badge",
+    "Impact as a short edge-accented block",
+    "Unified source/file evidence workbench",
+    "Quiet supporting column with visible verification, limitations and preconditions",
+    "Compact decision bar with a draft revealed only after selecting a verdict",
+    "Readable contextual list rows and underline tabs"
+  ],
+  "previewCorrections": [
+    "At medium desktop widths use a single main content track and a 300px list instead of compressing the narrative beside a fixed 300px supporting track",
+    "Constrain long source-revision and artifact identifiers and allow horizontal scrolling inside code blocks",
+    "Avoid initial programmatic title focus so it does not resemble an input; preserve focus on user selection",
+    "Show copy success only after an actual successful clipboard write"
+  ],
+  "preservation": {
+    "preGenerationBackup": "/Users/ruslan/src/third-party/open-design-backups/20261101T085400Z",
+    "finalBackup": "/Users/ruslan/src/third-party/open-design-backups/20261101T090048Z",
+    "sqliteIntegrity": "ok",
+    "counts": {
+      "projects": 4,
+      "conversations": 7,
+      "messages": 35,
+      "projectFiles": 79
+    },
+    "originals": "All earlier project files, conversations, versions and host trial artifacts retained"
+  },
+  "isolation": "Separate loopback origin, GET-only fixed routes, opaque sandbox frame, connect-src none, form-action none; synthetic local decision only. Ephemeral single-model relay stopped and upstream-credential file removed after generation.",
+  "verification": "12 layout combinations, 72 finding cases and 60 sort cases passed. Five modes, stable repeated ordering, source labels, unknown severity last, filter/search composition, retained selection/draft, bounded sorted Previous/Next/J/K, same-issue mobile return and persisted QA theme/width context are checked along with all prior review, evidence, isolation and layout behavior.",
+  "serve": "node docs/design/ui/experiments/issues-review-opendesign-2026-11-01/serve.mjs",
+  "verify": "node docs/design/ui/experiments/issues-review-opendesign-2026-11-01/verify.mjs",
+  "productionTransfer": "Separate follow-up after reviewing this candidate; no production Issue behavior, Server contract, release version or business record changed.",
+  "acceptedComposition": "preview-composition-v4.html",
+  "acceptedCompositionSha256": "96879d463ca7652399b015ba2fd7d77449cc79a8e315a24b0e26bc011e262b50",
+  "examplesFile": "examples.json",
+  "humanFollowUp": "User 2026-11-01: make Duplicate more explicit and populate other finding types as test examples. Six synthetic cases added by the assistant on top of the accepted OpenDesign composition; original and accepted preview snapshots retained. Follow-up: put Verification before AI severity and reduce/align the Recorded decision block. User clarification: Impact is first in the supporting column, above Verification and Limitations, for every example. User 2026-11-01: add sorting. Native severity/time/status/title ordering composes with filters and preserves selection/draft; synthetic creation timestamps now differ to demonstrate time sorting. User 2026-11-01: 390px navigation was cramped; Previous/position/Next now share a dedicated three-column row with the check link below on 390/320px. During production transfer, the user asked for a smaller mobile floating area: the mobile header now scrolls normally and uses the shared 16px title scale, with a normal-flow decision composer.",
+  "fixtureAuthor": "Assistant-authored, schema-checked synthetic fixtures on the user-accepted OpenDesign composition; no new model run or production integration.",
+  "fixturePreservation": {
+    "backup": "/Users/ruslan/src/third-party/open-design-backups/20261101T092349Z",
+    "sqliteIntegrity": "ok",
+    "projects": 4,
+    "conversations": 7,
+    "messages": 35,
+    "projectFiles": 81,
+    "versions": "The accepted v4 composition and the v5 examples / v6 review refinements are preserved separately; no original generated file was changed."
+  },
+  "sortDesign": {
+    "modes": [
+      "severity",
+      "newest",
+      "oldest",
+      "status",
+      "title"
+    ],
+    "default": "severity",
+    "severity": "Analyst rating when present, otherwise AI suggestion; unset last. Per-row labels remain distinct.",
+    "ties": "Creation time, then stable ID. Oldest uses ascending time.",
+    "context": "Search/review filters compose with ordering; selected issue and draft remain on sort, including reopening the same mobile issue. Sort/selection survive QA theme and width changes.",
+    "data": "Six synthetic examples with fixed distinct ISO creation times; no real timestamps or business records changed."
+  },
+  "mobileNavigation": "At 390/320px the Previous/position/Next controls occupy a full-width three-column row; the check link occupies a separate row below. Added geometry checks fail on v8 and pass for all six examples/themes after the v9 repair.",
+  "reactTransferReview": {
+    "task": "V429-015",
+    "release": "0.10.35",
+    "review": "production-review-v11/review.json",
+    "preview": "http://127.0.0.1:17560/test-results/issue-design/index-production.html",
+    "data": "Contract-valid synthetic fixtures, read-only preview. All original OpenDesign projects, conversations and versions retained."
+  }
+}

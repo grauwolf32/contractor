@@ -1,4 +1,11 @@
-import { useCallback, useId, useLayoutEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   Link,
   useLocation,
@@ -13,6 +20,14 @@ import {
   type CrossProjectError,
   type CrossProjectIssue,
 } from "../../api/cross-project";
+import { Icon } from "../../app/icon";
+import {
+  ISSUE_SORTS,
+  readIssueListView,
+  visibleIssues,
+  withIssueListView,
+  type IssueListView,
+} from "./list-view";
 import { useDocumentTitle } from "../../app/document-title";
 import {
   useGuardedNavigate,
@@ -165,15 +180,20 @@ export function IssuesRoute() {
   const location = useLocation();
   const projectSelect = useId();
   const severitySelect = useId();
+  const stateSelect = useId();
   const filters = readIssueFilters(params);
-  const search = issueSearch(filters);
+  const view = readIssueListView(params);
+  const search = withIssueListView(issueSearch(filters), view);
   const list = useIssueList(filters);
   const index = useProjectsIndex();
   const selectedKey =
     auditId === undefined || findingId === undefined
       ? undefined
       : `${auditId}/${findingId}`;
-  const issues = list.issues;
+  const issues = useMemo(
+    () => visibleIssues(list.issues, { sort: view.sort, q: view.q }),
+    [list.issues, view.sort, view.q],
+  );
   const selectedIndex =
     selectedKey === undefined
       ? -1
@@ -255,8 +275,20 @@ export function IssuesRoute() {
     void navigate(
       {
         pathname: location.pathname,
-        search: issueSearch({ ...filters, ...change }),
+        search: withIssueListView(issueSearch({ ...filters, ...change }), view),
       },
+      { replace: true },
+    );
+  }
+
+  function setView(change: Partial<IssueListView>) {
+    const nextParams = new URLSearchParams(params);
+    const nextView = { ...view, ...change };
+    nextParams.delete("sort");
+    nextParams.delete("q");
+    const nextSearch = withIssueListView(nextParams.toString(), nextView);
+    void navigate(
+      { pathname: location.pathname, search: nextSearch },
       { replace: true },
     );
   }
@@ -342,73 +374,134 @@ export function IssuesRoute() {
       subtitle={
         <span className="issues-list-subtitle">
           {filters.project === undefined
-            ? "Across all projects, newest first"
-            : `In ${project?.name ?? filters.project}, newest first`}
-        </span>
-      }
-      actions={
-        <span className="issues-select-field">
-          <label htmlFor={projectSelect} className="ui-visually-hidden">
-            Project
-          </label>
-          <select
-            id={projectSelect}
-            className="issues-select"
-            value={filters.project ?? ""}
-            onChange={(event) =>
-              setFilters({
-                project:
-                  event.target.value === "" ? undefined : event.target.value,
-              })
-            }
-          >
-            <option value="">All projects</option>
-            {unknownProject ? (
-              <option value={filters.project}>{filters.project}</option>
-            ) : null}
-            {projectOptions.map((candidate) => (
-              <option key={candidate.projectId} value={candidate.projectId}>
-                {candidate.name}
-              </option>
-            ))}
-          </select>
+            ? `Across all projects${view.sort === "newest" ? ", newest first" : ""}`
+            : `In ${project?.name ?? filters.project}${view.sort === "newest" ? ", newest first" : ""}`}
         </span>
       }
       toolbar={
         <div className="issues-toolbar">
           <FilterChips
             label="Filter by state"
-            options={chips}
+            options={chips.filter(
+              (chip) =>
+                chip.value === "proposed" ||
+                chip.value === "all" ||
+                chip.value === filters.state,
+            )}
             value={filters.state}
             onChange={(state) => setFilters({ state })}
           />
-          <span className="issues-select-field">
-            <label htmlFor={severitySelect} className="issues-field-label">
-              Severity
-            </label>
+          <label className="issues-workspace-search">
+            <Icon name="search" size={14} />
+            <span className="ui-visually-hidden">Search issues</span>
+            <input
+              type="search"
+              value={view.q}
+              placeholder="Search issues"
+              onChange={(event) => setView({ q: event.target.value })}
+            />
+          </label>
+          <label className="issues-sort-field">
+            <span>Sort</span>
             <select
-              id={severitySelect}
               className="issues-select"
-              aria-describedby={`${severitySelect}-hint`}
-              value={filters.severity ?? ""}
+              aria-label="Sort issues"
+              value={view.sort}
               onChange={(event) =>
-                setFilters({
-                  severity: isFindingSeverity(event.target.value)
-                    ? event.target.value
-                    : undefined,
+                setView({
+                  sort: readIssueListView(
+                    new URLSearchParams({ sort: event.target.value }),
+                  ).sort,
                 })
               }
+              title="Severity uses the analyst rating where available, otherwise the AI suggestion; unset severity sorts last."
             >
-              {SEVERITY_OPTIONS.map((option) => (
+              {ISSUE_SORTS.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
               ))}
             </select>
-            <span id={`${severitySelect}-hint`} className="ui-caption">
-              The analyst&apos;s rating; AI suggestions are not filtered.
+          </label>
+          <details className="issues-extra-filters">
+            <summary>More filters</summary>
+            <span className="issues-select-field">
+              <label htmlFor={projectSelect} className="issues-field-label">
+                Project
+              </label>
+              <select
+                id={projectSelect}
+                className="issues-select"
+                value={filters.project ?? ""}
+                onChange={(event) =>
+                  setFilters({
+                    project:
+                      event.target.value === ""
+                        ? undefined
+                        : event.target.value,
+                  })
+                }
+              >
+                <option value="">All projects</option>
+                {unknownProject ? (
+                  <option value={filters.project}>{filters.project}</option>
+                ) : null}
+                {projectOptions.map((candidate) => (
+                  <option key={candidate.projectId} value={candidate.projectId}>
+                    {candidate.name}
+                  </option>
+                ))}
+              </select>
             </span>
-          </span>
+
+            <span className="issues-select-field">
+              <label htmlFor={stateSelect} className="issues-field-label">
+                State
+              </label>
+              <select
+                id={stateSelect}
+                className="issues-select"
+                value={filters.state}
+                onChange={(event) =>
+                  setFilters({ state: event.target.value as StateFilter })
+                }
+              >
+                {chips.map((chip) => (
+                  <option key={chip.value} value={chip.value}>
+                    {chip.label}
+                    {chip.count === undefined ? "" : ` (${chip.count})`}
+                  </option>
+                ))}
+              </select>
+            </span>
+            <span className="issues-select-field">
+              <label htmlFor={severitySelect} className="issues-field-label">
+                Severity
+              </label>
+              <select
+                id={severitySelect}
+                className="issues-select"
+                aria-describedby={`${severitySelect}-hint`}
+                value={filters.severity ?? ""}
+                onChange={(event) =>
+                  setFilters({
+                    severity: isFindingSeverity(event.target.value)
+                      ? event.target.value
+                      : undefined,
+                  })
+                }
+              >
+                {SEVERITY_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <span id={`${severitySelect}-hint`} className="ui-caption">
+                The analyst&apos;s rating; AI suggestions are not filtered.
+              </span>
+            </span>
+          </details>
         </div>
       }
       footer={
@@ -478,7 +571,11 @@ export function IssuesRoute() {
         {issues.length === 0 ? (
           list.pending || list.error !== null ? null : (
             <EmptyState
-              title={empty.title}
+              title={
+                view.q.trim() === ""
+                  ? empty.title
+                  : "No possible issues match this search"
+              }
               action={
                 filters.project !== undefined ||
                 filters.severity !== undefined ? (
@@ -511,7 +608,9 @@ export function IssuesRoute() {
                   search,
                 }}
                 selected={keyOf(issue) === selectedKey}
-                context={issue.project.name}
+                context={`${issue.project.name} · ${auditProfileLabel(issue.audit)}`}
+                showCreated={view.sort === "newest" || view.sort === "oldest"}
+                severityBadges
               />
             ))}
           </ListSection>
@@ -520,6 +619,7 @@ export function IssuesRoute() {
       {issues.length > 0 &&
       complete &&
       filters.state === "proposed" &&
+      view.q.trim() === "" &&
       filters.severity === undefined ? (
         <p className="issues-end-note">
           <StatusGlyph tone="done" size={15} />
@@ -538,7 +638,7 @@ export function IssuesRoute() {
         <EmptyState title="Choose a possible issue">
           <p>
             Pick one from the list, or press <Kbd>J</Kbd> to start with the
-            newest.
+            first listed issue.
           </p>
         </EmptyState>
       </div>
@@ -576,6 +676,7 @@ export function IssuesRoute() {
   return (
     <>
       <PaneLayout
+        className="issues-workspace"
         listLabel="Possible issues"
         detailLabel="Review"
         showDetail={selectedKey !== undefined}

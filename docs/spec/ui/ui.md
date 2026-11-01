@@ -1502,3 +1502,47 @@ focus behavior, retaining router return state.
 retaining their exact Artifact destination and an accessible name identifying
 the output revision. On narrow cards Preview and download form a separate row
 below metadata badges; desktop actions remain beside the output title.
+
+
+### Issue review workspace
+
+**UI-R221.** The Issues list/detail workspace shares the global font/theme tokens.
+The detail header keeps title, subject, human state, Verification and the separate
+AI suggestion or analyst severity above Summary/Evidence/History. File subjects
+use a compact FILE badge and file icon before the path. The Summary
+presents the original proposal and retained evidence in the main column, with
+Impact before Verification and Limitations in the supporting column when width
+allows. A recorded-decision surface uses only the actual analyst decision and
+keeps its actor, recorded time and rationale readable. The shared FindingDecision
+owner retains eligibility, required inputs, stale checks, receipts and focus rules;
+Mark as duplicate is an explicit action. The compact composer expands after a
+verdict is selected. Why sits above a full-width rationale field, with Record
+decision on its own row (full width on phones) and the existing required-input
+help. At phone widths the header and full composer scroll with the content; the
+four review verdicts use two columns, and the redundant Next item footer action
+is omitted. Previous/count/Next share one header row and View in its check
+occupies the next; J/K navigation remains.
+
+**UI-R222.** Issues offers severity, newest, oldest, state and title sorting plus
+text search over title, subject, Project and check label. Severity sorting uses an
+analyst rating when set, otherwise the separate AI suggestion, with unset last;
+ties are deterministic by creation time and identity. State and analyst severity
+filters retain their existing meanings. Coloured severity pills in the source list
+retain explicit analyst/AI labels and never imply an analyst rating from a
+suggestion. Sort/search are URL-backed projections of
+the existing bounded loaded list, preserve the selected finding and its draft, and
+supply the same order to neighbour/keyboard navigation. Incomplete and failed
+reads remain explicit; the UI never claims to sort unloaded rows.
+
+**UI-R223.** Issue evidence offers explicit Preview, copy, download and concise
+`details →` below the evidence divider, at the exact current Audit's retained Project revision, or the
+available original Run revision when no retained copy exists. Neither metadata
+nor payload is read automatically except for the bounded saved source snippets:
+at most the first two evidence files may display text/plain snippets, each up to
+64 KiB after authoritative metadata admission. Larger or structured/HTTP evidence
+remains explicit. Preview reuses the shared Artifact size/format bounds; failure
+is visible and retryable, without another-scope fallback. Absent
+scope has no fabricated action or bytes; source locations do not imply readable
+source snippets. Captured HTTP credential values keep independent show/hide
+controls. Sorting and presentation introduce no new business persistence or
+verification/analyst state.

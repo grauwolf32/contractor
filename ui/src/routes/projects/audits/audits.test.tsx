@@ -968,10 +968,14 @@ describe("Project Audit routes", () => {
         within(bar).getByRole("button", { name: "Record decision" }),
       );
 
-      const current = await within(review).findByRole("region", {
-        name: "Current decision",
-      });
-      expect(within(current).getByText("Confirmed · High")).toBeVisible();
+      expect(
+        await within(review).findByRole("region", {
+          name: "Current decision",
+        }),
+      ).toBeVisible();
+      expect(
+        within(review).getByRole("region", { name: "Recorded decision" }),
+      ).toHaveTextContent("Confirmed · High");
       expect(
         within(review).getByRole("button", { name: "Change decision" }),
       ).toBeVisible();
