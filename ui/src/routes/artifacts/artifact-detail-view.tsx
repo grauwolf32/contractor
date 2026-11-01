@@ -24,7 +24,6 @@ import {
 import { ArtifactWriteForm } from "./common";
 import { MaterialIcon, MaterialKindIcon } from "./icons";
 import { formatLabel, materialKindLabel, materialKindOf } from "./kinds";
-import { MaterialName } from "./material-row";
 import {
   ArtifactFacts,
   ArtifactRevisionLede,
@@ -226,14 +225,21 @@ export function ArtifactDetailView({
               size={14}
             />
             {materialKindLabel(metadata) === "Other"
-              ? formatLabel(metadata.mediaType)
+              ? metadata.mediaType === "text/plain"
+                ? "File"
+                : formatLabel(metadata.mediaType)
               : materialKindLabel(metadata)}
           </p>
         )}
         <div className="materials-detail-titlebar">
           <div className="materials-detail-titles">
-            <h1 id={titleId} className="materials-detail-title">
-              <MaterialName namespace={namespace} name={name} />
+            <h1
+              id={titleId}
+              className="materials-detail-title"
+              aria-label={`${namespace}/${name}`}
+            >
+              <span className="ui-visually-hidden">{namespace}/</span>
+              {name}
             </h1>
             <div className="materials-detail-revision">
               <ArtifactRevisionLede metadata={metadata} />
@@ -322,12 +328,13 @@ export function ArtifactDetailView({
                 className="materials-detail-support"
                 aria-label="Material context"
               >
-                <h2 className="materials-support-title">Saved material</h2>
-                <ArtifactFacts metadata={shown} />
+                <h2 className="materials-support-title">Saved in</h2>
+                <ArtifactFacts metadata={shown} scope={scope} />
                 <ArtifactTechnicalDetails
                   scope={scope}
                   metadata={shown}
                   titleAs="h2"
+                  separateVersions
                 />
                 {scope.kind === "run" || !shown.canUploadNewVersion ? null : (
                   <ArtifactUpdatePanel

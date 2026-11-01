@@ -429,6 +429,25 @@ test("opens a 1 MiB OpenAPI document on Source and renders it on request", async
   await expect(
     page.getByRole("heading", { name: "Get item 00000", exact: true }),
   ).toBeVisible();
+  const nav = page.getByRole("navigation", {
+    name: "API reference",
+    exact: true,
+  });
+  await expect(
+    nav.locator("button[aria-current], button:not(.ui-btn)"),
+  ).toHaveCount(50);
+  await nav.getByRole("button", { name: "Next", exact: true }).click();
+  await expect(
+    nav.getByRole("button", { name: "GET /items/00050", exact: true }),
+  ).toBeVisible();
+  await nav.getByRole("textbox").fill("/items/06000");
+  await nav
+    .getByRole("button", { name: "GET /items/06000", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Get item 06000", exact: true }),
+  ).toBeVisible();
+  await expect(page.locator(".materials-source-line")).toHaveCount(0);
 });
 
 for (const theme of ["light", "dark", "black"]) {
@@ -522,7 +541,9 @@ for (const theme of ["light", "dark", "black"]) {
     );
     await installArtifactAPI(page);
     await openPreview(page, "http-evidence");
-    const summary = page.locator("#artifact-history summary").first();
+    const summary = page
+      .locator("#artifact-history summary")
+      .filter({ hasText: "Technical details" });
     await summary.focus();
     await page.keyboard.press("Enter");
     for (const label of [
@@ -537,7 +558,7 @@ for (const theme of ["light", "dark", "black"]) {
       page.getByText(/Shared blob and storage version dates can predate/),
     ).toBeVisible();
     await expect(
-      page.locator("#artifact-history time").first(),
+      page.locator("#artifact-history .materials-tech-facts time").first(),
     ).toHaveAttribute("datetime", ARTIFACT_STORAGE_TIMESTAMPS.scopeCreatedAt);
     expect(
       await page.evaluate(
