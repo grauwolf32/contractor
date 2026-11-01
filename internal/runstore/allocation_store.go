@@ -229,11 +229,11 @@ func (s *PostgresStore) listStageAllocations(ctx context.Context, stageExecution
 			if err := strictjson.Decode(completion, &allocation.CompletionContract); err != nil {
 				return nil, err
 			}
-			if allocation.CompletionContract == nil || allocation.CompletionContract.Validate() != nil {
-				return nil, invalidf("invalid persisted completion contract")
+			if allocation.CompletionContract == nil {
+				return nil, fmt.Errorf("invalid persisted completion contract")
 			}
 		}
-		if allocation.RuntimePlacementLabels == nil || contracts.ValidatePlacementLabels(allocation.RuntimePlacementLabels) != nil {
+		if allocation.RuntimePlacementLabels == nil {
 			return nil, fmt.Errorf("invalid persisted allocation placement labels")
 		}
 		if err := strictjson.Decode(templateRef, &allocation.AgentTemplateRef); err != nil {
@@ -245,19 +245,13 @@ func (s *PostgresStore) listStageAllocations(ctx context.Context, stageExecution
 		if runtimeAgentID == nil || runtimeAgentLabelRevision == nil || runtimeConfigurationVersion == nil || runtimeConfiguration == nil {
 			return nil, fmt.Errorf("decode persisted allocation Runtime configuration: missing provenance")
 		}
-		if !contracts.ValidRuntimeAgentID(*runtimeAgentID) || *runtimeConfigurationVersion != AllocationRuntimeConfigurationSchemaVersion {
-			return nil, fmt.Errorf("decode persisted allocation Runtime identity or schema version")
-		}
 		revision, parseErr := strconv.ParseUint(*runtimeAgentLabelRevision, 10, 64)
-		if parseErr != nil || revision == 0 {
+		if parseErr != nil {
 			return nil, fmt.Errorf("decode persisted Runtime Agent label revision")
 		}
 		var configuration AllocationRuntimeConfiguration
-		if err := strictjson.Decode(runtimeConfiguration, &configuration); err != nil || configuration.Validate() != nil {
+		if err := strictjson.Decode(runtimeConfiguration, &configuration); err != nil {
 			return nil, fmt.Errorf("decode persisted allocation Runtime configuration")
-		}
-		if (allocation.WorkerRuntimeRef == (contracts.WorkerRuntimeRef{RuntimeID: "tool", Version: "1"})) != (configuration.ModelPolicy == (contracts.ModelPolicyRef{})) {
-			return nil, fmt.Errorf("persisted allocation model policy does not match Worker runtime")
 		}
 		allocation.RuntimeAgentID = *runtimeAgentID
 		allocation.RuntimeAgentLabelRevision = revision
@@ -267,8 +261,8 @@ func (s *PostgresStore) listStageAllocations(ctx context.Context, stageExecution
 			return nil, fmt.Errorf("decode persisted allocation performance collection policy: missing policy")
 		}
 		allocation.PerformanceCollectionPolicy = reporting.PerformanceCollectionPolicy(*performanceCollectionPolicy)
-		if allocation.PerformanceCollectionPolicy.ValidatePinned() != nil {
-			return nil, fmt.Errorf("decode persisted allocation performance collection policy")
+		if err := allocation.Validate(); err != nil {
+			return nil, fmt.Errorf("invalid persisted Stage allocation %q: %v", allocation.AllocationID, err)
 		}
 		result = append(result, allocation)
 	}
