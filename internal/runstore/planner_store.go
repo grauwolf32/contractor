@@ -81,26 +81,31 @@ func (s *PostgresStore) AppendPlannerEvent(ctx context.Context, params AppendPla
 	return nil
 }
 
+const plannerSessionColumns = `session_id, stage_execution_id, invocation_id,
+state_schema_version, state, next_event_sequence, created_at, updated_at`
+
 func (s *PostgresStore) GetPlannerSession(ctx context.Context, sessionID string) (PlannerSession, error) {
 	if err := validateOpaque("sessionID", sessionID); err != nil {
 		return PlannerSession{}, err
 	}
-	var result PlannerSession
-	var state []byte
-	err := s.db.QueryRow(ctx, `
-SELECT session_id, stage_execution_id, invocation_id, state_schema_version, state,
-       next_event_sequence, created_at, updated_at
+	result, err := scanPlannerSession(s.db.QueryRow(ctx, `SELECT `+plannerSessionColumns+`
 FROM planner_sessions
-WHERE session_id = $1`, sessionID).Scan(
-		&result.SessionID, &result.StageExecutionID, &result.InvocationID,
-		&result.StateSchemaVersion, &state, &result.NextEventSequence,
-		&result.CreatedAt, &result.UpdatedAt,
-	)
+WHERE session_id = $1`, sessionID))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return PlannerSession{}, fmt.Errorf("get Planner session %q: %w", sessionID, ErrNotFound)
 	}
 	if err != nil {
 		return PlannerSession{}, fmt.Errorf("get Planner session %q: %w", sessionID, err)
+	}
+	return result, nil
+}
+
+func scanPlannerSession(row rowScanner) (PlannerSession, error) {
+	var result PlannerSession
+	var state []byte
+	if err := row.Scan(&result.SessionID, &result.StageExecutionID, &result.InvocationID,
+		&result.StateSchemaVersion, &state, &result.NextEventSequence, &result.CreatedAt, &result.UpdatedAt); err != nil {
+		return PlannerSession{}, err
 	}
 	result.State = append(json.RawMessage(nil), state...)
 	if err := validateJSONObject("persisted Planner state", result.State); err != nil {

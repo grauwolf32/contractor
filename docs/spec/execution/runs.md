@@ -787,6 +787,10 @@ related Stage data.
 Planner plans, and the Planner session store, must provide batch reads.
 PostgreSQL uses at most one query per related collection, independent of the
 number of Stages (LIM-RUN-7).
+Planner session batches deliver one raw state at a time to their consumer;
+Run detail and scan history retain only the validated projections they need,
+rather than a second map of every full JSON state. Streaming preserves full
+state validation, exact session identity checks and whole-read failure.
 
 **RUN-R90.** Metrics are optional diagnostics. Unavailable or malformed
 metrics omit diagnostics without hiding healthy peers or the durable Run

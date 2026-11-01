@@ -474,20 +474,22 @@ func (s *memoryStore) GetPlannerSession(
 	return result, nil
 }
 
-func (s *memoryStore) GetPlannerSessions(
-	_ context.Context, sessionIDs []string,
-) (map[string]runstore.PlannerSession, error) {
+func (s *memoryStore) ReadPlannerSessions(
+	_ context.Context, sessionIDs []string, consume func(runstore.PlannerSession) error,
+) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	result := make(map[string]runstore.PlannerSession)
 	for _, id := range sessionIDs {
 		if s.session.SessionID == id {
 			value := s.session
 			value.State = append(json.RawMessage(nil), s.session.State...)
-			result[id] = value
+			if err := consume(value); err != nil {
+				return err
+			}
+			return nil
 		}
 	}
-	return result, nil
+	return nil
 }
 
 func (s *memoryStore) AppendPlannerEvent(
