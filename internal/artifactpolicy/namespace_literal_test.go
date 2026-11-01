@@ -85,7 +85,7 @@ func registeredFlagNames(file *ast.File) map[ast.Expr]bool {
 		if !ok || selector.Sel.Name != "NewFlagSet" {
 			return
 		}
-		if pkg, ok := selector.X.(*ast.Ident); ok && packages[pkg.Name] {
+		if pkg, ok := selector.X.(*ast.Ident); ok && pkg.Obj == nil && packages[pkg.Name] {
 			sets[identifier.Obj] = true
 		}
 	}
@@ -119,10 +119,10 @@ func registeredFlagNames(file *ast.File) map[ast.Expr]bool {
 		known := false
 		switch receiver := selector.X.(type) {
 		case *ast.Ident:
-			known = packages[receiver.Name] || receiver.Obj != nil && sets[receiver.Obj]
+			known = receiver.Obj == nil && packages[receiver.Name] || receiver.Obj != nil && sets[receiver.Obj]
 		case *ast.SelectorExpr:
 			pkg, ok := receiver.X.(*ast.Ident)
-			known = ok && packages[pkg.Name] && receiver.Sel.Name == "CommandLine"
+			known = ok && pkg.Obj == nil && packages[pkg.Name] && receiver.Sel.Name == "CommandLine"
 		}
 		if !known {
 			return true
@@ -237,6 +237,10 @@ func otherScope() {
 	local := unrelated
 	local.StringVar(&value, "audit-context", "", "same identifier, different binding")
 }
+func shadowImport() {
+	flags := unrelated
+	flags.String("audit-context", "", "shadowed package name")
+}
 `
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, "sample.go", source, 0)
@@ -247,7 +251,7 @@ func otherScope() {
 	for _, found := range reservedNamespaceLiterals(fset, file) {
 		lines = append(lines, found.position.Line)
 	}
-	if want := []int{11, 12, 13, 17}; !slices.Equal(lines, want) {
+	if want := []int{11, 12, 13, 17, 21}; !slices.Equal(lines, want) {
 		t.Fatalf("reported lines %v, want Namespace values %v", lines, want)
 	}
 }
