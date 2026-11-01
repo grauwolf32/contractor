@@ -37,6 +37,8 @@ context:
     must become Project scope, rather than requiring changes/closure to be synchronized between copies.
     Earlier source assessments and annotations remain historical facts, not independently mutable Findings.
     This supersedes the earlier split that left direct Finding edits to V411-010.
+    On 2026-11-01 the user accepted the four Project Finding flow diagrams and requested saving them
+    in the design and linking the task directly to that section.
   implementation_gate: >-
     V64-001 is completed. V64-004 is not a prerequisite. Keep pending until the user assigns the replacement
     implementation; rewriting this task does not authorize code, migrations, live Runs or deployment.
@@ -60,6 +62,7 @@ context:
       The archived patch is evidence, not an implementation base or a source of accepted schema/API decisions.
   design:
   - docs/proposals/0050-audit-common-hypothesis-model.md
+  - docs/proposals/0050-audit-common-hypothesis-model.md#project-finding
   - docs/plans/2026-10-31-audit-redesign.md
   - docs/proposals/0050-audit-removal-map.yml
   specification:
