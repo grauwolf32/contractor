@@ -315,7 +315,7 @@ func postgresAuditTransaction(pool *pgxpool.Pool) AuditTransaction {
 	return func(ctx context.Context, fn func(AuditRunWriter, *artifacts.Service, AuditExecutionWriter) error) error {
 		return persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 			return fn(
-				runstore.NewPostgresStore(tx), artifacts.NewService(artifacts.NewPostgresRepository(tx)),
+				runstore.NewPostgresTxStore(tx), artifacts.NewService(artifacts.NewPostgresRepository(tx)),
 				auditstoretest.NewStore(tx),
 			)
 		})

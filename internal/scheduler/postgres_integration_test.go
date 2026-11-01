@@ -274,7 +274,7 @@ func testPostgresSchedulerPublication(t *testing.T, scenario schedulerPublicatio
 		executions[len(executions)-1].PlannerSessionID == nil || executions[len(executions)-1].AcceptedResult == nil {
 		t.Fatalf("StageExecutions = (%+v, %v)", executions, err)
 	}
-	releasable, err := store.ListTerminalStageExecutionsWithAllocations(ctx)
+	releasable, err := store.ListTerminalStageExecutionsWithAllocations(ctx, nil)
 	if err != nil || len(releasable) != 0 {
 		t.Fatalf("completed allocation remained in recovery query = (%+v, %v)", releasable, err)
 	}

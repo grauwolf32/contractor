@@ -129,17 +129,18 @@ type batchCountingScanStore struct {
 	batches  [][]string
 }
 
-func (s *batchCountingScanStore) GetPlannerSessions(
-	_ context.Context, sessionIDs []string,
-) (map[string]runstore.PlannerSession, error) {
+func (s *batchCountingScanStore) ReadPlannerSessions(
+	_ context.Context, sessionIDs []string, consume func(runstore.PlannerSession) error,
+) error {
 	s.batches = append(s.batches, append([]string(nil), sessionIDs...))
-	result := make(map[string]runstore.PlannerSession, len(sessionIDs))
 	for _, id := range sessionIDs {
 		if session, ok := s.sessions[id]; ok {
-			result[id] = session
+			if err := consume(session); err != nil {
+				return err
+			}
 		}
 	}
-	return result, nil
+	return nil
 }
 
 func TestScanHistoryReadsEveryAttemptSessionInOneBatch(t *testing.T) {

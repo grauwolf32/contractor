@@ -2400,10 +2400,13 @@ func (s *memorySchedulerStore) ListStageExecutionsWithUnreleasedAllocations(
 }
 
 func (s *memorySchedulerStore) ListTerminalStageExecutionsWithAllocations(
-	_ context.Context,
+	_ context.Context, excluded []string,
 ) ([]runstore.StageExecution, error) {
 	result := make([]runstore.StageExecution, 0)
 	for _, execution := range s.stages {
+		if slices.Contains(excluded, execution.StageExecutionID) {
+			continue
+		}
 		if execution.State != runstore.StageSucceeded && execution.State != runstore.StageFailed &&
 			execution.State != runstore.StageInterrupted && execution.State != runstore.StageCancelled {
 			continue

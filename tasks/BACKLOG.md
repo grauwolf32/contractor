@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-76 open tasks: 11 in progress, 54 pending, 11 deferred. 1326 finished: 1308 completed, 18 archived.
+76 open tasks: 11 in progress, 54 pending, 11 deferred. 1332 finished: 1314 completed, 18 archived.
 
 ## In progress
 
@@ -177,8 +177,8 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 2 | 47 | 56 | 22 | 84 |
-| Planners and the Worker model boundary (`planner-worker`) | 9 | 35 | 47 | 29 | 72 |
+| Run execution core (`execution-core`) | 2 | 47 | 60 | 23 | 87 |
+| Planners and the Worker model boundary (`planner-worker`) | 9 | 35 | 47 | 30 | 72 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 13 | 5 | 44 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 2 | 12 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
@@ -195,5 +195,5 @@ tasks in `introduced_by`.
 | Web UI (`ui`) | 2 | 31 | 68 | 24 | 66 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 18 | 45 | 9 | 21 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 38 | 25 | 16 |
-| PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 27 | 46 | 15 |
+| PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 27 | 46 | 17 |
 | Quality, CI and process (`quality`) | 10 | 1 | 29 | 118 | 26 |

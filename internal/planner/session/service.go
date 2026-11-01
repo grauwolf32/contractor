@@ -38,7 +38,7 @@ type Store interface {
 	GetStageExecution(context.Context, string) (runstore.StageExecution, error)
 	StartPlanner(context.Context, runstore.StartPlannerParams) error
 	GetPlannerSession(context.Context, string) (runstore.PlannerSession, error)
-	GetPlannerSessions(context.Context, []string) (map[string]runstore.PlannerSession, error)
+	ReadPlannerSessions(context.Context, []string, func(runstore.PlannerSession) error) error
 	AppendPlannerEvent(context.Context, runstore.AppendPlannerEventParams) error
 }
 

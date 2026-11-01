@@ -18,36 +18,45 @@ func (s *Service) LoadPlans(ctx context.Context, identities []planner.SessionIde
 		return result, nil
 	}
 	ids := make([]string, len(identities))
+	expected := make(map[string]planner.SessionIdentity, len(identities))
 	for i, identity := range identities {
 		if strings.TrimSpace(identity.SessionID) == "" || strings.TrimSpace(identity.StageExecutionID) == "" || strings.TrimSpace(identity.InvocationID) == "" {
 			return nil, fmt.Errorf("complete session identity is required")
 		}
 		ids[i] = identity.SessionID
+		if previous, exists := expected[identity.SessionID]; exists && previous != identity {
+			return nil, fmt.Errorf("Planner session identity differs")
+		}
+		expected[identity.SessionID] = identity
 	}
-	sessions, err := s.store.GetPlannerSessions(ctx, ids)
-	if err != nil {
-		return nil, fmt.Errorf("load Planner sessions: %w", err)
-	}
-	for _, identity := range identities {
-		session, ok := sessions[identity.SessionID]
+	err := s.store.ReadPlannerSessions(ctx, ids, func(session runstore.PlannerSession) error {
+		identity, ok := expected[session.SessionID]
 		if !ok {
-			return nil, fmt.Errorf("load Planner session: %w", runstore.ErrNotFound)
+			return fmt.Errorf("unexpected Planner session identity")
 		}
 		if session.StageExecutionID != identity.StageExecutionID || session.InvocationID != identity.InvocationID || session.StateSchemaVersion != contracts.APIVersion {
-			return nil, fmt.Errorf("Planner session identity differs")
+			return fmt.Errorf("Planner session identity differs")
 		}
 		state, err := decodeState(session.State)
 		if err != nil {
-			return nil, err
+			return err
 		}
+		delete(expected, session.SessionID)
 		if state.Plan == nil {
-			continue
+			return nil
 		}
 		projection := canonicalPlanProjection(*state.Plan)
 		if err := projection.Validate(); err != nil {
-			return nil, fmt.Errorf("persisted Planner plan is invalid: %w", err)
+			return fmt.Errorf("persisted Planner plan is invalid: %w", err)
 		}
 		result[identity.StageExecutionID] = projection
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("load Planner sessions: %w", err)
+	}
+	if len(expected) > 0 {
+		return nil, fmt.Errorf("load Planner session: %w", runstore.ErrNotFound)
 	}
 	return result, nil
 }

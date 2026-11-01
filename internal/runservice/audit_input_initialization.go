@@ -47,7 +47,7 @@ func completeAuditInputSlice(ctx context.Context, writer AuditRunWriter, service
 		intent.DeadlineAt != nil && !now.Before(*intent.DeadlineAt) {
 		return runstore.WorkflowRun{}, auditstore.ErrPrecondition
 	}
-	previous, err := writer.GetAuditInputMaterialization(ctx, run.RunID)
+	previous, err := writer.LockAuditInputMaterialization(ctx, run.RunID)
 	if err != nil {
 		return runstore.WorkflowRun{}, err
 	}

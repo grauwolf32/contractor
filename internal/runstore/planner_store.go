@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -80,26 +81,31 @@ func (s *PostgresStore) AppendPlannerEvent(ctx context.Context, params AppendPla
 	return nil
 }
 
+const plannerSessionColumns = `session_id, stage_execution_id, invocation_id,
+state_schema_version, state, next_event_sequence, created_at, updated_at`
+
 func (s *PostgresStore) GetPlannerSession(ctx context.Context, sessionID string) (PlannerSession, error) {
 	if err := validateOpaque("sessionID", sessionID); err != nil {
 		return PlannerSession{}, err
 	}
-	var result PlannerSession
-	var state []byte
-	err := s.db.QueryRow(ctx, `
-SELECT session_id, stage_execution_id, invocation_id, state_schema_version, state,
-       next_event_sequence, created_at, updated_at
+	result, err := scanPlannerSession(s.db.QueryRow(ctx, `SELECT `+plannerSessionColumns+`
 FROM planner_sessions
-WHERE session_id = $1`, sessionID).Scan(
-		&result.SessionID, &result.StageExecutionID, &result.InvocationID,
-		&result.StateSchemaVersion, &state, &result.NextEventSequence,
-		&result.CreatedAt, &result.UpdatedAt,
-	)
+WHERE session_id = $1`, sessionID))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return PlannerSession{}, fmt.Errorf("get Planner session %q: %w", sessionID, ErrNotFound)
 	}
 	if err != nil {
 		return PlannerSession{}, fmt.Errorf("get Planner session %q: %w", sessionID, err)
+	}
+	return result, nil
+}
+
+func scanPlannerSession(row rowScanner) (PlannerSession, error) {
+	var result PlannerSession
+	var state []byte
+	if err := row.Scan(&result.SessionID, &result.StageExecutionID, &result.InvocationID,
+		&result.StateSchemaVersion, &state, &result.NextEventSequence, &result.CreatedAt, &result.UpdatedAt); err != nil {
+		return PlannerSession{}, err
 	}
 	result.State = append(json.RawMessage(nil), state...)
 	if err := validateJSONObject("persisted Planner state", result.State); err != nil {
@@ -121,4 +127,38 @@ func plannerWriteRejected(err error) bool {
 	default:
 		return false
 	}
+}
+
+type StartPlannerParams struct {
+	StageExecutionID   string
+	SessionID          string
+	InvocationID       string
+	StateSchemaVersion string
+	InitialState       json.RawMessage
+	Reason             Reason
+	RunEvent           RunEventAppend
+}
+
+type PlannerSession struct {
+	SessionID          string
+	StageExecutionID   string
+	InvocationID       string
+	StateSchemaVersion string
+	State              json.RawMessage
+	NextEventSequence  int64
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+}
+
+type AppendPlannerEventParams struct {
+	SessionID        string
+	StageExecutionID string
+	InvocationID     string
+	// SchedulerClaimID optionally fences the append against the current,
+	// unexpired WorkflowRun claim in the same PostgreSQL statement.
+	SchedulerClaimID      string
+	SequenceNumber        int64
+	NewStateSchemaVersion string
+	NewState              json.RawMessage
+	RunEvent              RunEventAppend
 }

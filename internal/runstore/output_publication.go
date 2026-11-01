@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -231,4 +232,38 @@ func sameOutputPublication(
 		return record.Target == nil && params.Target == nil
 	}
 	return record.Target.SameExact(*params.Target)
+}
+
+type OutputPublicationStatus string
+
+const (
+	OutputPublicationPublished      OutputPublicationStatus = "published"
+	OutputPublicationAlreadyPresent OutputPublicationStatus = "already_present"
+	OutputPublicationFailed         OutputPublicationStatus = "failed"
+)
+
+// RunOutputPublication is the immutable result of attempting to expose one
+// exact frozen Run output in its owning Project. Target is present only when
+// this Run created the Project binding.
+type RunOutputPublication struct {
+	RunID        string
+	ProjectID    string
+	OutputName   string
+	Status       OutputPublicationStatus
+	Source       contracts.ArtifactRef
+	Target       *contracts.ArtifactRef
+	ErrorCode    string
+	ErrorMessage string
+	CreatedAt    time.Time
+}
+
+type RecordRunOutputPublicationParams struct {
+	RunID        string
+	ProjectID    string
+	OutputName   string
+	Status       OutputPublicationStatus
+	Source       contracts.ArtifactRef
+	Target       *contracts.ArtifactRef
+	ErrorCode    string
+	ErrorMessage string
 }

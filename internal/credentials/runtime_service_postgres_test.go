@@ -407,7 +407,7 @@ func TestRuntimeCredentialDeleteSerializesWithRuntimeConfigBindings(t *testing.T
 		if pinErr != nil {
 			return pinErr
 		}
-		if _, createErr := runstoretest.CreateRun(ctx, store, runstore.CreateRunParams{
+		if _, createErr := runstoretest.CreateRun(ctx, store.PostgresStore, runstore.CreateRunParams{
 			LaneClass: resolved.LaneClassModel,
 			RunID:     "run-runtime-credential", OwnerID: "user", WorkflowName: "workflow", WorkflowVersion: "1",
 			WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{}`),

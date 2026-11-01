@@ -125,7 +125,13 @@ func (s *Scheduler) startTerminalReleaseRecovery(
 	ctx context.Context, limit int, start func(runstore.StageExecution),
 ) (int, error) {
 	listContext, cancelList := context.WithTimeout(ctx, s.options.OperationTimeout)
-	executions, err := s.store.ListTerminalStageExecutionsWithAllocations(listContext)
+	s.releaseMu.Lock()
+	busy := make([]string, 0, len(s.releasing))
+	for id := range s.releasing {
+		busy = append(busy, id)
+	}
+	s.releaseMu.Unlock()
+	executions, err := s.store.ListTerminalStageExecutionsWithAllocations(listContext, busy)
 	cancelList()
 	if err != nil {
 		return 0, err
