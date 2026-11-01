@@ -37,3 +37,29 @@ describe("Artifact preview keyboard navigation", () => {
     expect(source).toHaveFocus();
   });
 });
+
+it("keeps a compact saved snippet readable and exposes Retry after a failed read", async () => {
+  let reads = 0;
+  const view = renderWithAPI(
+    <ArtifactPreviewPanel
+      compact
+      metadata={artifactMetadata("evidence", "source", {
+        mediaType: "text/plain",
+        size: 5,
+      })}
+      loadPreview={async () => {
+        reads++;
+        if (reads === 1) throw new Error("Unavailable source");
+        return "saved";
+      }}
+      loadOnMountKey={["preview", "compact-retry"]}
+      unavailableCopy="Download this file"
+    />,
+  );
+  await view.user.click(
+    await screen.findByRole("button", { name: "Retry preview" }),
+  );
+  expect(await screen.findByText("saved", { exact: true })).toBeVisible();
+  expect(screen.queryByRole("button", { name: "Reload preview" })).toBeNull();
+  expect(screen.queryByText(/Text files up to/)).toBeNull();
+});

@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import { expect, it } from "vitest";
 
 import { HTTP_EXCHANGE_MEDIA_TYPE } from "../../api/artifacts";
@@ -6,6 +6,10 @@ import type { ProjectFinding } from "../../api/audits";
 import { renderWithAPI } from "../../test/render";
 import { EvidencePanel } from "./evidence-panel";
 import { issue } from "./test-support";
+import { issueReviewFixtures } from "../../test/issue-review-fixtures";
+import { fakeServer } from "../../test/fake-server";
+import { json, bytes } from "../../test/responses";
+import { artifactMetadata } from "../../test/builders";
 
 function finding() {
   const value = issue(
@@ -83,4 +87,52 @@ it("does not fabricate a link to deleted evidence without a retained copy", () =
     screen.queryByRole("link", { name: "Open HTTP exchange" }),
   ).not.toBeInTheDocument();
   expect(screen.getByText("Source is unavailable.")).toBeVisible();
+});
+
+it("loads only two small source snippets even when the finding retains 256 files", async () => {
+  const data = issueReviewFixtures();
+  const value = data.findings.find(
+    (item) => item.findingId === "issue-product-search-sql",
+  )!;
+  const base = value.firstProposal.evidence[0]!;
+  value.firstProposal.evidence = Array.from({ length: 256 }, (_, index) => ({
+    ...base,
+    ref: { ...base.ref, name: `source-${index}` },
+  }));
+  value.firstProposal.document.evidence_ids = value.firstProposal.evidence.map(
+    (file) => file.ref.name,
+  );
+  value.firstProposal.auditHolds[0]!.evidence = value.firstProposal.evidence;
+  const server = fakeServer({}, (_request, url) => {
+    expect(url.pathname).toContain("/projects/project_shop/artifacts/");
+    const name = url.pathname
+      .replace(/\/metadata$/, "")
+      .split("/")
+      .at(-1);
+    const file = value.firstProposal.evidence.find(
+      (item) => item.ref.name === name,
+    )!;
+    expect(["source-0", "source-1"]).toContain(file.ref.name);
+    return url.pathname.endsWith("/metadata")
+      ? json(
+          artifactMetadata(file.ref.namespace, file.ref.name, {
+            artifact: file.ref,
+            mediaType: "text/plain",
+            size: 12,
+          }),
+        )
+      : bytes("saved source", "text/plain");
+  });
+  renderWithAPI(<EvidencePanel finding={value} />, { server });
+  await waitFor(() =>
+    expect(screen.getAllByText("saved source", { exact: true })).toHaveLength(
+      2,
+    ),
+  );
+  expect(
+    server.requests.filter((request) =>
+      new URL(request.url).pathname.includes("/artifacts/"),
+    ),
+  ).toHaveLength(4);
+  expect(screen.getAllByRole("button", { name: "Preview" })).toHaveLength(254);
 });

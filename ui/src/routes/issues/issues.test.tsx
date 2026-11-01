@@ -136,29 +136,24 @@ it("opens a finding's existing Evidence tab from a direct duplicate link", async
 });
 
 describe("Issues", () => {
-  it("lists possible issues across projects, newest first, with filters in the URL", async () => {
+  it("lists possible issues across projects by severity, with filters in the URL", async () => {
     const server = twoProjects();
     const { router } = renderIssues(server, "/issues");
     const list = await screen.findByRole("region", { name: "Possible issues" });
     expect(
       within(list).getByRole("heading", { level: 1, name: "Possible issues" }),
     ).toBeVisible();
-    expect(
-      within(list).getByText("Across all projects, newest first"),
-    ).toBeVisible();
+    expect(within(list).getByText("Across all projects")).toBeVisible();
     await waitFor(() =>
       expect(rowTitles()).toEqual([
-        "Invoices leak through a debug endpoint",
         "Any user can read any order",
+        "Invoices leak through a debug endpoint",
       ]),
     );
     const states = within(list).getByRole("group", { name: "Filter by state" });
     expect(
       await within(states).findByRole("button", { name: "Needs review 2" }),
     ).toHaveAttribute("aria-pressed", "true");
-    expect(
-      within(states).getByRole("button", { name: "Confirmed 1" }),
-    ).toBeVisible();
     expect(within(states).getByRole("button", { name: "All 3" })).toBeVisible();
 
     const orders = screen
@@ -166,7 +161,7 @@ describe("Issues", () => {
       .closest("li") as HTMLElement;
     expect(within(orders).getByText("GET")).toHaveClass("ui-method-chip");
     expect(within(orders).getByText("/orders/{id}")).toBeVisible();
-    expect(within(orders).getByText("Shop")).toBeVisible();
+    expect(within(orders).getByText(/^Shop ·/)).toBeVisible();
     expect(within(orders).getByText("CWE-639")).toBeVisible();
     expect(within(orders).getByText("Needs review")).toBeVisible();
     expect(within(orders).getByText("Severity not set")).toBeVisible();
@@ -176,9 +171,8 @@ describe("Issues", () => {
     ).toHaveAttribute("href", "/issues/audit_shop/finding_orders");
 
     const user = userEvent.setup();
-    await user.click(
-      within(states).getByRole("button", { name: "Confirmed 1" }),
-    );
+    await user.click(screen.getByText("More filters"));
+    await user.selectOptions(screen.getByLabelText("State"), "confirmed");
     expect(router.state.location.search).toBe("?state=confirmed");
     await waitFor(() =>
       expect(rowTitles()).toEqual(["Refunds skip the approval step"]),
@@ -189,15 +183,15 @@ describe("Issues", () => {
     expect(router.state.location.search).toBe(
       "?state=confirmed&project=project_billing",
     );
-    expect(within(list).getByText("In Billing, newest first")).toBeVisible();
+    expect(within(list).getByText("In Billing")).toBeVisible();
     await user.click(within(states).getByRole("button", { name: /^All/ }));
     expect(router.state.location.search).toBe(
       "?state=all&project=project_billing",
     );
     await waitFor(() =>
       expect(rowTitles()).toEqual([
-        "Invoices leak through a debug endpoint",
         "Refunds skip the approval step",
+        "Invoices leak through a debug endpoint",
       ]),
     );
   });
@@ -221,6 +215,7 @@ describe("Issues", () => {
     const { requests, router } = renderIssues(server, "/issues?state=all");
     await waitFor(() => expect(rowTitles()).toHaveLength(4));
     const user = userEvent.setup();
+    await user.click(screen.getByText("More filters"));
     await user.selectOptions(screen.getByLabelText("Severity"), "high");
     expect(router.state.location.search).toBe("?state=all&severity=high");
     // Only the issue the analyst rated High; the AI suggested High for the
@@ -283,7 +278,7 @@ describe("Issues", () => {
     renderIssues(server, "/issues/audit_shop/finding_orders");
     const review = await screen.findByRole("region", { name: "Review" });
     expect(
-      await within(review).findByText("Possible issue 2 of 2"),
+      await within(review).findByLabelText("Possible issue 1 of 2"),
     ).toBeVisible();
     expect(
       within(review).getByRole("link", { name: "View in its check" }),
@@ -372,7 +367,7 @@ describe("Issues", () => {
     );
     const review = await screen.findByRole("region", { name: "Review" });
     expect(
-      await within(review).findByText("Possible issue 1 of 2"),
+      await within(review).findByLabelText("Possible issue 2 of 2"),
     ).toBeVisible();
     const bar = await within(review).findByRole("region", {
       name: "Your decision",
@@ -410,9 +405,9 @@ describe("Issues", () => {
       expect(rowTitles()).toEqual(["Any user can read any order"]),
     );
     expect(
-      await within(screen.getByRole("region", { name: "Review" })).findByText(
-        "Possible issue 1 of 1",
-      ),
+      await within(
+        screen.getByRole("region", { name: "Review" }),
+      ).findByLabelText("Possible issue 1 of 1"),
     ).toBeVisible();
     await waitFor(() => expect(detailBar("finding_orders")).toHaveFocus());
   });
@@ -452,7 +447,7 @@ describe("Issues", () => {
       );
       const review = await screen.findByRole("region", { name: "Review" });
       expect(
-        await within(review).findByText("Possible issue 1 of 2"),
+        await within(review).findByLabelText("Possible issue 2 of 2"),
       ).toBeVisible();
       const bar = await within(review).findByRole("region", {
         name: "Your decision",
@@ -600,7 +595,7 @@ describe("Issues", () => {
     );
     const review = await screen.findByRole("region", { name: "Review" });
     expect(
-      await within(review).findByText("Possible issue 1 of 1"),
+      await within(review).findByLabelText("Possible issue 1 of 1"),
     ).toBeVisible();
     const user = userEvent.setup();
     let bar = await within(review).findByRole("region", {
@@ -677,18 +672,20 @@ describe("Issues", () => {
     const user = userEvent.setup();
     await user.keyboard("j");
     expect(router.state.location.pathname).toBe(
-      "/issues/audit_billing/finding_invoices",
+      "/issues/audit_shop/finding_orders",
     );
     await user.keyboard("j");
     expect(router.state.location.pathname).toBe(
-      "/issues/audit_shop/finding_orders",
+      "/issues/audit_billing/finding_invoices",
     );
     expect(
-      screen.getByRole("link", { name: "Any user can read any order" }),
+      screen.getByRole("link", {
+        name: "Invoices leak through a debug endpoint",
+      }),
     ).toHaveAttribute("aria-current", "true");
     await user.keyboard("k");
     expect(router.state.location.pathname).toBe(
-      "/issues/audit_billing/finding_invoices",
+      "/issues/audit_shop/finding_orders",
     );
     const next = await screen.findByRole("button", {
       name: "Next possible issue",
@@ -699,7 +696,7 @@ describe("Issues", () => {
     ).toBeDisabled();
     await user.click(next);
     expect(router.state.location.pathname).toBe(
-      "/issues/audit_shop/finding_orders",
+      "/issues/audit_billing/finding_invoices",
     );
   });
 
@@ -721,8 +718,8 @@ describe("Issues", () => {
       .click(within(alert).getByRole("button", { name: "Retry" }));
     await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
     expect(rowTitles()).toEqual([
-      "Invoices leak through a debug endpoint",
       "Any user can read any order",
+      "Invoices leak through a debug endpoint",
     ]);
   });
 
@@ -811,7 +808,7 @@ describe("Issues", () => {
       await server.gate;
     });
     expect(
-      await within(review).findByText("Possible issue 2 of 2"),
+      await within(review).findByLabelText("Possible issue 1 of 2"),
     ).toBeVisible();
     expect(within(review).queryByText("Loading the list…")).toBeNull();
     expect(within(review).queryByText("Not in this list")).toBeNull();
@@ -848,4 +845,32 @@ describe("Issues", () => {
       await screen.findByRole("region", { name: "Your decision" }),
     ).toBeVisible();
   });
+});
+
+it("retains selection and the review draft when sorting or searching the loaded list", async () => {
+  const view = renderIssues(twoProjects(), "/issues/audit_shop/finding_orders");
+  await waitFor(() => expect(rowTitles()).toHaveLength(2));
+  const bar = await screen.findByRole("region", { name: "Your decision" });
+  await view.user.click(
+    await within(bar).findByRole("button", { name: "Not an issue" }),
+  );
+  const reason = within(bar).getByRole("textbox", { name: "Why" });
+  await view.user.type(reason, "Keep this unsaved rationale.");
+  await view.user.selectOptions(screen.getByLabelText("Sort"), "newest");
+  expect(view.location()).toContain("finding_orders?sort=newest");
+  expect(rowTitles()).toEqual([
+    "Invoices leak through a debug endpoint",
+    "Any user can read any order",
+  ]);
+  expect(within(bar).getByRole("textbox", { name: "Why" })).toBe(reason);
+  expect(reason).toHaveValue("Keep this unsaved rationale.");
+  await view.user.type(
+    screen.getByRole("searchbox", { name: "Search issues" }),
+    "invoices",
+  );
+  expect(rowTitles()).toEqual(["Invoices leak through a debug endpoint"]);
+  expect(view.location()).toContain("finding_orders");
+  expect(reason).toHaveValue("Keep this unsaved rationale.");
+  expect(screen.getByText("Not in this list")).toBeVisible();
+  expect(view.sent("POST", "/decisions")).toHaveLength(0);
 });

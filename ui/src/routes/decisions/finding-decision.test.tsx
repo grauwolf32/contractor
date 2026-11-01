@@ -1012,3 +1012,43 @@ describe("FindingDecision", () => {
     expect(within(region).getByText("user_analyst")).toBeVisible();
   });
 });
+
+it("offers Duplicate explicitly in the compact review and keeps target/rationale validation in the decision owner", async () => {
+  const other = makeFinding(
+    { findingId: "finding_2" },
+    { title: "Missing rate limit" },
+  );
+  const { user, sent } = setup(
+    { finding: makeFinding(), others: [other] },
+    { presentation: "review" },
+  );
+  await readyBar();
+  expect(screen.queryByRole("textbox", { name: "Why" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "More decisions" })).toBeNull();
+  await user.click(screen.getByRole("button", { name: "Mark as duplicate" }));
+  const picker = screen.getByRole("group", { name: "Duplicate of" });
+  const search = within(picker).getByRole("searchbox", {
+    name: "Search possible issues in this check",
+  });
+  await waitFor(() => expect(search).toHaveFocus());
+  await user.type(reasonField(), "Same root cause.");
+  await user.click(recordButton());
+  expect(search).toHaveFocus();
+  expect(sent("POST", "/reviews")).toHaveLength(0);
+  await user.click(
+    await within(picker).findByRole("radio", {
+      name: "Missing rate limit finding_2",
+    }),
+  );
+  await user.click(recordButton());
+  await waitFor(() =>
+    expect(sent("POST", "/reviews/review_new/decisions")).toHaveLength(1),
+  );
+  expect(
+    await bodyOf(sent("POST", "/reviews/review_new/decisions")[0]),
+  ).toEqual({
+    verdict: "duplicate",
+    rationale: "Same root cause.",
+    duplicateTargetId: "finding_2",
+  });
+});

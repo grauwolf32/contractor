@@ -3,11 +3,46 @@
  * header values look like credentials (masked until the user asks), what a
  * request body holds, and how much evidence there is.
  */
-import type { Audit, ProjectFinding } from "../../api/audits";
+import type { Audit, AuditFinding } from "../../api/audits";
 import type { components } from "../../api/generated/public";
 import { capitalize } from "../../app/vocabulary";
 
 type HTTPAttempt = components["schemas"]["FindingHTTPAttempt"];
+type SemanticAssessment = NonNullable<
+  AuditFinding["currentAssessment"]
+>["semanticAssessment"];
+type ProvenanceKind = components["schemas"]["AuditFindingProvenance"]["kind"];
+
+const ASSESSMENT_LABELS: Readonly<Record<SemanticAssessment, string>> = {
+  supported: "Supported",
+  refuted: "Refuted",
+  inconclusive: "Inconclusive",
+  blocked: "Blocked",
+  satisfied: "Satisfied",
+  violated: "Violated",
+  "not-tested": "Not tested",
+};
+
+/** The verification outcome of an assessment, as FindingSummary words it. */
+export function assessmentLabel(assessment: SemanticAssessment): string {
+  return Object.hasOwn(ASSESSMENT_LABELS, assessment)
+    ? ASSESSMENT_LABELS[assessment]
+    : capitalize(assessment.replaceAll("-", " "));
+}
+
+const PROVENANCE_KINDS: Readonly<Record<ProvenanceKind, string>> = {
+  "source-proposal": "Proposed",
+  "check-attempt": "Check attempt",
+  "direct-verification": "Direct verification",
+};
+
+/** What a provenance record is: the proposal, a check attempt, … */
+export function provenanceKindLabel(kind: ProvenanceKind): string {
+  return Object.hasOwn(PROVENANCE_KINDS, kind)
+    ? PROVENANCE_KINDS[kind]
+    : capitalize(kind.replaceAll("-", " "));
+}
+
 /**
  * The source materials a check read: its `source` input and every input
  * from the `sources` namespace, each exact revision once.
@@ -113,3 +148,22 @@ export function attemptOutcome(
  * The pieces of evidence the Evidence tab lists: authored locations,
  * captured HTTP attempts and retained evidence files.
  */
+export function evidenceCount(finding: AuditFinding): number {
+  const proposal = finding.firstProposal;
+  return (
+    (proposal.document.locations?.length ?? 0) +
+    (proposal.document.http_exchange?.attempts.length ?? 0) +
+    proposal.evidence.length
+  );
+}
+
+const INLINE_SNIPPET_BYTES = 64 * 1024;
+/** Small saved source text only; structured/HTTP evidence remains explicit. */
+export function canShowEvidenceSnippet(
+  evidence: AuditFinding["firstProposal"]["evidence"][number],
+): boolean {
+  return (
+    evidence.mediaType === "text/plain" &&
+    evidence.sizeBytes <= INLINE_SNIPPET_BYTES
+  );
+}

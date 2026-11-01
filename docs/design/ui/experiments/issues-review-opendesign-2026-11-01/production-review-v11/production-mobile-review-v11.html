@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Production review v11 — React transfer preview</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; background: #1b1f26; color: #e8ecf2; }
+  .bar { display: flex; flex-wrap: wrap; gap: .5rem 1rem; align-items: center; padding: .5rem .75rem; background: #12151b; border-bottom: 1px solid #2a313c; font-size: 12px; }
+  .bar strong { font-weight: 600; letter-spacing: .02em; }
+  .grp { display: flex; gap: .25rem; align-items: center; }
+  .grp .lbl { color: #8f9aa8; margin-right: .15rem; }
+  .bar button { font: inherit; font-size: 12px; color: #c9d2de; background: #1b212b; border: 1px solid #39424f; border-radius: 6px; height: 26px; padding: 0 .6rem; cursor: pointer; }
+  .bar button[aria-pressed="true"] { background: #d3dbe6; color: #0b1017; border-color: #d3dbe6; }
+  .note { color: #8f9aa8; margin-left: auto; }
+  .hint { display: none; margin: .5rem .75rem 0; padding: .5rem .75rem; border: 1px dashed #6b5424; background: #2a2010; color: #f3b54a; border-radius: 8px; font-size: 12px; line-height: 1.5; }
+  body.rv-manual .hint { display: block; }
+  .stage { padding: 1rem; display: flex; justify-content: center; }
+  .framebox { background: #000; border-radius: 18px; padding: 10px; box-shadow: 0 8px 30px rgba(0,0,0,.45); max-width: 100%; }
+  iframe { display: block; border: 0; background: #eceff3; width: 390px; height: calc(100vh - 130px); min-height: 560px; border-radius: 10px; }
+</style>
+</head>
+<body>
+<div class="bar">
+  <strong>production-mobile-review-v11</strong>
+  <div class="grp"><span class="lbl">Width</span>
+    <button type="button" data-w="390" aria-pressed="true">390</button>
+    <button type="button" data-w="820" aria-pressed="false">820</button>
+    <button type="button" data-w="1440" aria-pressed="false">1440</button>
+  </div>
+  <div class="grp"><span class="lbl">State</span>
+    <button type="button" id="rv-before" aria-pressed="false">Before</button>
+    <button type="button" id="rv-after" aria-pressed="true">After (v11 fixes)</button>
+  </div>
+  <span class="note" id="rv-state"></span>
+</div>
+<p class="hint">This page was opened directly from disk (file://), and the browser blocks script access into the frame, so the v11 override stylesheet cannot be attached here — the frame shows the unpatched reference render. To see the fixes applied, serve this folder over any local static server (for example: python3 -m http.server) and reopen this page, or open it in Firefox.</p>
+<div class="stage">
+  <div class="framebox">
+    <iframe id="rv-frame" src="reference/production-review-20261101/react-before-390.html" title="React transfer of the issue detail screen"></iframe>
+  </div>
+</div>
+<script>
+(function () {
+  var frame = document.getElementById('rv-frame');
+  var state = document.getElementById('rv-state');
+  var beforeBtn = document.getElementById('rv-before');
+  var afterBtn = document.getElementById('rv-after');
+  var after = true;
+
+  function inject() {
+    try {
+      var doc = frame.contentDocument;
+      if (!doc || !doc.head) return false;
+      var old = doc.getElementById('rv-override-v11');
+      if (old && old.parentNode) old.parentNode.removeChild(old);
+      if (after) {
+        var link = doc.createElement('link');
+        link.id = 'rv-override-v11';
+        link.rel = 'stylesheet';
+        link.href = '../../production-react-fixes-v11.css';
+        doc.head.appendChild(link);
+      }
+      return true;
+    } catch (err) {
+      return false;
+    }
+  }
+
+  function refresh() {
+    var ok = inject();
+    beforeBtn.setAttribute('aria-pressed', String(!after));
+    afterBtn.setAttribute('aria-pressed', String(after));
+    if (!ok) {
+      document.body.classList.add('rv-manual');
+      state.textContent = 'override not attachable here';
+    } else {
+      document.body.classList.remove('rv-manual');
+      state.textContent = after ? 'v11 overrides applied' : 'reference render (no overrides)';
+    }
+  }
+
+  frame.addEventListener('load', refresh);
+  beforeBtn.addEventListener('click', function () { after = false; refresh(); });
+  afterBtn.addEventListener('click', function () { after = true; refresh(); });
+
+  var widths = document.querySelectorAll('button[data-w]');
+  for (var i = 0; i < widths.length; i++) {
+    widths[i].addEventListener('click', function (e) {
+      for (var j = 0; j < widths.length; j++) widths[j].setAttribute('aria-pressed', 'false');
+      e.currentTarget.setAttribute('aria-pressed', 'true');
+      frame.style.width = e.currentTarget.getAttribute('data-w') + 'px';
+    });
+  }
+})();
+</script>
+</body>
+</html>
