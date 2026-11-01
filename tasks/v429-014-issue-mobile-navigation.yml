@@ -1,0 +1,57 @@
+schema_version: "1.0"
+id: V429-014
+title: Align Issue navigation on narrow screens
+milestone: ui-journey-usability
+epic: ui
+kind: chore
+introduced_by: V429-010
+priority: P3
+status: in_progress
+depends_on: [V429-013]
+languages: [css]
+goal: Keep Previous, position and Next readable on one mobile row, with the check link on its own row below.
+context:
+  authority: >-
+    On 2026-11-01 the user reported that the Issue preview's Previous/position/
+    Next/View in its check header had shifted at 390px. Repair the current
+    prototype on 390/320px while preserving sorting and the reviewed layout.
+  specification: docs/spec/ui/ui.md
+  design: docs/design/ui/README.md
+scope:
+  in:
+    - A narrow-screen navigation grid with separated controls and a separate check-link row.
+    - Existing per-example theme/width verification plus a mobile geometry regression check.
+    - Preserve the original and earlier OpenDesign preview versions.
+  out:
+    - Production transfer, navigation semantics, fixture content or model generation.
+acceptance_criteria:
+  - id: A1
+    text: At 390/320px Previous, position and Next align without overlapping, the check link sits on a separate row, and all controls fit the detail pane for every example/theme.
+  - id: A2
+    text: Existing review, sorting, keyboard/mobile navigation and desktop layout checks pass; original OpenDesign outputs and earlier previews remain preserved.
+tests:
+  - command: node docs/design/ui/experiments/issues-review-opendesign-2026-11-01/verify.mjs
+    covers: [A1, A2]
+  - command: python3 scripts/check_tasks.py
+    covers: [A1, A2]
+  - command: python3 scripts/check_spec.py
+    covers: [A2]
+
+verification:
+  - >-
+    The new mobile geometry guard failed on the existing header because the
+    check link occupied the same row as Previous/position/Next. The repaired
+    390/320px header uses a full-width three-column grid, with explicit gaps,
+    centered position and a separate check-link row. Existing desktop layout
+    and all navigation/sort semantics are unchanged.
+  - >-
+    The verifier passed 12 layout combinations, 72 finding cases and 60 sort
+    cases. Every mobile example/theme verifies aligned buttons, separation
+    around the count, the lower link row and in-pane bounds, alongside the
+    existing navigation, draft, sorting, theme, evidence, CSP and overflow
+    checks. Task/spec/diff checks passed; no production component changed.
+  - >-
+    v9 was added as index-review-v9-mobile-navigation.html, with source,
+    fixtures, SHA-256 manifest, red/green logs and screenshots preserved in the
+    host mobile-nav-v9-20261101 directory. The original and all earlier preview
+    versions remain intact. This branch has not been merged or deployed.

@@ -113,6 +113,16 @@ try{
       assert.equal(await frame.locator('#projectContext').innerText(),example.project);
       assert.equal(await frame.locator('#checkContext').innerText(),'Check: '+example.check);
       assert.deepEqual(await frame.locator('.statusline').evaluate(el=>Array.from(el.children).map(child=>child.id)),['statePill','verifyPill','sevSuggest'],'Verification precedes AI/analyst severity');
+      if(width<=520){
+        const navigation=await frame.locator('.crumb .pos').evaluate(el=>{
+          const rect=node=>{const r=node.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom}};
+          return {prev:rect(el.querySelector('#prevBtn')),count:rect(el.querySelector('.k')),next:rect(el.querySelector('#nextBtn')),link:rect(el.querySelector('a')),pane:rect(document.querySelector('.detail'))};
+        });
+        assert.ok(Math.abs(navigation.prev.top-navigation.next.top)<=1,'Mobile Previous and Next align');
+        assert.ok(navigation.prev.right<navigation.count.left&&navigation.count.right<navigation.next.left,'Mobile position is separated from both buttons');
+        assert.ok(navigation.link.top>=Math.max(navigation.prev.bottom,navigation.count.bottom,navigation.next.bottom)+4,'Check link has its own row below the navigation');
+        for(const item of [navigation.prev,navigation.count,navigation.next,navigation.link])assert.ok(item.left>=navigation.pane.left&&item.right<=navigation.pane.right,'Mobile navigation stays in its pane');
+      }
       const summary=await frame.locator('#tabSummary').innerText();
       assert.ok(summary.includes(example.proposal.description));
       assert.equal(await frame.locator('#tabSummary .col-main .impact').count(),0,'Impact is not repeated in the narrative');

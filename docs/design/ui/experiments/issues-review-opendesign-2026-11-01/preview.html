@@ -336,6 +336,14 @@ pre.code{overflow-x:auto}
 .list-sort label svg{width:14px;height:14px}
 .list-sort select{min-width:0;flex:1;max-width:100%;height:32px;padding:0 8px;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface);color:var(--muted-strong);font:inherit;font-size:var(--text-xs)}
 .row-created{display:block;margin-top:4px;color:var(--faint);font-size:var(--text-2xs)}
+
+@media(max-width:520px){
+  .crumb .pos{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;width:100%;min-width:0;flex-basis:100%;margin-left:0;margin-top:2px}
+  .crumb .pos button{height:var(--control-sm);padding:0 10px;white-space:nowrap}
+  .crumb .pos .k{text-align:center;white-space:nowrap;font-variant-numeric:tabular-nums}
+  .crumb .pos .txtlink{grid-column:1/-1;justify-self:start;line-height:1.5}
+  .crumb #checkContext{min-width:0;overflow-wrap:anywhere}
+}
 </style>
 </head>
 <body>
