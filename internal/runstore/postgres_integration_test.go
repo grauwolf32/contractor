@@ -327,7 +327,7 @@ WHERE allocation_id = 'allocation-1'`); persistencepostgres.SQLState(err) != per
 	if err := store.CompleteStageResult(ctx, execution.StageExecutionID, "contractor/v1alpha1", candidate); !errors.Is(err, ErrConflict) {
 		t.Fatalf("second completion error = %v, want conflict", err)
 	}
-	pendingRelease, err := store.ListTerminalStageExecutionsWithAllocations(ctx)
+	pendingRelease, err := store.ListTerminalStageExecutionsWithAllocations(ctx, nil)
 	if err != nil || len(pendingRelease) != 1 || pendingRelease[0].StageExecutionID != execution.StageExecutionID {
 		t.Fatalf("pending terminal allocation release = (%+v, %v)", pendingRelease, err)
 	}
@@ -345,7 +345,7 @@ WHERE allocation_id = 'allocation-1'`); persistencepostgres.SQLState(err) != per
 		allocations[0].ReleaseCompletedAt == nil {
 		t.Fatalf("allocation release state = (%+v, %v)", allocations, err)
 	}
-	pendingRelease, err = store.ListTerminalStageExecutionsWithAllocations(ctx)
+	pendingRelease, err = store.ListTerminalStageExecutionsWithAllocations(ctx, nil)
 	if err != nil || len(pendingRelease) != 0 {
 		t.Fatalf("completed release remained pending = (%+v, %v)", pendingRelease, err)
 	}

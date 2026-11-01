@@ -44,24 +44,50 @@ SELECT ` + stageExecutionColumns + ` FROM inserted`
 // Used by PostgresStore.GetStageExecution.
 var getStageExecutionSQL = `SELECT ` + stageExecutionColumns + ` FROM stage_executions WHERE stage_execution_id = $1`
 
-// listTerminalStageExecutionsWithAllocationsSQL selects up to $1 terminal
-// StageExecutions that still have unreleased allocations, ordered by their
-// oldest release attempt (never attempted first) so retries rotate fairly.
-// It is a prefix: the caller appends the column list and the join back to
-// stage_executions.
+// listTerminalStageExecutionsWithAllocationsSQL walks at most $1 eligible
+// allocations through stage_allocations_pending_release_idx before grouping
+// them into at most $3 terminal Stages. Two probes put never-attempted rows
+// first without sorting the backlog: the index's leading timestamp is NULL
+// on the first probe and non-NULL on the second. Only the bounded window is
+// grouped and sorted. Busy Stages $2 are skipped before taking that window,
+// so one large in-flight release cannot hide later work. Active allocations
+// are skipped by a primary-key Stage probe; completed history is not read.
+// It is a prefix: the caller appends the columns and joins stage_executions.
 // Used by PostgresStore.ListTerminalStageExecutionsWithAllocations.
 var listTerminalStageExecutionsWithAllocationsSQL = `
-WITH pending AS (
+WITH unattempted AS MATERIALIZED (
+    SELECT allocation.stage_execution_id, allocation.release_attempted_at
+    FROM stage_allocations AS allocation
+    WHERE allocation.release_completed_at IS NULL
+      AND allocation.release_attempted_at IS NULL
+      AND NOT (allocation.stage_execution_id = ANY(COALESCE($2::text[], '{}')))
+      AND EXISTS (
+          SELECT 1 FROM stage_executions AS candidate
+          WHERE candidate.stage_execution_id = allocation.stage_execution_id
+            AND candidate.state IN ('succeeded', 'failed', 'interrupted', 'cancelled')
+      )
+    ORDER BY allocation.stage_execution_id, allocation.allocation_id
+    LIMIT $1
+), attempted AS (
+    SELECT allocation.stage_execution_id, allocation.release_attempted_at
+    FROM stage_allocations AS allocation
+    WHERE allocation.release_completed_at IS NULL
+      AND allocation.release_attempted_at IS NOT NULL
+      AND NOT (allocation.stage_execution_id = ANY(COALESCE($2::text[], '{}')))
+      AND EXISTS (
+          SELECT 1 FROM stage_executions AS candidate
+          WHERE candidate.stage_execution_id = allocation.stage_execution_id
+            AND candidate.state IN ('succeeded', 'failed', 'interrupted', 'cancelled')
+      )
+    ORDER BY allocation.release_attempted_at, allocation.stage_execution_id, allocation.allocation_id
+    LIMIT ($1 - (SELECT count(*) FROM unattempted))
+), pending AS (
     SELECT allocation.stage_execution_id,
            min(COALESCE(allocation.release_attempted_at, '-infinity'::timestamptz)) AS next_attempt_at
-    FROM stage_allocations AS allocation
-    JOIN stage_executions AS candidate
-      ON candidate.stage_execution_id = allocation.stage_execution_id
-    WHERE allocation.release_completed_at IS NULL
-      AND candidate.state IN ('succeeded', 'failed', 'interrupted', 'cancelled')
+    FROM (SELECT * FROM unattempted UNION ALL SELECT * FROM attempted) AS allocation
     GROUP BY allocation.stage_execution_id
     ORDER BY next_attempt_at, allocation.stage_execution_id
-    LIMIT $1
+    LIMIT $3
 )
 SELECT `
 

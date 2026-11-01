@@ -752,6 +752,14 @@ release-completion metadata separately from its immutable provenance
 least-recently-attempted batch of incomplete terminal releases. It retries each
 still-live allocation independently, so one member of a partially released
 multi-Agent Stage cannot hide another (FAIL-SCH-9).
+The store walks the existing pending-allocation index, taking at most 128
+eligible allocations before grouping them into at most 32 Stages
+(LIM-SCH-23). Never-attempted allocations lead the window. Locally in-flight
+releases are excluded before that window, so a large busy Stage cannot hide
+later work. The read skips active allocations by Stage identity and does not
+aggregate or sort the complete terminal-release backlog; its work grows with
+the window and the skipped active/busy allocations, not completed history.
+A window may contain fewer than 32 distinct Stages.
 
 **SCH-R180.** Terminal release recovery runs at most four Stage operations at
 once (LIM-SCH-20). Each operation takes its Stage's release gate, so no lane
