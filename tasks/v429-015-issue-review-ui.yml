@@ -1,0 +1,155 @@
+schema_version: "1.0"
+id: V429-015
+title: Apply the reviewed OpenDesign Issue workspace to the UI
+milestone: ui-journey-usability
+epic: ui
+kind: feature
+priority: P2
+status: in_progress
+depends_on: [V429-014]
+languages: [typescript, css]
+goal: Bring the accepted Issue review composition into the real React application, with readable context, exact evidence actions, explicit decisions and sorted source navigation.
+demonstration: Open six contract-valid findings through the actual Application/Issues route, inspect source/HTTP/empty evidence, sort/filter and navigate, and exercise the existing decision owner in tests at desktop and phone widths in every theme.
+context:
+  authority: >-
+    On 2026-11-01 the user accepted the refined OpenDesign preview and asked to
+    transfer it into the UI. Accepted refinements include common fonts/themes,
+    Verification before AI severity, Impact first in the supporting column,
+    compact recorded decision, explicit Duplicate, five sort modes, retained
+    source context and separate mobile navigation/check-link rows. Preserve
+    every OpenDesign-created datum and show a production-component preview.
+    Follow-up 2026-11-01: reduce the mobile header/floating area. Keep the
+    mobile header and full decision composer in ordinary scroll flow, with
+    compact shared text/spacing and all truthful states still visible.
+    Follow-up 2026-11-01: the user reports the transferred preview looks broken
+    and explicitly asks to review the current React UI through OpenDesign.
+    Diagnose the actual rendered snapshots against the approved composition,
+    preserve all versions and apply/verify the resulting scoped layout fixes.
+    Follow-up 2026-11-01: put evidence details below the toolbar/divider and
+    label the link details →. The user also explicitly asks to restore visible
+    source snippets; show bounded saved text instead of hiding all code behind Preview.
+    Follow-up 2026-11-01: restore the FILE badge with a file icon before source
+    paths instead of the generic Subject label. Refine the Duplicates presentation
+    and indent details → consistently with the evidence card content. The user
+    then requests a redesign of Why/Record decision and the mobile verdict row;
+    arrange four verdicts in two rows. Latest clarification removes the redundant
+    Next item action from the decision panel (header/J/K navigation remains).
+    Add coloured severity pills in the source list, keeping analyst and AI labels
+    distinct. Remove the redundant original-proposal/verification explanatory
+    sentence from the narrative, as requested by the user.
+  specification: docs/spec/ui/ui.md
+  design: docs/design/ui/README.md
+  artifact: docs/design/ui/experiments/issues-review-opendesign-2026-11-01/review.json
+  decision: >-
+    Presentation belongs to the Issue route; shared fonts/tokens/primitives and
+    FindingDecision remain the owners of typography and human actions. Keep
+    shared Inbox/Audit summaries compatible. Reuse scopedArtifactAPI and the
+    existing bounded Artifact preview for explicit exact-revision evidence
+    actions. Source locations alone do not invent source bytes. Sort/search
+    project the existing bounded loaded collection; incomplete/error notices
+    remain visible and no new Server sorting protocol is introduced.
+scope:
+  in:
+    - Faithful list/detail header, narrative, supporting column, evidence workbench, tabs and compact human-review composition.
+    - URL-backed severity/time/status/title sorting and text search, composed with current filters and sorted keyboard/neighbour navigation.
+    - Explicit exact-scope Artifact preview/download/details and truthful unavailable/empty/HTTP evidence presentation.
+    - Optional compact presentation of the existing shared decision owner, with visible Duplicate and existing write/focus/stale/idempotency rules.
+    - Real-component six-example preview, all themes, 1440/1100/390/320 widths, tests, UI release patch and owner documentation/specification.
+  out:
+    - New domain states, Server/API/schema changes, altered review eligibility, production model calls, live business-data writes or merge/deployment without user instruction.
+    - Invented source excerpts, verification, analyst decisions or hidden partial-list errors.
+requirements:
+  - id: R1
+    text: Use the real finding and recorded decision fields; keep proposal, verification, AI suggestion and analyst outcome distinct, with visible limitations and exact retained scope/revision.
+  - id: R2
+    text: Preserve FindingDecision mutation ownership and all current eligibility, mandatory rationale/severity/duplicate target, stale conflict, late answer and idempotency behavior.
+  - id: R3
+    text: Sorting/search do not remount the selected finding or clear its draft, and all navigation uses the same displayed bounded list. Partial collections are explicitly partial.
+failure_outcomes:
+  - operation: Existing finding/review/Artifact reads and decision writes
+    permanent: Keep the existing classified error notices and unavailable actions; never invent evidence or outcomes.
+    retryable: Keep existing read retry/refetch/backoff and explicit retry controls.
+    ambiguous: Reuse the existing FindingDecision receipt/keyring; do not add or blindly repeat writes.
+    cancelled: Keep owner navigation guards and exact-keyed previews so late reads/writes cannot populate another finding/revision.
+    timeout: Reuse the existing transport and owner timeouts; the redesign adds no new background controller or poller.
+cardinality:
+  - collection: Existing owner-wide finding reads
+    expected: Tens to hundreds of findings
+    maximum: Existing 20-page reader cap per state (4000 owner-wide rows), five states and deduplicated all-state projection
+    bound: Reuse the existing read limits and incomplete/error notices; local sort/search reads only loaded rows, adds no per-row list requests, and is verified at 20000 rows.
+  - collection: Evidence and locations of a finding
+    expected: One to several files/locations
+    maximum: Existing proposal limits (256 evidence IDs and 256 locations)
+    bound: At most two saved text/plain snippets up to 64 KiB each load with the selected finding; authoritative metadata above that budget requires explicit preview. Other text/archive reads retain existing explicit 1 MiB preview/archive bounds.
+lifecycle:
+  - entity: Existing findings, review drafts and retained evidence
+    delete: Existing domain ownership and deletion behavior remain unchanged.
+    cascade: No new entity or persistence is introduced.
+    retention: Preserve exact retained Project copies after source Run deletion and report unavailable bytes when neither scope remains readable.
+acceptance_criteria:
+  - id: A1
+    given: A real Issue route with source, HTTP, confirmed, configuration or empty evidence
+    when: The user reads Summary/Evidence/History in any theme
+    then: The accepted composition presents its own complete content and truthful states, with Impact above Verification/Limitations and a compact recorded decision.
+  - id: A2
+    given: A filtered/sorted list and a selected finding with a draft
+    when: The user changes sorting/search or uses Previous/Next/J/K
+    then: Selection/draft stay on sort/search changes, bounded navigation follows the displayed order, and partial/stale/error conditions remain explicit.
+  - id: A3
+    given: Exact Run evidence, a retained Project copy, missing bytes or an oversized payload
+    when: The user explicitly previews/downloads evidence
+    then: The existing scoped Artifact owner reads only the exact accessible revision, respects shared bounds and reports failures without loading an unrelated source or leaking credential headers.
+  - id: A4
+    given: An eligible or stale decision and desktop or 390/320px layout
+    when: The user chooses a verdict or records a decision
+    then: The compact composer, visible Duplicate and separated mobile navigation remain usable while all existing validation, conflict, focus and write semantics pass.
+  - id: A5
+    given: The integrated UI release and original OpenDesign workspace
+    when: Verification completes
+    then: UI gates and the full relevant UI suite pass, a real-component preview is shown, and all original/intermediate design outputs remain preserved.
+tests:
+  - command: VITEST_MAX_WORKERS=2 make ui-verify
+    covers: [A1, A2, A3, A4, A5]
+  - command: make ui-gates
+    covers: [A1, A3, A4, A5]
+  - command: cd ui && corepack pnpm exec playwright test e2e/issue-review-design.spec.ts e2e/decision-focus.spec.ts e2e/responsive-layout.spec.ts --workers=1
+    covers: [A1, A2, A3, A4, A5]
+  - command: python3 scripts/check_tasks.py
+    covers: [A5]
+  - command: python3 scripts/check_spec.py
+    covers: [A1, A2, A3, A4, A5]
+
+verification:
+  - >-
+    VITEST_MAX_WORKERS=2 make ui-verify passed: generated clients, lint,
+    formatting, both typecheck projects, 220 files / 2701 tests passed with
+    one existing expected failure, static-server tests and production build.
+    The final redundant-copy removal also passed all 17 Issue route tests,
+    ESLint/formatting and a fresh production build.
+  - >-
+    make lint and make ui-gates passed. Task/specification/diff checks passed.
+    Sorting is exercised at 20000 loaded rows; evidence cardinality is exercised
+    with 256 files and only two automatic source snippets. Exact Run/retained
+    Project revision, no-source, failed/retried and oversized reads, late
+    response, compact-preview retry and existing write/focus/stale owner tests
+    passed. No Server, schema or business-data mutation was introduced.
+  - >-
+    OpenDesign reviews de6df7f5-2dd0-491e-8ff3-d75815e1feaa (v11) and
+    bcc767a6-d7cf-4434-9389-cb2cf80132fb (v12) succeeded using the same configured
+    Contractor model/gateway. Raw outputs and their checked/adapted application
+    are recorded in the experiment review.json. The temporary relay was stopped
+    and its upstream credential file removed. The verified final state/sandbox
+    backup 20261101T105338Z has SQLite integrity ok, 4 projects, 8 conversations,
+    43 messages and 111 Project files; prior projects and all versions remain.
+  - >-
+    The read-only actual React preview is available at port 17560 under
+    test-results/issue-design/index-production.html. Source harness and full
+    screenshots are preserved in the private production-review-20261101 host
+    archive. No main merge, push or deployment was requested for this transfer.
+  - >-
+    All 42 browser tests passed against the final rebuilt static UI: twelve
+    theme/width combinations with six findings each, exact evidence/draft
+    behavior, 390/320px four-verdict and full-width Why/Record geometry, ten
+    pending-decision focus cases and existing Run responsive/diagnostic cases.
+    Final actual-component screenshots have no page errors or horizontal
+    overflow; phone rationale and Record widths match at 340/270 pixels.

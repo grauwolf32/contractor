@@ -65,6 +65,8 @@ interface FindingDecisionNext {
 }
 
 interface FindingDecisionProps {
+  /** Compact Issue review presentation; mutation and eligibility ownership stay here. */
+  presentation?: "review" | undefined;
   auditId: string;
   finding: AuditFinding;
   /** Called once the Server recorded the decision and the reads refetched. */
@@ -264,6 +266,7 @@ function CurrentOutcome({
 }
 
 function FindingDecisionPanel({
+  presentation,
   auditId,
   finding,
   onDecided,
@@ -273,6 +276,7 @@ function FindingDecisionPanel({
   pendingReview,
   shortcuts = true,
 }: FindingDecisionProps) {
+  const reviewLayout = presentation === "review";
   const api = usePublicAPI();
   const queryClient = useQueryClient();
   const findingId = finding.findingId;
@@ -549,20 +553,29 @@ function FindingDecisionPanel({
       shortcut: key("e"),
       icon: <Icon name="question-circle" size={16} />,
     });
-  // Duplicate and Reopen live in More; the chosen one shows as pressed.
-  if (verdict === "duplicate")
-    options.push({ id: "duplicate", label: "Duplicate" });
-  if (verdict === "reopen") options.push({ id: "reopen", label: "Reopen" });
+  // Other surfaces keep Duplicate/Reopen in More; Issue review exposes them.
+  if (reviewLayout ? offered("duplicate") : verdict === "duplicate")
+    options.push({
+      id: "duplicate",
+      label: reviewLayout ? "Mark as duplicate" : "Duplicate",
+      icon: reviewLayout ? <Icon name="copy" size={16} /> : undefined,
+    });
+  if (reviewLayout ? decided && offered("reopen") : verdict === "reopen")
+    options.push({
+      id: "reopen",
+      label: "Reopen",
+      icon: <Icon name="refresh" size={16} />,
+    });
 
   const more: MoreDecision[] = [];
-  if (offered("duplicate"))
+  if (!reviewLayout && offered("duplicate"))
     more.push({
       id: "duplicate",
       label: VERDICT_ACTIONS.duplicate,
       onSelect: () => choose("duplicate", "duplicate"),
     });
   // Reopen returns a decided possible issue to review.
-  if (decided && offered("reopen"))
+  if (!reviewLayout && decided && offered("reopen"))
     more.push({
       id: "reopen",
       label: VERDICT_ACTIONS.reopen,
@@ -640,6 +653,7 @@ function FindingDecisionPanel({
   return (
     <div
       ref={root}
+      data-review-layout={reviewLayout || undefined}
       className={
         record ? "decisions-finding ui-footer-record" : "decisions-finding"
       }
@@ -665,7 +679,9 @@ function FindingDecisionPanel({
               className="decisions-current"
               aria-label="Current decision"
             >
-              <CurrentOutcome auditId={auditId} finding={finding} />
+              {reviewLayout && finding.analystDecision !== undefined ? null : (
+                <CurrentOutcome auditId={auditId} finding={finding} />
+              )}
               {open && !canKeep ? null : (
                 <div className="decisions-current-actions">
                   {canKeep ? (
@@ -686,7 +702,7 @@ function FindingDecisionPanel({
                       Change decision
                     </Button>
                   )}
-                  {next === undefined || open ? null : (
+                  {next === undefined || open || reviewLayout ? null : (
                     <Button
                       size="sm"
                       variant="ghost"
@@ -708,12 +724,23 @@ function FindingDecisionPanel({
           ) : null}
           {open ? (
             <DecisionBar
+              deferDraft={reviewLayout}
               options={options}
               selected={verdict}
               onSelect={(id) => {
-                if (isVerdict(id)) choose(id);
+                if (isVerdict(id))
+                  choose(
+                    id,
+                    reviewLayout && id === "duplicate"
+                      ? "duplicate"
+                      : undefined,
+                  );
               }}
-              severity={severityField}
+              severity={
+                reviewLayout && verdict !== "true_positive"
+                  ? undefined
+                  : severityField
+              }
               rationale={{
                 value: rationale,
                 onChange: (value) => {
@@ -721,6 +748,9 @@ function FindingDecisionPanel({
                   edited();
                 },
                 maxLength: MAX_RATIONALE_BYTES,
+                placeholder: reviewLayout
+                  ? "What did you verify, and what supports this decision?"
+                  : undefined,
                 hint: RATIONALE_HELP,
               }}
               onSubmit={submit}
@@ -731,7 +761,7 @@ function FindingDecisionPanel({
                 more.length === 0 ? undefined : <MoreDecisions items={more} />
               }
               next={
-                next === undefined
+                next === undefined || reviewLayout
                   ? undefined
                   : {
                       label: next.label,

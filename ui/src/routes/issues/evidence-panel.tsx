@@ -1,77 +1,15 @@
 import { useId } from "react";
 
 import type { AuditFinding } from "../../api/audits";
-import { formatBytes } from "../../app/format";
-import { Link } from "react-router";
-import { HTTP_EXCHANGE_MEDIA_TYPE } from "../../api/artifacts";
-import type { ArtifactArchiveScope } from "../../api/artifact-archive";
-import { artifactDetailPath } from "../artifacts/paths";
 import {
   CapturedExchange,
   LocationList,
 } from "../projects/audits/finding-locations";
-import { isCredentialHeader } from "./evidence";
+import { FindingEvidenceFile } from "./evidence-file";
+import { Icon } from "../../app/icon";
+import { canShowEvidenceSnippet, isCredentialHeader } from "./evidence";
 
 import "./issues.css";
-
-function EvidenceFiles({ finding }: { finding: AuditFinding }) {
-  const document = finding.firstProposal.document;
-  const responseBody = document.http_exchange?.response_body_evidence_id;
-  return (
-    <ul className="issues-file-list">
-      {finding.firstProposal.evidence.map((artifact, index) => {
-        const evidenceId = document.evidence_ids[index];
-        const receipt = finding.firstProposal;
-        const hold = receipt.auditHolds.find(
-          (item) => item.auditId === finding.auditId,
-        );
-        const retained = hold?.evidence[index];
-        const scope: ArtifactArchiveScope | undefined =
-          retained !== undefined && hold !== undefined
-            ? { kind: "project", id: hold.projectId }
-            : receipt.origin.runDeleted
-              ? undefined
-              : { kind: "run", id: receipt.origin.runId };
-        const ref = retained?.ref ?? artifact.ref;
-        const href =
-          scope === undefined ? undefined : artifactDetailPath(scope, ref);
-        const http = artifact.mediaType === HTTP_EXCHANGE_MEDIA_TYPE;
-        return (
-          <li
-            key={`${artifact.ref.namespace}/${artifact.ref.name}@${artifact.ref.revision}`}
-            title={`Revision ${artifact.ref.revision} · ${artifact.digest}`}
-          >
-            <span className="ui-mono">
-              {evidenceId ?? `evidence ${index + 1}`}
-            </span>
-            <span className="issues-file-name">
-              {href === undefined ? (
-                <>
-                  {ref.namespace}/{ref.name}
-                </>
-              ) : (
-                <Link to={href}>
-                  {http ? "Open HTTP exchange" : ref.namespace + "/" + ref.name}
-                </Link>
-              )}
-            </span>
-            <span className="ui-caption">
-              {http
-                ? "Request and available response · "
-                : evidenceId !== undefined && evidenceId === responseBody
-                  ? "Response body · "
-                  : ""}
-              {artifact.mediaType} · {formatBytes(artifact.sizeBytes)}
-            </span>
-            {href === undefined ? (
-              <span className="ui-caption">Source is unavailable.</span>
-            ) : null}
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
 
 /**
  * Everything the possible issue rests on: authored locations, the captured
@@ -97,7 +35,7 @@ export function EvidencePanel({ finding }: { finding: AuditFinding }) {
       </p>
     );
   return (
-    <>
+    <div className="issues-evidence-workbench">
       {locations.length === 0 ? null : (
         <section
           className="issues-evidence-section"
@@ -134,9 +72,22 @@ export function EvidencePanel({ finding }: { finding: AuditFinding }) {
           <h3 id={`${id}-files`} className="issues-heading">
             Retained evidence
           </h3>
-          <EvidenceFiles finding={finding} />
+          {files.map((artifact, index) => (
+            <FindingEvidenceFile
+              key={`${artifact.ref.namespace}/${artifact.ref.name}@${artifact.ref.revision}`}
+              finding={finding}
+              index={index}
+              snippet={index < 2 && canShowEvidenceSnippet(artifact)}
+            />
+          ))}
         </section>
       )}
-    </>
+      {exchange === undefined ? (
+        <p className="issues-no-http">
+          <Icon name="question-circle" size={14} />
+          No HTTP exchanges were captured for this issue.
+        </p>
+      ) : null}
+    </div>
   );
 }

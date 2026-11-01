@@ -156,3 +156,14 @@ export function evidenceCount(finding: AuditFinding): number {
     proposal.evidence.length
   );
 }
+
+const INLINE_SNIPPET_BYTES = 64 * 1024;
+/** Small saved source text only; structured/HTTP evidence remains explicit. */
+export function canShowEvidenceSnippet(
+  evidence: AuditFinding["firstProposal"]["evidence"][number],
+): boolean {
+  return (
+    evidence.mediaType === "text/plain" &&
+    evidence.sizeBytes <= INLINE_SNIPPET_BYTES
+  );
+}

@@ -16,6 +16,7 @@ import {
 import { queryKeys } from "../../api/query-keys";
 import { ContextLink } from "../../app/context-navigation";
 import { QueryView } from "../../app/query-view";
+import { Icon } from "../../app/icon";
 import { RecordedTime } from "../../app/recorded-time";
 import {
   findingStateLabel,
@@ -50,7 +51,10 @@ export function FindingDuplicates({
       className="issues-duplicates"
       onToggle={(event) => setOpen(event.currentTarget.open)}
     >
-      <summary>Duplicates</summary>
+      <summary>
+        <Icon name="copy" size={14} />
+        Duplicates
+      </summary>
       {open ? (
         <DuplicateContents
           key={`${audit.revision}:${finding.revision}:${finding.correlation?.projectRevision ?? 0}`}
