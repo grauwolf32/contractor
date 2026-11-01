@@ -13,8 +13,13 @@ import (
 var errInvalidRecord = errors.New("invalid bounded performance record")
 
 func (s Sample) Validate() error {
+	_, err := s.encode()
+	return err
+}
+
+func (s Sample) encode() ([]byte, error) {
 	if s.Version != 1 || strings.TrimSpace(s.Generation) == "" || len(s.Generation) > 128 || s.ObservedAt.IsZero() {
-		return errInvalidRecord
+		return nil, errInvalidRecord
 	}
 	type group struct {
 		value    *Freshness
@@ -23,7 +28,7 @@ func (s Sample) Validate() error {
 	groups := make([]group, 0, 6)
 	if s.GPU != nil {
 		if s.GPU.Validate() != nil {
-			return errInvalidRecord
+			return nil, errInvalidRecord
 		}
 		groups = append(groups, group{&s.GPU.Freshness, 15})
 	}
@@ -31,11 +36,11 @@ func (s Sample) Validate() error {
 		groups = append(groups, group{&s.Process.Freshness, 15})
 		if h := s.Process.GCPauses; h != nil {
 			if len(h.BoundsSeconds) > MaxGCPauseBounds || len(h.Counts) != len(h.BoundsSeconds)+1 {
-				return errInvalidRecord
+				return nil, errInvalidRecord
 			}
 			for i, bound := range h.BoundsSeconds {
 				if math.IsNaN(bound) || math.IsInf(bound, 0) || bound < 0 || (i > 0 && bound <= h.BoundsSeconds[i-1]) {
-					return errInvalidRecord
+					return nil, errInvalidRecord
 				}
 			}
 		}
@@ -52,38 +57,26 @@ func (s Sample) Validate() error {
 	if s.HTTP != nil {
 		groups = append(groups, group{&s.HTTP.Freshness, 15})
 		if s.HTTP.Surfaces[0].Surface != Public || s.HTTP.Surfaces[1].Surface != Private {
-			return errInvalidRecord
+			return nil, errInvalidRecord
 		}
 		for _, surface := range s.HTTP.Surfaces {
 			h := surface.Duration
 			if h.Buckets[13] != h.Count {
-				return errInvalidRecord
+				return nil, errInvalidRecord
 			}
 			for i, count := range h.Buckets {
 				if i > 0 && count < h.Buckets[i-1] {
-					return errInvalidRecord
+					return nil, errInvalidRecord
 				}
 			}
 		}
 	}
 	for _, group := range groups {
 		if group.value.Validate() != nil || group.value.IntervalSeconds != group.interval || group.value.LastAttemptAt.After(s.ObservedAt) {
-			return errInvalidRecord
+			return nil, errInvalidRecord
 		}
 	}
-	raw, err := json.Marshal(s)
-	if err != nil || len(raw) > MaxRecordBytes {
-		return errInvalidRecord
-	}
-	// Every numeric leaf is a nonnegative measurement/count. UseNumber avoids
-	// silently converting an out-of-range integer into an approximate float.
-	decoder := json.NewDecoder(bytes.NewReader(raw))
-	decoder.UseNumber()
-	var value any
-	if err := decoder.Decode(&value); err != nil || !validNumbers(value) {
-		return errInvalidRecord
-	}
-	return nil
+	return encodeRecord(s)
 }
 
 func (f Freshness) Validate() error {
@@ -118,6 +111,23 @@ func (f Freshness) Validate() error {
 		return errInvalidRecord
 	}
 	return nil
+}
+
+// encodeRecord returns the same bytes whose size and numeric leaves it checks.
+// Every numeric leaf is a nonnegative measurement/count. UseNumber preserves
+// exact integers instead of rounding them to float64 before validation.
+func encodeRecord(record any) ([]byte, error) {
+	raw, err := json.Marshal(record)
+	if err != nil || len(raw) > MaxRecordBytes {
+		return nil, errInvalidRecord
+	}
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.UseNumber()
+	var value any
+	if decoder.Decode(&value) != nil || !validNumbers(value) {
+		return nil, errInvalidRecord
+	}
+	return raw, nil
 }
 
 func validNumbers(value any) bool {
