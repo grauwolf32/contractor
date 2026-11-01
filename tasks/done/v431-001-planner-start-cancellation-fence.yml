@@ -5,7 +5,7 @@ milestone: hub-audit-defects-2026-10
 epic: execution-core
 kind: defect
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages:
 - go
@@ -21,6 +21,12 @@ context:
   specification:
   - docs/spec/execution/runs.md#RUN-R29
   - docs/spec/execution/runs.md#RUN-R106
+  verification:
+    date: '2026-11-01'
+    evidence: Both cancellation regressions failed before the fix; committed and lock-waiting cancellations
+      now leave the Stage, Planner sessions and event sequence unchanged.
+    environment: Isolated disposable PostgreSQL database; race detector enabled. The external opt-in LiteLLM
+      contract test was skipped, not counted as a database pass.
 scope:
   in:
   - Read and check the Run state under the existing Run-first lock before the Stage CAS.
@@ -37,8 +43,10 @@ acceptance_criteria:
 - id: A3
   text: The cancellation regression fails on the unfixed implementation.
 tests:
-- command: CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -race -tags=integration -count=1 ./internal/runstore/...
-    ./internal/planner/session/... ./internal/scheduler/...
+- command: CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -json -p=3 -race -tags=integration -count=1
+    -timeout=15m ./internal/runstore/... ./internal/planner/session/... ./internal/runservice/... ./internal/controlplane/...
+    ./internal/scheduler/... ./internal/persistence/... ./internal/app/... ./internal/archtest/... ./internal/credentials/...
+    ./internal/rundeletion/... ./internal/auditservice/... ./internal/evalservice/... ./internal/httpapi/public/...
   covers: &id001
   - A1
   - A2
@@ -46,3 +54,4 @@ tests:
 - command: make lint
   covers: *id001
 introduced_by: V409-003
+implementation_commit: 3e42260fa7ecfccf8f09d87a007fc4c5623b8900

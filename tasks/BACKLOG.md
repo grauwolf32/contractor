@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-82 open tasks: 16 in progress, 55 pending, 11 deferred. 1326 finished: 1308 completed, 18 archived.
+81 open tasks: 15 in progress, 55 pending, 11 deferred. 1327 finished: 1309 completed, 18 archived.
 
 ## In progress
 
@@ -21,7 +21,6 @@ the epics are in [epics.yml](epics.yml).
 | [V420-002](v420-002-planner-compaction-vertical-slice.yml) | planner-worker | feature | P1 | Implement opt-in bounded compaction for Streamline and Router Planners |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Enable shared Planner compaction and reuse native YAML in shipped Workflows |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
-| [V431-001](v431-001-planner-start-cancellation-fence.yml) | execution-core | defect | P2 | Fence Planner start with the owning Run lifecycle |
 | [V431-002](v431-002-resume-receipt-before-eligibility.yml) | execution-core | defect | P2 | Replay committed Run resumptions before mutable Project eligibility |
 | [V431-003](v431-003-terminal-release-candidate-reads.yml) | execution-core | defect | P2 | Bound terminal release candidate reads before aggregation |
 | [V431-004](v431-004-allocation-read-validation.yml) | execution-core | defect | P3 | Share allocation invariants between stored reads and writes |
@@ -183,7 +182,7 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 7 | 47 | 60 | 23 | 87 |
+| Run execution core (`execution-core`) | 6 | 47 | 60 | 23 | 87 |
 | Planners and the Worker model boundary (`planner-worker`) | 10 | 35 | 47 | 30 | 72 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 13 | 5 | 44 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 2 | 12 |
