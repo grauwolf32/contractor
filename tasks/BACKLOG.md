@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-77 open tasks: 12 in progress, 54 pending, 11 deferred. 1337 finished: 1319 completed, 18 archived.
+78 open tasks: 12 in progress, 55 pending, 11 deferred. 1337 finished: 1319 completed, 18 archived.
 
 ## In progress
 
@@ -86,6 +86,7 @@ the epics are in [epics.yml](epics.yml).
 | [V411-014](v411-014-pentest-discovery-surface.yml) | feature | P1 | V411-015, V410-025 | Discover URL-only targets using HTTP tools and the shared sitemap |
 | [V411-015](v411-015-http-pentest-workflow-presets.yml) | feature | P1 | V64-002, V411-007, V411-019 | Demonstrate an ordinary HTTP Workflow on the lean Audit path |
 | [V412-003](v412-003-browser-pentest-profiles-and-gate.yml) | feature | P2 | V412-001, V410-009, V411-020 | Compose optional browser investigation with truthful availability and results |
+| [V425-043](v425-043-resolve-historical-run-model-policy-snapshots.yml) | defect | P2 | — | Resolve historical Run snapshots after Workflow-owned model selection |
 
 ### Audits (`audits`)
 
@@ -188,7 +189,7 @@ tasks in `introduced_by`.
 | HTTP and Caido tools (`http-tools`) | 4 | 22 | 27 | 9 | 25 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 2 | 17 | 10 | 9 | 20 |
 | Findings tools and collections (`findings`) | 2 | 17 | 8 | 9 | 14 |
-| Workflow catalog and document workflows (`workflows`) | 5 | 19 | 15 | 16 | 20 |
+| Workflow catalog and document workflows (`workflows`) | 6 | 19 | 16 | 16 | 21 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 36 | 37 | 11 | 60 |
 | Audits (`audits`) | 18 | 67 | 89 | 36 | 133 |
 | Evaluations (`evals`) | 6 | 21 | 39 | 15 | 49 |
