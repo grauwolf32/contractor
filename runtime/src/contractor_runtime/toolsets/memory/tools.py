@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from types import MappingProxyType
@@ -109,15 +109,15 @@ class MemoryToolsetFactory:
         require_selected_tools(selected, self.exported_tools)
         metrics = require_metrics(state, "memory-tools@1")
         session = _MemorySession(self._client_factory(allocation_id, runtime_settings), namespace)
-        builders: dict[str, Callable[[], Any]] = {
-            "list_memories": lambda: ListMemoriesTool(session, metrics),
-            "read_memory": lambda: ReadMemoryTool(session, metrics),
-            "write_memory": lambda: WriteMemoryTool(session, metrics),
-            "append_memory": lambda: AppendMemoryTool(session, metrics),
-            "search_memory": lambda: SearchMemoryTool(session, metrics),
-            "list_memory_tags": lambda: ListMemoryTagsTool(session, metrics),
+        constructors = {
+            "list_memories": ListMemoriesTool,
+            "read_memory": ReadMemoryTool,
+            "write_memory": WriteMemoryTool,
+            "append_memory": AppendMemoryTool,
+            "search_memory": SearchMemoryTool,
+            "list_memory_tags": ListMemoryTagsTool,
         }
-        return {name: builders[name]() for name in selected}
+        return {name: constructors[name](session, metrics) for name in selected}
 
 
 @dataclass(frozen=True, slots=True)

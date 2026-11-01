@@ -7,7 +7,7 @@ import os
 import shutil
 import subprocess
 import tempfile
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any
@@ -101,15 +101,15 @@ class LikeC4ToolsetFactory:
             raise TypeError("likec4@1 received an invalid subprocess handle")
         session = _LikeC4Session(client, namespace, workspace.path, launcher)
         secrets = runtime_secrets(runtime_settings)
-        builders: dict[str, Callable[[], Any]] = {
-            "load_likec4": lambda: LoadLikeC4Tool(session, client, metrics, secrets),
-            "write_likec4": lambda: WriteLikeC4Tool(session, client, metrics, secrets),
-            "read_likec4": lambda: ReadLikeC4Tool(session, client, metrics, secrets),
-            "append_likec4": lambda: AppendLikeC4Tool(session, client, metrics, secrets),
-            "replace_likec4": lambda: ReplaceLikeC4Tool(session, client, metrics, secrets),
-            "validate_likec4": lambda: ValidateLikeC4Tool(session, client, metrics, secrets),
+        constructors = {
+            "load_likec4": LoadLikeC4Tool,
+            "write_likec4": WriteLikeC4Tool,
+            "read_likec4": ReadLikeC4Tool,
+            "append_likec4": AppendLikeC4Tool,
+            "replace_likec4": ReplaceLikeC4Tool,
+            "validate_likec4": ValidateLikeC4Tool,
         }
-        return {name: builders[name]() for name in selected}
+        return {name: constructors[name](session, client, metrics, secrets) for name in selected}
 
 
 class _LikeC4Session(DocumentSession[str]):
