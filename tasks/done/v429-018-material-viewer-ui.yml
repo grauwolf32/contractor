@@ -5,7 +5,7 @@ milestone: ui-journey-usability
 epic: ui
 kind: feature
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V429-016, V429-017]
 languages: [typescript, css]
 goal: Make the actual material/evidence detail screen follow the reviewed OpenDesign composition, with content first, a compact identity/action header and quiet metadata/history, consistently across Project, User, Run and Eval scopes.
@@ -84,3 +84,23 @@ tests:
     covers: [A1, A2, A3]
   - command: cd ui && corepack pnpm playwright test e2e/material-detail-design.spec.ts e2e/artifact-preview.spec.ts e2e/archive-preview.spec.ts --workers=2
     covers: [A1, A2, A3]
+
+verification:
+  - >-
+    make ui-verify passed: generated clients, ESLint/Prettier, both TypeScript
+    projects, 219 test files / 2626 tests passed and one existing expected
+    failure, static-server tests and production build. make lint passed,
+    including ui-gates, Go vet/staticcheck/layers and Runtime lint/import rules.
+  - >-
+    All 28 production-build browser tests passed: seven material formats across
+    light/dark/black and 1440/1100/390/320px, exact source/ZIP downloads and
+    identifier copies, archive navigation, size limits, safe previews and
+    historical/reader-reset paths in User/Project/Run/Eval scopes. Existing
+    large Markdown/OpenAPI and captured HTTP/storage-date checks passed.
+  - >-
+    Preserved real renderer/Artifact owners and every prior OpenDesign file.
+    Actual React preview and screenshots/handoff sources are retained under
+    the private production-transfer-0.11.1 archive and the experiment's new
+    production-transfer directory. UI release 0.11.1 is integrated into local
+    main with a verified no-ff merge; no Server/API/schema or business data changed.
+implementation_commit: 44a767f89985ebada3f28d5e48771ec505a2216b
