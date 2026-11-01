@@ -247,12 +247,8 @@ func (c *Collector) collect(ctx context.Context, scheduled time.Time) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.skipped += expected - 1
-	if err := sample.Validate(); err != nil {
-		c.rejected++
-		return
-	}
-	raw, err := json.Marshal(sample)
-	if err != nil || len(raw) > MaxRecordBytes {
+	raw, err := sample.encode()
+	if err != nil {
 		c.rejected++
 		return
 	}
