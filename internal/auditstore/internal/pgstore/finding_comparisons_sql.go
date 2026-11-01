@@ -2,13 +2,12 @@ package pgstore
 
 // projectCorrelationFenceJoin joins the finding correlation fence row of the
 // Project aliased project, and projectCorrelationRevision is that Project's
-// opaque finding correlation revision (FND-R177). A Project without a fence
-// row has never had an Audit, so no finding correlation exists, and it reads
-// 1, the revision its fence row starts with when its first Audit creates it.
+// opaque canonical Finding revision. Every ordinary Project owns its fence
+// from creation; a missing fence is invalid and never supplies a default.
 const (
 	projectCorrelationFenceJoin = `
- LEFT JOIN finding_correlation_fences AS fence ON fence.project_id=project.project_id`
-	projectCorrelationRevision = `coalesce(fence.revision,1)`
+ JOIN finding_correlation_fences AS fence ON fence.project_id=project.project_id`
+	projectCorrelationRevision = `fence.revision`
 )
 
 // correlationFenceSQL reads only the two selected Audit identities and compact
@@ -19,7 +18,7 @@ const correlationFenceSQL = `SELECT ` + projectCorrelationRevision + `,
  FROM projects AS project` + projectCorrelationFenceJoin + `
  LEFT JOIN audits AS audit ON audit.project_id=project.project_id
  AND audit.owner_id=$1 AND audit.audit_id=ANY($3::text[])
- WHERE project.owner_id=$1 AND project.project_id=$2 ORDER BY audit.audit_id COLLATE "C"`
+ WHERE project.owner_id=$1 AND project.project_id=$2 AND project.kind='project' AND project.lifecycle_state='active' ORDER BY audit.audit_id COLLATE "C"`
 
 // CandidateSource authorizes the selected source through the canonical Finding
 // and the explicit Audit membership. Source receipt metadata is immutable.

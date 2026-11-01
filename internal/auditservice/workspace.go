@@ -7,7 +7,8 @@ import (
 )
 
 type FindingPage struct {
-	Items []auditstore.ProjectFindingSummary
+	ContinueAfter *auditstore.ProjectFindingSummary
+	Items         []auditstore.ProjectFindingSummary
 	auditstore.FindingPageBasis
 }
 type ReviewPage struct {
@@ -36,6 +37,9 @@ func (s *Service) checkPageRevision(ctx context.Context, ownerID, auditID string
 
 func (s *Service) ListFindingsPage(ctx context.Context, params auditstore.FindingListParams) (FindingPage, error) {
 	var result FindingPage
+	if params.Limit < 2 {
+		return result, auditstore.ErrInvalid
+	}
 	basis, err := s.reads().FindingPageBasis(ctx, params)
 	if err != nil {
 		return result, err
@@ -45,7 +49,22 @@ func (s *Service) ListFindingsPage(ctx context.Context, params auditstore.Findin
 		(params.ProjectRevision != nil && *params.ProjectRevision != result.ProjectRevision) {
 		return result, auditstore.ErrConflict
 	}
-	result.Items, err = s.ListFindings(ctx, params)
+	raw := params
+	raw.State, raw.Verdict, raw.Severity = nil, nil, nil
+	raw.Unreviewed = false
+	candidates, readErr := s.reads().ListFindings(ctx, raw)
+	err = readErr
+	if len(candidates) == params.Limit {
+		candidates = candidates[:len(candidates)-1]
+		last := candidates[len(candidates)-1]
+		result.ContinueAfter = &last
+	}
+	result.Items = make([]auditstore.ProjectFindingSummary, 0, len(candidates))
+	for _, row := range candidates {
+		if row.Matches(params.State, params.Verdict, params.Unreviewed, params.Severity) {
+			result.Items = append(result.Items, row)
+		}
+	}
 	if err != nil {
 		return result, err
 	}

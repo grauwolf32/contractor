@@ -965,6 +965,9 @@ func validateReportDecision(params auditstore.ReportDecisionParams) error {
 }
 
 func validateCommitReport(params auditstore.CommitReportParams) error {
+	if params.ExpectedProjectRevision < 1 || params.ExpectedProjectRevision > contracts.MaxExactInteger {
+		return auditstore.ErrInvalid
+	}
 	if err := validateClaimIdentity(params.Claim); err != nil {
 		return err
 	}

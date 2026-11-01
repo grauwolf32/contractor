@@ -92,7 +92,7 @@ INSERT INTO finding_proposal_receipts (
     workflow_configuration_ref, workflow_closure_digest,
     proposal_ref, proposal_digest, proposal_media_type,
     proposal_size_bytes, evidence, report_projection,
-    created_at, retention_state, source_run_deleted_at, discarded_at, checks_projection
+    created_at, retention_state, source_run_deleted_at, discarded_at, checks_projection, project_proposal, project_evidence
 )
 SELECT $1 || '-' || n, $1 || '-proposal-' || n, $1 || '-allocation', 'runtime',
        'instance', 'stage', 'worker', 'invocation', $1 || '-' || n,
@@ -105,9 +105,11 @@ SELECT $1 || '-' || n, $1 || '-proposal-' || n, $1 || '-allocation', 'runtime',
        'sha256:' || repeat('c', 64), 'application/json', 1, '[]'::jsonb,
        CASE WHEN $8 AND NOT $10 THEN '{}' ELSE '{"description":"Test finding.","limitations":[],"preconditions":[],"severity_suggestion":"","standard_refs":[],"subject":null,"title":"Test finding."}' END,
        $6::timestamptz + n * $7::interval,
-       CASE WHEN $10 THEN 'audit-held' WHEN $8 THEN 'discarded' ELSE 'source-held' END,
+       CASE WHEN $10 THEN 'project-held' WHEN $8 THEN 'discarded' ELSE 'source-held' END,
        CASE WHEN $8 THEN $6::timestamptz END, CASE WHEN $8 AND NOT $10 THEN $6::timestamptz END,
-       CASE WHEN $8 AND NOT $10 THEN contractor_empty_finding_checks('sha256:' || repeat('c',64),1) END
+       CASE WHEN $8 AND NOT $10 THEN contractor_empty_finding_checks('sha256:' || repeat('c',64),1) END,
+       CASE WHEN $10 THEN jsonb_build_object('ref',jsonb_build_object('namespace','finding-materials','name',$1||'-proposal-'||n,'revision','r1'),'digest','sha256:'||repeat('c',64),'mediaType','application/json','sizeBytes',1) END,
+       CASE WHEN $10 THEN '[]'::jsonb END
   FROM generate_series(1, $9::integer) AS n`,
 		group.prefix, group.run, group.owner, group.project, audit,
 		inboxEpoch.Add(group.offset), group.step, group.sourceDeleted, group.count, group.auditHeld,

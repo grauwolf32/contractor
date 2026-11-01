@@ -17,7 +17,6 @@ import {
   coverageStatusLabel,
   type ItemKind,
 } from "../../../app/vocabulary";
-import { httpOperation } from "../../decisions/text";
 import { isConcludedStatus, statusGroup, type Group } from "./assessments";
 import type { AuditCollectionQuery } from "./collections";
 import {
@@ -93,23 +92,16 @@ export function firstLine(text: string, limit = 200): string {
 }
 
 /** The path of an HTTP operation subject ("GET https://h/p" → "/p"). */
-function subjectOperation(key: string): ItemOperation | undefined {
-  const operation = httpOperation(key);
-  if (operation === undefined) return undefined;
-  if (operation.path.startsWith("/")) return operation;
-  try {
-    return { method: operation.method, path: new URL(operation.path).pathname };
-  } catch {
-    return undefined;
-  }
-}
 
 /**
  * Whether a possible issue belongs to an item: its current assessment names
  * the item, or its subject is the item's subject or traced operation.
  */
-function findingOnItem(finding:ProjectFindingSummary,row:Pick<AuditCoverageRow,"findingIds">):boolean {
- return row.findingIds.includes(finding.findingId);
+function findingOnItem(
+  finding: ProjectFindingSummary,
+  row: Pick<AuditCoverageRow, "findingIds">,
+): boolean {
+  return row.findingIds.includes(finding.findingId);
 }
 
 /**
@@ -146,9 +138,7 @@ export function buildEntries(
           ? ""
           : summary,
       status: itemStatus(row, item),
-      findings: findings.filter((finding) =>
-        findingOnItem(finding,row),
-      ),
+      findings: findings.filter((finding) => findingOnItem(finding, row)),
       position: index + 1,
     };
   });
@@ -294,7 +284,9 @@ interface IssueSplit {
   setAside: ProjectFindingSummary[];
 }
 
-export function splitIssues(findings: readonly ProjectFindingSummary[]): IssueSplit {
+export function splitIssues(
+  findings: readonly ProjectFindingSummary[],
+): IssueSplit {
   const split: IssueSplit = { issues: [], possible: [], setAside: [] };
   for (const finding of findings) {
     switch (finding.state) {
@@ -313,7 +305,9 @@ export function splitIssues(findings: readonly ProjectFindingSummary[]): IssueSp
 }
 
 /** "1 issue · 2 possible issues": the issues proposed on an item or a check. */
-export function issueSummary(findings: readonly ProjectFindingSummary[]): string[] {
+export function issueSummary(
+  findings: readonly ProjectFindingSummary[],
+): string[] {
   const { issues, possible } = splitIssues(findings);
   return [
     issues.length === 0 ? "" : plural(issues.length, "issue", "issues"),

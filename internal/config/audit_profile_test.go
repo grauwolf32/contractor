@@ -104,7 +104,6 @@ func TestAuditProfileCatalogAcceptsBoundedFuturePoliciesWithoutClaimingCompatibi
 	manifest := strings.NewReplacer(
 		"batchSize: 1", "batchSize: 2",
 		"activeChecks: prohibited", "activeChecks: approval-required",
-		"findingConfirmation: disabled", "findingConfirmation: human-required",
 		"notApplicable: profile-rule", "notApplicable: human-required",
 		"reportAcceptance: automatic", "reportAcceptance: human-required",
 	).Replace(validAuditProfileYAML(t, "future-review"))
@@ -304,7 +303,6 @@ spec:
   interaction:
     reportAcceptance: automatic
     notApplicable: profile-rule
-    findingConfirmation: disabled
     activeChecks: prohibited
   execution:
     maxEvidenceBytes: 67108864
@@ -376,7 +374,6 @@ spec:
     incompleteRound: assess-with-gaps
   interaction:
     activeChecks: approval-required
-    findingConfirmation: human-required
     notApplicable: human-required
     reportAcceptance: human-required
 `

@@ -172,15 +172,11 @@ func newCompletionFixture(t *testing.T, pool *pgxpool.Pool) *completionFixture {
 }
 
 func newCompletionFixtureWithReportAcceptance(t *testing.T, pool *pgxpool.Pool, acceptance string) *completionFixture {
-	return newCompletionFixtureWithInteraction(t, pool, acceptance, "disabled")
-}
-
-func newCompletionFixtureWithInteraction(t *testing.T, pool *pgxpool.Pool, acceptance, findingConfirmation string) *completionFixture {
-	return newCompletionFixtureWithOptions(t, pool, completionOptions{acceptance: acceptance, findingConfirmation: findingConfirmation})
+	return newCompletionFixtureWithOptions(t, pool, completionOptions{acceptance: acceptance})
 }
 
 type completionOptions struct {
-	acceptance, findingConfirmation string
+	acceptance string
 	// findingWriter selects the real intake tool for report-projection regressions.
 	findingWriter bool
 	// standards, when set, retains standard packages in the fixture Project
@@ -195,7 +191,7 @@ type completionOptions struct {
 
 func newCompletionFixtureWithOptions(t *testing.T, pool *pgxpool.Pool, options completionOptions) *completionFixture {
 	t.Helper()
-	acceptance, findingConfirmation := options.acceptance, options.findingConfirmation
+	acceptance := options.acceptance
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	t.Cleanup(cancel)
 	f := &completionFixture{ctx: ctx, pool: pool, id: fmt.Sprintf("fixture-%d", time.Now().UnixNano()), artifacts: artifacts.NewService(artifacts.NewPostgresRepository(pool)), audits: auditstoretest.NewStore(pool).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch), runs: runstore.NewPostgresStore(pool), keys: []string{"first", "second"}}
@@ -271,7 +267,6 @@ func newCompletionFixtureWithOptions(t *testing.T, pool *pgxpool.Pool, options c
 		}
 		if strings.HasPrefix(name, "audit-profiles/") {
 			data = bytes.ReplaceAll(data, []byte("reportAcceptance: automatic"), []byte("reportAcceptance: "+acceptance))
-			data = bytes.ReplaceAll(data, []byte("findingConfirmation: disabled"), []byte("findingConfirmation: "+findingConfirmation))
 		}
 		mustCompletion(t, os.WriteFile(path, data, 0600))
 	}

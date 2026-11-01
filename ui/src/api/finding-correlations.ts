@@ -2,7 +2,6 @@ import type { PublicAPI } from "./client";
 import { RESOURCE_ID } from "./contract";
 import { requireData } from "./error";
 import type { components } from "./generated/public";
-import { requireProjectID } from "./projects";
 
 export type FindingPreview = components["schemas"]["FindingComparisonPreview"];
 type CandidatesPage = components["schemas"]["FindingCandidatesPage"];
@@ -41,4 +40,3 @@ export async function listFindingCandidates(
     ),
   );
 }
-

@@ -77,7 +77,11 @@ def validate_retained_dependencies(value: Any, item_key: str) -> None:
             raise ValueError("retained dependency projection is unsupported")
         _exact(dependency["source"])
         _exact(dependency["retained"])
-        if dependency["retained"]["ref"]["namespace"] != namespace:
+        expected_namespace = "finding-materials" if dependency["kind"] == "finding-receipt" else namespace
+        retained_namespace = dependency["retained"]["ref"]["namespace"]
+        if retained_namespace != expected_namespace and not (
+            dependency["kind"] == "accepted-item-result" and retained_namespace == "finding-materials"
+        ):
             raise ValueError("retained dependency namespace differs")
         for field in ("digest", "mediaType", "sizeBytes"):
             if dependency["source"][field] != dependency["retained"][field]:

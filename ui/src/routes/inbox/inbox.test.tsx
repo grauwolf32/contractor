@@ -4,7 +4,6 @@ import { describe, expect, it, onTestFinished } from "vitest";
 
 import type {
   Audit,
-  FindingVerdict,
   ProjectFinding,
   AuditItem,
   AuditReport,
@@ -54,7 +53,7 @@ function finding(
   findingId: string,
   title: string,
   minutes: number,
-  document: Partial<ProjectFinding["firstProposal"]["document"]> = {},
+  document: Partial<NonNullable<ProjectFinding["claim"]>> = {},
 ): ProjectFinding {
   return build.finding(
     auditId,
@@ -252,7 +251,7 @@ function busyServer(): InboxServer {
     findings: {
       audit_trace: [
         finding(
-          "audit_trace",
+          "project_shop",
           "finding_idor",
           "Any user can read any report",
           10,
@@ -263,7 +262,7 @@ function busyServer(): InboxServer {
           },
         ),
         finding(
-          "audit_trace",
+          "project_shop",
           "finding_sqli",
           "Order search builds raw SQL",
           20,
@@ -344,8 +343,7 @@ const CHECK_PAGE = { auditRevision: 1, asOf: ago(1) };
 
 /** A decision the Server records, by action or verdict. */
 interface DecisionBody {
-  action?: AuditReviewAction;
-  verdict?: FindingVerdict;
+  action: AuditReviewAction;
   rationale: string;
 }
 
@@ -363,7 +361,6 @@ async function decide(
       decisionId: "decision_1",
       actorId: "user_local",
       action: body.action,
-      verdict: body.verdict,
       rationale: body.rationale,
       createdAt: ago(0),
     });
@@ -388,44 +385,7 @@ async function decide(
     );
     return json({ ...decided(pending), replayed: false });
   }
-  const findingId = requestId.replace(/^review_/, "");
-  // A finding a refresh already removed is still decided by the Server.
-  const subject =
-    server.findings[auditId]?.find(
-      (candidate) => candidate.findingId === findingId,
-    ) ?? finding(auditId, findingId, "Decided possible issue", 0);
-  server.findings[auditId] = (server.findings[auditId] ?? []).filter(
-    (candidate) => candidate.findingId !== findingId,
-  );
-  const { decision, request } = decided(triageRequest(subject));
-  return json({
-    finding: {
-      ...subject,
-      state: "rejected",
-      analystVerdict: body.verdict,
-      analystDecision: decision,
-      revision: subject.revision + 1,
-    },
-    request,
-    decision,
-    replayed: false,
-  });
-}
-
-/** The triage request the page opens to decide on a possible issue. */
-function triageRequest(subject: ProjectFinding): AuditReviewRequest {
-  return build.review(
-    subject.auditId,
-    `review_${subject.findingId}`,
-    "finding-triage",
-    {
-      findingId: subject.findingId,
-      subjectId: subject.findingId,
-      subjectRevision: subject.revision,
-      createdAt: ago(0),
-      updatedAt: ago(0),
-    },
-  );
+  return failure(404);
 }
 
 /** `found`, or the Server's 404 for a resource that is not there. */
@@ -468,7 +428,11 @@ function inboxRoutes(server: InboxServer): Routes {
         url.searchParams.get("state") === "proposed"
           ? (server.findings[params.auditId!] ?? [])
           : [];
-      return json({ ...CHECK_PAGE, total: items.length, ...page(items) });
+      return json({
+        ...CHECK_PAGE,
+        total: items.length,
+        ...page(items.map(build.findingSummary)),
+      });
     },
     "GET /v1/audits/{auditId}/findings/{findingId}": ({ params }) => {
       const subject = server.findings[params.auditId!]?.find(
@@ -476,17 +440,66 @@ function inboxRoutes(server: InboxServer): Routes {
       );
       return found(subject, { ETag: `"${subject?.revision}"` });
     },
-    "POST /v1/audits/{auditId}/findings/{findingId}/reviews": ({ params }) => {
-      const subject =
-        server.findings[params.auditId!]?.find(
-          (candidate) => candidate.findingId === params.findingId,
-        ) ?? finding(params.auditId!, params.findingId!, "Removed", 0);
-      return json(triageRequest(subject), 201);
+
+    "GET /v1/projects/{projectId}/findings/{findingId}": ({ params }) => {
+      const value = Object.values(server.findings)
+        .flat()
+        .find(
+          (f) =>
+            f.projectId === params.projectId &&
+            f.findingId === params.findingId,
+        );
+      return found(value, { ETag: `"${value?.revision}"` });
+    },
+    "PATCH /v1/projects/{projectId}/findings/{findingId}": async ({
+      params,
+      request,
+    }) => {
+      const value = Object.values(server.findings)
+        .flat()
+        .find(
+          (f) =>
+            f.projectId === params.projectId &&
+            f.findingId === params.findingId,
+        );
+      if (value === undefined) return failure(404);
+      if (request.headers.get("If-Match") !== `"${value.revision}"`)
+        return failure(412, "precondition_failed", "Changed first");
+      const body =
+        (await request.json()) as import("../../api/audits").EditProjectFindingRequest;
+      const states = {
+        true_positive: "confirmed",
+        false_positive: "rejected",
+        duplicate: "duplicate",
+        reopen: "proposed",
+        needs_evidence: "needs-evidence",
+      } as const;
+      const next: ProjectFinding = {
+        ...value,
+        state: states[body.verdict],
+        analystVerdict: body.verdict,
+        analystSeverity:
+          body.verdict === "true_positive" ? body.severity : null,
+        duplicateTargetId:
+          body.verdict === "duplicate" ? body.duplicateTargetId : null,
+        rationale: body.rationale,
+        actorId: "user_local",
+        assessedAt: ago(0),
+        revision: value.revision + 1,
+      };
+      for (const [key, values] of Object.entries(server.findings))
+        server.findings[key] = values.map((f) =>
+          f.findingId === next.findingId ? next : f,
+        );
+      return json({ finding: next, replayed: false }, 200, {
+        ETag: `"${next.revision}"`,
+      });
     },
     "GET /v1/audits/{auditId}/reviews": ({ params, url }) => {
-      const subject = url.searchParams.get("finding");
       const items = (server.reviews[params.auditId!] ?? []).filter(
-        (candidate) => subject === null || candidate.findingId === subject,
+        (candidate) =>
+          url.searchParams.get("state") === null ||
+          candidate.state === url.searchParams.get("state"),
       );
       return json({ ...CHECK_PAGE, total: items.length, ...page(items) });
     },
@@ -561,8 +574,13 @@ function inboxServer(server: InboxServer) {
   const routes = Object.fromEntries(
     Object.entries(inboxRoutes(server)).map(([operation, route]) => [
       operation,
-      (async (call) =>
-        (await held(call.request, call.url)) ?? route(call)) satisfies Route,
+      (async (call) => {
+        if (call.request.method === "PATCH") {
+          const response = await route(call);
+          return (await held(call.request, call.url)) ?? response;
+        }
+        return (await held(call.request, call.url)) ?? route(call);
+      }) satisfies Route,
     ]),
   );
   return fakeServer(
@@ -674,7 +692,7 @@ describe("Inbox", () => {
       await within(decide).findByRole("link", {
         name: "Any user can read any report",
       }),
-    ).toHaveAttribute("href", "/?item=issue:audit_trace:finding_idor");
+    ).toHaveAttribute("href", "/?item=issue:project_shop:finding_idor");
     expect(
       within(decide).getByRole("link", { name: "Order search builds raw SQL" }),
     ).toBeInTheDocument();
@@ -688,7 +706,9 @@ describe("Inbox", () => {
         name: "Active test approval: WSTG-ATHN-01",
       }),
     ).toBeInTheDocument();
-    expect(within(decide).getByText("CWE-639")).toBeInTheDocument();
+    expect(
+      within(decide).getAllByText("crapi-workshop").length,
+    ).toBeGreaterThan(0);
 
     const unblock = await findSection("Unblock");
     expect(
@@ -858,7 +878,7 @@ describe("Inbox", () => {
   });
 
   it("opens the item named in the URL", async () => {
-    renderApplication("/?item=issue:audit_trace:finding_sqli", {
+    renderApplication("/?item=issue:project_shop:finding_sqli", {
       server: inboxServer(busyServer()),
     });
 
@@ -873,8 +893,8 @@ describe("Inbox", () => {
       }),
     ).toBeInTheDocument();
     expect(
-      within(pane).getByRole("link", { name: "Open full review" }),
-    ).toHaveAttribute("href", "/issues/audit_trace/finding_sqli");
+      within(pane).getByRole("link", { name: "Open possible issue" }),
+    ).toHaveAttribute("href", "/issues/project_shop/finding_sqli");
     expect(
       within(pane).getByRole("button", { name: "Previous item" }),
     ).toBeEnabled();
@@ -900,19 +920,19 @@ describe("Inbox", () => {
     await user.keyboard("j");
     await waitFor(() =>
       expect(router.state.location.search).toBe(
-        "?item=issue:audit_trace:finding_idor",
+        "?item=issue:project_shop:finding_idor",
       ),
     );
     await user.keyboard("j");
     await waitFor(() =>
       expect(router.state.location.search).toBe(
-        "?item=issue:audit_trace:finding_sqli",
+        "?item=issue:project_shop:finding_sqli",
       ),
     );
     await user.keyboard("k");
     await waitFor(() =>
       expect(router.state.location.search).toBe(
-        "?item=issue:audit_trace:finding_idor",
+        "?item=issue:project_shop:finding_idor",
       ),
     );
     await waitFor(() => expect(first).toHaveAttribute("aria-current", "true"));
@@ -921,14 +941,14 @@ describe("Inbox", () => {
     await user.keyboard("{Enter}");
     await waitFor(() =>
       expect(router.state.location.pathname).toBe(
-        "/issues/audit_trace/finding_idor",
+        "/issues/project_shop/finding_idor",
       ),
     );
   });
 
   it("records a decision, announces it and moves to the next decision", async () => {
     const { router, sent } = renderApplication(
-      "/?item=issue:audit_trace:finding_idor",
+      "/?item=issue:project_shop:finding_idor",
       { server: inboxServer(busyServer()) },
     );
     const user = userEvent.setup();
@@ -957,7 +977,7 @@ describe("Inbox", () => {
 
     await waitFor(() =>
       expect(router.state.location.search).toBe(
-        "?item=issue:audit_trace:finding_sqli",
+        "?item=issue:project_shop:finding_sqli",
       ),
     );
     await waitFor(() =>
@@ -972,8 +992,8 @@ describe("Inbox", () => {
     );
     expect(nextShown.element).toBeDefined();
     expect(nextShown.focused).toBe(nextShown.element);
-    expect(sent("POST", "/findings/finding_idor/reviews")).toHaveLength(1);
-    const decisions = sent("POST", "/reviews/review_finding_idor/decisions");
+    expect(sent("POST", "/findings/finding_idor/reviews")).toHaveLength(0);
+    const decisions = sent("PATCH", "/findings/finding_idor");
     expect(decisions).toHaveLength(1);
     expect(await decisions[0]!.json()).toEqual({
       verdict: "false_positive",
@@ -990,7 +1010,7 @@ describe("Inbox", () => {
 
   it("moves focus once after a decision and drops the message when the user moves on", async () => {
     const { router } = renderApplication(
-      "/?item=issue:audit_trace:finding_idor",
+      "/?item=issue:project_shop:finding_idor",
       { server: inboxServer(busyServer()) },
     );
     const user = userEvent.setup();
@@ -998,7 +1018,7 @@ describe("Inbox", () => {
 
     await waitFor(() =>
       expect(router.state.location.search).toBe(
-        "?item=issue:audit_trace:finding_sqli",
+        "?item=issue:project_shop:finding_sqli",
       ),
     );
     await waitFor(() => expect(detailWhere()).toHaveFocus());
@@ -1045,7 +1065,7 @@ describe("Inbox", () => {
     await user.click(sqli);
     await waitFor(() =>
       expect(router.state.location.search).toBe(
-        "?item=issue:audit_trace:finding_sqli",
+        "?item=issue:project_shop:finding_sqli",
       ),
     );
     expect(
@@ -1196,19 +1216,17 @@ describe("Inbox", () => {
     const server = busyServer();
     const answer = deferred();
     server.delay = (url, request) =>
-      request.method === "POST" && url.pathname.endsWith("/decisions")
+      request.method === "PATCH" && url.pathname.includes("/findings/")
         ? answer.promise
         : undefined;
     const { router, sent } = renderApplication(
-      "/?item=issue:audit_trace:finding_idor",
+      "/?item=issue:project_shop:finding_idor",
       { server: inboxServer(server) },
     );
     const user = userEvent.setup();
     await decideNotAnIssue(user);
     await waitFor(() =>
-      expect(
-        sent("POST", "/reviews/review_finding_idor/decisions"),
-      ).toHaveLength(1),
+      expect(sent("PATCH", "/findings/finding_idor")).toHaveLength(1),
     );
 
     const approval = screen.getByRole("link", {
@@ -1242,19 +1260,17 @@ describe("Inbox", () => {
     const server = busyServer();
     const answer = deferred();
     server.delay = (url, request) =>
-      request.method === "POST" && url.pathname.endsWith("/decisions")
+      request.method === "PATCH" && url.pathname.includes("/findings/")
         ? answer.promise
         : undefined;
     const { router, sent } = renderApplication(
-      "/?item=issue:audit_trace:finding_idor",
+      "/?item=issue:project_shop:finding_idor",
       { server: inboxServer(server) },
     );
     const user = userEvent.setup();
     await decideNotAnIssue(user);
     await waitFor(() =>
-      expect(
-        sent("POST", "/reviews/review_finding_idor/decisions"),
-      ).toHaveLength(1),
+      expect(sent("PATCH", "/findings/finding_idor")).toHaveLength(1),
     );
 
     // The reason field keeps J to itself; the user leaves it first.
@@ -1264,7 +1280,7 @@ describe("Inbox", () => {
     await user.keyboard("j");
     await waitFor(() =>
       expect(router.state.location.search).toBe(
-        "?item=issue:audit_trace:finding_sqli",
+        "?item=issue:project_shop:finding_sqli",
       ),
     );
     await user.keyboard("j");
@@ -1286,19 +1302,17 @@ describe("Inbox", () => {
     const server = busyServer();
     const answer = deferred();
     server.delay = (url, request) =>
-      request.method === "POST" && url.pathname.endsWith("/decisions")
+      request.method === "PATCH" && url.pathname.includes("/findings/")
         ? answer.promise
         : undefined;
     const { router, sent } = renderApplication(
-      "/?item=issue:audit_trace:finding_idor",
+      "/?item=issue:project_shop:finding_idor",
       { server: inboxServer(server) },
     );
     const user = userEvent.setup();
     await decideNotAnIssue(user);
     await waitFor(() =>
-      expect(
-        sent("POST", "/reviews/review_finding_idor/decisions"),
-      ).toHaveLength(1),
+      expect(sent("PATCH", "/findings/finding_idor")).toHaveLength(1),
     );
 
     const navigation = screen.getByRole("navigation", {
@@ -1306,13 +1320,13 @@ describe("Inbox", () => {
     });
     await user.click(within(navigation).getByRole("link", { name: "Runs" }));
     await waitFor(() => expect(router.state.location.pathname).toBe("/runs"));
-    const refreshes = sent("GET", "/v1/projects").length;
+    const refreshes = sent("GET", "/v1/findings").length;
     answer.resolve();
 
     // The decision's refresh runs (the rail badge reads the same lists),
     // then nothing takes the user back to the Inbox.
     await waitFor(() =>
-      expect(sent("GET", "/v1/projects").length).toBeGreaterThan(refreshes),
+      expect(sent("GET", "/v1/findings").length).toBeGreaterThan(refreshes),
     );
     await act(async () => {
       await new Promise((resolve) => window.setTimeout(resolve, 200));
@@ -1325,12 +1339,12 @@ describe("Inbox", () => {
     const server = busyServer();
     const answer = deferred();
     server.delay = (url, request) =>
-      request.method === "POST" && url.pathname.endsWith("/decisions")
+      request.method === "PATCH" && url.pathname.includes("/findings/")
         ? answer.promise
         : undefined;
     const runsCode = deferred();
     const { router, sent } = renderApplication(
-      "/?item=issue:audit_trace:finding_idor",
+      "/?item=issue:project_shop:finding_idor",
       {
         server: inboxServer(server),
         slowRoutes: { "/runs": runsCode.promise },
@@ -1339,9 +1353,7 @@ describe("Inbox", () => {
     const user = userEvent.setup();
     await decideNotAnIssue(user);
     await waitFor(() =>
-      expect(
-        sent("POST", "/reviews/review_finding_idor/decisions"),
-      ).toHaveLength(1),
+      expect(sent("PATCH", "/findings/finding_idor")).toHaveLength(1),
     );
 
     const navigation = screen.getByRole("navigation", {
@@ -1353,12 +1365,12 @@ describe("Inbox", () => {
       expect(router.state.navigation.location?.pathname).toBe("/runs"),
     );
     expect(await findDetail()).toBeInTheDocument();
-    const refreshes = sent("GET", "/v1/projects").length;
+    const refreshes = sent("GET", "/v1/findings").length;
     answer.resolve();
 
     // The decision's refresh runs, and the user is still on the way to Runs.
     await waitFor(() =>
-      expect(sent("GET", "/v1/projects").length).toBeGreaterThan(refreshes),
+      expect(sent("GET", "/v1/findings").length).toBeGreaterThan(refreshes),
     );
     expect(router.state.navigation.location?.pathname).toBe("/runs");
     runsCode.resolve();
@@ -1376,19 +1388,17 @@ describe("Inbox", () => {
     // The Server records the decision at once but answers late; a refresh
     // in between already leaves the decided possible issue out.
     server.delay = (url, request) =>
-      request.method === "POST" && url.pathname.endsWith("/decisions")
+      request.method === "PATCH" && url.pathname.includes("/findings/")
         ? answer.promise
         : undefined;
     const { router, sent } = renderApplication(
-      "/?item=issue:audit_trace:finding_sqli",
+      "/?item=issue:project_shop:finding_sqli",
       { server: inboxServer(server) },
     );
     const user = userEvent.setup();
     await decideNotAnIssue(user);
     await waitFor(() =>
-      expect(
-        sent("POST", "/reviews/review_finding_sqli/decisions"),
-      ).toHaveLength(1),
+      expect(sent("PATCH", "/findings/finding_sqli")).toHaveLength(1),
     );
     server.findings.audit_trace = server.findings.audit_trace!.filter(
       (entry) => entry.findingId !== "finding_sqli",
@@ -1547,7 +1557,7 @@ describe("Inbox", () => {
   });
 
   it("says when the item in the URL has left the Inbox", async () => {
-    renderApplication("/?item=issue:audit_trace:finding_gone", {
+    renderApplication("/?item=issue:project_shop:finding_gone", {
       server: inboxServer(busyServer()),
     });
 
@@ -1556,8 +1566,8 @@ describe("Inbox", () => {
       await within(pane).findByText("This item is no longer in your Inbox"),
     ).toBeInTheDocument();
     expect(
-      within(pane).getByRole("link", { name: "Open full review" }),
-    ).toHaveAttribute("href", "/issues/audit_trace/finding_gone");
+      within(pane).getByRole("link", { name: "Open possible issue" }),
+    ).toHaveAttribute("href", "/issues/project_shop/finding_gone");
   });
 
   it("shows a failed Run's cause and leaves its recovery to the Run page", async () => {

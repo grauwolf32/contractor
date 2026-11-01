@@ -2,13 +2,13 @@ package pgstore
 
 // Each selected item has at most 129 source associations plus its original
 // task source. DISTINCT collapses receipts already admitted to one Finding.
-const itemFindingIDsSQL = `WITH selected AS MATERIALIZED (
+var itemFindingIDsSQL = `WITH selected AS MATERIALIZED (
  SELECT item.item_id,item.proposal_receipt_id,audit.project_id,coalesce(member.finding_sources,'[]'::jsonb) AS finding_sources
  FROM unnest($3::text[]) AS requested(item_id)
  JOIN audit_items AS item USING(item_id)
  JOIN audits AS audit USING(audit_id)
  LEFT JOIN audit_execution_items AS member ON member.execution_item_id=item.last_execution_item_id AND member.audit_id=item.audit_id
- WHERE audit.owner_id=$1 AND item.audit_id=$2 AND `+acceptedItemSQL("item")+`
+ WHERE audit.owner_id=$1 AND item.audit_id=$2 AND ` + acceptedItemSQL("item") + `
 ), related AS (
  SELECT item_id,project_id,proposal_receipt_id AS receipt_id FROM selected WHERE proposal_receipt_id IS NOT NULL
  UNION ALL

@@ -132,27 +132,27 @@
   "consumer_targets": {
     "doc-1b0d20aaf54838c6549c1f813084821371f41d6d5f6f6272dec2b17418d0fd49": {
       "name": "doc-1b0d20aaf54838c6549c1f813084821371f41d6d5f6f6272dec2b17418d0fd49",
-      "namespace": "findings-42c1c1a020f251137aa41dff6345e7d8e753791e38f076c33981f731c0dbb7c0"
+      "namespace": "findings-aa4ca362bbff43b1b85f29cc81b5273f20715f184a7ef5707f4d435e6e6adb58"
     },
     "doc-d1388f3fa4060d234cb8cfc500489c1c01a07071d617a787a1d95bb0919e718f": {
       "name": "doc-d1388f3fa4060d234cb8cfc500489c1c01a07071d617a787a1d95bb0919e718f",
-      "namespace": "findings-42c1c1a020f251137aa41dff6345e7d8e753791e38f076c33981f731c0dbb7c0"
+      "namespace": "findings-aa4ca362bbff43b1b85f29cc81b5273f20715f184a7ef5707f4d435e6e6adb58"
     },
     "doc-de9d74745db7ff327cc95d39afeea455debfe05ec8e5b538b1f8a0231e85a03f": {
       "name": "doc-de9d74745db7ff327cc95d39afeea455debfe05ec8e5b538b1f8a0231e85a03f",
-      "namespace": "findings-42c1c1a020f251137aa41dff6345e7d8e753791e38f076c33981f731c0dbb7c0"
+      "namespace": "findings-aa4ca362bbff43b1b85f29cc81b5273f20715f184a7ef5707f4d435e6e6adb58"
     },
     "doc-f39469eb9a094195b8f85885c2a239d50ca2c0b462fe060a4fe20a7f7519a14e": {
       "name": "doc-f39469eb9a094195b8f85885c2a239d50ca2c0b462fe060a4fe20a7f7519a14e",
-      "namespace": "findings-42c1c1a020f251137aa41dff6345e7d8e753791e38f076c33981f731c0dbb7c0"
+      "namespace": "findings-aa4ca362bbff43b1b85f29cc81b5273f20715f184a7ef5707f4d435e6e6adb58"
     }
   },
   "contents": {
-    "doc-1b0d20aaf54838c6549c1f813084821371f41d6d5f6f6272dec2b17418d0fd49": "Одинаковые bytes из разных Runs.\n",
-    "doc-d1388f3fa4060d234cb8cfc500489c1c01a07071d617a787a1d95bb0919e718f": "Одинаковые bytes из разных Runs.\n",
+    "doc-1b0d20aaf54838c6549c1f813084821371f41d6d5f6f6272dec2b17418d0fd49": "\u041e\u0434\u0438\u043d\u0430\u043a\u043e\u0432\u044b\u0435 bytes \u0438\u0437 \u0440\u0430\u0437\u043d\u044b\u0445 Runs.\n",
+    "doc-d1388f3fa4060d234cb8cfc500489c1c01a07071d617a787a1d95bb0919e718f": "\u041e\u0434\u0438\u043d\u0430\u043a\u043e\u0432\u044b\u0435 bytes \u0438\u0437 \u0440\u0430\u0437\u043d\u044b\u0445 Runs.\n",
     "doc-de9d74745db7ff327cc95d39afeea455debfe05ec8e5b538b1f8a0231e85a03f": "{\"client_key\":\"candidate-b\",\"description\":\"A generic finding with retained evidence.\",\"evidence_ids\":[\"evidence-1\"],\"hypothesis\":\"The setting may affect isolation.\",\"limitations\":[],\"preconditions\":[],\"proposed_checks\":[],\"schema\":\"contractor.audit.finding-proposal.v1\",\"severity_suggestion\":\"\",\"standard_refs\":[],\"subject\":{\"key\":\"subject-b\",\"kind\":\"configuration\"},\"title\":\"Observation b\"}",
     "doc-f39469eb9a094195b8f85885c2a239d50ca2c0b462fe060a4fe20a7f7519a14e": "{\"client_key\":\"candidate-a\",\"description\":\"A generic finding with retained evidence.\",\"evidence_ids\":[\"evidence-1\"],\"limitations\":[],\"preconditions\":[],\"proposed_checks\":[],\"schema\":\"contractor.audit.finding-proposal.v1\",\"severity_suggestion\":\"\",\"standard_refs\":[],\"subject\":{\"key\":\"subject-a\",\"kind\":\"function\"},\"title\":\"Observation a\"}"
   },
-  "package_digest": "sha256:42c1c1a020f251137aa41dff6345e7d8e753791e38f076c33981f731c0dbb7c0",
-  "package_id": "collection-66bf56c311e81d6c539efec0da86faa82760bdd211b9be078d5becc9123aeab3"
+  "package_digest": "sha256:aa4ca362bbff43b1b85f29cc81b5273f20715f184a7ef5707f4d435e6e6adb58",
+  "package_id": "collection-ce272f0b90e706316c51776920bc10b642e25710e3e0dceb118ed2324f1704a3"
 }

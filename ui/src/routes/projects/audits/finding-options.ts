@@ -40,9 +40,7 @@ export function isFindingState(value: string): value is FindingState {
   return (FINDING_STATES as readonly string[]).includes(value);
 }
 
-export function isFindingSeverity(
-  value: string,
-): value is FindingSeverity {
+export function isFindingSeverity(value: string): value is FindingSeverity {
   return (FINDING_SEVERITIES as readonly string[]).includes(value);
 }
 

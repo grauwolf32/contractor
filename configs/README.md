@@ -134,7 +134,7 @@ A Runtime must advertise local workspace and graph capabilities to run this prof
 
 `openapi-operation-trace@1` selects `audit_openapi_operation_tracer@1`, adding
 `security-findings-code@1.finding` and `text-artifacts@1.write_text_artifact` with
-`findingConfirmation: human-required`. It preserves the operation inventory and
+explicit Project problem publication. It preserves the operation inventory and
 prohibits active checks. Findings do not turn `operation-resolution` into full
 trace coverage. `findings-review@2` independently reads a pinned collection with
 `list_findings` and publishes an analysis report; it does not confirm findings.

@@ -23,7 +23,6 @@ import {
   type ListNavigationContainerProps,
   type StatusTone,
 } from "../../ui";
-import { weaknessReferences } from "../decisions/text";
 import { describeStopReason } from "../projects/audits/stop-reason";
 import { deriveRunTriage } from "../runs/triage";
 import { useWorkflowInventory } from "../workflows/inventory";
@@ -85,9 +84,19 @@ interface RowProps<T extends InboxRow["type"]> {
   data: InboxData;
 }
 
-function IssueRow({row,selected,onChoose}:RowProps<"issue">) {
- const {project,finding}=row.issue;
- return <ListRow {...rowControl(row,selected,onChoose)} glyph={<StatusGlyph tone="review"/>} title={finding.title} meta={[<Project key="project" name={project.name}/>,<RecordedTime key="time" value={finding.createdAt}/>]}/>;
+function IssueRow({ row, selected, onChoose }: RowProps<"issue">) {
+  const { project, finding } = row.issue;
+  return (
+    <ListRow
+      {...rowControl(row, selected, onChoose)}
+      glyph={<StatusGlyph tone="review" />}
+      title={finding.title}
+      meta={[
+        <Project key="project" name={project.name} />,
+        <RecordedTime key="time" value={finding.createdAt} />,
+      ]}
+    />
+  );
 }
 
 function ReviewRow({ row, selected, onChoose, data }: RowProps<"review">) {

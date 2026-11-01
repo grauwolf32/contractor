@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
@@ -170,4 +171,59 @@ func TestProjectFindingExplicitPublicationRetainsIndependentSources(t *testing.T
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM information_schema.tables WHERE table_schema=current_schema() AND table_name='audit_findings'`).Scan(&auditCopies); err != nil || auditCopies != 0 {
 		t.Fatalf("Audit import recreated mutable Findings: %d err=%v", auditCopies, err)
 	}
+	// Run and Audit deletion remove execution context, never the canonical
+	// problem, independently retained source claims or their exact evidence.
+	runs := runstore.NewPostgresStore(pool)
+	for _, grant := range grants {
+		if err := runs.MarkStageAllocationReleased(ctx, grant.AllocationID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := runs.TransitionRun(ctx, grant.RunID, runstore.RunRunning, runstore.RunFailed, runstore.Reason{Code: "fixture_finished"}); err != nil {
+			t.Fatal(err)
+		}
+		if err := deleteRun(ctx, pool, owner, grant.RunID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	audits := auditstoretest.NewStore(pool).WithPurgeDependencies(DeleteAuditHoldsBatch)
+	for _, auditID := range []string{"publication-audit-a", "publication-audit-b"} {
+		audit, err := audits.Get(ctx, owner, auditID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := audits.RequestDelete(ctx, auditstore.DeleteParams{OwnerID: owner, AuditID: auditID, ExpectedRevision: audit.Revision, IdempotencyKey: "delete-" + auditID, RequestDigest: auditdomain.DigestBytes([]byte(auditID))}); err != nil {
+			t.Fatal(err)
+		}
+		claims, err := audits.Claim(ctx, auditstore.ClaimParams{HolderID: "publication-purge", Lease: time.Minute, Limit: 1})
+		if err != nil || len(claims) != 1 {
+			t.Fatalf("purge claim: %+v %v", claims, err)
+		}
+		if err := audits.PurgeClaimed(ctx, claims[0], auditdomain.ArtifactNamespace(auditID)); err != nil {
+			t.Fatal(err)
+		}
+		current, err := read.GetProjectFinding(ctx, owner, project, findingID)
+		if err != nil || !reflect.DeepEqual(current, edited) {
+			t.Fatalf("canonical state after Audit purge: %+v %v", current, err)
+		}
+		for sourceIndex, original := range receipts {
+			source, err := service.GetProjectReceipt(ctx, owner, project, original.ReceiptID)
+			if err != nil || source.Retention != RetentionProjectHeld || !source.Origin.RunDeleted || source.ProjectProposal == nil || !reflect.DeepEqual(source.Document, inputs[sourceIndex].Proposal) || !reflect.DeepEqual(source.ProjectEvidence, original.ProjectEvidence) {
+				t.Fatalf("independent source after purge: %+v %v", source, err)
+			}
+			scope, err := artifacts.NewService(artifacts.NewPostgresRepository(pool)).Project(project)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, exact := range append([]ExactArtifact{*source.ProjectProposal}, source.ProjectEvidence...) {
+				metadata, err := scope.Metadata(ctx, exact.Ref)
+				if err != nil || exact.Verify(metadata.Exact()) != nil {
+					t.Fatalf("retained exact evidence after purge: %+v %v", metadata, err)
+				}
+				if _, err := scope.Read(ctx, exact.Ref); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+	}
+
 }

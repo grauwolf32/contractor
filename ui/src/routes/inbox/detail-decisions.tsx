@@ -1,13 +1,20 @@
+import { pollInterval } from "../../app/polling";
+import { QueryView } from "../../app/query-view";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
 
-import { getProjectFinding,getAuditReport, type AuditReport } from "../../api/audits";
+import {
+  getProjectFinding,
+  getAuditReport,
+  type AuditReport,
+} from "../../api/audits";
 import { usePublicAPI } from "../../api/context";
 import { queryKeys } from "../../api/query-keys";
 import { ContextLink } from "../../app/context-navigation";
 import { RecordedTime } from "../../app/recorded-time";
 import {
-  verdictLabel,reportStatusLabel,
+  verdictLabel,
+  reportStatusLabel,
   reviewKindLabel,
   reviewStateLabel,
 } from "../../app/vocabulary";
@@ -49,12 +56,85 @@ import {
  */
 
 /** A possible issue: its summary, decided in place. */
-export function IssueDetail({row,context}:{row:InboxRowOf<"issue">;context:DetailContext}) {
- const api=usePublicAPI();const selected=row.issue.finding;
- const finding=useQuery({queryKey:["project-findings",selected.projectId,selected.findingId],queryFn:()=>getProjectFinding(api,selected.projectId,selected.findingId),retry:false});
- if(finding.error!==null)return <p role="alert">{finding.error.message}</p>;
- if(finding.data===undefined)return <p role="status">Loading possible issue…</p>;
- return <DetailPane><FindingSummary finding={finding.data}/><FindingDecision finding={finding.data} onDecided={result=>context.onDecided(row.key,verdictLabel(result.finding.analystVerdict).label,selected.title)}/><OpenLink to={issuePath(selected.projectId,selected.findingId)}>Open possible issue and evidence</OpenLink></DetailPane>;
+export function IssueDetail({
+  row,
+  context,
+}: {
+  row: InboxRowOf<"issue">;
+  context: DetailContext;
+}) {
+  const api = usePublicAPI();
+  const selected = row.issue.finding;
+  const finding = useQuery({
+    queryKey: ["project-findings", selected.projectId, selected.findingId],
+    queryFn: () =>
+      getProjectFinding(api, selected.projectId, selected.findingId),
+    retry: false,
+    refetchInterval: pollInterval({ interval: 20_000 }),
+  });
+  const issues = context.data.model.decide.filter(
+    (candidate) => candidate.type === "issue",
+  );
+  const position = issues.findIndex((candidate) => candidate.key === row.key);
+  const { nextDecision, onSelect, onDecided } = context;
+  return (
+    <DetailPane
+      header={
+        <DetailBar
+          where={SECTIONS.decide.title}
+          label={
+            position < 0
+              ? "Possible issue"
+              : `Possible issue ${position + 1} of ${issues.length}`
+          }
+          actions={
+            <OpenLink to={issuePath(selected.projectId, selected.findingId)}>
+              Open possible issue
+            </OpenLink>
+          }
+          context={context}
+          focus={context.focusKey === row.key}
+        />
+      }
+      footer={
+        finding.data === undefined ? undefined : (
+          <FindingDecision
+            finding={finding.data}
+            next={
+              nextDecision === undefined
+                ? undefined
+                : {
+                    label: "Next decision",
+                    onNext: () => onSelect(nextDecision, { replace: true }),
+                  }
+            }
+            onDecided={(result) =>
+              onDecided(
+                row.key,
+                verdictLabel(result.finding.analystVerdict).label,
+                selected.title,
+              )
+            }
+          />
+        )
+      }
+    >
+      <Recorded text={context.recorded} />
+      <p className="inbox-context">
+        In{" "}
+        <Link to={projectPath(selected.projectId)}>
+          {row.issue.project.name}
+        </Link>
+      </p>
+      <QueryView
+        query={finding}
+        loading={<p role="status">Loading possible issue…</p>}
+        onRetry={() => void finding.refetch()}
+      >
+        {(value) => <FindingSummary finding={value} variant="compact" />}
+      </QueryView>
+    </DetailPane>
+  );
 }
 
 export function ReviewDetail({

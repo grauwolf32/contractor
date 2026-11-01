@@ -1,3 +1,4 @@
+import { findingSummary } from "../../../test/builders";
 import { describe, expect, it } from "vitest";
 
 import { itemActivity, nowSentence } from "./activity-model";
@@ -6,17 +7,23 @@ import {
   endpointRow,
   makeAttempt,
   makeAudit,
-  makeFinding,
+  makeFinding as makeFullFinding,
   makeItem,
 } from "./check-test-support";
+
+const makeFinding = (...args: Parameters<typeof makeFullFinding>) =>
+  findingSummary(makeFullFinding(...args));
 
 describe("activity", () => {
   it("tells one item's story newest first, from attempts to the result", () => {
     const [entry] = buildEntries(
       [
-        endpointRow("item_1", 0, "GET", "/orders", "traced-partial", {
-          resultSummary: "Read without an owner check.\n\nMore.",
-        }),
+        {
+          ...endpointRow("item_1", 0, "GET", "/orders", "traced-partial", {
+            resultSummary: "Read without an owner check.\n\nMore.",
+          }),
+          findingIds: ["f1"],
+        },
       ],
       [
         makeItem("item_1", 0, "operation-trace", {

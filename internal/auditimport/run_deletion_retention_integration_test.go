@@ -31,7 +31,7 @@ import (
 )
 
 func TestPostgresContractInvalidCollectionRetainsProposalAfterRunDeletion(t *testing.T) {
-	f := newCompletionFixtureWithInteraction(t, completionPool(t), "automatic", "human-required")
+	f := newCompletionFixtureWithReportAcceptance(t, completionPool(t), "automatic")
 	receiptID := f.proposal(t, "candidate", auditdomain.FindingProposal{
 		Schema: auditdomain.FindingProposalSchema, ClientKey: "candidate",
 		Title: "Candidate", Description: "Check the source behavior",
@@ -204,7 +204,7 @@ SELECT receipt_id, checks_projection, checks_projection_count, checks_projection
 }
 
 func TestImporterFinalizesHeldFindingReportAfterSourceRunDeletion(t *testing.T) {
-	f := newCompletionFixtureWithInteraction(t, completionPool(t), "automatic", "human-required")
+	f := newCompletionFixtureWithOptions(t, completionPool(t), completionOptions{acceptance: "automatic", findingWriter: true})
 	document := auditdomain.FindingProposal{
 		Schema: auditdomain.FindingProposalSchema, ClientKey: "retained-candidate",
 		Title: "Retained candidate", Description: "Exact report details survive the source Run",
@@ -212,7 +212,9 @@ func TestImporterFinalizesHeldFindingReportAfterSourceRunDeletion(t *testing.T) 
 		Preconditions: []string{"Доступна роль читателя", "The account already owns an order."}, StandardRefs: []auditdomain.StandardReference{},
 		EvidenceIDs: []string{}, ProposedChecks: []auditdomain.ProposedCheck{}, Limitations: []string{},
 	}
-	receiptID := f.proposal(t, document.ClientKey, document)
+	submit, release := realFindingReportIntake(t, f)
+	receiptID := submit(document)
+	release()
 	access, err := NewArtifactAccess(f.artifacts, hookstore.NewClaimedArtifacts(f.pool))
 	mustCompletion(t, err)
 	intake, err := findingintake.New(f.pool)
@@ -256,7 +258,7 @@ func TestImporterFinalizesHeldFindingReportAfterSourceRunDeletion(t *testing.T) 
 // contribution has different conditions. Intake and human confirmation run
 // through the real services; only the existing contribution relation is seeded.
 func TestImporterReportsFirstReceiptPreconditionsAfterHumanConfirmation(t *testing.T) {
-	f := newCompletionFixtureWithOptions(t, completionPool(t), completionOptions{acceptance: "automatic", findingConfirmation: "human-required", findingWriter: true})
+	f := newCompletionFixtureWithOptions(t, completionPool(t), completionOptions{acceptance: "automatic", findingWriter: true})
 	first := auditdomain.FindingProposal{
 		Schema: auditdomain.FindingProposalSchema, ClientKey: "first-condition",
 		Title: "Candidate", Description: "The original observation.",
@@ -270,7 +272,7 @@ func TestImporterReportsFirstReceiptPreconditionsAfterHumanConfirmation(t *testi
 	later := first
 	later.ClientKey, later.Title = "later-condition", "Later contribution"
 	later.Preconditions = []string{"A different condition from a later source."}
-	laterReceipt := submit(later)
+	submit(later)
 	release()
 	access, err := NewArtifactAccess(f.artifacts, hookstore.NewClaimedArtifacts(f.pool))
 	mustCompletion(t, err)
@@ -282,33 +284,16 @@ func TestImporterReportsFirstReceiptPreconditionsAfterHumanConfirmation(t *testi
 	if worked, err := importer.Collect(f.ctx, f.claim, snapshot, execution); err != nil || !worked {
 		t.Fatalf("collect actual conditions: worked=%t err=%v", worked, err)
 	}
-	var findingID, laterID string
-	mustCompletion(t, f.pool.QueryRow(f.ctx, "SELECT finding_id FROM audit_findings WHERE audit_id=$1 AND first_receipt_id=$2", f.id, receiptID).Scan(&findingID))
-	mustCompletion(t, f.pool.QueryRow(f.ctx, "SELECT finding_id FROM audit_findings WHERE audit_id=$1 AND first_receipt_id=$2", f.id, laterReceipt).Scan(&laterID))
-	// Match the same historical contributing-source fixture used by the
-	// correlation/collection readers, without changing first-receipt authority.
-	_, err = f.pool.Exec(f.ctx, "DELETE FROM audit_findings WHERE finding_id=$1", laterID)
-	mustCompletion(t, err)
-	_, err = f.pool.Exec(f.ctx, `INSERT INTO audit_finding_contributions(finding_id,audit_id,receipt_id,relation,proposal_ref)
-SELECT $1,$2,receipt_id,'contributing',proposal_ref FROM finding_proposal_audit_holds WHERE receipt_id=$3 AND audit_id=$2`, findingID, f.id, laterReceipt)
-	mustCompletion(t, err)
+	var findingID string
+	mustCompletion(t, f.pool.QueryRow(f.ctx, "SELECT finding_id FROM project_finding_sources WHERE receipt_id=$1", receiptID).Scan(&findingID))
 	review := reportDeletionReviewService(t, f)
-	request, err := review.CreateFindingReview(f.ctx, auditservice.CreateFindingReviewParams{
-		OwnerID: "owner", AuditID: f.id, FindingID: findingID, ExpectedRevision: 1,
-		RequestID: "confirm-conditions", IdempotencyKey: "confirm-conditions", RequestDigest: completionDigest([]byte("confirm-conditions")),
-	})
-	mustCompletion(t, err)
 	severity := auditstore.SeverityHigh
-	decision, err := review.DecideFinding(f.ctx, auditservice.DecideFindingParams{
-		OwnerID: "owner", AuditID: f.id, RequestID: request.Request.RequestID,
-		ExpectedRequestRevision: request.Request.Revision, DecisionID: "confirmed-conditions",
-		Verdict: auditstore.VerdictTruePositive, Severity: &severity, Rationale: "Independent human verification.",
-		IdempotencyKey: "confirmed-conditions", RequestDigest: completionDigest([]byte("confirmed-conditions")),
-	})
+	decision, err := review.EditProjectFinding(f.ctx, auditservice.ProjectFindingEditParams{ProjectFindingEdit: auditstore.ProjectFindingEdit{OwnerID: "owner", ProjectID: f.id, FindingID: findingID, ExpectedRevision: 1, Verdict: auditstore.VerdictTruePositive, Severity: &severity, Rationale: "Independent human verification."}, IdempotencyKey: "confirm-conditions", RequestDigest: completionDigest([]byte("confirm-conditions"))})
 	mustCompletion(t, err)
-	if decision.Finding.State != auditstore.FindingConfirmed {
-		t.Fatal("finding was not human-confirmed")
+	if decision.Finding.State == nil || *decision.Finding.State != auditstore.FindingConfirmed {
+		t.Fatal("Finding was not explicitly confirmed")
 	}
+
 	finishReportDeletionFixture(t, f)
 	mustCompletion(t, rundeletion.New(f.pool).DeleteReleasedTerminalRun(f.ctx, "owner", f.run.RunID))
 	snapshot, err = f.audits.GetReconcileSnapshot(f.ctx, f.claim)
@@ -326,22 +311,13 @@ SELECT $1,$2,receipt_id,'contributing',proposal_ref FROM finding_proposal_audit_
 		} `json:"findings"`
 	}
 	mustCompletion(t, json.Unmarshal(data, &report))
-	if len(report.Findings.Confirmed) != 1 || !slices.Equal(report.Findings.Confirmed[0].Preconditions, first.Preconditions) || report.Findings.Confirmed[0].AnalystDecision == nil {
+	if len(report.Findings.Confirmed) != 1 || !slices.Equal(report.Findings.Confirmed[0].Preconditions, first.Preconditions) || report.Findings.Confirmed[0].AnalystVerdict == nil {
 		t.Fatalf("confirmed report lost first conditions: %+v", report.Findings.Confirmed)
 	}
 	// Review may continue after publication. Its new state never rewrites the
 	// already accepted report artifact or its original conditions.
-	reopened, err := review.CreateFindingReview(f.ctx, auditservice.CreateFindingReviewParams{
-		OwnerID: "owner", AuditID: f.id, FindingID: findingID, ExpectedRevision: decision.Finding.Revision,
-		RequestID: "reopen-conditions", IdempotencyKey: "reopen-conditions", RequestDigest: completionDigest([]byte("reopen-conditions")),
-	})
-	mustCompletion(t, err)
-	_, err = review.DecideFinding(f.ctx, auditservice.DecideFindingParams{
-		OwnerID: "owner", AuditID: f.id, RequestID: reopened.Request.RequestID,
-		ExpectedRequestRevision: reopened.Request.Revision, DecisionID: "reopened-conditions",
-		Verdict: auditstore.VerdictReopen, Rationale: "Request additional investigation after publication.",
-		IdempotencyKey: "reopened-conditions", RequestDigest: completionDigest([]byte("reopened-conditions")),
-	})
+	_, err = review.EditProjectFinding(f.ctx, auditservice.ProjectFindingEditParams{ProjectFindingEdit: auditstore.ProjectFindingEdit{OwnerID: "owner", ProjectID: f.id, FindingID: findingID, ExpectedRevision: decision.Finding.Revision, Verdict: auditstore.VerdictReopen, Rationale: "Request additional investigation after publication."}, IdempotencyKey: "reopen-conditions", RequestDigest: completionDigest([]byte("reopen-conditions"))})
+
 	mustCompletion(t, err)
 	after, err := access.ReadProjectExact(f.ctx, f.id, link.Artifact)
 	mustCompletion(t, err)
@@ -392,12 +368,18 @@ func realFindingReportIntake(t *testing.T, f *completionFixture) (func(auditdoma
 		RunID: f.run.RunID, StageExecutionID: execution.StageExecutionID, LogicalAgentName: "checker", Namespace: binding.Namespace}
 	intake, err := findingintake.New(f.pool)
 	mustCompletion(t, err)
+
+	runScope, err := f.artifacts.Run(f.run.RunID)
+	mustCompletion(t, err)
+	evidence, err := runScope.Write(f.ctx, contracts.ArtifactRef{Namespace: "evidence", Name: "condition-trace"}, artifacts.Payload{MediaType: "text/plain", Data: []byte("Exact source trace")}, nil)
+	mustCompletion(t, err)
 	submit := func(document auditdomain.FindingProposal) string {
 		t.Helper()
+		document.EvidenceIDs = []string{"evidence-1"}
 		submissionDigest := sha256.Sum256([]byte("contractor.finding.submission.v1\x00report-conditions\x00" + document.ClientKey))
 		receipt, replayed, err := intake.Submit(f.ctx, grant, findingintake.Submission{
 			APIVersion: contracts.APIVersion, InvocationID: "report-conditions", SubmissionID: "finding-" + hex.EncodeToString(submissionDigest[:]),
-			Proposal: document, EvidenceRefs: []contracts.ArtifactRef{},
+			PublishProblem: true, Proposal: document, EvidenceRefs: []contracts.ArtifactRef{evidence.Ref},
 		})
 		mustCompletion(t, err)
 		if replayed {

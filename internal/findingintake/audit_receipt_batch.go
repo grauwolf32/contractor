@@ -150,6 +150,19 @@ func (s *Service) hydrateAuditReceipts(
 			}
 		}
 	}
+	for _, receipt := range receipts {
+		for _, hold := range receipt.AuditHolds {
+			if receipt.ProjectProposal == nil || receipt.ProjectID == nil || hold.ProjectID != *receipt.ProjectID || receipt.ProjectProposal.Verify(hold.Proposal) != nil || len(hold.Evidence) != len(receipt.ProjectEvidence) {
+				return nil, artifacts.ErrArtifactIntegrity
+			}
+			for index, evidence := range hold.Evidence {
+				if receipt.ProjectEvidence[index].Verify(evidence) != nil {
+					return nil, artifacts.ErrArtifactIntegrity
+				}
+			}
+		}
+	}
+
 	return s.hydrateAuditReceiptBatch(ctx, receipts)
 }
 

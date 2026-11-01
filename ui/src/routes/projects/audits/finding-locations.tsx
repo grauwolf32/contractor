@@ -218,7 +218,7 @@ export function FindingLocations({
   document,
   exchangeOpen = false,
 }: {
-  document: Pick<Proposal,"locations"|"http_exchange">;
+  document: Pick<Proposal, "locations" | "http_exchange">;
   /** Start with the captured HTTP evidence expanded. Default false. */
   exchangeOpen?: boolean | undefined;
 }) {

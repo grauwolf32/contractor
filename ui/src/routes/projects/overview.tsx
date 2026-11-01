@@ -263,7 +263,7 @@ function GlanceStrip({
   } else if (issues.total > 0) {
     issuesValue = (
       <Link
-        to={`/issues?${new URLSearchParams({ state: "proposed", project: projectId }).toString()}`}
+        to={`/issues?${new URLSearchParams({ project: projectId }).toString()}`}
       >
         <StatusGlyph tone="review" />
         {issues.partial ? "At least " : ""}
@@ -275,7 +275,7 @@ function GlanceStrip({
   }
   if (checksState === "ready") {
     issuesCaption = issues.partial
-      ? "Some checks could not be read"
+      ? "Some possible issues could not be read"
       : checksTruncated
         ? newest
         : undefined;
@@ -374,9 +374,7 @@ function Attention({
 }) {
   const heading = useId();
   const items = waiting.data?.items ?? [];
-  const proposed = issues.items
-    .flatMap(({ audit, items }) => items.map((finding) => ({ audit, finding })))
-    .slice(0, 3);
+  const proposed = issues.items.slice(0, 3);
   const failed = waiting.error !== null && waiting.data === undefined;
   if (items.length === 0 && proposed.length === 0 && !failed) return null;
   return (
@@ -418,24 +416,18 @@ function Attention({
             </ButtonLink>
           </li>
         ))}
-        {proposed.map(({ audit, finding }) => (
-          <li
-            className="projects-attention-issue"
-            key={`${audit.auditId}:${finding.findingId}`}
-          >
+        {proposed.map((finding) => (
+          <li className="projects-attention-issue" key={finding.findingId}>
             <StatusChip tone="review" size="sm" glyph={false}>
               Possible issue
             </StatusChip>
             <ContextLink
               returnLabel="Project Overview"
-              to={`/issues/${encodeURIComponent(audit.auditId)}/${encodeURIComponent(finding.findingId)}`}
+              to={`/issues/${encodeURIComponent(projectId)}/${encodeURIComponent(finding.findingId)}`}
             >
               {finding.title}
             </ContextLink>
             <span>Needs review</span>
-            <span className="projects-attention-origin">
-              {auditProfileLabel(audit)}
-            </span>
           </li>
         ))}
       </ul>
@@ -492,6 +484,7 @@ export function ProjectOverview({ project }: { project: Project }) {
           size="sm"
           isFetching={fetching}
           onRefresh={() => {
+            void issues.refetch();
             void checks.refetch();
             void waiting.refetch();
             void runs.refetch();

@@ -56,7 +56,7 @@
         },
         "retained_proposal": {
           "ref": {
-            "namespace": "audit-8cc6f33ba865020eb07a0bd212d0a6d4b36c377f2e2ba9eaa74d9069142273ff",
+            "namespace": "finding-materials",
             "name": "b",
             "revision": "revision-1"
           },
@@ -100,7 +100,7 @@
         "approval_requirement": "active-check",
         "limits_digest": "sha256:9999999999999999999999999999999999999999999999999999999999999999"
       },
-      "dependencies_digest": "sha256:df2cfcc6511e362d5b6d0a8a05e31372043dd10ac520883b3524f64c0f0a828d"
+      "dependencies_digest": "sha256:27305e9e0368e8921ec34344aa415ba3fc480987ba57a9c3b0ac3e04170858a2"
     },
     "dependencies": {
       "schema": "contractor.audit.retained-dependencies.v1",
@@ -231,7 +231,7 @@
           },
           "retained": {
             "ref": {
-              "namespace": "audit-8cc6f33ba865020eb07a0bd212d0a6d4b36c377f2e2ba9eaa74d9069142273ff",
+              "namespace": "finding-materials",
               "name": "b",
               "revision": "revision-1"
             },
@@ -253,8 +253,8 @@
     }
   },
   "canonicalPlanDigest": "sha256:e96e74d39459a60bdc7e1038ef97e53bc177e973a82e5d2f8f25c8c5bfe630eb",
-  "canonicalDependenciesDigest": "sha256:df2cfcc6511e362d5b6d0a8a05e31372043dd10ac520883b3524f64c0f0a828d",
-  "canonicalAcceptedPlanDigest": "sha256:acb9d0fbbb036c08fb371f2f8ed97ce287170936ce50c87a25d421f0116e7608",
+  "canonicalDependenciesDigest": "sha256:27305e9e0368e8921ec34344aa415ba3fc480987ba57a9c3b0ac3e04170858a2",
+  "canonicalAcceptedPlanDigest": "sha256:2442cfaf667368fac256cc2507c68c21d7f6ad1e19f4661c9fe94fef6ca8d8f5",
   "cases": [
     {
       "name": "complete-zero-size-and-zero-ordinal",

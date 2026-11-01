@@ -1,6 +1,10 @@
 /** Current item activity comes from its retained attempts and results.
  * Whole-check history uses the immutable event API in event-history.tsx. */
-import type { Audit, ProjectFindingSummary, AuditItem } from "../../../api/audits";
+import type {
+  Audit,
+  ProjectFindingSummary,
+  AuditItem,
+} from "../../../api/audits";
 import { formatNumber } from "../../../app/format";
 import type { StatusTone } from "../../../app/status-tone";
 import { itemNoun, verdictLabel, type ItemKind } from "../../../app/vocabulary";
@@ -105,8 +109,8 @@ function findingEvents(
     title: "Proposed a possible issue:",
     text: title,
   });
-  if (finding.analystVerdict!==null) {
-    const outcome=verdictLabel(finding.analystVerdict);
+  if (finding.analystVerdict !== null) {
+    const outcome = verdictLabel(finding.analystVerdict);
     push(
       entries,
       `${prefix}assessment-${finding.findingId}-${finding.revision}`,

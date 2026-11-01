@@ -50,7 +50,7 @@ import {
   useListNavigation,
   type FilterChipOption,
 } from "../../ui";
-import type { AuditFindingDecisionResult } from "../decisions";
+import type { ProjectFindingEditResult } from "../decisions";
 import { useAnnouncement } from "../decisions/announcement";
 import {
   FINDING_STATES,
@@ -77,7 +77,9 @@ import "./issues.css";
  * (every read succeeded, nothing truncated) without a severity filter.
  */
 const EMPTY_TITLES: Readonly<Record<StateFilter, string>> = {
-  proposed: "That is everything that needs review.",
+  proposed: "No reopened issues.",
+  "needs-review": "That is everything that needs review.",
+  unassessed: "No unassessed issues.",
   confirmed: "No confirmed issues.",
   rejected: "Nothing is marked as not an issue.",
   duplicate: "No duplicates.",
@@ -85,19 +87,24 @@ const EMPTY_TITLES: Readonly<Record<StateFilter, string>> = {
   all: "No possible issues yet.",
 };
 
-function keyOf(issue: Pick<CrossProjectIssue, "finding">): string {
-  return `${issue.finding.auditId}/${issue.finding.findingId}`;
+function keyOf(issue: {
+  finding: { projectId: string; findingId: string };
+}): string {
+  return `${issue.finding.projectId}/${issue.finding.findingId}`;
 }
 
 function checkName(check: CrossProjectCheck): string {
   return `${auditProfileLabel(check.audit)} on ${check.project.name}`;
 }
 
-function outcomeOf(result: AuditFindingDecisionResult): string {
-  const verdict = verdictLabel(result.decision.verdict).label;
-  return result.decision.severity === undefined
+function outcomeOf(result: ProjectFindingEditResult): string {
+  const verdict =
+    result.finding.analystVerdict === null
+      ? "Not assessed"
+      : verdictLabel(result.finding.analystVerdict).label;
+  return result.finding.analystSeverity === null
     ? verdict
-    : `${verdict} · ${severityLabel(result.decision.severity)}`;
+    : `${verdict} · ${severityLabel(result.finding.analystSeverity!)}`;
 }
 
 function failureText(
@@ -145,7 +152,7 @@ function emptyText(
     return {
       title: "No possible issues match these filters",
       note:
-        filters.state === "proposed"
+        filters.state === "needs-review"
           ? "Severity is the analyst's rating, given when an issue is confirmed, so possible issues that need review are usually not rated yet."
           : undefined,
     };
@@ -166,11 +173,11 @@ interface FocusRequest {
 
 /**
  * Issues: possible issues of every project, newest first, with the
- * selected one in the detail pane (`/issues/:auditId/:findingId`). Filters
+ * selected one in the detail pane (`/issues/:projectId/:findingId`). Filters
  * live in the query string; J / K move, C / R / E decide.
  */
 export function IssuesRoute() {
-  const { auditId, findingId } = useParams();
+  const { projectId, findingId } = useParams();
   const [params] = useSearchParams();
   const navigate = useNavigate();
   // A recorded decision answers late: it moves on only while the user is
@@ -187,9 +194,9 @@ export function IssuesRoute() {
   const list = useIssueList(filters);
   const index = useProjectsIndex();
   const selectedKey =
-    auditId === undefined || findingId === undefined
+    projectId === undefined || findingId === undefined
       ? undefined
-      : `${auditId}/${findingId}`;
+      : `${projectId}/${findingId}`;
   const issues = useMemo(
     () => visibleIssues(list.issues, { sort: view.sort, q: view.q }),
     [list.issues, view.sort, view.q],
@@ -225,7 +232,7 @@ export function IssuesRoute() {
   useDocumentTitle(
     selectedKey === undefined
       ? "Possible issues"
-      : (selected?.finding.firstProposal.document.title ?? "Possible issue"),
+      : (selected?.finding.title ?? "Possible issue"),
   );
 
   useLayoutEffect(() => {
@@ -252,7 +259,7 @@ export function IssuesRoute() {
 
   const issueTo = useCallback(
     (issue: CrossProjectIssue) => ({
-      pathname: issuePath(issue.finding.auditId, issue.finding.findingId),
+      pathname: issuePath(issue.finding.projectId, issue.finding.findingId),
       search,
     }),
     [search],
@@ -306,7 +313,7 @@ export function IssuesRoute() {
     },
   });
 
-  function onDecided(result: AuditFindingDecisionResult) {
+  function onDecided(result: ProjectFindingEditResult) {
     // The user moved on while the decision was recorded: stay where they are.
     if (pageNow() === undefined) return;
     const decided = keyOf(result);
@@ -327,20 +334,10 @@ export function IssuesRoute() {
       return;
     }
     announce(
-      `Decision recorded: ${outcome}. Showing the next possible issue: ${target.finding.firstProposal.document.title}.`,
+      `Decision recorded: ${outcome}. Showing the next possible issue: ${target.finding.title}.`,
     );
     requestFocus(target);
     void navigateLate(issueTo(target), { replace: true });
-  }
-
-  function dropReview() {
-    const nextParams = new URLSearchParams(params);
-    nextParams.delete("review");
-    const text = nextParams.toString();
-    void navigate(
-      { pathname: location.pathname, search: text === "" ? "" : `?${text}` },
-      { replace: true },
-    );
   }
 
   const projectName = (projectId: string) =>
@@ -348,11 +345,21 @@ export function IssuesRoute() {
       ?.name ?? projectId;
 
   const chips: FilterChipOption<StateFilter>[] = [
+    {
+      value: "needs-review",
+      label: "Needs review",
+      count: list.counts["needs-review"],
+    },
     ...FINDING_STATES.map((state) => ({
       value: state,
       label: FINDING_STATE_LABELS[state].label,
       count: list.counts[state],
     })),
+    {
+      value: "unassessed",
+      label: "Not assessed",
+      count: list.counts.unassessed,
+    },
     { value: "all", label: "All", count: list.counts.all },
   ];
   const projectOptions = [...index.projects].sort((left, right) =>
@@ -384,7 +391,8 @@ export function IssuesRoute() {
             label="Filter by state"
             options={chips.filter(
               (chip) =>
-                chip.value === "proposed" ||
+                chip.value === "unassessed" ||
+                chip.value === "needs-review" ||
                 chip.value === "all" ||
                 chip.value === filters.state,
             )}
@@ -598,17 +606,17 @@ export function IssuesRoute() {
             {issues.map((issue) => (
               <IssueRow
                 key={keyOf(issue)}
-                id={`issue-${issue.finding.auditId}-${issue.finding.findingId}`}
+                id={`issue-${issue.finding.projectId}-${issue.finding.findingId}`}
                 finding={issue.finding}
                 to={{
                   pathname: issuePath(
-                    issue.finding.auditId,
+                    issue.finding.projectId,
                     issue.finding.findingId,
                   ),
                   search,
                 }}
                 selected={keyOf(issue) === selectedKey}
-                context={`${issue.project.name} · ${auditProfileLabel(issue.audit)}`}
+                context={issue.project.name}
                 showCreated={view.sort === "newest" || view.sort === "oldest"}
                 severityBadges
               />
@@ -618,7 +626,7 @@ export function IssuesRoute() {
       </div>
       {issues.length > 0 &&
       complete &&
-      filters.state === "proposed" &&
+      filters.state === "needs-review" &&
       view.q.trim() === "" &&
       filters.severity === undefined ? (
         <p className="issues-end-note">
@@ -633,7 +641,7 @@ export function IssuesRoute() {
   );
 
   const detail =
-    auditId === undefined || findingId === undefined ? (
+    projectId === undefined || findingId === undefined ? (
       <div className="issues-detail-empty">
         <EmptyState title="Choose a possible issue">
           <p>
@@ -649,7 +657,7 @@ export function IssuesRoute() {
         </p>
         <IssueDetail
           key={selectedKey}
-          auditId={auditId}
+          projectId={projectId}
           findingId={findingId}
           listed={selected}
           projects={index.projects}
@@ -661,8 +669,6 @@ export function IssuesRoute() {
           listPending={list.pending}
           onPrevious={previous === undefined ? undefined : () => open(previous)}
           onNext={next === undefined ? undefined : () => open(next)}
-          reviewId={params.get("review")}
-          onDropReview={dropReview}
           onDecided={onDecided}
           focusRequest={
             focusRequest !== null && focusRequest.key === selectedKey

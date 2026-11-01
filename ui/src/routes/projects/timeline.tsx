@@ -1,7 +1,11 @@
 import { type ReactNode } from "react";
 
 import type { ArtifactMetadata } from "../../api/artifacts";
-import type { Audit, ProjectFindingSummary, AuditState } from "../../api/audits";
+import type {
+  Audit,
+  ProjectFindingSummary,
+  AuditState,
+} from "../../api/audits";
 import type { Project } from "../../api/projects";
 import type { RunSummary } from "../../api/runs";
 import { ContextLink } from "../../app/context-navigation";
@@ -20,7 +24,6 @@ import {
 } from "../../ui";
 import { artifactDetailPath } from "../artifacts/paths";
 import { auditProfileLabel } from "./audits/labels";
-import type { CheckIssues } from "./overview-data";
 import { RunPrimaryResult } from "./overview-runs";
 import { projectPath } from "./project-sections";
 import {
@@ -56,9 +59,6 @@ const CHECK_PHRASES: Readonly<Record<AuditState, string>> = {
   failed: "failed",
   deleting: "is being deleted",
 };
-
-const HTTP_OPERATION =
-  /^(get|put|post|delete|options|head|patch|trace)\s+(\/\S*)$/i;
 
 function stopReason(audit: Audit): string | undefined {
   const reason = audit.stopReason;
@@ -227,9 +227,7 @@ export function ProjectTimeline({
 }: ProjectTimelineProps) {
   const projectId = project.projectId;
   const events: TimelineEvent[] = [
-    ...checks.map((audit) =>
-      checkEvent(audit, projectId, 0),
-    ),
+    ...checks.map((audit) => checkEvent(audit, projectId, 0)),
     ...issues.map(issueEvent),
     // A check's own Runs are told by the check.
     ...runs

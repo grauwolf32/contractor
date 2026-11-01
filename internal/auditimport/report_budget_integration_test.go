@@ -8,12 +8,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	"slices"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
@@ -243,14 +244,18 @@ SELECT 'receipt-' || n, 'proposal-' || n, 'allocation-large', 'runtime', 'instan
 		completionDigest([]byte("large")), owner, id, string(projection), largeReportFindings)
 	mustCompletion(t, err)
 	_, err = pool.Exec(ctx, `
-INSERT INTO audit_findings (finding_id, audit_id, first_receipt_id, first_proposal_ref, created_at)
-SELECT 'finding-' || lpad(n::text, 5, '0'), $1, 'receipt-' || n,
-       jsonb_build_object('ref', jsonb_build_object('namespace', $2::text, 'name', 'candidate-' || n, 'revision', 'r1'),
-                          'digest', $3::text, 'mediaType', 'application/json', 'sizeBytes', 64),
-       timestamptz '2026-10-01 00:00:00+00' + (n % 7) * interval '1 second'
-  FROM generate_series(1, $4::integer) AS n`, id, auditdomain.ArtifactNamespace(id), completionDigest([]byte("large")), largeReportFindings)
+INSERT INTO project_findings(finding_id,project_id,owner_id,first_receipt_id,first_proposal_ref,title,subject_kind,subject_key,subject_truncated,severity_suggestion,correlation_algorithm,correlation_value,correlation_group_key,correlation_reason,created_at)
+ SELECT 'finding-'||lpad(n::text,5,'0'),$1,$2,'receipt-'||n,
+ jsonb_build_object('ref',jsonb_build_object('namespace','finding-materials','name','candidate-'||n,'revision','r1'),
+ 'digest',$3::text,'mediaType','application/json','sizeBytes',64),
+ 'Large report candidate','component','handler',false,'low','','','','not_recorded',
+ timestamptz '2026-10-01 00:00:00+00'+(n%7)*interval '1 second'
+ FROM generate_series(1,$4::integer) AS n`, id, owner, completionDigest([]byte("large")), largeReportFindings)
 	mustCompletion(t, err)
-	rows, err := pool.Query(ctx, `SELECT finding_id FROM audit_findings WHERE audit_id = $1 ORDER BY created_at, finding_id`, id)
+	_, err = pool.Exec(ctx, `INSERT INTO project_finding_audits(audit_id,finding_id,project_id,finding_created_at,correlation_group_key)
+ SELECT $1,finding_id,project_id,created_at,correlation_group_key FROM project_findings WHERE project_id=$1`, id)
+	mustCompletion(t, err)
+	rows, err := pool.Query(ctx, `SELECT finding_id FROM project_findings WHERE project_id=$1 ORDER BY created_at,finding_id`, id)
 	mustCompletion(t, err)
 	var ordered []string
 	for rows.Next() {
@@ -262,56 +267,28 @@ SELECT 'finding-' || lpad(n::text, 5, '0'), $1, 'receipt-' || n,
 	if len(ordered) != largeReportFindings {
 		t.Fatalf("admitted %d findings", len(ordered))
 	}
-	// Assign states in contiguous runs of creation order, with the review
-	// ledger the decided states require.
+	// Canonical current-field combinations in creation order. Owner command and
+	// immutable edit history are verified in the actual mutation tests.
 	next := 0
 	for _, group := range largeReportFindingStates {
 		selected := ordered[next : next+group.count]
 		next += group.count
 		seed.findingIDs[group.state] = selected
+
+		verdict, severity, target := "reopen", "", ""
 		switch group.state {
-		case "confirmed", "rejected":
-			verdict, severity, reason := "true_positive", "high", ""
-			if group.state == "rejected" {
-				verdict, severity, reason = "false_positive", "", "false-positive"
-			}
-			_, err = pool.Exec(ctx, `
-WITH requests AS (
-    INSERT INTO audit_review_requests (
-        request_id, audit_id, finding_id, subject_kind, subject_id, kind,
-        subject_revision, subject_digest, requested_actions, state,
-        idempotency_key, request_digest
-    )
-    SELECT 'request-' || finding_id, $1, finding_id, 'finding', finding_id, 'finding-triage',
-           1, $3, jsonb_build_array($4::text), 'decided', 'request-' || substr(finding_id, 9, 100), $3
-      FROM unnest($2::text[]) AS finding_id
-    RETURNING request_id, finding_id
-), decisions AS (
-    INSERT INTO audit_review_decisions (
-        decision_id, request_id, audit_id, finding_id, actor_id, action, verdict,
-        severity, rationale, subject_revision, subject_digest, idempotency_key, request_digest
-    )
-    SELECT 'decision-' || finding_id, request_id, $1, finding_id, $5, $4, $4,
-           NULLIF($6, ''), 'Decided by the large report fixture.', 1, $3,
-           'decision-' || substr(finding_id, 9, 100), $3
-      FROM requests
-    RETURNING decision_id, finding_id
-)
-UPDATE audit_findings AS finding
-   SET state = $7, current_decision_id = decisions.decision_id,
-       rejection_reason = NULLIF($8, ''), revision = finding.revision + 1
-  FROM decisions
- WHERE finding.finding_id = decisions.finding_id`,
-				id, selected, completionDigest([]byte("subject")), verdict, owner, severity, group.state, reason)
+		case "confirmed":
+			verdict, severity = "true_positive", "high"
+		case "rejected":
+			verdict = "false_positive"
 		case "duplicate":
-			_, err = pool.Exec(ctx, `
-UPDATE audit_findings SET state = 'duplicate', duplicate_target_id = $2, revision = revision + 1
- WHERE finding_id = ANY($1::text[])`, selected, ordered[0])
+			verdict, target = "duplicate", ordered[0]
 		case "needs-evidence":
-			_, err = pool.Exec(ctx, `
-UPDATE audit_findings SET state = 'needs-evidence', revision = revision + 1
- WHERE finding_id = ANY($1::text[])`, selected)
+			verdict = "needs_evidence"
 		}
+		_, err = pool.Exec(ctx, `UPDATE project_findings SET state=$2,analyst_verdict=$3,analyst_severity=nullif($4,''),duplicate_target_id=nullif($5,''),rationale='Explicit report fixture assessment',actor_id=$6,assessed_at=clock_timestamp(),revision=revision+1
+ WHERE finding_id=ANY($1::text[])`, selected, group.state, verdict, severity, target, owner)
+
 		mustCompletion(t, err)
 	}
 
@@ -390,13 +367,13 @@ func assertLargeReport(
 		ids := make([]string, len(findings))
 		for index, finding := range findings {
 			ids[index] = finding.FindingID
-			if finding.State != state || finding.Title != "Large report candidate" ||
+			if finding.State == nil || string(*finding.State) != state || finding.Title != "Large report candidate" ||
 				!slices.Equal(finding.Limitations, []string{"Static review only."}) ||
 				!slices.Equal(finding.Preconditions, []string{"Только для роли читателя", "The account already owns an order."}) {
 				t.Fatalf("%s finding %d = %+v", state, index, finding)
 			}
-			if (state == "confirmed" || state == "rejected") != (finding.AnalystDecision != nil) {
-				t.Fatalf("%s finding decision = %+v", state, finding.AnalystDecision)
+			if (state == "confirmed" || state == "rejected") != (finding.AnalystVerdict != nil) {
+				t.Fatalf("%s finding decision = %+v", state, finding.AnalystVerdict)
 			}
 		}
 		if !slices.Equal(ids, seed.findingIDs[state]) {

@@ -14,22 +14,22 @@ type ProjectFinding struct {
 	CorrelationGroupKey  string `json:"-"`
 	CorrelationReason    string `json:"-"`
 
-	FindingID         string                               `json:"findingId"`
-	ProjectID         string                               `json:"projectId"`
-	FirstReceiptID    string                               `json:"firstReceiptId"`
-	FirstProposal     ExactArtifact                        `json:"firstProposal"`
-	Title             string                               `json:"title"`
+	FindingID         string                               `json:"findingId" strictjson:"required"`
+	ProjectID         string                               `json:"projectId" strictjson:"required"`
+	FirstReceiptID    string                               `json:"firstReceiptId" strictjson:"required"`
+	FirstProposal     ExactArtifact                        `json:"firstProposal" strictjson:"required"`
+	Title             string                               `json:"title" strictjson:"required"`
 	Claim             *auditdomain.FindingReportProjection `json:"claim,omitempty"`
-	State             *FindingState                        `json:"state"`
-	AnalystVerdict    *AnalystVerdict                      `json:"analystVerdict"`
-	AnalystSeverity   *FindingSeverity                     `json:"analystSeverity"`
-	Rationale         *string                              `json:"rationale"`
-	ActorID           *string                              `json:"actorId"`
-	AssessedAt        *time.Time                           `json:"assessedAt"`
-	DuplicateTargetID *string                              `json:"duplicateTargetId"`
-	Revision          uint64                               `json:"revision"`
-	CreatedAt         time.Time                            `json:"createdAt"`
-	UpdatedAt         time.Time                            `json:"updatedAt"`
+	State             *FindingState                        `json:"state" strictjson:"required,nullable"`
+	AnalystVerdict    *AnalystVerdict                      `json:"analystVerdict" strictjson:"required,nullable"`
+	AnalystSeverity   *FindingSeverity                     `json:"analystSeverity" strictjson:"required,nullable"`
+	Rationale         *string                              `json:"rationale" strictjson:"required,nullable"`
+	ActorID           *string                              `json:"actorId" strictjson:"required,nullable"`
+	AssessedAt        *time.Time                           `json:"assessedAt" strictjson:"required,nullable"`
+	DuplicateTargetID *string                              `json:"duplicateTargetId" strictjson:"required,nullable"`
+	Revision          uint64                               `json:"revision" strictjson:"required"`
+	CreatedAt         time.Time                            `json:"createdAt" strictjson:"required"`
+	UpdatedAt         time.Time                            `json:"updatedAt" strictjson:"required"`
 }
 
 // ProjectFindingEdit is an ordinary owner command, independent of Audit reviews.
@@ -47,23 +47,41 @@ type ProjectFindingEdit struct {
 // ProjectFindingSummary is a compact canonical-state page row. Full claims,
 // rationale and independent source histories have separate detail reads.
 type ProjectFindingSummary struct {
-	FindingID         string           `json:"findingId"`
-	ProjectID         string           `json:"projectId"`
-	Title             string           `json:"title"`
-	TitleTruncated    bool             `json:"titleTruncated"`
-	State             *FindingState    `json:"state"`
-	AnalystVerdict    *AnalystVerdict  `json:"analystVerdict"`
-	AnalystSeverity   *FindingSeverity `json:"analystSeverity"`
-	DuplicateTargetID *string          `json:"duplicateTargetId"`
-	Revision          uint64           `json:"revision"`
-	CreatedAt         time.Time        `json:"createdAt"`
-	UpdatedAt         time.Time        `json:"updatedAt"`
+	FindingID          string           `json:"findingId" strictjson:"required"`
+	ProjectID          string           `json:"projectId" strictjson:"required"`
+	Title              string           `json:"title" strictjson:"required"`
+	TitleTruncated     bool             `json:"titleTruncated" strictjson:"required"`
+	SubjectKind        string           `json:"subjectKind" strictjson:"required"`
+	SubjectKey         string           `json:"subjectKey" strictjson:"required"`
+	SubjectTruncated   bool             `json:"subjectTruncated" strictjson:"required"`
+	SeveritySuggestion string           `json:"severitySuggestion" strictjson:"required"`
+	State              *FindingState    `json:"state" strictjson:"required,nullable"`
+	AnalystVerdict     *AnalystVerdict  `json:"analystVerdict" strictjson:"required,nullable"`
+	AnalystSeverity    *FindingSeverity `json:"analystSeverity" strictjson:"required,nullable"`
+	DuplicateTargetID  *string          `json:"duplicateTargetId" strictjson:"required,nullable"`
+	Revision           uint64           `json:"revision" strictjson:"required"`
+	CreatedAt          time.Time        `json:"createdAt" strictjson:"required"`
+	UpdatedAt          time.Time        `json:"updatedAt" strictjson:"required"`
 }
 
 // FindingPageBasis fences a page without rescanning its whole collection.
 // Exact aggregate counts are read separately by the workspace summary.
 type FindingPageBasis struct {
-	AuditRevision   uint64    `json:"auditRevision"`
-	ProjectRevision uint64    `json:"projectRevision"`
-	AsOf            time.Time `json:"asOf"`
+	AuditRevision   uint64    `json:"auditRevision" strictjson:"required"`
+	ProjectRevision uint64    `json:"projectRevision" strictjson:"required"`
+	AsOf            time.Time `json:"asOf" strictjson:"required"`
+}
+
+// FindingWindow bounds examined canonical rows independently of match density.
+// Its cursor may advance even when no visible row matched the current filters.
+type FindingWindow struct {
+	Items          []ProjectFindingSummary
+	ContinueBefore *ProjectFindingSummary
+}
+
+func (row ProjectFindingSummary) Matches(state *FindingState, verdict *AnalystVerdict, unreviewed bool, severity *FindingSeverity) bool {
+	return (state == nil || row.State != nil && *row.State == *state) &&
+		(verdict == nil || row.AnalystVerdict != nil && *row.AnalystVerdict == *verdict) &&
+		(!unreviewed || row.AnalystVerdict == nil) &&
+		(severity == nil || row.AnalystSeverity != nil && *row.AnalystSeverity == *severity)
 }

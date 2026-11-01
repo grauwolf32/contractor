@@ -8,6 +8,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
+	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	"github.com/jackc/pgx/v5"
@@ -45,7 +46,7 @@ type ProjectSourceHistoryPage struct {
 }
 
 func (s *Service) GetProjectReceipt(ctx context.Context, ownerID, projectID, receiptID string) (Receipt, error) {
-	if contracts.ValidateResourceID("owner", ownerID) != nil || contracts.ValidateResourceID("project", projectID) != nil ||
+	if !auditstore.ValidReviewIdentity(ownerID, 256) || contracts.ValidateResourceID("project", projectID) != nil ||
 		contracts.ValidateResourceID("receipt", receiptID) != nil {
 		return Receipt{}, ErrInvalid
 	}
@@ -67,7 +68,7 @@ func (s *Service) GetProjectReceipt(ctx context.Context, ownerID, projectID, rec
 // ListProjectSources traverses retained receipts even when the Project has
 // no Finding cards. Finding selection uses its own indexed source window.
 func (s *Service) ListProjectSources(ctx context.Context, ownerID, projectID, findingID string, query ProjectSourceQuery) (ProjectSourcePage, error) {
-	if contracts.ValidateResourceID("owner", ownerID) != nil || contracts.ValidateResourceID("project", projectID) != nil ||
+	if !auditstore.ValidReviewIdentity(ownerID, 256) || contracts.ValidateResourceID("project", projectID) != nil ||
 		!validListQuery(query.ListQuery) || query.Limit > MaxProjectSourcePage+1 ||
 		(findingID != "" && contracts.ValidateResourceID("finding", findingID) != nil) {
 		return ProjectSourcePage{}, ErrInvalid
@@ -123,7 +124,7 @@ func (s *Service) ListProjectSources(ctx context.Context, ownerID, projectID, fi
 }
 
 func (s *Service) projectSourceRevision(ctx context.Context, ownerID, projectID, findingID string, expected *uint64) (uint64, error) {
-	if !contracts.ValidResourceID(ownerID) || !contracts.ValidResourceID(projectID) || (expected != nil && (*expected < 1 || *expected > contracts.MaxExactInteger)) {
+	if !auditstore.ValidReviewIdentity(ownerID, 256) || !contracts.ValidResourceID(projectID) || (expected != nil && (*expected < 1 || *expected > contracts.MaxExactInteger)) {
 		return 0, ErrInvalid
 	}
 	var revision uint64

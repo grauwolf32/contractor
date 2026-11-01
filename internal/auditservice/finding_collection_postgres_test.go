@@ -84,10 +84,10 @@ func seedCollectionRun(t *testing.T, ctx context.Context, pool *pgxpool.Pool, ow
 
 func seedCollectionRunReceipt(t *testing.T, ctx context.Context, pool *pgxpool.Pool, owner, runID, suffix string, missingEvidence bool, extra ...findingintake.ExactArtifact) {
 	t.Helper()
-	seedCollectionRunReceiptDocument(t, ctx, pool, owner, runID, suffix, missingEvidence, nil, extra...)
+	seedCollectionRunReceiptDocument(t, ctx, pool, owner, runID, suffix, missingEvidence, false, nil, extra...)
 }
 
-func seedCollectionRunReceiptDocument(t *testing.T, ctx context.Context, pool *pgxpool.Pool, owner, runID, suffix string, missingEvidence bool, edit func(*auditdomain.FindingProposal), extra ...findingintake.ExactArtifact) {
+func seedCollectionRunReceiptDocument(t *testing.T, ctx context.Context, pool *pgxpool.Pool, owner, runID, suffix string, missingEvidence, publishProblem bool, edit func(*auditdomain.FindingProposal), extra ...findingintake.ExactArtifact) {
 	t.Helper()
 	service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
 	run, err := service.Run(runID)
@@ -140,14 +140,14 @@ func seedCollectionRunReceiptDocument(t *testing.T, ctx context.Context, pool *p
 	evidenceJSON, _ := json.Marshal(append([]findingintake.ExactArtifact{evidence}, extra...))
 	_, err = pool.Exec(ctx, `INSERT INTO finding_proposal_receipts (
 receipt_id, proposal_id, allocation_id, runtime_agent_id, runtime_instance_id, stage_execution_id, logical_agent_name,
-invocation_id, submission_id, client_key, request_digest, run_id, owner_id, workflow_name, workflow_version,
+invocation_id, submission_id, client_key, request_digest, run_id, owner_id, project_id, publication_requested, workflow_name, workflow_version,
 workflow_schema_version, workflow_configuration_ref, workflow_closure_digest, proposal_ref, proposal_digest, proposal_media_type, proposal_size_bytes, evidence,
 report_projection
-) VALUES ($1,$2,$3,'runtime','instance','stage','worker',$4,$5,$6,$7,$8,$9,'source','1','contractor/v1alpha1',
+) VALUES ($1,$2,$3,'runtime','instance','stage','worker',$4,$5,$6,$7,$8,$9,(SELECT project_id FROM workflow_runs WHERE run_id=$8),$15,'source','1','contractor/v1alpha1',
 '{"name":"source","version":"1"}',$7,$10,$11,'application/json',$12,$13,$14)`,
 		"receipt-"+suffix, "proposal-"+suffix, "allocation-"+suffix, "invocation-"+suffix, "submission-"+suffix, suffix,
 		serviceTestDigest(suffix), runID, owner, ref, auditdomain.DigestBytes(body), written.Size, evidenceJSON,
-		string(projection))
+		string(projection), publishProblem)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -203,7 +203,7 @@ func TestFindingCollectionPublicationRunRetentionAndReplay(t *testing.T) {
 		t.Fatalf("collection = %+v %v", collection, err)
 	}
 	for _, entry := range collection.Entries {
-		if len(entry.Reviews) != 0 || entry.AuditOrigin != nil {
+		if entry.Finding != nil || entry.AuditOrigin != nil {
 			t.Fatal("ordinary Run proposal acquired a review")
 		}
 	}
@@ -331,16 +331,11 @@ func TestFindingCollectionAuditContributionsAndPinnedReview(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	first := seedAuditFinding(t, ctx, pool, projectID, owner, auditID, "first")
-	second := seedAuditFinding(t, ctx, pool, projectID, owner, auditID, "second")
-	// Model the existing contribution relation: one finding has two source
-	// receipts, including one that is not its FirstProposal.
-	if _, err := pool.Exec(ctx, `DELETE FROM audit_findings WHERE finding_id=$1`, second); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := pool.Exec(ctx, `INSERT INTO audit_finding_contributions(finding_id,audit_id,receipt_id,relation,proposal_ref)
-SELECT $1,$2,receipt_id,'contributing',proposal_ref FROM finding_proposal_audit_holds WHERE receipt_id='receipt-second' AND audit_id=$2`, first, auditID); err != nil {
-		t.Fatal(err)
+	fingerprint := correlationFingerprint(t)
+	first := seedAuditFindingDocument(t, ctx, pool, projectID, owner, auditID, "first", auditFindingDocument("first"), fingerprint)
+	second := seedAuditFindingDocument(t, ctx, pool, projectID, owner, auditID, "second", auditFindingDocument("second"), fingerprint)
+	if first != second {
+		t.Fatal("qualified receipts did not share one Finding")
 	}
 	publisher := newCollectionTestPublisher(t, pool)
 	params := findingintake.PublishCollectionParams{OwnerID: owner, Request: findingintake.PublishCollectionRequest{ClientKey: "audit-snapshot", Sources: []findingintake.CollectionSelection{
@@ -360,7 +355,7 @@ SELECT $1,$2,receipt_id,'contributing',proposal_ref FROM finding_proposal_audit_
 		t.Fatal(err)
 	}
 	for _, entry := range value.Entries {
-		if entry.Retention != "audit-held" || len(entry.Reviews) != 1 || entry.Reviews[0].FindingID != first || entry.Reviews[0].Revision != 1 || entry.Reviews[0].DecisionID != "" {
+		if entry.Retention != "project-held" || entry.Finding == nil || entry.Finding.FindingID != first || entry.Finding.Revision != 1 || entry.Finding.State != nil {
 			t.Fatalf("captured provenance: %+v", entry)
 		}
 	}
@@ -369,9 +364,11 @@ SELECT $1,$2,receipt_id,'contributing',proposal_ref FROM finding_proposal_audit_
 			t.Fatalf("deleted Run retained source: %+v", document)
 		}
 	}
-	if _, err := pool.Exec(ctx, `UPDATE audit_findings SET state='needs-evidence',revision=revision+1 WHERE finding_id=$1`, first); err != nil {
+	intake, err := findingintake.New(pool)
+	if err != nil {
 		t.Fatal(err)
 	}
+	decideFindingForTest(t, ctx, &Service{pool: pool, findings: intake, now: time.Now}, owner, auditID, first, 1, "snapshot-later", auditstore.VerdictNeedsEvidence, nil, nil)
 	replay, err := publisher.PublishCollection(ctx, params)
 	if err != nil || !replay.Replayed || replay.Artifact.Digest != result.Artifact.Digest {
 		t.Fatalf("review change refreshed snapshot: %+v %v", replay, err)

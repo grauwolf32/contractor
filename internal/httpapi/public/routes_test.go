@@ -21,7 +21,8 @@ import (
 // that its OpenAPI schema accepts (routeTarget checks it), so a request
 // addresses the route's operation instead of failing its path grammar.
 var routePathValues = map[string]string{
-	"exportId": "export-" + strings.Repeat("a", 64), "auditId": "audit-1", "chart": "quality", "commandId": "command-1",
+	"receiptId": "receipt-one",
+	"exportId":  "export-" + strings.Repeat("a", 64), "auditId": "audit-1", "chart": "quality", "commandId": "command-1",
 	"credentialId": "credential-1", "datasetId": "dataset-1", "findingId": "finding-1",
 	"groupKey": strings.Repeat("a", 64), "id": "experiment-1", "kind": "agent-templates",
 	"label": "debug", "memberId": strings.Repeat("a", 64), "name": "source",

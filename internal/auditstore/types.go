@@ -507,7 +507,7 @@ type Round struct {
 }
 
 type Item struct {
- FindingIDs []string
+	FindingIDs          []string
 	Dependencies        *auditdomain.RetainedDependencyManifest
 	ItemID              string
 	AuditID             string
@@ -790,13 +790,14 @@ type ReportFinding struct {
 }
 
 type CommitReportParams struct {
-	Claim                 ControllerClaim
-	ExpectedAuditRevision uint64
-	RoundID               string
-	ExpectedRoundRevision uint64
-	Machine               ArtifactLink
-	Summary               ArtifactLink
-	RequestDigest         string
+	ExpectedProjectRevision uint64
+	Claim                   ControllerClaim
+	ExpectedAuditRevision   uint64
+	RoundID                 string
+	ExpectedRoundRevision   uint64
+	Machine                 ArtifactLink
+	Summary                 ArtifactLink
+	RequestDigest           string
 }
 
 type ProposeReportParams = CommitReportParams
@@ -833,7 +834,7 @@ type Event struct {
 }
 
 type CoverageRow struct {
- FindingIDs []string `json:"findingIds"`
+	FindingIDs []string `json:"findingIds"`
 	AuditID    string
 	RoundID    string
 	ItemID     string

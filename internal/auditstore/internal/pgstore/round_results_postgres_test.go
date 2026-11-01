@@ -152,7 +152,7 @@ func TestPostgresRoundResultsCaptureRestartsBeforeSealAndPinsReviewGeneration(t 
 	if _, err = f.store.ReadRoundResultsPage(f.ctx, p, first.Generation, 0); !errors.Is(err, auditstore.ErrPrecondition) {
 		t.Fatalf("unsealed page availability=%v", err)
 	}
-	if _, err = f.pool.Exec(f.ctx, `UPDATE audit_findings SET revision=revision+1 WHERE finding_id=$1`, findingID); err != nil {
+	if _, err = f.pool.Exec(f.ctx, `UPDATE project_findings SET revision=revision+1 WHERE finding_id=$1`, findingID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = f.pool.Exec(f.ctx, `UPDATE audits SET revision=revision+1 WHERE audit_id=$1`, f.audit.AuditID); err != nil {
@@ -179,7 +179,7 @@ func TestPostgresRoundResultsCaptureRestartsBeforeSealAndPinsReviewGeneration(t 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if page.Items[0].SelectedAttempt == nil || page.Items[0].SelectedAttempt.ReceiptID != "collection-round-results-finding" || len(page.Items[0].Findings) != 1 || page.Items[0].Findings[0].Revision != 3 {
+	if page.Items[0].SelectedAttempt == nil || page.Items[0].SelectedAttempt.ReceiptID != "collection-round-results-finding" || len(page.Items[0].Findings) != 1 || page.Items[0].Findings[0].ProjectID != f.project.ProjectID {
 		t.Fatalf("selected exact result/review=%+v", page.Items[0])
 	}
 	before, err := f.store.Get(f.ctx, f.audit.OwnerID, f.audit.AuditID)
@@ -194,7 +194,7 @@ func TestPostgresRoundResultsCaptureRestartsBeforeSealAndPinsReviewGeneration(t 
 	if after.RetainedEvidenceBytes-before.RetainedEvidenceBytes != state.MetadataBytes+root.SizeBytes {
 		t.Fatalf("duplicate metadata debit=%d, want %d", after.RetainedEvidenceBytes-before.RetainedEvidenceBytes, state.MetadataBytes+root.SizeBytes)
 	}
-	if _, err = f.pool.Exec(f.ctx, `UPDATE audit_findings SET revision=revision+1 WHERE finding_id=$1`, findingID); err != nil {
+	if _, err = f.pool.Exec(f.ctx, `UPDATE project_findings SET revision=revision+1 WHERE finding_id=$1`, findingID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = f.pool.Exec(f.ctx, `UPDATE audits SET revision=revision+1 WHERE audit_id=$1`, f.audit.AuditID); err != nil {

@@ -1,4 +1,7 @@
-import { ARTIFACT_STORAGE_TIMESTAMPS } from "../../test/builders";
+import {
+  ARTIFACT_STORAGE_TIMESTAMPS,
+  findingSummary,
+} from "../../test/builders";
 import { deferred } from "../../test/deferred";
 import { ownerListResponse } from "../../test/owner-lists";
 import { act, screen, waitFor, within } from "@testing-library/react";
@@ -38,9 +41,9 @@ function check(
   };
 }
 
-function finding(auditId: string, findingId: string, title: string) {
+function finding(projectId: string, findingId: string, title: string) {
   return makeFinding(
-    { auditId, findingId, createdAt: RECENT },
+    { projectId, findingId, createdAt: RECENT },
     { title, subject: { kind: "operation", key: "GET /orders/{id}" } },
   );
 }
@@ -227,6 +230,22 @@ function serve(server: FakeServer) {
           ? failure(404, "not_found", "not found")
           : json(found, 200, { ETag: `"${found.revision}"` });
       }
+      match = /^\/v1\/projects\/([^/]+)\/findings$/.exec(path);
+      if (match !== null) {
+        await Promise.all(
+          Object.keys(server.findings ?? {}).map((id) =>
+            server.holdFindings?.(id),
+          ),
+        );
+        const items = Object.values(server.findings ?? {})
+          .flat()
+          .filter((f) => f.projectId === match![1]);
+        return json({
+          items: items.map(findingSummary),
+          projectRevision: 1,
+          page: { hasMore: false },
+        });
+      }
       match = /^\/v1\/audits\/([^/]+)\/(findings|reviews)$/.exec(path);
       if (match !== null) {
         if (match[2] === "findings") await server.holdFindings?.(match[1]!);
@@ -235,8 +254,8 @@ function serve(server: FakeServer) {
             ? (server.findings?.[match[1]!] ?? [])
             : [];
         return json({
-          ...page(items),
-          total: items.length,
+          ...page(items.map((f) => findingSummary(f))),
+          projectRevision: 1,
           auditRevision: 1,
           asOf: RECENT,
         });
@@ -375,13 +394,13 @@ describe("Projects list pane", () => {
         },
         findings: {
           audit_running: [
-            finding("audit_running", "finding_1", "First"),
-            finding("audit_running", "finding_2", "Second"),
+            finding("project_a", "finding_1", "First"),
+            finding("project_a", "finding_2", "Second"),
           ],
           // Finished checks' possible issues count too, as on the overview.
-          audit_done: [finding("audit_done", "finding_3", "Third")],
-          audit_waiting: [finding("audit_waiting", "finding_4", "Fourth")],
-          audit_old: [finding("audit_old", "finding_5", "Fifth")],
+          audit_done: [finding("project_a", "finding_3", "Third")],
+          audit_waiting: [finding("project_c", "finding_4", "Fourth")],
+          audit_old: [finding("project_g", "finding_5", "Fifth")],
         },
       },
       "/projects",
@@ -433,10 +452,10 @@ describe("Projects list pane", () => {
           ],
         },
         findings: {
-          audit_running: [finding("audit_running", "finding_1", "First")],
+          audit_running: [finding("project_a", "finding_1", "First")],
           audit_done: [
-            finding("audit_done", "finding_2", "Second"),
-            finding("audit_done", "finding_3", "Third"),
+            finding("project_a", "finding_2", "Second"),
+            finding("project_a", "finding_3", "Third"),
           ],
         },
       },
@@ -816,10 +835,10 @@ describe("Project overview", () => {
       ],
     },
     findings: {
-      audit_running: [finding("audit_running", "finding_1", "Order IDOR")],
+      audit_running: [finding("project_a", "finding_1", "Order IDOR")],
       audit_done: [
-        finding("audit_done", "finding_2", "SQL in search"),
-        finding("audit_done", "finding_3", "Hard-coded key"),
+        finding("project_a", "finding_2", "SQL in search"),
+        finding("project_a", "finding_3", "Hard-coded key"),
       ],
     },
     runs: [
@@ -868,7 +887,7 @@ describe("Project overview", () => {
     const glance = await screen.findByRole("region", { name: "At a glance" });
     expect(
       await within(glance).findByRole("link", { name: "3 to review" }),
-    ).toHaveAttribute("href", "/issues?state=proposed&project=project_a");
+    ).toHaveAttribute("href", "/issues?project=project_a");
     expect(
       within(glance).getByRole("link", { name: "1 running" }),
     ).toHaveAttribute("href", "/projects/project_a/audits");
@@ -953,7 +972,7 @@ describe("Project overview", () => {
     await within(timeline).findByRole("link", { name: "Order IDOR" });
     expect(
       within(timeline).getByRole("link", { name: "Order IDOR" }),
-    ).toHaveAttribute("href", "/issues/audit_running/finding_1");
+    ).toHaveAttribute("href", "/issues/project_a/finding_1");
     expect(
       within(timeline).getByRole("link", { name: "OpenAPI · Operation trace" }),
     ).toHaveAttribute("href", "/projects/project_a/audits/audit_running");
@@ -1199,14 +1218,13 @@ describe("Project overview", () => {
       revision: 2,
     };
     server.findings!.audit_running = [
-      finding("audit_running", "finding_1", "Order IDOR"),
-      finding("audit_running", "finding_9", "Price tampering"),
+      finding("project_a", "finding_1", "Order IDOR"),
+      finding("project_a", "finding_9", "Price tampering"),
     ];
     const held = deferred();
     server.holdFindings = (auditId) =>
       auditId === "audit_running" ? held.promise : undefined;
-    const issueReads = () =>
-      reads(requests, "/v1/audits/audit_running/findings");
+    const issueReads = () => reads(requests, "/v1/projects/project_a/findings");
     const before = issueReads();
     await user.click(screen.getByRole("button", { name: "Refresh" }));
     await waitFor(() => expect(issueReads()).toBe(before + 1));
@@ -1327,7 +1345,7 @@ describe("Project overview", () => {
     expect(within(after).queryByRole("link", { name: "1 running" })).toBeNull();
     // Its possible issue ("Order IDOR") is no longer counted either.
     expect(
-      await within(after).findByRole("link", { name: "2 to review" }),
+      await within(after).findByRole("link", { name: "3 to review" }),
     ).toBeVisible();
     expect(
       within(screen.getByRole("region", { name: "Timeline" })).queryByRole(

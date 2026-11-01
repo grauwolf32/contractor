@@ -1,7 +1,11 @@
 import { useId, type ReactNode } from "react";
 import { Link, type To } from "react-router";
 
-import type { Audit, ProjectFinding, AuditItem } from "../../../api/audits";
+import type {
+  Audit,
+  ProjectFindingSummary,
+  AuditItem,
+} from "../../../api/audits";
 import { ContextLink } from "../../../app/context-navigation";
 import {
   capitalize,
@@ -18,7 +22,6 @@ import {
   StatusChip,
   StatusGlyph,
 } from "../../../ui";
-import { weaknessReferences } from "../../decisions/text";
 import { itemActivity } from "./activity-model";
 import { statusDescription } from "./assessments";
 import { formatSpan } from "./check-format";
@@ -96,13 +99,19 @@ function gapsHeading(entry: CheckEntry): string {
   }
 }
 
-function IssueRow({ audit, finding }: { audit: Audit; finding: ProjectFinding }) {
-  const document = finding.firstProposal.document;
+function IssueRow({
+  finding,
+}: {
+  audit: Audit;
+  finding: ProjectFindingSummary;
+}) {
+  const document = finding;
   const state = findingStateLabel(finding.state);
-  const weaknesses = weaknessReferences(document);
   const needsReview =
-    finding.state === "proposed" || finding.state === "needs-evidence";
-  const to = `/issues/${encodeURIComponent(audit.auditId)}/${encodeURIComponent(finding.findingId)}`;
+    finding.state === null ||
+    finding.state === "proposed" ||
+    finding.state === "needs-evidence";
+  const to = `/issues/${encodeURIComponent(finding.projectId)}/${encodeURIComponent(finding.findingId)}`;
   return (
     <li
       className="checks-issue"
@@ -112,11 +121,6 @@ function IssueRow({ audit, finding }: { audit: Audit; finding: ProjectFinding })
       <div className="checks-issue-main">
         <Link to={to}>{document.title}</Link>
         <p className="checks-issue-meta">
-          {weaknesses.length === 0 ? null : (
-            <span>
-              {weaknesses.map((weakness) => weakness.requirement_id).join(", ")}
-            </span>
-          )}
           <span>
             Severity {severityLabel(finding.analystSeverity).toLowerCase()}
           </span>

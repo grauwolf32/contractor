@@ -6,7 +6,6 @@
 import {
   AUDIT_ID_PATTERN,
   type FindingVerdict,
-  type ProjectFinding,
   type FindingSeverity,
   type AuditReviewAction,
   type AuditReviewRequest,
@@ -19,8 +18,6 @@ import { writeConflict } from "../../app/conflict";
 import {
   reviewActionLabel,
   SEVERITY_LABELS,
-  severityLabel,
-  verdictLabel,
   type VocabularyLabel,
 } from "../../app/vocabulary";
 
@@ -30,10 +27,8 @@ export type ProjectFindingEditResult =
 
 /** Rationale limit of every decision, in UTF-8 bytes (x-max-utf8-bytes). */
 export const MAX_RATIONALE_BYTES = schemaLimit(
-  "DecideAuditReviewRequest",
+  "DecisionRationale",
   "x-max-utf8-bytes",
-  "properties",
-  "rationale",
 );
 
 /** Required-reason helper text (contract §3). */
@@ -140,8 +135,10 @@ export function reviewExpired(
 }
 
 /** "Confirmed · High", "Not an issue", "Approved", … */
-export function decisionOutcome(decision:Pick<AuditReviewDecision,"action">):VocabularyLabel {
- return reviewActionLabel(decision.action);
+export function decisionOutcome(
+  decision: Pick<AuditReviewDecision, "action">,
+): VocabularyLabel {
+  return reviewActionLabel(decision.action);
 }
 
 /** What a refused decision was about, for the explanation. */

@@ -204,7 +204,7 @@ func TestPostgresFindingRunDeletionSerializesWithAuditPurge(t *testing.T) {
 				t.Fatalf("source Run survived deletion: %v", err)
 			}
 			receipt, err := readReceiptByID(f.ctx, f.pool, f.receiptID)
-			if err != nil || !receipt.Origin.RunDeleted || receipt.Retention != RetentionDiscarded || len(receipt.AuditHolds) != 0 {
+			if err != nil || !receipt.Origin.RunDeleted || receipt.Retention != RetentionProjectHeld || len(receipt.AuditHolds) != 0 {
 				t.Fatalf("retention after both purges = %+v, %v", receipt, err)
 			}
 		})

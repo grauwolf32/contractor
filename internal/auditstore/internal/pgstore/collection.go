@@ -26,7 +26,10 @@ func (s *ClaimStore) Collect(
 		}
 		return bound.retainFindingCheckResults(ctx, params)
 	})
-	return receipt, changed, err
+	if err != nil {
+		return auditstore.CollectionReceipt{}, false, err
+	}
+	return receipt, changed, nil
 }
 
 func (s *ClaimStore) collect(ctx context.Context, params auditstore.CollectParams) (auditstore.CollectionReceipt, bool, error) {

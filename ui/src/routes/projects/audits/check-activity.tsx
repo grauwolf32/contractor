@@ -53,7 +53,10 @@ function issuePath(auditId: string, findingId: string): string {
   return `/issues/${encodeURIComponent(auditId)}/${encodeURIComponent(findingId)}`;
 }
 
-function newestFirst(left: ProjectFindingSummary, right: ProjectFindingSummary): number {
+function newestFirst(
+  left: ProjectFindingSummary,
+  right: ProjectFindingSummary,
+): number {
   return Date.parse(right.createdAt) - Date.parse(left.createdAt);
 }
 
@@ -110,7 +113,9 @@ function Decisions({
                 <strong>{reviewKindLabel(review.kind)}</strong>
                 <span>
                   {subjects.get(review.subjectId) ??
-                    (review.subjectKind === "audit-report" ? "Check report" : "")}
+                    (review.subjectKind === "audit-report"
+                      ? "Check report"
+                      : "")}
                 </span>
                 <span className="ui-caption">
                   Requested <RecordedTime value={review.createdAt} />
@@ -251,7 +256,7 @@ function Issues({
               <li key={finding.findingId} className="checks-issue">
                 <StatusGlyph tone={state.tone} />
                 <div className="checks-issue-main">
-                  <Link to={issuePath(finding.projectId,finding.findingId)}>
+                  <Link to={issuePath(finding.projectId, finding.findingId)}>
                     {finding.title}
                   </Link>
                   <p className="checks-issue-meta">

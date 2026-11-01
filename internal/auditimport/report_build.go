@@ -42,9 +42,10 @@ type reportPosition struct {
 // reportBuild is the progress of one Audit revision's report build, replayed
 // from its recorded pages.
 type reportBuild struct {
-	positions []reportPosition
-	index     int
-	ordinal   int
+	projectRevision uint64
+	positions       []reportPosition
+	index           int
+	ordinal         int
 	// afterItem and afterFinding are the cursor inside positions[index].
 	afterItem    int
 	afterFinding *auditstore.ReportFindingCursor
@@ -114,7 +115,12 @@ func (i *Importer) resumeReport(
 	ctx context.Context, audit auditstore.Audit, rounds []auditstore.Round,
 ) (reportBuild, error) {
 	build := newReportBuild(rounds)
-	pages, err := i.reads.ListReportPages(ctx, audit.AuditID, audit.Revision)
+	var err error
+	build.projectRevision, err = i.reads.ReportProjectRevision(ctx, audit.AuditID)
+	if err != nil {
+		return reportBuild{}, err
+	}
+	pages, err := i.reads.ListReportPages(ctx, audit.AuditID, audit.Revision, build.projectRevision)
 	if err != nil {
 		return reportBuild{}, err
 	}
@@ -149,7 +155,7 @@ func (i *Importer) recordNextPage(
 	}
 	page.ContentBytes = len(content)
 	if err := i.store.RecordReportPage(ctx, auditstore.RecordReportPageParams{
-		Claim: claim, ExpectedAuditRevision: audit.Revision, Page: page, Content: content,
+		Claim: claim, ExpectedAuditRevision: audit.Revision, ExpectedProjectRevision: build.projectRevision, Page: page, Content: content,
 	}); err != nil {
 		return err
 	}
@@ -257,7 +263,7 @@ func newReportFinding(row auditstore.ReportFinding) reportFinding {
 func (i *Importer) readReportSections(
 	ctx context.Context, audit auditstore.Audit, build reportBuild,
 ) (json.RawMessage, reportFindingSections, reportFindingCounts, error) {
-	sections, err := i.reads.ReadReportSections(ctx, audit.AuditID, audit.Revision)
+	sections, err := i.reads.ReadReportSections(ctx, audit.AuditID, audit.Revision, build.projectRevision)
 	if err != nil {
 		return nil, reportFindingSections{}, reportFindingCounts{}, err
 	}

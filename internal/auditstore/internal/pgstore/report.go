@@ -20,7 +20,7 @@ func (s *ClaimStore) CommitReport(
 	audit, err := scanAudit(s.db.QueryRow(ctx, commitReportSQL+prefixedAuditColumns("changed")+` FROM changed`,
 		params.Claim.AuditID, params.Claim.HolderID, params.Claim.Epoch,
 		params.ExpectedAuditRevision, params.RoundID, params.ExpectedRoundRevision,
-		params.RequestDigest, payload,
+		params.RequestDigest, payload, params.ExpectedProjectRevision,
 	))
 	if err == nil {
 		return audit, nil

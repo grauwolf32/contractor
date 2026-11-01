@@ -25,7 +25,7 @@ SELECT CASE WHEN EXISTS(SELECT 1 FROM weighted WHERE cumulative>$2) THEN $2
  ELSE COALESCE((SELECT sum(work) FROM deleted),0)::integer END`
 
 var purgeAuditDomainSQL = []string{
- `WITH batch AS (SELECT audit_id,finding_id FROM project_finding_audits WHERE audit_id=$1 ORDER BY finding_id LIMIT LEAST($2,128))
+	`WITH batch AS (SELECT audit_id,finding_id FROM project_finding_audits WHERE audit_id=$1 ORDER BY finding_id LIMIT LEAST($2,128))
  DELETE FROM project_finding_audits AS membership USING batch WHERE membership.audit_id=batch.audit_id AND membership.finding_id=batch.finding_id`,
 	`WITH batch AS (
   SELECT ctid FROM audit_round_result_pages WHERE audit_id = $1 LIMIT $2

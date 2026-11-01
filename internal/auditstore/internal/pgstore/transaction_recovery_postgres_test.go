@@ -160,7 +160,7 @@ func TestPostgresRecoveryPathsRunInsideACallerTransaction(t *testing.T) {
 		}},
 		{"ProposeReport", auditstore.ErrPrecondition, func(ctx context.Context, s *testStore) error {
 			_, _, err := s.ProposeReport(ctx, auditstore.ProposeReportParams{
-				Claim: f.claim, ExpectedAuditRevision: f.audit.Revision,
+				Claim: f.claim, ExpectedAuditRevision: f.audit.Revision, ExpectedProjectRevision: 1,
 				RoundID: roundID, ExpectedRoundRevision: round.Revision,
 				Machine: machine, Summary: summary, RequestDigest: testDigest("8"),
 			})

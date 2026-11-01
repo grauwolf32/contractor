@@ -12,6 +12,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	"github.com/jackc/pgx/v5"
 )
@@ -45,7 +46,7 @@ func ValidateRecordReportPage(params auditstore.RecordReportPageParams) error {
 		return err
 	}
 	page := params.Page
-	if params.ExpectedAuditRevision == 0 || params.ExpectedAuditRevision > math.MaxInt64 ||
+	if params.ExpectedProjectRevision == 0 || params.ExpectedProjectRevision > contracts.MaxExactInteger || params.ExpectedAuditRevision == 0 || params.ExpectedAuditRevision > math.MaxInt64 ||
 		page.Ordinal < 0 || page.Ordinal >= auditstore.MaxReportPages || !page.Section.Valid() ||
 		page.EntryCount < 0 || page.EntryCount > auditstore.MaxReportPageRows ||
 		(page.EntryCount == 0) != (len(params.Content) == 0) ||
@@ -107,7 +108,7 @@ func (s *ClaimStore) RecordReportPage(ctx context.Context, params auditstore.Rec
 		params.Claim.AuditID, params.Claim.HolderID, params.Claim.Epoch,
 		params.ExpectedAuditRevision, page.Ordinal, string(page.Section), page.RoundID,
 		page.LastItemOrdinal, lastCreatedAt, lastFindingID, page.Exhausted,
-		page.EntryCount, content, coverageCounts,
+		page.EntryCount, content, coverageCounts, params.ExpectedProjectRevision,
 	).Scan(&recorded)
 	if err == nil {
 		return nil
@@ -125,14 +126,14 @@ func (s *ClaimStore) RecordReportPage(ctx context.Context, params auditstore.Rec
 
 // ListReportPages returns the metadata of the pages recorded for one Audit
 // revision, in page order, without their content.
-func (s *QueryStore) ListReportPages(ctx context.Context, auditID string, revision uint64) ([]auditstore.ReportPage, error) {
+func (s *QueryStore) ListReportPages(ctx context.Context, auditID string, revision, projectRevision uint64) ([]auditstore.ReportPage, error) {
 	if err := validateID("auditID", auditID); err != nil {
 		return nil, err
 	}
 	if revision == 0 || revision > math.MaxInt64 {
 		return nil, invalidf("report revision is invalid")
 	}
-	rows, err := s.db.Query(ctx, listReportPagesSQL, auditID, int64(revision), auditstore.MaxReportPages+1)
+	rows, err := s.db.Query(ctx, listReportPagesSQL, auditID, int64(revision), auditstore.MaxReportPages+1, projectRevision)
 	if err != nil {
 		return nil, fmt.Errorf("list Audit report pages: %w", err)
 	}
@@ -190,7 +191,7 @@ func scanReportPage(row scanner) (auditstore.ReportPage, error) {
 // Audit revision's report build. Recording bounds the total content by the
 // machine report bound, so the result is bounded too.
 func (s *QueryStore) ReadReportSections(
-	ctx context.Context, auditID string, revision uint64,
+	ctx context.Context, auditID string, revision, projectRevision uint64,
 ) (map[auditstore.ReportSection]auditstore.ReportSectionContent, error) {
 	if err := validateID("auditID", auditID); err != nil {
 		return nil, err
@@ -198,7 +199,7 @@ func (s *QueryStore) ReadReportSections(
 	if revision == 0 || revision > math.MaxInt64 {
 		return nil, invalidf("report revision is invalid")
 	}
-	rows, err := s.db.Query(ctx, readReportSectionsSQL, auditID, int64(revision))
+	rows, err := s.db.Query(ctx, readReportSectionsSQL, auditID, int64(revision), projectRevision)
 	if err != nil {
 		return nil, fmt.Errorf("read Audit report sections: %w", err)
 	}
@@ -359,4 +360,23 @@ func scanReportFinding(row scanner) (auditstore.ReportFinding, bool, error) {
 		return value, false, errors.New("stored report Finding claim is invalid")
 	}
 	return value, true, nil
+}
+
+// ReportProjectRevision pins report assembly to the canonical Finding owner.
+func (s *QueryStore) ReportProjectRevision(ctx context.Context, auditID string) (uint64, error) {
+	if err := validateID("auditID", auditID); err != nil {
+		return 0, err
+	}
+	var revision uint64
+	err := s.db.QueryRow(ctx, reportProjectRevisionSQL, auditID).Scan(&revision)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, auditstore.ErrNotFound
+	}
+	if err != nil {
+		return 0, fmt.Errorf("read report Project revision: %w", err)
+	}
+	if revision < 1 || revision > contracts.MaxExactInteger {
+		return 0, errors.New("stored report Project revision is invalid")
+	}
+	return revision, nil
 }

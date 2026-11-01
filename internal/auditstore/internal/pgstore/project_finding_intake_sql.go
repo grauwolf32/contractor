@@ -6,7 +6,12 @@ package pgstore
 // A missing/ambiguous primary key never merges independent receipts.
 const admitProjectFindingSQL = `
 WITH qualified AS MATERIALIZED (
-    SELECT receipt.receipt_id, receipt.project_proposal, receipt.report_projection::jsonb->>'title' AS title, primary_key.*,
+    SELECT project.owner_id, receipt.receipt_id, receipt.project_proposal, receipt.report_projection::jsonb->>'title' AS title,
+           left(coalesce(receipt.report_projection::jsonb->'subject'->>'kind',''),64) AS subject_kind,
+           left(coalesce(receipt.report_projection::jsonb->'subject'->>'key',''),256) AS subject_key,
+           length(coalesce(receipt.report_projection::jsonb->'subject'->>'key',''))>256 OR
+             length(coalesce(receipt.report_projection::jsonb->'subject'->>'kind',''))>64 AS subject_truncated,
+           receipt.report_projection::jsonb->>'severity_suggestion' AS severity_suggestion, primary_key.*,
            CASE WHEN primary_key.algorithm='' THEN ''
                 ELSE contractor_finding_group_key($1,primary_key.algorithm,primary_key.value) END AS group_key
       FROM finding_proposal_receipts AS receipt
@@ -20,9 +25,9 @@ WITH qualified AS MATERIALIZED (
     SELECT finding.finding_id FROM project_findings AS finding JOIN qualified
         ON qualified.group_key<>'' AND finding.project_id=$1 AND finding.correlation_group_key=qualified.group_key
 ), inserted AS (
-    INSERT INTO project_findings(finding_id,project_id,first_receipt_id,first_proposal_ref,title,
+    INSERT INTO project_findings(finding_id,project_id,owner_id,first_receipt_id,first_proposal_ref,title,subject_kind,subject_key,subject_truncated,severity_suggestion,
         correlation_algorithm,correlation_value,correlation_group_key,correlation_reason)
-    SELECT $3,$1,receipt_id,project_proposal,title,algorithm,value,group_key,reason FROM qualified
+    SELECT $3,$1,owner_id,receipt_id,project_proposal,title,subject_kind,subject_key,subject_truncated,severity_suggestion,algorithm,value,group_key,reason FROM qualified
      WHERE NOT EXISTS(SELECT 1 FROM matched)
     RETURNING finding_id
 )

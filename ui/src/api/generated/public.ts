@@ -1008,7 +1008,7 @@ export interface paths {
         };
         /**
          * List findings across the owner’s active Projects
-         * @description Live newest-first keyset pagination by creation time and identity. Only the authenticated owner's active regular Projects are included; evaluation workspaces are excluded. Cursors bind the owner, endpoint and filters. These are live lists, not a revision-pinned cross-project snapshot.
+         * @description Live newest-first keyset pagination by creation time and identity. Only the authenticated owner's active regular Projects are included; evaluation workspaces are excluded. Cursors bind the owner, endpoint and filters. These are live lists, not a revision-pinned cross-project snapshot. A bounded candidate window may return fewer than limit matching items, including no items, with hasMore=true. Always follow nextCursor until hasMore=false.
          */
         get: operations["listOwnerFindings"];
         put?: never;
@@ -2775,7 +2775,7 @@ export interface components {
         };
         FindingCorrelationFence: {
             projectId: components["schemas"]["ResourceId"];
-            projectRevision?: number;
+            projectRevision: number;
             audits: components["schemas"]["FindingComparisonAudit"][];
         };
         FindingComparisonOrigin: {
@@ -4234,7 +4234,7 @@ export interface components {
             disposition?: components["schemas"]["AuditCollectionDisposition"];
             subjectKind?: components["schemas"]["AuditReviewSubjectKind"];
             /** @enum {string} */
-            kind?: "finding-triage" | "active-check-approval" | "requirement-applicability" | "report-acceptance";
+            kind?: "active-check-approval" | "requirement-applicability" | "report-acceptance";
             action?: components["schemas"]["AuditReviewAction"];
             /** @enum {string} */
             verdict?: "true_positive" | "false_positive" | "needs_evidence" | "duplicate" | "reopen";
@@ -4457,7 +4457,7 @@ export interface components {
             status: components["schemas"]["AuditReportStatus"];
             machineArtifact?: components["schemas"]["AuditExactArtifact"];
             summaryArtifact?: components["schemas"]["AuditReportSummaryArtifact"];
-            /** @description Exact contractor.audit.report.v1 machine-readable document. */
+            /** @description Exact contractor.audit.report.v2 machine-readable document. */
             machine?: {
                 [key: string]: unknown;
             };
@@ -4799,7 +4799,7 @@ export interface components {
             auditId: components["schemas"]["ResourceId"];
             actorId: string;
             action: components["schemas"]["AuditReviewAction"];
-            rationale: string;
+            rationale: components["schemas"]["DecisionRationale"];
             subjectRevision: number;
             subjectDigest: components["schemas"]["Digest"];
             /** Format: date-time */
@@ -4869,7 +4869,7 @@ export interface components {
         };
         DecideAuditReviewRequest: {
             action: components["schemas"]["AuditReviewAction"];
-            rationale: string;
+            rationale: components["schemas"]["DecisionRationale"];
         };
         AuditReviewDecisionResult: {
             request: components["schemas"]["AuditReviewRequest"];
@@ -6839,8 +6839,8 @@ export interface components {
             analystVerdict: components["schemas"]["FindingVerdict"] | null;
             analystSeverity: components["schemas"]["FindingSeverity"] | null;
             duplicateTargetId: components["schemas"]["ResourceId"] | null;
-            rationale: string | null;
-            actorId: components["schemas"]["ResourceId"] | null;
+            rationale: components["schemas"]["DecisionRationale"] | null;
+            actorId: string | null;
             assessedAt: string | null;
             revision: number;
             /** Format: date-time */
@@ -6869,6 +6869,11 @@ export interface components {
             projectId: components["schemas"]["ResourceId"];
             title: string;
             titleTruncated: boolean;
+            subjectKind: string;
+            subjectKey: string;
+            subjectTruncated: boolean;
+            /** @enum {string} */
+            severitySuggestion: "" | "informational" | "low" | "medium" | "high" | "critical";
             state: components["schemas"]["FindingState"] | null;
             analystVerdict: components["schemas"]["FindingVerdict"] | null;
             analystSeverity: components["schemas"]["FindingSeverity"] | null;
@@ -6884,20 +6889,21 @@ export interface components {
             projectRevision: number;
             page: components["schemas"]["PageInfo"];
         };
+        DecisionRationale: string;
         EditProjectFindingRequest: {
             /** @constant */
             verdict: "true_positive";
             severity: components["schemas"]["FindingSeverity"];
-            rationale: string;
+            rationale: components["schemas"]["DecisionRationale"];
         } | {
             /** @enum {string} */
             verdict: "false_positive" | "reopen" | "needs_evidence";
-            rationale: string;
+            rationale: components["schemas"]["DecisionRationale"];
         } | {
             /** @constant */
             verdict: "duplicate";
             duplicateTargetId: components["schemas"]["ResourceId"];
-            rationale: string;
+            rationale: components["schemas"]["DecisionRationale"];
         };
         EditProjectFindingResult: {
             finding: components["schemas"]["ProjectFinding"];
@@ -10254,8 +10260,6 @@ export interface operations {
             query?: {
                 limit?: components["parameters"]["Limit"];
                 cursor?: components["parameters"]["Cursor"];
-                /** @description Comma-separated Audit states. */
-                auditState?: string;
                 state?: components["schemas"]["FindingState"];
                 verdict?: "true_positive" | "false_positive" | "unreviewed";
                 severity?: components["schemas"]["FindingSeverity"];
@@ -13370,6 +13374,8 @@ export interface operations {
                 limit?: number;
                 cursor?: components["parameters"]["Cursor"];
                 findingId?: components["schemas"]["ResourceId"];
+                /** @description Pin the current Project source snapshot; stale revisions conflict. */
+                projectRevision?: number;
             };
             header?: never;
             path: {

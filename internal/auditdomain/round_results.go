@@ -10,9 +10,9 @@ import (
 )
 
 const (
-	RoundResultsSchema                  = "contractor.audit.round-results.v1"
-	RoundResultsPageSchema              = "contractor.audit.round-results-page.v1"
-	RoundResultsConsumerSchema          = "contractor.audit.round-results-consumer.v1"
+	RoundResultsSchema                  = "contractor.audit.round-results.v2"
+	RoundResultsPageSchema              = "contractor.audit.round-results-page.v2"
+	RoundResultsConsumerSchema          = "contractor.audit.round-results-consumer.v2"
 	MaximumRoundResultsPages            = 256
 	MaximumRoundResultsDocumentBytes    = 256 << 10
 	MaximumRoundResultsBytes            = 64 << 20
@@ -103,11 +103,8 @@ type RoundResultAttachment struct {
 }
 
 type RoundResultFinding struct {
-	FindingID string  `json:"finding_id" strictjson:"required"`
-	ProjectID string  `json:"project_id" strictjson:"required"`
-	Revision  uint64  `json:"revision" strictjson:"required"`
-	State     *string `json:"state" strictjson:"required"`
-	Verdict   *string `json:"verdict" strictjson:"required"`
+	FindingID string `json:"finding_id" strictjson:"required"`
+	ProjectID string `json:"project_id" strictjson:"required"`
 }
 
 // RoundResultsConsumer is a derived Run-local descriptor. The accepted source
@@ -222,7 +219,7 @@ func ValidateRoundResultsPage(value RoundResultsPage) error {
 			}
 		}
 		for _, finding := range item.Findings {
-			if finding.FindingID == "" || finding.ProjectID == "" || finding.Revision == 0 {
+			if !contracts.ValidResourceID(finding.FindingID) || !contracts.ValidResourceID(finding.ProjectID) {
 				return invalid(CodeInvalid, "round_results_page.findings")
 			}
 		}

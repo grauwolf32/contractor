@@ -25,7 +25,7 @@ type AuditManagement interface {
 	FindingCandidates(context.Context, auditservice.FindingCandidatesParams) (auditservice.FindingCandidatesPage, error)
 	CompareFindings(context.Context, auditservice.FindingComparisonParams) (auditservice.FindingComparisonPage, error)
 	ListEventsPage(context.Context, auditstore.EventListParams) (auditservice.EventPage, error)
-	ListOwnerFindings(context.Context, auditstore.OwnerFindingListParams) ([]auditstore.ProjectFindingSummary, error)
+	ListOwnerFindings(context.Context, auditstore.OwnerFindingListParams) (auditstore.FindingWindow, error)
 	ListOwnerReviews(context.Context, auditstore.OwnerReviewListParams) ([]auditstore.ReviewRequest, error)
 	GetWorkspace(context.Context, string, string) (auditstore.WorkspaceSummary, error)
 	ListFindingsPage(context.Context, auditstore.FindingListParams) (auditservice.FindingPage, error)
@@ -53,7 +53,6 @@ type AuditManagement interface {
 	GetRound(context.Context, string, string, string) (auditstore.Round, error)
 	ListCoverage(context.Context, string, string, string, int, int, *uint64) (auditservice.CoveragePage, error)
 	GetReport(context.Context, string, string) (auditservice.ReportProjection, error)
-	GetFinding(context.Context, string, string, string) (auditservice.Finding, error)
 	DecideActionReview(context.Context, auditservice.DecideActionReviewParams) (auditservice.ActionReviewDecisionResult, error)
 	GetReview(context.Context, string, string, string) (auditstore.ReviewRequest, error)
 }
@@ -605,7 +604,7 @@ func (h *auditHandlers) listAuditCoverage(w http.ResponseWriter, r *http.Request
 	items := make([]auditCoverageResponse, len(coverage))
 	for index, row := range coverage {
 		items[index] = auditCoverageResponse{
-			RoundID: row.RoundID, ItemID: row.ItemID, Ordinal: row.Ordinal,
+			FindingIDs: append([]string{}, row.FindingIDs...), RoundID: row.RoundID, ItemID: row.ItemID, Ordinal: row.Ordinal,
 			ItemKey: row.ItemKey, SubjectKey: row.SubjectKey, Coverage: row.Coverage,
 			Result: row.Result, UpdatedAt: row.UpdatedAt, Details: row.Details,
 		}

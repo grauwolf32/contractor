@@ -171,7 +171,7 @@ function shorten(text: string, limit: number): string {
  */
 export function aiSummary(finding: ProjectFinding): string {
   const document = finding.claim;
- if(document===undefined) return finding.title;
+  if (document === undefined) return finding.title;
   const title = document.title.trim();
   const paragraph = plainText(
     firstParagraph(splitImpact(document.description).found),

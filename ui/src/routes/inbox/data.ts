@@ -30,7 +30,6 @@ import {
 import {
   getAuditReport,
   getAuditWorkspace,
-  type FindingState,
   type AuditItem,
   type AuditReport,
   type AuditReviewRequest,
@@ -84,8 +83,6 @@ import {
 } from "./model";
 
 const POLL_MS = CROSS_PROJECT_LIMITS.pollMs;
-
-const PROPOSED: readonly FindingState[] = ["proposed"];
 
 /** Decisions beyond triaging a possible issue: the Inbox lists all three. */
 const DECISION_KINDS: readonly AuditReviewRequest["kind"][] = [
@@ -282,8 +279,7 @@ export function useInboxData(): InboxData {
   // The same reads as the rail badge (useInboxSummary).
   const summary = useInboxSummary();
   const issues = useAllPossibleIssues({
-    checkStates: INBOX_CHECK_STATES,
-    verdicts: ["unreviewed"],
+    needsReview: true,
   });
   const decisions = usePendingDecisions({
     checkStates: INBOX_CHECK_STATES,

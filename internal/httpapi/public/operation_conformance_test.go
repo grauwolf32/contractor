@@ -111,7 +111,7 @@ func conformAuditOperations(t *testing.T, router routers.Router) {
 	active.State, active.Revision, active.Hold = auditstore.AuditActive, 2, auditstore.HoldHeld
 	active.CurrentRoundID, active.StartedAt = &roundID, &now
 	item := auditstore.Item{
-		ItemID: "item-one", AuditID: active.AuditID, RoundID: roundID, ItemKey: "check-one",
+		FindingIDs: []string{}, ItemID: "item-one", AuditID: active.AuditID, RoundID: roundID, ItemKey: "check-one",
 		Kind: "checklist", SubjectKey: "check-one@1", Task: input,
 		Origin: auditstore.ItemOrigin{
 			Schema: auditstore.ItemOriginSchema, SourceRef: &input.Ref, SourceContentDigest: input.Digest,
@@ -128,20 +128,30 @@ func conformAuditOperations(t *testing.T, router routers.Router) {
 		RunID: &runID, CreatedAt: now,
 	}
 	receipt := conformanceFindingReceipt(now)
-	verdict, severity := auditstore.VerdictTruePositive, auditstore.SeverityHigh
+	projectID := "project_fixed"
+	findingID := "finding-one"
+	receipt.ProjectID = &projectID
+	receipt.FindingID = &findingID
+	receipt.PublicationRequested = true
+	receipt.Retention = findingintake.RetentionProjectHeld
+	receipt.ProjectProposal = &receipt.Proposal
+	receipt.Evidence = []findingintake.ExactArtifact{input}
+	receipt.ProjectEvidence = receipt.Evidence
+	receipt.Document.EvidenceIDs = []string{"evidence-1"}
+	claim := auditdomain.ProjectFindingReport(receipt.Document)
 	review := auditstore.ReviewRequest{
-		RequestID: "review-one", AuditID: active.AuditID, FindingID: "finding-one",
-		SubjectKind: auditstore.ReviewSubjectFinding, SubjectID: "finding-one",
-		Kind: auditstore.FindingReviewKind, SubjectRevision: 1,
+		RequestID: "review-one", AuditID: active.AuditID,
+		SubjectKind: auditstore.ReviewSubjectItemAction, SubjectID: item.ItemID,
+		Kind: string(auditstore.ItemApprovalActiveCheck), SubjectRevision: 1,
 		SubjectDigest:    auditHandlerDigest("finding-subject"),
-		RequestedActions: []auditstore.ReviewRequestedAction{auditstore.ReviewRequestedAction(verdict)},
+		RequestedActions: []auditstore.ReviewRequestedAction{auditstore.ReviewRequestedAction(auditstore.ReviewApprove), auditstore.ReviewRequestedAction(auditstore.ReviewReject)},
 		State:            auditstore.ReviewPending, Revision: 1, CreatedAt: now, UpdatedAt: now,
 	}
 	decided := review
 	decided.State, decided.Revision = auditstore.ReviewDecided, 2
 	decided.Decision = &auditstore.ReviewDecision{
 		DecisionID: "decision-one", RequestID: review.RequestID, AuditID: active.AuditID,
-		FindingID: "finding-one", ActorID: "user-1", Verdict: verdict, Severity: &severity,
+		ActorID: "user-1", Action: auditstore.ReviewApprove,
 		Rationale: "Confirmed from exact evidence.", SubjectRevision: 1,
 		SubjectDigest: review.SubjectDigest, CreatedAt: now,
 	}
@@ -176,7 +186,7 @@ func conformAuditOperations(t *testing.T, router routers.Router) {
 		attempts: map[string][]auditstore.ItemAttempt{item.ItemID: {attempt}},
 		coverage: auditservice.CoveragePage{AuditRevision: active.Revision, Rows: []auditstore.CoverageRow{{
 			AuditID: active.AuditID, RoundID: roundID, ItemID: item.ItemID, ItemKey: item.ItemKey,
-			SubjectKey: item.SubjectKey, Task: input, UpdatedAt: now,
+			SubjectKey: item.SubjectKey, Task: input, UpdatedAt: now, FindingIDs: []string{},
 			Coverage: auditstore.Coverage{
 				Status: auditstore.CoverageNotTested, Requested: []string{}, Completed: []string{}, Gaps: []string{},
 			},
@@ -185,16 +195,11 @@ func conformAuditOperations(t *testing.T, router routers.Router) {
 			AuditID: active.AuditID, Sequence: 1, Kind: "audit.created", EntityID: active.AuditID,
 			Summary: map[string]any{"state": "draft"}, CreatedAt: now,
 		}}},
-		findings: []auditservice.Finding{{
-			FindingID: "finding-one", AuditID: active.AuditID, State: auditstore.FindingProposed,
-			FirstProposal: receipt, Revision: 1, CreatedAt: now, UpdatedAt: now,
+		findings: []auditstore.ProjectFinding{{
+			FindingID: "finding-one", ProjectID: projectID, FirstReceiptID: receipt.ReceiptID, Title: receipt.Document.Title, Claim: &claim,
+			FirstProposal: receipt.Proposal, Revision: 1, CreatedAt: now, UpdatedAt: now,
 		}},
 		reviews: []auditstore.ReviewRequest{review},
-		provenance: []auditservice.FindingProvenance{{
-			RecordID: "proposal:one", Kind: auditstore.ProvenanceSourceProposal,
-			ReceiptID: receipt.ReceiptID, Relation: "first", Proposal: receipt.Proposal,
-			Origin: receipt.Origin, CreatedAt: now,
-		}},
 	}
 	proposals := &fakeFindingProposalManagement{receipts: []findingintake.Receipt{receipt}}
 	collectionRevision := "collection-r1"
@@ -250,7 +255,9 @@ func conformAuditOperations(t *testing.T, router routers.Router) {
 		"/v1/audits/audit-one/items", "/v1/audits/audit-one/coverage", "/v1/audits/audit-one/events",
 		"/v1/audits/audit-one/workspace", "/v1/audits/audit-one/finding-proposals",
 		"/v1/runs/run-one/finding-proposals", "/v1/audits/audit-one/findings",
-		"/v1/audits/audit-one/findings/finding-one", "/v1/audits/audit-one/findings/finding-one/provenance",
+		"/v1/audits/audit-one/findings/finding-one",
+		"/v1/projects/project_fixed/findings", "/v1/projects/project_fixed/findings/finding-one",
+		"/v1/projects/project_fixed/finding-sources", "/v1/projects/project_fixed/finding-sources/receipt-one", "/v1/projects/project_fixed/finding-sources/receipt-one/history",
 		"/v1/audits/audit-one/reviews", "/v1/audits/audit-one/reviews/review-one",
 		"/v1/findings", "/v1/reviews",
 	} {
@@ -275,12 +282,12 @@ func conformAuditOperations(t *testing.T, router routers.Router) {
 	for _, part := range []string{"content", "snapshot", "diagnostics"} {
 		call(jsonContractRequest(http.MethodGet, "/v1/audits/audit-one/findings/exports/"+exports.published.ExportID+"/"+part, ""), http.StatusOK)
 	}
-	call(jsonContractRequest(http.MethodPost, "/v1/audits/audit-one/findings/finding-one/reviews", `{}`,
-		"Idempotency-Key", "review-finding", "If-Match", `"1"`), http.StatusCreated)
+
+	call(jsonContractRequest(http.MethodPatch, "/v1/projects/project_fixed/findings/finding-one", `{"verdict":"true_positive","severity":"high","rationale":"Confirmed from exact evidence."}`, "Idempotency-Key", "project-finding", "If-Match", `"1"`), http.StatusOK)
 
 	management.reviews = []auditstore.ReviewRequest{decided}
 	call(jsonContractRequest(http.MethodPost, "/v1/audits/audit-one/reviews/review-one/decisions",
-		`{"verdict":"true_positive","severity":"high","rationale":"Confirmed from exact evidence."}`,
+		`{"action":"approve","rationale":"Approved."}`,
 		"Idempotency-Key", "decide-review", "If-Match", `"1"`), http.StatusOK)
 	for _, lifecycle := range []struct {
 		method, path, key string

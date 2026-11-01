@@ -83,11 +83,8 @@ func DecideActionReviewRequestDigest(params DecideActionReviewParams) (string, e
 // reviewDecision is the body of one public review decision; a verdict and an
 // action decision share it, so its member order is part of both digests.
 type reviewDecision struct {
-	Action            *auditstore.ReviewAction    `json:"action,omitempty"`
-	Verdict           *auditstore.AnalystVerdict  `json:"verdict,omitempty"`
-	Severity          *auditstore.FindingSeverity `json:"severity,omitempty"`
-	Rationale         string                      `json:"rationale"`
-	DuplicateTargetID *string                     `json:"duplicateTargetId,omitempty"`
+	Action    *auditstore.ReviewAction `json:"action,omitempty"`
+	Rationale string                   `json:"rationale"`
 }
 
 func reviewRequestDigest(kind string, identity ...any) (string, error) {

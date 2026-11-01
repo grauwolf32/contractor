@@ -212,7 +212,6 @@ describe("vocabulary", () => {
     expect(reviewActionLabel("reject").label).toBe("Rejected");
     expect(reviewActionLabel("not_applicable").label).toBe("Not applicable");
 
-    expect(reviewKindLabel("finding-triage")).toBe("Possible issue");
     expect(reviewKindLabel("active-check-approval")).toBe(
       "Active test approval",
     );

@@ -3,9 +3,10 @@ package auditservice
 import (
 	"context"
 	"fmt"
+	"slices"
+
 	"github.com/grauwolf32/contractor/internal/auditbaseline"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
-	"slices"
 
 	"github.com/grauwolf32/contractor/internal/auditstore/querystore"
 	"github.com/grauwolf32/contractor/internal/contracts/engagementcontract"

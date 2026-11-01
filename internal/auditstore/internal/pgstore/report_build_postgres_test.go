@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/jackc/pgx/v5"
 )
 
 // finalizingReportFixture collects the fixture's child Run with three
@@ -35,11 +37,11 @@ func finalizingReportFixture(t *testing.T, name string) (collectingAuditFixture,
 	return f, finalizing, findings
 }
 
-func reportItemsPage(f collectingAuditFixture, revision uint64, ordinal int) auditstore.RecordReportPageParams {
+func reportItemsPage(t *testing.T, f collectingAuditFixture, revision uint64, ordinal int) auditstore.RecordReportPageParams {
 	roundID, last := *f.audit.CurrentRoundID, 0
 	counts := auditstore.ReportCoverageCounts{Satisfied: 1}
 	return auditstore.RecordReportPageParams{
-		Claim: f.claim, ExpectedAuditRevision: revision,
+		Claim: f.claim, ExpectedAuditRevision: revision, ExpectedProjectRevision: reportProjectRevision(t, f),
 		Page: auditstore.ReportPage{
 			Ordinal: ordinal, Section: auditstore.ReportSectionItems, RoundID: &roundID,
 			LastItemOrdinal: &last, Exhausted: true, EntryCount: 1, CoverageCounts: &counts,
@@ -50,7 +52,7 @@ func reportItemsPage(f collectingAuditFixture, revision uint64, ordinal int) aud
 
 func TestPostgresReportPagesFollowOneRevisionAndLeaveWithFinalizing(t *testing.T) {
 	f, audit, _ := finalizingReportFixture(t, "report-pages")
-	page := reportItemsPage(f, audit.Revision, 1)
+	page := reportItemsPage(t, f, audit.Revision, 1)
 	if err := f.store.RecordReportPage(f.ctx, page); !errors.Is(err, auditstore.ErrPrecondition) {
 		t.Fatalf("page after a gap = %v, want precondition failure", err)
 	}
@@ -61,23 +63,23 @@ func TestPostgresReportPagesFollowOneRevisionAndLeaveWithFinalizing(t *testing.T
 	if err := f.store.RecordReportPage(f.ctx, page); !errors.Is(err, auditstore.ErrPrecondition) {
 		t.Fatalf("recorded page again = %v, want precondition failure", err)
 	}
-	stale := reportItemsPage(f, audit.Revision+1, 1)
+	stale := reportItemsPage(t, f, audit.Revision+1, 1)
 	if err := f.store.RecordReportPage(f.ctx, stale); !errors.Is(err, auditstore.ErrPrecondition) {
 		t.Fatalf("page of another revision = %v, want precondition failure", err)
 	}
-	lost := reportItemsPage(f, audit.Revision, 1)
+	lost := reportItemsPage(t, f, audit.Revision, 1)
 	lost.Claim.Epoch++
 	if err := f.store.RecordReportPage(f.ctx, lost); !errors.Is(err, auditstore.ErrClaimLost) {
 		t.Fatalf("page under a stale claim = %v, want claim lost", err)
 	}
 	findings := auditstore.RecordReportPageParams{
-		Claim: f.claim, ExpectedAuditRevision: audit.Revision,
+		Claim: f.claim, ExpectedAuditRevision: audit.Revision, ExpectedProjectRevision: page.ExpectedProjectRevision,
 		Page: auditstore.ReportPage{Ordinal: 1, Section: auditstore.ReportSectionProposed, Exhausted: true},
 	}
 	if err := f.store.RecordReportPage(f.ctx, findings); err != nil {
 		t.Fatal(err)
 	}
-	pages, err := f.store.ListReportPages(f.ctx, audit.AuditID, audit.Revision)
+	pages, err := f.store.ListReportPages(f.ctx, audit.AuditID, audit.Revision, page.ExpectedProjectRevision)
 	if err != nil || len(pages) != 2 || pages[0].Section != auditstore.ReportSectionItems ||
 		*pages[0].RoundID != *f.audit.CurrentRoundID || *pages[0].LastItemOrdinal != 0 ||
 		pages[0].CoverageCounts == nil || pages[0].CoverageCounts.Satisfied != 1 ||
@@ -85,7 +87,7 @@ func TestPostgresReportPagesFollowOneRevisionAndLeaveWithFinalizing(t *testing.T
 		pages[1].EntryCount != 0 || !pages[1].Exhausted || pages[1].LastFinding != nil {
 		t.Fatalf("recorded pages = (%+v, %v)", pages, err)
 	}
-	sections, err := f.store.ReadReportSections(f.ctx, audit.AuditID, audit.Revision)
+	sections, err := f.store.ReadReportSections(f.ctx, audit.AuditID, audit.Revision, page.ExpectedProjectRevision)
 	if err != nil || len(sections) != 2 || string(sections[auditstore.ReportSectionItems].Content) != string(page.Content) ||
 		sections[auditstore.ReportSectionItems].EntryCount != 1 || len(sections[auditstore.ReportSectionProposed].Content) != 0 {
 		t.Fatalf("report sections = (%+v, %v)", sections, err)
@@ -96,13 +98,13 @@ func TestPostgresReportPagesFollowOneRevisionAndLeaveWithFinalizing(t *testing.T
 	if _, err := f.pool.Exec(f.ctx, `UPDATE audits SET revision = revision + 1 WHERE audit_id = $1`, audit.AuditID); err != nil {
 		t.Fatal(err)
 	}
-	if err := f.store.RecordReportPage(f.ctx, reportItemsPage(f, audit.Revision+1, 0)); err != nil {
+	if err := f.store.RecordReportPage(f.ctx, reportItemsPage(t, f, audit.Revision+1, 0)); err != nil {
 		t.Fatal(err)
 	}
 	if count := reportPageRows(t, f); count != 1 {
 		t.Fatalf("stale pages remain: %d rows", count)
 	}
-	if pages, err := f.store.ListReportPages(f.ctx, audit.AuditID, audit.Revision); err != nil || len(pages) != 0 {
+	if pages, err := f.store.ListReportPages(f.ctx, audit.AuditID, audit.Revision, page.ExpectedProjectRevision); err != nil || len(pages) != 0 {
 		t.Fatalf("stale revision pages = (%+v, %v)", pages, err)
 	}
 
@@ -121,7 +123,7 @@ func TestPostgresReportPagesFollowOneRevisionAndLeaveWithFinalizing(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := f.store.RecordReportPage(f.ctx, reportItemsPage(f, failed.Revision, 0)); !errors.Is(err, auditstore.ErrPrecondition) {
+	if err := f.store.RecordReportPage(f.ctx, reportItemsPage(t, f, failed.Revision, 0)); !errors.Is(err, auditstore.ErrPrecondition) {
 		t.Fatalf("page of a failed Audit = %v, want precondition failure", err)
 	}
 }
@@ -138,16 +140,27 @@ func reportPageRows(t *testing.T, f collectingAuditFixture) int {
 
 func TestPostgresReportFindingPagesBoundRowsAndProjectionBytes(t *testing.T) {
 	f, audit, findings := finalizingReportFixture(t, "report-findings")
-	if _, err := f.pool.Exec(f.ctx, `
-UPDATE audit_findings
-   SET created_at = timestamptz '2026-10-01 00:00:00+00'
- WHERE audit_id = $1`, audit.AuditID); err != nil {
+
+	if err := persistencepostgres.InTx(f.ctx, f.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(f.ctx, "ALTER TABLE project_findings DISABLE TRIGGER project_findings_protect_identity"); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(f.ctx, "UPDATE project_findings SET created_at=timestamptz '2026-10-01 00:00:00+00' WHERE project_id=$1", audit.ProjectID); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(f.ctx, "UPDATE project_finding_audits SET finding_created_at=timestamptz '2026-10-01 00:00:00+00' WHERE project_id=$1", audit.ProjectID); err != nil {
+			return err
+		}
+		_, err := tx.Exec(f.ctx, "ALTER TABLE project_findings ENABLE TRIGGER project_findings_protect_identity")
+		return err
+	}); err != nil {
 		t.Fatal(err)
 	}
+
 	var projectionBytes int
 	if err := f.pool.QueryRow(f.ctx, `
 SELECT octet_length(receipt.report_projection)
-  FROM audit_findings AS finding
+  FROM project_findings AS finding
   JOIN finding_proposal_receipts AS receipt ON receipt.receipt_id = finding.first_receipt_id
  WHERE finding.finding_id = $1`, findings[0]).Scan(&projectionBytes); err != nil {
 		t.Fatal(err)
@@ -181,7 +194,7 @@ SELECT octet_length(receipt.report_projection)
 		}
 		for index, finding := range page {
 			if finding.FindingID != ordered[index] || finding.Projection.Title != "Test finding." ||
-				finding.State != string(auditstore.ReportSectionProposed) || finding.FirstProposal.Ref.Revision == nil {
+				finding.State != nil || finding.FirstProposal.Ref.Revision == nil {
 				t.Fatalf("finding %d = %+v", index, finding)
 			}
 		}
@@ -214,7 +227,7 @@ func TestValidateRecordReportPageMatchesTheStoredShape(t *testing.T) {
 	roundID, last := "round-pages", 3
 	counts := auditstore.ReportCoverageCounts{NotTested: 1, Blocked: 1}
 	valid := auditstore.RecordReportPageParams{
-		Claim: claim, ExpectedAuditRevision: 2,
+		Claim: claim, ExpectedAuditRevision: 2, ExpectedProjectRevision: 1,
 		Page: auditstore.ReportPage{
 			Section: auditstore.ReportSectionItems, RoundID: &roundID, LastItemOrdinal: &last,
 			EntryCount: 2, CoverageCounts: &counts,
@@ -225,7 +238,7 @@ func TestValidateRecordReportPageMatchesTheStoredShape(t *testing.T) {
 		t.Fatal(err)
 	}
 	finding := auditstore.RecordReportPageParams{
-		Claim: claim, ExpectedAuditRevision: 2,
+		Claim: claim, ExpectedAuditRevision: 2, ExpectedProjectRevision: 1,
 		Page: auditstore.ReportPage{
 			Section: auditstore.ReportSectionDuplicate, EntryCount: 1,
 			LastFinding: &auditstore.ReportFindingCursor{CreatedAt: time.Unix(10, 0), FindingID: "finding-a"},
@@ -268,5 +281,52 @@ func TestValidateRecordReportPageMatchesTheStoredShape(t *testing.T) {
 	encoded, err := json.Marshal(auditstore.ReportCoverageCounts{TracedPartial: 2})
 	if err != nil || string(encoded) != `{"notTested":0,"inconclusive":0,"satisfied":0,"violated":0,"notApplicable":0,"blocked":0,"excluded":0,"tracedComplete":0,"tracedPartial":2,"unmapped":0}` {
 		t.Fatalf("coverage counts encoding = %s, %v", encoded, err)
+	}
+}
+
+func reportProjectRevision(t *testing.T, f collectingAuditFixture) uint64 {
+	t.Helper()
+	rev, err := f.store.ReportProjectRevision(f.ctx, f.audit.AuditID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return rev
+}
+
+func TestPostgresReportBuildRestartsAfterCanonicalProjectFindingEdit(t *testing.T) {
+	f, audit, findings := finalizingReportFixture(t, "project-report-pin")
+	first := reportItemsPage(t, f, audit.Revision, 0)
+	if err := f.store.RecordReportPage(f.ctx, first); err != nil {
+		t.Fatal(err)
+	}
+	severity := auditstore.SeverityHigh
+	err := persistencepostgres.InTx(f.ctx, f.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		_, err := NewOwnerTxStore(tx).AssessProjectFinding(f.ctx, auditstore.ProjectFindingEdit{OwnerID: f.audit.OwnerID, ProjectID: f.project.ProjectID, FindingID: findings[0], ExpectedRevision: 1, Verdict: auditstore.VerdictTruePositive, Severity: &severity, Rationale: "Confirmed while the report is assembling."})
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	current := reportProjectRevision(t, f)
+	if current <= first.ExpectedProjectRevision {
+		t.Fatal("canonical edit did not invalidate report pin")
+	}
+	stale := first
+	stale.Page.Ordinal = 1
+	if err := f.store.RecordReportPage(f.ctx, stale); !errors.Is(err, auditstore.ErrPrecondition) {
+		t.Fatalf("accepted a page after canonical state changed: %v", err)
+	}
+	if pages, err := f.store.ListReportPages(f.ctx, audit.AuditID, audit.Revision, current); err != nil || len(pages) != 0 {
+		t.Fatalf("reused pages from another Project revision: %+v %v", pages, err)
+	}
+	restart := reportItemsPage(t, f, audit.Revision, 0)
+	if err := f.store.RecordReportPage(f.ctx, restart); err != nil {
+		t.Fatal(err)
+	}
+	if reportPageRows(t, f) != 1 {
+		t.Fatal("restart retained stale report pages")
+	}
+	if pages, err := f.store.ListReportPages(f.ctx, audit.AuditID, audit.Revision, first.ExpectedProjectRevision); err != nil || len(pages) != 0 {
+		t.Fatalf("stale pages remain after restart: %+v %v", pages, err)
 	}
 }

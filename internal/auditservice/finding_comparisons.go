@@ -3,6 +3,7 @@ package auditservice
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"sort"
 	"time"
 
@@ -138,15 +139,12 @@ func fenceRevisions(f auditstore.FindingCorrelationFence) []uint64 {
 	}
 	return out
 }
-func (s *Service) loadCorrelationFence(ctx context.Context, owner, project string, audits []string, projectWide bool) (auditstore.FindingCorrelationFence, error) {
+func (s *Service) loadCorrelationFence(ctx context.Context, owner, project string, audits []string) (auditstore.FindingCorrelationFence, error) {
 	fence, err := s.reads().CorrelationFence(ctx, owner, project, audits)
-	if !projectWide {
-		fence.ProjectRevision = 0
-	}
 	return fence, err
 }
-func (s *Service) beginCorrelationRead(ctx context.Context, owner, project string, audits []string, projectWide bool, cursor *FindingCorrelationPosition) (auditstore.FindingCorrelationFence, error) {
-	fence, err := s.loadCorrelationFence(ctx, owner, project, audits, projectWide)
+func (s *Service) beginCorrelationRead(ctx context.Context, owner, project string, audits []string, cursor *FindingCorrelationPosition) (auditstore.FindingCorrelationFence, error) {
+	fence, err := s.loadCorrelationFence(ctx, owner, project, audits)
 	if err != nil {
 		return fence, err
 	}
@@ -192,12 +190,21 @@ func (s *Service) FindingCandidates(ctx context.Context, p FindingCandidatesPara
 		target = p.AuditID
 	}
 	audits := uniqueCorrelationAudits(p.AuditID, target)
-	projectWide := target == ""
-	out.Fence, err = s.beginCorrelationRead(ctx, p.OwnerID, source.ProjectID, audits, projectWide, p.Cursor)
+	out.Fence, err = s.beginCorrelationRead(ctx, p.OwnerID, source.ProjectID, audits, p.Cursor)
 	if err != nil {
+		// The source statement already authorized this Audit. Its removal
+		// between statements invalidates that captured read; a foreign target
+		// still has the ordinary not-found outcome.
+		if errors.Is(err, auditstore.ErrNotFound) {
+			if _, sourceErr := s.reads().Get(ctx, p.OwnerID, p.AuditID); errors.Is(sourceErr, auditstore.ErrNotFound) {
+				return out, auditstore.ErrCorrelationStale
+			} else if sourceErr != nil {
+				return out, sourceErr
+			}
+		}
 		return out, err
 	}
-	if projectWide && source.ProjectRevision != out.Fence.ProjectRevision {
+	if source.ProjectRevision != out.Fence.ProjectRevision {
 		return out, auditstore.ErrCorrelationStale
 	}
 	sourceRevisionMatches := false
@@ -417,7 +424,7 @@ func (s *Service) CompareFindings(ctx context.Context, p FindingComparisonParams
 	}
 	out.Scope = correlationScope(p.ProjectID, audits)
 	var err error
-	out.Fence, err = s.beginCorrelationRead(ctx, p.OwnerID, p.ProjectID, audits, false, p.Cursor)
+	out.Fence, err = s.beginCorrelationRead(ctx, p.OwnerID, p.ProjectID, audits, p.Cursor)
 	if err != nil {
 		return out, err
 	}

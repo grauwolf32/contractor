@@ -1,14 +1,14 @@
-// A fake Public API for the Issues tests: projects, checks, possible
-// issues and review requests, with the filters, ETags and decisions the
-// Server applies.
+// Canonical Project Findings and independent immutable producer receipts.
 import type {
   Audit,
   ProjectFinding,
+  FindingProposalReceipt,
   AuditReviewRequest,
   AuditState,
+  EditProjectFindingRequest,
 } from "../../api/audits";
-import type { ResponseOperation } from "../../api/contract";
 import type { Project } from "../../api/projects";
+import type { ResponseOperation } from "../../api/contract";
 import * as build from "../../test/builders";
 import {
   fakeServer,
@@ -20,10 +20,6 @@ import { failure, json, page } from "../../test/responses";
 import { ownerListRoutes } from "../../test/owner-lists";
 import { renderWithAPI } from "../../test/render";
 import { IssuesRoute } from ".";
-
-const { DIGEST } = build;
-
-/** A held check of `projectId` over the shop's source archive. */
 export function check(
   projectId: string,
   auditId: string,
@@ -31,73 +27,39 @@ export function check(
   profile = "openapi-operation-trace",
 ): Audit {
   return build.audit(projectId, auditId, state, {
-    profile: { name: profile, version: "1", digest: DIGEST },
-    inputs: {
-      source: build.auditInput("shop-source", {
-        ref: { namespace: "sources", name: "shop-source", revision: "src-r1" },
-      }),
-    },
+    profile: { name: profile, version: "1", digest: build.DIGEST },
     holdState: "held",
     dispatchState: "closed",
   });
 }
-
-/** A possible issue of `auditId`, proposed at `createdAt`. */
 export function issue(
-  auditId: string,
+  projectId: string,
   findingId: string,
   title: string,
   createdAt: string,
   overrides: Partial<ProjectFinding> = {},
-  document: Partial<ProjectFinding["firstProposal"]["document"]> = {},
+  claim: Partial<NonNullable<ProjectFinding["claim"]>> = {},
 ): ProjectFinding {
-  const base = build.finding(
-    auditId,
+  return build.finding(
+    projectId,
     findingId,
-    { createdAt, updatedAt: createdAt, revision: 1, ...overrides },
-    { title, ...document },
+    { createdAt, updatedAt: createdAt, ...overrides },
+    { title, ...claim },
   );
-  return build.conforming("ProjectFinding", {
-    ...base,
-    firstProposal: { ...base.firstProposal, createdAt },
-  });
 }
-
-/** What the fake Server of the Issues pages holds. */
 export interface IssuesServer {
   projects: Project[];
   audits: Audit[];
   findings: ProjectFinding[];
+  sources: FindingProposalReceipt[];
   reviews: AuditReviewRequest[];
-  /** Checks whose possible-issue reads fail. */
+  findingAudits?: Record<string, string[]>;
   failing: Set<string>;
-  /** Checks whose possible-issue pages report more. */
   more: Set<string>;
-  /** Possible-issue list reads wait for this (exact reads do not). */
   gate?: Promise<void> | undefined;
-  /** Recording a decision waits for this. */
   decisionGate?: Promise<void> | undefined;
-  /**
-   * Every request waits for the promise this returns, if any: tests that
-   * answer reads in a chosen order.
-   */
   hold?: ((call: FakeCall) => Promise<void> | undefined) | undefined;
 }
-
-function bump(server: IssuesServer, auditId: string) {
-  server.audits = server.audits.map((candidate) =>
-    candidate.auditId === auditId
-      ? {
-          ...candidate,
-          revision: candidate.revision + 1,
-          updatedAt: new Date(
-            Date.parse(candidate.updatedAt) + 60_000,
-          ).toISOString(),
-        }
-      : candidate,
-  );
-}
-
 const VERDICT_STATES = {
   true_positive: "confirmed",
   false_positive: "rejected",
@@ -105,19 +67,16 @@ const VERDICT_STATES = {
   duplicate: "duplicate",
   reopen: "proposed",
 } as const;
-
-/** The routes of the Issues pages over `server`. */
-function routes(server: IssuesServer) {
-  const auditOf = (auditId: string | undefined) =>
-    server.audits.find((candidate) => candidate.auditId === auditId);
-  const summary = (audit: Audit) => ({
-    auditRevision: audit.revision,
-    asOf: audit.updatedAt,
-  });
+function routes(server: IssuesServer): Routes {
   const owner = ownerListRoutes(() => server);
+  const finding = (p: Record<string, string | undefined>) =>
+    server.findings.find(
+      (f) => f.projectId === p.projectId && f.findingId === p.findingId,
+    );
+  const sources = () => server.sources;
   return {
     ...owner,
-    "GET /v1/findings": async (call: FakeCall) => {
+    "GET /v1/findings": async (call) => {
       await server.gate;
       if (server.failing.size > 0)
         return failure(
@@ -128,208 +87,90 @@ function routes(server: IssuesServer) {
       return owner["GET /v1/findings"]!(call);
     },
     "GET /v1/projects": () => json(page(server.projects)),
-    "GET /v1/projects/{projectId}": ({ params }: FakeCall) => {
-      const found = server.projects.find(
-        (candidate) => candidate.projectId === params.projectId,
-      );
-      return found === undefined
-        ? failure(404, "not_found", "Project not found")
-        : json(found, 200, { ETag: '"1"' });
+    "GET /v1/projects/{projectId}": ({ params }) => {
+      const p = server.projects.find((p) => p.projectId === params.projectId);
+      return p === undefined ? failure(404) : json(p, 200, { ETag: '"1"' });
     },
-    "GET /v1/projects/{projectId}/audits": ({ params, url }: FakeCall) => {
-      const state = url.searchParams.get("state");
-      return json(
-        page(
-          server.audits.filter(
-            (candidate) =>
-              candidate.projectId === params.projectId &&
-              (state === null || candidate.state === state),
-          ),
+    "GET /v1/projects/{projectId}/audits": ({ params }) =>
+      json(page(server.audits.filter((a) => a.projectId === params.projectId))),
+    "GET /v1/audits/{auditId}": ({ params }) => {
+      const a = server.audits.find((a) => a.auditId === params.auditId);
+      return a === undefined
+        ? failure(404)
+        : json(a, 200, { ETag: `"${a.revision}"` });
+    },
+    "GET /v1/projects/{projectId}/findings": ({ params }) =>
+      json({
+        projectRevision: 1,
+        ...page(
+          server.findings
+            .filter((f) => f.projectId === params.projectId)
+            .map(build.findingSummary),
         ),
-      );
+      }),
+    "GET /v1/projects/{projectId}/findings/{findingId}": ({ params }) => {
+      const f = finding(params);
+      return f === undefined
+        ? failure(404)
+        : json(f, 200, { ETag: `"${f.revision}"` });
     },
-    "GET /v1/audits/{auditId}": ({ params }: FakeCall) => {
-      const audit = auditOf(params.auditId);
-      return audit === undefined
-        ? failure(404, "not_found", "No check")
-        : json(audit, 200, { ETag: `"${audit.revision}"` });
-    },
-    "GET /v1/audits/{auditId}/findings": async ({ params, url }: FakeCall) => {
-      const audit = auditOf(params.auditId);
-      if (audit === undefined) return failure(404, "not_found", "No check");
-      await server.gate;
-      if (server.failing.has(audit.auditId))
-        return failure(
-          503,
-          "storage_transaction_conflict",
-          "Findings unavailable",
-        );
-      const state = url.searchParams.get("state");
-      const verdict = url.searchParams.get("verdict");
-      const severity = url.searchParams.get("severity");
-      const items = server.findings.filter(
-        (candidate) =>
-          candidate.auditId === audit.auditId &&
-          (state === null || candidate.state === state) &&
-          (verdict === null ||
-            (verdict === "unreviewed"
-              ? candidate.analystVerdict === undefined
-              : candidate.analystVerdict === verdict)) &&
-          (severity === null || candidate.analystSeverity === severity),
-      );
-      // A check in `more` has a second page; it holds no further match.
-      const more = server.more.has(audit.auditId);
-      const next = url.searchParams.get("cursor") === "more";
-      return json({
-        ...summary(audit),
-        total: items.length + (more ? 50 : 0),
-        ...page(next ? [] : items, more && !next ? "more" : undefined),
-      });
-    },
-    "GET /v1/audits/{auditId}/findings/{findingId}": ({ params }: FakeCall) => {
-      const finding = server.findings.find(
-        (candidate) =>
-          candidate.auditId === params.auditId &&
-          candidate.findingId === params.findingId,
-      );
-      return finding === undefined
-        ? failure(404, "not_found", "Possible issue not found")
-        : json(finding, 200, { ETag: `"${finding.revision}"` });
-    },
-    "GET /v1/audits/{auditId}/findings/{findingId}/provenance": ({
+    "GET /v1/projects/{projectId}/finding-sources": ({ params, url }) =>
+      json({
+        projectRevision: 1,
+        ...page(
+          sources()
+            .filter(
+              (s) =>
+                s.projectId === params.projectId &&
+                (!url.searchParams.has("findingId") ||
+                  s.findingId === url.searchParams.get("findingId")),
+            )
+            .map(build.findingSourcePreview),
+        ),
+      }),
+    "GET /v1/projects/{projectId}/finding-sources/{receiptId}": ({
       params,
-    }: FakeCall) => {
-      const audit = auditOf(params.auditId);
-      const finding = server.findings.find(
-        (candidate) =>
-          candidate.auditId === params.auditId &&
-          candidate.findingId === params.findingId,
+    }) => {
+      const source = sources().find(
+        (s) =>
+          s.projectId === params.projectId && s.receiptId === params.receiptId,
       );
-      if (audit === undefined || finding === undefined)
-        return failure(404, "not_found", "Possible issue not found");
-      return json({
-        auditRevision: audit.revision,
-        findingRevision: finding.revision,
-        items: [
-          {
-            recordId: "source:receipt_1",
-            kind: "source-proposal",
-            relation: "first",
-            receiptId: "receipt_1",
-            proposal: finding.firstProposal.proposal,
-            origin: finding.firstProposal.origin,
-            supportsCurrentAssessment: false,
-            createdAt: finding.createdAt,
-          },
-        ],
-        page: { hasMore: false },
-      });
+      return source === undefined ? failure(404) : json(source);
     },
-    "POST /v1/audits/{auditId}/findings/{findingId}/reviews": ({
-      params,
-    }: FakeCall) => {
-      const finding = server.findings.find(
-        (candidate) =>
-          candidate.auditId === params.auditId &&
-          candidate.findingId === params.findingId,
-      );
-      if (finding === undefined)
-        return failure(404, "not_found", "Possible issue not found");
-      const created = build.review(
-        finding.auditId,
-        `review_${finding.findingId}`,
-        "finding-triage",
-        {
-          findingId: finding.findingId,
-          subjectId: finding.findingId,
-          subjectRevision: finding.revision,
-        },
-      );
-      server.reviews.push(created);
-      return json(created, 201, { ETag: '"1"' });
-    },
-    "GET /v1/audits/{auditId}/reviews": ({ params, url }: FakeCall) => {
-      const audit = auditOf(params.auditId);
-      if (audit === undefined) return failure(404, "not_found", "No check");
-      const finding = url.searchParams.get("finding");
-      const state = url.searchParams.get("state");
-      const items = server.reviews.filter(
-        (candidate) =>
-          candidate.auditId === audit.auditId &&
-          (finding === null || candidate.findingId === finding) &&
-          (state === null || candidate.state === state),
-      );
-      return json({ ...summary(audit), total: items.length, ...page(items) });
-    },
-    "GET /v1/audits/{auditId}/reviews/{requestId}": ({ params }: FakeCall) => {
-      const review = server.reviews.find(
-        (candidate) => candidate.requestId === params.requestId,
-      );
-      return review === undefined
-        ? failure(404, "not_found", "Review not found")
-        : json(review, 200, { ETag: `"${review.revision}"` });
-    },
-    "POST /v1/audits/{auditId}/reviews/{requestId}/decisions": async ({
+    "GET /v1/projects/{projectId}/finding-sources/{receiptId}/history": () =>
+      json({ projectRevision: 1, ...page([]) }),
+    "PATCH /v1/projects/{projectId}/findings/{findingId}": async ({
       params,
       request,
-    }: FakeCall) => {
+    }) => {
       await server.decisionGate;
-      const auditId = params.auditId ?? "";
-      const review = server.reviews.find(
-        (candidate) => candidate.requestId === params.requestId,
-      );
-      if (review === undefined)
-        return failure(404, "not_found", "Review not found");
-      const body = (await request.json()) as {
-        verdict: ProjectFinding["analystVerdict"];
-        severity?: ProjectFinding["analystSeverity"];
-        rationale: string;
-      };
-      const decision = build.decision(review, {
-        auditId,
-        ...(body.verdict === undefined ? {} : { verdict: body.verdict }),
-        ...(body.severity === undefined ? {} : { severity: body.severity }),
+      const f = finding(params);
+      if (f === undefined) return failure(404);
+      if (request.headers.get("If-Match") !== `"${f.revision}"`)
+        return failure(412, "precondition_failed", "The Finding changed first");
+      const body = (await request.json()) as EditProjectFindingRequest;
+      const next: ProjectFinding = {
+        ...f,
+        state: VERDICT_STATES[body.verdict],
+        analystVerdict: body.verdict,
+        analystSeverity:
+          body.verdict === "true_positive" ? body.severity : null,
+        duplicateTargetId:
+          body.verdict === "duplicate" ? body.duplicateTargetId : null,
         rationale: body.rationale,
-        subjectDigest: DIGEST,
-      });
-      let decided: ProjectFinding | undefined;
-      server.findings = server.findings.map((candidate) => {
-        if (candidate.findingId !== review.findingId) return candidate;
-        decided = {
-          ...candidate,
-          state: VERDICT_STATES[body.verdict ?? "reopen"],
-          revision: candidate.revision + 1,
-          ...(body.verdict === undefined
-            ? {}
-            : { analystVerdict: body.verdict }),
-          ...(body.severity === undefined
-            ? {}
-            : { analystSeverity: body.severity }),
-          analystDecision: decision,
-        };
-        return decided;
-      });
-      const updated = {
-        ...review,
-        state: "decided" as const,
-        revision: 2,
-        decision,
+        actorId: "user_analyst",
+        assessedAt: build.NOW,
+        revision: f.revision + 1,
       };
-      server.reviews = server.reviews.map((candidate) =>
-        candidate.requestId === review.requestId ? updated : candidate,
+      server.findings = server.findings.map((value) =>
+        value === f ? next : value,
       );
-      bump(server, auditId);
-      return json({
-        finding: decided,
-        request: updated,
-        decision,
-        replayed: false,
+      return json({ finding: next, replayed: false }, 200, {
+        ETag: `"${next.revision}"`,
       });
     },
   };
 }
-
-/** `table` with every route answering once `server.hold` lets it. */
 function held(server: IssuesServer, table: Routes): Routes {
   const answers: Routes = {};
   for (const [operation, route] of Object.entries(table) as [
@@ -342,15 +183,13 @@ function held(server: IssuesServer, table: Routes): Routes {
     };
   return answers;
 }
-
-/** Renders the Issues route at `path` against `server`. */
 export function renderIssues(server: IssuesServer, path: string) {
   return renderWithAPI(null, {
     path,
     server: fakeServer(held(server, routes(server))),
     routes: [
       { path: "/issues", element: <IssuesRoute /> },
-      { path: "/issues/:auditId/:findingId", element: <IssuesRoute /> },
+      { path: "/issues/:projectId/:findingId", element: <IssuesRoute /> },
       {
         path: "/projects/:projectId/audits/:auditId/:section",
         element: <p>Check page</p>,
@@ -358,12 +197,13 @@ export function renderIssues(server: IssuesServer, path: string) {
     ],
   });
 }
-
 export function issuesServer(
   initial: Partial<IssuesServer> & Pick<IssuesServer, "projects" | "audits">,
 ): IssuesServer {
+  const findings = initial.findings ?? [];
   return {
-    findings: [],
+    findings,
+    sources: findings.map((f) => build.findingSource(f)),
     reviews: [],
     failing: new Set(),
     more: new Set(),

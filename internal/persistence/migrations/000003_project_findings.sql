@@ -16,11 +16,16 @@ CREATE INDEX artifact_bindings_project_prefix_idx ON artifact_bindings(scope_id,
 DROP TRIGGER finding_proposal_audit_holds_admit_finding ON finding_proposal_audit_holds;
 DROP FUNCTION contractor_admit_audit_finding();
 CREATE TABLE project_findings (
+    owner_id text NOT NULL CHECK(octet_length(owner_id) BETWEEN 1 AND 256 AND btrim(owner_id)<>''),
     finding_id text PRIMARY KEY CHECK (finding_id ~ '^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$'),
     project_id text NOT NULL REFERENCES projects(project_id) ON DELETE RESTRICT,
     first_receipt_id text NOT NULL REFERENCES finding_proposal_receipts(receipt_id) ON DELETE RESTRICT,
     first_proposal_ref jsonb NOT NULL CHECK (jsonb_typeof(first_proposal_ref) = 'object' AND octet_length(first_proposal_ref::text) <= 4096),
     title text NOT NULL CHECK (octet_length(title) BETWEEN 1 AND 65536 AND btrim(title)<>''),
+    subject_kind text NOT NULL CHECK(octet_length(subject_kind)<=256),
+    subject_key text NOT NULL CHECK(octet_length(subject_key)<=1024),
+    subject_truncated boolean NOT NULL,
+    severity_suggestion text NOT NULL CHECK(severity_suggestion IN ('','informational','low','medium','high','critical')),
     correlation_algorithm text NOT NULL,
     correlation_value text NOT NULL,
     correlation_group_key text NOT NULL,
@@ -60,7 +65,7 @@ CREATE TABLE project_findings (
 CREATE UNIQUE INDEX project_findings_qualified_key_idx ON project_findings(project_id, correlation_group_key)
     WHERE correlation_group_key <> '';
 CREATE INDEX project_findings_page_idx ON project_findings(project_id, created_at, finding_id COLLATE "C");
-CREATE INDEX project_findings_owner_page_idx ON project_findings(created_at DESC, finding_id COLLATE "C" DESC);
+CREATE INDEX project_findings_owner_page_idx ON project_findings(owner_id,created_at DESC, finding_id COLLATE "C" DESC);
 CREATE INDEX project_findings_duplicate_idx ON project_findings(project_id, duplicate_target_id)
     WHERE duplicate_target_id IS NOT NULL;
 
@@ -86,7 +91,7 @@ CREATE TABLE project_finding_audits (
  PRIMARY KEY(audit_id,finding_id),
  FOREIGN KEY(project_id,finding_id) REFERENCES project_findings(project_id,finding_id) ON DELETE CASCADE
 );
-CREATE INDEX project_finding_audits_page_idx ON project_finding_audits(audit_id,finding_created_at,finding_id);
+CREATE INDEX project_finding_audits_page_idx ON project_finding_audits(audit_id,finding_created_at,finding_id COLLATE "C");
 CREATE INDEX project_finding_audits_finding_idx ON project_finding_audits(project_id,finding_id,audit_id);
 
 CREATE UNIQUE INDEX project_finding_audits_group_idx ON project_finding_audits(audit_id,correlation_group_key COLLATE "C") WHERE correlation_group_key<>'';
@@ -195,10 +200,16 @@ CREATE TRIGGER projects_initialize_finding_fence AFTER INSERT ON projects
 
 CREATE FUNCTION contractor_protect_project_finding_identity() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
-    IF ROW(NEW.finding_id, NEW.project_id, NEW.first_receipt_id, NEW.first_proposal_ref, NEW.title,
+    IF TG_OP='INSERT' THEN
+      IF NEW.owner_id IS DISTINCT FROM (SELECT owner_id FROM projects WHERE project_id=NEW.project_id) THEN
+        RAISE EXCEPTION 'Finding owner must be its Project owner' USING ERRCODE='23514';
+      END IF;
+      RETURN NEW;
+    END IF;
+    IF ROW(NEW.owner_id, NEW.finding_id, NEW.project_id, NEW.first_receipt_id, NEW.first_proposal_ref, NEW.title, NEW.subject_kind, NEW.subject_key, NEW.subject_truncated, NEW.severity_suggestion,
            NEW.correlation_algorithm, NEW.correlation_value, NEW.correlation_group_key, NEW.correlation_reason,
            NEW.created_at)
-       IS DISTINCT FROM ROW(OLD.finding_id, OLD.project_id, OLD.first_receipt_id, OLD.first_proposal_ref, OLD.title,
+       IS DISTINCT FROM ROW(OLD.owner_id, OLD.finding_id, OLD.project_id, OLD.first_receipt_id, OLD.first_proposal_ref, OLD.title, OLD.subject_kind, OLD.subject_key, OLD.subject_truncated, OLD.severity_suggestion,
            OLD.correlation_algorithm, OLD.correlation_value, OLD.correlation_group_key, OLD.correlation_reason,
            OLD.created_at) THEN
         RAISE EXCEPTION 'Project Finding identity is immutable' USING ERRCODE = '23514';
@@ -209,7 +220,7 @@ BEGIN
     RETURN NEW;
 END;
 $$;
-CREATE TRIGGER project_findings_protect_identity BEFORE UPDATE ON project_findings
+CREATE TRIGGER project_findings_protect_identity BEFORE INSERT OR UPDATE ON project_findings
     FOR EACH ROW EXECUTE FUNCTION contractor_protect_project_finding_identity();
 
 -- No old AuditProfile parser remains at runtime. Every old Audit becomes
@@ -337,3 +348,69 @@ ALTER FUNCTION contractor_protect_audit_finding_history() RENAME TO contractor_p
 -- discoveries. They have no current problem state and disappear with execution.
 ALTER TABLE audit_execution_items ADD COLUMN finding_sources jsonb NOT NULL DEFAULT '[]'::jsonb
  CHECK(jsonb_typeof(finding_sources)='array' AND jsonb_array_length(finding_sources)<=129 AND octet_length(finding_sources::text)<=1048576);
+
+-- Report pages capture one canonical Project state across controller ticks.
+ALTER TABLE audit_report_pages ADD COLUMN project_revision bigint NOT NULL CHECK(project_revision BETWEEN 1 AND 9007199254740991);
+ALTER TABLE audit_report_pages DROP CONSTRAINT audit_report_pages_pkey;
+ALTER TABLE audit_report_pages ADD PRIMARY KEY(audit_id,audit_revision,project_revision,ordinal);
+
+CREATE INDEX project_findings_first_receipt_idx ON project_findings(first_receipt_id);
+CREATE INDEX project_finding_sources_owner_idx ON project_finding_sources(project_id,finding_id);
+
+CREATE OR REPLACE FUNCTION contractor_protect_immutable_history() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN RAISE EXCEPTION 'historical records are immutable' USING ERRCODE='23514'; END; $$;
+DROP TRIGGER project_finding_sources_immutable ON project_finding_sources;
+CREATE TRIGGER project_finding_sources_immutable BEFORE UPDATE ON project_finding_sources
+ FOR EACH ROW EXECUTE FUNCTION contractor_protect_immutable_history();
+
+CREATE INDEX project_findings_state_page_idx ON project_findings(project_id,state,created_at,finding_id COLLATE "C");
+CREATE INDEX project_findings_verdict_page_idx ON project_findings(project_id,analyst_verdict,created_at,finding_id COLLATE "C");
+CREATE INDEX project_findings_severity_page_idx ON project_findings(project_id,analyst_severity,created_at,finding_id COLLATE "C");
+
+-- Accepted inputs keep the exact current owner namespace and the same origin/closure authorization.
+CREATE OR REPLACE FUNCTION contractor_validate_audit_dependencies() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE dependency jsonb; project text; owner text;
+BEGIN
+ IF TG_OP='UPDATE' THEN
+  IF NEW.retained_dependencies::text IS DISTINCT FROM OLD.retained_dependencies::text THEN
+   RAISE EXCEPTION 'accepted Audit dependencies are immutable' USING ERRCODE='23514';
+  END IF;
+  RETURN NEW;
+ END IF;
+ IF NEW.retained_dependencies IS NULL THEN RETURN NEW; END IF;
+ SELECT project_id,owner_id INTO project,owner FROM audits WHERE audit_id=NEW.audit_id;
+ IF NEW.retained_dependencies->>'owner_id' IS DISTINCT FROM owner
+  OR NEW.retained_dependencies->>'project_id' IS DISTINCT FROM project
+  OR NEW.retained_dependencies->>'profile_digest' IS DISTINCT FROM (SELECT profile_digest FROM audits WHERE audit_id=NEW.audit_id)
+  OR NEW.retained_dependencies->>'baseline_digest' IS DISTINCT FROM (SELECT 'sha256:' || encode(sha256(convert_to(baseline_snapshot::text,'UTF8')),'hex') FROM audits WHERE audit_id=NEW.audit_id) THEN
+  RAISE EXCEPTION 'foreign Audit dependency manifest' USING ERRCODE='23514';
+ END IF;
+ FOR dependency IN SELECT value FROM jsonb_array_elements((NEW.retained_dependencies->'dependencies')::jsonb) LOOP
+  IF ((dependency->'source') - 'ref') IS DISTINCT FROM ((dependency->'retained') - 'ref')
+   OR (dependency->>'kind'='finding-receipt' AND (dependency #>> '{origin,receipt_id}' IS DISTINCT FROM NEW.proposal_receipt_id OR (dependency #>> '{origin,proposed_check_ordinal}')::integer IS DISTINCT FROM NEW.proposal_check_ordinal))
+   OR dependency->>'projection' IS DISTINCT FROM 'exact'
+   OR dependency #>> '{origin,kind}' IS DISTINCT FROM dependency->>'kind'
+   OR NOT (CASE dependency->>'kind'
+       WHEN 'finding-receipt' THEN dependency #>> '{retained,ref,namespace}' = 'finding-materials'
+       WHEN 'accepted-item-result' THEN dependency #>> '{retained,ref,namespace}' IN ('finding-materials',contractor_audit_dependency_namespace(NEW.audit_id))
+       ELSE dependency #>> '{retained,ref,namespace}' = contractor_audit_dependency_namespace(NEW.audit_id) END)
+   OR NOT contractor_audit_dependency_origin_valid(NEW.audit_id,dependency)
+   OR NOT contractor_audit_dependency_closure_valid(NEW.audit_id,NEW.retained_dependencies::jsonb,dependency)
+   OR NOT EXISTS (
+    SELECT 1 FROM artifact_binding_revisions AS revision
+    JOIN artifact_bindings AS binding USING (scope_kind,scope_id,namespace,name)
+    JOIN artifact_versions AS version USING (version_id)
+    JOIN artifact_blobs AS blob ON blob.sha256=version.blob_sha256
+    WHERE revision.scope_kind='project' AND revision.scope_id=project
+     AND revision.namespace=dependency #>> '{retained,ref,namespace}' AND revision.name=dependency #>> '{retained,ref,name}'
+     AND revision.revision=dependency #>> '{retained,ref,revision}' AND binding.frozen
+     AND version.media_type=dependency #>> '{retained,mediaType}'
+     AND blob.size_bytes=(dependency #>> '{retained,sizeBytes}')::bigint
+     AND 'sha256:' || encode(blob.sha256,'hex')=dependency #>> '{retained,digest}'
+   ) THEN RAISE EXCEPTION 'Audit dependency source is not accepted exact content' USING ERRCODE='23514'; END IF;
+ END LOOP;
+ RETURN NEW;
+END;
+$$;

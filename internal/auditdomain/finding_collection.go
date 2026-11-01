@@ -70,13 +70,13 @@ type FindingCollectionEvidence struct {
 	DocumentID string `json:"document_id"`
 }
 
-// Review is a captured observation. Its presence never authorizes a decision or
-// turns imported user-supplied collection bytes into a trusted Audit record.
+// Finding captures canonical Project state at publication time. Imported bytes
+// never authorize changes to that state.
 type FindingCollectionFinding struct {
 	ProjectID         string  `json:"project_id"`
 	FindingID         string  `json:"finding_id"`
 	Revision          uint64  `json:"revision"`
-	State             *string `json:"state"`
+	State             *string `json:"state" strictjson:"required,nullable"`
 	Verdict           string  `json:"verdict,omitempty"`
 	Severity          string  `json:"severity,omitempty"`
 	DuplicateTargetID string  `json:"duplicate_target_id,omitempty"`
@@ -233,12 +233,15 @@ func validateFindingCollection(value FindingCollection) error {
 				finding.DuplicateTargetID != "" && validateIdentifier(finding.DuplicateTargetID, "duplicate_target_id") != nil {
 				return invalid(CodeInvalid, "collection.finding")
 			}
-			if finding.State != nil {
-				switch *finding.State {
-				case "proposed", "confirmed", "rejected", "duplicate", "needs-evidence":
-				default:
-					return invalid(CodeInvalid, "collection.finding.state")
+			expected := map[string]string{"true_positive": "confirmed", "false_positive": "rejected", "duplicate": "duplicate", "reopen": "proposed", "needs_evidence": "needs-evidence"}
+			if finding.State == nil {
+				if finding.Verdict != "" || finding.Severity != "" || finding.DuplicateTargetID != "" {
+					return invalid(CodeInvalid, "collection.finding")
 				}
+			} else if expected[finding.Verdict] != *finding.State || expected[finding.Verdict] == "" ||
+				(finding.Verdict == "true_positive") != (finding.Severity != "") || !validSeverity(finding.Severity) ||
+				(finding.Verdict == "duplicate") != (finding.DuplicateTargetID != "") || finding.DuplicateTargetID == finding.FindingID {
+				return invalid(CodeInvalid, "collection.finding")
 			}
 		}
 		previous = entry.ReceiptID

@@ -114,6 +114,14 @@ func (h *auditHandlers) listAuditFindings(w http.ResponseWriter, r *http.Request
 		handleError(w, err)
 		return
 	}
+	if last := result.ContinueAfter; last != nil {
+		cursor, encodeErr := h.cursors.encodePageCursor(cursorKind, last.CreatedAt.UTC().Format(time.RFC3339Nano), last.FindingID, strconv.FormatUint(result.ProjectRevision, 10), strconv.FormatUint(result.AuditRevision, 10))
+		if encodeErr != nil {
+			handleError(w, encodeErr)
+			return
+		}
+		page = pageInfoResponse{HasMore: true, NextCursor: &cursor}
+	}
 	writeJSON(w, http.StatusOK, findingPageResponse{Items: findings, Page: page, FindingPageBasis: result.FindingPageBasis})
 }
 
@@ -123,7 +131,7 @@ func (h *auditHandlers) getAuditFinding(w http.ResponseWriter, r *http.Request) 
 		handleError(w, err)
 		return
 	}
-	finding, err := h.Audits.GetFinding(
+	finding, err := h.Audits.GetAuditProjectFinding(
 		r.Context(), principalUserID(r.Context()), r.PathValue("auditId"), r.PathValue("findingId"),
 	)
 	if err != nil {

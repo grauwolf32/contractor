@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"reflect"
 	"testing"
 	"time"
 
@@ -140,11 +141,13 @@ func TestPostgresFindingAnchorRuntimeIntakeReplayAndRetention(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
- // Evidence and a qualified structural key do not publish a problem.
- for _,auditID:=range []string{"anchor-audit-a","anchor-audit-b"} {
- rows,err:=querystore.New(pool).ListFindings(ctx,auditstore.FindingListParams{OwnerID:owner,AuditID:auditID,Limit:10})
- if err!=nil || len(rows)!=0 { t.Fatalf("observation invented a Finding: %+v %v",rows,err) }
- }
+	// Evidence and a qualified structural key do not publish a problem.
+	for _, auditID := range []string{"anchor-audit-a", "anchor-audit-b"} {
+		rows, err := querystore.New(pool).ListFindings(ctx, auditstore.FindingListParams{OwnerID: owner, AuditID: auditID, Limit: 10})
+		if err != nil || len(rows) != 0 {
+			t.Fatalf("observation invented a Finding: %+v %v", rows, err)
+		}
+	}
 	runs := runstore.NewPostgresStore(pool)
 	if err := runs.MarkStageAllocationReleased(ctx, grant.AllocationID); err != nil {
 		t.Fatal(err)
@@ -182,7 +185,7 @@ func TestPostgresFindingAnchorRuntimeIntakeReplayAndRetention(t *testing.T) {
 		}
 	}
 	discardedFirst, err := readReceiptByID(ctx, pool, first.ReceiptID)
-	if err != nil || discardedFirst.Anchors.Reason != "discarded" || len(discardedFirst.Anchors.Keys) != 0 {
+	if err != nil || discardedFirst.Retention != RetentionProjectHeld || !reflect.DeepEqual(discardedFirst.Anchors, first.Anchors) {
 		t.Fatalf("last hold discard=%+v %v", discardedFirst.Anchors, err)
 	}
 	discarded, err := readReceiptByID(ctx, pool, second.ReceiptID)

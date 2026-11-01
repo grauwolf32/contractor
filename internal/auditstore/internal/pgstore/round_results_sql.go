@@ -55,7 +55,7 @@ SELECT selected.bytes<=$4, CASE WHEN selected.bytes<=$4 THEN link.logical_key EN
 // roundResultsFindingsSQL seeks only assessments of the selected attempt.
 // The persisted current machine assessment and human decision are copied as
 // revision pins, with no inference from the Run's success.
-const roundResultsFindingsSQL = `SELECT DISTINCT finding.finding_id,finding.project_id,finding.revision,finding.state,finding.analyst_verdict
+const roundResultsFindingsSQL = `SELECT DISTINCT finding.finding_id,finding.project_id
  FROM audit_execution_items AS member
  CROSS JOIN LATERAL jsonb_to_recordset(member.finding_sources) AS association(receipt_id text)
  JOIN project_finding_sources AS source USING(receipt_id)

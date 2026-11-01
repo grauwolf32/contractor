@@ -19,7 +19,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 )
 
-const ReportSchema = "contractor.audit.report.v1"
+const ReportSchema = "contractor.audit.report.v2"
 
 type reportProfile struct {
 	Name              string                               `json:"name"`
@@ -132,6 +132,7 @@ func (c reportFindingCounts) total() int {
 }
 
 type machineReport struct {
+	ProjectRevision     uint64                                 `json:"projectRevision"`
 	Schema              string                                 `json:"schema"`
 	AuditID             string                                 `json:"auditId"`
 	ProjectID           string                                 `json:"projectId"`
@@ -280,7 +281,7 @@ func (i *Importer) publishReport(
 		stopReason = &reportStopReason{Code: snapshot.Audit.StopReason.Code, Message: snapshot.Audit.StopReason.Message}
 	}
 	report := machineReport{
-		Schema: ReportSchema, AuditID: snapshot.Audit.AuditID, ProjectID: snapshot.Audit.ProjectID,
+		ProjectRevision: build.projectRevision, Schema: ReportSchema, AuditID: snapshot.Audit.AuditID, ProjectID: snapshot.Audit.ProjectID,
 		GeneratedFrom: snapshot.Audit.UpdatedAt.UTC().Round(0),
 		Profile: reportProfile{
 			Name: snapshot.Audit.Profile.Name, Version: snapshot.Audit.Profile.Version,
@@ -317,7 +318,7 @@ func (i *Importer) publishReport(
 	namespace := auditdomain.ArtifactNamespace(snapshot.Audit.AuditID)
 	machineArtifact, err := i.artifacts.PutImmutableProject(
 		ctx, snapshot.Audit.ProjectID,
-		contracts.ArtifactRef{Namespace: namespace, Name: "report.json"},
+		contracts.ArtifactRef{Namespace: namespace, Name: fmt.Sprintf("report-%d-%d.json", snapshot.Audit.Revision, build.projectRevision)},
 		artifacts.Payload{MediaType: "application/json", Data: machineBytes},
 	)
 	if err != nil {
@@ -325,7 +326,7 @@ func (i *Importer) publishReport(
 	}
 	summaryArtifact, err := i.artifacts.PutImmutableProject(
 		ctx, snapshot.Audit.ProjectID,
-		contracts.ArtifactRef{Namespace: namespace, Name: "report.md"},
+		contracts.ArtifactRef{Namespace: namespace, Name: fmt.Sprintf("report-%d-%d.md", snapshot.Audit.Revision, build.projectRevision)},
 		artifacts.Payload{MediaType: "text/markdown", Data: summaryBytes},
 	)
 	if err != nil {
@@ -369,7 +370,7 @@ func (i *Importer) publishReport(
 		return false, err
 	}
 	commit := auditstore.CommitReportParams{
-		Claim: claim, ExpectedAuditRevision: snapshot.Audit.Revision,
+		Claim: claim, ExpectedAuditRevision: snapshot.Audit.Revision, ExpectedProjectRevision: build.projectRevision,
 		RoundID: snapshot.Round.RoundID, ExpectedRoundRevision: snapshot.Round.Revision,
 		Machine: machineLink, Summary: summaryLink, RequestDigest: auditdomain.DigestBytes(identity),
 	}

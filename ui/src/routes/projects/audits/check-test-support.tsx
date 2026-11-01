@@ -78,10 +78,12 @@ export function endpointRow(
   overrides: Partial<AuditCoverageRow["coverage"]> & {
     resultSummary?: string;
     evidence?: { id: string; kind: string; summary: string }[];
+    findingIds?: string[];
   } = {},
 ): AuditCoverageRow {
-  const { resultSummary, evidence, ...coverage } = overrides;
+  const { resultSummary, evidence, findingIds = [], ...coverage } = overrides;
   return build.conforming("AuditCoverageRow", {
+    findingIds,
     roundId: "round_1",
     itemId,
     ordinal,
@@ -116,10 +118,12 @@ export function requirementRow(
   status: AuditCoverageRow["coverage"]["status"],
   overrides: Partial<AuditCoverageRow["coverage"]> & {
     resultSummary?: string;
+    findingIds?: string[];
   } = {},
 ): AuditCoverageRow {
-  const { resultSummary, ...coverage } = overrides;
+  const { resultSummary, findingIds = [], ...coverage } = overrides;
   return build.conforming("AuditCoverageRow", {
+    findingIds,
     roundId: "round_1",
     itemId,
     ordinal,
@@ -176,14 +180,14 @@ export function makeItem(
 }
 
 export function makeFinding(
-  auditId: string,
+  projectId: string,
   findingId: string,
   title: string,
   subjectKey: string | null,
   overrides: Partial<ProjectFinding> = {},
 ): ProjectFinding {
   const finding = build.finding(
-    auditId,
+    projectId,
     findingId,
     {
       createdAt: "2026-10-05T10:15:00Z",
@@ -200,30 +204,7 @@ export function makeFinding(
       ],
     },
   );
-  return overrides.firstProposal === undefined
-    ? {
-        ...finding,
-        firstProposal: {
-          ...finding.firstProposal,
-          createdAt: "2026-10-05T10:15:00Z",
-          origin: {
-            ...finding.firstProposal.origin,
-            runId: "run_source",
-            stageExecutionId: "stage_source",
-            allocationId: "allocation_source",
-            invocationId: "invocation_source",
-            logicalAgentName: "tracer",
-            workflow: {
-              name: "trace",
-              version: "1",
-              schemaVersion: "contractor/v1alpha1",
-              configurationRef: { name: "trace", version: "1" },
-              closureDigest: DIGEST,
-            },
-          },
-        },
-      }
-    : finding;
+  return finding;
 }
 
 export function makeReview(

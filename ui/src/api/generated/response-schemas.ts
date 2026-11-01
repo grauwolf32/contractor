@@ -544,6 +544,7 @@ export type PublicSchemaName =
   | "FindingClaim"
   | "ProjectFindingSummary"
   | "ProjectFindingPage"
+  | "DecisionRationale"
   | "EditProjectFindingRequest"
   | "EditProjectFindingResult"
   | "ProjectFindingSourcePreview"

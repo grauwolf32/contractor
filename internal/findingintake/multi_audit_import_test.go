@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
@@ -28,7 +29,6 @@ func TestPostgresSameReceiptImportsIntoIndependentAudits(t *testing.T) {
 	const secondAudit = "second-import-audit"
 	createFixtureAudit(t, f, secondAudit)
 	holds := make(map[string]AuditHold)
-	findingIDs := make(map[string]string)
 	for _, auditID := range []string{f.request.AuditID, secondAudit} {
 		request := f.request
 		request.AuditID = auditID
@@ -37,18 +37,12 @@ func TestPostgresSameReceiptImportsIntoIndependentAudits(t *testing.T) {
 			t.Fatalf("first import into %s: replayed=%v err=%v", auditID, replayed, err)
 		}
 		holds[auditID] = hold
-		var findingID string
-		if err := f.pool.QueryRow(f.ctx, `SELECT finding_id FROM audit_findings
-WHERE audit_id=$1 AND first_receipt_id=$2`, auditID, f.receiptID).Scan(&findingID); err != nil {
-			t.Fatal(err)
-		}
-		findingIDs[auditID] = findingID
 		if _, replayed, err := f.intake.ImportIntoAudit(f.ctx, request); err != nil || !replayed {
 			t.Fatalf("repeat import into %s: replayed=%v err=%v", auditID, replayed, err)
 		}
 	}
-	if findingIDs[f.request.AuditID] == findingIDs[secondAudit] || holds[f.request.AuditID].Proposal.Ref.SameExact(holds[secondAudit].Proposal.Ref) {
-		t.Fatal("destination Audits shared finding identity or retained proposal")
+	if !holds[f.request.AuditID].Proposal.Ref.SameExact(holds[secondAudit].Proposal.Ref) {
+		t.Fatal("destination Audits did not reuse the Project-retained proposal")
 	}
 	if err := deleteRun(f.ctx, f.pool, f.request.OwnerID, f.request.RunID); err != nil {
 		t.Fatal(err)
@@ -106,8 +100,8 @@ WHERE audit_id=$1 AND first_receipt_id=$2`, auditID, f.receiptID).Scan(&findingI
 	if _, err := projectArtifacts.Read(f.ctx, holds[secondAudit].Proposal.Ref); err != nil {
 		t.Fatalf("surviving retained proposal: %v", err)
 	}
-	if _, err := projectArtifacts.Read(f.ctx, holds[first.AuditID].Proposal.Ref); !errors.Is(err, artifacts.ErrArtifactNotFound) {
-		t.Fatalf("purged proposal: %v", err)
+	if _, err := projectArtifacts.Read(f.ctx, holds[first.AuditID].Proposal.Ref); err != nil {
+		t.Fatalf("Project material lost after Audit purge: %v", err)
 	}
 }
 
@@ -205,7 +199,7 @@ func TestPostgresCollectionPublicationReadsRequestingAuditHoldAfterRunDeletion(t
 			continue
 		}
 		if document.Scope.Kind != "project" ||
-			document.Ref.Namespace != auditdomain.ArtifactNamespace(f.request.AuditID) {
+			document.Ref.Namespace != artifactpolicy.FindingMaterialsNamespace {
 			t.Fatalf("published proposal copy = %+v, want the requesting Audit's", document)
 		}
 		return
@@ -221,10 +215,10 @@ func (emptyCollectionReviews) SelectCollectionFindings(
 	return []string{}, nil
 }
 
-func (emptyCollectionReviews) ReadCollectionReviews(
+func (emptyCollectionReviews) ReadCollectionFindings(
 	context.Context, pgx.Tx, string, []string,
-) (map[string][]auditdomain.FindingCollectionReview, error) {
-	return map[string][]auditdomain.FindingCollectionReview{}, nil
+) (map[string]*auditdomain.FindingCollectionFinding, error) {
+	return map[string]*auditdomain.FindingCollectionFinding{}, nil
 }
 
 // After source Run deletion an Audit inbox reads the proposal only from that
@@ -448,87 +442,6 @@ func recordAuditChildReceipt(
 	return readReceiptByID(f.ctx, f.pool, receiptID)
 }
 
-func TestPostgresDirectAssessmentReplayRequiresAuditScopedIdentity(t *testing.T) {
-	for _, historical := range []bool{false, true} {
-		name := "current"
-		if historical {
-			name = "receipt-only"
-		}
-		t.Run(name, func(t *testing.T) {
-			f := newDeletionImportFixture(t)
-			if _, _, err := f.intake.ImportIntoAudit(f.ctx, f.request); err != nil {
-				t.Fatal(err)
-			}
-			input := directVerificationInput{AuditID: f.request.AuditID, ReceiptID: f.receiptID}
-			currentID := deterministicID("direct-assessment", input.AuditID, input.ReceiptID)
-			storedID := currentID
-			if historical {
-				storedID = deterministicID("direct-assessment", input.ReceiptID)
-			}
-			resultDigest, contractDigest := auditdomain.DigestBytes([]byte("result")), auditdomain.DigestBytes([]byte("contract"))
-			if _, err := f.pool.Exec(f.ctx, `INSERT INTO audit_finding_assessments (
- assessment_id, finding_id, audit_id, receipt_id, semantic_assessment,
- result_ref, result_digest, direct_verification, contract_ref, contract_digest)
-SELECT $1,finding_id,audit_id,first_receipt_id,'supported',
- '{"namespace":"verification","name":"result","revision":"r1"}'::jsonb,$4,true,
- '{"namespace":"verification","name":"contract","revision":"r1"}'::jsonb,$5
-FROM audit_findings WHERE audit_id=$2 AND first_receipt_id=$3`, storedID, input.AuditID, input.ReceiptID, resultDigest, contractDigest); err != nil {
-				t.Fatal(err)
-			}
-			var before string
-			if err := f.pool.QueryRow(f.ctx, `SELECT row_to_json(a)::text FROM audit_finding_assessments a WHERE assessment_id=$1`, storedID).Scan(&before); err != nil {
-				t.Fatal(err)
-			}
-			tx, err := f.pool.Begin(f.ctx)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer tx.Rollback(f.ctx)
-			if replayed, err := directAssessmentReplay(f.ctx, tx, currentID, input, "supported", resultDigest, contractDigest); err != nil || replayed == historical {
-				t.Fatalf("owning Audit replay=%v err=%v", replayed, err)
-			}
-			for _, mismatch := range []string{"assessment", "result", "contract", "receipt"} {
-				t.Run(mismatch, func(t *testing.T) {
-					changedInput := input
-					semantic, result, contract := "supported", resultDigest, contractDigest
-					switch mismatch {
-					case "assessment":
-						semantic = "refuted"
-					case "result":
-						result = auditdomain.DigestBytes([]byte("other-result"))
-					case "contract":
-						contract = auditdomain.DigestBytes([]byte("other-contract"))
-					case "receipt":
-						changedInput.ReceiptID = "other-receipt"
-					}
-					replayed, err := directAssessmentReplay(f.ctx, tx, currentID, changedInput, semantic, result, contract)
-					if historical {
-						if err != nil || replayed {
-							t.Fatalf("receipt-only ID was considered for replay: replayed=%v err=%v", replayed, err)
-						}
-					} else if !replayed || !errors.Is(err, ErrConflict) {
-						t.Fatalf("changed current assessment: replayed=%v err=%v", replayed, err)
-					}
-				})
-			}
-			input.AuditID = "other-audit"
-			for _, id := range []string{currentID, deterministicID("direct-assessment", input.AuditID, input.ReceiptID)} {
-				if replayed, err := directAssessmentReplay(f.ctx, tx, id, input, "supported", resultDigest, contractDigest); err != nil || replayed {
-					t.Fatalf("foreign assessment reused: replayed=%v err=%v", replayed, err)
-				}
-			}
-			var after string
-			if err := tx.QueryRow(f.ctx, `SELECT row_to_json(a)::text FROM audit_finding_assessments a WHERE assessment_id=$1`, storedID).Scan(&after); err != nil || after != before {
-				t.Fatalf("assessment history changed: %v", err)
-			}
-			var count int
-			if err := tx.QueryRow(f.ctx, `SELECT count(*) FROM audit_finding_assessments`).Scan(&count); err != nil || count != 1 {
-				t.Fatalf("replay created an assessment: count=%d err=%v", count, err)
-			}
-		})
-	}
-}
-
 func TestPostgresCollectionRetentionAdmitsClosingAudit(t *testing.T) {
 	for _, state := range []string{"finalizing", "cancelling", "cancelled", "completed"} {
 		t.Run(state, func(t *testing.T) {
@@ -565,5 +478,79 @@ UPDATE audits
 				t.Fatalf("replayed retention changed holds: %+v, %v", replayed.AuditHolds, err)
 			}
 		})
+	}
+}
+
+// Replay reconciles the ordinary frozen history artifact. A different receipt
+// or Audit operation never finds or mutates another operation's history.
+func TestPostgresDirectAssessmentReplayRequiresAuditScopedIdentity(t *testing.T) {
+	f := newDeletionImportFixture(t)
+	if _, _, err := f.intake.ImportIntoAudit(f.ctx, f.request); err != nil {
+		t.Fatal(err)
+	}
+	input := directVerificationInput{ProjectID: "delete-project", AuditID: f.request.AuditID, ReceiptID: f.receiptID}
+	id := deterministicID("direct-assessment", input.AuditID, input.ReceiptID)
+	resultDigest, contractDigest := auditdomain.DigestBytes([]byte("result")), auditdomain.DigestBytes([]byte("contract"))
+	fact := directHistoryFactForTest{Schema: auditdomain.FindingSourceHistorySchema, ReceiptID: input.ReceiptID, Kind: "direct-verification"}
+	fact.Original.AuditID, fact.Original.RecordID, fact.Original.Semantic = input.AuditID, id, "supported"
+	fact.Materials.Result.Digest, fact.Materials.Contract.Digest = resultDigest, contractDigest
+	body, err := json.Marshal(fact)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := artifacts.NewService(artifacts.NewPostgresRepository(f.pool))
+	scope, err := artifacts.ProjectScope(input.ProjectID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ref := contracts.ArtifactRef{Namespace: artifactpolicy.FindingHistoryNamespace, Name: auditdomain.FindingSourceHistoryName(input.ReceiptID, "direct-verification", id)}
+	if _, err := store.CreateFrozen(f.ctx, scope, ref, artifacts.Payload{MediaType: "application/json", Data: body}); err != nil {
+		t.Fatal(err)
+	}
+	tx, err := f.pool.Begin(f.ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(f.ctx)
+	if replayed, err := directAssessmentReplay(f.ctx, tx, id, input, "supported", resultDigest, contractDigest); err != nil || !replayed {
+		t.Fatalf("own replay=%v %v", replayed, err)
+	}
+	for _, change := range []string{"assessment", "result", "contract", "receipt", "audit", "operation"} {
+		t.Run(change, func(t *testing.T) {
+			changed := input
+			operation := id
+			semantic, result, contract := "supported", resultDigest, contractDigest
+			switch change {
+			case "assessment":
+				semantic = "refuted"
+			case "result":
+				result = auditdomain.DigestBytes([]byte("other-result"))
+			case "contract":
+				contract = auditdomain.DigestBytes([]byte("other-contract"))
+			case "receipt":
+				changed.ReceiptID = "other-receipt"
+			case "audit":
+				changed.AuditID = "other-audit"
+			case "operation":
+				changed.AuditID = "other-audit"
+				operation = deterministicID("direct-assessment", changed.AuditID, changed.ReceiptID)
+			}
+			replayed, err := directAssessmentReplay(f.ctx, tx, operation, changed, semantic, result, contract)
+			if change == "receipt" || change == "operation" {
+				if replayed || err != nil {
+					t.Fatalf("foreign lookup=%v %v", replayed, err)
+				}
+			} else if !replayed || !errors.Is(err, ErrConflict) {
+				t.Fatalf("changed replay=%v %v", replayed, err)
+			}
+		})
+	}
+	project, err := store.Project(input.ProjectID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	read, err := project.Read(f.ctx, ref)
+	if err != nil || !bytes.Equal(read.Payload.Data, body) {
+		t.Fatalf("history changed: %v", err)
 	}
 }

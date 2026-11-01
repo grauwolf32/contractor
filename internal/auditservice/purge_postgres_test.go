@@ -20,7 +20,7 @@ import (
 // owner decided an item action, a finding with collected assessments, or a
 // proposed report. Immutable decisions and assessments leave with the Audit.
 func TestAuditPurgeRemovesDecidedReviews(t *testing.T) {
-	for _, subject := range []string{"action", "finding", "report"} {
+	for _, subject := range []string{"action", "report"} {
 		t.Run(subject, func(t *testing.T) {
 			databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
 			if databaseURL == "" {
@@ -62,11 +62,6 @@ func TestAuditPurgeRemovesDecidedReviews(t *testing.T) {
 			switch subject {
 			case "action":
 				rejectItemActionForPurge(t, ctx, store, service, audit)
-			case "finding":
-				findingID := seedAuditFinding(t, ctx, pool, project.ProjectID, project.OwnerID, audit.AuditID, "purge")
-				decideFindingForTest(t, ctx, service, project.OwnerID, audit.AuditID, findingID, 1,
-					"purge", auditstore.VerdictTruePositive, reviewStringPointer(string(auditstore.SeverityHigh)), nil)
-				seedAuditFindingAttemptHistory(t, ctx, pool, audit.AuditID, findingID, "receipt-purge")
 			case "report":
 				rejectReportForPurge(t, ctx, pool, store, service, audit)
 			}
@@ -104,7 +99,7 @@ func TestAuditPurgeRemovesDecidedReviews(t *testing.T) {
 			if err := store.PurgeClaimed(ctx, claim, auditdomain.ArtifactNamespace(audit.AuditID)); err != nil {
 				t.Fatalf("purge Audit with a decided %s review: %v", subject, err)
 			}
-			for _, table := range []string{"audits", "audit_review_requests", "audit_review_decisions", "audit_finding_assessments"} {
+			for _, table := range []string{"audits", "audit_review_requests", "audit_review_decisions"} {
 				var remaining int
 				if err := pool.QueryRow(ctx, `SELECT count(*) FROM `+table).Scan(&remaining); err != nil || remaining != 0 {
 					t.Fatalf("%s after purge = (%d, %v)", table, remaining, err)

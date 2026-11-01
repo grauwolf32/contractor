@@ -107,6 +107,18 @@ relations:
   action: preserve
   owner: V64-002
   facts: Reuse RunService/Scheduler attempts, cancellation, terminal observation and cleanup authority.
+- name: project_findings
+  action: preserve
+  owner: V64-014
+  facts: Single Project problem identity and optional current analyst assessment. New model starts empty; old Audit facts survive as opaque immutable Project artifacts.
+- name: project_finding_sources
+  action: preserve
+  owner: V64-014
+  facts: Immutable receipt links to the canonical Finding; independent evidence and result history have no current problem state or mutation commands.
+- name: project_finding_audits
+  action: preserve
+  owner: V64-014
+  facts: Indexed execution membership for bounded Audit views over the same Project identity, state and revision; no source state synchronization.
 paths:
 - prefix: internal/auditcontroller/
   action: replace

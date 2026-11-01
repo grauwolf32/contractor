@@ -130,10 +130,11 @@ type ReportPage struct {
 // comma-separated compact JSON values, under a live claim for the Audit
 // revision the build belongs to.
 type RecordReportPageParams struct {
-	Claim                 ControllerClaim
-	ExpectedAuditRevision uint64
-	Page                  ReportPage
-	Content               []byte
+	Claim                   ControllerClaim
+	ExpectedAuditRevision   uint64
+	ExpectedProjectRevision uint64
+	Page                    ReportPage
+	Content                 []byte
 }
 
 // ReportSectionContent is the recorded entries of one report section, the

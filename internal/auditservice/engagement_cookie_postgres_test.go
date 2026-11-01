@@ -2,11 +2,12 @@ package auditservice
 
 import (
 	"errors"
+	"strings"
+	"testing"
+
 	"github.com/grauwolf32/contractor/internal/contracts/engagementcontract"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/credentials"
-	"strings"
-	"testing"
 )
 
 func TestEngagementCookieAdmissionPinsHeldPrivateMaterial(t *testing.T) {

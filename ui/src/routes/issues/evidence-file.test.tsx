@@ -19,59 +19,52 @@ function sample() {
   const file = data.evidence.find(
     (value) => value.metadata.artifact.name === "search-route",
   )!;
-  return { finding, file };
+  const source = data.sources.find(
+    (value) => value.receiptId === finding.firstReceiptId,
+  )!;
+  return { source, file };
 }
 
-it.each(["run", "project"] as const)(
-  "explicitly previews and downloads the exact %s evidence, without an automatic payload read",
-  async (scope) => {
-    const { finding, file } = sample();
-    if (scope === "run") {
-      finding.firstProposal.auditHolds = [];
-      finding.firstProposal.origin.runDeleted = false;
-    }
-    const prefix =
-      scope === "run"
-        ? `/v1/runs/${finding.firstProposal.origin.runId}`
-        : "/v1/projects/project_shop";
-    const base = `${prefix}/artifacts/evidence/search-route`;
-    const server = fakeServer({}, (_request, url) => {
-      expect(url.pathname).toMatch(new RegExp(`^${base}(?:/metadata)?$`));
-      expect(url.searchParams.get("revision")).toBe("search-route-r1");
-      return url.pathname.endsWith("/metadata")
-        ? json(file.metadata)
-        : bytes(file.text, file.metadata.mediaType);
-    });
-    const view = renderWithAPI(
-      <FindingEvidenceFile finding={finding} index={0} />,
-      { server },
-    );
-    expect(server.requests).toHaveLength(0);
-    await view.user.click(screen.getByRole("button", { name: "Preview" }));
-    expect(
-      await screen.findByText(file.text.replace(/\s+/g, " ").trim(), {
-        exact: true,
-      }),
-    ).toBeVisible();
-    await view.user.click(screen.getByRole("button", { name: "Hide preview" }));
-    expect(
-      screen.queryByText(file.text.replace(/\s+/g, " ").trim(), {
-        exact: true,
-      }),
-    ).toBeNull();
-    await view.user.click(
-      screen.getByRole("button", { name: "Download search-route" }),
-    );
-    await waitFor(() => expect(saveBlob).toHaveBeenCalled());
-    expect(server.sent("GET", base)).toHaveLength(2);
-    expect(server.requests.every((request) => request.method === "GET")).toBe(
-      true,
-    );
-  },
-);
+it("explicitly previews and downloads exact Project evidence without an automatic payload read", async () => {
+  const { source, file } = sample();
+  const prefix = "/v1/projects/project_shop";
+  const base = `${prefix}/artifacts/evidence/search-route`;
+  const server = fakeServer({}, (_request, url) => {
+    expect(url.pathname).toMatch(new RegExp(`^${base}(?:/metadata)?$`));
+    expect(url.searchParams.get("revision")).toBe("search-route-r1");
+    return url.pathname.endsWith("/metadata")
+      ? json(file.metadata)
+      : bytes(file.text, file.metadata.mediaType);
+  });
+  const view = renderWithAPI(
+    <FindingEvidenceFile source={source} index={0} />,
+    { server },
+  );
+  expect(server.requests).toHaveLength(0);
+  await view.user.click(screen.getByRole("button", { name: "Preview" }));
+  expect(
+    await screen.findByText(file.text.replace(/\s+/g, " ").trim(), {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await view.user.click(screen.getByRole("button", { name: "Hide preview" }));
+  expect(
+    screen.queryByText(file.text.replace(/\s+/g, " ").trim(), {
+      exact: true,
+    }),
+  ).toBeNull();
+  await view.user.click(
+    screen.getByRole("button", { name: "Download search-route" }),
+  );
+  await waitFor(() => expect(saveBlob).toHaveBeenCalled());
+  expect(server.sent("GET", base)).toHaveLength(2);
+  expect(server.requests.every((request) => request.method === "GET")).toBe(
+    true,
+  );
+});
 
 it("keeps failed metadata explicit and retries without falling back to another scope", async () => {
-  const { finding, file } = sample();
+  const { source, file } = sample();
   let failed = true;
   const server = fakeServer({}, (_request, url) => {
     expect(url.pathname).toContain("/projects/project_shop/");
@@ -82,7 +75,7 @@ it("keeps failed metadata explicit and retries without falling back to another s
       : bytes(file.text, file.metadata.mediaType);
   });
   const view = renderWithAPI(
-    <FindingEvidenceFile finding={finding} index={0} />,
+    <FindingEvidenceFile source={source} index={0} />,
     { server },
   );
   await view.user.click(screen.getByRole("button", { name: "Preview" }));
@@ -100,12 +93,12 @@ it("keeps failed metadata explicit and retries without falling back to another s
 });
 
 it("uses the shared preview size bound before reading bytes", async () => {
-  const { finding, file } = sample();
+  const { source, file } = sample();
   const server = fakeServer({}, () =>
     json({ ...file.metadata, size: MAXIMUM_PREVIEW_BYTES + 1 }),
   );
   const view = renderWithAPI(
-    <FindingEvidenceFile finding={finding} index={0} />,
+    <FindingEvidenceFile source={source} index={0} />,
     { server },
   );
   await view.user.click(screen.getByRole("button", { name: "Preview" }));
@@ -116,7 +109,7 @@ it("uses the shared preview size bound before reading bytes", async () => {
 });
 
 it("does not populate a changed finding's preview with a late response", async () => {
-  const { finding, file } = sample();
+  const { source, file } = sample();
   const gate = deferred();
   const server = fakeServer({}, async (_request, url) => {
     if (url.pathname.endsWith("/metadata")) {
@@ -126,7 +119,7 @@ it("does not populate a changed finding's preview with a late response", async (
     return bytes(file.text, file.metadata.mediaType);
   });
   const view = renderWithAPI(
-    <FindingEvidenceFile finding={finding} index={0} />,
+    <FindingEvidenceFile source={source} index={0} />,
     { server },
   );
   await view.user.click(screen.getByRole("button", { name: "Preview" }));
@@ -143,13 +136,13 @@ it("does not populate a changed finding's preview with a late response", async (
 });
 
 it("shows a bounded saved source snippet by default when requested by the workspace", async () => {
-  const { finding, file } = sample();
+  const { source, file } = sample();
   const server = fakeServer({}, (_request, url) =>
     url.pathname.endsWith("/metadata")
       ? json(file.metadata)
       : bytes(file.text, file.metadata.mediaType),
   );
-  renderWithAPI(<FindingEvidenceFile finding={finding} index={0} snippet />, {
+  renderWithAPI(<FindingEvidenceFile source={source} index={0} snippet />, {
     server,
   });
   expect(
@@ -166,11 +159,11 @@ it("shows a bounded saved source snippet by default when requested by the worksp
   ).toBe(true);
 });
 it("does not auto-read a source whose authoritative metadata exceeds the inline snippet budget", async () => {
-  const { finding, file } = sample();
+  const { source, file } = sample();
   const server = fakeServer({}, () =>
     json({ ...file.metadata, size: 64 * 1024 + 1 }),
   );
-  renderWithAPI(<FindingEvidenceFile finding={finding} index={0} snippet />, {
+  renderWithAPI(<FindingEvidenceFile source={source} index={0} snippet />, {
     server,
   });
   expect(

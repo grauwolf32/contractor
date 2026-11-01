@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 )
 
@@ -18,14 +17,6 @@ type projectSourcePageResponse struct {
 type projectSourceHistoryPageResponse struct {
 	findingintake.ProjectSourceHistoryPage
 	Page pageInfoResponse `json:"page"`
-}
-
-func projectSourceCursorRevision(raw string) (*uint64, error) {
-	value, err := strconv.ParseUint(raw, 10, 64)
-	if err != nil || value < 1 || value > contracts.MaxExactInteger {
-		return nil, errInvalidRequest
-	}
-	return &value, nil
 }
 
 func (h *findingHandlers) getProjectFindingSource(w http.ResponseWriter, r *http.Request) {
@@ -44,7 +35,7 @@ func (h *findingHandlers) getProjectFindingSource(w http.ResponseWriter, r *http
 
 func (h *findingHandlers) listProjectFindingSources(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	query, limit, encoded, err := pageQuery(r.URL.RawQuery, "findingId")
+	query, limit, encoded, err := pageQuery(r.URL.RawQuery, "findingId", "projectRevision")
 	if err != nil {
 		handleError(w, err)
 		return
@@ -61,6 +52,11 @@ func (h *findingHandlers) listProjectFindingSources(w http.ResponseWriter, r *ht
 		return
 	}
 	selection := findingintake.ProjectSourceQuery{ListQuery: findingintake.ListQuery{Limit: limit + 1}}
+	selection.ProjectRevision, err = optionalProjectRevision(query.Get("projectRevision"))
+	if err != nil {
+		handleError(w, err)
+		return
+	}
 	if len(cursor) != 0 {
 		after, err := time.Parse(time.RFC3339Nano, cursor[0])
 		if err != nil {
@@ -68,11 +64,12 @@ func (h *findingHandlers) listProjectFindingSources(w http.ResponseWriter, r *ht
 			return
 		}
 		selection.AfterCreatedAt, selection.AfterReceiptID = &after, cursor[1]
-		selection.ProjectRevision, err = projectSourceCursorRevision(cursor[2])
-		if err != nil {
-			handleError(w, err)
+		revision, parseErr := projectSourceCursorRevision(cursor[2])
+		if parseErr != nil || (selection.ProjectRevision != nil && *selection.ProjectRevision != *revision) {
+			handleError(w, errInvalidRequest)
 			return
 		}
+		selection.ProjectRevision = revision
 	}
 	result, err := h.FindingProposals.ListProjectSources(r.Context(), ownerID, projectID, findingID, selection)
 	if err != nil {
@@ -132,11 +129,4 @@ func (h *findingHandlers) listProjectFindingSourceHistory(w http.ResponseWriter,
 	}
 	result.Items = items
 	writeJSON(w, http.StatusOK, projectSourceHistoryPageResponse{ProjectSourceHistoryPage: result, Page: page})
-}
-
-func optionalProjectRevision(raw string) (*uint64, error) {
-	if raw == "" {
-		return nil, nil
-	}
-	return projectSourceCursorRevision(raw)
 }

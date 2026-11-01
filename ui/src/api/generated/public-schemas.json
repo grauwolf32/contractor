@@ -808,7 +808,7 @@
     "FindingCorrelationFence": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["projectId", "audits"],
+      "required": ["projectId", "projectRevision", "audits"],
       "properties": {
         "projectId": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
@@ -6041,7 +6041,6 @@
         "kind": {
           "type": "string",
           "enum": [
-            "finding-triage",
             "active-check-approval",
             "requirement-applicability",
             "report-acceptance"
@@ -7796,10 +7795,7 @@
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditReviewAction"
         },
         "rationale": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 65536,
-          "x-max-utf8-bytes": 65536
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/DecisionRationale"
         },
         "subjectRevision": { "type": "integer", "minimum": 1 },
         "subjectDigest": {
@@ -7998,10 +7994,7 @@
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditReviewAction"
         },
         "rationale": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 65536,
-          "x-max-utf8-bytes": 65536
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/DecisionRationale"
         }
       }
     },
@@ -13519,10 +13512,7 @@
         "rationale": {
           "oneOf": [
             {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 65536,
-              "x-max-utf8-bytes": 65536
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/DecisionRationale"
             },
             { "type": "null" }
           ]
@@ -13530,7 +13520,10 @@
         "actorId": {
           "oneOf": [
             {
-              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256,
+              "x-max-utf8-bytes": 256
             },
             { "type": "null" }
           ]
@@ -13616,6 +13609,10 @@
         "projectId",
         "title",
         "titleTruncated",
+        "subjectKind",
+        "subjectKey",
+        "subjectTruncated",
+        "severitySuggestion",
         "state",
         "analystVerdict",
         "analystSeverity",
@@ -13631,13 +13628,15 @@
         "projectId": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
         },
-        "title": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 256,
-          "x-max-utf8-bytes": 1024
-        },
+        "title": { "type": "string", "minLength": 1, "maxLength": 256 },
         "titleTruncated": { "type": "boolean" },
+        "subjectKind": { "type": "string", "maxLength": 64 },
+        "subjectKey": { "type": "string", "maxLength": 256 },
+        "subjectTruncated": { "type": "boolean" },
+        "severitySuggestion": {
+          "type": "string",
+          "enum": ["", "informational", "low", "medium", "high", "critical"]
+        },
         "state": {
           "oneOf": [
             {
@@ -13701,6 +13700,12 @@
         }
       }
     },
+    "DecisionRationale": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 65536,
+      "x-max-utf8-bytes": 65536
+    },
     "EditProjectFindingRequest": {
       "oneOf": [
         {
@@ -13713,10 +13718,7 @@
               "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingSeverity"
             },
             "rationale": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 65536,
-              "x-max-utf8-bytes": 65536
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/DecisionRationale"
             }
           }
         },
@@ -13730,10 +13732,7 @@
               "enum": ["false_positive", "reopen", "needs_evidence"]
             },
             "rationale": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 65536,
-              "x-max-utf8-bytes": 65536
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/DecisionRationale"
             }
           }
         },
@@ -13747,10 +13746,7 @@
               "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
             },
             "rationale": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 65536,
-              "x-max-utf8-bytes": 65536
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/DecisionRationale"
             }
           }
         }

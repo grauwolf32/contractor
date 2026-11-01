@@ -3,261 +3,20 @@ package public
 import (
 	"context"
 	"encoding/json"
-	"errors"
-	"fmt"
-	"net/http"
-	"net/http/httptest"
-	"net/url"
 	"testing"
-	"time"
 
-	"github.com/getkin/kin-openapi/routers/gorillamux"
+	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
-	"github.com/grauwolf32/contractor/internal/auditservice"
-	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
-	"github.com/grauwolf32/contractor/internal/config"
-	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingintake"
-	"github.com/grauwolf32/contractor/internal/projectstore"
-	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func TestPublicAuditPaginationBoundary(t *testing.T) {
-	ctx, cancel := context.WithTimeout(t.Context(), 90*time.Second)
-	defer cancel()
-	pool := isolatedPublicPool(t, ctx)
-	const owner, projectID, auditID = "user-1", "project-pages", "audit-pages"
-	_, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{
-		ProjectID: projectID, OwnerID: owner, Kind: projectstore.KindProject,
-		Name: "Pagination boundary", IdempotencyKey: "project-pages", RequestDigest: auditHandlerDigest("project-pages"),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, _, err = auditstoretest.NewStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{
-		AuditID: auditID, OwnerID: owner, ProjectID: projectID,
-		Profile:         auditstore.ProfileIdentity{Name: "page-profile", Version: "1", Digest: auditHandlerDigest("page-profile")},
-		ProfileSnapshot: json.RawMessage(`{"interaction":{}}`),
-		InputSelection:  json.RawMessage(`{}`),
-		Limits: auditstore.Limits{MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: 100, MaxItemsTotal: 100,
-			MaxSubmittedRuns: 100, MaxItemRunAttempts: 1, MaxEvidenceBytes: 1 << 20},
-		IdempotencyKey: "audit-pages", RequestDigest: auditHandlerDigest("audit-pages"),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	var service *auditservice.Service
-	var interleaving *provenanceInterleavingService
-	fixture := newHandlerFixtureWithAuth(t, "../../config/testdata/valid",
-		newTestAuthentication(t), mustTestOrigins(t), false, nil,
-		func(dependencies *testServices) {
-			credentials := newFakeManagedCredentials()
-			service, err = auditservice.New(auditservice.Options{
-				Pool: pool, Profiles: dependencies.Config.(*config.Manager), CredentialGuard: credentials,
-				TransactionLLMCredentials: runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(
-					func(pgx.Tx) (resolved.CredentialLookup, error) { return credentials, nil },
-				),
-			})
-			if err != nil {
-				t.Fatal(err)
-			}
-			interleaving = &provenanceInterleavingService{Service: service}
-			dependencies.Audits = interleaving
-		},
-	)
-	findingIDs := make(map[string]string, 201)
-	for index := range 201 {
-		suffix := fmt.Sprintf("page-%03d", index)
-		findingID := seedPublicPaginationFinding(t, ctx, pool, owner, projectID, auditID, suffix)
-		findingIDs["receipt-"+suffix] = findingID
-		_, err := service.CreateFindingReview(ctx, auditservice.CreateFindingReviewParams{
-			OwnerID: owner, AuditID: auditID, FindingID: findingID, ExpectedRevision: 1,
-			RequestID: "review-" + suffix, IdempotencyKey: "review-" + suffix,
-			RequestDigest: auditHandlerDigest("review-" + suffix),
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
-	firstFinding := findingIDs["receipt-page-000"]
-	// One source proposal plus 200 retained direct assessments exercises the
-	// provenance cursor over heterogeneous records without running any Workers.
-	_, err = pool.Exec(ctx, `
-INSERT INTO audit_finding_assessments (
-    assessment_id, finding_id, audit_id, receipt_id, semantic_assessment,
-    result_ref, result_digest, direct_verification, contract_ref, contract_digest
-)
-SELECT 'assessment-' || lpad(index::text, 3, '0'), $1, $2, 'receipt-page-000', 'supported',
-       '{"namespace":"audit-results","name":"direct","revision":"r1"}'::jsonb, $3, true,
-       '{"namespace":"audit-contracts","name":"direct","revision":"r1"}'::jsonb, $3
-FROM generate_series(1, 200) AS index`, firstFinding, auditID, auditHandlerDigest("direct"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	document := loadPublicOpenAPI(t)
-	router, err := gorillamux.NewRouter(document)
-	if err != nil {
-		t.Fatal(err)
-	}
-	paths := []struct{ name, path, identity string }{
-		{"findings", "/v1/audits/" + auditID + "/findings", "findingId"},
-		{"reviews", "/v1/audits/" + auditID + "/reviews", "requestId"},
-		{"provenance", "/v1/audits/" + auditID + "/findings/" + firstFinding + "/provenance", "recordId"},
-	}
-	var continuations []string
-	for _, list := range paths {
-		t.Run(list.name, func(t *testing.T) {
-			for _, limit := range []int{199, 200} {
-				t.Run(fmt.Sprint(limit), func(t *testing.T) {
-					path := fmt.Sprintf("%s?limit=%d", list.path, limit)
-					seen := make(map[string]bool)
-					var revision uint64
-					for pageIndex := range 2 {
-						response := serveAndValidatePublicContract(t, router, fixture.handler,
-							newPublicContractRequest(http.MethodGet, path, nil), true)
-						if response.Code != http.StatusOK {
-							t.Fatalf("page = %d: %s", response.Code, response.Body.String())
-						}
-						var page struct {
-							Items         []json.RawMessage `json:"items"`
-							Page          pageInfoResponse  `json:"page"`
-							AuditRevision uint64            `json:"auditRevision"`
-						}
-						if err := json.Unmarshal(response.Body.Bytes(), &page); err != nil {
-							t.Fatal(err)
-						}
-						want := limit
-						if pageIndex == 1 {
-							want = 201 - limit
-						}
-						if len(page.Items) != want || page.Page.HasMore != (pageIndex == 0) ||
-							(page.Page.NextCursor != nil) != (pageIndex == 0) {
-							t.Fatalf("page %d: items=%d page=%+v", pageIndex, len(page.Items), page.Page)
-						}
-						if pageIndex == 0 {
-							revision = page.AuditRevision
-						} else if page.AuditRevision != revision {
-							t.Fatal("cursor traversal changed Audit revision")
-						}
-						for _, item := range page.Items {
-							var fields map[string]json.RawMessage
-							if err := json.Unmarshal(item, &fields); err != nil {
-								t.Fatal(err)
-							}
-							var id string
-							if err := json.Unmarshal(fields[list.identity], &id); err != nil || id == "" || seen[id] {
-								t.Fatalf("missing or duplicate identity %q: %v", id, err)
-							}
-							seen[id] = true
-							if list.name == "findings" {
-								var finding auditservice.Finding
-								if err := json.Unmarshal(item, &finding); err != nil {
-									t.Fatal(err)
-								}
-								receipt := finding.FirstProposal
-								if finding.FindingID != findingIDs[receipt.ReceiptID] ||
-									receipt.Document.ClientKey != receipt.ClientKey ||
-									receipt.Proposal.Ref.Name != receipt.ClientKey || len(receipt.AuditHolds) != 1 ||
-									receipt.AuditHolds[0].AuditID != auditID {
-									t.Fatalf("receipt hydration lost identity, exact document or hold: %+v", finding)
-								}
-							}
-						}
-						if page.Page.NextCursor != nil {
-							path = fmt.Sprintf("%s?limit=%d&cursor=%s", list.path, limit, url.QueryEscape(*page.Page.NextCursor))
-							if limit == 200 {
-								continuations = append(continuations, path)
-							}
-						}
-					}
-					if len(seen) != 201 {
-						t.Fatalf("cursor traversal returned %d distinct records", len(seen))
-					}
-				})
-			}
-			response := httptest.NewRecorder()
-			fixture.handler.ServeHTTP(response, newPublicContractRequest(http.MethodGet, list.path+"?limit=201", nil))
-			if response.Code != http.StatusBadRequest {
-				t.Fatalf("public limit=201 = %d: %s", response.Code, response.Body.String())
-			}
-		})
-	}
-	// The new internal allowance must not bypass owner or revision fences.
-	if _, err := service.ListFindingsPage(ctx, auditstore.FindingListParams{
-		OwnerID: "other-owner", AuditID: auditID, Limit: 201,
-	}); !errors.Is(err, auditstore.ErrNotFound) {
-		t.Fatalf("foreign findings = %v", err)
-	}
-	if _, err := service.ListReviewsPage(ctx, auditstore.ReviewListParams{
-		OwnerID: "other-owner", AuditID: auditID, Limit: 201,
-	}); !errors.Is(err, auditstore.ErrNotFound) {
-		t.Fatalf("foreign reviews = %v", err)
-	}
-	if _, err := service.ListFindingProvenance(ctx, auditstore.ProvenanceListParams{
-		OwnerID: "other-owner", AuditID: auditID, FindingID: firstFinding, Limit: 201,
-	}); !errors.Is(err, auditstore.ErrNotFound) {
-		t.Fatalf("foreign provenance = %v", err)
-	}
-	if _, err := pool.Exec(ctx, `UPDATE audits SET revision = revision + 1 WHERE audit_id = $1`, auditID); err != nil {
-		t.Fatal(err)
-	}
-	for _, path := range continuations {
-		response := httptest.NewRecorder()
-		fixture.handler.ServeHTTP(response, newPublicContractRequest(http.MethodGet, path, nil))
-		if response.Code != http.StatusConflict {
-			t.Fatalf("stale continuation = %d: %s", response.Code, response.Body.String())
-		}
-	}
-	// A mutation commits after the handler has read its envelope, but before
-	// the real service reads the page. Both pins must reach the service, even
-	// when the request did not itself supply optional revision query fields.
-	for _, field := range []string{"audit", "finding"} {
-		t.Run("provenance envelope changes before service read/"+field, func(t *testing.T) {
-			called := false
-			interleaving.before = func(ctx context.Context) error {
-				called = true
-				var err error
-				if field == "audit" {
-					_, err = pool.Exec(ctx, `UPDATE audits SET revision=revision+1 WHERE audit_id=$1`, auditID)
-				} else {
-					_, err = pool.Exec(ctx, `UPDATE audit_findings SET revision=revision+1 WHERE audit_id=$1 AND finding_id=$2`, auditID, firstFinding)
-				}
-				return err
-			}
-			response := httptest.NewRecorder()
-			path := "/v1/audits/" + auditID + "/findings/" + firstFinding + "/provenance?limit=200"
-			fixture.handler.ServeHTTP(response, newPublicContractRequest(http.MethodGet, path, nil))
-			if !called || response.Code != http.StatusConflict {
-				t.Fatalf("interleaving called=%t response=%d: %s", called, response.Code, response.Body.String())
-			}
-		})
-	}
-}
-
-type provenanceInterleavingService struct {
-	*auditservice.Service
-	before func(context.Context) error
-}
-
-func (s *provenanceInterleavingService) ListFindingProvenance(ctx context.Context, params auditstore.ProvenanceListParams) ([]auditservice.FindingProvenance, error) {
-	if before := s.before; before != nil {
-		s.before = nil
-		if err := before(ctx); err != nil {
-			return nil, err
-		}
-	}
-	return s.Service.ListFindingProvenance(ctx, params)
-}
-
-// Seed retained proposal bytes and receipts through the same Audit-hold
-// admission trigger used after import. Each finding has its own receipt, so
-// the 201st row cannot be hidden by a deduplicated hydration request.
 func seedPublicPaginationFinding(t *testing.T, ctx context.Context, pool *pgxpool.Pool,
 	ownerID, projectID, auditID, suffix string, fingerprints ...auditdomain.FindingFingerprint,
 ) string {
@@ -267,9 +26,16 @@ func seedPublicPaginationFinding(t *testing.T, ctx context.Context, pool *pgxpoo
 		Title: "Candidate " + suffix, Description: "Retained pagination test candidate.",
 		Subject:       &auditdomain.FindingSubject{Kind: "component", Key: suffix},
 		Preconditions: []string{}, StandardRefs: []auditdomain.StandardReference{},
-		EvidenceIDs: []string{}, ProposedChecks: []auditdomain.ProposedCheck{},
+		EvidenceIDs: []string{"evidence-1"}, ProposedChecks: []auditdomain.ProposedCheck{},
 		SeveritySuggestion: "medium", Limitations: []string{},
 	}
+
+	evidenceBytes := []byte("Exact source evidence " + suffix)
+	storedEvidence, err := artifactstest.WriteAuditArtifact(ctx, artifacts.NewService(artifacts.NewPostgresRepository(pool)), projectID, contracts.ArtifactRef{Namespace: artifactpolicy.FindingMaterialsNamespace, Name: "evidence-" + suffix}, artifacts.Payload{MediaType: "text/plain", Data: evidenceBytes})
+	if err != nil {
+		t.Fatal(err)
+	}
+	evidenceJSON, _ := json.Marshal([]findingintake.ExactArtifact{{Ref: storedEvidence.Ref, Digest: auditdomain.DigestBytes(evidenceBytes), MediaType: storedEvidence.MediaType, SizeBytes: storedEvidence.Size}})
 	payload, err := auditdomain.EncodeFindingProposal(document)
 	if err != nil {
 		t.Fatal(err)
@@ -279,7 +45,7 @@ func seedPublicPaginationFinding(t *testing.T, ctx context.Context, pool *pgxpoo
 		t.Fatal(err)
 	}
 	written, err := artifactstest.WriteAuditArtifact(ctx, artifacts.NewService(artifacts.NewPostgresRepository(pool)), projectID,
-		contracts.ArtifactRef{Namespace: "audit-proposals", Name: document.ClientKey},
+		contracts.ArtifactRef{Namespace: artifactpolicy.FindingMaterialsNamespace, Name: document.ClientKey},
 		artifacts.Payload{MediaType: "application/json", Data: payload})
 	if err != nil {
 		t.Fatal(err)
@@ -304,29 +70,34 @@ INSERT INTO finding_proposal_receipts (
     request_digest, run_id, owner_id, project_id, workflow_name, workflow_version,
     workflow_schema_version, workflow_configuration_ref, workflow_closure_digest,
     proposal_ref, proposal_digest, proposal_media_type, proposal_size_bytes, evidence,
-    report_projection, fingerprint_projection
+    report_projection, fingerprint_projection, project_proposal,project_evidence,publication_requested,retention_state,source_run_deleted_at
 ) VALUES ($1, $2, $3, 'runtime-pages', 'instance-pages', 'stage-pages', 'worker', $4, $5, $6,
     $7, $8, $9, $10, 'finding-source', '1', 'contractor/v1alpha1',
-    '{"name":"finding-source","version":"1"}'::jsonb, $11, $12::jsonb, $13, 'application/json', $14, '[]'::jsonb, $15,$16)`,
+    '{"name":"finding-source","version":"1"}'::jsonb, $11, $12::jsonb, $13, 'application/json', $14, $17::jsonb, $15,$16,$18::jsonb,$17::jsonb,true,'project-held',clock_timestamp())`,
 		receiptID, "proposal-"+suffix, "allocation-"+suffix, "invocation-"+suffix, "submission-"+suffix,
 		document.ClientKey, auditHandlerDigest("request-"+suffix), "deleted-run-"+suffix,
 		ownerID, projectID, auditHandlerDigest("workflow"), refJSON, proposal.Digest, proposal.SizeBytes,
-		string(projection), string(fingerprintJSON))
+		string(projection), string(fingerprintJSON), evidenceJSON, proposalJSON)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `UPDATE finding_proposal_receipts
-   SET retention_state = 'audit-held', source_run_deleted_at = clock_timestamp()
- WHERE receipt_id = $1`, receiptID); err != nil {
-		t.Fatal(err)
-	}
+
 	if _, err := pool.Exec(ctx, `INSERT INTO finding_proposal_audit_holds (receipt_id, audit_id, project_id, proposal_ref, evidence)
-VALUES ($1, $2, $3, $4::jsonb, '[]'::jsonb)`, receiptID, auditID, projectID, proposalJSON); err != nil {
+VALUES ($1, $2, $3, $4::jsonb, $5::jsonb)`, receiptID, auditID, projectID, proposalJSON, evidenceJSON); err != nil {
 		t.Fatal(err)
 	}
+
 	var findingID string
-	if err := pool.QueryRow(ctx, `SELECT finding_id FROM audit_findings
-WHERE audit_id = $1 AND first_receipt_id = $2`, auditID, receiptID).Scan(&findingID); err != nil {
+	err = persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		hooks := hookstore.NewFindingEventsTx(tx)
+		var err error
+		findingID, err = hooks.AdmitProjectFinding(ctx, projectID, receiptID, "finding-"+suffix)
+		if err != nil {
+			return err
+		}
+		return hooks.RecordFindingSourceAdded(ctx, auditID, receiptID, "deleted-run-"+suffix)
+	})
+	if err != nil {
 		t.Fatal(err)
 	}
 	return findingID

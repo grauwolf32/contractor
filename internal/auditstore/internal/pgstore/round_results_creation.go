@@ -3,6 +3,7 @@ package pgstore
 import (
 	"context"
 	"errors"
+
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	"github.com/jackc/pgx/v5"

@@ -6,12 +6,10 @@ import {
   decisionOutcome,
   findingDecisionBody,
   findingDraftProblem,
-  latestDecision,
-  pickPendingReview,
   reviewExpired,
   SEVERITY_OPTIONS,
 } from "./model";
-import { FINDING_ID, makeDecision, makeTriageReview } from "./test-support";
+import { FINDING_ID, makeDecision, makeActionReview } from "./test-support";
 
 function apiError(status: number, code: string) {
   return new PublicAPIError({ status, code, message: `${code} message` });
@@ -116,45 +114,19 @@ describe("finding decision drafts", () => {
   });
 });
 
-describe("pending review selection", () => {
-  const finding = { findingId: FINDING_ID, revision: 3 };
-
-  it("reuses the open request of the current revision only", () => {
-    const current = makeTriageReview({ requestId: "current" });
-    const older = makeTriageReview({ requestId: "older", subjectRevision: 2 });
-    const otherFinding = makeTriageReview({
-      requestId: "other",
-      findingId: "finding_2",
-      subjectId: "finding_2",
-    });
-    const decided = makeTriageReview({ requestId: "done", state: "decided" });
-    expect(
-      pickPendingReview([older, otherFinding, decided, current], finding),
-    ).toEqual({ review: current, stale: false });
-    expect(pickPendingReview([older, decided], finding)).toEqual({
-      review: undefined,
-      stale: false,
-    });
-  });
-
-  it("calls the page stale when an open request is newer than its finding", () => {
-    expect(
-      pickPendingReview([makeTriageReview({ subjectRevision: 4 })], finding),
-    ).toEqual({ review: undefined, stale: true });
-  });
-
+describe("item/report review expiry", () => {
   it("knows expired requests by their expiry", () => {
     const now = Date.parse("2026-10-05T10:00:00Z");
-    expect(reviewExpired(makeTriageReview(), now)).toBe(false);
+    expect(reviewExpired(makeActionReview(), now)).toBe(false);
     expect(
       reviewExpired(
-        makeTriageReview({ expiresAt: "2026-10-05T09:59:59Z" }),
+        makeActionReview({ expiresAt: "2026-10-05T09:59:59Z" }),
         now,
       ),
     ).toBe(true);
     expect(
       reviewExpired(
-        makeTriageReview({ expiresAt: "2026-10-12T10:00:00Z" }),
+        makeActionReview({ expiresAt: "2026-10-12T10:00:00Z" }),
         now,
       ),
     ).toBe(false);
@@ -164,37 +136,17 @@ describe("pending review selection", () => {
 describe("recorded decisions", () => {
   it("reads outcomes in the shared vocabulary", () => {
     expect(decisionOutcome(makeDecision())).toEqual({
-      label: "Confirmed · High",
+      label: "Approved",
       tone: "success",
     });
-    expect(decisionOutcome({ verdict: "false_positive" })).toEqual({
-      label: "Not an issue",
+    expect(decisionOutcome({ action: "reject" })).toEqual({
+      label: "Rejected",
       tone: "neutral",
     });
     expect(decisionOutcome({ action: "not_applicable" })).toEqual({
       label: "Not applicable",
       tone: "neutral",
     });
-  });
-
-  it("finds the latest decision, preferring the verdict that explains the state", () => {
-    const at = (time: string, verdict: "duplicate" | "reopen") =>
-      makeTriageReview({
-        requestId: `${verdict}-${time}`,
-        state: "decided",
-        decision: makeDecision({ verdict, createdAt: time }),
-      });
-    const reviews = [
-      at("2026-10-01T10:00:00Z", "duplicate"),
-      at("2026-10-03T10:00:00Z", "duplicate"),
-      at("2026-10-04T10:00:00Z", "reopen"),
-      makeTriageReview({ requestId: "open" }),
-    ];
-    expect(latestDecision(reviews, "duplicate")?.createdAt).toBe(
-      "2026-10-03T10:00:00Z",
-    );
-    expect(latestDecision(reviews)?.verdict).toBe("reopen");
-    expect(latestDecision([makeTriageReview()])).toBeUndefined();
   });
 });
 

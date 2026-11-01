@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditdomain"
+	"github.com/grauwolf32/contractor/internal/auditstore"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/jackc/pgx/v5"
@@ -51,7 +52,7 @@ func TestPostgresProjectReceiptPurgeIsBoundedAndScoped(t *testing.T) {
 		})
 		return done, err
 	}
-	if _, err := purge(); persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation {
+	if _, err := purge(); !errors.Is(err, auditstore.ErrPrecondition) {
 		t.Fatalf("receipt purge of an active Project = %v, want the immutability check", err)
 	}
 	if _, _, err := projects.BeginDeletion(ctx, projectstore.BeginDeletionParams{

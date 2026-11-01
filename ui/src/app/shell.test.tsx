@@ -119,7 +119,11 @@ describe("application shell rail", () => {
 });
 
 describe("Inbox badge", () => {
-  const server = (proposed: number, otherDecisions = 0) => ({
+  const server = (
+    proposed: number,
+    otherDecisions = 0,
+    completedFindings = 0,
+  ) => ({
     projects: [projectFixture("project_a")],
     audits: {
       project_a: [
@@ -127,7 +131,10 @@ describe("Inbox badge", () => {
         auditFixture("project_a", "audit_done", "completed"),
       ],
     },
-    proposedFindings: { audit_running: proposed, audit_done: 7 },
+    proposedFindings: {
+      audit_running: proposed,
+      audit_done: completedFindings,
+    },
     reviews: {
       audit_running: Array.from({ length: otherDecisions }, (_, index) =>
         reviewFixture(
@@ -167,6 +174,14 @@ describe("Inbox badge", () => {
     expect(inbox.querySelector(".shell-nav-badge")).toHaveTextContent(/^99\+$/);
   });
 
+  it("includes canonical Findings from completed checks", async () => {
+    renderShell("/runs", { server: server(0, 0, 7) });
+    expect(
+      await within(primaryNavigation()).findByRole("link", {
+        name: "Inbox (7 need your decision)",
+      }),
+    ).toBeVisible();
+  });
   it("shows no badge when nothing waits", async () => {
     const { requests } = renderShell("/runs", { server: server(0) });
     await waitFor(() =>

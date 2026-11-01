@@ -1,5 +1,5 @@
 import { RecordedTime } from "../../app/recorded-time";
-import { IdChip, StatusChip } from "../../ui";
+import { StatusChip } from "../../ui";
 import { DecisionMarkdown } from "./markdown";
 import { decisionOutcome, type AuditReviewDecision } from "./model";
 

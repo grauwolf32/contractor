@@ -161,7 +161,7 @@ type auditRoundResponse struct {
 }
 
 type auditItemResponse struct {
- FindingIDs []string `json:"findingIds"`
+	FindingIDs          []string                     `json:"findingIds"`
 	ItemID              string                       `json:"itemId"`
 	RoundID             string                       `json:"roundId"`
 	ItemKey             string                       `json:"itemKey"`
@@ -188,6 +188,7 @@ type auditItemPageResponse struct {
 }
 
 type auditCoverageResponse struct {
+	FindingIDs []string                    `json:"findingIds"`
 	RoundID    string                      `json:"roundId"`
 	ItemID     string                      `json:"itemId"`
 	Ordinal    int                         `json:"ordinal"`

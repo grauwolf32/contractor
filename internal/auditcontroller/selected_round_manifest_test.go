@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -50,7 +51,7 @@ func TestPreparedRoundDispatchReadsOnlyCompactRootAndSelectedPrefix(t *testing.T
 	ordinal := 0
 	proposal := contracts.ExactArtifact{Ref: contracts.ArtifactRef{Namespace: "findings", Name: "proposal", Revision: &revision}, Digest: digest, MediaType: auditdomain.JSONMediaType, SizeBytes: 2}
 	retained := proposal.Clone()
-	retained.Ref.Namespace = auditdomain.ArtifactNamespace("audit")
+	retained.Ref.Namespace = artifactpolicy.FindingMaterialsNamespace
 	plan := auditdomain.CheckPlan{Schema: contracts.FindingCheckPlanSchema, Method: "applicability", Phase: "applicability", Objective: "Check the retained claim"}
 	planBytes, err := auditdomain.EncodeCheckPlan(plan)
 	if err != nil {

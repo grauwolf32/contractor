@@ -22,7 +22,7 @@ func (s *QueryStore) ListFindings(
 	if err := validateFindingList(params); err != nil {
 		return nil, err
 	}
-	rows, err := s.db.Query(ctx, listFindingsSQL, append(findingFilterArgs(params),
+	rows, err := s.db.Query(ctx, findingPageSQL(listFindingsSQL, params.State, params.Verdict, params.Unreviewed, params.Severity), append(findingFilterArgs(params),
 		params.AfterCreatedAt, params.AfterFindingID, params.Limit)...)
 	if err != nil {
 		return nil, fmt.Errorf("list Audit findings: %w", err)
@@ -58,62 +58,58 @@ func optionalText[T ~string](value *T) *string {
 	return &text
 }
 
-// ListOwnerFindings reads one keyset page of every finding of an owner's
-// Audits in listed Projects, newest first.
+// ListOwnerFindings examines one bounded window of canonical Findings in the
+// owner's Projects, newest first. Filtered-out candidates still advance the cursor.
 func (s *QueryStore) ListOwnerFindings(
 	ctx context.Context, params auditstore.OwnerFindingListParams,
-) ([]auditstore.ProjectFindingSummary, error) {
-	if err := validateOwnerPage(params.OwnerID, params.Limit, params.BeforeCreatedAt, params.BeforeFindingID, params.AuditStates); err != nil {
-		return nil, err
+) (auditstore.FindingWindow, error) {
+	if err := validateOwnerPage(params.OwnerID, params.Limit, params.BeforeCreatedAt, params.BeforeFindingID, nil); err != nil || params.Limit < 2 {
+		if err == nil {
+			err = auditstore.ErrInvalid
+		}
+		return auditstore.FindingWindow{}, err
 	}
 	if (params.State != nil && !params.State.Valid()) || (params.Severity != nil && !params.Severity.Valid()) ||
 		(params.Verdict != nil && *params.Verdict != auditstore.VerdictTruePositive && *params.Verdict != auditstore.VerdictFalsePositive) ||
 		(params.Unreviewed && (params.Verdict != nil || params.Severity != nil)) {
-		return nil, auditstore.ErrInvalid
+		return auditstore.FindingWindow{}, auditstore.ErrInvalid
 	}
 	query := listOwnerFindingsSQL
 	var project any
 	if params.ProjectID != "" {
-		if !contracts.ValidResourceID(params.ProjectID) || len(params.AuditStates) != 0 {
-			return nil, auditstore.ErrInvalid
+		if !contracts.ValidResourceID(params.ProjectID) {
+			return auditstore.FindingWindow{}, auditstore.ErrInvalid
 		}
 		query = listProjectFindingsSQL
 		project = params.ProjectID
 	}
 	rows, err := s.db.Query(ctx, query,
 		params.OwnerID, project, params.State, params.Verdict, params.Unreviewed, params.Severity,
-		params.BeforeCreatedAt, params.BeforeFindingID, params.Limit, params.AuditStates)
+		params.BeforeCreatedAt, params.BeforeFindingID, params.Limit)
 	if err != nil {
-		return nil, fmt.Errorf("list owner findings: %w", err)
+		return auditstore.FindingWindow{}, fmt.Errorf("list owner findings: %w", err)
 	}
 	defer rows.Close()
-	result := make([]auditstore.ProjectFindingSummary, 0, params.Limit)
+	result := auditstore.FindingWindow{Items: make([]auditstore.ProjectFindingSummary, 0, params.Limit)}
+	examined := 0
+	var previous *auditstore.ProjectFindingSummary
 	for rows.Next() {
-		row, err := scanProjectFindingSummary(rows)
+		var visible bool
+		row, err := scanProjectFindingSummary(rows, &visible)
 		if err != nil {
-			return nil, err
+			return auditstore.FindingWindow{}, err
 		}
-		result = append(result, row)
+		examined++
+		if examined == params.Limit {
+			result.ContinueBefore = previous
+			continue
+		}
+		previous = &row
+		if visible && row.Matches(params.State, params.Verdict, params.Unreviewed, params.Severity) {
+			result.Items = append(result.Items, row)
+		}
 	}
 	return result, rows.Err()
-}
-
-// GetFinding reads one finding of an owner's Audit.
-func (s *QueryStore) GetFinding(
-	ctx context.Context, ownerID, auditID, findingID string,
-) (auditstore.ProjectFinding, error) {
-	if !auditstore.ValidReviewIdentity(ownerID, 256) || !auditstore.ValidReviewIdentity(auditID, 256) ||
-		!auditstore.ValidReviewIdentity(findingID, 256) {
-		return auditstore.ProjectFinding{}, auditstore.ErrInvalid
-	}
-	row, err := scanProjectFinding(s.db.QueryRow(ctx, getAuditProjectFindingSQL, ownerID, auditID, findingID))
-	if errors.Is(err, pgx.ErrNoRows) {
-		return auditstore.ProjectFinding{}, auditstore.ErrNotFound
-	}
-	if err != nil {
-		return auditstore.ProjectFinding{}, fmt.Errorf("read Audit finding: %w", err)
-	}
-	return row, nil
 }
 
 // FindingPageBasis reads the revision of an owner's Audit, the statement
@@ -133,13 +129,6 @@ func (s *QueryStore) FindingPageBasis(
 	}
 	return result, err
 }
-
-// ReadFindingDecisions reads analyst decisions by their (Audit, decision)
-// pairs, each through its own Audit of the owner, keyed by decision.
-
-// ReadFindingAssessments reads finding assessments by their (Audit,
-// assessment) pairs, each through its own Audit of the owner, keyed by
-// assessment.
 
 func validateFindingList(params auditstore.FindingListParams) error {
 	if !auditstore.ValidReviewIdentity(params.OwnerID, 256) || !auditstore.ValidReviewIdentity(params.AuditID, 256) ||
@@ -182,13 +171,18 @@ func validateOwnerPage(ownerID string, limit int, before *time.Time, id string, 
 	return nil
 }
 
-func scanProjectFindingSummary(row pgx.Row) (auditstore.ProjectFindingSummary, error) {
+func scanProjectFindingSummary(row pgx.Row, extra ...any) (auditstore.ProjectFindingSummary, error) {
 	var value auditstore.ProjectFindingSummary
-	if err := row.Scan(&value.FindingID, &value.ProjectID, &value.Title, &value.TitleTruncated,
-		&value.State, &value.AnalystVerdict, &value.AnalystSeverity, &value.DuplicateTargetID, &value.Revision, &value.CreatedAt, &value.UpdatedAt); err != nil {
+	destinations := []any{&value.FindingID, &value.ProjectID, &value.Title, &value.TitleTruncated,
+		&value.SubjectKind, &value.SubjectKey, &value.SubjectTruncated, &value.SeveritySuggestion,
+		&value.State, &value.AnalystVerdict, &value.AnalystSeverity, &value.DuplicateTargetID, &value.Revision, &value.CreatedAt, &value.UpdatedAt}
+	if err := row.Scan(append(destinations, extra...)...); err != nil {
 		return value, err
 	}
 	if !contracts.ValidResourceID(value.FindingID) || !contracts.ValidResourceID(value.ProjectID) || value.Revision < 1 || value.Revision > contracts.MaxExactInteger ||
+		!utf8.ValidString(value.SubjectKind) || len(value.SubjectKind) > 256 || utf8.RuneCountInString(value.SubjectKind) > 64 ||
+		!utf8.ValidString(value.SubjectKey) || len(value.SubjectKey) > 1024 || utf8.RuneCountInString(value.SubjectKey) > 256 ||
+		(value.SeveritySuggestion != "" && !auditstore.FindingSeverity(value.SeveritySuggestion).Valid()) ||
 		!utf8.ValidString(value.Title) || len(value.Title) > 1024 || utf8.RuneCountInString(value.Title) > 256 ||
 		(value.State != nil && !value.State.Valid()) || (value.AnalystVerdict != nil && !value.AnalystVerdict.Valid()) ||
 		(value.AnalystSeverity != nil && !value.AnalystSeverity.Valid()) || (value.State == nil) != (value.AnalystVerdict == nil) {

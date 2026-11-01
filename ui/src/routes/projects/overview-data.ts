@@ -1,35 +1,19 @@
-import {
-  hashKey,
-  type Query,
-  type QueryClient,
-  type QueryKey,
-  type UseQueryResult,
-  useQueries,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
-import { useCallback, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
 
 import type { ArtifactMetadata } from "../../api/artifacts";
 import {
   AUDIT_PAGE_SIZE,
-  type Audit,
-  type ProjectFindingSummary,
- listProjectFindings,
-  type AuditFindingPage,
-  type AuditState,
-  listAuditFindings,
+  listProjectFindings,
   listProjectAudits,
 } from "../../api/audits";
 import { usePublicAPI } from "../../api/context";
-import {loadAllPages} from "../../api/pages";
-import { CROSS_PROJECT_LIMITS } from "../../api/cross-project";
+import { loadAllPages } from "../../api/pages";
 import { listProjectArtifacts } from "../../api/project-artifacts";
 import { listProjectRuns } from "../../api/projects";
 import { queryKeys } from "../../api/query-keys";
 import { pollInterval } from "../../app/polling";
 import { MATERIAL_KIND_ORDER, materialKindOf } from "../artifacts/kinds";
-import { AUDIT_STATES, AUDIT_STATES_WITH_FINDINGS } from "../../api/states";
 
 /** How often the overview refreshes checks and Runs while it is open. */
 export const OVERVIEW_POLL_MS = 10_000;
@@ -71,89 +55,42 @@ export function useWaitingChecks(projectId: string) {
   });
 }
 
-// Draft and deleting checks hold no possible issues.
-const NO_ISSUES: readonly AuditState[] = AUDIT_STATES.filter(
-  (state) => !AUDIT_STATES_WITH_FINDINGS.includes(state),
-);
+export type PossibleIssuesToReview = ReturnType<
+  typeof usePossibleIssuesToReview
+>;
 
-export interface CheckIssues {
-  audit: Audit;
-  /** The Server's count of possible issues that need review. */
-  total: number;
-  /** The first page of them, oldest first. */
-  items: readonly ProjectFindingSummary[];
-}
-
-export interface PossibleIssuesToReview {
-  /** Per check that has been read, in the order of `checks`. */
-  checks: CheckIssues[];
-  /** Possible issues needing review in every check read. */
-  total: number;
-  /** Every check's read has settled. */
-  settled: boolean;
-  /** Some check's read failed: `total` is a lower bound. */
-  partial: boolean;
-  /** Checks with nothing to count yet, from this revision or an earlier one. */
-  pendingAuditIds: string[];
-  /** Checks whose read failed. */
-  failedAuditIds: string[];
-}
-
-/**
- * The cache key of a check's possible issues that need review, without the
- * check revision: the key the cross-project reads (Issues, Inbox) use too.
- */
-function toReviewKey(auditId: string) {
-  return queryKeys.crossProject.findingsOf(auditId, "proposed", null, null);
-}
-
-/**
- * The newest cached page of possible issues to review of each given check
- * (by audit ID), from any earlier revision of the check. One pass over the
- * cross-project cache.
- */
-function newestCachedPages(
-  queryClient: QueryClient,
-  audits: readonly Audit[],
-): Map<string, AuditFindingPage> {
-  const wanted = new Map(
-    audits.map((audit) => [hashKey(toReviewKey(audit.auditId)), audit.auditId]),
+/** Canonical Project Findings, counted once across all execution contexts. */
+export function usePossibleIssuesToReview(projectId: string) {
+  const api = usePublicAPI();
+  const query = useQuery({
+    queryKey: ["project-findings", projectId, "overview"],
+    queryFn: () =>
+      loadAllPages((cursor) =>
+        listProjectFindings(
+          api,
+          projectId,
+          cursor === undefined ? {} : { cursor },
+        ),
+      ),
+    retry: false,
+    refetchInterval: OVERVIEW_POLL_MS,
+  });
+  const items = (query.data?.items ?? []).filter(
+    (finding) =>
+      finding.analystVerdict === null || finding.state === "proposed",
   );
-  const newest = new Map<string, { revision: number; data: unknown }>();
-  for (const query of queryClient
-    .getQueryCache()
-    .findAll({ queryKey: queryKeys.crossProject.all })) {
-    const revision = query.queryKey.at(-1);
-    const data: unknown = query.state.data;
-    if (typeof revision !== "number" || data === undefined) continue;
-    const auditId = wanted.get(hashKey(query.queryKey.slice(0, -1)));
-    if (auditId === undefined) continue;
-    const known = newest.get(auditId);
-    if (known === undefined || revision > known.revision)
-      newest.set(auditId, { revision, data });
-  }
-  return new Map(
-    [...newest].map(([auditId, { data }]) => [
-      auditId,
-      data as AuditFindingPage,
-    ]),
-  );
-}
-
-/**
- * Possible issues that need review (state `proposed`) in the given checks,
- * counted by the Server per check. Each read is the cross-project per-check
- * read (same key, keyed by the check's revision), so the projects list, the
- * overview, the Issues page and the Inbox share it: it never refetches while
- * the check is unchanged, and a check that changes moves to a new key. While
- * that new revision loads, the check's previous page stays counted, so the
- * count does not drop out on every poll of a running check.
- */
-export function usePossibleIssuesToReview(projectId:string) {
- const api=usePublicAPI();
- const query=useQuery({queryKey:["project-findings",projectId,"overview"],queryFn:()=>loadAllPages(cursor=>listProjectFindings(api,projectId,cursor===undefined?{}:{cursor})),retry:false,refetchInterval:OVERVIEW_POLL_MS});
- const items=(query.data?.items??[]).filter(finding=>finding.analystVerdict===null || finding.state==="proposed");
- return {items,total:items.length,settled:!query.isPending,partial:query.isError || query.data?.error!==null && query.data?.error!==undefined,refetch:async()=>{await query.refetch();}};
+  return {
+    items,
+    total: items.length,
+    settled: !query.isPending,
+    partial:
+      query.data?.truncated === true ||
+      query.isError ||
+      (query.data?.error !== null && query.data?.error !== undefined),
+    refetch: async () => {
+      await query.refetch();
+    },
+  };
 }
 
 /** Up to five recent Runs of any state. */

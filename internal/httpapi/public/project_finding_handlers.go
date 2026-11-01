@@ -115,6 +115,14 @@ func (h *auditHandlers) listProjectFindings(w http.ResponseWriter, r *http.Reque
 		handleError(w, err)
 		return
 	}
+	if last := result.ContinueBefore; last != nil {
+		cursor, err := h.cursors.encodePageCursor(kind, last.CreatedAt.UTC().Format(time.RFC3339Nano), last.FindingID, strconv.FormatUint(result.ProjectRevision, 10))
+		if err != nil {
+			handleError(w, err)
+			return
+		}
+		page = pageInfoResponse{HasMore: true, NextCursor: &cursor}
+	}
 	writeJSON(w, http.StatusOK, struct {
 		Items           []auditstore.ProjectFindingSummary `json:"items"`
 		ProjectRevision uint64                             `json:"projectRevision"`

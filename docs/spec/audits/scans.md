@@ -936,7 +936,7 @@ refreshed by later reviews. Interrupted capture and publication reuse the
 Round, generation and exact page digests (FAIL-ASC-8).
 
 **ASC-R157.** The strict versioned documents are
-`contractor.audit.round-results.v1`, `contractor.audit.round-results-page.v1`
+`contractor.audit.round-results.v2`, `contractor.audit.round-results-page.v2`
 and `contractor.audit.round-results-consumer.v1`. The source root names all
 pages, exact refs/digests/media/sizes, item counts and its source generation.
 Each page carries that identity and ordered complete items. Source root and

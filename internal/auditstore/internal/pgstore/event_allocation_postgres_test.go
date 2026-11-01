@@ -165,7 +165,7 @@ SELECT routine.proname
 		t.Errorf("routines inserting Audit events = %q, want only the allocator", writers)
 	}
 	reservations := routines(`next_event_sequence\s*=`)
-	if !slices.Equal(reservations, []string{"contractor_admit_audit_finding"}) {
+	if len(reservations) != 0 {
 		t.Errorf("routines advancing Audit event counters = %q", reservations)
 	}
 	callsAllocatorSQL := `SELECT ` + explaintest.RoutineBodySQL("") + ` ~ 'contractor_append_audit_events\(' FROM pg_proc
@@ -239,21 +239,21 @@ func TestPostgresAuditEventSequencesStayDense(t *testing.T) {
 		step(t, f, "dispatch")
 		proposal := testExact("audit-findings", "candidate-dense", "proposal-r1")
 		proposal.MediaType, proposal.SizeBytes = "application/json", 128
-		findingID := insertAuditChildFinding(t, f, "receipt-dense", proposal)
+		insertAuditChildFinding(t, f, "receipt-dense", proposal)
 		if _, err := f.pool.Exec(f.ctx, `
 INSERT INTO audit_review_requests (
-    request_id, audit_id, finding_id, subject_kind, subject_id, kind,
+    request_id, audit_id, subject_kind, subject_id, kind,
     subject_revision, subject_digest, requested_actions, idempotency_key, request_digest
-) VALUES ('review-dense', $1, $2, 'finding', $2, 'finding-triage', 1, $3,
-          '["true_positive","false_positive"]'::jsonb, 'review-dense', $3)`,
-			f.audit.AuditID, findingID, testDigest("8")); err != nil {
+) VALUES ('review-dense', $1, 'audit-item-action', $2, 'active-check-approval', 1, $3,
+          '["approve","reject"]'::jsonb, 'review-dense', $3)`,
+			f.audit.AuditID, f.itemID, testDigest("8")); err != nil {
 			t.Fatal(err)
 		}
 		step(t, f, "finding admission")
 		revision := uint64(1)
 		if err := f.store.ReviewStore.appendReviewEvents(f.ctx, []auditstore.ReviewEventParams{
 			{AuditID: f.audit.AuditID, Kind: "review.requested", EntityID: "review-dense",
-				EntityRevision: &revision, Summary: map[string]any{"subjectKind": "finding", "findingId": findingID}},
+				EntityRevision: &revision, Summary: map[string]any{"subjectKind": "audit-item-action", "subjectId": f.itemID}},
 			{AuditID: f.audit.AuditID, Kind: "review.decided", EntityID: "decision-dense",
 				Summary: map[string]any{"verdict": "true_positive"}},
 		}); err != nil {
@@ -267,13 +267,13 @@ INSERT INTO audit_review_requests (
 			t.Fatal(err)
 		}
 		if err := f.store.recordDirectFindingAssessment(f.ctx, directFindingAssessmentEvent{
-			AuditID: f.audit.AuditID, FindingID: findingID, FindingRevision: 1,
+			AuditID: f.audit.AuditID, ReceiptID: "receipt-direct",
 			AssessmentID: "assessment-direct-dense", RetainedBytes: 1,
 		}); err != nil {
 			t.Fatal(err)
 		}
 		step(t, f, "finding events")
-		result := testExact("audit-dense", "result", "result-r1")
+		result := writeCollectionFixtureArtifact(t, f.ctx, f.pool, f.project.ProjectID, "audit-dense", "result")
 		if _, inserted, err := f.store.Collect(f.ctx, auditstore.CollectParams{
 			Claim: f.claim, ReceiptID: "receipt-collection-dense", ExecutionID: f.execution.ExecutionID,
 			Disposition: auditstore.CollectionAccepted, SourceOutput: &result, RequestDigest: testDigest("9"),
@@ -421,7 +421,7 @@ UPDATE audit_review_requests SET expires_at = clock_timestamp() - interval '1 se
 		}
 		machine, summary := denseReportLinks()
 		if _, err := f.store.CommitReport(f.ctx, auditstore.CommitReportParams{
-			Claim: f.claim, ExpectedAuditRevision: finalizing.Revision,
+			Claim: f.claim, ExpectedAuditRevision: finalizing.Revision, ExpectedProjectRevision: reportProjectRevision(t, f),
 			RoundID: roundID, ExpectedRoundRevision: round.Revision,
 			Machine: machine, Summary: summary, RequestDigest: testDigest("e"),
 		}); err != nil {
@@ -473,8 +473,7 @@ RETURNING deletion_phase`, f.project.ProjectID).Scan(&phase); err != nil {
 		"audit.created", "audit.delete_requested", "audit.dispatch_hold_released",
 		"audit.report_committed", "audit.resumed", "audit.state_changed",
 		"execution.collected", "execution.intent_created", "execution.run_bound",
-		"execution.terminal_observed", "finding.assessed", "finding.proposal_rejected",
-		"finding.proposed", "items.dispatch_closed", "review.decided", "review.expired",
+		"execution.terminal_observed", "finding.proposal_rejected", "finding.result_retained", "items.dispatch_closed", "review.decided", "review.expired",
 		"review.requested", "round.accepted", "round.state_changed",
 	}
 	var got []string
@@ -557,7 +556,7 @@ func proposeDenseReport(t *testing.T, f collectingAuditFixture, roundID string, 
 	}
 	machine, summary := denseReportLinks()
 	waiting, proposed, err := f.store.ProposeReport(f.ctx, auditstore.ProposeReportParams{
-		Claim: f.claim, ExpectedAuditRevision: finalizing.Revision,
+		Claim: f.claim, ExpectedAuditRevision: finalizing.Revision, ExpectedProjectRevision: reportProjectRevision(t, f),
 		RoundID: roundID, ExpectedRoundRevision: round.Revision,
 		Machine: machine, Summary: summary, RequestDigest: testDigest("f"),
 	})

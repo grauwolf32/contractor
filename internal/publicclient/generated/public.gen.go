@@ -664,7 +664,6 @@ func (e AuditDispatchState) Valid() bool {
 // Defines values for AuditEventSummaryKind.
 const (
 	AuditEventSummaryKindActiveCheckApproval      AuditEventSummaryKind = "active-check-approval"
-	AuditEventSummaryKindFindingTriage            AuditEventSummaryKind = "finding-triage"
 	AuditEventSummaryKindReportAcceptance         AuditEventSummaryKind = "report-acceptance"
 	AuditEventSummaryKindRequirementApplicability AuditEventSummaryKind = "requirement-applicability"
 )
@@ -673,8 +672,6 @@ const (
 func (e AuditEventSummaryKind) Valid() bool {
 	switch e {
 	case AuditEventSummaryKindActiveCheckApproval:
-		return true
-	case AuditEventSummaryKindFindingTriage:
 		return true
 	case AuditEventSummaryKindReportAcceptance:
 		return true
@@ -4771,6 +4768,36 @@ func (e ProjectDeletionPhase) Valid() bool {
 	}
 }
 
+// Defines values for ProjectFindingSummarySeveritySuggestion.
+const (
+	ProjectFindingSummarySeveritySuggestionCritical      ProjectFindingSummarySeveritySuggestion = "critical"
+	ProjectFindingSummarySeveritySuggestionEmpty         ProjectFindingSummarySeveritySuggestion = ""
+	ProjectFindingSummarySeveritySuggestionHigh          ProjectFindingSummarySeveritySuggestion = "high"
+	ProjectFindingSummarySeveritySuggestionInformational ProjectFindingSummarySeveritySuggestion = "informational"
+	ProjectFindingSummarySeveritySuggestionLow           ProjectFindingSummarySeveritySuggestion = "low"
+	ProjectFindingSummarySeveritySuggestionMedium        ProjectFindingSummarySeveritySuggestion = "medium"
+)
+
+// Valid indicates whether the value is a known member of the ProjectFindingSummarySeveritySuggestion enum.
+func (e ProjectFindingSummarySeveritySuggestion) Valid() bool {
+	switch e {
+	case ProjectFindingSummarySeveritySuggestionCritical:
+		return true
+	case ProjectFindingSummarySeveritySuggestionEmpty:
+		return true
+	case ProjectFindingSummarySeveritySuggestionHigh:
+		return true
+	case ProjectFindingSummarySeveritySuggestionInformational:
+		return true
+	case ProjectFindingSummarySeveritySuggestionLow:
+		return true
+	case ProjectFindingSummarySeveritySuggestionMedium:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ProjectKind.
 const (
 	ProjectKindEvaluation ProjectKind = "evaluation"
@@ -7827,7 +7854,7 @@ type AuditProfileWorkflow1Kind string
 
 // AuditReport defines model for AuditReport.
 type AuditReport struct {
-	// Machine Exact contractor.audit.report.v1 machine-readable document.
+	// Machine Exact contractor.audit.report.v2 machine-readable document.
 	Machine         *map[string]interface{} `json:"machine,omitempty"`
 	MachineArtifact *AuditExactArtifact     `json:"machineArtifact,omitempty"`
 	Review          *AuditReviewRequest     `json:"review,omitempty"`
@@ -7862,7 +7889,7 @@ type AuditReviewDecision struct {
 	AuditId         ResourceId        `json:"auditId"`
 	CreatedAt       time.Time         `json:"createdAt"`
 	DecisionId      ResourceId        `json:"decisionId"`
-	Rationale       string            `json:"rationale"`
+	Rationale       DecisionRationale `json:"rationale"`
 	RequestId       ResourceId        `json:"requestId"`
 	SubjectDigest   Digest            `json:"subjectDigest"`
 	SubjectRevision int               `json:"subjectRevision"`
@@ -8602,8 +8629,11 @@ type CredentialResource struct {
 // DecideAuditReviewRequest defines model for DecideAuditReviewRequest.
 type DecideAuditReviewRequest struct {
 	Action    AuditReviewAction `json:"action"`
-	Rationale string            `json:"rationale"`
+	Rationale DecisionRationale `json:"rationale"`
 }
+
+// DecisionRationale defines model for DecisionRationale.
+type DecisionRationale = string
 
 // DeployedModelChoice defines model for DeployedModelChoice.
 type DeployedModelChoice struct {
@@ -8663,7 +8693,7 @@ type EditProjectFindingRequest struct {
 
 // EditProjectFindingRequest0 defines model for EditProjectFindingRequest.0.
 type EditProjectFindingRequest0 struct {
-	Rationale string                            `json:"rationale"`
+	Rationale DecisionRationale                 `json:"rationale"`
 	Severity  FindingSeverity                   `json:"severity"`
 	Verdict   EditProjectFindingRequest0Verdict `json:"verdict"`
 }
@@ -8673,7 +8703,7 @@ type EditProjectFindingRequest0Verdict string
 
 // EditProjectFindingRequest1 defines model for EditProjectFindingRequest.1.
 type EditProjectFindingRequest1 struct {
-	Rationale string                            `json:"rationale"`
+	Rationale DecisionRationale                 `json:"rationale"`
 	Verdict   EditProjectFindingRequest1Verdict `json:"verdict"`
 }
 
@@ -8683,7 +8713,7 @@ type EditProjectFindingRequest1Verdict string
 // EditProjectFindingRequest2 defines model for EditProjectFindingRequest.2.
 type EditProjectFindingRequest2 struct {
 	DuplicateTargetId ResourceId                        `json:"duplicateTargetId"`
-	Rationale         string                            `json:"rationale"`
+	Rationale         DecisionRationale                 `json:"rationale"`
 	Verdict           EditProjectFindingRequest2Verdict `json:"verdict"`
 }
 
@@ -9976,7 +10006,7 @@ type FindingCorrelationBasisAlgorithm string
 type FindingCorrelationFence struct {
 	Audits          []FindingComparisonAudit `json:"audits"`
 	ProjectId       ResourceId               `json:"projectId"`
-	ProjectRevision *int                     `json:"projectRevision,omitempty"`
+	ProjectRevision int                      `json:"projectRevision"`
 }
 
 // FindingCorrelationPageInfo defines model for FindingCorrelationPageInfo.
@@ -11076,22 +11106,22 @@ type ProjectDeletionPhase string
 
 // ProjectFinding defines model for ProjectFinding.
 type ProjectFinding struct {
-	ActorId           nullable.Nullable[ResourceId]      `json:"actorId"`
-	AnalystSeverity   nullable.Nullable[FindingSeverity] `json:"analystSeverity"`
-	AnalystVerdict    nullable.Nullable[FindingVerdict]  `json:"analystVerdict"`
-	AssessedAt        nullable.Nullable[time.Time]       `json:"assessedAt"`
-	Claim             *FindingClaim                      `json:"claim,omitempty"`
-	CreatedAt         time.Time                          `json:"createdAt"`
-	DuplicateTargetId nullable.Nullable[ResourceId]      `json:"duplicateTargetId"`
-	FindingId         ResourceId                         `json:"findingId"`
-	FirstProposal     FindingExactArtifact               `json:"firstProposal"`
-	FirstReceiptId    ResourceId                         `json:"firstReceiptId"`
-	ProjectId         ResourceId                         `json:"projectId"`
-	Rationale         nullable.Nullable[string]          `json:"rationale"`
-	Revision          int                                `json:"revision"`
-	State             nullable.Nullable[FindingState]    `json:"state"`
-	Title             string                             `json:"title"`
-	UpdatedAt         time.Time                          `json:"updatedAt"`
+	ActorId           nullable.Nullable[string]            `json:"actorId"`
+	AnalystSeverity   nullable.Nullable[FindingSeverity]   `json:"analystSeverity"`
+	AnalystVerdict    nullable.Nullable[FindingVerdict]    `json:"analystVerdict"`
+	AssessedAt        nullable.Nullable[time.Time]         `json:"assessedAt"`
+	Claim             *FindingClaim                        `json:"claim,omitempty"`
+	CreatedAt         time.Time                            `json:"createdAt"`
+	DuplicateTargetId nullable.Nullable[ResourceId]        `json:"duplicateTargetId"`
+	FindingId         ResourceId                           `json:"findingId"`
+	FirstProposal     FindingExactArtifact                 `json:"firstProposal"`
+	FirstReceiptId    ResourceId                           `json:"firstReceiptId"`
+	ProjectId         ResourceId                           `json:"projectId"`
+	Rationale         nullable.Nullable[DecisionRationale] `json:"rationale"`
+	Revision          int                                  `json:"revision"`
+	State             nullable.Nullable[FindingState]      `json:"state"`
+	Title             string                               `json:"title"`
+	UpdatedAt         time.Time                            `json:"updatedAt"`
 }
 
 // ProjectFindingPage defines model for ProjectFindingPage.
@@ -11130,18 +11160,25 @@ type ProjectFindingSourcePreview struct {
 
 // ProjectFindingSummary defines model for ProjectFindingSummary.
 type ProjectFindingSummary struct {
-	AnalystSeverity   nullable.Nullable[FindingSeverity] `json:"analystSeverity"`
-	AnalystVerdict    nullable.Nullable[FindingVerdict]  `json:"analystVerdict"`
-	CreatedAt         time.Time                          `json:"createdAt"`
-	DuplicateTargetId nullable.Nullable[ResourceId]      `json:"duplicateTargetId"`
-	FindingId         ResourceId                         `json:"findingId"`
-	ProjectId         ResourceId                         `json:"projectId"`
-	Revision          int                                `json:"revision"`
-	State             nullable.Nullable[FindingState]    `json:"state"`
-	Title             string                             `json:"title"`
-	TitleTruncated    bool                               `json:"titleTruncated"`
-	UpdatedAt         time.Time                          `json:"updatedAt"`
+	AnalystSeverity    nullable.Nullable[FindingSeverity]      `json:"analystSeverity"`
+	AnalystVerdict     nullable.Nullable[FindingVerdict]       `json:"analystVerdict"`
+	CreatedAt          time.Time                               `json:"createdAt"`
+	DuplicateTargetId  nullable.Nullable[ResourceId]           `json:"duplicateTargetId"`
+	FindingId          ResourceId                              `json:"findingId"`
+	ProjectId          ResourceId                              `json:"projectId"`
+	Revision           int                                     `json:"revision"`
+	SeveritySuggestion ProjectFindingSummarySeveritySuggestion `json:"severitySuggestion"`
+	State              nullable.Nullable[FindingState]         `json:"state"`
+	SubjectKey         string                                  `json:"subjectKey"`
+	SubjectKind        string                                  `json:"subjectKind"`
+	SubjectTruncated   bool                                    `json:"subjectTruncated"`
+	Title              string                                  `json:"title"`
+	TitleTruncated     bool                                    `json:"titleTruncated"`
+	UpdatedAt          time.Time                               `json:"updatedAt"`
 }
+
+// ProjectFindingSummarySeveritySuggestion defines model for ProjectFindingSummary.SeveritySuggestion.
+type ProjectFindingSummarySeveritySuggestion string
 
 // ProjectHTTPTarget defines model for ProjectHTTPTarget.
 type ProjectHTTPTarget struct {
@@ -13344,14 +13381,11 @@ type PublishFindingCollectionParams struct {
 
 // ListOwnerFindingsParams defines parameters for ListOwnerFindings.
 type ListOwnerFindingsParams struct {
-	Limit  *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
-	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
-
-	// AuditState Comma-separated Audit states.
-	AuditState *string                         `form:"auditState,omitempty" json:"auditState,omitempty"`
-	State      *FindingState                   `form:"state,omitempty" json:"state,omitempty"`
-	Verdict    *ListOwnerFindingsParamsVerdict `form:"verdict,omitempty" json:"verdict,omitempty"`
-	Severity   *FindingSeverity                `form:"severity,omitempty" json:"severity,omitempty"`
+	Limit    *Limit                          `form:"limit,omitempty" json:"limit,omitempty"`
+	Cursor   *Cursor                         `form:"cursor,omitempty" json:"cursor,omitempty"`
+	State    *FindingState                   `form:"state,omitempty" json:"state,omitempty"`
+	Verdict  *ListOwnerFindingsParamsVerdict `form:"verdict,omitempty" json:"verdict,omitempty"`
+	Severity *FindingSeverity                `form:"severity,omitempty" json:"severity,omitempty"`
 }
 
 // ListOwnerFindingsParamsVerdict defines parameters for ListOwnerFindings.
@@ -13728,6 +13762,9 @@ type ListProjectFindingSourcesParams struct {
 	Limit     *int        `form:"limit,omitempty" json:"limit,omitempty"`
 	Cursor    *Cursor     `form:"cursor,omitempty" json:"cursor,omitempty"`
 	FindingId *ResourceId `form:"findingId,omitempty" json:"findingId,omitempty"`
+
+	// ProjectRevision Pin the current Project source snapshot; stale revisions conflict.
+	ProjectRevision *int `form:"projectRevision,omitempty" json:"projectRevision,omitempty"`
 }
 
 // ListProjectFindingSourceHistoryParams defines parameters for ListProjectFindingSourceHistory.
@@ -19797,7 +19834,7 @@ type ClientInterface interface {
 
 	// ListOwnerFindings List findings across the owner’s active Projects
 	//
-	// Live newest-first keyset pagination by creation time and identity. Only the authenticated owner's active regular Projects are included; evaluation workspaces are excluded. Cursors bind the owner, endpoint and filters. These are live lists, not a revision-pinned cross-project snapshot.
+	// Live newest-first keyset pagination by creation time and identity. Only the authenticated owner's active regular Projects are included; evaluation workspaces are excluded. Cursors bind the owner, endpoint and filters. These are live lists, not a revision-pinned cross-project snapshot. A bounded candidate window may return fewer than limit matching items, including no items, with hasMore=true. Always follow nextCursor until hasMore=false.
 	//
 	// Corresponds with GET /v1/findings (the `ListOwnerFindings` operationId).
 	ListOwnerFindings(ctx context.Context, params *ListOwnerFindingsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -21936,7 +21973,7 @@ func (c *Client) PublishFindingCollection(ctx context.Context, params *PublishFi
 
 // ListOwnerFindings List findings across the owner’s active Projects
 //
-// Live newest-first keyset pagination by creation time and identity. Only the authenticated owner's active regular Projects are included; evaluation workspaces are excluded. Cursors bind the owner, endpoint and filters. These are live lists, not a revision-pinned cross-project snapshot.
+// Live newest-first keyset pagination by creation time and identity. Only the authenticated owner's active regular Projects are included; evaluation workspaces are excluded. Cursors bind the owner, endpoint and filters. These are live lists, not a revision-pinned cross-project snapshot. A bounded candidate window may return fewer than limit matching items, including no items, with hasMore=true. Always follow nextCursor until hasMore=false.
 //
 // Corresponds with GET /v1/findings (the `ListOwnerFindings` operationId).
 func (c *Client) ListOwnerFindings(ctx context.Context, params *ListOwnerFindingsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -28583,18 +28620,6 @@ func NewListOwnerFindingsRequest(server string, params *ListOwnerFindingsParams)
 
 		}
 
-		if params.AuditState != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "auditState", *params.AuditState, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
 		if params.State != nil {
 
 			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "state", *params.State, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
@@ -32137,6 +32162,18 @@ func NewListProjectFindingSourcesRequest(server string, projectId ProjectId, par
 
 		}
 
+		if params.ProjectRevision != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "projectRevision", *params.ProjectRevision, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
 		if encoded := queryValues.Encode(); encoded != "" {
 			rawQueryFragments = append(rawQueryFragments, encoded)
 		}
@@ -35444,7 +35481,7 @@ type ClientWithResponsesInterface interface {
 
 	// ListOwnerFindingsWithResponse List findings across the owner’s active Projects
 	//
-	// Live newest-first keyset pagination by creation time and identity. Only the authenticated owner's active regular Projects are included; evaluation workspaces are excluded. Cursors bind the owner, endpoint and filters. These are live lists, not a revision-pinned cross-project snapshot.
+	// Live newest-first keyset pagination by creation time and identity. Only the authenticated owner's active regular Projects are included; evaluation workspaces are excluded. Cursors bind the owner, endpoint and filters. These are live lists, not a revision-pinned cross-project snapshot. A bounded candidate window may return fewer than limit matching items, including no items, with hasMore=true. Always follow nextCursor until hasMore=false.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -59503,7 +59540,7 @@ func (c *ClientWithResponses) PublishFindingCollectionWithResponse(ctx context.C
 
 // ListOwnerFindingsWithResponse List findings across the owner’s active Projects
 //
-// Live newest-first keyset pagination by creation time and identity. Only the authenticated owner's active regular Projects are included; evaluation workspaces are excluded. Cursors bind the owner, endpoint and filters. These are live lists, not a revision-pinned cross-project snapshot.
+// Live newest-first keyset pagination by creation time and identity. Only the authenticated owner's active regular Projects are included; evaluation workspaces are excluded. Cursors bind the owner, endpoint and filters. These are live lists, not a revision-pinned cross-project snapshot. A bounded candidate window may return fewer than limit matching items, including no items, with hasMore=true. Always follow nextCursor until hasMore=false.
 //
 // Returns a wrapper object for the known response body format(s).
 //

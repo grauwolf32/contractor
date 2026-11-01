@@ -14,25 +14,26 @@ WITH gate AS MATERIALIZED (
     SELECT audit.audit_id
       FROM audits AS audit
       JOIN audit_controller_claims AS claim USING (audit_id)
+      JOIN finding_correlation_fences AS fence USING(project_id)
      WHERE audit.audit_id = $1 AND ` + auditClaims.LiveCondition("claim", "$2", "$3") + `
-       AND audit.revision = $4 AND audit.state = 'finalizing'
+       AND audit.revision = $4 AND audit.state = 'finalizing' AND fence.revision=$15
        AND $5 = (
            SELECT count(*) FROM audit_report_pages AS recorded
-            WHERE recorded.audit_id = $1 AND recorded.audit_revision = $4
+            WHERE recorded.audit_id = $1 AND recorded.audit_revision = $4 AND recorded.project_revision=$15
        )
-       FOR SHARE OF audit, claim
+       FOR SHARE OF audit, claim, fence
 ), stale AS (
     DELETE FROM audit_report_pages AS page
      USING gate
-     WHERE page.audit_id = gate.audit_id AND page.audit_revision <> $4
+     WHERE page.audit_id = gate.audit_id AND (page.audit_revision <> $4 OR page.project_revision<>$15)
 )
 INSERT INTO audit_report_pages (
-    audit_id, audit_revision, ordinal, section, round_id, last_item_ordinal,
+    audit_id, audit_revision, project_revision, ordinal, section, round_id, last_item_ordinal,
     last_created_at, last_finding_id, exhausted, entry_count, content, coverage_counts
 )
-SELECT gate.audit_id, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
+SELECT gate.audit_id, $4, $15, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
   FROM gate
-ON CONFLICT (audit_id, audit_revision, ordinal) DO NOTHING
+ON CONFLICT (audit_id, audit_revision, project_revision, ordinal) DO NOTHING
 RETURNING ordinal`
 
 // listReportPagesSQL lists the metadata of the report pages of Audit $1 at
@@ -43,7 +44,7 @@ var listReportPagesSQL = `
 SELECT ordinal, section, round_id, last_item_ordinal, last_created_at,
        last_finding_id, exhausted, entry_count, octet_length(content), coverage_counts
   FROM audit_report_pages
- WHERE audit_id = $1 AND audit_revision = $2
+ WHERE audit_id = $1 AND audit_revision = $2 AND project_revision=$4
  ORDER BY ordinal
  LIMIT $3`
 
@@ -55,7 +56,7 @@ SELECT section, sum(entry_count)::integer,
        COALESCE(string_agg(content, '\x2c'::bytea ORDER BY ordinal)
                 FILTER (WHERE entry_count > 0), '\x'::bytea)
   FROM audit_report_pages
- WHERE audit_id = $1 AND audit_revision = $2
+ WHERE audit_id = $1 AND audit_revision = $2 AND project_revision=$3
  GROUP BY section`
 
 // listReportItemsSQL pages the items of round $2 in Audit $1 with their
@@ -93,3 +94,6 @@ const listReportFindingsSQL = `WITH selected AS MATERIALIZED (
  SELECT finding_id,project_id,state,first_proposal_ref,duplicate_target_id,revision,created_at,included,
  CASE WHEN included THEN report_projection END,analyst_verdict,analyst_severity,rationale,actor_id,assessed_at
  FROM page ORDER BY created_at,finding_id`
+
+const reportProjectRevisionSQL = `SELECT fence.revision FROM audits AS audit
+ JOIN finding_correlation_fences AS fence USING(project_id) WHERE audit.audit_id=$1`

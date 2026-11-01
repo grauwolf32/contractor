@@ -216,17 +216,17 @@ INSERT INTO finding_proposal_receipts (
     workflow_name, workflow_version, workflow_schema_version,
     workflow_configuration_ref, workflow_closure_digest,
     proposal_ref, proposal_digest, proposal_media_type,
-    proposal_size_bytes, evidence, report_projection
+    proposal_size_bytes, evidence, project_proposal, project_evidence, retention_state, report_projection
 ) VALUES (
     $1, 'proposal-'||$1, 'allocation-'||$1, 'runtime-one', 'instance-one',
     'stage-one', 'worker', 'invocation-'||$1, 'submission-'||$1, 'candidate-'||$1, $2,
     $9, $3, $4,
     'source-workflow', '1', 'contractor/v1alpha1',
     '{"name":"source-workflow","version":"1"}'::jsonb, $5,
-    $6::jsonb, $7, 'application/json', $8, '[]'::jsonb,
+    $6::jsonb, $7, 'application/json', $8, '[]'::jsonb, $10::jsonb, '[]'::jsonb, 'project-held',
     '{"description":"Test finding.","limitations":[],"preconditions":[],"severity_suggestion":"","standard_refs":[],"subject":null,"title":"Test finding."}'
 )`, receiptID, testDigest("5"), audit.OwnerID, audit.ProjectID,
-		testDigest("6"), proposalRef, proposal.Digest, proposal.SizeBytes, runID); err != nil {
+		testDigest("6"), proposalRef, proposal.Digest, proposal.SizeBytes, runID, proposalDescriptor); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := db.Exec(ctx, `

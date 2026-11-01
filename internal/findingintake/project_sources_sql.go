@@ -2,12 +2,12 @@ package findingintake
 
 const getProjectReceiptSQL = `SELECT ` + receiptProjection + `
 FROM finding_proposal_receipts AS receipt JOIN projects AS project ON project.project_id=receipt.project_id
-WHERE project.owner_id=$1 AND project.kind='project' AND receipt.owner_id=$1
+WHERE project.owner_id=$1 AND project.kind='project' AND project.lifecycle_state='active' AND receipt.owner_id=$1
 AND receipt.project_id=$2 AND receipt.receipt_id=$3 AND receipt.project_proposal IS NOT NULL`
 
 const authorizeProjectSourcesSQL = `SELECT fence.revision FROM projects AS project
 JOIN finding_correlation_fences AS fence USING(project_id)
-WHERE project.owner_id=$1 AND project.project_id=$2 AND project.kind='project'
+WHERE project.owner_id=$1 AND project.project_id=$2 AND project.kind='project' AND project.lifecycle_state='active'
 AND ($3::text='' OR EXISTS(SELECT 1 FROM project_findings WHERE project_id=$2 AND finding_id=$3))`
 
 const authorizeProjectSourceHistorySQL = `SELECT EXISTS(

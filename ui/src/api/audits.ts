@@ -26,14 +26,18 @@ export type AuditReport = components["schemas"]["AuditReport"];
 type AuditStartResponse = components["schemas"]["AuditStartResponse"];
 export type CreateAuditRequest = components["schemas"]["CreateAuditRequest"];
 export type ExactArtifactRef = components["schemas"]["ExactArtifactRef"];
+export type FindingProposalReceipt =
+  components["schemas"]["FindingProposalReceipt"];
 export type ProjectFinding = components["schemas"]["ProjectFinding"];
-export type ProjectFindingSummary = components["schemas"]["ProjectFindingSummary"];
-export type ProjectFindingEditResult = components["schemas"]["EditProjectFindingResult"];
-export type EditProjectFindingRequest = components["schemas"]["EditProjectFindingRequest"];
+export type ProjectFindingSummary =
+  components["schemas"]["ProjectFindingSummary"];
+export type ProjectFindingEditResult =
+  components["schemas"]["EditProjectFindingResult"];
+export type EditProjectFindingRequest =
+  components["schemas"]["EditProjectFindingRequest"];
 export type AuditFindingPage = components["schemas"]["AuditFindingPage"];
 export type FindingState = components["schemas"]["FindingState"];
-export type FindingSeverity =
-  components["schemas"]["FindingSeverity"];
+export type FindingSeverity = components["schemas"]["FindingSeverity"];
 export type FindingVerdict = components["schemas"]["FindingVerdict"];
 export type AuditReviewRequest = components["schemas"]["AuditReviewRequest"];
 export type AuditReviewPage = components["schemas"]["AuditReviewPage"];
@@ -43,12 +47,10 @@ export type AuditReviewAction = components["schemas"]["AuditReviewAction"];
 export type AuditReviewDecisionResult =
   components["schemas"]["AuditReviewDecisionResult"];
 
-
-
 export type AuditWorkspace = components["schemas"]["AuditWorkspace"];
 export interface FindingPageRequest extends PageRequest {
   auditRevision?: number;
- projectRevision?: number;
+  projectRevision?: number;
   state?: FindingState;
   verdict?: "true_positive" | "false_positive" | "unreviewed";
   severity?: FindingSeverity;
@@ -681,37 +683,135 @@ export async function getAuditReview(
   return value;
 }
 
-export async function getProjectFinding(api: PublicAPI,projectId:string,findingId:string):Promise<ProjectFinding> {
- requireProjectID(projectId);requireAuditID(findingId);
- const result=await api.request(client=>client.GET("/v1/projects/{projectId}/findings/{findingId}",{params:{path:{projectId,findingId}}}));
- const finding=requireData(result);
- if(finding.projectId!==projectId || finding.findingId!==findingId || finding.claim===undefined) throw invalidAPIResponse(result.response.status,"Project Finding response does not match the requested identity");
- requireRevisionETag(result.response,finding.revision);
- return finding;
+export async function getProjectFinding(
+  api: PublicAPI,
+  projectId: string,
+  findingId: string,
+): Promise<ProjectFinding> {
+  requireProjectID(projectId);
+  requireAuditID(findingId);
+  const result = await api.request((client) =>
+    client.GET("/v1/projects/{projectId}/findings/{findingId}", {
+      params: { path: { projectId, findingId } },
+    }),
+  );
+  const finding = requireData(result);
+  if (
+    finding.projectId !== projectId ||
+    finding.findingId !== findingId ||
+    finding.claim === undefined
+  )
+    throw invalidAPIResponse(
+      result.response.status,
+      "Project Finding response does not match the requested identity",
+    );
+  requireRevisionETag(result.response, finding.revision);
+  return finding;
 }
 
-export async function listProjectFindings(api:PublicAPI,projectId:string,request:{cursor?:string;projectRevision?:number}={}) {
- requireProjectID(projectId);
- return requireData(await api.request(client=>client.GET("/v1/projects/{projectId}/findings",{params:{path:{projectId},query:{limit:AUDIT_PAGE_SIZE,...request}}})));
+export async function listProjectFindings(
+  api: PublicAPI,
+  projectId: string,
+  request: { cursor?: string; projectRevision?: number } = {},
+) {
+  requireProjectID(projectId);
+  return requireData(
+    await api.request((client) =>
+      client.GET("/v1/projects/{projectId}/findings", {
+        params: {
+          path: { projectId },
+          query: { limit: AUDIT_PAGE_SIZE, ...request },
+        },
+      }),
+    ),
+  );
 }
 
-export async function editProjectFinding(api:PublicAPI,options:{projectId:string;findingId:string;expectedRevision:number;idempotencyKey:string;decision:EditProjectFindingRequest}):Promise<ProjectFindingEditResult> {
- requireProjectID(options.projectId);requireAuditID(options.findingId);requireAuditRevision(options.expectedRevision);
- const result=await api.request(client=>client.PATCH("/v1/projects/{projectId}/findings/{findingId}",{
- params:{path:{projectId:options.projectId,findingId:options.findingId},header:{"If-Match":`"${options.expectedRevision}"`,"Idempotency-Key":options.idempotencyKey}},body:options.decision
- }));
- const value=requireData(result);
- if(value.finding.projectId!==options.projectId || value.finding.findingId!==options.findingId) throw invalidAPIResponse(result.response.status,"Project Finding response does not match the requested identity");
- requireRevisionETag(result.response,value.finding.revision);
- return value;
+export async function editProjectFinding(
+  api: PublicAPI,
+  options: {
+    projectId: string;
+    findingId: string;
+    expectedRevision: number;
+    idempotencyKey: string;
+    decision: EditProjectFindingRequest;
+  },
+): Promise<ProjectFindingEditResult> {
+  requireProjectID(options.projectId);
+  requireAuditID(options.findingId);
+  requireAuditRevision(options.expectedRevision);
+  const result = await api.request((client) =>
+    client.PATCH("/v1/projects/{projectId}/findings/{findingId}", {
+      params: {
+        path: { projectId: options.projectId, findingId: options.findingId },
+        header: {
+          "If-Match": `"${options.expectedRevision}"`,
+          "Idempotency-Key": options.idempotencyKey,
+        },
+      },
+      body: options.decision,
+    }),
+  );
+  const value = requireData(result);
+  if (
+    value.finding.projectId !== options.projectId ||
+    value.finding.findingId !== options.findingId
+  )
+    throw invalidAPIResponse(
+      result.response.status,
+      "Project Finding response does not match the requested identity",
+    );
+  requireRevisionETag(result.response, value.finding.revision);
+  return value;
 }
 
-export async function listProjectFindingSources(api:PublicAPI,projectId:string,findingId:string,request:{cursor?:string}={}) {
- return requireData(await api.request(client=>client.GET("/v1/projects/{projectId}/finding-sources",{params:{path:{projectId},query:{findingId,limit:AUDIT_PAGE_SIZE,...request}}})));
+export async function listProjectFindingSources(
+  api: PublicAPI,
+  projectId: string,
+  findingId: string,
+  request: { cursor?: string; projectRevision?: number } = {},
+) {
+  return requireData(
+    await api.request((client) =>
+      client.GET("/v1/projects/{projectId}/finding-sources", {
+        params: {
+          path: { projectId },
+          query: { findingId, limit: AUDIT_PAGE_SIZE, ...request },
+        },
+      }),
+    ),
+  );
 }
-export async function getProjectFindingSource(api:PublicAPI,projectId:string,receiptId:string) {
- return requireData(await api.request(client=>client.GET("/v1/projects/{projectId}/finding-sources/{receiptId}",{params:{path:{projectId,receiptId}}})));
+export async function getProjectFindingSource(
+  api: PublicAPI,
+  projectId: string,
+  receiptId: string,
+) {
+  return requireData(
+    await api.request((client) =>
+      client.GET("/v1/projects/{projectId}/finding-sources/{receiptId}", {
+        params: { path: { projectId, receiptId } },
+      }),
+    ),
+  );
 }
-export async function listProjectFindingSourceHistory(api:PublicAPI,projectId:string,receiptId:string,request:{cursor?:string}={}) {
- return requireData(await api.request(client=>client.GET("/v1/projects/{projectId}/finding-sources/{receiptId}/history",{params:{path:{projectId,receiptId},query:{limit:AUDIT_PAGE_SIZE,...request}}})));
+export async function listProjectFindingSourceHistory(
+  api: PublicAPI,
+  projectId: string,
+  receiptId: string,
+  request: { cursor?: string } = {},
+) {
+  return requireData(
+    await api.request((client) =>
+      client.GET(
+        "/v1/projects/{projectId}/finding-sources/{receiptId}/history",
+        {
+          params: {
+            path: { projectId, receiptId },
+            query: { limit: AUDIT_PAGE_SIZE, ...request },
+          },
+        },
+      ),
+    ),
+  );
 }

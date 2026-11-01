@@ -1,5 +1,6 @@
 import type { Audit, ProjectFinding, AuditReviewRequest } from "../api/audits";
 import type { Project } from "../api/projects";
+import { findingSummary } from "./builders";
 import type { FakeCall, Routes } from "./fake-server";
 import { json } from "./responses";
 
@@ -8,6 +9,7 @@ export interface OwnerListData {
   audits: Audit[];
   findings?: ProjectFinding[];
   reviews?: AuditReviewRequest[];
+  findingAudits?: Record<string, string[]>;
 }
 
 /**
@@ -69,14 +71,20 @@ export function ownerListResponse(
       const auditIds = new Set(audits("auditState").map((a) => a.auditId));
       return offsetPage(
         url,
-        (data.findings ?? []).filter(
-          (f) =>
-            auditIds.has(f.auditId) &&
-            matches(url, "state", f.state) &&
-            matches(url, "verdict", f.analystVerdict ?? "unreviewed") &&
-            (!url.searchParams.has("severity") ||
-              matches(url, "severity", f.analystSeverity ?? "")),
-        ),
+        (data.findings ?? [])
+          .filter(
+            (f) =>
+              projects.has(f.projectId) &&
+              (!url.searchParams.has("auditState") ||
+                (data.findingAudits?.[f.findingId] ?? []).some((id) =>
+                  auditIds.has(id),
+                )) &&
+              matches(url, "state", f.state ?? "") &&
+              matches(url, "verdict", f.analystVerdict ?? "unreviewed") &&
+              (!url.searchParams.has("severity") ||
+                matches(url, "severity", f.analystSeverity ?? "")),
+          )
+          .map(findingSummary),
       );
     }
     case "/v1/reviews": {

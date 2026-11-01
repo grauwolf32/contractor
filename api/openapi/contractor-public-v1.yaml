@@ -4048,10 +4048,11 @@ paths:
         the authenticated owner's active regular Projects are included; evaluation
         workspaces are excluded. Cursors bind the owner, endpoint and filters.
         These are live lists, not a revision-pinned cross-project snapshot.
+        A bounded candidate window may return fewer than limit matching items, including
+        no items, with hasMore=true. Always follow nextCursor until hasMore=false.
       parameters:
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
-        - {name: auditState, in: query, schema: {type: string}, description: 'Comma-separated Audit states.'}
         - {name: state, in: query, schema: {$ref: '#/components/schemas/FindingState'}}
         - {name: verdict, in: query, schema: {type: string, enum: [true_positive, false_positive, unreviewed]}}
         - {name: severity, in: query, schema: {$ref: '#/components/schemas/FindingSeverity'}}
@@ -6825,6 +6826,14 @@ paths:
         required: false
         schema:
           $ref: '#/components/schemas/ResourceId'
+      - name: projectRevision
+        in: query
+        required: false
+        description: Pin the current Project source snapshot; stale revisions conflict.
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
       responses:
         '200':
           description: List immutable source previews without hydrating evidence or check history
@@ -8264,6 +8273,7 @@ components:
       additionalProperties: false
       required:
       - projectId
+      - projectRevision
       - audits
       properties:
         projectId: *correlationResourceId
@@ -13718,7 +13728,7 @@ components:
         outcome: {$ref: '#/components/schemas/AuditTerminalOutcome'}
         disposition: {$ref: '#/components/schemas/AuditCollectionDisposition'}
         subjectKind: {$ref: '#/components/schemas/AuditReviewSubjectKind'}
-        kind: {type: string, enum: [finding-triage, active-check-approval, requirement-applicability, report-acceptance]}
+        kind: {type: string, enum: [active-check-approval, requirement-applicability, report-acceptance]}
         action: {$ref: '#/components/schemas/AuditReviewAction'}
         verdict: {type: string, enum: [true_positive, false_positive, needs_evidence, duplicate, reopen]}
         runId: {$ref: '#/components/schemas/ResourceId'}
@@ -14073,7 +14083,7 @@ components:
         summaryArtifact: {$ref: '#/components/schemas/AuditReportSummaryArtifact'}
         machine:
           type: object
-          description: Exact contractor.audit.report.v1 machine-readable document.
+          description: Exact contractor.audit.report.v2 machine-readable document.
           additionalProperties: true
         summary: {type: string, maxLength: 65536}
     AuditTimeLimitRequest:
@@ -14624,10 +14634,7 @@ components:
         action:
           $ref: '#/components/schemas/AuditReviewAction'
         rationale:
-          type: string
-          minLength: 1
-          maxLength: 65536
-          x-max-utf8-bytes: 65536
+          $ref: '#/components/schemas/DecisionRationale'
         subjectRevision:
           type: integer
           minimum: 1
@@ -14781,10 +14788,7 @@ components:
         action:
           $ref: '#/components/schemas/AuditReviewAction'
         rationale:
-          type: string
-          minLength: 1
-          maxLength: 65536
-          x-max-utf8-bytes: 65536
+          $ref: '#/components/schemas/DecisionRationale'
     AuditReviewDecisionResult:
       type: object
       additionalProperties: false
@@ -17720,14 +17724,14 @@ components:
           - type: 'null'
         rationale:
           oneOf:
-          - type: string
-            minLength: 1
-            maxLength: 65536
-            x-max-utf8-bytes: 65536
+          - $ref: '#/components/schemas/DecisionRationale'
           - type: 'null'
         actorId:
           oneOf:
-          - $ref: '#/components/schemas/ResourceId'
+          - type: string
+            minLength: 1
+            maxLength: 256
+            x-max-utf8-bytes: 256
           - type: 'null'
         assessedAt:
           oneOf:
@@ -17817,6 +17821,10 @@ components:
       - projectId
       - title
       - titleTruncated
+      - subjectKind
+      - subjectKey
+      - subjectTruncated
+      - severitySuggestion
       - state
       - analystVerdict
       - analystSeverity
@@ -17833,9 +17841,19 @@ components:
           type: string
           minLength: 1
           maxLength: 256
-          x-max-utf8-bytes: 1024
         titleTruncated:
           type: boolean
+        subjectKind:
+          type: string
+          maxLength: 64
+        subjectKey:
+          type: string
+          maxLength: 256
+        subjectTruncated:
+          type: boolean
+        severitySuggestion:
+          type: string
+          enum: ['', informational, low, medium, high, critical]
         state:
           oneOf:
           - $ref: '#/components/schemas/FindingState'
@@ -17881,6 +17899,11 @@ components:
           maximum: 9007199254740991
         page:
           $ref: '#/components/schemas/PageInfo'
+    DecisionRationale:
+      type: string
+      minLength: 1
+      maxLength: 65536
+      x-max-utf8-bytes: 65536
     EditProjectFindingRequest:
       oneOf:
       - type: object
@@ -17896,10 +17919,7 @@ components:
           severity:
             $ref: '#/components/schemas/FindingSeverity'
           rationale:
-            type: string
-            minLength: 1
-            maxLength: 65536
-            x-max-utf8-bytes: 65536
+            $ref: '#/components/schemas/DecisionRationale'
       - type: object
         additionalProperties: false
         required:
@@ -17913,10 +17933,7 @@ components:
             - reopen
             - needs_evidence
           rationale:
-            type: string
-            minLength: 1
-            maxLength: 65536
-            x-max-utf8-bytes: 65536
+            $ref: '#/components/schemas/DecisionRationale'
       - type: object
         additionalProperties: false
         required:
@@ -17930,10 +17947,7 @@ components:
           duplicateTargetId:
             $ref: '#/components/schemas/ResourceId'
           rationale:
-            type: string
-            minLength: 1
-            maxLength: 65536
-            x-max-utf8-bytes: 65536
+            $ref: '#/components/schemas/DecisionRationale'
     EditProjectFindingResult:
       type: object
       additionalProperties: false

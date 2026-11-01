@@ -22,9 +22,10 @@ const NO_ACTIVITY = new Map<string, ProjectActivity>();
 /** Activity from complete owner-wide lists, shared with Checks and Issues. */
 export function useProjectActivity(): Map<string, ProjectActivity> {
   const checks = useAllChecks();
-  const issues = useAllPossibleIssues({ states: ["proposed"] });
+  const issues = useAllPossibleIssues({ needsReview: true });
   return useMemo(() => {
-    if (checks.checks.length === 0) return NO_ACTIVITY;
+    if (checks.checks.length === 0 && issues.issues.length === 0)
+      return NO_ACTIVITY;
     const activity = new Map<string, ProjectActivity>();
     for (const { project, audit } of checks.checks) {
       let current = activity.get(project.projectId);
@@ -43,8 +44,20 @@ export function useProjectActivity(): Map<string, ProjectActivity> {
       current.states[audit.state] = (current.states[audit.state] ?? 0) + 1;
     }
     for (const issue of issues.issues) {
-      const current = activity.get(issue.project.projectId);
-      if (current !== undefined) current.possibleIssues.count += 1;
+      let current = activity.get(issue.project.projectId);
+      if (current === undefined) {
+        current = {
+          states: {},
+          latest: undefined,
+          possibleIssues: {
+            count: 0,
+            more: checks.partial || issues.partial,
+            settled: !checks.isPending && !issues.isPending,
+          },
+        };
+        activity.set(issue.project.projectId, current);
+      }
+      current.possibleIssues.count += 1;
     }
     return activity;
   }, [checks, issues]);

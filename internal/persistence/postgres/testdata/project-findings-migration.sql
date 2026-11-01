@@ -3,7 +3,7 @@ INSERT INTO projects(project_id,owner_id,kind,name,request_idempotency_key,reque
 VALUES('migration-project','migration-owner','project','History','create','sha256:'||repeat('a',64));
 INSERT INTO audits(audit_id,owner_id,project_id,profile_name,profile_version,profile_digest,profile_snapshot,input_selection,
  max_rounds,batch_size,max_items_per_round,max_items_total,max_submitted_runs,max_item_run_attempts,max_evidence_bytes)
-VALUES('migration-audit','migration-owner','migration-project','profile','1','sha256:'||repeat('a',64),'{}','{}',1,1,10,10,10,1,1048576);
+VALUES('migration-audit','migration-owner','migration-project','profile','1','sha256:'||repeat('a',64),'{"execution":{"findingConfirmation":"opaque-old-policy"},"unknownHistoricalField":true}','{}',1,1,10,10,10,1,1048576);
 INSERT INTO finding_correlation_fences(project_id) VALUES('migration-project');
 INSERT INTO artifact_scopes(scope_kind,scope_id) VALUES('project','migration-project');
 INSERT INTO artifact_blobs(sha256,payload,size_bytes)

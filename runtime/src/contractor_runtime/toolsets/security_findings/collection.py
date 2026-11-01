@@ -328,18 +328,40 @@ def _validate_metadata(value: dict[str, Any]) -> None:
         require(evidence_ids == sorted(set(evidence_ids)))
         if "finding" in entry:
             finding = entry["finding"]
-            object_fields(finding, "project_id finding_id revision state", "verdict severity duplicate_target_id")
+            object_fields(
+                finding,
+                "project_id finding_id revision state",
+                "verdict severity duplicate_target_id",
+            )
             require(identifier(finding["project_id"]) and identifier(finding["finding_id"]))
-            require(type(finding["revision"]) is int and 0 < finding["revision"] <= MAX_EXACT_INTEGER)
-            require(finding["state"] is None or finding["state"] in {
-                "proposed", "confirmed", "rejected", "duplicate", "needs-evidence"
-            })
-            if "verdict" in finding:
-                require(finding["verdict"] in {"true_positive", "false_positive", "duplicate", "reopen", "needs_evidence"})
-            if "severity" in finding:
-                require(finding["severity"] in {"informational", "low", "medium", "high", "critical"})
-            if "duplicate_target_id" in finding:
-                require(identifier(finding["duplicate_target_id"]))
+            require(
+                type(finding["revision"]) is int and 0 < finding["revision"] <= MAX_EXACT_INTEGER
+            )
+            require(
+                finding["state"] is None
+                or finding["state"]
+                in {"proposed", "confirmed", "rejected", "duplicate", "needs-evidence"}
+            )
+            states = {
+                "true_positive": "confirmed",
+                "false_positive": "rejected",
+                "duplicate": "duplicate",
+                "reopen": "proposed",
+                "needs_evidence": "needs-evidence",
+            }
+            verdict = finding.get("verdict", "")
+            severity = finding.get("severity", "")
+            duplicate = finding.get("duplicate_target_id", "")
+            if finding["state"] is None:
+                require(verdict == severity == duplicate == "")
+            else:
+                require(verdict in states and states[verdict] == finding["state"])
+                require((verdict == "true_positive") == (severity != ""))
+                require(severity in {"", "informational", "low", "medium", "high", "critical"})
+                require((verdict == "duplicate") == (duplicate != ""))
+                require(
+                    duplicate == "" or identifier(duplicate) and duplicate != finding["finding_id"]
+                )
     require(used == documents.keys(), "findings_reference_invalid")
 
 

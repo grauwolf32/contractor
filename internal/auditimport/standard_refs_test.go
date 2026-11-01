@@ -265,7 +265,7 @@ type pinnedStandardCollection struct {
 func newPinnedStandardCollection(t *testing.T) pinnedStandardCollection {
 	t.Helper()
 	harness := newImportHarness(t)
-	profile := loadResultProfileWithFindingConfirmation(t, "human-required")
+	profile := loadResultProfile(t)
 	profileSnapshot, err := json.Marshal(profile)
 	if err != nil {
 		t.Fatal(err)

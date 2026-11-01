@@ -36,7 +36,7 @@ func TestImporterRejectsConditionBytesBeforeRecordingOversizedReport(t *testing.
 	claim := auditstore.ControllerClaim{AuditID: audit.AuditID, HolderID: "holder", Epoch: 1}
 	// The projection alone would fit exactly. The actual serialized finding
 	// crosses the existing complete-report bound and must fail before mutation.
-	build := reportBuild{positions: []reportPosition{{section: auditstore.ReportSectionProposed}}, contentBytes: artifacts.MaxPayloadSize - projectionBytes}
+	build := reportBuild{projectRevision: 1, positions: []reportPosition{{section: auditstore.ReportSectionProposed}}, contentBytes: artifacts.MaxPayloadSize - projectionBytes}
 	before := build.contentBytes
 	err = importer.recordNextPage(t.Context(), claim, audit, &build)
 	if !errors.Is(err, ErrPermanent) || !strings.Contains(err.Error(), "machine report exceeds its bound") || len(store.pages) != 0 || len(access.writes) != 0 || build.contentBytes != before {
@@ -55,14 +55,14 @@ func TestImporterRejectsConditionBytesBeforeRecordingOversizedReport(t *testing.
 
 func TestImporterRejectsConditionReportEnvelopeBeforePublishing(t *testing.T) {
 	store := &fakeImportStore{}
-	build := reportBuild{findings: 8}
+	build := reportBuild{projectRevision: 1, findings: 8}
 	for index := range 8 {
 		row, _ := conditionHeavyReportFinding(t, "finding-"+string(rune('1'+index)))
 		entry, err := json.Marshal(newReportFinding(row))
 		if err != nil {
 			t.Fatal(err)
 		}
-		store.pages = append(store.pages, fakeReportPage{revision: 1, page: auditstore.ReportPage{Ordinal: index, Section: auditstore.ReportSectionProposed, EntryCount: 1, Exhausted: index == 7}, content: entry})
+		store.pages = append(store.pages, fakeReportPage{projectRevision: 1, revision: 1, page: auditstore.ReportPage{Ordinal: index, Section: auditstore.ReportSectionProposed, EntryCount: 1, Exhausted: index == 7}, content: entry})
 		build.contentBytes += len(entry)
 		if index != 0 {
 			build.contentBytes++
@@ -95,7 +95,7 @@ func conditionHeavyReportFinding(t *testing.T, id string) (auditstore.ReportFind
 	}
 	conditions[len(conditions)-1] = "x"
 	revision := "r1"
-	row := auditstore.ReportFinding{FindingID: id, State: "proposed", Revision: 1, CreatedAt: time.Unix(1, 0),
+	row := auditstore.ReportFinding{FindingID: id, State: reportState(auditstore.FindingProposed), Revision: 1, CreatedAt: time.Unix(1, 0),
 		FirstProposal: auditstore.ExactArtifact{Ref: contracts.ArtifactRef{Namespace: "retained", Name: "original", Revision: &revision}, Digest: auditdomain.DigestBytes([]byte("exact")), MediaType: "application/json", SizeBytes: 8 << 20},
 		Projection:    auditdomain.FindingReportProjection{Title: "Condition-heavy candidate", Description: "The conditions remain separate from this description.", Subject: nil, Preconditions: conditions, StandardRefs: []auditdomain.StandardReference{}, Limitations: []string{}},
 	}

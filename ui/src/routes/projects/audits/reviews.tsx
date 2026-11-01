@@ -147,7 +147,7 @@ function ReviewCard({
             },
             {
               term: "Subject ID",
-              value: <IdChip value={findingId} label="subject ID" />,
+              value: <IdChip value={review.subjectId} label="subject ID" />,
             },
           ]}
         />

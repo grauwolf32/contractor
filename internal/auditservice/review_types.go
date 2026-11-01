@@ -12,8 +12,6 @@ const (
 	maximumReviewTTL   = 30 * 24 * time.Hour
 )
 
-type Finding = auditstore.ProjectFinding
-
 type DecideActionReviewParams struct {
 	OwnerID                 string
 	AuditID                 string

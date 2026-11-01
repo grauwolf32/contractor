@@ -8,10 +8,10 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/ownerstore"
-	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
-	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -58,16 +58,8 @@ func (s *Service) hydrateProjectFindingClaim(ctx context.Context, ownerID string
 // EditProjectFinding is the sole analyst mutation, regardless of which Audit
 // the user opened. Source collection never invokes it.
 func (s *Service) EditProjectFinding(ctx context.Context, params ProjectFindingEditParams) (ProjectFindingEditResult, error) {
-	if !auditstore.ValidReviewIdentity(params.OwnerID,256) || !contracts.ValidResourceID(params.ProjectID) ||
-		!contracts.ValidResourceID(params.FindingID) || params.ExpectedRevision < 1 ||
-		params.ExpectedRevision > contracts.MaxExactInteger || !params.Verdict.Valid() ||
-		!contracts.ValidIdempotencyKey(params.IdempotencyKey) || !contentdigest.Valid(params.RequestDigest) ||
-		!validRationale(params.Rationale) ||
-		(params.Verdict == auditstore.VerdictTruePositive) != (params.Severity != nil) ||
-		(params.Severity != nil && !params.Severity.Valid()) ||
-		(params.Verdict == auditstore.VerdictDuplicate) != (params.DuplicateTargetID != nil) ||
-		(params.DuplicateTargetID != nil && (!contracts.ValidResourceID(*params.DuplicateTargetID) || *params.DuplicateTargetID == params.FindingID)) {
-		return ProjectFindingEditResult{}, auditstore.ErrInvalid
+	if err := validateProjectFindingEdit(params); err != nil {
+		return ProjectFindingEditResult{}, err
 	}
 	var result ProjectFindingEditResult
 	err := persistencepostgres.InTxWithRetry(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
@@ -104,6 +96,7 @@ type ProjectFindingListParams struct {
 	ProjectRevision *uint64
 }
 type ProjectFindingPage struct {
+	ContinueBefore  *auditstore.ProjectFindingSummary  `json:"-"`
 	Items           []auditstore.ProjectFindingSummary `json:"items"`
 	ProjectRevision uint64                             `json:"projectRevision"`
 }
@@ -117,7 +110,9 @@ func (s *Service) ListProjectFindings(ctx context.Context, params ProjectFinding
 	if params.ProjectRevision != nil && *params.ProjectRevision != before.ProjectRevision {
 		return result, auditstore.ErrConflict
 	}
-	result.Items, err = s.reads().ListOwnerFindings(ctx, params.OwnerFindingListParams)
+	window, readErr := s.reads().ListOwnerFindings(ctx, params.OwnerFindingListParams)
+	err = readErr
+	result.Items, result.ContinueBefore = window.Items, window.ContinueBefore
 	if err != nil {
 		return result, err
 	}
@@ -130,4 +125,19 @@ func (s *Service) ListProjectFindings(ctx context.Context, params ProjectFinding
 	}
 	result.ProjectRevision = before.ProjectRevision
 	return result, nil
+}
+
+func validateProjectFindingEdit(params ProjectFindingEditParams) error {
+	if !auditstore.ValidReviewIdentity(params.OwnerID, 256) || !contracts.ValidResourceID(params.ProjectID) ||
+		!contracts.ValidResourceID(params.FindingID) || params.ExpectedRevision < 1 ||
+		params.ExpectedRevision > contracts.MaxExactInteger || !params.Verdict.Valid() ||
+		!contracts.ValidIdempotencyKey(params.IdempotencyKey) || !contentdigest.Valid(params.RequestDigest) ||
+		!validRationale(params.Rationale) ||
+		(params.Verdict == auditstore.VerdictTruePositive) != (params.Severity != nil) ||
+		(params.Severity != nil && !params.Severity.Valid()) ||
+		(params.Verdict == auditstore.VerdictDuplicate) != (params.DuplicateTargetID != nil) ||
+		(params.DuplicateTargetID != nil && (!contracts.ValidResourceID(*params.DuplicateTargetID) || *params.DuplicateTargetID == params.FindingID)) {
+		return auditstore.ErrInvalid
+	}
+	return nil
 }

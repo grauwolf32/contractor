@@ -1,17 +1,17 @@
+import { pollInterval } from "../../../app/polling";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useId, type ReactNode } from "react";
-import { Link, useLocation } from "react-router";
+import { useId } from "react";
+import { Link } from "react-router";
 
 import {
   getAuditFinding,
-  getAuditReview,
   listAuditFindings,
   type Audit,
 } from "../../../api/audits";
 import { usePublicAPI } from "../../../api/context";
 import { queryKeys } from "../../../api/query-keys";
 import { ContextLink } from "../../../app/context-navigation";
-import { Button, EmptyState, FilterChips, ListSection } from "../../../ui";
+import { EmptyState, FilterChips, ListSection } from "../../../ui";
 import { IssueRow } from "../../issues/issue-row";
 import { issueHref, type StateFilter } from "../../issues/links";
 import { AuditFindingCard } from "./finding-card";
@@ -40,36 +40,12 @@ const STATE_CHIPS: readonly { value: StateFilter; label: string }[] = [
   { value: "all", label: "All" },
 ];
 
-interface ListLocation {
-  to: { pathname: string; search: string };
-  /** The page's navigation state, so its return link survives. */
-  state: unknown;
-}
-
-/** The section's own URL without the deep link to one possible issue. */
-function useListLocation(): ListLocation {
-  const location = useLocation();
-  const params = new URLSearchParams(location.search);
-  params.delete("finding");
-  params.delete("review");
-  const search = params.toString();
-  return {
-    to: {
-      pathname: location.pathname,
-      search: search === "" ? "" : `?${search}`,
-    },
-    state: location.state,
-  };
-}
-
 function SectionHead({
   audit,
   headingId,
-  back,
 }: {
   audit: Audit;
   headingId: string;
-  back?: ListLocation | undefined;
 }) {
   return (
     <header className="issues-section-head">
@@ -77,11 +53,6 @@ function SectionHead({
         Possible issues
       </h2>
       <div className="issues-section-links">
-        {back === undefined ? null : (
-          <Link to={back.to} state={back.state}>
-            All possible issues in this check
-          </Link>
-        )}
         <ContextLink
           returnLabel="Check possible issues"
           to={`/projects/${encodeURIComponent(audit.projectId)}/findings`}
@@ -98,11 +69,39 @@ function SectionHead({
  * the `?review=` it was opened for). A review that no longer matches the
  * possible issue's revision blocks deciding until the context is refreshed.
  */
-function ExactFinding({audit,findingId}:{audit:Audit;findingId:string}) {
- const api=usePublicAPI();const finding=useQuery({queryKey:["project-findings",audit.projectId,findingId],queryFn:()=>getAuditFinding(api,audit.auditId,findingId),retry:false});
- if(finding.error!==null)return <p role="alert">{finding.error.message}</p>;
- if(finding.data===undefined)return <p role="status">Loading possible issue…</p>;
- return <><p><Link to={issueHref(finding.data,{state:"all",project:audit.projectId})}>Open in Issues</Link></p><AuditFindingCard audit={audit} finding={finding.data}/></>;
+function ExactFinding({
+  audit,
+  findingId,
+}: {
+  audit: Audit;
+  findingId: string;
+}) {
+  const api = usePublicAPI();
+  const finding = useQuery({
+    queryKey: ["project-findings", audit.projectId, findingId],
+    queryFn: () => getAuditFinding(api, audit.auditId, findingId),
+    retry: false,
+    refetchInterval: pollInterval({ interval: 20_000 }),
+  });
+  if (finding.error !== null)
+    return <p role="alert">{finding.error.message}</p>;
+  if (finding.data === undefined)
+    return <p role="status">Loading possible issue…</p>;
+  return (
+    <>
+      <p>
+        <Link
+          to={issueHref(finding.data, {
+            state: "all",
+            project: audit.projectId,
+          })}
+        >
+          Open in Issues
+        </Link>
+      </p>
+      <AuditFindingCard finding={finding.data} />
+    </>
+  );
 }
 
 export function AuditFindings({ audit }: { audit: Audit }) {
@@ -145,12 +144,7 @@ function AuditFindingList({ audit }: { audit: Audit }) {
     });
   };
   if (exactId !== null)
-    return (
-      <ExactFinding
-        audit={audit}
-        findingId={exactId}
-      />
-    );
+    return <ExactFinding audit={audit} findingId={exactId} />;
   return (
     <section className="issues-section" aria-labelledby={headingId}>
       <AuditAnchor ready={findings.data !== undefined} />

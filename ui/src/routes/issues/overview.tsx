@@ -1,11 +1,11 @@
 import { useId, type ReactNode } from "react";
-import type { AuditFinding } from "../../api/audits";
+import type { ProjectFinding, ProjectFindingSummary } from "../../api/audits";
 import { Icon } from "../../app/icon";
-import type { StatusTone } from "../../app/status-tone";
+
 import { findingStateLabel, severityLabel } from "../../app/vocabulary";
 import { MethodChip, StatusChip } from "../../ui";
-import { DecisionRecord } from "../decisions";
-import { decisionOutcome } from "../decisions/model";
+import { RecordedTime } from "../../app/recorded-time";
+
 import { DecisionMarkdown } from "../decisions/markdown";
 import {
   httpOperation,
@@ -13,26 +13,25 @@ import {
   standardReferences,
   weaknessReferences,
 } from "../decisions/text";
-import { CorrelationMark } from "./correlation-mark";
-import { assessmentLabel } from "./evidence";
+
 import { EvidencePanel } from "./evidence-panel";
 
-function assessmentTone(finding: AuditFinding): StatusTone {
-  const assessment = finding.currentAssessment?.semanticAssessment;
-  if (assessment === undefined) return "idle";
-  if (assessment === "supported" || assessment === "satisfied") return "done";
-  return assessment === "blocked" || assessment === "violated"
-    ? "warning"
-    : "info";
-}
-function verification(finding: AuditFinding): string {
-  return finding.currentAssessment === undefined
-    ? "Not verified yet"
-    : assessmentLabel(finding.currentAssessment.semanticAssessment);
-}
-
-export function IssueIdentity({ finding }: { finding: AuditFinding }) {
-  const document = finding.firstProposal.document;
+export function IssueIdentity({
+  finding,
+}: {
+  finding: ProjectFinding | ProjectFindingSummary;
+}) {
+  const document =
+    "firstReceiptId" in finding
+      ? finding.claim!
+      : {
+          title: finding.title,
+          subject:
+            finding.subjectKind === "" && finding.subjectKey === ""
+              ? null
+              : { kind: finding.subjectKind, key: finding.subjectKey },
+          severity_suggestion: finding.severitySuggestion,
+        };
   const operation =
     document.subject === null ? undefined : httpOperation(document.subject.key);
   const state = findingStateLabel(finding.state);
@@ -63,17 +62,16 @@ export function IssueIdentity({ finding }: { finding: AuditFinding }) {
         <StatusChip tone={state.tone} size="sm">
           {state.label}
         </StatusChip>
-        <StatusChip tone={assessmentTone(finding)} size="sm">
-          Verification: {verification(finding)}
+        <StatusChip tone="info" size="sm">
+          Verification: see independent sources
         </StatusChip>
         <span className="issues-ai-suggestion">
-          {finding.analystSeverity === undefined
+          {finding.analystSeverity === null
             ? document.severity_suggestion === ""
               ? "AI severity: not suggested"
               : `AI suggests ${severityLabel(document.severity_suggestion)} — a suggestion, not a decision`
             : `Analyst severity: ${severityLabel(finding.analystSeverity)}`}
         </span>
-        <CorrelationMark finding={finding} />
       </div>
     </>
   );
@@ -109,15 +107,29 @@ function TextList({ values }: { values: readonly string[] }) {
 }
 
 /** Route-owned composition; shared Inbox/Audit summaries retain their owner. */
-export function IssueRecordedDecision({ finding }: { finding: AuditFinding }) {
-  return finding.analystDecision === undefined ? null : (
+export function IssueRecordedDecision({
+  finding,
+}: {
+  finding: ProjectFinding;
+}) {
+  const state = findingStateLabel(finding.state);
+  return finding.analystVerdict === null ? null : (
     <section
       className="issues-recorded-review"
       aria-label="Recorded decision"
-      data-tone={decisionOutcome(finding.analystDecision).tone}
+      data-tone={state.tone}
     >
       <p className="issues-section-label">Recorded decision</p>
-      <DecisionRecord decision={finding.analystDecision} />
+      <StatusChip tone={state.tone}>{state.label}</StatusChip>
+      <p className="ui-caption">
+        by {finding.actorId} ·{" "}
+        {finding.assessedAt === null ? null : (
+          <RecordedTime value={finding.assessedAt} />
+        )}
+      </p>
+      {finding.rationale === null ? null : (
+        <DecisionMarkdown source={finding.rationale} />
+      )}
     </section>
   );
 }
@@ -125,10 +137,10 @@ export function IssueOverview({
   finding,
   supporting,
 }: {
-  finding: AuditFinding;
+  finding: ProjectFinding;
   supporting?: ReactNode;
 }) {
-  const document = finding.firstProposal.document;
+  const document = finding.claim!;
   const { found, impact } = splitImpact(document.description);
   const refs = [
     ...weaknessReferences(document),
@@ -162,7 +174,10 @@ export function IssueOverview({
             </SideSection>
           )}
           <SideSection title="Verification" tone="info">
-            <p>{verification(finding)}</p>
+            <p>
+              Each source retains its own check results and conditions. Open
+              History to inspect them.
+            </p>
             <p className="ui-caption">
               Verification is separate from the analyst decision.
             </p>

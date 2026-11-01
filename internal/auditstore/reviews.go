@@ -213,7 +213,6 @@ type OwnerFindingListParams struct {
 	Verdict         *AnalystVerdict
 	Unreviewed      bool
 	Severity        *FindingSeverity
-	AuditStates     []AuditState
 	BeforeCreatedAt *time.Time
 	BeforeFindingID string
 	Limit           int

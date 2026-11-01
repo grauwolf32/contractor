@@ -1,6 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import type { ProjectFinding } from "../../../api/audits";
+import type { ProjectFindingSummary } from "../../../api/audits";
 import { usePublicAPI } from "../../../api/context";
 import {
   downloadFindingExport,
@@ -64,7 +64,7 @@ export function useFindingExport(auditId: string) {
     publication.reset();
     download.reset();
   }
-  function selectVisible(findings: readonly ProjectFinding[]) {
+  function selectVisible(findings: readonly ProjectFindingSummary[]) {
     if (
       new Set([...selected.keys(), ...findings.map((f) => f.findingId)]).size >
       MAX_EXPORT_SELECTION
@@ -96,7 +96,7 @@ export function useFindingExport(auditId: string) {
       changed();
       setSelected(new Map());
     },
-    toggle(finding: ProjectFinding) {
+    toggle(finding: ProjectFindingSummary) {
       const next = new Map(selected);
       if (next.has(finding.findingId)) next.delete(finding.findingId);
       else if (next.size < MAX_EXPORT_SELECTION)

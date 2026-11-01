@@ -2,7 +2,7 @@
  * URLs of the Issues destination (docs/design/ui/v3b-build-contract.md §5):
  * `/issues?state=<finding state>&project=<projectId>&severity=<…>` filters
  * the list, and the selected possible issue is the path
- * `/issues/:auditId/:findingId`.
+ * `/issues/:projectId/:findingId`.
  */
 import type {
   ProjectFinding,
@@ -15,10 +15,10 @@ import {
 } from "../projects/audits/finding-options";
 
 /** A finding state, or every state. */
-export type StateFilter = FindingState | "all";
+export type StateFilter = FindingState | "needs-review" | "unassessed" | "all";
 
 export interface IssueFilters {
-  /** Default "proposed" (Needs review); "all" lists every state. */
+  /** Default "needs-review" (unassessed or reopened); "all" lists every state. */
   state: StateFilter;
   /** One project's possible issues; undefined for every project. */
   project?: string | undefined;
@@ -27,7 +27,7 @@ export interface IssueFilters {
 }
 
 /** The state the list shows without a `state` parameter. */
-const DEFAULT_STATE: StateFilter = "proposed";
+const DEFAULT_STATE: StateFilter = "needs-review";
 
 /** Filters from the list's query string; unknown values fall back. */
 export function readIssueFilters(params: URLSearchParams): IssueFilters {
@@ -36,8 +36,8 @@ export function readIssueFilters(params: URLSearchParams): IssueFilters {
   const severity = params.get("severity");
   return {
     state:
-      state === "all"
-        ? "all"
+      state === "all" || state === "unassessed" || state === "needs-review"
+        ? state
         : state !== null && isFindingState(state)
           ? state
           : DEFAULT_STATE,
@@ -58,8 +58,8 @@ export function issueSearch(filters: IssueFilters): string {
 }
 
 /** Path of one possible issue on the Issues destination. */
-export function issuePath(auditId: string, findingId: string): string {
-  return `/issues/${encodeURIComponent(auditId)}/${encodeURIComponent(findingId)}`;
+export function issuePath(projectId: string, findingId: string): string {
+  return `/issues/${encodeURIComponent(projectId)}/${encodeURIComponent(findingId)}`;
 }
 
 /** The finding's exact retained evidence, in the existing Evidence tab. */
@@ -93,7 +93,12 @@ export function matchesIssueFilters(
   filters: IssueFilters,
 ): boolean {
   return (
-    (filters.state === "all" || finding.state === filters.state) &&
+    (filters.state === "all" ||
+      (filters.state === "needs-review" &&
+        (finding.state === null || finding.state === "proposed")) ||
+      (filters.state === "unassessed"
+        ? finding.state === null
+        : finding.state === filters.state)) &&
     (filters.severity === undefined ||
       finding.analystSeverity === filters.severity)
   );

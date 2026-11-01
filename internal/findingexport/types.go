@@ -89,7 +89,7 @@ type Result struct {
 }
 
 type Review struct {
-	State             *string `json:"state" strictjson:"required"`
+	State             *string `json:"state" strictjson:"required,nullable"`
 	Verdict           string  `json:"verdict,omitempty"`
 	Severity          string  `json:"severity,omitempty"`
 	Rationale         string  `json:"rationale,omitempty"`

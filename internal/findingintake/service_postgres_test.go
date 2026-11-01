@@ -363,13 +363,8 @@ func testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *te
 	if err != nil || !replayed || !replayHold.Proposal.Ref.SameExact(hold.Proposal.Ref) {
 		t.Fatalf("replayed Audit import = (%+v, replay=%v, %v)", replayHold, replayed, err)
 	}
-	var prematureAssessments int
-	if err := pool.QueryRow(ctx, `
-SELECT count(*) FROM audit_finding_assessments
- WHERE receipt_id = $1 AND direct_verification`, firstReceipt.ReceiptID).Scan(
-		&prematureAssessments,
-	); err != nil || prematureAssessments != 0 {
-		t.Fatalf("direct assessment before successful frozen Run = (%d, %v)", prematureAssessments, err)
+	if records := readDirectHistoryForTest(t, ctx, pool, ownerID, projectID, firstReceipt.ReceiptID, auditID); len(records) != 0 {
+		t.Fatalf("premature direct verification: %+v", records)
 	}
 	projectArtifacts, err := artifactService.Project(projectID)
 	if err != nil {
@@ -424,15 +419,14 @@ SELECT count(*) FROM audit_finding_assessments
 	}
 	var resultRefJSON, contractRefJSON []byte
 	var directAssessmentID, directResultDigest, directContractDigest string
-	if err := pool.QueryRow(ctx, `
-SELECT assessment_id, result_ref, result_digest, contract_ref, contract_digest
-  FROM audit_finding_assessments
- WHERE receipt_id = $1 AND direct_verification`, firstReceipt.ReceiptID).Scan(
-		&directAssessmentID, &resultRefJSON, &directResultDigest,
-		&contractRefJSON, &directContractDigest,
-	); err != nil {
-		t.Fatalf("read accepted direct verification: %v", err)
+	facts := readDirectHistoryForTest(t, ctx, pool, ownerID, projectID, firstReceipt.ReceiptID, auditID)
+	if len(facts) != 1 {
+		t.Fatalf("direct histories=%+v", facts)
 	}
+	directAssessmentID = facts[0].Original.RecordID
+	resultRefJSON, _ = json.Marshal(facts[0].Materials.Result.Ref)
+	contractRefJSON, _ = json.Marshal(facts[0].Materials.Contract.Ref)
+	directResultDigest, directContractDigest = facts[0].Materials.Result.Digest, facts[0].Materials.Contract.Digest
 	var directResultRef, directContractRef contracts.ArtifactRef
 	if json.Unmarshal(resultRefJSON, &directResultRef) != nil ||
 		json.Unmarshal(contractRefJSON, &directContractRef) != nil ||
@@ -453,7 +447,7 @@ SELECT assessment_id, result_ref, result_digest, contract_ref, contract_digest
 	}
 	assessments := 0
 	for _, event := range events {
-		if event.Kind == "finding.assessed" &&
+		if event.Kind == "finding.result_retained" &&
 			strings.Contains(string(event.Summary), directAssessmentID) {
 			assessments++
 		}
@@ -461,13 +455,8 @@ SELECT assessment_id, result_ref, result_digest, contract_ref, contract_digest
 	if assessments != 1 || beforeReplay.Revision != beforeReplay.EventSequence {
 		t.Fatalf("direct assessment event count=%d Audit=%+v", assessments, beforeReplay)
 	}
-	var claimOnlyAssessments int
-	if err := pool.QueryRow(ctx, `
-SELECT count(*) FROM audit_finding_assessments
- WHERE receipt_id = $1 AND direct_verification`, claimOnlyReceipt.ReceiptID).Scan(
-		&claimOnlyAssessments,
-	); err != nil || claimOnlyAssessments != 0 {
-		t.Fatalf("successful Run claim without exact result assessment = (%d, %v)", claimOnlyAssessments, err)
+	if facts := readDirectHistoryForTest(t, ctx, pool, ownerID, projectID, claimOnlyReceipt.ReceiptID, auditID); len(facts) != 0 {
+		t.Fatalf("claim without exact verification created history: %+v", facts)
 	}
 	var retainedBefore int64
 	if err := pool.QueryRow(ctx, `
@@ -520,10 +509,13 @@ SELECT count(*) FROM audit_artifact_links
 	}
 	var otherAssessmentID string
 	var otherResultJSON, otherContractJSON []byte
-	if err := pool.QueryRow(ctx, `SELECT assessment_id,result_ref,contract_ref FROM audit_finding_assessments
-WHERE audit_id=$1 AND receipt_id=$2 AND direct_verification`, otherAuditID, firstReceipt.ReceiptID).Scan(&otherAssessmentID, &otherResultJSON, &otherContractJSON); err != nil {
-		t.Fatal(err)
+	otherFacts := readDirectHistoryForTest(t, ctx, pool, ownerID, projectID, firstReceipt.ReceiptID, otherAuditID)
+	if len(otherFacts) != 1 {
+		t.Fatalf("other direct history=%+v", otherFacts)
 	}
+	otherAssessmentID = otherFacts[0].Original.RecordID
+	otherResultJSON, _ = json.Marshal(otherFacts[0].Materials.Result.Ref)
+	otherContractJSON, _ = json.Marshal(otherFacts[0].Materials.Contract.Ref)
 	var otherResultRef, otherContractRef contracts.ArtifactRef
 	if err := json.Unmarshal(otherResultJSON, &otherResultRef); err != nil {
 		t.Fatal(err)
@@ -532,8 +524,8 @@ WHERE audit_id=$1 AND receipt_id=$2 AND direct_verification`, otherAuditID, firs
 		t.Fatal(err)
 	}
 	if otherAssessmentID != deterministicID("direct-assessment", otherAuditID, firstReceipt.ReceiptID) ||
-		otherAssessmentID == directAssessmentID || otherResultRef.SameExact(directResultRef) || otherContractRef.SameExact(directContractRef) {
-		t.Fatal("Audits share direct assessment identity or retention")
+		otherAssessmentID == directAssessmentID || !otherResultRef.SameExact(directResultRef) || !otherContractRef.SameExact(directContractRef) {
+		t.Fatal("Audit histories must be independent and reuse exact Project materials")
 	}
 	var otherRetainedBefore, otherRetainedAfter int64
 	if err := pool.QueryRow(ctx, `SELECT retained_evidence_bytes FROM audits WHERE audit_id=$1`, otherAuditID).Scan(&otherRetainedBefore); err != nil {
@@ -546,9 +538,7 @@ WHERE audit_id=$1 AND receipt_id=$2 AND direct_verification`, otherAuditID, firs
 	if err := pool.QueryRow(ctx, `SELECT retained_evidence_bytes FROM audits WHERE audit_id=$1`, otherAuditID).Scan(&otherRetainedAfter); err != nil {
 		t.Fatal(err)
 	}
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM audit_finding_assessments WHERE receipt_id=$1`, firstReceipt.ReceiptID).Scan(&assessmentCount); err != nil {
-		t.Fatal(err)
-	}
+	assessmentCount = len(readDirectHistoryForTest(t, ctx, pool, ownerID, projectID, firstReceipt.ReceiptID, ""))
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM audit_artifact_links WHERE audit_id=$1 AND logical_key LIKE 'finding/%/direct-%'`, otherAuditID).Scan(&otherLinks); err != nil {
 		t.Fatal(err)
 	}

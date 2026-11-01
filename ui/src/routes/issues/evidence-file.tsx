@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link } from "react-router";
 import type { ArtifactArchiveScope } from "../../api/artifact-archive";
-import type { AuditFinding } from "../../api/audits";
+import type { FindingProposalReceipt } from "../../api/audits";
 import { usePublicAPI } from "../../api/context";
 import { artifactScopeKeys } from "../../api/query-keys";
 import { scopedArtifactAPI } from "../../api/scoped-artifacts";
@@ -16,32 +16,25 @@ import { artifactDetailPath } from "../artifacts/paths";
 import { ArtifactPreviewPanel } from "../artifacts/preview";
 import { HTTP_EXCHANGE_MEDIA_TYPE } from "../../api/artifacts";
 
-type Evidence = AuditFinding["firstProposal"]["evidence"][number];
+type Evidence = FindingProposalReceipt["evidence"][number];
 
 /** Exact retained scope takes precedence over the possibly deleted source Run. */
 export function FindingEvidenceFile({
-  finding,
+  source,
   index,
   snippet = false,
 }: {
-  finding: AuditFinding;
+  source: FindingProposalReceipt;
   index: number;
   snippet?: boolean;
 }) {
-  const receipt = finding.firstProposal;
-  const original = receipt.evidence[index];
-  if (original === undefined) return null;
-  const hold = receipt.auditHolds.find(
-    (item) => item.auditId === finding.auditId,
-  );
-  const retained = hold?.evidence[index];
+  const receipt = source;
+  const evidence = receipt.projectEvidence?.[index];
+  if (evidence === undefined) return null;
   const scope: ArtifactArchiveScope | undefined =
-    retained !== undefined && hold !== undefined
-      ? { kind: "project", id: hold.projectId }
-      : receipt.origin.runDeleted
-        ? undefined
-        : { kind: "run", id: receipt.origin.runId };
-  const evidence = retained ?? original;
+    receipt.projectId === undefined
+      ? undefined
+      : { kind: "project", id: receipt.projectId };
   const evidenceId = receipt.document.evidence_ids[index];
   const label = evidenceId ?? `evidence ${index + 1}`;
   const caption =

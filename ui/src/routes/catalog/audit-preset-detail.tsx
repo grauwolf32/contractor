@@ -67,8 +67,6 @@ const ACTIVE_TESTS: Readonly<
   "approval-required": "Use project setting",
 };
 
-
-
 const NOT_APPLICABLE: Readonly<
   Record<AuditProfile["interaction"]["notApplicable"], string>
 > = {

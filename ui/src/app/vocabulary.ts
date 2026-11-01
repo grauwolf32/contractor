@@ -209,7 +209,9 @@ export function coverageStatusLabel(
 
 /** Triage state of a possible issue: "Needs review", "Confirmed", … */
 export function findingStateLabel(state: FindingState | null): VocabularyLabel {
-  return state===null ? {label:"Not assessed",tone:"idle"} : labelOf(FINDING_STATE_LABELS,state);
+  return state === null
+    ? { label: "Not assessed", tone: "idle" }
+    : labelOf(FINDING_STATE_LABELS, state);
 }
 
 /** Analyst verdict of a decision; a missing verdict is "Not reviewed". */
