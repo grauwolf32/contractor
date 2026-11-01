@@ -5,7 +5,7 @@ milestone: ui-journey-usability
 epic: ui
 kind: chore
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V429-012]
 languages: [typescript, css]
 goal: Let the user reorder the six Issue examples without losing the selected issue, decision draft or filtered navigation context.
@@ -80,3 +80,4 @@ verification:
     The earlier verified state backup remains preserved. No model call or new
     gateway credential was used. Preview is available on loopback port 17562;
     this branch has not been merged or deployed.
+implementation_commit: 71a8a04775cd904aebf9e19f956aab579f177791
