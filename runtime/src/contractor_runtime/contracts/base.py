@@ -298,7 +298,7 @@ _RUNTIME_ADAPTER_ERROR_CODES = frozenset(
         "request_failed",
     }
 )
-# Byte-for-byte the same expressions as internal/cabundle/validate.go. Every
+# Byte-for-byte the same expressions as internal/helpers/cabundle/validate.go. Every
 # construct is ASCII-only, so Python re and Go RE2 agree on what they match.
 _CERTIFICATE_BLOCK = (
     r"-----BEGIN CERTIFICATE-----\r?\n((?:[A-Za-z0-9+/=]+\r?\n)+)-----END CERTIFICATE-----"

@@ -5,7 +5,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalstore"
-	"github.com/grauwolf32/contractor/internal/randomid"
+	"github.com/grauwolf32/contractor/internal/helpers/randomid"
 )
 
 func (s *Service) Create(ctx context.Context, scope evalstore.Scope, document evaldomain.Frozen, mutation evaldomain.MutationIdentity) (evalstore.Receipt, error) {

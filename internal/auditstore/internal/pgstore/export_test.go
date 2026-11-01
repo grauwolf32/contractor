@@ -8,7 +8,7 @@ import (
 	"regexp"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/pagelimit"
+	"github.com/grauwolf32/contractor/internal/helpers/pagelimit"
 )
 
 // ListItems reads every item of one Audit in Round and item order, without

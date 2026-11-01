@@ -14,8 +14,8 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/helpers/randomid"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
-	"github.com/grauwolf32/contractor/internal/randomid"
 )
 
 // FailureError reports a classified model request failure. Its text names only

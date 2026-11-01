@@ -7,12 +7,12 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingexport"
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	"github.com/grauwolf32/contractor/internal/publicclient"
 	publicapi "github.com/grauwolf32/contractor/internal/publicclient/generated"
-	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 func (c *CLI) runAudit(ctx context.Context, client *publicclient.Client, printer *Printer, args []string) error {

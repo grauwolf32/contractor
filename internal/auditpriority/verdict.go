@@ -3,7 +3,7 @@ package auditpriority
 import (
 	"unicode/utf8"
 
-	"github.com/grauwolf32/contractor/internal/strictjson"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 )
 
 // Verdict is one model's independent assessment of its assigned checklist item.

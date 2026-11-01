@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/grauwolf32/contractor/internal/securefile"
+	"github.com/grauwolf32/contractor/internal/helpers/securefile"
 )
 
 const maximumEncodedMasterKeyBytes = 45

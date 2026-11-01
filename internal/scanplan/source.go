@@ -3,9 +3,9 @@ package scanplan
 import (
 	"strings"
 
-	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/scan"
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 )
 
 // sourceDocument is one exact OpenAPI source whose ref, bytes and document

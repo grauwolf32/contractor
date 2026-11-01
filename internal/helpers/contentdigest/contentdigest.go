@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/grauwolf32/contractor/internal/strictjson"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 )
 
 // Bytes returns the "sha256:<lowercase hex>" digest of data.

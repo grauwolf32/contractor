@@ -12,9 +12,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/grauwolf32/contractor/internal/contentdigest"
-	"github.com/grauwolf32/contractor/internal/securefile"
-	"github.com/grauwolf32/contractor/internal/zipdirectory"
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
+	"github.com/grauwolf32/contractor/internal/helpers/securefile"
+	"github.com/grauwolf32/contractor/internal/helpers/zipdirectory"
 )
 
 func PackageDirectory(source string) ([]byte, *Package, error) {

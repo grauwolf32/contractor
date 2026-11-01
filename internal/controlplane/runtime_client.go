@@ -21,11 +21,11 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/engagementcontract"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
+	"github.com/grauwolf32/contractor/internal/helpers/requestid"
+	"github.com/grauwolf32/contractor/internal/helpers/secretmatch"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	"github.com/grauwolf32/contractor/internal/mtls"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
-	"github.com/grauwolf32/contractor/internal/requestid"
-	"github.com/grauwolf32/contractor/internal/secretmatch"
-	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 const maxRuntimeResponseBytes = 1 << 20

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/contentdigest"
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 )
 
 func TestOpenAPIInventoryIdentitySeparatesSourceAndCanonicalContent(t *testing.T) {

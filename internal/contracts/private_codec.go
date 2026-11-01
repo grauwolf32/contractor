@@ -12,7 +12,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/grauwolf32/contractor/internal/strictjson"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 )
 
 var privateVersionError = errors.New("private protocol version mismatch")

@@ -12,9 +12,9 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/grauwolf32/contractor/internal/documentnumber"
-	"github.com/grauwolf32/contractor/internal/documentyaml"
-	"github.com/grauwolf32/contractor/internal/strictjson"
+	"github.com/grauwolf32/contractor/internal/helpers/documentnumber"
+	"github.com/grauwolf32/contractor/internal/helpers/documentyaml"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	"github.com/ucarion/jcs"
 	"go.yaml.in/yaml/v4"
 )

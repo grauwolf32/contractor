@@ -1,0 +1,46 @@
+schema_version: "1.0"
+id: V430-003
+title: Integrate Server helper relocation with current main
+milestone: hub-audit-structure-2026-10
+epic: quality
+kind: chore
+priority: P3
+status: in_progress
+depends_on: []
+languages: [go]
+goal: Main contains the verified helpers directory without losing newer Audit, configuration or UI work.
+context:
+  authority: >-
+    User request 2026-11-01: merge codex/server-helpers and continue the next
+    independent simplification. Main has advanced by ninety commits since
+    that branch's base, requiring integration before the next refactor.
+  boundary: >-
+    Start from main 6af1bc56f, merge the existing helper branch, preserve the
+    newer domain/configuration behavior, migrate remaining old-path imports,
+    and regenerate derived outputs using their owners. Main already uses
+    V425-037/038 for different completed tasks. Renumber only this branch's
+    historical helper and baseline repair records to V430-001/002, retaining
+    their original implementation commits and verification history. Main's
+    later removal of unused priority exports supersedes the baseline repair;
+    do not restore removed identifiers or exemptions. Preserve the dirty
+    primary checkout and do not rewrite existing commits.
+scope:
+  in:
+    - Merge conflict resolution and remaining helper import/source-reference updates.
+    - Task identity reconciliation and generated tracker/dependency fingerprints.
+    - Full Go/PostgreSQL and lint checks on the combined tree, followed by a no-fast-forward main merge.
+  out:
+    - Performance implementation, additional helpers, Audit/configuration redesign or UI behavior changes.
+    - Remote push, deployment, demo database writes or changes to the user's primary checkout.
+acceptance_criteria:
+  - id: A1
+    text: The combined tree preserves current main's behavior and uses the fourteen helpers at internal/helpers without old-path forwarding packages or stale executable imports.
+  - id: A2
+    text: All task identities are unique; current main's V425-037/038 records survive and the helper branch history is recorded under V430-001/002 with unchanged implementation hashes.
+  - id: A3
+    text: Full Go tests with a disposable PostgreSQL database, complete make lint and tracker checks pass; skips are explicit and main receives the combined tree via --no-ff.
+tests:
+  - command: go test -json -count=1 ./...
+    covers: [A1, A3]
+  - command: make lint
+    covers: [A1, A2, A3]

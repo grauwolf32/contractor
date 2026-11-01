@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/grauwolf32/contractor/internal/pagelimit"
-	"github.com/grauwolf32/contractor/internal/strictjson"
+	"github.com/grauwolf32/contractor/internal/helpers/pagelimit"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 )
 
 // ListRunQueue returns only non-terminal Runs in deterministic oldest-first

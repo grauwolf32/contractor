@@ -13,7 +13,7 @@ package documentyaml
 import (
 	"strings"
 
-	"github.com/grauwolf32/contractor/internal/documentnumber"
+	"github.com/grauwolf32/contractor/internal/helpers/documentnumber"
 	"go.yaml.in/yaml/v4"
 )
 

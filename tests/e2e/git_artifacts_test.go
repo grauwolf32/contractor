@@ -22,9 +22,9 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/gitimport"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	"github.com/grauwolf32/contractor/internal/localpki"
 	publicapi "github.com/grauwolf32/contractor/internal/publicclient/generated"
-	"github.com/grauwolf32/contractor/internal/strictjson"
 	"golang.org/x/crypto/ssh/knownhosts"
 )
 

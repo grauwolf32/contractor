@@ -10,11 +10,11 @@ import (
 	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/auditdomain"
-	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/grauwolf32/contractor/internal/sourcezip"
-	"github.com/grauwolf32/contractor/internal/strictjson"
-	"github.com/grauwolf32/contractor/internal/zipdirectory"
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
+	"github.com/grauwolf32/contractor/internal/helpers/sourcezip"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
+	"github.com/grauwolf32/contractor/internal/helpers/zipdirectory"
 )
 
 // Resolved retains native producer assertions independently of physical source

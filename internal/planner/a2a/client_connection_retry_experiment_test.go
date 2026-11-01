@@ -17,7 +17,7 @@ import (
 	"time"
 
 	sdk "github.com/a2aproject/a2a-go/v2/a2a"
-	"github.com/grauwolf32/contractor/internal/requestid"
+	"github.com/grauwolf32/contractor/internal/helpers/requestid"
 )
 
 // These cases characterize Go's hidden Transport retries through the real SDK
