@@ -6,7 +6,7 @@ epic: memory
 kind: chore
 introduced_by: V410-003
 priority: P3
-status: pending
+status: in_progress
 depends_on: []
 languages: [python]
 goal: "Memory and document/cookie writes share one bounded exact-byte CAS reconciliation mechanism while preserving domain errors."
@@ -20,6 +20,8 @@ context:
     - docs/spec/execution/runtime-agent.md
     - docs/spec/execution/worker.md
     - docs/spec/platform/failure-model.md
+    - docs/spec/tools/memory.md
+    - docs/spec/artifacts/artifact-store.md
   finding: "memory/tools.py:260 duplicates document_write.py CAS replay/read; domain rejection and repair messages are distinct and remain owned by callers."
   boundary: >-
     Common modules own mechanics; callers retain deadlines, fencing, authority,

@@ -6,7 +6,7 @@ epic: execution-core
 kind: chore
 introduced_by: V17-002
 priority: P3
-status: in_progress
+status: completed
 depends_on: []
 languages: [python]
 goal: "Allocation private resources have explicit typed ownership and tools no longer accept an untyped State bag."
@@ -51,3 +51,10 @@ tests:
     covers: [A1, A2, A3]
   - command: cd runtime && uv run ruff check . && uv run ruff format --check . && uv run lint-imports --no-cache --no-logo
     covers: [A1, A2, A3]
+implementation_commit: 456d10636b5d57d52e4f65b2b2aebd72fd4d4dd7
+verification: >-
+  Required suites and affected lifecycle/execution/HTTP/Sitemap suites: 329 passed;
+  Ruff check/format and all four import contracts pass. Broader initial run
+  reached 4707 passes and 133 skips before interruption to repair a mismatched
+  test resource owner; its 22 old-fixture failures and the blocked checkpoint
+  pass in the repaired focused suites. V429-006 owns final full integration.
