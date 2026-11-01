@@ -816,7 +816,6 @@ export function validateDraft(draft: Draft): Problem[] {
       );
     for (const [key, allowed] of Object.entries({
       activeChecks: ["prohibited", "automatic", "approval-required"],
-      findingConfirmation: ["human-required", "disabled"],
       notApplicable: ["human-required", "profile-rule"],
       reportAcceptance: ["automatic", "human-required"],
     }))

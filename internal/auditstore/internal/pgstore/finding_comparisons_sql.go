@@ -21,122 +21,81 @@ const correlationFenceSQL = `SELECT ` + projectCorrelationRevision + `,
  AND audit.owner_id=$1 AND audit.audit_id=ANY($3::text[])
  WHERE project.owner_id=$1 AND project.project_id=$2 ORDER BY audit.audit_id COLLATE "C"`
 
-// candidateSourceSQL checks the selected receipt through this exact finding's
-// first/contributing relation. A foreign receipt is indistinguishable from absent.
-const candidateSourceSQL = `SELECT finding.finding_id,finding.audit_id,finding.correlation_project_id,
+// CandidateSource authorizes the selected source through the canonical Finding
+// and the explicit Audit membership. Source receipt metadata is immutable.
+const candidateSourceSQL = `SELECT finding.finding_id,audit.audit_id,finding.project_id,
  finding.first_receipt_id,receipt.receipt_id,finding.correlation_group_key,receipt.comparison_projection,
- audit.revision,` + projectCorrelationRevision + `
- FROM audit_findings AS finding JOIN audits AS audit USING(audit_id)
- JOIN projects AS project ON project.project_id=audit.project_id AND project.owner_id=$1` + projectCorrelationFenceJoin + `
- JOIN finding_proposal_receipts AS receipt ON receipt.receipt_id=coalesce($4::text,finding.first_receipt_id)
- WHERE audit.owner_id=$1 AND finding.audit_id=$2 AND finding.finding_id=$3
- AND (receipt.receipt_id=finding.first_receipt_id OR EXISTS(
- SELECT 1 FROM audit_finding_contributions AS contribution WHERE contribution.finding_id=finding.finding_id
- AND contribution.audit_id=finding.audit_id AND contribution.receipt_id=receipt.receipt_id))`
+ audit.revision,fence.revision
+ FROM project_findings AS finding
+ JOIN project_finding_audits AS membership USING(project_id,finding_id)
+ JOIN audits AS audit USING(audit_id)
+ JOIN finding_correlation_fences AS fence ON fence.project_id=finding.project_id
+ JOIN project_finding_sources AS source ON source.finding_id=finding.finding_id AND source.receipt_id=coalesce($4::text,finding.first_receipt_id)
+ JOIN finding_proposal_receipts AS receipt USING(receipt_id)
+ WHERE audit.owner_id=$1 AND membership.audit_id=$2 AND finding.finding_id=$3`
 
-// Candidate windows seek first, and inspect at most 898 compact matching
-// projections. Nonmatches consume explicit cursor work, never an unbounded sort.
-const candidateWindowColumns = `SELECT finding.finding_id,finding.audit_id,finding.first_receipt_id,
- finding.correlation_group_key,finding.created_at,receipt.comparison_projection-'preview' AS comparison_hints
+const candidateWindowColumns = `SELECT finding.finding_id,''::text,finding.first_receipt_id,
+ finding.correlation_group_key,finding.created_at,receipt.comparison_projection-'preview'
  FROM selected AS finding JOIN finding_proposal_receipts AS receipt ON receipt.receipt_id=finding.first_receipt_id
  ORDER BY finding.created_at,finding.finding_id COLLATE "C"`
-const candidateProjectWindowSQL = `WITH selected AS MATERIALIZED (
- SELECT finding_id,audit_id,first_receipt_id,correlation_group_key,created_at FROM audit_findings
- WHERE correlation_project_id=$1 AND finding_id<>$2
- AND (created_at,finding_id COLLATE "C")>($3,$4)
- ORDER BY created_at,finding_id COLLATE "C" LIMIT $5
- ) ` + candidateWindowColumns
-const candidateAuditWindowSQL = `WITH selected AS MATERIALIZED (
- SELECT finding_id,audit_id,first_receipt_id,correlation_group_key,created_at FROM audit_findings
- WHERE audit_id=$1 AND finding_id<>$2
- AND (created_at,finding_id COLLATE "C")>($3,$4)
- ORDER BY created_at,finding_id COLLATE "C" LIMIT $5
- ) ` + candidateWindowColumns
 
-// Strong tiers seek their exact equality group directly. Weak tiers retain the
-// explicit bounded work window instead of sorting every matching GIN posting.
-const candidateProjectGroupWindowSQL = `WITH selected AS MATERIALIZED (
- SELECT finding_id,audit_id,first_receipt_id,correlation_group_key,created_at FROM audit_findings
- WHERE correlation_project_id=$1 AND finding_id<>$2 AND correlation_group_key=$6 AND correlation_group_key<>''
- AND (created_at,finding_id COLLATE "C")>($3,$4)
- ORDER BY created_at,finding_id COLLATE "C" LIMIT $5
- ) ` + candidateWindowColumns
-const candidateAuditGroupWindowSQL = `WITH selected AS MATERIALIZED (
- SELECT finding_id,audit_id,first_receipt_id,correlation_group_key,created_at FROM audit_findings
- WHERE audit_id=$1 AND finding_id<>$2 AND correlation_group_key COLLATE "C"=$6 AND correlation_group_key<>''
- AND (created_at,finding_id COLLATE "C")>($3,$4)
- ORDER BY created_at,finding_id COLLATE "C" LIMIT $5
- ) ` + candidateWindowColumns
+const candidateProjectSelectionSQL = `SELECT finding_id,first_receipt_id,correlation_group_key,created_at FROM project_findings
+ WHERE project_id=$1 AND finding_id<>$2 AND (created_at,finding_id COLLATE "C")>($3,$4)`
+const candidateProjectWindowSQL = `WITH selected AS MATERIALIZED (` + candidateProjectSelectionSQL + `
+ ORDER BY created_at,finding_id COLLATE "C" LIMIT $5) ` + candidateWindowColumns
+const candidateProjectGroupWindowSQL = `WITH selected AS MATERIALIZED (` + candidateProjectSelectionSQL + `
+ AND correlation_group_key=$6 AND correlation_group_key<>'' ORDER BY created_at,finding_id COLLATE "C" LIMIT $5) ` + candidateWindowColumns
 
-// comparisonGroupsSQL recursively seeks the next distinct key in each selected
-// Audit, skipping a high-multiplicity group's peers with a strict greater-than
-// bound. The recursion performs at most limit+1 pairs of index probes.
-const comparisonGroupsSQL = `WITH RECURSIVE walk(step,group_key) AS (
- SELECT 0,$3::text COLLATE "C"
- UNION ALL
- SELECT walk.step+1,next_group.key FROM walk
- CROSS JOIN LATERAL (
-  SELECT least(l.key,r.key) AS key FROM
-  (SELECT (SELECT correlation_group_key COLLATE "C" FROM audit_findings
-   WHERE audit_id=$1 AND correlation_group_key COLLATE "C">walk.group_key
-   ORDER BY correlation_group_key COLLATE "C",finding_id COLLATE "C" LIMIT 1) AS key) AS l
-  CROSS JOIN
-  (SELECT (SELECT correlation_group_key COLLATE "C" FROM audit_findings
-   WHERE audit_id=$2 AND correlation_group_key COLLATE "C">walk.group_key
-   ORDER BY correlation_group_key COLLATE "C",finding_id COLLATE "C" LIMIT 1) AS key) AS r
- ) AS next_group WHERE walk.step<$4 AND next_group.key IS NOT NULL
- )
- SELECT walk.group_key,coalesce(l.correlation_algorithm,r.correlation_algorithm),
- coalesce(l.correlation_value,r.correlation_value),l.finding_id,r.finding_id,''
- FROM walk LEFT JOIN LATERAL (
- SELECT finding_id,correlation_algorithm,correlation_value FROM audit_findings
- WHERE audit_id=$1 AND correlation_group_key COLLATE "C"=walk.group_key
- ORDER BY finding_id COLLATE "C" LIMIT 1) AS l ON true
- LEFT JOIN LATERAL (
- SELECT finding_id,correlation_algorithm,correlation_value FROM audit_findings
- WHERE audit_id=$2 AND correlation_group_key COLLATE "C"=walk.group_key
- ORDER BY finding_id COLLATE "C" LIMIT 1) AS r ON true
- WHERE walk.step>0 ORDER BY walk.step`
+const candidateAuditSelectionSQL = `SELECT finding.finding_id,finding.first_receipt_id,finding.correlation_group_key,finding.created_at
+ FROM project_finding_audits AS membership JOIN project_findings AS finding USING(project_id,finding_id)
+ WHERE membership.audit_id=$1 AND membership.finding_id<>$2
+ AND (membership.finding_created_at,membership.finding_id COLLATE "C")>($3,$4)`
+const candidateAuditWindowSQL = `WITH selected AS MATERIALIZED (` + candidateAuditSelectionSQL + `
+ ORDER BY membership.finding_created_at,membership.finding_id COLLATE "C" LIMIT $5) ` + candidateWindowColumns
+const candidateAuditGroupWindowSQL = `WITH selected AS MATERIALIZED (` + candidateAuditSelectionSQL + `
+ AND membership.correlation_group_key COLLATE "C"=$6 AND membership.correlation_group_key<>''
+ ORDER BY membership.finding_created_at,membership.finding_id COLLATE "C" LIMIT $5) ` + candidateWindowColumns
 
-// comparisonUnmatchedSQL keeps every unqualified observation as its own row.
-// Each side independently contributes at most limit+1 indexed rows.
-const comparisonUnmatchedSQL = `WITH selected AS MATERIALIZED (
- (SELECT finding_id,audit_id,correlation_reason FROM audit_findings WHERE audit_id=$1
- AND correlation_group_key COLLATE "C"='' AND finding_id COLLATE "C">$3
- ORDER BY finding_id COLLATE "C" LIMIT $4)
- UNION ALL
- (SELECT finding_id,audit_id,correlation_reason FROM audit_findings WHERE audit_id=$2
- AND correlation_group_key COLLATE "C"='' AND finding_id COLLATE "C">$3
- ORDER BY finding_id COLLATE "C" LIMIT $4)
- ) SELECT ''::text,''::text,''::text,CASE WHEN audit_id=$1 THEN finding_id END,
- CASE WHEN audit_id=$2 THEN finding_id END,correlation_reason
- FROM selected ORDER BY finding_id COLLATE "C" LIMIT $4`
+// Each side seeks at most limit+1 memberships, regardless of source count.
+const comparisonGroupsSQL = `WITH keys AS MATERIALIZED (
+ SELECT correlation_group_key FROM (
+ (SELECT correlation_group_key COLLATE "C" FROM project_finding_audits WHERE audit_id=$1 AND correlation_group_key<>''
+ AND correlation_group_key COLLATE "C">$3 ORDER BY correlation_group_key COLLATE "C" LIMIT $4)
+ UNION
+ (SELECT correlation_group_key COLLATE "C" FROM project_finding_audits WHERE audit_id=$2 AND correlation_group_key<>''
+ AND correlation_group_key COLLATE "C">$3 ORDER BY correlation_group_key COLLATE "C" LIMIT $4)
+ ) AS both_keys ORDER BY correlation_group_key COLLATE "C" LIMIT $4
+)
+ SELECT keys.correlation_group_key,finding.correlation_algorithm,finding.correlation_value,
+ l.finding_id,r.finding_id,''::text
+ FROM keys
+ LEFT JOIN project_finding_audits AS l ON l.audit_id=$1 AND l.correlation_group_key<>'' AND l.correlation_group_key COLLATE "C"=keys.correlation_group_key
+ LEFT JOIN project_finding_audits AS r ON r.audit_id=$2 AND r.correlation_group_key<>'' AND r.correlation_group_key COLLATE "C"=keys.correlation_group_key
+ JOIN project_findings AS finding ON finding.finding_id=coalesce(l.finding_id,r.finding_id)
+ ORDER BY keys.correlation_group_key COLLATE "C"`
 
-// Member queries seek in Project scope, or union at most two already bounded
-// Audit probes. They never scan the Project-wide group to filter a selected pair.
-const projectMembersSQL = `SELECT finding_id,audit_id FROM audit_findings WHERE correlation_project_id=$1
- AND correlation_group_key=$2 AND finding_id COLLATE "C">$3
- ORDER BY finding_id COLLATE "C" LIMIT $4`
-const auditMembersSQL = `SELECT finding_id,audit_id FROM audit_findings WHERE audit_id=$1
- AND correlation_group_key COLLATE "C"=$2 AND finding_id COLLATE "C">$3
- ORDER BY finding_id COLLATE "C" LIMIT $4`
-const pairMembersSQL = `WITH selected AS MATERIALIZED ((` + auditMembersSQL + `)
- UNION ALL (SELECT finding_id,audit_id FROM audit_findings WHERE audit_id=$5
- AND correlation_group_key COLLATE "C"=$2 AND finding_id COLLATE "C">$3
- ORDER BY finding_id COLLATE "C" LIMIT $4))
- SELECT finding_id,audit_id FROM selected ORDER BY finding_id COLLATE "C" LIMIT $4`
+const comparisonUnmatchedSQL = `WITH keys AS MATERIALIZED (
+ SELECT finding_id FROM (
+ (SELECT finding_id COLLATE "C" FROM project_finding_audits WHERE audit_id=$1 AND correlation_group_key=''
+ AND finding_id COLLATE "C">$3 ORDER BY finding_id COLLATE "C" LIMIT $4)
+ UNION
+ (SELECT finding_id COLLATE "C" FROM project_finding_audits WHERE audit_id=$2 AND correlation_group_key=''
+ AND finding_id COLLATE "C">$3 ORDER BY finding_id COLLATE "C" LIMIT $4)
+ ) AS both_keys ORDER BY finding_id COLLATE "C" LIMIT $4
+)
+ SELECT ''::text,''::text,''::text,l.finding_id,r.finding_id,finding.correlation_reason
+ FROM keys JOIN project_findings AS finding USING(finding_id)
+ LEFT JOIN project_finding_audits AS l ON l.audit_id=$1 AND l.finding_id=finding.finding_id
+ LEFT JOIN project_finding_audits AS r ON r.audit_id=$2 AND r.finding_id=finding.finding_id
+ ORDER BY keys.finding_id COLLATE "C"`
 
-// comparisonPreviewsSQL hydrates one bounded batch through actual owner and
-// Project authority, using the compact immutable receipt preview only.
-const comparisonPreviewsSQL = `SELECT finding.finding_id,finding.audit_id,finding.revision,finding.state,
- receipt.comparison_projection->'preview',decision.verdict,decision.severity,assessment.semantic_assessment,finding.current_assessment_id,finding.current_decision_id,
+const comparisonPreviewsSQL = `SELECT finding.finding_id,finding.project_id,finding.revision,finding.state,
+ receipt.comparison_projection->'preview',finding.analyst_verdict,finding.analyst_severity,
  receipt.receipt_id,receipt.run_id,receipt.source_run_deleted_at IS NOT NULL,receipt.logical_agent_name,
  receipt.workflow_name,receipt.workflow_version,receipt.workflow_closure_digest
- FROM audit_findings AS finding JOIN audits AS audit USING(audit_id)
+ FROM project_findings AS finding JOIN projects AS project USING(project_id)
  JOIN finding_proposal_receipts AS receipt ON receipt.receipt_id=finding.first_receipt_id
- LEFT JOIN audit_review_decisions AS decision ON decision.decision_id=finding.current_decision_id
- LEFT JOIN audit_finding_assessments AS assessment ON assessment.assessment_id=finding.current_assessment_id
- WHERE audit.owner_id=$1 AND audit.project_id=$2 AND finding.finding_id=ANY($3::text[])`
+ WHERE project.owner_id=$1 AND finding.project_id=$2 AND finding.finding_id=ANY($3::text[])`
 
 // checkCorrelationFenceSQL rechecks only scalar revisions after hydration; the
 // immutable baseline/profile metadata need not be read or hashed a second time.

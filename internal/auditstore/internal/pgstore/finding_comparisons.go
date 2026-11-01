@@ -201,37 +201,6 @@ func (s *QueryStore) ComparisonGroups(ctx context.Context, p auditstore.FindingC
 
 // CorrelationMembers returns one keyset page of retained member IDs in the
 // declared Project, Audit or two-Audit scope.
-func (s *QueryStore) CorrelationMembers(ctx context.Context, p auditstore.FindingMemberSeek) ([]auditdomain.FindingCorrelationReference, error) {
-	if !comparisonHex.MatchString(p.GroupKey) || p.Limit < 1 || p.Limit > auditstore.FindingComparisonMaximumLimit+1 || p.AfterFindingID != "" && !validComparisonIDs(p.AfterFindingID) {
-		return nil, auditstore.ErrInvalid
-	}
-	if err := s.authorizeCorrelationRead(ctx, p.OwnerID, p.ProjectID, p.AuditIDs); err != nil {
-		return nil, err
-	}
-	query, args := projectMembersSQL, []any{p.ProjectID, p.GroupKey, p.AfterFindingID, p.Limit}
-	if len(p.AuditIDs) > 0 {
-		query = auditMembersSQL
-		args[0] = p.AuditIDs[0]
-	}
-	if len(p.AuditIDs) == 2 {
-		query = pairMembersSQL
-		args = append(args, p.AuditIDs[1])
-	}
-	rows, err := s.db.Query(ctx, query, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	result := make([]auditdomain.FindingCorrelationReference, 0, p.Limit)
-	for rows.Next() {
-		var id auditdomain.FindingCorrelationReference
-		if err := rows.Scan(&id.FindingID, &id.AuditID); err != nil {
-			return nil, err
-		}
-		result = append(result, id)
-	}
-	return result, rows.Err()
-}
 
 // ComparisonPreviews reads only the bounded display projection and exact
 // current result references, in one owner-authorized batch without Artifact I/O.
@@ -239,6 +208,15 @@ func (s *QueryStore) ComparisonPreviews(ctx context.Context, owner, project stri
 	if !validComparisonIDs(owner, project) || len(ids) > 2*auditstore.FindingComparisonMaximumLimit || !validComparisonIDs(ids...) {
 		return nil, auditstore.ErrInvalid
 	}
+	unique := make(map[string]bool, len(ids))
+	selected := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if !unique[id] {
+			selected = append(selected, id)
+			unique[id] = true
+		}
+	}
+	ids = selected
 	result := make(map[string]auditstore.FindingComparisonPreview, len(ids))
 	if len(ids) == 0 {
 		return result, nil
@@ -252,7 +230,7 @@ func (s *QueryStore) ComparisonPreviews(ctx context.Context, owner, project stri
 		var value auditstore.FindingComparisonPreview
 		var raw []byte
 		var revision int64
-		if err := rows.Scan(&value.FindingID, &value.AuditID, &revision, &value.State, &raw, &value.AnalystVerdict, &value.AnalystSeverity, &value.SemanticAssessment, &value.AssessmentID, &value.DecisionID, &value.Origin.ReceiptID, &value.Origin.RunID, &value.Origin.RunDeleted, &value.Origin.LogicalAgentName, &value.Origin.WorkflowName, &value.Origin.WorkflowVersion, &value.Origin.WorkflowClosureDigest); err != nil {
+		if err := rows.Scan(&value.FindingID, &value.ProjectID, &revision, &value.State, &raw, &value.AnalystVerdict, &value.AnalystSeverity, &value.Origin.ReceiptID, &value.Origin.RunID, &value.Origin.RunDeleted, &value.Origin.LogicalAgentName, &value.Origin.WorkflowName, &value.Origin.WorkflowVersion, &value.Origin.WorkflowClosureDigest); err != nil {
 			return nil, err
 		}
 		var preview struct {
@@ -266,7 +244,7 @@ func (s *QueryStore) ComparisonPreviews(ctx context.Context, owner, project stri
 		if err := strictjson.Decode(raw, &preview); err != nil {
 			return nil, err
 		}
-		if revision < 1 || uint64(revision) > auditdomain.MaximumFindingCorrelationRevision || !value.State.Valid() || preview.Title == "" || len(preview.Title) > 1024 || utf8.RuneCountInString(preview.Title) > 256 || !utf8.ValidString(preview.Title) || preview.SeveritySuggestion != "" && !auditstore.FindingSeverity(preview.SeveritySuggestion).Valid() || !contentdigest.Valid(value.Origin.WorkflowClosureDigest) {
+		if revision < 1 || uint64(revision) > auditdomain.MaximumFindingCorrelationRevision || (value.State != nil && !value.State.Valid()) || preview.Title == "" || len(preview.Title) > 1024 || utf8.RuneCountInString(preview.Title) > 256 || !utf8.ValidString(preview.Title) || preview.SeveritySuggestion != "" && !auditstore.FindingSeverity(preview.SeveritySuggestion).Valid() || !contentdigest.Valid(value.Origin.WorkflowClosureDigest) {
 			return nil, errors.New("invalid stored comparison preview")
 		}
 		value.Preview = true

@@ -161,6 +161,7 @@ type auditRoundResponse struct {
 }
 
 type auditItemResponse struct {
+ FindingIDs []string `json:"findingIds"`
 	ItemID              string                       `json:"itemId"`
 	RoundID             string                       `json:"roundId"`
 	ItemKey             string                       `json:"itemKey"`

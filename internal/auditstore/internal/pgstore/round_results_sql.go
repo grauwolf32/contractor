@@ -55,16 +55,13 @@ SELECT selected.bytes<=$4, CASE WHEN selected.bytes<=$4 THEN link.logical_key EN
 // roundResultsFindingsSQL seeks only assessments of the selected attempt.
 // The persisted current machine assessment and human decision are copied as
 // revision pins, with no inference from the Run's success.
-const roundResultsFindingsSQL = `
-SELECT finding.finding_id, finding.revision, finding.state,
-       finding.current_assessment_id, current.semantic_assessment,
-       finding.current_decision_id, decision.verdict
-  FROM audit_finding_assessments AS source
-  JOIN audit_findings AS finding ON finding.finding_id=source.finding_id
-  LEFT JOIN audit_finding_assessments AS current ON current.assessment_id=finding.current_assessment_id
-  LEFT JOIN audit_review_decisions AS decision ON decision.decision_id=finding.current_decision_id
- WHERE source.audit_id=$1 AND source.execution_item_id=$2
- ORDER BY source.assessment_id LIMIT $3`
+const roundResultsFindingsSQL = `SELECT DISTINCT finding.finding_id,finding.project_id,finding.revision,finding.state,finding.analyst_verdict
+ FROM audit_execution_items AS member
+ CROSS JOIN LATERAL jsonb_to_recordset(member.finding_sources) AS association(receipt_id text)
+ JOIN project_finding_sources AS source USING(receipt_id)
+ JOIN project_findings AS finding USING(project_id,finding_id)
+ WHERE member.audit_id=$1 AND member.execution_item_id=$2
+ ORDER BY finding.finding_id LIMIT $3`
 
 // publishRoundResultsLinkSQL inserts an immutable retained metadata receipt
 // under its natural logical key. The Audit lock held by the caller serializes

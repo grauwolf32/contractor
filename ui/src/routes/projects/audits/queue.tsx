@@ -57,8 +57,7 @@ export function AuditQueuePage({
     <div className="issues-queue">
       <div className="issues-queue-row">
         <p className="ui-caption">
-          Showing {page.items.length} of {page.total ?? "unavailable"} matching
-          records in this check
+          Showing {page.items.length}{"total" in page ? ` of ${page.total}` : ""} matching records in this check
         </p>
         <div className="issues-queue-actions">
           <Button size="xs" onClick={onRefresh}>

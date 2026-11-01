@@ -608,7 +608,6 @@ export function Inspector({
             <>
               {Object.entries({
                 activeChecks: ["prohibited", "automatic", "approval-required"],
-                findingConfirmation: ["human-required", "disabled"],
                 notApplicable: ["human-required", "profile-rule"],
                 reportAcceptance: ["automatic", "human-required"],
               }).map(([key, options]) => (

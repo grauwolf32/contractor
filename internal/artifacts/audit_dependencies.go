@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
@@ -22,7 +23,7 @@ func (s *Service) RetainAuditDependency(ctx context.Context, projectID, namespac
 	if source.ValidateExact() != nil || !artifactpolicy.IsAuditManagedProjectNamespace(target.Namespace) || target.Validate() != nil {
 		return ForkResult{}, ErrInvalidName
 	}
-	return s.repository.Fork(ctx, Fork{Kind: LineageAuditImport, Source: scope, SourceRef: source, Target: scope, TargetRef: target, Frozen: true, Replay: true})
+	return s.Fork(ctx, Fork{Kind: LineageAuditImport, Source: scope, SourceRef: source, Target: scope, TargetRef: target, Frozen: true, Replay: true})
 }
 
 func exactAuditDependencyName(source contracts.ArtifactRef) string {

@@ -6,8 +6,8 @@ import { describe, expect, it, onTestFinished, vi } from "vitest";
 
 import {
   getAuditFinding,
-  type AuditAnalystVerdict,
-  type AuditFinding,
+  type FindingVerdict,
+  type ProjectFinding,
   type AuditReviewRequest,
 } from "../../api/audits";
 import { usePublicAPI } from "../../api/context";
@@ -51,7 +51,7 @@ function focusTrail(): { stop: () => (Element | null)[] } {
 
 type FindingDecisionProps = ComponentProps<typeof FindingDecision>;
 
-const STATE_AFTER: Record<AuditAnalystVerdict, AuditFinding["state"]> = {
+const STATE_AFTER: Record<FindingVerdict, ProjectFinding["state"]> = {
   true_positive: "confirmed",
   false_positive: "rejected",
   duplicate: "duplicate",
@@ -60,10 +60,10 @@ const STATE_AFTER: Record<AuditAnalystVerdict, AuditFinding["state"]> = {
 };
 
 interface FakeOptions {
-  finding: AuditFinding;
+  finding: ProjectFinding;
   pending?: AuditReviewRequest[];
   decided?: AuditReviewRequest[];
-  others?: AuditFinding[];
+  others?: ProjectFinding[];
   /** Answers the list of the check's possible issues instead of the Server. */
   listFindings?: () => Response | Promise<Response>;
   /** Answers the open-request lookup, when it returns a response. */
@@ -76,7 +76,7 @@ interface FakeOptions {
 }
 
 interface ServerState {
-  finding: AuditFinding;
+  finding: ProjectFinding;
   pending: AuditReviewRequest[];
   decided: AuditReviewRequest[];
   findingReads: number;
@@ -141,7 +141,7 @@ function decisionServer(options: FakeOptions) {
       const refused = options.refuseDecision?.(state.decisionAttempts, state);
       if (refused !== undefined) return refused;
       const body = (await request.clone().json()) as {
-        verdict: AuditAnalystVerdict;
+        verdict: FindingVerdict;
         severity?: "high";
         rationale: string;
         duplicateTargetId?: string;
@@ -163,7 +163,7 @@ function decisionServer(options: FakeOptions) {
       });
       if (body.severity === undefined) delete recorded.severity;
       // Only true and false positives carry an effective analyst decision.
-      const next: AuditFinding = {
+      const next: ProjectFinding = {
         ...state.finding,
         state: STATE_AFTER[body.verdict],
         revision: state.finding.revision + 1,

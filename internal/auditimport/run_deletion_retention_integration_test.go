@@ -66,7 +66,7 @@ SELECT collection_disposition FROM audit_executions WHERE execution_id = $1`,
 	var retention string
 	mustCompletion(t, f.pool.QueryRow(f.ctx, `
 SELECT retention_state FROM finding_proposal_receipts WHERE receipt_id = $1`, receiptID).Scan(&retention))
-	if retention != string(findingintake.RetentionAuditHeld) {
+	if retention != string(findingintake.RetentionProjectHeld) {
 		t.Fatalf("proposal retention after source Run deletion = %q", retention)
 	}
 }
@@ -227,7 +227,7 @@ func TestImporterFinalizesHeldFindingReportAfterSourceRunDeletion(t *testing.T) 
 	mustCompletion(t, rundeletion.New(f.pool).DeleteReleasedTerminalRun(f.ctx, "owner", f.run.RunID))
 	var retention string
 	mustCompletion(t, f.pool.QueryRow(f.ctx, "SELECT retention_state FROM finding_proposal_receipts WHERE receipt_id=$1", receiptID).Scan(&retention))
-	if retention != string(findingintake.RetentionAuditHeld) {
+	if retention != string(findingintake.RetentionProjectHeld) {
 		t.Fatalf("imported candidate after deletion = %s", retention)
 	}
 	snapshot, err = f.audits.GetReconcileSnapshot(f.ctx, f.claim)

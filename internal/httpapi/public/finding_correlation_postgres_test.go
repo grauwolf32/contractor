@@ -30,7 +30,7 @@ func TestPublicFindingCorrelationReadsUseOwnedRetainedObservations(t *testing.T)
 		t.Fatal(err)
 	}
 	for _, id := range []string{"public-correlation-a", "public-correlation-b"} {
-		if _, _, err := auditstoretest.NewStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{AuditID: id, OwnerID: owner, ProjectID: project, Profile: auditstore.ProfileIdentity{Name: "correlation", Version: "1", Digest: auditHandlerDigest("profile")}, ProfileSnapshot: json.RawMessage(`{"interaction":{"findingConfirmation":"human-required"}}`), InputSelection: json.RawMessage(`{}`), Limits: auditstore.Limits{MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: 2, MaxItemsTotal: 2, MaxSubmittedRuns: 2, MaxItemRunAttempts: 1, MaxEvidenceBytes: 1 << 20}, IdempotencyKey: id, RequestDigest: auditHandlerDigest(id)}); err != nil {
+		if _, _, err := auditstoretest.NewStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{AuditID: id, OwnerID: owner, ProjectID: project, Profile: auditstore.ProfileIdentity{Name: "correlation", Version: "1", Digest: auditHandlerDigest("profile")}, ProfileSnapshot: json.RawMessage(`{"interaction":{}}`), InputSelection: json.RawMessage(`{}`), Limits: auditstore.Limits{MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: 2, MaxItemsTotal: 2, MaxSubmittedRuns: 2, MaxItemRunAttempts: 1, MaxEvidenceBytes: 1 << 20}, IdempotencyKey: id, RequestDigest: auditHandlerDigest(id)}); err != nil {
 			t.Fatal(err)
 		}
 	}

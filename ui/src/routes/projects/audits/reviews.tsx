@@ -60,8 +60,6 @@ function subjectTitle(
   const known = subjects.get(review.subjectId);
   if (known !== undefined) return known;
   switch (review.subjectKind) {
-    case "finding":
-      return "Possible issue";
     case "audit-report":
       return "Check report";
     default:
@@ -82,7 +80,6 @@ function ReviewCard({
 }) {
   const heading = useId();
   const state = reviewStateLabel(review.state);
-  const findingId = review.findingId ?? review.subjectId;
   return (
     <li
       className="checks-review"
@@ -115,14 +112,6 @@ function ReviewCard({
             to={`${sectionPath(audit.projectId, audit.auditId, "coverage")}${itemHash(review.subjectId)}`}
           >
             View {itemNoun(kind, 1)} →
-          </ContextLink>
-        ) : null}
-        {review.subjectKind === "finding" ? (
-          <ContextLink
-            returnLabel="Check decisions"
-            to={`${sectionPath(audit.projectId, audit.auditId, "findings")}?finding=${encodeURIComponent(findingId)}&review=${encodeURIComponent(review.requestId)}`}
-          >
-            Review possible issue →
           </ContextLink>
         ) : null}
         {review.subjectKind === "audit-report" ? (

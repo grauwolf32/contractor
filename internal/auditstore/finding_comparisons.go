@@ -95,20 +95,16 @@ type FindingComparisonOrigin struct {
 // FindingComparisonPreview is deliberately a display preview, not a proposal
 // or evidence document. Finding detail retains the full original material.
 type FindingComparisonPreview struct {
-	CorrelationRole    string                  `json:"correlationRole,omitempty"`
 	FindingID          string                  `json:"findingId"`
-	AuditID            string                  `json:"auditId"`
+	ProjectID          string                  `json:"projectId"`
 	Revision           uint64                  `json:"revision"`
 	Preview            bool                    `json:"preview"`
 	Title              string                  `json:"title"`
 	TitleTruncated     bool                    `json:"titleTruncated"`
-	State              FindingState            `json:"state"`
+	State              *FindingState           `json:"state"`
 	SeveritySuggestion string                  `json:"severitySuggestion"`
-	AnalystVerdict     *AnalystVerdict         `json:"analystVerdict,omitempty"`
-	AnalystSeverity    *FindingSeverity        `json:"analystSeverity,omitempty"`
-	AssessmentID       *string                 `json:"assessmentId,omitempty"`
-	DecisionID         *string                 `json:"decisionId,omitempty"`
-	SemanticAssessment *string                 `json:"semanticAssessment,omitempty"`
+	AnalystVerdict     *AnalystVerdict         `json:"analystVerdict"`
+	AnalystSeverity    *FindingSeverity        `json:"analystSeverity"`
 	Origin             FindingComparisonOrigin `json:"origin"`
 }
 
@@ -129,15 +125,6 @@ type FindingComparisonSeek struct {
 	Unmatched    bool
 	AfterKey     string
 	Limit        int
-}
-
-type FindingMemberSeek struct {
-	OwnerID        string
-	ProjectID      string
-	GroupKey       string
-	AuditIDs       []string
-	AfterFindingID string
-	Limit          int
 }
 
 type FindingComparisonProjection struct {

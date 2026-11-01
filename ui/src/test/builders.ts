@@ -139,12 +139,12 @@ export function audit(
 export function finding(
   auditId: string,
   findingId: string,
-  overrides: Overrides<Schemas["AuditFinding"]> = {},
-  document: Partial<Schemas["AuditFinding"]["firstProposal"]["document"]> = {},
-): Schemas["AuditFinding"] {
+  overrides: Overrides<Schemas["ProjectFinding"]> = {},
+  document: Partial<Schemas["ProjectFinding"]["firstProposal"]["document"]> = {},
+): Schemas["ProjectFinding"] {
   return conforming(
-    "AuditFinding",
-    merge<Schemas["AuditFinding"]>(
+    "ProjectFinding",
+    merge<Schemas["ProjectFinding"]>(
       {
         findingId,
         auditId,

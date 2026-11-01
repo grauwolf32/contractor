@@ -12,6 +12,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -327,7 +328,7 @@ func (s *QueryStore) ListReportFindings(
 			more = true
 			continue
 		}
-		if value.State != string(params.Section) {
+		if (value.State != nil && string(*value.State) != string(params.Section)) || (value.State == nil && params.Section != auditstore.ReportSectionProposed) {
 			return nil, false, errors.New("stored Audit report finding state is invalid")
 		}
 		findings = append(findings, value)
@@ -342,72 +343,20 @@ func scanReportFinding(row scanner) (auditstore.ReportFinding, bool, error) {
 	var value auditstore.ReportFinding
 	var proposalJSON, projection []byte
 	var included bool
-	var revision int64
-	var assessmentID, semantic, resultDigest, contractDigest *string
-	var resultJSON, contractJSON []byte
-	var direct *bool
-	var assessmentAt *time.Time
-	var decisionID, actor, verdict, severity, rationale, subjectDigest *string
-	var subjectRevision *int64
-	var decisionAt *time.Time
-	if err := row.Scan(
-		&value.FindingID, &value.State, &proposalJSON, &value.DuplicateTargetID, &revision,
-		&value.CreatedAt, &included, &projection,
-		&assessmentID, &semantic, &resultJSON, &resultDigest, &direct,
-		&contractJSON, &contractDigest, &assessmentAt,
-		&decisionID, &actor, &verdict, &severity, &rationale, &subjectRevision,
-		&subjectDigest, &decisionAt,
-	); err != nil {
-		return auditstore.ReportFinding{}, false, fmt.Errorf("scan Audit report finding: %w", err)
+	if err := row.Scan(&value.FindingID, &value.ProjectID, &value.State, &proposalJSON, &value.DuplicateTargetID, &value.Revision,
+		&value.CreatedAt, &included, &projection, &value.AnalystVerdict, &value.AnalystSeverity, &value.Rationale, &value.ActorID, &value.AssessedAt); err != nil {
+		return value, false, fmt.Errorf("scan Project Finding report row: %w", err)
 	}
 	if !included {
-		return auditstore.ReportFinding{}, false, nil
+		return value, false, nil
 	}
-	if revision < 1 || json.Unmarshal(proposalJSON, &value.FirstProposal) != nil ||
-		validateExactArtifact("first proposal", value.FirstProposal, true) != nil {
-		return auditstore.ReportFinding{}, false, errors.New("stored Audit report finding is invalid")
+	if value.Revision < 1 || strictjson.Decode(proposalJSON, &value.FirstProposal) != nil || validateExactArtifact("first proposal", value.FirstProposal, true) != nil {
+		return value, false, errors.New("stored report Finding is invalid")
 	}
-	value.Revision = uint64(revision)
 	var err error
-	if value.Projection, err = auditdomain.DecodeFindingReportProjection(projection); err != nil {
-		return auditstore.ReportFinding{}, false, errors.New("stored Audit report finding projection is invalid")
-	}
-	if assessmentID != nil {
-		if semantic == nil || resultDigest == nil || direct == nil || assessmentAt == nil {
-			return auditstore.ReportFinding{}, false, errors.New("stored Audit report assessment is incomplete")
-		}
-		assessment := &auditstore.ReportFindingAssessment{
-			AssessmentID: *assessmentID, SemanticAssessment: *semantic,
-			Result: auditstore.ExactArtifact{Digest: *resultDigest}, DirectVerification: *direct,
-			AcceptedAt: *assessmentAt,
-		}
-		if json.Unmarshal(resultJSON, &assessment.Result.Ref) != nil ||
-			validateExactArtifact("assessment result", assessment.Result, false) != nil {
-			return auditstore.ReportFinding{}, false, errors.New("stored Audit report assessment result is invalid")
-		}
-		if contractJSON != nil {
-			if contractDigest == nil {
-				return auditstore.ReportFinding{}, false, errors.New("stored Audit report assessment contract is incomplete")
-			}
-			assessment.Contract = &auditstore.ExactArtifact{Digest: *contractDigest}
-			if json.Unmarshal(contractJSON, &assessment.Contract.Ref) != nil ||
-				validateExactArtifact("assessment contract", *assessment.Contract, false) != nil {
-				return auditstore.ReportFinding{}, false, errors.New("stored Audit report assessment contract is invalid")
-			}
-		}
-		value.Assessment = assessment
-	}
-	if decisionID != nil {
-		if actor == nil || verdict == nil || rationale == nil || subjectRevision == nil ||
-			*subjectRevision < 1 || subjectDigest == nil || decisionAt == nil {
-			return auditstore.ReportFinding{}, false, errors.New("stored Audit report decision is incomplete")
-		}
-		value.Decision = &auditstore.ReportFindingDecision{
-			DecisionID: *decisionID, ActorID: *actor, Verdict: *verdict,
-			Severity: severity, Rationale: *rationale,
-			SubjectRevision: uint64(*subjectRevision), SubjectDigest: *subjectDigest,
-			CreatedAt: *decisionAt,
-		}
+	value.Projection, err = auditdomain.DecodeFindingReportProjection(projection)
+	if err != nil {
+		return value, false, errors.New("stored report Finding claim is invalid")
 	}
 	return value, true, nil
 }

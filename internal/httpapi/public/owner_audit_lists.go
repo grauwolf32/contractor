@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/pagelimit"
 )
@@ -107,7 +106,7 @@ func (h *auditHandlers) listOwnerFindings(w http.ResponseWriter, r *http.Request
 		handleError(w, err)
 		return
 	}
-	items, page, err := paginate(h.cursors, items, limit, kind, func(last auditservice.Finding) []string {
+	items, page, err := paginate(h.cursors, items, limit, kind, func(last auditstore.ProjectFindingSummary) []string {
 		return []string{last.CreatedAt.UTC().Format(time.RFC3339Nano), last.FindingID}
 	})
 	if err != nil {
@@ -115,11 +114,11 @@ func (h *auditHandlers) listOwnerFindings(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if items == nil {
-		items = []auditservice.Finding{}
+		items = []auditstore.ProjectFindingSummary{}
 	}
 	writeJSON(w, http.StatusOK, struct {
-		Items []auditservice.Finding `json:"items"`
-		Page  pageInfoResponse       `json:"page"`
+		Items []auditstore.ProjectFindingSummary `json:"items"`
+		Page  pageInfoResponse                   `json:"page"`
 	}{items, page})
 }
 

@@ -338,7 +338,7 @@ func testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *te
 	if _, _, err := auditstoretest.NewStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{
 		AuditID: auditID, OwnerID: ownerID, ProjectID: projectID,
 		Profile:         auditstore.ProfileIdentity{Name: "finding-review", Version: "1", Digest: auditdomain.DigestBytes([]byte("profile"))},
-		ProfileSnapshot: json.RawMessage(`{"interaction":{"findingConfirmation":"human-required"}}`),
+		ProfileSnapshot: json.RawMessage(`{"interaction":{}}`),
 		InputSelection:  json.RawMessage(`{}`),
 		Limits: auditstore.Limits{
 			MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: 1, MaxItemsTotal: 1,
@@ -505,7 +505,7 @@ SELECT count(*) FROM audit_artifact_links
 	if _, _, err := auditstoretest.NewStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{
 		AuditID: otherAuditID, OwnerID: ownerID, ProjectID: projectID,
 		Profile:         auditstore.ProfileIdentity{Name: "finding-review", Version: "1", Digest: auditdomain.DigestBytes([]byte("profile"))},
-		ProfileSnapshot: json.RawMessage(`{"interaction":{"findingConfirmation":"human-required"}}`),
+		ProfileSnapshot: json.RawMessage(`{"interaction":{}}`),
 		InputSelection:  json.RawMessage(`{}`),
 		Limits: auditstore.Limits{MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: 1, MaxItemsTotal: 1,
 			MaxSubmittedRuns: 1, MaxItemRunAttempts: 1, MaxEvidenceBytes: 1 << 20},
@@ -560,10 +560,10 @@ WHERE audit_id=$1 AND receipt_id=$2 AND direct_verification`, otherAuditID, firs
 	}
 	// The first receipt is held by both Audits; each inbox names only its own hold.
 	listed, err := service.ListAuditInbox(ctx, ownerID, auditID, ListQuery{Limit: 10})
-	if err != nil || len(listed) != 2 || listed[0].Retention != RetentionAuditHeld ||
+	if err != nil || len(listed) != 2 || listed[0].Retention != RetentionProjectHeld ||
 		!listed[0].Origin.RunDeleted || len(listed[0].AuditHolds) != 1 ||
 		listed[0].AuditHolds[0].AuditID != auditID || !listed[0].AuditHolds[0].Proposal.Ref.SameExact(hold.Proposal.Ref) ||
-		listed[1].Retention != RetentionAuditHeld || !listed[1].Origin.RunDeleted ||
+		listed[1].Retention != RetentionProjectHeld || !listed[1].Origin.RunDeleted ||
 		len(listed[1].AuditHolds) != 1 || listed[1].AuditHolds[0].AuditID != auditID {
 		t.Fatalf("Audit inbox after Run deletion = (%+v, %v)", listed, err)
 	}

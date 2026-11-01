@@ -26,34 +26,35 @@ export type AuditReport = components["schemas"]["AuditReport"];
 type AuditStartResponse = components["schemas"]["AuditStartResponse"];
 export type CreateAuditRequest = components["schemas"]["CreateAuditRequest"];
 export type ExactArtifactRef = components["schemas"]["ExactArtifactRef"];
-export type AuditFinding = components["schemas"]["AuditFinding"];
+export type ProjectFinding = components["schemas"]["ProjectFinding"];
+export type ProjectFindingSummary = components["schemas"]["ProjectFindingSummary"];
+export type ProjectFindingEditResult = components["schemas"]["EditProjectFindingResult"];
+export type EditProjectFindingRequest = components["schemas"]["EditProjectFindingRequest"];
 export type AuditFindingPage = components["schemas"]["AuditFindingPage"];
-export type AuditFindingState = components["schemas"]["AuditFindingState"];
-export type AuditFindingSeverity =
-  components["schemas"]["AuditFindingSeverity"];
-export type AuditAnalystVerdict = components["schemas"]["AuditAnalystVerdict"];
+export type FindingState = components["schemas"]["FindingState"];
+export type FindingSeverity =
+  components["schemas"]["FindingSeverity"];
+export type FindingVerdict = components["schemas"]["FindingVerdict"];
 export type AuditReviewRequest = components["schemas"]["AuditReviewRequest"];
 export type AuditReviewPage = components["schemas"]["AuditReviewPage"];
 type OwnerFindingPage = components["schemas"]["OwnerFindingPage"];
 type OwnerReviewPage = components["schemas"]["OwnerReviewPage"];
 export type AuditReviewAction = components["schemas"]["AuditReviewAction"];
-export type AuditActionDecisionResult =
-  components["schemas"]["AuditActionDecisionResult"];
-type AuditFindingProvenancePage =
-  components["schemas"]["AuditFindingProvenancePage"];
-export type DecideAuditFindingRequest =
-  components["schemas"]["DecideAuditFindingRequest"];
+export type AuditReviewDecisionResult =
+  components["schemas"]["AuditReviewDecisionResult"];
+
+
 
 export type AuditWorkspace = components["schemas"]["AuditWorkspace"];
 export interface FindingPageRequest extends PageRequest {
   auditRevision?: number;
-  state?: AuditFindingState;
+ projectRevision?: number;
+  state?: FindingState;
   verdict?: "true_positive" | "false_positive" | "unreviewed";
-  severity?: AuditFindingSeverity;
+  severity?: FindingSeverity;
 }
 interface ReviewPageRequest extends PageRequest {
   auditRevision?: number;
-  finding?: string;
   state?: AuditReviewRequest["state"];
 }
 
@@ -550,7 +551,7 @@ export async function getAuditFinding(
   api: PublicAPI,
   auditId: string,
   findingId: string,
-): Promise<AuditFinding> {
+): Promise<ProjectFinding> {
   requireAuditID(auditId);
   requireAuditID(findingId);
   const result = await api.request((client) =>
@@ -560,7 +561,7 @@ export async function getAuditFinding(
   );
   const finding = requireData(result);
   // Cross-field: the Server answered for the requested possible issue.
-  if (finding.auditId !== auditId || finding.findingId !== findingId) {
+  if (finding.findingId !== findingId) {
     throw invalidAuditResponse(result.response.status);
   }
   requireRevisionETag(result.response, finding.revision);
@@ -573,40 +574,12 @@ export async function listAuditReviews(
   request: ReviewPageRequest = {},
 ): Promise<AuditReviewPage> {
   requireAuditID(auditId);
-  if (request.finding !== undefined) requireAuditID(request.finding);
   const result = await api.request((client) =>
     client.GET("/v1/audits/{auditId}/reviews", {
       params: {
         path: { auditId },
         query: { limit: AUDIT_PAGE_SIZE, ...request },
       },
-    }),
-  );
-  return requireData(result);
-}
-
-export async function createAuditFindingReview(
-  api: PublicAPI,
-  options: {
-    auditId: string;
-    findingId: string;
-    expectedRevision: number;
-    idempotencyKey: string;
-  },
-): Promise<AuditReviewRequest> {
-  requireAuditID(options.auditId);
-  requireAuditID(options.findingId);
-  requireAuditRevision(options.expectedRevision);
-  const result = await api.request((client) =>
-    client.POST("/v1/audits/{auditId}/findings/{findingId}/reviews", {
-      params: {
-        path: { auditId: options.auditId, findingId: options.findingId },
-        header: {
-          "Idempotency-Key": options.idempotencyKey,
-          "If-Match": `"${options.expectedRevision}"`,
-        },
-      },
-      body: {},
     }),
   );
   return requireData(result);
@@ -622,7 +595,7 @@ export async function decideAuditAction(
     action: AuditReviewAction;
     rationale: string;
   },
-): Promise<AuditActionDecisionResult> {
+): Promise<AuditReviewDecisionResult> {
   requireAuditID(options.auditId);
   requireAuditID(options.requestId);
   requireAuditRevision(options.expectedRevision);
@@ -644,67 +617,6 @@ export async function decideAuditAction(
     throw invalidAuditResponse(result.response.status);
   }
   return response;
-}
-
-export async function decideAuditFinding(
-  api: PublicAPI,
-  options: {
-    auditId: string;
-    requestId: string;
-    expectedRevision: number;
-    idempotencyKey: string;
-    decision: DecideAuditFindingRequest;
-  },
-): Promise<components["schemas"]["AuditFindingDecisionResult"]> {
-  requireAuditID(options.auditId);
-  requireAuditID(options.requestId);
-  requireAuditRevision(options.expectedRevision);
-  const result = await api.request((client) =>
-    client.POST("/v1/audits/{auditId}/reviews/{requestId}/decisions", {
-      params: {
-        path: { auditId: options.auditId, requestId: options.requestId },
-        header: {
-          "Idempotency-Key": options.idempotencyKey,
-          "If-Match": `"${options.expectedRevision}"`,
-        },
-      },
-      body: options.decision,
-    }),
-  );
-  const response = requireData(result);
-  // Cross-field: a finding decision answers with the decided finding.
-  if (!("finding" in response)) {
-    throw invalidAuditResponse(result.response.status);
-  }
-  return response;
-}
-
-export async function listAuditFindingProvenance(
-  api: PublicAPI,
-  auditId: string,
-  findingId: string,
-  request: PageRequest & { auditRevision: number; findingRevision: number },
-  signal?: AbortSignal,
-): Promise<AuditFindingProvenancePage> {
-  requireAuditID(auditId);
-  requireAuditID(findingId);
-  requireAuditRevision(request.auditRevision);
-  requireAuditRevision(request.findingRevision);
-  const result = await api.request((client) =>
-    client.GET("/v1/audits/{auditId}/findings/{findingId}/provenance", {
-      ...(signal === undefined ? {} : { signal }),
-      params: {
-        path: { auditId, findingId },
-        query: {
-          limit: AUDIT_PAGE_SIZE,
-          auditRevision: request.auditRevision,
-          findingRevision: request.findingRevision,
-          ...(request.cursor === undefined ? {} : { cursor: request.cursor }),
-        },
-      },
-    }),
-  );
-  return requireData(result);
 }
 
 export function auditMutationAudit(value: Audit | AuditStartResponse): Audit {
@@ -767,4 +679,39 @@ export async function getAuditReview(
     throw invalidAuditResponse(result.response.status);
   requireRevisionETag(result.response, value.revision);
   return value;
+}
+
+export async function getProjectFinding(api: PublicAPI,projectId:string,findingId:string):Promise<ProjectFinding> {
+ requireProjectID(projectId);requireAuditID(findingId);
+ const result=await api.request(client=>client.GET("/v1/projects/{projectId}/findings/{findingId}",{params:{path:{projectId,findingId}}}));
+ const finding=requireData(result);
+ if(finding.projectId!==projectId || finding.findingId!==findingId || finding.claim===undefined) throw invalidAPIResponse(result.response.status,"Project Finding response does not match the requested identity");
+ requireRevisionETag(result.response,finding.revision);
+ return finding;
+}
+
+export async function listProjectFindings(api:PublicAPI,projectId:string,request:{cursor?:string;projectRevision?:number}={}) {
+ requireProjectID(projectId);
+ return requireData(await api.request(client=>client.GET("/v1/projects/{projectId}/findings",{params:{path:{projectId},query:{limit:AUDIT_PAGE_SIZE,...request}}})));
+}
+
+export async function editProjectFinding(api:PublicAPI,options:{projectId:string;findingId:string;expectedRevision:number;idempotencyKey:string;decision:EditProjectFindingRequest}):Promise<ProjectFindingEditResult> {
+ requireProjectID(options.projectId);requireAuditID(options.findingId);requireAuditRevision(options.expectedRevision);
+ const result=await api.request(client=>client.PATCH("/v1/projects/{projectId}/findings/{findingId}",{
+ params:{path:{projectId:options.projectId,findingId:options.findingId},header:{"If-Match":`"${options.expectedRevision}"`,"Idempotency-Key":options.idempotencyKey}},body:options.decision
+ }));
+ const value=requireData(result);
+ if(value.finding.projectId!==options.projectId || value.finding.findingId!==options.findingId) throw invalidAPIResponse(result.response.status,"Project Finding response does not match the requested identity");
+ requireRevisionETag(result.response,value.finding.revision);
+ return value;
+}
+
+export async function listProjectFindingSources(api:PublicAPI,projectId:string,findingId:string,request:{cursor?:string}={}) {
+ return requireData(await api.request(client=>client.GET("/v1/projects/{projectId}/finding-sources",{params:{path:{projectId},query:{findingId,limit:AUDIT_PAGE_SIZE,...request}}})));
+}
+export async function getProjectFindingSource(api:PublicAPI,projectId:string,receiptId:string) {
+ return requireData(await api.request(client=>client.GET("/v1/projects/{projectId}/finding-sources/{receiptId}",{params:{path:{projectId,receiptId}}})));
+}
+export async function listProjectFindingSourceHistory(api:PublicAPI,projectId:string,receiptId:string,request:{cursor?:string}={}) {
+ return requireData(await api.request(client=>client.GET("/v1/projects/{projectId}/finding-sources/{receiptId}/history",{params:{path:{projectId,receiptId},query:{limit:AUDIT_PAGE_SIZE,...request}}})));
 }

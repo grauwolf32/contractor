@@ -2,63 +2,40 @@ package pgstore
 
 import "github.com/grauwolf32/contractor/internal/projectstore"
 
-// SQL statements for finding_reads.go and review_reads.go.
+const projectFindingSummaryColumns = `finding.finding_id,finding.project_id,left(finding.title,256),length(finding.title)>256,
+finding.state,finding.analyst_verdict,finding.analyst_severity,finding.duplicate_target_id,
+finding.revision,finding.created_at,finding.updated_at`
 
-// findingRecordColumns selects a finding aliased as finding in
-// scanFindingRecord order.
-const findingRecordColumns = `
-finding.finding_id, finding.audit_id, finding.first_receipt_id, finding.state,
-finding.rejection_reason, finding.duplicate_target_id,
-finding.current_assessment_id, finding.current_decision_id,
-finding.revision, finding.created_at, finding.updated_at,
-finding.correlation_project_id, finding.correlation_algorithm, finding.correlation_value,
-finding.correlation_group_key, finding.correlation_reason`
-
-// findingFilterSQL is the FROM and WHERE of a finding page of owner $1's
-// Audit $2: state $3; the current decision's verdict $4; only undecided
-// findings when $5; the decision's severity $6. It names the Audit without a
-// NULL alternative, so a generic plan of the prepared statement still reads
-// only that Audit's findings; "$2 IS NULL OR" made it read every finding of
-// the owner. Used by QueryStore.ListFindings and FindingPageBasis.
-const findingFilterSQL = findingJoinsSQL + `
- WHERE audit.owner_id = $1 AND finding.audit_id = $2` + findingPredicatesSQL
-
-// ownerFindingFilterSQL is findingFilterSQL over every Audit of owner $1,
-// with $2 NULL. Used by QueryStore.ListOwnerFindings.
-const ownerFindingFilterSQL = findingJoinsSQL + `
- WHERE audit.owner_id = $1 AND ($2::text IS NULL OR finding.audit_id = $2)` + findingPredicatesSQL
-
-// findingJoinsSQL joins a finding to its Audit and current decision.
-const findingJoinsSQL = `
-  FROM audit_findings AS finding
-  JOIN audits AS audit USING (audit_id)
-  LEFT JOIN audit_review_decisions AS decision
-    ON decision.decision_id = finding.current_decision_id`
-
-// findingPredicatesSQL holds the finding filters $3 to $6 of
-// findingFilterSQL.
 const findingPredicatesSQL = `
-   AND ($3::text IS NULL OR finding.state = $3)
-   AND ($4::text IS NULL OR decision.verdict = $4)
-   AND (NOT $5::boolean OR finding.current_decision_id IS NULL)
-   AND ($6::text IS NULL OR decision.severity = $6)`
+ AND ($3::text IS NULL OR finding.state=$3)
+ AND ($4::text IS NULL OR finding.analyst_verdict=$4)
+ AND (NOT $5::boolean OR finding.analyst_verdict IS NULL)
+ AND ($6::text IS NULL OR finding.analyst_severity=$6)`
 
-// listFindingsSQL is a finding page of owner $1's Audit $2 in creation order:
-// the findingFilterSQL filters, after the cursor ($7, $8), at most $9 rows.
-// Used by QueryStore.ListFindings.
-var listFindingsSQL = correlateFindingSelection(`
-SELECT `+findingRecordColumns+`
-`+findingFilterSQL+`
-   AND ($7::timestamptz IS NULL OR
-        (finding.created_at, finding.finding_id) > ($7, $8))
- ORDER BY finding.created_at, finding.finding_id
- LIMIT $9`, false)
+var listFindingsSQL = `SELECT ` + projectFindingSummaryColumns + auditFindingMembershipSQL + `
+ WHERE audit.owner_id=$1 AND membership.audit_id=$2` + findingPredicatesSQL + `
+ AND ($7::timestamptz IS NULL OR (membership.finding_created_at,membership.finding_id)>($7,$8))
+ ORDER BY membership.finding_created_at,membership.finding_id LIMIT $9`
 
-// findingPageBasisSQL reads the revision of owner $1's Audit $2, the
-// statement time and the number of its findings that match the
-// findingFilterSQL filters $3 to $6. Used by QueryStore.FindingPageBasis.
-const findingPageBasisSQL = `SELECT audit.revision, statement_timestamp(),
- (SELECT count(*) ` + findingFilterSQL + `) FROM audits audit WHERE audit.owner_id=$1 AND audit.audit_id=$2`
+const findingPageBasisSQL = `SELECT audit.revision,fence.revision,statement_timestamp()
+ FROM audits AS audit JOIN finding_correlation_fences AS fence USING(project_id)
+ WHERE audit.owner_id=$1 AND audit.audit_id=$2`
+
+var listOwnerFindingsSQL = `SELECT ` + projectFindingSummaryColumns + `
+ FROM project_findings AS finding JOIN projects AS project USING(project_id)
+ WHERE project.owner_id=$1 AND $2::text IS NULL AND ` + projectstore.OwnerListedProjectSQL("project.project_id", "project.owner_id") + findingPredicatesSQL + `
+ AND ($7::timestamptz IS NULL OR (finding.created_at,finding.finding_id)<($7,$8))
+ AND ($10::text[] IS NULL OR EXISTS(SELECT 1 FROM project_finding_audits AS membership
+ JOIN audits AS audit USING(audit_id) WHERE membership.finding_id=finding.finding_id AND audit.state=ANY($10)))
+ ORDER BY finding.created_at DESC,finding.finding_id DESC LIMIT $9`
+
+var listProjectFindingsSQL = `SELECT ` + projectFindingSummaryColumns + `
+ FROM project_findings AS finding JOIN projects AS project USING(project_id)
+ WHERE project.owner_id=$1 AND finding.project_id=$2 AND ` + projectstore.OwnerListedProjectSQL("project.project_id", "project.owner_id") + findingPredicatesSQL + `
+ AND ($7::timestamptz IS NULL OR (finding.created_at,finding.finding_id)<($7,$8))
+ AND $10::text[] IS NULL ORDER BY finding.created_at DESC,finding.finding_id DESC LIMIT $9`
+
+var visibleAuditProjectSQL = ` AND ` + projectstore.OwnerListedProjectSQL("audit.project_id", "audit.owner_id")
 
 // reviewPageBasisSQL reads the revision of owner $1's Audit $2, the statement
 // time and the number of its review requests for finding $3 (any when NULL)
@@ -66,7 +43,7 @@ const findingPageBasisSQL = `SELECT audit.revision, statement_timestamp(),
 const reviewPageBasisSQL = `SELECT audit.revision, statement_timestamp(),
  (SELECT count(*) FROM audit_review_requests request WHERE request.audit_id=audit.audit_id
  AND ` + visibleItemReviewSQL + `
- AND ($3::text IS NULL OR request.finding_id=$3) AND ($4::text IS NULL OR request.state=$4))
+ AND ($3::text IS NULL OR request.state=$3))
  FROM audits audit WHERE audit.owner_id=$1 AND audit.audit_id=$2`
 
 // listReviewsSQL is a review page of owner $1's Audit $2 in creation order:
@@ -74,59 +51,23 @@ const reviewPageBasisSQL = `SELECT audit.revision, statement_timestamp(),
 // the cursor ($5, $6), at most $7 rows. Used by QueryStore.ListReviews.
 const listReviewsSQL = reviewSelect + `
  WHERE audit.owner_id = $1 AND request.audit_id = $2
-   AND ($3::text IS NULL OR request.finding_id = $3)
-   AND ($4::text IS NULL OR request.state = $4)
-   AND ($5::timestamptz IS NULL OR
-        (request.created_at, request.request_id) > ($5, $6))
- ORDER BY request.created_at, request.request_id LIMIT $7`
-
-// visibleAuditProjectSQL keeps an owner-wide list to the Audits of Projects
-// listed to their owner, by the rule the owner-wide Audit list applies.
-var visibleAuditProjectSQL = `
- AND ` + projectstore.OwnerListedProjectSQL("audit.project_id", "audit.owner_id")
-
-// listOwnerFindingsSQL is an owner-wide finding page, newest first: the
-// ownerFindingFilterSQL filters over every Audit ($2 is NULL), Audits of listed
-// Projects only, before the cursor ($7, $8), in the Audit states $10, at most
-// $9 rows. Used by QueryStore.ListOwnerFindings.
-var listOwnerFindingsSQL = correlateFindingSelection(`SELECT `+findingRecordColumns+ownerFindingFilterSQL+visibleAuditProjectSQL+`
-   AND ($7::timestamptz IS NULL OR (finding.created_at, finding.finding_id) < ($7, $8))
-   AND ($10::text[] IS NULL OR audit.state = ANY($10))
- ORDER BY finding.created_at DESC, finding.finding_id DESC LIMIT $9`, true)
-
-// decisionSelect selects analyst decisions in scanDecision order. Callers
-// append the joins and WHERE clause, which filters on audit.owner_id.
-const decisionSelect = `
-SELECT decision.decision_id, decision.request_id, decision.audit_id,
-       decision.finding_id, decision.actor_id, decision.action, decision.verdict,
-       decision.severity, decision.rationale, decision.duplicate_target_id,
-       decision.subject_revision, decision.subject_digest, decision.created_at
-  FROM audit_review_decisions AS decision`
-
-// assessmentSelect selects finding assessments in scanAssessment order.
-// Callers append the joins and WHERE clause, which filters on
-// audit.owner_id.
-const assessmentSelect = `
-SELECT assessment.assessment_id, assessment.semantic_assessment,
-       assessment.result_ref, assessment.result_digest, assessment.receipt_id,
-       assessment.item_id, assessment.execution_item_id,
-       assessment.collection_receipt_id, assessment.direct_verification,
-       assessment.contract_ref, assessment.contract_digest, assessment.accepted_at
-  FROM audit_finding_assessments AS assessment`
+   AND ($3::text IS NULL OR request.state = $3)
+   AND ($4::timestamptz IS NULL OR
+        (request.created_at, request.request_id) > ($4, $5))
+ ORDER BY request.created_at, request.request_id LIMIT $6`
 
 // reviewSelect selects review requests with their Audit and optional decision
 // in scanReviewRequest column order. Callers append the WHERE clause, which
 // filters on audit.owner_id for authorization.
 // Used by QueryStore.GetReview, ListReviews and ListOwnerReviews.
 const reviewSelect = `
-SELECT request.request_id, request.audit_id, request.finding_id,
+SELECT request.request_id, request.audit_id,
        request.subject_kind, request.subject_id, request.kind,
        request.subject_revision, request.subject_digest, request.requested_actions,
        request.state, request.expires_at, request.revision,
        request.created_at, request.updated_at,
        decision.decision_id, decision.actor_id, decision.action,
-       decision.verdict, decision.severity,
-       decision.rationale, decision.duplicate_target_id, decision.created_at
+       decision.rationale, decision.created_at
   FROM audit_review_requests AS request
   JOIN audits AS audit USING (audit_id)
   JOIN LATERAL (SELECT 1 WHERE ` + visibleItemReviewSQL + `) AS visible_review ON true
@@ -153,24 +94,6 @@ var listOwnerReviewsSQL = reviewSelect + `
    AND ($6::text[] IS NULL OR audit.state = ANY($6))
  ORDER BY request.created_at DESC, request.request_id DESC LIMIT $5`
 
-// lockFindingReviewSQL locks the finding triage request $3 of owner $1's
-// Audit $2 with its finding and Audit, and reads the Audit state, the
-// request and the finding in scanFindingRecord order.
-// Used by ReviewTxStore.LockFindingReview.
-const lockFindingReviewSQL = `
-SELECT audit.state,
-       request.request_id, request.audit_id, request.finding_id, request.kind,
-       request.subject_revision, request.subject_digest,
-       request.state, request.expires_at, request.revision,
-       request.created_at, request.updated_at,
-       ` + findingRecordColumns + `
-  FROM audit_review_requests AS request
-  JOIN audit_findings AS finding
-    ON finding.finding_id = request.finding_id AND finding.audit_id = request.audit_id
-  JOIN audits AS audit ON audit.audit_id = request.audit_id
- WHERE audit.owner_id = $1 AND request.audit_id = $2 AND request.request_id = $3
- FOR UPDATE OF audit, request, finding`
-
 // lockActionReviewSQL locks the review request $3 of owner $1's Audit $2 with
 // its Audit and reads the Audit state and revision and the request.
 // Used by ReviewTxStore.LockActionReview.
@@ -185,64 +108,3 @@ SELECT audit.state, audit.revision, request.subject_kind, request.subject_id, re
    AND request.request_id = $3
    AND ` + visibleItemReviewSQL + `
  FOR UPDATE OF audit, request`
-
-// duplicateTargetCycleSQL reports whether the proposed duplicate target
-// exists and whether following duplicate_target_id from it leads back to
-// the finding being decided, which would close a cycle.
-// Used by ReviewTxStore.DuplicateTarget.
-const duplicateTargetCycleSQL = `
-WITH RECURSIVE chain(finding_id, duplicate_target_id) AS (
-    SELECT finding_id, duplicate_target_id
-      FROM audit_findings WHERE audit_id = $1 AND finding_id = $2
-    UNION
-    SELECT next.finding_id, next.duplicate_target_id
-      FROM chain JOIN audit_findings AS next
-        ON next.audit_id = $1 AND next.finding_id = chain.duplicate_target_id
-     WHERE chain.duplicate_target_id IS NOT NULL
-)
-SELECT EXISTS (SELECT 1 FROM audit_findings WHERE audit_id = $1 AND finding_id = $2),
-       EXISTS (SELECT 1 FROM chain WHERE finding_id = $3)`
-
-// correlateFindingSelection presents one already bounded page in the same
-// statement snapshot. Distinct page groups each cost two indexed probes,
-// independently of their total membership; the query never counts peers.
-func correlateFindingSelection(selection string, newestFirst bool) string {
-	order := " ORDER BY selected.created_at, selected.finding_id"
-	if newestFirst {
-		order = " ORDER BY selected.created_at DESC, selected.finding_id DESC"
-	}
-	return `WITH selected AS MATERIALIZED (` + selection + `),
- requested_groups AS MATERIALIZED (
-  SELECT DISTINCT correlation_project_id, correlation_group_key FROM selected
- ), presentations AS MATERIALIZED (
-  SELECT requested.correlation_project_id, requested.correlation_group_key,
-         ` + projectCorrelationRevision + ` AS finding_correlation_revision,
-         representative.finding_id AS representative_id, representative.audit_id AS representative_audit,
-         next_peer.finding_id IS NOT NULL AS has_other_observations
-    FROM requested_groups AS requested
-    JOIN projects AS project ON project.project_id=requested.correlation_project_id AND project.owner_id=$1` +
-		projectCorrelationFenceJoin + `
-    LEFT JOIN LATERAL (
-     SELECT peer.finding_id, peer.audit_id FROM audit_findings AS peer
-      WHERE peer.correlation_project_id=requested.correlation_project_id
-        AND peer.correlation_group_key=requested.correlation_group_key
-        AND peer.correlation_group_key<>'' ORDER BY peer.finding_id COLLATE "C" LIMIT 1
-    ) AS representative ON true
-    LEFT JOIN LATERAL (
-     SELECT peer.finding_id FROM audit_findings AS peer
-      WHERE peer.correlation_project_id=requested.correlation_project_id
-        AND peer.correlation_group_key=requested.correlation_group_key
-        AND peer.correlation_group_key<>'' AND peer.finding_id COLLATE "C">representative.finding_id COLLATE "C"
-      ORDER BY peer.finding_id COLLATE "C" LIMIT 1
-    ) AS next_peer ON true
- )
- SELECT selected.*, presentations.finding_correlation_revision, presentations.representative_id,
-        presentations.representative_audit, presentations.has_other_observations
- FROM selected JOIN presentations USING(correlation_project_id,correlation_group_key)` + order
-}
-
-// getCorrelatedFindingSQL selects one authorized observation before probing its
-// own Project group; presentation never grants access to a foreign Project.
-var getCorrelatedFindingSQL = correlateFindingSelection(`
-SELECT `+findingRecordColumns+` FROM audit_findings AS finding JOIN audits AS audit USING(audit_id)
- WHERE audit.owner_id=$1 AND finding.audit_id=$2 AND finding.finding_id=$3`, false)

@@ -5,12 +5,12 @@
  */
 import {
   AUDIT_ID_PATTERN,
-  type AuditAnalystVerdict,
-  type AuditFinding,
-  type AuditFindingSeverity,
+  type FindingVerdict,
+  type ProjectFinding,
+  type FindingSeverity,
   type AuditReviewAction,
   type AuditReviewRequest,
-  type DecideAuditFindingRequest,
+  type EditProjectFindingRequest,
 } from "../../api/audits";
 import { schemaLimit } from "../../api/contract";
 import { PublicAPIError } from "../../api/error";
@@ -25,12 +25,12 @@ import {
 } from "../../app/vocabulary";
 
 export type AuditReviewDecision = components["schemas"]["AuditReviewDecision"];
-export type AuditFindingDecisionResult =
-  components["schemas"]["AuditFindingDecisionResult"];
+export type ProjectFindingEditResult =
+  components["schemas"]["EditProjectFindingResult"];
 
 /** Rationale limit of every decision, in UTF-8 bytes (x-max-utf8-bytes). */
 export const MAX_RATIONALE_BYTES = schemaLimit(
-  "DecideAuditActionRequest",
+  "DecideAuditReviewRequest",
   "x-max-utf8-bytes",
   "properties",
   "rationale",
@@ -40,7 +40,7 @@ export const MAX_RATIONALE_BYTES = schemaLimit(
 export const RATIONALE_HELP = "Required. Saved with the decision.";
 
 /** Button labels of the five finding decisions (contract §3). */
-export const VERDICT_ACTIONS: Readonly<Record<AuditAnalystVerdict, string>> = {
+export const VERDICT_ACTIONS: Readonly<Record<FindingVerdict, string>> = {
   true_positive: "Confirm issue",
   false_positive: "Not an issue",
   needs_evidence: "Needs evidence",
@@ -59,21 +59,21 @@ export const REVIEW_ACTIONS: readonly {
 ];
 
 export const SEVERITY_OPTIONS: readonly {
-  value: AuditFindingSeverity;
+  value: FindingSeverity;
   label: string;
-}[] = (Object.keys(SEVERITY_LABELS) as AuditFindingSeverity[]).map((value) => ({
+}[] = (Object.keys(SEVERITY_LABELS) as FindingSeverity[]).map((value) => ({
   value,
   label: SEVERITY_LABELS[value],
 }));
 
-export function isSeverity(value: string): value is AuditFindingSeverity {
+export function isSeverity(value: string): value is FindingSeverity {
   return Object.hasOwn(SEVERITY_LABELS, value);
 }
 
 /** What the user chose for a possible issue, before it is sent. */
 export interface FindingDecisionDraft {
-  verdict: AuditAnalystVerdict;
-  severity?: AuditFindingSeverity | undefined;
+  verdict: FindingVerdict;
+  severity?: FindingSeverity | undefined;
   duplicateTargetId?: string | undefined;
   rationale: string;
 }
@@ -111,7 +111,7 @@ export function findingDraftProblem(
 /** Request body of a finding decision; the rationale is trimmed. */
 export function findingDecisionBody(
   draft: FindingDecisionDraft,
-): DecideAuditFindingRequest {
+): EditProjectFindingRequest {
   const rationale = draft.rationale.trim();
   switch (draft.verdict) {
     case "true_positive":
@@ -129,50 +129,6 @@ export function findingDecisionBody(
   }
 }
 
-/** The review requests of one finding that are still open. */
-function pendingTriage(
-  reviews: readonly AuditReviewRequest[],
-  findingId: string,
-): AuditReviewRequest[] {
-  return reviews.filter(
-    (review) =>
-      review.state === "pending" &&
-      review.kind === "finding-triage" &&
-      (review.findingId ?? review.subjectId) === findingId,
-  );
-}
-
-export interface PendingReviewStatus {
-  /** The open request bound to the finding's current revision. */
-  review?: AuditReviewRequest | undefined;
-  /**
-   * An open request is bound to a newer revision than the finding the page
-   * shows: the page is out of date and must not decide.
-   */
-  stale: boolean;
-}
-
-/**
- * The open finding-triage request a decision can reuse. Requests for an older
- * revision are ignored: they can no longer be decided, and opening a review
- * for the current revision replaces them.
- */
-export function pickPendingReview(
-  reviews: readonly AuditReviewRequest[],
-  finding: Pick<AuditFinding, "findingId" | "revision">,
-): PendingReviewStatus {
-  const pending = pendingTriage(reviews, finding.findingId);
-  const review = pending.find(
-    (candidate) => candidate.subjectRevision === finding.revision,
-  );
-  return {
-    review,
-    stale:
-      review === undefined &&
-      pending.some((candidate) => candidate.subjectRevision > finding.revision),
-  };
-}
-
 /** True when the request's expiry has passed by `now` (milliseconds). */
 export function reviewExpired(
   review: Pick<AuditReviewRequest, "expiresAt">,
@@ -184,59 +140,8 @@ export function reviewExpired(
 }
 
 /** "Confirmed · High", "Not an issue", "Approved", … */
-export function decisionOutcome(
-  decision: Pick<AuditReviewDecision, "action" | "verdict" | "severity">,
-): VocabularyLabel {
-  if (decision.action !== undefined) return reviewActionLabel(decision.action);
-  const verdict = verdictLabel(decision.verdict);
-  return decision.severity === undefined
-    ? verdict
-    : {
-        label: `${verdict.label} · ${severityLabel(decision.severity)}`,
-        tone: verdict.tone,
-      };
-}
-
-/** The most recent decision among review requests, if any was recorded. */
-export function latestDecision(
-  reviews: readonly AuditReviewRequest[],
-  preferredVerdict?: AuditAnalystVerdict,
-): AuditReviewDecision | undefined {
-  const decisions = reviews.flatMap((review) =>
-    review.decision === undefined ? [] : [review.decision],
-  );
-  const preferred =
-    preferredVerdict === undefined
-      ? []
-      : decisions.filter((decision) => decision.verdict === preferredVerdict);
-  const candidates = preferred.length > 0 ? preferred : decisions;
-  let latest: AuditReviewDecision | undefined;
-  for (const decision of candidates) {
-    if (
-      latest === undefined ||
-      Date.parse(decision.createdAt) > Date.parse(latest.createdAt)
-    )
-      latest = decision;
-  }
-  return latest;
-}
-
-/** Which verdict produced a decided finding state, when one did. */
-export function verdictForState(
-  state: AuditFinding["state"],
-): AuditAnalystVerdict | undefined {
-  switch (state) {
-    case "confirmed":
-      return "true_positive";
-    case "rejected":
-      return "false_positive";
-    case "duplicate":
-      return "duplicate";
-    case "needs-evidence":
-      return "needs_evidence";
-    default:
-      return undefined;
-  }
+export function decisionOutcome(decision:Pick<AuditReviewDecision,"action">):VocabularyLabel {
+ return reviewActionLabel(decision.action);
 }
 
 /** What a refused decision was about, for the explanation. */

@@ -202,16 +202,16 @@ func validateSnapshot(value Snapshot) error {
 			}
 			used[id] = true
 		}
-		if !slices.Contains([]string{"proposed", "confirmed", "rejected", "duplicate", "needs-evidence"}, r.Review.State) {
+		if r.Review.State != nil && !slices.Contains([]string{"proposed", "confirmed", "rejected", "duplicate", "needs-evidence"}, *r.Review.State) {
 			return ErrInvalid
 		}
-		if (r.Review.State == "duplicate") != (r.Review.DuplicateTargetID != "") || r.Review.DuplicateTargetID == r.FindingID || r.Review.DuplicateTargetID != "" && !contracts.ValidIdempotencyKey(r.Review.DuplicateTargetID) {
+		if (r.Review.IsState("duplicate")) != (r.Review.DuplicateTargetID != "") || r.Review.DuplicateTargetID == r.FindingID || r.Review.DuplicateTargetID != "" && !contracts.ValidIdempotencyKey(r.Review.DuplicateTargetID) {
 			return ErrInvalid
 		}
 		if r.Review.Severity != "" && !slices.Contains([]string{"informational", "low", "medium", "high", "critical"}, r.Review.Severity) {
 			return ErrInvalid
 		}
-		if r.Review.Severity != "" && (r.Review.State != "confirmed" || r.Review.Verdict != "true_positive" || r.Review.DecisionID == "") {
+		if r.Review.Severity != "" && (!r.Review.IsState("confirmed") || r.Review.Verdict != "true_positive") {
 			return ErrInvalid
 		}
 		if p := r.PrimaryKey; p != nil {

@@ -96,7 +96,7 @@ func (b *builder) result(group findingexport.ResultGroup) (object, error) {
 		}
 	}
 	kind, level := "review", "none"
-	if result.Review.State == "confirmed" {
+	if result.Review.IsState("confirmed") {
 		kind = "fail"
 		switch result.Review.Severity {
 		case "informational", "low":
@@ -215,7 +215,7 @@ func (b *builder) result(group findingexport.ResultGroup) (object, error) {
 	if severity == "" {
 		severity = "not rated"
 	}
-	message := []string{receipt.Proposal.Title, receipt.Proposal.Description, "Review state: " + result.Review.State + "; analyst severity: " + severity + "; proposal suggestion: " + receipt.Proposal.SeveritySuggestion}
+	message := []string{receipt.Proposal.Title, receipt.Proposal.Description, "Review state: " + reviewState(result.Review) + "; analyst severity: " + severity + "; proposal suggestion: " + receipt.Proposal.SeveritySuggestion}
 	if receipt.Proposal.Hypothesis != "" {
 		message = append(message, "Hypothesis: "+receipt.Proposal.Hypothesis)
 	}
@@ -260,4 +260,11 @@ func (b *builder) result(group findingexport.ResultGroup) (object, error) {
 		item[key] = value
 	}
 	return item, nil
+}
+
+func reviewState(review findingexport.Review) string {
+	if review.State == nil {
+		return "unset"
+	}
+	return *review.State
 }

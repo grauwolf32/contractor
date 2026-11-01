@@ -566,6 +566,7 @@ func TestAuditLifecycleHandlersRequireCASAndIdempotency(t *testing.T) {
 }
 
 type fakeAuditManagement struct {
+	AuditManagement
 	events              auditservice.EventPage
 	eventParams         auditstore.EventListParams
 	ownerFindings       auditstore.OwnerFindingListParams
@@ -642,6 +643,7 @@ func (f *fakeAuditManagement) ReadArtifact(_ context.Context, _, _, _, _ string)
 }
 
 type fakeFindingProposalManagement struct {
+	FindingProposalManagement
 	receipts  []findingintake.Receipt
 	listOwner string
 	listAudit string

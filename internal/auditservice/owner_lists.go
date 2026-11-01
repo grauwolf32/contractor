@@ -10,12 +10,12 @@ import (
 // Projects, newest first. Hydration reads every receipt through its finding's
 // own Audit hold, for all Audits of the page at once; no unowned receipt can
 // enter the projection.
-func (s *Service) ListOwnerFindings(ctx context.Context, params auditstore.OwnerFindingListParams) ([]Finding, error) {
+func (s *Service) ListOwnerFindings(ctx context.Context, params auditstore.OwnerFindingListParams) ([]auditstore.ProjectFindingSummary, error) {
 	rows, err := s.reads().ListOwnerFindings(ctx, params)
 	if err != nil {
 		return nil, err
 	}
-	return s.hydrateFindings(ctx, params.OwnerID, rows)
+	return rows, nil
 }
 
 // ListOwnerReviews lists the owner's review requests newest first. The

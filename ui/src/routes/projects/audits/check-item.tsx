@@ -1,7 +1,7 @@
 import { useId, type ReactNode } from "react";
 import { Link, type To } from "react-router";
 
-import type { Audit, AuditFinding, AuditItem } from "../../../api/audits";
+import type { Audit, ProjectFinding, AuditItem } from "../../../api/audits";
 import { ContextLink } from "../../../app/context-navigation";
 import {
   capitalize,
@@ -96,7 +96,7 @@ function gapsHeading(entry: CheckEntry): string {
   }
 }
 
-function IssueRow({ audit, finding }: { audit: Audit; finding: AuditFinding }) {
+function IssueRow({ audit, finding }: { audit: Audit; finding: ProjectFinding }) {
   const document = finding.firstProposal.document;
   const state = findingStateLabel(finding.state);
   const weaknesses = weaknessReferences(document);

@@ -7,8 +7,8 @@ import (
 )
 
 type FindingPage struct {
-	Items []Finding
-	auditstore.PageBasis
+	Items []auditstore.ProjectFindingSummary
+	auditstore.FindingPageBasis
 }
 type ReviewPage struct {
 	Items []auditstore.ReviewRequest
@@ -40,15 +40,23 @@ func (s *Service) ListFindingsPage(ctx context.Context, params auditstore.Findin
 	if err != nil {
 		return result, err
 	}
-	result.PageBasis = basis
-	if params.AuditRevision != nil && *params.AuditRevision != result.AuditRevision {
+	result.FindingPageBasis = basis
+	if (params.AuditRevision != nil && *params.AuditRevision != result.AuditRevision) ||
+		(params.ProjectRevision != nil && *params.ProjectRevision != result.ProjectRevision) {
 		return result, auditstore.ErrConflict
 	}
 	result.Items, err = s.ListFindings(ctx, params)
 	if err != nil {
 		return result, err
 	}
-	return result, s.checkPageRevision(ctx, params.OwnerID, params.AuditID, result.AuditRevision)
+	after, err := s.reads().FindingPageBasis(ctx, params)
+	if err != nil {
+		return result, err
+	}
+	if after.AuditRevision != basis.AuditRevision || after.ProjectRevision != basis.ProjectRevision {
+		return result, auditstore.ErrConflict
+	}
+	return result, nil
 }
 
 func (s *Service) ListReviewsPage(ctx context.Context, params auditstore.ReviewListParams) (ReviewPage, error) {

@@ -8,7 +8,7 @@ import {
   getAuditReport,
   getAuditReview,
   type Audit,
-  type AuditActionDecisionResult,
+  type AuditReviewDecisionResult,
   type AuditReport,
   type AuditReviewRequest,
 } from "../../api/audits";
@@ -88,7 +88,7 @@ export interface ReportAcceptance {
   /** That read is running. */
   retrying: boolean;
   /** Pass to ReportDecision: keeps the recorded decision on the page. */
-  onDecided: (result: AuditActionDecisionResult) => void;
+  onDecided: (result: AuditReviewDecisionResult) => void;
   /** Pass to ReportDecision: keeps a decision that is recording on the page. */
   onRecording: (recording: boolean) => void;
 }
@@ -173,7 +173,7 @@ export function useReportAcceptance(
     error: null,
     retry: () => void read.refetch(),
     retrying: read.isFetching,
-    onDecided: (result: AuditActionDecisionResult) =>
+    onDecided: (result: AuditReviewDecisionResult) =>
       setDecided(result.request),
     onRecording: setRecording,
   };

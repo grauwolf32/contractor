@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type {
   AuditCoverageRow,
-  AuditFinding,
+  ProjectFinding,
   AuditItem,
 } from "../../../api/audits";
 
@@ -41,7 +41,7 @@ function itemStatus(
 }
 
 /** Whether buildEntries lists the possible issue on the row's item. */
-function findingOnItem(finding: AuditFinding, row: AuditCoverageRow): boolean {
+function findingOnItem(finding: ProjectFinding, row: AuditCoverageRow): boolean {
   return buildEntries([row], [], [finding], "item")[0]!.findings.includes(
     finding,
   );

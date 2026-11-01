@@ -1,426 +1,67 @@
-import { useQuery } from "@tanstack/react-query";
-import { useId, useState } from "react";
-
-import {
-  listAuditFindingProvenance,
-  type Audit,
-  type AuditFinding,
-  type AuditReviewRequest,
-} from "../../../api/audits";
-import { usePublicAPI } from "../../../api/context";
-import { queryKeys } from "../../../api/query-keys";
-import { ContextLink } from "../../../app/context-navigation";
-import { formatBytes } from "../../../app/format";
-import { RecordedTime } from "../../../app/recorded-time";
-import { severityLabel, verdictLabel } from "../../../app/vocabulary";
-import {
-  Button,
-  Facts,
-  IdChip,
-  StatusChip,
-  TechnicalDetails,
-} from "../../../ui";
-import { FindingDecision, FindingSummary } from "../../decisions";
-import {
-  assessmentLabel,
-  checkSources,
-  provenanceKindLabel,
-} from "../../issues/evidence";
-import { FindingDuplicates } from "../../issues/duplicates";
-import { exactArtifactLink } from "./artifact-links";
-import { ExactArtifactLink } from "./shared";
-
+import {useInfiniteQuery,useQuery} from "@tanstack/react-query";
+import {useState} from "react";
+import {Link} from "react-router";
+import {getProjectFinding,getProjectFindingSource,listProjectFindingSources,listProjectFindingSourceHistory,type Audit,type ProjectFinding,type ProjectFindingSummary} from "../../../api/audits";
+import {usePublicAPI} from "../../../api/context";
+import {RecordedTime} from "../../../app/recorded-time";
+import {findingStateLabel} from "../../../app/vocabulary";
+import {Button,StatusChip,TechnicalDetails} from "../../../ui";
+import {FindingDecision,FindingSummary} from "../../decisions";
+import {artifactDetailPath} from "../../artifacts/paths";
+import {ExactArtifactLink} from "./shared";
 import "../../issues/issues.css";
 
-type Heading = "h3" | "h4";
-
-/**
- * Where a possible issue came from: the proposal, check attempts and direct
- * verifications behind its current assessment. Read only when the user asks
- * ("Show provenance"), pinned to the check and finding revisions shown.
- */
-export function FindingProvenance({
-  audit,
-  finding,
-}: {
-  audit: Audit;
-  finding: AuditFinding;
-}) {
-  const api = usePublicAPI();
-  const panelId = useId();
-  const [expanded, setExpanded] = useState(false);
-  const provenance = useQuery({
-    queryKey: queryKeys.audits.provenance(
-      audit.auditId,
-      finding.findingId,
-      audit.revision,
-      finding.revision,
-    ),
-    queryFn: () =>
-      listAuditFindingProvenance(api, audit.auditId, finding.findingId, {
-        auditRevision: audit.revision,
-        findingRevision: finding.revision,
-      }),
-    enabled: expanded,
-    retry: false,
-  });
-  return (
-    <div className="issues-provenance">
-      <Button
-        size="xs"
-        aria-expanded={expanded}
-        aria-controls={panelId}
-        onClick={() => setExpanded((value) => !value)}
-      >
-        {expanded ? "Hide provenance" : "Show provenance"}
-      </Button>
-      <div id={panelId} hidden={!expanded}>
-        {!expanded ? null : provenance.data === undefined ? (
-          provenance.error === null ? (
-            <p className="ui-caption" role="status">
-              Loading provenance…
-            </p>
-          ) : (
-            <div className="issues-notice" data-tone="error" role="alert">
-              <p>Provenance could not be loaded: {provenance.error.message}</p>
-              <Button
-                size="xs"
-                disabled={provenance.isFetching}
-                onClick={() => void provenance.refetch()}
-              >
-                Try again
-              </Button>
-            </div>
-          )
-        ) : provenance.data.items.length === 0 ? (
-          <p className="ui-caption">No retained provenance records.</p>
-        ) : (
-          <>
-            <ol className="issues-provenance-list">
-              {provenance.data.items.map((record) => (
-                <li key={record.recordId}>
-                  <p className="issues-provenance-head">
-                    <StatusChip tone="neutral" size="sm" glyph={false}>
-                      {provenanceKindLabel(record.kind)}
-                    </StatusChip>
-                    <strong>{record.origin.workflow.name}</strong>
-                    <code>@{record.origin.workflow.version}</code>
-                    <span className="ui-caption">
-                      <RecordedTime value={record.createdAt} />
-                    </span>
-                  </p>
-                  <p className="issues-provenance-line">
-                    {record.origin.logicalAgentName} · Run {record.origin.runId}
-                    {record.origin.runDeleted ? " · Run deleted" : ""}
-                  </p>
-                  {record.assessment === undefined ? null : (
-                    <p className="issues-provenance-line">
-                      Assessment{" "}
-                      {assessmentLabel(record.assessment.semanticAssessment)} ·{" "}
-                      {record.supportsCurrentAssessment
-                        ? "current"
-                        : "historical"}
-                    </p>
-                  )}
-                  {record.attempt === undefined ? null : (
-                    <div className="issues-provenance-attempt">
-                      <span>
-                        Attempt {record.attempt.itemAttempt} ·{" "}
-                        {record.attempt.role}/{record.attempt.workflowRole} ·{" "}
-                        {record.attempt.state}
-                      </span>
-                      <span>
-                        {record.attempt.terminalOutcome ?? "execution pending"}{" "}
-                        ·{" "}
-                        {record.attempt.collectionDisposition ??
-                          "not collected"}
-                        {record.attempt.runDeleted ? " · Run deleted" : ""}
-                      </span>
-                      {record.attempt.runProvenance?.workflow ===
-                      undefined ? null : (
-                        <span>
-                          Verification workflow{" "}
-                          <strong>
-                            {record.attempt.runProvenance.workflow.name}@
-                            {record.attempt.runProvenance.workflow.version}
-                          </strong>
-                        </span>
-                      )}
-                      <span>
-                        Inventory entry {record.attempt.itemOrigin.entryKey}
-                      </span>
-                      {record.attempt.itemOrigin.standard ===
-                      undefined ? null : (
-                        <span>
-                          Causal standard mapping{" "}
-                          <strong>
-                            {record.attempt.itemOrigin.standard.scheme}@
-                            {record.attempt.itemOrigin.standard.version}/
-                            {record.attempt.itemOrigin.standard.mappingKey}
-                          </strong>
-                        </span>
-                      )}
-                      <ExactArtifactLink
-                        projectId={audit.projectId}
-                        artifact={record.attempt.task}
-                        label="Task"
-                        projectReadable
-                      />
-                      {record.attempt.result === undefined ? null : (
-                        <ExactArtifactLink
-                          projectId={audit.projectId}
-                          artifact={record.attempt.result}
-                          label="Result"
-                          projectReadable
-                        />
-                      )}
-                    </div>
-                  )}
-                </li>
-              ))}
-            </ol>
-            {provenance.data.page.hasMore ? (
-              <p className="ui-caption">
-                More provenance records exist than shown here.
-              </p>
-            ) : null}
-          </>
-        )}
-      </div>
-    </div>
-  );
+function SourceHistory({projectId,receiptId}:{projectId:string;receiptId:string}) {
+ const api=usePublicAPI();
+ const records=useInfiniteQuery({queryKey:["project-findings",projectId,"sources",receiptId,"history"],initialPageParam:undefined as string|undefined,
+ queryFn:({pageParam})=>listProjectFindingSourceHistory(api,projectId,receiptId,pageParam===undefined?{}:{cursor:pageParam}),
+ getNextPageParam:last=>last.page.hasMore?last.page.nextCursor:undefined,retry:false});
+ return <section><h4>Source history and check results</h4>
+ {records.error===null?null:<p role="alert">History could not be loaded: {records.error.message} <Button size="xs" onClick={()=>void records.refetch()}>Retry</Button></p>}
+ {records.isPending?<p role="status">Loading history…</p>:null}
+ <ul>{records.data?.pages.flatMap(page=>page.items).map(record=><li key={record.artifact.revision}><Link to={artifactDetailPath({kind:"project",id:projectId},record.artifact)}>Open immutable record</Link> · <RecordedTime value={record.createdAt}/></li>)}</ul>
+ {records.hasNextPage?<Button size="xs" disabled={records.isFetchingNextPage} onClick={()=>void records.fetchNextPage()}>More history</Button>:null}
+ </section>;
 }
-
-/** The check's source materials, linked to their exact revisions. */
-export function FindingSources({
-  audit,
-  heading = "h3",
-  returnLabel,
-}: {
-  audit: Audit;
-  heading?: Heading | undefined;
-  returnLabel: string;
-}) {
-  const headingId = useId();
-  const sources = checkSources(audit);
-  if (sources.length === 0) return null;
-  const Heading = heading;
-  return (
-    <section className="issues-sources" aria-labelledby={headingId}>
-      <Heading id={headingId} className="issues-heading">
-        Sources used by this check
-      </Heading>
-      <ul className="issues-file-list">
-        {sources.map((artifact) => (
-          <li key={JSON.stringify(artifact.ref)}>
-            <ContextLink
-              returnLabel={returnLabel}
-              className="issues-file-name"
-              to={exactArtifactLink(audit.projectId, artifact)}
-              title={`Revision ${artifact.ref.revision}`}
-            >
-              {artifact.ref.namespace}/{artifact.ref.name}
-            </ContextLink>
-            <span className="ui-caption">
-              {artifact.sizeBytes === undefined
-                ? null
-                : `${formatBytes(artifact.sizeBytes)} · `}
-              Source revision
-            </span>
-          </li>
-        ))}
-      </ul>
-    </section>
-  );
+function SourceDetail({projectId,receiptId}:{projectId:string;receiptId:string}) {
+ const api=usePublicAPI();const source=useQuery({queryKey:["project-findings",projectId,"sources",receiptId],queryFn:()=>getProjectFindingSource(api,projectId,receiptId),retry:false});
+ if(source.error!==null)return <p role="alert">Source could not be loaded: {source.error.message} <Button size="xs" onClick={()=>void source.refetch()}>Retry</Button></p>;
+ if(source.data===undefined)return <p role="status">Loading source…</p>;
+ const value=source.data;
+ return <div>
+ <p>{value.document.description}</p>
+ <p className="ui-caption">Run {value.origin.runId}{value.origin.runDeleted?" · Run deleted":""} · {value.origin.workflow.name}@{value.origin.workflow.version}</p>
+ {value.origin.audit===undefined?null:<p className="ui-caption">Original check: {value.origin.audit.auditId}</p>}
+ {value.projectProposal===undefined?<p role="alert">The Project source material is unavailable.</p>:<ExactArtifactLink projectId={projectId} artifact={value.projectProposal} projectReadable label="Original claim"/>}
+ <h4>Exact evidence</h4>
+ <ul>{value.projectEvidence?.map(artifact=><li key={artifact.ref.revision}><ExactArtifactLink projectId={projectId} artifact={artifact} projectReadable/></li>)}</ul>
+ <SourceHistory projectId={projectId} receiptId={receiptId}/>
+ </div>;
 }
-
-function analystRating(finding: AuditFinding): string {
-  if (finding.analystVerdict === undefined) return "Not reviewed";
-  const verdict = verdictLabel(finding.analystVerdict).label;
-  return finding.analystSeverity === undefined
-    ? verdict
-    : `${verdict} · ${severityLabel(finding.analystSeverity)}`;
+export function FindingSources({finding}:{finding:ProjectFinding}) {
+ const api=usePublicAPI();const [selected,setSelected]=useState(finding.firstReceiptId);
+ const sources=useInfiniteQuery({queryKey:["project-findings",finding.projectId,finding.findingId,"sources"],initialPageParam:undefined as string|undefined,
+ queryFn:({pageParam})=>listProjectFindingSources(api,finding.projectId,finding.findingId,pageParam===undefined?{}:{cursor:pageParam}),
+ getNextPageParam:last=>last.page.hasMore?last.page.nextCursor:undefined,retry:false});
+ return <section aria-label="Independent sources"><h3>Independent sources</h3>
+ <p className="ui-caption">Sources and check results keep their own evidence. They do not change the current analyst assessment.</p>
+ {sources.error===null?null:<p role="alert">Sources could not be loaded: {sources.error.message} <Button size="xs" onClick={()=>void sources.refetch()}>Retry</Button></p>}
+ <ul>{sources.data?.pages.flatMap(page=>page.items).map(source=><li key={source.receiptId}>
+ <Button size="xs" onClick={()=>setSelected(source.receiptId)} aria-pressed={source.receiptId===selected}>{source.origin.workflow.name} · <RecordedTime value={source.createdAt}/></Button> · {source.evidenceCount} evidence files
+ </li>)}</ul>
+ {sources.hasNextPage?<Button size="xs" disabled={sources.isFetchingNextPage} onClick={()=>void sources.fetchNextPage()}>More sources</Button>:null}
+ <SourceDetail key={selected} projectId={finding.projectId} receiptId={selected}/>
+ </section>;
 }
-
-/**
- * Internal facts of a possible issue behind "Technical details": the AI's
- * severity suggestion next to the analyst's rating (never mixed), the
- * workflow that proposed it, its verification, the original of a
- * duplicate, and its identifiers.
- */
-export function FindingTechnicalDetails({
-  audit,
-  finding,
-  pendingReview,
-  showCheckId = false,
-}: {
-  audit: Audit;
-  finding: AuditFinding;
-  /** The open review request, when the page knows it. */
-  pendingReview?: AuditReviewRequest | null | undefined;
-  /** Show the check ID (off where the check header already shows it). */
-  showCheckId?: boolean | undefined;
-}) {
-  const proposal = finding.firstProposal;
-  const document = proposal.document;
-  const workflow = `${proposal.origin.workflow.name}@${proposal.origin.workflow.version}`;
-  return (
-    <TechnicalDetails description="Ratings, identifiers and where this possible issue came from.">
-      <Facts
-        size="sm"
-        items={[
-          {
-            term: "AI suggestion",
-            value:
-              document.severity_suggestion === ""
-                ? "None"
-                : severityLabel(document.severity_suggestion),
-          },
-          { term: "Analyst rating", value: analystRating(finding) },
-          {
-            term: "Source workflow",
-            value: (
-              <IdChip
-                value={workflow}
-                display={workflow}
-                label="source workflow version"
-              />
-            ),
-          },
-          {
-            term: "Verification",
-            value:
-              finding.currentAssessment === undefined
-                ? "Not verified yet"
-                : assessmentLabel(finding.currentAssessment.semanticAssessment),
-          },
-          {
-            term: "Duplicate of",
-            value:
-              finding.duplicateTargetId === undefined ? undefined : (
-                <IdChip
-                  value={finding.duplicateTargetId}
-                  label="original possible issue ID"
-                />
-              ),
-          },
-          {
-            term: "Possible issue ID",
-            value: (
-              <IdChip value={finding.findingId} label="possible issue ID" />
-            ),
-          },
-          {
-            term: "Check ID",
-            value: showCheckId && (
-              <IdChip value={audit.auditId} label="check ID" />
-            ),
-          },
-          {
-            term: "Subject",
-            value:
-              document.subject === null ? (
-                "Not specified"
-              ) : (
-                <>
-                  <span className="ui-mono">{document.subject.key}</span>{" "}
-                  <span className="ui-caption">{document.subject.kind}</span>
-                </>
-              ),
-          },
-          {
-            term: "Review ID",
-            value:
-              pendingReview === undefined ||
-              pendingReview === null ? undefined : (
-                <IdChip value={pendingReview.requestId} label="review ID" />
-              ),
-          },
-          { term: "Revision", value: finding.revision },
-        ]}
-      />
-    </TechnicalDetails>
-  );
-}
-
-/**
- * One possible issue in full inside its check (the `?finding=` deep link of
- * the check's possible issues section): the summary, the decision, the
- * sources the check used, technical details and provenance.
- */
-export function AuditFindingCard({
-  audit,
-  finding,
-  pendingReview,
-  reviewLoading = false,
-  reviewError = null,
-  reviewActionLabel = "Retry review status",
-  onRetryReview,
-}: {
-  audit: Audit;
-  finding: AuditFinding;
-  /**
-   * The finding's open review request; null when it has none. Omitted, the
-   * decision reads the finding's pending reviews itself.
-   */
-  pendingReview?: AuditReviewRequest | null | undefined;
-  reviewLoading?: boolean | undefined;
-  /** Blocks deciding and says why, e.g. a review that no longer matches. */
-  reviewError?: unknown;
-  reviewActionLabel?: string | undefined;
-  onRetryReview?: (() => void) | undefined;
-}) {
-  return (
-    <div
-      className="issues-card"
-      id={`finding-${audit.auditId}-${finding.findingId}`}
-    >
-      <FindingSummary auditId={audit.auditId} finding={finding} titleAs="h3" />
-      <div
-        className="issues-card-decision"
-        id={`decision-${audit.auditId}-${finding.findingId}`}
-      >
-        {reviewLoading ? (
-          <p className="ui-caption" role="status">
-            Loading review status…
-          </p>
-        ) : reviewError !== null && reviewError !== undefined ? (
-          <div className="issues-notice" data-tone="error" role="alert">
-            <p>
-              {reviewError instanceof Error
-                ? reviewError.message
-                : "The review status could not be loaded."}
-            </p>
-            {onRetryReview === undefined ? null : (
-              <Button size="xs" onClick={onRetryReview}>
-                {reviewActionLabel}
-              </Button>
-            )}
-          </div>
-        ) : (
-          <div className="decisions-inline">
-            {/* The check page binds its own keys, so no single-key shortcuts. */}
-            <FindingDecision
-              auditId={audit.auditId}
-              finding={finding}
-              pendingReview={pendingReview}
-              shortcuts={false}
-            />
-          </div>
-        )}
-      </div>
-      <FindingDuplicates
-        key={`${audit.auditId}:${finding.findingId}`}
-        audit={audit}
-        finding={finding}
-      />
-      <FindingSources audit={audit} heading="h4" returnLabel="Possible issue" />
-      <FindingTechnicalDetails
-        audit={audit}
-        finding={finding}
-        pendingReview={pendingReview}
-      />
-      <FindingProvenance audit={audit} finding={finding} />
-    </div>
-  );
+export function AuditFindingCard({audit,finding}:{audit:Audit;finding:ProjectFinding|ProjectFindingSummary}) {
+ const api=usePublicAPI();const [expanded,setExpanded]=useState(false);const state=findingStateLabel(finding.state);
+ const detail=useQuery({queryKey:["project-findings",finding.projectId,finding.findingId],queryFn:()=>getProjectFinding(api,finding.projectId,finding.findingId),enabled:expanded,retry:false});
+ return <article className="issues-card" id={`finding-${finding.findingId}`}>
+ <h3><Link to={`/issues/${encodeURIComponent(finding.projectId)}/${encodeURIComponent(finding.findingId)}`}>{finding.title}</Link></h3>
+ <StatusChip tone={state.tone}>{state.label}</StatusChip>
+ <Button size="xs" onClick={()=>setExpanded(!expanded)}>{expanded?"Hide details":"Assess possible issue"}</Button>
+ {expanded && detail.isPending?<p role="status">Loading possible issue…</p>:null}
+ {detail.error===null?null:<p role="alert">{detail.error.message}</p>}
+ {expanded && detail.data!==undefined?<><FindingSummary finding={detail.data} titleAs="h3"/><FindingDecision auditId={audit.auditId} finding={detail.data}/><FindingSources finding={detail.data}/><TechnicalDetails><p>Project {finding.projectId} · Finding {finding.findingId} · Revision {detail.data.revision}</p></TechnicalDetails></>:null}
+ </article>;
 }

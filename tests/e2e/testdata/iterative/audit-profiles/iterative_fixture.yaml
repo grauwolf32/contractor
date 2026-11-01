@@ -65,6 +65,5 @@ spec:
     incompleteRound: assess-with-gaps
   interaction:
     activeChecks: prohibited
-    findingConfirmation: human-required
     notApplicable: profile-rule
     reportAcceptance: automatic

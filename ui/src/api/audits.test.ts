@@ -19,7 +19,7 @@ import {
   listProjectAudits,
   mutateAudit,
   type Audit,
-  type AuditFinding,
+  type ProjectFinding,
   type AuditProfile,
   type AuditReviewRequest,
 } from "./audits";
@@ -65,7 +65,6 @@ const profile: AuditProfile = {
   },
   interaction: {
     activeChecks: "prohibited",
-    findingConfirmation: "disabled",
     notApplicable: "profile-rule",
     reportAcceptance: "automatic",
   },
@@ -104,7 +103,7 @@ const audit: Audit = {
   updatedAt: "2026-09-06T10:00:00Z",
 };
 
-const finding: AuditFinding = {
+const finding: ProjectFinding = {
   findingId: "finding_example",
   auditId: audit.auditId,
   state: "proposed",

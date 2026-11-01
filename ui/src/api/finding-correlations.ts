@@ -6,7 +6,6 @@ import { requireProjectID } from "./projects";
 
 export type FindingPreview = components["schemas"]["FindingComparisonPreview"];
 type CandidatesPage = components["schemas"]["FindingCandidatesPage"];
-type MembersPage = components["schemas"]["FindingMembersPage"];
 
 function requireID(id: string): void {
   if (!RESOURCE_ID.test(id)) throw new TypeError("Finding identity is invalid");
@@ -43,26 +42,3 @@ export async function listFindingCandidates(
   );
 }
 
-export async function listFindingMembers(
-  api: PublicAPI,
-  projectId: string,
-  groupKey: string,
-  request: { cursor?: string } = {},
-  signal?: AbortSignal,
-): Promise<MembersPage> {
-  requireProjectID(projectId);
-  return requireData(
-    await api.request((client) =>
-      client.GET(
-        "/v1/projects/{projectId}/finding-correlations/{groupKey}/members",
-        {
-          ...(signal === undefined ? {} : { signal }),
-          params: {
-            path: { projectId, groupKey },
-            query: { limit: 20, ...request },
-          },
-        },
-      ),
-    ),
-  );
-}

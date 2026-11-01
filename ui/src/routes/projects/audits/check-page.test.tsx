@@ -13,7 +13,7 @@ import type {
   Audit,
   AuditCoverageRow,
   AuditEvent,
-  AuditFinding,
+  ProjectFinding,
   AuditItem,
   AuditReviewRequest,
 } from "../../../api/audits";
@@ -71,7 +71,7 @@ interface CheckServer {
   audit: () => Audit;
   coverage?: (url: URL) => Response | AuditCoverageRow[];
   items?: (url: URL) => Response | AuditItem[];
-  findings?: (url: URL) => Response | AuditFinding[];
+  findings?: (url: URL) => Response | ProjectFinding[];
   reviews?: (url: URL) => Response | AuditReviewRequest[];
   workspace?: (audit: Audit) => Response | object;
   report?: () => unknown;
@@ -1308,7 +1308,7 @@ describe("Check page", () => {
     const on = (
       id: string,
       title: string,
-      state: AuditFinding["state"],
+      state: ProjectFinding["state"],
       minute: number,
     ) =>
       makeFinding("audit_example", id, title, "A01:2025", {

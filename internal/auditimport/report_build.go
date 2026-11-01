@@ -243,24 +243,12 @@ func newReportFinding(row auditstore.ReportFinding) reportFinding {
 		Limitations:        append([]string{}, projection.Limitations...),
 		DuplicateTargetID:  row.DuplicateTargetID,
 	}
-	if row.Assessment != nil {
-		value.Assessment = &reportFindingAssessment{
-			AssessmentID:       row.Assessment.AssessmentID,
-			SemanticAssessment: row.Assessment.SemanticAssessment,
-			Result:             row.Assessment.Result,
-			DirectVerification: row.Assessment.DirectVerification,
-			Contract:           row.Assessment.Contract,
-			AcceptedAt:         row.Assessment.AcceptedAt,
-		}
-	}
-	if row.Decision != nil {
-		value.AnalystDecision = &reportFindingDecision{
-			DecisionID: row.Decision.DecisionID, ActorID: row.Decision.ActorID,
-			Verdict: row.Decision.Verdict, Severity: row.Decision.Severity,
-			Rationale: row.Decision.Rationale, SubjectRevision: row.Decision.SubjectRevision,
-			SubjectDigest: row.Decision.SubjectDigest, CreatedAt: row.Decision.CreatedAt,
-		}
-	}
+	value.ProjectID = row.ProjectID
+	value.AnalystVerdict = row.AnalystVerdict
+	value.AnalystSeverity = row.AnalystSeverity
+	value.Rationale = row.Rationale
+	value.ActorID = row.ActorID
+	value.AssessedAt = row.AssessedAt
 	return value
 }
 

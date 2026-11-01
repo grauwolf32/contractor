@@ -2,10 +2,11 @@ package pgstore
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/grauwolf32/contractor/internal/strictjson"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/jackc/pgx/v5"
@@ -46,7 +47,7 @@ func (s *QueryStore) ListReviews(
 		state = &value
 	}
 	rows, err := s.db.Query(ctx, listReviewsSQL,
-		params.OwnerID, params.AuditID, params.FindingID, state,
+		params.OwnerID, params.AuditID, state,
 		params.AfterCreatedAt, params.AfterRequestID, params.Limit)
 	if err != nil {
 		return nil, fmt.Errorf("list Audit reviews: %w", err)
@@ -107,7 +108,7 @@ func (s *QueryStore) ReviewPageBasis(
 	if err := validateReviewList(params); err != nil {
 		return result, err
 	}
-	err := s.db.QueryRow(ctx, reviewPageBasisSQL, params.OwnerID, params.AuditID, params.FindingID, params.State).
+	err := s.db.QueryRow(ctx, reviewPageBasisSQL, params.OwnerID, params.AuditID, params.State).
 		Scan(&result.AuditRevision, &result.AsOf, &result.Total)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return result, auditstore.ErrNotFound
@@ -119,63 +120,29 @@ func scanReviewRequest(row scanner) (auditstore.ReviewRequest, error) {
 	var result auditstore.ReviewRequest
 	var actionsJSON []byte
 	var revision int64
-	var findingID *string
-	var decisionID, actor, action, verdict, severity, rationale, duplicate *string
+	var decisionID, actor, action, rationale *string
 	var decisionAt *time.Time
-	err := row.Scan(
-		&result.RequestID, &result.AuditID, &findingID,
-		&result.SubjectKind, &result.SubjectID, &result.Kind,
-		&result.SubjectRevision, &result.SubjectDigest, &actionsJSON,
-		&result.State, &result.ExpiresAt, &revision, &result.CreatedAt, &result.UpdatedAt,
-		&decisionID, &actor, &action, &verdict, &severity, &rationale, &duplicate, &decisionAt,
-	)
-	if err != nil {
-		return auditstore.ReviewRequest{}, err
+	if err := row.Scan(&result.RequestID, &result.AuditID, &result.SubjectKind, &result.SubjectID, &result.Kind,
+		&result.SubjectRevision, &result.SubjectDigest, &actionsJSON, &result.State, &result.ExpiresAt, &revision, &result.CreatedAt, &result.UpdatedAt,
+		&decisionID, &actor, &action, &rationale, &decisionAt); err != nil {
+		return result, err
 	}
 	if revision < 1 || !result.State.Valid() || !result.SubjectKind.Valid() || result.SubjectID == "" ||
-		(result.SubjectKind == auditstore.ReviewSubjectFinding) != (findingID != nil) ||
-		json.Unmarshal(actionsJSON, &result.RequestedActions) != nil {
-		return auditstore.ReviewRequest{}, errors.New("stored Audit review request is invalid")
-	}
-	if len(result.RequestedActions) == 0 {
-		return auditstore.ReviewRequest{}, errors.New("stored Audit review request has no actions")
+		strictjson.Decode(actionsJSON, &result.RequestedActions) != nil || len(result.RequestedActions) == 0 {
+		return result, errors.New("stored Audit review request is invalid")
 	}
 	for _, action := range result.RequestedActions {
 		if !action.Valid() {
-			return auditstore.ReviewRequest{}, errors.New("stored Audit review request action is invalid")
+			return result, errors.New("stored Audit review action is invalid")
 		}
 	}
 	result.Revision = uint64(revision)
-	if findingID != nil {
-		result.FindingID = *findingID
-	}
 	if decisionID != nil {
-		if actor == nil || action == nil || rationale == nil || decisionAt == nil {
-			return auditstore.ReviewRequest{}, errors.New("stored Audit review decision is incomplete")
+		if actor == nil || action == nil || rationale == nil || decisionAt == nil || !auditstore.ReviewAction(*action).Valid() {
+			return result, errors.New("stored Audit action review decision is invalid")
 		}
-		decision := auditstore.ReviewDecision{
-			DecisionID: *decisionID, RequestID: result.RequestID, AuditID: result.AuditID,
-			FindingID: result.FindingID, ActorID: *actor,
-			Rationale: *rationale, DuplicateTargetID: duplicate,
-			SubjectRevision: result.SubjectRevision, SubjectDigest: result.SubjectDigest,
-			CreatedAt: *decisionAt,
-		}
-		if verdict != nil {
-			decision.Verdict = auditstore.AnalystVerdict(*verdict)
-		}
-		if findingID == nil {
-			decision.Action = auditstore.ReviewAction(*action)
-			if !decision.Action.Valid() || decision.Verdict != "" {
-				return auditstore.ReviewRequest{}, errors.New("stored Audit action review decision is invalid")
-			}
-		} else if !decision.Verdict.Valid() {
-			return auditstore.ReviewRequest{}, errors.New("stored Audit finding review decision is invalid")
-		}
-		if severity != nil {
-			value := auditstore.FindingSeverity(*severity)
-			decision.Severity = &value
-		}
-		result.Decision = &decision
+		result.Decision = &auditstore.ReviewDecision{DecisionID: *decisionID, RequestID: result.RequestID, AuditID: result.AuditID,
+			ActorID: *actor, Action: auditstore.ReviewAction(*action), Rationale: *rationale, SubjectRevision: result.SubjectRevision, SubjectDigest: result.SubjectDigest, CreatedAt: *decisionAt}
 	}
 	return result, nil
 }

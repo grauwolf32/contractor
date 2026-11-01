@@ -48,11 +48,11 @@ type PublishedCollection struct {
 	Replayed   bool          `json:"replayed"`
 }
 
-// CollectionReviews keeps Audit selection/review ownership outside intake while
+// CollectionFindings keeps Audit selection/review ownership outside intake while
 // reading in the publisher's database snapshot. It must never mutate an Audit.
-type CollectionReviews interface {
+type CollectionFindings interface {
 	SelectCollectionFindings(context.Context, pgx.Tx, string, string, []CollectionFindingSelection) ([]string, error)
-	ReadCollectionReviews(context.Context, pgx.Tx, string, []string) (map[string][]auditdomain.FindingCollectionReview, error)
+	ReadCollectionFindings(context.Context, pgx.Tx, string, []string) (map[string]*auditdomain.FindingCollectionFinding, error)
 }
 
 func canonicalCollectionRequest(input PublishCollectionRequest) (PublishCollectionRequest, string, error) {

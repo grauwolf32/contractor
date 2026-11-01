@@ -2,7 +2,7 @@ import { screen } from "@testing-library/react";
 import { expect, it } from "vitest";
 
 import { HTTP_EXCHANGE_MEDIA_TYPE } from "../../api/artifacts";
-import type { AuditFinding } from "../../api/audits";
+import type { ProjectFinding } from "../../api/audits";
 import { renderWithAPI } from "../../test/render";
 import { EvidencePanel } from "./evidence-panel";
 import { issue } from "./test-support";
@@ -33,7 +33,7 @@ function finding() {
   return value;
 }
 
-function renderPanel(value: AuditFinding) {
+function renderPanel(value: ProjectFinding) {
   return renderWithAPI(<EvidencePanel finding={value} />);
 }
 

@@ -146,7 +146,7 @@ func TestPostgresFindingFingerprintIntakeReplayAndRetention(t *testing.T) {
 	}
 	for _, id := range []string{"fingerprint-audit-a", "fingerprint-audit-b"} {
 		retained, err := service.GetAuditReceipt(ctx, owner, id, first.ReceiptID)
-		if err != nil || retained.Fingerprint.Value != first.Fingerprint.Value || retained.Retention != RetentionAuditHeld {
+		if err != nil || retained.Fingerprint.Value != first.Fingerprint.Value || retained.Retention != RetentionProjectHeld {
 			t.Fatalf("retained projection=%+v %v", retained, err)
 		}
 		if _, err := service.GetAuditReceipt(ctx, "foreign-owner", id, first.ReceiptID); !errors.Is(err, ErrNotFound) {

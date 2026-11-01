@@ -152,9 +152,9 @@ func findingsBoundaryReaderStage() domainGatewayStage {
 
 func findingsCollectionFixture(t *testing.T) (auditdomain.FindingCollection, map[string][]byte, map[string]contracts.ArtifactRef) {
 	t.Helper()
-	// A copy of api/testdata/findings/finding-collection-v1.fixture.json;
+	// A copy of api/testdata/findings/finding-collection-v2.fixture.json;
 	// TestSharedFindingCollectionProcessCopyMatches keeps it identical.
-	data, err := os.ReadFile(filepath.Join(repoRoot(t), "tests/e2e/testdata/findings/finding-collection-v1.fixture.json"))
+	data, err := os.ReadFile(filepath.Join(repoRoot(t), "tests/e2e/testdata/findings/finding-collection-v2.fixture.json"))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -173,8 +173,6 @@ type AuditExecutionPolicy struct {
 
 type AuditActiveChecksPolicy = contracts.ActiveChecksPolicy
 
-type AuditFindingConfirmationPolicy string
-
 type AuditNotApplicablePolicy string
 
 type AuditReportAcceptancePolicy string
@@ -184,9 +182,6 @@ const (
 	AuditActiveChecksAutomatic        = contracts.ActiveChecksAutomatic
 	AuditActiveChecksApprovalRequired = contracts.ActiveChecksApprovalRequired
 
-	AuditFindingDisabled      AuditFindingConfirmationPolicy = "disabled"
-	AuditFindingHumanRequired AuditFindingConfirmationPolicy = "human-required"
-
 	AuditNotApplicableHumanRequired AuditNotApplicablePolicy = "human-required"
 	AuditNotApplicableProfileRule   AuditNotApplicablePolicy = "profile-rule"
 
@@ -195,10 +190,9 @@ const (
 )
 
 type AuditInteractionPolicy struct {
-	ActiveChecks        AuditActiveChecksPolicy        `json:"activeChecks"`
-	FindingConfirmation AuditFindingConfirmationPolicy `json:"findingConfirmation"`
-	NotApplicable       AuditNotApplicablePolicy       `json:"notApplicable"`
-	ReportAcceptance    AuditReportAcceptancePolicy    `json:"reportAcceptance"`
+	ActiveChecks     AuditActiveChecksPolicy     `json:"activeChecks"`
+	NotApplicable    AuditNotApplicablePolicy    `json:"notApplicable"`
+	ReportAcceptance AuditReportAcceptancePolicy `json:"reportAcceptance"`
 }
 
 // ResolvedAuditProfile is the immutable Server-side authority retained when an
@@ -288,10 +282,9 @@ type auditExecutionPolicySource struct {
 }
 
 type auditInteractionPolicySource struct {
-	ActiveChecks        string `yaml:"activeChecks"`
-	FindingConfirmation string `yaml:"findingConfirmation"`
-	NotApplicable       string `yaml:"notApplicable"`
-	ReportAcceptance    string `yaml:"reportAcceptance"`
+	ActiveChecks     string `yaml:"activeChecks"`
+	NotApplicable    string `yaml:"notApplicable"`
+	ReportAcceptance string `yaml:"reportAcceptance"`
 }
 
 // Resolve validates spec, binds each Workflow role to the exact Workflow
@@ -871,17 +864,12 @@ func resolveAuditInteractionPolicy(source *auditInteractionPolicySource) (AuditI
 		return AuditInteractionPolicy{}, fmt.Errorf("spec.interaction is required")
 	}
 	result := AuditInteractionPolicy{
-		ActiveChecks:        AuditActiveChecksPolicy(source.ActiveChecks),
-		FindingConfirmation: AuditFindingConfirmationPolicy(source.FindingConfirmation),
-		NotApplicable:       AuditNotApplicablePolicy(source.NotApplicable),
-		ReportAcceptance:    AuditReportAcceptancePolicy(source.ReportAcceptance),
+		ActiveChecks:     AuditActiveChecksPolicy(source.ActiveChecks),
+		NotApplicable:    AuditNotApplicablePolicy(source.NotApplicable),
+		ReportAcceptance: AuditReportAcceptancePolicy(source.ReportAcceptance),
 	}
 	if !result.ActiveChecks.Valid() {
 		return AuditInteractionPolicy{}, fmt.Errorf("spec.interaction.activeChecks is invalid")
-	}
-	if result.FindingConfirmation != AuditFindingDisabled &&
-		result.FindingConfirmation != AuditFindingHumanRequired {
-		return AuditInteractionPolicy{}, fmt.Errorf("spec.interaction.findingConfirmation is invalid")
 	}
 	if result.NotApplicable != AuditNotApplicableHumanRequired && result.NotApplicable != AuditNotApplicableProfileRule {
 		return AuditInteractionPolicy{}, fmt.Errorf("spec.interaction.notApplicable is invalid")

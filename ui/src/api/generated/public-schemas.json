@@ -869,20 +869,19 @@
       "additionalProperties": false,
       "required": [
         "findingId",
-        "auditId",
         "revision",
         "preview",
         "title",
         "titleTruncated",
         "state",
         "severitySuggestion",
-        "origin"
+        "origin",
+        "projectId",
+        "analystVerdict",
+        "analystSeverity"
       ],
       "properties": {
         "findingId": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
-        },
-        "auditId": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
         },
         "revision": {
@@ -894,34 +893,37 @@
         "title": { "type": "string", "minLength": 1, "maxLength": 256 },
         "titleTruncated": { "type": "boolean" },
         "state": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditFindingState"
+          "oneOf": [
+            {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingState"
+            },
+            { "type": "null" }
+          ]
         },
         "severitySuggestion": {
           "type": "string",
           "enum": ["", "critical", "high", "medium", "low", "informational"]
         },
         "analystVerdict": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditAnalystVerdict"
+          "oneOf": [
+            {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingVerdict"
+            },
+            { "type": "null" }
+          ]
         },
         "analystSeverity": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditFindingSeverity"
-        },
-        "semanticAssessment": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 64
+          "oneOf": [
+            {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingSeverity"
+            },
+            { "type": "null" }
+          ]
         },
         "origin": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingComparisonOrigin"
         },
-        "correlationRole": {
-          "type": "string",
-          "enum": ["representative", "automatic-duplicate"]
-        },
-        "assessmentId": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
-        },
-        "decisionId": {
+        "projectId": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
         }
       }
@@ -1089,7 +1091,7 @@
     "FindingComparisonRow": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["kind", "rowKey", "representative", "previewsShareReceipt"],
+      "required": ["kind", "rowKey", "previewsShareReceipt", "findingId"],
       "properties": {
         "kind": {
           "type": "string",
@@ -1104,16 +1106,16 @@
           "type": "string",
           "enum": ["not_recorded", "no_qualified_key", "primary_key_ambiguous"]
         },
-        "representative": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingCorrelationReference"
-        },
         "left": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingComparisonPreview"
         },
         "right": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingComparisonPreview"
         },
-        "previewsShareReceipt": { "type": "boolean" }
+        "previewsShareReceipt": { "type": "boolean" },
+        "findingId": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+        }
       }
     },
     "FindingComparisonPage": {
@@ -1152,42 +1154,6 @@
           "type": "array",
           "items": {
             "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingComparisonRow"
-          },
-          "maxItems": 100
-        },
-        "page": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingCorrelationPageInfo"
-        }
-      }
-    },
-    "FindingMembersPage": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "policyVersion",
-        "scope",
-        "fence",
-        "groupKey",
-        "representative",
-        "items",
-        "page"
-      ],
-      "properties": {
-        "policyVersion": { "type": "string", "const": "qualified-snapshot/v1" },
-        "scope": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingCorrelationReadScope"
-        },
-        "fence": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingCorrelationFence"
-        },
-        "groupKey": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
-        "representative": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingCorrelationReference"
-        },
-        "items": {
-          "type": "array",
-          "items": {
-            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingComparisonPreview"
           },
           "maxItems": 100
         },
@@ -5360,19 +5326,10 @@
     "AuditInteractionPolicy": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "activeChecks",
-        "findingConfirmation",
-        "notApplicable",
-        "reportAcceptance"
-      ],
+      "required": ["activeChecks", "notApplicable", "reportAcceptance"],
       "properties": {
         "activeChecks": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ActiveChecksPolicy"
-        },
-        "findingConfirmation": {
-          "type": "string",
-          "enum": ["disabled", "human-required"]
         },
         "notApplicable": {
           "type": "string",
@@ -5395,7 +5352,6 @@
         "automatic_active_checks_unsupported",
         "project_active_checks_prohibited",
         "active_check_approval_unsupported",
-        "finding_confirmation_unsupported",
         "manual_applicability_unsupported",
         "report_acceptance_unsupported",
         "manual_item_unsupported",
@@ -6367,66 +6323,6 @@
         "collectedAt": { "type": "string", "format": "date-time" }
       }
     },
-    "AuditFindingAttempt": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "executionItemId",
-        "executionId",
-        "itemId",
-        "itemAttempt",
-        "role",
-        "workflowRole",
-        "state",
-        "runDeleted",
-        "task",
-        "itemOrigin",
-        "createdAt"
-      ],
-      "properties": {
-        "executionItemId": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
-        },
-        "executionId": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
-        },
-        "itemId": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
-        },
-        "itemAttempt": { "type": "integer", "minimum": 1, "maximum": 10 },
-        "role": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditExecutionRole"
-        },
-        "workflowRole": { "type": "string", "minLength": 1, "maxLength": 128 },
-        "state": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditExecutionItemState"
-        },
-        "collectionDisposition": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditCollectionDisposition"
-        },
-        "terminalOutcome": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditTerminalOutcome"
-        },
-        "runId": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
-        },
-        "runDeleted": { "type": "boolean" },
-        "runProvenance": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditRunProvenance"
-        },
-        "task": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditExactArtifact"
-        },
-        "itemOrigin": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditItemOrigin"
-        },
-        "result": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditExactArtifact"
-        },
-        "createdAt": { "type": "string", "format": "date-time" },
-        "collectedAt": { "type": "string", "format": "date-time" }
-      }
-    },
     "AuditItemOrigin": {
       "type": "object",
       "additionalProperties": false,
@@ -6529,7 +6425,8 @@
         "approvalKind",
         "attempts",
         "createdAt",
-        "updatedAt"
+        "updatedAt",
+        "findingIds"
       ],
       "properties": {
         "itemId": {
@@ -6579,7 +6476,15 @@
           }
         },
         "createdAt": { "type": "string", "format": "date-time" },
-        "updatedAt": { "type": "string", "format": "date-time" }
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "findingIds": {
+          "type": "array",
+          "maxItems": 130,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+          }
+        }
       }
     },
     "AuditItemPage": {
@@ -6740,7 +6645,8 @@
         "itemKey",
         "subjectKey",
         "coverage",
-        "updatedAt"
+        "updatedAt",
+        "findingIds"
       ],
       "properties": {
         "roundId": {
@@ -6763,7 +6669,15 @@
         "result": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditExactArtifact"
         },
-        "updatedAt": { "type": "string", "format": "date-time" }
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "findingIds": {
+          "type": "array",
+          "maxItems": 130,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+          }
+        }
       }
     },
     "AuditCoveragePage": {
@@ -7214,19 +7128,6 @@
         }
       }
     },
-    "FindingCorrelationReference": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["auditId", "findingId"],
-      "properties": {
-        "auditId": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
-        },
-        "findingId": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
-        }
-      }
-    },
     "FindingCorrelationBasis": {
       "type": "object",
       "additionalProperties": false,
@@ -7241,113 +7142,6 @@
         },
         "value": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
       }
-    },
-    "FindingCorrelation": {
-      "oneOf": [
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "schema",
-            "policyVersion",
-            "scope",
-            "projectRevision",
-            "availability",
-            "reason",
-            "automaticDuplicate",
-            "hasOtherObservations"
-          ],
-          "properties": {
-            "schema": {
-              "type": "string",
-              "const": "contractor.finding.correlation.v1"
-            },
-            "policyVersion": {
-              "type": "string",
-              "const": "qualified-snapshot/v1"
-            },
-            "scope": {
-              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingCorrelationScope"
-            },
-            "projectRevision": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 9007199254740991
-            },
-            "availability": { "type": "string", "const": "unavailable" },
-            "reason": {
-              "type": "string",
-              "enum": [
-                "not_recorded",
-                "no_qualified_key",
-                "primary_key_ambiguous"
-              ]
-            },
-            "automaticDuplicate": { "type": "boolean", "const": false },
-            "hasOtherObservations": { "type": "boolean", "const": false }
-          }
-        },
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "schema",
-            "policyVersion",
-            "scope",
-            "projectRevision",
-            "availability",
-            "groupKey",
-            "basis",
-            "matchedDomain",
-            "representative",
-            "automaticDuplicate",
-            "hasOtherObservations"
-          ],
-          "properties": {
-            "schema": {
-              "type": "string",
-              "const": "contractor.finding.correlation.v1"
-            },
-            "policyVersion": {
-              "type": "string",
-              "const": "qualified-snapshot/v1"
-            },
-            "scope": {
-              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingCorrelationScope"
-            },
-            "projectRevision": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 9007199254740991
-            },
-            "availability": { "type": "string", "const": "available" },
-            "groupKey": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
-            "basis": {
-              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingCorrelationBasis"
-            },
-            "matchedDomain": { "type": "string", "const": "snapshot" },
-            "representative": {
-              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingCorrelationReference"
-            },
-            "automaticDuplicate": { "type": "boolean" },
-            "hasOtherObservations": { "type": "boolean" }
-          },
-          "allOf": [
-            {
-              "if": {
-                "properties": {
-                  "automaticDuplicate": { "type": "boolean", "const": true }
-                }
-              },
-              "then": {
-                "properties": {
-                  "hasOtherObservations": { "type": "boolean", "const": true }
-                }
-              }
-            }
-          ]
-        }
-      ]
     },
     "FindingSubject": {
       "type": "object",
@@ -7851,7 +7645,8 @@
         "origin",
         "retention",
         "auditHolds",
-        "createdAt"
+        "createdAt",
+        "publicationRequested"
       ],
       "properties": {
         "receiptId": {
@@ -7882,7 +7677,7 @@
         },
         "retention": {
           "type": "string",
-          "enum": ["source-held", "audit-held", "discarded"]
+          "enum": ["source-held", "project-held", "discarded"]
         },
         "auditHolds": {
           "type": "array",
@@ -7891,7 +7686,28 @@
             "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingAuditHold"
           }
         },
-        "createdAt": { "type": "string", "format": "date-time" }
+        "createdAt": { "type": "string", "format": "date-time" },
+        "publicationRequested": { "type": "boolean" },
+        "publicationError": {
+          "type": "string",
+          "enum": ["problem_evidence_required", "problem_project_required"]
+        },
+        "projectId": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+        },
+        "findingId": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+        },
+        "projectProposal": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingExactArtifact"
+        },
+        "projectEvidence": {
+          "type": "array",
+          "maxItems": 256,
+          "items": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingExactArtifact"
+          }
+        }
       }
     },
     "FindingProposalPage": {
@@ -7935,103 +7751,21 @@
         "replayed": { "type": "boolean" }
       }
     },
-    "AuditFindingState": {
-      "type": "string",
-      "enum": [
-        "proposed",
-        "confirmed",
-        "rejected",
-        "duplicate",
-        "needs-evidence"
-      ]
-    },
-    "AuditFindingSeverity": {
-      "type": "string",
-      "enum": ["informational", "low", "medium", "high", "critical"]
-    },
-    "AuditAnalystVerdict": {
-      "type": "string",
-      "enum": [
-        "true_positive",
-        "false_positive",
-        "duplicate",
-        "reopen",
-        "needs_evidence"
-      ]
-    },
     "AuditReviewAction": {
       "type": "string",
       "enum": ["approve", "reject", "not_applicable"]
     },
     "AuditReviewRequestedAction": {
       "type": "string",
-      "enum": [
-        "true_positive",
-        "false_positive",
-        "duplicate",
-        "reopen",
-        "needs_evidence",
-        "approve",
-        "reject",
-        "not_applicable"
-      ]
+      "enum": ["approve", "reject", "not_applicable"]
     },
     "AuditReviewSubjectKind": {
       "type": "string",
-      "enum": ["finding", "audit-item-action", "audit-report"]
+      "enum": ["audit-item-action", "audit-report"]
     },
     "AuditReviewState": {
       "type": "string",
       "enum": ["pending", "decided", "expired"]
-    },
-    "AuditFindingAssessment": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "assessmentId",
-        "semanticAssessment",
-        "result",
-        "receiptId",
-        "directVerification",
-        "acceptedAt"
-      ],
-      "properties": {
-        "assessmentId": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
-        },
-        "semanticAssessment": {
-          "type": "string",
-          "enum": [
-            "supported",
-            "refuted",
-            "inconclusive",
-            "blocked",
-            "satisfied",
-            "violated",
-            "not-tested"
-          ]
-        },
-        "result": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditExactArtifact"
-        },
-        "receiptId": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
-        },
-        "itemId": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
-        },
-        "executionItemId": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
-        },
-        "collectionReceiptId": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
-        },
-        "directVerification": { "type": "boolean" },
-        "contract": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditExactArtifact"
-        },
-        "acceptedAt": { "type": "string", "format": "date-time" }
-      }
     },
     "AuditReviewDecision": {
       "type": "object",
@@ -8044,7 +7778,8 @@
         "rationale",
         "subjectRevision",
         "subjectDigest",
-        "createdAt"
+        "createdAt",
+        "action"
       ],
       "properties": {
         "decisionId": {
@@ -8056,27 +7791,15 @@
         "auditId": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
         },
-        "findingId": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
-        },
         "actorId": { "type": "string", "minLength": 1, "maxLength": 256 },
         "action": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditReviewAction"
-        },
-        "verdict": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditAnalystVerdict"
-        },
-        "severity": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditFindingSeverity"
         },
         "rationale": {
           "type": "string",
           "minLength": 1,
           "maxLength": 65536,
           "x-max-utf8-bytes": 65536
-        },
-        "duplicateTargetId": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
         },
         "subjectRevision": { "type": "integer", "minimum": 1 },
         "subjectDigest": {
@@ -8109,9 +7832,6 @@
         "auditId": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
         },
-        "findingId": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
-        },
         "subjectKind": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditReviewSubjectKind"
         },
@@ -8121,7 +7841,6 @@
         "kind": {
           "type": "string",
           "enum": [
-            "finding-triage",
             "active-check-approval",
             "requirement-applicability",
             "report-acceptance"
@@ -8147,64 +7866,6 @@
         "decision": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditReviewDecision"
         },
-        "createdAt": { "type": "string", "format": "date-time" },
-        "updatedAt": { "type": "string", "format": "date-time" }
-      }
-    },
-    "AuditFinding": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "findingId",
-        "auditId",
-        "state",
-        "firstProposal",
-        "revision",
-        "createdAt",
-        "updatedAt"
-      ],
-      "properties": {
-        "findingId": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
-        },
-        "auditId": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
-        },
-        "state": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditFindingState"
-        },
-        "rejectionReason": {
-          "type": "string",
-          "enum": ["false-positive", "policy", "out-of-scope"]
-        },
-        "duplicateTargetId": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
-        },
-        "firstProposal": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingProposalReceipt"
-        },
-        "fingerprint": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingFingerprintProjection"
-        },
-        "anchors": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingAnchorProjection"
-        },
-        "correlation": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingCorrelation"
-        },
-        "currentAssessment": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditFindingAssessment"
-        },
-        "analystDecision": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditReviewDecision"
-        },
-        "analystVerdict": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditAnalystVerdict"
-        },
-        "analystSeverity": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditFindingSeverity"
-        },
-        "revision": { "type": "integer", "minimum": 1 },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
       }
@@ -8259,7 +7920,7 @@
           "type": "array",
           "maxItems": 200,
           "items": {
-            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditFinding"
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ProjectFindingSummary"
           }
         },
         "page": {
@@ -8287,20 +7948,24 @@
     "AuditFindingPage": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["items", "page", "auditRevision", "asOf", "total"],
+      "required": ["items", "page", "auditRevision", "asOf", "projectRevision"],
       "properties": {
         "auditRevision": { "type": "integer", "minimum": 1 },
         "asOf": { "type": "string", "format": "date-time" },
-        "total": { "type": "integer", "minimum": 0 },
         "items": {
           "type": "array",
           "maxItems": 200,
           "items": {
-            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditFinding"
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ProjectFindingSummary"
           }
         },
         "page": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/PageInfo"
+        },
+        "projectRevision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
         }
       }
     },
@@ -8324,138 +7989,7 @@
         }
       }
     },
-    "AuditFindingProvenance": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "recordId",
-        "kind",
-        "receiptId",
-        "proposal",
-        "origin",
-        "supportsCurrentAssessment",
-        "createdAt"
-      ],
-      "properties": {
-        "recordId": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
-        },
-        "kind": {
-          "type": "string",
-          "enum": ["source-proposal", "check-attempt", "direct-verification"]
-        },
-        "receiptId": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
-        },
-        "relation": {
-          "type": "string",
-          "enum": ["first", "contributing", "verification"]
-        },
-        "proposal": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditExactArtifact"
-        },
-        "origin": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingOrigin"
-        },
-        "assessment": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditFindingAssessment"
-        },
-        "attempt": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditFindingAttempt"
-        },
-        "supportsCurrentAssessment": { "type": "boolean" },
-        "createdAt": { "type": "string", "format": "date-time" }
-      }
-    },
-    "AuditFindingProvenancePage": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["findingRevision", "auditRevision", "items", "page"],
-      "properties": {
-        "findingRevision": { "type": "integer", "minimum": 1 },
-        "auditRevision": { "type": "integer", "minimum": 1 },
-        "items": {
-          "type": "array",
-          "maxItems": 200,
-          "items": {
-            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditFindingProvenance"
-          }
-        },
-        "page": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/PageInfo"
-        }
-      }
-    },
-    "CreateAuditFindingReviewRequest": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": { "expiresAt": { "type": "string", "format": "date-time" } }
-    },
-    "DecideAuditFindingRequest": {
-      "oneOf": [
-        {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/DecideAuditFindingTruePositiveRequest"
-        },
-        {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/DecideAuditFindingDuplicateRequest"
-        },
-        {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/DecideAuditFindingOtherRequest"
-        }
-      ]
-    },
-    "DecideAuditFindingTruePositiveRequest": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["verdict", "severity", "rationale"],
-      "properties": {
-        "verdict": { "type": "string", "const": "true_positive" },
-        "severity": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditFindingSeverity"
-        },
-        "rationale": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 65536,
-          "x-max-utf8-bytes": 65536
-        }
-      }
-    },
-    "DecideAuditFindingDuplicateRequest": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["verdict", "duplicateTargetId", "rationale"],
-      "properties": {
-        "verdict": { "type": "string", "const": "duplicate" },
-        "duplicateTargetId": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
-        },
-        "rationale": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 65536,
-          "x-max-utf8-bytes": 65536
-        }
-      }
-    },
-    "DecideAuditFindingOtherRequest": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["verdict", "rationale"],
-      "properties": {
-        "verdict": {
-          "type": "string",
-          "enum": ["false_positive", "reopen", "needs_evidence"]
-        },
-        "rationale": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 65536,
-          "x-max-utf8-bytes": 65536
-        }
-      }
-    },
-    "DecideAuditActionRequest": {
+    "DecideAuditReviewRequest": {
       "type": "object",
       "additionalProperties": false,
       "required": ["action", "rationale"],
@@ -8471,34 +8005,7 @@
         }
       }
     },
-    "DecideAuditReviewRequest": {
-      "oneOf": [
-        {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/DecideAuditFindingRequest"
-        },
-        {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/DecideAuditActionRequest"
-        }
-      ]
-    },
-    "AuditFindingDecisionResult": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["finding", "request", "decision", "replayed"],
-      "properties": {
-        "finding": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditFinding"
-        },
-        "request": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditReviewRequest"
-        },
-        "decision": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditReviewDecision"
-        },
-        "replayed": { "type": "boolean" }
-      }
-    },
-    "AuditActionDecisionResult": {
+    "AuditReviewDecisionResult": {
       "type": "object",
       "additionalProperties": false,
       "required": ["request", "decision", "replayed"],
@@ -8511,16 +8018,6 @@
         },
         "replayed": { "type": "boolean" }
       }
-    },
-    "AuditReviewDecisionResult": {
-      "oneOf": [
-        {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditFindingDecisionResult"
-        },
-        {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditActionDecisionResult"
-        }
-      ]
     },
     "RuntimeInfrastructureId": {
       "type": "string",
@@ -13920,6 +13417,431 @@
           "items": {
             "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AllocationObservation"
           }
+        },
+        "page": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/PageInfo"
+        }
+      }
+    },
+    "FindingState": {
+      "type": "string",
+      "enum": [
+        "proposed",
+        "confirmed",
+        "rejected",
+        "duplicate",
+        "needs-evidence"
+      ]
+    },
+    "FindingSeverity": {
+      "type": "string",
+      "enum": ["informational", "low", "medium", "high", "critical"]
+    },
+    "FindingVerdict": {
+      "type": "string",
+      "enum": [
+        "true_positive",
+        "false_positive",
+        "duplicate",
+        "reopen",
+        "needs_evidence"
+      ]
+    },
+    "ProjectFinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "findingId",
+        "projectId",
+        "firstReceiptId",
+        "firstProposal",
+        "title",
+        "state",
+        "analystVerdict",
+        "analystSeverity",
+        "duplicateTargetId",
+        "rationale",
+        "actorId",
+        "assessedAt",
+        "revision",
+        "createdAt",
+        "updatedAt"
+      ],
+      "properties": {
+        "findingId": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+        },
+        "projectId": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+        },
+        "firstReceiptId": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+        },
+        "firstProposal": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingExactArtifact"
+        },
+        "title": { "type": "string", "minLength": 1, "maxLength": 65536 },
+        "claim": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingClaim"
+        },
+        "state": {
+          "oneOf": [
+            {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingState"
+            },
+            { "type": "null" }
+          ]
+        },
+        "analystVerdict": {
+          "oneOf": [
+            {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingVerdict"
+            },
+            { "type": "null" }
+          ]
+        },
+        "analystSeverity": {
+          "oneOf": [
+            {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingSeverity"
+            },
+            { "type": "null" }
+          ]
+        },
+        "duplicateTargetId": {
+          "oneOf": [
+            {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+            },
+            { "type": "null" }
+          ]
+        },
+        "rationale": {
+          "oneOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 65536,
+              "x-max-utf8-bytes": 65536
+            },
+            { "type": "null" }
+          ]
+        },
+        "actorId": {
+          "oneOf": [
+            {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+            },
+            { "type": "null" }
+          ]
+        },
+        "assessedAt": {
+          "oneOf": [
+            { "type": "string", "format": "date-time" },
+            { "type": "null" }
+          ]
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "FindingClaim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "title",
+        "description",
+        "subject",
+        "preconditions",
+        "standard_refs",
+        "severity_suggestion",
+        "limitations"
+      ],
+      "properties": {
+        "title": { "type": "string", "minLength": 1, "maxLength": 65536 },
+        "description": { "type": "string", "minLength": 1, "maxLength": 65536 },
+        "subject": {
+          "oneOf": [
+            {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingSubject"
+            },
+            { "type": "null" }
+          ]
+        },
+        "hypothesis": { "type": "string", "maxLength": 65536 },
+        "preconditions": {
+          "type": "array",
+          "maxItems": 512,
+          "items": { "type": "string", "maxLength": 65536 }
+        },
+        "standard_refs": {
+          "type": "array",
+          "maxItems": 512,
+          "items": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingStandardReference"
+          }
+        },
+        "severity_suggestion": {
+          "type": "string",
+          "enum": ["", "informational", "low", "medium", "high", "critical"]
+        },
+        "limitations": {
+          "type": "array",
+          "maxItems": 512,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1, "maxLength": 512 }
+        },
+        "locations": {
+          "type": "array",
+          "maxItems": 256,
+          "items": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingLocation"
+          }
+        },
+        "http_exchange": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingHTTPExchange"
+        }
+      }
+    },
+    "ProjectFindingSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "findingId",
+        "projectId",
+        "title",
+        "titleTruncated",
+        "state",
+        "analystVerdict",
+        "analystSeverity",
+        "duplicateTargetId",
+        "revision",
+        "createdAt",
+        "updatedAt"
+      ],
+      "properties": {
+        "findingId": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+        },
+        "projectId": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "x-max-utf8-bytes": 1024
+        },
+        "titleTruncated": { "type": "boolean" },
+        "state": {
+          "oneOf": [
+            {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingState"
+            },
+            { "type": "null" }
+          ]
+        },
+        "analystVerdict": {
+          "oneOf": [
+            {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingVerdict"
+            },
+            { "type": "null" }
+          ]
+        },
+        "analystSeverity": {
+          "oneOf": [
+            {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingSeverity"
+            },
+            { "type": "null" }
+          ]
+        },
+        "duplicateTargetId": {
+          "oneOf": [
+            {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+            },
+            { "type": "null" }
+          ]
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "ProjectFindingPage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["items", "projectRevision", "page"],
+      "properties": {
+        "items": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ProjectFindingSummary"
+          }
+        },
+        "projectRevision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "page": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/PageInfo"
+        }
+      }
+    },
+    "EditProjectFindingRequest": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["verdict", "severity", "rationale"],
+          "properties": {
+            "verdict": { "type": "string", "const": "true_positive" },
+            "severity": {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingSeverity"
+            },
+            "rationale": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 65536,
+              "x-max-utf8-bytes": 65536
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["verdict", "rationale"],
+          "properties": {
+            "verdict": {
+              "type": "string",
+              "enum": ["false_positive", "reopen", "needs_evidence"]
+            },
+            "rationale": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 65536,
+              "x-max-utf8-bytes": 65536
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["verdict", "duplicateTargetId", "rationale"],
+          "properties": {
+            "verdict": { "type": "string", "const": "duplicate" },
+            "duplicateTargetId": {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+            },
+            "rationale": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 65536,
+              "x-max-utf8-bytes": 65536
+            }
+          }
+        }
+      ]
+    },
+    "EditProjectFindingResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["finding", "replayed"],
+      "properties": {
+        "finding": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ProjectFinding"
+        },
+        "replayed": { "type": "boolean" }
+      }
+    },
+    "ProjectFindingSourcePreview": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "receiptId",
+        "proposalId",
+        "projectId",
+        "proposal",
+        "origin",
+        "evidenceCount",
+        "publicationRequested",
+        "createdAt"
+      ],
+      "properties": {
+        "receiptId": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+        },
+        "proposalId": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+        },
+        "projectId": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+        },
+        "findingId": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+        },
+        "proposal": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingExactArtifact"
+        },
+        "origin": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingOrigin"
+        },
+        "evidenceCount": { "type": "integer", "minimum": 0, "maximum": 256 },
+        "publicationRequested": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "ProjectFindingSourcePage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["items", "projectRevision", "page"],
+      "properties": {
+        "items": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ProjectFindingSourcePreview"
+          }
+        },
+        "projectRevision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "page": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/PageInfo"
+        }
+      }
+    },
+    "ProjectFindingSourceHistoryPage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["items", "projectRevision", "page"],
+      "properties": {
+        "items": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ArtifactMetadata"
+          }
+        },
+        "projectRevision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
         },
         "page": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/PageInfo"

@@ -1,7 +1,7 @@
 import { screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import type { AuditFinding } from "../../api/audits";
+import type { ProjectFinding } from "../../api/audits";
 import { FindingSummary } from "./finding-summary";
 import { AUDIT_ID, DIGEST, makeFinding, NOW } from "./test-support";
 import { fakeServer } from "../../test/fake-server";
@@ -22,7 +22,7 @@ const DESCRIPTION = [
   "Scope the query to the caller.",
 ].join("\n");
 
-function detailedFinding(overrides: Partial<AuditFinding> = {}): AuditFinding {
+function detailedFinding(overrides: Partial<ProjectFinding> = {}): ProjectFinding {
   const finding = makeFinding(
     {
       currentAssessment: {

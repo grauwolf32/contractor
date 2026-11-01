@@ -103,13 +103,11 @@ type RoundResultAttachment struct {
 }
 
 type RoundResultFinding struct {
-	FindingID          string  `json:"finding_id" strictjson:"required"`
-	Revision           uint64  `json:"revision" strictjson:"required"`
-	State              string  `json:"state" strictjson:"required"`
-	AssessmentID       *string `json:"assessment_id,omitempty"`
-	SemanticAssessment *string `json:"semantic_assessment,omitempty"`
-	DecisionID         *string `json:"decision_id,omitempty"`
-	Verdict            *string `json:"verdict,omitempty"`
+	FindingID string  `json:"finding_id" strictjson:"required"`
+	ProjectID string  `json:"project_id" strictjson:"required"`
+	Revision  uint64  `json:"revision" strictjson:"required"`
+	State     *string `json:"state" strictjson:"required"`
+	Verdict   *string `json:"verdict" strictjson:"required"`
 }
 
 // RoundResultsConsumer is a derived Run-local descriptor. The accepted source
@@ -224,7 +222,7 @@ func ValidateRoundResultsPage(value RoundResultsPage) error {
 			}
 		}
 		for _, finding := range item.Findings {
-			if finding.FindingID == "" || finding.Revision == 0 || finding.State == "" {
+			if finding.FindingID == "" || finding.ProjectID == "" || finding.Revision == 0 {
 				return invalid(CodeInvalid, "round_results_page.findings")
 			}
 		}

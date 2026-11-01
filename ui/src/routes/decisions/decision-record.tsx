@@ -28,15 +28,6 @@ export function DecisionRecord({
           <RecordedTime value={decision.createdAt} />
         </span>
       </p>
-      {decision.duplicateTargetId === undefined ? null : (
-        <p className="decisions-record-line">
-          Duplicate of{" "}
-          <IdChip
-            value={decision.duplicateTargetId}
-            label="ID of the original possible issue"
-          />
-        </p>
-      )}
       <div className="decisions-record-reason">
         <span className="decisions-record-label">Why</span>
         <DecisionMarkdown source={decision.rationale} />

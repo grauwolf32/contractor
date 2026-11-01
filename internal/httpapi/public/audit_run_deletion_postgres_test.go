@@ -95,7 +95,7 @@ func TestPublicAuditSourceRunDeletionInvalidatesReadContexts(t *testing.T) {
 		if _, _, err := auditstoretest.NewStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{
 			AuditID: auditID, OwnerID: auditOwner, ProjectID: destination,
 			Profile:         auditstore.ProfileIdentity{Name: "profile", Version: "1", Digest: auditHandlerDigest("profile")},
-			ProfileSnapshot: json.RawMessage(`{"interaction":{"findingConfirmation":"human-required"}}`), InputSelection: selection,
+			ProfileSnapshot: json.RawMessage(`{"interaction":{}}`), InputSelection: selection,
 			Limits:         auditstore.Limits{MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: 100, MaxItemsTotal: 100, MaxSubmittedRuns: 100, MaxItemRunAttempts: 2, MaxEvidenceBytes: 1 << 20},
 			IdempotencyKey: auditID, RequestDigest: auditHandlerDigest(auditID),
 		}); err != nil {

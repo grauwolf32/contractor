@@ -1,6 +1,6 @@
 import type {
-  AuditFindingSeverity,
-  AuditFindingState,
+  FindingSeverity,
+  FindingState,
   FindingPageRequest,
 } from "../../../api/audits";
 import {
@@ -10,7 +10,7 @@ import {
 } from "../../../app/vocabulary";
 
 /** Analyst severities, most severe first, for filters. */
-const FINDING_SEVERITIES: readonly AuditFindingSeverity[] = [
+const FINDING_SEVERITIES: readonly FindingSeverity[] = [
   "critical",
   "high",
   "medium",
@@ -19,7 +19,7 @@ const FINDING_SEVERITIES: readonly AuditFindingSeverity[] = [
 ];
 
 /** Possible issue states in display order: what needs review first. */
-export const FINDING_STATES: readonly AuditFindingState[] = [
+export const FINDING_STATES: readonly FindingState[] = [
   "proposed",
   "confirmed",
   "rejected",
@@ -36,13 +36,13 @@ const VERDICT_FILTERS: readonly VerdictFilter[] = [
   "false_positive",
 ];
 
-export function isFindingState(value: string): value is AuditFindingState {
+export function isFindingState(value: string): value is FindingState {
   return (FINDING_STATES as readonly string[]).includes(value);
 }
 
 export function isFindingSeverity(
   value: string,
-): value is AuditFindingSeverity {
+): value is FindingSeverity {
   return (FINDING_SEVERITIES as readonly string[]).includes(value);
 }
 

@@ -25,15 +25,13 @@ SELECT CASE WHEN EXISTS(SELECT 1 FROM weighted WHERE cumulative>$2) THEN $2
  ELSE COALESCE((SELECT sum(work) FROM deleted),0)::integer END`
 
 var purgeAuditDomainSQL = []string{
+ `WITH batch AS (SELECT audit_id,finding_id FROM project_finding_audits WHERE audit_id=$1 ORDER BY finding_id LIMIT LEAST($2,128))
+ DELETE FROM project_finding_audits AS membership USING batch WHERE membership.audit_id=batch.audit_id AND membership.finding_id=batch.finding_id`,
 	`WITH batch AS (
   SELECT ctid FROM audit_round_result_pages WHERE audit_id = $1 LIMIT $2
 )
 DELETE FROM audit_round_result_pages AS target USING batch WHERE target.ctid = batch.ctid`,
-	`WITH batch AS (
-  SELECT ctid FROM audit_findings WHERE audit_id = $1 AND (current_assessment_id IS NOT NULL OR current_decision_id IS NOT NULL OR duplicate_target_id IS NOT NULL) LIMIT $2
-)
-UPDATE audit_findings AS target SET state = 'proposed', rejection_reason = NULL, duplicate_target_id = NULL, current_assessment_id = NULL, current_decision_id = NULL
-FROM batch WHERE target.ctid = batch.ctid`,
+
 	`WITH batch AS (
   SELECT ctid FROM audit_items WHERE audit_id = $1 AND (last_execution_item_id IS NOT NULL) LIMIT $2
 )
@@ -47,18 +45,7 @@ DELETE FROM audit_review_decisions AS target USING batch WHERE target.ctid = bat
   SELECT ctid FROM audit_review_requests WHERE audit_id = $1 LIMIT $2
 )
 DELETE FROM audit_review_requests AS target USING batch WHERE target.ctid = batch.ctid`,
-	`WITH batch AS (
-  SELECT ctid FROM audit_finding_assessments WHERE audit_id = $1 LIMIT $2
-)
-DELETE FROM audit_finding_assessments AS target USING batch WHERE target.ctid = batch.ctid`,
-	`WITH batch AS (
-  SELECT ctid FROM audit_finding_contributions WHERE audit_id = $1 LIMIT $2
-)
-DELETE FROM audit_finding_contributions AS target USING batch WHERE target.ctid = batch.ctid`,
-	`WITH batch AS (
-  SELECT ctid FROM audit_findings WHERE audit_id = $1 LIMIT $2
-)
-DELETE FROM audit_findings AS target USING batch WHERE target.ctid = batch.ctid`,
+
 	`WITH batch AS (
   SELECT ctid FROM audit_execution_items WHERE audit_id = $1 LIMIT $2
 )

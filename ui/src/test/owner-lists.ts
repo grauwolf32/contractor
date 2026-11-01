@@ -1,4 +1,4 @@
-import type { Audit, AuditFinding, AuditReviewRequest } from "../api/audits";
+import type { Audit, ProjectFinding, AuditReviewRequest } from "../api/audits";
 import type { Project } from "../api/projects";
 import type { FakeCall, Routes } from "./fake-server";
 import { json } from "./responses";
@@ -6,7 +6,7 @@ import { json } from "./responses";
 export interface OwnerListData {
   projects: Project[];
   audits: Audit[];
-  findings?: AuditFinding[];
+  findings?: ProjectFinding[];
   reviews?: AuditReviewRequest[];
 }
 

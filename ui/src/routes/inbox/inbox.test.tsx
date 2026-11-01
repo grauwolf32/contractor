@@ -4,8 +4,8 @@ import { describe, expect, it, onTestFinished } from "vitest";
 
 import type {
   Audit,
-  AuditAnalystVerdict,
-  AuditFinding,
+  FindingVerdict,
+  ProjectFinding,
   AuditItem,
   AuditReport,
   AuditReviewAction,
@@ -54,8 +54,8 @@ function finding(
   findingId: string,
   title: string,
   minutes: number,
-  document: Partial<AuditFinding["firstProposal"]["document"]> = {},
-): AuditFinding {
+  document: Partial<ProjectFinding["firstProposal"]["document"]> = {},
+): ProjectFinding {
   return build.finding(
     auditId,
     findingId,
@@ -148,7 +148,7 @@ interface InboxServer {
   projects: Project[];
   audits: Record<string, Audit[]>;
   /** Possible issues in state `proposed`, by check. */
-  findings: Record<string, AuditFinding[]>;
+  findings: Record<string, ProjectFinding[]>;
   /** Pending review requests, by check. */
   reviews: Record<string, AuditReviewRequest[]>;
   reports: Record<string, AuditReport>;
@@ -345,7 +345,7 @@ const CHECK_PAGE = { auditRevision: 1, asOf: ago(1) };
 /** A decision the Server records, by action or verdict. */
 interface DecisionBody {
   action?: AuditReviewAction;
-  verdict?: AuditAnalystVerdict;
+  verdict?: FindingVerdict;
   rationale: string;
 }
 
@@ -413,7 +413,7 @@ async function decide(
 }
 
 /** The triage request the page opens to decide on a possible issue. */
-function triageRequest(subject: AuditFinding): AuditReviewRequest {
+function triageRequest(subject: ProjectFinding): AuditReviewRequest {
   return build.review(
     subject.auditId,
     `review_${subject.findingId}`,

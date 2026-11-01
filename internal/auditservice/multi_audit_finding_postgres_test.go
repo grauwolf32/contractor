@@ -33,7 +33,7 @@ func TestAuditSameReceiptHasIndependentAnalystDecisions(t *testing.T) {
 		if _, _, err := auditstoretest.NewStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{
 			AuditID: auditID, OwnerID: ownerID, ProjectID: projectID,
 			Profile:         auditstore.ProfileIdentity{Name: "finding-review", Version: "1", Digest: serviceTestDigest("profile")},
-			ProfileSnapshot: json.RawMessage(`{"interaction":{"findingConfirmation":"human-required"}}`), InputSelection: json.RawMessage(`{}`),
+			ProfileSnapshot: json.RawMessage(`{"interaction":{}}`), InputSelection: json.RawMessage(`{}`),
 			Limits:         auditstore.Limits{MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: 1, MaxItemsTotal: 1, MaxSubmittedRuns: 1, MaxItemRunAttempts: 1, MaxEvidenceBytes: 1 << 20},
 			IdempotencyKey: auditID, RequestDigest: serviceTestDigest(auditID),
 		}); err != nil {

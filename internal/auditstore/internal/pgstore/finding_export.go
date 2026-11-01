@@ -3,6 +3,7 @@ package pgstore
 import (
 	"context"
 	"errors"
+
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/jackc/pgx/v5"
@@ -25,11 +26,11 @@ func (s *QueryStore) FindingExportScope(ctx context.Context, ownerID, auditID st
 
 // ExportFindings reads only explicitly selected findings in one statement. The
 // caller checks missing identities/revisions before expanding contributions.
-func (s *QueryStore) ExportFindings(ctx context.Context, ownerID, auditID string, ids []string) (map[string]auditstore.FindingRecord, error) {
+func (s *QueryStore) ExportFindings(ctx context.Context, ownerID, auditID string, ids []string) (map[string]auditstore.ProjectFinding, error) {
 	if len(ids) > auditdomain.MaximumCollectionEntries {
 		return nil, auditstore.ErrInvalid
 	}
-	result := make(map[string]auditstore.FindingRecord, len(ids))
+	result := make(map[string]auditstore.ProjectFinding, len(ids))
 	if len(ids) == 0 {
 		return result, nil
 	}
@@ -39,7 +40,7 @@ func (s *QueryStore) ExportFindings(ctx context.Context, ownerID, auditID string
 	}
 	defer rows.Close()
 	for rows.Next() {
-		value, err := scanFindingRecord(rows)
+		value, err := scanProjectFinding(rows)
 		if err != nil {
 			return nil, err
 		}

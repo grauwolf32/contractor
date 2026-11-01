@@ -4,7 +4,7 @@
 import type {
   Audit,
   AuditCoverageRow,
-  AuditFinding,
+  ProjectFinding,
   AuditItem,
   AuditReviewRequest,
   AuditState,
@@ -180,8 +180,8 @@ export function makeFinding(
   findingId: string,
   title: string,
   subjectKey: string | null,
-  overrides: Partial<AuditFinding> = {},
-): AuditFinding {
+  overrides: Partial<ProjectFinding> = {},
+): ProjectFinding {
   const finding = build.finding(
     auditId,
     findingId,

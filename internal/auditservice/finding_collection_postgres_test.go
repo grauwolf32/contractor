@@ -325,7 +325,7 @@ func TestFindingCollectionAuditContributionsAndPinnedReview(t *testing.T) {
 	}
 	if _, _, err := auditstoretest.NewStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{
 		AuditID: auditID, OwnerID: owner, ProjectID: projectID, Profile: auditstore.ProfileIdentity{Name: "review", Version: "1", Digest: serviceTestDigest("profile")},
-		ProfileSnapshot: json.RawMessage(`{"interaction":{"findingConfirmation":"human-required"}}`), InputSelection: json.RawMessage(`{}`),
+		ProfileSnapshot: json.RawMessage(`{"interaction":{}}`), InputSelection: json.RawMessage(`{}`),
 		Limits:         auditstore.Limits{MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: 2, MaxItemsTotal: 2, MaxSubmittedRuns: 2, MaxItemRunAttempts: 1, MaxEvidenceBytes: 1 << 20},
 		IdempotencyKey: "audit", RequestDigest: serviceTestDigest("audit"),
 	}); err != nil {

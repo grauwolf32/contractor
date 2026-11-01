@@ -374,7 +374,7 @@ function Attention({
 }) {
   const heading = useId();
   const items = waiting.data?.items ?? [];
-  const proposed = issues.checks
+  const proposed = issues.items
     .flatMap(({ audit, items }) => items.map((finding) => ({ audit, finding })))
     .slice(0, 3);
   const failed = waiting.error !== null && waiting.data === undefined;
@@ -430,7 +430,7 @@ function Attention({
               returnLabel="Project Overview"
               to={`/issues/${encodeURIComponent(audit.auditId)}/${encodeURIComponent(finding.findingId)}`}
             >
-              {finding.firstProposal.document.title}
+              {finding.title}
             </ContextLink>
             <span>Needs review</span>
             <span className="projects-attention-origin">
@@ -456,7 +456,7 @@ export function ProjectOverview({ project }: { project: Project }) {
   const checks = useProjectChecks(projectId);
   const checkItems = checks.data?.items ?? NO_CHECKS;
   const waiting = useWaitingChecks(projectId);
-  const issues = usePossibleIssuesToReview(checkItems);
+  const issues = usePossibleIssuesToReview(projectId);
   const runs = useRecentRuns(projectId);
   const results = useSuccessfulRuns(projectId);
   const materials = useMaterialsSample(projectId);
@@ -522,7 +522,7 @@ export function ProjectOverview({ project }: { project: Project }) {
             <ProjectTimeline
               project={project}
               checks={checkItems}
-              issues={issues.checks}
+              issues={issues.items}
               runs={runs.data?.items ?? []}
               materials={materials.items}
               filter={timelineFilter}

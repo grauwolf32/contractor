@@ -91,7 +91,7 @@ func eventSummaryEnum(key, value string) bool {
 	case "subjectKind":
 		return auditstore.ReviewSubjectKind(value).Valid()
 	case "kind":
-		return value == auditstore.FindingReviewKind || value == auditstore.ReportAcceptanceReviewKind || auditstore.ItemApprovalKind(value).Valid()
+		return value == auditstore.ReportAcceptanceReviewKind || auditstore.ItemApprovalKind(value).Valid()
 	case "verdict":
 		return auditstore.AnalystVerdict(value).Valid()
 	case "action":

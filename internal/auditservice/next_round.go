@@ -38,9 +38,6 @@ func (s *Service) PrepareNextRound(
 		profile.Ref.Version != snapshot.Audit.Profile.Version || profile.Ref.Digest != snapshot.Audit.Profile.Digest {
 		return auditstore.AcceptRoundParams{}, nil, inconsistentRound("the pinned AuditProfile snapshot is invalid", err)
 	}
-	if profile.Interaction.FindingConfirmation == auditprofile.AuditFindingDisabled {
-		return auditstore.AcceptRoundParams{}, nil, nil
-	}
 	baseline, err := DecodeBaseline(snapshot.Audit.BaselineSnapshot)
 	if err != nil {
 		return auditstore.AcceptRoundParams{}, nil, inconsistentRound("the pinned Audit baseline is invalid", err)

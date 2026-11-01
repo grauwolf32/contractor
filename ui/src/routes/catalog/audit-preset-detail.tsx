@@ -67,12 +67,7 @@ const ACTIVE_TESTS: Readonly<
   "approval-required": "Use project setting",
 };
 
-const POSSIBLE_ISSUES: Readonly<
-  Record<AuditProfile["interaction"]["findingConfirmation"], string>
-> = {
-  "human-required": "You confirm each one",
-  disabled: "Not proposed",
-};
+
 
 const NOT_APPLICABLE: Readonly<
   Record<AuditProfile["interaction"]["notApplicable"], string>
@@ -363,10 +358,6 @@ function CheckTypeContents({ profile }: { profile: AuditProfile }) {
           {
             term: "Active tests",
             value: wordOf(ACTIVE_TESTS, interaction.activeChecks),
-          },
-          {
-            term: "Possible issues",
-            value: wordOf(POSSIBLE_ISSUES, interaction.findingConfirmation),
           },
           {
             term: "Applicability",

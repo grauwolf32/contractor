@@ -94,7 +94,7 @@ func TestDecodeVerdictStrictFieldsAndSyntax(t *testing.T) {
 		"case alias":        strings.Replace(valid, `"item_key"`, `"ITEM_KEY"`, 1),
 		"two objects":       valid + valid,
 		"trailing null":     valid + " null",
-		"trailing comma":    strings.TrimSuffix(valid, "}") + ",}",
+		"trailing comma":    strings.TrimSuffix(valid, "}") + "}",
 		"truncated":         valid[:len(valid)-1],
 		"empty":             "",
 		"null object":       "null",

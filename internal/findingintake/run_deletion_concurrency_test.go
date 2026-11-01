@@ -62,7 +62,7 @@ func TestPostgresFindingImportSerializesWithRunDeletion(t *testing.T) {
 		awaitDeletionOperation(t, f.ctx, imported)
 		awaitDeletionOperation(t, f.ctx, deleted)
 		receipt, err := f.intake.GetAuditReceipt(f.ctx, f.request.OwnerID, f.request.AuditID, f.receiptID)
-		if err != nil || !receipt.Origin.RunDeleted || receipt.Retention != RetentionAuditHeld ||
+		if err != nil || !receipt.Origin.RunDeleted || receipt.Retention != RetentionProjectHeld ||
 			len(receipt.AuditHolds) != 1 || receipt.Document.ClientKey != "candidate" || !receipt.Proposal.Ref.SameExact(f.request.Proposal) {
 			t.Fatalf("retained import after deletion = %+v, %v", receipt, err)
 		}
@@ -130,7 +130,7 @@ func TestPostgresFindingImportSerializesWithRunDeletion(t *testing.T) {
 				awaitDeletionOperation(t, f.ctx, imported)
 			}
 			receipt, err := intake.GetAuditReceipt(f.ctx, f.request.OwnerID, f.request.AuditID, f.receiptID)
-			if err != nil || receipt.Origin.RunDeleted || receipt.Retention != RetentionAuditHeld || len(receipt.AuditHolds) != 1 {
+			if err != nil || receipt.Origin.RunDeleted || receipt.Retention != RetentionProjectHeld || len(receipt.AuditHolds) != 1 {
 				t.Fatalf("import after rollback = %+v, %v", receipt, err)
 			}
 			audit, err := auditstoretest.NewStore(f.pool).WithPurgeDependencies(DeleteAuditHoldsBatch).Get(f.ctx, f.request.OwnerID, f.request.AuditID)
@@ -242,7 +242,7 @@ func newFindingImportFixture(t *testing.T, direct bool) deletionImportFixture {
 	if _, _, err := auditstoretest.NewStore(pool).WithPurgeDependencies(DeleteAuditHoldsBatch).CreateDraft(ctx, auditstore.CreateDraftParams{
 		AuditID: auditID, OwnerID: owner, ProjectID: projectID,
 		Profile:         auditstore.ProfileIdentity{Name: "profile", Version: "1", Digest: auditdomain.DigestBytes([]byte("profile"))},
-		ProfileSnapshot: json.RawMessage(`{"interaction":{"findingConfirmation":"human-required"}}`), InputSelection: json.RawMessage(`{}`),
+		ProfileSnapshot: json.RawMessage(`{"interaction":{}}`), InputSelection: json.RawMessage(`{}`),
 		Limits: auditstore.Limits{MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: 100, MaxItemsTotal: 100,
 			MaxSubmittedRuns: 100, MaxItemRunAttempts: 1, MaxEvidenceBytes: 1 << 20},
 		IdempotencyKey: "audit", RequestDigest: auditdomain.DigestBytes([]byte("audit")),
@@ -308,7 +308,7 @@ func newFindingImportFixture(t *testing.T, direct bool) deletionImportFixture {
 		t.Fatal(err)
 	}
 	if err := persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		return insertReceipt(ctx, tx, receiptID, "proposal", canonical, fingerprint, proposal, []ExactArtifact{}, origin, owner, &project, grant)
+		return insertReceipt(ctx, tx, receiptID, "proposal", canonical, fingerprint, proposal, []ExactArtifact{}, origin, owner, &project, grant, nil, nil, "")
 	}); err != nil {
 		t.Fatal(err)
 	}

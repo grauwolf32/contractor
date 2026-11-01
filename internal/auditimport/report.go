@@ -88,29 +88,9 @@ type reportItem struct {
 	Task             auditstore.ExactArtifact    `json:"task"`
 }
 
-type reportFindingDecision struct {
-	DecisionID      string    `json:"decisionId"`
-	ActorID         string    `json:"actorId"`
-	Verdict         string    `json:"verdict"`
-	Severity        *string   `json:"severity,omitempty"`
-	Rationale       string    `json:"rationale"`
-	SubjectRevision uint64    `json:"subjectRevision"`
-	SubjectDigest   string    `json:"subjectDigest"`
-	CreatedAt       time.Time `json:"createdAt"`
-}
-
-type reportFindingAssessment struct {
-	AssessmentID       string                    `json:"assessmentId"`
-	SemanticAssessment string                    `json:"semanticAssessment"`
-	Result             auditstore.ExactArtifact  `json:"result"`
-	DirectVerification bool                      `json:"directVerification"`
-	Contract           *auditstore.ExactArtifact `json:"contract,omitempty"`
-	AcceptedAt         time.Time                 `json:"acceptedAt"`
-}
-
 type reportFinding struct {
 	FindingID          string                           `json:"findingId"`
-	State              string                           `json:"state"`
+	State              *auditstore.FindingState         `json:"state"`
 	Revision           uint64                           `json:"revision"`
 	FirstProposal      auditstore.ExactArtifact         `json:"firstProposal"`
 	Title              string                           `json:"title"`
@@ -123,8 +103,12 @@ type reportFinding struct {
 	SeveritySuggestion string                           `json:"severitySuggestion,omitempty"`
 	StandardRefs       []auditdomain.StandardReference  `json:"standardRefs"`
 	Limitations        []string                         `json:"limitations"`
-	Assessment         *reportFindingAssessment         `json:"assessment,omitempty"`
-	AnalystDecision    *reportFindingDecision           `json:"analystDecision,omitempty"`
+	ProjectID          string                           `json:"projectId"`
+	AnalystVerdict     *auditstore.AnalystVerdict       `json:"analystVerdict"`
+	AnalystSeverity    *auditstore.FindingSeverity      `json:"analystSeverity"`
+	Rationale          *string                          `json:"rationale"`
+	ActorID            *string                          `json:"actorId"`
+	AssessedAt         *time.Time                       `json:"assessedAt"`
 	DuplicateTargetID  *string                          `json:"duplicateTargetId,omitempty"`
 }
 

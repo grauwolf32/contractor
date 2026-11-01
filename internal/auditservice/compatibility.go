@@ -17,7 +17,6 @@ var reasonOrder = []CompatibilityReason{
 	ReasonAutomaticActiveChecksUnsupported,
 	ReasonProjectActiveChecksProhibited,
 	ReasonActiveCheckApprovalUnsupported,
-	ReasonFindingConfirmationUnsupported,
 	ReasonManualApplicabilityUnsupported,
 	ReasonReportAcceptanceUnsupported,
 	ReasonManualItemUnsupported,
@@ -37,9 +36,6 @@ func ProfileCompatibility(profile auditprofile.ResolvedAuditProfile) Compatibili
 		if profileSelectsClassifiedTool(profile, true) {
 			reasons[ReasonAutomaticActiveChecksUnsupported] = struct{}{}
 		}
-	}
-	if profile.Interaction.FindingConfirmation == auditprofile.AuditFindingDisabled && profileCanEmitFindings(profile) {
-		reasons[ReasonFindingConfirmationUnsupported] = struct{}{}
 	}
 	ordered := orderedReasons(reasons)
 	return Compatibility{
@@ -84,23 +80,6 @@ func profileSelectsClassifiedTool(profile auditprofile.ResolvedAuditProfile, act
 
 func workflowRoleSelectsClassifiedTool(profile auditprofile.ResolvedAuditProfile, workflowRole string, active bool) bool {
 	return auditprofile.WorkflowRoleSelectsClassifiedTool(profile, workflowRole, active)
-}
-
-func profileCanEmitFindings(profile auditprofile.ResolvedAuditProfile) bool {
-	if profileSelectsClassifiedTool(profile, false) {
-		return true
-	}
-	for _, binding := range profile.Workflows {
-		for logical := range binding.Outputs {
-			// "proposals" is the reserved Audit-profile output surface from
-			// section 6 of the contract. Do not infer authority from arbitrary
-			// substrings chosen by an operator.
-			if logical == "proposals" {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 func orderedReasons(source map[CompatibilityReason]struct{}) []CompatibilityReason {

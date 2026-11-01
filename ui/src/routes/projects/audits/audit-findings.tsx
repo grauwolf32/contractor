@@ -98,112 +98,13 @@ function SectionHead({
  * the `?review=` it was opened for). A review that no longer matches the
  * possible issue's revision blocks deciding until the context is refreshed.
  */
-function ExactFinding({
-  audit,
-  findingId,
-  reviewId,
-}: {
-  audit: Audit;
-  findingId: string;
-  reviewId: string | null;
-}) {
-  const api = usePublicAPI();
-  const queryClient = useQueryClient();
-  const headingId = useId();
-  const back = useListLocation();
-  const finding = useQuery({
-    queryKey: queryKeys.issues.finding(audit.auditId, findingId),
-    queryFn: () => getAuditFinding(api, audit.auditId, findingId),
-  });
-  const review = useQuery({
-    queryKey: queryKeys.issues.review(audit.auditId, reviewId ?? ""),
-    queryFn: () => getAuditReview(api, audit.auditId, reviewId ?? ""),
-    enabled: reviewId !== null,
-  });
-  const refresh = () =>
-    void queryClient.invalidateQueries({
-      queryKey: queryKeys.audits.detail(audit.auditId),
-    });
-  const head = <SectionHead audit={audit} headingId={headingId} back={back} />;
-  let content: ReactNode;
-  if (finding.error !== null || review.error !== null)
-    content = (
-      <AuditQueueError
-        error={(finding.error ?? review.error) as Error}
-        onRefresh={refresh}
-      />
-    );
-  else if (finding.isPending || (reviewId !== null && review.isPending))
-    content = (
-      <p className="ui-caption" role="status">
-        Loading the possible issue and its review…
-      </p>
-    );
-  else {
-    const requested = review.data;
-    const stale =
-      requested !== undefined &&
-      (requested.subjectKind !== "finding" ||
-        requested.findingId !== findingId ||
-        (requested.state === "pending" &&
-          requested.subjectRevision !== finding.data.revision));
-    content = (
-      <>
-        {stale ? (
-          <div className="issues-notice" data-tone="warning" role="alert">
-            <p>
-              The requested review no longer matches this possible issue&apos;s
-              current version. Refresh the context before making a decision.
-            </p>
-            <div className="issues-notice-actions">
-              <Button size="xs" onClick={refresh}>
-                Refresh context
-              </Button>
-            </div>
-          </div>
-        ) : null}
-        <p className="issues-section-note">
-          <Link
-            to={issueHref(finding.data, {
-              state: "all",
-              project: audit.projectId,
-            })}
-          >
-            Open in Issues
-          </Link>
-        </p>
-        <AuditFindingCard
-          audit={audit}
-          finding={finding.data}
-          pendingReview={
-            !stale && requested?.state === "pending" ? requested : undefined
-          }
-          reviewError={
-            stale
-              ? new Error(
-                  "Deciding is closed until the context is refreshed: the requested review changed.",
-                )
-              : null
-          }
-        />
-      </>
-    );
-  }
-  return (
-    <section className="issues-section" aria-labelledby={headingId}>
-      <AuditAnchor ready={finding.data !== undefined} />
-      {head}
-      {content}
-    </section>
-  );
+function ExactFinding({audit,findingId}:{audit:Audit;findingId:string}) {
+ const api=usePublicAPI();const finding=useQuery({queryKey:["project-findings",audit.projectId,findingId],queryFn:()=>getAuditFinding(api,audit.auditId,findingId),retry:false});
+ if(finding.error!==null)return <p role="alert">{finding.error.message}</p>;
+ if(finding.data===undefined)return <p role="status">Loading possible issue…</p>;
+ return <><p><Link to={issueHref(finding.data,{state:"all",project:audit.projectId})}>Open in Issues</Link></p><AuditFindingCard audit={audit} finding={finding.data}/></>;
 }
 
-/**
- * The check's possible issues, filtered on the Server by state, decision
- * and the analyst's severity, one page at a time pinned to the check's
- * revision. Each row opens the possible issue on the Issues destination;
- * `?finding=` shows one in full here.
- */
 export function AuditFindings({ audit }: { audit: Audit }) {
   return <AuditFindingList key={audit.auditId} audit={audit} />;
 }
@@ -248,7 +149,6 @@ function AuditFindingList({ audit }: { audit: Audit }) {
       <ExactFinding
         audit={audit}
         findingId={exactId}
-        reviewId={queue.params.get("review")}
       />
     );
   return (
@@ -349,7 +249,7 @@ function AuditFindingList({ audit }: { audit: Audit }) {
                       exporter.open ? (
                         <input
                           type="checkbox"
-                          aria-label={`Select ${finding.firstProposal.document.title} for export`}
+                          aria-label={`Select ${finding.title} for export`}
                           checked={exporter.selected.has(finding.findingId)}
                           disabled={
                             exporter.busy ||

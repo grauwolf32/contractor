@@ -6,6 +6,7 @@ package auditstore
 // checked against, linked to the Audit under their logical keys, and the
 // evidence bytes they retain.
 type DirectFindingAssessment struct {
+	ProjectID          string
 	AuditID            string
 	ReceiptID          string
 	AssessmentID       string

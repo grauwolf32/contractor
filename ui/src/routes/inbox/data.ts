@@ -30,7 +30,7 @@ import {
 import {
   getAuditReport,
   getAuditWorkspace,
-  type AuditFindingState,
+  type FindingState,
   type AuditItem,
   type AuditReport,
   type AuditReviewRequest,
@@ -85,7 +85,7 @@ import {
 
 const POLL_MS = CROSS_PROJECT_LIMITS.pollMs;
 
-const PROPOSED: readonly AuditFindingState[] = ["proposed"];
+const PROPOSED: readonly FindingState[] = ["proposed"];
 
 /** Decisions beyond triaging a possible issue: the Inbox lists all three. */
 const DECISION_KINDS: readonly AuditReviewRequest["kind"][] = [
@@ -283,7 +283,7 @@ export function useInboxData(): InboxData {
   const summary = useInboxSummary();
   const issues = useAllPossibleIssues({
     checkStates: INBOX_CHECK_STATES,
-    states: PROPOSED,
+    verdicts: ["unreviewed"],
   });
   const decisions = usePendingDecisions({
     checkStates: INBOX_CHECK_STATES,

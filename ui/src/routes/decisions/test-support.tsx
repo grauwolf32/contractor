@@ -1,7 +1,7 @@
 // Fixtures for the decision component tests, built on the shared,
 // schema-checked builders in src/test.
 import type {
-  AuditFinding,
+  ProjectFinding,
   AuditReport,
   AuditReviewRequest,
 } from "../../api/audits";
@@ -14,9 +14,9 @@ export const { DIGEST, NOW } = build;
 
 /** A possible issue of AUDIT_ID at revision 3 unless overridden. */
 export function makeFinding(
-  overrides: Partial<AuditFinding> = {},
-  document: Partial<AuditFinding["firstProposal"]["document"]> = {},
-): AuditFinding {
+  overrides: Partial<ProjectFinding> = {},
+  document: Partial<ProjectFinding["firstProposal"]["document"]> = {},
+): ProjectFinding {
   return build.finding(
     overrides.auditId ?? AUDIT_ID,
     overrides.findingId ?? FINDING_ID,

@@ -73,44 +73,23 @@ SELECT item.item_id, item.round_id, item.item_key, item.ordinal, item.kind,
  ORDER BY item.ordinal
  LIMIT $4`
 
-// listReportFindingsSQL pages the findings of Audit $1 in state $2 in
-// creation order after the optional cursor ($3, $4), at most $5 rows, each
-// with the report projection of its first receipt and its current
-// assessment and decision. A finding is included while the projections
-// before it total less than $6 bytes, so the first is always included;
-// octet_length of the text projection reads only its stored length. Later
-// rows come without a projection and only mark that the page is full. Used
-// by QueryStore.ListReportFindings.
-var listReportFindingsSQL = `
-SELECT page.finding_id, page.state, page.first_proposal_ref,
-       page.duplicate_target_id, page.revision, page.created_at, page.included,
-       CASE WHEN page.included THEN page.report_projection END,
-       assessment.assessment_id, assessment.semantic_assessment,
-       assessment.result_ref, assessment.result_digest,
-       assessment.direct_verification, assessment.contract_ref,
-       assessment.contract_digest, assessment.accepted_at,
-       decision.decision_id, decision.actor_id, decision.verdict,
-       decision.severity, decision.rationale, decision.subject_revision,
-       decision.subject_digest, decision.created_at
-  FROM (
-    SELECT finding.finding_id, finding.state, finding.first_proposal_ref,
-           finding.duplicate_target_id, finding.revision, finding.created_at,
-           finding.current_assessment_id, finding.current_decision_id,
-           receipt.report_projection,
-           sum(octet_length(receipt.report_projection)) OVER (
-               ORDER BY finding.created_at, finding.finding_id
-               ROWS UNBOUNDED PRECEDING
-           ) - octet_length(receipt.report_projection) < $6 AS included
-      FROM audit_findings AS finding
-      JOIN finding_proposal_receipts AS receipt
-        ON receipt.receipt_id = finding.first_receipt_id
-     WHERE finding.audit_id = $1 AND finding.state = $2
-       AND ($3::timestamptz IS NULL OR (finding.created_at, finding.finding_id) > ($3, $4))
-     ORDER BY finding.created_at, finding.finding_id
-     LIMIT $5
-  ) AS page
-  LEFT JOIN audit_finding_assessments AS assessment
-    ON assessment.assessment_id = page.current_assessment_id
-  LEFT JOIN audit_review_decisions AS decision
-    ON decision.decision_id = page.current_decision_id
- ORDER BY page.created_at, page.finding_id`
+// Bound the indexed membership window before reading projection bytes or
+// computing a running byte sum. NULL current assessments share the possible
+// issues section with reopened Findings; the actual state stays NULL.
+const listReportFindingsSQL = `WITH selected AS MATERIALIZED (
+ SELECT finding.finding_id,finding.project_id,finding.state,finding.first_proposal_ref,
+ finding.duplicate_target_id,finding.revision,finding.created_at,finding.first_receipt_id,
+ finding.analyst_verdict,finding.analyst_severity,finding.rationale,finding.actor_id,finding.assessed_at
+ FROM project_finding_audits AS membership JOIN project_findings AS finding USING(project_id,finding_id)
+ WHERE membership.audit_id=$1 AND (finding.state=$2 OR (finding.state IS NULL AND $2='proposed'))
+ AND ($3::timestamptz IS NULL OR (membership.finding_created_at,membership.finding_id)>($3,$4))
+ ORDER BY membership.finding_created_at,membership.finding_id LIMIT $5
+), page AS MATERIALIZED (
+ SELECT selected.*,receipt.report_projection,
+ sum(octet_length(receipt.report_projection)) OVER (ORDER BY selected.created_at,selected.finding_id ROWS UNBOUNDED PRECEDING)
+ -octet_length(receipt.report_projection)<$6 AS included
+ FROM selected JOIN finding_proposal_receipts AS receipt ON receipt.receipt_id=selected.first_receipt_id
+)
+ SELECT finding_id,project_id,state,first_proposal_ref,duplicate_target_id,revision,created_at,included,
+ CASE WHEN included THEN report_projection END,analyst_verdict,analyst_severity,rationale,actor_id,assessed_at
+ FROM page ORDER BY created_at,finding_id`

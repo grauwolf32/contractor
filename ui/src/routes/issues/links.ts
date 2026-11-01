@@ -5,9 +5,9 @@
  * `/issues/:auditId/:findingId`.
  */
 import type {
-  AuditFinding,
-  AuditFindingSeverity,
-  AuditFindingState,
+  ProjectFinding,
+  FindingSeverity,
+  FindingState,
 } from "../../api/audits";
 import {
   isFindingSeverity,
@@ -15,7 +15,7 @@ import {
 } from "../projects/audits/finding-options";
 
 /** A finding state, or every state. */
-export type StateFilter = AuditFindingState | "all";
+export type StateFilter = FindingState | "all";
 
 export interface IssueFilters {
   /** Default "proposed" (Needs review); "all" lists every state. */
@@ -23,7 +23,7 @@ export interface IssueFilters {
   /** One project's possible issues; undefined for every project. */
   project?: string | undefined;
   /** The analyst's rating; the AI suggestion is never filtered on. */
-  severity?: AuditFindingSeverity | undefined;
+  severity?: FindingSeverity | undefined;
 }
 
 /** The state the list shows without a `state` parameter. */
@@ -69,10 +69,10 @@ export function issueEvidencePath(auditId: string, findingId: string): string {
 
 /** A possible issue on the Issues destination with the list's filters. */
 export function issueHref(
-  finding: Pick<AuditFinding, "auditId" | "findingId">,
+  finding: Pick<ProjectFinding, "projectId" | "findingId">,
   filters: IssueFilters,
 ): string {
-  return `${issuePath(finding.auditId, finding.findingId)}${issueSearch(filters)}`;
+  return `${issuePath(finding.projectId, finding.findingId)}${issueSearch(filters)}`;
 }
 
 /** The check page's possible issues section, focused on one of them. */
@@ -89,7 +89,7 @@ export function checkIssuePath(
 
 /** True when a possible issue still belongs in a list with these filters. */
 export function matchesIssueFilters(
-  finding: Pick<AuditFinding, "state" | "analystSeverity">,
+  finding: Pick<ProjectFinding, "state" | "analystSeverity">,
   filters: IssueFilters,
 ): boolean {
   return (

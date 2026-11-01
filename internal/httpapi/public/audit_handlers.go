@@ -18,11 +18,14 @@ import (
 )
 
 type AuditManagement interface {
+	ListProjectFindings(context.Context, auditservice.ProjectFindingListParams) (auditservice.ProjectFindingPage, error)
+	GetProjectFinding(context.Context, string, string, string) (auditstore.ProjectFinding, error)
+	GetAuditProjectFinding(context.Context, string, string, string) (auditstore.ProjectFinding, error)
+	EditProjectFinding(context.Context, auditservice.ProjectFindingEditParams) (auditservice.ProjectFindingEditResult, error)
 	FindingCandidates(context.Context, auditservice.FindingCandidatesParams) (auditservice.FindingCandidatesPage, error)
 	CompareFindings(context.Context, auditservice.FindingComparisonParams) (auditservice.FindingComparisonPage, error)
-	FindingGroupMembers(context.Context, auditservice.FindingMembersParams) (auditservice.FindingMembersPage, error)
 	ListEventsPage(context.Context, auditstore.EventListParams) (auditservice.EventPage, error)
-	ListOwnerFindings(context.Context, auditstore.OwnerFindingListParams) ([]auditservice.Finding, error)
+	ListOwnerFindings(context.Context, auditstore.OwnerFindingListParams) ([]auditstore.ProjectFindingSummary, error)
 	ListOwnerReviews(context.Context, auditstore.OwnerReviewListParams) ([]auditstore.ReviewRequest, error)
 	GetWorkspace(context.Context, string, string) (auditstore.WorkspaceSummary, error)
 	ListFindingsPage(context.Context, auditstore.FindingListParams) (auditservice.FindingPage, error)
@@ -51,11 +54,8 @@ type AuditManagement interface {
 	ListCoverage(context.Context, string, string, string, int, int, *uint64) (auditservice.CoveragePage, error)
 	GetReport(context.Context, string, string) (auditservice.ReportProjection, error)
 	GetFinding(context.Context, string, string, string) (auditservice.Finding, error)
-	CreateFindingReview(context.Context, auditservice.CreateFindingReviewParams) (auditservice.FindingReviewResult, error)
-	DecideFinding(context.Context, auditservice.DecideFindingParams) (auditservice.FindingDecisionResult, error)
 	DecideActionReview(context.Context, auditservice.DecideActionReviewParams) (auditservice.ActionReviewDecisionResult, error)
 	GetReview(context.Context, string, string, string) (auditstore.ReviewRequest, error)
-	ListFindingProvenance(context.Context, auditstore.ProvenanceListParams) ([]auditservice.FindingProvenance, error)
 }
 
 // AuditDependencies serve AuditProfiles, AuditStandards, Audits, their

@@ -55,7 +55,7 @@ WHERE audit_id=$1 AND first_receipt_id=$2`, auditID, f.receiptID).Scan(&findingI
 	}
 	for auditID, hold := range holds {
 		receipt, err := f.intake.GetAuditReceipt(f.ctx, f.request.OwnerID, auditID, f.receiptID)
-		if err != nil || !receipt.Origin.RunDeleted || receipt.Retention != RetentionAuditHeld {
+		if err != nil || !receipt.Origin.RunDeleted || receipt.Retention != RetentionProjectHeld {
 			t.Fatalf("retained receipt in %s after source deletion: %+v, %v", auditID, receipt, err)
 		}
 		batch, err := f.intake.GetAuditReceipts(f.ctx, f.request.OwnerID, auditID, []string{f.receiptID})
@@ -96,7 +96,7 @@ WHERE audit_id=$1 AND first_receipt_id=$2`, auditID, f.receiptID).Scan(&findingI
 		t.Fatal(err)
 	}
 	receipt, err := f.intake.GetAuditReceipt(f.ctx, f.request.OwnerID, secondAudit, f.receiptID)
-	if err != nil || receipt.Retention != RetentionAuditHeld || len(receipt.AuditHolds) != 1 || receipt.AuditHolds[0].AuditID != secondAudit {
+	if err != nil || receipt.Retention != RetentionProjectHeld || len(receipt.AuditHolds) != 1 || receipt.AuditHolds[0].AuditID != secondAudit {
 		t.Fatalf("surviving Audit lost its receipt after other purge: %+v %v", receipt, err)
 	}
 	projectArtifacts, err := artifacts.NewService(artifacts.NewPostgresRepository(f.pool)).Project("delete-project")
@@ -126,7 +126,7 @@ func TestPostgresAuditReceiptReadsRequireHoldInAuditProject(t *testing.T) {
 	if _, _, err := auditstoretest.NewStore(f.pool).WithPurgeDependencies(DeleteAuditHoldsBatch).CreateDraft(f.ctx, auditstore.CreateDraftParams{
 		AuditID: otherAudit, OwnerID: f.request.OwnerID, ProjectID: otherProject,
 		Profile:         auditstore.ProfileIdentity{Name: "profile", Version: "1", Digest: auditdomain.DigestBytes([]byte("profile"))},
-		ProfileSnapshot: json.RawMessage(`{"interaction":{"findingConfirmation":"human-required"}}`),
+		ProfileSnapshot: json.RawMessage(`{"interaction":{}}`),
 		InputSelection:  json.RawMessage(`{}`),
 		Limits: auditstore.Limits{MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: 1, MaxItemsTotal: 1,
 			MaxSubmittedRuns: 1, MaxItemRunAttempts: 1, MaxEvidenceBytes: 1 << 20},
@@ -339,7 +339,7 @@ func TestPostgresAuditInboxOmitsUnretainedChildReceiptAfterRunDeletion(t *testin
 				query.AfterCreatedAt, query.AfterReceiptID = &last.CreatedAt, last.ReceiptID
 			}
 			if len(listed) != 1 || listed[0].ReceiptID != retained.ReceiptID ||
-				listed[0].Retention != RetentionAuditHeld || !listed[0].Origin.RunDeleted ||
+				listed[0].Retention != RetentionProjectHeld || !listed[0].Origin.RunDeleted ||
 				listed[0].Document.ClientKey != "retained-candidate" ||
 				len(listed[0].AuditHolds) != 1 || listed[0].AuditHolds[0].AuditID != auditID {
 				t.Fatalf("%s inbox at limit %d after source deletion = %+v", name, limit, listed)
@@ -353,7 +353,7 @@ func createFixtureAudit(t *testing.T, f deletionImportFixture, auditID string) {
 	if _, _, err := auditstoretest.NewStore(f.pool).WithPurgeDependencies(DeleteAuditHoldsBatch).CreateDraft(f.ctx, auditstore.CreateDraftParams{
 		AuditID: auditID, OwnerID: f.request.OwnerID, ProjectID: "delete-project",
 		Profile:         auditstore.ProfileIdentity{Name: "profile", Version: "1", Digest: auditdomain.DigestBytes([]byte("profile"))},
-		ProfileSnapshot: json.RawMessage(`{"interaction":{"findingConfirmation":"human-required"}}`),
+		ProfileSnapshot: json.RawMessage(`{"interaction":{}}`),
 		InputSelection:  json.RawMessage(`{}`),
 		Limits: auditstore.Limits{MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: 100, MaxItemsTotal: 100,
 			MaxSubmittedRuns: 100, MaxItemRunAttempts: 1, MaxEvidenceBytes: 1 << 20},
@@ -441,7 +441,7 @@ func recordAuditChildReceipt(
 		t.Fatal(err)
 	}
 	if err := persistencepostgres.InTx(f.ctx, f.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		return insertReceipt(f.ctx, tx, receiptID, clientKey+"-proposal", canonical, fingerprint, proposal, evidence, origin, f.request.OwnerID, &project, grant)
+		return insertReceipt(f.ctx, tx, receiptID, clientKey+"-proposal", canonical, fingerprint, proposal, evidence, origin, f.request.OwnerID, &project, grant, nil, nil, "")
 	}); err != nil {
 		return Receipt{}, err
 	}
@@ -554,7 +554,7 @@ UPDATE audits
 				t.Fatalf("collection retention into %s Audit error = %v", state, err)
 			}
 			receipt, err := f.intake.GetAuditReceipt(f.ctx, f.request.OwnerID, f.request.AuditID, f.receiptID)
-			if err != nil || receipt.Retention != RetentionAuditHeld || len(receipt.AuditHolds) != 1 {
+			if err != nil || receipt.Retention != RetentionProjectHeld || len(receipt.AuditHolds) != 1 {
 				t.Fatalf("retained receipt = (%+v, %v)", receipt, err)
 			}
 			if err := f.intake.RetainAuditCollectionBatch(f.ctx, []ImportRequest{f.request}); err != nil {

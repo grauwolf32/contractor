@@ -1,13 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
 
-import { getAuditReport, type AuditReport } from "../../api/audits";
+import { getProjectFinding,getAuditReport, type AuditReport } from "../../api/audits";
 import { usePublicAPI } from "../../api/context";
 import { queryKeys } from "../../api/query-keys";
 import { ContextLink } from "../../app/context-navigation";
 import { RecordedTime } from "../../app/recorded-time";
 import {
-  reportStatusLabel,
+  verdictLabel,reportStatusLabel,
   reviewKindLabel,
   reviewStateLabel,
 } from "../../app/vocabulary";
@@ -49,105 +49,14 @@ import {
  */
 
 /** A possible issue: its summary, decided in place. */
-export function IssueDetail({
-  row,
-  context,
-}: {
-  row: InboxRowOf<"issue">;
-  context: DetailContext;
-}) {
-  const { project, audit, finding } = row.issue;
-  const issues = context.data.model.decide.filter(
-    (candidate) => candidate.type === "issue",
-  );
-  const position = issues.findIndex((candidate) => candidate.key === row.key);
-  const { nextDecision, onSelect, onDecided } = context;
-  const title = finding.firstProposal.document.title;
-  return (
-    <DetailPane
-      header={
-        <DetailBar
-          where={SECTIONS.decide.title}
-          label={
-            position < 0
-              ? "Possible issue"
-              : `Possible issue ${position + 1} of ${issues.length}`
-          }
-          actions={
-            <OpenLink to={issuePath(audit.auditId, finding.findingId)}>
-              Open full review
-            </OpenLink>
-          }
-          context={context}
-          focus={context.focusKey === row.key}
-        />
-      }
-      footer={
-        <FindingDecision
-          auditId={audit.auditId}
-          finding={finding}
-          next={
-            nextDecision === undefined
-              ? undefined
-              : {
-                  label: "Next decision",
-                  onNext: () => onSelect(nextDecision, { replace: true }),
-                }
-          }
-          onDecided={(result) =>
-            onDecided(row.key, decisionOutcome(result.decision).label, title)
-          }
-        />
-      }
-    >
-      <Recorded text={context.recorded} />
-      <p className="inbox-context">
-        From{" "}
-        <Link to={checkPath(project.projectId, audit.auditId)}>
-          {checkTypeLabel(audit)}
-        </Link>{" "}
-        on <Link to={projectPath(project.projectId)}>{project.name}</Link>
-      </p>
-      <FindingSummary
-        auditId={audit.auditId}
-        finding={finding}
-        variant="compact"
-      />
-    </DetailPane>
-  );
+export function IssueDetail({row,context}:{row:InboxRowOf<"issue">;context:DetailContext}) {
+ const api=usePublicAPI();const selected=row.issue.finding;
+ const finding=useQuery({queryKey:["project-findings",selected.projectId,selected.findingId],queryFn:()=>getProjectFinding(api,selected.projectId,selected.findingId),retry:false});
+ if(finding.error!==null)return <p role="alert">{finding.error.message}</p>;
+ if(finding.data===undefined)return <p role="status">Loading possible issue…</p>;
+ return <DetailPane><FindingSummary finding={finding.data}/><FindingDecision finding={finding.data} onDecided={result=>context.onDecided(row.key,verdictLabel(result.finding.analystVerdict).label,selected.title)}/><OpenLink to={issuePath(selected.projectId,selected.findingId)}>Open possible issue and evidence</OpenLink></DetailPane>;
 }
 
-function ReportExcerpt({
-  auditId,
-  report,
-}: {
-  auditId: string;
-  report: AuditReport | undefined;
-}) {
-  const summary =
-    report?.summary === undefined
-      ? ""
-      : excerpt(plainText(firstParagraph(report.summary)), 600);
-  return (
-    <>
-      {summary === "" ? null : <p className="inbox-excerpt">{summary}</p>}
-      <p className="ui-caption">
-        {report?.status === "proposed"
-          ? "This report is proposed and not accepted yet. "
-          : ""}
-        A report is not a security or compliance certification.{" "}
-        <ContextLink returnLabel="Inbox" to={reportPath(auditId)}>
-          Open report
-        </ContextLink>
-      </p>
-    </>
-  );
-}
-
-/**
- * An approval, applicability or report acceptance request, decided in
- * place.
- */
 export function ReviewDetail({
   row,
   context,
@@ -333,5 +242,32 @@ export function ReportDetail({
         <ReportExcerpt auditId={audit.auditId} report={report} />
       </Block>
     </DetailPane>
+  );
+}
+
+function ReportExcerpt({
+  auditId,
+  report,
+}: {
+  auditId: string;
+  report: AuditReport | undefined;
+}) {
+  const summary =
+    report?.summary === undefined
+      ? ""
+      : excerpt(plainText(firstParagraph(report.summary)), 600);
+  return (
+    <>
+      {summary === "" ? null : <p className="inbox-excerpt">{summary}</p>}
+      <p className="ui-caption">
+        {report?.status === "proposed"
+          ? "This report is proposed and not accepted yet. "
+          : ""}
+        A report is not a security or compliance certification.{" "}
+        <ContextLink returnLabel="Inbox" to={reportPath(auditId)}>
+          Open report
+        </ContextLink>
+      </p>
+    </>
   );
 }

@@ -1104,7 +1104,7 @@ func TestAuditFindingReviewHistoryAndDeletedRunProvenance(t *testing.T) {
 		Profile: auditstore.ProfileIdentity{
 			Name: "finding-review", Version: "1", Digest: serviceTestDigest("finding-profile"),
 		},
-		ProfileSnapshot: json.RawMessage(`{"interaction":{"findingConfirmation":"human-required"}}`),
+		ProfileSnapshot: json.RawMessage(`{"interaction":{}}`),
 		InputSelection:  json.RawMessage(`{}`),
 		Limits: auditstore.Limits{
 			MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: 2, MaxItemsTotal: 2,

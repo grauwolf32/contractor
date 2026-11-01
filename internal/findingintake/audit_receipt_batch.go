@@ -252,13 +252,12 @@ func receiptArtifact(receipt Receipt) (artifacts.ExactReadRequest, ExactArtifact
 	var scope artifacts.Scope
 	var expected ExactArtifact
 	var err error
-	if !receipt.Origin.RunDeleted {
+	if receipt.ProjectProposal != nil && receipt.ProjectID != nil {
+		scope, err = artifacts.ProjectScope(*receipt.ProjectID)
+		expected = *receipt.ProjectProposal
+	} else if !receipt.Origin.RunDeleted {
 		scope, err = artifacts.RunScope(receipt.Origin.RunID)
 		expected = receipt.Proposal
-	} else if len(receipt.AuditHolds) != 0 {
-		hold := receipt.AuditHolds[0]
-		scope, err = artifacts.ProjectScope(hold.ProjectID)
-		expected = hold.Proposal
 	} else {
 		return artifacts.ExactReadRequest{}, ExactArtifact{}, ErrNotFound
 	}

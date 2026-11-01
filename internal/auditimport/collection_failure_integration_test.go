@@ -66,7 +66,7 @@ func TestPostgresStandardReadFailureAfterRetentionKeepsExecutionCollecting(t *te
 	var retention string
 	mustCompletion(t, f.pool.QueryRow(f.ctx, `
 SELECT retention_state FROM finding_proposal_receipts WHERE receipt_id = $1`, receiptID).Scan(&retention))
-	if retention != string(findingintake.RetentionAuditHeld) {
+	if retention != string(findingintake.RetentionProjectHeld) {
 		t.Fatalf("first attempt did not retain the proposal: %q", retention)
 	}
 	f.requireCollecting(t, execution.ExecutionID)

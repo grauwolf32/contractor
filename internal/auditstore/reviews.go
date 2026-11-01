@@ -5,8 +5,6 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
-
-	"github.com/grauwolf32/contractor/internal/auditdomain"
 )
 
 // The review journal: finding triage, item action and report acceptance
@@ -24,20 +22,18 @@ func ValidReviewIdentity(value string, maximum int) bool {
 // An item action review's kind is its item's approval kind
 // (ItemApprovalKind); the other review kinds are these.
 const (
-	FindingReviewKind          = "finding-triage"
 	ReportAcceptanceReviewKind = "report-acceptance"
 )
 
 type ReviewSubjectKind string
 
 const (
-	ReviewSubjectFinding    ReviewSubjectKind = "finding"
 	ReviewSubjectItemAction ReviewSubjectKind = "audit-item-action"
 	ReviewSubjectReport     ReviewSubjectKind = "audit-report"
 )
 
 func (kind ReviewSubjectKind) Valid() bool {
-	return kind == ReviewSubjectFinding || kind == ReviewSubjectItemAction ||
+	return kind == ReviewSubjectItemAction ||
 		kind == ReviewSubjectReport
 }
 
@@ -59,12 +55,7 @@ func (action ReviewAction) Valid() bool {
 // through one endpoint.
 type ReviewRequestedAction string
 
-func (action ReviewRequestedAction) Valid() bool {
-	if ReviewAction(action).Valid() {
-		return true
-	}
-	return AnalystVerdict(action).Valid()
-}
+func (action ReviewRequestedAction) Valid() bool { return ReviewAction(action).Valid() }
 
 type FindingState string
 
@@ -135,61 +126,21 @@ func (s ReviewState) Valid() bool {
 	return s == ReviewPending || s == ReviewDecided || s == ReviewExpired
 }
 
-// FindingRecord is one stored finding: its triage state and the current
-// assessment and analyst decision it points to.
-type FindingRecord struct {
-	CorrelationProjectID string                          `json:"-"`
-	CorrelationAlgorithm string                          `json:"-"`
-	CorrelationValue     string                          `json:"-"`
-	CorrelationGroupKey  string                          `json:"-"`
-	CorrelationReason    string                          `json:"-"`
-	Correlation          *auditdomain.FindingCorrelation `json:"-"`
-	FindingID            string
-	AuditID              string
-	FirstReceiptID       string
-	State                FindingState
-	RejectionReason      *string
-	DuplicateTargetID    *string
-	CurrentAssessmentID  *string
-	CurrentDecisionID    *string
-	Revision             uint64
-	CreatedAt            time.Time
-	UpdatedAt            time.Time
-}
-
-type FindingAssessment struct {
-	AssessmentID        string         `json:"assessmentId"`
-	SemanticAssessment  string         `json:"semanticAssessment"`
-	Result              ExactArtifact  `json:"result"`
-	ReceiptID           string         `json:"receiptId"`
-	ItemID              *string        `json:"itemId,omitempty"`
-	ExecutionItemID     *string        `json:"executionItemId,omitempty"`
-	CollectionReceiptID *string        `json:"collectionReceiptId,omitempty"`
-	DirectVerification  bool           `json:"directVerification"`
-	Contract            *ExactArtifact `json:"contract,omitempty"`
-	AcceptedAt          time.Time      `json:"acceptedAt"`
-}
-
 type ReviewDecision struct {
-	DecisionID        string           `json:"decisionId"`
-	RequestID         string           `json:"requestId"`
-	AuditID           string           `json:"auditId"`
-	FindingID         string           `json:"findingId,omitempty"`
-	Action            ReviewAction     `json:"action,omitempty"`
-	ActorID           string           `json:"actorId"`
-	Verdict           AnalystVerdict   `json:"verdict,omitempty"`
-	Severity          *FindingSeverity `json:"severity,omitempty"`
-	Rationale         string           `json:"rationale"`
-	DuplicateTargetID *string          `json:"duplicateTargetId,omitempty"`
-	SubjectRevision   uint64           `json:"subjectRevision"`
-	SubjectDigest     string           `json:"subjectDigest"`
-	CreatedAt         time.Time        `json:"createdAt"`
+	DecisionID      string       `json:"decisionId"`
+	RequestID       string       `json:"requestId"`
+	AuditID         string       `json:"auditId"`
+	Action          ReviewAction `json:"action"`
+	ActorID         string       `json:"actorId"`
+	Rationale       string       `json:"rationale"`
+	SubjectRevision uint64       `json:"subjectRevision"`
+	SubjectDigest   string       `json:"subjectDigest"`
+	CreatedAt       time.Time    `json:"createdAt"`
 }
 
 type ReviewRequest struct {
 	RequestID        string                  `json:"requestId"`
 	AuditID          string                  `json:"auditId"`
-	FindingID        string                  `json:"findingId,omitempty"`
 	SubjectKind      ReviewSubjectKind       `json:"subjectKind"`
 	SubjectID        string                  `json:"subjectId"`
 	Kind             string                  `json:"kind"`
@@ -209,16 +160,7 @@ type ReviewRequest struct {
 type ReviewDecisionReplay struct {
 	DecisionID    string
 	RequestID     string
-	FindingID     string
 	RequestDigest string
-}
-
-// LockedFindingReview is a finding triage request and its finding, locked
-// with their Audit for a decision, and the Audit's state.
-type LockedFindingReview struct {
-	AuditState AuditState
-	Request    ReviewRequest
-	Finding    FindingRecord
 }
 
 // LockedActionReview is an item action or report acceptance request, locked
@@ -239,23 +181,23 @@ type LockedActionReview struct {
 }
 
 type FindingListParams struct {
-	AuditRevision  *uint64
-	OwnerID        string
-	AuditID        string
-	State          *FindingState
-	Verdict        *AnalystVerdict
-	Unreviewed     bool
-	Severity       *FindingSeverity
-	AfterCreatedAt *time.Time
-	AfterFindingID string
-	Limit          int
+	ProjectRevision *uint64
+	AuditRevision   *uint64
+	OwnerID         string
+	AuditID         string
+	State           *FindingState
+	Verdict         *AnalystVerdict
+	Unreviewed      bool
+	Severity        *FindingSeverity
+	AfterCreatedAt  *time.Time
+	AfterFindingID  string
+	Limit           int
 }
 
 type ReviewListParams struct {
 	AuditRevision  *uint64
 	OwnerID        string
 	AuditID        string
-	FindingID      *string
 	State          *ReviewState
 	AfterCreatedAt *time.Time
 	AfterRequestID string
@@ -265,6 +207,7 @@ type ReviewListParams struct {
 // Owner lists are live, newest-first keyset pages across active Projects.
 // AuditID and AuditRevision are intentionally absent from these contracts.
 type OwnerFindingListParams struct {
+	ProjectID       string
 	OwnerID         string
 	State           *FindingState
 	Verdict         *AnalystVerdict
@@ -288,75 +231,12 @@ type OwnerReviewListParams struct {
 // PageBasis is the Audit revision, statement time and whole-filter total a
 // finding or review page is read against.
 type PageBasis struct {
-	AuditRevision uint64    `json:"auditRevision"`
-	AsOf          time.Time `json:"asOf"`
-	Total         int       `json:"total"`
+	ProjectRevision uint64    `json:"projectRevision,omitempty"`
+	AuditRevision   uint64    `json:"auditRevision"`
+	AsOf            time.Time `json:"asOf"`
+	Total           int       `json:"total"`
 }
 
-type FindingProvenanceKind string
-
-const (
-	ProvenanceSourceProposal FindingProvenanceKind = "source-proposal"
-	ProvenanceCheckAttempt   FindingProvenanceKind = "check-attempt"
-	ProvenanceDirect         FindingProvenanceKind = "direct-verification"
-)
-
-func (kind FindingProvenanceKind) Valid() bool {
-	return kind == ProvenanceSourceProposal || kind == ProvenanceCheckAttempt ||
-		kind == ProvenanceDirect
-}
-
-// FindingProvenanceRecord is one stored record that produced a finding: a
-// source proposal, a check attempt or a direct verification.
-type FindingProvenanceRecord struct {
-	RecordID   string
-	Kind       FindingProvenanceKind
-	ReceiptID  string
-	Relation   string
-	Proposal   ExactArtifact
-	Assessment *FindingAssessment
-	Attempt    *FindingAttempt
-	CreatedAt  time.Time
-}
-
-// FindingAttempt preserves the trusted verification execution independently
-// of whether that attempt produced the assessment currently selected for the
-// finding. It therefore keeps failed, invalid, inconclusive and superseded
-// attempts visible after their ordinary child Run is deleted.
-type FindingAttempt struct {
-	ExecutionID           string                 `json:"executionId"`
-	ExecutionItemID       string                 `json:"executionItemId"`
-	ItemID                string                 `json:"itemId"`
-	ItemAttempt           int                    `json:"itemAttempt"`
-	Role                  ExecutionRole          `json:"role"`
-	WorkflowRole          string                 `json:"workflowRole"`
-	State                 ItemState              `json:"state"`
-	CollectionDisposition *CollectionDisposition `json:"collectionDisposition,omitempty"`
-	TerminalOutcome       *TerminalOutcome       `json:"terminalOutcome,omitempty"`
-	RunID                 *string                `json:"runId,omitempty"`
-	RunDeleted            bool                   `json:"runDeleted"`
-	RunProvenance         *RunProvenance         `json:"runProvenance,omitempty"`
-	Task                  ExactArtifact          `json:"task"`
-	ItemOrigin            ItemOrigin             `json:"itemOrigin"`
-	Result                *ExactArtifact         `json:"result,omitempty"`
-	CreatedAt             time.Time              `json:"createdAt"`
-	CollectedAt           *time.Time             `json:"collectedAt,omitempty"`
-}
-
-type ProvenanceListParams struct {
-	OwnerID   string
-	AuditID   string
-	FindingID string
-	// Optional caller pins bind an HTTP revision envelope or earlier read to
-	// the complete page. Unpinned callers still get a consistent page.
-	AuditRevision   *uint64
-	FindingRevision *uint64
-	AfterCreatedAt  *time.Time
-	AfterRecordID   string
-	Limit           int
-}
-
-// FindingRevision names one finding at the exact revision a caller read.
 type FindingRevision struct {
 	FindingID string
 	Revision  uint64

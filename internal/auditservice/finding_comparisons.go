@@ -83,15 +83,15 @@ type FindingComparisonParams struct {
 	Cursor                                        *FindingCorrelationPosition
 }
 type FindingComparisonRow struct {
-	Kind                 string                                  `json:"kind"`
-	RowKey               string                                  `json:"rowKey"`
-	GroupKey             string                                  `json:"groupKey,omitempty"`
-	Basis                *auditdomain.FindingCorrelationBasis    `json:"basis,omitempty"`
-	UnavailableReason    string                                  `json:"unavailableReason,omitempty"`
-	Representative       auditdomain.FindingCorrelationReference `json:"representative"`
-	Left                 *auditstore.FindingComparisonPreview    `json:"left,omitempty"`
-	Right                *auditstore.FindingComparisonPreview    `json:"right,omitempty"`
-	PreviewsShareReceipt bool                                    `json:"previewsShareReceipt"`
+	Kind                 string                               `json:"kind"`
+	RowKey               string                               `json:"rowKey"`
+	GroupKey             string                               `json:"groupKey,omitempty"`
+	Basis                *auditdomain.FindingCorrelationBasis `json:"basis,omitempty"`
+	UnavailableReason    string                               `json:"unavailableReason,omitempty"`
+	FindingID            string                               `json:"findingId"`
+	Left                 *auditstore.FindingComparisonPreview `json:"left,omitempty"`
+	Right                *auditstore.FindingComparisonPreview `json:"right,omitempty"`
+	PreviewsShareReceipt bool                                 `json:"previewsShareReceipt"`
 }
 
 type FindingComparisonPage struct {
@@ -104,23 +104,6 @@ type FindingComparisonPage struct {
 	Items         []FindingComparisonRow             `json:"items"`
 	Page          FindingCorrelationPage             `json:"page"`
 	Next          *FindingCorrelationPosition        `json:"-"`
-}
-
-type FindingMembersParams struct {
-	OwnerID, ProjectID, GroupKey string
-	AuditIDs                     []string
-	Limit                        int
-	Cursor                       *FindingCorrelationPosition
-}
-type FindingMembersPage struct {
-	PolicyVersion  string                                  `json:"policyVersion"`
-	Scope          FindingCorrelationScope                 `json:"scope"`
-	Fence          auditstore.FindingCorrelationFence      `json:"fence"`
-	GroupKey       string                                  `json:"groupKey"`
-	Representative auditdomain.FindingCorrelationReference `json:"representative"`
-	Items          []auditstore.FindingComparisonPreview   `json:"items"`
-	Page           FindingCorrelationPage                  `json:"page"`
-	Next           *FindingCorrelationPosition             `json:"-"`
 }
 
 func validCorrelationLimit(limit int) bool {
@@ -483,7 +466,7 @@ func (s *Service) CompareFindings(ctx context.Context, p FindingComparisonParams
 		if g.LeftFindingID != nil {
 			v := previews[*g.LeftFindingID]
 			row.Left = &v
-			row.Representative = auditdomain.FindingCorrelationReference{AuditID: v.AuditID, FindingID: v.FindingID}
+			row.FindingID = v.FindingID
 		} else {
 			row.Kind = "right-only"
 		}
@@ -491,19 +474,16 @@ func (s *Service) CompareFindings(ctx context.Context, p FindingComparisonParams
 			v := previews[*g.RightFindingID]
 			row.Right = &v
 			if row.Left == nil || v.FindingID < row.Left.FindingID {
-				row.Representative = auditdomain.FindingCorrelationReference{AuditID: v.AuditID, FindingID: v.FindingID}
+				row.FindingID = v.FindingID
 			}
 		} else {
 			row.Kind = "left-only"
 		}
 		if g.GroupKey == "" {
 			row.Kind = "unmatched"
-			row.RowKey = "unmatched:" + row.Representative.FindingID
+			row.RowKey = "unmatched:" + row.FindingID
 		}
-		if row.GroupKey != "" {
-			setComparisonRole(row.Left, row.Representative)
-			setComparisonRole(row.Right, row.Representative)
-		}
+
 		row.PreviewsShareReceipt = row.Left != nil && row.Right != nil && row.Left.Origin.ReceiptID == row.Right.Origin.ReceiptID
 		out.Items = append(out.Items, row)
 	}
@@ -528,7 +508,7 @@ func (s *Service) CompareFindings(ctx context.Context, p FindingComparisonParams
 		last := out.Items[len(out.Items)-1]
 		lastKey := last.GroupKey
 		if stage == 2 {
-			lastKey = last.Representative.FindingID
+			lastKey = last.FindingID
 		}
 		if more || len(out.Items) < initial {
 			out.Next = correlationPosition(out.Fence, stage, lastKey, "")
@@ -542,95 +522,3 @@ func (s *Service) CompareFindings(ctx context.Context, p FindingComparisonParams
 
 // FindingGroupMembers pages every retained observation under the declared
 // Project/Audit/pair fence, preserving independent results and receipt origins.
-func (s *Service) FindingGroupMembers(ctx context.Context, p FindingMembersParams) (FindingMembersPage, error) {
-	out := FindingMembersPage{PolicyVersion: auditdomain.FindingCorrelationPolicy, GroupKey: p.GroupKey, Items: []auditstore.FindingComparisonPreview{}}
-	if !validCorrelationLimit(p.Limit) || len(p.AuditIDs) > 2 {
-		return out, auditstore.ErrInvalid
-	}
-	audits := uniqueCorrelationAudits(p.AuditIDs...)
-	if len(audits) != len(p.AuditIDs) {
-		return out, auditstore.ErrInvalid
-	}
-	out.Scope = correlationScope(p.ProjectID, audits)
-	projectWide := len(audits) == 0
-	var err error
-	out.Fence, err = s.beginCorrelationRead(ctx, p.OwnerID, p.ProjectID, audits, projectWide, p.Cursor)
-	if err != nil {
-		return out, err
-	}
-	after := ""
-	if p.Cursor != nil {
-		if p.Cursor.Stage != 1 || p.Cursor.Key == "" || p.Cursor.CreatedAt != "" {
-			return out, auditstore.ErrInvalid
-		}
-		after = p.Cursor.Key
-	}
-	seek := auditstore.FindingMemberSeek{OwnerID: p.OwnerID, ProjectID: p.ProjectID, GroupKey: p.GroupKey, AuditIDs: audits, Limit: 2}
-	first, err := s.reads().CorrelationMembers(ctx, seek)
-	if err != nil {
-		return out, err
-	}
-	if len(first) == 0 {
-		return out, auditstore.ErrNotFound
-	}
-	seek.AfterFindingID, seek.Limit = after, p.Limit+1
-	members, err := s.reads().CorrelationMembers(ctx, seek)
-	if err != nil {
-		return out, err
-	}
-	more := len(members) > p.Limit
-	if more {
-		members = members[:p.Limit]
-	}
-	ids := make([]string, len(members))
-	for i, member := range members {
-		ids[i] = member.FindingID
-	}
-	previews, err := s.reads().ComparisonPreviews(ctx, p.OwnerID, p.ProjectID, ids)
-	// The preview batch is the last store read: this one fence check covers
-	// every read above, and a stale fence takes precedence over its error.
-	if err := s.finishCorrelationRead(ctx, p.OwnerID, out.Fence, err); err != nil {
-		return out, err
-	}
-	// The representative's Audit is selected by the same scoped first probe;
-	// a one-row preview lookup is unnecessary on later pages.
-	out.Representative = first[0]
-
-	for _, id := range ids {
-		value := previews[id]
-		setComparisonRole(&value, out.Representative)
-		out.Items = append(out.Items, value)
-	}
-	initial := len(out.Items)
-	for {
-		fits, err := fitsCorrelationPage(out)
-		if err != nil {
-			return out, err
-		}
-		if fits {
-			break
-		}
-		if len(out.Items) == 0 {
-			return out, auditstore.ErrCorrelationItemTooLarge
-		}
-		out.Items = out.Items[:len(out.Items)-1]
-	}
-	if initial > 0 && len(out.Items) == 0 {
-		return out, auditstore.ErrCorrelationItemTooLarge
-	}
-	if more || len(out.Items) < initial {
-		out.Next = correlationPosition(out.Fence, 1, out.Items[len(out.Items)-1].FindingID, "")
-	}
-	out.Page.HasMore = out.Next != nil
-	return out, nil
-}
-
-func setComparisonRole(value *auditstore.FindingComparisonPreview, representative auditdomain.FindingCorrelationReference) {
-	if value == nil {
-		return
-	}
-	value.CorrelationRole = "automatic-duplicate"
-	if value.FindingID == representative.FindingID && value.AuditID == representative.AuditID {
-		value.CorrelationRole = "representative"
-	}
-}

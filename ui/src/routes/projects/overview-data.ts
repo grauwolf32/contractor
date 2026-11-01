@@ -14,13 +14,15 @@ import type { ArtifactMetadata } from "../../api/artifacts";
 import {
   AUDIT_PAGE_SIZE,
   type Audit,
-  type AuditFinding,
+  type ProjectFindingSummary,
+ listProjectFindings,
   type AuditFindingPage,
   type AuditState,
   listAuditFindings,
   listProjectAudits,
 } from "../../api/audits";
 import { usePublicAPI } from "../../api/context";
+import {loadAllPages} from "../../api/pages";
 import { CROSS_PROJECT_LIMITS } from "../../api/cross-project";
 import { listProjectArtifacts } from "../../api/project-artifacts";
 import { listProjectRuns } from "../../api/projects";
@@ -79,7 +81,7 @@ export interface CheckIssues {
   /** The Server's count of possible issues that need review. */
   total: number;
   /** The first page of them, oldest first. */
-  items: readonly AuditFinding[];
+  items: readonly ProjectFindingSummary[];
 }
 
 export interface PossibleIssuesToReview {
@@ -147,78 +149,11 @@ function newestCachedPages(
  * that new revision loads, the check's previous page stays counted, so the
  * count does not drop out on every poll of a running check.
  */
-export function usePossibleIssuesToReview(
-  checks: readonly Audit[],
-): PossibleIssuesToReview {
-  const api = usePublicAPI();
-  const queryClient = useQueryClient();
-  const readable = useMemo(
-    () => checks.filter((audit) => !NO_ISSUES.includes(audit.state)),
-    [checks],
-  );
-  const queries = useMemo(() => {
-    // Looked up when the checks change, which is when a revision changes.
-    const previous =
-      readable.length === 0
-        ? undefined
-        : newestCachedPages(queryClient, readable);
-    return readable.map((audit) => {
-      const placeholder = previous?.get(audit.auditId);
-      return {
-        queryKey: [...toReviewKey(audit.auditId), audit.revision],
-        queryFn: () =>
-          listAuditFindings(api, audit.auditId, { state: "proposed" }),
-        staleTime: (
-          query: Query<AuditFindingPage, Error, AuditFindingPage, QueryKey>,
-        ) => (query.state.data === undefined ? 0 : ("static" as const)),
-        refetchInterval: (
-          query: Query<AuditFindingPage, Error, AuditFindingPage, QueryKey>,
-        ) =>
-          query.state.status === "error" ? CROSS_PROJECT_LIMITS.pollMs : false,
-        refetchOnWindowFocus: false,
-        retry: false,
-        ...(placeholder === undefined ? {} : { placeholderData: placeholder }),
-      };
-    });
-  }, [api, queryClient, readable]);
-  const combine = useCallback(
-    (results: UseQueryResult<AuditFindingPage>[]): PossibleIssuesToReview => {
-      const read: CheckIssues[] = [];
-      const pendingAuditIds: string[] = [];
-      const failedAuditIds: string[] = [];
-      let total = 0;
-      results.forEach((result, position) => {
-        const audit = readable[position];
-        if (audit === undefined) return;
-        if (result.isPending) pendingAuditIds.push(audit.auditId);
-        if (result.isError) failedAuditIds.push(audit.auditId);
-        const page = result.data;
-        if (page === undefined) return;
-        const count =
-          Number.isSafeInteger(page.total) && page.total >= page.items.length
-            ? page.total
-            : page.items.length;
-        total += count;
-        read.push({
-          audit,
-          total: count,
-          items: page.items.filter(
-            (finding) => finding.auditId === audit.auditId,
-          ),
-        });
-      });
-      return {
-        checks: read,
-        total,
-        settled: pendingAuditIds.length === 0,
-        partial: failedAuditIds.length > 0,
-        pendingAuditIds,
-        failedAuditIds,
-      };
-    },
-    [readable],
-  );
-  return useQueries({ queries, combine });
+export function usePossibleIssuesToReview(projectId:string) {
+ const api=usePublicAPI();
+ const query=useQuery({queryKey:["project-findings",projectId,"overview"],queryFn:()=>loadAllPages(cursor=>listProjectFindings(api,projectId,cursor===undefined?{}:{cursor})),retry:false,refetchInterval:OVERVIEW_POLL_MS});
+ const items=(query.data?.items??[]).filter(finding=>finding.analystVerdict===null || finding.state==="proposed");
+ return {items,total:items.length,settled:!query.isPending,partial:query.isError || query.data?.error!==null && query.data?.error!==undefined,refetch:async()=>{await query.refetch();}};
 }
 
 /** Up to five recent Runs of any state. */

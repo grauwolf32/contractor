@@ -2,7 +2,6 @@ package auditservice
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
@@ -62,19 +61,14 @@ func LifecycleRequestDigest(action, auditID string, revision uint64, deadlineSec
 
 // CreateFindingReviewRequestDigest binds a review request on a finding: the
 // Audit, the finding, the expected revision and the optional expiry.
-func CreateFindingReviewRequestDigest(params CreateFindingReviewParams) (string, error) {
-	return reviewRequestDigest("create", params.AuditID, params.FindingID, params.ExpectedRevision, struct {
-		ExpiresAt *time.Time `json:"expiresAt,omitempty"`
-	}{params.ExpiresAt})
-}
 
 // DecideFindingRequestDigest binds a verdict on a finding review request:
 // the Audit, the review request, its expected revision and the decision.
-func DecideFindingRequestDigest(params DecideFindingParams) (string, error) {
-	return reviewRequestDigest("decide", params.AuditID, params.RequestID, params.ExpectedRequestRevision, reviewDecision{
-		Verdict: &params.Verdict, Severity: params.Severity, Rationale: params.Rationale,
-		DuplicateTargetID: params.DuplicateTargetID,
-	})
+
+// ProjectFindingEditRequestDigest binds the ordinary Project owner command.
+func ProjectFindingEditRequestDigest(params ProjectFindingEditParams) (string, error) {
+	return contentdigest.CanonicalJSON([]any{"contractor/project-finding-edit/v1", params.ProjectID,
+		params.FindingID, params.ExpectedRevision, params.Verdict, params.Severity, params.Rationale, params.DuplicateTargetID})
 }
 
 // DecideActionReviewRequestDigest binds a decision on an action review

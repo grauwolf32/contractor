@@ -4,14 +4,13 @@ package findingexport
 
 import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
-	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findinganalysis"
 )
 
 const (
-	SnapshotSchema      = "contractor.findings.export-snapshot.v1"
+	SnapshotSchema      = "contractor.findings.export-snapshot.v2"
 	DiagnosticsSchema   = "contractor.findings.export-diagnostics.v1"
-	ExporterVersion     = "1.1.1"
+	ExporterVersion     = "2.0.0"
 	PolicyVersion       = "generic/1"
 	MaxBytes            = 16 << 20
 	MaxDiagnosticsBytes = 4 << 20
@@ -80,21 +79,7 @@ type GitSource struct {
 	Commit        string `json:"commit" strictjson:"required"`
 }
 
-type Assessment struct {
-	ID                  string                   `json:"id" strictjson:"required"`
-	SemanticAssessment  string                   `json:"semantic_assessment" strictjson:"required"`
-	ReceiptID           string                   `json:"receipt_id" strictjson:"required"`
-	Result              contracts.ExactArtifact  `json:"result" strictjson:"required"`
-	DirectVerification  bool                     `json:"direct_verification" strictjson:"required"`
-	Contract            *contracts.ExactArtifact `json:"contract,omitempty"`
-	ItemID              string                   `json:"item_id,omitempty"`
-	ExecutionItemID     string                   `json:"execution_item_id,omitempty"`
-	CollectionReceiptID string                   `json:"collection_receipt_id,omitempty"`
-	AcceptedAt          string                   `json:"accepted_at" strictjson:"required"`
-}
-
 type Result struct {
-	Assessment            *Assessment `json:"assessment,omitempty"`
 	FindingID             string      `json:"finding_id" strictjson:"required"`
 	Revision              uint64      `json:"revision" strictjson:"required"`
 	PresentationReceiptID string      `json:"presentation_receipt_id" strictjson:"required"`
@@ -104,15 +89,13 @@ type Result struct {
 }
 
 type Review struct {
-	State             string `json:"state" strictjson:"required"`
-	DecisionID        string `json:"decision_id,omitempty"`
-	Verdict           string `json:"verdict,omitempty"`
-	Severity          string `json:"severity,omitempty"`
-	Rationale         string `json:"rationale,omitempty"`
-	ActorID           string `json:"actor_id,omitempty"`
-	DecisionAt        string `json:"decision_at,omitempty"`
-	AssessmentID      string `json:"assessment_id,omitempty"`
-	DuplicateTargetID string `json:"duplicate_target_id,omitempty"`
+	State             *string `json:"state" strictjson:"required"`
+	Verdict           string  `json:"verdict,omitempty"`
+	Severity          string  `json:"severity,omitempty"`
+	Rationale         string  `json:"rationale,omitempty"`
+	ActorID           string  `json:"actor_id,omitempty"`
+	DecisionAt        string  `json:"decision_at,omitempty"`
+	DuplicateTargetID string  `json:"duplicate_target_id,omitempty"`
 }
 
 type PrimaryKey struct {
@@ -141,3 +124,6 @@ type Diagnostics struct {
 	AuditID string       `json:"audit_id" strictjson:"required"`
 	Items   []Diagnostic `json:"items" strictjson:"required"`
 }
+
+// IsState tests an explicitly set current state. Unassessed Findings stay null.
+func (r Review) IsState(state string) bool { return r.State != nil && *r.State == state }

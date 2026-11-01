@@ -36,7 +36,7 @@ func TestPublicOwnerAuditLists(t *testing.T) {
 		}
 		revision := "r1"
 		selection, _ := json.Marshal(auditservice.DraftSelection{Labels: map[string]string{}, RequiredPlacementLabels: []string{}, Schema: auditservice.DraftSelectionSchema, Inputs: map[string]auditstore.ExactArtifact{"source": {Ref: contracts.ArtifactRef{Namespace: "source", Name: "input", Revision: &revision}, Digest: auditHandlerDigest("input"), MediaType: "text/plain", SizeBytes: 1}}, RuntimeLabels: []string{}})
-		_, _, err = auditstoretest.NewStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{AuditID: auditID, OwnerID: ownerID, ProjectID: projectID, Profile: auditstore.ProfileIdentity{Name: "page-profile", Version: "1", Digest: auditHandlerDigest("profile")}, ProfileSnapshot: json.RawMessage(`{"interaction":{"findingConfirmation":"human-required"}}`), InputSelection: selection, Limits: auditstore.Limits{MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: 100, MaxItemsTotal: 100, MaxSubmittedRuns: 100, MaxItemRunAttempts: 1, MaxEvidenceBytes: 1 << 20}, IdempotencyKey: auditID, RequestDigest: auditHandlerDigest(auditID)})
+		_, _, err = auditstoretest.NewStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{AuditID: auditID, OwnerID: ownerID, ProjectID: projectID, Profile: auditstore.ProfileIdentity{Name: "page-profile", Version: "1", Digest: auditHandlerDigest("profile")}, ProfileSnapshot: json.RawMessage(`{"interaction":{}}`), InputSelection: selection, Limits: auditstore.Limits{MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: 100, MaxItemsTotal: 100, MaxSubmittedRuns: 100, MaxItemRunAttempts: 1, MaxEvidenceBytes: 1 << 20}, IdempotencyKey: auditID, RequestDigest: auditHandlerDigest(auditID)})
 		if err != nil {
 			t.Fatal(err)
 		}

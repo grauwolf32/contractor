@@ -19,9 +19,9 @@ import { useCallback, useMemo } from "react";
 
 import {
   type Audit,
-  type AuditFinding,
-  type AuditFindingSeverity,
-  type AuditFindingState,
+  type ProjectFindingSummary,
+  type FindingSeverity,
+  type FindingState,
   type AuditReport,
   type AuditReviewRequest,
   type AuditState,
@@ -62,8 +62,9 @@ export interface CrossProjectCheck {
 }
 
 /** A possible issue (finding) with its check and project. */
-export interface CrossProjectIssue extends CrossProjectCheck {
-  finding: AuditFinding;
+export interface CrossProjectIssue {
+ project:Project;
+  finding: ProjectFindingSummary;
 }
 
 /** A pending review request with its check and project. */
@@ -140,7 +141,6 @@ export const INBOX_CHECK_STATES: readonly AuditState[] = INBOX_AUDIT_STATES;
 /** Review kinds that need the user beyond triaging a possible issue. */
 const OTHER_DECISIONS: Readonly<Record<AuditReviewKind, boolean>> = {
   // Counted through its possible issue.
-  "finding-triage": false,
   "active-check-approval": true,
   "requirement-applicability": true,
   "report-acceptance": true,
@@ -152,7 +152,7 @@ const OTHER_DECISION_KINDS = (
 // Possible issues that need a review: never decided, reopened, or assessed
 // again since the last decision. Every other state carries a decision or
 // waits for evidence.
-const NEEDS_REVIEW: readonly AuditFindingState[] = ["proposed"];
+const NEEDS_REVIEW: readonly FindingState[] = ["proposed"];
 
 const DEFAULT_REPORT_STATUSES: readonly AuditReportStatus[] = [
   "proposed",
@@ -192,7 +192,7 @@ function newerCheck(left: CrossProjectCheck, right: CrossProjectCheck) {
   return (
     newestFirst(left.audit.updatedAt, right.audit.updatedAt) ||
     newestFirst(left.audit.createdAt, right.audit.createdAt) ||
-    byText(left.audit.auditId, right.audit.auditId)
+    byText(left.project.projectId, right.project.projectId)
   );
 }
 
@@ -200,7 +200,7 @@ function newerIssue(left: CrossProjectIssue, right: CrossProjectIssue) {
   return (
     newestFirst(left.finding.createdAt, right.finding.createdAt) ||
     newestFirst(left.finding.updatedAt, right.finding.updatedAt) ||
-    byText(left.audit.auditId, right.audit.auditId) ||
+    byText(left.project.projectId, right.project.projectId) ||
     byText(left.finding.findingId, right.finding.findingId)
   );
 }
@@ -211,7 +211,7 @@ function newerDecision(
 ) {
   return (
     newestFirst(left.review.createdAt, right.review.createdAt) ||
-    byText(left.audit.auditId, right.audit.auditId) ||
+    byText(left.project.projectId, right.project.projectId) ||
     byText(left.review.requestId, right.review.requestId)
   );
 }
@@ -516,7 +516,7 @@ function useCheckReads<T, R>(
 }
 
 function statusOf(
-  checks: AllChecks,
+  checks: CrossProjectStatus,
   reads: CheckReads<unknown>,
   truncated: boolean,
 ): CrossProjectStatus {
@@ -545,7 +545,7 @@ interface PossibleIssuesOptions {
    * state. Filtered by the Server: one read per check and state (and
    * verdict and severity), so each filter combination follows every global page.
    */
-  states?: readonly AuditFindingState[];
+  states?: readonly FindingState[];
   /**
    * Only possible issues with these analyst verdicts ("unreviewed" means no
    * effective decision); filtered by the Server like `states`.
@@ -557,7 +557,7 @@ interface PossibleIssuesOptions {
    * `states`. An unreviewed possible issue has no analyst severity, so with
    * this filter the verdict "unreviewed" matches nothing and is not read.
    */
-  severities?: readonly AuditFindingSeverity[];
+  severities?: readonly FindingSeverity[];
   /** False keeps every read idle (and `isPending` true). */
   enabled?: boolean;
 }
@@ -577,9 +577,9 @@ interface MergedIssues {
 }
 
 interface FindingFilter {
-  state: AuditFindingState | undefined;
+  state: FindingState | undefined;
   verdict: FindingVerdictFilter | undefined;
-  severity: AuditFindingSeverity | undefined;
+  severity: FindingSeverity | undefined;
 }
 
 /**
@@ -593,10 +593,10 @@ function findingFilters(
   verdictKey: string,
   severityKey: string,
 ): FindingFilter[] {
-  const states = orUnfiltered(filterValues<AuditFindingState>(stateKey));
+  const states = orUnfiltered(filterValues<FindingState>(stateKey));
   const verdicts = orUnfiltered(filterValues<FindingVerdictFilter>(verdictKey));
   const severities = orUnfiltered(
-    filterValues<AuditFindingSeverity>(severityKey),
+    filterValues<FindingSeverity>(severityKey),
   );
   return states.flatMap((state) =>
     verdicts.flatMap((verdict) =>
@@ -615,14 +615,8 @@ function usePossibleIssueReads(options: PossibleIssuesOptions) {
   const verdictKey = filterKey(options.verdicts);
   const severityKey = filterKey(options.severities);
   const api = usePublicAPI();
-  const checks = useScopedChecks(
-    options.checkStates,
-    ISSUE_CHECK_STATES,
-    enabled,
-  );
-  const auditStateKey = filterKey(
-    options.checkStates?.length ? options.checkStates : ISSUE_CHECK_STATES,
-  );
+ const checks=useProjectsIndex({enabled});
+ const auditStateKey=filterKey(options.checkStates??[]);
   const filters = useMemo(
     () => findingFilters(stateKey, verdictKey, severityKey),
     [stateKey, verdictKey, severityKey],
@@ -642,7 +636,7 @@ function usePossibleIssueReads(options: PossibleIssuesOptions) {
               listOwnerFindings(
                 api,
                 {
-                  auditState: auditStateKey,
+                  ...(auditStateKey===""?{}:{auditState:auditStateKey}),
                   ...(state === undefined ? {} : { state }),
                   ...(verdict === undefined ? {} : { verdict }),
                   ...(severity === undefined ? {} : { severity }),
@@ -659,11 +653,9 @@ function usePossibleIssueReads(options: PossibleIssuesOptions) {
   );
   const combine = useCallback(
     (
-      results: UseQueryResult<LoadedPages<AuditFinding>>[],
+      results: UseQueryResult<LoadedPages<ProjectFindingSummary>>[],
     ): CheckReads<MergedIssues> => {
-      const byAudit = new Map(
-        checks.checks.map((check) => [check.audit.auditId, check]),
-      );
+      const byProject=new Map(checks.projects.map(project=>[project.projectId,project]));
       const issues: CrossProjectIssue[] = [];
       const seen = new Set<string>();
       const errors: CrossProjectError[] = [];
@@ -671,11 +663,11 @@ function usePossibleIssueReads(options: PossibleIssuesOptions) {
         const failure = result.error ?? result.data?.error ?? null;
         if (failure !== null) errors.push({ scope: "list", error: failure });
         for (const finding of result.data?.items ?? []) {
-          const check = byAudit.get(finding.auditId);
-          const key = `${finding.auditId}/${finding.findingId}`;
-          if (check === undefined || seen.has(key)) continue;
+          const project=byProject.get(finding.projectId);
+          const key = `${finding.projectId}/${finding.findingId}`;
+          if (project === undefined || seen.has(key)) continue;
           seen.add(key);
-          issues.push({ ...check, finding });
+          issues.push({project,finding});
         }
       }
       issues.sort(newerIssue);
@@ -689,7 +681,7 @@ function usePossibleIssueReads(options: PossibleIssuesOptions) {
         pending: results.some((result) => result.isPending),
       };
     },
-    [checks.checks],
+    [checks.projects],
   );
   const findings = useQueries({ queries, combine });
   return { checks, findings };

@@ -7,7 +7,7 @@ import type { PublicAPI } from "../../../api/client";
 import type {
   Audit,
   AuditCoverageRow,
-  AuditFinding,
+  ProjectFinding,
   AuditItem,
   AuditProfile,
   AuditReviewRequest,
@@ -63,7 +63,6 @@ const profile: AuditProfile = build.conforming("AuditProfile", {
   },
   interaction: {
     activeChecks: "prohibited",
-    findingConfirmation: "human-required",
     notApplicable: "human-required",
     reportAcceptance: "automatic",
   },
@@ -128,9 +127,9 @@ function auditAt(state: Audit["state"], revision: number): Audit {
 }
 
 function findingAt(
-  state: AuditFinding["state"],
+  state: ProjectFinding["state"],
   revision: number,
-): AuditFinding {
+): ProjectFinding {
   return {
     findingId: "finding_example",
     auditId: "audit_example",
@@ -455,7 +454,7 @@ describe("Project Audit routes", () => {
     };
     sibling.firstProposal.document.title = "Missing rate limit";
     sibling.firstProposal.document.severity_suggestion = "medium";
-    const other: AuditFinding = {
+    const other: ProjectFinding = {
       ...findingAt("confirmed", 2),
       auditId: otherAudit.auditId,
       analystVerdict: "true_positive",

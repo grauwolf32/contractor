@@ -41,7 +41,7 @@ from contractor_runtime.toolsets.security_findings.reader import ListFindingsToo
 from contractor_runtime.worker.instrumentation import _safe_tool_response
 from contractor_runtime.workspace import AllocationWorkspace
 
-FIXTURE = Path(__file__).parents[2] / "api/testdata/findings/finding-collection-v1.fixture.json"
+FIXTURE = Path(__file__).parents[2] / "api/testdata/findings/finding-collection-v2.fixture.json"
 TIMESTAMPS = {
     "x-contractor-binding-created-at": "2026-09-06T09:00:00Z",
     "x-contractor-revision-created-at": "2026-09-06T09:00:00Z",

@@ -222,7 +222,8 @@ func TestTrustedPrimitivesValidateBeforeRepository(t *testing.T) {
 		"fork of an unknown kind":               {forkCall(fork("copy", run, run, output)), ErrInvalidName},
 		"fork across Runs":                      {forkCall(fork(LineageOutputBind, otherRun, run, output)), ErrInvalidScope},
 		"fork into a UserScope":                 {forkCall(fork(LineageInputFork, run, user, input)), ErrInvalidScope},
-		"fork between Projects":                 {forkCall(frozenImport), ErrInvalidScope},
+		"unfrozen fork within a Project":        {forkCall(fork(LineageAuditImport, project, project, audit)), ErrInvalidScope},
+		"fork across Projects":                  {forkCall(fork(LineageAuditImport, project, mustScope(t)(ProjectScope("other-project")), audit)), ErrInvalidScope},
 		"versioned fork target":                 {forkCall(fork(LineageOutputBind, run, run, source)), ErrVersionedWriteTarget},
 		"unfrozen fork into an Audit Namespace": {forkCall(fork(LineageAuditImport, run, project, audit)), ErrReservedNamespace},
 		"freeze of an invalid Namespace": {func(s *Service) error {
@@ -254,7 +255,7 @@ func TestTrustedPrimitivesValidateBeforeRepository(t *testing.T) {
 	service := NewService(repository)
 	for _, valid := range []Fork{
 		versionless, fork(LineageInputFork, project, run, input), fork(LineageOutputBind, run, run, output),
-		published, imported,
+		published, imported, frozenImport,
 	} {
 		if _, err := service.Fork(ctx, valid); err != nil {
 			t.Errorf("valid fork %+v: %v", valid, err)
@@ -263,7 +264,7 @@ func TestTrustedPrimitivesValidateBeforeRepository(t *testing.T) {
 	if err := create(project, audit, payload, true)(service); err != nil {
 		t.Errorf("frozen create in an Audit Namespace: %v", err)
 	}
-	if repository.forkCalls != 5 || repository.createFrozenCalls != 1 {
+	if repository.forkCalls != 6 || repository.createFrozenCalls != 1 {
 		t.Fatalf("valid trusted requests reached the repository %d and %d times",
 			repository.forkCalls, repository.createFrozenCalls)
 	}

@@ -8,6 +8,8 @@ import (
 	"slices"
 	"sort"
 
+	"github.com/grauwolf32/contractor/internal/artifactpolicy"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -15,6 +17,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -149,7 +152,7 @@ SELECT retained_evidence_bytes + $2 <= max_evidence_bytes
 		return nil
 	}
 
-	namespace := auditdomain.ArtifactNamespace(input.AuditID)
+	namespace := artifactpolicy.FindingMaterialsNamespace
 	resultArtifact, err := retainFindingArtifact(
 		ctx, artifactService, input.RunID, input.ProjectID, namespace,
 		deterministicID("direct-result", input.ReceiptID),
@@ -320,33 +323,46 @@ func isEvidenceSubset(selected, available []string) bool {
 	return true
 }
 
-func directAssessmentReplay(
-	ctx context.Context,
-	tx pgx.Tx,
-	assessmentID string,
-	input directVerificationInput,
-	semantic, resultDigest, contractDigest string,
-) (bool, error) {
-	// Replay only the current identity scoped to the destination Audit.
-	var auditID, receiptID, storedSemantic, storedResultDigest, storedContractDigest string
-	var direct bool
-	err := tx.QueryRow(ctx, `
-SELECT audit_id, receipt_id, semantic_assessment, result_digest,
-       direct_verification, contract_digest
-  FROM audit_finding_assessments
- WHERE audit_id = $2 AND assessment_id = $1`,
-		assessmentID, input.AuditID,
-	).Scan(
-		&auditID, &receiptID, &storedSemantic, &storedResultDigest, &direct, &storedContractDigest,
-	)
-	if errors.Is(err, pgx.ErrNoRows) {
+func directAssessmentReplay(ctx context.Context, tx pgx.Tx, assessmentID string, input directVerificationInput,
+	semantic, resultDigest, contractDigest string) (bool, error) {
+	service := artifacts.NewService(artifacts.NewPostgresRepository(tx))
+	project, err := service.Project(input.ProjectID)
+	if err != nil {
+		return false, err
+	}
+	ref := contracts.ArtifactRef{Namespace: artifactpolicy.FindingHistoryNamespace, Name: auditdomain.FindingSourceHistoryName(input.ReceiptID, "direct-verification", assessmentID)}
+	metadata, err := project.Metadata(ctx, ref)
+	if errors.Is(err, artifacts.ErrArtifactNotFound) {
 		return false, nil
 	}
 	if err != nil {
 		return false, err
 	}
-	if auditID != input.AuditID || receiptID != input.ReceiptID || storedResultDigest != resultDigest ||
-		!direct || storedContractDigest != contractDigest || semantic != storedSemantic {
+	if !metadata.Frozen || metadata.MediaType != "application/json" || metadata.Size > 32<<10 {
+		return false, artifacts.ErrArtifactIntegrity
+	}
+	read, err := project.ReadExact(ctx, metadata.Exact())
+	if err != nil {
+		return false, err
+	}
+	var saved struct {
+		Schema    string `json:"schema"`
+		ReceiptID string `json:"receiptId"`
+		Kind      string `json:"kind"`
+		Original  struct {
+			AuditID  string `json:"auditId"`
+			RecordID string `json:"recordId"`
+			Semantic string `json:"semanticAssessment"`
+		} `json:"original"`
+		Materials struct {
+			Result   ExactArtifact `json:"result"`
+			Contract ExactArtifact `json:"contract"`
+		} `json:"materials"`
+	}
+	if strictjson.Decode(read.Payload.Data, &saved) != nil || saved.Schema != auditdomain.FindingSourceHistorySchema ||
+		saved.Kind != "direct-verification" || saved.ReceiptID != input.ReceiptID || saved.Original.AuditID != input.AuditID ||
+		saved.Original.RecordID != assessmentID || saved.Original.Semantic != semantic ||
+		saved.Materials.Result.Digest != resultDigest || saved.Materials.Contract.Digest != contractDigest {
 		return true, fmt.Errorf("%w: direct verification replay differs", ErrConflict)
 	}
 	return true, nil
@@ -378,7 +394,8 @@ func commitDirectVerification(
 		"workflowClosureDigest": input.WorkflowClosureDigest,
 	})
 	return hookstore.NewFindingEventsTx(tx).CommitDirectFindingAssessment(ctx, auditstore.DirectFindingAssessment{
-		AuditID: input.AuditID, ReceiptID: input.ReceiptID, AssessmentID: assessmentID,
+		ProjectID: input.ProjectID,
+		AuditID:   input.AuditID, ReceiptID: input.ReceiptID, AssessmentID: assessmentID,
 		SemanticAssessment: verification.Assessment,
 		Result: auditstore.ArtifactLink{
 			LogicalKey: "finding/" + input.ReceiptID + "/direct-result", Artifact: result,

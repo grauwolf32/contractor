@@ -6,7 +6,12 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/grauwolf32/contractor/internal/artifactpolicy"
+
+	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -49,49 +54,49 @@ func (s *FindingEventsTx) LockFindingCorrelationFence(ctx context.Context, proje
 	return nil
 }
 
-// CommitDirectFindingAssessment links the result and contract Artifacts to the
-// Audit, records the assessment for the finding that the receipt contributed
-// to and makes it the finding's current assessment, then charges the retained
-// bytes to the Audit evidence quota and records finding.assessed. It runs in
-// the caller's transaction, which holds LockFindingIntakeAudit's lock. It
-// returns pgx.ErrNoRows when the receipt has no contribution in the Audit or
-// the quota would be exceeded; the caller must then roll back.
-func (s *FindingEventsTx) CommitDirectFindingAssessment(
-	ctx context.Context, assessment auditstore.DirectFindingAssessment,
-) error {
-	resultRef, err := json.Marshal(assessment.Result.Artifact.Ref)
-	if err != nil {
-		return fmt.Errorf("encode direct verification result: %w", err)
-	}
-	contractRef, err := json.Marshal(assessment.Contract.Artifact.Ref)
-	if err != nil {
-		return fmt.Errorf("encode direct verification contract: %w", err)
-	}
+// CommitDirectFindingAssessment retains a historical source conclusion as
+// an ordinary Project Artifact. It changes no current Finding state.
+func (s *FindingEventsTx) CommitDirectFindingAssessment(ctx context.Context, assessment auditstore.DirectFindingAssessment) error {
 	result, contract := assessment.Result, assessment.Contract
+	resultRef, err := json.Marshal(result.Artifact.Ref)
+	if err != nil {
+		return err
+	}
+	contractRef, err := json.Marshal(contract.Artifact.Ref)
+	if err != nil {
+		return err
+	}
 	if _, err := s.tx.Exec(ctx, linkDirectFindingAssessmentSQL, assessment.AuditID,
-		result.LogicalKey, resultRef, result.Artifact.Digest, result.Artifact.MediaType,
-		result.Artifact.SizeBytes, []byte(result.SourceProvenance), result.DisplayRef,
-		contract.LogicalKey, contractRef, contract.Artifact.Digest, contract.Artifact.MediaType,
-		contract.Artifact.SizeBytes, []byte(contract.SourceProvenance), contract.DisplayRef,
-	); err != nil {
+		result.LogicalKey, resultRef, result.Artifact.Digest, result.Artifact.MediaType, result.Artifact.SizeBytes, []byte(result.SourceProvenance), result.DisplayRef,
+		contract.LogicalKey, contractRef, contract.Artifact.Digest, contract.Artifact.MediaType, contract.Artifact.SizeBytes, []byte(contract.SourceProvenance), contract.DisplayRef); err != nil {
 		return err
 	}
-	var findingID string
-	if err := s.tx.QueryRow(ctx, insertDirectFindingAssessmentSQL,
-		assessment.AssessmentID, assessment.SemanticAssessment, resultRef, result.Artifact.Digest,
-		contractRef, contract.Artifact.Digest, assessment.AuditID, assessment.ReceiptID,
-	).Scan(&findingID); err != nil {
+	body, err := json.Marshal(struct {
+		Schema    string         `json:"schema"`
+		ReceiptID string         `json:"receiptId"`
+		Kind      string         `json:"kind"`
+		Original  map[string]any `json:"original"`
+		Materials map[string]any `json:"materials"`
+	}{auditdomain.FindingSourceHistorySchema, assessment.ReceiptID, "direct-verification",
+		map[string]any{"auditId": assessment.AuditID, "recordId": assessment.AssessmentID, "semanticAssessment": assessment.SemanticAssessment},
+		map[string]any{"result": result.Artifact, "contract": contract.Artifact}})
+	if err != nil {
 		return err
 	}
-	var findingRevision int64
-	if err := s.tx.QueryRow(ctx, assessFindingDirectlySQL,
-		assessment.AssessmentID, assessment.AuditID, findingID,
-	).Scan(&findingRevision); err != nil {
+	scope, err := artifacts.ProjectScope(assessment.ProjectID)
+	if err != nil {
 		return err
 	}
-	return s.recordDirectFindingAssessment(ctx, directFindingAssessmentEvent{
-		AuditID: assessment.AuditID, FindingID: findingID,
-		FindingRevision: findingRevision, AssessmentID: assessment.AssessmentID,
-		RetainedBytes: assessment.RetainedBytes,
-	})
+	service := artifacts.NewService(artifacts.NewPostgresRepository(s.tx))
+	if _, err := service.CreateFrozen(ctx, scope, contracts.ArtifactRef{Namespace: artifactpolicy.FindingHistoryNamespace,
+		Name: auditdomain.FindingSourceHistoryName(assessment.ReceiptID, "direct-verification", assessment.AssessmentID)},
+		artifacts.Payload{MediaType: "application/json", Data: body}); err != nil {
+		return err
+	}
+	if err := s.recordDirectFindingAssessment(ctx, directFindingAssessmentEvent{AuditID: assessment.AuditID,
+		ReceiptID: assessment.ReceiptID, AssessmentID: assessment.AssessmentID, RetainedBytes: assessment.RetainedBytes}); err != nil {
+		return err
+	}
+	_, err = s.tx.Exec(ctx, "SELECT contractor_advance_finding_correlation(ARRAY[$1::text])", assessment.ProjectID)
+	return err
 }

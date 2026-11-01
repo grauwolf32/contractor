@@ -21,10 +21,10 @@ import (
 
 type CollectionPublisher struct {
 	pool    *pgxpool.Pool
-	reviews CollectionReviews
+	reviews CollectionFindings
 }
 
-func NewCollectionPublisher(pool *pgxpool.Pool, reviews CollectionReviews) (*CollectionPublisher, error) {
+func NewCollectionPublisher(pool *pgxpool.Pool, reviews CollectionFindings) (*CollectionPublisher, error) {
 	if pool == nil || reviews == nil {
 		return nil, errors.New("finding collection dependencies are incomplete")
 	}
@@ -184,7 +184,7 @@ func (p *CollectionPublisher) captureCollection(ctx context.Context, tx pgx.Tx, 
 	}
 	selected := make(map[string]bool)
 	// requestingAudits names, per receipt, the Audit sources that selected it.
-	requestingAudits := make(map[string][]string)
+	selectedSources := make(map[string][]auditdomain.FindingCollectionSource)
 	for _, source := range request.Sources {
 		value.Sources = append(value.Sources, auditdomain.FindingCollectionSource{Kind: source.Kind, ID: source.ID})
 		if !sources[collectionSourceKey(source.Kind, source.ID)] {
@@ -210,8 +210,8 @@ func (p *CollectionPublisher) captureCollection(ctx context.Context, tx pgx.Tx, 
 				return fail(ErrNotFound)
 			}
 			selected[id] = true
-			if source.Kind == "audit" {
-				requestingAudits[id] = append(requestingAudits[id], source.ID)
+			if !slices.Contains(selectedSources[id], auditdomain.FindingCollectionSource{Kind: source.Kind, ID: source.ID}) {
+				selectedSources[id] = append(selectedSources[id], auditdomain.FindingCollectionSource{Kind: source.Kind, ID: source.ID})
 			}
 			if len(selected) > auditdomain.MaximumCollectionEntries {
 				return fail(fmt.Errorf("%w: expanded collection selection limit", ErrInvalid))
@@ -223,9 +223,9 @@ func (p *CollectionPublisher) captureCollection(ctx context.Context, tx pgx.Tx, 
 		ids = append(ids, id)
 	}
 	sort.Strings(ids)
-	reviews := map[string][]auditdomain.FindingCollectionReview{}
+	reviews := map[string]*auditdomain.FindingCollectionFinding{}
 	if observe == nil {
-		reviews, err = p.reviews.ReadCollectionReviews(ctx, tx, ownerID, ids)
+		reviews, err = p.reviews.ReadCollectionFindings(ctx, tx, ownerID, ids)
 		if err != nil {
 			return fail(err)
 		}
@@ -266,7 +266,7 @@ func (p *CollectionPublisher) captureCollection(ctx context.Context, tx pgx.Tx, 
 		receipt := receipts[id]
 		entry := auditdomain.FindingCollectionEntry{
 			ReceiptID: receipt.ReceiptID, ProposalID: receipt.ProposalID, RunID: receipt.Origin.RunID, InvocationID: receipt.Origin.InvocationID,
-			Retention: string(receipt.Retention), Evidence: []auditdomain.FindingCollectionEvidence{}, Reviews: append([]auditdomain.FindingCollectionReview{}, reviews[id]...),
+			SelectedSources: selectedSources[id], Retention: string(receipt.Retention), Evidence: []auditdomain.FindingCollectionEvidence{}, Finding: reviews[id],
 		}
 		if receipt.Origin.Audit != nil {
 			origin := receipt.Origin.Audit
@@ -288,15 +288,11 @@ func (p *CollectionPublisher) captureCollection(ctx context.Context, tx pgx.Tx, 
 		if !receipt.Origin.RunDeleted && !runs[collectionSourceKey("run", receipt.Origin.RunID)] {
 			return fail(ErrNotFound)
 		}
-		if receipt.Origin.RunDeleted {
-			// As for a receipt read through an Audit, only a requesting
-			// Audit's own retained copy is readable after source deletion.
-			hold, found := requestedAuditHold(holds, requestingAudits[id])
-			if !found {
-				return fail(ErrNotFound)
-			}
-			scope = auditdomain.FindingCollectionSource{Kind: "project", ID: hold.ProjectID}
-			proposal, evidence = hold.Proposal, hold.Evidence
+		if receipt.ProjectProposal != nil && receipt.ProjectID != nil {
+			scope = auditdomain.FindingCollectionSource{Kind: "project", ID: *receipt.ProjectID}
+			proposal, evidence = *receipt.ProjectProposal, receipt.ProjectEvidence
+		} else if receipt.Origin.RunDeleted {
+			return fail(ErrNotFound)
 		}
 		if !sameCollectionContent(proposal, receipt.Proposal) || len(evidence) != len(receipt.Evidence) {
 			return fail(artifacts.ErrArtifactIntegrity)
@@ -375,14 +371,6 @@ type plannedCollectionEntry struct {
 
 // requestedAuditHold returns the hold of the first requesting Audit in the
 // AuditID-ordered holds, so the published copy is deterministic.
-func requestedAuditHold(holds []AuditHold, auditIDs []string) (AuditHold, bool) {
-	for _, hold := range holds {
-		if slices.Contains(auditIDs, hold.AuditID) {
-			return hold, true
-		}
-	}
-	return AuditHold{}, false
-}
 
 func collectionSourceKey(kind, id string) string {
 	return kind + "\x00" + id

@@ -39,7 +39,7 @@ func TestFindingProvenanceIncludesUnassessedProposalAttempts(t *testing.T) {
 	if _, _, err := auditstoretest.NewStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{
 		AuditID: auditID, OwnerID: owner, ProjectID: projectID,
 		Profile:         auditstore.ProfileIdentity{Name: "profile", Version: "1", Digest: serviceTestDigest("profile")},
-		ProfileSnapshot: json.RawMessage(`{"interaction":{"findingConfirmation":"human-required"}}`),
+		ProfileSnapshot: json.RawMessage(`{"interaction":{}}`),
 		InputSelection:  json.RawMessage(`{}`),
 		Limits: auditstore.Limits{
 			MaxRounds: 2, BatchSize: 1, MaxItemsPerRound: 4, MaxItemsTotal: 4,

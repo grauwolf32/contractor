@@ -5,7 +5,7 @@ import { act, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import type { ArtifactMetadata } from "../../api/artifacts";
-import type { Audit, AuditFinding, AuditProfile } from "../../api/audits";
+import type { Audit, ProjectFinding, AuditProfile } from "../../api/audits";
 import type { Project } from "../../api/projects";
 import { queryKeys } from "../../api/query-keys";
 import type { RunSummary } from "../../api/runs";
@@ -102,7 +102,6 @@ const profileBase: Omit<AuditProfile, "ref" | "inputs"> = {
   },
   interaction: {
     activeChecks: "prohibited",
-    findingConfirmation: "human-required",
     notApplicable: "human-required",
     reportAcceptance: "automatic",
   },
@@ -130,7 +129,7 @@ interface FakeServer {
   audits?: Record<string, Audit[]>;
   /** Checks of a project have a further page. */
   moreAudits?: boolean;
-  findings?: Record<string, AuditFinding[]>;
+  findings?: Record<string, ProjectFinding[]>;
   runs?: RunSummary[];
   outputs?: Record<string, Record<string, unknown>>;
   artifacts?: ArtifactMetadata[];

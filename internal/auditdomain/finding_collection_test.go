@@ -14,10 +14,10 @@ import (
 // The process tests (tests/e2e) feed the Server and the Runtime this
 // collection; their copy must stay the shared fixture byte for byte.
 func TestSharedFindingCollectionProcessCopyMatches(t *testing.T) {
-	shared := contractstest.ReadFile(t, "api", "testdata", "findings", "finding-collection-v1.fixture.json")
-	process := contractstest.ReadFile(t, "tests", "e2e", "testdata", "findings", "finding-collection-v1.fixture.json")
+	shared := contractstest.ReadFile(t, "api", "testdata", "findings", "finding-collection-v2.fixture.json")
+	process := contractstest.ReadFile(t, "tests", "e2e", "testdata", "findings", "finding-collection-v2.fixture.json")
 	if !bytes.Equal(process, shared) {
-		t.Fatal("tests/e2e/testdata/findings/finding-collection-v1.fixture.json differs from the shared fixture")
+		t.Fatal("tests/e2e/testdata/findings/finding-collection-v2.fixture.json differs from the shared fixture")
 	}
 }
 
@@ -25,7 +25,7 @@ func TestSharedFindingCollectionProcessCopyMatches(t *testing.T) {
 // The ASCII metadata keys and integral numbers need no extra JCS normalization.
 func collectionFixture(t *testing.T) (FindingCollection, map[string][]byte, string, string) {
 	t.Helper()
-	raw := contractstest.ReadFile(t, "api", "testdata", "findings", "finding-collection-v1.fixture.json")
+	raw := contractstest.ReadFile(t, "api", "testdata", "findings", "finding-collection-v2.fixture.json")
 	var fixture struct {
 		Collection    FindingCollection `json:"collection"`
 		Contents      map[string]string `json:"contents"`
@@ -62,7 +62,7 @@ func TestSharedFindingCollectionConformanceAndConsumerTargets(t *testing.T) {
 	var fixture struct {
 		Targets map[string]contracts.ArtifactRef `json:"consumer_targets"`
 	}
-	if err := json.Unmarshal(contractstest.ReadFile(t, "api", "testdata", "findings", "finding-collection-v1.fixture.json"), &fixture); err != nil {
+	if err := json.Unmarshal(contractstest.ReadFile(t, "api", "testdata", "findings", "finding-collection-v2.fixture.json"), &fixture); err != nil {
 		t.Fatal(err)
 	}
 	targets := fixture.Targets
@@ -246,7 +246,7 @@ func TestSharedFindingCollectionRejectsAmbiguousJSON(t *testing.T) {
 	}
 	for name, input := range map[string][]byte{
 		"unknown field":    append([]byte(`{"unknown":true,`), valid[1:]...),
-		"duplicate field":  append([]byte(`{"schema":"contractor.findings.collection.v1",`), valid[1:]...),
+		"duplicate field":  append([]byte(`{"schema":"contractor.findings.collection.v2",`), valid[1:]...),
 		"case alias":       bytes.Replace(valid, []byte(`"schema"`), []byte(`"Schema"`), 1),
 		"noncanonical":     append([]byte("\n"), valid...),
 		"null origin":      bytes.Replace(valid, []byte(`"entries":[{`), []byte(`"entries":[{"audit_origin":null,`), 1),

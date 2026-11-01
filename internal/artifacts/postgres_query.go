@@ -40,7 +40,9 @@ func (r *PostgresRepository) ListMetadata(
 ) ([]Metadata, error) {
 	var rows pgx.Rows
 	var err error
-	if scope.kind == ScopeUser && query.HiddenNamespace == artifactpolicy.AuditStandardCatalogNamespace && query.ExcludeNamespacePrefix == "" {
+	if query.NamePrefix != "" {
+		rows, err = r.db.Query(ctx, listProjectPrefixMetadataSQL, scope.id, *query.Namespace, query.NamePrefix, query.AfterName, query.Limit)
+	} else if scope.kind == ScopeUser && query.HiddenNamespace == artifactpolicy.AuditStandardCatalogNamespace && query.ExcludeNamespacePrefix == "" {
 		rows, err = r.db.Query(ctx, listUserMetadataSQL, scope.id, query.Namespace, query.ExcludeNamespace, query.AfterNamespace, query.AfterName, query.Limit, query.HiddenNamespace)
 	} else if scope.kind == ScopeProject &&
 		query.ExcludeNamespacePrefix == artifactpolicy.AuditManagedProjectNamespacePrefix {

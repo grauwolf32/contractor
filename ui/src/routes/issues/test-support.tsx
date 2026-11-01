@@ -3,7 +3,7 @@
 // Server applies.
 import type {
   Audit,
-  AuditFinding,
+  ProjectFinding,
   AuditReviewRequest,
   AuditState,
 } from "../../api/audits";
@@ -48,16 +48,16 @@ export function issue(
   findingId: string,
   title: string,
   createdAt: string,
-  overrides: Partial<AuditFinding> = {},
-  document: Partial<AuditFinding["firstProposal"]["document"]> = {},
-): AuditFinding {
+  overrides: Partial<ProjectFinding> = {},
+  document: Partial<ProjectFinding["firstProposal"]["document"]> = {},
+): ProjectFinding {
   const base = build.finding(
     auditId,
     findingId,
     { createdAt, updatedAt: createdAt, revision: 1, ...overrides },
     { title, ...document },
   );
-  return build.conforming("AuditFinding", {
+  return build.conforming("ProjectFinding", {
     ...base,
     firstProposal: { ...base.firstProposal, createdAt },
   });
@@ -67,7 +67,7 @@ export function issue(
 export interface IssuesServer {
   projects: Project[];
   audits: Audit[];
-  findings: AuditFinding[];
+  findings: ProjectFinding[];
   reviews: AuditReviewRequest[];
   /** Checks whose possible-issue reads fail. */
   failing: Set<string>;
@@ -281,8 +281,8 @@ function routes(server: IssuesServer) {
       if (review === undefined)
         return failure(404, "not_found", "Review not found");
       const body = (await request.json()) as {
-        verdict: AuditFinding["analystVerdict"];
-        severity?: AuditFinding["analystSeverity"];
+        verdict: ProjectFinding["analystVerdict"];
+        severity?: ProjectFinding["analystSeverity"];
         rationale: string;
       };
       const decision = build.decision(review, {
@@ -292,7 +292,7 @@ function routes(server: IssuesServer) {
         rationale: body.rationale,
         subjectDigest: DIGEST,
       });
-      let decided: AuditFinding | undefined;
+      let decided: ProjectFinding | undefined;
       server.findings = server.findings.map((candidate) => {
         if (candidate.findingId !== review.findingId) return candidate;
         decided = {

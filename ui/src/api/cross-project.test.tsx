@@ -5,9 +5,9 @@ import { describe, expect, it, vi } from "vitest";
 
 import type {
   Audit,
-  AuditFinding,
-  AuditFindingSeverity,
-  AuditFindingState,
+  ProjectFinding,
+  FindingSeverity,
+  FindingState,
   AuditReport,
   AuditReviewRequest,
   AuditState,
@@ -54,12 +54,12 @@ function finding(
   auditId: string,
   findingId: string,
   options: {
-    state?: AuditFindingState;
+    state?: FindingState;
     createdAt?: string;
     verdict?: "true_positive" | "false_positive";
-    severity?: AuditFindingSeverity;
+    severity?: FindingSeverity;
   } = {},
-): AuditFinding {
+): ProjectFinding {
   const createdAt = options.createdAt ?? "2026-10-02T10:00:00Z";
   const value = build.finding(
     auditId,
@@ -95,7 +95,7 @@ const report = (status: AuditReport["status"]): AuditReport =>
 interface ServerState {
   projects: Project[];
   audits: Record<string, Audit[]>;
-  findings?: Record<string, AuditFinding[]>;
+  findings?: Record<string, ProjectFinding[]>;
   reviews?: Record<string, AuditReviewRequest[]>;
   reports?: Record<string, AuditReport>;
   failures?: Record<string, boolean>;

@@ -12,7 +12,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
-	"github.com/grauwolf32/contractor/internal/config/auditprofile"
+	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
@@ -132,7 +132,8 @@ func (s *Service) Submit(
 	}
 	var result Receipt
 	var replayed bool
-	err = persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+	err = persistencepostgres.InTxWithRetry(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		result, replayed = Receipt{}, false
 		// Serialize the initially absent idempotency row as well as ordinary
 		// replays. A transaction advisory lock avoids a race in which two
 		// byte-identical requests both advance the proposal Artifact binding
@@ -258,11 +259,54 @@ SELECT count(*) FROM finding_proposal_receipts WHERE run_id = $1`, grant.RunID).
 			}
 		}
 		origin.RunDeleted = false
+		var projectProposal *ExactArtifact
+		var projectEvidence []ExactArtifact
+		publicationError := ""
+		var publicationProject bool
+		if input.PublishProblem && projectID != nil {
+			if err := tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM projects WHERE project_id=$1 AND owner_id=$2 AND kind='project' AND lifecycle_state='active')", *projectID, ownerID).Scan(&publicationProject); err != nil {
+				return err
+			}
+		}
+		if input.PublishProblem {
+			switch {
+			case projectID == nil || !publicationProject:
+				publicationError = "problem_project_required"
+			case len(evidence) == 0:
+				publicationError = "problem_evidence_required"
+			default:
+				if err := hookstore.NewFindingEventsTx(tx).LockFindingCorrelationFence(ctx, *projectID); err != nil {
+					return err
+				}
+				retained, retainErr := retainFindingArtifact(ctx, artifactService, grant.RunID, *projectID,
+					artifactpolicy.FindingMaterialsNamespace, deterministicID("proposal", receiptID), proposal)
+				if retainErr != nil {
+					return retainErr
+				}
+				projectProposal = &retained
+				projectEvidence = make([]ExactArtifact, 0, len(evidence))
+				for index, source := range evidence {
+					retained, retainErr := retainFindingArtifact(ctx, artifactService, grant.RunID, *projectID,
+						artifactpolicy.FindingMaterialsNamespace, deterministicID("evidence", receiptID, fmt.Sprint(index)), source)
+					if retainErr != nil {
+						return retainErr
+					}
+					projectEvidence = append(projectEvidence, retained)
+				}
+			}
+		}
 		if err := insertReceipt(
 			ctx, tx, receiptID, proposalID, canonical, fingerprintJSON, proposal, evidence,
 			origin, ownerID, projectID, grant,
+			projectProposal, projectEvidence, publicationError,
 		); err != nil {
 			return err
+		}
+		if projectProposal != nil {
+			if _, err := hookstore.NewFindingEventsTx(tx).AdmitProjectFinding(ctx, *projectID, receiptID,
+				deterministicID("finding", receiptID)); err != nil {
+				return err
+			}
 		}
 		result, err = readReceiptBySubmission(
 			ctx, tx, grant.AllocationID, input.InvocationID, input.SubmissionID,
@@ -354,16 +398,14 @@ func verifyTrustedExecution(
 	origin.Workflow.ConfigurationRef.Version = run.WorkflowVersion
 	if run.AuditExecutionID != nil {
 		var audit AuditOrigin
-		var findingPolicy string
 		err := tx.QueryRow(ctx, `
-SELECT execution.audit_id, execution.execution_id, execution.role,
-       audit.profile_snapshot #>> '`+auditprofile.AuditProfileFindingConfirmationPath+`'
+SELECT execution.audit_id, execution.execution_id, execution.role
   FROM audit_executions AS execution
   JOIN audits AS audit USING (audit_id)
  WHERE execution.execution_id = $1 AND execution.run_id = $2`,
 			*run.AuditExecutionID, run.RunID,
-		).Scan(&audit.AuditID, &audit.ExecutionID, &audit.Role, &findingPolicy)
-		if errors.Is(err, pgx.ErrNoRows) || err == nil && findingPolicy == string(auditprofile.AuditFindingDisabled) {
+		).Scan(&audit.AuditID, &audit.ExecutionID, &audit.Role)
+		if errors.Is(err, pgx.ErrNoRows) {
 			return Origin{}, "", nil, ErrToolNotSelected
 		}
 		if err != nil {
@@ -398,10 +440,18 @@ func insertReceipt(
 	ownerID string,
 	projectID *string,
 	grant controlplane.AllocationGrant,
+	projectProposal *ExactArtifact,
+	projectEvidence []ExactArtifact,
+	publicationError string,
 ) error {
 	configurationRef, _ := json.Marshal(origin.Workflow.ConfigurationRef)
 	proposalRef, _ := json.Marshal(proposal.Ref)
 	evidenceJSON, _ := json.Marshal(evidence)
+	var projectProposalJSON, projectEvidenceJSON []byte
+	if projectProposal != nil {
+		projectProposalJSON, _ = json.Marshal(projectProposal)
+		projectEvidenceJSON, _ = json.Marshal(projectEvidence)
+	}
 	var auditExecutionID, auditID, auditRole *string
 	if origin.Audit != nil {
 		auditExecutionID, auditID, auditRole = &origin.Audit.ExecutionID, &origin.Audit.AuditID, &origin.Audit.Role
@@ -416,6 +466,7 @@ func insertReceipt(
 		proposalRef, proposal.Digest, proposal.MediaType, proposal.SizeBytes,
 		evidenceJSON, string(canonical.reportProjection), string(fingerprintJSON), string(canonical.anchorProjection),
 		string(canonical.checksProjection),
+		canonical.request.PublishProblem, publicationError, projectProposalJSON, projectEvidenceJSON,
 	)
 	if err != nil {
 		switch persistencepostgres.Classify(err) {

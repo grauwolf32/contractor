@@ -199,6 +199,18 @@ func (unavailableGitKeys) Delete(context.Context, string) error {
 // missingFindingProposals holds no finding proposal of any Run or Audit.
 type missingFindingProposals struct{}
 
+func (missingFindingProposals) GetProjectReceipt(context.Context, string, string, string) (findingintake.Receipt, error) {
+	return findingintake.Receipt{}, findingintake.ErrNotFound
+}
+
+func (missingFindingProposals) ListProjectSources(context.Context, string, string, string, findingintake.ProjectSourceQuery) (findingintake.ProjectSourcePage, error) {
+	return findingintake.ProjectSourcePage{}, findingintake.ErrNotFound
+}
+
+func (missingFindingProposals) ListProjectSourceHistory(context.Context, string, string, string, string, int, *uint64) (findingintake.ProjectSourceHistoryPage, error) {
+	return findingintake.ProjectSourceHistoryPage{}, findingintake.ErrNotFound
+}
+
 func (missingFindingProposals) ListRun(context.Context, string, string, findingintake.ListQuery) ([]findingintake.Receipt, error) {
 	return nil, findingintake.ErrNotFound
 }

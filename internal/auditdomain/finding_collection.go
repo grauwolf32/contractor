@@ -11,13 +11,12 @@ import (
 )
 
 const (
-	FindingCollectionSchema                  = "contractor.findings.collection.v1"
+	FindingCollectionSchema                  = "contractor.findings.collection.v2"
 	PackageKindFindingCollection PackageKind = "finding-collection"
 	FindingCollectionMemberID                = "collection"
 	MaximumCollectionEntries                 = 256
 	MaximumCollectionSources                 = 64
 	MaximumCollectionDocuments               = MaximumMembers - 1
-	MaximumCollectionReviews                 = 32
 	MaximumCollectionJSONBytes               = 1 << 20
 )
 
@@ -47,6 +46,7 @@ type FindingCollectionDocument struct {
 }
 
 type FindingCollectionEntry struct {
+	SelectedSources    []FindingCollectionSource     `json:"selected_sources"`
 	ReceiptID          string                        `json:"receipt_id"`
 	ProposalID         string                        `json:"proposal_id"`
 	RunID              string                        `json:"run_id"`
@@ -56,7 +56,7 @@ type FindingCollectionEntry struct {
 	Retention          string                        `json:"retention"`
 	ProposalDocumentID string                        `json:"proposal_document_id"`
 	Evidence           []FindingCollectionEvidence   `json:"evidence"`
-	Reviews            []FindingCollectionReview     `json:"reviews"`
+	Finding            *FindingCollectionFinding     `json:"finding,omitempty"`
 }
 
 type FindingCollectionAuditOrigin struct {
@@ -72,14 +72,14 @@ type FindingCollectionEvidence struct {
 
 // Review is a captured observation. Its presence never authorizes a decision or
 // turns imported user-supplied collection bytes into a trusted Audit record.
-type FindingCollectionReview struct {
-	AuditID           string `json:"audit_id"`
-	FindingID         string `json:"finding_id"`
-	Revision          uint64 `json:"revision"`
-	State             string `json:"state"`
-	DecisionID        string `json:"decision_id,omitempty"`
-	AssessmentID      string `json:"assessment_id,omitempty"`
-	DuplicateTargetID string `json:"duplicate_target_id,omitempty"`
+type FindingCollectionFinding struct {
+	ProjectID         string  `json:"project_id"`
+	FindingID         string  `json:"finding_id"`
+	Revision          uint64  `json:"revision"`
+	State             *string `json:"state"`
+	Verdict           string  `json:"verdict,omitempty"`
+	Severity          string  `json:"severity,omitempty"`
+	DuplicateTargetID string  `json:"duplicate_target_id,omitempty"`
 }
 
 // FindingCollectionDocumentID retains the scope as part of identity: identical
@@ -178,7 +178,7 @@ func validateFindingCollection(value FindingCollection) error {
 			return invalid(CodeInvalid, "collection.entries")
 		}
 		switch entry.Retention {
-		case "source-held", "audit-held", "discarded":
+		case "source-held", "project-held", "discarded":
 		default:
 			return invalid(CodeInvalid, "collection.retention")
 		}
@@ -187,9 +187,16 @@ func validateFindingCollection(value FindingCollection) error {
 				return invalid(CodeInvalid, "collection.audit_origin")
 			}
 		}
-		selected := sources["run\x00"+entry.RunID]
-		if entry.AuditOrigin != nil {
-			selected = selected || sources["audit\x00"+entry.AuditOrigin.AuditID]
+		if len(entry.SelectedSources) == 0 || len(entry.SelectedSources) > MaximumCollectionSources {
+			return invalid(CodeLimitExceeded, "collection.selected_sources")
+		}
+		priorSource := ""
+		for _, source := range entry.SelectedSources {
+			key := source.Kind + "\x00" + source.ID
+			if !sources[key] || key <= priorSource {
+				return invalid(CodeReferenceInvalid, "collection.selected_sources")
+			}
+			priorSource = key
 		}
 		if len(entry.AuditHolds) > MaximumCollectionSources {
 			return invalid(CodeLimitExceeded, "collection.audit_holds")
@@ -199,7 +206,6 @@ func validateFindingCollection(value FindingCollection) error {
 			if validateIdentifier(auditID, "audit_id") != nil || auditID <= priorHold {
 				return invalid(CodeInvalid, "collection.audit_holds")
 			}
-			selected = selected || sources["audit\x00"+auditID]
 			priorHold = auditID
 		}
 		proposal, ok := documents[entry.ProposalDocumentID]
@@ -207,7 +213,7 @@ func validateFindingCollection(value FindingCollection) error {
 			return invalid(CodeReferenceInvalid, "collection.proposal_document_id")
 		}
 		used[proposal.ID] = true
-		if entry.Evidence == nil || len(entry.Evidence) > MaximumEvidencePerItem || entry.Reviews == nil || len(entry.Reviews) > MaximumCollectionReviews {
+		if entry.Evidence == nil || len(entry.Evidence) > MaximumEvidencePerItem {
 			return invalid(CodeLimitExceeded, "collection.entry")
 		}
 		priorEvidence := ""
@@ -221,26 +227,19 @@ func validateFindingCollection(value FindingCollection) error {
 			used[evidence.DocumentID] = true
 			priorEvidence = evidence.EvidenceID
 		}
-		priorReview := ""
-		for _, review := range entry.Reviews {
-			selected = selected || sources["audit\x00"+review.AuditID]
-			key := review.AuditID + "\x00" + review.FindingID
-			if validateIdentifier(review.AuditID, "audit_id") != nil || validateIdentifier(review.FindingID, "finding_id") != nil ||
-				key <= priorReview || review.Revision == 0 || review.Revision > contracts.MaxExactInteger ||
-				review.DecisionID != "" && validateIdentifier(review.DecisionID, "decision_id") != nil ||
-				review.AssessmentID != "" && validateIdentifier(review.AssessmentID, "assessment_id") != nil ||
-				review.DuplicateTargetID != "" && validateIdentifier(review.DuplicateTargetID, "duplicate_target_id") != nil {
-				return invalid(CodeInvalid, "collection.reviews")
+		if finding := entry.Finding; finding != nil {
+			if validateIdentifier(finding.ProjectID, "project_id") != nil || validateIdentifier(finding.FindingID, "finding_id") != nil ||
+				finding.Revision < 1 || finding.Revision > contracts.MaxExactInteger ||
+				finding.DuplicateTargetID != "" && validateIdentifier(finding.DuplicateTargetID, "duplicate_target_id") != nil {
+				return invalid(CodeInvalid, "collection.finding")
 			}
-			switch review.State {
-			case "proposed", "confirmed", "rejected", "duplicate", "needs-evidence":
-			default:
-				return invalid(CodeInvalid, "collection.reviews.state")
+			if finding.State != nil {
+				switch *finding.State {
+				case "proposed", "confirmed", "rejected", "duplicate", "needs-evidence":
+				default:
+					return invalid(CodeInvalid, "collection.finding.state")
+				}
 			}
-			priorReview = key
-		}
-		if !selected {
-			return invalid(CodeReferenceInvalid, "collection.entry_source")
 		}
 		previous = entry.ReceiptID
 		proposals[entry.ProposalID] = true
