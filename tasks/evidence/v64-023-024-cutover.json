@@ -51,7 +51,37 @@
   "tests": {
     "postgres_and_deletion_packages": "/tmp/v64023-24-tests.log",
     "lint": "/tmp/v64023-24-lint.log",
-    "require_database": "/tmp/v64023-require-backlog.log"
+    "require_database": "/tmp/v64023-require-backlog.log",
+    "result": "All listed gates passed with a configured disposable PostgreSQL database."
   },
-  "migration_sha256": "5352e047824c027a4da93b7b6926462ddff6a232df8231dc47e810ac3bd0156e"
+  "migration_sha256": "5352e047824c027a4da93b7b6926462ddff6a232df8231dc47e810ac3bd0156e",
+  "live_cutover": {
+    "status": "passed",
+    "retired_runs": 18,
+    "retained_outputs": 13,
+    "ordinary_runs_unchanged": true,
+    "original_project_materials_unchanged": true,
+    "projects_unchanged": true,
+    "applied_ledger": [
+      {
+        "version": 1,
+        "name": "000001_baseline.sql",
+        "checksum": "8e99174cbbb0f4ee8f9ebb8510ea6372d36bd024e6e7630b524a2734e918df71",
+        "applied_at": "2026-10-31T22:48:57.929374+03:00"
+      },
+      {
+        "version": 2,
+        "name": "000002_remove_scan_sweeps.sql",
+        "checksum": "445e602902e04c5c815bdfefff74c41dea1839c7f88ef530b75d7c3960e723ba",
+        "applied_at": "2026-10-31T22:48:57.932589+03:00"
+      },
+      {
+        "version": 3,
+        "name": "000003_project_findings.sql",
+        "checksum": "5352e047824c027a4da93b7b6926462ddff6a232df8231dc47e810ac3bd0156e",
+        "applied_at": "2026-11-02T01:24:25.212377+03:00"
+      }
+    ],
+    "history_bindings": 459
+  }
 }

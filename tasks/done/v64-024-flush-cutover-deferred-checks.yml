@@ -6,7 +6,7 @@ epic: audits
 kind: defect
 introduced_by: V64-014
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages: [go, sql, markdown]
 goal: The atomic Project Finding cutover completes on collected execution items with deferred reference events.
@@ -41,4 +41,4 @@ tests:
   covers: [A1, A2]
 - command: make lint
   covers: [A2]
-implementation_commit: null
+implementation_commit: 5aa77fee8d6ef8c88780c1352275c78346b6e18d

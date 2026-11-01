@@ -6,7 +6,7 @@ epic: audits
 kind: defect
 introduced_by: V64-014
 priority: P1
-status: in_progress
+status: completed
 depends_on: [V64-024]
 languages: [go, sql, markdown]
 goal: >-
@@ -97,4 +97,4 @@ tests:
 - command: go test -tags=integration -count=1 ./internal/persistence/postgres/... ./internal/rundeletion/... ./internal/runstore/... ./internal/artifacts/...
   covers: [A1, A2, A3]
 - command: make lint
-implementation_commit: null
+implementation_commit: 5aa77fee8d6ef8c88780c1352275c78346b6e18d
