@@ -10,8 +10,8 @@ import (
 	contractorconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
-	"github.com/grauwolf32/contractor/internal/securefile"
-	"github.com/grauwolf32/contractor/internal/strictjson"
+	"github.com/grauwolf32/contractor/internal/helpers/securefile"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 )
 
 func runConfigCLI(args []string, logger *slog.Logger) error {

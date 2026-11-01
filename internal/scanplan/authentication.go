@@ -7,8 +7,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/contracts/scan"
+	"github.com/grauwolf32/contractor/internal/helpers/clone"
 )
 
 var bearerToken = regexp.MustCompile(`^[A-Za-z0-9._~+/-]+=*$`)

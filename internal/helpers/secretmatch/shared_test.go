@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
-	"github.com/grauwolf32/contractor/internal/secretmatch"
+	"github.com/grauwolf32/contractor/internal/helpers/secretmatch"
 )
 
 // The Runtime's contractor_runtime.redaction reads the same cases.

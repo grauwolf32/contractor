@@ -1,6 +1,6 @@
 package auditdomain
 
-import "github.com/grauwolf32/contractor/internal/contentdigest"
+import "github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 
 const FindingRoundBudgetStateSchema = "contractor.audit.finding-round-budget.v1"
 const MaximumFindingRoundBudgetStateBytes = 4 << 10

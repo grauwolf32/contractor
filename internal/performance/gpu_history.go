@@ -3,7 +3,7 @@ package performance
 import (
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/exactinteger"
+	"github.com/grauwolf32/contractor/internal/helpers/exactinteger"
 )
 
 type GPUAggregate struct {

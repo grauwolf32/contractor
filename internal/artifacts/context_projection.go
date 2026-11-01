@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 )
 
 // CreateContextProjection is transaction-only: creation and exact lineage

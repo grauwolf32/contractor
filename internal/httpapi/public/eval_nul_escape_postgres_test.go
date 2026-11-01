@@ -10,7 +10,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalservice"
 	"github.com/grauwolf32/contractor/internal/evalstore"
-	"github.com/grauwolf32/contractor/internal/strictjson"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 )
 
 // evalNUL is U+0000, which encoding/json writes as the escape \u0000 that every

@@ -15,8 +15,8 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	"github.com/grauwolf32/contractor/internal/scanplan"
-	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 // Assert the public artifact shape independently of the preparer's Go structs.

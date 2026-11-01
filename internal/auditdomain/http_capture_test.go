@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
-	"github.com/grauwolf32/contractor/internal/strictjson"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 )
 
 func TestSharedHTTPFindingCapture(t *testing.T) {

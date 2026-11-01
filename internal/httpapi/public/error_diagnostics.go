@@ -11,8 +11,8 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/credentials"
+	"github.com/grauwolf32/contractor/internal/helpers/requestid"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
-	"github.com/grauwolf32/contractor/internal/requestid"
 )
 
 // This wrapper is inside authentication so it observes the same Request that

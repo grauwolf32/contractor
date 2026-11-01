@@ -11,8 +11,8 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/scan"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	"github.com/grauwolf32/contractor/internal/scanplan"
-	"github.com/grauwolf32/contractor/internal/strictjson"
 	jsonschema "github.com/santhosh-tekuri/jsonschema/v6"
 )
 

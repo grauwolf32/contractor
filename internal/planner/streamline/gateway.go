@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
-	"github.com/grauwolf32/contractor/internal/requestid"
+	"github.com/grauwolf32/contractor/internal/helpers/requestid"
 	"google.golang.org/adk/v2/model"
 	"google.golang.org/genai"
 )

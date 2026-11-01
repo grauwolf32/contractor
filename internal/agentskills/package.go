@@ -12,7 +12,7 @@ import (
 	"sort"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/grauwolf32/contractor/internal/securefile"
+	"github.com/grauwolf32/contractor/internal/helpers/securefile"
 )
 
 // PackageDirectory validates a source tree and returns its canonical archive.

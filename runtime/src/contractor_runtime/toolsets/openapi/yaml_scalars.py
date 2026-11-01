@@ -2,7 +2,7 @@
 
 Server scan preparation (internal/scanplan) and the openapi-operations@1
 inventory (internal/auditdomain) read YAML with go-yaml v4 under the rule of
-internal/documentyaml. The Toolset ``openapi@1`` reads and writes the same
+internal/helpers/documentyaml. The Toolset ``openapi@1`` reads and writes the same
 documents, so this module ports that rule exactly instead of using PyYAML's
 YAML 1.1 resolvers, and api/testdata/openapi-yaml-scalar-cases.json holds both
 languages to the same verdicts:
@@ -82,7 +82,7 @@ _RESOLVE_MAP: dict[str, str] = {
 
 # go-yaml v4 yamlStyleFloat, matched after removing underscores.
 _YAML_STYLE_FLOAT = re.compile(r"[-+]?(?:\.[0-9]+|[0-9]+(?:\.[0-9]*)?)(?:[eE][-+]?[0-9]+)?")
-# internal/documentnumber numericYAMLScalar.
+# internal/helpers/documentnumber numericYAMLScalar.
 _NUMERIC = re.compile(
     r"[+-]?(?:0[xX][0-9a-fA-F_]+|0[oO][0-7_]+|0[bB][01_]+"
     r"|(?:[0-9][0-9_]*(?:\.[0-9_]*)?|\.[0-9][0-9_]*)(?:[eE][+-]?[0-9]+)?)"

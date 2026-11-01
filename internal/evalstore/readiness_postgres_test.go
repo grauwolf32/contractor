@@ -10,8 +10,8 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	pg "github.com/grauwolf32/contractor/internal/persistence/postgres"
-	"github.com/grauwolf32/contractor/internal/strictjson"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 

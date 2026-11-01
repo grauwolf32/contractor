@@ -19,10 +19,10 @@ import (
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingintake"
-	"github.com/grauwolf32/contractor/internal/randomid"
+	"github.com/grauwolf32/contractor/internal/helpers/randomid"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runstore"
-	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 func typedRoutingControllerConfig(t *testing.T, customize ...func(map[string]string)) *config.Snapshot {

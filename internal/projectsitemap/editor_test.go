@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/strictjson"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 )
 
 func TestEditorMutationBindsOnlyTrustedSource(t *testing.T) {

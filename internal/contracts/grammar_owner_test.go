@@ -39,7 +39,7 @@ var sameLanguageRules = map[string]string{
 	"internal/credentials/repository.go":         "managed credential operation ID",
 	"internal/findingintake/types.go":            "finding intake identity",
 	"internal/httpapi/public/events/protocol.go": "live event subscription ID",
-	"internal/requestid/requestid.go":            "X-Request-ID",
+	"internal/helpers/requestid/requestid.go":    "X-Request-ID",
 }
 
 // idempotencyKeyPunctuation is how a hand-written character loop spells the

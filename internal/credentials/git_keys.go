@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/apierror"
+	"github.com/grauwolf32/contractor/internal/helpers/randomid"
 	postgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
-	"github.com/grauwolf32/contractor/internal/randomid"
 	"github.com/jackc/pgx/v5"
 	"golang.org/x/crypto/ssh"
 )

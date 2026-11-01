@@ -13,8 +13,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/agentprincipal"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
+	"github.com/grauwolf32/contractor/internal/helpers/requestid"
 	"github.com/grauwolf32/contractor/internal/mtls"
-	"github.com/grauwolf32/contractor/internal/requestid"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
 

@@ -6,11 +6,11 @@ package controlplane
 // value while the lock is not held.
 
 import (
-	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
+	"github.com/grauwolf32/contractor/internal/helpers/clone"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
 

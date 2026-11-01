@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	"github.com/grauwolf32/contractor/internal/clone"
+	"github.com/grauwolf32/contractor/internal/helpers/clone"
 )
 
 var testEpoch = time.Date(2026, 9, 1, 10, 0, 0, 0, time.UTC)

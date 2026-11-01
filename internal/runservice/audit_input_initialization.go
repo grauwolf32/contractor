@@ -12,8 +12,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	"github.com/grauwolf32/contractor/internal/runstore"
-	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 func validateRoundResultsAuthority(ctx context.Context, writer AuditExecutionWriter, intent auditstore.RunCreationIntent, params AuditCreateParams) error {
