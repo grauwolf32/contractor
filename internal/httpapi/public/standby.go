@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/grauwolf32/contractor/internal/apierror"
-	"github.com/grauwolf32/contractor/internal/requestid"
+	"github.com/grauwolf32/contractor/internal/helpers/requestid"
 )
 
 // NewStandbyHandler serves the public API of a standby Server, one that waits

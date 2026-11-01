@@ -31,39 +31,39 @@ var layers = []layerSpec{
 			// The public error code registry that domain errors report.
 			"internal/apierror",
 			"internal/artifactpolicy",
-			"internal/cabundle",
+			"internal/helpers/cabundle",
 			// The claim lifecycle of one controller pass that the Audit
 			// controller and the Eval coordinator share (PER-R26).
 			"internal/claimpass",
-			"internal/clone",
+			"internal/helpers/clone",
 			"internal/configtest",
-			"internal/contentdigest",
+			"internal/helpers/contentdigest",
 			// Wire fixture helpers for contract tests; standard library only.
 			"internal/contracts/contractstest",
 			"internal/credentialerrors",
-			"internal/documentnumber",
-			"internal/exactinteger",
+			"internal/helpers/documentnumber",
+			"internal/helpers/exactinteger",
 			// The YAML scalar and member-name rule of JSON-compatible source
 			// documents (SCN-R124) that scan preparation and the Audit
 			// inventories share.
-			"internal/documentyaml",
+			"internal/helpers/documentyaml",
 			"internal/httpapi/httpx",
 			"internal/mtlstest",
 			// The public list page bound shared by handlers, stores and the CLI.
-			"internal/pagelimit",
+			"internal/helpers/pagelimit",
 			// Schema-isolated test pools; pgx and standard library only.
 			"internal/persistence/postgrestest",
 			"internal/profiling",
 			"internal/publicclient/generated",
-			"internal/randomid",
-			"internal/requestid",
+			"internal/helpers/randomid",
+			"internal/helpers/requestid",
 			// The one secret-matching rule (OBS-R31, LIM-OBS-3) that telemetry,
 			// the Planner span filters and the Agent Card scan share.
-			"internal/secretmatch",
-			"internal/securefile",
-			"internal/sourcezip",
-			"internal/strictjson",
-			"internal/zipdirectory",
+			"internal/helpers/secretmatch",
+			"internal/helpers/securefile",
+			"internal/helpers/sourcezip",
+			"internal/helpers/strictjson",
+			"internal/helpers/zipdirectory",
 		},
 	},
 	{

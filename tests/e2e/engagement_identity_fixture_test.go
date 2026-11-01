@@ -9,10 +9,10 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/engagementcontract"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 

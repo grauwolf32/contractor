@@ -6,7 +6,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/pagelimit"
+	"github.com/grauwolf32/contractor/internal/helpers/pagelimit"
 )
 
 func (h *auditHandlers) listAuditEvents(w http.ResponseWriter, r *http.Request) {

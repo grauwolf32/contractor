@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/sourcezip"
+	"github.com/grauwolf32/contractor/internal/helpers/sourcezip"
 )
 
 // Limits are restart-only process budgets. Fixed protocol parser bounds and the

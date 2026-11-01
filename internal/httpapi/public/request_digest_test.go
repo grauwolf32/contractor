@@ -11,7 +11,7 @@ import (
 	"testing"
 )
 
-const contentDigestImport = "github.com/grauwolf32/contractor/internal/contentdigest"
+const contentDigestImport = "github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 
 // TestHandlersComputeNoRequestDigest keeps the idempotency request digests
 // with the packages that own the requests (runservice, projectstore,
@@ -47,13 +47,13 @@ func TestRequestDigestCheckFindsProbes(t *testing.T) {
 		"digest function": `package public
 func probeRequestDigest() string { return "" }`,
 		"contentdigest call": `package public
-import "github.com/grauwolf32/contractor/internal/contentdigest"
+import "github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 func probe(value any) (string, error) { return contentdigest.JSON(value) }`,
 		"aliased contentdigest call": `package public
-import digests "github.com/grauwolf32/contractor/internal/contentdigest"
+import digests "github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 func probe(data []byte) string { return digests.Bytes(data) }`,
 		"contentdigest value": `package public
-import "github.com/grauwolf32/contractor/internal/contentdigest"
+import "github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 var probe = contentdigest.CanonicalJSON`,
 	} {
 		if violations := requestDigestViolations(t, "probe.go", source); len(violations) == 0 {
@@ -61,7 +61,7 @@ var probe = contentdigest.CanonicalJSON`,
 		}
 	}
 	clean := `package public
-import "github.com/grauwolf32/contractor/internal/contentdigest"
+import "github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 func validDigest(value string) bool { return contentdigest.Valid(value) }`
 	if violations := requestDigestViolations(t, "clean.go", clean); len(violations) != 0 {
 		t.Errorf("a digest validation was reported: %v", violations)

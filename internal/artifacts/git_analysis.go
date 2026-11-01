@@ -1,6 +1,6 @@
 package artifacts
 
-import "github.com/grauwolf32/contractor/internal/strictjson"
+import "github.com/grauwolf32/contractor/internal/helpers/strictjson"
 
 // GitAnalysis is the immutable coverage summary of an explicitly filtered import.
 // The ZIP member contains the complete per-path report, including its policy.

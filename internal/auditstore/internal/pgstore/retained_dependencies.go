@@ -4,7 +4,7 @@ import (
 	"context"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/strictjson"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 )
 
 func (s *QueryStore) DependencyResultSource(ctx context.Context, auditID, executionID, subjectKey string) (auditstore.DependencyResultSource, error) {

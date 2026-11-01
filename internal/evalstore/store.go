@@ -10,9 +10,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 	pg "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )

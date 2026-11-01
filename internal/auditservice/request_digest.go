@@ -5,9 +5,9 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 )
 
 // The request digests below are what an Idempotency-Key binds for each Audit

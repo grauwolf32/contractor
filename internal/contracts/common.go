@@ -23,9 +23,9 @@ import (
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/apierror"
-	"github.com/grauwolf32/contractor/internal/contentdigest"
-	"github.com/grauwolf32/contractor/internal/exactinteger"
-	"github.com/grauwolf32/contractor/internal/strictjson"
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
+	"github.com/grauwolf32/contractor/internal/helpers/exactinteger"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 )
 
 const APIVersion = "contractor/v1alpha1"

@@ -2,9 +2,9 @@ package config
 
 import (
 	"github.com/grauwolf32/contractor/internal/config/resolved"
-	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 )
 
 func modelPolicyDigest(selector resolved.Selector, policy contracts.ResolvedModelPolicy) (string, error) {

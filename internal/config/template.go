@@ -6,9 +6,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/helpers/clone"
 	"go.yaml.in/yaml/v4"
 )
 

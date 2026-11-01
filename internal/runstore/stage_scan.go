@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	"github.com/grauwolf32/contractor/internal/stageresult"
-	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 const stageExecutionColumns = `

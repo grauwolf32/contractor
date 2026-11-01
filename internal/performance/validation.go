@@ -7,7 +7,7 @@ import (
 	"math"
 	"strings"
 
-	"github.com/grauwolf32/contractor/internal/exactinteger"
+	"github.com/grauwolf32/contractor/internal/helpers/exactinteger"
 )
 
 var errInvalidRecord = errors.New("invalid bounded performance record")

@@ -27,9 +27,9 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/app"
 	"github.com/grauwolf32/contractor/internal/auth"
+	"github.com/grauwolf32/contractor/internal/helpers/requestid"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/publicclient"
-	"github.com/grauwolf32/contractor/internal/requestid"
 )
 
 // standbyServerEnvironment makes the test binary run the Server instead of

@@ -12,7 +12,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	"github.com/grauwolf32/contractor/internal/clone"
+	"github.com/grauwolf32/contractor/internal/helpers/clone"
 )
 
 const (

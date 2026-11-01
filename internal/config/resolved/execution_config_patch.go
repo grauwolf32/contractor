@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/grauwolf32/contractor/internal/strictjson"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 )
 
 // ExecutionConfigPatch is the strict reference-only shape accepted by a Run.

@@ -8,10 +8,10 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/config/resolved"
-	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 )
 
 func TestSharedWorkerSummarizerGoldenDigestMatchesGoCanonicalization(t *testing.T) {

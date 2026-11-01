@@ -1,6 +1,6 @@
 package auditpriority
 
-import "github.com/grauwolf32/contractor/internal/contentdigest"
+import "github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 
 // ResolveTopN pins one effective value. Nil means omitted; zero is not omission.
 // It deliberately does not reduce topN to available candidates or execution

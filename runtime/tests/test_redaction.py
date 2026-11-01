@@ -75,7 +75,7 @@ def test_runtime_secrets_hold_credentials_and_setting_values_add_endpoints() -> 
 
 
 def test_shared_secret_matching_cases() -> None:
-    """The Server's internal/secretmatch reads the same cases."""
+    """The Server's internal/helpers/secretmatch reads the same cases."""
 
     fixture = json.loads(
         (Path(__file__).parents[2] / "api/testdata/v1alpha1/secret-matching-cases.json").read_text(

@@ -49,7 +49,7 @@ func copiedBoundPositions(name string, source []byte) ([]token.Position, error) 
 		return nil, err
 	}
 	var canonical ast.Expr
-	if name == "internal/exactinteger/integer.go" {
+	if name == "internal/helpers/exactinteger/integer.go" {
 		ast.Inspect(file, func(n ast.Node) bool {
 			if spec, ok := n.(*ast.ValueSpec); ok && len(spec.Names) == 1 && spec.Names[0].Name == "Max" && len(spec.Values) == 1 {
 				canonical = spec.Values[0]
@@ -91,7 +91,7 @@ func copiedBoundPositions(name string, source []byte) ([]token.Position, error) 
 }
 
 func TestExactIntegerDefinitionsHaveOneSource(t *testing.T) {
-	root := filepath.Join("..", "..")
+	root := filepath.Join("..", "..", "..")
 	files := 0
 	for _, dir := range []string{"internal", "cmd", "api", "tools"} {
 		err := filepath.WalkDir(filepath.Join(root, dir), func(path string, entry fs.DirEntry, err error) error {
@@ -142,8 +142,8 @@ func TestExactIntegerCopyGuardFindsProbes(t *testing.T) {
 		}
 	}
 	for name, source := range map[string]string{
-		"probe.go":                         "package probe\nconst copy = contracts.MaxExactInteger",
-		"internal/exactinteger/integer.go": "package exactinteger\nconst Max = 1<<53 - 1",
+		"probe.go": "package probe\nconst copy = contracts.MaxExactInteger",
+		"internal/helpers/exactinteger/integer.go": "package exactinteger\nconst Max = 1<<53 - 1",
 	} {
 		positions, err := copiedBoundPositions(name, []byte(source))
 		if err != nil || len(positions) != 0 {

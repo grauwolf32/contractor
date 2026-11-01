@@ -7,7 +7,7 @@ import (
 	"io"
 	"log/slog"
 
-	"github.com/grauwolf32/contractor/internal/securefile"
+	"github.com/grauwolf32/contractor/internal/helpers/securefile"
 	"go.yaml.in/yaml/v4"
 )
 

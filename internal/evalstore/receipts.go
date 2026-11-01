@@ -6,7 +6,7 @@ import (
 	"errors"
 
 	"github.com/grauwolf32/contractor/internal/evaldomain"
-	"github.com/grauwolf32/contractor/internal/strictjson"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 )
 
 type DatasetReceipt struct {

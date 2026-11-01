@@ -20,9 +20,9 @@ import (
 	"github.com/grauwolf32/contractor/internal/findinganalysis"
 	"github.com/grauwolf32/contractor/internal/findingexport"
 	"github.com/grauwolf32/contractor/internal/findingintake"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runstore"
-	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 func TestFindingExportFreezesDuplicateOptionAndIndependentAuditReviews(t *testing.T) {

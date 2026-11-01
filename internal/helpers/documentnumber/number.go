@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/grauwolf32/contractor/internal/exactinteger"
+	"github.com/grauwolf32/contractor/internal/helpers/exactinteger"
 )
 
 const maximum = exactinteger.Max

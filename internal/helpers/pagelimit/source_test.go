@@ -22,7 +22,7 @@ var boundName = regexp.MustCompile(`(?i)(page|limit)`)
 // declared as the literal MaxRows or MaxFetchRows. Each such copy is how a
 // store came to reject the documented limit=200 page.
 func TestNoOtherPublicPageBound(t *testing.T) {
-	root, err := filepath.Abs(filepath.Join("..", ".."))
+	root, err := filepath.Abs(filepath.Join("..", "..", ".."))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -6,10 +6,10 @@ import (
 	"slices"
 	"sort"
 
-	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
+	"github.com/grauwolf32/contractor/internal/helpers/clone"
 )
 
 // ResolutionErrorCode is a stable, content-free failure class. Paths are
