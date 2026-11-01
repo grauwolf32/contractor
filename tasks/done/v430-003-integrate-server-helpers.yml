@@ -5,7 +5,8 @@ milestone: hub-audit-structure-2026-10
 epic: quality
 kind: chore
 priority: P3
-status: in_progress
+status: completed
+implementation_commit: f00957b0031bcc4fa3845819c856e1ccb72fd8f9
 depends_on: []
 languages: [go]
 goal: Main contains the verified helpers directory without losing newer Audit, configuration or UI work.
@@ -44,3 +45,20 @@ tests:
     covers: [A1, A3]
   - command: make lint
     covers: [A1, A2, A3]
+verification: >-
+  2026-11-01: full go test -json -count=1 ./... passed with the dedicated
+  contractor_helpers_integration_20261101 PostgreSQL database over TCP:
+  110 packages passed, 27 had no test files, and 11,065 tests/subtests passed.
+  Ten platform/optional tests skipped (APFS fixtures, root ownership, optional
+  GPU, LiteLLM, OTLP and live model/project checks); no database-unset skip.
+  Complete make lint and go build ./cmd/... passed. The initial automatic
+  merge retained one now-unused digest import; removing it preserved current
+  main's deletion. The pre-existing main Namespace/CLI-name test failure was
+  repaired separately in V430-004. An AST/token comparison against current
+  main confirmed unchanged production declarations in 274 affected Go files
+  after excluding imports and normalizing helper source paths. The combined
+  tree landed on main with --no-ff as f00957b0031bcc4fa3845819c856e1ccb72fd8f9;
+  its tree exactly matched the tested integration branch. Main's own
+  V425-037/038 and removal of unused priority exemptions were retained.
+  The original dirty Audit-design checkout was untouched. No remote push,
+  demo writes or full release gate was performed.
