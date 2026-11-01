@@ -42,5 +42,5 @@ tests:
     covers: [A1, A2]
   - command: go -C tools/testonlyexports test -count=1 ./...
     covers: [A1, A2]
-  - command: go -C tools/testonlyexports run . -tags=integration,e2e -baseline tools/testonlyexports/baseline.txt .
+  - command: go -C tools/testonlyexports run . -tags=integration,e2e -baseline tools/testonlyexports/baseline.txt ../..
     covers: [A1, A2]
