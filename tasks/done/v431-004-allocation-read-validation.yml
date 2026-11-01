@@ -5,7 +5,7 @@ milestone: hub-audit-defects-2026-10
 epic: execution-core
 kind: defect
 priority: P3
-status: in_progress
+status: completed
 depends_on: []
 languages:
 - go
@@ -22,6 +22,13 @@ context:
   specification:
   - docs/spec/execution/runs.md#RUN-R106
   - docs/spec/platform/persistence.md#PER-R13
+  verification:
+    date: '2026-11-01'
+    evidence: All eight damaged immutable-field cases were accepted before the fix. Single and batch reads
+      now reject them through the shared write validator; strict snapshot and allocation lifecycle suites
+      pass.
+    environment: Isolated disposable PostgreSQL database; race detector enabled. The external opt-in LiteLLM
+      contract test was skipped, not counted as a database pass.
 scope:
   in:
   - Assemble stored allocation fields once, then reuse StageAllocation.Validate instead of repeating its
@@ -41,8 +48,10 @@ acceptance_criteria:
 - id: A3
   text: The invalid-digest regression fails on the unfixed implementation.
 tests:
-- command: CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -race -tags=integration -count=1 ./internal/runstore/...
-    ./internal/controlplane/... ./internal/scheduler/...
+- command: CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -json -p=3 -race -tags=integration -count=1
+    -timeout=15m ./internal/runstore/... ./internal/planner/session/... ./internal/runservice/... ./internal/controlplane/...
+    ./internal/scheduler/... ./internal/persistence/... ./internal/app/... ./internal/archtest/... ./internal/credentials/...
+    ./internal/rundeletion/... ./internal/auditservice/... ./internal/evalservice/... ./internal/httpapi/public/...
   covers: &id001
   - A1
   - A2
@@ -50,3 +59,4 @@ tests:
 - command: make lint
   covers: *id001
 introduced_by: V372-028
+implementation_commit: e4238ee7b660340cfb58b2316880410504416854
