@@ -169,7 +169,7 @@ func TestTransactionLookupPinsRuntimeConfigWithoutAnotherPoolConnection(t *testi
 		_ = tx.Rollback(ctx)
 		t.Fatalf("pinned LLM credential IDs = %v", pinned.LLMCredentialIDs)
 	}
-	if _, err := runstoretest.CreateRun(ctx, store, runstore.CreateRunParams{
+	if _, err := runstoretest.CreateRun(ctx, store.PostgresStore, runstore.CreateRunParams{
 		LaneClass: resolved.LaneClassModel,
 		RunID:     "run-transaction-lookup", OwnerID: "owner-transaction-lookup",
 		WorkflowName: "test", WorkflowVersion: "1", WorkflowSchemaVersion: contracts.APIVersion,

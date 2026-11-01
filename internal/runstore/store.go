@@ -63,10 +63,7 @@ func (s *PostgresStore) ListNonTerminalRunIDsByCredential(
 // PostgresTxStore (see internal/rundeletion). Runtime label pinning
 // additionally requires NewRunCreationPostgresStore.
 type PostgresStore struct {
-	db                    persistencepostgres.DBTX
-	runCreationTx         pgx.Tx
-	runLLMCredentials     runtimeconfig.TransactionLLMCredentialLookup
-	runRuntimeCredentials runtimeconfig.RuntimeCredentialValidator
+	db persistencepostgres.DBTX
 }
 
 func NewPostgresStore(db persistencepostgres.DBTX) *PostgresStore {
@@ -78,7 +75,9 @@ func NewPostgresStore(db persistencepostgres.DBTX) *PostgresStore {
 // exist only on a store that cannot be backed by a pool.
 type PostgresTxStore struct {
 	*PostgresStore
-	tx pgx.Tx
+	tx                    pgx.Tx
+	runLLMCredentials     runtimeconfig.TransactionLLMCredentialLookup
+	runRuntimeCredentials runtimeconfig.RuntimeCredentialValidator
 }
 
 // NewPostgresTxStore binds a PostgresStore to the caller's transaction tx.
@@ -95,21 +94,21 @@ func NewRunCreationPostgresStore(
 	tx pgx.Tx,
 	llmCredentials runtimeconfig.TransactionLLMCredentialLookup,
 	runtimeCredentials runtimeconfig.RuntimeCredentialValidator,
-) *PostgresStore {
-	return &PostgresStore{
-		db: tx, runCreationTx: tx,
-		runLLMCredentials: llmCredentials, runRuntimeCredentials: runtimeCredentials,
-	}
+) *PostgresTxStore {
+	store := NewPostgresTxStore(tx)
+	store.runLLMCredentials = llmCredentials
+	store.runRuntimeCredentials = runtimeCredentials
+	return store
 }
 
-func (s *PostgresStore) PinRuntimeLabels(
+func (s *PostgresTxStore) PinRuntimeLabels(
 	ctx context.Context, labels []string, modelFree ...bool,
 ) (runtimeconfig.RunSnapshot, error) {
-	if s == nil || s.runCreationTx == nil || s.runRuntimeCredentials == nil {
+	if s == nil || s.tx == nil || s.runRuntimeCredentials == nil {
 		return runtimeconfig.RunSnapshot{}, errors.New("Runtime label pinning requires a Run-creation transaction store")
 	}
 	return runtimeconfig.PinRunSnapshot(
-		ctx, s.runCreationTx, labels, s.runRuntimeCredentials, s.runLLMCredentials, modelFree...,
+		ctx, s.tx, labels, s.runRuntimeCredentials, s.runLLMCredentials, modelFree...,
 	)
 }
 

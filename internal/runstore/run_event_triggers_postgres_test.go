@@ -3,11 +3,11 @@ package runstore
 import (
 	"context"
 	"encoding/json"
-	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"maps"
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/persistence/explaintest"
 )

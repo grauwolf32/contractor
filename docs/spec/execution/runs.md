@@ -421,6 +421,12 @@ compares the stored state with the state its caller expects and changes
 nothing on a mismatch, and each edge of the Run lifecycle has exactly one
 operation that performs it: `running` and `waiting` move into each other only
 through the waiting operations of model-availability recovery (RUN-R30).
+Operations whose locks must outlive their call are available only on the
+caller-transaction-bound RunStore, including queue admission, Skill
+initialization and Audit input materialization. Materialization's lock is
+explicit in its operation name; a pool-backed store cannot expose it as an
+ordinary read. Run-creation credential lookups also stay on that transaction
+store, rather than adding optional transaction state to the general store.
 
 Rationale: transitions written as SQL in several components drifted apart,
 recording different reasons for the same edge and copying the lock-and-check

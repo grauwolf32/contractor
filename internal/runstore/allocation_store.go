@@ -8,12 +8,15 @@ import (
 	"reflect"
 	"slices"
 	"strconv"
+	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -386,3 +389,41 @@ func (s *PostgresStore) verifyStageAllocationsExist(ctx context.Context, request
 	}
 	return errors.Join(failures...)
 }
+
+type StageAllocation struct {
+	RuntimePlacementLabels            []string
+	CompletionContract                *contracts.WorkerCompletionContract
+	AllocationID                      string
+	StageExecutionID                  string
+	LogicalAgentName                  string
+	Namespace                         string
+	AgentTemplateRef                  contracts.AgentTemplateRef
+	WorkerRuntimeRef                  contracts.WorkerRuntimeRef
+	RuntimeAgentID                    string
+	RuntimeAgentInstanceID            string
+	RuntimeAgentLabelRevision         uint64
+	RuntimeConfigurationSchemaVersion string
+	RuntimeConfiguration              *AllocationRuntimeConfiguration
+	PerformanceCollectionPolicy       reporting.PerformanceCollectionPolicy
+	CreatedAt                         time.Time
+	ReleaseAttemptedAt                *time.Time
+	ReleaseCompletedAt                *time.Time
+}
+
+const AllocationRuntimeConfigurationSchemaVersion = "contractor.runtime-config-provenance/v2"
+
+// AllocationRuntimeConfiguration is the exact durable, non-secret subset of
+// one candidate resolution. Endpoint and secret-bearing RuntimeSettings stay
+// outside PostgreSQL; immutable refs, origins and adapter requirements remain
+// available for audit and report attribution.
+type AllocationRuntimeConfiguration struct {
+	ModelPolicy contracts.ModelPolicyRef                        `json:"modelPolicy,omitzero"`
+	Origins     runtimeconfig.ResolvedRuntimeConfigOrigins      `json:"origins"`
+	Provenance  runtimesettings.ResolvedRuntimeConfigProvenance `json:"provenance"`
+}
+
+// AllocationProvenanceMember is AllocationRuntimeConfiguration's provenance
+// member, under which credential deletion checks find an unreleased
+// allocation's credentials. Renaming the tag must rename this constant;
+// internal/persistence pins both.
+const AllocationProvenanceMember = "provenance"
