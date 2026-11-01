@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-78 open tasks: 12 in progress, 55 pending, 11 deferred. 1337 finished: 1319 completed, 18 archived.
+77 open tasks: 11 in progress, 55 pending, 11 deferred. 1338 finished: 1320 completed, 18 archived.
 
 ## In progress
 
@@ -22,7 +22,6 @@ the epics are in [epics.yml](epics.yml).
 | [V420-002](v420-002-planner-compaction-vertical-slice.yml) | planner-worker | feature | P1 | Implement opt-in bounded compaction for Streamline and Router Planners |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Enable shared Planner compaction and reuse native YAML in shipped Workflows |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
-| [V428-002](v428-002-fold-project-finding-migrations.yml) | persistence | chore | P2 | Fold the verified Project Finding schema into one baseline |
 
 ## Pending
 
@@ -197,5 +196,5 @@ tasks in `introduced_by`.
 | Web UI (`ui`) | 2 | 34 | 68 | 24 | 66 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 18 | 45 | 9 | 21 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 38 | 25 | 16 |
-| PostgreSQL persistence and schema (`persistence`) | 4 | 0 | 27 | 47 | 17 |
+| PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 27 | 47 | 17 |
 | Quality, CI and process (`quality`) | 10 | 1 | 29 | 118 | 26 |

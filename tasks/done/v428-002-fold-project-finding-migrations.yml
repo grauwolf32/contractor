@@ -6,7 +6,7 @@ epic: persistence
 kind: chore
 introduced_by: V64-014
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V64-023]
 languages: [go, sql, python, markdown]
 goal: >-
@@ -49,4 +49,4 @@ tests:
   covers: [A4]
 - command: make shared-config-check lint
   covers: [A1, A4]
-implementation_commit: null
+implementation_commit: e1957ff18d0f80866528706fe1802b78fede83d5
