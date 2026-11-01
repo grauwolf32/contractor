@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-77 open tasks: 11 in progress, 55 pending, 11 deferred. 1331 finished: 1313 completed, 18 archived.
+76 open tasks: 10 in progress, 55 pending, 11 deferred. 1332 finished: 1314 completed, 18 archived.
 
 ## In progress
 
@@ -21,7 +21,6 @@ the epics are in [epics.yml](epics.yml).
 | [V420-002](v420-002-planner-compaction-vertical-slice.yml) | planner-worker | feature | P1 | Implement opt-in bounded compaction for Streamline and Router Planners |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Enable shared Planner compaction and reuse native YAML in shipped Workflows |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
-| [V431-006](v431-006-stream-planner-session-reads.yml) | planner-worker | chore | P3 | Consume Planner session batches without retaining every raw state |
 
 ## Pending
 
@@ -179,7 +178,7 @@ tasks in `introduced_by`.
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Run execution core (`execution-core`) | 2 | 47 | 60 | 23 | 87 |
-| Planners and the Worker model boundary (`planner-worker`) | 10 | 35 | 47 | 30 | 72 |
+| Planners and the Worker model boundary (`planner-worker`) | 9 | 35 | 47 | 30 | 72 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 13 | 5 | 44 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 2 | 12 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
@@ -196,5 +195,5 @@ tasks in `introduced_by`.
 | Web UI (`ui`) | 2 | 31 | 68 | 24 | 66 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 18 | 45 | 9 | 21 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 38 | 25 | 16 |
-| PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 27 | 46 | 16 |
+| PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 27 | 46 | 17 |
 | Quality, CI and process (`quality`) | 10 | 1 | 29 | 118 | 26 |

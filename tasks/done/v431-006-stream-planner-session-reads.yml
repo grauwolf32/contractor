@@ -5,7 +5,7 @@ milestone: hub-audit-defects-2026-10
 epic: planner-worker
 kind: chore
 priority: P3
-status: in_progress
+status: completed
 depends_on: []
 languages:
 - go
@@ -23,6 +23,13 @@ context:
   specification:
   - docs/spec/execution/runs.md#RUN-R89
   - docs/spec/execution/runs.md#RUN-R90
+  verification:
+    date: '2026-11-01'
+    evidence: Run detail and scan history consume raw Planner states one at a time. A 200-session PostgreSQL
+      batch uses one statement and returns the only pool connection after scan, consumer and cancellation
+      failures; identity, state and missing-session checks remain strict.
+    environment: Isolated disposable PostgreSQL database; race detector enabled. The external opt-in LiteLLM
+      contract test was skipped, not counted as a database pass.
 scope:
   in:
   - Replace the unused-after-migration full-state map reader with a simple per-row consumer in the same
@@ -43,11 +50,15 @@ acceptance_criteria:
 - id: A3
   text: Run detail and scan history tests preserve snapshot consistency, ownership and one query per collection.
 tests:
-- command: CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -race -tags=integration -count=1 ./internal/runstore/...
-    ./internal/planner/session/... ./internal/runservice/... ./internal/httpapi/public/... ./internal/auditservice/...
+- command: CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -json -p=3 -race -tags=integration -count=1
+    -timeout=15m ./internal/runstore/... ./internal/planner/session/... ./internal/runservice/... ./internal/controlplane/...
+    ./internal/scheduler/... ./internal/persistence/... ./internal/app/... ./internal/archtest/... ./internal/credentials/...
+    ./internal/rundeletion/... ./internal/auditservice/... ./internal/evalservice/... ./internal/httpapi/public/...
   covers: &id001
   - A1
   - A2
   - A3
 - command: make lint
   covers: *id001
+implementation_commit: 22c231577bf782790718ce65f79ce3fe399eefd0
+introduced_by: V29-005
