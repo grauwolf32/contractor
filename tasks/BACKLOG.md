@@ -201,5 +201,5 @@ tasks in `introduced_by`.
 | Web UI (`ui`) | 2 | 31 | 68 | 24 | 66 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 18 | 45 | 9 | 21 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 38 | 25 | 16 |
-| PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 27 | 46 | 15 |
+| PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 27 | 46 | 16 |
 | Quality, CI and process (`quality`) | 10 | 1 | 29 | 118 | 26 |
