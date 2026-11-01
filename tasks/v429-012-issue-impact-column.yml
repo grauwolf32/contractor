@@ -1,0 +1,62 @@
+schema_version: "1.0"
+id: V429-012
+title: Move Issue impact above the supporting review context
+milestone: ui-journey-usability
+epic: ui
+kind: chore
+introduced_by: V429-010
+priority: P3
+status: in_progress
+depends_on: [V429-011]
+languages: [css]
+goal: Show Impact as the first compact section of the right-hand context column in every synthetic Issue example.
+context:
+  authority: >-
+    On 2026-11-01 the user asked to move IF REAL, THE IMPACT from the main
+    narrative into the right column, then clarified that it should sit above
+    Verification and Limitations. Apply this to the current isolated preview;
+    preserve the accepted OpenDesign sources and all test examples.
+  specification: docs/spec/ui/ui.md
+  design: docs/design/ui/README.md
+scope:
+  in:
+    - Move Impact into a compact supporting section before Verification and Limitations for all six fixtures.
+    - Keep its existing text, shared typography/tokens and single-column mobile flow.
+    - Preserve earlier preview versions and update the existing review verification.
+  out:
+    - Production UI transfer, domain changes, fixture-data changes or new model generation.
+acceptance_criteria:
+  - id: A1
+    text: Every example displays its complete Impact once, first in the supporting column above Verification and Limitations, with no duplicate Impact in the main narrative.
+  - id: A2
+    text: Desktop and mobile layouts remain usable in all themes, all existing review interactions pass, and original OpenDesign outputs and earlier preview versions remain preserved.
+tests:
+  - command: node docs/design/ui/experiments/issues-review-opendesign-2026-11-01/verify.mjs
+    covers: [A1, A2]
+  - command: python3 scripts/check_tasks.py
+    covers: [A1, A2]
+  - command: python3 scripts/check_spec.py
+    covers: [A2]
+
+verification:
+  - >-
+    All six synthetic examples now render the complete Impact as the first
+    compact supporting section, before Verification and Limitations. It is
+    removed from the main narrative; the retained original and accepted
+    composition remain unchanged. Mobile keeps the supporting content in its
+    existing single-column flow.
+  - >-
+    The standalone verifier passed twelve layout combinations and 72 finding
+    cases in 1440/1100/390/320 and light/dark/black. Its per-example checks now
+    verify complete Impact text, supporting-column order and no repeated Impact
+    in the narrative. Existing evidence, history, decision, masking, exact-byte
+    download, mobile, isolation, width and geometry checks passed. A clean SQL
+    screenshot separately verified the requested presentation. Task/spec/diff
+    checks passed.
+  - >-
+    The original OpenDesign output and v4/v5/v6 previews remain preserved in
+    Git, the sandbox and the earlier verified state backup. v7 was added as
+    index-review-v7-impact-column.html without replacing an existing file and
+    retained with a SHA-256 manifest in the host impact-v7-20261101 directory.
+    No model call, production component or business record changed. The branch
+    has not been merged or deployed.

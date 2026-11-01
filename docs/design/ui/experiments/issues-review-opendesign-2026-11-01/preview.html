@@ -329,6 +329,7 @@ pre.code{overflow-x:auto}
 .decided-summary .recorded-reason{margin:6px 0 0;font-size:var(--text-sm);color:var(--muted-strong)}
 @media(max-width:900px){.decided-summary{margin:16px 16px 0}}
 @media(max-width:520px){.decided-summary{margin:12px 12px 0;padding:10px 12px}}
+.sideblock .cap.tone-danger{color:var(--danger-ink)}
 </style>
 </head>
 <body>
@@ -708,7 +709,7 @@ No HTTP exchange was captured for this issue.</pre>
   }
   function supporting(i){
     const doc=i.proposal;
-    return '<div class="sideblock"><p class="cap tone-info">'+icon('issue')+'Verification</p><p>'+esc(labels[i.assessment])+' — '+esc(i.assessmentReason)+'</p><p class="hint">Verification is separate from an analyst decision.</p></div><div class="sideblock"><p class="cap tone-warn">'+icon('issue')+'Limitations</p>'+list(doc.limitations)+'<p class="cap example-preconditions">Preconditions</p>'+list(doc.preconditions)+'</div>'+(doc.standard_refs.length?'<div class="sideblock"><p class="cap">Standard references</p>'+list(doc.standard_refs.map(r=>r.requirement_id+' · '+r.scheme+'@'+r.version))+'</div>':'')+'<div class="sideblock"><details class="tech"><summary>Technical details</summary><dl class="kv"><dt>Issue ID</dt><dd class="idrow"><code>'+esc(i.id)+'</code>'+copy(i.id,'Copy issue ID')+'</dd><dt>Subject</dt><dd>'+esc(doc.subject?doc.subject.kind+': '+doc.subject.key:'Not identified')+'</dd><dt>Review state</dt><dd>'+esc(i.state)+'</dd><dt>Data</dt><dd>Synthetic local fixture</dd></dl></details></div>';
+    return '<div class="sideblock impact-summary"><p class="cap tone-danger">'+icon('issue')+'If real, the impact</p><p>'+esc(i.impact)+'</p></div><div class="sideblock"><p class="cap tone-info">'+icon('issue')+'Verification</p><p>'+esc(labels[i.assessment])+' — '+esc(i.assessmentReason)+'</p><p class="hint">Verification is separate from an analyst decision.</p></div><div class="sideblock"><p class="cap tone-warn">'+icon('issue')+'Limitations</p>'+list(doc.limitations)+'<p class="cap example-preconditions">Preconditions</p>'+list(doc.preconditions)+'</div>'+(doc.standard_refs.length?'<div class="sideblock"><p class="cap">Standard references</p>'+list(doc.standard_refs.map(r=>r.requirement_id+' · '+r.scheme+'@'+r.version))+'</div>':'')+'<div class="sideblock"><details class="tech"><summary>Technical details</summary><dl class="kv"><dt>Issue ID</dt><dd class="idrow"><code>'+esc(i.id)+'</code>'+copy(i.id,'Copy issue ID')+'</dd><dt>Subject</dt><dd>'+esc(doc.subject?doc.subject.kind+': '+doc.subject.key:'Not identified')+'</dd><dt>Review state</dt><dd>'+esc(i.state)+'</dd><dt>Data</dt><dd>Synthetic local fixture</dd></dl></details></div>';
   }
   function history(i){
     const entries=[['Check proposal',i.createdAt,i.check+' proposed this issue. '+(i.proposal.severity_suggestion?'AI suggestion: '+i.proposal.severity_suggestion+'.':'No severity was suggested.')],['Verification',i.createdAt,labels[i.assessment]+': '+i.assessmentReason],i.analyst?['Human review',i.analyst.at,'Confirmed as '+i.analyst.severity+' by '+i.analyst.name+'. '+i.analyst.reason]:['Human review','—','No decision recorded yet.']];
@@ -724,7 +725,7 @@ No HTTP exchange was captured for this issue.</pre>
     $('#statePill').className='pill '+i.state;$('#statePill').innerHTML=icon(i.state==='confirmed'?'check':'issue')+(i.state==='confirmed'?'Confirmed — recorded demo decision':'Proposed — needs your review');
     $('#sevSuggest').textContent=i.analyst?'Analyst severity: '+i.analyst.severity+' · recorded demo decision':doc.severity_suggestion?'AI suggests '+doc.severity_suggestion[0].toUpperCase()+doc.severity_suggestion.slice(1)+' — a suggestion, not a decision':'AI severity: not suggested';
     $('#verifyPill').className='pill '+tones[i.assessment];$('#verifyPill').innerHTML=icon('issue')+'Verification: '+esc(labels[i.assessment]);
-    $('#tabSummary').innerHTML='<div class="col-main"><div class="lede"><span class="badge">'+icon('issue')+'</span><div class="body"><p class="kicker">What the AI found · automated proposal</p><p class="finding">'+esc(doc.description)+'</p><p class="provenance">The original proposal is separate from verification and the recorded human review.</p><div class="impact"><p class="kicker">If real, the impact</p><p>'+esc(i.impact)+'</p></div></div></div>'+evidence(i,'summary')+'</div><div class="col-side">'+supporting(i)+'</div>';
+    $('#tabSummary').innerHTML='<div class="col-main"><div class="lede"><span class="badge">'+icon('issue')+'</span><div class="body"><p class="kicker">What the AI found · automated proposal</p><p class="finding">'+esc(doc.description)+'</p><p class="provenance">The original proposal is separate from verification and the recorded human review.</p></div></div>'+evidence(i,'summary')+'</div><div class="col-side">'+supporting(i)+'</div>';
     $('#tabEvidence').innerHTML='<div class="col-main">'+evidence(i,'evidence')+'</div>';
     $('#tabHistory').innerHTML=history(i);
     $('#decidedSummary').classList.toggle('show',!!i.analyst);

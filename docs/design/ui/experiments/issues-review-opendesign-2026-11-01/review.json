@@ -8,9 +8,9 @@
   "generator": "OpenDesign / isolated BYOK OpenCode through the existing Contractor gateway",
   "model": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
   "sourceFile": "index-review-v4.html",
-  "previewFileInOpenDesign": "index-review-v6-review-details.html",
+  "previewFileInOpenDesign": "index-review-v7-impact-column.html",
   "originalSha256": "ec22282916e859d08fd71543a640382f1570834bb8ba3703e669be7c01005caf",
-  "previewSha256": "01851de472730eba79846e803ae0574359c2f9a57395aaf193aefc69233f9c8d",
+  "previewSha256": "4f52cf3b4288d68b09ddf4af840645519c1505d3c707139bd14ac0eef3ff7cbe",
   "previous": "../issues-opendesign-2026-11-01/preview.html",
   "composition": [
     "Unboxed narrative and semantic icon badge",
@@ -46,7 +46,7 @@
   "acceptedComposition": "preview-composition-v4.html",
   "acceptedCompositionSha256": "96879d463ca7652399b015ba2fd7d77449cc79a8e315a24b0e26bc011e262b50",
   "examplesFile": "examples.json",
-  "humanFollowUp": "User 2026-11-01: make Duplicate more explicit and populate other finding types as test examples. Six synthetic cases added by the assistant on top of the accepted OpenDesign composition; original and accepted preview snapshots retained. Follow-up: put Verification before AI severity and reduce/align the Recorded decision block.",
+  "humanFollowUp": "User 2026-11-01: make Duplicate more explicit and populate other finding types as test examples. Six synthetic cases added by the assistant on top of the accepted OpenDesign composition; original and accepted preview snapshots retained. Follow-up: put Verification before AI severity and reduce/align the Recorded decision block. User clarification: Impact is first in the supporting column, above Verification and Limitations, for every example.",
   "fixtureAuthor": "Assistant-authored, schema-checked synthetic fixtures on the user-accepted OpenDesign composition; no new model run or production integration.",
   "fixturePreservation": {
     "backup": "/Users/ruslan/src/third-party/open-design-backups/20261101T092349Z",

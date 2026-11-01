@@ -114,6 +114,10 @@ try{
       assert.deepEqual(await frame.locator('.statusline').evaluate(el=>Array.from(el.children).map(child=>child.id)),['statePill','verifyPill','sevSuggest'],'Verification precedes AI/analyst severity');
       const summary=await frame.locator('#tabSummary').innerText();
       assert.ok(summary.includes(example.proposal.description));
+      assert.equal(await frame.locator('#tabSummary .col-main .impact').count(),0,'Impact is not repeated in the narrative');
+      const support=frame.locator('#tabSummary .col-side');
+      assert.equal(await support.locator('.impact-summary>p').last().innerText(),example.impact);
+      assert.deepEqual((await support.locator('.sideblock>.cap').allTextContents()).slice(0,3).map(text=>text.trim()),['If real, the impact','Verification','Limitations'],'Impact leads the supporting column');
       for(const limitation of example.proposal.limitations)assert.ok(summary.includes(limitation));
       for(const other of examples.filter(item=>item!==example))assert.ok(!summary.includes(other.proposal.description),'No narrative leaks between examples');
       if(example.proposal.subject===null)assert.match(await frame.locator('#subjectLine').innerText(),/Subject not identified/);
