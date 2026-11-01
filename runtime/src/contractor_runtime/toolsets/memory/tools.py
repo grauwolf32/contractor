@@ -280,7 +280,8 @@ class _MemorySession:
                 expected_revision=expected_revision,
                 max_bytes=MAXIMUM_PAYLOAD_BYTES,
                 reject_first=lambda error: (
-                    error.code == ARTIFACT_HISTORY_MAINTENANCE_PENDING
+                    _mapped_client_error(error).code == "memory_forbidden"
+                    or error.code == ARTIFACT_HISTORY_MAINTENANCE_PENDING
                     or definite_write_rejection(error)
                 ),
                 # Memory's current read remains authoritative after any replay
