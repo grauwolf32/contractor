@@ -23,10 +23,11 @@ goal: >-
   their own immutable provenance, conditions and exact evidence.
 demonstration: >-
   Two ordinary Runs in different Audits of one Project independently publish the same qualified problem.
-  Project and both Audit views show one Finding ID with two independent sources. A user changes that
-  Finding once through an ordinary Project command; every view reads the same current state. A later
-  negative recheck adds a linked ordinary result without overwriting that state. Purging either source
-  Run/Audit leaves the Finding, source history and exact materials readable. No hypothesis is required.
+  Project and both Audit views show one Finding ID with two independent sources. From either Audit,
+  a user changes that Finding through the same ordinary Project command; Project and all Audit views
+  read the same canonical state and revision. Independent evidence and check results remain intact.
+  A later negative recheck adds a linked ordinary result without overwriting that state. Purging either
+  source Run/Audit leaves the Finding, source history and exact materials readable. No hypothesis is required.
 context:
   authority: >-
     User decisions 2026-10-31 and 2026-11-01: keep Project finding deduplication, automatic trusted
@@ -39,6 +40,11 @@ context:
     This supersedes the earlier split that left direct Finding edits to V411-010.
     On 2026-11-01 the user accepted the four Project Finding flow diagrams and requested saving them
     in the design and linking the task directly to that section.
+    Further user clarification 2026-11-01: a source is historical data, never an old Audit Finding renamed;
+    it has no current problem state or separate mutation commands. Migration is a one-time transformation
+    preserving facts and frozen snapshots, with no retained old readers/writers, runtime fallback or
+    synchronization between models. The principal end-to-end criterion is editing one Project Finding
+    from any Audit while every view reads that same state and independent evidence/check results survive.
   implementation_gate: >-
     V64-001 is completed. V64-004 is not a prerequisite. Keep pending until the user assigns the replacement
     implementation; rewriting this task does not authorize code, migrations, live Runs or deployment.
@@ -171,15 +177,18 @@ requirements:
     A source verdict alone cannot become a Project problem claim. Historical duplicate annotations retain
     original IDs/targets and mapped canonical targets where available; collapsed/incompatible mappings stay
     history, not active self-links/cycles. All authoritative contribution refs, task selections and collection
-    predicates must agree after migration. Already accepted snapshots remain exact and ongoing supported
-    reads/collection work; no old-record runtime reader is introduced to mask an incomplete migration.
+    predicates must agree after migration. This is a one-time transformation: already accepted frozen
+    snapshots remain exact and ongoing supported reads/collection use the new model. Remove replaced
+    runtime readers and writers; no old-record fallback, dual-model operation or synchronization remains.
 - id: R7
   text: >-
     The delivered runtime has one Finding entity and mutation path. An Audit view is a query/reference
     over Project Findings, not a second identity or lifecycle. Do not preserve old mutable Finding rows
     as source observations merely because their old review consumers still exist: migrate those consumers
-    here and retain only historical facts. No controller, trigger or event handler propagates current
-    Finding status between Audit and Project copies.
+    here and retain only historical facts. A source has no current problem state or separate commands
+    to change it. Editing from any Audit invokes the same Project Finding command; every view reads
+    that Finding's canonical state and revision. No controller, trigger or event handler propagates
+    current Finding status between Audit and Project copies.
 failure_outcomes:
 - operation: Publish/deduplicate a problem or mutate the canonical Project Finding
   success: One canonical identity/revision and the independent source or explicit analyst edit are committed.
@@ -225,10 +234,13 @@ acceptance_criteria:
     reference that ID; no Audit-specific Finding instance or duplicate current-state row is created.
 - id: A2
   given: One canonical Finding is visible from both Audits and has contradictory source check results.
-  when: A user changes its current assessment/duplicate relation once, followed by replay, a stale edit and a negative recheck.
+  when: >-
+    A user edits its current assessment/duplicate relation from each Audit through the same Project
+    command, then exercises replay, a stale edit and a negative recheck.
   then: >-
-    Every view reads the same current Project state without synchronization writes. CAS/replay rejects
-    stale overwrite and duplicate sources. The recheck leaves current state untouched; original ratings,
+    After each edit, Project and both Audit views read the same Finding ID, current state and revision
+    without synchronization writes. CAS/replay rejects stale overwrite and duplicate sources. Independent
+    evidence and check results remain intact. The recheck leaves current state untouched; original ratings,
     conditions and actor/time/history remain readable and no general verdict is inferred from them.
 - id: A3
   given: Populated existing Findings, contributions, pending check selections, exact refs and human duplicate history.
@@ -237,6 +249,8 @@ acceptance_criteria:
     Exact payloads, snapshots and historical facts survive truthfully; migrated hold/contribution/task
     refs agree and supported collection succeeds. Project source/result reads survive source deletion,
     including incidental discoveries, and final Project purge leaves no orphan holds or blocked parents.
+    Ongoing readers/writers use only the new model; no old runtime reader/writer, fallback, dual-write
+    path or synchronization mechanism remains after the one-time transformation.
 - id: A4
   given: Concurrent equal-key publications, missing/ambiguous keys, weak-only candidates and invalid/foreign duplicate targets.
   when: Real PostgreSQL writers contend and reconcile through original operation identities.
@@ -254,8 +268,9 @@ acceptance_criteria:
   when: A real user publishes, reads and edits a Project Finding and the old Finding-only lifecycle is inspected.
   then: >-
     The user completes that path without a formal Finding review request. Audit-owned Finding writers,
-    per-source mutable states, Finding confirmation config and their exclusive triggers/routes/tests are
-    gone. Remaining item/report approval work stays with V411-010; architecture/ownership checks show one Finding owner.
+    per-source current problem states and separate mutation commands, Finding confirmation config and
+    their exclusive triggers/routes/tests are gone. Sources contain historical facts only. Remaining
+    item/report approval work stays with V411-010; architecture/ownership checks show one Finding owner.
 - id: A7
   given: An evidence-free ordinary proposal, an evidenced explicit problem claim without a hypothesis and a positive-property/refuted-bug check.
   when: Ordinary publication and collection run, including permanent invalid publication and replay.
