@@ -304,13 +304,13 @@ def test_actual_gateway_role_cancellation_joins_request_or_recovery_without_rese
             if role == "finalizer" and authority is not None:
                 # Only the isolated serializer waits for recovery; the main
                 # response is already spent and must remain charged once.
-                original = runtime._result_finalizer.run
+                original = runtime._pipeline.finalizer.run
 
                 async def finalizer_with_recovery(**kwargs):
                     normal._client_handle.recovery = authority
                     return await original(**kwargs)
 
-                runtime._result_finalizer.run = finalizer_with_recovery
+                runtime._pipeline.finalizer.run = finalizer_with_recovery
             task = asyncio.create_task(runtime.invoke(stage_request()))
             try:
                 await asyncio.wait_for(waiting.wait(), timeout=5)

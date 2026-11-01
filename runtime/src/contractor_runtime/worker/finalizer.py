@@ -178,7 +178,7 @@ async def _notify_cancelled_safely(
         ),
         name="worker-result-finalizer-observer-cleanup",
     )
-    if await join_owned_task(task):
+    if await join_owned_task(task) or task.cancelled():
         with contextlib.suppress(Exception, asyncio.CancelledError):
             task.result()
     else:

@@ -3,31 +3,29 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import os
-import time
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from datetime import UTC, datetime, timedelta
-from functools import partial
 from typing import Any
 
 from pydantic import ValidationError
 
 from contractor_runtime.adapters import (
-    AdapterHandles,
     AdapterPreparationError,
     AllocationAdapterHost,
 )
 from contractor_runtime.adapters.http_transport import HTTPTransport
 from contractor_runtime.agent_skills.runtime import AgentSkillPreparationError
 from contractor_runtime.allocation.cleanup import (
+    AllocationResourceCleanup,
     _await_before_deadline,
     _close_tools,
 )
 from contractor_runtime.allocation.context import AllocationSnapshot, _AllocationContext
 from contractor_runtime.allocation.errors import AllocationError, _conflict, _not_found
 from contractor_runtime.allocation.identity import _spec_fingerprint
-from contractor_runtime.allocation.redaction import _untrusted_agent_card_text, _url_hosts
+from contractor_runtime.allocation.preparation import AllocationPreparation
+from contractor_runtime.allocation.redaction import _url_hosts
 from contractor_runtime.allocation.reports import _build_report
 from contractor_runtime.allocation.validation import validate_spec
 from contractor_runtime.capabilities import CapabilitySnapshot
@@ -37,46 +35,30 @@ from contractor_runtime.contracts import (
     AgentStateSnapshot,
     AllocationFinalResponse,
     AllocationSpec,
-    CompactWorkerContextManagement,
     FinalizeAllocationRequest,
     PrepareAllocationResponse,
     ReleaseAllocationRequest,
     TerminationError,
-    WorkerHandle,
-    WorkerSummarizerConfig,
 )
 from contractor_runtime.factories import (
     FactoryRegistry,
     SandboxFactory,
     ToolInstance,
-    WorkerBuildContext,
     WorkerRuntime,
     WorkerRuntimeFactory,
 )
 from contractor_runtime.projectfs import (
     DirectWorkspaceSession,
     WorkspacePreparationError,
-    WorkspaceStorageError,
-    hydrate_workspace,
 )
-from contractor_runtime.redaction import (
-    contains_private_value,
-    runtime_setting_values,
-    substring_values,
-)
-from contractor_runtime.sandbox.contracts import PODMAN_PROFILES
 from contractor_runtime.sandbox.lifecycle import PreparedExecution
-from contractor_runtime.sitemap import SitemapClient
 from contractor_runtime.sitemap_collection import SitemapCollector
 from contractor_runtime.state import ProcessState, RuntimeState
 from contractor_runtime.telemetry.resources import ProcessReading, ResourceCollector
 from contractor_runtime.threads import consume_task_exception
-from contractor_runtime.toolsets.common.report_observations import REPORT_FORMATS, prepare_report
-from contractor_runtime.toolsets.common.resources import ToolResources
 from contractor_runtime.toolsets.http.errors import HTTPToolError
 from contractor_runtime.toolsets.security_findings.collection import FindingsError
 from contractor_runtime.worker.adk_caches import release_adk_tool_caches
-from contractor_runtime.worker.state import WorkerStateStore
 from contractor_runtime.workspace import AllocationWorkspace
 
 
@@ -121,25 +103,6 @@ def _preparation_error(error: Exception) -> AllocationError:
     )
 
 
-def _effective_summarizer(spec: AllocationSpec) -> WorkerSummarizerConfig | None:
-    """Returns the terminal summarizer only when it is the effective branch."""
-    summarizer = spec.agent_template.summarizer
-    if spec.context_management.strategy != "terminal@1" or summarizer is None:
-        return None
-    if spec.summarizer_model_policy is None:
-        return summarizer
-    return summarizer.model_copy(update={"model_policy": spec.summarizer_model_policy})
-
-
-class _SourceObservationSink:
-    def __init__(self, collector: SitemapCollector, kind: str) -> None:
-        self._collector = collector
-        self._kind = kind
-
-    async def receive(self, observations: Sequence[dict], *, gaps: Sequence[dict] = ()) -> None:
-        await self._collector.receive_source(self._kind, observations, gaps=gaps)
-
-
 class AllocationService:
     """Constructs, drains, and erases exactly one in-process Worker context."""
 
@@ -165,6 +128,7 @@ class AllocationService:
         self._a2a_base_url = a2a_base_url.rstrip("/")
         self._private_bypass_hosts = _url_hosts((*private_bypass_urls, a2a_base_url))
         self._now = now or (lambda: datetime.now(UTC))
+        self._cleanup = AllocationResourceCleanup(factories, self._now)
         self._confirmed_control_deadline = confirmed_control_deadline or (lambda: None)
         self._exit_process = force_exit
         self._resource_collector_factory = resource_collector_factory
@@ -289,197 +253,27 @@ class AllocationService:
             self._validate_spec(spec)
             sandbox = self._sandbox_factory(spec)
             runtime_factory = self._runtime_factory(spec)
-            adapter_host: AllocationAdapterHost | None = None
-            workspace: AllocationWorkspace | None = None
-            project_workspace: DirectWorkspaceSession | None = None
-            tools: dict[str, ToolInstance] = {}
-            resources: ToolResources | None = None
-            worker_state: WorkerStateStore | None = None
-            collector: SitemapCollector | None = None
-            worker: WorkerRuntime | None = None
-            execution: PreparedExecution | None = None
-            http_transport: HTTPTransport | None = None
+            prepared = AllocationPreparation(
+                self._factories,
+                now=self._now,
+                a2a_base_url=self._a2a_base_url,
+                private_bypass_hosts=self._private_bypass_hosts,
+                confirmed_control_deadline=self._confirmed_control_deadline,
+            )
             # The slot lock and validation have accepted this owner. Include
             # adapter/workspace/Worker preparation in the requested interval.
             resource_metrics = self._start_resources(spec)
             try:
-                adapter_deadline = min(
-                    spec.lease_expires_at,
-                    self._now() + timedelta(seconds=spec.runtime_settings.request_timeout_seconds),
-                )
-                lifecycle = self._factories.execution_lifecycle
-                if lifecycle is not None:
-                    # Even embedded preparation cannot hydrate/delete orphan
-                    # storage until this service's predecessor is removed.
-                    await lifecycle.recover(
-                        deadline=time.monotonic()
-                        + max(0.0, (adapter_deadline - self._now()).total_seconds())
-                    )
-                adapter_host = await AllocationAdapterHost.create(
+                context = await prepared.build(
                     spec,
-                    self._factories.runtime_adapters,
-                    deadline=adapter_deadline,
-                    now=self._now,
-                    private_bypass_hosts=self._private_bypass_hosts,
-                )
-                workspace = await sandbox.prepare()
-                if spec.workspace is not None:
-                    if not (self._factories.workspace_provider is not None):
-                        raise RuntimeError(
-                            "Expected self._factories.workspace_provider is not None"
-                        )
-                    if not (self._factories.artifact_client_factory is not None):
-                        raise RuntimeError(
-                            "Expected self._factories.artifact_client_factory is not None"
-                        )
-                    artifact_reader = self._factories.artifact_client_factory(
-                        spec.allocation_id, spec.runtime_settings
-                    )
-                    remaining = min(
-                        spec.runtime_settings.request_timeout_seconds,
-                        max(0.0, (spec.lease_expires_at - self._now()).total_seconds()),
-                    )
-                    project_workspace = await hydrate_workspace(
-                        provider=self._factories.workspace_provider,
-                        spec=spec.workspace,
-                        artifact_reader=artifact_reader,
-                        allocation_id=spec.allocation_id,
-                        timeout_seconds=remaining,
-                    )
-                if sandbox.ref in PODMAN_PROFILES:
-                    if not (lifecycle is not None and project_workspace is not None):
-                        raise RuntimeError(
-                            "Expected lifecycle is not None and project_workspace is not None"
-                        )
-                    execution = lifecycle.allocate(
-                        spec.allocation_id, project_workspace, sandbox_profile=sandbox.ref
-                    )
-                    await execution.prepare(deadline=adapter_deadline)
-                worker_state = WorkerStateStore()
-                resources = ToolResources(metrics=worker_state.metrics)
-                if (
-                    spec.agent_template.sitemap is not None
-                    and spec.agent_template.sitemap.collect_observations
-                ):
-                    if self._factories.artifact_client_factory is None:
-                        raise RuntimeError(
-                            "automatic collection requires the allocation Artifact transport"
-                        )
-                    collection_artifacts = self._factories.artifact_client_factory(
-                        spec.allocation_id, spec.runtime_settings
-                    )
-                    collector = SitemapCollector(
-                        SitemapClient(collection_artifacts),
-                        report_projector=partial(prepare_report, collection_artifacts),
-                        report_formats=REPORT_FORMATS,
-                    )
-                    resources.http_observation_sink = _SourceObservationSink(collector, "http")
-                    resources.caido_observation_sink = _SourceObservationSink(collector, "caido")
-                    resources.report_publication_sink = collector
-                    resources.sitemap_read_flush = collector.checkpoint
-                    resources.before_completion = collector.checkpoint
-                if execution is not None:
-                    execution.bind_failure(resources.execution.fail)
-                if (
-                    spec.engagement is not None
-                    and spec.engagement.http is not None
-                    and self._factories.http_transport_factory is not None
-                ):
-                    http_transport = self._factories.http_transport_factory.create(spec)
-                    http_transport.configure(authority_deadline=self._confirmed_control_deadline)
-                async with asyncio.timeout(
-                    max(0.0, (adapter_deadline - self._now()).total_seconds())
-                ):
-                    await self._create_tools(
-                        spec,
-                        workspace,
-                        project_workspace,
-                        resources,
-                        adapter_host.handles,
-                        execution,
-                        tools,
-                        adapter_deadline,
-                        http_transport,
-                    )
-                # Target identity credentials belong only to controlled HTTP
-                # owner. The ordinary Worker/summarizer must not copy them
-                # into its own long-lived redaction or model state.
-                worker_settings = spec.runtime_settings.model_copy(update={"http_identities": None})
-                worker = await runtime_factory.create(
-                    WorkerBuildContext(
-                        allocation_id=spec.allocation_id,
-                        run_id=spec.run_id,
-                        stage_execution_id=spec.stage_execution_id,
-                        logical_agent_name=spec.logical_agent_name,
-                        namespace=spec.namespace,
-                        worker_session_mode=spec.worker_session_mode,
-                        description=spec.agent_template.description,
-                        instruction=(
-                            spec.agent_template.instructions.text
-                            if spec.agent_template.instructions is not None
-                            else ""
-                        ),
-                        execution=spec.agent_template.execution,
-                        template_ref=spec.agent_template.ref,
-                        card_version=spec.agent_template.ref.version,
-                        model_policy=spec.model_policy,
-                        workspace=workspace,
-                        tools=tools,
-                        state=worker_state,
-                        resources=resources,
-                        a2a_base_url=self._a2a_base_url,
-                        runtime_settings=worker_settings,
-                        sensitive_output_tools=self._factories.sensitive_output_tools,
-                        summarizer=_effective_summarizer(spec),
-                        compaction=(
-                            spec.context_management
-                            if isinstance(spec.context_management, CompactWorkerContextManagement)
-                            else None
-                        ),
-                        completion_contract=spec.completion_contract,
-                        adapter_handles=adapter_host.handles.for_worker(),
-                        resolved_skills=tuple(spec.resolved_skills),
-                        project_workspace=project_workspace,
-                        workspace_export=(
-                            spec.workspace.export if spec.workspace is not None else None
-                        ),
-                    )
-                )
-                handle = WorkerHandle(
-                    allocationId=spec.allocation_id,
-                    agentTemplateRef=spec.agent_template.ref,
-                    workerRuntimeRef=spec.agent_template.runtime,
-                    agentCard=dict(worker.agent_card),
-                    leaseExpiresAt=spec.lease_expires_at,
-                )
-                self._assert_safe_handle(handle, spec, workspace, self._a2a_base_url)
-                response = PrepareAllocationResponse(
-                    apiVersion=API_VERSION,
-                    workerHandle=handle,
-                )
-                context = _AllocationContext(
-                    allocation_id=spec.allocation_id,
-                    run_id=spec.run_id,
-                    stage_execution_id=spec.stage_execution_id,
-                    logical_agent_name=spec.logical_agent_name,
-                    namespace=spec.namespace,
+                    sandbox,
+                    runtime_factory,
                     fingerprint=fingerprint,
-                    started_at=self._now(),
-                    workspace=workspace,
-                    sandbox=sandbox,
-                    project_workspace=project_workspace,
-                    adapter_host=adapter_host,
-                    tools=tools,
-                    worker_state=worker_state,
-                    resources=resources,
-                    runtime_settings=spec.runtime_settings,
-                    worker=worker,
-                    execution=execution,
                     resource_metrics=resource_metrics,
-                    collector=collector,
-                    prepare_response=response,
-                    http_transport=http_transport,
                 )
+                response = context.prepare_response
+                if response is None:
+                    raise RuntimeError("Allocation preparation returned no response")
                 await self._state.commit_allocation(spec.allocation_id)
                 self._context = context
                 self._released_allocation_id = None
@@ -488,14 +282,14 @@ class AllocationService:
                 await self._rollback_prepare(
                     spec,
                     sandbox,
-                    workspace,
-                    project_workspace,
-                    tools,
-                    worker,
-                    adapter_host,
-                    execution,
-                    collector=collector,
-                    http_transport=http_transport,
+                    prepared.workspace,
+                    prepared.project_workspace,
+                    prepared.tools,
+                    prepared.worker,
+                    prepared.adapter_host,
+                    prepared.execution,
+                    collector=prepared.collector,
+                    http_transport=prepared.http_transport,
                 )
                 if isinstance(error, (AllocationError, asyncio.CancelledError)):
                     raise
@@ -636,35 +430,9 @@ class AllocationService:
                 status_code=503,
             ) from None
 
-    async def _run_release_cleanup(
-        self,
-        context: _AllocationContext,
-        deadline: datetime,
-    ) -> None:
+    async def _run_release_cleanup(self, context: _AllocationContext, deadline: datetime) -> None:
         await self._close_http_or_exit(context, deadline)
-        await _close_tools(context.tools)
-        if context.collector is not None:
-            await context.collector.close()
-        if context.execution is not None:
-            context.execution.reject()
-            await context.execution.remove(deadline=deadline)
-        if context.project_workspace is not None:
-            await self._cleanup_project_workspace(context.project_workspace, deadline=deadline)
-            context.project_workspace = None
-        await context.sandbox.cleanup(context.workspace)
-        await context.adapter_host.rollback(deadline=deadline, now=self._now)
-
-        context.tools.clear()
-        context.resources = None
-        context.worker_state = None
-        context.runtime_settings = None
-        context.prepare_response = None
-        # After every Toolset is closed and State and secrets are dropped:
-        # ADK's process-wide caches would otherwise keep the wrapped tools,
-        # and through them their clients and MetricsState (RTA-R116). A
-        # failure leaves release unprepared, so the retry repeats this step.
-        release_adk_tool_caches()
-        context.release_prepared = True
+        await self._cleanup.release(context, deadline)
 
     async def expire_control_lease(self, shutdown_grace_seconds: float) -> None:
         if self._context is None and self._lock.locked():
@@ -739,149 +507,6 @@ class AllocationService:
                 status_code=422,
             )
         return factory
-
-    async def _create_tools(
-        self,
-        spec: AllocationSpec,
-        workspace: AllocationWorkspace,
-        project_workspace: DirectWorkspaceSession | None,
-        resources: ToolResources,
-        adapter_handles: AdapterHandles,
-        execution: PreparedExecution | None,
-        result: dict[str, ToolInstance],
-        preparation_deadline: datetime,
-        http_transport: HTTPTransport | None = None,
-    ) -> None:
-        for selection in spec.agent_template.toolsets:
-            ref = f"{selection.ref.toolset_id}@{selection.ref.version}"
-            factory = self._factories.toolsets.get(ref)
-            if factory is None:
-                raise AllocationError(
-                    "unsupported_toolset",
-                    "AgentTemplate selects an unsupported Toolset",
-                    retryable=False,
-                    status_code=422,
-                )
-            if not set(selection.tools) <= factory.exported_tools:
-                raise AllocationError(
-                    "unsupported_tool",
-                    "AgentTemplate selects a tool not exported by its Toolset",
-                    retryable=False,
-                    status_code=422,
-                )
-            channels = frozenset(
-                channel
-                for name in selection.tools
-                for channel in factory.infrastructure_channels.get(name, frozenset())
-            )
-            created = await factory.create_selected(
-                **(
-                    {
-                        "controlled_http": http_transport,
-                        "deployment_marker": (
-                            spec.agent_template.sitemap.deployment
-                            if spec.agent_template.sitemap is not None
-                            else None
-                        ),
-                        "preparation_deadline": asyncio.get_running_loop().time()
-                        + max(0.0, (preparation_deadline - self._now()).total_seconds()),
-                    }
-                    if ref == "http-tools@1"
-                    else {}
-                ),
-                **({"controlled_http": http_transport} if ref == "scan@1" else {}),
-                **(
-                    {"completion_contract": spec.completion_contract}
-                    if ref == "audit-results@2"
-                    else {}
-                ),
-                **(
-                    {"sandbox_executor": execution.executor if execution else None}
-                    if ref == "code-execution@1"
-                    else {}
-                ),
-                selected=selection.tools,
-                allocation_id=spec.allocation_id,
-                run_id=spec.run_id,
-                namespace=spec.namespace,
-                runtime_settings=spec.runtime_settings,
-                workspace=workspace,
-                resources=resources,
-                adapter_handles=adapter_handles.for_tool_channels(channels),
-                project_workspace=self._workspace_tool_view(factory, project_workspace),
-            )
-            collision = set(result) & set(created)
-            # Transfer every returned resource to prepare's rollback owner
-            # before validation or the next await. Invalid duplicate names
-            # retain separate cleanup entries and never reach a Worker.
-            for name, tool in created.items():
-                cleanup_name = name
-                while cleanup_name in result:
-                    cleanup_name = f"invalid:{cleanup_name}"
-                result[cleanup_name] = tool
-            if set(created) != set(selection.tools):
-                raise AllocationError(
-                    "invalid_toolset_factory",
-                    "Toolset factory returned a different visible tool set",
-                    retryable=False,
-                    status_code=500,
-                )
-            if any(tool.name != name for name, tool in created.items()):
-                raise AllocationError(
-                    "invalid_toolset_factory",
-                    "Toolset factory returned a tool with a mismatched visible name",
-                    retryable=False,
-                    status_code=500,
-                )
-            # The Server decides from the same declaration whether the Worker's
-            # Planner gets workspace projections (TLS-R38), so a tool may report
-            # workspace observations exactly when its Toolset declares it.
-            observing = getattr(factory, "workspace_observation_tools", frozenset())
-            if any(
-                (name in observing) != callable(getattr(tool, "contractor_observation", None))
-                for name, tool in created.items()
-            ):
-                raise AllocationError(
-                    "invalid_toolset_factory",
-                    "Toolset factory returned a tool whose workspace observation is undeclared",
-                    retryable=False,
-                    status_code=500,
-                )
-            if collision:
-                raise AllocationError(
-                    "duplicate_visible_tool",
-                    "Toolset factories produced a duplicate model-visible tool",
-                    retryable=False,
-                    status_code=422,
-                )
-
-    @staticmethod
-    def _workspace_tool_view(factory: Any, workspace: DirectWorkspaceSession | None) -> Any | None:
-        if workspace is None:
-            return None
-        access = getattr(factory, "workspace_access", None)
-        if access == "read":
-            return workspace.reader_view()
-        if access == "write":
-            return workspace.writer_view()
-        if access == "changes":
-            try:
-                return workspace.changes_view()
-            except WorkspaceStorageError:
-                raise AllocationError(
-                    "workspace_mode_unsupported",
-                    "selected Toolset requires overlay workspace mode",
-                    retryable=False,
-                    status_code=422,
-                ) from None
-        if access is not None:
-            raise AllocationError(
-                "invalid_toolset_factory",
-                "Toolset declares an invalid project workspace access mode",
-                retryable=False,
-                status_code=422,
-            )
-        return None
 
     async def _terminate(
         self,
@@ -1054,7 +679,7 @@ class AllocationService:
     ) -> None:
         try:
             await _await_before_deadline(
-                lambda: self._close_producers_and_collector(context),
+                lambda: self._cleanup.close_producers(context),
                 deadline=deadline,
                 now=self._now,
             )
@@ -1071,12 +696,6 @@ class AllocationService:
                 retryable=False,
                 status_code=503,
             ) from None
-
-    @staticmethod
-    async def _close_producers_and_collector(context: _AllocationContext) -> None:
-        await _close_tools(context.tools)
-        if context.collector is not None:
-            await context.collector.close()
 
     async def _stop_adapters_or_exit(
         self,
@@ -1110,7 +729,7 @@ class AllocationService:
             return
         try:
             await _await_before_deadline(
-                lambda: self._cleanup_project_workspace(project_workspace, deadline=deadline),
+                lambda: self._cleanup.project_workspace(project_workspace, deadline=deadline),
                 deadline=deadline,
                 now=self._now,
             )
@@ -1151,19 +770,6 @@ class AllocationService:
                 retryable=False,
                 status_code=503,
             ) from None
-
-    async def _cleanup_project_workspace(
-        self,
-        project_workspace: DirectWorkspaceSession,
-        *,
-        deadline: datetime,
-    ) -> None:
-        remaining = (deadline - self._now()).total_seconds()
-        await project_workspace.close(deadline=time.monotonic() + max(0.0, remaining))
-        provider = self._factories.workspace_provider
-        if provider is None:
-            raise RuntimeError("project workspace provider is unavailable")
-        await provider.cleanup(project_workspace.storage)
 
     async def _rollback_prepare(
         self,
@@ -1252,7 +858,7 @@ class AllocationService:
             failed = True
         if project_workspace is not None:
             await attempt(
-                lambda: self._cleanup_project_workspace(project_workspace, deadline=deadline)
+                lambda: self._cleanup.project_workspace(project_workspace, deadline=deadline)
             )
         if workspace is not None:
             await attempt(lambda: sandbox.cleanup(workspace))
@@ -1273,33 +879,3 @@ class AllocationService:
         if self._context is None or self._context.allocation_id != allocation_id:
             raise _not_found()
         return self._context
-
-    @staticmethod
-    def _assert_safe_handle(
-        handle: WorkerHandle,
-        spec: AllocationSpec,
-        workspace: AllocationWorkspace,
-        a2a_base_url: str,
-    ) -> None:
-        wire = handle.model_dump(mode="json", by_alias=True)
-        encoded = json.dumps(wire, ensure_ascii=False)
-        endpoint = f"{a2a_base_url.rstrip('/')}/private/v1/allocations/{spec.allocation_id}/a2a"
-        card_values, card_keys = _untrusted_agent_card_text(
-            handle.agent_card,
-            allocation_id=spec.allocation_id,
-            logical_agent_name=spec.logical_agent_name,
-            description=spec.agent_template.description,
-            version=spec.agent_template.ref.version,
-            endpoint=endpoint,
-        )
-        private_values = runtime_setting_values(spec.runtime_settings)
-        long_values = substring_values(private_values)
-        leaked_value = any(contains_private_value(value, private_values) for value in card_values)
-        leaked_key = any(secret in key for key in card_keys for secret in long_values)
-        if leaked_value or leaked_key or str(workspace.path) in encoded:
-            raise AllocationError(
-                "unsafe_worker_handle",
-                "Worker runtime exposed private allocation data in its Agent Card",
-                retryable=False,
-                status_code=500,
-            )

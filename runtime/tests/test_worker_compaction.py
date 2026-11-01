@@ -681,8 +681,8 @@ def test_cancellation_during_compactor_call_adds_no_marker(tmp_path: Path) -> No
             assert markers(appended) == []
             assert effects == ["a", "b"]
             assert runtime._compaction is not None and not runtime._compaction.active
-            assert runtime._active_task is None
-            assert not runtime._invoke_lock.locked()
+            assert runtime._invocation.task is None
+            assert not runtime._invocation.lock.locked()
         finally:
             await finish(runtime)
 

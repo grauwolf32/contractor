@@ -27,7 +27,7 @@ from contractor_runtime.core.worker_completion import (
     PreparedWorkerCompletion,
     bind_worker_completion,
 )
-from contractor_runtime.worker import runtime as worker_runtime
+from contractor_runtime.worker import completion as worker_runtime
 from contractor_runtime.worker.runtime import AdkWorkerRuntime
 
 
@@ -256,7 +256,7 @@ def test_model_result_decoder_preserves_validation_errors(
     assert isinstance(decoded, WorkerFailure)
     assert (decoded.code, decoded.retryable) == (code, retryable)
     assert "private-decoder-canary" not in decoded.model_dump_json()
-    result, exportable = assembly_runtime._build_runtime_result(stage_request(), candidate, ())
+    result, exportable = assembly_runtime._pipeline.build_result(stage_request(), candidate, ())
     assert result == decoded and exportable is False
 
 
@@ -283,7 +283,7 @@ async def _finish_collected_result(runtime, binding, request, result):
         return CompleteCompletion(result)
 
     binding.finish = finish
-    return await runtime._complete_normal_finish(
+    return await runtime._pipeline.finish(
         request=request,
         candidate="Model prose does not own collected results",
         invocation_id="completion-boundary",
@@ -323,7 +323,8 @@ def test_collected_completion_uses_typed_request_owned_result(collected_runtime,
     runtime._workspace_exporter = SimpleNamespace(
         reserved_slots=frozenset({"workspace"}), release=lambda: None
     )
-    runtime._invocation_observed_refs = [
+    runtime._pipeline._reserved_slots = runtime._workspace_exporter.reserved_slots
+    runtime._pipeline.refs = [
         ArtifactRef(namespace="builder", name="report", revision="observed-r1"),
         ArtifactRef(namespace="builder", name="observed", revision="observed-r1"),
         ArtifactRef(namespace="builder", name="report", revision="observed-r2"),
@@ -449,7 +450,7 @@ def test_result_assembly_preserves_reserved_binding_policy(assembly_runtime, nam
     request.result_artifacts["report"] = ArtifactRef(namespace=namespace, name=name)
     fields = WorkerModelResult(subtaskId=request.subtask_id, result="done")
     observed = (ArtifactRef(namespace=namespace, name=name, revision="exact-r1"),)
-    outcome, exportable = assembly_runtime._assemble_runtime_result(request, fields, observed)
+    outcome, exportable = assembly_runtime._pipeline.assemble_result(request, fields, observed)
     assert isinstance(outcome, WorkerFailure) and exportable is False
     assert outcome.code == "invalid_worker_result_binding" and outcome.retryable is False
 
@@ -464,7 +465,7 @@ def test_model_decoder_and_result_policy_keep_error_precedence(assembly_runtime)
         ("0", {}, "unsafe_worker_result"),
     ]:
         candidate = json.dumps({"subtaskId": subtask_id, "result": secret, **extra})
-        outcome, exportable = assembly_runtime._build_runtime_result(request, candidate, ())
+        outcome, exportable = assembly_runtime._pipeline.build_result(request, candidate, ())
         assert isinstance(outcome, WorkerFailure) and exportable is False
         assert outcome.code == code
         assert outcome.retryable is (code != "unsafe_worker_result")
@@ -492,3 +493,21 @@ def test_lean_observations_reject_a_count_the_a2a_datapart_would_round() -> None
     assert observations.tools["read_file"].calls == 2**53 - 1
     with pytest.raises(ValidationError):
         worker_runtime._lean_observations(snapshot(2**53), "worker-1", projection_failed=False)
+
+
+def test_cancelled_cleanup_children_preserve_observer_and_summary_policy():
+    from contractor_runtime.worker.completion import _await_safely
+    from contractor_runtime.worker.finalizer import _notify_cancelled_safely
+
+    async def cancelled():
+        raise asyncio.CancelledError
+
+    class CancelledObserver:
+        async def on_result_finalizer_error(self, **kwargs):
+            await cancelled()
+
+    async def scenario():
+        assert await _await_safely(cancelled()) is None
+        await _notify_cancelled_safely(CancelledObserver(), "worker-cleanup")
+
+    asyncio.run(scenario())

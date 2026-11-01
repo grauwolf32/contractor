@@ -78,15 +78,12 @@ from contractor_runtime.toolsets.memory.tools import MemoryToolsetFactory
 from contractor_runtime.toolsets.run_artifacts.tools import RunArtifactsToolsetFactory
 from contractor_runtime.worker.budget import WorkerBudgetExceeded
 from contractor_runtime.worker.factory import AdkWorkerRuntimeFactory
+from contractor_runtime.worker.failures import _chained_error
 from contractor_runtime.worker.finalizer import _SYSTEM_INSTRUCTION as FINALIZER_INSTRUCTION
 from contractor_runtime.worker.finalizer import ResultFinalizerFailure
 from contractor_runtime.worker.instrumentation import WorkerSummarizationRequested
-from contractor_runtime.worker.runtime import (
-    INVOCATION_CLEANUP_TIMEOUT_SECONDS,
-    AdkWorkerRuntime,
-    _chained_error,
-    _summarizer_secrets,
-)
+from contractor_runtime.worker.prompts import _summarizer_secrets
+from contractor_runtime.worker.runtime import INVOCATION_CLEANUP_TIMEOUT_SECONDS, AdkWorkerRuntime
 from contractor_runtime.worker.sessions import WorkerSessionLifecycleError
 from contractor_runtime.worker.summarizer import TranscriptRecorder
 from contractor_runtime.workspace import AllocationWorkspace
@@ -160,7 +157,7 @@ def test_adk_worker_executes_selected_tools_and_validates_exact_result(tmp_path:
         assert runtime._agent.before_model_callback is None
         assert runtime._agent.after_model_callback is None
         assert runtime._agent.on_model_error_callback is None
-        assert runtime._result_finalizer is not None
+        assert runtime._pipeline.finalizer is not None
 
         result = await runtime.invoke(stage_request())
 
@@ -3031,14 +3028,16 @@ def test_partial_invocation_acquisition_releases_session_and_preserves_error(
 
         monkeypatch.setattr(runtime._session_lifecycle, "finish_invocation", record_finish)
         with monkeypatch.context() as patch:
-            patch.setattr("contractor_runtime.worker.runtime._summary_prompt_boundary", fail_budget)
+            patch.setattr(
+                "contractor_runtime.worker.invocation._summary_prompt_boundary", fail_budget
+            )
             with pytest.raises(RuntimeError, match="original budget acquisition failure"):
                 await runtime.invoke(stage_request())
         assert len(released) == 1 and released[0] is not None
         assert runtime._session_lifecycle.active_session_id is None
-        assert runtime._active_task is None
-        assert runtime._active_budget is None
-        assert not runtime._invoke_lock.locked()
+        assert runtime._invocation.task is None
+        assert runtime._invocation.budget is None
+        assert not runtime._invocation.lock.locked()
         assert (await runtime.invoke(stage_request())).result is not None
         assert len(released) == 2
         await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
@@ -3068,14 +3067,14 @@ def test_invocation_ownership_cleans_up_all_execution_outcomes(
         )
         completion = await runtime.invoke(stage_request())
         assert (completion.result is not None) is (outcome == "success")
-        assert runtime._active_task is None
-        assert runtime._active_budget is None
-        assert not runtime._invoke_lock.locked()
+        assert runtime._invocation.task is None
+        assert runtime._invocation.budget is None
+        assert not runtime._invocation.lock.locked()
         assert runtime._session_lifecycle.active_session_id is None
         # A failed invocation does not orphan ownership or fence a healthy session.
-        async with runtime._invocation_ownership():
-            assert runtime._active_task is asyncio.current_task()
-            assert runtime._active_budget is not None
+        async with runtime._invocation.own():
+            assert runtime._invocation.task is asyncio.current_task()
+            assert runtime._invocation.budget is not None
         await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
 
     asyncio.run(scenario())
@@ -3107,14 +3106,14 @@ def test_cancellation_during_session_cleanup_cannot_publish_success(
         task = asyncio.create_task(runtime.invoke(stage_request()))
         await asyncio.wait_for(entered.wait(), timeout=1)
         task.cancel()
-        assert runtime._invoke_lock.locked()
+        assert runtime._invocation.lock.locked()
         proceed.set()
         with pytest.raises(asyncio.CancelledError):
             await task
         assert releases == 1
-        assert runtime._active_task is None
-        assert runtime._active_budget is None
-        assert not runtime._invoke_lock.locked()
+        assert runtime._invocation.task is None
+        assert runtime._invocation.budget is None
+        assert not runtime._invocation.lock.locked()
         assert runtime._session_lifecycle.active_session_id is None
         await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
 
@@ -3137,9 +3136,9 @@ def test_cleanup_failure_does_not_mask_cancelled_invocation(
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
             await task
-        assert runtime._active_task is None
-        assert runtime._active_budget is None
-        assert not runtime._invoke_lock.locked()
+        assert runtime._invocation.task is None
+        assert runtime._invocation.budget is None
+        assert not runtime._invocation.lock.locked()
         assert not runtime._accepting
         await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
 
@@ -3163,7 +3162,7 @@ def test_session_cleanup_timeout_is_bounded_and_keeps_invocation_identity(
 
         monkeypatch.setattr(runtime._session_lifecycle, "finish_invocation", stuck_finish)
         monkeypatch.setattr(
-            "contractor_runtime.worker.runtime.INVOCATION_CLEANUP_TIMEOUT_SECONDS", 0.05
+            "contractor_runtime.worker.invocation.INVOCATION_CLEANUP_TIMEOUT_SECONDS", 0.05
         )
         completion = await asyncio.wait_for(runtime.invoke(stage_request()), timeout=1)
         assert completion.result is None
@@ -3172,9 +3171,9 @@ def test_session_cleanup_timeout_is_bounded_and_keeps_invocation_identity(
         snapshot = await state.snapshot()
         assert completion.invocation_id == snapshot["lastCompletedInvocation"]["invocationId"]
         assert completion.state_revision == snapshot["stateRevision"]
-        assert runtime._active_task is None
-        assert runtime._active_budget is None
-        assert not runtime._invoke_lock.locked()
+        assert runtime._invocation.task is None
+        assert runtime._invocation.budget is None
+        assert not runtime._invocation.lock.locked()
         assert not runtime._accepting
         await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
 
@@ -3224,9 +3223,9 @@ def assert_worker_timeout(completion: Any) -> None:
 
 
 def assert_slot_released(runtime: AdkWorkerRuntime) -> None:
-    assert runtime._active_task is None
-    assert runtime._active_budget is None
-    assert not runtime._invoke_lock.locked()
+    assert runtime._invocation.task is None
+    assert runtime._invocation.budget is None
+    assert not runtime._invocation.lock.locked()
     assert runtime._session_lifecycle.active_session_id is None
     # A deadline ends one invocation; it does not fence the Worker.
     assert runtime._accepting
@@ -3613,7 +3612,7 @@ def test_an_invocation_ending_before_its_summarizer_starts_closes_the_request(
         assert agent_state.state.last_completed_invocation.phase == expected_phase
         assert agent_state.state.last_completed_invocation.summarizer.phase == "failed"
         if ending == "cancellation":
-            assert not runtime._invoke_lock.locked()
+            assert not runtime._invocation.lock.locked()
             await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
         else:
             assert_slot_released(runtime)
@@ -3646,7 +3645,7 @@ def test_summary_factory_crossing_deadline_starts_no_summary_call(tmp_path: Path
             advance_clock(PAST_STAGE_DEADLINE_SECONDS)
             return summary
 
-        runtime._model_factory = expired_summary_factory
+        runtime._pipeline._model_factory = expired_summary_factory
         completion = await runtime.invoke(stage_request())
         assert_worker_timeout(completion)
         assert len(main.requests) == 1
@@ -3686,7 +3685,7 @@ def test_cancellation_requested_before_the_deadline_stays_a_cancellation(
         snapshot = await state.snapshot()
         assert snapshot["lastCompletedInvocation"]["phase"] == "cancelled"
         assert len(model.requests) == 1
-        assert not runtime._invoke_lock.locked()
+        assert not runtime._invocation.lock.locked()
         await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
 
     run_with_advanceable_clock(scenario())
@@ -3812,7 +3811,7 @@ def test_session_cleanup_after_the_deadline_keeps_its_own_budget(
 
         assert_worker_timeout(completion)
         assert releases == 1
-        assert not runtime._invoke_lock.locked()
+        assert not runtime._invocation.lock.locked()
         if cleanup == "completes":
             assert_slot_released(runtime)
         else:
@@ -4311,14 +4310,31 @@ def test_repeated_cancellation_joins_state_cleanup_before_next_invocation(
             task.cancel()
             await asyncio.sleep(0)
             assert not task.done()
-            assert runtime._invoke_lock.locked()
+            assert runtime._invocation.lock.locked()
         release.set()
         with pytest.raises(asyncio.CancelledError):
             await task
         assert (await state.snapshot())["currentInvocation"] is None
-        assert not runtime._invoke_lock.locked()
+        assert not runtime._invocation.lock.locked()
         monkeypatch.setattr(runtime._plugin, "complete_invocation", complete)
         assert (await runtime.invoke(stage_request())).result is not None
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_cancelled_session_release_keeps_failed_session_fenced(tmp_path, monkeypatch):
+    async def scenario():
+        runtime = await create_runtime(tmp_path, WorkerState(), {}, scripted_model([]))
+
+        async def cancelled_release():
+            runtime._session_lifecycle.fence()
+            raise asyncio.CancelledError
+
+        monkeypatch.setattr(runtime._session_lifecycle, "finish_invocation", cancelled_release)
+        with pytest.raises(asyncio.CancelledError):
+            await runtime._invocation.release_session()
+        assert not runtime._accepting
         await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
 
     asyncio.run(scenario())

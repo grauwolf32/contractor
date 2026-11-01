@@ -58,3 +58,40 @@ tests:
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A1, A2, A3]
+implementation_notes:
+  - >-
+    InvocationLifecycle owns the lock, task, absolute deadline and budget through
+    joined session release. AdkTurnRunner owns SDK events and history settlement.
+    WorkerCompletionPipeline owns ordinary/Audit completion, finalizer, terminal
+    summarization and result policy. The Runtime keeps admission, phase sequencing,
+    compaction, terminal State and stop; no Runtime proxy or mixin was introduced.
+  - >-
+    AllocationPreparation exposes typed partial acquisitions to the existing
+    service rollback and returns a complete uncommitted context. Resource cleanup
+    closes/erases the context; AllocationService retains slot transitions, command
+    replay, fencing, cleanup task retry and reports. Existing V425-034 is not taken
+    over or closed. Callers use narrow dependencies and callbacks.
+  - >-
+    Compared with the reviewed f4a9f6277 source, worker/runtime.py changes from
+    1907 to 1112 lines and allocation/service.py from 1301 to 881 lines. Extracted
+    modules add explicit construction/imports; no overall code-size or speedup
+    claim is made. docs/development.md records the ownership with two diagrams.
+  - >-
+    The model finalizer and wire contracts remain in place. Regression checks
+    also preserve cleanup-child cancellation handling and immediate failed-session
+    fencing after switching from shield to the shared outcome-neutral join.
+verification: >-
+  Required Allocation selection: 133 passed, 15 Linux/Podman-only skips. Worker
+  extraction selection: 305 passed. Additional cleanup-cancellation policy
+  selection: 202 passed. Final complete Runtime selection with warnings as
+  errors: 5812 passed, 133 skipped, 2 explicitly deselected in 351.59 seconds.
+  The deselections are the independently tracked macOS baseline failures
+  V425-001 (APFS opaque-leaf normalization) and V425-002 (Trailmark PATH_MAX);
+  they are not counted as passes or repaired here. Runtime skips retain their
+  existing Linux/Podman and explicit real-engine/process/live-Gateway gates.
+  make lint passed, including generated files, Go vet/staticcheck, export
+  ownership, UI checks, deploy gates, spec/tasks and all four Runtime import
+  contracts. The script unit-test portion reports one existing skip. The
+  pinned Ansible tools ran from the existing uv cache with UV_OFFLINE=1 and
+  UV_PYTHON=3.13 after an online PyPI connection timeout; no check was disabled.
+  Ruff check/format, generated dependency graph and git diff --check pass.

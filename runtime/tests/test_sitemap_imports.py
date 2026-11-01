@@ -10,7 +10,7 @@ from fakes.sitemap_reports import ReportTransport, report_collector
 from test_sitemap_collection import no_timer, observation
 from test_sitemap_tools import tools_for
 
-from contractor_runtime.allocation.service import _SourceObservationSink
+from contractor_runtime.allocation.preparation import _SourceObservationSink
 from contractor_runtime.artifacts import ArtifactClient, ArtifactTransportError
 from contractor_runtime.contracts import ArtifactRef
 from contractor_runtime.core.input_errors import ToolInputError

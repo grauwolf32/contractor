@@ -11,7 +11,7 @@ from fakes.sitemap import SitemapTransport
 from fakes.worker_state import WorkerState
 from http_cookie_store import HTTPToolsetFactory
 
-from contractor_runtime.allocation.service import _SourceObservationSink
+from contractor_runtime.allocation.preparation import _SourceObservationSink
 from contractor_runtime.artifacts import ArtifactAPIError, ArtifactClient, ArtifactTransportError
 from contractor_runtime.contracts import RuntimeSettings
 from contractor_runtime.sitemap import SitemapClient

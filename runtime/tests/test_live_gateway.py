@@ -197,7 +197,7 @@ def test_live_worker_result_finalizer_separates_tools_and_schema(tmp_path: Path)
         assert runtime._agent is not None
         assert runtime._agent.output_schema is None
         assert runtime._agent.tools
-        assert runtime._result_finalizer is not None
+        assert runtime._pipeline.finalizer is not None
         try:
             completion = await runtime.invoke(
                 StageContentRequest(
