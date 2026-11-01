@@ -6,7 +6,8 @@ epic: operations
 kind: chore
 introduced_by: V32-003
 priority: P3
-status: in_progress
+status: completed
+implementation_commit: e0f436af5bfe917c223ab337a6bed9d5b700e87e
 depends_on: [V430-003]
 languages: [go]
 goal: Collect and persist the same bounded performance measurements with less duplicate serialization and one record-encoding rule.
@@ -80,3 +81,16 @@ implementation_notes:
     schedules, states, limits or exported APIs changed. Existing tests are
     unchanged. Production Go shrank by seven physical lines (50 added,
     57 removed); no wall-time or allocation benchmark claim is made.
+verification: >-
+  2026-11-01: go test -json -count=1 ./internal/performance passed against
+  the dedicated contractor_performance_encoding_20261101 PostgreSQL
+  database over TCP: 88 tests/subtests passed; the one optional local
+  NVIDIA GPU smoke test skipped. No database tests skipped. Complete
+  make lint passed, including tagged Go checks, export checks, task/spec/
+  shared-fixture/ERD guards, UI gates, deployment-script checks and all four
+  Runtime import contracts. Existing tests were unchanged and exercised
+  invalid/nonfinite/unsafe numeric values, minute persistence/idempotency,
+  history windows, independent group rejection and detached ownership.
+  The preceding full Go/PostgreSQL integration run belongs to V430-003;
+  no new full release or live-model run is claimed for this local refactor.
+  codex/performance-record-encoding remains unmerged for review.
