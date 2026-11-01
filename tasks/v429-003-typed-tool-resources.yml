@@ -6,7 +6,7 @@ epic: execution-core
 kind: chore
 introduced_by: V17-002
 priority: P3
-status: pending
+status: in_progress
 depends_on: []
 languages: [python]
 goal: "Allocation private resources have explicit typed ownership and tools no longer accept an untyped State bag."

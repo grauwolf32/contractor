@@ -6,7 +6,7 @@ epic: planner-worker
 kind: defect
 introduced_by: V17-002
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages: [python]
 goal: "Invocation cleanup finishes before its lock or session can be reused, even after repeated cancellation."
@@ -48,3 +48,8 @@ tests:
     covers: [A1, A2]
   - command: cd runtime && uv run ruff check . && uv run ruff format --check . && uv run lint-imports --no-cache --no-logo
     covers: [A1, A2]
+implementation_commit: 6b007b94e0f532946333ab91afe7176d66c9af7d
+verification: >-
+  Required focused suite: 290 passed. Ruff check/format and all four import
+  contracts pass. The new real ADK regression verifies repeated cancellation
+  does not release the invocation lock or leave stale instrumentation.

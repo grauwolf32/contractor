@@ -6,7 +6,7 @@ epic: execution-core
 kind: defect
 introduced_by: V31-004
 priority: P1
-status: pending
+status: completed
 depends_on: []
 languages: [python]
 goal: "Graceful process shutdown stops an ordinary allocation before closing its Artifact connections and listener."
@@ -48,3 +48,9 @@ tests:
     covers: [A1, A2]
   - command: cd runtime && uv run ruff check . && uv run ruff format --check . && uv run lint-imports --no-cache --no-logo
     covers: [A1, A2]
+implementation_commit: 7013acf142878bb52927405877ffb758b3afd1e5
+verification: >-
+  Required CLI and Allocation suites: 72 passed, including real mTLS process
+  shutdown and the real AllocationService/ADK blocked-invocation regression.
+  Ruff and all import-layer contracts pass. Go was restored to PATH from the
+  installed macOS toolchain for the process test.
