@@ -1,0 +1,82 @@
+schema_version: "1.0"
+id: V429-013
+title: Add sorting to the Issue review preview
+milestone: ui-journey-usability
+epic: ui
+kind: chore
+priority: P2
+status: in_progress
+depends_on: [V429-012]
+languages: [typescript, css]
+goal: Let the user reorder the six Issue examples without losing the selected issue, decision draft or filtered navigation context.
+context:
+  authority: >-
+    On 2026-11-01 the user accepted the Issue layout and asked to try adding
+    sorting. Continue the isolated design preview on port 17562 and preserve
+    the earlier OpenDesign outputs; this does not request production transfer.
+  specification: docs/spec/ui/ui.md
+  design: docs/design/ui/README.md
+  decision: >-
+    Agent proposal for this review iteration: one native Sort control offers
+    severity high-first, newest, oldest, needs-review-first status and title.
+    Severity uses the explicit analyst rating where present, otherwise the AI
+    suggestion; unset severity sorts last. Labels keep the distinction visible.
+    Equal ranks use creation time then ID for stable order. Give the synthetic
+    fixtures distinct fixed creation times so time sorting is observable.
+scope:
+  in:
+    - A compact labelled sort control within the existing list toolbar.
+    - Deterministic ordering of the closed six-item list, composed with search and review filters.
+    - Keep selection and draft on sorting; Previous/Next and J/K follow the displayed order.
+    - Preserve selected example and sort across preview theme/width changes; show creation times for time sorting.
+    - Preserve earlier preview versions and verify all sort modes, themes and widths.
+  out:
+    - Production UI/API list sorting, pagination contracts, new domain states, business-data writes or model calls.
+acceptance_criteria:
+  - id: A1
+    text: All five sort choices visibly reorder the examples as labelled, with stable ties, missing severity last and analyst/AI labels retained.
+  - id: A2
+    text: Search and review filters compose with sorting; selected detail and decision draft stay unchanged when ordering changes, and bounded Previous/Next/J/K follow that order.
+  - id: A3
+    text: Sort and selected example survive theme/width changes; controls are usable at desktop and 390/320 px in all themes without overflow, page errors or network calls.
+  - id: A4
+    text: All existing six-example review checks pass and original OpenDesign outputs and earlier preview versions remain preserved.
+tests:
+  - command: node docs/design/ui/experiments/issues-review-opendesign-2026-11-01/verify.mjs
+    covers: [A1, A2, A3, A4]
+  - command: python3 scripts/check_tasks.py
+    covers: [A1, A2, A3, A4]
+  - command: python3 scripts/check_spec.py
+    covers: [A3, A4]
+
+verification:
+  - >-
+    A single labelled native Sort control offers severity high-first, newest,
+    oldest, needs-review-first status and title A–Z. Severity uses the analyst
+    rating when available and otherwise the AI suggestion; existing per-row
+    labels keep the distinction. Missing severity is last. Creation time and ID
+    settle ties deterministically. Six fixed ISO fixture times make time sorting
+    observable, with dates shown only in the time-based views.
+  - >-
+    Sorting projects the same filtered six-item list without changing selected
+    detail or decision draft. Previous/Next/J/K follow its order and do not wrap
+    beyond the ends. Returning from the mobile list to the same selected issue
+    also keeps its draft. The opaque child reports only its sort/selection to
+    its parent window; the parent validates the source/shape and retains those
+    URL values across QA theme/width changes. No real API sort or mutation occurs.
+  - >-
+    The standalone verifier passed 12 layout combinations, all 72 finding
+    cases and 60 sort cases. Expected orders are explicit for all five choices;
+    tests cover stable repeated sorting, missing severity last, retained labels,
+    preserved selection/rationale, search/review filters, sorted bounded keyboard
+    and button navigation, mobile return, visible creation times and persistence
+    across theme/width changes. All prior evidence/review/preview/CSP checks
+    passed without page errors, external requests or horizontal overflow.
+    Task/spec/diff checks passed; no production UI release changed.
+  - >-
+    index-review-v8-issue-sorting.html is a separately added OpenDesign file.
+    Original and v4/v5/v6/v7 outputs remain intact, and v8 source/fixtures/proof
+    are retained with a SHA-256 manifest in the host sort-v8-20261101 directory.
+    The earlier verified state backup remains preserved. No model call or new
+    gateway credential was used. Preview is available on loopback port 17562;
+    this branch has not been merged or deployed.

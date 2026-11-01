@@ -26,6 +26,7 @@ for(const example of examples){
   const result=validate(example.proposal,{$ref:schemas.$id+'#/$defs/FindingProposalDocument'},'2020-12',lookup,true);
   assert.equal(result.valid,true,example.id+' proposal contract: '+JSON.stringify(result.errors));
   assert.deepEqual(example.proposal.evidence_ids,example.files.map(file=>file.id));
+  assert.ok(Number.isFinite(Date.parse(example.createdAt)),'Fixed creation time for '+example.id);
 }
 assert.equal(createHash('sha256').update(await readFile(new URL('./'+review.acceptedComposition,import.meta.url))).digest('hex'),review.acceptedCompositionSha256,'Accepted composition snapshot is preserved');
 const child=spawn(process.execPath,[fileURLToPath(new URL('./serve.mjs',import.meta.url)),'0'],{stdio:['ignore','pipe','pipe']});
@@ -183,8 +184,65 @@ try{
       assert.equal(await frame.locator('html').evaluate(el=>el.scrollWidth),width,'Draft remains contained for every example');
       exampleResults.push({id:example.id,passed:true});
     }
+    if(width<900)await frame.locator('#backLink').click();
+    await frame.locator('#issueList [data-select="issue-order-lookup-authz"]').click();
+    await frame.getByRole('button',{name:'Needs evidence',exact:true}).click();
+    await frame.locator('#whyInput').fill('Keep this draft while sorting.');
+    if(width<900)await frame.locator('#backLink').click();
+    const expectedSorts={
+      severity:['issue-product-search-sql','issue-order-lookup-authz','issue-pii-crossproject','issue-debug-exposure','issue-container-user','issue-login-throttle'],
+      newest:['issue-login-throttle','issue-product-search-sql','issue-debug-exposure','issue-order-lookup-authz','issue-container-user','issue-pii-crossproject'],
+      oldest:['issue-pii-crossproject','issue-container-user','issue-order-lookup-authz','issue-debug-exposure','issue-product-search-sql','issue-login-throttle'],
+      status:['issue-login-throttle','issue-product-search-sql','issue-debug-exposure','issue-order-lookup-authz','issue-container-user','issue-pii-crossproject'],
+      title:['issue-container-user','issue-debug-exposure','issue-login-throttle','issue-pii-crossproject','issue-order-lookup-authz','issue-product-search-sql']
+    };
+    const sorting=[];
+    for(const [mode,expected] of Object.entries(expectedSorts)){
+      await frame.getByRole('combobox',{name:'Sort issues',exact:true}).selectOption(mode);
+      const actual=await frame.locator('#issueList [data-select]').evaluateAll(rows=>rows.map(row=>row.dataset.select));
+      assert.deepEqual(actual,expected,'Visible '+mode+' order');
+      assert.equal(await frame.locator('#detail').getAttribute('data-finding-id'),'issue-order-lookup-authz');
+      assert.equal(await frame.locator('#whyInput').inputValue(),'Keep this draft while sorting.');
+      assert.equal(await frame.locator('#recordBtn').isDisabled(),false);
+      assert.equal(await frame.locator('#prevBtn').evaluate(button=>button.nextElementSibling.textContent),(expected.indexOf('issue-order-lookup-authz')+1)+' of 6');
+      assert.equal(await frame.locator('#issueList time').count(),['newest','oldest'].includes(mode)?6:0);
+      await frame.getByRole('combobox',{name:'Sort issues',exact:true}).selectOption(mode);
+      assert.deepEqual(await frame.locator('#issueList [data-select]').evaluateAll(rows=>rows.map(row=>row.dataset.select)),expected,'Stable repeated sort');
+      sorting.push({mode,passed:true});
+    }
+    if(width<900){
+      await frame.locator('#issueList [data-select="issue-order-lookup-authz"]').click();
+      assert.equal(await frame.locator('#whyInput').inputValue(),'Keep this draft while sorting.','Returning to the same mobile issue keeps the draft');
+    }
+    await frame.locator('#nextBtn').click();
+    assert.equal(await frame.locator('#detail').getAttribute('data-finding-id'),'issue-product-search-sql');
+    assert.equal(await frame.locator('#nextBtn').isDisabled(),true);
+    await frame.locator('#issueTitle').press('j');
+    assert.equal(await frame.locator('#detail').getAttribute('data-finding-id'),'issue-product-search-sql','J does not wrap past the end');
+    await frame.locator('#issueTitle').press('k');
+    assert.equal(await frame.locator('#detail').getAttribute('data-finding-id'),'issue-order-lookup-authz');
+    if(width<900)await frame.locator('#backLink').click();
+    await frame.locator('#searchbox').fill('order');
+    assert.deepEqual(await frame.locator('#issueList [data-select]').evaluateAll(rows=>rows.map(row=>row.dataset.select)),['issue-pii-crossproject','issue-order-lookup-authz']);
+    await frame.locator('[data-filter=needs]').click();
+    assert.deepEqual(await frame.locator('#issueList [data-select]').evaluateAll(rows=>rows.map(row=>row.dataset.select)),['issue-order-lookup-authz']);
+    assert.equal(await frame.locator('#prevBtn').isDisabled(),true);assert.equal(await frame.locator('#nextBtn').isDisabled(),true);
+    await frame.locator('#searchbox').fill('');await frame.locator('[data-filter=all]').click();
+    await frame.getByRole('combobox',{name:'Sort issues',exact:true}).selectOption('newest');
+    await page.screenshot({path:output+`sorting-${theme}-${width}.png`,fullPage:true});
+    assert.equal(await frame.locator('html').evaluate(el=>el.scrollWidth),width);
+    await page.waitForFunction(()=>new URLSearchParams(location.search).get('sort')==='newest');
+    const otherTheme=theme==='light'?'dark':'light';
+    await page.locator('#theme').selectOption(otherTheme);
+    await frame.locator('html[data-theme="'+otherTheme+'"]').waitFor({state:'attached'});
+    assert.equal(await frame.locator('#issueSort').inputValue(),'newest');
+    assert.equal(await frame.locator('#detail').getAttribute('data-finding-id'),'issue-order-lookup-authz');
+    await page.locator('#width').selectOption(width===1440?'390':'1440');
+    await frame.locator('#issueSort').waitFor({state:'attached'});
+    assert.equal(await frame.locator('#issueSort').inputValue(),'newest');
+    assert.equal(await frame.locator('#detail').getAttribute('data-finding-id'),'issue-order-lookup-authz');
     assert.deepEqual(failures,[]);assert.deepEqual(external,[]);
-    results.push({theme,width,...metrics,layout,examples:exampleResults,passed:true});await context.close();
+    results.push({theme,width,...metrics,layout,examples:exampleResults,sorting,passed:true});await context.close();
   }
   await writeFile(output+'report.json',JSON.stringify({cases:results,passed:results.length},null,2)+'\n');
   const response=await fetch(url+'prototype.html');
@@ -201,7 +259,7 @@ try{
   await comparison.goto(url+'?theme=dark&width=1440&example=issue-debug-exposure');
   assert.match(await comparison.frameLocator('#design').locator('#issueTitle').innerText(),/Debug information/);
   await comparison.close();
-  console.log(`${results.length} layouts / ${results.reduce((total,result)=>total+result.examples.length,0)} finding examples passed: distinct composition, common fonts, themes, widths, truthful states, tabs, explicit preview, required rationale/severity/duplicate target, local-only recording, mobile navigation, prior-version comparison and isolated GET-only preview.`);
+  console.log(`${results.length} layouts / ${results.reduce((total,result)=>total+result.examples.length,0)} finding examples / ${results.reduce((total,result)=>total+result.sorting.length,0)} sort cases passed: distinct composition, common fonts, themes, widths, truthful states, tabs, explicit preview, required rationale/severity/duplicate target, local-only recording, mobile navigation, prior-version comparison and isolated GET-only preview.`);
 }finally{
   await browser?.close();child.kill('SIGTERM');await new Promise(resolve=>{if(child.exitCode!==null||child.signalCode!==null)resolve();else child.once('exit',resolve)});
 }

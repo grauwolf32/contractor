@@ -8,9 +8,9 @@
   "generator": "OpenDesign / isolated BYOK OpenCode through the existing Contractor gateway",
   "model": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
   "sourceFile": "index-review-v4.html",
-  "previewFileInOpenDesign": "index-review-v7-impact-column.html",
+  "previewFileInOpenDesign": "index-review-v8-issue-sorting.html",
   "originalSha256": "ec22282916e859d08fd71543a640382f1570834bb8ba3703e669be7c01005caf",
-  "previewSha256": "4f52cf3b4288d68b09ddf4af840645519c1505d3c707139bd14ac0eef3ff7cbe",
+  "previewSha256": "be6ba98a6e4bf26ea0e1d391f5c2f199a29f3414070f9f46a17ac861f9c43ec4",
   "previous": "../issues-opendesign-2026-11-01/preview.html",
   "composition": [
     "Unboxed narrative and semantic icon badge",
@@ -39,14 +39,14 @@
     "originals": "All earlier project files, conversations, versions and host trial artifacts retained"
   },
   "isolation": "Separate loopback origin, GET-only fixed routes, opaque sandbox frame, connect-src none, form-action none; synthetic local decision only. Ephemeral single-model relay stopped and upstream-credential file removed after generation.",
-  "verification": "12 layouts / 72 finding cases passed: six schema-valid synthetic proposals \u00d7 1440/1100/390/320 \u00d7 light/dark/black; per-case context, subject, separate assessment/review/severity, tabs, evidence bytes, masked HTTP headers, same-check duplicate targets, local recording, Verification-before-severity order, compact recorded decision and no overflow/errors/external requests. Original, accepted composition and earlier layout retained.",
+  "verification": "12 layout combinations, 72 finding cases and 60 sort cases passed. Five modes, stable repeated ordering, source labels, unknown severity last, filter/search composition, retained selection/draft, bounded sorted Previous/Next/J/K, same-issue mobile return and persisted QA theme/width context are checked along with all prior review, evidence, isolation and layout behavior.",
   "serve": "node docs/design/ui/experiments/issues-review-opendesign-2026-11-01/serve.mjs",
   "verify": "node docs/design/ui/experiments/issues-review-opendesign-2026-11-01/verify.mjs",
   "productionTransfer": "Separate follow-up after reviewing this candidate; no production Issue behavior, Server contract, release version or business record changed.",
   "acceptedComposition": "preview-composition-v4.html",
   "acceptedCompositionSha256": "96879d463ca7652399b015ba2fd7d77449cc79a8e315a24b0e26bc011e262b50",
   "examplesFile": "examples.json",
-  "humanFollowUp": "User 2026-11-01: make Duplicate more explicit and populate other finding types as test examples. Six synthetic cases added by the assistant on top of the accepted OpenDesign composition; original and accepted preview snapshots retained. Follow-up: put Verification before AI severity and reduce/align the Recorded decision block. User clarification: Impact is first in the supporting column, above Verification and Limitations, for every example.",
+  "humanFollowUp": "User 2026-11-01: make Duplicate more explicit and populate other finding types as test examples. Six synthetic cases added by the assistant on top of the accepted OpenDesign composition; original and accepted preview snapshots retained. Follow-up: put Verification before AI severity and reduce/align the Recorded decision block. User clarification: Impact is first in the supporting column, above Verification and Limitations, for every example. User 2026-11-01: add sorting. Native severity/time/status/title ordering composes with filters and preserves selection/draft; synthetic creation timestamps now differ to demonstrate time sorting.",
   "fixtureAuthor": "Assistant-authored, schema-checked synthetic fixtures on the user-accepted OpenDesign composition; no new model run or production integration.",
   "fixturePreservation": {
     "backup": "/Users/ruslan/src/third-party/open-design-backups/20261101T092349Z",
@@ -56,5 +56,19 @@
     "messages": 35,
     "projectFiles": 81,
     "versions": "The accepted v4 composition and the v5 examples / v6 review refinements are preserved separately; no original generated file was changed."
+  },
+  "sortDesign": {
+    "modes": [
+      "severity",
+      "newest",
+      "oldest",
+      "status",
+      "title"
+    ],
+    "default": "severity",
+    "severity": "Analyst rating when present, otherwise AI suggestion; unset last. Per-row labels remain distinct.",
+    "ties": "Creation time, then stable ID. Oldest uses ascending time.",
+    "context": "Search/review filters compose with ordering; selected issue and draft remain on sort, including reopening the same mobile issue. Sort/selection survive QA theme and width changes.",
+    "data": "Six synthetic examples with fixed distinct ISO creation times; no real timestamps or business records changed."
   }
 }
