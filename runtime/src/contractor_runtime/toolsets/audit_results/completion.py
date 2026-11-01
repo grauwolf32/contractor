@@ -17,6 +17,7 @@ from contractor_runtime.contracts import (
     WorkerObservations,
     WorkerResult,
 )
+from contractor_runtime.core.async_tasks import join_owned_task
 from contractor_runtime.core.worker_completion import (
     CompleteCompletion,
     ContinueCompletion,
@@ -167,12 +168,7 @@ class PreparedAuditCompletion(PreparedWorkerCompletion):
             # Keep invocation ownership until discard settles, including a
             # cancellation arriving during otherwise successful cleanup.
             cleanup = asyncio.create_task(collector.discard(), name="audit-collector-discard")
-            interrupted = False
-            while not cleanup.done():
-                try:
-                    await asyncio.shield(cleanup)
-                except asyncio.CancelledError:
-                    interrupted = True
+            interrupted = await join_owned_task(cleanup)
             cleanup.result()
             if interrupted:
                 raise asyncio.CancelledError

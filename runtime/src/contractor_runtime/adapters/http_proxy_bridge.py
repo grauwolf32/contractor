@@ -28,6 +28,7 @@ from cryptography.x509.oid import NameOID
 
 from contractor_runtime.adapters.http_transport import HTTPTransport, HTTPTransportError
 from contractor_runtime.contracts.engagement import canonical_url
+from contractor_runtime.core.async_tasks import join_owned_task
 from contractor_runtime.core.http_limits import (
     MAX_HEADERS,
     request_header_max_bytes,
@@ -172,12 +173,7 @@ class HTTPProxyBridge:
             self._tls = None
 
         task = asyncio.create_task(cleanup(), name="http-bridge-close")
-        cancelled = False
-        while not task.done():
-            try:
-                await asyncio.wait({task})
-            except asyncio.CancelledError:
-                cancelled = True
+        cancelled = await join_owned_task(task)
         task.result()
         if cancelled:
             raise asyncio.CancelledError

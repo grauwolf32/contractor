@@ -9,6 +9,7 @@ from urllib.parse import urlsplit
 from contractor_runtime.contracts import RuntimeSettings
 from contractor_runtime.contracts.engagement import canonical_url
 from contractor_runtime.contracts.engagement_allocation import HTTPAssignment
+from contractor_runtime.core.async_tasks import join_owned_task
 from contractor_runtime.core.target_policy import (
     MAX_RESOLVED_ADDRESSES,
     METADATA_ADDRESSES,
@@ -100,12 +101,7 @@ class HTTPRoutePolicy:
             # Retain and join it; lifecycle's stop deadline fences the process
             # if the resolver cannot finish before allocation cleanup.
             task = asyncio.create_task(self._resolver(host, port), name="engagement-resolve")
-            cancelled = False
-            while not task.done():
-                try:
-                    await asyncio.wait({task})
-                except asyncio.CancelledError:
-                    cancelled = True
+            cancelled = await join_owned_task(task)
             if cancelled:
                 consume_task_exception(task)
                 raise asyncio.CancelledError from None

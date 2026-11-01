@@ -55,6 +55,7 @@ from contractor_runtime.contracts.artifacts import (
     is_reserved_result_binding,
 )
 from contractor_runtime.contracts.base import is_blank
+from contractor_runtime.core.async_tasks import join_owned_task
 from contractor_runtime.core.worker_completion import (
     ContinueCompletion,
     FailCompletion,
@@ -522,16 +523,13 @@ class AdkWorkerRuntime:
                 raise WorkerSessionLifecycleError("cleanup_timeout") from error
 
         task = asyncio.create_task(release(), name="worker-invocation-session-release")
-        try:
-            await asyncio.shield(task)
-        except asyncio.CancelledError:
-            # Retain ownership until the bounded release settles, including
-            # cancellation arriving during normal-completion cleanup.
+        if await join_owned_task(task):
             with contextlib.suppress(Exception, asyncio.CancelledError):
-                await task
+                task.result()
             if self._session_lifecycle.failed:
                 self._accepting = False
-            raise
+            raise asyncio.CancelledError
+        task.result()
 
     async def _execute_invocation(
         self, request: StageContentRequest, session_id: str, budget: _InvocationBudget
@@ -1097,13 +1095,11 @@ class AdkWorkerRuntime:
                 raise WorkerSessionLifecycleError("tool_history_unavailable") from None
 
         task = asyncio.create_task(bounded_seal(), name="worker-tool-history-seal")
-        try:
-            await asyncio.shield(task)
-        except asyncio.CancelledError:
-            # Cleanup owns no semantic work and must join before session release.
+        if await join_owned_task(task):
             with contextlib.suppress(Exception, asyncio.CancelledError):
-                await task
-            raise
+                task.result()
+            raise asyncio.CancelledError
+        task.result()
 
     def _check_active(self):
         self._worker_state.execution.check()
@@ -1567,12 +1563,11 @@ class AdkWorkerRuntime:
             checkpoint_and_finish(),
             name="worker-invocation-state-finalize",
         )
-        try:
-            return await asyncio.shield(task)
-        except asyncio.CancelledError:
+        if await join_owned_task(task):
             with contextlib.suppress(Exception, asyncio.CancelledError):
-                await task
-            raise
+                task.result()
+            raise asyncio.CancelledError
+        return task.result()
 
     async def _untracked_failure_completion(
         self, code: str, message: str, retryable: bool
@@ -1829,12 +1824,11 @@ def _summarizer_result_failure_code(code: str) -> str:
 
 async def _await_safely(awaitable: Any) -> Any:
     task = asyncio.create_task(awaitable, name="worker-summarizer-state-finalize")
-    try:
-        return await asyncio.shield(task)
-    except asyncio.CancelledError:
+    if await join_owned_task(task):
         with contextlib.suppress(Exception, asyncio.CancelledError):
-            await task
+            task.result()
         return None
+    return task.result()
 
 
 def _gateway_worker_failure(error: GatewayModelError) -> WorkerFailure:

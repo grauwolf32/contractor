@@ -4285,3 +4285,39 @@ class DeclaredSensitiveTool:
 
     async def __call__(self) -> dict[str, str]:
         return {"traffic": "tool-output-canary"}
+
+
+def test_repeated_cancellation_joins_state_cleanup_before_next_invocation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        state = WorkerState()
+        runtime = await create_runtime(
+            tmp_path, state, {}, scripted_model([terminal_text("first"), terminal_text("next")])
+        )
+        entered, release = asyncio.Event(), asyncio.Event()
+        complete = runtime._plugin.complete_invocation
+
+        async def delayed_complete(**kwargs):
+            entered.set()
+            await release.wait()
+            return await complete(**kwargs)
+
+        monkeypatch.setattr(runtime._plugin, "complete_invocation", delayed_complete)
+        task = asyncio.create_task(runtime.invoke(stage_request()))
+        await entered.wait()
+        for _ in range(3):
+            task.cancel()
+            await asyncio.sleep(0)
+            assert not task.done()
+            assert runtime._invoke_lock.locked()
+        release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        assert (await state.snapshot())["currentInvocation"] is None
+        assert not runtime._invoke_lock.locked()
+        monkeypatch.setattr(runtime._plugin, "complete_invocation", complete)
+        assert (await runtime.invoke(stage_request())).result is not None
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
