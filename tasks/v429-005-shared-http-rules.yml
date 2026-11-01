@@ -6,7 +6,7 @@ epic: execution-core
 kind: defect
 introduced_by: V411-027
 priority: P1
-status: pending
+status: in_progress
 depends_on: []
 languages: [python]
 goal: "Ordinary and controlled HTTP merge and bound headers consistently and disclose retained response truncation in body reads and history."
@@ -20,6 +20,7 @@ context:
     - docs/spec/execution/runtime-agent.md
     - docs/spec/execution/worker.md
     - docs/spec/platform/failure-model.md
+    - docs/spec/tools/http-caido.md
   finding: "http/controlled.py:117 merges case-sensitively and set_session bypasses aggregate bounds; transport-truncated bodies become complete retained captures and history/read_body omit truncation. Ordinary HTTP is the sibling rule owner."
   boundary: >-
     Common modules own mechanics; callers retain deadlines, fencing, authority,
@@ -47,7 +48,7 @@ acceptance_criteria:
   - id: A3
     text: "Preserve controlled private buffers, credential authority and ordinary trusted capture rules; regressions use the real HTTP transport."
 tests:
-  - command: cd runtime && uv run pytest -W error tests/test_http_tools.py tests/test_audit_http_credentials.py tests/test_engagement_target.py
+  - command: cd runtime && uv run pytest -W error tests/test_http_toolset.py tests/test_audit_http_credentials.py tests/test_engagement_target.py
     covers: [A1, A2, A3]
   - command: cd runtime && uv run ruff check . && uv run ruff format --check . && uv run lint-imports --no-cache --no-logo
     covers: [A1, A2, A3]

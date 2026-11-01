@@ -6,7 +6,7 @@ epic: memory
 kind: chore
 introduced_by: V410-003
 priority: P3
-status: in_progress
+status: completed
 depends_on: []
 languages: [python]
 goal: "Memory and document/cookie writes share one bounded exact-byte CAS reconciliation mechanism while preserving domain errors."
@@ -50,3 +50,9 @@ tests:
     covers: [A1, A2]
   - command: cd runtime && uv run ruff check . && uv run ruff format --check . && uv run lint-imports --no-cache --no-logo
     covers: [A1, A2]
+implementation_commit: 5c6b510f891fefd2bdc4e539c114c5b1a426017e
+verification: >-
+  Memory, OpenAPI, LikeC4 and cookie-session suites: 206 passed. Existing
+  production ArtifactClient fault-injection tests cover exact replay, stale CAS,
+  lost acknowledgements, authority, cancellation and bounded reconciliation.
+  Ruff check/format and all four import contracts pass.

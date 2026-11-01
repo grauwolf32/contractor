@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-80 open tasks: 11 in progress, 58 pending, 11 deferred. 1297 finished: 1279 completed, 18 archived.
+79 open tasks: 11 in progress, 57 pending, 11 deferred. 1298 finished: 1280 completed, 18 archived.
 
 ## In progress
 
@@ -21,7 +21,7 @@ the epics are in [epics.yml](epics.yml).
 | [V420-002](v420-002-planner-compaction-vertical-slice.yml) | planner-worker | feature | P1 | Implement opt-in bounded compaction for Streamline and Router Planners |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Enable shared Planner compaction and reuse native YAML in shipped Workflows |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
-| [V429-004](v429-004-artifact-cas-reconciliation.yml) | memory | chore | P3 | Share exact Artifact CAS replay and reconciliation |
+| [V429-005](v429-005-shared-http-rules.yml) | execution-core | defect | P1 | Unify HTTP header admission and truthful truncated-body reads |
 
 ## Pending
 
@@ -30,8 +30,7 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V425-016](v425-016-run-event-history-bound.yml) | chore | P3 | — | Bound or detect the per-Run event history and delete it in bounded batches |
-| [V429-005](v429-005-shared-http-rules.yml) | defect | P1 | — | Unify HTTP header admission and truthful truncated-body reads |
-| [V429-006](v429-006-split-runtime-orchestrators.yml) | chore | P3 | V429-004, V429-005 | Separate invocation execution and allocation resource operations |
+| [V429-006](v429-006-split-runtime-orchestrators.yml) | chore | P3 | V429-005 | Separate invocation execution and allocation resource operations |
 
 ### Planners and the Worker model boundary (`planner-worker`)
 
@@ -184,7 +183,7 @@ tasks in `introduced_by`.
 | Run execution core (`execution-core`) | 4 | 47 | 58 | 24 | 84 |
 | Planners and the Worker model boundary (`planner-worker`) | 9 | 35 | 48 | 29 | 71 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 13 | 5 | 44 |
-| Shared Memory tools (`memory`) | 1 | 6 | 9 | 3 | 12 |
+| Shared Memory tools (`memory`) | 0 | 6 | 9 | 3 | 12 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
 | Run workspaces and project filesystem (`workspaces`) | 1 | 16 | 15 | 5 | 16 |
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
