@@ -116,7 +116,8 @@ WHERE run_id = $1
 ORDER BY created_at, stage_execution_id`
 
 // lockStartPlannerRunSQL locks the row of the Run that owns StageExecution $1
-// and returns the Run ID; no row means the Stage does not exist. A Stage's
+// and returns the Run ID; no row means the Stage does not exist or its Run
+// no longer permits a Planner start. A Stage's
 // Run is immutable, so the scalar subquery reads it exactly without locking
 // the Stage. The lock is the one startPlannerSQL's event allocation takes on
 // that row, taken before its Stage CAS so that Planner start locks the Run
@@ -128,6 +129,7 @@ FROM workflow_runs AS run
 WHERE run.run_id = (
     SELECT stage.run_id FROM stage_executions AS stage WHERE stage.stage_execution_id = $1
 )
+  AND run.state IN ('running', 'waiting')
 FOR NO KEY UPDATE OF run`
 
 // startPlannerSQL moves StageExecution $1 of Run $12, whose row the caller

@@ -407,7 +407,9 @@ can wait for capacity without consuming its execution deadline
 ([Scheduler](scheduler.md)).
 
 **RUN-R29.** Admission, Planner start, cancellation and finalization share
-Run-first transaction locking.
+Run-first transaction locking. Planner start checks under that lock that the
+Run is still `running` or `waiting`; a cancellation that committed first
+prevents the Stage start, session creation and event allocation.
 
 **RUN-R106.** RunStore alone changes the state of a Run or a
 StageExecution and takes their exclusive row locks

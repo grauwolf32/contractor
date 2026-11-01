@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -263,6 +264,52 @@ func TestPostgresStartPlannerConflictsLeaveNoEffects(t *testing.T) {
 	}
 	if after := readStartPlannerEffects(t, ctx, pool, otherStageID); after != otherBefore {
 		t.Fatalf("effects after a reused session ID = %+v, want %+v", after, otherBefore)
+	}
+}
+
+func TestPostgresStartPlannerRejectsCancelledRun(t *testing.T) {
+	for _, waiting := range []bool{false, true} {
+		t.Run(fmt.Sprintf("waiting=%t", waiting), func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
+			defer cancel()
+			pool := isolatedRunStorePool(t, ctx)
+			store := NewPostgresStore(pool)
+			const runID, stageID = "run-cancel-start", "stage-cancel-start"
+			createPreparingStage(t, ctx, store, runID, stageID)
+			before := readStartPlannerEffects(t, ctx, pool, stageID)
+			request := WorkflowRunCancellation{Code: CancellationUserRequested, RequestedAt: time.Now()}
+			var started <-chan error
+			if waiting {
+				locked, tx := holdRunLock(t, ctx, pool, runID)
+				if _, err := locked.RequestRunCancellation(ctx, runID, request); err != nil {
+					t.Fatal(err)
+				}
+				done := make(chan error, 1)
+				go func() { done <- store.StartPlanner(ctx, testStartPlannerParams(t, stageID, "session-cancel-start")) }()
+				waitForRunRowWaiters(t, ctx, pool, 1, done)
+				if err := tx.Commit(ctx); err != nil {
+					t.Fatal(err)
+				}
+				started = done
+			} else {
+				if _, err := store.RequestRunCancellation(ctx, runID, request); err != nil {
+					t.Fatal(err)
+				}
+				done := make(chan error, 1)
+				done <- store.StartPlanner(ctx, testStartPlannerParams(t, stageID, "session-cancel-start"))
+				started = done
+			}
+			if err := <-started; !errors.Is(err, ErrConflict) {
+				t.Fatalf("Planner start after cancellation = %v, want ErrConflict", err)
+			}
+			after := readStartPlannerEffects(t, ctx, pool, stageID)
+			// Cancellation appends exactly its own lifecycle event.
+			before.events++
+			before.nextEvent++
+			if after != before {
+				t.Fatalf("Planner start changed cancelled Run: %+v, want %+v", after, before)
+			}
+		})
 	}
 }
 
