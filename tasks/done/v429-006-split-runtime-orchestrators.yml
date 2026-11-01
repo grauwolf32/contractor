@@ -6,7 +6,7 @@ epic: execution-core
 kind: chore
 introduced_by: V17-002
 priority: P3
-status: in_progress
+status: completed
 depends_on: ["V429-001", "V429-002", "V429-003", "V429-004", "V429-005", "V429-007"]
 languages: [python]
 goal: "Worker and Allocation orchestrators expose their lifecycle clearly through focused ownership, execution, completion and resource-operation modules."
@@ -95,3 +95,4 @@ verification: >-
   pinned Ansible tools ran from the existing uv cache with UV_OFFLINE=1 and
   UV_PYTHON=3.13 after an online PyPI connection timeout; no check was disabled.
   Ruff check/format, generated dependency graph and git diff --check pass.
+implementation_commit: f881749bb6b5761cd8615b286430b565d8397ef8
