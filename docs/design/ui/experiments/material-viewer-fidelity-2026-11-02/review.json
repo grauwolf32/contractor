@@ -33,10 +33,10 @@
   },
   "preservation": "git diff against main is empty for both original OpenDesign experiment folders. No OpenDesign state mutation, model request or business-data write was made.",
   "captureSha256": {
-    "actual-openapi-1440.png": "0cbe4d0ff907cd8b4c6b70f60f3e70e3a3b9e07370071a8b7720976874dbe677",
+    "actual-openapi-1440.png": "b636f10e1793ca9e75cb0c412ff6170b14167912d3837a7aa44c8fdbfc502b33",
     "actual-openapi-390.png": "6382b4865e3bf3a2b1474fd8025016816b53bc12fd7b7a726871d8ec242e8a08",
     "actual-source-1440.png": "a46c2bf72aeb70f6a182744ee2f18f4161bf92c4c676976333d289a60d015c38",
-    "actual-source-390.png": "fbebd8c1e39719df99c310a5b0724bace0f4239edb271a03fe94b42edfb1ea97",
+    "actual-source-390.png": "3b5622d7298f8f18acc03c6cbf29192c0827cb416f1277ad6d1a34ffbdfe4c20",
     "capture-metrics.json": "fee0d9f46ff89cd6e32d57b2e02d7b3b308dcc13bf4163b335a446c0f9aa664c",
     "reference-openapi-1440.png": "b9a4a41241329c37c7599621b697fb0a5ef93417e09fa46573e5e6531cc068e3",
     "reference-openapi-390.png": "c68b422bca1d710e0bee16bc5dc22db1001e70a3eadf54656132a9a7f5a28755",
