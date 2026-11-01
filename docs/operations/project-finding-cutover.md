@@ -1,5 +1,10 @@
 # Project Finding cutover
 
+Historical procedure executed on 2026-11-02 with the repaired chain at
+`5aa77fee8d6ef8c88780c1352275c78346b6e18d`. The subsequent baseline fold removes
+that upgrade chain and its fixtures from the runtime; new databases install the
+current baseline directly. The demo manifest keeps the execution evidence.
+
 Stop new work, finish current Runs, wait for allocation release and collect every
 Audit execution using the existing deployment. Preserve required exact Audit
 results and materials as Project bindings before Run deletion. Take a consistent
