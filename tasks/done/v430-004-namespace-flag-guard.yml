@@ -6,7 +6,8 @@ epic: quality
 kind: defect
 introduced_by: V64-001
 priority: P3
-status: in_progress
+status: completed
+implementation_commit: 68c1600fead513bab848169b3e537a60cbe0ddbe
 depends_on: []
 languages: [go]
 goal: The Namespace source guard accepts independent CLI flag names while still detecting duplicated Namespace values.
@@ -45,3 +46,12 @@ tests:
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A1, A2, A3]
+verification: >-
+  2026-11-01: complete go test -count=1 ./internal/artifactpolicy passed on
+  the repair branch and on the integrated helper tree; complete make lint
+  and the full Go/PostgreSQL suite passed on that combined tree. The new
+  regression was run with the original scanner and failed as required.
+  Object bindings distinguish real FlagSets and imported standard flag APIs
+  from unrelated receivers, shadowed imports and same-named variables in
+  other scopes. Only registration names are exempt; Namespace defaults,
+  ordinary literals and SQL remain checked. No production file changed.
