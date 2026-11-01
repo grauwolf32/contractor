@@ -6,7 +6,7 @@ epic: ui
 kind: chore
 introduced_by: V429-010
 priority: P3
-status: in_progress
+status: completed
 depends_on: [V429-011]
 languages: [css]
 goal: Show Impact as the first compact section of the right-hand context column in every synthetic Issue example.
@@ -60,3 +60,4 @@ verification:
     retained with a SHA-256 manifest in the host impact-v7-20261101 directory.
     No model call, production component or business record changed. The branch
     has not been merged or deployed.
+implementation_commit: 7c4320d70c636eeafe520b67cd8c2e751d9a71ee
