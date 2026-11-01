@@ -5,7 +5,7 @@ milestone: ui-journey-usability
 epic: ui
 kind: feature
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V429-016]
 languages: [html, css, javascript]
 goal: Extend the reviewed material viewer with three distinct readable layouts for an API specification, a LikeC4 diagram and an archive, while retaining consistent typography, revision context and phone behavior.
@@ -90,3 +90,27 @@ tests:
     covers: [A1, A2, A3]
   - command: git diff --check
     covers: [A3]
+
+verification:
+  - >-
+    Standalone verify.mjs passed 135 format/state/layout cases: seven formats,
+    light/dark/black and 1440/1100/390/320px, exact source/ZIP bytes, production
+    HTTP/OpenAPI parsing, LikeC4 source/layout provenance, operation/schema
+    selection, diagram view/zoom/Fit/reset, archive text/Markdown/binary and
+    escaped HTML, responsive navigation/bootstrap, copy denial/success and
+    truthful historical/error states. No external requests or browser errors.
+  - >-
+    Task/specification/diff checks passed. Actual React baseline snapshots and
+    native IAB desktop OpenAPI/diagram and 390px archive were inspected. Preview
+    remains open at port 17565; the previous candidate at 17564 remains intact.
+    Sources, generated original, bounded review corrections, fixtures, captures
+    and provenance are retained. No production UI/API/schema change or merge.
+  - >-
+    OpenDesign run 80bcb1b1-0712-4028-9808-942176d7a0d0 delivered a CSS composition
+    pass and assembled HTML with the unchanged configured Contractor model.
+    Temporary relay stopped and upstream credential removed. Final complete
+    backup 20261101T120252Z recovered with SQLite integrity ok: five projects,
+    ten conversations, 52 messages and 140 project files. All 131 earlier project
+    files are byte-identical, including a reference restored after a preparation
+    filename collision. New fixtures use a distinct reference filename.
+implementation_commit: c971caeb24f4ea61bf28746d06f516eb9d58e058
