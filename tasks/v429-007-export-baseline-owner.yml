@@ -1,0 +1,46 @@
+schema_version: "1.0"
+id: V429-007
+title: Retarget existing Audit selector export exceptions to their current owner
+milestone: audit-check-prioritization
+epic: audits
+kind: chore
+introduced_by: V369-007
+priority: P3
+status: in_progress
+depends_on: []
+languages: [go]
+goal: Restore the existing unused-export lint gate after Audit task replanning without adding exceptions or changing Audit behavior.
+context:
+  authority: >-
+    Agent proposal 2026-11-02: this two-line metadata repair is a prerequisite
+    discovered while running the user-authorized Runtime refactoring gate.
+    Existing user Audit decisions are unchanged; archived V64-006 explicitly
+    names V64-012 as superseded_by, and that open task owns simple ordering.
+  finding: >-
+    tools/testonlyexports/baseline.txt:11-12 still name archived V64-006 for
+    ResolveTopN and SelectionDigest, so make lint stops before Runtime checks.
+    The entries originated in V369-007 (772195f0d); Audit replanning commit
+    be2198276bb2542b4c96ef496ff01f7ff5f15c75 archived the consumer without
+    repointing these entries. This also reproduces with the unchanged HEAD baseline.
+  boundary: >-
+    Preserve exactly the same four tolerated exports and validator rules.
+    Point the two selector entries at their recorded open successor V64-012,
+    which must consume or remove them; no new production capability or exception.
+scope:
+  in:
+    - Change the two existing selector exception task IDs from V64-006 to V64-012.
+    - Preserve the count of entries and all validator behavior.
+  out:
+    - Implementing or starting Audit tasks, adding exceptions, changing Go source or reopening archived/deferred work.
+acceptance_criteria:
+  - id: A1
+    text: The baseline has the same four identifiers and only the two existing selector owners change to their recorded open successor.
+  - id: A2
+    text: The complete testonlyexports checker suites and real repository gate pass.
+tests:
+  - command: go -C tools/testonlyexports vet ./...
+    covers: [A1, A2]
+  - command: go -C tools/testonlyexports test -count=1 ./...
+    covers: [A1, A2]
+  - command: go -C tools/testonlyexports run . -tags=integration,e2e -baseline tools/testonlyexports/baseline.txt .
+    covers: [A1, A2]

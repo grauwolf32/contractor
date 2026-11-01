@@ -7,7 +7,7 @@ kind: chore
 introduced_by: V17-002
 priority: P3
 status: in_progress
-depends_on: ["V429-001", "V429-002", "V429-003", "V429-004", "V429-005"]
+depends_on: ["V429-001", "V429-002", "V429-003", "V429-004", "V429-005", "V429-007"]
 languages: [python]
 goal: "Worker and Allocation orchestrators expose their lifecycle clearly through focused ownership, execution, completion and resource-operation modules."
 context:
@@ -21,6 +21,9 @@ context:
     - docs/spec/execution/worker.md
     - docs/spec/platform/failure-model.md
   finding: "worker/runtime.py (~1900 lines) and allocation/service.py (~1300) combine independent responsibilities; existing sessions, budget, completion and cleanup mechanisms must remain the owners."
+  integration_prerequisite: >-
+    V429-007 repairs the inherited stale export-exception owners that prevent
+    make lint reaching Runtime checks; it changes no Go behavior or exception count.
   boundary: >-
     Common modules own mechanics; callers retain deadlines, fencing, authority,
     failure classification and semantic completion. Keep the model finalizer,
