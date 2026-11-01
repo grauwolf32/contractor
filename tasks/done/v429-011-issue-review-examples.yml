@@ -6,7 +6,7 @@ epic: ui
 kind: chore
 introduced_by: V429-010
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V429-010]
 languages: [typescript, css]
 goal: Let the user review the accepted Issue design with six complete synthetic finding cases and an obvious Duplicate action.
@@ -95,3 +95,4 @@ verification:
   - >-
     The updated preview is available on loopback port 17562. This branch has
     not been merged or deployed; production transfer remains a separate step.
+implementation_commit: fe40f82fad3796566a6606f4dcf54e666b9e38a9
