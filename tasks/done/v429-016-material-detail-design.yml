@@ -5,7 +5,7 @@ milestone: ui-journey-usability
 epic: ui
 kind: feature
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V429-015]
 languages: [html, css, javascript]
 goal: Produce a reviewed, isolated material-detail candidate whose main surface is readable saved content, with a compact identity/actions header, accessible revision/context and consistent Project/Run/Issues typography.
@@ -92,3 +92,24 @@ tests:
     covers: [A1, A2, A3]
   - command: git diff --check
     covers: [A3]
+
+verification:
+  - >-
+    The standalone browser verifier passed 63 format/state/layout cases across
+    light/dark/black and 1440/1100/390/320px, exact text/binary downloads,
+    revision/mode/header reveal behavior, copy success/denial, truthful failure
+    states, local-only actions and no external requests or browser errors.
+    The selected exchange and no-response variant passed the production parser.
+  - >-
+    Task/specification/diff checks passed. Actual desktop and 390px IAB preview
+    was inspected and left open at port 17564. Candidate, inert actual-React
+    references, original output, working seed, prompts, captures and provenance
+    are preserved. No production UI release, business-data mutation or merge.
+  - >-
+    OpenDesign run 0d4cf93c-86f5-4098-9eb5-ee25060e1b15 delivered the CSS pass
+    and assembled HTML after two unsuccessful preserved attempts. The existing
+    configured Contractor model remained unchanged. Relay stopped and upstream
+    credential removed. Final backup 20261101T113245Z recovered SQLite with
+    integrity ok: five projects, nine conversations, fifty messages and 131
+    project files. All 111 pre-existing project files remain byte-identical.
+implementation_commit: e8a8892c972c40ed3293d2aa99586cc5b152ef1c
