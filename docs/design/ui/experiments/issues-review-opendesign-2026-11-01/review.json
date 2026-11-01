@@ -8,9 +8,9 @@
   "generator": "OpenDesign / isolated BYOK OpenCode through the existing Contractor gateway",
   "model": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
   "sourceFile": "index-review-v4.html",
-  "previewFileInOpenDesign": "index-review-v4-preview.html",
+  "previewFileInOpenDesign": "index-review-v6-review-details.html",
   "originalSha256": "ec22282916e859d08fd71543a640382f1570834bb8ba3703e669be7c01005caf",
-  "previewSha256": "96879d463ca7652399b015ba2fd7d77449cc79a8e315a24b0e26bc011e262b50",
+  "previewSha256": "01851de472730eba79846e803ae0574359c2f9a57395aaf193aefc69233f9c8d",
   "previous": "../issues-opendesign-2026-11-01/preview.html",
   "composition": [
     "Unboxed narrative and semantic icon badge",
@@ -39,8 +39,22 @@
     "originals": "All earlier project files, conversations, versions and host trial artifacts retained"
   },
   "isolation": "Separate loopback origin, GET-only fixed routes, opaque sandbox frame, connect-src none, form-action none; synthetic local decision only. Ephemeral single-model relay stopped and upstream-credential file removed after generation.",
-  "verification": "12 browser cases: 1440/1100/390/320 \u00d7 light/dark/black, distinct composition, common fonts, bounded canvas, local tabs and evidence preview, mandatory rationale/severity/duplicate target, unchanged proposal/history, source-list bounds and mobile back; no page errors or external requests. Previous version remains selectable.",
+  "verification": "12 layouts / 72 finding cases passed: six schema-valid synthetic proposals \u00d7 1440/1100/390/320 \u00d7 light/dark/black; per-case context, subject, separate assessment/review/severity, tabs, evidence bytes, masked HTTP headers, same-check duplicate targets, local recording, Verification-before-severity order, compact recorded decision and no overflow/errors/external requests. Original, accepted composition and earlier layout retained.",
   "serve": "node docs/design/ui/experiments/issues-review-opendesign-2026-11-01/serve.mjs",
   "verify": "node docs/design/ui/experiments/issues-review-opendesign-2026-11-01/verify.mjs",
-  "productionTransfer": "Separate follow-up after reviewing this candidate; no production Issue behavior, Server contract, release version or business record changed."
+  "productionTransfer": "Separate follow-up after reviewing this candidate; no production Issue behavior, Server contract, release version or business record changed.",
+  "acceptedComposition": "preview-composition-v4.html",
+  "acceptedCompositionSha256": "96879d463ca7652399b015ba2fd7d77449cc79a8e315a24b0e26bc011e262b50",
+  "examplesFile": "examples.json",
+  "humanFollowUp": "User 2026-11-01: make Duplicate more explicit and populate other finding types as test examples. Six synthetic cases added by the assistant on top of the accepted OpenDesign composition; original and accepted preview snapshots retained. Follow-up: put Verification before AI severity and reduce/align the Recorded decision block.",
+  "fixtureAuthor": "Assistant-authored, schema-checked synthetic fixtures on the user-accepted OpenDesign composition; no new model run or production integration.",
+  "fixturePreservation": {
+    "backup": "/Users/ruslan/src/third-party/open-design-backups/20261101T092349Z",
+    "sqliteIntegrity": "ok",
+    "projects": 4,
+    "conversations": 7,
+    "messages": 35,
+    "projectFiles": 81,
+    "versions": "The accepted v4 composition and the v5 examples / v6 review refinements are preserved separately; no original generated file was changed."
+  }
 }

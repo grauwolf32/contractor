@@ -300,6 +300,35 @@ pre.code{max-width:100%}
 pre.code{overflow-x:auto}
 .whead,.wcopy{min-width:0;max-width:100%}
 .workbench .whead .rev,.artifact .meta,.idrow code{overflow-wrap:anywhere}
+
+/* Human-reviewed fixture pass: keep Duplicate in the main decision row. */
+.decision .vbtn.duplicate{display:inline-flex;align-items:center;justify-content:center;gap:6px;font-weight:500}
+.decision .vbtn.duplicate svg{width:14px;height:14px;flex:none}
+.example-points{margin:0;padding-left:18px;color:var(--muted-strong);font-size:var(--text-sm)}
+.example-points li+li{margin-top:8px}
+.example-preconditions{margin-top:16px!important}
+.example-location{margin:0 0 16px;overflow-wrap:anywhere}
+.kicker{font-size:var(--text-2xs);letter-spacing:.06em;color:var(--muted);font-weight:500;text-transform:uppercase}
+.exchange-attempt{padding:16px;min-width:0}
+.exchange-line{display:flex;gap:12px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap}
+.exchange-line code{overflow-wrap:anywhere;min-width:0;font-size:var(--text-xs)}
+.exchange-headers{margin:8px 0 16px;font-size:var(--text-xs)}
+.exchange-headers>div{display:grid;grid-template-columns:minmax(0,125px) minmax(0,1fr);gap:12px;padding:6px 0;border-bottom:1px solid var(--line)}
+.exchange-headers dt{color:var(--muted);overflow-wrap:anywhere}
+.exchange-headers dd{margin:0;overflow-wrap:anywhere;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.reveal{font:inherit;color:var(--link);text-decoration:underline}
+.pill.untested{color:var(--muted);border-color:var(--line-strong);border-style:dashed}
+.artifact .acts{flex-wrap:wrap}
+.idrow,.kv dd,.hist .note,.subject-strip .path{overflow-wrap:anywhere}
+@media(max-width:520px){.artifact .acts{flex-basis:100%;padding-left:40px;justify-content:flex-end}.hist li{flex-wrap:wrap}}
+
+/* Recorded review uses the same content gutters and compact shared text scale. */
+.decided-summary{margin:24px 32px 0;padding:12px 16px;border-radius:var(--radius-md);font-size:var(--text-sm);line-height:1.5}
+.decided-summary .recorded-head{display:flex;align-items:baseline;justify-content:space-between;gap:4px 16px;flex-wrap:wrap}
+.decided-summary .recorded-meta{font-size:var(--text-xs);color:var(--muted)}
+.decided-summary .recorded-reason{margin:6px 0 0;font-size:var(--text-sm);color:var(--muted-strong)}
+@media(max-width:900px){.decided-summary{margin:16px 16px 0}}
+@media(max-width:520px){.decided-summary{margin:12px 12px 0;padding:10px 12px}}
 </style>
 </head>
 <body>
@@ -349,12 +378,12 @@ pre.code{overflow-x:auto}
   <aside class="listpane" aria-label="Possible issues">
     <div class="list-head">
       <h1>Possible issues</h1>
-      <div class="sub">Shop API · Source checklist</div>
+      <div class="sub">Six synthetic review examples · no live data</div>
     </div>
     <div class="filters">
       <div class="seg" role="group" aria-label="Filter">
-        <button data-filter="needs" aria-pressed="true">Needs review</button>
-        <button data-filter="all" aria-pressed="false">All</button>
+        <button data-filter="needs" aria-pressed="false">Needs review</button>
+        <button data-filter="all" aria-pressed="true">All</button>
       </div>
     </div>
     <div class="search">
@@ -371,7 +400,7 @@ pre.code{overflow-x:auto}
     </div>
     <div class="dhead">
       <div class="crumb">
-        <span>Shop API</span><span aria-hidden="true">·</span><span>Check: Source checklist</span>
+        <span id="projectContext">Shop API</span><span aria-hidden="true">·</span><span id="checkContext">Check: Source checklist</span>
         <span class="pos">
           <button id="prevBtn" aria-label="Previous issue">‹ Prev</button>
           <span class="k">2 of 3</span>
@@ -389,8 +418,8 @@ pre.code{overflow-x:auto}
       </div>
       <div class="statusline">
         <span class="pill proposed" id="statePill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 15h.01"/></svg>Proposed — needs your review</span>
-        <span class="severity-suggest" id="sevSuggest"><span class="dotv" aria-hidden="true"></span>AI suggests High — a suggestion, not a decision</span>
         <span class="pill inconclusive" id="verifyPill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.4 2.3c-.8.3-1.4 1-1.4 1.9v.3M12 17h.01"/></svg>Verification: Inconclusive — static evidence only</span>
+        <span class="severity-suggest" id="sevSuggest"><span class="dotv" aria-hidden="true"></span>AI suggests High — a suggestion, not a decision</span>
       </div>
       <div class="tabs" role="tablist" aria-label="Issue sections">
         <button role="tab" data-tab="summary" aria-selected="true">Summary</button>
@@ -585,10 +614,8 @@ No HTTP exchange was captured for this issue.</pre>
         <button class="vbtn confirm" data-verdict="confirm" aria-pressed="false">Confirm issue</button>
         <button class="vbtn" data-verdict="notanissue" aria-pressed="false">Not an issue</button>
         <button class="vbtn" data-verdict="needsevidence" aria-pressed="false">Needs evidence</button>
-        <span class="secondary">
-          <button class="vbtn secondary" data-verdict="duplicate">Duplicate…</button>
-          <button class="vbtn secondary" data-verdict="reopen" hidden>Reopen</button>
-        </span>
+        <button class="vbtn duplicate" data-verdict="duplicate" aria-pressed="false"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg>Mark as duplicate</button>
+        <button class="vbtn" data-verdict="reopen" hidden>Reopen</button>
       </div>
       <div class="draft" id="draft" hidden>
         <div id="sevBlock" hidden style="margin-bottom:var(--space-3)">
@@ -603,7 +630,7 @@ No HTTP exchange was captured for this issue.</pre>
         </div>
         <div id="dupBlock" hidden style="margin-bottom:var(--space-3)">
           <label>Which issue is this a duplicate of? <span class="req" aria-hidden="true">*</span></label>
-          <div class="dupchoices">
+          <div class="dupchoices" id="duplicateTargets">
             <button class="sev" data-dup="Debug information exposed in responses">Debug information exposed in responses</button>
           </div>
         </div>
@@ -622,240 +649,119 @@ No HTTP exchange was captured for this issue.</pre>
   </main>
 </div>
 
+<script id="findingExamples" type="application/json">{"synthetic": true, "examples": [{"id": "issue-debug-exposure", "typeLabel": "Information disclosure", "project": "Shop API", "check": "Source checklist", "state": "proposed", "proposal": {"schema": "contractor.audit.finding-proposal.v1", "client_key": "debug-response", "title": "Debug information exposed in responses", "description": "The synthetic captured response contains an internal service name and a stack trace.", "subject": {"kind": "operation", "key": "GET /debug"}, "severity_suggestion": "medium", "limitations": ["Only the supplied fixture request was captured; production exposure and access controls were not assessed."], "preconditions": ["An authenticated caller can reach the diagnostic endpoint."], "standard_refs": [], "evidence_ids": ["debug-response"], "proposed_checks": [], "locations": [{"url": "https://shop.example.test/debug", "method": "GET"}], "http_exchange": {"request_id": 42, "request_tag": "synthetic-debug-response", "attempts": [{"method": "GET", "url": "https://shop.example.test/debug", "headers": [{"name": "Accept", "value": "application/json"}, {"name": "Authorization", "value": "Bearer synthetic-demo-token"}], "body_base64": "", "status": 200, "response_headers": [{"name": "Content-Type", "value": "application/json"}, {"name": "Set-Cookie", "value": "demo-session=synthetic-only; HttpOnly; Secure"}]}]}}, "impact": "Internal names and stack frames could help an attacker map the application.", "assessment": "supported", "assessmentReason": "The captured sample contains the claimed fields. This is not a human confirmation.", "files": [{"id": "debug-response", "ref": "evidence/debug-response@debug-response-r1", "name": "debug-response", "mediaType": "application/json", "text": "{\n  \"service\": \"shop-api-demo\",\n  \"stack\": [\n    \"DebugController.handle (src/debug.ts:18)\"\n  ],\n  \"synthetic\": true\n}\n"}], "sources": [], "analyst": null, "createdAt": "2026-10-31 08:30 UTC", "actions": ["confirm", "notanissue", "needsevidence", "duplicate"]}, {"id": "issue-order-lookup-authz", "typeLabel": "Object authorization", "project": "Shop API", "check": "Source checklist", "state": "proposed", "proposal": {"schema": "contractor.audit.finding-proposal.v1", "client_key": "order-lookup", "title": "Order lookup may skip object authorization", "description": "The order handler reads a record by the supplied order ID. No owner comparison appears in this handler.", "subject": {"kind": "operation", "key": "GET /orders/{id}"}, "severity_suggestion": "high", "limitations": ["Middleware and database row policies were not verified. No live request was made."], "preconditions": ["The route is reachable by an authenticated customer; no upstream policy enforces ownership."], "standard_refs": [{"scheme": "CWE", "version": "4.20", "requirement_id": "CWE-639"}], "evidence_ids": ["order-handler"], "proposed_checks": [], "locations": [{"file": "src/routes/orders.ts", "range": {"start_line": 41, "end_line": 49}}]}, "impact": "If access is not checked elsewhere, an authenticated customer could read another customer’s order.", "assessment": "inconclusive", "assessmentReason": "Static evidence only. The check did not execute a request.", "files": [{"id": "order-handler", "ref": "evidence/order-handler@evidence-r1", "name": "order-handler", "mediaType": "text/plain", "text": "async function getOrder(req, res) {\n  const order = await db.orders.findById(req.params.id);\n  return res.json(order);\n}\n"}], "sources": [{"file": "src/routes/orders.ts", "range": "lines 41–49 · excerpt", "firstLine": 41, "text": "async function getOrder(req, res) {\n  const order = await db.orders.findById(req.params.id);\n  return res.json(order);\n}\n", "ref": "sources/shop-source@source-r1"}], "analyst": null, "createdAt": "2026-10-31 08:30 UTC", "actions": ["confirm", "notanissue", "needsevidence", "duplicate"]}, {"id": "issue-pii-crossproject", "typeLabel": "Data isolation", "project": "Records API", "check": "API security review", "state": "confirmed", "proposal": {"schema": "contractor.audit.finding-proposal.v1", "client_key": "export-scope", "title": "Order export endpoint shares records across projects", "description": "The synthetic review fixture records an export containing a row owned by another project.", "subject": {"kind": "operation", "key": "POST /orders/export"}, "severity_suggestion": "high", "limitations": ["The fixture covers one export path and two demonstration projects. It does not establish the scope of other endpoints."], "preconditions": ["The caller can create an export; a second project owns an exported row."], "standard_refs": [], "evidence_ids": ["export-sample"], "proposed_checks": [], "locations": [{"url": "https://records.example.test/orders/export", "method": "POST"}]}, "impact": "A caller could obtain another project’s order data through an export.", "assessment": "supported", "assessmentReason": "The retained synthetic export includes a row with a different project identifier.", "files": [{"id": "export-sample", "ref": "evidence/export-sample@export-sample-r1", "name": "export-sample", "mediaType": "text/csv", "text": "order_id,project_id\ndemo-order-a,demo-project-a\ndemo-order-b,demo-project-b\n"}], "sources": [], "analyst": {"severity": "High", "name": "Demo analyst", "at": "2026-10-31 10:15 UTC", "reason": "Compared the two synthetic project fixtures and confirmed the cross-project export. This is a predefined demo decision."}, "createdAt": "2026-10-31 08:30 UTC", "actions": ["reopen"]}, {"id": "issue-product-search-sql", "typeLabel": "SQL injection", "project": "Shop API", "check": "Source checklist", "state": "proposed", "proposal": {"schema": "contractor.audit.finding-proposal.v1", "client_key": "product-search", "title": "Product search builds SQL from request text without a parameter placeholder", "description": "The search route concatenates the supplied query into an SQL string, then passes that string to the database wrapper.", "subject": {"kind": "file", "key": "src/routes/products/search.ts"}, "severity_suggestion": "high", "limitations": ["No payload was executed. The database wrapper and upstream input validation need review."], "preconditions": ["The query text reaches this code path without a separate escaping or parameterization step."], "standard_refs": [], "evidence_ids": ["search-route", "query-wrapper"], "proposed_checks": [], "locations": [{"file": "src/routes/products/search.ts", "range": {"start_line": 72, "end_line": 73}}, {"file": "src/storage/catalog/search/execute-search.ts", "range": {"start_line": 18, "end_line": 20}}]}, "impact": "If input reaches the SQL parser unchanged, a caller could alter the intended query.", "assessment": "inconclusive", "assessmentReason": "Two authored source locations are available; no dynamic check was performed.", "files": [{"id": "search-route", "ref": "evidence/search-route@search-route-r1", "name": "search-route", "mediaType": "text/plain", "text": "const sql = \"SELECT id FROM products WHERE name = '\" + req.query.q + \"'\";\nconst rows = await db.query(sql);\n"}, {"id": "query-wrapper", "ref": "evidence/query-wrapper@query-wrapper-r1", "name": "query-wrapper", "mediaType": "text/plain", "text": "export function executeSearch(sql) {\n  return pool.query(sql);\n}\n"}], "sources": [{"file": "src/routes/products/search.ts", "range": "lines 72–73", "firstLine": 72, "text": "const sql = \"SELECT id FROM products WHERE name = '\" + req.query.q + \"'\";\nconst rows = await db.query(sql);\n", "ref": "sources/shop-source@source-r1"}, {"file": "src/storage/catalog/search/execute-search.ts", "range": "lines 18–20", "firstLine": 18, "text": "export function executeSearch(sql) {\n  return pool.query(sql);\n}\n", "ref": "sources/shop-source@source-r1"}], "analyst": null, "createdAt": "2026-10-31 08:30 UTC", "actions": ["confirm", "notanissue", "needsevidence", "duplicate"]}, {"id": "issue-container-user", "typeLabel": "Configuration", "project": "Shop API", "check": "Deployment review", "state": "proposed", "proposal": {"schema": "contractor.audit.finding-proposal.v1", "client_key": "container-user", "title": "Container image may inherit a privileged user", "description": "The supplied Dockerfile excerpt has no explicit USER instruction. The inherited base-image user is unknown.", "subject": {"kind": "file", "key": "deploy/production/Dockerfile"}, "severity_suggestion": "medium", "limitations": ["The base image and deployed container security context were unavailable. Running as root has not been established."], "preconditions": ["The base image runs as UID 0 and the runtime does not override that user."], "standard_refs": [], "evidence_ids": ["dockerfile"], "proposed_checks": [], "locations": [{"file": "deploy/production/Dockerfile", "range": {"start_line": 1, "end_line": 3}}]}, "impact": "A process running with unnecessary privileges could increase the impact of a separate compromise.", "assessment": "blocked", "assessmentReason": "The deployed image and runtime identity were unavailable for verification.", "files": [{"id": "dockerfile", "ref": "evidence/dockerfile@dockerfile-r1", "name": "dockerfile", "mediaType": "text/plain", "text": "FROM example.invalid/demo-base:fixture\nCOPY . /app\nCMD [\"node\", \"/app/server.js\"]\n"}], "sources": [{"file": "deploy/production/Dockerfile", "range": "lines 1–3", "firstLine": 1, "text": "FROM example.invalid/demo-base:fixture\nCOPY . /app\nCMD [\"node\", \"/app/server.js\"]\n", "ref": "sources/deployment-config@config-r1"}], "analyst": null, "createdAt": "2026-10-31 08:30 UTC", "actions": ["confirm", "notanissue", "needsevidence", "duplicate"]}, {"id": "issue-login-throttle", "typeLabel": "Standard / missing evidence", "project": "Shop API", "check": "API baseline review", "state": "proposed", "proposal": {"schema": "contractor.audit.finding-proposal.v1", "client_key": "login-throttle", "title": "Login throttling requirement has no supporting evidence", "description": "The supplied baseline asks for protection against repeated login attempts. This review has no endpoint or retained evidence showing whether the requirement is met.", "subject": null, "severity_suggestion": "", "limitations": ["Missing evidence does not prove that throttling is absent. The affected endpoint has not been identified."], "preconditions": ["Identify the authentication endpoint and the configured throttling policy before testing."], "standard_refs": [{"scheme": "Demo API baseline", "version": "1", "requirement_id": "AUTH-RATE-01"}], "evidence_ids": [], "proposed_checks": []}, "impact": "If throttling is absent, repeated credential attempts may remain possible. This condition has not been demonstrated.", "assessment": "not-tested", "assessmentReason": "No verification was performed and no captured evidence is available.", "files": [], "sources": [], "analyst": null, "createdAt": "2026-10-31 08:30 UTC", "actions": ["confirm", "notanissue", "needsevidence", "duplicate"]}]}</script>
 <script>
 (function(){
-  "use strict";
-  var $=function(s,r){return (r||document).querySelector(s)},
-    $$=function(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s))};
-
-  /* ---- QA controls ---- */
-  var shell=$("#shell");
-  $$("[data-theme-btn]").forEach(function(b){
-    b.addEventListener("click",function(){
-      document.documentElement.setAttribute("data-theme",b.getAttribute("data-theme-btn"));
-      $$("[data-theme-btn]").forEach(function(x){x.setAttribute("aria-pressed",String(x===b))});
-    });
-  });
-  var vpBtns=$$("[data-vp-btn]");
-  function setViewport(w){
-    shell.style.maxWidth=w==="full"?"none":w+"px";
-    shell.style.marginLeft="auto";shell.style.marginRight="auto";
-    shell.style.borderLeft=w==="1440"?"1px solid var(--line)":"none";
-    shell.style.borderRight=w==="1440"?"1px solid var(--line)":"none";
-    vpBtns.forEach(function(x){x.setAttribute("aria-pressed",String(x.getAttribute("data-vp-btn")===w))});
-    updateMetrics();
-  }
-  vpBtns.forEach(function(b){b.addEventListener("click",function(){setViewport(b.getAttribute("data-vp-btn"))})});
-  function updateMetrics(){
-    $("#metrics").textContent="viewport "+window.innerWidth+"px · doc "+document.documentElement.scrollWidth+"px";
-  }
-  window.addEventListener("resize",updateMetrics);
-  updateMetrics();
-
-  /* ---- Demo data ---- */
-  var ISSUES=[
-    {id:"issue-debug-exposure",title:"Debug information exposed in responses",state:"proposed",sev:"Medium",verify:"Not tested"},
-    {id:"issue-order-lookup-authz",title:"Order lookup may skip object authorization",state:"proposed",sev:"High",verify:"Inconclusive",main:true},
-    {id:"issue-pii-crossproject",title:"Order export endpoint shares records across projects",state:"confirmed",sev:"High",verify:"Confirmed by request"}
-  ];
-  var current=1, filter="needs", tab="summary";
-  var rowEl={};
-
-  function visibleIssues(){
-    var q=$("#searchbox").value.trim().toLowerCase();
-    return ISSUES.filter(function(i){return (filter==="all"||i.state==="proposed")&&(!q||i.title.toLowerCase().indexOf(q)>=0)});
-  }
-  function updatePosition(){
-    var shown=visibleIssues(),position=shown.indexOf(ISSUES[current]);
-    $("#prevBtn").disabled=position<=0;
-    $("#nextBtn").disabled=position<0||position>=shown.length-1;
-    $("#prevBtn").nextElementSibling.textContent=position<0?"Not in this filtered list":(position+1)+" of "+shown.length;
-  }
-  function move(delta){var shown=visibleIssues(),at=shown.indexOf(ISSUES[current]),next=shown[at+delta];if(at>=0&&next)select(ISSUES.indexOf(next));}
-  function focusMain(){document.documentElement.dataset.mobileView="detail";var heading=$("#issueTitle");heading.tabIndex=-1;heading.focus({preventScroll:true});}
-  var fullPanels={};
+  'use strict';
+  const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>Array.from(r.querySelectorAll(s));
+  const fixtures=JSON.parse($('#findingExamples').textContent).examples;
+  const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const labels={supported:'Supported',inconclusive:'Inconclusive',blocked:'Blocked','not-tested':'Not tested'};
+  const tones={supported:'confirmed',inconclusive:'inconclusive',blocked:'proposed','not-tested':'untested'};
+  const paths={issue:'<circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/>',check:'<path d="m5 12 4 4L19 6"/>',file:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6"/>',copy:'<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',download:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M12 3v12m-5-5 5 5 5-5"/>'};
+  const icon=name=>'<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">'+paths[name]+'</svg>';
+  const copy=(value,label)=>'<button class="copybtn" data-copy="'+esc(value)+'" aria-label="'+esc(label)+'">'+icon('copy')+'</button>';
+  const list=values=>'<ul class="example-points">'+values.map(v=>'<li>'+esc(v)+'</li>').join('')+'</ul>';
+  const bytes=file=>new TextEncoder().encode(file.text).length;
+  let current=1,filter='all',tab='summary',draft={};
+  const selected=()=>fixtures[current];
+  const shown=()=>fixtures.filter(i=>(filter==='all'||i.state==='proposed')&&(!$('#searchbox').value.trim()||[i.proposal.title,i.typeLabel,i.proposal.subject?.key,i.project,i.check].join(' ').toLowerCase().includes($('#searchbox').value.trim().toLowerCase())));
   function renderList(){
-    var box=$("#issueList");box.innerHTML="";
-    var shown=ISSUES.filter(function(i){return filter==="all"||i.state==="proposed"})
-      .filter(function(i){var q=$("#searchbox").value.trim().toLowerCase();return !q||i.title.toLowerCase().indexOf(q)>=0});
-    shown.forEach(function(i){
-      var b=document.createElement("button");
-      b.className="issue-row";b.setAttribute("role","option");
-      b.setAttribute("aria-selected",String(current===ISSUES.indexOf(i)));
-      var stIcon=i.state==="proposed"
-        ?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 15h.01"/></svg>'
-        :'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 11 3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>';
-      var vIcon='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.4 2.3c-.8.3-1.4 1-1.4 1.9v.3M12 17h.01"/></svg>';
-      b.innerHTML='<span class="t">'+i.title+'</span><span class="ctx">Source checklist · Shop API</span><span class="m">'
-        +'<span class="st '+(i.state==="proposed"?"proposed":"confirmed")+'">'+stIcon+(i.state==="proposed"?"Proposed":"Confirmed")+'</span>'
-        +'<span class="sev '+i.sev.toLowerCase()+'">'+i.sev+' suggested</span>'
-        +'<span class="st verify'+(i.verify==="Inconclusive"?" warn":"")+'">'+vIcon+i.verify+'</span>'
-        +'</span>';
-      b.addEventListener("click",function(){select(ISSUES.indexOf(i))});
-      rowEl[i.id]=b;box.appendChild(b);
+    const rows=shown(),at=rows.indexOf(selected());
+    $('#issueList').innerHTML=rows.map(i=>'<button class="issue-row" role="option" data-select="'+esc(i.id)+'" aria-selected="'+(i===selected())+'"><span class="t">'+esc(i.proposal.title)+'</span><span class="ctx">'+esc(i.typeLabel+' · '+i.project+' · '+i.check)+'</span><span class="m"><span class="st '+i.state+'">'+icon(i.state==='confirmed'?'check':'issue')+esc(i.state==='confirmed'?'Confirmed':'Proposed')+'</span><span class="sev '+esc(i.proposal.severity_suggestion)+'">'+esc(i.analyst?'Severity: '+i.analyst.severity:i.proposal.severity_suggestion?i.proposal.severity_suggestion+' suggested':'No severity suggestion')+'</span><span class="st verify">'+icon('issue')+esc(labels[i.assessment])+'</span></span></button>').join('')||'<p class="hint">No examples match this filter.</p>';
+    $('#countNote').textContent=rows.length+' of '+fixtures.length+' synthetic examples shown · not live totals';
+    $('#prevBtn').disabled=at<=0;$('#nextBtn').disabled=at<0||at===rows.length-1;
+    $('#prevBtn').nextElementSibling.textContent=at<0?'Outside this filtered list':(at+1)+' of '+rows.length;
+  }
+  function artifact(i,file,index,scope){
+    const id=scope+'-'+i.id+'-'+index;
+    return '<div class="artifact"><span class="ic">'+icon('file')+'</span><div class="body"><div class="nm">'+esc(file.name)+'</div><div class="meta">'+esc(file.mediaType)+' · '+bytes(file)+' B · '+esc(file.ref)+'</div></div><div class="acts"><button class="btn-xs" '+(index===0&&scope==='summary'?'id="previewBtn"':'')+' data-preview="'+esc(file.id)+'" aria-expanded="false" aria-controls="preview-'+id+'">Preview</button>'+copy(file.ref,'Copy artifact identifier')+'<button class="copybtn" '+(index===0&&scope==='summary'?'id="downloadBtn"':'')+' data-download="'+esc(file.id)+'" aria-label="Download '+esc(file.name)+'">'+icon('download')+'</button><a class="txtlink" href="#details-'+id+'" data-details="details-'+id+'" aria-label="Details for '+esc(file.ref)+'">details</a></div></div><div class="preview" id="preview-'+id+'" data-file-preview="'+esc(file.id)+'" hidden><p class="hint">Local synthetic fixture · exact sample bytes shown below.</p><pre class="code">'+esc(file.text)+'</pre></div><div class="preview" id="details-'+id+'" hidden><p class="hint">Synthetic artifact details</p><dl class="kv"><dt>Exact revision</dt><dd class="mono">'+esc(file.ref)+'</dd><dt>Content</dt><dd>'+esc(file.mediaType)+' · '+bytes(file)+' bytes</dd></dl></div>';
+  }
+  function evidence(i,scope){
+    let html='';
+    i.sources.forEach((source,index)=>{
+      const lines=source.text.trimEnd().split('\n');
+      html+='<div class="workbench"><div class="whead"><span class="fic">'+icon('file')+'</span><span class="fname">'+esc(source.file)+'</span><span class="floc">'+esc(source.range)+'</span><span class="wcopy"><span class="rev">from '+esc(source.ref)+'</span>'+copy(source.ref,'Copy source revision')+'</span></div><div class="codewrap"><div class="gutter" aria-hidden="true">'+lines.map((_,n)=>'<span>'+(source.firstLine+n)+'</span>').join('')+'</div><pre class="code">'+esc(source.text.trimEnd())+'</pre></div><p class="codenote">'+icon('issue')+'Illustrative static source excerpt · synthetic fixture, not an executed HTTP request.</p>'+(i.files[index]?artifact(i,i.files[index],index,scope):'')+'</div>';
     });
-    $("#countNote").textContent=shown.length+" of "+ISSUES.length+" shown · displayed list only, not totals";
-    updatePosition();
-    if(!shown.length){box.innerHTML='<p class="hint" style="padding:var(--space-3)">No issues match. This demo list has no more entries; it does not mean there are zero issues.</p>'}
-  }
-  $("#searchbox").addEventListener("input",renderList);
-  $$("[data-filter]").forEach(function(b){
-    b.addEventListener("click",function(){filter=b.getAttribute("data-filter");
-      $$("[data-filter]").forEach(function(x){x.setAttribute("aria-pressed",String(x===b))});renderList()});
-  });
-
-  function select(idx,focus){
-    current=(idx+ISSUES.length)%ISSUES.length;
-    var i=ISSUES[current];
-    $("#issueTitle").textContent=i.title;
-    $("#statePill").innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 15h.01"/></svg>'
-      +(i.state==="proposed"?"Proposed — needs your review":"Confirmed");
-    $("#statePill").className="pill "+(i.state==="proposed"?"proposed":"confirmed");
-    $("#sevSuggest").innerHTML='<span class="dotv" aria-hidden="true"></span>'+(i.state==="confirmed"
-      ?"Analyst severity: "+i.sev+" · recorded demo decision"
-      :"AI suggests "+i.sev+" — a suggestion, not a decision");
-    $("#verifyPill").innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.4 2.3c-.8.3-1.4 1-1.4 1.9v.3M12 17h.01"/></svg>Verification: '+(i.main?i.verify+" — static evidence only":"detail not provided in this preview");
-    $("#subjectLine").hidden=!i.main;
-    $("#decision").hidden=!i.main;
-    ["summary","evidence","history"].forEach(function(name){
-      var panel=$("#tab"+name[0].toUpperCase()+name.slice(1));
-      panel.innerHTML=i.main?fullPanels[name]:'<div class="col-main"><div class="lede"><span class="badge" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 15h.01"/></svg></span><div class="body"><p class="kicker">Illustrative list entry</p><p class="finding" style="font-size:var(--text-md)">The full detail of this example is not included in this design preview. Select the order-lookup issue to inspect the supplied narrative and evidence.</p></div></div></div>';
-    });
-    $("#decidedSummary").classList.toggle("show",i.state==="confirmed");
-    $$("[data-verdict=reopen]").forEach(function(b){b.hidden=i.state!=="confirmed"});
-    resetDraft();
-    renderList();
-    if(focus!==false)focusMain();else document.documentElement.dataset.mobileView="detail";
-  }
-  $("#prevBtn").addEventListener("click",function(){move(-1)});
-  $("#nextBtn").addEventListener("click",function(){move(1)});
-  $("#backLink").addEventListener("click",function(e){e.preventDefault();document.documentElement.dataset.mobileView="list";$("#searchbox").focus()});
-  document.addEventListener("keydown",function(e){
-    if(e.target.matches("input,textarea"))return;
-    if(e.key==="j")move(1);
-    if(e.key==="k")move(-1);
-  });
-
-  /* ---- Tabs ---- */
-  $$(".tabs [role=tab]").forEach(function(t){
-    t.addEventListener("click",function(){setTab(t.getAttribute("data-tab"))});
-  });
-  function setTab(name){
-    tab=name;
-    $$(".tabs [role=tab]").forEach(function(t){t.setAttribute("aria-selected",String(t.getAttribute("data-tab")===name))});
-    ["summary","evidence","history"].forEach(function(n){$("#tab"+n[0].toUpperCase()+n.slice(1)).hidden=n!==name});
-  }
-
-  /* ---- Copy / download / preview ---- */
-  function flash(btn){
-    btn.classList.add("ok");setTimeout(function(){btn.classList.remove("ok")},1200);
-  }
-  document.addEventListener("click",function(e){
-    var c=e.target.closest("[data-copy]");
-    if(c){
-      var t=c.getAttribute("data-copy");
-      if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(function(){flash(c)},function(){})}
-      return;
+    const web=(i.proposal.locations??[]).filter(l=>l.url);
+    if(web.length)html+='<div class="example-location"><span class="kicker">Web locations · producer claims</span>'+list(web.map(l=>(l.method?l.method+' ':'')+l.url))+'</div>';
+    const exchange=i.proposal.http_exchange;
+    if(exchange){
+      html+='<div class="workbench exchange"><div class="whead"><strong>Captured HTTP exchange</strong><span class="floc">Synthetic fixture · request '+exchange.request_id+'</span></div>';
+      exchange.attempts.forEach((attempt,index)=>{
+        html+='<div class="exchange-attempt"><div class="exchange-line"><code>'+esc(attempt.method+' '+attempt.url)+'</code><span class="pill inconclusive">'+esc(attempt.status?'HTTP '+attempt.status:attempt.error)+'</span></div>';
+        [['Request headers',attempt.headers,'request'],['Response headers',attempt.response_headers??[],'response']].forEach(([title,headers,side])=>{
+          html+='<h3 class="kicker">'+title+'</h3><dl class="exchange-headers">'+headers.map((h,n)=>{
+            const masked=/^(authorization|proxy-authorization|cookie|set-cookie|x-api-key)$/i.test(h.name)||/token|secret|password|api-key|apikey|session/i.test(h.name);
+            return '<div><dt>'+esc(h.name)+'</dt><dd>'+(masked?'<span data-header-value="'+side+'-'+index+'-'+n+'">••••••••</span><button class="btn-xs reveal" data-reveal="'+side+'-'+index+'-'+n+'" aria-label="Show '+esc(h.name)+' value">Show</button>':esc(h.value))+'</dd></div>';
+          }).join('')+'</dl>';
+        });
+        html+='<p class="hint">Request body: '+(attempt.body_base64?'synthetic body fixture':'None')+'</p></div>';
+      });
+      html+='<p class="codenote">All requests and outcomes on this screen are predefined test data; opening the example sends no request.</p>';
+      i.files.slice(i.sources.length).forEach((file,index)=>{html+=artifact(i,file,index+i.sources.length,scope)});html+='</div>';
+    }else{
+      i.files.slice(i.sources.length).forEach((file,index)=>{html+='<div class="workbench">'+artifact(i,file,index+i.sources.length,scope)+'</div>'});
+      html+='<div class="nohttp">'+icon('issue')+'<span>No HTTP exchanges were captured for this issue.'+(!i.sources.length&&!i.files.length?' No locations or retained evidence are available.':'')+'</span></div>';
     }
-    if(e.target.closest("#downloadBtn,[data-download]")){
-      var btn=e.target.closest("#downloadBtn,[data-download]");
-      var blob=new Blob(["Local illustrative example — synthetic sample.\n\nGET /orders/{id} handler excerpt (128 bytes, text/plain):\n  async function getOrder(req, res) {\n    const order = await db.orders.findById(req.params.id);\n    return res.json(order);\n  }\nNo HTTP exchange was captured for this issue.\n"],{type:"text/plain"});
-      var a=document.createElement("a");
-      a.href=URL.createObjectURL(blob);a.download="order-handler@evidence-r1.txt";
-      document.body.appendChild(a);a.click();a.remove();flash(btn);return;
-    }
-    var p=e.target.closest("#previewBtn,[data-preview]");
-    if(p){
-      var box=p.closest(".workbench").querySelector(".preview");
-      var open=box.hidden;
-      box.hidden=!open;
-      p.setAttribute("aria-expanded",String(open));
-      p.textContent=open?"Hide preview":"Preview";
-    }
-  });
-
-  /* ---- Decision draft ---- */
-  var state={verdict:null,sev:null,dup:null,why:""};
-  function resetDraft(){
-    state={verdict:null,sev:null,dup:null,why:""};
-    $("#whyInput").value="";
-    $$("[data-verdict]").forEach(function(b){b.setAttribute("aria-pressed","false")});
-    $$("[data-sev]").forEach(function(b){b.setAttribute("aria-pressed","false")});
-    $$("[data-dup]").forEach(function(b){b.setAttribute("aria-pressed","false")});
-    $("#sevBlock").hidden=true;$("#dupBlock").hidden=true;
-    $("#draft").hidden=true;
-    $("#demoNote").classList.remove("show");
-    $("#staleBanner").classList.remove("show");
-    validate();
+    return html;
   }
-  $$("[data-verdict]").forEach(function(b){
-    b.addEventListener("click",function(){
-      state.verdict=b.getAttribute("data-verdict");
-      $$("[data-verdict]").forEach(function(x){x.setAttribute("aria-pressed",String(x===b))});
-      $("#draft").hidden=false;
-      $("#sevBlock").hidden=state.verdict!=="confirm";
-      $("#dupBlock").hidden=state.verdict!=="duplicate";
-      validate();
-    });
-  });
-  $$("[data-sev]").forEach(function(b){
-    b.addEventListener("click",function(){state.sev=b.getAttribute("data-sev");
-      $$("[data-sev]").forEach(function(x){x.setAttribute("aria-pressed",String(x===b))});validate()});
-  });
-  $$("[data-dup]").forEach(function(b){
-    b.addEventListener("click",function(){state.dup=b.getAttribute("data-dup");
-      $$("[data-dup]").forEach(function(x){x.setAttribute("aria-pressed",String(x===b))});validate()});
-  });
-  $("#whyInput").addEventListener("input",function(){state.why=$("#whyInput").value.trim();validate()});
-
-  var stale=false;
-  $("#refreshBtn").addEventListener("click",function(){
-    stale=false;$("#staleBanner").classList.remove("show");validate();
-    $("#staleBanner").innerHTML='<strong>Context refreshed against the current revision.</strong><div style="margin-top:2px">Your draft Why and choices were kept. Review them before recording.</div>';
-    setTimeout(function(){$("#staleBanner").classList.remove("show")},10);
-    var i=ISSUES[current];
-    $("#verifyPill").innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.4 2.3c-.8.3-1.4 1-1.4 1.9v.3M12 17h.01"/></svg>Verification: '+i.verify;
-  });
-  $("#currentBtn").addEventListener("click",function(){
-    stale=false;$("#staleBanner").classList.remove("show");validate();
-  });
-  window.showStale=function(){stale=true;$("#staleBanner").classList.add("show");validate()};
-
-  function validate(){
-    var ok=state.verdict&&state.why.length>0;
-    if(state.verdict==="confirm")ok=ok&&!!state.sev;
-    if(state.verdict==="duplicate")ok=ok&&!!state.dup;
-    var blocked=ok&&stale;
-    $("#recordBtn").disabled=!ok||blocked;
-    var msg="Choose an action, then give a nonblank Why to record.";
-    if(!state.verdict)msg="Choose an action above to open the draft.";
-    else if(state.verdict==="confirm"&&!state.sev)msg="Confirm issue also needs an explicit severity choice.";
-    else if(state.verdict==="duplicate"&&!state.dup)msg="Choose which issue this duplicates.";
-    else if(ok&&!state.why)msg="Give a nonblank Why to record.";
-    else if(ok)msg="Ready — recording is a separate step.";
-    if(blocked)msg="Recording is blocked: the review context is stale.";
-    $("#validMsg").textContent=msg;
+  function supporting(i){
+    const doc=i.proposal;
+    return '<div class="sideblock"><p class="cap tone-info">'+icon('issue')+'Verification</p><p>'+esc(labels[i.assessment])+' — '+esc(i.assessmentReason)+'</p><p class="hint">Verification is separate from an analyst decision.</p></div><div class="sideblock"><p class="cap tone-warn">'+icon('issue')+'Limitations</p>'+list(doc.limitations)+'<p class="cap example-preconditions">Preconditions</p>'+list(doc.preconditions)+'</div>'+(doc.standard_refs.length?'<div class="sideblock"><p class="cap">Standard references</p>'+list(doc.standard_refs.map(r=>r.requirement_id+' · '+r.scheme+'@'+r.version))+'</div>':'')+'<div class="sideblock"><details class="tech"><summary>Technical details</summary><dl class="kv"><dt>Issue ID</dt><dd class="idrow"><code>'+esc(i.id)+'</code>'+copy(i.id,'Copy issue ID')+'</dd><dt>Subject</dt><dd>'+esc(doc.subject?doc.subject.kind+': '+doc.subject.key:'Not identified')+'</dd><dt>Review state</dt><dd>'+esc(i.state)+'</dd><dt>Data</dt><dd>Synthetic local fixture</dd></dl></details></div>';
   }
-  $("#recordBtn").addEventListener("click",function(){
-    if($("#recordBtn").disabled)return;
-    var v={confirm:"Confirm issue",notanissue:"Not an issue",needsevidence:"Needs evidence",duplicate:"Duplicate",reopen:"Reopen"}[state.verdict];
-    $("#demoNote").querySelector("span").textContent="Demo only — no decision was sent. Your choice (“"+v
-      +(state.verdict==="confirm"?" at "+state.sev:"")
-      +(state.verdict==="duplicate"?" of "+state.dup:"")+"”) and Why were shown locally; the issue state and history are unchanged.";
-    $("#demoNote").classList.add("show");
-  });
-
-  /* ---- init ---- */
-  ["summary","evidence","history"].forEach(function(n){fullPanels[n]=$("#tab"+n[0].toUpperCase()+n.slice(1)).innerHTML;});
-  var requestedTheme=new URLSearchParams(location.search).get("theme");
-  if(["light","dark","black"].indexOf(requestedTheme)>=0){
-    document.documentElement.setAttribute("data-theme",requestedTheme);
-    $$("[data-theme-btn]").forEach(function(b){b.setAttribute("aria-pressed",String(b.getAttribute("data-theme-btn")===requestedTheme))});
+  function history(i){
+    const entries=[['Check proposal',i.createdAt,i.check+' proposed this issue. '+(i.proposal.severity_suggestion?'AI suggestion: '+i.proposal.severity_suggestion+'.':'No severity was suggested.')],['Verification',i.createdAt,labels[i.assessment]+': '+i.assessmentReason],i.analyst?['Human review',i.analyst.at,'Confirmed as '+i.analyst.severity+' by '+i.analyst.name+'. '+i.analyst.reason]:['Human review','—','No decision recorded yet.']];
+    return '<div class="col-main"><div class="sideblock"><p class="cap">Review history · predefined synthetic fixture</p><ul class="hist">'+entries.map(([title,at,text])=>'<li><span class="when">'+esc(at)+'</span><div class="what"><span class="who">'+esc(title)+'</span><div class="note">'+esc(text)+'</div></div></li>').join('')+'</ul><p class="hint">Local decision drafts do not change this history or create a Server record.</p></div></div>';
   }
-  renderList();
-  select(1,false);
-  setTab("summary");
+  function select(id,focus=true){
+    current=fixtures.findIndex(i=>i.id===id);if(current<0)current=1;
+    const i=selected(),doc=i.proposal;
+    $('#detail').dataset.findingId=i.id;$('#issueTitle').textContent=doc.title;
+    $('#projectContext').textContent=i.project;$('#checkContext').textContent='Check: '+i.check;
+    const operation=doc.subject?.kind==='operation'?/^(\S+) (.+)$/.exec(doc.subject.key):null;
+    $('#subjectLine').innerHTML=(operation?'<span class="method">'+esc(operation[1])+'</span><span class="path">'+esc(operation[2])+'</span>':doc.subject?'<span class="method">'+esc(doc.subject.kind.toUpperCase())+'</span><span class="path">'+esc(doc.subject.key)+'</span>':'<span>Subject not identified</span>')+'<span class="dot">·</span><span>'+esc(i.typeLabel)+'</span>';
+    $('#statePill').className='pill '+i.state;$('#statePill').innerHTML=icon(i.state==='confirmed'?'check':'issue')+(i.state==='confirmed'?'Confirmed — recorded demo decision':'Proposed — needs your review');
+    $('#sevSuggest').textContent=i.analyst?'Analyst severity: '+i.analyst.severity+' · recorded demo decision':doc.severity_suggestion?'AI suggests '+doc.severity_suggestion[0].toUpperCase()+doc.severity_suggestion.slice(1)+' — a suggestion, not a decision':'AI severity: not suggested';
+    $('#verifyPill').className='pill '+tones[i.assessment];$('#verifyPill').innerHTML=icon('issue')+'Verification: '+esc(labels[i.assessment]);
+    $('#tabSummary').innerHTML='<div class="col-main"><div class="lede"><span class="badge">'+icon('issue')+'</span><div class="body"><p class="kicker">What the AI found · automated proposal</p><p class="finding">'+esc(doc.description)+'</p><p class="provenance">The original proposal is separate from verification and the recorded human review.</p><div class="impact"><p class="kicker">If real, the impact</p><p>'+esc(i.impact)+'</p></div></div></div>'+evidence(i,'summary')+'</div><div class="col-side">'+supporting(i)+'</div>';
+    $('#tabEvidence').innerHTML='<div class="col-main">'+evidence(i,'evidence')+'</div>';
+    $('#tabHistory').innerHTML=history(i);
+    $('#decidedSummary').classList.toggle('show',!!i.analyst);
+    $('#decidedSummary').innerHTML=i.analyst?'<div class="recorded-head"><span class="outcome">Recorded decision — Confirmed as '+esc(i.analyst.severity)+'</span><span class="recorded-meta">'+esc(i.analyst.name+' · '+i.analyst.at)+'</span></div><p class="recorded-reason">'+esc(i.analyst.reason)+'</p>':'';
+    $$('[data-verdict]').forEach(b=>{b.hidden=!i.actions.includes(b.dataset.verdict)});
+    $('#duplicateTargets').innerHTML=fixtures.filter(target=>target.id!==i.id&&target.project===i.project&&target.check===i.check).map(target=>'<button class="sev" data-dup="'+esc(target.id)+'" aria-pressed="false">'+esc(target.proposal.title)+'</button>').join('')||'<p class="hint">No eligible target exists in this synthetic check.</p>';
+    resetDraft();renderList();setTab(tab);document.documentElement.dataset.mobileView='detail';
+    if(focus){$('#issueTitle').tabIndex=-1;$('#issueTitle').focus({preventScroll:true})}
+  }
+  function setTab(name){tab=name;$$('.tabs [role=tab]').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.tab===name)));['summary','evidence','history'].forEach(n=>$('#tab'+n[0].toUpperCase()+n.slice(1)).hidden=n!==name)}
+  function move(delta){const rows=shown(),at=rows.indexOf(selected());if(at>=0&&rows[at+delta])select(rows[at+delta].id)}
+  function resetDraft(){draft={verdict:null,sev:null,dup:null,why:''};$('#whyInput').value='';$('#draft').hidden=true;$('#sevBlock').hidden=true;$('#dupBlock').hidden=true;$('#demoNote').classList.remove('show');$('#staleBanner').classList.remove('show');$$('[data-verdict],[data-sev],[data-dup]').forEach(b=>b.setAttribute('aria-pressed','false'));validate()}
+  function validate(){const ok=!!draft.verdict&&draft.why.trim().length>0&&(draft.verdict!=='confirm'||!!draft.sev)&&(draft.verdict!=='duplicate'||!!draft.dup);$('#recordBtn').disabled=!ok;$('#validMsg').textContent=ok?'Ready — this records only a local demo.':draft.verdict==='duplicate'?'Choose a target in this check and give a nonblank Why.':draft.verdict==='confirm'?'Choose severity and give a nonblank Why.':'Give a nonblank Why to continue.'}
+  $('#whyInput').addEventListener('input',()=>{draft.why=$('#whyInput').value;validate()});
+  $('#searchbox').addEventListener('input',renderList);
+  $('#prevBtn').addEventListener('click',()=>move(-1));$('#nextBtn').addEventListener('click',()=>move(1));
+  $('#backLink').addEventListener('click',e=>{e.preventDefault();document.documentElement.dataset.mobileView='list';$('#searchbox').focus()});
+  document.addEventListener('keydown',e=>{if(e.target.matches('input,textarea'))return;if(e.key==='j')move(1);if(e.key==='k')move(-1)});
+  document.addEventListener('click',e=>{
+    const b=e.target.closest('button,a');if(!b)return;
+    if(b.dataset.select)select(b.dataset.select);
+    else if(b.dataset.filter){filter=b.dataset.filter;$$('[data-filter]').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));renderList()}
+    else if(b.dataset.tab)setTab(b.dataset.tab);
+    else if(b.dataset.verdict){draft.verdict=b.dataset.verdict;$$('[data-verdict]').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));$('#draft').hidden=false;$('#sevBlock').hidden=draft.verdict!=='confirm';$('#dupBlock').hidden=draft.verdict!=='duplicate';validate()}
+    else if(b.dataset.sev){draft.sev=b.dataset.sev;$$('[data-sev]').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));validate()}
+    else if(b.dataset.dup){draft.dup=b.dataset.dup;$$('[data-dup]').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));validate()}
+    else if(b.id==='recordBtn'&&!b.disabled){$('#demoNote span').textContent='Demo only — no decision was sent. Your draft for “'+selected().proposal.title+'” is local; issue state and history are unchanged.';$('#demoNote').classList.add('show')}
+    else if(b.dataset.preview){const panel=b.closest('.workbench').querySelector('[data-file-preview="'+b.dataset.preview+'"]');panel.hidden=!panel.hidden;b.setAttribute('aria-expanded',String(!panel.hidden));b.textContent=panel.hidden?'Preview':'Hide preview'}
+    else if(b.dataset.details){e.preventDefault();const panel=document.getElementById(b.dataset.details);panel.hidden=!panel.hidden}
+    else if(b.dataset.download){const file=selected().files.find(f=>f.id===b.dataset.download);if(file){const url=URL.createObjectURL(new Blob([file.text],{type:file.mediaType})),a=document.createElement('a');a.href=url;a.download=file.name+'.txt';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)}}
+    else if(b.dataset.copy&&navigator.clipboard){navigator.clipboard.writeText(b.dataset.copy).then(()=>{b.classList.add('ok');setTimeout(()=>b.classList.remove('ok'),1000)},()=>{})}
+    else if(b.dataset.reveal){const [side,attempt,n]=b.dataset.reveal.split('-'),header=(side==='request'?selected().proposal.http_exchange.attempts[+attempt].headers:selected().proposal.http_exchange.attempts[+attempt].response_headers)[+n],value=b.parentElement.querySelector('[data-header-value]'),show=b.textContent==='Show';value.textContent=show?header.value:'••••••••';b.textContent=show?'Hide':'Show';b.setAttribute('aria-label',(show?'Hide ':'Show ')+header.name+' value')}
+  });
+  const q=new URLSearchParams(location.search),theme=q.get('theme');if(['light','dark','black'].includes(theme))document.documentElement.dataset.theme=theme;
+  select(fixtures.some(i=>i.id===q.get('example'))?q.get('example'):'issue-order-lookup-authz',false);
 })();
+
 </script>
 </body>
 </html>

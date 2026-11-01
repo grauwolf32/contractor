@@ -1,0 +1,97 @@
+schema_version: "1.0"
+id: V429-011
+title: Populate the Issue review preview with varied finding examples
+milestone: ui-journey-usability
+epic: ui
+kind: chore
+introduced_by: V429-010
+priority: P2
+status: in_progress
+depends_on: [V429-010]
+languages: [typescript, css]
+goal: Let the user review the accepted Issue design with six complete synthetic finding cases and an obvious Duplicate action.
+context:
+  authority: >-
+    On 2026-11-01 the user accepted the new OpenDesign composition, asked for
+    a more explicit Duplicate button, then asked for other finding types as
+    test examples in the UI. The active artifact is the isolated review preview
+    on port 17562; keep all prior OpenDesign outputs and shared typography.
+    During review they also requested Verification before AI severity and a
+    smaller Recorded decision block.
+  specification: docs/spec/ui/ui.md
+  design: docs/design/ui/README.md
+  decision: >-
+    Expand the existing synthetic preview, with schema-valid proposal documents
+    using the current source/web locations, optional HTTP exchange, standard
+    references and explicitly unknown subject. Preserve the accepted composition
+    and original generated file. A closed six-item fixture list bounds work;
+    preview actions never send real requests or analyst decisions. This is not
+    production transfer or a new finding-type enum.
+scope:
+  in:
+    - Place Duplicate beside the main decisions with a labelled icon button.
+    - Order Verification before AI severity and align a compact recorded-decision block to the content gutters.
+    - Complete the existing source, web and confirmed examples; add multi-location source, configuration and standard/no-evidence examples.
+    - Per-example summary, evidence, history, exact synthetic artifact identity and correct context; mask synthetic credential headers until explicitly revealed.
+    - Preserve reviewed preview versions and verify fixture contracts, selection, tabs, downloads, decision validation and theme/width layouts.
+  out:
+    - Production UI changes, Server/API/schema changes, release bump, real HTTP requests or real business-data writes.
+    - New model generation, changed model/gateway settings or replacement of any original OpenDesign output.
+acceptance_criteria:
+  - id: A1
+    text: Six complete synthetic examples use valid FindingProposalDocument shapes and show their own subject, project/check, evidence, limitations and history instead of the selected original issue's content.
+  - id: A2
+    text: Duplicate is a labelled icon button adjacent to the other decisions; its draft requires a same-check target and a nonblank rationale, with no real decision sent.
+  - id: A3
+    text: Source, multi-location, configuration, captured-HTTP, confirmed and standard/no-evidence cases preserve separate AI suggestion, verification and analyst outcomes; credential values are individually masked, unavailable evidence remains explicit, Verification precedes the severity suggestion, and recorded decisions use a compact aligned block.
+  - id: A4
+    text: All examples and key interactions remain usable in light/dark/black at desktop and 390/320 px without page errors, network calls or horizontal page overflow; earlier originals and preview snapshots remain preserved.
+tests:
+  - command: node docs/design/ui/experiments/issues-review-opendesign-2026-11-01/verify.mjs
+    covers: [A1, A2, A3, A4]
+  - command: python3 scripts/check_tasks.py
+    covers: [A1, A2, A3, A4]
+  - command: python3 scripts/check_spec.py
+    covers: [A3]
+
+verification:
+  - >-
+    Six complete synthetic proposals cover object authorization, captured HTTP
+    debug disclosure, a confirmed cross-project export, multi-location SQL,
+    container configuration and a standard requirement with unknown subject/no
+    evidence. Their FindingProposalDocument values pass the generated public
+    schema. Each example owns its context, limitations, evidence bytes and
+    history. The OpenDesign original and accepted composition are unchanged.
+  - >-
+    Mark as duplicate has a visible icon and sits directly beside the main
+    decisions. Targets are restricted to the same synthetic Project/check and
+    exclude the current finding. Recording requires a selected target and a
+    nonblank Why; no eligible target leaves recording blocked. Confirmed cases
+    expose only their predefined Reopen action, and local recording changes
+    neither the fixture state nor history.
+  - >-
+    The user follow-up moves Verification ahead of AI/analyst severity in DOM
+    order. The recorded-decision card uses the shared content gutters and text
+    scale, a compact title/author/date row and the full reason. Desktop geometry
+    verifies its alignment and compact height; mobile keeps all text reachable.
+  - >-
+    The standalone verifier passed twelve layout combinations and 72 complete
+    example cases at 1440/1100/390/320 in light/dark/black. It checks contract
+    validity, distinct content, labels, own source/evidence/history, explicit
+    file previews and exact downloaded bytes, individual credential-header
+    reveal, verdict validation, target eligibility, local-only recording,
+    mobile back, no duplicate DOM IDs or horizontal overflow (including drafts),
+    status order and recorded-review geometry. No page errors or external
+    requests occurred. Earlier/accepted version comparison, deep example links,
+    fixed GET-only routes and opaque-sandbox CSP also passed. Task/spec/diff
+    checks passed; production code and UI release are unchanged.
+  - >-
+    The complete state and host artifacts are preserved by verified backup
+    /Users/ruslan/src/third-party/open-design-backups/20261101T092349Z,
+    independently recovered with SQLite integrity_check ok. It retains four
+    projects, seven conversations, 35 messages and 81 project files. Both
+    archive hashes were rechecked. v5 and v6 are separate added files, and no
+    model relay or new upstream credential was created in this task.
+  - >-
+    The updated preview is available on loopback port 17562. This branch has
+    not been merged or deployed; production transfer remains a separate step.
