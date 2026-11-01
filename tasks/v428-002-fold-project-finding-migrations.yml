@@ -1,0 +1,52 @@
+schema_version: '1.0'
+id: V428-002
+title: Fold the verified Project Finding schema into one baseline
+milestone: hub-audit-defects-2026-10
+epic: persistence
+kind: chore
+introduced_by: V64-014
+priority: P2
+status: pending
+depends_on: [V64-023]
+languages: [go, sql, python, markdown]
+goal: >-
+  Fresh databases use one current baseline, and the demo database keeps its business data and
+  verified schema through the explicitly requested one-time migration-ledger transition.
+context:
+  authority: >-
+    User request 2026-11-02: implement V64-023, update the demo database and collapse migrations
+    into one. Preserve ordinary Runs, Projects and exact retained materials; retirement of old
+    Audit Runs uses V64-023 and existing owners. No database reset is authorized.
+  specification: docs/spec/platform/persistence.md
+  decision: >-
+    First apply the repaired chain to a verified disposable restore and then the backed-up demo.
+    Dump the installed empty chain schema and seed rows into one baseline; compare full catalogs
+    and initial data before removing the chain. Rebind only the stopped demo's migration ledger
+    after proving its installed schema equals that baseline, preserving every business row and
+    immutable artifact. Keep the runtime migrator's strict checksum/drift protocol unchanged.
+scope:
+  in:
+  - One current baseline; remove old upgrade fixtures/tests and update current-schema guards/docs/ERD.
+  - Prove old-chain/fresh-baseline catalog and seed equivalence on disposable PostgreSQL.
+  - Record verified demo backups, schema equivalence, unchanged business-data signatures and the exact ledger transition in its release manifest.
+  out:
+  - Compatibility readers, ledger auto-repair, database reset, unrelated cleanup or domain behavior changes.
+acceptance_criteria:
+- id: A1
+  text: Exactly one baseline applies once and verifies through the production migrator; stale ledgers still fail closed.
+- id: A2
+  text: Installed catalogs and seed rows equal the repaired chain, with only documented physical/deparser normalization.
+- id: A3
+  text: The demo has verified recoverable backups and unchanged post-cutover business data; its release manifest records old/new migration ledgers and checksums.
+- id: A4
+  text: Current-schema PostgreSQL, backup/restore, matrix, generation and lint gates pass without retained old migration readers.
+tests:
+- command: go test -tags=integration -count=1 ./internal/persistence/... ./internal/rundeletion/... ./internal/runstore/... ./internal/artifacts/...
+  covers: [A1, A2, A4]
+- command: make test-backup-restore
+  covers: [A1, A3, A4]
+- command: go test -count=1 -run Matrix ./tests/e2e
+  covers: [A4]
+- command: make shared-config-check lint
+  covers: [A1, A4]
+implementation_commit: null

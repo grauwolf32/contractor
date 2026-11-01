@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-77 open tasks: 11 in progress, 55 pending, 11 deferred. 1335 finished: 1317 completed, 18 archived.
+79 open tasks: 13 in progress, 55 pending, 11 deferred. 1335 finished: 1317 completed, 18 archived.
 
 ## In progress
 
@@ -13,6 +13,8 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V40-002](v40-002-agent-instruction-paired-runner.yml) | evals | feature | P1 | Prepare instruction experiment bindings and a frozen plan after format readiness |
 | [V64-014](v64-014-audit-hypothesis-assessments.yml) | audits | feature | P1 | Move the single Finding model to Project scope |
+| [V64-023](v64-023-fix-project-finding-cutover-run-fence.yml) | audits | defect | P1 | Fix the Project Finding cutover fence for retained Audit Runs |
+| [V64-024](v64-024-flush-cutover-deferred-checks.yml) | audits | defect | P1 | Flush deferred reference checks before cutover DDL |
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V401-007](v401-007-runtime-suite-on-macos.yml) | quality | chore | P3 | Make the Runtime suite pass on macOS: declare the Linux-only Podman tests, make the other tests portable and file the macOS defects |
@@ -102,7 +104,6 @@ the epics are in [epics.yml](epics.yml).
 | [V64-016](v64-016-audit-research-ranking-evaluation.yml) | chore | P2 | V64-005, V64-011 | Evaluate optional Audit ranking against the deterministic baseline |
 | [V64-017](v64-017-audit-attack-tree-projection.yml) | feature | P2 | V64-011 | Project optional attack trees over retained research conclusions |
 | [V64-018](v64-018-audit-research-pentest-integration.yml) | feature | P2 | V64-011, V411-020 | Compose optional hypothesis generation with ordinary HTTP Audit tasks |
-| [V64-023](v64-023-fix-project-finding-cutover-run-fence.yml) | defect | P1 | — | Fix the Project Finding cutover fence for retained Audit Runs |
 | [V411-010](v411-010-pentest-program-availability.yml) | feature | P1 | V64-002, V64-014 | Remove the remaining item and report approvals from Audit |
 | [V411-016](v411-016-pentest-proof-report.yml) | feature | P1 | V411-015, V411-014, V64-008 | Show HTTP engagement context and gaps in ordinary retained Audit reports |
 | [V417-005](v417-005-audit-worker-context-compaction.yml) | feature | P1 | V417-003, V417-004, V64-012 | Admit compaction without bypassing trusted Audit completion |
@@ -143,6 +144,7 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V425-005](v425-005-stored-size-bounds-agree.yml) | defect | P2 | — | Make Go validation, stored-size CHECKs and the limits registry agree on every remaining column |
 | [V425-015](v425-015-optional-filter-generic-plans.yml) | chore | P3 | — | Measure the generic plans of optional-filter predicates and bound the ones that scan |
+| [V428-002](v428-002-fold-project-finding-migrations.yml) | chore | P2 | V64-023 | Fold the verified Project Finding schema into one baseline |
 
 ### Quality, CI and process (`quality`)
 
@@ -190,11 +192,11 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 2 | 17 | 8 | 9 | 14 |
 | Workflow catalog and document workflows (`workflows`) | 5 | 19 | 15 | 16 | 20 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 36 | 37 | 11 | 60 |
-| Audits (`audits`) | 19 | 67 | 88 | 36 | 131 |
+| Audits (`audits`) | 20 | 67 | 89 | 36 | 133 |
 | Evaluations (`evals`) | 6 | 21 | 39 | 15 | 49 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |
 | Web UI (`ui`) | 2 | 34 | 68 | 24 | 66 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 18 | 45 | 9 | 21 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 38 | 25 | 16 |
-| PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 27 | 46 | 17 |
+| PostgreSQL persistence and schema (`persistence`) | 4 | 0 | 27 | 47 | 17 |
 | Quality, CI and process (`quality`) | 10 | 1 | 29 | 118 | 26 |

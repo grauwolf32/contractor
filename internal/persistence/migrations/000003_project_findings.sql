@@ -1,11 +1,16 @@
--- Switching requires a drained Server. Never strand an in-flight old
--- contract or discard an uncollected result; the operator finishes collection
--- with the previous revision before retrying this atomic migration.
-LOCK TABLE workflow_runs,audits,audit_executions IN SHARE ROW EXCLUSIVE MODE;
+-- Apply offline after normal Run release/collection and retirement. A terminal
+-- Audit Run still owns an FK to its execution until normal Run deletion finishes.
+LOCK TABLE workflow_runs,audits,audit_executions,stage_executions,stage_allocations IN SHARE ROW EXCLUSIVE MODE;
 DO $$ BEGIN
  IF EXISTS(SELECT 1 FROM workflow_runs WHERE state NOT IN ('succeeded','failed','cancelled'))
- OR EXISTS(SELECT 1 FROM audit_executions WHERE state<>'collected') THEN
- RAISE EXCEPTION 'finish and collect current Runs before switching to Project Findings' USING ERRCODE='23514';
+ OR EXISTS(SELECT 1 FROM audit_executions WHERE state<>'collected')
+ OR EXISTS(SELECT 1 FROM stage_allocations allocation JOIN stage_executions execution USING(stage_execution_id)
+           JOIN workflow_runs run USING(run_id) WHERE allocation.release_completed_at IS NULL) THEN
+ RAISE EXCEPTION 'finish, release and collect current Runs before switching to Project Findings' USING ERRCODE='23514';
+ END IF;
+ IF EXISTS(SELECT 1 FROM workflow_runs run JOIN audit_executions execution ON execution.execution_id=run.audit_execution_id) THEN
+ RAISE EXCEPTION 'retire retained Audit-managed Runs through normal Run deletion before switching to Project Findings'
+ USING ERRCODE='23514',HINT='Keep required Project results/materials, then delete released collected Audit Runs through DELETE /v1/runs/{run_id}; ordinary Runs stay.';
  END IF;
 END; $$;
 
@@ -301,7 +306,10 @@ DELETE FROM audit_execution_items;
 DELETE FROM audit_items;
 DELETE FROM audit_executions;
 DELETE FROM audit_rounds;
+-- Finish deferred item/execution reference checks before changing those tables.
+-- This stays inside the same atomic migration transaction and keeps every FK.
 DELETE FROM audits;
+SET CONSTRAINTS ALL IMMEDIATE;
 ALTER TABLE audit_items ENABLE TRIGGER audit_items_protect_prepared;
 
 -- Old Findings need no execution compatibility or live source records. Release

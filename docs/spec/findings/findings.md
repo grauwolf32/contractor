@@ -1843,7 +1843,11 @@ Findings, receipts and ordinary Artifacts through bounded owner cleanup; no orph
 hold may block the parent. A deleting Project admits no new publication or edit.
 
 **FND-R215.** The pre-release cutover is one atomic transformation after current
-Runs have finished and their results have been collected. It preserves old Audit
+Runs have finished, all allocations have completed release and their results have
+been collected. Before migration, retain required Project results/materials and
+retire old Audit-managed Runs through ordinary terminal Run deletion (DEL-R16,
+DEL-R17, DEL-R22, DEL-R58). The initial fence rejects any remaining Run-to-execution
+reference before archive or schema mutation. Ordinary Runs remain. It preserves old Audit
 snapshots, exact result bytes and fact/selection metadata as opaque immutable
 ordinary Project Artifacts, then removes executable old Audit rows and old
 operational Finding/intake rows. The new operational model starts empty. Working

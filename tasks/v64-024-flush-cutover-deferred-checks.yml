@@ -1,0 +1,44 @@
+schema_version: '1.0'
+id: V64-024
+title: Flush deferred reference checks before cutover DDL
+milestone: audit-check-prioritization
+epic: audits
+kind: defect
+introduced_by: V64-014
+priority: P1
+status: in_progress
+depends_on: []
+languages: [go, sql, markdown]
+goal: The atomic Project Finding cutover completes on collected execution items with deferred reference events.
+context:
+  authority: >-
+    Discovered 2026-11-02 during the user-authorized V64-023/demo migration rehearsal on a verified
+    disposable restore. This is a prerequisite to the requested cutover, not another cleanup subsystem.
+  finding: >-
+    internal/persistence/migrations/000003_project_findings.sql clears audit_items.last_execution_item_id
+    and deletes execution items, then ALTERs audit_execution_items with pending deferred FK events,
+    failing SQLSTATE 55006. Live demo data has not been migrated.
+  specification:
+  - docs/spec/findings/findings.md#FND-R215
+  - docs/spec/platform/persistence.md
+  decision: >-
+    Flush deferred checks within the same migration transaction after retiring the old rows and
+    before subsequent DDL. Preserve every FK and rollback guarantee; splitting transaction phases,
+    disabling constraints or retaining old models is unnecessary and rejected.
+scope:
+  in:
+  - Complete deferred reference checks at the one-time DML-to-DDL boundary.
+  - Regress a collected execution item with an item backreference on real PostgreSQL.
+  out:
+  - New runtime compatibility, purge services, permanent constraint changes or non-atomic migration.
+acceptance_criteria:
+- id: A1
+  text: The populated item/backreference fixture reproduces 55006 before the fix and migrates with its immutable history preserved after it.
+- id: A2
+  text: The migration stays atomic and ordinary Run/Project material preservation and existing migration tests pass.
+tests:
+- command: go test -tags=integration -count=1 ./internal/persistence/postgres/...
+  covers: [A1, A2]
+- command: make lint
+  covers: [A2]
+implementation_commit: null

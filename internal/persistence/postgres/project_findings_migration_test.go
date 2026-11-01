@@ -29,6 +29,14 @@ func TestProjectFindingMigrationArchivesAuditsAndDropsOldFindings(t *testing.T) 
 	if _, err := pool.Exec(ctx, string(fixture)); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := pool.Exec(ctx, `INSERT INTO workflow_runs(run_id,owner_id,project_id,workflow_name,workflow_version,workflow_schema_version,workflow_snapshot,runtime_labels,runtime_config_snapshot,scheduler_lane_class,state,state_reason_code,finished_at)
+ VALUES('ordinary-retained-run','migration-owner','migration-project','fixture','1','v1','{}','{}',$1::jsonb,'tool','succeeded','fixture',clock_timestamp())`, builtInRunRuntimeSnapshot); err != nil {
+		t.Fatal(err)
+	}
+	var ordinaryBefore string
+	if err := pool.QueryRow(ctx, `SELECT to_jsonb(run)::text FROM workflow_runs run WHERE run_id='ordinary-retained-run'`).Scan(&ordinaryBefore); err != nil {
+		t.Fatal(err)
+	}
 	var before string
 	if err := pool.QueryRow(ctx, "SELECT jsonb_agg(to_jsonb(hold) ORDER BY receipt_id)::text FROM finding_proposal_audit_holds AS hold").Scan(&before); err != nil {
 		t.Fatal(err)
@@ -65,6 +73,14 @@ func TestProjectFindingMigrationArchivesAuditsAndDropsOldFindings(t *testing.T) 
 	if err := pool.QueryRow(ctx, "SELECT bool_or(convert_from(b.payload,'UTF8')::jsonb#>>'{original,verdict}'='true_positive'),bool_or(convert_from(b.payload,'UTF8')::jsonb#>>'{original,verdict}'='duplicate') FROM artifact_binding_revisions r JOIN artifact_versions v USING(version_id) JOIN artifact_blobs b ON b.sha256=v.blob_sha256 WHERE r.namespace='historical-audits'").Scan(&confirmed, &duplicate); err != nil || !confirmed || !duplicate {
 		t.Fatalf("original annotations lost: confirmed=%v duplicate=%v err=%v", confirmed, duplicate, err)
 	}
+	var ordinaryAfter string
+	if err := pool.QueryRow(ctx, `SELECT to_jsonb(run)::text FROM workflow_runs run WHERE run_id='ordinary-retained-run'`).Scan(&ordinaryAfter); err != nil || ordinaryBefore != ordinaryAfter {
+		t.Fatalf("ordinary Run changed: %v", err)
+	}
+	if result, err := ApplyMigrations(ctx, pool, MigrationBudgets{}); err != nil || len(result.AppliedVersions) != 0 {
+		t.Fatalf("replay: %+v %v", result, err)
+	}
+
 }
 
 func TestProjectFindingMigrationRejectsUndrainedRunsAtomically(t *testing.T) {

@@ -1,0 +1,57 @@
+{
+  "authority": "User requested V64-023 and demo update, 2026-11-02",
+  "before_fix": {
+    "retained_terminal_runs_sqlstate": "23503",
+    "collected_item_backreference_sqlstate": "55006"
+  },
+  "after_fix": {
+    "initial_retained_run_fence": "23514 before any archive/schema writes",
+    "deferred_checks": "SET CONSTRAINTS ALL IMMEDIATE inside same migration transaction"
+  },
+  "rehearsal": {
+    "status": "passed",
+    "retired_runs": 18,
+    "retained_outputs": 13,
+    "ordinary_runs_signature": "12:4ed1cb6395bbdcb15235c5258bfbde72",
+    "original_project_material_revisions": 150,
+    "ordinary_runs_unchanged": true,
+    "original_project_materials_unchanged": true,
+    "projects_unchanged": true,
+    "applied_ledger": [
+      {
+        "version": 1,
+        "name": "000001_baseline.sql",
+        "checksum": "8e99174cbbb0f4ee8f9ebb8510ea6372d36bd024e6e7630b524a2734e918df71",
+        "applied_at": "2026-10-31T22:48:57.929374+03:00"
+      },
+      {
+        "version": 2,
+        "name": "000002_remove_scan_sweeps.sql",
+        "checksum": "445e602902e04c5c815bdfefff74c41dea1839c7f88ef530b75d7c3960e723ba",
+        "applied_at": "2026-10-31T22:48:57.932589+03:00"
+      },
+      {
+        "version": 3,
+        "name": "000003_project_findings.sql",
+        "checksum": "5352e047824c027a4da93b7b6926462ddff6a232df8231dc47e810ac3bd0156e",
+        "applied_at": "2026-11-02T01:23:41.219179+03:00"
+      }
+    ],
+    "history_bindings": 459
+  },
+  "verified_backup": {
+    "database": "/Users/ruslan/src/contractor/.local/demo/backups/before-v64-023-20261101T221559Z.dump",
+    "database_sha256": "959011fc9f74ad2744a9b266fdd98f4f54b24e6b01e660e2f5ac9592033e21ec",
+    "files": "/Users/ruslan/src/contractor/.local/demo/backups/before-v64-023-20261101T221559Z.tar.gz",
+    "files_sha256": "3fc7534ce18b791ef052584650f9c0c9c7b53c0caa378ee0f5dd88afc8a9d47c",
+    "restore_log": "/Users/ruslan/src/contractor/.local/demo/backups/before-v64-023-20261101T221559Z.restore.log",
+    "verified_file_count": 366,
+    "verified_table_count": 73
+  },
+  "tests": {
+    "postgres_and_deletion_packages": "/tmp/v64023-24-tests.log",
+    "lint": "/tmp/v64023-24-lint.log",
+    "require_database": "/tmp/v64023-require-backlog.log"
+  },
+  "migration_sha256": "5352e047824c027a4da93b7b6926462ddff6a232df8231dc47e810ac3bd0156e"
+}
