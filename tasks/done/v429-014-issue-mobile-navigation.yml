@@ -6,7 +6,7 @@ epic: ui
 kind: chore
 introduced_by: V429-010
 priority: P3
-status: in_progress
+status: completed
 depends_on: [V429-013]
 languages: [css]
 goal: Keep Previous, position and Next readable on one mobile row, with the check link on its own row below.
@@ -55,3 +55,4 @@ verification:
     fixtures, SHA-256 manifest, red/green logs and screenshots preserved in the
     host mobile-nav-v9-20261101 directory. The original and all earlier preview
     versions remain intact. This branch has not been merged or deployed.
+implementation_commit: 2ea98a856c1d37748f1e7f65c92a2e7d0264a85c
