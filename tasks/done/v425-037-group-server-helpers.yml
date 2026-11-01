@@ -5,7 +5,8 @@ milestone: hub-audit-structure-2026-10
 epic: quality
 kind: chore
 priority: P3
-status: in_progress
+status: completed
+implementation_commit: 6cb7bbb0bde6f9c8dad14fcd8b4030fddf8cc2b1
 depends_on: []
 languages: [go]
 goal: Reduce visual clutter in the Server package tree while retaining the existing helper APIs, behavior and dependency boundaries.
@@ -70,8 +71,26 @@ implementation_notes:
     docs-dependencies because its fingerprint includes implementation source
     bytes. Historical tasks, evidence records and research notes are retained.
   - >-
-    A temporary AST/token comparison against HEAD confirmed unchanged
+    A temporary AST/token comparison against base commit
+    09ab84494089eb14152254bfcc0e5c2448106299 confirmed unchanged
     production declarations in all 273 changed production Go files after
     excluding import declarations and normalizing relocated source paths.
     Production Go line count is unchanged; this task improves navigation,
     not runtime architecture or execution cost.
+verification: >-
+  2026-11-01: go test -json -count=1 ./... passed against the dedicated
+  contractor_helpers_20261101 PostgreSQL database over TCP: 109 packages
+  passed, 25 packages had no test files, and 10,707 tests/subtests passed.
+  Ten optional/platform tests skipped: three APFS Unicode fixture cases,
+  one root-only file ownership case, one GPU smoke test, one pinned LiteLLM
+  contract, one external OTLP collector and three live model/project cases.
+  No database-unset skips occurred. An initial Unix-socket database URL
+  failed TCP proxy/keepalive tests; the complete TCP rerun succeeded.
+  Complete make lint passed after the separately tracked V425-038 repaired
+  the pre-existing archived Audit export-baseline references. This includes
+  tagged Go static checks, the export-tool suite, task/spec/shared-fixture/ERD
+  guards, UI gates, deployment-script checks and all four Runtime import
+  contracts. Moved helper/source guards and architecture tests passed within
+  the full Go suite. The isolated worktree leaves the original checkout's
+  three uncommitted documentation paths unchanged. No complete release gate
+  or live-model verification is claimed; the branch remains unmerged.
