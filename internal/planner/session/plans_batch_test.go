@@ -69,9 +69,14 @@ func TestPlannerStateRejectsRemovedTokenCounters(t *testing.T) {
 	}
 }
 
-func (s *batchPlanTestStore) GetPlannerSessions(context.Context, []string) (map[string]runstore.PlannerSession, error) {
+func (s *batchPlanTestStore) ReadPlannerSessions(_ context.Context, _ []string, consume func(runstore.PlannerSession) error) error {
 	s.calls++
-	return s.sessions, nil
+	for _, session := range s.sessions {
+		if err := consume(session); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 func (*batchPlanTestStore) GetPlannerSession(context.Context, string) (runstore.PlannerSession, error) {
 	panic("per-session read in batch path")

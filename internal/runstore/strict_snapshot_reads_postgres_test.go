@@ -168,6 +168,8 @@ WHERE run_id = $1`, audited.RunID); err != nil {
 		ExecutionManifest: contracts.ArtifactRef{Namespace: "inputs", Name: "manifest", Revision: &revision},
 		ResultArtifact:    contracts.ArtifactRef{Namespace: "check", Name: "result"},
 	}
+	allocationCompletion := completion
+	allocationCompletion.ResultArtifact.Namespace = allocation.Namespace
 	runRow := func(column, member string, valid func(*testing.T) []byte) strictReadCase {
 		return strictReadCase{
 			table: "workflow_runs", column: column, keyColumn: "run_id", id: run.RunID, member: member,
@@ -217,7 +219,7 @@ WHERE run_id = $1`, audited.RunID); err != nil {
 			Outcome: TerminationInterrupted, Code: "runtime_unavailable", Message: "Runtime Agent became unavailable",
 			Retryable: true, Phase: TerminationPreparing, OccurredAt: time.Now().UTC(),
 		})),
-		"allocation completion contract": allocationRow("completion_contract", "kind", marshal(completion)),
+		"allocation completion contract": allocationRow("completion_contract", "kind", marshal(allocationCompletion)),
 		"allocation AgentTemplate ref":   allocationRow("agent_template_ref", "templateId", stored("allocation AgentTemplate ref")),
 		"allocation WorkerRuntime ref":   allocationRow("worker_runtime_ref", "runtimeId", stored("allocation WorkerRuntime ref")),
 		"allocation Runtime configuration": allocationRow(
