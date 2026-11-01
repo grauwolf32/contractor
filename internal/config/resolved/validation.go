@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 )
 
 // The checks below are shared by the catalog loader, which applies them to
