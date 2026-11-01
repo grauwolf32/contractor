@@ -1,0 +1,26 @@
+specification {
+  element actor { style { shape person } }
+  element service
+  element database { style { shape storage } }
+}
+model {
+  customer = actor 'Customer'
+  web = service 'Storefront'
+  api = service 'Orders API'
+  database = database 'Orders database'
+  customer -> web 'Browses orders'
+  web -> api 'HTTPS / JSON'
+  api -> database 'Reads and writes orders'
+}
+views {
+  view overview {
+    title 'System overview'
+    include *
+    autoLayout LeftRight
+  }
+  view backend {
+    title 'Backend services'
+    include api, database
+    autoLayout LeftRight
+  }
+}
