@@ -13,6 +13,7 @@ spec:
   executionConfig:
     workers:
       llmGateway: local-litellm@1
+      modelPolicy: worker@1
 
   entryStage: copy
   stages:

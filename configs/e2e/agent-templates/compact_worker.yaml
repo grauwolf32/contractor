@@ -10,7 +10,6 @@ spec:
   runtime: adk@1
   instructions:
     ref: instructions/worker-summarizer.md
-  modelPolicy: compact_worker@1
   toolsets:
     - ref: text-artifacts@1
       tools: [write_text_artifact]

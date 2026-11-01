@@ -38,11 +38,29 @@ spec:
       modelPolicy: planner@2
       llmGateway: local-litellm@1
       credential: development-planner
+      compactorModelPolicy: compactor@1
     workers:
       modelPolicy: worker@2
       llmGateway: local-litellm@1
       credential: development-worker
 
+    stages:
+      dependency_discovery:
+        agents:
+          analyst:
+            summarizerModelPolicy: summarizer@1
+      project_discovery:
+        agents:
+          analyst:
+            summarizerModelPolicy: summarizer@1
+      likec4_build:
+        agents:
+          builder:
+            summarizerModelPolicy: summarizer@1
+      likec4_validate:
+        agents:
+          validator:
+            summarizerModelPolicy: summarizer@1
   entryStage: dependency_discovery
   stages:
     dependency_discovery:
@@ -52,7 +70,6 @@ spec:
       planner: streamline@1
       plannerContextManagement: &planner_compaction
         strategy: compact@1
-        modelPolicy: compactor@1
         instructions:
           ref: instructions/planner-compaction.md
       agents:

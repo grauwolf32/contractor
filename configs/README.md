@@ -429,3 +429,16 @@ submission. Run history shows requested aliases and exact policy digests per
 consumer; provider weight revisions remain unknown unless observed. Context
 capacity comes from the profile, role spending/output budgets from `roles.yaml`,
 and the terminal-summary trigger and instructions from the AgentTemplate.
+
+Worker model selection belongs to Workflow `spec.executionConfig`. AgentTemplate
+contains instructions, tools, Skills and optional summarizer behavior. Every
+modeled binding needs an effective `modelPolicy`; terminal summarization also
+needs `summarizerModelPolicy`. Use Workflow-wide defaults for shared selections
+and Stage/agent selections for exceptions, for example a small model for a
+bounded secret review Worker and a stronger model for a deeper source review.
+YAML anchors can reuse these selections within the same Workflow document.
+
+Planner compaction follows the same split: select its `compactorModelPolicy`
+in Workflow `executionConfig.planner` or the Stage's Planner execution selection.
+`plannerContextManagement` contains the strategy, instructions and thresholds.
+It contains no model selection; summary continuations use the same grammar.

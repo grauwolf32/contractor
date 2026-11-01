@@ -1175,7 +1175,7 @@ Terms used across the specification. Each entry names the document that owns the
 
 **Worker runtime factory** — An in-process factory, known by an exact WorkerRuntime ref such as adk@1, that creates the Worker instance of an allocation. Owner: [Runtime Agent](execution/runtime-agent.md).
 
-**Worker summarizer** — The optional one-shot terminal summarization policy of an `adk@1` AgentTemplate, with fixed `terminal@1` semantics and its own ModelPolicy. Owner: [Agent templates](configuration/agent-templates.md).
+**Worker summarizer** — The optional one-shot terminal summarization policy of an `adk@1` AgentTemplate, with fixed `terminal@1` semantics and a separate ModelPolicy selected by Workflow. Owner: [Agent templates](configuration/agent-templates.md).
 
 **WorkerCompletion / `workerCompletion`** — (1) **WorkerCompletion**: The versioned private A2A union that carries exactly one WorkerResult or WorkerFailure plus invocation and state-revision control metadata. Owner: [Worker](execution/worker.md). (2) **`workerCompletion`**: The field of an AuditProfile check-workflow binding that selects the contract kind and, through stage and agent, the one logical Worker it applies to. Owner: [Audit Worker completion](audits/worker-completion.md).
 

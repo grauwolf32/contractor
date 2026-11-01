@@ -145,7 +145,6 @@ class SandboxProfileRef(BaseModel):
 
 
 class WorkerSummarizerConfig(BaseModel):
-    model_policy: ModelPolicyRef
     instructions: ResolvedInstructions | None = None
     context_window_ratio: float = 0.9
     cumulative_budget: int | None = None
@@ -157,7 +156,6 @@ class AgentTemplate(BaseModel):
     runtime: WorkerRuntimeRef
     instructions: ResolvedInstructions
     skills: list[ArtifactRef] = Field(default_factory=list)
-    model_policy: ModelPolicyRef
     summarizer: WorkerSummarizerConfig | None = None
     toolsets: list[ToolsetSelection]
     sandbox_profile: SandboxProfileRef
@@ -172,9 +170,7 @@ flowchart LR
     T --> RT["runtime: WorkerRuntimeRef"]
     T --> I["instructions: ResolvedInstructions"]
     T --> SK["skills: versionless ArtifactRef set"]
-    T --> MP["model_policy: ModelPolicyRef"]
     T --> SU["summarizer: WorkerSummarizerConfig, optional"]
-    SU --> SMP["model_policy: ModelPolicyRef"]
     SU --> SI["instructions: ResolvedInstructions, optional"]
     T --> TS["toolsets: ToolsetSelection list"]
     TS --> TR["ref: ToolsetRef"]
@@ -194,10 +190,9 @@ every modeled consumer.
 
 ```mermaid
 flowchart TB
-    L1["1. AgentTemplate ModelPolicy, Worker only"] --> L2["2. Workflow-wide defaults"]
-    L2 --> L3["3. Workflow Stage and binding defaults"]
-    L3 --> L4["4. Captured deployment defaults for canonical role policies"]
-    L4 --> L6["5. Inline escalation, using the same captured defaults"]
+    L2["1. Workflow-wide defaults"] --> L3["2. Workflow Stage and binding defaults"]
+    L3 --> L4["3. Captured deployment defaults for canonical role policies"]
+    L4 --> L6["4. Inline escalation, using the same captured defaults"]
     L6 --> R["ResolvedExecutionConfig per consumer: ModelPolicy, Gateway, credential"]
     L6 -.-> P["Worker llmGateway and credential leaves: Workflow baseline and escalation patch kept separately"]
     P -.->|"Worker route, possibly incomplete until placement"| R
@@ -222,7 +217,7 @@ regardless of the file name.
 **TPL-R2.** `spec` contains the mandatory `description`, `runtime`, `toolsets`
 and `sandboxProfile` fields. Unknown fields and duplicate YAML mapping keys are
 invalid. For `runtime: adk@1`, `spec` also contains the mandatory
-`instructions` and `modelPolicy` fields, for six mandatory fields in all, and
+`instructions` field, for five mandatory fields in all, and
 the optional `skills` and `summarizer` fields; these model fields are absent in
 the `tool@1` variant (TPL-R5). The fields are:
 
@@ -235,14 +230,12 @@ the `tool@1` variant (TPL-R5). The fields are:
   policy (TPL-R115);
 - `instructions` (mandatory for `adk@1`): exactly the mandatory `ref`
   (TPL-R7);
-- `modelPolicy` (mandatory for `adk@1`): an exact ModelPolicy selector
-  (TPL-R15);
 - `skills` (optional for `adk@1`): the versionless Agent Skill ArtifactRef set;
   omission is equivalent to an empty set (TPL-R11);
 - `summarizer` (optional for `adk@1`): the one-shot terminal summarization
   policy (TPL-R47).
 
-`runtime`, `modelPolicy` and `sandboxProfile` use the shared `<id>@<version>`
+`runtime` and `sandboxProfile` use the shared `<id>@<version>`
 selector grammar ([Configuration catalog](catalog.md)).
 
 ### Worker runtime
@@ -303,7 +296,7 @@ examples are ordinary text: the instruction has no placeholder grammar, neither
 Server nor Runtime Agent rejects braces, and no session State or artifact value
 is substituted into the text ([Worker](../execution/worker.md), WRK-R166).
 
-**TPL-R9.** ModelPolicy, Toolset selections and SandboxProfile are
+**TPL-R9.** Toolset selections and SandboxProfile are
 framework-neutral Contractor data. An ADK Worker adapter translates them into
 runtime configuration only when an allocation is prepared.
 
@@ -355,17 +348,16 @@ spec:
 
 ### ModelPolicy
 
-**TPL-R15.** For `runtime: adk@1`, ModelPolicyCatalog resolves the mandatory
-`spec.modelPolicy` selector before the AgentTemplate is accepted. The resolved
-`ModelPolicyRef(policy_id, version, digest)` and complete validated policy body
-are embedded in the resolved AgentTemplate and in AllocationSpec; Runtime Agent
-performs no policy-catalog lookup. The exact ref contributes to the enclosing
-AgentTemplate digest.
-
-```yaml
-spec:
-  modelPolicy: worker@2
-```
+**TPL-R15.** Workflow executionConfig selects the main ModelPolicy for every
+`adk@1` Worker. AgentTemplate contains neither `spec.modelPolicy` nor
+`spec.summarizer.modelPolicy`; strict authoring, public projections and resolved
+wire objects reject these fields, including null. Workflow resolution validates
+the selected policy against the Worker's tools, Skills and terminal summarizer
+behavior. AllocationSpec carries the effective policy separately with its exact
+ref, digest and body. Changing a policy does not change the AgentTemplate digest.
+This boundary keeps reusable behavior independent of cost and model capability;
+reopen it only if a concrete Worker behavior cannot express its compatibility
+requirements through consumer validation.
 
 **TPL-R16.** ModelPolicy is one shared, immutable kind usable by Planner and
 Worker consumers. It owns the logical LLM Gateway model alias and the portable
@@ -538,8 +530,9 @@ filtering and tool-call accounting are owned by [Skills](../tools/skills.md).
 When `skills` is non-empty, AgentTemplateCatalog rejects any selected
 Contractor Toolset operation named `list_skills`, `load_skill` or
 `load_skill_resource`, so the model-visible function namespace remains
-unambiguous, and it validates the Worker ModelPolicy as tool-using (TPL-R28)
-even when the ordinary `toolsets` list is empty.
+unambiguous. Workflow and allocation validation treat the effective Worker
+ModelPolicy as tool-using (TPL-R28), even when the ordinary `toolsets` list is
+empty.
 
 No Toolset is implicit: memory tools, workspace filesystem and edit tools, and
 every other Toolset reach a Worker only through this allowlist. Their
@@ -580,7 +573,6 @@ and their `code-execution@1` Toolset are specified in
 block; omission disables terminal summarization. The object is closed and
 contains:
 
-- a mandatory exact `modelPolicy` selector;
 - optional `instructions: {ref: ...}`, resolved by the instruction-file loader
   into a block that carries the exact ref, SHA-256 digest and text;
 - optional `contextWindowRatio`, defaulted to `0.9` during resolution, required
@@ -602,8 +594,8 @@ schema.
 
 **TPL-R49.** The summarizer uses the same pinned Worker LLMGatewayConfig and
 credential as the normal Worker, but its own exact ModelPolicy and model alias,
-which must be a Worker summarizer policy (TPL-R31). Multiple AgentTemplates may
-reuse one exact common summarizer ModelPolicy.
+selected by Workflow `summarizerModelPolicy`, which must be a Worker summarizer
+policy (TPL-R31). Several consumers may reuse one exact common policy.
 
 **TPL-R50.** Configured summarizer instructions must contain non-blank text of
 at most 8,000 Unicode characters, including whitespace and newlines
@@ -616,11 +608,10 @@ instructions.
 The checked-in catalog selects `instructions/terminal-summarizer.md`
 explicitly.
 
-**TPL-R52.** The resolved summarizer block and its exact ModelPolicy are
-included in the AgentTemplate digest (TPL-R58), in the immutable Run snapshot
-and in AllocationSpec; the exact summarizer instruction text is pinned in the
-Run and in AllocationSpec. Runtime verifies the digests before Worker
-construction (TPL-R63).
+**TPL-R52.** The resolved summarizer behavior is included in the AgentTemplate
+digest (TPL-R58). Its exact instructions and the separately selected summary
+ModelPolicy are pinned in the immutable Workflow, Run and AllocationSpec.
+Runtime verifies both template and policy digests before construction (TPL-R63).
 
 **TPL-R53.** Labels may select the same physical Worker Gateway route
 ([Runtime configuration](runtime-config.md)) but cannot enable summarization or
@@ -655,7 +646,7 @@ changes with it ([CAT-R74](catalog.md)).
 `<id>@<version>` selector ([Configuration catalog](catalog.md)); `latest`,
 ranges and unversioned aliases are invalid.
 
-**TPL-R56.** Any change to the template's instructions, policy, summarizer,
+**TPL-R56.** Any change to the template's instructions, summarizer behavior,
 tools or normalized logical skill-ref set creates a new digest and, outside the
 pre-production shipped catalog ([CAT-R74](catalog.md)), a new version.
 Omitted `skills` and explicit `skills: []` are the same empty body. Writing a
@@ -680,12 +671,11 @@ representation:
   text is carried beside the manifest and need not be duplicated inside it;
 - a non-empty `skills` set appears as sorted logical `{namespace,name}` refs
   with no revision; the property is omitted for the empty set;
-- an optional summarizer appears with its exact ModelPolicy ref, normalized
-  context-window ratio and optional cumulative budget; when its own
+- an optional summarizer appears with its normalized context-window ratio and optional cumulative budget; when its own
   instructions are configured, their resolved `{ref, digest}` is also included,
   and omitting them adds no member to the manifest; the normalized boolean
   `includeReasoning` is always included, whether `true` or `false`;
-- every model, toolset and sandbox reference appears in its normalized exact
+- every runtime, toolset and sandbox reference appears in its normalized exact
   form;
 - the computed AgentTemplate digest itself is the only AgentTemplate field
   excluded from the input.
@@ -707,14 +697,14 @@ resolved template.
 
 **TPL-R62.** The complete template is resolved before capacity preparation and
 passed in AllocationSpec rather than fetched by the Worker at task time.
-AllocationSpec carries the normalized manifest, the resolved instruction text,
-the resolved default ModelPolicy dependency, the optional summarizer
-ModelPolicy and the separately selected effective Worker ModelPolicy body, each
-with its exact ref. executionConfig may thereby select another compatible
-published ModelPolicy without mutating the AgentTemplate.
+AllocationSpec carries the normalized template, the resolved instruction text
+and the separately selected effective main and, for terminal summarization,
+summary ModelPolicy bodies with exact refs. Different Workflows or bindings may
+reuse the same template with different compatible policies.
 
 **TPL-R63.** Before creating the Worker, Runtime Agent verifies the instruction
-digest, every policy dependency digest and the enclosing AgentTemplate digest.
+digest and the enclosing AgentTemplate digest, plus the separately selected
+main and summary policy digests.
 A mismatch fails preparation with the non-retryable `template_digest_mismatch`
 (FAIL-TPL-2); Runtime Agent never silently recomputes a new identity or fetches
 replacement configuration content.
@@ -797,10 +787,9 @@ hide the Workflow (FAIL-TPL-3, LIFE-TPL-1).
 **TPL-R79.** Server resolves one effective configuration for every modeled
 consumer in this order, with later values winning:
 
-1. the AgentTemplate's ModelPolicy, for a Worker;
-2. Workflow-wide execution defaults;
-3. Workflow Stage and binding defaults;
-4. captured deployment model defaults for canonical role policies (TPL-R111).
+1. Workflow-wide execution defaults;
+2. Workflow Stage and binding defaults;
+3. captured deployment model defaults for canonical role policies (TPL-R111).
 
 **TPL-R80.** For an escalated attempt only, the selected Stage transition's
 escalation executionConfig is applied as a final layer, with canonical role
@@ -958,9 +947,11 @@ to a tool Worker or a Passthrough Planner.
 **TPL-R112.** `summarizerModelPolicy` independently selects an exact compatible
 one-shot summary policy for a Worker whose AgentTemplate already enables terminal
 summarization. It cannot enable a summary, alter its instructions, ratio or
-cumulative trigger, and is invalid for a Planner or model-free Worker. Omission
-uses the template's summary policy unless a canonical deployment role default
-applies. Workflow defaults and escalation follow TPL-R79 and TPL-R80. Credential
+cumulative trigger, and is invalid for a Planner or model-free Worker. Every
+terminal consumer requires an explicit effective Workflow selection; there is
+no template fallback. Explicit canonical role refs may materialize captured
+deployment defaults. Workflow defaults and escalation follow TPL-R79 and
+TPL-R80. Credential
 model authorization checks both effective main and summary policies. The
 AgentTemplate body and its digest remain unchanged. A Workflow binding that
 selects `compact@1` replaces the template summarizer for that binding
@@ -976,10 +967,12 @@ never relabels historical execution.
 
 **TPL-R117.** `compactorModelPolicy` selects the exact tool-free compactor
 policy of a `compact@1` Planner ([PLN-R125](../execution/planners.md)). The
-Stage's `plannerContextManagement.modelPolicy` is its lowest-precedence
-origin, `workflow.stages.<name>.plannerContextManagement`; a Workflow
-`executionConfig.planner` and an escalation Planner
-selection replace it with the precedence of TPL-R79 and TPL-R80. A Planner
+effective selection comes only from Workflow executionConfig (Workflow-wide
+or Stage-specific Planner leaves) and the existing escalation Planner selection,
+with the precedence of TPL-R79 and TPL-R80. `compact@1` requires an explicit
+compatible selection; `plannerContextManagement` owns only behavior and rejects
+`modelPolicy`. Ordinary Stages and summary continuations use the same closed
+context grammar. A Planner
 selection that names `compactorModelPolicy` applies only to `compact@1`
 Stages: a selection that would apply it to no such Stage, a Worker selection
 and an Agent binding selection are invalid. It cannot enable compaction or
@@ -1174,11 +1167,9 @@ spec:
   runtime: adk@1
   instructions:
     ref: instructions/openapi-builder-worker-memory.md
-  modelPolicy: worker@2
   summarizer:
     instructions:
       ref: instructions/terminal-summarizer.md
-    modelPolicy: summarizer@1
     contextWindowRatio: 0.8
   toolsets:
     - ref: memory-tools@1
@@ -1238,12 +1229,12 @@ spec:
         - validate_openapi
 ```
 
-A terminal summarizer block:
+A terminal summarizer behavior block (the Workflow selects
+`workers.summarizerModelPolicy` separately):
 
 ```yaml
 spec:
   summarizer:
-    modelPolicy: worker-summarizer@1
     instructions:
       ref: instructions/terminal-summarizer.md
     contextWindowRatio: 0.9

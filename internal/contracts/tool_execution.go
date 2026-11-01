@@ -264,7 +264,7 @@ func (t ResolvedAgentTemplate) ValidateToolExecution() error {
 		}
 		return nil
 	}
-	if t.Execution == nil || !t.ModelPolicy.IsZero() || t.Instructions != (ResolvedInstructions{}) || t.Summarizer != nil || len(t.Skills) != 0 {
+	if t.Execution == nil || t.Instructions != (ResolvedInstructions{}) || t.Summarizer != nil || len(t.Skills) != 0 {
 		return Invalidf("tool@1 requires execution and forbids model configuration, instructions and skills")
 	}
 	if t.SandboxProfile != (SandboxProfileRef{SandboxProfileID: "local-workdir", Version: "1"}) ||

@@ -56,7 +56,10 @@ before returning any canonical document. The closed rejection is
 
 **ACT-R2.** The real configuration Snapshot resolves every selected exact
 Workflow and validates required/unknown input and parameter slots, required
-outputs and compatible canonical media types. An input mapping selects an
+outputs and compatible canonical media types. The same catalog checks apply to
+each effective initial-task input after selected-material overrides: a required
+Workflow slot must select a required Audit input; optional Workflow slots may
+select optional inputs. An input mapping selects an
 explicit Audit material, trusted task context or prior-results JSON; no arbitrary
 object paths, per-provider parsing, second Workflow graph or automatic
 cross-Workflow dependencies are interpreted by this validator. Workflow closures
@@ -103,7 +106,11 @@ through existing receipts. A continuation response does not itself trigger
 another invocation: another call requires new accepted sources or an explicit
 new decision, within pinned budgets. No model call occurs on every controller tick. A proposals document is an
 ordinary output carrying named seeds and work only; its combined record count
-obeys the mutation slice bound. Validation against the pinned program rejects
+obeys the mutation slice bound. Explicitly empty `hypotheses` and `work`
+collections are a successful no-new-proposals output. Generation is optional;
+the consumer settles this decision without creating hypotheses/tasks or
+calling the generator again for the same sources. Missing or malformed output
+is invalid, and hypothesis statements remain nonblank. Validation against the pinned program rejects
 unknown Workflow/hypothesis aliases, collisions and authored system identities.
 Optional work input selections name only available material handles from the
 trusted frozen source set. They cannot overwrite task-context/prior-results
@@ -134,7 +141,15 @@ consent cannot become an active permission; no compatibility reader, special
 policy-wait state or old-policy Resume is defined.
 
 **ACT-R10.** Numeric limits are LIM-ACT-1 through LIM-ACT-4. Existing tighter
-owner bounds still apply. Mutation limits are slice limits, not permission to
+owner bounds still apply. Each initial or generated hypothesis seed must fit
+32 KiB in its complete RFC 8785 canonical UTF-8 encoding, including statement,
+scope, grounds, member names, punctuation and JSON escaping. The check also
+applies to seeds in pinned proposal-context programs. This is a necessary early
+content bound, without guessed identity metadata; after trusted ID, revision and
+origin are assigned, the complete hypothesis document must independently fit
+32 KiB. Full hypothesis snapshots in contexts and mutation records retain that
+complete-document bound; unrelated result text retains its own limits.
+Mutation limits are slice limits, not permission to
 materialize or rescan a whole containing collection. Lists retain existing
 row/byte pagination bounds. Replays reconcile the original identity through
 existing keyed/natural receipts; they never repeat target activity merely to

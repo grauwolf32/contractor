@@ -102,7 +102,6 @@ describe("Studio configuration grammar", () => {
 
   it("holds Agent and check type selectors to the same grammar", () => {
     for (const [kind, path] of [
-      ["AgentTemplate", ["spec", "modelPolicy"]],
       ["AgentTemplate", ["spec", "runtime"]],
       ["AuditProfile", ["spec", "workflows", "check", "ref"]],
     ] as const) {

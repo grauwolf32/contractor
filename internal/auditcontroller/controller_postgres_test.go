@@ -1954,7 +1954,6 @@ spec:
   description: Produces one deterministic test result
   runtime: adk@1
   instructions: {ref: instructions/worker.md}
-  modelPolicy: worker@1
   toolsets:
     - ref: run-artifacts@1
       tools: [read_artifact, write_artifact]` + findingTools + `
@@ -1988,6 +1987,9 @@ spec:
         succeeded: {succeed: {}}
         failed: {fail: {}}
         interrupted: {fail: {}}
+  executionConfig:
+    workers:
+      modelPolicy: worker@1
 `,
 		"audit-profiles/checklist.yaml": fmt.Sprintf(`apiVersion: contractor/v1alpha1
 kind: AuditProfile

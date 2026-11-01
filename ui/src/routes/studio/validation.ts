@@ -561,15 +561,23 @@ export function validateDraft(draft: Draft): Problem[] {
     requiredString(["spec", "description"]);
     selector(["spec", "runtime"]);
     selector(["spec", "sandboxProfile"]);
+    if (spec.modelPolicy !== undefined)
+      error(
+        ["spec", "modelPolicy"],
+        "Choose the model policy in Workflow executionConfig.",
+      );
     if (spec.runtime !== "tool@1") {
-      selector(["spec", "modelPolicy"]);
       requiredString(["spec", "instructions", "ref"]);
     } else
       for (const key of ["modelPolicy", "instructions", "summarizer", "skills"])
         if (spec[key] !== undefined)
           error(["spec", key], "tool@1 forbids this field.");
     if (spec.summarizer !== undefined) {
-      selector(["spec", "summarizer", "modelPolicy"]);
+      if (record(spec.summarizer).modelPolicy !== undefined)
+        error(
+          ["spec", "summarizer", "modelPolicy"],
+          "Choose the model policy in Workflow executionConfig.",
+        );
       requiredString(["spec", "summarizer", "instructions", "ref"]);
     }
     for (const key of ["toolsets", "skills"]) {

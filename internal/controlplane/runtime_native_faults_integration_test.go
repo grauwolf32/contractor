@@ -247,12 +247,12 @@ func startNativeHarness(t *testing.T, mode string, configure ...func(*nativeHarn
 	t.Cleanup(cancel)
 	template := testTemplate(t)
 	gateway.mu.Lock()
-	gateway.model = template.ModelPolicy.Model
+	gateway.model = testWorkerPolicy(t).Model
 	gateway.mu.Unlock()
 	reservation := testReservation("allocation_native", "builder", endpoint, endpoint, template, time.Now().Add(time.Hour))
 	reservation.Grant.RuntimeAgentID = principal
 	reservation.WorkerSessionMode = contracts.WorkerSessionShared
-	settings := runtimesettings.WorkerExecutionSettings{ModelPolicy: template.ModelPolicy, RuntimeSettings: testRuntimeSettings(), ResolvedRuntimeConfigProvenance: testRuntimeProvenance()}
+	settings := runtimesettings.WorkerExecutionSettings{ModelPolicy: testWorkerPolicy(t), RuntimeSettings: testRuntimeSettings(), ResolvedRuntimeConfigProvenance: testRuntimeProvenance()}
 	settings.RuntimeSettings.LLMGatewayURL = server.URL + "/v1"
 	h := &nativeHarness{t: t, ctx: ctx, client: client, invoker: invoker, reservation: reservation, directory: directory, gateway: gateway, settings: settings, exited: exited, output: output, toolsets: 1}
 	for _, option := range configure {

@@ -10,7 +10,6 @@ spec:
   runtime: adk@1
   instructions:
     ref: instructions/budget-loop-worker.md
-  modelPolicy: bounded_worker@1
   toolsets:
     - ref: run-artifacts@1
       tools:

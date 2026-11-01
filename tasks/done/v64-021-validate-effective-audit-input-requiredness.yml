@@ -6,7 +6,7 @@ epic: audits
 kind: defect
 introduced_by: V64-001
 priority: P1
-status: pending
+status: completed
 depends_on:
 - V64-001
 languages:
@@ -19,7 +19,8 @@ goal: An initial task cannot turn a required Workflow input into an optional mis
 context:
   authority: 'User request on 2026-11-01: create fixes for the three implementation-review findings in
     completed V64-001. Preserve the accepted simple Audit task/Run/result model; these are local contract
-    corrections, not a new subsystem or authorization to start implementation now.'
+    corrections, not a new subsystem. User explicitly authorized implementing V64-020,
+    V64-021 and V64-022 on 2026-11-01.'
   review: Implementation review of main 79d2788d7 on 2026-11-01, following the delegated V64-001 delivery.
   severity: medium
   finding: internal/contracts/auditcontract/codec.go:319-333 checks override membership/media but not
@@ -118,4 +119,8 @@ test_prerequisites:
   selection is a failure.
 - On macOS use a canonical TMPDIR for the existing strict-root tests. If implementation expands into store
   behavior, report the scope change before proceeding.
-implementation_commit: null
+implementation_commit: 53a8c1d742ffaa229e85a9845ea5161d3e4c7005
+verification:
+- Before the fix, the required-to-optional override regression failed in both the loaded Snapshot suite and the actual offline CLI (2026-11-01).
+- Complete config/.../auditcontract/app suites passed after applying the same catalog-owned material check to defaults and effective selections. Required replacement and optional actual-slot scenarios pass; unknown/incompatible selections fail. The CLI now consumes loader_cases and asserts the classified error.
+- make test-wire-cross-language and make lint passed on 2026-11-01. The existing cross-language gate used a dedicated disposable PostgreSQL database and validated 367 fixtures with 392 Go and 288 Python shared tests; its Runtime selection passed 1583 tests.

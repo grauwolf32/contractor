@@ -21,11 +21,12 @@ func TestSharedWorkflowContextManagementCases(t *testing.T) {
 	var fixture struct {
 		Description string
 		Cases       []struct {
-			Name        string
-			Path        []string
-			Value       any
-			Valid       bool
-			CatalogOnly bool
+			Name            string
+			Path            []string
+			Value           any
+			Valid           bool
+			CatalogOnly     bool
+			ExecutionConfig map[string]any
 		}
 	}
 	if err := json.Unmarshal(contractstest.ReadFile(t, "api", "testdata", "workflow-context-management-cases.json"), &fixture); err != nil {
@@ -50,6 +51,9 @@ func TestSharedWorkflowContextManagementCases(t *testing.T) {
 				node = next
 			}
 			node[tc.Path[len(tc.Path)-1]] = tc.Value
+			if tc.ExecutionConfig != nil {
+				source["spec"].(map[string]any)["executionConfig"] = tc.ExecutionConfig
+			}
 			data, err := yaml.Marshal(source)
 			if err != nil {
 				t.Fatal(err)

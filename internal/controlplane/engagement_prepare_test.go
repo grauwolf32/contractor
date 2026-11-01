@@ -70,7 +70,7 @@ func TestSharedEngagementPreparePinsMetadataAndRechecksGrantAfterRead(t *testing
 				}
 				return fixture.Engagement, nil
 			}, grants)
-			_, err = client.Prepare(ctx, reservation, runtimesettings.WorkerExecutionSettings{ModelPolicy: template.ModelPolicy, RuntimeSettings: testRuntimeSettings(), ResolvedRuntimeConfigProvenance: testRuntimeProvenance()})
+			_, err = client.Prepare(ctx, reservation, runtimesettings.WorkerExecutionSettings{ModelPolicy: testWorkerPolicy(t), RuntimeSettings: testRuntimeSettings(), ResolvedRuntimeConfigProvenance: testRuntimeProvenance()})
 			if calls != 1 {
 				t.Fatalf("projection reads=%d", calls)
 			}
@@ -125,7 +125,7 @@ func TestSharedControlledPrepareMakesOnlyOrdinaryPrepareRPC(t *testing.T) {
 	client.WithEngagementResolver(func(context.Context, Reservation, runtimesettings.WorkerExecutionSettings) (*engagementcontract.AllocationProjection, error) {
 		return fixture.Engagement, nil
 	}, &projectionGrantReader{grant: reservation.Grant})
-	handle, err := client.Prepare(t.Context(), reservation, runtimesettings.WorkerExecutionSettings{ModelPolicy: template.ModelPolicy, RuntimeSettings: testRuntimeSettings(), ResolvedRuntimeConfigProvenance: testRuntimeProvenance()})
+	handle, err := client.Prepare(t.Context(), reservation, runtimesettings.WorkerExecutionSettings{ModelPolicy: testWorkerPolicy(t), RuntimeSettings: testRuntimeSettings(), ResolvedRuntimeConfigProvenance: testRuntimeProvenance()})
 	if err != nil || handle.AllocationID != "allocation" || len(calls) != 1 || !strings.HasSuffix(calls[0], "/prepare") {
 		t.Fatal(handle, calls, err)
 	}

@@ -39,7 +39,7 @@ def test_summary_checks_semantic_admission_before_model_or_attempt_charge() -> N
     import asyncio
 
     from fakes.model import json_result, scripted_model
-    from fakes.spec import allocation_spec
+    from fakes.spec import summarizer_config
 
     from contractor_runtime.worker.summarizer import TerminalSummarizer
 
@@ -48,7 +48,7 @@ def test_summary_checks_semantic_admission_before_model_or_attempt_charge() -> N
 
     async def scenario() -> None:
         model = scripted_model([json_result({"subtaskId": "1", "result": "late"})])
-        config = allocation_spec(summarizer=True).agent_template.summarizer
+        config = summarizer_config()
         assert config is not None
         summarizer = TerminalSummarizer(
             model=model,
@@ -237,13 +237,13 @@ def test_summary_uses_literal_configured_instructions() -> None:
     import asyncio
 
     from fakes.model import json_result, scripted_model
-    from fakes.spec import allocation_spec
+    from fakes.spec import summarizer_config
 
     from contractor_runtime.worker.summarizer import TerminalSummarizer
 
     async def scenario() -> None:
         model = scripted_model([json_result({"subtaskId": "1", "result": "summary"})])
-        config = allocation_spec(summarizer=True).agent_template.summarizer
+        config = summarizer_config()
         assert config is not None
         instructions = 'Составь итог {subtaskId}. JSON: {"result": "text"}.'
         prompt = "Worker transcript"
@@ -265,13 +265,13 @@ def test_summary_sends_large_projection_without_local_context_trimming() -> None
     import asyncio
 
     from fakes.model import json_result, scripted_model
-    from fakes.spec import allocation_spec
+    from fakes.spec import summarizer_config
 
     from contractor_runtime.worker.summarizer import TerminalSummarizer
 
     async def scenario() -> None:
         model = scripted_model([json_result({"subtaskId": "1", "result": "summary"})])
-        config = allocation_spec(summarizer=True).agent_template.summarizer
+        config = summarizer_config()
         assert config is not None
         # Below 512 KiB, but above the removed byte-based admission allowance.
         prompt = "история " * 20_000
@@ -584,13 +584,13 @@ def test_reasoning_instruction_is_added_only_when_enabled(include_reasoning: boo
     import asyncio
 
     from fakes.model import json_result, scripted_model
-    from fakes.spec import allocation_spec
+    from fakes.spec import summarizer_config
 
     from contractor_runtime.worker.summarizer import TerminalSummarizer
 
     async def scenario() -> None:
         model = scripted_model([json_result({"subtaskId": "1", "result": "summary"})])
-        config = allocation_spec(summarizer=True).agent_template.summarizer
+        config = summarizer_config()
         assert config is not None
         configured = "Составь итог {subtaskId}."
         summarizer = TerminalSummarizer(

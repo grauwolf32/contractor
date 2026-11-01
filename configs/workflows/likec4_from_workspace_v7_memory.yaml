@@ -39,6 +39,23 @@ spec:
       llmGateway: local-litellm@1
       credential: development-worker
 
+    stages:
+      dependency_discovery:
+        agents:
+          analyst:
+            summarizerModelPolicy: summarizer@1
+      project_discovery:
+        agents:
+          analyst:
+            summarizerModelPolicy: summarizer@1
+      likec4_build:
+        agents:
+          builder:
+            summarizerModelPolicy: summarizer@1
+      likec4_validate:
+        agents:
+          validator:
+            summarizerModelPolicy: summarizer@1
   entryStage: dependency_discovery
   stages:
     dependency_discovery:

@@ -10,6 +10,5 @@ spec:
   runtime: adk@1
   instructions:
     ref: instructions/session-probe-worker.md
-  modelPolicy: worker@1
   toolsets: []
   sandboxProfile: local-workdir@1

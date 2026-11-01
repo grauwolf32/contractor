@@ -794,7 +794,7 @@ def build_context(
         description=template.description,
         instruction=template.instructions.text,
         card_version=template.ref.version,
-        model_policy=template.model_policy,
+        model_policy=worker_policy(),
         workspace=AllocationWorkspace(root=tmp_path, path=tmp_path),
         tools={},
         state=state,
@@ -812,15 +812,6 @@ def build_context(
 
 
 def agent_template() -> ResolvedAgentTemplate:
-    policy = ResolvedModelPolicy(
-        ref=ModelPolicyRef(policyId="worker", version="1", digest="sha256:" + "2" * 64),
-        model="worker-model",
-        maxOutputTokens=4096,
-        maxModelCalls=8,
-        maxToolCalls=16,
-        maxTotalTokens=32768,
-        temperature=0.1,
-    )
     return ResolvedAgentTemplate(
         ref=AgentTemplateRef(
             templateId="workspace_editor", version="1", digest="sha256:" + "0" * 64
@@ -832,7 +823,6 @@ def agent_template() -> ResolvedAgentTemplate:
             digest="sha256:" + "1" * 64,
             text="Analyze the workspace.",
         ),
-        modelPolicy=policy,
         toolsets=[],
         sandboxProfile=SandboxProfileRef(sandboxProfileId="local-workdir", version="1"),
     )
@@ -1032,4 +1022,16 @@ def private_error(status: int, code: str, *, retryable: bool) -> ArtifactHTTPRes
                 "requestId": "export-test-1",
             }
         ).encode(),
+    )
+
+
+def worker_policy() -> ResolvedModelPolicy:
+    return ResolvedModelPolicy(
+        ref=ModelPolicyRef(policyId="worker", version="1", digest="sha256:" + "2" * 64),
+        model="worker-model",
+        maxOutputTokens=4096,
+        maxModelCalls=8,
+        maxToolCalls=16,
+        maxTotalTokens=32768,
+        temperature=0.1,
     )

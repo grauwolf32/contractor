@@ -5,7 +5,6 @@ spec:
   description: Inspect exact accepted pages and results through ordinary Artifact tools
   runtime: adk@1
   instructions: {ref: instructions/iterative-assessment-fixture.md}
-  modelPolicy: audit_completion_worker@1
   toolsets:
     - ref: run-artifacts@1
       tools: [read_artifact, write_artifact]

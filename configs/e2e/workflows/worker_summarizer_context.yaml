@@ -26,6 +26,11 @@ spec:
       llmGateway: local-litellm@1
       credential: development-worker
 
+    stages:
+      summarize:
+        agents:
+          builder:
+            summarizerModelPolicy: terminal_summarizer@1
   entryStage: summarize
   stages:
     summarize:

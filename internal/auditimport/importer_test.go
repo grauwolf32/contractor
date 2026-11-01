@@ -2211,7 +2211,6 @@ spec:
   description: Produces one bounded result
   runtime: adk@1
   instructions: {ref: instructions/worker.md}
-  modelPolicy: worker@1
   toolsets: [{ref: run-artifacts@1, tools: [read_artifact, write_artifact]}]
   sandboxProfile: local-workdir@1
 `,
@@ -2222,7 +2221,7 @@ spec:
   parameters: {}
   inputs: {task: {required: true, mediaTypes: [application/zip]}}
   outputs: {result: {required: true, mediaTypes: [application/zip]}}
-  executionConfig: {workers: {llmGateway: test-gateway@1, credential: development-worker}}
+  executionConfig: {workers: {llmGateway: test-gateway@1, credential: development-worker, modelPolicy: worker@1}}
   entryStage: check
   stages:
     check:

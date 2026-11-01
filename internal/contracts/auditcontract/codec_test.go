@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/apierror"
 	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
@@ -41,6 +42,12 @@ func TestSharedAuditCommonDocuments(t *testing.T) {
 				}
 				if err != nil && strings.Contains(err.Error(), "canary") {
 					t.Fatal("diagnostic exposed input")
+				}
+				if err != nil {
+					classified, ok := apierror.Of(err)
+					if !ok || classified.ErrorKind() != apierror.AuditDocumentInvalid {
+						t.Fatalf("expected audit_document_invalid, got %v", err)
+					}
 				}
 				if len(c.Expected) > 0 && err == nil {
 					contractstest.AssertSemanticJSONEqual(t, actual, c.Expected)

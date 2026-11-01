@@ -32,6 +32,11 @@ context:
     Workflow-default mechanism for templating. This task continues from the merged V420-002
     and V417 implementations; their unfinished broad validation is not claimed
     complete and is not a new dependency on a pending task.
+    User decision 2026-11-01 supersedes the direct-Stage modelPolicy shorthand:
+    V425-042 moves Planner compactor selection exclusively into Workflow
+    executionConfig and uses one behavior-only context grammar for ordinary
+    Stages and summary continuations. This task's status and Worker scope are
+    unchanged; earlier authoring decisions below are historical.
   specification:
   - docs/spec/configuration/workflows.md#WFL-R90
   - docs/spec/configuration/workflows.md#WFL-R86
@@ -126,6 +131,10 @@ tests:
   covers: [A1, A2, A3]
 
 decisions:
+- >-
+  2026-11-01 (user decision, V425-042): supersedes the direct-Stage shorthand
+  decision below. Select compactorModelPolicy through Workflow executionConfig
+  and retain native YAML reuse of the behavior-only plannerContextManagement.
 - >-
   2026-10-31 (implementation choice within the user direction): direct Stage
   authoring keeps its existing plannerContextManagement.modelPolicy shorthand.

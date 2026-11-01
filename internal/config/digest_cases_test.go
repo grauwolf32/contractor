@@ -49,10 +49,8 @@ func TestSharedDigestCases(t *testing.T) {
 	for _, template := range cases.AgentTemplates {
 		if !template.IsToolWorker() {
 			checkInstructions(template.Ref.TemplateID, template.Instructions)
-			checkPolicy(template.ModelPolicy)
 		}
 		if summarizer := template.Summarizer; summarizer != nil {
-			checkPolicy(summarizer.ModelPolicy)
 			if summarizer.Instructions != nil {
 				checkInstructions(template.Ref.TemplateID+" summarizer", *summarizer.Instructions)
 			}

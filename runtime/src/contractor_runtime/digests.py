@@ -25,11 +25,7 @@ def verify_template_digests(template: ResolvedAgentTemplate) -> None:
         if instruction_digest != template.instructions.digest:
             raise TemplateDigestMismatch("resolved instruction digest does not match its text")
 
-    if template.model_policy is not None:
-        verify_model_policy_digest(template.model_policy)
-
     if template.summarizer is not None:
-        verify_model_policy_digest(template.summarizer.model_policy)
         instructions = template.summarizer.instructions
         if instructions is not None and (
             sha256_digest(instructions.text.encode("utf-8")) != instructions.digest
@@ -100,11 +96,6 @@ def _agent_template_digest(template: ResolvedAgentTemplate) -> str:
                 "ref": template.instructions.ref if template.instructions else "",
                 "digest": template.instructions.digest if template.instructions else "",
             },
-            "modelPolicy": (
-                _resolved_model_policy_value(template.model_policy)
-                if template.model_policy
-                else None
-            ),
             "toolsets": toolsets,
             "sandboxProfile": {
                 "sandboxProfileId": template.sandbox_profile.sandbox_profile_id,
@@ -114,7 +105,6 @@ def _agent_template_digest(template: ResolvedAgentTemplate) -> str:
     }
     if template.is_tool_worker:
         del manifest["spec"]["instructions"]
-        del manifest["spec"]["modelPolicy"]
         manifest["spec"]["execution"] = template.execution.model_dump(by_alias=True)
     if template.skills:
         manifest["spec"]["skills"] = [
@@ -123,9 +113,7 @@ def _agent_template_digest(template: ResolvedAgentTemplate) -> str:
     if template.sitemap is not None:
         manifest["spec"]["sitemap"] = template.sitemap.model_dump(by_alias=True)
     if template.summarizer is not None:
-        summarizer: dict[str, Any] = {
-            "modelPolicy": _resolved_model_policy_value(template.summarizer.model_policy)
-        }
+        summarizer: dict[str, Any] = {}
         if template.summarizer.cumulative_budget is not None:
             summarizer["cumulativeBudget"] = template.summarizer.cumulative_budget
         summarizer["contextWindowRatio"] = template.summarizer.context_window_ratio
@@ -138,21 +126,6 @@ def _agent_template_digest(template: ResolvedAgentTemplate) -> str:
             }
         manifest["spec"]["summarizer"] = summarizer
     return jcs_digest(manifest)
-
-
-def _resolved_model_policy_value(policy: ResolvedModelPolicy) -> dict[str, Any]:
-    result: dict[str, Any] = {
-        "ref": {
-            "policyId": policy.ref.policy_id,
-            "version": policy.ref.version,
-            "digest": policy.ref.digest,
-        },
-        "model": policy.model,
-    }
-    _add_policy_limits(result, policy)
-    if policy.temperature is not None:
-        result["temperature"] = policy.temperature
-    return result
 
 
 def jcs_digest(value: Any) -> str:

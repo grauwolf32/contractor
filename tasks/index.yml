@@ -9,18 +9,33 @@ project:
 
 execution_policy:
   current_delivery_focus: >-
+    User decision 2026-11-01 rejects codex/project-problem-findings: its unmerged head is archived as
+    archive/v64-014-project-problem-findings-2026-11-01. V64-014 stays pending and must move the existing
+    Finding model to Project scope with one current state and command owner. Sources/results/history
+    are not mutable Audit Findings or another lifecycle. V64-014 migrates current reads/edits and removes
+    Finding-specific reviews; V411-010 removes remaining item/report approvals using those same commands.
+    User review 2026-11-01 clarifies V64-014 admission: explicit problem publication requires selected
+    exact evidence, while evidence-optional proposals remain ordinary retained results/receipts without
+    automatic confirmation. Source ratings and duplicate history survive migration independently; current
+    Project assessment is unset until an explicit Project edit; V64-014 owns those direct Finding commands.
+    V64-014 acceptance includes real concurrent equal-key admission and bounded large-history traversal.
+    User clarification 2026-11-01 keeps V64-014 to Project finding ownership and retained contributions
+    using existing deduplication, intake receipts, correlation fence and Run-to-Project Artifact forks.
+    The existing Run-to-Project path removes the technical prerequisite on V64-004: V64-014 depends
+    only on completed V64-001; V64-002 still integrates both. Semantic comparison, new matching rules
+    and a second deduplication engine are outside V64-014. This task amendment starts no implementation.
     User clarification 2026-11-01 keeps V64-004 to the existing role-output collection and dependent
     RunService input path, using real Audit Artifact scope and per-artifact exact forks/publication.
     Multiple explicit Workflow inputs remain supported. Automatic report-link/dependency collection
     is not a current priority; no universal composite format, resolver or new coordinator belongs in
     V64-004. The existing V410-025 owns its concrete sitemap snapshot/original-input composition after
     the basic primitives. New workspace-specific mandatory cases extend the existing composition gate.
-    User request 2026-11-01: record three implementation-review defects from completed V64-001 as
-    V64-020/021/022 (pending, P1, introduced_by V64-001). V64-020 accepts an explicitly empty
+    User request 2026-11-01 authorized implementing the three review defects from completed V64-001:
+    V64-020/021/022 (completed, P1, introduced_by V64-001). V64-020 accepts an explicitly empty
     proposal from an optional generator; it does not require generation or allow blank hypothesis text.
     V64-021 validates effective initial-task input requiredness; V64-022 bounds initial/generated seed
     content. Their respective consumers V64-013, V64-002 and V64-012 depend on the fixes, bringing
-    them into the existing V64-011 base gate. This request creates tasks, not implementation.
+    them into the existing V64-011 base gate. These local validator fixes do not authorize dependent implementation.
     Audit task-formation request 2026-10-31: after accepting the common execution skeleton the user
     requested concrete tasks. Sixteen existing pending tasks form the base package (12 core, 3 HTTP,
     one report-bound regression); their scope/acceptance reflects the accepted result/finding distinction.

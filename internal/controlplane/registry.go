@@ -1212,7 +1212,6 @@ func validateBindingContextManagement(binding BindingRequirement) error {
 		Template:           binding.AgentTemplate,
 		SessionMode:        binding.WorkerSessionMode,
 		CompletionContract: binding.CompletionContract,
-		WorkerPolicy:       binding.AgentTemplate.ModelPolicy,
 	}
 	if binding.RuntimeSelection != nil {
 		context.WorkerPolicy = binding.RuntimeSelection.ModelPolicy

@@ -31,8 +31,8 @@ func ApplyStageModelDefaults(stage *ResolvedStage) {
 		selection := stage.ExecutionConfig.Agents[name]
 		replace(&selection, "worker")
 		replace(&selection, "audit_completion_worker")
-		if binding.Template.Summarizer != nil && !binding.ContextManagement.IsCompact() && selection.SummarizerModelPolicy == nil {
-			source := binding.Template.Summarizer.ModelPolicy.Ref
+		if selection.SummarizerModelPolicy != nil {
+			source := selection.SummarizerModelPolicy.Ref
 			if policy, ok := stage.ModelDefaults["summarizer"]; ok && source.PolicyID == "summarizer" && source.Version == policy.Ref.Version {
 				copy := policy.Clone()
 				selection.SummarizerModelPolicy = &copy

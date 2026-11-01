@@ -26,6 +26,7 @@ spec:
     workers:
       llmGateway: local-litellm@1
       credential: development-worker
+      modelPolicy: worker@2
   entryStage: check
   stages:
     check:

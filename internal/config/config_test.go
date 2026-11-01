@@ -43,9 +43,7 @@ func TestLoadResolvesAndPinsCatalogReferences(t *testing.T) {
 	}
 	assertDigest(t, template.Ref.Digest)
 	assertDigest(t, template.Instructions.Digest)
-	if template.ModelPolicy.Ref.Digest != policy.Ref.Digest {
-		t.Fatalf("template policy digest = %q, want %q", template.ModelPolicy.Ref.Digest, policy.Ref.Digest)
-	}
+
 	if len(template.Toolsets) != 1 || template.Toolsets[0].Ref != (contracts.ToolsetRef{ToolsetID: "run-artifacts", Version: "1"}) ||
 		!equalStrings(template.Toolsets[0].Tools, []string{"list_artifacts", "read_artifact", "write_artifact"}) {
 		t.Fatalf("selected tools = %+v", template.Toolsets)
@@ -54,6 +52,9 @@ func TestLoadResolvesAndPinsCatalogReferences(t *testing.T) {
 	workflow, err := snapshot.Workflow("artifact-copy@1")
 	if err != nil {
 		t.Fatalf("resolve Workflow: %v", err)
+	}
+	if workflow.Stages["copy"].ExecutionConfig.Agents["builder"].ModelPolicy.Ref.Digest != policy.Ref.Digest {
+		t.Fatalf("Workflow policy digest = %q, want %q", workflow.Stages["copy"].ExecutionConfig.Agents["builder"].ModelPolicy.Ref.Digest, policy.Ref.Digest)
 	}
 	stage := workflow.Stages[workflow.EntryStage]
 	if stage.Planner != (resolved.PlannerRef{PlannerID: "passthrough", Version: "1"}) {
@@ -165,7 +166,6 @@ spec:
   runtime: adk@1
   instructions:
     ref: instructions/artifact-builder.md
-  modelPolicy: test-worker@1
   toolsets:
     - ref: code-analysis@1
       tools:
@@ -789,7 +789,7 @@ spec:
   outputs:
     result: {required: true, mediaTypes: [text/plain]}
   executionConfig:
-    workers: {llmGateway: local-litellm@1}
+    workers: {modelPolicy: test-worker@1, llmGateway: local-litellm@1}
   entryStage: build
   stages:
     build:

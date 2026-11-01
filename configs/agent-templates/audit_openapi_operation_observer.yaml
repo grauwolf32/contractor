@@ -10,7 +10,6 @@ spec:
   runtime: adk@1
   instructions:
     ref: instructions/audit-openapi-operation-observer-worker.md
-  modelPolicy: worker@2
   toolsets:
     - ref: memory-tools@1
       tools:

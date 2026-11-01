@@ -646,6 +646,34 @@
       "type": "AllocationSpec",
       "schema": "allocation.schema.json",
       "strict": true
+    },
+    "allocation-spec-template-model-policy-null.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true,
+      "reason": "schema"
+    },
+    "allocation-spec-template-model-policy-object.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true,
+      "reason": "schema"
+    },
+    "allocation-spec-template-summary-policy-null.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "allocation-spec-template-summary-policy-object.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "allocation-spec-terminal-without-summary-policy.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true,
+      "reason": "invariant"
     }
   }
 }

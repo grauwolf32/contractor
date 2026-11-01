@@ -4,6 +4,8 @@
 следующего разрешения после просмотра [схем и деталей](../proposals/0050-audit-common-hypothesis-model.md).**
 Исключение по последующему решению пользователя от 2026-10-31: реализация
 контрактного этапа V64-001 разрешена, включая подтверждённые лимиты и pause/cancel.
+Отдельным решением от 2026-11-01 пользователь разрешил исправления V64-020/021/022;
+они реализованы и проверены без запуска зависимых implementation-задач.
 Текущие правила продукта остаются в `docs/spec/`; task files задают будущую
 реализацию после ревью. Нормативные изменения выполняются вместе с кодом.
 
@@ -48,12 +50,12 @@ V64-001 остаётся завершённой историей; исправл
 
 | Задача | Исправление | До какого consumer |
 | --- | --- | --- |
-| [V64-020](../../tasks/v64-020-accept-empty-hypothesis-proposals.yml) | Явный ответ генератора «новых предложений нет» успешно принимается; генерация остаётся необязательной, текст гипотезы — непустым | V64-013 |
-| [V64-021](../../tasks/v64-021-validate-effective-audit-input-requiredness.yml) | Обязательность Workflow input проверяется после переопределения выбранного материала | V64-002 |
-| [V64-022](../../tasks/v64-022-bound-hypothesis-seed-bytes.yml) | Размер содержимого начальных и генерируемых гипотез проверяется до принятия; полный документ отдельно остаётся ограничен 32 KiB | V64-012 |
+| [V64-020](../../tasks/done/v64-020-accept-empty-hypothesis-proposals.yml) | Явный ответ генератора «новых предложений нет» успешно принимается; генерация остаётся необязательной, текст гипотезы — непустым | V64-013 |
+| [V64-021](../../tasks/done/v64-021-validate-effective-audit-input-requiredness.yml) | Обязательность Workflow input проверяется после переопределения выбранного материала | V64-002 |
+| [V64-022](../../tasks/done/v64-022-bound-hypothesis-seed-bytes.yml) | Размер содержимого начальных и генерируемых гипотез проверяется до принятия; полный документ отдельно остаётся ограничен 32 KiB | V64-012 |
 
-Это задачи на исправление валидаторов, без новых состояний, сервисов и
-автоматического запуска генератора. Создание задач не начинает их реализацию.
+Исправления валидаторов завершены, без новых состояний, сервисов и
+автоматического запуска генератора. Зависимые implementation-задачи этим не запускаются.
 
 ## Основные задачи
 
@@ -61,26 +63,46 @@ V64-001 остаётся завершённой историей; исправл
 | --- | --- | --- |
 | 1 | [V64-001](../../tasks/done/v64-001-audit-priority-contracts.yml) | Общие строгие program/task/result contracts, owning boundaries, fixtures, лимиты и карта удаления/cutover |
 | 2 | [V64-004](../../tasks/v64-004-audit-priority-context.yml) | Audit workspace, exact handoff и публикация в Project через существующий ArtifactStore с реальным caller |
-| 3 | [V64-014](../../tasks/v64-014-audit-hypothesis-assessments.yml) | Project findings, источники, evidence, дедупликация и миграция существующих фактов |
-| 4 | [V64-002](../../tasks/v64-002-audit-priority-store.yml) | Один coordinator, обычные Runs, pause/recovery и первый сквозной exploratory сценарий |
-| 5 | [V64-012](../../tasks/v64-012-audit-hypothesis-registry.yml) | Fixed/manual hypotheses, результаты проверок с автоматической exact association, необязательный finding, простой выбор работы и checklist coverage |
-| 5 | [V411-010](../../tasks/v411-010-pentest-program-availability.yml) | Удаление formal approvals; pinned operation policy и прямые необязательные аналитические действия |
-| 5 | [V411-011](../../tasks/v411-011-project-findings-reader.yml) | Реальный обычный consumer выбранных Project findings и exact snapshots/evidence |
-| 6 | [V64-013](../../tasks/v64-013-audit-hypothesis-generation.yml) | Обычный Workflow генерации по материалам, findings и результатам, включая опровержения/пробелы; следующая итерация тем же путём |
-| 7 | [V64-008](../../tasks/v64-008-audit-priority-api-coverage.yml) | API/CLI чтение цепочки исследования, управление и публикация материалов |
-| 7 | [V64-010](../../tasks/v64-010-audit-priority-profile.yml) | Перенос shipped программ и удаление старых ZIP/round/admission/review механизмов после миграции callers |
-| 8 | [V64-009](../../tasks/v64-009-audit-priority-ui.yml) | Общий UI-путь исследования, без approval inbox и ручного ввода системных связей |
-| 8 | [V425-017](../../tasks/v425-017-machine-report-ceiling-test.yml) | Регрессия retained report ceiling на новом выбранном assembler |
-| 9 | [V64-011](../../tasks/v64-011-audit-priority-release.yml) | Базовый real-store/process/browser gate и доказательство контроля сложности |
+| 2 | [V64-014](../../tasks/v64-014-audit-hypothesis-assessments.yml) | Одна Finding model в Project: существующая дедупликация, источники/evidence, единые чтение и изменение; удаление Audit finding lifecycle |
+| 3 | [V64-002](../../tasks/v64-002-audit-priority-store.yml) | Один coordinator, обычные Runs, pause/recovery и первый сквозной exploratory сценарий |
+| 4 | [V64-012](../../tasks/v64-012-audit-hypothesis-registry.yml) | Fixed/manual hypotheses, результаты проверок с автоматической exact association, необязательный finding, простой выбор работы и checklist coverage |
+| 4 | [V411-010](../../tasks/v411-010-pentest-program-availability.yml) | Удаление оставшихся item/report approvals и Audit control policy; использование готовых Project Finding-команд |
+| 4 | [V411-011](../../tasks/v411-011-project-findings-reader.yml) | Реальный обычный consumer выбранных Project findings и exact snapshots/evidence |
+| 5 | [V64-013](../../tasks/v64-013-audit-hypothesis-generation.yml) | Обычный Workflow генерации по материалам, findings и результатам, включая опровержения/пробелы; следующая итерация тем же путём |
+| 6 | [V64-008](../../tasks/v64-008-audit-priority-api-coverage.yml) | API/CLI чтение цепочки исследования, управление и публикация материалов |
+| 6 | [V64-010](../../tasks/v64-010-audit-priority-profile.yml) | Перенос shipped программ и удаление старых ZIP/round/admission/review механизмов после миграции callers |
+| 7 | [V64-009](../../tasks/v64-009-audit-priority-ui.yml) | Общий UI-путь исследования, без approval inbox и ручного ввода системных связей |
+| 7 | [V425-017](../../tasks/v425-017-machine-report-ceiling-test.yml) | Регрессия retained report ceiling на новом выбранном assembler |
+| 8 | [V64-011](../../tasks/v64-011-audit-priority-release.yml) | Базовый real-store/process/browser gate и доказательство контроля сложности |
 
 Одинаковый порядковый номер показывает независимые после prerequisites работы,
 а не назначение параллельных агентов. Точные зависимости находятся в tasks.
 Каждая реализация поставляет свой реальный production caller; инфраструктура
 без caller не является завершённой задачей.
 
-Первой задачей основной цепочки идёт V64-001. Затем V64-004 → V64-014 →
-V64-002 дают материалы, Project findings и раннюю сквозную демонстрацию через
-реальные компоненты. После неё добавляются гипотезы, генерация и общий API/UI.
+После завершённой V64-001 задачи V64-004 и V64-014 независимы. Первая даёт
+Audit scope и передачу материалов, вторая переносит findings и их источники
+в Project через существующий Run → Project fork и сохраняет текущие правила
+дедупликации. Смысловое сопоставление в V64-014 не входит. V64-002 зависит от
+обеих задач и даёт раннюю сквозную демонстрацию через реальные компоненты.
+После неё добавляются гипотезы, генерация и общий API/UI.
+
+В V64-014 explicit problem publication требует exact evidence, а proposal без
+evidence остаётся обычным результатом. Оценки источников и прежние duplicate
+corrections сохраняются отдельно; общая оценка Project отсутствует до явной
+пометки пользователя. Сам finding и все текущие аналитические поля существуют
+в одном экземпляре на уровне Project; Audit показывает ссылки/выборки.
+V64-014 переносит существующие команды изменения и удаляет Finding-specific reviews,
+V411-010 завершает удаление остальных согласований Audit. Приёмка
+V64-014 включает конкурентное поступление одного qualified key и страницы
+большой истории, а не только fixture из двух Runs.
+
+Реализация `codex/project-problem-findings` отклонена пользователем 2026-11-01:
+добавление Project header рядом с живыми изменяемыми Audit findings не выполняет
+переход scope. Код сохранён в Git-теге
+`archive/v64-014-project-problem-findings-2026-11-01`, в main не включён.
+V64-014 остаётся pending с обновлённым контрактом одной сущности.
+
 Небольшой private HTTP fixture V411-019 имеет уже завершённые prerequisites;
 он готовится независимо от контрактной цепочки и используется ранним HTTP demo.
 
@@ -110,8 +132,9 @@ approval случаи эту группу не заменяют. Составн�
 ```mermaid
 flowchart TD
     C[V64-001 contracts] --> A[V64-004 artifacts]
-    A --> F[V64-014 findings]
-    F --> E[V64-002 coordinator и первый E2E]
+    C --> F[V64-014 findings]
+    A --> E[V64-002 coordinator и первый E2E]
+    F --> E
     E --> H[V64-012 hypotheses и checklist]
     E --> X[V411-010 удалить approvals]
     E --> R[V411-011 reader]

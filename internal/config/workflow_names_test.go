@@ -73,6 +73,7 @@ spec:
     result: {required: true, mediaTypes: [text/plain]}
   executionConfig:
     workers:
+      modelPolicy: test-worker@1
       llmGateway: local-litellm@1
       credential: development-worker
 %s

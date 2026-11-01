@@ -25,7 +25,9 @@ spec:
     planner:
       modelPolicy: test-window-planner@1
       llmGateway: local-litellm@1
+      compactorModelPolicy: test-compactor@1
     workers:
+      modelPolicy: test-worker@1
       llmGateway: local-litellm@1
 
   entryStage: review
@@ -37,7 +39,6 @@ spec:
       planner: streamline@1
       plannerContextManagement:
         strategy: compact@1
-        modelPolicy: test-compactor@1
         instructions:
           ref: instructions/planner-compaction.md
       agents:

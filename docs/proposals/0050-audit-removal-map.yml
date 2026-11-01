@@ -52,13 +52,16 @@ relations:
 - name: audit_findings
   action: replace
   owner: V64-014
-  facts: Move evidenced problem identities to Project, preserving independent origins; qualified correlation
-    alone does not justify merging arbitrary findings.
+  facts: Move the existing Finding identity and sole current-state/write owner to Project. Remove Audit-owned
+    mutable Finding rows and their callers; do not add a parallel Project header over them. Preserve independent
+    source facts through receipts/results/history. Unadmitted proposals stay ordinary results; migration
+    invents neither evidence nor a current Project assessment.
 - name: audit_finding_contributions
   action: replace
   owner: V64-014
   facts: Retain every distinct source Audit/task/Run, exact evidence, time/conditions, original receipts
-    and optional existing check association.
+    and optional existing check association. Preserve source-specific historical ratings and duplicate
+    annotations without a mutable source Finding status, review workflow or synchronization mechanism.
 - name: audit_finding_assessments
   action: replace
   owner: V64-014
@@ -67,13 +70,16 @@ relations:
 - name: audit_review_requests
   action: delete
   owner: V411-010
-  facts: Delete pending/expired/fulfilled approval requests, report candidates and expiry/renewal authority
-    after their callers are removed. Exact report snapshots are preserved independently.
+  facts: V64-014 removes Finding-specific requests/config/callers when moving the single Finding model.
+    V411-010 deletes remaining item/report requests and expiry/renewal after their callers migrate.
+    Shared tables are removed only after the remaining consumers are gone; report snapshots stay exact.
 - name: audit_review_decisions
   action: replace
   owner: V411-010
   facts: Transfer useful analyst finding annotations with actor/time/history; discard control approvals.
-    No historical decision grants future execution authority.
+    V64-014 retains Finding annotations as historical facts and supplies the sole Project Finding commands.
+    V411-010 removes remaining obsolete control records. Historical decisions neither set current Project
+    assessment automatically nor grant future execution authority.
 - name: audit_live_item_reviews
   action: delete
   owner: V411-010
@@ -354,28 +360,28 @@ operations:
   method: post
   operation_id: publishAuditFindingExport
   action: replace
-  owner: V64-008
+  owner: V64-014
   facts: Preserve user purpose, owner authorization and exact data; adapt task/result/Project finding
     projections. Independent SARIF/export bytes and routes keep their own contracts.
 - path: /v1/audits/{auditId}/findings/exports/{exportId}/content
   method: get
   operation_id: downloadAuditFindingExport
   action: replace
-  owner: V64-008
+  owner: V64-014
   facts: Preserve user purpose, owner authorization and exact data; adapt task/result/Project finding
     projections. Independent SARIF/export bytes and routes keep their own contracts.
 - path: /v1/audits/{auditId}/findings/exports/{exportId}/snapshot
   method: get
   operation_id: downloadAuditFindingExportSnapshot
   action: replace
-  owner: V64-008
+  owner: V64-014
   facts: Preserve user purpose, owner authorization and exact data; adapt task/result/Project finding
     projections. Independent SARIF/export bytes and routes keep their own contracts.
 - path: /v1/audits/{auditId}/findings/exports/{exportId}/diagnostics
   method: get
   operation_id: downloadAuditFindingExportDiagnostics
   action: replace
-  owner: V64-008
+  owner: V64-014
   facts: Preserve user purpose, owner authorization and exact data; adapt task/result/Project finding
     projections. Independent SARIF/export bytes and routes keep their own contracts.
 - path: /v1/audit-profiles
@@ -535,28 +541,28 @@ operations:
   method: get
   operation_id: listAuditFindings
   action: replace
-  owner: V64-008
+  owner: V64-014
   facts: Preserve user purpose, owner authorization and exact data; adapt task/result/Project finding
     projections. Independent SARIF/export bytes and routes keep their own contracts.
 - path: /v1/audits/{auditId}/findings/{findingId}
   method: get
   operation_id: getAuditFinding
   action: replace
-  owner: V64-008
+  owner: V64-014
   facts: Preserve user purpose, owner authorization and exact data; adapt task/result/Project finding
     projections. Independent SARIF/export bytes and routes keep their own contracts.
 - path: /v1/audits/{auditId}/findings/{findingId}/provenance
   method: get
   operation_id: listAuditFindingProvenance
   action: replace
-  owner: V64-008
+  owner: V64-014
   facts: Preserve user purpose, owner authorization and exact data; adapt task/result/Project finding
     projections. Independent SARIF/export bytes and routes keep their own contracts.
 - path: /v1/audits/{auditId}/findings/{findingId}/reviews
   method: post
   operation_id: createAuditFindingReview
   action: delete
-  owner: V411-010
+  owner: V64-014
   facts: Remove formal review resource; useful direct finding annotation gets an ordinary CAS mutation.
 - path: /v1/audits/{auditId}/reviews
   method: get
@@ -574,7 +580,7 @@ operations:
   method: get
   operation_id: listFindingDuplicateCandidates
   action: replace
-  owner: V64-008
+  owner: V64-014
   facts: Preserve user purpose, owner authorization and exact data; adapt task/result/Project finding
     projections. Independent SARIF/export bytes and routes keep their own contracts.
 wire:

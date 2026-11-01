@@ -32,7 +32,6 @@ func (l *loader) resolveAgentTemplate(
 	}
 
 	var instructions contracts.ResolvedInstructions
-	var policy contracts.ResolvedModelPolicy
 	var summarizer *contracts.WorkerSummarizerConfig
 	if runtime.String() != "tool@1" {
 		instructions, err = l.resolveInstructions(spec.Instructions)
@@ -40,21 +39,12 @@ func (l *loader) resolveAgentTemplate(
 			return contracts.ResolvedAgentTemplate{}, fmt.Errorf("spec.instructions: %w", err)
 		}
 
-		policySelector, err := resolved.ParseSelector(spec.ModelPolicy)
-		if err != nil {
-			return contracts.ResolvedAgentTemplate{}, fmt.Errorf("spec.modelPolicy: %w", err)
-		}
-		resolvedPolicy, ok := l.policies[policySelector.String()]
-		if !ok {
-			return contracts.ResolvedAgentTemplate{}, fmt.Errorf("spec.modelPolicy selects unknown ModelPolicy %q", policySelector)
-		}
-		policy = resolvedPolicy.Clone()
-		summarizer, err = l.resolveWorkerSummarizer(spec.Summarizer, policy)
+		summarizer, err = l.resolveWorkerSummarizer(spec.Summarizer)
 		if err != nil {
 			return contracts.ResolvedAgentTemplate{}, fmt.Errorf("spec.summarizer: %w", err)
 		}
-	} else if spec.Instructions != nil || spec.ModelPolicy != "" || spec.Summarizer != nil || spec.Skills != nil {
-		return contracts.ResolvedAgentTemplate{}, fmt.Errorf("tool@1 forbids instructions, modelPolicy, summarizer and skills")
+	} else if spec.Instructions != nil || spec.Summarizer != nil || spec.Skills != nil {
+		return contracts.ResolvedAgentTemplate{}, fmt.Errorf("tool@1 forbids instructions, summarizer and skills")
 	}
 
 	toolsets, err := l.resolveToolsets(spec.Toolsets)
@@ -64,11 +54,6 @@ func (l *loader) resolveAgentTemplate(
 	skills, err := resolveSkills(spec.Skills)
 	if err != nil {
 		return contracts.ResolvedAgentTemplate{}, err
-	}
-	if runtime.String() != "tool@1" {
-		if err := policy.ValidateForWorker(len(toolsets) > 0 || len(skills) > 0); err != nil {
-			return contracts.ResolvedAgentTemplate{}, fmt.Errorf("spec.modelPolicy: %w", err)
-		}
 	}
 
 	sandbox, err := resolved.ParseSelector(spec.SandboxProfile)
@@ -87,7 +72,6 @@ func (l *loader) resolveAgentTemplate(
 			Version:   runtime.Version,
 		},
 		Instructions: instructions,
-		ModelPolicy:  policy,
 		Summarizer:   summarizer,
 		Execution:    spec.Execution.Clone(),
 		Toolsets:     toolsets,
@@ -128,21 +112,11 @@ func (l *loader) resolveAgentTemplate(
 
 func (l *loader) resolveWorkerSummarizer(
 	source *workerSummarizerSource,
-	workerPolicy contracts.ResolvedModelPolicy,
 ) (*contracts.WorkerSummarizerConfig, error) {
 	if source == nil {
 		return nil, nil
 	}
-	selector, err := resolved.ParseSelector(source.ModelPolicy)
-	if err != nil {
-		return nil, fmt.Errorf("modelPolicy: %w", err)
-	}
-	policy, ok := l.policies[selector.String()]
-	if !ok {
-		return nil, fmt.Errorf("modelPolicy selects unknown ModelPolicy %q", selector)
-	}
 	result := &contracts.WorkerSummarizerConfig{
-		ModelPolicy:        policy.Clone(),
 		ContextWindowRatio: contracts.DefaultWorkerSummarizerContextWindowRatio,
 		CumulativeBudget:   clone.Pointer(source.CumulativeBudget),
 	}
@@ -161,7 +135,7 @@ func (l *loader) resolveWorkerSummarizer(
 		}
 		result.Instructions = &instructions
 	}
-	if err := result.Validate(workerPolicy); err != nil {
+	if err := result.Validate(); err != nil {
 		return nil, err
 	}
 	return result, nil
