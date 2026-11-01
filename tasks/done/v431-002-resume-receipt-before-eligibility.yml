@@ -5,7 +5,7 @@ milestone: hub-audit-defects-2026-10
 epic: execution-core
 kind: defect
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages:
 - go
@@ -23,6 +23,12 @@ context:
   specification:
   - docs/spec/execution/runs.md#RUN-R50
   - docs/spec/execution/runs.md#RUN-R52
+  verification:
+    date: '2026-11-01'
+    evidence: The response-loss replay failed before the fix. Replay now returns the committed target
+      after Project deletion starts; a fresh or foreign-owner resume leaves no new attempt or receipt.
+    environment: Isolated disposable PostgreSQL database; race detector enabled. The external opt-in LiteLLM
+      contract test was skipped, not counted as a database pass.
 scope:
   in:
   - Keep Project-before-Run locking; check the existing receipt before rejecting eligibility for a new
@@ -41,11 +47,14 @@ acceptance_criteria:
 - id: A3
   text: The replay regression fails on the unfixed implementation.
 tests:
-- command: CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -race -tags=integration -count=1 ./internal/runstore/...
-    ./internal/httpapi/public/...
+- command: CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -json -p=3 -race -tags=integration -count=1
+    -timeout=15m ./internal/runstore/... ./internal/planner/session/... ./internal/runservice/... ./internal/controlplane/...
+    ./internal/scheduler/... ./internal/persistence/... ./internal/app/... ./internal/archtest/... ./internal/credentials/...
+    ./internal/rundeletion/... ./internal/auditservice/... ./internal/evalservice/... ./internal/httpapi/public/...
   covers: &id001
   - A1
   - A2
   - A3
 - command: make lint
   covers: *id001
+implementation_commit: 0ac243e2fcfec9f37e9c05371a53c00222996d72
