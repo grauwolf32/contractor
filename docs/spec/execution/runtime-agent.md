@@ -774,7 +774,10 @@ performs any declared overlay auto export ([Workspace](../tools/workspace.md)).
 requests cancellation of active work, destroys the Worker runtime instance,
 closes every selected Toolset, confirms that the Podman execution container
 stopped when present, bounded-flushes and destroys allocation adapters and
-serializes the report (LIFE-RTA-4).
+serializes the report (LIFE-RTA-4). Graceful process shutdown
+uses the same bounded stop for every sandbox profile, before closing private
+Artifact connections and the listener; in-process work cannot outlive that
+resource owner merely because no Podman container exists.
 
 **RTA-R88.** The finalize command is idempotent for
 `finalization_id`. The Runtime Agent waits only until the supplied deadline;

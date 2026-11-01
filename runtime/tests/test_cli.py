@@ -491,3 +491,75 @@ def unused_tcp_port() -> int:
     with socket.socket() as listener:
         listener.bind(("127.0.0.1", 0))
         return int(listener.getsockname()[1])
+
+
+def test_shutdown_joins_real_ordinary_worker_before_closing_dependencies(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from datetime import UTC, datetime, timedelta
+
+    from fakes.model import scripted_model, text_result
+    from test_adk_runtime import stage_request
+    from test_allocation import make_spec
+
+    async def scenario() -> None:
+        model = scripted_model([text_result("late")], block=True)
+        transport, server = InflightTransport(), FakeServer()
+        stop = asyncio.Event()
+        state = RuntimeState(instance_id="shutdown-ordinary")
+        original_factories, original_service = (
+            runtime_cli.built_in_factories,
+            runtime_cli.AllocationService,
+        )
+        services = []
+
+        def factories(*args, **kwargs):
+            return original_factories(*args, **kwargs, model_factory=lambda _: model)
+
+        def service(*args, **kwargs):
+            result = original_service(*args, **kwargs)
+            services.append(result)
+            return result
+
+        monkeypatch.setattr(runtime_cli, "built_in_factories", factories)
+        monkeypatch.setattr(runtime_cli, "AllocationService", service)
+        monkeypatch.setattr(
+            runtime_cli,
+            "runtime_agent_client_context",
+            lambda **_: ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT),
+        )
+        monkeypatch.setattr(
+            runtime_cli,
+            "runtime_agent_server_context",
+            lambda **_: ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER),
+        )
+        monkeypatch.setattr(runtime_cli, "log_runtime_certificate_expiry", lambda *_, **__: None)
+        serving = asyncio.create_task(
+            runtime_cli.serve(
+                make_settings(tmp_path),
+                state=state,
+                transport=transport,
+                stop_requested=stop,
+                server_factory=lambda _: server,
+                install_signal_handlers=False,
+            )
+        )
+        await asyncio.wait_for(transport.heartbeat_started.wait(), 5)
+        allocation = services[0]
+        spec = make_spec(tools=[])
+        spec.lease_expires_at = datetime.now(UTC) + timedelta(seconds=60)
+        await allocation.prepare(spec)
+        worker = allocation._context.worker
+        invocation = asyncio.create_task(worker.invoke(stage_request()))
+        await asyncio.wait_for(model.started.wait(), 5)
+        stop.set()
+        await asyncio.wait_for(serving, 5)
+        assert invocation.done()
+        with pytest.raises(asyncio.CancelledError):
+            await invocation
+        assert not worker._accepting
+        assert allocation._context.worker is None
+        assert allocation._context.adapter_host.closed
+        assert server.stopped
+
+    asyncio.run(scenario())
