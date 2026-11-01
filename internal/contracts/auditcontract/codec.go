@@ -15,7 +15,7 @@ import (
 	wireschema "github.com/grauwolf32/contractor/api/v1alpha1"
 	"github.com/grauwolf32/contractor/internal/apierror"
 	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/grauwolf32/contractor/internal/strictjson"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	jsonschema "github.com/santhosh-tekuri/jsonschema/v6"
 	"strings"
 )

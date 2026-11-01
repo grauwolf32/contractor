@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditdomain"
-	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingexport"
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 )
 
 func noAnalysisSnapshot(t *testing.T, count int) findingexport.Snapshot {

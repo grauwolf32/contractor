@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/grauwolf32/contractor/internal/helpers/randomid"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
-	"github.com/grauwolf32/contractor/internal/randomid"
 	"github.com/jackc/pgx/v5"
 )
 

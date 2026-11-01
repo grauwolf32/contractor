@@ -16,7 +16,7 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/grauwolf32/contractor/internal/exactinteger"
+	"github.com/grauwolf32/contractor/internal/helpers/exactinteger"
 )
 
 const MaxGPUDevices = 8

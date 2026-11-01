@@ -12,8 +12,8 @@ import (
 
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/helpers/sourcezip"
 	"github.com/grauwolf32/contractor/internal/sourcebundle"
-	"github.com/grauwolf32/contractor/internal/sourcezip"
 )
 
 const (

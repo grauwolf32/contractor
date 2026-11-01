@@ -16,8 +16,8 @@ import (
 
 	"golang.org/x/text/unicode/norm"
 
-	"github.com/grauwolf32/contractor/internal/contentdigest"
-	"github.com/grauwolf32/contractor/internal/sourcezip"
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
+	"github.com/grauwolf32/contractor/internal/helpers/sourcezip"
 )
 
 // Source ZIP limits and member paths match the runtime source_analysis toolset

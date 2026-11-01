@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/grauwolf32/contractor/internal/config/resolved"
-	"github.com/grauwolf32/contractor/internal/strictjson"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 )
 
 // JSON members and PostgreSQL text-array paths of persisted snapshots that SQL

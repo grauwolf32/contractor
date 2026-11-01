@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/strictjson"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/jackc/pgx/v5"

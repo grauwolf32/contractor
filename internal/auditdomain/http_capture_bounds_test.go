@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/strictjson"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 )
 
 func TestCapturedHTTPExchangeReadsItsDeclaredBodyBounds(t *testing.T) {

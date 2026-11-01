@@ -12,10 +12,10 @@ import (
 	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/auditdomain"
-	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/grauwolf32/contractor/internal/documentnumber"
-	"github.com/grauwolf32/contractor/internal/strictjson"
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
+	"github.com/grauwolf32/contractor/internal/helpers/documentnumber"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 )
 
 var gitCommit = regexp.MustCompile(`^[0-9a-f]{40}$`)

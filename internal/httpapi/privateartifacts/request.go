@@ -9,9 +9,9 @@ import (
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	"github.com/grauwolf32/contractor/internal/httpapi/artifacttransfer"
 	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
-	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 func exactQuery(raw string, allowed ...string) (url.Values, error) {

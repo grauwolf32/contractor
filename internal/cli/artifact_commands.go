@@ -17,9 +17,9 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	"github.com/grauwolf32/contractor/internal/publicclient"
 	publicapi "github.com/grauwolf32/contractor/internal/publicclient/generated"
-	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 type artifactScope struct {

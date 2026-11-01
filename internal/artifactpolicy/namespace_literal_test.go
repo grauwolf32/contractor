@@ -44,9 +44,10 @@ type reservedNamespaceCopy struct {
 // another rule, and is not reported.
 func reservedNamespaceLiterals(fset *token.FileSet, file *ast.File) []reservedNamespaceCopy {
 	var copies []reservedNamespaceCopy
+	flagNames := registeredFlagNames(file)
 	ast.Inspect(file, func(node ast.Node) bool {
 		literal, ok := node.(*ast.BasicLit)
-		if !ok || literal.Kind != token.STRING {
+		if !ok || literal.Kind != token.STRING || flagNames[literal] {
 			return true
 		}
 		value, err := strconv.Unquote(literal.Value)
@@ -61,6 +62,88 @@ func reservedNamespaceLiterals(fset *token.FileSet, file *ast.File) []reservedNa
 		return true
 	})
 	return copies
+}
+
+// CLI flag names have their own owner. Only the name argument is exempt;
+// a default value or another literal can still duplicate a Namespace.
+func registeredFlagNames(file *ast.File) map[ast.Expr]bool {
+	packages, sets := map[string]bool{}, map[*ast.Object]bool{}
+	for _, imported := range file.Imports {
+		path, _ := strconv.Unquote(imported.Path.Value)
+		if path == "flag" {
+			name := "flag"
+			if imported.Name != nil {
+				name = imported.Name.Name
+			}
+			packages[name] = true
+		}
+	}
+	bind := func(name ast.Expr, value ast.Expr) {
+		identifier, ok := name.(*ast.Ident)
+		call, isCall := value.(*ast.CallExpr)
+		if !ok || !isCall {
+			return
+		}
+		selector, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok || selector.Sel.Name != "NewFlagSet" {
+			return
+		}
+		if pkg, ok := selector.X.(*ast.Ident); ok && pkg.Obj == nil && packages[pkg.Name] {
+			sets[identifier.Obj] = true
+		}
+	}
+	ast.Inspect(file, func(node ast.Node) bool {
+		switch node := node.(type) {
+		case *ast.AssignStmt:
+			for index, value := range node.Rhs {
+				if index < len(node.Lhs) {
+					bind(node.Lhs[index], value)
+				}
+			}
+		case *ast.ValueSpec:
+			for index, value := range node.Values {
+				if index < len(node.Names) {
+					bind(node.Names[index], value)
+				}
+			}
+		}
+		return true
+	})
+	names := map[ast.Expr]bool{}
+	ast.Inspect(file, func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		selector, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+		known := false
+		switch receiver := selector.X.(type) {
+		case *ast.Ident:
+			known = receiver.Obj == nil && packages[receiver.Name] || receiver.Obj != nil && sets[receiver.Obj]
+		case *ast.SelectorExpr:
+			pkg, ok := receiver.X.(*ast.Ident)
+			known = ok && pkg.Obj == nil && packages[pkg.Name] && receiver.Sel.Name == "CommandLine"
+		}
+		if !known {
+			return true
+		}
+		var index int
+		switch selector.Sel.Name {
+		case "Bool", "BoolFunc", "Duration", "Float64", "Func", "Int", "Int64", "String", "Uint", "Uint64":
+		case "BoolVar", "DurationVar", "Float64Var", "IntVar", "Int64Var", "StringVar", "TextVar", "UintVar", "Uint64Var", "Var":
+			index = 1
+		default:
+			return true
+		}
+		if index < len(call.Args) {
+			names[call.Args[index]] = true
+		}
+		return true
+	})
+	return names
 }
 
 func TestReservedNamespacesAreNamedOnlyByArtifactPolicy(t *testing.T) {
@@ -88,7 +171,7 @@ func TestReservedNamespacesAreNamedOnlyByArtifactPolicy(t *testing.T) {
 			if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 				return nil
 			}
-			file, err := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
+			file, err := parser.ParseFile(fset, path, nil, 0)
 			if err != nil {
 				return err
 			}
@@ -135,5 +218,43 @@ func TestReservedNamespaceScanReportsCopiesNotRoutes(t *testing.T) {
 	slices.Sort(lines)
 	if want := []int{4, 4, 8, 10}; !slices.Equal(lines, want) {
 		t.Fatalf("reported lines %v, want %v", lines, want)
+	}
+}
+
+func TestReservedNamespaceScanDistinguishesFlagNamesFromValues(t *testing.T) {
+	source := `package sample
+import flags "flag"
+var value string
+var global = flags.NewFlagSet("command", flags.ContinueOnError)
+func configure() {
+	local := flags.NewFlagSet("command", flags.ContinueOnError)
+	local.StringVar(&value, "audit-context", "", "trusted context file")
+	global.String("finding-proposals", "", "proposal file")
+	flags.String("contractor-system", "", "system file")
+	flags.CommandLine.Bool("audit-standards", false, "catalog option")
+	local.String("ordinary", "audit-context", "Namespace default")
+	_ = "audit-context"
+	unrelated.StringVar(&value, "audit-context", "", "not a standard flag")
+}
+func otherScope() {
+	local := unrelated
+	local.StringVar(&value, "audit-context", "", "same identifier, different binding")
+}
+func shadowImport() {
+	flags := unrelated
+	flags.String("audit-context", "", "shadowed package name")
+}
+`
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, "sample.go", source, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var lines []int
+	for _, found := range reservedNamespaceLiterals(fset, file) {
+		lines = append(lines, found.position.Line)
+	}
+	if want := []int{11, 12, 13, 17, 21}; !slices.Equal(lines, want) {
+		t.Fatalf("reported lines %v, want Namespace values %v", lines, want)
 	}
 }

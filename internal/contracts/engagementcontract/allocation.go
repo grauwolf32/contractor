@@ -5,8 +5,8 @@ import (
 	"slices"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 )
 
 // AllocationProjection is the private, task-restricted view of a pinned

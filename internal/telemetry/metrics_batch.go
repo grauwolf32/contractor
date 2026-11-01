@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
-	"github.com/grauwolf32/contractor/internal/strictjson"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 )
 
 // GetStageMetricsBatch loads optional read-model diagnostics in one query.

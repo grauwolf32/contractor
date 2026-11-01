@@ -6,7 +6,7 @@ import (
 	"math"
 	"os"
 
-	"github.com/grauwolf32/contractor/internal/exactinteger"
+	"github.com/grauwolf32/contractor/internal/helpers/exactinteger"
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/process"
 )

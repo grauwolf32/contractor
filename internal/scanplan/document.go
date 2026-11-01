@@ -7,9 +7,9 @@ import (
 	"io"
 	"unicode/utf8"
 
-	"github.com/grauwolf32/contractor/internal/documentnumber"
-	"github.com/grauwolf32/contractor/internal/documentyaml"
-	"github.com/grauwolf32/contractor/internal/strictjson"
+	"github.com/grauwolf32/contractor/internal/helpers/documentnumber"
+	"github.com/grauwolf32/contractor/internal/helpers/documentyaml"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	"go.yaml.in/yaml/v4"
 	"go.yaml.in/yaml/v4/plugin/limit"
 )

@@ -16,9 +16,9 @@ import (
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/grauwolf32/contractor/internal/securefile"
+	"github.com/grauwolf32/contractor/internal/helpers/securefile"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	"github.com/grauwolf32/contractor/internal/settingsstore"
-	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 // ModelChoice describes a deployed immutable route and the compatible role policies.

@@ -3,7 +3,7 @@ package pgstore
 import (
  "context"
  "github.com/grauwolf32/contractor/internal/auditstore"
- "github.com/grauwolf32/contractor/internal/pagelimit"
+ "github.com/grauwolf32/contractor/internal/helpers/pagelimit"
 )
 
 // ItemFindingIDs reads only a selected page's ordinary source associations.

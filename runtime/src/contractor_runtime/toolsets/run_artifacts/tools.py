@@ -6,6 +6,7 @@ import base64
 import binascii
 import re
 from collections.abc import Mapping, Sequence
+from functools import partial
 from types import MappingProxyType
 from typing import Any
 
@@ -79,12 +80,12 @@ class RunArtifactsToolsetFactory:
         client = self._client_factory(allocation_id, runtime_settings)
         secrets = runtime_secrets(runtime_settings)
         cache = allocation_artifact_read_cache(state) if "read_artifact" in selected else None
-        builders = {
-            "list_artifacts": lambda: ListArtifactsTool(client, metrics, secrets),
-            "read_artifact": lambda: ReadArtifactTool(client, metrics, secrets, cache=cache),
-            "write_artifact": lambda: WriteArtifactTool(client, metrics, secrets),
+        constructors = {
+            "list_artifacts": ListArtifactsTool,
+            "read_artifact": partial(ReadArtifactTool, cache=cache),
+            "write_artifact": WriteArtifactTool,
         }
-        return {name: builders[name]() for name in selected}
+        return {name: constructors[name](client, metrics, secrets) for name in selected}
 
 
 class ListArtifactsTool(ArtifactTool):

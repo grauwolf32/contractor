@@ -11,7 +11,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/findingintake"
-	"github.com/grauwolf32/contractor/internal/randomid"
+	"github.com/grauwolf32/contractor/internal/helpers/randomid"
 )
 
 func TestPostgresTypedAdmissionDefersAtNonTimeRoundBudgetWithoutTargetRetry(t *testing.T) {

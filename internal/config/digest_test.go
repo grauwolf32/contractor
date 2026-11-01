@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/contentdigest"
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 )
 
 func TestSemanticDigestsIgnoreYAMLPresentationAndToolOrder(t *testing.T) {

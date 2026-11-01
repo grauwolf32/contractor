@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
+	"github.com/grauwolf32/contractor/internal/helpers/clone"
 )
 
 // copyAuditPreparationCatalog adds the scan check Workflows and the prepare

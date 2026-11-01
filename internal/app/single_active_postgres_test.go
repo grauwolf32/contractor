@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/helpers/requestid"
 	publicapi "github.com/grauwolf32/contractor/internal/httpapi/public"
-	"github.com/grauwolf32/contractor/internal/requestid"
 )
 
 func TestPostgresControlPlaneLeaseReleasesOnNormalExit(t *testing.T) {

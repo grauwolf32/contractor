@@ -3,7 +3,7 @@ package resolved
 import (
 	"encoding/json"
 	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/grauwolf32/contractor/internal/strictjson"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 )
 
 func (s *ResolvedStage) UnmarshalJSON(data []byte) error {

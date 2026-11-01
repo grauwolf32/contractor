@@ -3,8 +3,8 @@ package auditdomain
 import (
 	"strings"
 
-	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 )
 
 const (
