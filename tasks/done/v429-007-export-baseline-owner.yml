@@ -6,7 +6,7 @@ epic: audits
 kind: chore
 introduced_by: V369-007
 priority: P3
-status: in_progress
+status: completed
 depends_on: []
 languages: [go]
 goal: Restore the existing unused-export lint gate after Audit task replanning without adding exceptions or changing Audit behavior.
@@ -44,3 +44,8 @@ tests:
     covers: [A1, A2]
   - command: go -C tools/testonlyexports run . -tags=integration,e2e -baseline tools/testonlyexports/baseline.txt ../..
     covers: [A1, A2]
+implementation_commit: 597873a84dbc7279a2a91cc43d0ac3565d2f53de
+verification: >-
+  testonlyexports vet, full checker unit suite and the actual repository gate
+  pass. The same four baseline identifiers remain; only the two selector
+  owner IDs changed, following archived V64-006 superseded_by V64-012.
