@@ -15,6 +15,7 @@ import { ErrorNotice } from "../../app/error-notice";
 import { formatBytes } from "../../app/format";
 import { QueryView } from "../../app/query-view";
 import { Button } from "../../ui";
+import { Icon } from "../../app/icon";
 import { LoadedArtifactPreview } from "./loaded-preview";
 import "./archive-preview.css";
 import "./materials.css";
@@ -39,6 +40,7 @@ function ArchiveTree({
               open={selected?.startsWith(`${entry.path}/`) ? true : undefined}
             >
               <summary>
+                <Icon name="projects" size={14} />
                 <bdi>{entry.path.split("/").at(-1)}/</bdi>
               </summary>
               <ArchiveTree
@@ -55,6 +57,7 @@ function ArchiveTree({
               aria-pressed={selected === entry.path}
               onClick={() => onSelect(entry.path)}
             >
+              <Icon name="docs" size={14} />
               <bdi>{entry.path.split("/").at(-1)}</bdi>
               <span>{formatBytes(entry.size)}</span>
             </button>
@@ -87,6 +90,8 @@ export function ArchivePreviewPanel({
   const headingId = useId();
   const [requested, setRequested] = useState(loadOnMount);
   const [selection, setSelection] = useState<string | null>(null);
+  const [filesOpen, setFilesOpen] = useState(false);
+  const treeId = useId();
   const key = archiveQueryKey(scope, metadata.artifact);
   const archive = useQuery({
     queryKey: key,
@@ -105,6 +110,12 @@ export function ArchivePreviewPanel({
         entry.kind === "file" &&
         entry.previewable &&
         (entry.path === "SKILL.md" || entry.path.endsWith("/SKILL.md")),
+    )?.path ??
+    entries?.find(
+      (entry) =>
+        entry.kind === "file" &&
+        entry.previewable &&
+        /^README\.md$/i.test(entry.path),
     )?.path ??
     null;
   const entry = entries?.find((item) => item.path === selected);
@@ -170,13 +181,34 @@ export function ArchivePreviewPanel({
       ) : null}
       {entries === undefined || entries.length === 0 ? null : (
         <div className="archive-browser">
-          <nav aria-label="Archive files" className="archive-file-list">
-            <ArchiveTree
-              childrenByPath={childrenByPath}
-              selected={selected}
-              onSelect={setSelection}
-            />
-          </nav>
+          <div className="archive-navigation">
+            <Button
+              size="sm"
+              variant="ghost"
+              className="archive-navigation-toggle"
+              aria-controls={treeId}
+              aria-expanded={filesOpen}
+              onClick={() => setFilesOpen(!filesOpen)}
+            >
+              Browse files ·{" "}
+              {entries.filter((entry) => entry.kind === "file").length} files
+            </Button>
+            <nav
+              id={treeId}
+              data-open={filesOpen}
+              aria-label="Archive files"
+              className="archive-file-list"
+            >
+              <ArchiveTree
+                childrenByPath={childrenByPath}
+                selected={selected}
+                onSelect={(path) => {
+                  setSelection(path);
+                  setFilesOpen(false);
+                }}
+              />
+            </nav>
+          </div>
           <div className="archive-file-content" aria-live="polite">
             {entry === undefined ? (
               <p className="ui-caption">

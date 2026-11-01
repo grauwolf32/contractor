@@ -1545,3 +1545,22 @@ scope has no fabricated action or bytes; source locations do not imply readable
 source snippets. Captured HTTP credential values keep independent show/hide
 controls. Sorting and presentation introduce no new business persistence or
 verification/analyst state.
+
+### Material reader
+
+**UI-R224.** Material/file detail in User, Project, Run and Eval contexts uses
+one content-first composition: a compact exact identity and selected revision,
+authoritative current/historical and locked chips, icon-only copy/download with
+accessible labels, and Versions/Refresh above the main reader. Facts, Git source,
+eligible new-version upload, storage details and paged history/lineage form a
+quiet supporting column; on phones they follow the content in ordinary flow.
+Copy/download retain the exact selected identity/bytes, return state survives
+version selection, and existing upload eligibility/conflict owners remain.
+Preview/archive reads stay explicit and retain their scope and size policies.
+The existing Markdown, diff, HTTP, Scalar OpenAPI and LikeC4 engines remain the
+rendering owners, styled with the shared font/theme tokens. Source wrapping is
+a local control without a per-line DOM expansion. After explicit archive Browse,
+a readable SKILL.md is selected first, otherwise a readable root README.md;
+other archives ask for a selection. The archive tree can collapse on phones and
+selecting a file returns the reading space to its content. No file is executed,
+no API request is sent by a renderer and no synthetic preview data ships in UI.
