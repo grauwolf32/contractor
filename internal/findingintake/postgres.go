@@ -9,12 +9,15 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifactpolicy"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/helpers/pagelimit"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
@@ -34,7 +37,9 @@ receipt.workflow_configuration_ref, receipt.workflow_closure_digest,
 receipt.audit_id, receipt.audit_execution_id, receipt.audit_role,
 receipt.proposal_ref, receipt.proposal_digest, receipt.proposal_media_type,
 receipt.proposal_size_bytes, receipt.evidence,
-receipt.retention_state, receipt.source_run_deleted_at, receipt.created_at, receipt.fingerprint_projection, receipt.anchor_projection`
+receipt.retention_state, receipt.source_run_deleted_at, receipt.created_at, receipt.fingerprint_projection, receipt.anchor_projection,
+receipt.publication_requested, receipt.publication_error, receipt.project_proposal, receipt.project_evidence,
+(SELECT source.finding_id FROM project_finding_sources AS source WHERE source.receipt_id=receipt.receipt_id),receipt.project_id`
 
 func readReceiptBySubmission(
 	ctx context.Context,
@@ -60,6 +65,7 @@ func scanReceipt(ctx context.Context, db querier, row pgx.Row) (Receipt, error) 
 func scanReceiptRow(row pgx.Row) (Receipt, error) {
 	var result Receipt
 	var configurationRef, proposalRef, evidenceJSON, fingerprintJSON, anchorJSON []byte
+	var projectProposalJSON, projectEvidenceJSON []byte
 	var auditID, auditExecutionID, auditRole *string
 	var sourceDeletedAt *time.Time
 	err := row.Scan(
@@ -74,9 +80,21 @@ func scanReceiptRow(row pgx.Row) (Receipt, error) {
 		&proposalRef, &result.Proposal.Digest, &result.Proposal.MediaType,
 		&result.Proposal.SizeBytes, &evidenceJSON,
 		&result.Retention, &sourceDeletedAt, &result.CreatedAt, &fingerprintJSON, &anchorJSON,
+		&result.PublicationRequested, &result.PublicationError, &projectProposalJSON, &projectEvidenceJSON, &result.FindingID,
+		&result.ProjectID,
 	)
 	if err != nil {
 		return Receipt{}, err
+	}
+	if projectProposalJSON != nil {
+		var retained ExactArtifact
+		if err := strictjson.Decode(projectProposalJSON, &retained); err != nil || retained.Validate() != nil || !retained.HasMetadata() {
+			return Receipt{}, artifacts.ErrArtifactIntegrity
+		}
+		if err := strictjson.Decode(projectEvidenceJSON, &result.ProjectEvidence); err != nil {
+			return Receipt{}, artifacts.ErrArtifactIntegrity
+		}
+		result.ProjectProposal = &retained
 	}
 	if err := json.Unmarshal(configurationRef, &result.Origin.Workflow.ConfigurationRef); err != nil ||
 		json.Unmarshal(proposalRef, &result.Proposal.Ref) != nil ||
@@ -509,6 +527,7 @@ func (s *Service) importIntoAuditWithTx(
 	var proposalDigest, proposalMediaType string
 	var proposalSizeBytes int64
 	var proposalRefJSON, evidenceJSON []byte
+	var projectProposalJSON, projectEvidenceJSON []byte
 	requestedProposal, _ := json.Marshal(request.Proposal)
 	err := tx.QueryRow(ctx, importIntoAuditWithTxSQL,
 		request.OwnerID, request.AuditID, request.RunID, requestedProposal, admittedStates,
@@ -516,6 +535,7 @@ func (s *Service) importIntoAuditWithTx(
 		&receiptID, &projectID, &proposalRefJSON, &evidenceJSON,
 		&invocationID, &clientKey, &workflowClosureDigest,
 		&proposalDigest, &proposalMediaType, &proposalSizeBytes,
+		&projectProposalJSON, &projectEvidenceJSON,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return AuditHold{}, false, ErrNotFound
@@ -553,43 +573,55 @@ SELECT proposal_ref, evidence, created_at
 	} else if !errors.Is(err, pgx.ErrNoRows) {
 		return AuditHold{}, false, err
 	} else {
-		namespace := auditdomain.ArtifactNamespace(request.AuditID)
-		verifiedProposal, verifyErr := exactArtifactFromRun(
-			ctx, artifactService, request.RunID, sourceProposal,
-		)
-		if verifyErr != nil {
-			return AuditHold{}, false, classifyProposalData(verifyErr)
-		}
-		if verifiedProposal.Digest != proposalSource.Digest ||
-			verifiedProposal.MediaType != proposalSource.MediaType ||
-			verifiedProposal.SizeBytes != proposalSource.SizeBytes {
-			return AuditHold{}, false, classifyProposalData(artifacts.ErrArtifactIntegrity)
-		}
-		result.Proposal, err = retainFindingArtifact(
-			ctx, artifactService, request.RunID, projectID, namespace,
-			deterministicID("finding-proposal", receiptID), proposalSource,
-		)
-		if err != nil {
-			return AuditHold{}, false, err
-		}
-		result.Evidence = make([]ExactArtifact, 0, len(evidence))
-		for index, source := range evidence {
-			verified, err := exactArtifactFromRun(ctx, artifactService, request.RunID, source.Ref)
-			if err != nil {
-				return AuditHold{}, false, classifyProposalData(err)
+		if projectProposalJSON != nil {
+			if strictjson.Decode(projectProposalJSON, &result.Proposal) != nil ||
+				strictjson.Decode(projectEvidenceJSON, &result.Evidence) != nil {
+				return AuditHold{}, false, artifacts.ErrArtifactIntegrity
 			}
-			if verified.Digest != source.Digest || verified.MediaType != source.MediaType ||
-				verified.SizeBytes != source.SizeBytes {
+		} else {
+			namespace := artifactpolicy.FindingMaterialsNamespace
+			verifiedProposal, verifyErr := exactArtifactFromRun(
+				ctx, artifactService, request.RunID, sourceProposal,
+			)
+			if verifyErr != nil {
+				return AuditHold{}, false, classifyProposalData(verifyErr)
+			}
+			if verifiedProposal.Digest != proposalSource.Digest ||
+				verifiedProposal.MediaType != proposalSource.MediaType ||
+				verifiedProposal.SizeBytes != proposalSource.SizeBytes {
 				return AuditHold{}, false, classifyProposalData(artifacts.ErrArtifactIntegrity)
 			}
-			retained, err := retainFindingArtifact(
+			result.Proposal, err = retainFindingArtifact(
 				ctx, artifactService, request.RunID, projectID, namespace,
-				deterministicID("finding-evidence", receiptID, strconv.Itoa(index+1)), verified,
+				deterministicID("finding-proposal", receiptID), proposalSource,
 			)
 			if err != nil {
 				return AuditHold{}, false, err
 			}
-			result.Evidence = append(result.Evidence, retained)
+			result.Evidence = make([]ExactArtifact, 0, len(evidence))
+			for index, source := range evidence {
+				verified, err := exactArtifactFromRun(ctx, artifactService, request.RunID, source.Ref)
+				if err != nil {
+					return AuditHold{}, false, classifyProposalData(err)
+				}
+				if verified.Digest != source.Digest || verified.MediaType != source.MediaType ||
+					verified.SizeBytes != source.SizeBytes {
+					return AuditHold{}, false, classifyProposalData(artifacts.ErrArtifactIntegrity)
+				}
+				retained, err := retainFindingArtifact(
+					ctx, artifactService, request.RunID, projectID, namespace,
+					deterministicID("finding-evidence", receiptID, strconv.Itoa(index+1)), verified,
+				)
+				if err != nil {
+					return AuditHold{}, false, err
+				}
+				result.Evidence = append(result.Evidence, retained)
+			}
+			projectProposalJSON, _ = json.Marshal(result.Proposal)
+			projectEvidenceJSON, _ = json.Marshal(result.Evidence)
+			if _, err := tx.Exec(ctx, retainProjectReceiptSQL, receiptID, projectProposalJSON, projectEvidenceJSON); err != nil {
+				return AuditHold{}, false, err
+			}
 		}
 		result.AuditID, result.ProjectID = request.AuditID, projectID
 		proposalJSON, _ := json.Marshal(result.Proposal)
@@ -602,6 +634,26 @@ RETURNING created_at`, receiptID, request.AuditID, projectID, proposalJSON, reta
 			&result.CreatedAt,
 		)
 		if err != nil {
+			return AuditHold{}, false, err
+		}
+		scope, scopeErr := artifacts.ProjectScope(projectID)
+		if scopeErr != nil {
+			return AuditHold{}, false, scopeErr
+		}
+		history, historyErr := json.Marshal(map[string]any{
+			"schema": auditdomain.FindingSourceHistorySchema, "receiptId": receiptID, "kind": "audit-import",
+			"original":  map[string]any{"auditId": request.AuditID, "runId": request.RunID},
+			"materials": map[string]any{"proposal": result.Proposal, "evidence": result.Evidence},
+		})
+		if historyErr != nil {
+			return AuditHold{}, false, historyErr
+		}
+		if _, err := artifactService.CreateFrozen(ctx, scope, contracts.ArtifactRef{Namespace: artifactpolicy.FindingHistoryNamespace,
+			Name: auditdomain.FindingSourceHistoryName(receiptID, "audit-import", request.AuditID)},
+			artifacts.Payload{MediaType: "application/json", Data: history}); err != nil {
+			return AuditHold{}, false, err
+		}
+		if err := hookstore.NewFindingEventsTx(tx).RecordFindingSourceAdded(ctx, request.AuditID, receiptID, request.RunID); err != nil {
 			return AuditHold{}, false, err
 		}
 	}
@@ -716,7 +768,7 @@ func retainFindingArtifact(
 	}
 	result, err := service.Fork(ctx, artifacts.Fork{
 		Kind: artifacts.LineageAuditImport, Source: run, SourceRef: source.Ref,
-		Target: project, TargetRef: contracts.ArtifactRef{Namespace: namespace, Name: name}, Frozen: true,
+		Target: project, TargetRef: contracts.ArtifactRef{Namespace: namespace, Name: name}, Frozen: true, Replay: true,
 	})
 	if err != nil {
 		return ExactArtifact{}, err

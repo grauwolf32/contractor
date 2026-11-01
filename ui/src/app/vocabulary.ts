@@ -11,9 +11,9 @@
  */
 import type {
   Audit,
-  AuditAnalystVerdict,
-  AuditFindingSeverity,
-  AuditFindingState,
+  FindingVerdict,
+  FindingSeverity,
+  FindingState,
   AuditItem,
   AuditProfile,
   AuditReviewAction,
@@ -100,7 +100,7 @@ export const COVERAGE_STATUS_LABELS: Readonly<
 };
 
 export const FINDING_STATE_LABELS: Readonly<
-  Record<AuditFindingState, VocabularyLabel>
+  Record<FindingState, VocabularyLabel>
 > = {
   proposed: { label: "Needs review", tone: "review" },
   confirmed: { label: "Confirmed", tone: "success" },
@@ -110,7 +110,7 @@ export const FINDING_STATE_LABELS: Readonly<
 };
 
 /** An analyst verdict, or "unreviewed" for a finding without one. */
-export type VerdictValue = AuditAnalystVerdict | "unreviewed";
+type VerdictValue = FindingVerdict | "unreviewed";
 
 export const VERDICT_LABELS: Readonly<Record<VerdictValue, VocabularyLabel>> = {
   true_positive: { label: "Confirmed", tone: "success" },
@@ -148,13 +148,12 @@ const REPORT_STATUS_LABELS: Readonly<
 };
 
 const REVIEW_KIND_LABELS: Readonly<Record<AuditReviewKind, string>> = {
-  "finding-triage": "Possible issue",
   "active-check-approval": "Active test approval",
   "requirement-applicability": "Requirement applicability",
   "report-acceptance": "Report acceptance",
 };
 
-export const SEVERITY_LABELS: Readonly<Record<AuditFindingSeverity, string>> = {
+export const SEVERITY_LABELS: Readonly<Record<FindingSeverity, string>> = {
   informational: "Informational",
   low: "Low",
   medium: "Medium",
@@ -209,8 +208,10 @@ export function coverageStatusLabel(
 }
 
 /** Triage state of a possible issue: "Needs review", "Confirmed", … */
-export function findingStateLabel(state: AuditFindingState): VocabularyLabel {
-  return labelOf(FINDING_STATE_LABELS, state);
+export function findingStateLabel(state: FindingState | null): VocabularyLabel {
+  return state === null
+    ? { label: "Not assessed", tone: "idle" }
+    : labelOf(FINDING_STATE_LABELS, state);
 }
 
 /** Analyst verdict of a decision; a missing verdict is "Not reviewed". */
@@ -246,7 +247,7 @@ export function reviewKindLabel(kind: AuditReviewKind): string {
  * shown as the analyst's rating.
  */
 export function severityLabel(
-  severity: AuditFindingSeverity | "" | null | undefined,
+  severity: FindingSeverity | "" | null | undefined,
 ): string {
   return severity === undefined || severity === null || severity === ""
     ? "Not set"

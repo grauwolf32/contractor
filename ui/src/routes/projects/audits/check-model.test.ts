@@ -1,8 +1,9 @@
+import { findingSummary } from "../../../test/builders";
 import { describe, expect, it } from "vitest";
 
 import type {
   AuditCoverageRow,
-  AuditFinding,
+  ProjectFindingSummary,
   AuditItem,
 } from "../../../api/audits";
 
@@ -25,11 +26,14 @@ import {
   endpointRow,
   makeAttempt,
   makeAudit,
-  makeFinding,
+  makeFinding as makeFullFinding,
   makeItem,
   requirementRow,
   workspaceOf,
 } from "./check-test-support";
+
+const makeFinding = (...args: Parameters<typeof makeFullFinding>) =>
+  findingSummary(makeFullFinding(...args));
 
 /** The status buildEntries gives one row with its item, if loaded. */
 function itemStatus(
@@ -41,7 +45,10 @@ function itemStatus(
 }
 
 /** Whether buildEntries lists the possible issue on the row's item. */
-function findingOnItem(finding: AuditFinding, row: AuditCoverageRow): boolean {
+function findingOnItem(
+  finding: ProjectFindingSummary,
+  row: AuditCoverageRow,
+): boolean {
   return buildEntries([row], [], [finding], "item")[0]!.findings.includes(
     finding,
   );
@@ -128,6 +135,8 @@ describe("check model", () => {
       "A01:2025",
     );
     const elsewhere = makeFinding("audit_1", "f3", "Other", "POST /other");
+    rows[0]!.findingIds = ["f1"];
+    rows[1]!.findingIds = ["f2"];
     const entries = buildEntries(
       rows,
       items,
@@ -157,37 +166,24 @@ describe("check model", () => {
     expect(entries.map((entry) => entry.position)).toEqual([1, 2]);
   });
 
-  it("ties a possible issue to its item by assessment, subject or operation", () => {
+  it("uses only explicit canonical Finding IDs on an item, never matching a subject label", () => {
     const row = endpointRow("item_1", 0, "GET", "/orders", "traced-complete");
+    row.findingIds = ["published"];
+    expect(
+      findingOnItem(makeFinding("project", "published", "Claim", null), row),
+    ).toBe(true);
     expect(
       findingOnItem(
-        makeFinding("a", "f", "t", null, {
-          currentAssessment: {
-            assessmentId: "as",
-            semanticAssessment: "supported",
-            result: {
-              ref: { namespace: "n", name: "r", revision: "1" },
-              digest: `sha256:${"b".repeat(64)}`,
-            },
-            receiptId: "rc",
-            itemId: "item_1",
-            directVerification: false,
-            acceptedAt: "2026-10-05T10:00:00Z",
-          },
-        }),
+        makeFinding("project", "other", "Same subject", row.subjectKey),
         row,
       ),
-    ).toBe(true);
-    expect(findingOnItem(makeFinding("a", "f", "t", row.subjectKey), row)).toBe(
-      true,
-    );
+    ).toBe(false);
     expect(
-      findingOnItem(makeFinding("a", "f", "t", "get https://host/orders"), row),
-    ).toBe(true);
-    expect(findingOnItem(makeFinding("a", "f", "t", "POST /orders"), row)).toBe(
-      false,
-    );
-    expect(findingOnItem(makeFinding("a", "f", "t", null), row)).toBe(false);
+      findingOnItem(
+        makeFinding("project", "other", "Same operation", "GET /orders"),
+        row,
+      ),
+    ).toBe(false);
   });
 
   it("filters by result group and searches task, result, evidence and attempts", () => {

@@ -27,12 +27,6 @@ func (s *Service) selectTypedCandidate(ctx context.Context, session *hookstore.A
 		return typedSelectionCheckpoint(mutation, budget)
 	}
 	candidate := page.Candidates[0]
-	if candidate.MigrationPending {
-		mutation.Next.BlockedReceiptID = candidate.ReceiptID
-		mutation.Next.BlockedCode = "source_projection_pending"
-		return typedSelectionCheckpoint(mutation, budget)
-	}
-	mutation.Next.BlockedReceiptID, mutation.Next.BlockedCode = "", ""
 	if candidate.NoChecks || candidate.LateSource || candidate.AlreadyConsumed || candidate.AlreadyRejected {
 		mutation.Next.Cursor = candidate.Cursor
 		mutation.Next.Exhausted = page.Exhausted

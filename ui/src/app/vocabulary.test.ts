@@ -4,8 +4,8 @@ import { parse } from "yaml";
 
 import type {
   Audit,
-  AuditFindingSeverity,
-  AuditFindingState,
+  FindingSeverity,
+  FindingState,
   AuditItem,
   AuditProfile,
   AuditReviewRequest,
@@ -81,11 +81,11 @@ describe("vocabulary", () => {
       COVERAGE_STATUS_LABELS,
       enumOf("AuditCoverageStatus"),
     ],
-    ["AuditFindingState", FINDING_STATE_LABELS, enumOf("AuditFindingState")],
+    ["FindingState", FINDING_STATE_LABELS, enumOf("FindingState")],
     [
-      "AuditAnalystVerdict",
+      "FindingVerdict",
       VERDICT_LABELS,
-      [...enumOf("AuditAnalystVerdict"), "unreviewed"],
+      [...enumOf("FindingVerdict"), "unreviewed"],
     ],
     ["AuditReviewState", REVIEW_STATE_LABELS, enumOf("AuditReviewState")],
     ["WorkflowRunState", RUN_STATE_LABELS, enumOf("WorkflowRunState")],
@@ -126,10 +126,10 @@ describe("vocabulary", () => {
       expect(
         reviewKindLabel(kind as AuditReviewRequest["kind"]).trim(),
       ).not.toBe("");
-    const severities = enumOf("AuditFindingSeverity");
+    const severities = enumOf("FindingSeverity");
     expect(Object.keys(SEVERITY_LABELS).sort()).toEqual([...severities].sort());
     for (const severity of severities)
-      expect(severityLabel(severity as AuditFindingSeverity)).toBe(
+      expect(severityLabel(severity as FindingSeverity)).toBe(
         capitalize(severity),
       );
   });
@@ -184,7 +184,7 @@ describe("vocabulary", () => {
         tone,
       });
 
-    const findings: Record<AuditFindingState, [string, string]> = {
+    const findings: Record<FindingState, [string, string]> = {
       proposed: ["Needs review", "review"],
       confirmed: ["Confirmed", "success"],
       rejected: ["Not an issue", "neutral"],
@@ -192,7 +192,7 @@ describe("vocabulary", () => {
       "needs-evidence": ["Needs evidence", "warning"],
     };
     for (const [state, [label, tone]] of Object.entries(findings))
-      expect(findingStateLabel(state as AuditFindingState)).toEqual({
+      expect(findingStateLabel(state as FindingState)).toEqual({
         label,
         tone,
       });
@@ -212,7 +212,6 @@ describe("vocabulary", () => {
     expect(reviewActionLabel("reject").label).toBe("Rejected");
     expect(reviewActionLabel("not_applicable").label).toBe("Not applicable");
 
-    expect(reviewKindLabel("finding-triage")).toBe("Possible issue");
     expect(reviewKindLabel("active-check-approval")).toBe(
       "Active test approval",
     );
@@ -238,14 +237,14 @@ describe("vocabulary", () => {
       label: "On hold",
       tone: "neutral",
     });
-    expect(findingStateLabel("toString" as AuditFindingState)).toEqual({
+    expect(findingStateLabel("toString" as FindingState)).toEqual({
       label: "ToString",
       tone: "neutral",
     });
     expect(
       reviewKindLabel("budget-approval" as AuditReviewRequest["kind"]),
     ).toBe("Budget approval");
-    expect(severityLabel("severe" as AuditFindingSeverity)).toBe("Severe");
+    expect(severityLabel("severe" as FindingSeverity)).toBe("Severe");
   });
 
   it("shares term spelling", () => {

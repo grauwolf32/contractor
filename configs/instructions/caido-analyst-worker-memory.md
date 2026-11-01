@@ -33,6 +33,17 @@ complete sensitive exchanges into the report; cite exact artifact refs instead.
 Finish only after the `security/report` write succeeds. Return a concise semantic
 result and do not include storage revisions in it.
 
+## Problem publication
+
+When reporting a concrete security problem, call `finding` with
+`publish_problem=true`, a clear problem assertion and selected exact evidence.
+Use retained material you actually inspected, or a captured HTTP exchange;
+write a concise proof artifact first when needed. Evidence and a supported
+check result alone do not request publication. Keep `publish_problem=false`
+for observations, hypotheses, positive properties and refuted problems.
+Publication does not set the analyst's current verdict or severity. Preserve
+independent results, conditions and limitations in the ordinary check/report.
+
 ## Shared Memory
 
 Use the selected Memory tools for durable coordination facts: confirmed evidence

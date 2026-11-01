@@ -4,7 +4,7 @@ import { Link } from "react-router";
 
 import type {
   Audit,
-  AuditFinding,
+  ProjectFindingSummary,
   AuditCoverageRow,
   AuditReport,
   AuditReviewPage,
@@ -53,7 +53,10 @@ function issuePath(auditId: string, findingId: string): string {
   return `/issues/${encodeURIComponent(auditId)}/${encodeURIComponent(findingId)}`;
 }
 
-function newestFirst(left: AuditFinding, right: AuditFinding): number {
+function newestFirst(
+  left: ProjectFindingSummary,
+  right: ProjectFindingSummary,
+): number {
   return Date.parse(right.createdAt) - Date.parse(left.createdAt);
 }
 
@@ -110,11 +113,9 @@ function Decisions({
                 <strong>{reviewKindLabel(review.kind)}</strong>
                 <span>
                   {subjects.get(review.subjectId) ??
-                    (review.subjectKind === "finding"
-                      ? "Possible issue"
-                      : review.subjectKind === "audit-report"
-                        ? "Check report"
-                        : "")}
+                    (review.subjectKind === "audit-report"
+                      ? "Check report"
+                      : "")}
                 </span>
                 <span className="ui-caption">
                   Requested <RecordedTime value={review.createdAt} />
@@ -134,15 +135,6 @@ function Decisions({
                     }
                   />
                 </div>
-              ) : review.subjectKind === "finding" ? (
-                <Link
-                  to={issuePath(
-                    audit.auditId,
-                    review.findingId ?? review.subjectId,
-                  )}
-                >
-                  Review the possible issue →
-                </Link>
               ) : (
                 <ContextLink
                   returnLabel="Check activity"
@@ -166,7 +158,7 @@ function Decisions({
 
 /** "This check has 1 issue and 2 possible issues. 1 was marked …" */
 function issuesSentence(
-  findings: readonly AuditFinding[],
+  findings: readonly ProjectFindingSummary[],
   partial: boolean,
   setAside: number,
 ): string {
@@ -194,7 +186,7 @@ function Issues({
   links,
 }: {
   audit: Audit;
-  findings: AuditCollectionQuery<AuditFinding>;
+  findings: AuditCollectionQuery<ProjectFindingSummary>;
   links: CheckLinks;
 }) {
   const split = useMemo(() => splitIssues(findings.items), [findings.items]);
@@ -264,8 +256,8 @@ function Issues({
               <li key={finding.findingId} className="checks-issue">
                 <StatusGlyph tone={state.tone} />
                 <div className="checks-issue-main">
-                  <Link to={issuePath(audit.auditId, finding.findingId)}>
-                    {finding.firstProposal.document.title}
+                  <Link to={issuePath(finding.projectId, finding.findingId)}>
+                    {finding.title}
                   </Link>
                   <p className="checks-issue-meta">
                     <span>
@@ -357,7 +349,7 @@ export function CheckActivity({
   entries: readonly CheckEntry[];
   coverage: AuditCollectionQuery<AuditCoverageRow>;
   /** Every issue and possible issue of the check (useCheckFindings). */
-  findings: AuditCollectionQuery<AuditFinding>;
+  findings: AuditCollectionQuery<ProjectFindingSummary>;
   workspace: AuditWorkspace | undefined;
   waiting: UseQueryResult<AuditReviewPage>;
   report: UseQueryResult<AuditReport>;

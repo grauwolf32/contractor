@@ -11,7 +11,8 @@ export function issueReviewFixtures() {
     build.project("project_records", { name: "Records API" }),
   ];
   const audits: Schemas["Audit"][] = [];
-  const findings: Schemas["AuditFinding"][] = [];
+  const findings: Schemas["ProjectFinding"][] = [];
+  const sources: Schemas["FindingProposalReceipt"][] = [];
   const reviews: Schemas["AuditReviewRequest"][] = [];
   const evidence: {
     projectId: string;
@@ -51,10 +52,6 @@ export function issueReviewFixtures() {
       ...doc,
       description: `${doc.description}\n\n## Impact\n${sample.impact}`,
     };
-    const base = build.finding(auditId, sample.id, {
-      createdAt: sample.createdAt,
-      updatedAt: sample.createdAt,
-    });
     const files = sample.files.map((file) => {
       const match = /^([^/]+)\/(.+)@([^@]+)$/.exec(file.ref);
       if (match === null)
@@ -83,78 +80,52 @@ export function issueReviewFixtures() {
         sizeBytes,
       };
     });
-    const request = build.review(
-      auditId,
-      `review_${sample.id}`,
-      "finding-triage",
+
+    const claim: Schemas["FindingClaim"] = {
+      title: document.title,
+      description: document.description,
+      subject: document.subject,
+      preconditions: document.preconditions,
+      standard_refs: document.standard_refs,
+      severity_suggestion: document.severity_suggestion,
+      limitations: document.limitations,
+      ...(document.hypothesis === undefined
+        ? {}
+        : { hypothesis: document.hypothesis }),
+      ...(document.locations === undefined
+        ? {}
+        : { locations: document.locations }),
+      ...(document.http_exchange === undefined
+        ? {}
+        : { http_exchange: document.http_exchange }),
+    };
+    const finding = build.finding(
+      projectId,
+      sample.id,
       {
-        findingId: sample.id,
-        subjectId: sample.id,
-        subjectRevision: 1,
         createdAt: sample.createdAt,
+        updatedAt: sample.createdAt,
+        ...(sample.analyst === null
+          ? {}
+          : {
+              state: "confirmed",
+              analystVerdict: "true_positive",
+              analystSeverity: "high",
+              rationale: sample.analyst.reason,
+              actorId: "demo_analyst",
+              assessedAt: "2026-10-31T10:15:00Z",
+            }),
       },
+      claim,
     );
-    const analyst =
-      sample.analyst === null
-        ? undefined
-        : build.decision(request, {
-            verdict: "true_positive",
-            severity: "high",
-            rationale: sample.analyst.reason,
-            actorId: "demo_analyst",
-            createdAt: "2026-10-31T10:15:00Z",
-          });
-    const finding = build.conforming("AuditFinding", {
-      ...base,
-      state: sample.state as Schemas["AuditFinding"]["state"],
-      firstProposal: {
-        ...base.firstProposal,
-        document,
-        evidence: files,
-        createdAt: sample.createdAt,
-        origin: { ...base.firstProposal.origin, runDeleted: true },
-        auditHolds: [
-          {
-            auditId,
-            projectId,
-            createdAt: sample.createdAt,
-            proposal: base.firstProposal.proposal,
-            evidence: files,
-          },
-        ],
-      },
-      ...(sample.assessment === "not-tested"
-        ? {}
-        : {
-            currentAssessment: {
-              assessmentId: `assessment_${sample.id}`,
-              semanticAssessment: sample.assessment as NonNullable<
-                Schemas["AuditFinding"]["currentAssessment"]
-              >["semanticAssessment"],
-              result: build.auditInput("verification"),
-              receiptId: `receipt_assessment_${sample.id}`,
-              directVerification: doc.http_exchange !== undefined,
-              acceptedAt: sample.createdAt,
-            },
-          }),
-      ...(analyst === undefined
-        ? {}
-        : {
-            analystDecision: analyst,
-            analystVerdict: "true_positive",
-            analystSeverity: "high",
-          }),
-    });
     findings.push(finding);
-    reviews.push(
-      analyst === undefined
-        ? request
-        : build.conforming("AuditReviewRequest", {
-            ...request,
-            state: "decided",
-            decision: analyst,
-          }),
+    sources.push(
+      build.findingSource(
+        finding,
+        { evidence: files, projectEvidence: files },
+        document,
+      ),
     );
   }
-  return { projects, audits, findings, reviews, evidence };
+  return { projects, audits, findings, sources, reviews, evidence };
 }

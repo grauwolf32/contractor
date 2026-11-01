@@ -12,7 +12,7 @@ import (
 )
 
 func TestImporterPostgresClosedDispatchPreservesSubmissionDrain(t *testing.T) {
-	f := newCompletionFixtureWithOptions(t, completionPool(t), completionOptions{acceptance: "automatic", findingConfirmation: "disabled", skipInitialRun: true})
+	f := newCompletionFixtureWithOptions(t, completionPool(t), completionOptions{acceptance: "automatic", skipInitialRun: true})
 	execution := createUnboundDrainIntent(t, f)
 	cancelInputFailureAudit(t, f)
 	execution, err := f.audits.ObserveSubmissionFailure(f.ctx, auditstore.ObserveSubmissionFailureParams{Claim: f.claim, ExecutionID: execution.ExecutionID})
@@ -36,7 +36,7 @@ func TestImporterPostgresPermanentInputReceiptReplaysAfterCancellation(t *testin
 	pool := completionPool(t)
 	for _, child := range []bool{false, true} {
 		t.Run(map[bool]string{false: "unbound rejection", true: "owned child"}[child], func(t *testing.T) {
-			f := newCompletionFixtureWithOptions(t, pool, completionOptions{acceptance: "automatic", findingConfirmation: "disabled", skipInitialRun: !child})
+			f := newCompletionFixtureWithOptions(t, pool, completionOptions{acceptance: "automatic", skipInitialRun: !child})
 			var execution auditstore.Execution
 			wantCode := "collection-contract-invalid"
 			if child {

@@ -74,35 +74,35 @@ func (s *QueryStore) CollectionReceiptIDs(
 	return receipts, nil
 }
 
-// CollectionReviews reads, for each receipt, the findings of the owner's
+// CollectionFindings reads, for each receipt, the findings of the owner's
 // Audits it contributed to or first proposed, with each finding's revision,
 // state and current decision, assessment and duplicate target. It preserves
 // missing decision IDs and creates nothing. More than
-// auditdomain.MaximumCollectionReviews findings for one receipt is
+// auditdomain.MaximumCollectionFindings findings for one receipt is
 // ErrInvalid.
-func (s *QueryStore) CollectionReviews(
+func (s *QueryStore) CollectionFindings(
 	ctx context.Context, ownerID string, receiptIDs []string,
-) (map[string][]auditdomain.FindingCollectionReview, error) {
-	result := map[string][]auditdomain.FindingCollectionReview{}
+) (map[string]*auditdomain.FindingCollectionFinding, error) {
+	result := map[string]*auditdomain.FindingCollectionFinding{}
 	if len(receiptIDs) == 0 {
 		return result, nil
 	}
-	rows, err := s.db.Query(ctx, readCollectionReviewsSQL,
-		ownerID, receiptIDs, auditdomain.MaximumCollectionEntries*auditdomain.MaximumCollectionReviews+1)
+	rows, err := s.db.Query(ctx, readCollectionFindingsSQL,
+		ownerID, receiptIDs, auditdomain.MaximumCollectionEntries+1)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var receiptID string
-		var review auditdomain.FindingCollectionReview
-		if err := rows.Scan(&receiptID, &review.AuditID, &review.FindingID, &review.Revision, &review.State, &review.DecisionID, &review.AssessmentID, &review.DuplicateTargetID); err != nil {
+		var review auditdomain.FindingCollectionFinding
+		if err := rows.Scan(&receiptID, &review.ProjectID, &review.FindingID, &review.Revision, &review.State, &review.Verdict, &review.Severity, &review.DuplicateTargetID); err != nil {
 			return nil, err
 		}
-		if len(result[receiptID]) >= auditdomain.MaximumCollectionReviews {
+		if result[receiptID] != nil {
 			return nil, auditstore.ErrInvalid
 		}
-		result[receiptID] = append(result[receiptID], review)
+		result[receiptID] = &review
 	}
 	return result, rows.Err()
 }

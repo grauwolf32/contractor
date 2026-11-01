@@ -175,7 +175,7 @@ function Summary({
           ) : null}
           {unreviewed > 0 ? (
             <Link
-              to={`/issues?${new URLSearchParams({ project: audit.projectId, state: "proposed" }).toString()}`}
+              to={`/issues?${new URLSearchParams({ project: audit.projectId }).toString()}`}
             >
               {plural(
                 unreviewed,

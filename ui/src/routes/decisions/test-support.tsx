@@ -1,7 +1,7 @@
 // Fixtures for the decision component tests, built on the shared,
 // schema-checked builders in src/test.
 import type {
-  AuditFinding,
+  ProjectFinding,
   AuditReport,
   AuditReviewRequest,
 } from "../../api/audits";
@@ -14,27 +14,15 @@ export const { DIGEST, NOW } = build;
 
 /** A possible issue of AUDIT_ID at revision 3 unless overridden. */
 export function makeFinding(
-  overrides: Partial<AuditFinding> = {},
-  document: Partial<AuditFinding["firstProposal"]["document"]> = {},
-): AuditFinding {
+  overrides: Partial<ProjectFinding> = {},
+  document: Partial<NonNullable<ProjectFinding["claim"]>> = {},
+): ProjectFinding {
   return build.finding(
-    overrides.auditId ?? AUDIT_ID,
+    overrides.projectId ?? "project_1",
     overrides.findingId ?? FINDING_ID,
     { revision: 3, ...overrides },
     document,
   );
-}
-
-/** A pending triage request for FINDING_ID. */
-export function makeTriageReview(
-  overrides: Partial<AuditReviewRequest> = {},
-): AuditReviewRequest {
-  return build.review(AUDIT_ID, "review_open", "finding-triage", {
-    findingId: FINDING_ID,
-    subjectId: FINDING_ID,
-    subjectRevision: 3,
-    ...overrides,
-  });
 }
 
 /** A pending active test approval for item_1. */
@@ -52,9 +40,8 @@ export function makeActionReview(
 export function makeDecision(
   overrides: Partial<AuditReviewDecision> = {},
 ): AuditReviewDecision {
-  return build.decision(makeTriageReview(), {
-    verdict: "true_positive",
-    severity: "high",
+  return build.decision(makeActionReview(), {
+    action: "approve",
     ...overrides,
   });
 }

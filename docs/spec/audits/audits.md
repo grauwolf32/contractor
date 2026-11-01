@@ -198,7 +198,7 @@ erDiagram
   AUDIT_ITEM ||--o{ AUDIT_EXECUTION_ITEM : attempts
   AUDIT_EXECUTION o|--o| WORKFLOW_RUN : binds
   AUDIT_EXECUTION ||--o| AUDIT_COLLECTION_RECEIPT : collects
-  AUDIT ||--o{ AUDIT_FINDING : tracks
+  AUDIT }o--o{ PROJECT_FINDING : references
   AUDIT ||--o{ AUDIT_REVIEW_REQUEST : requests
   AUDIT_REVIEW_REQUEST ||--o{ AUDIT_REVIEW_DECISION : records
 ```
@@ -211,11 +211,11 @@ erDiagram
 | `AuditExecution` | id, audit_id, optional round_id, role kind, exact named workflow_role from the pinned profile, optional role_attempt, exact ordered execution manifest ref/digest, submission_key, optional run_id, safe Workflow closure provenance, optional run_deleted_at, state, optional terminal Run outcome/version |
 | `AuditExecutionItem` | execution_id, item_id, batch_ordinal, item_attempt, exact task/input refs, collection disposition, optional exact result ref |
 | `AuditCollectionReceipt` | id, execution_id, optional run_id, exact terminal observation, output disposition, optional source output ref/digest, retained refs/digests, bounded error code, timestamp |
-| `AuditFinding` | id, audit_id, exact first and contributing proposal refs, current assessment ref with exact supporting check-result/attempt or direct Workflow result refs, triage state, current analyst decision ref, optional duplicate target, revision |
+| `ProjectFinding` | canonical id, project_id, immutable first source, optional current analyst fields, duplicate target and revision; Audit membership carries no state |
 | `AuditProposalReceipt` | id, run_id, allocation_id, invocation_id, submission_id, payload digest, exact proposal ref, immutable trusted origin including Workflow identity/digest, optional admitted audit_id, source status |
 | `AuditArtifactLink` | audit_id, logical key, exact retained version, source provenance, display ref, timestamp |
 | `AuditReviewRequest` | id, audit_id, subject kind/id, review kind, exact subject revision/digest, requested actions, state, optional expiry |
-| `AuditReviewDecision` | id, request_id, actor_id, typed finding verdict or action decision, exact subject revision/digest, bounded rationale, timestamp |
+| `AuditReviewDecision` | id, request_id, actor_id, item/report action decision, exact subject revision/digest, bounded rationale, timestamp |
 | `AuditReportCandidate` | audit_id, request_id, round_id, exact pre-publication Audit revision/digest, frozen machine/summary artifact descriptors, timestamp |
 | `AuditEvent` | audit_id, dense sequence (AUD-R223), kind, entity id/revision, bounded safe summary |
 
@@ -658,21 +658,20 @@ the start check.
 
 **AUD-R79.** The Server supports deterministic inventory, bounded compatible
 check batches, bounded multiple rounds, pinned discovery and assessment
-Workflow roles, exact active-check and manual-item approval, human finding
-confirmation, human applicability decisions and exact report acceptance.
+Workflow roles, exact active-check and manual-item approval, direct Project Finding edits, human applicability decisions and exact report acceptance.
 
 **AUD-R80.** Automatic active checks are supported. An active-enabled profile
 uses the Project's approval policy (PRJ-R103 and PRJ-R104); a profile with
 `activeChecks: prohibited` cannot gain active tools through Project settings.
 The Project defaults to automatic execution.
 
-**AUD-R81.** `findingConfirmation: disabled` means finding proposals are not an
-accepted result surface for that profile; it never turns proposals into
-findings implicitly.
+**AUD-R81.** AuditProfile contains no Finding confirmation configuration. Publication uses explicit
+intent and selected exact evidence; current analyst assessment belongs to Project
+(FND-R209 through FND-R219).
 
-**AUD-R82.** Start rejects a disabled-finding profile whose resolved Workflow
-outputs or AgentTemplates can emit finding proposals, and rejects active-check
-capabilities under `activeChecks: prohibited` (FAIL-AUD-4).
+**AUD-R82.** Start enforces the existing active-check capability policy. Finding emission is governed
+by the selected Toolsets and ordinary trusted intake, without a profile confirmation
+gate.
 
 **AUD-R83.** For the effective pinned `activeChecks: approval-required`, each item assigned to a
 Workflow role that exposes a classified active-check tool starts in
@@ -711,10 +710,9 @@ point. `automatic_active_checks_unsupported` describes a profile prohibition
 that conflicts with selected active tools; it does not reject automatic mode.
 `project_active_checks_prohibited` describes a Project prohibition at start.
 
-**AUD-R90.** The Server emits the reason code
-`finding_confirmation_unsupported` when `findingConfirmation: disabled` but a
-resolved Workflow has a `proposals` output or an AgentTemplate selects a
-finding-proposal tool.
+**AUD-R90.** Retired: finding_confirmation_unsupported and its configuration field are removed from
+active types, digest, validation and behavior. Historical Audit snapshots are opaque
+immutable artifacts and are never parsed for execution.
 
 **AUD-R91.** `batching_unsupported` and other older closed reason values,
 including `preparation_unsupported`, remain reserved wire values for compatible
@@ -1410,13 +1408,17 @@ conventions are in [public API](../api/public-api.md).
 | `GET /v1/audits/{auditId}/finding-proposals` | Paginated, oldest-first inbox of unconfirmed proposal receipts |
 | `POST /v1/audits/{auditId}/finding-proposal-imports` | Retain one exact ordinary-Run proposal and its evidence revisions in a compatible owned Audit; idempotent replay returns 200 |
 | `POST /v1/finding-collections` | Publish selected exact proposals as an ordinary finding collection (see [findings](../findings/findings.md)) |
-| `GET /v1/audits/{auditId}/findings` | Keyset list with triage, analyst verdict/severity and duplicate target; filters apply before pagination |
-| `GET /v1/audits/{auditId}/findings/{findingId}` | Exact finding revision, current assessment, analyst decision/rating and evidence links |
-| `GET /v1/audits/{auditId}/findings/{findingId}/provenance` | Paginated structured source proposals and verification attempts with Workflow/checklist provenance |
-| `POST /v1/audits/{auditId}/findings/{findingId}/reviews` | CAS/idempotent create or reuse of a pending finding-triage request for the exact current finding revision |
-| `GET /v1/audits/{auditId}/reviews` | Pending/completed finding, item-action, and report review requests |
+| `GET /v1/audits/{auditId}/findings` | Keyset list with triage, analyst verdict/severity and duplicate target; bounded candidate windows may have empty progress pages |
+| `GET /v1/audits/{auditId}/findings/{findingId}` | The same canonical Project Finding identity and current assessment |
+| `GET /v1/projects/{projectId}/findings` | Revision-pinned bounded canonical Finding summaries |
+| `GET /v1/projects/{projectId}/findings/{findingId}` | Canonical detail |
+| `PATCH /v1/projects/{projectId}/findings/{findingId}` | Direct CAS/idempotent analyst edit |
+| `GET /v1/projects/{projectId}/finding-sources?findingId={findingId}` | Bounded independent source previews |
+| `GET /v1/projects/{projectId}/finding-sources/{receiptId}` | Exact retained source detail |
+| `GET /v1/projects/{projectId}/finding-sources/{receiptId}/history` | Bounded ordinary immutable history metadata |
+| `GET /v1/audits/{auditId}/reviews` | Pending/completed item-action and report review requests |
 | `GET /v1/audits/{auditId}/reviews/{requestId}` | Exact owned review subject and revision with an ETag |
-| `POST /v1/audits/{auditId}/reviews/{requestId}/decisions` | Idempotent exact-subject owner finding verdict or approve/reject action |
+| `POST /v1/audits/{auditId}/reviews/{requestId}/decisions` | Idempotent exact-subject item/report action |
 | `GET /v1/audits/{auditId}/report` | Pending, frozen proposed, exact accepted, or unavailable report projection |
 | `DELETE /v1/audits/{auditId}` | Begin/replay durable delete and return current deletion state |
 
@@ -1643,7 +1645,6 @@ spec:
     incompleteRound: assess-with-gaps
   interaction:
     activeChecks: prohibited
-    findingConfirmation: disabled
     notApplicable: profile-rule
     reportAcceptance: automatic
 ```

@@ -244,8 +244,8 @@ func TestPostgresAuditLifecycleClaimsReceiptsAndProjectFence(t *testing.T) {
 	}
 
 	manifest := testExact("audits", "worklist", "worklist-r1")
-	itemOneTask := testExact("audits", "task-one", "task-r1")
-	itemTwoTask := testExact("audits", "task-two", "task-r1")
+	itemOneTask := writeCollectionFixtureArtifact(t, ctx, pool, project.ProjectID, "audits", "task-one")
+	itemTwoTask := writeCollectionFixtureArtifact(t, ctx, pool, project.ProjectID, "audits", "task-two")
 	startParams := auditstore.MaterializeRoundParams{
 		OwnerID: create.OwnerID, AuditID: create.AuditID, ExpectedRevision: 1,
 		RoundID: "round-one", RoundOrdinal: 1, Manifest: manifest,
@@ -600,7 +600,7 @@ INSERT INTO finding_proposal_receipts (
     workflow_configuration_ref, workflow_closure_digest,
     proposal_ref, proposal_digest, proposal_media_type,
     proposal_size_bytes, evidence, report_projection
-) VALUES (
+, checks_projection) VALUES (
     'finding-receipt-one', 'finding-proposal-one', 'allocation-finding-one',
     'runtime-finding-one', 'instance-finding-one', 'stage-finding-one', 'worker',
     'invocation-finding-one', 'submission-finding-one', 'candidate-one', $1,
@@ -609,7 +609,7 @@ INSERT INTO finding_proposal_receipts (
     '{"name":"audit-check","version":"1"}'::jsonb, $6,
     $7::jsonb, $8, 'application/json', 128, '[]'::jsonb,
     '{"description":"Test finding.","limitations":[],"preconditions":[],"severity_suggestion":"","standard_refs":[],"subject":null,"title":"Test finding."}'
-)`,
+, json_build_object('schema','contractor.audit.finding-checks-projection.v1','proposal_digest',($8)::text,'size_bytes',(128)::bigint,'discarded',false,'subject',NULL,'limitations',NULL,'checks','[]'::json))`,
 		testDigest("d"), create.OwnerID, project.ProjectID,
 		executionThree.ExecutionID, create.AuditID, testDigest("e"),
 		proposalRefJSON, proposal.Digest,
@@ -623,7 +623,7 @@ INSERT INTO finding_proposal_audit_holds (
 		create.AuditID, project.ProjectID, proposalJSON); err != nil {
 		t.Fatal(err)
 	}
-	acceptedResult := testExact("outputs", "result", "result-r1")
+	acceptedResult := writeCollectionFixtureArtifact(t, ctx, pool, project.ProjectID, "outputs", "result")
 	acceptedReceipt, inserted, err := store.Collect(ctx, auditstore.CollectParams{
 		Claim: newClaim, ReceiptID: "receipt-three", ExecutionID: executionThree.ExecutionID,
 		Disposition: auditstore.CollectionAccepted, SourceOutput: &acceptedResult, RequestDigest: testDigest("f"),
@@ -645,21 +645,17 @@ INSERT INTO finding_proposal_audit_holds (
 	if err != nil || !inserted || len(acceptedReceipt.Retained) != 1 {
 		t.Fatalf("accepted collection = (%+v, %t, %v)", acceptedReceipt, inserted, err)
 	}
-	var findingState string
-	var findingRevision, assessmentCount int
-	if err := pool.QueryRow(ctx, `
-SELECT finding.state, finding.revision,
-       (SELECT count(*) FROM audit_finding_assessments AS assessment
-         WHERE assessment.finding_id = finding.finding_id)
-  FROM audit_findings AS finding
- WHERE finding.audit_id = $1 AND finding.first_receipt_id = 'finding-receipt-one'`,
-		create.AuditID).Scan(&findingState, &findingRevision, &assessmentCount); err != nil {
+	var findings, histories int
+	if err := pool.QueryRow(ctx, "SELECT count(*) FROM project_findings WHERE project_id=$1", project.ProjectID).Scan(&findings); err != nil {
 		t.Fatal(err)
 	}
-	if findingState != "proposed" || findingRevision != 2 || assessmentCount != 1 {
-		t.Fatalf("accepted finding assessment = state %q revision %d count %d",
-			findingState, findingRevision, assessmentCount)
+	if err := pool.QueryRow(ctx, "SELECT count(*) FROM artifact_bindings WHERE scope_kind='project' AND scope_id=$1 AND namespace='finding-history'", project.ProjectID).Scan(&histories); err != nil {
+		t.Fatal(err)
 	}
+	if findings != 0 || histories != 1 {
+		t.Fatalf("ordinary result created current state or lost history: findings=%d histories=%d", findings, histories)
+	}
+
 	if _, inserted, err = store.Collect(ctx, auditstore.CollectParams{
 		Claim: newClaim, ReceiptID: "receipt-three-drift", ExecutionID: executionThree.ExecutionID,
 		Disposition: auditstore.CollectionAccepted, SourceOutput: &acceptedResult, RequestDigest: testDigest("0"),

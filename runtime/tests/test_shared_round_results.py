@@ -40,5 +40,6 @@ def test_shared_round_results_exact_pages_and_provenance() -> None:
     assert consumer["mappings"][0]["consumer"]["ref"] == local.model_dump(exclude_none=True)
     item = page["items"][0]
     assert item["selected_attempt"]["attempt"] == 2
-    assert item["findings"][0]["state"] == "proposed"
+    assert item["findings"][0]["project_id"] == "project-fixture"
+    assert set(item["findings"][0]) == {"finding_id", "project_id"}
     assert item["attachments"][0]["classification"] == "accepted-attachment"

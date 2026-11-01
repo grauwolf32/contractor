@@ -4048,13 +4048,14 @@ paths:
         the authenticated owner's active regular Projects are included; evaluation
         workspaces are excluded. Cursors bind the owner, endpoint and filters.
         These are live lists, not a revision-pinned cross-project snapshot.
+        A bounded candidate window may return fewer than limit matching items, including
+        no items, with hasMore=true. Always follow nextCursor until hasMore=false.
       parameters:
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
-        - {name: auditState, in: query, schema: {type: string}, description: 'Comma-separated Audit states.'}
-        - {name: state, in: query, schema: {$ref: '#/components/schemas/AuditFindingState'}}
+        - {name: state, in: query, schema: {$ref: '#/components/schemas/FindingState'}}
         - {name: verdict, in: query, schema: {type: string, enum: [true_positive, false_positive, unreviewed]}}
-        - {name: severity, in: query, schema: {$ref: '#/components/schemas/AuditFindingSeverity'}}
+        - {name: severity, in: query, schema: {$ref: '#/components/schemas/FindingSeverity'}}
       responses:
         '200':
           description: Newest-first page across owned Projects
@@ -4530,131 +4531,156 @@ paths:
 
   /v1/audits/{auditId}/findings:
     parameters:
-      - $ref: '#/components/parameters/AuditId'
+    - $ref: '#/components/parameters/AuditId'
     get:
       operationId: listAuditFindings
-      tags: [Audits]
-      summary: List candidate and analyst-reviewed findings for one owned Audit
+      tags:
+      - Audits
+      summary: List canonical Project Findings associated with this Audit
       parameters:
-        - $ref: '#/components/parameters/Limit'
-        - $ref: '#/components/parameters/Cursor'
-        - {name: auditRevision, in: query, required: false, schema: {type: integer, minimum: 1}, description: 'Pin this page to the summary revision. Continuations bind owner, filters and revision; stale revisions return 409.'}
-        - {name: state, in: query, required: false, schema: {$ref: '#/components/schemas/AuditFindingState'}}
-        - {name: verdict, in: query, required: false, schema: {type: string, enum: [true_positive, false_positive, unreviewed]}}
-        - {name: severity, in: query, required: false, schema: {$ref: '#/components/schemas/AuditFindingSeverity'}}
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+      - name: auditRevision
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+        description: Pin this page to the summary revision. Continuations bind owner, filters and revision; stale
+          revisions return 409.
+      - name: state
+        in: query
+        required: false
+        schema:
+          $ref: '#/components/schemas/FindingState'
+      - name: verdict
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - true_positive
+          - false_positive
+          - unreviewed
+      - name: severity
+        in: query
+        required: false
+        schema:
+          $ref: '#/components/schemas/FindingSeverity'
+      - name: projectRevision
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
+        description: Pin canonical Finding state. Continuations bind both Audit and Project revisions; stale views
+          return 409.
       responses:
         '200':
           description: Stable oldest-first finding page
-          headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}, Cache-Control: {$ref: '#/components/headers/NoStore'}}
-          content: {application/json: {schema: {$ref: '#/components/schemas/AuditFindingPage'}}}
-        '400': {$ref: '#/components/responses/BadRequest'}
-        '401': {$ref: '#/components/responses/Unauthorized'}
-        '404': {$ref: '#/components/responses/NotFound'}
-        '409': {$ref: '#/components/responses/Conflict'}
-        '500': {$ref: '#/components/responses/InternalError'}
-        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
-
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestId'
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditFindingPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/StorageTransactionConflict'
   /v1/audits/{auditId}/findings/{findingId}:
     parameters:
-      - $ref: '#/components/parameters/AuditId'
-      - $ref: '#/components/parameters/FindingId'
+    - $ref: '#/components/parameters/AuditId'
+    - $ref: '#/components/parameters/FindingId'
     get:
       operationId: getAuditFinding
-      tags: [Audits]
-      summary: Get one exact finding revision and its current assessment and analyst rating
+      tags:
+      - Audits
+      summary: Read the same canonical Project Finding through an owned Audit
       responses:
         '200':
           description: Exact finding projection
-          headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}, ETag: {$ref: '#/components/headers/ETag'}, Cache-Control: {$ref: '#/components/headers/NoStore'}}
-          content: {application/json: {schema: {$ref: '#/components/schemas/AuditFinding'}}}
-        '400': {$ref: '#/components/responses/BadRequest'}
-        '401': {$ref: '#/components/responses/Unauthorized'}
-        '404': {$ref: '#/components/responses/NotFound'}
-        '500': {$ref: '#/components/responses/InternalError'}
-        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
-
-  /v1/audits/{auditId}/findings/{findingId}/provenance:
-    parameters:
-      - $ref: '#/components/parameters/AuditId'
-      - $ref: '#/components/parameters/FindingId'
-    get:
-      operationId: listAuditFindingProvenance
-      tags: [Audits]
-      summary: List revision-bound exact proposal and verification provenance
-      parameters:
-        - $ref: '#/components/parameters/Limit'
-        - $ref: '#/components/parameters/Cursor'
-        - {name: auditRevision, in: query, required: false, schema: {type: integer, minimum: 1}}
-        - {name: findingRevision, in: query, required: false, schema: {type: integer, minimum: 1}}
-      responses:
-        '200':
-          description: Revision-bound provenance page
-          headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}, Cache-Control: {$ref: '#/components/headers/NoStore'}}
-          content: {application/json: {schema: {$ref: '#/components/schemas/AuditFindingProvenancePage'}}}
-        '400': {$ref: '#/components/responses/BadRequest'}
-        '401': {$ref: '#/components/responses/Unauthorized'}
-        '404': {$ref: '#/components/responses/NotFound'}
-        '409': {$ref: '#/components/responses/Conflict'}
-        '500': {$ref: '#/components/responses/InternalError'}
-        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
-
-  /v1/audits/{auditId}/findings/{findingId}/reviews:
-    parameters:
-      - $ref: '#/components/parameters/AuditId'
-      - $ref: '#/components/parameters/FindingId'
-    post:
-      operationId: createAuditFindingReview
-      tags: [Audits]
-      summary: Create or reuse a pending review bound to the exact finding revision
-      x-max-request-body-bytes: 1048576
-      parameters:
-        - $ref: '#/components/parameters/IdempotencyKey'
-        - $ref: '#/components/parameters/RequiredIfMatch'
-        - $ref: '#/components/parameters/OptionalOrigin'
-        - $ref: '#/components/parameters/OptionalCSRFToken'
-      requestBody:
-        required: true
-        content: {application/json: {schema: {$ref: '#/components/schemas/CreateAuditFindingReviewRequest'}}}
-      responses:
-        '201':
-          description: Pending exact-subject review request
-          headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}, ETag: {$ref: '#/components/headers/ETag'}, Idempotency-Replayed: {$ref: '#/components/headers/IdempotencyReplayed'}, Cache-Control: {$ref: '#/components/headers/NoStore'}}
-          content: {application/json: {schema: {$ref: '#/components/schemas/AuditReviewRequest'}}}
-        '400': {$ref: '#/components/responses/BadRequest'}
-        '401': {$ref: '#/components/responses/Unauthorized'}
-        '403': {$ref: '#/components/responses/Forbidden'}
-        '404': {$ref: '#/components/responses/NotFound'}
-        '409': {$ref: '#/components/responses/Conflict'}
-        '412': {$ref: '#/components/responses/PreconditionFailed'}
-        '413': {$ref: '#/components/responses/PayloadTooLarge'}
-        '500': {$ref: '#/components/responses/InternalError'}
-        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
-
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestId'
+            ETag:
+              $ref: '#/components/headers/ETag'
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectFinding'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/StorageTransactionConflict'
   /v1/audits/{auditId}/reviews:
     parameters:
-      - $ref: '#/components/parameters/AuditId'
+    - $ref: '#/components/parameters/AuditId'
     get:
       operationId: listAuditReviews
-      tags: [Audits]
-      summary: List exact finding review requests and immutable decisions
+      tags:
+      - Audits
+      summary: List item and report review requests and immutable decisions
       parameters:
-        - $ref: '#/components/parameters/Limit'
-        - $ref: '#/components/parameters/Cursor'
-        - {name: auditRevision, in: query, required: false, schema: {type: integer, minimum: 1}, description: 'Pin this page to the summary revision. Continuations bind owner, filters and revision; stale revisions return 409.'}
-        - {name: finding, in: query, required: false, schema: {$ref: '#/components/schemas/ResourceId'}}
-        - {name: state, in: query, required: false, schema: {$ref: '#/components/schemas/AuditReviewState'}}
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+      - name: auditRevision
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+        description: Pin this page to the summary revision. Continuations bind owner, filters and revision; stale
+          revisions return 409.
+      - name: state
+        in: query
+        required: false
+        schema:
+          $ref: '#/components/schemas/AuditReviewState'
       responses:
         '200':
           description: Stable oldest-first review page
-          headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}, Cache-Control: {$ref: '#/components/headers/NoStore'}}
-          content: {application/json: {schema: {$ref: '#/components/schemas/AuditReviewPage'}}}
-        '400': {$ref: '#/components/responses/BadRequest'}
-        '401': {$ref: '#/components/responses/Unauthorized'}
-        '404': {$ref: '#/components/responses/NotFound'}
-        '409': {$ref: '#/components/responses/Conflict'}
-        '500': {$ref: '#/components/responses/InternalError'}
-        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
-
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestId'
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditReviewPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/StorageTransactionConflict'
   /v1/audits/{auditId}/reviews/{requestId}/decisions:
     parameters:
       - $ref: '#/components/parameters/AuditId'
@@ -6644,40 +6670,28 @@ paths:
           $ref: '#/components/responses/InternalError'
         '503':
           $ref: '#/components/responses/StorageTransactionConflict'
-  /v1/projects/{projectId}/finding-correlations/{groupKey}/members:
+  /v1/projects/{projectId}/findings:
     parameters:
     - $ref: '#/components/parameters/ProjectId'
-    - name: groupKey
-      in: path
-      required: true
-      schema:
-        type: string
-        pattern: ^[0-9a-f]{64}$
     get:
-      operationId: listFindingCorrelationMembers
+      operationId: listProjectFindings
       tags:
-      - Audits
-      summary: Page every retained group member in a Project or selected Audit scope
-      description: Read-only deterministic correlation. The page is bounded to 256 KiB; stale scoped revisions require restarting.
-        An empty work-progress page may still have hasMore. Every retained observation remains reachable.
+      - Projects
+      - Findings
+      summary: List compact canonical Project Findings in newest-first order
       parameters:
-      - *id002
-      - *id003
-      - name: auditId
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+      - name: projectRevision
         in: query
         required: false
-        schema: *id001
-      - name: leftAuditId
-        in: query
-        required: false
-        schema: *id001
-      - name: rightAuditId
-        in: query
-        required: false
-        schema: *id001
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
       responses:
         '200':
-          description: Revision-bound bounded preview page
+          description: List compact canonical Project Findings in newest-first order
           headers:
             X-Request-ID:
               $ref: '#/components/headers/RequestId'
@@ -6686,7 +6700,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/FindingMembersPage'
+                $ref: '#/components/schemas/ProjectFindingPage'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -6694,14 +6708,243 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
-          $ref: '#/components/responses/FindingCorrelationStale'
-        '422':
-          $ref: '#/components/responses/FindingCorrelationItemTooLarge'
+          $ref: '#/components/responses/Conflict'
         '500':
           $ref: '#/components/responses/InternalError'
         '503':
           $ref: '#/components/responses/StorageTransactionConflict'
-
+  /v1/projects/{projectId}/findings/{findingId}:
+    parameters:
+    - $ref: '#/components/parameters/ProjectId'
+    - $ref: '#/components/parameters/FindingId'
+    get:
+      operationId: getProjectFinding
+      tags:
+      - Projects
+      - Findings
+      summary: Read one canonical Project Finding and its immutable problem claim
+      parameters: []
+      responses:
+        '200':
+          description: Read one canonical Project Finding and its immutable problem claim
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestId'
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectFinding'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/StorageTransactionConflict'
+    patch:
+      operationId: editProjectFinding
+      tags:
+      - Projects
+      - Findings
+      summary: Set the canonical analyst assessment with revision CAS and idempotency
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      - $ref: '#/components/parameters/RequiredIfMatch'
+      - $ref: '#/components/parameters/OptionalOrigin'
+      - $ref: '#/components/parameters/OptionalCSRFToken'
+      responses:
+        '200':
+          description: Set the canonical analyst assessment with revision CAS and idempotency
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestId'
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EditProjectFindingResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/StorageTransactionConflict'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+      x-max-request-body-bytes: 1048576
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EditProjectFindingRequest'
+  /v1/projects/{projectId}/finding-sources:
+    parameters:
+    - $ref: '#/components/parameters/ProjectId'
+    get:
+      operationId: listProjectFindingSources
+      tags:
+      - Projects
+      - Findings
+      summary: List immutable source previews without hydrating evidence or check history
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 64
+          default: 50
+      - $ref: '#/components/parameters/Cursor'
+      - name: findingId
+        in: query
+        required: false
+        schema:
+          $ref: '#/components/schemas/ResourceId'
+      - name: projectRevision
+        in: query
+        required: false
+        description: Pin the current Project source snapshot; stale revisions conflict.
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
+      responses:
+        '200':
+          description: List immutable source previews without hydrating evidence or check history
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestId'
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectFindingSourcePage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/StorageTransactionConflict'
+  /v1/projects/{projectId}/finding-sources/{receiptId}:
+    parameters:
+    - $ref: '#/components/parameters/ProjectId'
+    - name: receiptId
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/ResourceId'
+    get:
+      operationId: getProjectFindingSource
+      tags:
+      - Projects
+      - Findings
+      summary: Read one Project-owned immutable source and its exact materials
+      parameters: []
+      responses:
+        '200':
+          description: Read one Project-owned immutable source and its exact materials
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestId'
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FindingProposalReceipt'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/StorageTransactionConflict'
+  /v1/projects/{projectId}/finding-sources/{receiptId}/history:
+    parameters:
+    - $ref: '#/components/parameters/ProjectId'
+    - name: receiptId
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/ResourceId'
+    get:
+      operationId: listProjectFindingSourceHistory
+      tags:
+      - Projects
+      - Findings
+      summary: Page ordinary immutable source history Artifact metadata
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 64
+          default: 50
+      - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Page ordinary immutable source history Artifact metadata
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestId'
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectFindingSourceHistoryPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/StorageTransactionConflict'
 components:
   securitySchemes:
     bearerAuth:
@@ -8030,6 +8273,7 @@ components:
       additionalProperties: false
       required:
       - projectId
+      - projectRevision
       - audits
       properties:
         projectId: *correlationResourceId
@@ -8069,7 +8313,6 @@ components:
       additionalProperties: false
       required:
       - findingId
-      - auditId
       - revision
       - preview
       - title
@@ -8077,10 +8320,16 @@ components:
       - state
       - severitySuggestion
       - origin
+      - projectId
+      - analystVerdict
+      - analystSeverity
       properties:
-        findingId: *correlationResourceId
-        auditId: *correlationResourceId
-        revision: *correlationId002
+        findingId:
+          $ref: '#/components/schemas/ResourceId'
+        revision:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
         preview:
           type: boolean
           const: true
@@ -8091,7 +8340,9 @@ components:
         titleTruncated:
           type: boolean
         state:
-          $ref: '#/components/schemas/AuditFindingState'
+          oneOf:
+          - $ref: '#/components/schemas/FindingState'
+          - type: 'null'
         severitySuggestion:
           type: string
           enum:
@@ -8102,22 +8353,17 @@ components:
           - low
           - informational
         analystVerdict:
-          $ref: '#/components/schemas/AuditAnalystVerdict'
+          oneOf:
+          - $ref: '#/components/schemas/FindingVerdict'
+          - type: 'null'
         analystSeverity:
-          $ref: '#/components/schemas/AuditFindingSeverity'
-        semanticAssessment:
-          type: string
-          minLength: 1
-          maxLength: 64
+          oneOf:
+          - $ref: '#/components/schemas/FindingSeverity'
+          - type: 'null'
         origin:
           $ref: '#/components/schemas/FindingComparisonOrigin'
-        correlationRole:
-          type: string
-          enum:
-          - representative
-          - automatic-duplicate
-        assessmentId: *correlationResourceId
-        decisionId: *correlationResourceId
+        projectId:
+          $ref: '#/components/schemas/ResourceId'
     FindingCorrelationPageInfo:
       oneOf:
       - type: object
@@ -8276,8 +8522,8 @@ components:
       required:
       - kind
       - rowKey
-      - representative
       - previewsShareReceipt
+      - findingId
       properties:
         kind:
           type: string
@@ -8290,7 +8536,7 @@ components:
           type: string
           minLength: 1
           maxLength: 266
-        groupKey: &correlationId004
+        groupKey:
           type: string
           pattern: ^[0-9a-f]{64}$
         basis:
@@ -8301,14 +8547,14 @@ components:
           - not_recorded
           - no_qualified_key
           - primary_key_ambiguous
-        representative:
-          $ref: '#/components/schemas/FindingCorrelationReference'
         left:
           $ref: '#/components/schemas/FindingComparisonPreview'
         right:
           $ref: '#/components/schemas/FindingComparisonPreview'
         previewsShareReceipt:
           type: boolean
+        findingId:
+          $ref: '#/components/schemas/ResourceId'
     FindingComparisonPage:
       type: object
       additionalProperties: false
@@ -8345,36 +8591,6 @@ components:
           maxItems: 100
         page:
           $ref: '#/components/schemas/FindingCorrelationPageInfo'
-    FindingMembersPage:
-      type: object
-      additionalProperties: false
-      required:
-      - policyVersion
-      - scope
-      - fence
-      - groupKey
-      - representative
-      - items
-      - page
-      properties:
-        policyVersion:
-          type: string
-          const: qualified-snapshot/v1
-        scope:
-          $ref: '#/components/schemas/FindingCorrelationReadScope'
-        fence:
-          $ref: '#/components/schemas/FindingCorrelationFence'
-        groupKey: *correlationId004
-        representative:
-          $ref: '#/components/schemas/FindingCorrelationReference'
-        items:
-          type: array
-          items:
-            $ref: '#/components/schemas/FindingComparisonPreview'
-          maxItems: 100
-        page:
-          $ref: '#/components/schemas/FindingCorrelationPageInfo'
-    # BEGIN GENERATED MANAGED EVAL SCHEMAS
     EvalId: {
       "type": "string",
       "minLength": 1,
@@ -13153,30 +13369,40 @@ components:
     AuditInteractionPolicy:
       type: object
       additionalProperties: false
-      required: [activeChecks, findingConfirmation, notApplicable, reportAcceptance]
+      required:
+      - activeChecks
+      - notApplicable
+      - reportAcceptance
       properties:
-        activeChecks: {$ref: '#/components/schemas/ActiveChecksPolicy'}
-        findingConfirmation: {type: string, enum: [disabled, human-required]}
-        notApplicable: {type: string, enum: [human-required, profile-rule]}
-        reportAcceptance: {type: string, enum: [automatic, human-required]}
+        activeChecks:
+          $ref: '#/components/schemas/ActiveChecksPolicy'
+        notApplicable:
+          type: string
+          enum:
+          - human-required
+          - profile-rule
+        reportAcceptance:
+          type: string
+          enum:
+          - automatic
+          - human-required
     AuditCompatibilityReason:
       type: string
       enum:
-        - preparation_unsupported
-        - discovery_unsupported
-        - assessment_unsupported
-        - multiple_rounds_unsupported
-        - batching_unsupported
-        - automatic_active_checks_unsupported
-        - project_active_checks_prohibited
-        - active_check_approval_unsupported
-        - finding_confirmation_unsupported
-        - manual_applicability_unsupported
-        - report_acceptance_unsupported
-        - manual_item_unsupported
-        - engagement_capability_unsupported
-        - engagement_source_closure_unsupported
-        - engagement_active_checks_unsupported
+      - preparation_unsupported
+      - discovery_unsupported
+      - assessment_unsupported
+      - multiple_rounds_unsupported
+      - batching_unsupported
+      - automatic_active_checks_unsupported
+      - project_active_checks_prohibited
+      - active_check_approval_unsupported
+      - manual_applicability_unsupported
+      - report_acceptance_unsupported
+      - manual_item_unsupported
+      - engagement_capability_unsupported
+      - engagement_source_closure_unsupported
+      - engagement_active_checks_unsupported
     AuditProfile:
       type: object
       additionalProperties: false
@@ -13502,7 +13728,7 @@ components:
         outcome: {$ref: '#/components/schemas/AuditTerminalOutcome'}
         disposition: {$ref: '#/components/schemas/AuditCollectionDisposition'}
         subjectKind: {$ref: '#/components/schemas/AuditReviewSubjectKind'}
-        kind: {type: string, enum: [finding-triage, active-check-approval, requirement-applicability, report-acceptance]}
+        kind: {type: string, enum: [active-check-approval, requirement-applicability, report-acceptance]}
         action: {$ref: '#/components/schemas/AuditReviewAction'}
         verdict: {type: string, enum: [true_positive, false_positive, needs_evidence, duplicate, reopen]}
         runId: {$ref: '#/components/schemas/ResourceId'}
@@ -13599,28 +13825,6 @@ components:
         runProvenance: {$ref: '#/components/schemas/AuditRunProvenance'}
         createdAt: {type: string, format: date-time}
         collectedAt: {type: string, format: date-time}
-    AuditFindingAttempt:
-      type: object
-      additionalProperties: false
-      required: [executionItemId, executionId, itemId, itemAttempt, role, workflowRole, state, runDeleted, task, itemOrigin, createdAt]
-      properties:
-        executionItemId: {$ref: '#/components/schemas/ResourceId'}
-        executionId: {$ref: '#/components/schemas/ResourceId'}
-        itemId: {$ref: '#/components/schemas/ResourceId'}
-        itemAttempt: {type: integer, minimum: 1, maximum: 10}
-        role: {$ref: '#/components/schemas/AuditExecutionRole'}
-        workflowRole: {type: string, minLength: 1, maxLength: 128}
-        state: {$ref: '#/components/schemas/AuditExecutionItemState'}
-        collectionDisposition: {$ref: '#/components/schemas/AuditCollectionDisposition'}
-        terminalOutcome: {$ref: '#/components/schemas/AuditTerminalOutcome'}
-        runId: {$ref: '#/components/schemas/ResourceId'}
-        runDeleted: {type: boolean}
-        runProvenance: {$ref: '#/components/schemas/AuditRunProvenance'}
-        task: {$ref: '#/components/schemas/AuditExactArtifact'}
-        itemOrigin: {$ref: '#/components/schemas/AuditItemOrigin'}
-        result: {$ref: '#/components/schemas/AuditExactArtifact'}
-        createdAt: {type: string, format: date-time}
-        collectedAt: {type: string, format: date-time}
     AuditItemOrigin:
       type: object
       additionalProperties: false
@@ -13671,26 +13875,76 @@ components:
     AuditItem:
       type: object
       additionalProperties: false
-      required: [itemId, roundId, itemKey, ordinal, kind, subjectKey, task, origin, workflowRole, state, approvalKind, attempts, createdAt, updatedAt]
+      required:
+      - itemId
+      - roundId
+      - itemKey
+      - ordinal
+      - kind
+      - subjectKey
+      - task
+      - origin
+      - workflowRole
+      - state
+      - approvalKind
+      - attempts
+      - createdAt
+      - updatedAt
+      - findingIds
       properties:
-        itemId: {$ref: '#/components/schemas/ResourceId'}
-        roundId: {$ref: '#/components/schemas/ResourceId'}
-        itemKey: {type: string, minLength: 1, maxLength: 256}
-        ordinal: {type: integer, minimum: 0, maximum: 9999}
-        kind: {type: string, minLength: 1, maxLength: 128}
-        subjectKey: {$ref: '#/components/schemas/AuditSubjectKey'}
-        task: {$ref: '#/components/schemas/AuditExactArtifact'}
-        origin: {$ref: '#/components/schemas/AuditItemOrigin'}
-        workflowRole: {$ref: '#/components/schemas/ArtifactName'}
-        state: {$ref: '#/components/schemas/AuditItemState'}
-        approvalKind: {$ref: '#/components/schemas/AuditItemApprovalKind'}
-        approvalDigest: {$ref: '#/components/schemas/Digest'}
-        finalDisposition: {$ref: '#/components/schemas/AuditFinalDisposition'}
-        acceptedResult: {$ref: '#/components/schemas/AuditExactArtifact'}
-        lastExecutionItemId: {$ref: '#/components/schemas/ResourceId'}
-        attempts: {type: array, maxItems: 10, items: {$ref: '#/components/schemas/AuditItemAttempt'}}
-        createdAt: {type: string, format: date-time}
-        updatedAt: {type: string, format: date-time}
+        itemId:
+          $ref: '#/components/schemas/ResourceId'
+        roundId:
+          $ref: '#/components/schemas/ResourceId'
+        itemKey:
+          type: string
+          minLength: 1
+          maxLength: 256
+        ordinal:
+          type: integer
+          minimum: 0
+          maximum: 9999
+        kind:
+          type: string
+          minLength: 1
+          maxLength: 128
+        subjectKey:
+          $ref: '#/components/schemas/AuditSubjectKey'
+        task:
+          $ref: '#/components/schemas/AuditExactArtifact'
+        origin:
+          $ref: '#/components/schemas/AuditItemOrigin'
+        workflowRole:
+          $ref: '#/components/schemas/ArtifactName'
+        state:
+          $ref: '#/components/schemas/AuditItemState'
+        approvalKind:
+          $ref: '#/components/schemas/AuditItemApprovalKind'
+        approvalDigest:
+          $ref: '#/components/schemas/Digest'
+        finalDisposition:
+          $ref: '#/components/schemas/AuditFinalDisposition'
+        acceptedResult:
+          $ref: '#/components/schemas/AuditExactArtifact'
+        lastExecutionItemId:
+          $ref: '#/components/schemas/ResourceId'
+        attempts:
+          type: array
+          maxItems: 10
+          items:
+            $ref: '#/components/schemas/AuditItemAttempt'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        findingIds:
+          type: array
+          maxItems: 130
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/ResourceId'
     AuditItemPage:
       type: object
       additionalProperties: false
@@ -13755,17 +14009,45 @@ components:
     AuditCoverageRow:
       type: object
       additionalProperties: false
-      required: [roundId, itemId, ordinal, itemKey, subjectKey, coverage, updatedAt]
+      required:
+      - roundId
+      - itemId
+      - ordinal
+      - itemKey
+      - subjectKey
+      - coverage
+      - updatedAt
+      - findingIds
       properties:
-        roundId: {$ref: '#/components/schemas/ResourceId'}
-        itemId: {$ref: '#/components/schemas/ResourceId'}
-        ordinal: {type: integer, minimum: 0, maximum: 9999}
-        itemKey: {type: string, minLength: 1, maxLength: 256}
-        subjectKey: {$ref: '#/components/schemas/AuditSubjectKey'}
-        coverage: {$ref: '#/components/schemas/AuditCoverage'}
-        details: {$ref: '#/components/schemas/AuditCoverageDetails'}
-        result: {$ref: '#/components/schemas/AuditExactArtifact'}
-        updatedAt: {type: string, format: date-time}
+        roundId:
+          $ref: '#/components/schemas/ResourceId'
+        itemId:
+          $ref: '#/components/schemas/ResourceId'
+        ordinal:
+          type: integer
+          minimum: 0
+          maximum: 9999
+        itemKey:
+          type: string
+          minLength: 1
+          maxLength: 256
+        subjectKey:
+          $ref: '#/components/schemas/AuditSubjectKey'
+        coverage:
+          $ref: '#/components/schemas/AuditCoverage'
+        details:
+          $ref: '#/components/schemas/AuditCoverageDetails'
+        result:
+          $ref: '#/components/schemas/AuditExactArtifact'
+        updatedAt:
+          type: string
+          format: date-time
+        findingIds:
+          type: array
+          maxItems: 130
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/ResourceId'
     AuditCoveragePage:
       type: object
       additionalProperties: false
@@ -13801,7 +14083,7 @@ components:
         summaryArtifact: {$ref: '#/components/schemas/AuditReportSummaryArtifact'}
         machine:
           type: object
-          description: Exact contractor.audit.report.v1 machine-readable document.
+          description: Exact contractor.audit.report.v2 machine-readable document.
           additionalProperties: true
         summary: {type: string, maxLength: 65536}
     AuditTimeLimitRequest:
@@ -13942,13 +14224,6 @@ components:
       properties:
         kind: {type: string, const: project}
         projectId: {$ref: '#/components/schemas/ResourceId'}
-    FindingCorrelationReference:
-      type: object
-      additionalProperties: false
-      required: [auditId, findingId]
-      properties:
-        auditId: {$ref: '#/components/schemas/ResourceId'}
-        findingId: {$ref: '#/components/schemas/ResourceId'}
     FindingCorrelationBasis:
       type: object
       additionalProperties: false
@@ -13956,39 +14231,6 @@ components:
       properties:
         algorithm: {type: string, enum: [contractor/producer-issue/v1, contractor/snapshot-issue-anchor/v1]}
         value: {type: string, pattern: '^[0-9a-f]{64}$'}
-    FindingCorrelation:
-      description: System-owned Project equality presentation at projectRevision, separate from every Audit-local verdict, severity and manual duplicate decision. The representative is the smallest retained finding ID in byte order and conveys no truth or discovery priority.
-      oneOf:
-        - type: object
-          additionalProperties: false
-          required: [schema, policyVersion, scope, projectRevision, availability, reason, automaticDuplicate, hasOtherObservations]
-          properties:
-            schema: {type: string, const: contractor.finding.correlation.v1}
-            policyVersion: {type: string, const: qualified-snapshot/v1}
-            scope: {$ref: '#/components/schemas/FindingCorrelationScope'}
-            projectRevision: {type: integer, minimum: 1, maximum: 9007199254740991}
-            availability: {type: string, const: unavailable}
-            reason: {type: string, enum: [not_recorded, no_qualified_key, primary_key_ambiguous]}
-            automaticDuplicate: {type: boolean, const: false}
-            hasOtherObservations: {type: boolean, const: false}
-        - type: object
-          additionalProperties: false
-          required: [schema, policyVersion, scope, projectRevision, availability, groupKey, basis, matchedDomain, representative, automaticDuplicate, hasOtherObservations]
-          properties:
-            schema: {type: string, const: contractor.finding.correlation.v1}
-            policyVersion: {type: string, const: qualified-snapshot/v1}
-            scope: {$ref: '#/components/schemas/FindingCorrelationScope'}
-            projectRevision: {type: integer, minimum: 1, maximum: 9007199254740991}
-            availability: {type: string, const: available}
-            groupKey: {type: string, pattern: '^[0-9a-f]{64}$'}
-            basis: {$ref: '#/components/schemas/FindingCorrelationBasis'}
-            matchedDomain: {type: string, const: snapshot}
-            representative: {$ref: '#/components/schemas/FindingCorrelationReference'}
-            automaticDuplicate: {type: boolean}
-            hasOtherObservations: {type: boolean}
-          allOf:
-            - if: {properties: {automaticDuplicate: {type: boolean, const: true}}}
-              then: {properties: {hasOtherObservations: {type: boolean, const: true}}}
     FindingSubject:
       type: object
       additionalProperties: false
@@ -14264,19 +14506,73 @@ components:
     FindingProposalReceipt:
       type: object
       additionalProperties: false
-      required: [receiptId, proposalId, requestDigest, clientKey, proposal, document, evidence, origin, retention, auditHolds, createdAt]
+      required:
+      - receiptId
+      - proposalId
+      - requestDigest
+      - clientKey
+      - proposal
+      - document
+      - evidence
+      - origin
+      - retention
+      - auditHolds
+      - createdAt
+      - publicationRequested
       properties:
-        receiptId: {$ref: '#/components/schemas/ResourceId'}
-        proposalId: {$ref: '#/components/schemas/ResourceId'}
-        requestDigest: {$ref: '#/components/schemas/Digest'}
-        clientKey: {type: string, minLength: 1, maxLength: 160}
-        proposal: {$ref: '#/components/schemas/FindingExactArtifact'}
-        document: {$ref: '#/components/schemas/FindingProposalDocument'}
-        evidence: {type: array, maxItems: 256, items: {$ref: '#/components/schemas/FindingExactArtifact'}}
-        origin: {$ref: '#/components/schemas/FindingOrigin'}
-        retention: {type: string, enum: [source-held, audit-held, discarded]}
-        auditHolds: {type: array, maxItems: 200, items: {$ref: '#/components/schemas/FindingAuditHold'}}
-        createdAt: {type: string, format: date-time}
+        receiptId:
+          $ref: '#/components/schemas/ResourceId'
+        proposalId:
+          $ref: '#/components/schemas/ResourceId'
+        requestDigest:
+          $ref: '#/components/schemas/Digest'
+        clientKey:
+          type: string
+          minLength: 1
+          maxLength: 160
+        proposal:
+          $ref: '#/components/schemas/FindingExactArtifact'
+        document:
+          $ref: '#/components/schemas/FindingProposalDocument'
+        evidence:
+          type: array
+          maxItems: 256
+          items:
+            $ref: '#/components/schemas/FindingExactArtifact'
+        origin:
+          $ref: '#/components/schemas/FindingOrigin'
+        retention:
+          type: string
+          enum:
+          - source-held
+          - project-held
+          - discarded
+        auditHolds:
+          type: array
+          maxItems: 200
+          items:
+            $ref: '#/components/schemas/FindingAuditHold'
+        createdAt:
+          type: string
+          format: date-time
+        publicationRequested:
+          type: boolean
+        publicationError:
+          type: string
+          enum:
+          - problem_evidence_required
+          - problem_project_required
+        projectId:
+          $ref: '#/components/schemas/ResourceId'
+        findingId:
+          $ref: '#/components/schemas/ResourceId'
+        projectProposal:
+          $ref: '#/components/schemas/FindingExactArtifact'
+        projectEvidence:
+          type: array
+          maxItems: 256
+          items:
+            $ref: '#/components/schemas/FindingExactArtifact'
     FindingProposalPage:
       type: object
       additionalProperties: false
@@ -14298,87 +14594,113 @@ components:
       properties:
         hold: {$ref: '#/components/schemas/FindingAuditHold'}
         replayed: {type: boolean}
-    AuditFindingState: {type: string, enum: [proposed, confirmed, rejected, duplicate, needs-evidence]}
-    AuditFindingSeverity: {type: string, enum: [informational, low, medium, high, critical]}
-    AuditAnalystVerdict: {type: string, enum: [true_positive, false_positive, duplicate, reopen, needs_evidence]}
     AuditReviewAction: {type: string, enum: [approve, reject, not_applicable]}
-    AuditReviewRequestedAction: {type: string, enum: [true_positive, false_positive, duplicate, reopen, needs_evidence, approve, reject, not_applicable]}
-    AuditReviewSubjectKind: {type: string, enum: [finding, audit-item-action, audit-report]}
+    AuditReviewRequestedAction:
+      type: string
+      enum:
+      - approve
+      - reject
+      - not_applicable
+    AuditReviewSubjectKind:
+      type: string
+      enum:
+      - audit-item-action
+      - audit-report
     AuditReviewState: {type: string, enum: [pending, decided, expired]}
-    AuditFindingAssessment:
-      type: object
-      additionalProperties: false
-      required: [assessmentId, semanticAssessment, result, receiptId, directVerification, acceptedAt]
-      properties:
-        assessmentId: {$ref: '#/components/schemas/ResourceId'}
-        semanticAssessment: {type: string, enum: [supported, refuted, inconclusive, blocked, satisfied, violated, not-tested]}
-        result: {$ref: '#/components/schemas/AuditExactArtifact'}
-        receiptId: {$ref: '#/components/schemas/ResourceId'}
-        itemId: {$ref: '#/components/schemas/ResourceId'}
-        executionItemId: {$ref: '#/components/schemas/ResourceId'}
-        collectionReceiptId: {$ref: '#/components/schemas/ResourceId'}
-        directVerification: {type: boolean}
-        contract: {$ref: '#/components/schemas/AuditExactArtifact'}
-        acceptedAt: {type: string, format: date-time}
     AuditReviewDecision:
       type: object
       additionalProperties: false
-      required: [decisionId, requestId, auditId, actorId, rationale, subjectRevision, subjectDigest, createdAt]
+      required:
+      - decisionId
+      - requestId
+      - auditId
+      - actorId
+      - rationale
+      - subjectRevision
+      - subjectDigest
+      - createdAt
+      - action
       properties:
-        decisionId: {$ref: '#/components/schemas/ResourceId'}
-        requestId: {$ref: '#/components/schemas/ResourceId'}
-        auditId: {$ref: '#/components/schemas/ResourceId'}
-        findingId: {$ref: '#/components/schemas/ResourceId'}
-        actorId: {type: string, minLength: 1, maxLength: 256}
-        action: {$ref: '#/components/schemas/AuditReviewAction'}
-        verdict: {$ref: '#/components/schemas/AuditAnalystVerdict'}
-        severity: {$ref: '#/components/schemas/AuditFindingSeverity'}
-        rationale: {type: string, minLength: 1, maxLength: 65536, x-max-utf8-bytes: 65536}
-        duplicateTargetId: {$ref: '#/components/schemas/ResourceId'}
-        subjectRevision: {type: integer, minimum: 1}
-        subjectDigest: {$ref: '#/components/schemas/Digest'}
-        createdAt: {type: string, format: date-time}
+        decisionId:
+          $ref: '#/components/schemas/ResourceId'
+        requestId:
+          $ref: '#/components/schemas/ResourceId'
+        auditId:
+          $ref: '#/components/schemas/ResourceId'
+        actorId:
+          type: string
+          minLength: 1
+          maxLength: 256
+        action:
+          $ref: '#/components/schemas/AuditReviewAction'
+        rationale:
+          $ref: '#/components/schemas/DecisionRationale'
+        subjectRevision:
+          type: integer
+          minimum: 1
+        subjectDigest:
+          $ref: '#/components/schemas/Digest'
+        createdAt:
+          type: string
+          format: date-time
     AuditReviewRequest:
       type: object
       additionalProperties: false
-      required: [requestId, auditId, subjectKind, subjectId, kind, subjectRevision, subjectDigest, requestedActions, state, revision, createdAt, updatedAt]
+      required:
+      - requestId
+      - auditId
+      - subjectKind
+      - subjectId
+      - kind
+      - subjectRevision
+      - subjectDigest
+      - requestedActions
+      - state
+      - revision
+      - createdAt
+      - updatedAt
       properties:
-        requestId: {$ref: '#/components/schemas/ResourceId'}
-        auditId: {$ref: '#/components/schemas/ResourceId'}
-        findingId: {$ref: '#/components/schemas/ResourceId'}
-        subjectKind: {$ref: '#/components/schemas/AuditReviewSubjectKind'}
-        subjectId: {$ref: '#/components/schemas/ResourceId'}
-        kind: {type: string, enum: [finding-triage, active-check-approval, requirement-applicability, report-acceptance]}
-        subjectRevision: {type: integer, minimum: 1}
-        subjectDigest: {$ref: '#/components/schemas/Digest'}
-        requestedActions: {type: array, minItems: 1, maxItems: 16, items: {$ref: '#/components/schemas/AuditReviewRequestedAction'}}
-        state: {$ref: '#/components/schemas/AuditReviewState'}
-        expiresAt: {type: string, format: date-time}
-        revision: {type: integer, minimum: 1}
-        decision: {$ref: '#/components/schemas/AuditReviewDecision'}
-        createdAt: {type: string, format: date-time}
-        updatedAt: {type: string, format: date-time}
-    AuditFinding:
-      type: object
-      additionalProperties: false
-      required: [findingId, auditId, state, firstProposal, revision, createdAt, updatedAt]
-      properties:
-        findingId: {$ref: '#/components/schemas/ResourceId'}
-        auditId: {$ref: '#/components/schemas/ResourceId'}
-        state: {$ref: '#/components/schemas/AuditFindingState'}
-        rejectionReason: {type: string, enum: [false-positive, policy, out-of-scope]}
-        duplicateTargetId: {$ref: '#/components/schemas/ResourceId'}
-        firstProposal: {$ref: '#/components/schemas/FindingProposalReceipt'}
-        fingerprint: {$ref: '#/components/schemas/FindingFingerprintProjection'}
-        anchors: {$ref: '#/components/schemas/FindingAnchorProjection'}
-        correlation: {$ref: '#/components/schemas/FindingCorrelation'}
-        currentAssessment: {$ref: '#/components/schemas/AuditFindingAssessment'}
-        analystDecision: {$ref: '#/components/schemas/AuditReviewDecision'}
-        analystVerdict: {$ref: '#/components/schemas/AuditAnalystVerdict'}
-        analystSeverity: {$ref: '#/components/schemas/AuditFindingSeverity'}
-        revision: {type: integer, minimum: 1}
-        createdAt: {type: string, format: date-time}
-        updatedAt: {type: string, format: date-time}
+        requestId:
+          $ref: '#/components/schemas/ResourceId'
+        auditId:
+          $ref: '#/components/schemas/ResourceId'
+        subjectKind:
+          $ref: '#/components/schemas/AuditReviewSubjectKind'
+        subjectId:
+          $ref: '#/components/schemas/ResourceId'
+        kind:
+          type: string
+          enum:
+          - active-check-approval
+          - requirement-applicability
+          - report-acceptance
+        subjectRevision:
+          type: integer
+          minimum: 1
+        subjectDigest:
+          $ref: '#/components/schemas/Digest'
+        requestedActions:
+          type: array
+          minItems: 1
+          maxItems: 16
+          items:
+            $ref: '#/components/schemas/AuditReviewRequestedAction'
+        state:
+          $ref: '#/components/schemas/AuditReviewState'
+        expiresAt:
+          type: string
+          format: date-time
+        revision:
+          type: integer
+          minimum: 1
+        decision:
+          $ref: '#/components/schemas/AuditReviewDecision'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
     AuditWorkspace:
       type: object
       additionalProperties: false
@@ -14401,10 +14723,17 @@ components:
     OwnerFindingPage:
       type: object
       additionalProperties: false
-      required: [items, page]
+      required:
+      - items
+      - page
       properties:
-        items: {type: array, maxItems: 200, items: {$ref: '#/components/schemas/AuditFinding'}}
-        page: {$ref: '#/components/schemas/PageInfo'}
+        items:
+          type: array
+          maxItems: 200
+          items:
+            $ref: '#/components/schemas/ProjectFindingSummary'
+        page:
+          $ref: '#/components/schemas/PageInfo'
     OwnerReviewPage:
       type: object
       additionalProperties: false
@@ -14415,13 +14744,30 @@ components:
     AuditFindingPage:
       type: object
       additionalProperties: false
-      required: [items, page, auditRevision, asOf, total]
+      required:
+      - items
+      - page
+      - auditRevision
+      - asOf
+      - projectRevision
       properties:
-        auditRevision: {type: integer, minimum: 1}
-        asOf: {type: string, format: date-time}
-        total: {type: integer, minimum: 0, description: Whole-Audit count matching all filters before the cursor.}
-        items: {type: array, maxItems: 200, items: {$ref: '#/components/schemas/AuditFinding'}}
-        page: {$ref: '#/components/schemas/PageInfo'}
+        auditRevision:
+          type: integer
+          minimum: 1
+        asOf:
+          type: string
+          format: date-time
+        items:
+          type: array
+          maxItems: 200
+          items:
+            $ref: '#/components/schemas/ProjectFindingSummary'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+        projectRevision:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
     AuditReviewPage:
       type: object
       additionalProperties: false
@@ -14432,95 +14778,31 @@ components:
         total: {type: integer, minimum: 0, description: Whole-Audit count matching all filters before the cursor.}
         items: {type: array, maxItems: 200, items: {$ref: '#/components/schemas/AuditReviewRequest'}}
         page: {$ref: '#/components/schemas/PageInfo'}
-    AuditFindingProvenance:
-      type: object
-      additionalProperties: false
-      required: [recordId, kind, receiptId, proposal, origin, supportsCurrentAssessment, createdAt]
-      properties:
-        recordId: {$ref: '#/components/schemas/ResourceId'}
-        kind: {type: string, enum: [source-proposal, check-attempt, direct-verification]}
-        receiptId: {$ref: '#/components/schemas/ResourceId'}
-        relation: {type: string, enum: [first, contributing, verification]}
-        proposal: {$ref: '#/components/schemas/AuditExactArtifact'}
-        origin: {$ref: '#/components/schemas/FindingOrigin'}
-        assessment: {$ref: '#/components/schemas/AuditFindingAssessment'}
-        attempt: {$ref: '#/components/schemas/AuditFindingAttempt'}
-        supportsCurrentAssessment: {type: boolean}
-        createdAt: {type: string, format: date-time}
-    AuditFindingProvenancePage:
-      type: object
-      additionalProperties: false
-      required: [findingRevision, auditRevision, items, page]
-      properties:
-        findingRevision: {type: integer, minimum: 1}
-        auditRevision: {type: integer, minimum: 1}
-        items: {type: array, maxItems: 200, items: {$ref: '#/components/schemas/AuditFindingProvenance'}}
-        page: {$ref: '#/components/schemas/PageInfo'}
-    CreateAuditFindingReviewRequest:
-      type: object
-      additionalProperties: false
-      properties:
-        expiresAt: {type: string, format: date-time}
-    DecideAuditFindingRequest:
-      oneOf:
-        - $ref: '#/components/schemas/DecideAuditFindingTruePositiveRequest'
-        - $ref: '#/components/schemas/DecideAuditFindingDuplicateRequest'
-        - $ref: '#/components/schemas/DecideAuditFindingOtherRequest'
-    DecideAuditFindingTruePositiveRequest:
-      type: object
-      additionalProperties: false
-      required: [verdict, severity, rationale]
-      properties:
-        verdict: {type: string, const: true_positive}
-        severity: {$ref: '#/components/schemas/AuditFindingSeverity'}
-        rationale: {type: string, minLength: 1, maxLength: 65536, x-max-utf8-bytes: 65536}
-    DecideAuditFindingDuplicateRequest:
-      type: object
-      additionalProperties: false
-      required: [verdict, duplicateTargetId, rationale]
-      properties:
-        verdict: {type: string, const: duplicate}
-        duplicateTargetId: {$ref: '#/components/schemas/ResourceId'}
-        rationale: {type: string, minLength: 1, maxLength: 65536, x-max-utf8-bytes: 65536}
-    DecideAuditFindingOtherRequest:
-      type: object
-      additionalProperties: false
-      required: [verdict, rationale]
-      properties:
-        verdict: {type: string, enum: [false_positive, reopen, needs_evidence]}
-        rationale: {type: string, minLength: 1, maxLength: 65536, x-max-utf8-bytes: 65536}
-    DecideAuditActionRequest:
-      type: object
-      additionalProperties: false
-      required: [action, rationale]
-      properties:
-        action: {$ref: '#/components/schemas/AuditReviewAction'}
-        rationale: {type: string, minLength: 1, maxLength: 65536, x-max-utf8-bytes: 65536}
     DecideAuditReviewRequest:
-      oneOf:
-        - $ref: '#/components/schemas/DecideAuditFindingRequest'
-        - $ref: '#/components/schemas/DecideAuditActionRequest'
-    AuditFindingDecisionResult:
       type: object
       additionalProperties: false
-      required: [finding, request, decision, replayed]
+      required:
+      - action
+      - rationale
       properties:
-        finding: {$ref: '#/components/schemas/AuditFinding'}
-        request: {$ref: '#/components/schemas/AuditReviewRequest'}
-        decision: {$ref: '#/components/schemas/AuditReviewDecision'}
-        replayed: {type: boolean}
-    AuditActionDecisionResult:
-      type: object
-      additionalProperties: false
-      required: [request, decision, replayed]
-      properties:
-        request: {$ref: '#/components/schemas/AuditReviewRequest'}
-        decision: {$ref: '#/components/schemas/AuditReviewDecision'}
-        replayed: {type: boolean}
+        action:
+          $ref: '#/components/schemas/AuditReviewAction'
+        rationale:
+          $ref: '#/components/schemas/DecisionRationale'
     AuditReviewDecisionResult:
-      oneOf:
-        - $ref: '#/components/schemas/AuditFindingDecisionResult'
-        - $ref: '#/components/schemas/AuditActionDecisionResult'
+      type: object
+      additionalProperties: false
+      required:
+      - request
+      - decision
+      - replayed
+      properties:
+        request:
+          $ref: '#/components/schemas/AuditReviewRequest'
+        decision:
+          $ref: '#/components/schemas/AuditReviewDecision'
+        replayed:
+          type: boolean
     RuntimeInfrastructureId:
       type: string
       minLength: 1
@@ -17366,3 +17648,389 @@ components:
         cursor: {$ref: '#/components/schemas/SnapshotCursor'}
         items: {type: array, maxItems: 200, items: {$ref: '#/components/schemas/AllocationObservation'}}
         page: {$ref: '#/components/schemas/PageInfo'}
+    FindingState:
+      type: string
+      enum:
+      - proposed
+      - confirmed
+      - rejected
+      - duplicate
+      - needs-evidence
+    FindingSeverity:
+      type: string
+      enum:
+      - informational
+      - low
+      - medium
+      - high
+      - critical
+    FindingVerdict:
+      type: string
+      enum:
+      - true_positive
+      - false_positive
+      - duplicate
+      - reopen
+      - needs_evidence
+    FindingActorIdentity:
+      type: string
+      minLength: 1
+      maxLength: 256
+      x-max-utf8-bytes: 256
+      description: Opaque authenticated actor identity, bounded in UTF-8 bytes.
+    ProjectFinding:
+      type: object
+      additionalProperties: false
+      required:
+      - findingId
+      - projectId
+      - firstReceiptId
+      - firstProposal
+      - title
+      - state
+      - analystVerdict
+      - analystSeverity
+      - duplicateTargetId
+      - rationale
+      - actorId
+      - assessedAt
+      - revision
+      - createdAt
+      - updatedAt
+      properties:
+        findingId:
+          $ref: '#/components/schemas/ResourceId'
+        projectId:
+          $ref: '#/components/schemas/ResourceId'
+        firstReceiptId:
+          $ref: '#/components/schemas/ResourceId'
+        firstProposal:
+          $ref: '#/components/schemas/FindingExactArtifact'
+        title:
+          type: string
+          minLength: 1
+          maxLength: 65536
+        claim:
+          $ref: '#/components/schemas/FindingClaim'
+        state:
+          oneOf:
+          - $ref: '#/components/schemas/FindingState'
+          - type: 'null'
+        analystVerdict:
+          oneOf:
+          - $ref: '#/components/schemas/FindingVerdict'
+          - type: 'null'
+        analystSeverity:
+          oneOf:
+          - $ref: '#/components/schemas/FindingSeverity'
+          - type: 'null'
+        duplicateTargetId:
+          oneOf:
+          - $ref: '#/components/schemas/ResourceId'
+          - type: 'null'
+        rationale:
+          oneOf:
+          - $ref: '#/components/schemas/DecisionRationale'
+          - type: 'null'
+        actorId:
+          oneOf:
+          - $ref: '#/components/schemas/FindingActorIdentity'
+          - type: 'null'
+        assessedAt:
+          oneOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+        revision:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    FindingClaim:
+      type: object
+      additionalProperties: false
+      required:
+      - title
+      - description
+      - subject
+      - preconditions
+      - standard_refs
+      - severity_suggestion
+      - limitations
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 65536
+        description:
+          type: string
+          minLength: 1
+          maxLength: 65536
+        subject:
+          oneOf:
+          - $ref: '#/components/schemas/FindingSubject'
+          - type: 'null'
+          description: Null means the affected subject is not identified.
+        hypothesis:
+          type: string
+          maxLength: 65536
+        preconditions:
+          type: array
+          maxItems: 512
+          items:
+            type: string
+            maxLength: 65536
+        standard_refs:
+          type: array
+          maxItems: 512
+          items:
+            $ref: '#/components/schemas/FindingStandardReference'
+        severity_suggestion:
+          type: string
+          enum:
+          - ''
+          - informational
+          - low
+          - medium
+          - high
+          - critical
+        limitations:
+          type: array
+          maxItems: 512
+          uniqueItems: true
+          description: Each value is limited to 512 UTF-8 bytes by the Server.
+          items:
+            type: string
+            minLength: 1
+            maxLength: 512
+        locations:
+          type: array
+          maxItems: 256
+          items:
+            $ref: '#/components/schemas/FindingLocation'
+          description: Optional; source and web coordinates are producer claims.
+        http_exchange:
+          $ref: '#/components/schemas/FindingHTTPExchange'
+    ProjectFindingSummary:
+      type: object
+      additionalProperties: false
+      required:
+      - findingId
+      - projectId
+      - title
+      - titleTruncated
+      - subjectKind
+      - subjectKey
+      - subjectTruncated
+      - severitySuggestion
+      - state
+      - analystVerdict
+      - analystSeverity
+      - duplicateTargetId
+      - revision
+      - createdAt
+      - updatedAt
+      properties:
+        findingId:
+          $ref: '#/components/schemas/ResourceId'
+        projectId:
+          $ref: '#/components/schemas/ResourceId'
+        title:
+          type: string
+          minLength: 1
+          maxLength: 256
+        titleTruncated:
+          type: boolean
+        subjectKind:
+          type: string
+          maxLength: 64
+        subjectKey:
+          type: string
+          maxLength: 256
+        subjectTruncated:
+          type: boolean
+        severitySuggestion:
+          type: string
+          enum: ['', informational, low, medium, high, critical]
+        state:
+          oneOf:
+          - $ref: '#/components/schemas/FindingState'
+          - type: 'null'
+        analystVerdict:
+          oneOf:
+          - $ref: '#/components/schemas/FindingVerdict'
+          - type: 'null'
+        analystSeverity:
+          oneOf:
+          - $ref: '#/components/schemas/FindingSeverity'
+          - type: 'null'
+        duplicateTargetId:
+          oneOf:
+          - $ref: '#/components/schemas/ResourceId'
+          - type: 'null'
+        revision:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    ProjectFindingPage:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      - projectRevision
+      - page
+      properties:
+        items:
+          type: array
+          maxItems: 200
+          items:
+            $ref: '#/components/schemas/ProjectFindingSummary'
+        projectRevision:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
+        page:
+          $ref: '#/components/schemas/PageInfo'
+    DecisionRationale:
+      type: string
+      minLength: 1
+      maxLength: 65536
+      x-max-utf8-bytes: 65536
+    EditProjectFindingRequest:
+      oneOf:
+      - type: object
+        additionalProperties: false
+        required:
+        - verdict
+        - severity
+        - rationale
+        properties:
+          verdict:
+            type: string
+            const: true_positive
+          severity:
+            $ref: '#/components/schemas/FindingSeverity'
+          rationale:
+            $ref: '#/components/schemas/DecisionRationale'
+      - type: object
+        additionalProperties: false
+        required:
+        - verdict
+        - rationale
+        properties:
+          verdict:
+            type: string
+            enum:
+            - false_positive
+            - reopen
+            - needs_evidence
+          rationale:
+            $ref: '#/components/schemas/DecisionRationale'
+      - type: object
+        additionalProperties: false
+        required:
+        - verdict
+        - duplicateTargetId
+        - rationale
+        properties:
+          verdict:
+            type: string
+            const: duplicate
+          duplicateTargetId:
+            $ref: '#/components/schemas/ResourceId'
+          rationale:
+            $ref: '#/components/schemas/DecisionRationale'
+    EditProjectFindingResult:
+      type: object
+      additionalProperties: false
+      required:
+      - finding
+      - replayed
+      properties:
+        finding:
+          $ref: '#/components/schemas/ProjectFinding'
+        replayed:
+          type: boolean
+    ProjectFindingSourcePreview:
+      type: object
+      additionalProperties: false
+      required:
+      - receiptId
+      - proposalId
+      - projectId
+      - proposal
+      - origin
+      - evidenceCount
+      - publicationRequested
+      - createdAt
+      properties:
+        receiptId:
+          $ref: '#/components/schemas/ResourceId'
+        proposalId:
+          $ref: '#/components/schemas/ResourceId'
+        projectId:
+          $ref: '#/components/schemas/ResourceId'
+        findingId:
+          $ref: '#/components/schemas/ResourceId'
+        proposal:
+          $ref: '#/components/schemas/FindingExactArtifact'
+        origin:
+          $ref: '#/components/schemas/FindingOrigin'
+        evidenceCount:
+          type: integer
+          minimum: 0
+          maximum: 256
+        publicationRequested:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+    ProjectFindingSourcePage:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      - projectRevision
+      - page
+      properties:
+        items:
+          type: array
+          maxItems: 64
+          items:
+            $ref: '#/components/schemas/ProjectFindingSourcePreview'
+        projectRevision:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
+        page:
+          $ref: '#/components/schemas/PageInfo'
+    ProjectFindingSourceHistoryPage:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      - projectRevision
+      - page
+      properties:
+        items:
+          type: array
+          maxItems: 64
+          items:
+            $ref: '#/components/schemas/ArtifactMetadata'
+        projectRevision:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
+        page:
+          $ref: '#/components/schemas/PageInfo'

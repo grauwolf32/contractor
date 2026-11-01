@@ -16,6 +16,9 @@ const (
 	AuditManagedProjectNamespacePrefix = "audit-"
 	AuditStandardCatalogNamespace      = "audit-standards"
 	FindingProposalNamespace           = "finding-proposals"
+	FindingMaterialsNamespace          = "finding-materials"
+	FindingHistoryNamespace            = "finding-history"
+	HistoricalAuditsNamespace          = "historical-audits"
 	// AuditContextNamespace holds frozen, authorized Run-local Audit context.
 	// Models may read its exact refs; only the trusted materializer writes it.
 	AuditContextNamespace = "audit-context"
@@ -33,7 +36,8 @@ func IsAuditManagedProjectNamespace(namespace string) bool {
 // IsPurposeReservedProjectNamespace reports Project namespaces whose trusted
 // domain publisher owns writes. Generic reads and exact input forks stay ordinary.
 func IsPurposeReservedProjectNamespace(namespace string) bool {
-	return IsAuditManagedProjectNamespace(namespace) || namespace == ProjectSitemapNamespace
+	return IsAuditManagedProjectNamespace(namespace) || namespace == ProjectSitemapNamespace ||
+		namespace == FindingMaterialsNamespace || namespace == FindingHistoryNamespace || namespace == HistoricalAuditsNamespace
 }
 
 // IsAuditStandardCatalogNamespace reports the one UserScope Namespace reserved

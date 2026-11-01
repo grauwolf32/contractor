@@ -1,0 +1,110 @@
+{
+  "task": "V64-014",
+  "date": "2026-11-01",
+  "branch": "codex/project-finding-ownership",
+  "integrated_main": "f9eaea44b1f484176a25011338234d2400006860",
+  "state": "implementation prepared; task remains in_progress until every required gate passes",
+  "contract": [
+    "One Project Finding identity, nullable current analyst fields, CAS and keyed mutation; Audit views read membership references.",
+    "Explicit publication intent plus claim and selected exact evidence; independent receipts, results and source history never supply or overwrite current analyst state.",
+    "Retire Finding reviews, confirmation configuration and index backfill/waiting state. New check indexes are immutable and non-NULL at insertion.",
+    "One atomic drained cutover archives opaque old Audit facts/snapshots/results and starts operational Finding/intake empty. No compatibility execution or old readers."
+  ],
+  "checks": [
+    {
+      "command": "make require-database",
+      "result": "passed; disposable PostgreSQL via TCP"
+    },
+    {
+      "command": "go test -tags=integration -count=1 ./internal/findingintake/... ./internal/auditdomain/... ./internal/auditstore/... ./internal/auditservice/... ./internal/auditimport/... ./internal/auditcontroller/... ./internal/artifacts/... ./internal/persistence/postgres/...",
+      "result": "passed in the final combined run with disposable PostgreSQL; no mandatory database skip"
+    },
+    {
+      "command": "make test-findings-e2e",
+      "result": "passed: 14 required production-process cases and Runtime contracts"
+    },
+    {
+      "command": "make verify-public-api verify-public-api-postgres",
+      "result": "passed; race-backed PostgreSQL selection now includes TestPublicProjectFindingPagesAndDirectCanonicalEdit"
+    },
+    {
+      "command": "make test-wire-cross-language",
+      "result": "passed: 372 fixtures, 392 Go and 288 Python shared tests; 385 Runtime contract tests"
+    },
+    {
+      "command": "make ui-verify",
+      "result": "passed: 219 files, 2626 tests passed and 1 expected failure; 17 Node server tests passed; generation/lint/typecheck/build passed"
+    },
+    {
+      "command": "make test-config",
+      "result": "passed; shipped validation: 23 Workflows, 27 AgentTemplates, 14 AuditProfiles"
+    },
+    {
+      "command": "make lint verify-architecture",
+      "result": "passed; staticcheck/test-only exports/layers/SQL ownership/ERD/release graph/spec/Runtime Ruff and imports"
+    },
+    {
+      "command": "runBrowserGate(project-findings-v64, decision-focus.spec.ts, issue-review-design.spec.ts, project-finding-sources.spec.ts, check-events.spec.ts)",
+      "result": "passed: 33 executed browser scenarios; light/dark/black and mobile layouts"
+    },
+    {
+      "command": "go test -count=1 ./internal/evalservice/... ./tests/eval/audit_programs/...",
+      "result": "passed"
+    },
+    {
+      "command": "go test -tags=integration -count=1 ./tests/integration/restore/...",
+      "result": "passed: PostgreSQL and filesystem backup/restore with canonical Finding rows"
+    },
+    {
+      "command": "go test -tags=integration -count=1 additional touched packages",
+      "packages": [
+        "internal/app",
+        "internal/apierror",
+        "internal/artifactpolicy",
+        "internal/auditpriority",
+        "internal/config",
+        "internal/httpapi/privateartifacts",
+        "internal/persistence",
+        "internal/projectlifecycle",
+        "internal/findingexport",
+        "internal/publicclient",
+        "internal/cli"
+      ],
+      "result": "passed in full package runs; auditpriority trailing-comma fixture repaired and rerun"
+    }
+  ],
+  "scale_and_regressions": [
+    "Actual ordinary producers in two Audits admit one qualified canonical Finding with independent sources; explicit intent, invalid publication, replay, source deletion and no old mutable Audit table verified.",
+    "Project command edits from either Audit, stale/concurrent edits, idempotent replay and atomic history/receipt rollback verified against PostgreSQL.",
+    "An accepted negative recheck and collection replay retain exact result history without changing the manually confirmed Finding.",
+    "10000 canonical Findings, 50000 sources including 10000 on one Finding, and 10000 newer foreign-owner Findings: full traversals, sparse Audit/owner/report filters, exact continuation and physical row/read budgets.",
+    "10001 ordinary Artifact history bindings traversed through bounded metadata pages. The bulk fixture aliases one real retained edit version; it verifies read work/continuation, not 10000 independent analyst edits.",
+    "Large escaped analyst metadata tests enforce 128 primary records / 1 MiB mutation slices; ordinary populated Project deletion clears canonical Findings, duplicate edges, sources, receipts and holds."
+  ],
+  "remaining_failures": [
+    {
+      "command": "make test-runtime",
+      "result": "2 failed, 5809 passed, 133 skipped on macOS",
+      "owners": [
+        "V425-001",
+        "V425-002"
+      ],
+      "cases": [
+        "test_projectfs_local_io.py::test_limits_deadline_names_and_binary_classification",
+        "test_code_analysis_graph.py::test_graph_collection_stops_at_encoded_result_ceiling_with_resumable_cursor"
+      ],
+      "reason": "Documented APFS NFC/NFD aliasing and macOS PATH_MAX defects; production files involved are unchanged from integrated main. Linux-only skips are not passes."
+    },
+    {
+      "command": "make ui-browser-mocked",
+      "result": "last full run: 129 passed, 10 failed. Three Finding-page history cases were corrected and passed in the subsequent 33-case focused run. Seven Catalog/Studio cases from main remain uncorrected.",
+      "reason": "AgentTemplate mocks still supply removed modelPolicy fields; Studio expected YAML replaces instead of preserving existing summarizer overrides. These unrelated model-policy fixtures were not changed in V64-014."
+    },
+    {
+      "command": "go test -json -tags=e2e -count=1 -timeout=26m ./tests/ui-stack -run '^TestBrowserOperationsStack$'",
+      "result": "failed before starting the production browser journey",
+      "reason": "Staged workflows/streamline_copy.yaml selects unknown ModelPolicy worker@1 after main model-policy migration; full real UI-stack path remains unproven."
+    }
+  ],
+  "delivery": "Feature branch is not merged into main; no live database migration, deployment or model change was performed."
+}

@@ -1008,7 +1008,7 @@ export interface paths {
         };
         /**
          * List findings across the owner’s active Projects
-         * @description Live newest-first keyset pagination by creation time and identity. Only the authenticated owner's active regular Projects are included; evaluation workspaces are excluded. Cursors bind the owner, endpoint and filters. These are live lists, not a revision-pinned cross-project snapshot.
+         * @description Live newest-first keyset pagination by creation time and identity. Only the authenticated owner's active regular Projects are included; evaluation workspaces are excluded. Cursors bind the owner, endpoint and filters. These are live lists, not a revision-pinned cross-project snapshot. A bounded candidate window may return fewer than limit matching items, including no items, with hasMore=true. Always follow nextCursor until hasMore=false.
          */
         get: operations["listOwnerFindings"];
         put?: never;
@@ -1325,7 +1325,7 @@ export interface paths {
             };
             cookie?: never;
         };
-        /** List candidate and analyst-reviewed findings for one owned Audit */
+        /** List canonical Project Findings associated with this Audit */
         get: operations["listAuditFindings"];
         put?: never;
         post?: never;
@@ -1345,50 +1345,10 @@ export interface paths {
             };
             cookie?: never;
         };
-        /** Get one exact finding revision and its current assessment and analyst rating */
+        /** Read the same canonical Project Finding through an owned Audit */
         get: operations["getAuditFinding"];
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/audits/{auditId}/findings/{findingId}/provenance": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                auditId: components["parameters"]["AuditId"];
-                findingId: components["parameters"]["FindingId"];
-            };
-            cookie?: never;
-        };
-        /** List revision-bound exact proposal and verification provenance */
-        get: operations["listAuditFindingProvenance"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/audits/{auditId}/findings/{findingId}/reviews": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                auditId: components["parameters"]["AuditId"];
-                findingId: components["parameters"]["FindingId"];
-            };
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Create or reuse a pending review bound to the exact finding revision */
-        post: operations["createAuditFindingReview"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1404,7 +1364,7 @@ export interface paths {
             };
             cookie?: never;
         };
-        /** List exact finding review requests and immutable decisions */
+        /** List item and report review requests and immutable decisions */
         get: operations["listAuditReviews"];
         put?: never;
         post?: never;
@@ -2520,21 +2480,97 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/projects/{projectId}/finding-correlations/{groupKey}/members": {
+    "/v1/projects/{projectId}/findings": {
         parameters: {
             query?: never;
             header?: never;
             path: {
                 projectId: components["parameters"]["ProjectId"];
-                groupKey: string;
             };
             cookie?: never;
         };
-        /**
-         * Page every retained group member in a Project or selected Audit scope
-         * @description Read-only deterministic correlation. The page is bounded to 256 KiB; stale scoped revisions require restarting. An empty work-progress page may still have hasMore. Every retained observation remains reachable.
-         */
-        get: operations["listFindingCorrelationMembers"];
+        /** List compact canonical Project Findings in newest-first order */
+        get: operations["listProjectFindings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/projects/{projectId}/findings/{findingId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                findingId: components["parameters"]["FindingId"];
+            };
+            cookie?: never;
+        };
+        /** Read one canonical Project Finding and its immutable problem claim */
+        get: operations["getProjectFinding"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Set the canonical analyst assessment with revision CAS and idempotency */
+        patch: operations["editProjectFinding"];
+        trace?: never;
+    };
+    "/v1/projects/{projectId}/finding-sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        /** List immutable source previews without hydrating evidence or check history */
+        get: operations["listProjectFindingSources"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/projects/{projectId}/finding-sources/{receiptId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                receiptId: components["schemas"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        /** Read one Project-owned immutable source and its exact materials */
+        get: operations["getProjectFindingSource"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/projects/{projectId}/finding-sources/{receiptId}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                receiptId: components["schemas"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        /** Page ordinary immutable source history Artifact metadata */
+        get: operations["listProjectFindingSourceHistory"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2739,7 +2775,7 @@ export interface components {
         };
         FindingCorrelationFence: {
             projectId: components["schemas"]["ResourceId"];
-            projectRevision?: number;
+            projectRevision: number;
             audits: components["schemas"]["FindingComparisonAudit"][];
         };
         FindingComparisonOrigin: {
@@ -2753,23 +2789,18 @@ export interface components {
         };
         FindingComparisonPreview: {
             findingId: components["schemas"]["ResourceId"];
-            auditId: components["schemas"]["ResourceId"];
             revision: number;
             /** @constant */
             preview: true;
             title: string;
             titleTruncated: boolean;
-            state: components["schemas"]["AuditFindingState"];
+            state: components["schemas"]["FindingState"] | null;
             /** @enum {string} */
             severitySuggestion: "" | "critical" | "high" | "medium" | "low" | "informational";
-            analystVerdict?: components["schemas"]["AuditAnalystVerdict"];
-            analystSeverity?: components["schemas"]["AuditFindingSeverity"];
-            semanticAssessment?: string;
+            analystVerdict: components["schemas"]["FindingVerdict"] | null;
+            analystSeverity: components["schemas"]["FindingSeverity"] | null;
             origin: components["schemas"]["FindingComparisonOrigin"];
-            /** @enum {string} */
-            correlationRole?: "representative" | "automatic-duplicate";
-            assessmentId?: components["schemas"]["ResourceId"];
-            decisionId?: components["schemas"]["ResourceId"];
+            projectId: components["schemas"]["ResourceId"];
         };
         FindingCorrelationPageInfo: {
             /** @constant */
@@ -2828,10 +2859,10 @@ export interface components {
             basis?: components["schemas"]["FindingCorrelationBasis"];
             /** @enum {string} */
             unavailableReason?: "not_recorded" | "no_qualified_key" | "primary_key_ambiguous";
-            representative: components["schemas"]["FindingCorrelationReference"];
             left?: components["schemas"]["FindingComparisonPreview"];
             right?: components["schemas"]["FindingComparisonPreview"];
             previewsShareReceipt: boolean;
+            findingId: components["schemas"]["ResourceId"];
         };
         FindingComparisonPage: {
             /** @constant */
@@ -2842,16 +2873,6 @@ export interface components {
             rightAuditId: components["schemas"]["ResourceId"];
             limitations: string[];
             items: components["schemas"]["FindingComparisonRow"][];
-            page: components["schemas"]["FindingCorrelationPageInfo"];
-        };
-        FindingMembersPage: {
-            /** @constant */
-            policyVersion: "qualified-snapshot/v1";
-            scope: components["schemas"]["FindingCorrelationReadScope"];
-            fence: components["schemas"]["FindingCorrelationFence"];
-            groupKey: string;
-            representative: components["schemas"]["FindingCorrelationReference"];
-            items: components["schemas"]["FindingComparisonPreview"][];
             page: components["schemas"]["FindingCorrelationPageInfo"];
         };
         EvalId: string;
@@ -3980,14 +4001,12 @@ export interface components {
         AuditInteractionPolicy: {
             activeChecks: components["schemas"]["ActiveChecksPolicy"];
             /** @enum {string} */
-            findingConfirmation: "disabled" | "human-required";
-            /** @enum {string} */
             notApplicable: "human-required" | "profile-rule";
             /** @enum {string} */
             reportAcceptance: "automatic" | "human-required";
         };
         /** @enum {string} */
-        AuditCompatibilityReason: "preparation_unsupported" | "discovery_unsupported" | "assessment_unsupported" | "multiple_rounds_unsupported" | "batching_unsupported" | "automatic_active_checks_unsupported" | "project_active_checks_prohibited" | "active_check_approval_unsupported" | "finding_confirmation_unsupported" | "manual_applicability_unsupported" | "report_acceptance_unsupported" | "manual_item_unsupported" | "engagement_capability_unsupported" | "engagement_source_closure_unsupported" | "engagement_active_checks_unsupported";
+        AuditCompatibilityReason: "preparation_unsupported" | "discovery_unsupported" | "assessment_unsupported" | "multiple_rounds_unsupported" | "batching_unsupported" | "automatic_active_checks_unsupported" | "project_active_checks_prohibited" | "active_check_approval_unsupported" | "manual_applicability_unsupported" | "report_acceptance_unsupported" | "manual_item_unsupported" | "engagement_capability_unsupported" | "engagement_source_closure_unsupported" | "engagement_active_checks_unsupported";
         AuditProfile: {
             ref: components["schemas"]["AuditProfileRef"];
             mode: components["schemas"]["AuditProfileMode"];
@@ -4215,7 +4234,7 @@ export interface components {
             disposition?: components["schemas"]["AuditCollectionDisposition"];
             subjectKind?: components["schemas"]["AuditReviewSubjectKind"];
             /** @enum {string} */
-            kind?: "finding-triage" | "active-check-approval" | "requirement-applicability" | "report-acceptance";
+            kind?: "active-check-approval" | "requirement-applicability" | "report-acceptance";
             action?: components["schemas"]["AuditReviewAction"];
             /** @enum {string} */
             verdict?: "true_positive" | "false_positive" | "needs_evidence" | "duplicate" | "reopen";
@@ -4306,27 +4325,6 @@ export interface components {
             /** Format: date-time */
             collectedAt?: string;
         };
-        AuditFindingAttempt: {
-            executionItemId: components["schemas"]["ResourceId"];
-            executionId: components["schemas"]["ResourceId"];
-            itemId: components["schemas"]["ResourceId"];
-            itemAttempt: number;
-            role: components["schemas"]["AuditExecutionRole"];
-            workflowRole: string;
-            state: components["schemas"]["AuditExecutionItemState"];
-            collectionDisposition?: components["schemas"]["AuditCollectionDisposition"];
-            terminalOutcome?: components["schemas"]["AuditTerminalOutcome"];
-            runId?: components["schemas"]["ResourceId"];
-            runDeleted: boolean;
-            runProvenance?: components["schemas"]["AuditRunProvenance"];
-            task: components["schemas"]["AuditExactArtifact"];
-            itemOrigin: components["schemas"]["AuditItemOrigin"];
-            result?: components["schemas"]["AuditExactArtifact"];
-            /** Format: date-time */
-            createdAt: string;
-            /** Format: date-time */
-            collectedAt?: string;
-        };
         AuditItemOrigin: {
             /** @constant */
             schema: "contractor.audit.item-origin.v1";
@@ -4374,6 +4372,7 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             updatedAt: string;
+            findingIds: components["schemas"]["ResourceId"][];
         };
         AuditItemPage: {
             items: components["schemas"]["AuditItem"][];
@@ -4433,6 +4432,7 @@ export interface components {
             result?: components["schemas"]["AuditExactArtifact"];
             /** Format: date-time */
             updatedAt: string;
+            findingIds: components["schemas"]["ResourceId"][];
         };
         AuditCoveragePage: {
             items: components["schemas"]["AuditCoverageRow"][];
@@ -4457,7 +4457,7 @@ export interface components {
             status: components["schemas"]["AuditReportStatus"];
             machineArtifact?: components["schemas"]["AuditExactArtifact"];
             summaryArtifact?: components["schemas"]["AuditReportSummaryArtifact"];
-            /** @description Exact contractor.audit.report.v1 machine-readable document. */
+            /** @description Exact contractor.audit.report.v2 machine-readable document. */
             machine?: {
                 [key: string]: unknown;
             };
@@ -4580,48 +4580,11 @@ export interface components {
             kind: "project";
             projectId: components["schemas"]["ResourceId"];
         };
-        FindingCorrelationReference: {
-            auditId: components["schemas"]["ResourceId"];
-            findingId: components["schemas"]["ResourceId"];
-        };
         FindingCorrelationBasis: {
             /** @enum {string} */
             algorithm: "contractor/producer-issue/v1" | "contractor/snapshot-issue-anchor/v1";
             value: string;
         };
-        /** @description System-owned Project equality presentation at projectRevision, separate from every Audit-local verdict, severity and manual duplicate decision. The representative is the smallest retained finding ID in byte order and conveys no truth or discovery priority. */
-        FindingCorrelation: {
-            /** @constant */
-            schema: "contractor.finding.correlation.v1";
-            /** @constant */
-            policyVersion: "qualified-snapshot/v1";
-            scope: components["schemas"]["FindingCorrelationScope"];
-            projectRevision: number;
-            /** @constant */
-            availability: "unavailable";
-            /** @enum {string} */
-            reason: "not_recorded" | "no_qualified_key" | "primary_key_ambiguous";
-            /** @constant */
-            automaticDuplicate: false;
-            /** @constant */
-            hasOtherObservations: false;
-        } | ({
-            /** @constant */
-            schema: "contractor.finding.correlation.v1";
-            /** @constant */
-            policyVersion: "qualified-snapshot/v1";
-            scope: components["schemas"]["FindingCorrelationScope"];
-            projectRevision: number;
-            /** @constant */
-            availability: "available";
-            groupKey: string;
-            basis: components["schemas"]["FindingCorrelationBasis"];
-            /** @constant */
-            matchedDomain: "snapshot";
-            representative: components["schemas"]["FindingCorrelationReference"];
-            automaticDuplicate: boolean;
-            hasOtherObservations: boolean;
-        } & unknown);
         FindingSubject: {
             kind: string;
             key: string;
@@ -4798,10 +4761,17 @@ export interface components {
             evidence: components["schemas"]["FindingExactArtifact"][];
             origin: components["schemas"]["FindingOrigin"];
             /** @enum {string} */
-            retention: "source-held" | "audit-held" | "discarded";
+            retention: "source-held" | "project-held" | "discarded";
             auditHolds: components["schemas"]["FindingAuditHold"][];
             /** Format: date-time */
             createdAt: string;
+            publicationRequested: boolean;
+            /** @enum {string} */
+            publicationError?: "problem_evidence_required" | "problem_project_required";
+            projectId?: components["schemas"]["ResourceId"];
+            findingId?: components["schemas"]["ResourceId"];
+            projectProposal?: components["schemas"]["FindingExactArtifact"];
+            projectEvidence?: components["schemas"]["FindingExactArtifact"][];
         };
         FindingProposalPage: {
             items: components["schemas"]["FindingProposalReceipt"][];
@@ -4816,44 +4786,20 @@ export interface components {
             replayed: boolean;
         };
         /** @enum {string} */
-        AuditFindingState: "proposed" | "confirmed" | "rejected" | "duplicate" | "needs-evidence";
-        /** @enum {string} */
-        AuditFindingSeverity: "informational" | "low" | "medium" | "high" | "critical";
-        /** @enum {string} */
-        AuditAnalystVerdict: "true_positive" | "false_positive" | "duplicate" | "reopen" | "needs_evidence";
-        /** @enum {string} */
         AuditReviewAction: "approve" | "reject" | "not_applicable";
         /** @enum {string} */
-        AuditReviewRequestedAction: "true_positive" | "false_positive" | "duplicate" | "reopen" | "needs_evidence" | "approve" | "reject" | "not_applicable";
+        AuditReviewRequestedAction: "approve" | "reject" | "not_applicable";
         /** @enum {string} */
-        AuditReviewSubjectKind: "finding" | "audit-item-action" | "audit-report";
+        AuditReviewSubjectKind: "audit-item-action" | "audit-report";
         /** @enum {string} */
         AuditReviewState: "pending" | "decided" | "expired";
-        AuditFindingAssessment: {
-            assessmentId: components["schemas"]["ResourceId"];
-            /** @enum {string} */
-            semanticAssessment: "supported" | "refuted" | "inconclusive" | "blocked" | "satisfied" | "violated" | "not-tested";
-            result: components["schemas"]["AuditExactArtifact"];
-            receiptId: components["schemas"]["ResourceId"];
-            itemId?: components["schemas"]["ResourceId"];
-            executionItemId?: components["schemas"]["ResourceId"];
-            collectionReceiptId?: components["schemas"]["ResourceId"];
-            directVerification: boolean;
-            contract?: components["schemas"]["AuditExactArtifact"];
-            /** Format: date-time */
-            acceptedAt: string;
-        };
         AuditReviewDecision: {
             decisionId: components["schemas"]["ResourceId"];
             requestId: components["schemas"]["ResourceId"];
             auditId: components["schemas"]["ResourceId"];
-            findingId?: components["schemas"]["ResourceId"];
             actorId: string;
-            action?: components["schemas"]["AuditReviewAction"];
-            verdict?: components["schemas"]["AuditAnalystVerdict"];
-            severity?: components["schemas"]["AuditFindingSeverity"];
-            rationale: string;
-            duplicateTargetId?: components["schemas"]["ResourceId"];
+            action: components["schemas"]["AuditReviewAction"];
+            rationale: components["schemas"]["DecisionRationale"];
             subjectRevision: number;
             subjectDigest: components["schemas"]["Digest"];
             /** Format: date-time */
@@ -4862,11 +4808,10 @@ export interface components {
         AuditReviewRequest: {
             requestId: components["schemas"]["ResourceId"];
             auditId: components["schemas"]["ResourceId"];
-            findingId?: components["schemas"]["ResourceId"];
             subjectKind: components["schemas"]["AuditReviewSubjectKind"];
             subjectId: components["schemas"]["ResourceId"];
             /** @enum {string} */
-            kind: "finding-triage" | "active-check-approval" | "requirement-applicability" | "report-acceptance";
+            kind: "active-check-approval" | "requirement-applicability" | "report-acceptance";
             subjectRevision: number;
             subjectDigest: components["schemas"]["Digest"];
             requestedActions: components["schemas"]["AuditReviewRequestedAction"][];
@@ -4875,27 +4820,6 @@ export interface components {
             expiresAt?: string;
             revision: number;
             decision?: components["schemas"]["AuditReviewDecision"];
-            /** Format: date-time */
-            createdAt: string;
-            /** Format: date-time */
-            updatedAt: string;
-        };
-        AuditFinding: {
-            findingId: components["schemas"]["ResourceId"];
-            auditId: components["schemas"]["ResourceId"];
-            state: components["schemas"]["AuditFindingState"];
-            /** @enum {string} */
-            rejectionReason?: "false-positive" | "policy" | "out-of-scope";
-            duplicateTargetId?: components["schemas"]["ResourceId"];
-            firstProposal: components["schemas"]["FindingProposalReceipt"];
-            fingerprint?: components["schemas"]["FindingFingerprintProjection"];
-            anchors?: components["schemas"]["FindingAnchorProjection"];
-            correlation?: components["schemas"]["FindingCorrelation"];
-            currentAssessment?: components["schemas"]["AuditFindingAssessment"];
-            analystDecision?: components["schemas"]["AuditReviewDecision"];
-            analystVerdict?: components["schemas"]["AuditAnalystVerdict"];
-            analystSeverity?: components["schemas"]["AuditFindingSeverity"];
-            revision: number;
             /** Format: date-time */
             createdAt: string;
             /** Format: date-time */
@@ -4919,7 +4843,7 @@ export interface components {
             pendingReviews: number;
         };
         OwnerFindingPage: {
-            items: components["schemas"]["AuditFinding"][];
+            items: components["schemas"]["ProjectFindingSummary"][];
             page: components["schemas"]["PageInfo"];
         };
         OwnerReviewPage: {
@@ -4930,10 +4854,9 @@ export interface components {
             auditRevision: number;
             /** Format: date-time */
             asOf: string;
-            /** @description Whole-Audit count matching all filters before the cursor. */
-            total: number;
-            items: components["schemas"]["AuditFinding"][];
+            items: components["schemas"]["ProjectFindingSummary"][];
             page: components["schemas"]["PageInfo"];
+            projectRevision: number;
         };
         AuditReviewPage: {
             auditRevision: number;
@@ -4944,66 +4867,15 @@ export interface components {
             items: components["schemas"]["AuditReviewRequest"][];
             page: components["schemas"]["PageInfo"];
         };
-        AuditFindingProvenance: {
-            recordId: components["schemas"]["ResourceId"];
-            /** @enum {string} */
-            kind: "source-proposal" | "check-attempt" | "direct-verification";
-            receiptId: components["schemas"]["ResourceId"];
-            /** @enum {string} */
-            relation?: "first" | "contributing" | "verification";
-            proposal: components["schemas"]["AuditExactArtifact"];
-            origin: components["schemas"]["FindingOrigin"];
-            assessment?: components["schemas"]["AuditFindingAssessment"];
-            attempt?: components["schemas"]["AuditFindingAttempt"];
-            supportsCurrentAssessment: boolean;
-            /** Format: date-time */
-            createdAt: string;
-        };
-        AuditFindingProvenancePage: {
-            findingRevision: number;
-            auditRevision: number;
-            items: components["schemas"]["AuditFindingProvenance"][];
-            page: components["schemas"]["PageInfo"];
-        };
-        CreateAuditFindingReviewRequest: {
-            /** Format: date-time */
-            expiresAt?: string;
-        };
-        DecideAuditFindingRequest: components["schemas"]["DecideAuditFindingTruePositiveRequest"] | components["schemas"]["DecideAuditFindingDuplicateRequest"] | components["schemas"]["DecideAuditFindingOtherRequest"];
-        DecideAuditFindingTruePositiveRequest: {
-            /** @constant */
-            verdict: "true_positive";
-            severity: components["schemas"]["AuditFindingSeverity"];
-            rationale: string;
-        };
-        DecideAuditFindingDuplicateRequest: {
-            /** @constant */
-            verdict: "duplicate";
-            duplicateTargetId: components["schemas"]["ResourceId"];
-            rationale: string;
-        };
-        DecideAuditFindingOtherRequest: {
-            /** @enum {string} */
-            verdict: "false_positive" | "reopen" | "needs_evidence";
-            rationale: string;
-        };
-        DecideAuditActionRequest: {
+        DecideAuditReviewRequest: {
             action: components["schemas"]["AuditReviewAction"];
-            rationale: string;
+            rationale: components["schemas"]["DecisionRationale"];
         };
-        DecideAuditReviewRequest: components["schemas"]["DecideAuditFindingRequest"] | components["schemas"]["DecideAuditActionRequest"];
-        AuditFindingDecisionResult: {
-            finding: components["schemas"]["AuditFinding"];
+        AuditReviewDecisionResult: {
             request: components["schemas"]["AuditReviewRequest"];
             decision: components["schemas"]["AuditReviewDecision"];
             replayed: boolean;
         };
-        AuditActionDecisionResult: {
-            request: components["schemas"]["AuditReviewRequest"];
-            decision: components["schemas"]["AuditReviewDecision"];
-            replayed: boolean;
-        };
-        AuditReviewDecisionResult: components["schemas"]["AuditFindingDecisionResult"] | components["schemas"]["AuditActionDecisionResult"];
         RuntimeInfrastructureId: string;
         RuntimeCredentialId: string;
         RuntimeConfigVersion: string;
@@ -6948,6 +6820,117 @@ export interface components {
         AllocationPage: {
             cursor: components["schemas"]["SnapshotCursor"];
             items: components["schemas"]["AllocationObservation"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** @enum {string} */
+        FindingState: "proposed" | "confirmed" | "rejected" | "duplicate" | "needs-evidence";
+        /** @enum {string} */
+        FindingSeverity: "informational" | "low" | "medium" | "high" | "critical";
+        /** @enum {string} */
+        FindingVerdict: "true_positive" | "false_positive" | "duplicate" | "reopen" | "needs_evidence";
+        /** @description Opaque authenticated actor identity, bounded in UTF-8 bytes. */
+        FindingActorIdentity: string;
+        ProjectFinding: {
+            findingId: components["schemas"]["ResourceId"];
+            projectId: components["schemas"]["ResourceId"];
+            firstReceiptId: components["schemas"]["ResourceId"];
+            firstProposal: components["schemas"]["FindingExactArtifact"];
+            title: string;
+            claim?: components["schemas"]["FindingClaim"];
+            state: components["schemas"]["FindingState"] | null;
+            analystVerdict: components["schemas"]["FindingVerdict"] | null;
+            analystSeverity: components["schemas"]["FindingSeverity"] | null;
+            duplicateTargetId: components["schemas"]["ResourceId"] | null;
+            rationale: components["schemas"]["DecisionRationale"] | null;
+            actorId: components["schemas"]["FindingActorIdentity"] | null;
+            assessedAt: string | null;
+            revision: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        FindingClaim: {
+            title: string;
+            description: string;
+            /** @description Null means the affected subject is not identified. */
+            subject: components["schemas"]["FindingSubject"] | null;
+            hypothesis?: string;
+            preconditions: string[];
+            standard_refs: components["schemas"]["FindingStandardReference"][];
+            /** @enum {string} */
+            severity_suggestion: "" | "informational" | "low" | "medium" | "high" | "critical";
+            /** @description Each value is limited to 512 UTF-8 bytes by the Server. */
+            limitations: string[];
+            /** @description Optional; source and web coordinates are producer claims. */
+            locations?: components["schemas"]["FindingLocation"][];
+            http_exchange?: components["schemas"]["FindingHTTPExchange"];
+        };
+        ProjectFindingSummary: {
+            findingId: components["schemas"]["ResourceId"];
+            projectId: components["schemas"]["ResourceId"];
+            title: string;
+            titleTruncated: boolean;
+            subjectKind: string;
+            subjectKey: string;
+            subjectTruncated: boolean;
+            /** @enum {string} */
+            severitySuggestion: "" | "informational" | "low" | "medium" | "high" | "critical";
+            state: components["schemas"]["FindingState"] | null;
+            analystVerdict: components["schemas"]["FindingVerdict"] | null;
+            analystSeverity: components["schemas"]["FindingSeverity"] | null;
+            duplicateTargetId: components["schemas"]["ResourceId"] | null;
+            revision: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        ProjectFindingPage: {
+            items: components["schemas"]["ProjectFindingSummary"][];
+            projectRevision: number;
+            page: components["schemas"]["PageInfo"];
+        };
+        DecisionRationale: string;
+        EditProjectFindingRequest: {
+            /** @constant */
+            verdict: "true_positive";
+            severity: components["schemas"]["FindingSeverity"];
+            rationale: components["schemas"]["DecisionRationale"];
+        } | {
+            /** @enum {string} */
+            verdict: "false_positive" | "reopen" | "needs_evidence";
+            rationale: components["schemas"]["DecisionRationale"];
+        } | {
+            /** @constant */
+            verdict: "duplicate";
+            duplicateTargetId: components["schemas"]["ResourceId"];
+            rationale: components["schemas"]["DecisionRationale"];
+        };
+        EditProjectFindingResult: {
+            finding: components["schemas"]["ProjectFinding"];
+            replayed: boolean;
+        };
+        ProjectFindingSourcePreview: {
+            receiptId: components["schemas"]["ResourceId"];
+            proposalId: components["schemas"]["ResourceId"];
+            projectId: components["schemas"]["ResourceId"];
+            findingId?: components["schemas"]["ResourceId"];
+            proposal: components["schemas"]["FindingExactArtifact"];
+            origin: components["schemas"]["FindingOrigin"];
+            evidenceCount: number;
+            publicationRequested: boolean;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        ProjectFindingSourcePage: {
+            items: components["schemas"]["ProjectFindingSourcePreview"][];
+            projectRevision: number;
+            page: components["schemas"]["PageInfo"];
+        };
+        ProjectFindingSourceHistoryPage: {
+            items: components["schemas"]["ArtifactMetadata"][];
+            projectRevision: number;
             page: components["schemas"]["PageInfo"];
         };
     };
@@ -10279,11 +10262,9 @@ export interface operations {
             query?: {
                 limit?: components["parameters"]["Limit"];
                 cursor?: components["parameters"]["Cursor"];
-                /** @description Comma-separated Audit states. */
-                auditState?: string;
-                state?: components["schemas"]["AuditFindingState"];
+                state?: components["schemas"]["FindingState"];
                 verdict?: "true_positive" | "false_positive" | "unreviewed";
-                severity?: components["schemas"]["AuditFindingSeverity"];
+                severity?: components["schemas"]["FindingSeverity"];
             };
             header?: never;
             path?: never;
@@ -10900,9 +10881,11 @@ export interface operations {
                 cursor?: components["parameters"]["Cursor"];
                 /** @description Pin this page to the summary revision. Continuations bind owner, filters and revision; stale revisions return 409. */
                 auditRevision?: number;
-                state?: components["schemas"]["AuditFindingState"];
+                state?: components["schemas"]["FindingState"];
                 verdict?: "true_positive" | "false_positive" | "unreviewed";
-                severity?: components["schemas"]["AuditFindingSeverity"];
+                severity?: components["schemas"]["FindingSeverity"];
+                /** @description Pin canonical Finding state. Continuations bind both Audit and Project revisions; stale views return 409. */
+                projectRevision?: number;
             };
             header?: never;
             path: {
@@ -10952,96 +10935,12 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AuditFinding"];
+                    "application/json": components["schemas"]["ProjectFinding"];
                 };
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
-            500: components["responses"]["InternalError"];
-            503: components["responses"]["StorageTransactionConflict"];
-        };
-    };
-    listAuditFindingProvenance: {
-        parameters: {
-            query?: {
-                limit?: components["parameters"]["Limit"];
-                cursor?: components["parameters"]["Cursor"];
-                auditRevision?: number;
-                findingRevision?: number;
-            };
-            header?: never;
-            path: {
-                auditId: components["parameters"]["AuditId"];
-                findingId: components["parameters"]["FindingId"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Revision-bound provenance page */
-            200: {
-                headers: {
-                    "X-Request-ID": components["headers"]["RequestId"];
-                    "Cache-Control": components["headers"]["NoStore"];
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AuditFindingProvenancePage"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
-            500: components["responses"]["InternalError"];
-            503: components["responses"]["StorageTransactionConflict"];
-        };
-    };
-    createAuditFindingReview: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request. */
-                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
-                "If-Match": components["parameters"]["RequiredIfMatch"];
-                /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
-                Origin?: components["parameters"]["OptionalOrigin"];
-                /** @description Required for sessionCookie authentication; omitted for bearerAuth. */
-                "X-CSRF-Token"?: components["parameters"]["OptionalCSRFToken"];
-            };
-            path: {
-                auditId: components["parameters"]["AuditId"];
-                findingId: components["parameters"]["FindingId"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateAuditFindingReviewRequest"];
-            };
-        };
-        responses: {
-            /** @description Pending exact-subject review request */
-            201: {
-                headers: {
-                    "X-Request-ID": components["headers"]["RequestId"];
-                    ETag: components["headers"]["ETag"];
-                    "Idempotency-Replayed": components["headers"]["IdempotencyReplayed"];
-                    "Cache-Control": components["headers"]["NoStore"];
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AuditReviewRequest"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
-            412: components["responses"]["PreconditionFailed"];
-            413: components["responses"]["PayloadTooLarge"];
             500: components["responses"]["InternalError"];
             503: components["responses"]["StorageTransactionConflict"];
         };
@@ -11053,7 +10952,6 @@ export interface operations {
                 cursor?: components["parameters"]["Cursor"];
                 /** @description Pin this page to the summary revision. Continuations bind owner, filters and revision; stale revisions return 409. */
                 auditRevision?: number;
-                finding?: components["schemas"]["ResourceId"];
                 state?: components["schemas"]["AuditReviewState"];
             };
             header?: never;
@@ -13358,25 +13256,22 @@ export interface operations {
             503: components["responses"]["StorageTransactionConflict"];
         };
     };
-    listFindingCorrelationMembers: {
+    listProjectFindings: {
         parameters: {
             query?: {
-                limit?: number;
-                cursor?: string;
-                auditId?: components["schemas"]["ResourceId"];
-                leftAuditId?: components["schemas"]["ResourceId"];
-                rightAuditId?: components["schemas"]["ResourceId"];
+                limit?: components["parameters"]["Limit"];
+                cursor?: components["parameters"]["Cursor"];
+                projectRevision?: number;
             };
             header?: never;
             path: {
                 projectId: components["parameters"]["ProjectId"];
-                groupKey: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Revision-bound bounded preview page */
+            /** @description List compact canonical Project Findings in newest-first order */
             200: {
                 headers: {
                     "X-Request-ID": components["headers"]["RequestId"];
@@ -13384,14 +13279,194 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["FindingMembersPage"];
+                    "application/json": components["schemas"]["ProjectFindingPage"];
                 };
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
-            409: components["responses"]["FindingCorrelationStale"];
-            422: components["responses"]["FindingCorrelationItemTooLarge"];
+            409: components["responses"]["Conflict"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
+        };
+    };
+    getProjectFinding: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                findingId: components["parameters"]["FindingId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Read one canonical Project Finding and its immutable problem claim */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    ETag: components["headers"]["ETag"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectFinding"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
+        };
+    };
+    editProjectFinding: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request. */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+                "If-Match": components["parameters"]["RequiredIfMatch"];
+                /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
+                Origin?: components["parameters"]["OptionalOrigin"];
+                /** @description Required for sessionCookie authentication; omitted for bearerAuth. */
+                "X-CSRF-Token"?: components["parameters"]["OptionalCSRFToken"];
+            };
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                findingId: components["parameters"]["FindingId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EditProjectFindingRequest"];
+            };
+        };
+        responses: {
+            /** @description Set the canonical analyst assessment with revision CAS and idempotency */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    "Idempotency-Replayed": components["headers"]["IdempotencyReplayed"];
+                    ETag: components["headers"]["ETag"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EditProjectFindingResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            412: components["responses"]["PreconditionFailed"];
+            413: components["responses"]["PayloadTooLarge"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
+        };
+    };
+    listProjectFindingSources: {
+        parameters: {
+            query?: {
+                limit?: number;
+                cursor?: components["parameters"]["Cursor"];
+                findingId?: components["schemas"]["ResourceId"];
+                /** @description Pin the current Project source snapshot; stale revisions conflict. */
+                projectRevision?: number;
+            };
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description List immutable source previews without hydrating evidence or check history */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectFindingSourcePage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
+        };
+    };
+    getProjectFindingSource: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                receiptId: components["schemas"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Read one Project-owned immutable source and its exact materials */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FindingProposalReceipt"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
+        };
+    };
+    listProjectFindingSourceHistory: {
+        parameters: {
+            query?: {
+                limit?: number;
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                receiptId: components["schemas"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Page ordinary immutable source history Artifact metadata */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectFindingSourceHistoryPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
             500: components["responses"]["InternalError"];
             503: components["responses"]["StorageTransactionConflict"];
         };

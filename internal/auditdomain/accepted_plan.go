@@ -3,6 +3,7 @@ package auditdomain
 import (
 	"sort"
 
+	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
@@ -149,7 +150,7 @@ func ValidateAcceptedPlan(value AcceptedPlan, deps *RetainedDependencyManifest) 
 	return nil
 }
 func validateAcceptedPlanSource(source AcceptedPlanSource, auditID string) error {
-	if source.Kind != "finding-receipt" || source.ProposedCheckOrdinal == nil || *source.ProposedCheckOrdinal < 0 || *source.ProposedCheckOrdinal >= MaximumCoverageValues || contracts.ValidateResourceID("source.receipt", source.ReceiptID) != nil || contracts.ValidateResourceID("source.run", source.RunID) != nil || source.Proposal.Validate() != nil || source.RetainedProposal.Validate() != nil || !source.Proposal.HasMetadata() || !source.RetainedProposal.HasMetadata() || source.Proposal.Digest != source.RetainedProposal.Digest || source.Proposal.MediaType != source.RetainedProposal.MediaType || source.Proposal.SizeBytes != source.RetainedProposal.SizeBytes || source.RetainedProposal.Ref.Namespace != ArtifactNamespace(auditID) {
+	if source.Kind != "finding-receipt" || source.ProposedCheckOrdinal == nil || *source.ProposedCheckOrdinal < 0 || *source.ProposedCheckOrdinal >= MaximumCoverageValues || contracts.ValidateResourceID("source.receipt", source.ReceiptID) != nil || contracts.ValidateResourceID("source.run", source.RunID) != nil || source.Proposal.Validate() != nil || source.RetainedProposal.Validate() != nil || !source.Proposal.HasMetadata() || !source.RetainedProposal.HasMetadata() || source.Proposal.Digest != source.RetainedProposal.Digest || source.Proposal.MediaType != source.RetainedProposal.MediaType || source.Proposal.SizeBytes != source.RetainedProposal.SizeBytes || source.RetainedProposal.Ref.Namespace != artifactpolicy.FindingMaterialsNamespace {
 		return invalid(CodeInvalid, "accepted_plan.source")
 	}
 	return nil

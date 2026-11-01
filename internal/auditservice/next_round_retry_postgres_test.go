@@ -39,7 +39,6 @@ func testNextRoundRetryPolicy(t *testing.T, policy contracts.ActiveChecksPolicy)
 	pool := isolatedAuditServicePool(t, ctx, databaseURL)
 	snapshot := loadAuditServiceProfilesWithEdits(t, func(profile string) string {
 		profile = strings.Replace(profile, "maxRounds: 1", "maxRounds: 3", 1)
-		profile = strings.Replace(profile, "findingConfirmation: disabled", "findingConfirmation: human-required", 1)
 		return strings.Replace(profile, "activeChecks: prohibited", "activeChecks: approval-required", 1)
 	}, func(worker string) string {
 		return strings.Replace(worker, "  sandboxProfile: local-workdir@1", "    - ref: http-tools@1\n      tools: [http_request]\n  sandboxProfile: local-workdir@1", 1)

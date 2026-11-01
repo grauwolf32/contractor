@@ -137,13 +137,7 @@ def validate_accepted_plan(
     for name in ("digest", "mediaType", "sizeBytes"):
         if source["proposal"][name] != source["retained_proposal"][name]:
             raise ValueError("accepted plan exact source metadata differs")
-    namespace = (
-        "audit-"
-        + hashlib.sha256(
-            b"contractor.audit.identity.v1\x00audit\x00" + value["audit_id"].encode()
-        ).hexdigest()
-    )
-    if source["retained_proposal"]["ref"]["namespace"] != namespace:
+    if source["retained_proposal"]["ref"]["namespace"] != "finding-materials":
         raise ValueError("accepted plan retained namespace differs")
     validate_check_plan(value["plan"])
     if _sha(value["plan"]) != value["plan_digest"]:

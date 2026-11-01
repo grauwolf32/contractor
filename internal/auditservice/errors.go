@@ -30,7 +30,6 @@ const (
 	ReasonAutomaticActiveChecksUnsupported   CompatibilityReason = "automatic_active_checks_unsupported"
 	ReasonProjectActiveChecksProhibited      CompatibilityReason = "project_active_checks_prohibited"
 	ReasonActiveCheckApprovalUnsupported     CompatibilityReason = "active_check_approval_unsupported"
-	ReasonFindingConfirmationUnsupported     CompatibilityReason = "finding_confirmation_unsupported"
 	ReasonManualApplicabilityUnsupported     CompatibilityReason = "manual_applicability_unsupported"
 	ReasonReportAcceptanceUnsupported        CompatibilityReason = "report_acceptance_unsupported"
 	ReasonManualItemUnsupported              CompatibilityReason = "manual_item_unsupported"

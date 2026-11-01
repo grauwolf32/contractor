@@ -99,7 +99,7 @@ func TestPostgresPublicPagedListsAcceptTheLargestPage(t *testing.T) {
 	if _, _, err := auditstoretest.NewStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{
 		AuditID: auditID, OwnerID: owner, ProjectID: projectID,
 		Profile:         auditstore.ProfileIdentity{Name: "page-profile", Version: "1", Digest: auditHandlerDigest("page-profile")},
-		ProfileSnapshot: json.RawMessage(`{"interaction":{"findingConfirmation":"human-required"}}`),
+		ProfileSnapshot: json.RawMessage(`{"interaction":{}}`),
 		InputSelection:  selection,
 		Limits: auditstore.Limits{MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: 100, MaxItemsTotal: 100,
 			MaxSubmittedRuns: 100, MaxItemRunAttempts: 1, MaxEvidenceBytes: 1 << 20},
@@ -107,7 +107,7 @@ func TestPostgresPublicPagedListsAcceptTheLargestPage(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	findingID := seedPublicPaginationFinding(t, ctx, pool, owner, projectID, auditID, "largest-page")
+	seedPublicPaginationFinding(t, ctx, pool, owner, projectID, auditID, "largest-page")
 	registry, err := controlplane.NewRegistry(controlplane.RegistryOptions{})
 	if err != nil {
 		t.Fatal(err)
@@ -165,6 +165,7 @@ func TestPostgresPublicPagedListsAcceptTheLargestPage(t *testing.T) {
 		"getProjectArtifactLineage":         "/v1/projects/" + projectID + "/artifacts/inputs/source/lineage",
 		"listProjectRuns":                   "/v1/projects/" + projectID + "/runs",
 		"listAuditProfiles":                 "/v1/audit-profiles",
+		"listProjectFindings":               "/v1/projects/" + projectID + "/findings",
 		"listProjectAudits":                 "/v1/projects/" + projectID + "/audits",
 		"listOwnerAudits":                   "/v1/audits",
 		"listOwnerFindings":                 "/v1/findings",
@@ -174,7 +175,6 @@ func TestPostgresPublicPagedListsAcceptTheLargestPage(t *testing.T) {
 		"listAuditFindingProposals":         "/v1/audits/" + auditID + "/finding-proposals",
 		"listAuditEvents":                   "/v1/audits/" + auditID + "/events",
 		"listAuditFindings":                 "/v1/audits/" + auditID + "/findings",
-		"listAuditFindingProvenance":        "/v1/audits/" + auditID + "/findings/" + findingID + "/provenance",
 		"listAuditReviews":                  "/v1/audits/" + auditID + "/reviews",
 		"listRunQueue":                      "/v1/queue",
 		"listRuns":                          "/v1/runs",

@@ -149,10 +149,10 @@ describe("builders", () => {
     const check = audit("project_1", "audit_1", "completed");
     expect(check.phase).toBe("rounds");
     expect(audit("project_1", "audit_2", "draft").phase).toBe("not-started");
-    expect(finding("audit_1", "finding_1").state).toBe("proposed");
-    expect(review("audit_1", "review_1", "finding-triage").subjectKind).toBe(
-      "finding",
-    );
+    expect(finding("project_1", "finding_1").state).toBeNull();
+    expect(
+      review("audit_1", "review_1", "active-check-approval").subjectKind,
+    ).toBe("audit-item-action");
     expect(report("audit_1", "proposed").review?.kind).toBe(
       "report-acceptance",
     );

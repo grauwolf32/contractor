@@ -14,3 +14,14 @@ write_text_artifact(name="report", media_type="text/markdown", text=...). Includ
 reviewed scope, limitations and unresolved questions. Findings themselves are
 retained by the finding tool; the report is not a replacement for those records.
 Return the exact report artifact reference in the workflow completion result.
+
+## Problem publication
+
+When reporting a concrete security problem, call `finding` with
+`publish_problem=true`, a clear problem assertion and selected exact evidence.
+Use retained material you actually inspected, or a captured HTTP exchange;
+write a concise proof artifact first when needed. Evidence and a supported
+check result alone do not request publication. Keep `publish_problem=false`
+for observations, hypotheses, positive properties and refuted problems.
+Publication does not set the analyst's current verdict or severity. Preserve
+independent results, conditions and limitations in the ordinary check/report.

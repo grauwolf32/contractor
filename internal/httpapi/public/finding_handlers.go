@@ -12,6 +12,9 @@ import (
 )
 
 type FindingProposalManagement interface {
+	GetProjectReceipt(context.Context, string, string, string) (findingintake.Receipt, error)
+	ListProjectSources(context.Context, string, string, string, findingintake.ProjectSourceQuery) (findingintake.ProjectSourcePage, error)
+	ListProjectSourceHistory(context.Context, string, string, string, string, int, *uint64) (findingintake.ProjectSourceHistoryPage, error)
 	ListRun(context.Context, string, string, findingintake.ListQuery) ([]findingintake.Receipt, error)
 	ListAuditInbox(context.Context, string, string, findingintake.ListQuery) ([]findingintake.Receipt, error)
 	ImportIntoAudit(context.Context, findingintake.ImportRequest) (findingintake.AuditHold, bool, error)

@@ -33,7 +33,10 @@ def build_submission(
     evidence_refs: list[dict[str, str]],
     standard_refs: list[dict[str, str]] | None,
     proposed_checks: list[dict[str, str]] | None = None,
+    publish_problem: bool = False,
 ) -> dict[str, object]:
+    if type(publish_problem) is not bool:
+        raise ToolInputError("publish_problem must be a boolean")
     _identifier("client_key", client_key)
     _text("title", title, required=True)
     _text("description", description, required=True)
@@ -97,13 +100,16 @@ def build_submission(
         "severity_suggestion": "",
         "limitations": [],
     }
-    return {
+    request: dict[str, object] = {
         "apiVersion": API_VERSION,
         "invocationId": invocation_id,
         "submissionId": f"finding-{submission_digest}",
         "proposal": proposal,
         "evidenceRefs": refs,
     }
+    if publish_problem:
+        request["publishProblem"] = True
+    return request
 
 
 def _object_list(

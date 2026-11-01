@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/helpers/pagelimit"
 )
@@ -57,17 +56,12 @@ func (h *auditHandlers) ownerListPosition(cursorValue, kind string) (*time.Time,
 
 func (h *auditHandlers) listOwnerFindings(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	query, limit, cursor, err := pageQuery(r.URL.RawQuery, "state", "verdict", "severity", "auditState")
+	query, limit, cursor, err := pageQuery(r.URL.RawQuery, "state", "verdict", "severity")
 	if err != nil {
 		handleError(w, err)
 		return
 	}
 	params := auditstore.OwnerFindingListParams{OwnerID: principalUserID(r.Context()), Limit: pagelimit.FetchRows(limit)}
-	params.AuditStates, err = parseAuditStates(query.Get("auditState"))
-	if err != nil {
-		handleError(w, err)
-		return
-	}
 	if values, ok := query["state"]; ok {
 		state := auditstore.FindingState(values[0])
 		if !state.Valid() {
@@ -96,30 +90,39 @@ func (h *auditHandlers) listOwnerFindings(w http.ResponseWriter, r *http.Request
 		}
 		params.Severity = &severity
 	}
-	kind := "owner-findings:" + params.OwnerID + ":" + query.Get("state") + ":" + query.Get("verdict") + ":" + query.Get("severity") + ":" + auditStateKey(params.AuditStates)
+	kind := "owner-findings:" + params.OwnerID + ":" + query.Get("state") + ":" + query.Get("verdict") + ":" + query.Get("severity")
 	params.BeforeCreatedAt, params.BeforeFindingID, err = h.ownerListPosition(cursor, kind)
 	if err != nil {
 		handleError(w, err)
 		return
 	}
-	items, err := h.Audits.ListOwnerFindings(r.Context(), params)
+	window, err := h.Audits.ListOwnerFindings(r.Context(), params)
 	if err != nil {
 		handleError(w, err)
 		return
 	}
-	items, page, err := paginate(h.cursors, items, limit, kind, func(last auditservice.Finding) []string {
+	items := window.Items
+	items, page, err := paginate(h.cursors, items, limit, kind, func(last auditstore.ProjectFindingSummary) []string {
 		return []string{last.CreatedAt.UTC().Format(time.RFC3339Nano), last.FindingID}
 	})
 	if err != nil {
 		handleError(w, err)
 		return
 	}
+	if last := window.ContinueBefore; last != nil {
+		cursor, err := h.cursors.encodePageCursor(kind, last.CreatedAt.UTC().Format(time.RFC3339Nano), last.FindingID)
+		if err != nil {
+			handleError(w, err)
+			return
+		}
+		page = pageInfoResponse{HasMore: true, NextCursor: &cursor}
+	}
 	if items == nil {
-		items = []auditservice.Finding{}
+		items = []auditstore.ProjectFindingSummary{}
 	}
 	writeJSON(w, http.StatusOK, struct {
-		Items []auditservice.Finding `json:"items"`
-		Page  pageInfoResponse       `json:"page"`
+		Items []auditstore.ProjectFindingSummary `json:"items"`
+		Page  pageInfoResponse                   `json:"page"`
 	}{items, page})
 }
 

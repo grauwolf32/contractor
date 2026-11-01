@@ -26,9 +26,10 @@ WITH link_input AS MATERIALIZED (
     SELECT audit.audit_id
       FROM audits AS audit
       JOIN live_claim USING (audit_id)
+      JOIN finding_correlation_fences AS fence USING(project_id)
       JOIN audit_rounds AS round
         ON round.audit_id = audit.audit_id AND round.round_id = $5
-     WHERE audit.audit_id = $1 AND audit.revision = $4
+     WHERE audit.audit_id = $1 AND audit.revision = $4 AND fence.revision=$9
        AND audit.state = 'finalizing' AND audit.dispatch_state = 'closed'
        AND audit.current_round_id = $5 AND audit.outstanding_run_count = 0
        AND round.revision = $6 AND round.state = 'closed'
@@ -43,7 +44,7 @@ WITH link_input AS MATERIALIZED (
             WHERE existing.audit_id = audit.audit_id
               AND existing.logical_key IN ('report/machine', 'report/summary')
        )
-     FOR UPDATE OF audit, round
+     FOR UPDATE OF audit, round, fence
 ), inserted_links AS (
     INSERT INTO audit_artifact_links (
         audit_id, logical_key, artifact_ref, artifact_digest,

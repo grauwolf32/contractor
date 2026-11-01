@@ -22,7 +22,7 @@ import (
 // back, retains the proposal and accepts the result.
 func TestPostgresProjectFenceConflictKeepsExecutionCollecting(t *testing.T) {
 	f := newCompletionFixtureWithOptions(t, completionPool(t), completionOptions{
-		acceptance: "automatic", findingConfirmation: "human-required",
+		acceptance: "automatic",
 	})
 	receiptID := f.proposal(t, "candidate", auditdomain.FindingProposal{
 		Schema: auditdomain.FindingProposalSchema, ClientKey: "candidate",

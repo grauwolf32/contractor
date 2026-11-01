@@ -20,7 +20,7 @@ func TestPostgresCollectsMaximumProposalsAndOriginAssessment(t *testing.T) {
 		associations[n] = auditstore.FindingAssociation{AssessmentID: "assessment-" + id, ReceiptID: id,
 			Proposal: proposal, SemanticAssessment: "supported"}
 	}
-	result := testExact("outputs", "result", "result-r1")
+	result := writeCollectionFixtureArtifact(t, f.ctx, f.pool, f.project.ProjectID, "outputs", "result")
 	params := auditstore.CollectParams{
 		Claim: f.claim, ReceiptID: "collection-limit", ExecutionID: f.execution.ExecutionID,
 		Disposition: auditstore.CollectionAccepted, SourceOutput: &result, RequestDigest: testDigest("9"),
@@ -36,7 +36,7 @@ func TestPostgresCollectsMaximumProposalsAndOriginAssessment(t *testing.T) {
 		t.Fatalf("maximum proposals plus origin = (%t, %v)", inserted, err)
 	}
 	var count int
-	if err := f.pool.QueryRow(f.ctx, `SELECT count(*) FROM audit_finding_assessments WHERE audit_id=$1`, f.audit.AuditID).Scan(&count); err != nil {
+	if err := f.pool.QueryRow(f.ctx, `SELECT count(*) FROM artifact_bindings WHERE scope_id=$1 AND namespace='finding-history' AND name LIKE 's.%'`, f.project.ProjectID).Scan(&count); err != nil {
 		t.Fatal(err)
 	}
 	if count != len(associations) {

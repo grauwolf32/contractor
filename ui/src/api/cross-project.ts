@@ -19,9 +19,9 @@ import { useCallback, useMemo } from "react";
 
 import {
   type Audit,
-  type AuditFinding,
-  type AuditFindingSeverity,
-  type AuditFindingState,
+  type ProjectFindingSummary,
+  type FindingSeverity,
+  type FindingState,
   type AuditReport,
   type AuditReviewRequest,
   type AuditState,
@@ -37,7 +37,6 @@ import type { components, operations } from "./generated/public";
 import { listProjects, type Project } from "./projects";
 import { queryKeys } from "./query-keys";
 import {
-  AUDIT_STATES_WITH_FINDINGS,
   INBOX_AUDIT_STATES,
   OPEN_AUDIT_STATES,
   REPORT_AUDIT_STATES,
@@ -62,8 +61,9 @@ export interface CrossProjectCheck {
 }
 
 /** A possible issue (finding) with its check and project. */
-export interface CrossProjectIssue extends CrossProjectCheck {
-  finding: AuditFinding;
+export interface CrossProjectIssue {
+  project: Project;
+  finding: ProjectFindingSummary;
 }
 
 /** A pending review request with its check and project. */
@@ -122,7 +122,6 @@ const POLLED = {
 } as const;
 
 // Every check that ran can hold possible issues.
-const ISSUE_CHECK_STATES = AUDIT_STATES_WITH_FINDINGS;
 // Running and waiting checks can ask for decisions.
 const DECISION_CHECK_STATES = OPEN_AUDIT_STATES;
 // Finishing and ended checks can have a report.
@@ -140,7 +139,6 @@ export const INBOX_CHECK_STATES: readonly AuditState[] = INBOX_AUDIT_STATES;
 /** Review kinds that need the user beyond triaging a possible issue. */
 const OTHER_DECISIONS: Readonly<Record<AuditReviewKind, boolean>> = {
   // Counted through its possible issue.
-  "finding-triage": false,
   "active-check-approval": true,
   "requirement-applicability": true,
   "report-acceptance": true,
@@ -152,7 +150,6 @@ const OTHER_DECISION_KINDS = (
 // Possible issues that need a review: never decided, reopened, or assessed
 // again since the last decision. Every other state carries a decision or
 // waits for evidence.
-const NEEDS_REVIEW: readonly AuditFindingState[] = ["proposed"];
 
 const DEFAULT_REPORT_STATUSES: readonly AuditReportStatus[] = [
   "proposed",
@@ -192,7 +189,7 @@ function newerCheck(left: CrossProjectCheck, right: CrossProjectCheck) {
   return (
     newestFirst(left.audit.updatedAt, right.audit.updatedAt) ||
     newestFirst(left.audit.createdAt, right.audit.createdAt) ||
-    byText(left.audit.auditId, right.audit.auditId)
+    byText(left.project.projectId, right.project.projectId)
   );
 }
 
@@ -200,7 +197,7 @@ function newerIssue(left: CrossProjectIssue, right: CrossProjectIssue) {
   return (
     newestFirst(left.finding.createdAt, right.finding.createdAt) ||
     newestFirst(left.finding.updatedAt, right.finding.updatedAt) ||
-    byText(left.audit.auditId, right.audit.auditId) ||
+    byText(left.project.projectId, right.project.projectId) ||
     byText(left.finding.findingId, right.finding.findingId)
   );
 }
@@ -211,7 +208,7 @@ function newerDecision(
 ) {
   return (
     newestFirst(left.review.createdAt, right.review.createdAt) ||
-    byText(left.audit.auditId, right.audit.auditId) ||
+    byText(left.project.projectId, right.project.projectId) ||
     byText(left.review.requestId, right.review.requestId)
   );
 }
@@ -516,7 +513,7 @@ function useCheckReads<T, R>(
 }
 
 function statusOf(
-  checks: AllChecks,
+  checks: CrossProjectStatus,
   reads: CheckReads<unknown>,
   truncated: boolean,
 ): CrossProjectStatus {
@@ -534,18 +531,14 @@ function statusOf(
 }
 
 interface PossibleIssuesOptions {
-  /**
-   * Only checks in these states; omit (or pass none) for every check that
-   * can hold possible issues (every state but draft and deleting). The Inbox
-   * passes INBOX_CHECK_STATES. Filtered like AllChecksOptions.states.
-   */
-  checkStates?: readonly AuditState[];
+  /** Unassessed or explicitly reopened canonical Findings across the owner’s Projects. */
+  needsReview?: boolean;
   /**
    * Only possible issues in these states; omit (or pass none) for every
    * state. Filtered by the Server: one read per check and state (and
    * verdict and severity), so each filter combination follows every global page.
    */
-  states?: readonly AuditFindingState[];
+  states?: readonly FindingState[];
   /**
    * Only possible issues with these analyst verdicts ("unreviewed" means no
    * effective decision); filtered by the Server like `states`.
@@ -557,7 +550,7 @@ interface PossibleIssuesOptions {
    * `states`. An unreviewed possible issue has no analyst severity, so with
    * this filter the verdict "unreviewed" matches nothing and is not read.
    */
-  severities?: readonly AuditFindingSeverity[];
+  severities?: readonly FindingSeverity[];
   /** False keeps every read idle (and `isPending` true). */
   enabled?: boolean;
 }
@@ -577,9 +570,9 @@ interface MergedIssues {
 }
 
 interface FindingFilter {
-  state: AuditFindingState | undefined;
+  state: FindingState | undefined;
   verdict: FindingVerdictFilter | undefined;
-  severity: AuditFindingSeverity | undefined;
+  severity: FindingSeverity | undefined;
 }
 
 /**
@@ -593,11 +586,9 @@ function findingFilters(
   verdictKey: string,
   severityKey: string,
 ): FindingFilter[] {
-  const states = orUnfiltered(filterValues<AuditFindingState>(stateKey));
+  const states = orUnfiltered(filterValues<FindingState>(stateKey));
   const verdicts = orUnfiltered(filterValues<FindingVerdictFilter>(verdictKey));
-  const severities = orUnfiltered(
-    filterValues<AuditFindingSeverity>(severityKey),
-  );
+  const severities = orUnfiltered(filterValues<FindingSeverity>(severityKey));
   return states.flatMap((state) =>
     verdicts.flatMap((verdict) =>
       severities
@@ -615,23 +606,22 @@ function usePossibleIssueReads(options: PossibleIssuesOptions) {
   const verdictKey = filterKey(options.verdicts);
   const severityKey = filterKey(options.severities);
   const api = usePublicAPI();
-  const checks = useScopedChecks(
-    options.checkStates,
-    ISSUE_CHECK_STATES,
-    enabled,
-  );
-  const auditStateKey = filterKey(
-    options.checkStates?.length ? options.checkStates : ISSUE_CHECK_STATES,
-  );
+  const checks = useProjectsIndex({ enabled });
+  const needsReview = options.needsReview ?? false;
   const filters = useMemo(
-    () => findingFilters(stateKey, verdictKey, severityKey),
-    [stateKey, verdictKey, severityKey],
+    (): FindingFilter[] =>
+      needsReview
+        ? [
+            { state: undefined, verdict: "unreviewed", severity: undefined },
+            { state: "proposed", verdict: undefined, severity: undefined },
+          ]
+        : findingFilters(stateKey, verdictKey, severityKey),
+    [stateKey, verdictKey, severityKey, needsReview],
   );
   const queries = useMemo(
     () =>
       filters.map(({ state, verdict, severity }) => ({
         queryKey: queryKeys.crossProject.ownerFindings(
-          auditStateKey,
           state ?? null,
           verdict ?? null,
           severity ?? null,
@@ -642,7 +632,6 @@ function usePossibleIssueReads(options: PossibleIssuesOptions) {
               listOwnerFindings(
                 api,
                 {
-                  auditState: auditStateKey,
                   ...(state === undefined ? {} : { state }),
                   ...(verdict === undefined ? {} : { verdict }),
                   ...(severity === undefined ? {} : { severity }),
@@ -655,14 +644,14 @@ function usePossibleIssueReads(options: PossibleIssuesOptions) {
         enabled,
         ...POLLED,
       })),
-    [api, auditStateKey, enabled, filters],
+    [api, enabled, filters],
   );
   const combine = useCallback(
     (
-      results: UseQueryResult<LoadedPages<AuditFinding>>[],
+      results: UseQueryResult<LoadedPages<ProjectFindingSummary>>[],
     ): CheckReads<MergedIssues> => {
-      const byAudit = new Map(
-        checks.checks.map((check) => [check.audit.auditId, check]),
+      const byProject = new Map(
+        checks.projects.map((project) => [project.projectId, project]),
       );
       const issues: CrossProjectIssue[] = [];
       const seen = new Set<string>();
@@ -671,11 +660,11 @@ function usePossibleIssueReads(options: PossibleIssuesOptions) {
         const failure = result.error ?? result.data?.error ?? null;
         if (failure !== null) errors.push({ scope: "list", error: failure });
         for (const finding of result.data?.items ?? []) {
-          const check = byAudit.get(finding.auditId);
-          const key = `${finding.auditId}/${finding.findingId}`;
-          if (check === undefined || seen.has(key)) continue;
+          const project = byProject.get(finding.projectId);
+          const key = `${finding.projectId}/${finding.findingId}`;
+          if (project === undefined || seen.has(key)) continue;
           seen.add(key);
-          issues.push({ ...check, finding });
+          issues.push({ project, finding });
         }
       }
       issues.sort(newerIssue);
@@ -689,7 +678,7 @@ function usePossibleIssueReads(options: PossibleIssuesOptions) {
         pending: results.some((result) => result.isPending),
       };
     },
-    [checks.checks],
+    [checks.projects],
   );
   const findings = useQueries({ queries, combine });
   return { checks, findings };
@@ -884,16 +873,11 @@ export interface InboxSummary {
    */
   needsDecision: number | undefined;
   /**
-   * Possible issues in state `proposed` (never decided, reopened, or assessed
-   * again since the last decision) of Inbox checks (INBOX_CHECK_STATES),
-   * counted by the Server per check.
+   * Loaded Project Findings that have no analyst assessment or were reopened.
+   * Their historical Audits may already be complete or deleted.
    */
   possibleIssues: number | undefined;
-  /**
-   * Pending active test approvals, requirement applicability and report
-   * acceptance requests of Inbox checks. Pending finding-triage requests are
-   * not counted again: their possible issue is.
-   */
+  /** Pending item approvals and report acceptance requests of Inbox checks. */
   otherDecisions: number | undefined;
   /** Some read failed: the counts are lower bounds. */
   partial: boolean;
@@ -902,13 +886,12 @@ export interface InboxSummary {
 }
 
 /**
- * Counts for the Inbox badge and header. Like the Inbox, they cover only
- * running checks and checks waiting for the user (INBOX_CHECK_STATES).
+ * Counts for the Inbox badge and header. Findings belong to Projects;
+ * item/report approvals still belong to running or waiting checks.
  */
 export function useInboxSummary(): InboxSummary {
   const { checks, findings } = usePossibleIssueReads({
-    checkStates: INBOX_CHECK_STATES,
-    states: NEEDS_REVIEW,
+    needsReview: true,
   });
   const decisions = usePendingDecisions({
     checkStates: INBOX_CHECK_STATES,

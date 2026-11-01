@@ -41,7 +41,7 @@ func TestPostgresFindingAuditEventsPreserveQuotaAndSequence(t *testing.T) {
 		t.Fatal(err)
 	}
 	assessment := directFindingAssessmentEvent{
-		AuditID: audit.AuditID, FindingID: "finding-one", FindingRevision: 2,
+		AuditID: audit.AuditID, ReceiptID: "receipt-direct",
 		AssessmentID: "assessment-one", RetainedBytes: 1025,
 	}
 	if err := store.recordDirectFindingAssessment(ctx, assessment); !errors.Is(err, pgx.ErrNoRows) {
@@ -72,7 +72,7 @@ func TestPostgresFindingAuditEventsPreserveQuotaAndSequence(t *testing.T) {
 		t.Fatalf("Audit after finding events = (%+v, %v)", current, err)
 	}
 	events, err := store.ListEvents(ctx, audit.AuditID, audit.EventSequence, 2)
-	if err != nil || len(events) != 2 || events[0].Kind != "finding.assessed" ||
+	if err != nil || len(events) != 2 || events[0].Kind != "finding.result_retained" ||
 		events[1].Kind != "finding.proposal_rejected" || events[1].Sequence != events[0].Sequence+1 {
 		t.Fatalf("contiguous finding events = (%+v, %v)", events, err)
 	}

@@ -92,11 +92,13 @@ func findingSubmissionResponse(
 		evidence = []findingintake.ExactArtifact{}
 	}
 	return findingintake.SubmissionResponse{
-		APIVersion: findingintake.APIVersion,
-		ProposalID: receipt.ProposalID,
-		ReceiptID:  receipt.ReceiptID,
-		Proposal:   receipt.Proposal,
-		Evidence:   evidence,
-		Replayed:   replayed,
+		FindingID:        receipt.FindingID,
+		PublicationError: receipt.PublicationError,
+		APIVersion:       findingintake.APIVersion,
+		ProposalID:       receipt.ProposalID,
+		ReceiptID:        receipt.ReceiptID,
+		Proposal:         receipt.Proposal,
+		Evidence:         evidence,
+		Replayed:         replayed,
 	}
 }

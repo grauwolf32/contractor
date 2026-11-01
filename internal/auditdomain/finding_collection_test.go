@@ -14,10 +14,10 @@ import (
 // The process tests (tests/e2e) feed the Server and the Runtime this
 // collection; their copy must stay the shared fixture byte for byte.
 func TestSharedFindingCollectionProcessCopyMatches(t *testing.T) {
-	shared := contractstest.ReadFile(t, "api", "testdata", "findings", "finding-collection-v1.fixture.json")
-	process := contractstest.ReadFile(t, "tests", "e2e", "testdata", "findings", "finding-collection-v1.fixture.json")
+	shared := contractstest.ReadFile(t, "api", "testdata", "findings", "finding-collection-v2.fixture.json")
+	process := contractstest.ReadFile(t, "tests", "e2e", "testdata", "findings", "finding-collection-v2.fixture.json")
 	if !bytes.Equal(process, shared) {
-		t.Fatal("tests/e2e/testdata/findings/finding-collection-v1.fixture.json differs from the shared fixture")
+		t.Fatal("tests/e2e/testdata/findings/finding-collection-v2.fixture.json differs from the shared fixture")
 	}
 }
 
@@ -25,7 +25,7 @@ func TestSharedFindingCollectionProcessCopyMatches(t *testing.T) {
 // The ASCII metadata keys and integral numbers need no extra JCS normalization.
 func collectionFixture(t *testing.T) (FindingCollection, map[string][]byte, string, string) {
 	t.Helper()
-	raw := contractstest.ReadFile(t, "api", "testdata", "findings", "finding-collection-v1.fixture.json")
+	raw := contractstest.ReadFile(t, "api", "testdata", "findings", "finding-collection-v2.fixture.json")
 	var fixture struct {
 		Collection    FindingCollection `json:"collection"`
 		Contents      map[string]string `json:"contents"`
@@ -62,7 +62,7 @@ func TestSharedFindingCollectionConformanceAndConsumerTargets(t *testing.T) {
 	var fixture struct {
 		Targets map[string]contracts.ArtifactRef `json:"consumer_targets"`
 	}
-	if err := json.Unmarshal(contractstest.ReadFile(t, "api", "testdata", "findings", "finding-collection-v1.fixture.json"), &fixture); err != nil {
+	if err := json.Unmarshal(contractstest.ReadFile(t, "api", "testdata", "findings", "finding-collection-v2.fixture.json"), &fixture); err != nil {
 		t.Fatal(err)
 	}
 	targets := fixture.Targets
@@ -89,7 +89,7 @@ func TestSharedFindingCollectionConformanceAndConsumerTargets(t *testing.T) {
 	if targets[first.Evidence[0].DocumentID] == targets[second.Evidence[0].DocumentID] {
 		t.Fatal("identical evidence from different Runs lost its scoped identity")
 	}
-	if first.AuditOrigin != nil || len(first.Reviews) != 0 || second.Reviews[0].DecisionID != "" {
+	if first.AuditOrigin != nil || first.Finding != nil || second.Finding == nil || second.Finding.Verdict != "needs_evidence" {
 		t.Fatal("invented an Audit origin or decision")
 	}
 	value.SnapshotAt = "2026-09-06T09:00:01Z"
@@ -118,12 +118,15 @@ func TestSharedFindingCollectionEmptySelectionAndOptionalReviews(t *testing.T) {
 	if err != nil || decoded.Entries == nil || len(decoded.Entries) != 0 {
 		t.Fatalf("empty selection failed: %+v %v", decoded, err)
 	}
-	for _, state := range []string{"proposed", "confirmed", "rejected", "duplicate", "needs-evidence"} {
-		t.Run(state, func(t *testing.T) {
+	for _, tc := range []struct{ state, verdict, severity, target string }{
+		{"proposed", "reopen", "", ""}, {"confirmed", "true_positive", "high", ""},
+		{"rejected", "false_positive", "", ""}, {"duplicate", "duplicate", "", "target"}, {"needs-evidence", "needs_evidence", "", ""},
+	} {
+		t.Run(tc.state, func(t *testing.T) {
 			value, contents, _, _ := collectionFixture(t)
-			value.Entries[1].Reviews[0].State = state
+			value.Entries[1].Finding = &FindingCollectionFinding{ProjectID: "project", FindingID: "finding", Revision: 1, State: &tc.state, Verdict: tc.verdict, Severity: tc.severity, DuplicateTargetID: tc.target}
 			if _, err := BuildFindingCollectionPackage(value, contents); err != nil {
-				t.Fatalf("captured state requires an invented decision: %v", err)
+				t.Fatal(err)
 			}
 		})
 	}
@@ -156,7 +159,7 @@ func TestSharedFindingCollectionAuditHoldPreservesMembershipWithoutReview(t *tes
 	value.Sources = []FindingCollectionSource{{Kind: "audit", ID: "audit-a"}}
 	for i := range value.Entries {
 		value.Entries[i].AuditOrigin = nil
-		value.Entries[i].Reviews = []FindingCollectionReview{}
+		value.Entries[i].SelectedSources = []FindingCollectionSource{{Kind: "audit", ID: "audit-a"}}
 		value.Entries[i].AuditHolds = []string{"audit-a"}
 	}
 	payload, err := BuildFindingCollectionPackage(value, contents)
@@ -167,7 +170,7 @@ func TestSharedFindingCollectionAuditHoldPreservesMembershipWithoutReview(t *tes
 	if err != nil || !reflect.DeepEqual(decoded, value) {
 		t.Fatalf("hold provenance: %+v %v", decoded, err)
 	}
-	for _, holds := range [][]string{{"audit-a", "audit-a"}, {"audit-z", "audit-a"}, {"../audit"}, {"audit-foreign"}} {
+	for _, holds := range [][]string{{"audit-a", "audit-a"}, {"audit-z", "audit-a"}, {"../audit"}} {
 		value.Entries[0].AuditHolds = holds
 		if _, err := EncodeFindingCollection(value); err == nil {
 			t.Fatalf("invalid hold membership accepted: %v", holds)
@@ -181,7 +184,7 @@ func TestSharedFindingCollectionRejectsInvalidMetadata(t *testing.T) {
 		mutate func(*FindingCollection)
 		code   string
 	}{
-		{"schema", func(v *FindingCollection) { v.Schema = "contractor.findings.collection.v2" }, CodeSchemaUnsupported},
+		{"schema", func(v *FindingCollection) { v.Schema = "contractor.findings.collection.v1" }, CodeSchemaUnsupported},
 		{"timestamp", func(v *FindingCollection) { v.SnapshotAt = "2026-09-06T12:00:00+03:00" }, CodeInvalid},
 		{"no sources", func(v *FindingCollection) { v.Sources = nil }, CodeLimitExceeded},
 		{"missing entries", func(v *FindingCollection) { v.Entries = nil }, CodeLimitExceeded},
@@ -209,22 +212,21 @@ func TestSharedFindingCollectionRejectsInvalidMetadata(t *testing.T) {
 		}, CodeInvalid},
 		{"unknown retention", func(v *FindingCollection) { v.Entries[0].Retention = "confirmed" }, CodeInvalid},
 		{"invalid origin", func(v *FindingCollection) { v.Entries[1].AuditOrigin.ExecutionID = "" }, CodeInvalid},
-		{"missing reviews", func(v *FindingCollection) { v.Entries[0].Reviews = nil }, CodeLimitExceeded},
-		{"duplicate review", func(v *FindingCollection) {
-			v.Entries[1].Reviews = append(v.Entries[1].Reviews, v.Entries[1].Reviews[0])
+		{"missing selected sources", func(v *FindingCollection) { v.Entries[0].SelectedSources = nil }, CodeLimitExceeded},
+		{"foreign selected source", func(v *FindingCollection) {
+			v.Entries[0].SelectedSources = []FindingCollectionSource{{Kind: "audit", ID: "foreign"}}
+		}, CodeReferenceInvalid},
+		{"zero revision", func(v *FindingCollection) {
+			v.Entries[1].Finding = &FindingCollectionFinding{ProjectID: "project", FindingID: "finding"}
 		}, CodeInvalid},
-		{"review state", func(v *FindingCollection) { v.Entries[1].Reviews[0].State = "approved" }, CodeInvalid},
-		{"zero revision", func(v *FindingCollection) { v.Entries[1].Reviews[0].Revision = 0 }, CodeInvalid},
-		{"unsafe integer", func(v *FindingCollection) { v.Entries[1].Reviews[0].Revision = 1 << 53 }, CodeInvalid},
-		{"invalid decision", func(v *FindingCollection) { v.Entries[1].Reviews[0].DecisionID = "../decision" }, CodeInvalid},
+		{"unsafe integer", func(v *FindingCollection) {
+			v.Entries[1].Finding = &FindingCollectionFinding{ProjectID: "project", FindingID: "finding", Revision: 1 << 53}
+		}, CodeInvalid},
 		{"entry limit", func(v *FindingCollection) { v.Entries = make([]FindingCollectionEntry, MaximumCollectionEntries+1) }, CodeLimitExceeded},
 		{"document limit", func(v *FindingCollection) {
 			v.Documents = make([]FindingCollectionDocument, MaximumCollectionDocuments+1)
 		}, CodeLimitExceeded},
 		{"source limit", func(v *FindingCollection) { v.Sources = make([]FindingCollectionSource, MaximumCollectionSources+1) }, CodeLimitExceeded},
-		{"review limit", func(v *FindingCollection) {
-			v.Entries[0].Reviews = make([]FindingCollectionReview, MaximumCollectionReviews+1)
-		}, CodeLimitExceeded},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -246,7 +248,7 @@ func TestSharedFindingCollectionRejectsAmbiguousJSON(t *testing.T) {
 	}
 	for name, input := range map[string][]byte{
 		"unknown field":    append([]byte(`{"unknown":true,`), valid[1:]...),
-		"duplicate field":  append([]byte(`{"schema":"contractor.findings.collection.v1",`), valid[1:]...),
+		"duplicate field":  append([]byte(`{"schema":"contractor.findings.collection.v2",`), valid[1:]...),
 		"case alias":       bytes.Replace(valid, []byte(`"schema"`), []byte(`"Schema"`), 1),
 		"noncanonical":     append([]byte("\n"), valid...),
 		"null origin":      bytes.Replace(valid, []byte(`"entries":[{`), []byte(`"entries":[{"audit_origin":null,`), 1),

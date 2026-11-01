@@ -116,7 +116,12 @@ function answer(server: FakeServer, url: URL): Response {
     findings: Object.entries(server.proposedFindings ?? {}).flatMap(
       ([auditId, count]) =>
         Array.from({ length: count }, (_, i) =>
-          build.finding(auditId, `finding_${auditId}_${i}`),
+          build.finding(
+            Object.values(server.audits ?? {})
+              .flat()
+              .find((a) => a.auditId === auditId)!.projectId,
+            `finding_${auditId}_${i}`,
+          ),
         ),
     ),
     reviews: Object.values(server.reviews ?? {}).flat(),

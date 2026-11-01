@@ -34,10 +34,7 @@ func (s Snapshot) ResultGroups() ([]ResultGroup, error) {
 	for _, r := range s.Results {
 		id := "finding:" + r.FindingID
 		root(id)
-		if r.PrimaryKey != nil {
-			join(id, "key:"+r.PrimaryKey.GroupKey)
-		}
-		if r.Review.State == "duplicate" {
+		if r.Review.IsState("duplicate") {
 			join(id, "finding:"+r.Review.DuplicateTargetID)
 		}
 	}
@@ -53,8 +50,8 @@ func (s Snapshot) ResultGroups() ([]ResultGroup, error) {
 		// duplicates. Never combine analyst ratings.
 		sort.Slice(rows, func(i, j int) bool {
 			a, b := rows[i], rows[j]
-			if (a.Review.State == "duplicate") != (b.Review.State == "duplicate") {
-				return a.Review.State != "duplicate"
+			if (a.Review.IsState("duplicate")) != (b.Review.IsState("duplicate")) {
+				return !a.Review.IsState("duplicate")
 			}
 			return a.FindingID < b.FindingID
 		})

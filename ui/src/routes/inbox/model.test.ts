@@ -90,17 +90,17 @@ function input(overrides: Partial<InboxInput> = {}): InboxInput {
 describe("Inbox selection keys", () => {
   it("round-trips every kind, also with colons in IDs", () => {
     const refs = [
-      { kind: "issue", auditId: "audit:1", findingId: "finding_1" },
+      { kind: "issue", projectId: "project:1", findingId: "finding_1" },
       { kind: "review", auditId: "audit_1", requestId: "req.2" },
       { kind: "run", runId: "run-1" },
       { kind: "check", auditId: "audit_1" },
       { kind: "report", auditId: "audit_1" },
     ] as const;
     for (const ref of refs) expect(parseRefKey(refKey(ref))).toEqual(ref);
-    expect(refKey(refs[0])).toBe("issue:audit%3A1:finding_1");
+    expect(refKey(refs[0])).toBe("issue:project%3A1:finding_1");
     // URLSearchParams decodes "%25" back to "%", which the key then decodes.
     const search = inboxSearch(refs[0]);
-    expect(search).toBe("?item=issue:audit%253A1:finding_1");
+    expect(search).toBe("?item=issue:project%253A1:finding_1");
     expect(parseRefKey(new URLSearchParams(search).get("item"))).toEqual(
       refs[0],
     );

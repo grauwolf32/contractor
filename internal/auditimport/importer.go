@@ -415,7 +415,7 @@ func (i *Importer) retainFindingProposals(
 		return nil
 	}
 	ctx = findingintake.WithCollectionDirectVerificationCache(ctx)
-	profile, err := auditprofile.DecodeResolvedAuditProfileSnapshot(snapshot.Audit.ProfileSnapshot)
+	_, err := auditprofile.DecodeResolvedAuditProfileSnapshot(snapshot.Audit.ProfileSnapshot)
 	if err != nil {
 		return fmt.Errorf("%w: pinned AuditProfile is invalid", ErrPermanent)
 	}
@@ -427,9 +427,6 @@ func (i *Importer) retainFindingProposals(
 		)
 		if err != nil {
 			return fmt.Errorf("list Audit child finding proposals: %w", err)
-		}
-		if profile.Interaction.FindingConfirmation == auditprofile.AuditFindingDisabled && len(receipts) != 0 {
-			return fmt.Errorf("%w: findings-disabled Audit child produced a proposal", ErrPermanent)
 		}
 		pending := make([]findingintake.ImportRequest, 0, len(receipts))
 		for _, candidate := range receipts {

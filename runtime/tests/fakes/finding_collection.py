@@ -1,6 +1,6 @@
 """The shared finding collection as an input of the findings reader tests.
 
-api/testdata/findings/finding-collection-v1.fixture.json holds the Go Server
+api/testdata/findings/finding-collection-v2.fixture.json holds the Go Server
 and the Runtime to one collection package; the test_shared_* test of
 test_findings_reader_toolset.py checks it. The other reader tests build their
 packages from it here and do not check it (HELPER_READS in shared_fixtures.py).
@@ -16,7 +16,7 @@ FIXTURE_BYTES = (
     / "api"
     / "testdata"
     / "findings"
-    / "finding-collection-v1.fixture.json"
+    / "finding-collection-v2.fixture.json"
 ).read_bytes()
 
 

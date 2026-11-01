@@ -328,21 +328,20 @@ Run-owned publication receipt and cross-scope provenance edge are removed.
 Deleting the Project later removes that ProjectScope output.
 
 **DEL-R28.** Hard deletion of an ordinary (non-Audit) source Run atomically
-marks its imported finding proposal receipts `audit-held` and every
+marks its imported finding proposal receipts `project-held` and every
 unimported proposal receipt `discarded`, then purges the source RunScope with
 its proposal and evidence revisions (LIFE-DEL-6).
 
 **DEL-R29.** Receipt provenance and discarded tombstones survive the source
 Run as bounded tombstone provenance; only imported Artifact revisions,
-protected by the destination Audit's own exact holds, survive as readable
+protected by ordinary Project ownership, survive as readable
 content. The tombstones of a Project's Runs go with the Project (DEL-R61).
 The exact retained field set and byte bounds are owned by
 [FND-R154](../findings/findings.md#proposals-of-ordinary-runs): receipt/source
 identities, request and content digests, timestamps and exact proposal/evidence
 descriptors survive; report prose becomes `{}` and derived correlation content
 becomes unavailable/discarded markers. A descriptor does not retain the
-referenced Artifact payload. Removing the last Audit hold after source deletion
-applies the same rule.
+referenced Artifact payload. Removing an Audit hold does not discard Project-retained sources or material.
 
 Rationale: Run deletion therefore cannot leak abandoned proposals or silently
 remove evidence already retained by an Audit. How a proposal stays readable
@@ -387,7 +386,7 @@ sequenceDiagram
     else nonterminal, not released or Audit collection receipt missing
         S-->>B: conflict, nothing changed
     else deletable
-        S->>S: One transaction: lock affected Audits in Audit-ID order, mark receipts audit-held or discarded, purge RunScope and Run-owned state, advance each affected Audit revision once, keep tombstones, remove WorkflowRun row
+        S->>S: One transaction: lock affected Audits in Audit-ID order, mark receipts project-held or discarded, purge RunScope and Run-owned state, advance each affected Audit revision once, keep tombstones, remove WorkflowRun row
         S-->>B: success
         B->>B: Remove the Run row
     end
@@ -460,7 +459,7 @@ transaction leaves the earlier batches purged and the Project `deleting`
 (DEL-R47).
 
 **DEL-R61.** Project deletion deletes every finding proposal receipt of the
-Project, which by then is the `audit-held` or `discarded` tombstone of a
+Project, which by then is the `project-held` or `discarded` tombstone of a
 deleted Project Run (DEL-R28, DEL-R29), before it purges the ProjectScope
 (LIFE-DEL-10). It deletes them in receipt order, in batches bounded by
 LIM-DEL-3, one batch per Project purge transaction (DEL-R60), and only after

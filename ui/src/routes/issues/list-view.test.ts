@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CrossProjectIssue } from "../../api/cross-project";
+import { findingSummary } from "../../test/builders";
 import { issueReviewFixtures } from "../../test/issue-review-fixtures";
 import {
   ISSUE_SORTS,
@@ -11,14 +12,10 @@ import {
 function rows(): CrossProjectIssue[] {
   const data = issueReviewFixtures();
   return data.findings.map((finding) => {
-    const audit = data.audits.find(
-      (value) => value.auditId === finding.auditId,
-    )!;
     return {
-      finding,
-      audit,
+      finding: findingSummary(finding),
       project: data.projects.find(
-        (value) => value.projectId === audit.projectId,
+        (value) => value.projectId === finding.projectId,
       )!,
     };
   });
@@ -29,20 +26,13 @@ const ids = (items: CrossProjectIssue[]) =>
 describe("Issue list projection", () => {
   it("sorts severity using the analyst's rating before AI, keeping unset last", () => {
     const data = rows();
-    const rated = data.find(
-      (row) => row.finding.analystSeverity !== undefined,
-    )!;
-    rated.finding.firstProposal.document.severity_suggestion = "low";
+    const rated = data.find((row) => row.finding.analystSeverity !== null)!;
+    rated.finding.severitySuggestion = "low";
     const sorted = visibleIssues(data, { sort: "severity", q: "" });
     expect(sorted.indexOf(rated)).toBeLessThan(
-      sorted.findIndex(
-        (row) =>
-          row.finding.firstProposal.document.severity_suggestion === "medium",
-      ),
+      sorted.findIndex((row) => row.finding.severitySuggestion === "medium"),
     );
-    expect(
-      sorted.at(-1)?.finding.firstProposal.document.severity_suggestion,
-    ).toBe("");
+    expect(sorted.at(-1)?.finding.severitySuggestion).toBe("");
     expect(data).toEqual(
       rows().map((row) =>
         row.finding.findingId === rated.finding.findingId ? rated : row,
@@ -66,7 +56,7 @@ describe("Issue list projection", () => {
       visibleIssues(data, { sort: "status", q: "" }).at(-1)?.finding.state,
     ).toBe("confirmed");
     const titles = visibleIssues(data, { sort: "title", q: "" }).map((row) =>
-      row.finding.firstProposal.document.title.toLowerCase(),
+      row.finding.title.toLowerCase(),
     );
     expect(titles).toEqual([...titles].sort());
     expect(ids(data)).toEqual(before);
@@ -80,7 +70,7 @@ describe("Issue list projection", () => {
         "z",
       ]);
   });
-  it("searches title, subject, Project and check label, independently of sorting", () => {
+  it("searches title, subject and Project, independently of sorting", () => {
     const data = rows();
     for (const q of ["SQL", "src/routes/products/search.ts"])
       expect(ids(visibleIssues(data, { sort: "title", q }))).toEqual([
@@ -89,9 +79,7 @@ describe("Issue list projection", () => {
     expect(
       visibleIssues(data, { sort: "newest", q: " Records API " }),
     ).toHaveLength(1);
-    expect(
-      visibleIssues(data, { sort: "status", q: "deployment review" }),
-    ).toHaveLength(1);
+
     expect(
       visibleIssues(data, { sort: "severity", q: "no such issue" }),
     ).toEqual([]);

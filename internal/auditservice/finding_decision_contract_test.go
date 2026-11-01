@@ -27,11 +27,10 @@ func TestSharedFindingDecisionPublicContractCases(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
-			err := validateFindingDecision(DecideFindingParams{
-				OwnerID: "user-1", AuditID: "audit-1", RequestID: "review-1", DecisionID: "decision-1",
-				ExpectedRequestRevision: 1, IdempotencyKey: "decision-test", RequestDigest: "sha256:" + strings.Repeat("a", 64),
+			err := validateProjectFindingEdit(ProjectFindingEditParams{ProjectFindingEdit: auditstore.ProjectFindingEdit{
+				OwnerID: "user-1", ProjectID: "project-1", FindingID: "finding-1", ExpectedRevision: 1,
 				Verdict: tc.Request.Verdict, Severity: tc.Request.Severity,
-				Rationale: tc.Request.Rationale, DuplicateTargetID: tc.Request.DuplicateTargetID,
+				Rationale: tc.Request.Rationale, DuplicateTargetID: tc.Request.DuplicateTargetID}, IdempotencyKey: "decision-test", RequestDigest: "sha256:" + strings.Repeat("a", 64),
 			})
 			if (err == nil) != tc.Valid {
 				t.Fatalf("decision validity = %v, want %v: %v", err == nil, tc.Valid, err)

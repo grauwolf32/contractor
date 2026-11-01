@@ -205,7 +205,7 @@ export function CheckProgress({
           {unreviewed > 0 ? (
             <ButtonLink
               variant="primary"
-              to={`/issues?${new URLSearchParams({ project: projectId, state: "proposed" }).toString()}`}
+              to={`/issues?${new URLSearchParams({ project: projectId }).toString()}`}
             >
               Review {plural(unreviewed, "possible issue", "possible issues")}
             </ButtonLink>

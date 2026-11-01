@@ -214,7 +214,22 @@ func (s *Service) Get(
 func (s *Service) ListItems(
 	ctx context.Context, params auditstore.ListItemsParams,
 ) ([]auditstore.Item, error) {
-	return s.reads().ListItemsPage(ctx, params)
+	rows, err := s.reads().ListItemsPage(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]string, len(rows))
+	for index := range rows {
+		ids[index] = rows[index].ItemID
+	}
+	related, err := s.reads().ItemFindingIDs(ctx, params.OwnerID, params.AuditID, ids)
+	if err != nil {
+		return nil, err
+	}
+	for index := range rows {
+		rows[index].FindingIDs = related[rows[index].ItemID]
+	}
+	return rows, nil
 }
 
 func (s *Service) ListItemAttempts(
@@ -259,6 +274,17 @@ func (s *Service) ListCoverage(
 	rows, err := s.reads().ListCoverage(ctx, auditID, roundID, afterOrdinal, limit)
 	if err != nil {
 		return CoveragePage{}, err
+	}
+	ids := make([]string, len(rows))
+	for index := range rows {
+		ids[index] = rows[index].ItemID
+	}
+	related, err := s.reads().ItemFindingIDs(ctx, ownerID, auditID, ids)
+	if err != nil {
+		return CoveragePage{}, err
+	}
+	for index := range rows {
+		rows[index].FindingIDs = related[rows[index].ItemID]
 	}
 	if audit.State != auditstore.AuditDeleting {
 		if rows, err = s.describeCoverage(ctx, audit.ProjectID, rows); err != nil {
