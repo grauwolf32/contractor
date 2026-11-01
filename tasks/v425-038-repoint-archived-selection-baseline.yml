@@ -1,0 +1,50 @@
+schema_version: "1.0"
+id: V425-038
+title: Repoint the archived Audit selection export exemptions
+milestone: hub-audit-structure-2026-10
+epic: quality
+kind: chore
+introduced_by: V64-006
+priority: P3
+status: in_progress
+depends_on: []
+languages: [go]
+goal: Restore the export baseline's existing open-task ownership after Audit selection was replanned.
+context:
+  authority: >-
+    Release cleanup on 2026-11-01 requires make lint for V425-037. Its export
+    check found an existing metadata prerequisite, recorded separately rather
+    than widening the helper relocation into Audit implementation.
+  finding: >-
+    tools/testonlyexports/baseline.txt:11-12 still assigns ResolveTopN and
+    SelectionDigest to V64-006. Planning commit
+    be2198276bb2542b4c96ef496ff01f7ff5f15c75 archived V64-006 and explicitly
+    recorded archive.superseded_by: [V64-012], without updating those two
+    exemptions. The export check consequently rejects the current baseline.
+    introduced_by identifies the archived task whose ownership changed, not
+    a new defect in the completed priority library implementation.
+  boundary: >-
+    Follow the archived task's explicit replacement owner V64-012. Retain
+    exactly the same exempt identifiers and all checker rules; do not add an
+    exemption, infer a new caller, reactivate an archived task or authorize
+    the replacement Audit implementation. The two verdict exemptions already
+    point at their open owner V64-005 and need no change.
+scope:
+  in:
+    - Replace V64-006 with V64-012 on the two existing selection exemption lines.
+    - Verify the complete export-tool suite, actual export baseline check and make lint.
+  out:
+    - Audit source, planned behavior, task status or acceptance changes.
+    - Adding exemptions, weakening the checker or implementing any pending Audit scope.
+acceptance_criteria:
+  - id: A1
+    text: The same four baseline identifiers remain; only the two archived selection ownership references change to the explicit pending replacement V64-012.
+  - id: A2
+    text: The export tool's full tests, real baseline check and make lint pass without Audit implementation changes.
+tests:
+  - command: go -C tools/testonlyexports test -count=1 ./...
+    covers: [A1, A2]
+  - command: go -C tools/testonlyexports run . -tags=integration,e2e -baseline tools/testonlyexports/baseline.txt "$PWD"
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2]
