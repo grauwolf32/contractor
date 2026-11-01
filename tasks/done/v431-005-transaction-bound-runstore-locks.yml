@@ -5,7 +5,7 @@ milestone: hub-audit-defects-2026-10
 epic: execution-core
 kind: chore
 priority: P3
-status: in_progress
+status: completed
 depends_on: []
 languages:
 - go
@@ -21,6 +21,13 @@ context:
     are preserved.
   specification:
   - docs/spec/execution/runs.md#RUN-R106
+  verification:
+    date: '2026-11-01'
+    evidence: Pool-capable stores no longer expose scoped locks or Runtime label pinning. Full tagged
+      Audit fixture adapters, the lock-capability guard and complete touched-package suites pass; Run/Stage
+      and operation-owned types are grouped without new packages or tables.
+    environment: Isolated disposable PostgreSQL database; race detector enabled. The external opt-in LiteLLM
+      contract test was skipped, not counted as a database pass.
 scope:
   in:
   - Move the three locking methods to PostgresTxStore and rename the materialization read to make its
@@ -39,11 +46,17 @@ acceptance_criteria:
   text: The refactor changes no intended lifecycle, API, SQL ownership or locking behavior; relevant suites
     and architecture checks pass.
 tests:
-- command: CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -race -tags=integration -count=1 ./internal/runstore/...
-    ./internal/runservice/... ./internal/app/... ./internal/scheduler/... ./internal/archtest/...
+- command: CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -json -p=3 -race -tags=integration -count=1
+    -timeout=15m ./internal/runstore/... ./internal/planner/session/... ./internal/runservice/... ./internal/controlplane/...
+    ./internal/scheduler/... ./internal/persistence/... ./internal/app/... ./internal/archtest/... ./internal/credentials/...
+    ./internal/rundeletion/... ./internal/auditservice/... ./internal/evalservice/... ./internal/httpapi/public/...
   covers: &id001
   - A1
   - A2
+- command: CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -json -p=2 -race -tags=integration -count=1
+    -timeout=15m ./internal/auditcontroller/... ./internal/auditimport/...
+  covers: *id001
 - command: make lint
   covers: *id001
 introduced_by: V370-018
+implementation_commit: 5c7484e8a24131557f4c25cccd704eccc4679c5b
