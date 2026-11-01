@@ -63,10 +63,10 @@ V64-001 остаётся завершённой историей; исправл
 | --- | --- | --- |
 | 1 | [V64-001](../../tasks/done/v64-001-audit-priority-contracts.yml) | Общие строгие program/task/result contracts, owning boundaries, fixtures, лимиты и карта удаления/cutover |
 | 2 | [V64-004](../../tasks/v64-004-audit-priority-context.yml) | Audit workspace, exact handoff и публикация в Project через существующий ArtifactStore с реальным caller |
-| 2 | [V64-014](../../tasks/v64-014-audit-hypothesis-assessments.yml) | Project findings, источники и evidence с сохранением существующей дедупликации |
+| 2 | [V64-014](../../tasks/v64-014-audit-hypothesis-assessments.yml) | Одна Finding model в Project: существующая дедупликация, источники/evidence, единые чтение и изменение; удаление Audit finding lifecycle |
 | 3 | [V64-002](../../tasks/v64-002-audit-priority-store.yml) | Один coordinator, обычные Runs, pause/recovery и первый сквозной exploratory сценарий |
 | 4 | [V64-012](../../tasks/v64-012-audit-hypothesis-registry.yml) | Fixed/manual hypotheses, результаты проверок с автоматической exact association, необязательный finding, простой выбор работы и checklist coverage |
-| 4 | [V411-010](../../tasks/v411-010-pentest-program-availability.yml) | Удаление formal approvals; pinned operation policy и прямые необязательные аналитические действия |
+| 4 | [V411-010](../../tasks/v411-010-pentest-program-availability.yml) | Удаление оставшихся item/report approvals и Audit control policy; использование готовых Project Finding-команд |
 | 4 | [V411-011](../../tasks/v411-011-project-findings-reader.yml) | Реальный обычный consumer выбранных Project findings и exact snapshots/evidence |
 | 5 | [V64-013](../../tasks/v64-013-audit-hypothesis-generation.yml) | Обычный Workflow генерации по материалам, findings и результатам, включая опровержения/пробелы; следующая итерация тем же путём |
 | 6 | [V64-008](../../tasks/v64-008-audit-priority-api-coverage.yml) | API/CLI чтение цепочки исследования, управление и публикация материалов |
@@ -90,9 +90,18 @@ Audit scope и передачу материалов, вторая перено�
 В V64-014 explicit problem publication требует exact evidence, а proposal без
 evidence остаётся обычным результатом. Оценки источников и прежние duplicate
 corrections сохраняются отдельно; общая оценка Project отсутствует до явной
-пометки пользователя. Прямые команды пометок принадлежат V411-010. Приёмка
+пометки пользователя. Сам finding и все текущие аналитические поля существуют
+в одном экземпляре на уровне Project; Audit показывает ссылки/выборки.
+V64-014 переносит существующие команды изменения и удаляет Finding-specific reviews,
+V411-010 завершает удаление остальных согласований Audit. Приёмка
 V64-014 включает конкурентное поступление одного qualified key и страницы
 большой истории, а не только fixture из двух Runs.
+
+Реализация `codex/project-problem-findings` отклонена пользователем 2026-11-01:
+добавление Project header рядом с живыми изменяемыми Audit findings не выполняет
+переход scope. Код сохранён в Git-теге
+`archive/v64-014-project-problem-findings-2026-11-01`, в main не включён.
+V64-014 остаётся pending с обновлённым контрактом одной сущности.
 
 Небольшой private HTTP fixture V411-019 имеет уже завершённые prerequisites;
 он готовится независимо от контрактной цепочки и используется ранним HTTP demo.

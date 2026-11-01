@@ -9,10 +9,15 @@ project:
 
 execution_policy:
   current_delivery_focus: >-
+    User decision 2026-11-01 rejects codex/project-problem-findings: its unmerged head is archived as
+    archive/v64-014-project-problem-findings-2026-11-01. V64-014 stays pending and must move the existing
+    Finding model to Project scope with one current state and command owner. Sources/results/history
+    are not mutable Audit Findings or another lifecycle. V64-014 migrates current reads/edits and removes
+    Finding-specific reviews; V411-010 removes remaining item/report approvals using those same commands.
     User review 2026-11-01 clarifies V64-014 admission: explicit problem publication requires selected
     exact evidence, while evidence-optional proposals remain ordinary retained results/receipts without
     automatic confirmation. Source ratings and duplicate history survive migration independently; current
-    Project assessment is unset until an explicit Project edit. V411-010 owns direct annotation commands.
+    Project assessment is unset until an explicit Project edit; V64-014 owns those direct Finding commands.
     V64-014 acceptance includes real concurrent equal-key admission and bounded large-history traversal.
     User clarification 2026-11-01 keeps V64-014 to Project finding ownership and retained contributions
     using existing deduplication, intake receipts, correlation fence and Run-to-Project Artifact forks.

@@ -97,12 +97,12 @@ the epics are in [epics.yml](epics.yml).
 | [V64-011](v64-011-audit-priority-release.yml) | feature | P1 | V64-009, V64-010, V411-015, V425-017 | Gate the basic Audit research scenario and complexity reduction |
 | [V64-012](v64-012-audit-hypothesis-registry.yml) | feature | P1 | V64-002, V64-014 | Verify fixed and manual hypotheses through Audit tasks |
 | [V64-013](v64-013-audit-hypothesis-generation.yml) | feature | P1 | V64-012, V64-004, V411-011 | Generate scoped hypotheses from selected materials and check results |
-| [V64-014](v64-014-audit-hypothesis-assessments.yml) | feature | P1 | — | Retain Project problem findings and exact source contributions |
+| [V64-014](v64-014-audit-hypothesis-assessments.yml) | feature | P1 | — | Move the single Finding model to Project scope |
 | [V64-015](v64-015-audit-research-frontier.yml) | feature | P2 | V64-011 | Measure whether a larger Audit frontier needs incremental indexing |
 | [V64-016](v64-016-audit-research-ranking-evaluation.yml) | chore | P2 | V64-005, V64-011 | Evaluate optional Audit ranking against the deterministic baseline |
 | [V64-017](v64-017-audit-attack-tree-projection.yml) | feature | P2 | V64-011 | Project optional attack trees over retained research conclusions |
 | [V64-018](v64-018-audit-research-pentest-integration.yml) | feature | P2 | V64-011, V411-020 | Compose optional hypothesis generation with ordinary HTTP Audit tasks |
-| [V411-010](v411-010-pentest-program-availability.yml) | feature | P1 | V64-002, V64-014 | Remove formal Audit approvals and keep direct analyst actions |
+| [V411-010](v411-010-pentest-program-availability.yml) | feature | P1 | V64-002, V64-014 | Remove the remaining item and report approvals from Audit |
 | [V411-016](v411-016-pentest-proof-report.yml) | feature | P1 | V411-015, V411-014, V64-008 | Show HTTP engagement context and gaps in ordinary retained Audit reports |
 | [V417-005](v417-005-audit-worker-context-compaction.yml) | feature | P1 | V417-003, V417-004, V64-012 | Admit compaction without bypassing trusted Audit completion |
 | [V425-017](v425-017-machine-report-ceiling-test.yml) | chore | P3 | V64-010, V64-008 | Drive the cumulative 64 MiB machine report check to its rejection in a test |
