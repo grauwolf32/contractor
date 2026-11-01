@@ -7,7 +7,11 @@ current baseline directly. The demo manifest keeps the execution evidence.
 
 Stop new work, finish current Runs, wait for allocation release and collect every
 Audit execution using the existing deployment. Preserve required exact Audit
-results and materials as Project bindings before Run deletion. Take a consistent
+results and materials as Project bindings before Run deletion. Use an ordinary
+namespace such as `historical-materials`: public Project Artifact operations hide
+the reserved `audit-` prefix. Exact frozen forks retain original bytes and
+provenance while making the historical materials readable without an old Audit
+reader; keep the original bindings and frozen documents unchanged. Take a consistent
 PostgreSQL/filesystem/configuration backup with all writers stopped and verify
 its restoration in a disposable database.
 
