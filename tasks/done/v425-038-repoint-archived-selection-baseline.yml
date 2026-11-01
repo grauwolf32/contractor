@@ -6,7 +6,8 @@ epic: quality
 kind: chore
 introduced_by: V64-006
 priority: P3
-status: in_progress
+status: completed
+implementation_commit: ac0f5e9d40ad81d8e8d2be5d91192b9c98bcc121
 depends_on: []
 languages: [go]
 goal: Restore the export baseline's existing open-task ownership after Audit selection was replanned.
@@ -48,3 +49,10 @@ tests:
     covers: [A1, A2]
   - command: make lint
     covers: [A1, A2]
+verification: >-
+  2026-11-01: go -C tools/testonlyexports test -count=1 ./..., the actual
+  integration/e2e export baseline check against this worktree, and complete
+  make lint passed. The baseline retains exactly the same four identifiers;
+  only the two archived selection references changed to V64-012, the explicit
+  replacement in V64-006.archive.superseded_by. No Audit implementation,
+  pending Audit task contract or checker rule changed.
