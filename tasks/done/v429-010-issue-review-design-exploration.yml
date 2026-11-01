@@ -5,7 +5,7 @@ milestone: ui-journey-usability
 epic: ui
 kind: chore
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V429-009]
 languages: [typescript, css]
 goal: Give the user a distinct Issue review composition with clear visual roles for the problem, evidence and human decision, ready to compare with the preserved candidate.
@@ -82,3 +82,4 @@ verification:
     The preserved exploration is on codex/issue-design. It is not merged or
     deployed; applying this design to the real Issue route remains a subsequent
     user-reviewed step.
+implementation_commit: 9433a61dd5cc3217a8dc90246394ba60d8c8dabc
