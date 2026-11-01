@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-77 open tasks: 10 in progress, 56 pending, 11 deferred. 1294 finished: 1276 completed, 18 archived.
+83 open tasks: 11 in progress, 61 pending, 11 deferred. 1294 finished: 1276 completed, 18 archived.
 
 ## In progress
 
@@ -21,6 +21,7 @@ the epics are in [epics.yml](epics.yml).
 | [V420-002](v420-002-planner-compaction-vertical-slice.yml) | planner-worker | feature | P1 | Implement opt-in bounded compaction for Streamline and Router Planners |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Enable shared Planner compaction and reuse native YAML in shipped Workflows |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
+| [V429-001](v429-001-join-owned-tasks.yml) | planner-worker | defect | P1 | Keep owned Runtime tasks joined through repeated cancellation |
 
 ## Pending
 
@@ -29,6 +30,10 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V425-016](v425-016-run-event-history-bound.yml) | chore | P3 | — | Bound or detect the per-Run event history and delete it in bounded batches |
+| [V429-002](v429-002-ordinary-runtime-shutdown.yml) | defect | P1 | — | Stop ordinary allocations before process dependencies close |
+| [V429-003](v429-003-typed-tool-resources.yml) | chore | P3 | — | Separate typed private tool resources from Worker State |
+| [V429-005](v429-005-shared-http-rules.yml) | defect | P1 | — | Unify HTTP header admission and truthful truncated-body reads |
+| [V429-006](v429-006-split-runtime-orchestrators.yml) | chore | P3 | V429-001, V429-002, V429-003, V429-004, V429-005 | Separate invocation execution and allocation resource operations |
 
 ### Planners and the Worker model boundary (`planner-worker`)
 
@@ -39,6 +44,12 @@ the epics are in [epics.yml](epics.yml).
 | [V417-007](v417-007-context-compaction-state-and-ui.yml) | feature | P1 | V417-003 | Report compaction progress and costs without exposing context content |
 | [V420-003](v420-003-planner-compaction-fault-scale-conformance.yml) | chore | P1 | V420-002 | Verify Planner compaction persistence cancellation and scale boundaries |
 | [V420-004](v420-004-planner-compaction-diagnostics.yml) | feature | P1 | V420-002 | Expose bounded truthful Planner compaction diagnostics |
+
+### Shared Memory tools (`memory`)
+
+| Task | Kind | Priority | Waiting for | Title |
+| --- | --- | --- | --- | --- |
+| [V429-004](v429-004-artifact-cas-reconciliation.yml) | chore | P3 | — | Share exact Artifact CAS replay and reconciliation |
 
 ### Run workspaces and project filesystem (`workspaces`)
 
@@ -178,21 +189,21 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 2 | 47 | 56 | 22 | 84 |
-| Planners and the Worker model boundary (`planner-worker`) | 9 | 35 | 47 | 29 | 68 |
+| Run execution core (`execution-core`) | 6 | 47 | 58 | 24 | 84 |
+| Planners and the Worker model boundary (`planner-worker`) | 10 | 35 | 48 | 29 | 71 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 13 | 5 | 44 |
-| Shared Memory tools (`memory`) | 0 | 6 | 9 | 2 | 12 |
+| Shared Memory tools (`memory`) | 1 | 6 | 9 | 3 | 12 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
 | Run workspaces and project filesystem (`workspaces`) | 1 | 16 | 15 | 5 | 16 |
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
-| HTTP and Caido tools (`http-tools`) | 4 | 22 | 27 | 9 | 25 |
+| HTTP and Caido tools (`http-tools`) | 4 | 22 | 27 | 9 | 27 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 2 | 17 | 10 | 9 | 20 |
 | Findings tools and collections (`findings`) | 2 | 17 | 8 | 9 | 14 |
 | Workflow catalog and document workflows (`workflows`) | 5 | 19 | 15 | 12 | 19 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 36 | 37 | 11 | 60 |
 | Audits (`audits`) | 19 | 67 | 84 | 35 | 123 |
 | Evaluations (`evals`) | 6 | 21 | 39 | 15 | 49 |
-| Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |
+| Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 4 |
 | Web UI (`ui`) | 2 | 26 | 66 | 16 | 59 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 18 | 45 | 8 | 20 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 38 | 25 | 16 |

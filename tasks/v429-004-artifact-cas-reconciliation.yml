@@ -1,0 +1,50 @@
+schema_version: "1.0"
+id: V429-004
+title: "Share exact Artifact CAS replay and reconciliation"
+milestone: runtime-ownership-2026-11
+epic: memory
+kind: chore
+introduced_by: V410-003
+priority: P3
+status: pending
+depends_on: []
+languages: [python]
+goal: "Memory and document/cookie writes share one bounded exact-byte CAS reconciliation mechanism while preserving domain errors."
+context:
+  authority: >-
+    User decision 2026-11-02: implement the accepted points 1–5 from the Runtime
+    review: shared async joining, typed resources, CAS reconciliation, HTTP rules
+    and responsibility-based orchestrator extraction. Confirmed lifecycle and
+    HTTP defects have their own tasks in this package.
+  specification:
+    - docs/spec/execution/runtime-agent.md
+    - docs/spec/execution/worker.md
+    - docs/spec/platform/failure-model.md
+  finding: "memory/tools.py:260 duplicates document_write.py CAS replay/read; domain rejection and repair messages are distinct and remain owned by callers."
+  boundary: >-
+    Common modules own mechanics; callers retain deadlines, fencing, authority,
+    failure classification and semantic completion. Keep the model finalizer,
+    configured model, Artifact API and allocation state/idempotency contracts.
+    No generic retry or lifecycle framework and no new wire fields.
+  scale_and_failure: >-
+    No new concurrent fan-out or unbounded collection reads. Join only work
+    already owned under the existing operation deadline; retain caller error
+    precedence on success, failure, cancellation and timeout. CAS replays exact
+    bytes once and reads under the current domain byte ceiling.
+scope:
+  in:
+    - "Common Artifact mechanism: original bytes/precondition, at most one replay, bounded current read and byte/media identity check."
+    - "Preserve Memory and document mappings for conflict, denial, oversized read, maintenance and ambiguous failures; cover both policies."
+  out:
+    - Removing the model result finalizer, Memory read parallelism, A2A retention and Gateway/OTLP response limits.
+    - Reopening V425-034, changing public/wire contracts or modifying unrelated macOS baseline failures V425-001/002.
+acceptance_criteria:
+  - id: A1
+    text: "Common Artifact mechanism: original bytes/precondition, at most one replay, bounded current read and byte/media identity check."
+  - id: A2
+    text: "Preserve Memory and document mappings for conflict, denial, oversized read, maintenance and ambiguous failures; cover both policies."
+tests:
+  - command: cd runtime && uv run pytest -W error tests/test_memory_toolset.py tests/test_memory.py tests/test_openapi_toolset.py tests/test_likec4_toolset.py tests/test_http_cookie_session.py
+    covers: [A1, A2]
+  - command: cd runtime && uv run ruff check . && uv run ruff format --check . && uv run lint-imports --no-cache --no-logo
+    covers: [A1, A2]

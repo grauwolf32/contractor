@@ -1,0 +1,57 @@
+schema_version: "1.0"
+id: V429-006
+title: "Separate invocation execution and allocation resource operations"
+milestone: runtime-ownership-2026-11
+epic: execution-core
+kind: chore
+introduced_by: V17-002
+priority: P3
+status: pending
+depends_on: ["V429-001", "V429-002", "V429-003", "V429-004", "V429-005"]
+languages: [python]
+goal: "Worker and Allocation orchestrators expose their lifecycle clearly through focused ownership, execution, completion and resource-operation modules."
+context:
+  authority: >-
+    User decision 2026-11-02: implement the accepted points 1–5 from the Runtime
+    review: shared async joining, typed resources, CAS reconciliation, HTTP rules
+    and responsibility-based orchestrator extraction. Confirmed lifecycle and
+    HTTP defects have their own tasks in this package.
+  specification:
+    - docs/spec/execution/runtime-agent.md
+    - docs/spec/execution/worker.md
+    - docs/spec/platform/failure-model.md
+  finding: "worker/runtime.py (~1900 lines) and allocation/service.py (~1300) combine independent responsibilities; existing sessions, budget, completion and cleanup mechanisms must remain the owners."
+  boundary: >-
+    Common modules own mechanics; callers retain deadlines, fencing, authority,
+    failure classification and semantic completion. Keep the model finalizer,
+    configured model, Artifact API and allocation state/idempotency contracts.
+    No generic retry or lifecycle framework and no new wire fields.
+  scale_and_failure: >-
+    No new concurrent fan-out or unbounded collection reads. Join only work
+    already owned under the existing operation deadline; retain caller error
+    precedence on success, failure, cancellation and timeout. CAS replays exact
+    bytes once and reads under the current domain byte ceiling.
+scope:
+  in:
+    - "Extract invocation ownership, ADK execution and completion into concrete collaborators with explicit inputs; keep the Runtime facade and existing completion contracts."
+    - "Extract allocation preparation/resource cleanup operations; AllocationService retains slot transitions, idempotency and terminal reports."
+    - "Document ownership boundaries and run all Runtime tests except the two independently tracked macOS baseline defects; run lint and architecture contracts."
+  out:
+    - Removing the model result finalizer, Memory read parallelism, A2A retention and Gateway/OTLP response limits.
+    - Reopening V425-034, changing public/wire contracts or modifying unrelated macOS baseline failures V425-001/002.
+acceptance_criteria:
+  - id: A1
+    text: "Extract invocation ownership, ADK execution and completion into concrete collaborators with explicit inputs; keep the Runtime facade and existing completion contracts."
+  - id: A2
+    text: "Extract allocation preparation/resource cleanup operations; AllocationService retains slot transitions, idempotency and terminal reports."
+  - id: A3
+    text: "Document ownership boundaries and run all Runtime tests except the two independently tracked macOS baseline defects; run lint and architecture contracts."
+tests:
+  - command: cd runtime && uv run pytest -W error tests/test_allocation.py tests/test_podman_allocation.py tests/test_adapter_host.py tests/test_agent_skill_lifecycle.py tests/test_workspace_provider.py
+    covers: [A1, A2, A3]
+  - command: cd runtime && uv run ruff check . && uv run ruff format --check . && uv run lint-imports --no-cache --no-logo
+    covers: [A1, A2, A3]
+  - command: cd runtime && uv run pytest -W error tests --deselect=tests/test_projectfs_local_io.py::test_limits_deadline_names_and_binary_classification --deselect=tests/test_code_analysis_graph.py::test_graph_collection_stops_at_encoded_result_ceiling_with_resumable_cursor
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]

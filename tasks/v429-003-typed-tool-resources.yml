@@ -1,0 +1,53 @@
+schema_version: "1.0"
+id: V429-003
+title: "Separate typed private tool resources from Worker State"
+milestone: runtime-ownership-2026-11
+epic: execution-core
+kind: chore
+introduced_by: V17-002
+priority: P3
+status: pending
+depends_on: []
+languages: [python]
+goal: "Allocation private resources have explicit typed ownership and tools no longer accept an untyped State bag."
+context:
+  authority: >-
+    User decision 2026-11-02: implement the accepted points 1–5 from the Runtime
+    review: shared async joining, typed resources, CAS reconciliation, HTTP rules
+    and responsibility-based orchestrator extraction. Confirmed lifecycle and
+    HTTP defects have their own tasks in this package.
+  specification:
+    - docs/spec/execution/runtime-agent.md
+    - docs/spec/execution/worker.md
+    - docs/spec/platform/failure-model.md
+  finding: "factories.py state: Any and worker/state.py private resource bag mix revisioned JSON with sessions, caches and dynamically assigned completion bindings."
+  boundary: >-
+    Common modules own mechanics; callers retain deadlines, fencing, authority,
+    failure classification and semantic completion. Keep the model finalizer,
+    configured model, Artifact API and allocation state/idempotency contracts.
+    No generic retry or lifecycle framework and no new wire fields.
+  scale_and_failure: >-
+    No new concurrent fan-out or unbounded collection reads. Join only work
+    already owned under the existing operation deadline; retain caller error
+    precedence on success, failure, cancellation and timeout. CAS replays exact
+    bytes once and reads under the current domain byte ceiling.
+scope:
+  in:
+    - "Introduce explicit private allocation resources and narrow consumer interfaces in toolsets.common."
+    - "Pass resources separately from revisioned WorkerStateStore; remove dynamic allocation resource attributes and resource getattr fallbacks in production."
+    - "Update all production factories and fixtures; preserve resource cleanup, metrics and completion behavior."
+  out:
+    - Removing the model result finalizer, Memory read parallelism, A2A retention and Gateway/OTLP response limits.
+    - Reopening V425-034, changing public/wire contracts or modifying unrelated macOS baseline failures V425-001/002.
+acceptance_criteria:
+  - id: A1
+    text: "Introduce explicit private allocation resources and narrow consumer interfaces in toolsets.common."
+  - id: A2
+    text: "Pass resources separately from revisioned WorkerStateStore; remove dynamic allocation resource attributes and resource getattr fallbacks in production."
+  - id: A3
+    text: "Update all production factories and fixtures; preserve resource cleanup, metrics and completion behavior."
+tests:
+  - command: cd runtime && uv run pytest -W error tests/test_allocation.py tests/test_adk_runtime.py tests/test_audit_completion_runtime.py
+    covers: [A1, A2, A3]
+  - command: cd runtime && uv run ruff check . && uv run ruff format --check . && uv run lint-imports --no-cache --no-logo
+    covers: [A1, A2, A3]
