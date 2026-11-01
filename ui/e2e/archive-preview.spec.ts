@@ -102,6 +102,15 @@ for (const width of [1440, 390]) {
         page.getByRole("heading", { name: "Package guide" }),
       ).toBeVisible();
       const tree = page.getByRole("navigation", { name: "Archive files" });
+      const toggle = page.getByRole("button", { name: /Browse files ·/ });
+      async function showTree() {
+        if (
+          (await toggle.isVisible()) &&
+          (await toggle.getAttribute("aria-expanded")) === "false"
+        )
+          await toggle.click();
+      }
+      await showTree();
       await tree.getByText("assets/", { exact: true }).click();
       await tree.getByRole("button", { name: /page.html/ }).click();
       await expect(page.locator(".archive-file-content pre")).toHaveText(
@@ -112,10 +121,12 @@ for (const width of [1440, 390]) {
           ".archive-file-content img, .archive-file-content script, .archive-file-content iframe",
         ),
       ).toHaveCount(0);
+      await showTree();
       await tree.getByRole("button", { name: /large.txt/ }).click();
       await expect(
         page.getByText(/This file exceeds the preview limits/),
       ).toBeVisible();
+      await showTree();
       await tree.getByText("references/", { exact: true }).click();
       await tree.getByRole("button", { name: /example.py/ }).click();
       await expect(page.locator(".archive-file-content pre")).toHaveText(

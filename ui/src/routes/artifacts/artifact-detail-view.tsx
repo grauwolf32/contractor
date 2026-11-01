@@ -16,14 +16,14 @@ import { ErrorNotice } from "../../app/error-notice";
 import { useGuardedNavigate } from "../../app/page-location";
 import { QueryView } from "../../app/query-view";
 import { RefreshButton } from "../../app/refresh-button";
-import { Button, StatusGlyph } from "../../ui";
+import { IconButton, IdChip, StatusGlyph } from "../../ui";
 import {
   MAXIMUM_SKILL_ARCHIVE_BYTES,
   SKILL_ARCHIVE_MEDIA_TYPE,
 } from "./artifact-file";
 import { ArtifactWriteForm } from "./common";
 import { MaterialIcon, MaterialKindIcon } from "./icons";
-import { materialKindLabel, materialKindOf } from "./kinds";
+import { formatLabel, materialKindLabel, materialKindOf } from "./kinds";
 import { MaterialName } from "./material-row";
 import {
   ArtifactFacts,
@@ -33,6 +33,7 @@ import {
 } from "./metadata-summary";
 import { ArtifactPreviewPanel } from "./preview";
 import "./materials.css";
+import "./material-detail.css";
 
 /** What one binding is called in each scope's copy. */
 const SCOPE_NOUNS = {
@@ -216,8 +217,17 @@ export function ArtifactDetailView({
         <div className="materials-detail-context">{heading}</div>
         {variant === undefined || metadata === undefined ? null : (
           <p className="materials-kicker">
-            <MaterialKindIcon kind={materialKindOf(metadata)} size={14} />
-            {materialKindLabel(metadata)}
+            <MaterialKindIcon
+              kind={
+                materialKindOf(metadata) === "other"
+                  ? "docs"
+                  : materialKindOf(metadata)
+              }
+              size={14}
+            />
+            {materialKindLabel(metadata) === "Other"
+              ? formatLabel(metadata.mediaType)
+              : materialKindLabel(metadata)}
           </p>
         )}
         <div className="materials-detail-titlebar">
@@ -225,20 +235,41 @@ export function ArtifactDetailView({
             <h1 id={titleId} className="materials-detail-title">
               <MaterialName namespace={namespace} name={name} />
             </h1>
-            <ArtifactRevisionLede metadata={metadata} />
+            <div className="materials-detail-revision">
+              <ArtifactRevisionLede metadata={metadata} />
+              {metadata === undefined ? null : (
+                <>
+                  <code className="materials-detail-chip">
+                    {metadata.artifact.revision}
+                  </code>
+                  {metadata.frozen ? (
+                    <span className="materials-detail-chip">
+                      <MaterialIcon name="lock" size={12} />
+                      Locked
+                    </span>
+                  ) : null}
+                </>
+              )}
+            </div>
           </div>
-          <div className="ui-toolbar">
+          <div className="ui-toolbar materials-detail-actions">
             {metadata === undefined ? null : (
               <>
-                <Button
+                <span className="materials-identity-copy">
+                  <IdChip
+                    value={`${namespace}/${name}@${metadata.artifact.revision}`}
+                    display=""
+                    label="material identifier"
+                  />
+                </span>
+                <IconButton
                   size="sm"
+                  variant="ghost"
                   icon={<MaterialIcon name="download" />}
+                  label="Download this revision"
                   pending={downloadShown && download.isPending}
-                  pendingLabel="Downloading…"
                   onClick={() => download.mutate(metadata)}
-                >
-                  Download this revision
-                </Button>
+                />
                 <ArtifactVersionsButton />
               </>
             )}
@@ -275,32 +306,39 @@ export function ArtifactDetailView({
           errorContext={`Could not load this ${noun}`}
         >
           {(shown) => (
-            <>
-              <ArtifactFacts metadata={shown} />
-              {scope.kind === "run" ? null : shown.canUploadNewVersion ? (
-                <ArtifactUpdatePanel
+            <div className="materials-detail-layout">
+              <div className="materials-detail-reader">
+                {shown.current ? null : <HistoricalNote />}
+                <ArtifactPreviewPanel
+                  key={`preview-${shown.artifact.revision}`}
+                  archiveScope={scope}
+                  metadata={shown}
+                  titleAs="h2"
+                  unavailableCopy="Inline preview is unavailable for this format or size. Download this revision to open it."
+                  loadPreview={() => artifacts.preview(shown)}
+                />
+              </div>
+              <aside
+                className="materials-detail-support"
+                aria-label="Material context"
+              >
+                <h2 className="materials-support-title">Saved material</h2>
+                <ArtifactFacts metadata={shown} />
+                <ArtifactTechnicalDetails
                   scope={scope}
                   metadata={shown}
-                  onUploadPending={recordUploadPending}
-                  onUploadRejected={recordUploadRejected}
+                  titleAs="h2"
                 />
-              ) : !shown.current ? (
-                <HistoricalNote />
-              ) : null}
-              <ArtifactPreviewPanel
-                key={`preview-${shown.artifact.revision}`}
-                archiveScope={scope}
-                metadata={shown}
-                titleAs="h2"
-                unavailableCopy="Inline preview is unavailable for this format or size. Download this revision to open it."
-                loadPreview={() => artifacts.preview(shown)}
-              />
-              <ArtifactTechnicalDetails
-                scope={scope}
-                metadata={shown}
-                titleAs="h2"
-              />
-            </>
+                {scope.kind === "run" || !shown.canUploadNewVersion ? null : (
+                  <ArtifactUpdatePanel
+                    scope={scope}
+                    metadata={shown}
+                    onUploadPending={recordUploadPending}
+                    onUploadRejected={recordUploadRejected}
+                  />
+                )}
+              </aside>
+            </div>
           )}
         </QueryView>
       </div>

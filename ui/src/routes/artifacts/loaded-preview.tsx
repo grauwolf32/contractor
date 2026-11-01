@@ -36,6 +36,28 @@ const RENDERER_LABELS = {
 
 type RenderedPlan = Exclude<ArtifactPreviewPlan, { kind: "source" }>;
 
+function SourcePreview({ source }: { source: string }) {
+  const [wrap, setWrap] = useState(true);
+  return (
+    <div className="materials-source-reader">
+      <div className="materials-source-tools">
+        <span>Source</span>
+        <Button
+          size="xs"
+          variant="ghost"
+          aria-pressed={wrap}
+          onClick={() => setWrap(!wrap)}
+        >
+          Wrap lines
+        </Button>
+      </div>
+      <pre className="artifact-preview" data-wrap={wrap} tabIndex={0}>
+        {source}
+      </pre>
+    </div>
+  );
+}
+
 function Renderer({
   plan,
   source,
@@ -205,9 +227,7 @@ export function LoadedArtifactPreview({
         {mediaType === "application/json" ? (
           <ScanReportSummary source={source} />
         ) : null}
-        <pre className="artifact-preview" tabIndex={0}>
-          {source}
-        </pre>
+        <SourcePreview source={source} />
       </div>
     );
   }
@@ -239,11 +259,7 @@ export function LoadedArtifactPreview({
           {
             id: "source",
             label: "Source",
-            panel: (
-              <pre className="artifact-preview" tabIndex={0}>
-                {source}
-              </pre>
-            ),
+            panel: <SourcePreview source={source} />,
           },
         ]}
       />

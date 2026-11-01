@@ -14,7 +14,8 @@ import {
   type ArtifactMetadata,
 } from "../../api/artifacts";
 import { ErrorNotice } from "../../app/error-notice";
-import { Button } from "../../ui";
+import { Button, IconButton } from "../../ui";
+import { Icon } from "../../app/icon";
 import { ArchivePreviewPanel } from "./archive-preview";
 import { LoadedArtifactPreview } from "./loaded-preview";
 import "./materials.css";
@@ -112,14 +113,26 @@ function TextArtifactPreviewPanel({
         className={
           compact && automatic && error === null && canPreview
             ? "ui-visually-hidden"
-            : "materials-section-head"
+            : `materials-section-head${data === undefined ? "" : " materials-preview-loaded"}`
         }
       >
-        <Title id={headingId} className="materials-section-title">
+        <Title
+          id={headingId}
+          className={`materials-section-title${data === undefined ? "" : " ui-visually-hidden"}`}
+        >
           Preview
         </Title>
         {(compact && automatic && error === null && canPreview) ||
-        (!canPreview && automatic) ? null : (
+        (!canPreview && automatic) ? null : data !== undefined ? (
+          <IconButton
+            size="sm"
+            variant="ghost"
+            label="Reload preview"
+            icon={<Icon name="refresh" />}
+            pending={pending}
+            onClick={requestPreview}
+          />
+        ) : (
           <Button
             size="sm"
             disabled={!canPreview}
@@ -141,7 +154,7 @@ function TextArtifactPreviewPanel({
         </p>
       ) : null}
       {canPreview ? (
-        compact ? null : (
+        compact || data !== undefined ? null : (
           <p className="ui-caption">
             {automatic
               ? `Text files up to ${PREVIEW_LIMIT_LABEL} are shown here.`

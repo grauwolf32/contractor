@@ -1,0 +1,23 @@
+{
+  "date": "2026-11-01",
+  "task": "V429-018",
+  "uiVersion": "0.11.1",
+  "authority": "User approved the expanded preview and requested landing into main.",
+  "changes": [
+    "Content-first shared ArtifactDetailView with compact exact revision/current/locked header and icon copy/download.",
+    "Quiet facts/history/upload support column, following content on phone.",
+    "Source wrapping without per-line DOM expansion.",
+    "Archive icons, root README fallback after SKILL, and collapsible phone tree.",
+    "Existing Scalar OpenAPI and LikeC4/Markdown/diff/HTTP engines, exact scope/revision and explicit load/size policies retained."
+  ],
+  "fidelityBoundary": "Prototype operation controls and simplified SVG/archive state machine remain design-only. Production keeps complete Scalar/LikeC4 and existing archive/parser/contract owners, styled and composed to the reviewed shared type/theme system.",
+  "preservation": "No prior OpenDesign file or conversation was changed. Original samples, raw generated output, scripts, CSS, provenance and all verified state/sandbox backups remain.",
+  "checks": {
+    "ui-verify": "passed:219 files,2626 tests passed,one existing expected failure; lint,typecheck,server tests and build passed.",
+    "browser": "passed:28 tests on isolated production build, including84 seven-format theme/width paths and four scope/revision paths.",
+    "make lint": "passed, including ui-gates, generated clients/config/spec/task checks, Go vet/staticcheck/layers and Runtime lint/import rules"
+  },
+  "preview": "http://127.0.0.1:17560/test-results/material-production/index.html?case=openapi&theme=dark&width=1440",
+  "screenshots": "ui/test-results/material-viewer-production (browser gates) and material-production (actual React preview)",
+  "mainIntegration": "pending"
+}
