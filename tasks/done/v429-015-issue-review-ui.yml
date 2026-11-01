@@ -5,7 +5,7 @@ milestone: ui-journey-usability
 epic: ui
 kind: feature
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V429-014]
 languages: [typescript, css]
 goal: Bring the accepted Issue review composition into the real React application, with readable context, exact evidence actions, explicit decisions and sorted source navigation.
@@ -153,3 +153,4 @@ verification:
     pending-decision focus cases and existing Run responsive/diagnostic cases.
     Final actual-component screenshots have no page errors or horizontal
     overflow; phone rationale and Record widths match at 340/270 pixels.
+implementation_commit: 5406c427bf060fc4832cdec59f2ebafcff49aa79
