@@ -1,0 +1,80 @@
+schema_version: "1.0"
+id: V430-006
+title: Simplify repeated artifact tool constructor tables
+milestone: hub-audit-structure-2026-10
+epic: quality
+kind: chore
+introduced_by: V2-003
+priority: P3
+status: in_progress
+depends_on: []
+languages: [python]
+goal: Make five artifact-backed tool factories smaller while constructing the same selected tools with the same allocation resources.
+context:
+  authority: >-
+    User request 2026-11-01: simplify tool factories. Implementation starts
+    from current main 41e71def44b7afe23de23a6d337e0ac3b461eb75.
+  specification:
+    - docs/spec/tools/toolsets.md#TLS-R21
+    - docs/spec/tools/toolsets.md#TLS-R38
+  finding: >-
+    Factory constructor maps in run_artifacts/tools.py:82,
+    text_artifacts/tools.py:79, memory/tools.py:112, openapi/tools.py:167
+    and likec4/tools.py:104 repeat the same constructor argument list in
+    one lambda per tool. The longest instance originates in V2-003 commit
+    38e173d9f; sibling LikeC4 work is V2-005 (f20b88080), text artifacts
+    V2-001, Memory V9-002 and the original Run artifact map c520b4010.
+  boundary: >-
+    Use local constructor tables and one selected-name constructor call,
+    following the existing sitemap factory pattern. Bind only Read cache
+    and Text write Namespace differences with functools.partial. Retain
+    literal map keys so inspecting an unselected constructor needs no name
+    attribute or invocation. Client/metrics/secrets, session creation,
+    validation and resource ownership remain in each owning factory.
+    A new context/base-factory abstraction would add code or require changing
+    the Allocation/factory protocol to remove only a few setup statements;
+    that larger alternative is unnecessary for this concrete duplication.
+    Revisit it only when another actual caller needs shared behavior that
+    the existing common helpers do not provide.
+  preservation: >-
+    Preserve selection validation before resource construction, error
+    messages/order, default unconfigured-client behavior, client identity,
+    allocation-scoped read cache, Write Namespace, shared document/Memory
+    sessions, selected-tool ordering, lazy unselected tools and all existing
+    close/cancellation/rollback ownership. Do not change tool metadata,
+    descriptions, effects, wire fields, limits or probes. Each loop remains
+    bounded by the selected tool subset and existing exported-tool sets.
+scope:
+  in:
+    - Replace repeated builder lambdas in the five named factories with local constructor maps and one invocation per selected tool.
+    - Retain Read-cache and Text-write Namespace arguments through explicit partial constructors.
+    - Run complete owner test files, shared artifact/capability and Allocation lifecycle suites, and make lint; record production reduction.
+  out:
+    - New shared context objects, factory inheritance, generic plugin/builder frameworks or changes to the create_selected protocol.
+    - HTTP, scanner, sandbox, workspace, external-adapter, Audit, configuration or Eval behavior changes.
+    - Fixing the separately tracked V425-001/002 macOS Runtime defects or claiming a complete Runtime/release gate.
+acceptance_criteria:
+  - id: A1
+    text: Five factory maps no longer repeat common constructor arguments per tool; production Python shrinks and no new framework, protocol or dependency is introduced.
+  - id: A2
+    text: Existing full owner tests pass unchanged, including exact selection, names/descriptions, cache sharing, client defaults, Namespace/CAS, redaction and document/Memory session ownership.
+  - id: A3
+    text: Shared capability and Allocation lifecycle tests retain selected-only construction, channel filtering, returned-resource ownership and cleanup behavior; make lint passes with skips reported.
+tests:
+  - command: cd runtime && uv run pytest tests/test_run_artifacts_toolset.py tests/test_text_artifacts_toolset.py tests/test_memory_toolset.py tests/test_openapi_toolset.py tests/test_likec4_toolset.py tests/test_unconfigured_artifact_clients.py tests/test_shared_artifact_history.py tests/test_toolset_cursors.py tests/test_capabilities.py tests/test_allocation.py tests/test_adapter_host.py
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+implementation_notes:
+  - >-
+    Replaced 35 zero-argument lambda builders across five factories with
+    explicit constructor tables and one common constructor invocation per
+    selected tool. functools.partial binds the Run/Text read cache and Text
+    writer Namespace. Literal keys retain lazy unselected-constructor behavior
+    without inspecting constructor attributes; all tool implementations,
+    factory signatures, resource preparation and probes remain unchanged.
+  - >-
+    Production Python shrank by 14 physical lines (50 added, 64 removed).
+    No shared context, base factory, package, dependency, generated contract
+    or test change was introduced. Existing complete owner, capability and
+    Allocation lifecycle tests are the behavior check for this local refactor.

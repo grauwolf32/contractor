@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from functools import partial
 from types import MappingProxyType
 from typing import Any
 
@@ -76,15 +77,11 @@ class TextArtifactsToolsetFactory:
         client = self._client_factory(allocation_id, runtime_settings)
         secrets = runtime_secrets(runtime_settings)
         cache = allocation_artifact_read_cache(state) if "read_text_artifact" in selected else None
-        builders: dict[str, Callable[[], Any]] = {
-            "read_text_artifact": lambda: ReadTextArtifactTool(
-                client, metrics, secrets, cache=cache
-            ),
-            "write_text_artifact": lambda: WriteTextArtifactTool(
-                client, metrics, secrets, namespace
-            ),
+        constructors = {
+            "read_text_artifact": partial(ReadTextArtifactTool, cache=cache),
+            "write_text_artifact": partial(WriteTextArtifactTool, namespace=namespace),
         }
-        return {name: builders[name]() for name in selected}
+        return {name: constructors[name](client, metrics, secrets) for name in selected}
 
 
 class ReadTextArtifactTool(ArtifactTool):
