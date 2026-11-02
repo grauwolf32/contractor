@@ -1,17 +1,18 @@
 schema_version: "1.0"
-id: V438-005
+id: V439-005
 title: Update native lifecycle fixture grants when testing another allocation
 milestone: controlplane-review-2026-11
 epic: execution-core
 kind: chore
-introduced_by: V438-003
+introduced_by: V439-003
 priority: P3
 status: completed
 implementation_commit: 24c7bad3a56f335511bef5446a629ad9944e3785
-depends_on: [V438-003]
+depends_on: [V439-003]
 languages: [go]
 goal: Native Runtime fault tests reach the Runtime with the exact intended grant after an allocation identity changes.
 context:
+  integration_note: "Renumbered from V438-005 during the user-requested 2026-11-02 main merge: main independently assigned V438-001 to the Scheduler review. Existing implementation commits are retained."
   authority: "User decision 2026-11-02 authorizes the controlplane defect fixes and refactoring; extended verification found this fixture prerequisite."
   specification:
     - docs/spec/execution/control-plane.md#CTL-R168

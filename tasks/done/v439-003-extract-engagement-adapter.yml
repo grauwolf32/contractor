@@ -1,5 +1,5 @@
 schema_version: "1.0"
-id: V438-003
+id: V439-003
 title: "Separate Audit engagement preparation from the Runtime protocol client"
 milestone: controlplane-review-2026-11
 epic: execution-core
@@ -8,10 +8,11 @@ introduced_by: V411-002
 priority: P2
 status: completed
 implementation_commit: f2144b49131bd977d48f4a4d137aa2c4f9835ebf
-depends_on: [V438-001, V438-002]
+depends_on: [V439-001, V439-002]
 languages: [go]
 goal: "The Runtime protocol client sends validated allocation data while a product-layer engagementadapter owns Audit integration and private identity preparation."
 context:
+  integration_note: "Renumbered from V438-003 during the user-requested 2026-11-02 main merge: main independently assigned V438-001 to the Scheduler review. Existing implementation commits are retained."
   authority: "User decision 2026-11-02: fix the two reviewed controlplane defects and implement the proposed refactoring; engagementadapter is a child package of controlplane."
   specification:
     - docs/spec/execution/control-plane.md#CTL-R168

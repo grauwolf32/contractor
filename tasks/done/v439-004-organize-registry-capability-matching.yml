@@ -1,5 +1,5 @@
 schema_version: "1.0"
-id: V438-004
+id: V439-004
 title: "Organize Registry lifecycle and compile immutable capability lookups"
 milestone: controlplane-review-2026-11
 epic: execution-core
@@ -8,10 +8,11 @@ introduced_by: V370-011
 priority: P2
 status: completed
 implementation_commit: 31fe1fe3c2c3e41a54efe8902ae3545da426a90b
-depends_on: [V438-003, V438-005]
+depends_on: [V439-003, V439-005]
 languages: [go]
 goal: "Registry responsibilities and state invariants are locally readable and repeated matching avoids rebuilding immutable tool capability maps."
 context:
+  integration_note: "Renumbered from V438-004 during the user-requested 2026-11-02 main merge: main independently assigned V438-001 to the Scheduler review. Existing implementation commits are retained."
   authority: "User decision 2026-11-02: fix the two reviewed controlplane defects and implement the proposed refactoring; engagementadapter is a child package of controlplane."
   specification:
     - docs/spec/execution/control-plane.md#CTL-R87
@@ -42,7 +43,7 @@ tests:
 verification:
   result: >-
     Full Go package suites for controlplane/..., contracts/control, scheduler, auditservice,
-    app and archtest passed with PostgreSQL and -race. Final make lint passed after V438-005.
+    app and archtest passed with PostgreSQL and -race. Final make lint passed after V439-005.
     Full integration-tagged controlplane suite, native metadata prepare and the complete
     Server/Runtime HTTP identity-session process scenario passed. make test-wire-cross-language
     passed with 373 fixtures, 395 Go shared tests and 289 Python shared tests; Python batches
@@ -54,4 +55,4 @@ verification:
     9877 ns/op, 29408 B/op and 66 allocations/op when rebuilding versus 130.8 ns/op,
     16 B/op and one allocation/op with the immutable index. The 32x256 complete graph
     benchmark measured 1.13 ms/op. These are microbenchmarks, not end-to-end latency claims.
-  followup: "V438-005 advances exact native fixture grants after allocation identity changes; no production check was relaxed."
+  followup: "V439-005 advances exact native fixture grants after allocation identity changes; no production check was relaxed."

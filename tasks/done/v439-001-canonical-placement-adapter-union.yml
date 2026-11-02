@@ -1,5 +1,5 @@
 schema_version: "1.0"
-id: V438-001
+id: V439-001
 title: "Canonicalize combined placement adapter requirements"
 milestone: controlplane-review-2026-11
 epic: execution-core
@@ -12,6 +12,7 @@ depends_on: []
 languages: [go]
 goal: "A Runtime supporting controlled HTTP and configured infrastructure adapters accepts the complete placement requirement."
 context:
+  integration_note: "Renumbered from V438-001 during the user-requested 2026-11-02 main merge: main independently assigned V438-001 to the Scheduler review. Existing implementation commits are retained."
   authority: "User decision 2026-11-02: fix the two reviewed controlplane defects and implement the proposed refactoring; engagementadapter is a child package of controlplane."
   specification:
     - docs/spec/execution/control-plane.md#CTL-R168
