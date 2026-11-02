@@ -564,7 +564,7 @@ func TestPostgresFailActiveRunTerminatesStageAndReleasesAllocations(t *testing.T
 					t.Fatal(err)
 				}
 			}
-			if err := h.scheduler.failInvalidRunState(ctx, "run-1", errors.New("invalid state")); err != nil {
+			if err := h.scheduler.failInvalidRunState(fixtureClaim(t, ctx, h.pool, "run-1"), "run-1", errors.New("invalid state")); err != nil {
 				t.Fatal(err)
 			}
 			run, err := h.store.GetRun(ctx, "run-1")
@@ -645,7 +645,7 @@ func TestPostgresFailActiveRunAcceptsFinalizingCandidateAndReleasesAllocations(t
 					t.Fatal(err)
 				}
 			}
-			if err := h.scheduler.failInvalidRunState(ctx, "run-1", errors.New("invalid state")); err != nil {
+			if err := h.scheduler.failInvalidRunState(fixtureClaim(t, ctx, h.pool, "run-1"), "run-1", errors.New("invalid state")); err != nil {
 				t.Fatal(err)
 			}
 			run, err := h.store.GetRun(ctx, "run-1")

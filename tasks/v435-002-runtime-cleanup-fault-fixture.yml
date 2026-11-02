@@ -1,0 +1,54 @@
+schema_version: "1.0"
+id: V435-002
+title: Restore native cleanup failure injection after allocation ownership refactoring
+milestone: runtime-ownership-2026-11
+epic: execution-core
+kind: chore
+introduced_by: V432-006
+priority: P3
+status: pending
+depends_on: [V432-006]
+languages: [go, python]
+goal: The native Runtime process regression actually injects the first allocation cache cleanup failure and verifies fenced release recovery.
+context:
+  authority:
+    - date: "2026-11-02"
+      source: agent
+      decision: Proposed pending follow-up from expanded Scheduler verification; no Runtime implementation is included in V435-001.
+  specification:
+    - docs/spec/execution/runtime-agent.md
+    - docs/spec/execution/control-plane.md
+  finding: >-
+    internal/controlplane/runtime_native_faults_integration_test.go:640 fails with
+    cleanup failure = <nil>. runtime/tests/fakes/adk_process_faults.py:199 patches
+    allocation.service.release_adk_tool_caches, but the owned allocation cleanup
+    now calls the separately imported function in allocation/cleanup.py:83.
+    The process fixture no longer injects its intended failure. Reproduced on
+    base 9a2d6f9af with unchanged controlplane/Runtime sources and an overlay
+    restoring both changed runstore files; this is independent of V435-001.
+  siblings: >-
+    Inspect every native lifecycle fault hook that patches a callable moved by
+    V432-006; preserve production cleanup ownership and the Go client contract.
+  boundary_decision: >-
+    This is a pending test-fixture follow-up, not a Scheduler prerequisite.
+    Patch the callable the real owned cleanup executes; do not add production
+    fallback hooks or weaken the expected allocation_cleanup_failed response.
+scope:
+  in:
+    - Repair the stale native allocation cleanup injection at its current owner.
+    - Assert the injection runs and the first Release retains a fenced allocation until retry.
+    - Review sibling process hooks moved by the same refactoring.
+  out:
+    - Changes to Scheduler, Runtime cleanup semantics or public/private contracts.
+acceptance_criteria:
+  - id: A1
+    text: The named real mTLS Runtime process scenario injects exactly one cleanup failure, rejects premature allocation reuse and completes the subsequent release.
+  - id: A2
+    text: Sibling fault injections still execute their intended production paths and the complete related suites pass.
+tests:
+  - command: "go test -race -tags=integration -count=1 ./internal/controlplane"
+    covers: [A1, A2]
+  - command: make test-runtime
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2]

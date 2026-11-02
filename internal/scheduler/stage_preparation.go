@@ -197,7 +197,9 @@ func (s *Scheduler) prepareStageWorkers(ctx context.Context, run runstore.Workfl
 	}
 	admitting := execution.AdmittedAt == nil
 	if admitting {
-		admitted, err := s.persistence.AdmitStage(ctx, run.RunID, execution.StageExecutionID)
+		admissionContext, cancelAdmission := context.WithTimeout(ctx, s.options.OperationTimeout)
+		admitted, err := s.persistence.AdmitStage(admissionContext, run.RunID, execution.StageExecutionID)
+		cancelAdmission()
 		if err != nil {
 			if errors.Is(err, runstore.ErrQueuePaused) {
 				// The owner's queue paused between the pre-placement probe and
@@ -205,7 +207,7 @@ func (s *Scheduler) prepareStageWorkers(ctx context.Context, run runstore.Workfl
 				// prepared its allocations: discard the placement instead of
 				// pinning Runtime slots for the whole pause, and the first claim
 				// after resume places the Stage again (SCH-R152).
-				s.discardUnadmittedPlacement(ctx, run.RunID, execution.StageExecutionID)
+				_ = s.discardUnadmittedPlacement(ctx, run.RunID, execution.StageExecutionID)
 			}
 			// Otherwise placement stays durable and live, and the next claim
 			// reuses it instead of finding pinned rows without grants.
@@ -257,16 +259,18 @@ func (s *Scheduler) prepareStageWorkers(ctx context.Context, run runstore.Workfl
 }
 
 // discardUnadmittedPlacement deletes a deferred Stage's durable allocation
-// rows together with its live reservation. If it fails, placement stays
-// durable and live and the next claim reuses it.
-func (s *Scheduler) discardUnadmittedPlacement(ctx context.Context, runID, stageID string) {
+// rows and its live reservation. A failed COMMIT can retain rows after the
+// live discard; liveOrNewReservations reconciles them before another placement.
+func (s *Scheduler) discardUnadmittedPlacement(ctx context.Context, runID, stageID string) error {
 	discardContext, cancel := context.WithTimeout(ctx, s.options.OperationTimeout)
 	defer cancel()
 	if err := s.persistence.DiscardUnadmittedPlacement(discardContext, runID, stageID, func() error {
 		return s.allocator.DiscardUnprepared(stageID)
 	}); err != nil {
-		s.options.Logger.Warn("deferred Stage placement was kept for its next claim", "stage_execution_id", stageID)
+		s.options.Logger.Warn("deferred Stage placement discard needs reconciliation", "stage_execution_id", stageID)
+		return err
 	}
+	return nil
 }
 
 func (s *Scheduler) stageDeadline(execution runstore.StageExecution, stage resolved.ResolvedStage) time.Time {

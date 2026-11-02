@@ -13,8 +13,15 @@ import (
 )
 
 func (p *PostgresPersistence) StartStageOperation(ctx context.Context, runID, stageID, claimID string) (runstore.StageExecution, error) {
+	expected, err := claimIDForRun(ctx, runID)
+	if err != nil {
+		return runstore.StageExecution{}, err
+	}
+	if claimID != expected {
+		return runstore.StageExecution{}, errors.Join(ErrClaimLost, runstore.ErrConflict)
+	}
 	var execution runstore.StageExecution
-	err := postgres.InTx(ctx, p.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+	err = postgres.InTx(ctx, p.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		var err error
 		execution, err = runstore.NewPostgresTxStore(tx).StartStageOperation(ctx, runID, stageID, claimID)
 		return err
@@ -33,7 +40,9 @@ func (s *Scheduler) executeServerOperation(ctx context.Context, run runstore.Wor
 		return fail("server_operation_unavailable", "Server operation execution is unavailable", false)
 	}
 	if execution.AdmittedAt == nil {
-		admitted, err := s.persistence.AdmitStage(ctx, run.RunID, execution.StageExecutionID)
+		admissionContext, cancelAdmission := context.WithTimeout(ctx, s.options.OperationTimeout)
+		admitted, err := s.persistence.AdmitStage(admissionContext, run.RunID, execution.StageExecutionID)
+		cancelAdmission()
 		if err != nil {
 			return err
 		}
@@ -43,15 +52,18 @@ func (s *Scheduler) executeServerOperation(ctx context.Context, run runstore.Wor
 	if !s.now().Before(deadline) {
 		return fail("stage_deadline_exceeded", "Stage execution deadline expired", true)
 	}
-	if run.SchedulerClaim == nil {
-		return ErrClaimLost
+	claimID, err := claimIDForRun(ctx, run.RunID)
+	if err != nil {
+		return err
 	}
-	started, err := persistence.StartStageOperation(ctx, run.RunID, execution.StageExecutionID, run.SchedulerClaim.ClaimID)
+	startContext, cancelStart := context.WithTimeout(ctx, s.options.OperationTimeout)
+	started, err := persistence.StartStageOperation(startContext, run.RunID, execution.StageExecutionID, claimID)
+	cancelStart()
 	if err != nil {
 		return err
 	}
 	execution = started
-	call := operations.Call{RunID: run.RunID, StageExecutionID: execution.StageExecutionID, ClaimID: run.SchedulerClaim.ClaimID,
+	call := operations.Call{RunID: run.RunID, StageExecutionID: execution.StageExecutionID, ClaimID: claimID,
 		Arguments: map[string]any{}, Inputs: map[string]contracts.ArtifactRef{}, Outputs: map[string]contracts.ArtifactRef{}}
 	for name, binding := range workflow.stage.Operation.Arguments {
 		switch binding.Source {

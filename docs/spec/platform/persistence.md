@@ -409,7 +409,7 @@ or read again. The work that runs from startup:
 | State or work | Why a previous holder's late write is excluded or harmless |
 | --- | --- |
 | LLM credential operation journal and records, Runtime credentials | Lease-fenced (PER-R34) |
-| Scheduler Run claims and the work under them | A Server claims only a Run whose claim is free or expired, and a lane gives its claim up before it expires ([SCH-R120, SCH-R166](../execution/scheduler.md)); the Scheduler reads Run state on every pass |
+| Scheduler Run claims and the work under them | A Server claims only a Run whose claim is free or expired; every Scheduler lifecycle transaction compares its acquired claim ID under the Run row lock before writing ([SCH-R119, SCH-R120](../execution/scheduler.md)), even before renewal notices replacement; the Scheduler reads Run state on every pass |
 | Gateway recovery probe | A leased probe whose lease ends with its holder's request timeout ([SCH-R106](../execution/scheduler.md)), read on every admission |
 | Audit and Eval controller claims | Claims whose epoch fences a stale holder (PER-R25) |
 | Scheduler pool sizes | Read again by the bounded periodic refresh ([SCH-R133](../execution/scheduler.md)) |

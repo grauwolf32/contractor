@@ -26,13 +26,13 @@ func TestPostgresFailedOrCancelledRunFreezesEarlierOutputs(t *testing.T) {
 		reviewState runstore.StageExecutionState
 	}{
 		{"unprogressable Run fails", func(t *testing.T, ctx context.Context, h deferredPlacementHarness) {
-			if err := h.scheduler.failInvalidRunState(ctx, "run-1", errReviewStateInvalid); err != nil {
+			if err := h.scheduler.failInvalidRunState(fixtureClaim(t, ctx, h.pool, "run-1"), "run-1", errReviewStateInvalid); err != nil {
 				t.Fatal(err)
 			}
 		}, runstore.RunFailed, runstore.StageInterrupted},
 		{"unprogressable cancelling Run is cancelled", func(t *testing.T, ctx context.Context, h deferredPlacementHarness) {
 			requestTestCancellation(t, ctx, h.store)
-			if err := h.scheduler.failInvalidRunState(ctx, "run-1", errReviewStateInvalid); err != nil {
+			if err := h.scheduler.failInvalidRunState(fixtureClaim(t, ctx, h.pool, "run-1"), "run-1", errReviewStateInvalid); err != nil {
 				t.Fatal(err)
 			}
 		}, runstore.RunCancelled, runstore.StageCancelled},
@@ -46,7 +46,7 @@ func TestPostgresFailedOrCancelledRunFreezesEarlierOutputs(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := h.scheduler.persistence.EnterAbortingWithTermination(ctx, "run-1", runstore.EnterAbortingParams{
+			if err := h.scheduler.persistence.EnterAbortingWithTermination(fixtureClaim(t, ctx, h.pool, "run-1"), "run-1", runstore.EnterAbortingParams{
 				StageExecutionID: review.StageExecutionID, ExpectedState: runstore.StagePreparing,
 				TerminationSchemaVersion: contracts.APIVersion,
 				Termination: runstore.StageTermination{
@@ -152,7 +152,7 @@ func TestPostgresEveryFailedOrCancelledCommitFreezesOutputs(t *testing.T) {
 		}
 	}
 	enterAborting := func(ctx context.Context, f finalizingFixture, termination runstore.StageTermination) error {
-		return f.persistence.EnterAbortingWithTermination(ctx, "run-1", runstore.EnterAbortingParams{
+		return f.persistence.EnterAbortingWithTermination(fixtureClaim(t, ctx, f.persistence.pool, "run-1"), "run-1", runstore.EnterAbortingParams{
 			StageExecutionID: f.executionID, ExpectedState: runstore.StageRunning,
 			TerminationSchemaVersion: contracts.APIVersion, Termination: termination,
 			AbortID: "abort-1", Deadline: time.Now().Add(time.Minute),
@@ -168,7 +168,7 @@ func TestPostgresEveryFailedOrCancelledCommitFreezesOutputs(t *testing.T) {
 	}{
 		{"Workflow failure after a result", runstore.StageFinalizing, false,
 			func(ctx context.Context, f finalizingFixture) error {
-				return f.persistence.CommitResultProgression(ctx, ResultProgression{
+				return f.persistence.CommitResultProgression(fixtureClaim(t, ctx, f.persistence.pool, "run-1"), ResultProgression{
 					RunID: "run-1", StageExecutionID: f.executionID, Result: f.result,
 					Progression: terminalFailProgression("run-1", f.executionID),
 				})
@@ -178,36 +178,33 @@ func TestPostgresEveryFailedOrCancelledCommitFreezesOutputs(t *testing.T) {
 				if err := enterAborting(ctx, f, interrupted(runstore.TerminationRunning)); err != nil {
 					return err
 				}
-				return f.persistence.CommitTerminationProgression(ctx, TerminationProgression{
+				return f.persistence.CommitTerminationProgression(fixtureClaim(t, ctx, f.persistence.pool, "run-1"), TerminationProgression{
 					RunID: "run-1", StageExecutionID: f.executionID,
 					Progression: terminalFailProgression("run-1", f.executionID),
 				})
 			}, runstore.RunFailed},
 		{"result accepted during cancellation", runstore.StageFinalizing, true,
 			func(ctx context.Context, f finalizingFixture) error {
-				return f.persistence.AcceptResultDuringCancellation(ctx, "run-1", f.executionID, f.result)
+				return f.persistence.AcceptResultDuringCancellation(fixtureClaim(t, ctx, f.persistence.pool, "run-1"), "run-1", f.executionID, f.result)
 			}, runstore.RunCancelled},
 		{"termination committed during cancellation", runstore.StageRunning, true,
 			func(ctx context.Context, f finalizingFixture) error {
 				if err := enterAborting(ctx, f, cancelled(runstore.TerminationRunning)); err != nil {
 					return err
 				}
-				return f.persistence.CommitTerminationAndFinishRun(
-					ctx, "run-1", f.executionID, runstore.RunCancelling, runstore.RunCancelled,
+				return f.persistence.CommitTerminationAndFinishRun(fixtureClaim(t, ctx, f.persistence.pool, "run-1"), "run-1", f.executionID, runstore.RunCancelling, runstore.RunCancelled,
 					runstore.Reason{Code: runstore.CancellationUserRequested},
 				)
 			}, runstore.RunCancelled},
 		{"unprogressable Run fails", runstore.StageRunning, false,
 			func(ctx context.Context, f finalizingFixture) error {
-				return f.persistence.FailRunWithActiveStages(
-					ctx, "run-1", runstore.RunRunning, runstore.RunFailed,
+				return f.persistence.FailRunWithActiveStages(fixtureClaim(t, ctx, f.persistence.pool, "run-1"), "run-1", runstore.RunRunning, runstore.RunFailed,
 					runstore.Reason{Code: "scheduler_state_invalid"}, interrupted(runstore.TerminationPreparing), "abort-1",
 				)
 			}, runstore.RunFailed},
 		{"unprogressable cancelling Run is cancelled", runstore.StageRunning, true,
 			func(ctx context.Context, f finalizingFixture) error {
-				return f.persistence.FailRunWithActiveStages(
-					ctx, "run-1", runstore.RunCancelling, runstore.RunCancelled,
+				return f.persistence.FailRunWithActiveStages(fixtureClaim(t, ctx, f.persistence.pool, "run-1"), "run-1", runstore.RunCancelling, runstore.RunCancelled,
 					runstore.Reason{Code: runstore.CancellationUserRequested}, cancelled(runstore.TerminationPreparing),
 					"abort-1",
 				)
@@ -255,7 +252,7 @@ func TestPostgresEveryFailedOrCancelledCommitFreezesOutputs(t *testing.T) {
 				requestTestCancellation(t, ctx, fixture.store)
 			}
 
-			if err := test.commit(ctx, fixture); err != nil {
+			if err := test.commit(fixtureClaim(t, ctx, pool, "run-1"), fixture); err != nil {
 				t.Fatalf("commit: %v", err)
 			}
 

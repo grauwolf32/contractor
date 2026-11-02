@@ -53,7 +53,8 @@ func (e *AllocationLeaseLossError) Error() string {
 func (*AllocationLeaseLossError) Unwrap() error { return ErrAllocationLeaseLost }
 
 // Store is the non-transactional durable state boundary used while no remote
-// operation is in flight. AtomicPersistence owns the short multi-resource
+// operation is in flight. Scheduler bounds each call by OperationTimeout.
+// AtomicPersistence owns the short multi-resource
 // transactions used at lifecycle commit points; the Scheduler's WorkflowRun
 // transitions are among them, so Store moves no Run.
 type Store interface {
@@ -160,14 +161,16 @@ type operationPersistence interface {
 
 // AtomicPersistence is deliberately high-level: implementations either commit
 // every listed RunStore and ArtifactStore mutation or expose none of them.
-// Each commit that makes a Run succeeded, failed or cancelled also freezes the
+// Each lifecycle call requires the exact WithRunClaim scope, checked under
+// the Run lock before writing. Each commit that makes a Run succeeded, failed
+// or cancelled also freezes the
 // Run's output bindings in the same transaction (ART-R92, ART-R94).
 type AtomicPersistence interface {
 	AdmitStage(context.Context, string, string) (runstore.StageExecution, error)
 	// DiscardUnadmittedPlacement deletes the durable allocation rows of a
-	// pending Run's never admitted Stage and, in the same transaction, runs
-	// discard to drop the matching live reservation; a discard error rolls
-	// the deletion back.
+	// pending Run's never admitted Stage and runs discard under its locks.
+	// A discard error rolls the deletion back; a failed COMMIT after discard
+	// can retain rows without grants, reconciled on the next claim (SCH-R152).
 	DiscardUnadmittedPlacement(ctx context.Context, runID, stageID string, discard func() error) error
 	CreateStageWithContext(
 		context.Context,

@@ -3,6 +3,8 @@ package scheduler
 import (
 	"context"
 	"errors"
+
+	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
 type runOwnershipContextKey struct{}
@@ -38,4 +40,35 @@ func (s *Scheduler) terminalOperationContext(ctx context.Context) (context.Conte
 		cancelOperation()
 		cancelCleanup()
 	}
+}
+
+type runClaimContextKey struct{}
+type runClaim struct{ runID, claimID string }
+
+// WithRunClaim binds lifecycle writes to the exact claim acquired by a lane.
+// The scope survives execution cancellation and cleanup, and never derives its
+// identity from a later Run read, which may already name a replacement owner.
+func WithRunClaim(ctx context.Context, runID, claimID string) context.Context {
+	return context.WithValue(ctx, runClaimContextKey{}, runClaim{runID, claimID})
+}
+
+func claimIDForRun(ctx context.Context, runID string) (string, error) {
+	claim, ok := ctx.Value(runClaimContextKey{}).(runClaim)
+	if !ok || claim.runID != runID || claim.claimID == "" {
+		return "", ErrClaimLost
+	}
+	return claim.claimID, nil
+}
+
+func lockClaimedRun(ctx context.Context, store *runstore.PostgresTxStore, runID string, states ...runstore.WorkflowRunState) (runstore.WorkflowRunState, error) {
+	claimID, err := claimIDForRun(ctx, runID)
+	if err != nil {
+		return "", err
+	}
+	state, err := store.LockClaimedRunState(ctx, runID, claimID, states...)
+	var conflict *runstore.StateConflictError
+	if errors.As(err, &conflict) && conflict.Resource == "WorkflowRun claim" {
+		err = errors.Join(ErrClaimLost, err)
+	}
+	return state, err
 }
