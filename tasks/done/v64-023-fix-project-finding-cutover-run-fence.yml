@@ -6,8 +6,8 @@ epic: audits
 kind: defect
 introduced_by: V64-014
 priority: P1
-status: pending
-depends_on: []
+status: completed
+depends_on: [V64-024]
 languages: [go, sql, markdown]
 goal: >-
   The one-time Project Finding transition has a complete cleanup boundary and reaches the new schema
@@ -18,6 +18,9 @@ context:
     legacy support is unnecessary. On 2026-11-02 the user requested a task description and diagrams
     explaining the defect and proposed fix. This authorizes planning only; no migration, Run deletion,
     database reset, deployment or implementation is performed by this task-formation change.
+    On 2026-11-02 the user explicitly assigned implementation and a data-preserving demo database
+    update followed by folding migrations. Use the recommended explicit retirement through existing
+    Run deletion, after preserving required Project materials and verifying a recoverable backup.
   severity: high
   reviewed_commit: e4b6df107d664192de4c3056b4af1c56a682932f
   available_code: >-
@@ -44,22 +47,13 @@ context:
   - docs/spec/artifacts/retention-and-deletion.md#DEL-R22
   - docs/spec/artifacts/retention-and-deletion.md#DEL-R58
   - docs/spec/platform/persistence.md
-  decision_needed:
-    question: Choose the one-time retirement procedure for retained old Audit-managed Run rows before implementation.
-    recommendation: >-
-      Finish and collect old Audit Runs, ensure the already required Audit results/materials are retained
-      in Project, then purge only those Runs through the existing terminal Run deletion path before
-      migration. Add an initial migration fence that rejects remaining Run-to-old-execution references
-      with an actionable precondition before any archive/schema mutation. Archive Audit facts and delete
-      their executions only after that fence passes. This adds a one-time cleanup step and removes the
-      old Audit Run records; ordinary Runs and independent Project materials stay intact.
-    alternative: >-
-      Automate the same purge-before-migration sequence through existing owner operations, instead of
-      an operator cleanup step. This requires a concrete one-time integration caller and is broader than
-      the recommended explicit cleanup; do not duplicate the deletion subsystem or hide purge in a SQL CASCADE.
-    status: >-
-      These are agent proposals for review. The user has ruled out legacy support, but the retirement
-      procedure and deletion of retained old Audit Run records have not been selected in this task.
+  decision: >-
+    Finish, release and collect Audit-managed Runs; retain required Project material, then delete only
+    those Runs through the existing terminal Run owner before cutover. The initial migration rejects
+    any remaining Run-to-execution reference before changing schema or archive. Ordinary Runs remain.
+    A separate persistence task folds the verified installed schema after demo migration; no old reader,
+    SQL cascade or general purge engine is introduced.
+
 scope:
   in:
   - Settle and document the one-time retirement procedure; implement the smallest selected fix in the existing owners.
@@ -103,4 +97,4 @@ tests:
 - command: go test -tags=integration -count=1 ./internal/persistence/postgres/... ./internal/rundeletion/... ./internal/runstore/... ./internal/artifacts/...
   covers: [A1, A2, A3]
 - command: make lint
-implementation_commit: null
+implementation_commit: 5aa77fee8d6ef8c88780c1352275c78346b6e18d

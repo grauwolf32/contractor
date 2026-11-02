@@ -639,13 +639,16 @@ or deleted. A later migration that redefines a function with `CREATE OR
 REPLACE` is a successive schema version, not a duplicate to remove: the
 installed schema holds one current definition.
 
-The user-authorized pre-production fold on 2026-10-31 replaces the previous
-baseline and versions 000002–000065 with one current baseline. Its installed
-catalog and initial rows equal those of the complete retired chain. Existing
-ledgers are not rewritten or accepted: they fail the same drift check and the
-operator must recreate such a database. There is no compatibility reader or
-upgrade path for the retired chain. This one-time fold does not relax
-immutability for subsequent migrations.
+The user-authorized pre-production fold on 2026-11-02 replaces the previous
+baseline and versions 000002–000003 with one current baseline. Its installed
+catalog and initial rows equal those of the repaired retired chain. The stopped
+demo first completes the one-time Project Finding cutover against a verified
+backup, then its ledger alone is rebound offline after installed-schema equality
+and unchanged business-data signatures are proven. The release manifest records
+the backup, old/new ledgers and exact checksums. This is an explicit operational
+transition for that demo, with no runtime ledger repair or old-schema reader.
+Every other stale ledger fails the same strict drift check. This fold does not
+relax immutability for subsequent migrations.
 
 **PER-R31.** The migration budget is the operation budget (PER-R19) of the
 migrator's transaction. The operator chooses it for each run, with
