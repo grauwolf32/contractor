@@ -3,19 +3,24 @@ import { Link } from "react-router";
 
 import { ContextLink } from "../../../app/context-navigation";
 import { ErrorNotice } from "../../../app/error-notice";
+import { Icon } from "../../../app/icon";
 import {
   Button,
   EmptyState,
+  Field,
   Kbd,
   ListPane,
   ListRow,
   ListSection,
-  StatusGlyph,
   modKeyLabel,
   type ListNavigationContainerProps,
-  type StatusTone,
 } from "../../../ui";
-import { inSentence, joinWords, missingLabel } from "./check-types";
+import {
+  checkTypeIcon,
+  inSentence,
+  joinWords,
+  missingLabel,
+} from "./check-types";
 import { projectPaths } from "./paths";
 import type { ReadinessGroup, RowView, StartCheck } from "./use-start-check";
 
@@ -24,13 +29,6 @@ const GROUP_TITLES: Readonly<Record<ReadinessGroup, string>> = {
   missing: "Needs more materials",
   unavailable: "Can't run on this server",
   unknown: "All check types",
-};
-
-const GROUP_TONES: Readonly<Record<ReadinessGroup, StatusTone>> = {
-  ready: "done",
-  missing: "idle",
-  unavailable: "blocked",
-  unknown: "neutral",
 };
 
 /** The second meta part: what the check type uses or still needs. */
@@ -73,11 +71,10 @@ function TypeRow({ row, projectId }: { row: RowView; projectId: string }) {
     <ListRow
       to={row.href}
       selected={row.selected}
-      glyph={<StatusGlyph tone={GROUP_TONES[row.group]} />}
+      glyph={<Icon name={checkTypeIcon(row.family.preferred)} size={16} />}
       title={row.presentation.label}
       meta={
         <span className="start-row-meta">
-          <span>{row.presentation.description}</span>
           <span>{rowNeeds(row)}</span>
         </span>
       }
@@ -98,14 +95,19 @@ function TypeRow({ row, projectId }: { row: RowView; projectId: string }) {
 export function TypeList({
   model,
   containerProps,
+  rows,
+  search,
+  onSearch,
 }: {
   model: StartCheck;
   containerProps: ListNavigationContainerProps;
+  rows: readonly RowView[];
+  search: string;
+  onSearch: (value: string) => void;
 }) {
-  const { catalog, materials, project, projectId, rows } = model;
+  const { catalog, materials, project, projectId } = model;
   const { query } = catalog;
   const paths = projectPaths(projectId);
-  const projectName = project?.name;
   const groups = (
     ["ready", "missing", "unavailable", "unknown"] as const
   ).flatMap((group) => {
@@ -139,8 +141,16 @@ export function TypeList({
     );
   else if (count === 0)
     body = (
-      <EmptyState title="No check types are published">
-        An operator publishes check types on the server. None are listed yet.
+      <EmptyState
+        title={
+          model.rows.length === 0
+            ? "No check types are published"
+            : "No matching check types"
+        }
+      >
+        {model.rows.length === 0
+          ? "An operator publishes check types on the server. None are listed yet."
+          : "Try another name or description."}
       </EmptyState>
     );
   else
@@ -163,10 +173,20 @@ export function TypeList({
 
   return (
     <ListPane
-      title={
-        projectName === undefined
-          ? "Start a check"
-          : `Start a check on ${projectName}`
+      title="Choose a check type"
+      titleAs="h2"
+      toolbar={
+        <Field label="Find a check type">
+          {(control) => (
+            <input
+              {...control}
+              type="search"
+              value={search}
+              onChange={(event) => onSearch(event.target.value)}
+              placeholder="Search check types"
+            />
+          )}
+        </Field>
       }
       subtitle={
         <>

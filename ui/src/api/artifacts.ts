@@ -377,12 +377,14 @@ export async function downloadExactArtifact(
   api: PublicAPI,
   metadata: ArtifactMetadata,
   path: string,
+  signal?: AbortSignal,
 ): Promise<DownloadedArtifact> {
-  const maximumBytes = (await getSharedConfig(api)).limits
+  const maximumBytes = (await getSharedConfig(api, signal)).limits
     .artifactPayloadMaxBytes;
   const response = await api.fetch(path, {
     method: "GET",
     headers: { Accept: metadata.mediaType },
+    ...(signal === undefined ? {} : { signal }),
   });
   if (!response.ok) {
     throw await api.error(response);
@@ -407,7 +409,34 @@ export async function downloadExactArtifact(
       message: "Artifact media type changed during download",
     });
   }
-  const blob = await response.blob();
+  // Stop at the authoritative byte count rather than buffering an unbounded
+  // chunked answer before discovering that it belongs to another revision.
+  const chunks: ArrayBuffer[] = [];
+  const reader = response.body?.getReader();
+  let received = 0;
+  if (reader !== undefined) {
+    try {
+      while (true) {
+        const part = await reader.read();
+        if (part.done) break;
+        received += part.value.byteLength;
+        if (received > Math.min(metadata.size, maximumBytes)) {
+          throw new PublicAPIError({
+            status: response.status,
+            code: "invalid_api_response",
+            message: "Artifact bytes do not match authoritative metadata",
+          });
+        }
+        chunks.push(Uint8Array.from(part.value).buffer);
+      }
+    } catch (reason) {
+      await reader.cancel().catch(() => undefined);
+      throw reason;
+    } finally {
+      reader.releaseLock();
+    }
+  }
+  const blob = new Blob(chunks, { type: mediaType });
   if (blob.size > maximumBytes || blob.size !== metadata.size) {
     throw new PublicAPIError({
       status: response.status,

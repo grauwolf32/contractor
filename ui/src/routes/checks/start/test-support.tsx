@@ -32,6 +32,8 @@ export interface FakeStartServer {
    */
   audit?: Answer;
   upload?: Answer;
+  content?: Answer;
+  metadata?: Answer;
   /** A page whose code loads only once `until` settles: a slow next page. */
   slowPage?: { path: string; until: Promise<void> };
 }
@@ -62,6 +64,14 @@ export function renderStart(path: string, server: FakeStartServer = {}) {
         ETag: `"${metadata.artifact.revision}"`,
       });
     },
+    "GET /v1/projects/{projectId}/artifacts/{namespace}/{name}": ({
+      request,
+      url,
+    }) => server.content?.(request, url) ?? failure(404, "not_found"),
+    "GET /v1/projects/{projectId}/artifacts/{namespace}/{name}/metadata": ({
+      request,
+      url,
+    }) => server.metadata?.(request, url) ?? failure(404, "not_found"),
     "GET /v1/projects": () => json(page(server.projects ?? [])),
     "GET /v1/projects/{projectId}": ({ params }) =>
       project === null || project.projectId !== params.projectId

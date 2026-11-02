@@ -4,7 +4,14 @@ import { ContextLink } from "../../../app/context-navigation";
 import { compactDigest } from "../../../app/format";
 import { Icon } from "../../../app/icon";
 import { checkItemKind, itemCount } from "../../../app/vocabulary";
-import { Facts, Field, LabelsEditor, TechnicalDetails } from "../../../ui";
+import {
+  Facts,
+  Field,
+  LabelsEditor,
+  TechnicalDetails,
+  IdChip,
+} from "../../../ui";
+import { ScopeChoices } from "./scope";
 import { MODE_LABELS } from "./check-types";
 import { TextAreaField, TextField } from "./fields";
 import { SCOPE_TEXT_LIMITS } from "./request";
@@ -39,6 +46,22 @@ export function AdvancedOptions({ model }: { model: StartCheck }) {
         <span className="ui-caption">Labels, version and check limits.</span>
       </summary>
       <div className="start-advanced-body">
+        <ScopeChoices model={model} />
+        <IdChip
+          value={`${profile.ref.name}@${profile.ref.version}`}
+          display={`${profile.ref.name}@${profile.ref.version}`}
+          label="check type version"
+        />
+        {model.checklist?.mode === "write" ? (
+          <section className="start-checklist-defaults">
+            <h4>Checklist defaults</h4>
+            <p className="ui-caption">
+              Static review · always applicable · no required evidence types.
+              Item review policy: automatic. Each entry retains its own key and
+              version.
+            </p>
+          </section>
+        ) : null}
         <Facts
           items={[
             {

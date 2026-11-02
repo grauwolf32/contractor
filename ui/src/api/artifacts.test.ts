@@ -445,3 +445,22 @@ describe("reserved Artifact Namespaces have one UI definition", () => {
     expect(copies).toEqual([]);
   });
 });
+
+describe("bounded exact Artifact streams", () => {
+  it("cancels an oversized chunked answer before buffering the rest", async () => {
+    const cancel = vi.fn();
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array(metadata.size + 1));
+      },
+      cancel,
+    });
+    const api = new PublicAPI(runtimeConfig, async () =>
+      response(body, { headers: { "content-type": metadata.mediaType } }),
+    );
+    await expect(downloadArtifact(api, metadata)).rejects.toMatchObject({
+      code: "invalid_api_response",
+    });
+    expect(cancel).toHaveBeenCalledOnce();
+  });
+});
