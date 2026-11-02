@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-83 open tasks: 15 in progress, 57 pending, 11 deferred. 1366 finished: 1348 completed, 18 archived.
+82 open tasks: 14 in progress, 57 pending, 11 deferred. 1367 finished: 1349 completed, 18 archived.
 
 ## In progress
 
@@ -23,7 +23,6 @@ the epics are in [epics.yml](epics.yml).
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Enable shared Planner compaction and reuse native YAML in shipped Workflows |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
 | [V435-001](v435-001-server-owned-agent-labels.yml) | runtime-config | defect | P1 | Remove Runtime startup label assignments and keep agent infrastructure settings Server-owned |
-| [V437-004](v437-004-separate-artifact-registry-and-backends.yml) | projects-artifacts | chore | P2 | Separate Artifact registry and payload backend packages |
 | [V438-004](v438-004-organize-registry-capability-matching.yml) | execution-core | chore | P2 | Organize Registry lifecycle and compile immutable capability lookups |
 | [V438-005](v438-005-native-harness-allocation-grants.yml) | execution-core | chore | P3 | Update native lifecycle fixture grants when testing another allocation |
 
@@ -95,7 +94,7 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V437-005](v437-005-inject-artifact-storage-dependencies.yml) | chore | P2 | V437-004 | Inject Artifact storage dependencies explicitly |
+| [V437-005](v437-005-inject-artifact-storage-dependencies.yml) | chore | P2 | — | Inject Artifact storage dependencies explicitly |
 
 ### Audits (`audits`)
 
@@ -205,7 +204,7 @@ tasks in `introduced_by`.
 | Scanner tool Workers and scan planning (`scan-tools`) | 2 | 17 | 10 | 9 | 20 |
 | Findings tools and collections (`findings`) | 2 | 17 | 9 | 10 | 15 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 19 | 16 | 16 | 21 |
-| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 2 | 36 | 39 | 14 | 65 |
+| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 36 | 39 | 14 | 65 |
 | Audits (`audits`) | 17 | 67 | 90 | 38 | 140 |
 | Evaluations (`evals`) | 6 | 21 | 39 | 15 | 49 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 5 |
