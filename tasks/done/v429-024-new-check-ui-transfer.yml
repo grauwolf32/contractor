@@ -5,7 +5,7 @@ milestone: ui-journey-usability
 epic: ui
 kind: feature
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V429-023]
 languages: [typescript, css, go]
 goal: Users can configure a check in the approved consistent workspace, author a checklist inline, inspect material-derived scope and launch through the existing truthful API flow.
@@ -106,3 +106,13 @@ tests:
     covers: [A1, A2, A3]
   - command: git diff --check
     covers: [A4]
+
+verification:
+  - Production New check uses the approved card hierarchy, shared typography/tokens/icons, responsive chooser and ordinary-flow phone actions. API/checklist scope and typed Engagement retain exact source provenance and Server-owned authority.
+  - make ui-verify passed after final CSS alignment — 223 files, 2657 passed tests and one expected failure; generated client check, lint, both TypeScript projects, static-server tests and production build succeeded.
+  - The full auditdomain package passed after the latest main integration. Shared UI/Go fixtures prove canonical authored documents and the complete 128-item inventory path; UI tests cover UTF-8/profile bounds, local Apply, exact create-only retention, lost/mismatched answers, dirty versions and abandoned preparation.
+  - verify-production.mjs passed 60 actual React layouts across light/dark/black and 1440/1100/390/320px, scope/editor/Engagement/missing/error/unsupported states, reachable picker and zero horizontal overflow, page errors or external requests. Desktop and phone captures were visually compared with preserved V5 output.
+  - make lint passed on 02dd3b032 with the integrated Artifact/Scheduler main. The subsequent CSS-only alignment passed fresh make ui-gates and make ui-verify; the later Control Plane main integration changed no UI or auditdomain sources. Final domain, task/spec and whitespace checks passed.
+  - verify-opendesign-pass.mjs confirms exact native output/scripts/tokens, preservation and relay cleanup. No preserved native-pass asset differs from the approved V429-023 commit; originals, inputs, screenshots, history references and verified backups remain retained.
+  - Merged the implementation into local main with --no-ff as 8cfcf683aa1bc0a9b8879f8c77d14e21651c2df5; UI release is 0.11.4. The real-route read-only production preview is open on port 17560.
+implementation_commit: 08dea45f24a928aa01bccaea4ae4a018d33c751b
