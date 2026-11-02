@@ -6,7 +6,7 @@ epic: execution-core
 kind: chore
 introduced_by: V432-006
 priority: P3
-status: in_progress
+status: completed
 depends_on: [V432-001, V432-002, V432-003, V432-004, V432-005, V432-006, V432-007, V432-009]
 languages: [python]
 goal: Land the verified Runtime ownership package on current main while preserving its Workflow and Project Finding contracts.
@@ -87,3 +87,7 @@ prelanding_verification: >-
   uv tools used offline mode after the previously observed PyPI timeout.
   Task/dependency indexes and git diff --check pass. No database migration,
   remote push or live deployment was performed.
+implementation_commit: 5418fa7073d6dfd26b76e8ae41600eb1bc88b47f
+landing: >-
+  Main contains the Runtime branch through --no-ff merge 5418fa7073d6dfd26b76e8ae41600eb1bc88b47f.
+  The main checkout was clean before and after the source merge.
