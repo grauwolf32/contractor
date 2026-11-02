@@ -40,6 +40,7 @@ context:
     V434-002 separately repairs the pre-existing native cleanup fault injection
     that prevented the complete Control Plane integration gate from passing.
   verification_results:
+    - make lint passed, including generated contracts, UI/source gates, Go vet/staticcheck, task/spec/fixture checks, deployment checks and Runtime lint/import rules.
     - All eight listed Go packages passed with integration tags and a disposable PostgreSQL database; no database skip was counted as a pass.
     - The Runtime label placement family, both real-process Runtime label scenarios, the configuration matrix and Ansible/hybrid gates passed.
     - The cross-language gate passed with 371 fixtures, 392 Go shared tests and 288 Python shared tests.
