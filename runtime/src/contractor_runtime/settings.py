@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import math
 import os
-import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -39,7 +38,6 @@ class Settings:
     ca_file: Path
     certificate_file: Path
     private_key_file: Path = field(repr=False)
-    initial_labels: tuple[str, ...] = ()
     placement_labels: tuple[str, ...] = ()
     enabled_runtime_adapters: tuple[str, ...] | None = None
     workspace: WorkspaceSettings | None = None
@@ -74,7 +72,6 @@ def parse_settings(
         type=float,
         default=values.get("CONTRACTOR_CERT_EXPIRY_WARNING_DAYS", "30"),
     )
-    parser.add_argument("--initial-label", action="append", default=None)
     parser.add_argument("--placement-label", action="append", default=None)
     parser.add_argument("--runtime-adapter", action="append", default=None)
     parser.add_argument("--allowed-target-network", action="append", default=None)
@@ -170,7 +167,6 @@ def parse_settings(
     work_root = Path(args.work_root).expanduser().resolve()
     if work_root == Path(work_root.anchor):
         parser.error("--work-root must not be a filesystem root")
-    initial_labels = _initial_labels(parser, args.initial_label, values)
     placement_labels = _placement_labels(parser, args.placement_label, values)
     enabled_runtime_adapters = _runtime_adapters(parser, args.runtime_adapter, values)
     allowed_target_networks = _allowed_target_networks(parser, args.allowed_target_network, values)
@@ -192,7 +188,6 @@ def parse_settings(
         ca_file=ca_file,
         certificate_file=certificate_file,
         private_key_file=private_key_file,
-        initial_labels=initial_labels,
         placement_labels=placement_labels,
         enabled_runtime_adapters=enabled_runtime_adapters,
         workspace=workspace,
@@ -267,33 +262,6 @@ def _placement_labels(
     except ValueError as error:
         parser.error(f"--placement-label: {error}")
     return tuple(labels)
-
-
-_RUNTIME_LABEL_PATTERN = re.compile(r"^[a-z][a-z0-9_-]*$")
-
-
-def _initial_labels(
-    parser: argparse.ArgumentParser,
-    cli_values: list[str] | None,
-    environ: Mapping[str, str],
-) -> tuple[str, ...]:
-    if cli_values is None:
-        raw = environ.get("CONTRACTOR_INITIAL_LABELS", "")
-        candidates = [] if raw == "" else raw.split(",")
-    else:
-        candidates = cli_values
-    if len(candidates) > 32:
-        parser.error("at most 32 --initial-label values are allowed")
-    if len(candidates) != len(set(candidates)):
-        parser.error("--initial-label values must be unique")
-    for value in candidates:
-        if (
-            not 1 <= len(value) <= 63
-            or _RUNTIME_LABEL_PATTERN.fullmatch(value) is None
-            or value == "default"
-        ):
-            parser.error("--initial-label must match [a-z][a-z0-9_-]* and not be default")
-    return tuple(sorted(candidates))
 
 
 _KNOWN_RUNTIME_ADAPTERS = frozenset(

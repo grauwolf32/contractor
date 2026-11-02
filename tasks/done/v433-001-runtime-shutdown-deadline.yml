@@ -6,7 +6,7 @@ epic: execution-core
 kind: defect
 introduced_by: V31-004
 priority: P1
-status: pending
+status: completed
 depends_on: [V432-001, V432-002]
 languages: [python, markdown]
 goal: Graceful Runtime shutdown stops owned work and resources within one process cleanup budget for every sandbox profile.
@@ -14,7 +14,10 @@ context:
   authority: >-
     User request 2026-11-02: recheck the seven Runtime findings and create fix
     tasks. The shutdown requirement explicitly includes one cleanup deadline.
-    This task records the remaining defect; it does not start implementation.
+    User decision 2026-11-02: implement this P1 after merging the planning
+    package into main (9a2d6f9afe228e025c9381dff34233f5b6939083).
+    User follow-up 2026-11-02 requests a behavior explanation and process
+    diagrams before merging the implementation.
   specification:
     - docs/spec/execution/runtime-agent.md#RTA-R87
     - docs/spec/execution/runtime-agent.md#RTA-R88
@@ -44,6 +47,15 @@ context:
     process fence when stopped ownership cannot be proved. Owned tasks must be
     joined before resources they use are closed; cancelling a waiter is not
     proof that the work stopped. Extend RTA-R87 with the common process budget.
+  decision: >-
+    Implementation 2026-11-02 keeps one shielded process owner and one
+    independent event-loop process-exit timer, started once at the first
+    cleanup/caller cancellation and retired after all nested owners close.
+    The simpler per-phase wait_for alternative is rejected because each call
+    grants a new grace and wait_for itself can wait indefinitely for child
+    cancellation settlement. This changes no configuration value or wire
+    field. Reopen if process-resource ownership moves to a different owner;
+    no generic deadline framework or external watchdog is introduced here.
 scope:
   in:
     - Compute one monotonic deadline on entry to process shutdown and pass only its remaining budget through every phase, including control-loop and connection closure.
@@ -72,7 +84,25 @@ acceptance_criteria:
   - id: A3
     text: Existing lease-expiry, partial-prepare, listener-failure and ordinary-profile shutdown regressions pass; new deterministic tests fail on the current independent-timeout implementation and use no wall-clock performance assertions.
 tests:
-  - command: cd runtime && uv run pytest -W error tests/test_cli.py tests/test_allocation.py tests/test_podman_allocation.py tests/test_lease_watchdog.py tests/test_threads.py
+  - command: cd runtime && uv run pytest -W error tests/test_cli.py tests/test_cli_shutdown.py tests/test_allocation.py tests/test_podman_allocation.py tests/test_lease_watchdog.py tests/test_threads.py
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A1, A2, A3]
+verification: >-
+  The required Runtime selection (CLI including real mTLS SIGTERM and real
+  ADK Worker, new CLI shutdown tests, allocation, Podman allocation, lease
+  watchdog and threads) passed: 105 passed, 15 Linux/Podman cases skipped
+  on macOS. Thirteen new deterministic cases cover the common deadline
+  across ordinary/Podman resource owners, all eight blocked cleanup phases,
+  repeated caller cancellation with held root locks, and listener-construction
+  failure. The actual pre-fix main CLI fails the budget regression with
+  [10] instead of [8]; only the injectable clock/fence seam was retained for
+  this negative probe. make lint passed with pinned cached/offline toolchains,
+  including all four Runtime import contracts. Ruff, generated dependency
+  graph and git diff --check pass. No live Gateway, deployment or database
+  migration was run. Source log: /tmp/runtime-v433-001-lint.log.
+implementation_commit: 629665e8a8a02921cc727b59b0bdac7372159d1a
+landing: >-
+  Implemented and verified on codex/runtime-shutdown-deadline; the requested
+  behavior explanation and process diagrams were presented before landing.
+  V433-006 records current-main integration, validation and the merge revision.

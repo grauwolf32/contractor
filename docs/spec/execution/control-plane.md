@@ -124,7 +124,6 @@ RuntimeAgentRegistration
   started_at
   control endpoint
   A2A endpoint
-  initial labels used only to seed a previously unseen certificate principal
   frozen startup WorkerRuntime, Toolset/tool, SandboxProfile and RuntimeAdapter capabilities
   observed_state
   allocation_id?
@@ -182,7 +181,7 @@ RuntimeAgentHeartbeatAck
 sequenceDiagram
     participant R as Runtime Agent
     participant C as Control Plane
-    R->>C: registration (instance_id, CapabilitySnapshot, initialLabels)
+    R->>C: registration (instance_id, CapabilitySnapshot)
     C-->>R: API version, heartbeat interval, lease duration
     R->>C: heartbeat (sequence n, last_ack_sequence m)
     Note over C: last_seen advances on every valid authenticated request
@@ -488,8 +487,7 @@ principal.
 **CTL-R151.** Control Plane answers a rejected private request with the JSON
 envelope `code`, `message`, `retryable` and `requestId`. `retryable` is its
 verdict on whether the same request can succeed later: a registration that
-fails strict validation (`invalid_request`) or names labels that cannot be
-registered (`invalid_runtime_labels`) is not retryable; a conflict with the
+fails strict validation (`invalid_request`) is not retryable; a conflict with the
 current Runtime Agent state and an internal failure are. The Runtime Agent
 follows the flag ahead of the HTTP status and never logs `message`
 ([RTA-R113](runtime-agent.md)).
@@ -575,19 +573,25 @@ using the same key are the same principal and cannot concurrently register as
 two slots: a second live `instance_id` is rejected.
 
 **CTL-R25.** Renewing a certificate with the same public key
-retains the principal. Rotating the key creates a new principal whose initial
-labels are seeded normally; labels are not copied automatically between
+retains the principal. Rotating the key creates a new unlabeled principal;
+labels are not copied automatically between
 fingerprints. Operations may assign the same desired label set to the new
 principal before retiring the old certificate.
 
-**CTL-R26.** Registration carries a sorted `initialLabels` list.
-On the first registration of an unseen principal, Control Plane validates that
-every binding exists and atomically creates the principal record with that
-label set (LIFE-CTL-4). On later registrations it ignores `initialLabels` for state
-mutation and returns the database-authoritative label set: after the first
-registration the Control Plane database is authoritative, so changing startup
-arguments does not silently overwrite an Operations decision, and the operator
-changes the durable set through Control Plane.
+**CTL-R26.** Registration carries no RuntimeConfig label assignment. On the
+first registration of an unseen principal, Control Plane atomically creates its
+record with an empty label set and label revision 1 (LIFE-CTL-4). Later
+registrations preserve its stored label set, revision and mutation metadata.
+The Control Plane database is authoritative from creation; operators and
+deployment scripts assign labels explicitly through the Operations API.
+
+Rationale: certificate keys identify agents, Runtime startup owns process
+capabilities and placement declarations, and Server owns per-agent infrastructure
+overrides. Startup label seeding created an apparent second configuration owner
+whose changes stopped applying after first registration. A single Server-owned
+set avoids that ambiguity without adding declared/managed label layers. Revisit
+this boundary only for an explicit deployment requirement to change assignment
+authority; environment capabilities remain Runtime-owned.
 
 **CTL-R27.** Durable certificate principals and their label
 assignments are configuration records only; they never imply that a process is
@@ -862,7 +866,7 @@ Runtime process incarnation. Placement labels participate in the immutable
 registration fingerprint, so changing them under the same `instanceId` is a
 registration conflict. A new incarnation can declare a new location under the
 same principal once the ordinary registration and lease rules permit it.
-These values never seed, read or mutate the durable principal's RuntimeConfig
+These values never read or mutate the durable principal's RuntimeConfig
 labels (CTL-R26), and require no RuntimeConfig binding. A location is an
 operator declaration from an authenticated deployment peer, not independent
 cloud-provider attestation or a new authorization role.

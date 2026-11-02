@@ -69,11 +69,7 @@ func TestPostgresLabelRebindCannotInvalidateAssignedPrincipalLayer(t *testing.T)
 		t.Fatal(err)
 	}
 	principalID := strings.Repeat("d", 64)
-	if _, err := principalService.Register(
-		ctx, principalID, []string{"route-one", "route-two"},
-	); err != nil {
-		t.Fatal(err)
-	}
+	registerPrincipalWithLabels(t, ctx, principalService, principalID, []string{"route-one", "route-two"})
 	bindingService, err := runtimeconfig.NewBindingService(allowRuntimeCredentialCatalog{})
 	if err != nil {
 		t.Fatal(err)
@@ -144,11 +140,7 @@ func TestPostgresRebindUnrelatedLabelRemovalIsPrecondition(t *testing.T) {
 	}
 	// One principal holds both labels, so a rebind of "selected" also locks
 	// "unrelated".
-	if _, err := principalService.Register(
-		ctx, strings.Repeat("e", 64), []string{"selected", "unrelated"},
-	); err != nil {
-		t.Fatal(err)
-	}
+	registerPrincipalWithLabels(t, ctx, principalService, strings.Repeat("e", 64), []string{"selected", "unrelated"})
 
 	bindings, err := runtimeconfig.NewBindingService(allowRuntimeCredentialCatalog{})
 	if err != nil {

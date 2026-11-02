@@ -97,7 +97,11 @@ func TestPostgresHybridBootstrapMutationIdentity(t *testing.T) {
 					t.Fatal(err)
 				}
 			})
-			if _, err := principalService.Register(ctx, principalID, []string{"unrelated"}); err != nil {
+			if _, err := principalService.Register(ctx, principalID); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := principalService.ReplaceLabelsIdempotent(ctx, principalID, 1,
+				[]string{"unrelated"}, "assign-unrelated", "operator", time.Now()); err != nil {
 				t.Fatal(err)
 			}
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

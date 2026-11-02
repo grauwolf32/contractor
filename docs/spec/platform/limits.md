@@ -704,7 +704,7 @@ its owning requirement.
 | `LIM-RTA-3` | 60 s | Total budget of opt-in Podman discovery | Runtime Agent capability discovery (Podman discovery) | [RTA-R13](../execution/runtime-agent.md) |
 | `LIM-RTA-4` | 30 s | Shared Podman profile and execution probe | Runtime Agent capability discovery (Podman discovery) | [RTA-R13](../execution/runtime-agent.md) |
 | `LIM-RTA-5` | 8 s | Cleanup reserve inside the shared Podman profile and execution probe (LIM-RTA-4) | Runtime Agent capability discovery (Podman discovery) | [RTA-R13](../execution/runtime-agent.md) |
-| `LIM-RTA-6` | 10 s (default of CONTRACTOR_SHUTDOWN_GRACE_SECONDS) | Stopping and destroying the Worker after local lease loss; also the bound before forced termination | Runtime Agent local watchdog | [RTA-R24](../execution/runtime-agent.md) |
+| `LIM-RTA-6` | 10 s (default of CONTRACTOR_SHUTDOWN_GRACE_SECONDS) | Stopping and destroying the Worker after local lease loss; one common budget for all graceful process cleanup, before forced termination | Runtime Agent local watchdog and process cleanup owner | [RTA-R24](../execution/runtime-agent.md), [RTA-R87](../execution/runtime-agent.md) |
 | `LIM-RTA-7` | 1 A2A address | Stable authenticated A2A address per Runtime Agent | Runtime Agent A2A server | [RTA-R71](../execution/runtime-agent.md) |
 | `LIM-RTA-8` | 1 skill | Contractor stage-content skills exposed on the allocation Agent Card | Runtime Agent Agent Card construction | [RTA-R73](../execution/runtime-agent.md) |
 | `LIM-RTA-9` | 1 sampler (with a constant-size accumulator) | Cancellable resource sampler per measured allocation | Runtime Agent resource collector | [RTA-R97](../execution/runtime-agent.md) |
@@ -965,6 +965,7 @@ its owning requirement.
 | `LIM-WRK-34` | 32 MiB | Retained history projection of one invocation: every complete group's compact UTF-8 JSON projection (tagged reasoning included when selected) plus 96 bytes of index overhead per group | Runtime context archive (fails `worker_context_limit_exceeded` when a group would exceed it) | [WRK-R187](../execution/worker.md) |
 | `LIM-WRK-35` | 4,096 | Complete history groups retained by one invocation's context archive | Runtime context archive (fails `worker_context_limit_exceeded`) | [WRK-R187](../execution/worker.md) |
 | `LIM-WRK-36` | 32 KiB and 8 groups | One `read_context_history` page, measured as its compact UTF-8 JSON serialization; a group larger than the page returns bounded fragments with a continuation position | Runtime `read_context_history` tool | [WRK-R191](../execution/worker.md) |
+| `LIM-WRK-37` | 4 MiB (4,194,304 bytes) received and decoded | One physical Worker Gateway response, success or error, before JSON parsing; independent of model token limits | Runtime Gateway client; shared fixture also pins the existing Go Planner response ceiling | [WRK-R9](../execution/worker.md) |
 | `LIM-WSP-1` | 1 to 32 sources | WorkspaceContext.sources of a Stage context.workspace | Workflow configuration validation | [WSP-R11](../tools/workspace.md) |
 | `LIM-WSP-2` | 32 path components | each workspace source target | Workflow configuration validation | [WSP-R13](../tools/workspace.md) |
 | `LIM-WSP-3` | 1024 UTF-8 bytes | each workspace source target | Workflow configuration validation | [WSP-R13](../tools/workspace.md) |

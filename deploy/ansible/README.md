@@ -122,6 +122,11 @@ gets its own `PATH`: its bin directory followed by
 when a disabled scanner or validator is still found there, for example a
 distribution `sqlmap` in `/usr/bin`; remove it or narrow the system path.
 
+New Runtime principals register with empty configuration labels. Assign per-agent
+infrastructure settings through **Operations → Runtime agents** or
+`PUT /v1/operations/runtime-agent-principals/{runtimeAgentId}/labels` after
+registration. These assignments stay in Server storage across Runtime restarts.
+
 ## Variables
 
 `roles/contractor_runtime/defaults/main.yml` documents every variable. The
@@ -134,7 +139,6 @@ ones most inventories set:
 | `contractor_runtime_listen_host` | `127.0.0.1` | Listen address. A wildcard (`0.0.0.0`, `::`) needs `advertise_host`. |
 | `contractor_runtime_advertise_host` | listen host | Address the Server dials; part of the certificate SANs. |
 | `contractor_runtime_capabilities` | `{}` | Host or group overrides of the switches above. |
-| `contractor_runtime_labels` | `[]` | Startup labels; they seed a previously unseen principal only. Bind each label on the Server first (**Operations → Runtime labels**): an unbound one fails registration with `invalid_runtime_labels`. |
 | `contractor_runtime_placement_labels` | `[]` | Process location, e.g. `[cloud/hetzner]` or `[local/lab]`, passed as `--placement-label`. No RuntimeConfig binding is needed; changes take effect after restarting the instance. |
 | `contractor_runtime_adapters` | `null` | `null` probes every built-in adapter; a list selects a subset. |
 | `contractor_runtime_allowed_target_networks` | `[]` | CIDRs passed as `--allowed-target-network`. |
@@ -147,7 +151,7 @@ ones most inventories set:
 | `contractor_runtime_verify`, `contractor_runtime_verify_timeout_seconds` | `true`, `180` | Journal verification after each start. |
 
 Per instance you can set `listen_host`, `advertise_host`, `cert_dns`,
-`cert_ips`, `labels`, `placement_labels`, `adapters`, `allowed_target_networks`, `log_level`,
+`cert_ips`, `placement_labels`, `adapters`, `allowed_target_networks`, `log_level`,
 `extra_args`, `extra_environment`, `workspace_limits`, `podman_limits`,
 `podman_owner` and `capabilities`.
 

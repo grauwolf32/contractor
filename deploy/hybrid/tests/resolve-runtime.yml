@@ -23,7 +23,7 @@
         that:
           - item.args | zip(item.args[1:]) | selectattr('0', 'equalto', '--placement-label') | map('last') | list == hybrid_expected_placement_labels
           - item.args | select('equalto', '--placement-label') | list | length == hybrid_expected_placement_labels | length
-          - item.args[item.args.index('--initial-label') + 1] == 'cloud-llm'
+          - "'--initial-label' not in item.args"
         quiet: true
         fail_msg: >-
           expected={{ hybrid_expected_placement_labels }}

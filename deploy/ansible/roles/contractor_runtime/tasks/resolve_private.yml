@@ -19,7 +19,7 @@
       {{ contractor_runtime_instances | contractor_input_errors({
            'extra_environment': contractor_runtime_extra_environment, 'extra_args': contractor_runtime_extra_args,
            'capabilities': contractor_runtime_capabilities, 'workspace_limits': contractor_runtime_workspace_limits,
-           'podman_limits': contractor_runtime_podman_limits, 'labels': contractor_runtime_labels,
+           'podman_limits': contractor_runtime_podman_limits,
            'placement_labels': contractor_runtime_placement_labels, 'allowed_target_networks': contractor_runtime_allowed_target_networks,
            'cert_dns': contractor_runtime_cert_dns, 'cert_ips': contractor_runtime_cert_ips,
            'tools': contractor_runtime_tools, 'system_packages': contractor_runtime_system_packages}) }}

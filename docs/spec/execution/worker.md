@@ -345,6 +345,24 @@ calls, finish reason and provider-reported usage back to ADK. Successful JSON
 responses are projected directly into ADK types without constructing
 general-purpose SDK models.
 
+Each physical Gateway response, including an error response, is streamed
+under a 4-MiB ceiling for both received and decoded bytes (LIM-WRK-37).
+Admission precedes JSON parsing and applies independently of `max_tokens`,
+Content-Length and provider-reported usage. Overflow, malformed compression
+or invalid/deep successful-response JSON produces a content-free,
+non-retryable `InvalidGatewayResponse`; the transport does not replay that
+response as a connection outage. In-bound error bodies retain their existing
+status/signature and Retry-After classifications. No response content or
+unavailable usage is invented after admission fails.
+
+Admitted JSON parsing, error-body classification and ADK response projection
+run through `threads.to_thread_until_done`. Started CPU work and response
+closure remain joined through repeated cancellation before client/allocation
+ownership can be released. These operations share the existing request and
+invocation deadlines rather than receiving a new parsing budget. This is
+bounded work outside the event-loop thread, not a hard scheduling-latency
+guarantee for native code that holds the interpreter lock.
+
 An unanswered function call does not prove nonexecution: a tool may have made
 an external change before cancellation or loss of its response. History repair
 without admission or outcome evidence pairs it with a bounded
@@ -1772,6 +1790,7 @@ Limits ([registry](../platform/limits.md)):
 - LIM-WRK-34: retained history 32 MiB per invocation (WRK-R187).
 - LIM-WRK-35: retained history 4,096 groups per invocation (WRK-R187).
 - LIM-WRK-36: `read_context_history` page 32 KiB and 8 groups (WRK-R191).
+- LIM-WRK-37: one Gateway response 4 MiB received and decoded, before JSON parsing (WRK-R9).
 - Used here, owned by Workflows: LIM-WFL-9 to LIM-WFL-12 (`compact@1`
   members, WFL-R92).
 

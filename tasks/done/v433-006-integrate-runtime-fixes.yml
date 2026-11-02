@@ -1,0 +1,79 @@
+schema_version: "1.0"
+id: V433-006
+title: Integrate the Runtime shutdown and CPU fixes with current main
+milestone: runtime-resource-bounds-2026-11
+epic: execution-core
+kind: chore
+priority: P3
+status: completed
+depends_on: [V433-001, V433-002, V433-004]
+languages: [python, go, markdown]
+goal: Land the verified shutdown and CPU fixes on main while preserving its current Audit and Server-owned agent-label contracts.
+context:
+  authority: >-
+    User decision 2026-11-02: merge codex/runtime-shutdown-deadline into main
+    after the requested process explanation and diagrams. The user confirmed
+    continuation after briefly asking about assert. Current main advanced
+    from 9a2d6f9afe228e025c9381dff34233f5b6939083 to
+    62603ca1728a4872059ec7a0c1acd5ed242a6cc4 with Audit material integration
+    and Server-owned agent labels. Routine integration and conflict resolution
+    implement this merge; no further defect or feature work is authorized.
+  specification:
+    - docs/spec/execution/runtime-agent.md#RTA-R87
+    - docs/spec/execution/worker.md#WRK-R9
+    - docs/spec/findings/findings.md#FND-R122
+  boundary: >-
+    Retain main's removal of Runtime initialLabels, strict registration and
+    Server label authority; preserve Audit material/rulepack changes without
+    taking over their tasks. Carry the one shutdown deadline, joined CPU
+    work and Gateway byte ceiling into that tree. Generated files are rebuilt
+    with their owners, never resolved by hand. Keep V433-003/V433-005 pending
+    and do not change the in-progress V435-001 task's status.
+scope:
+  in:
+    - Integrate current main into the implementation branch and resolve only overlapping changes.
+    - Verify affected Runtime lifecycle, registration/settings/state, Gateway and findings suites, shared fixtures and lint on the integrated revision.
+    - Regenerate task/dependency indexes, record landing evidence and merge through --no-ff into a clean main checkout.
+  out:
+    - OTLP V433-003 implementation, package-exit completion, live deployment, database migration, remote push and unrelated task changes.
+acceptance_criteria:
+  - id: A1
+    text: The combined tree preserves all current-main behavior and all three Runtime fixes, contains no merge markers or stale generated task/dependency indexes, and keeps other task statuses intact.
+  - id: A2
+    text: The affected full Runtime module selection, real-PostgreSQL cross-language gate and make lint pass on the integrated revision, with any skips reported explicitly.
+  - id: A3
+    text: main contains the Runtime implementation through a no-fast-forward merge; record the source/merge revisions and leave the main checkout clean.
+tests:
+  - command: cd runtime && uv run pytest -W error tests/test_cli.py tests/test_cli_shutdown.py tests/test_settings.py tests/test_state.py tests/test_control_client.py tests/test_control_transport.py tests/test_contracts.py tests/test_shared_runtime_label_set.py tests/test_allocation.py tests/test_threads.py tests/test_gateway_client.py tests/test_gateway_response_bounds.py tests/test_gateway_error_classification.py tests/test_gateway_recovery.py tests/test_shared_gateway_recovery_participant.py tests/test_openai_gateway_llm.py tests/test_adk_gateway_conformance.py tests/test_http_proxy_adapter.py tests/test_http_body.py tests/test_findings_reader_scheduling.py tests/test_findings_reader_toolset.py tests/test_security_findings_toolset.py tests/test_finding_tool_contracts.py
+    covers: [A1, A2]
+  - command: make test-wire-cross-language
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2]
+  - command: git diff --check
+    covers: [A1, A3]
+integration: >-
+  Merge 959124d6ecc72471b6fca5cfcac9d383c34dad12 combines the implementation
+  with main 62603ca1728a4872059ec7a0c1acd5ed242a6cc4. Production code merged
+  without conflicts. Only the generated backlog and dependency HTML conflicted;
+  both were regenerated with their owners. Main's registration/settings/state
+  and CLI registration-error tests remain identical to main.
+verification: >-
+  Required affected full Runtime module selection: 908 passed, no skips.
+  make lint passed, including all four Runtime import contracts. The complete
+  shared-fixture gate passed against a fresh disposable PostgreSQL database:
+  373 fixtures, 395 Go and 289 Python shared tests (1592 Python cases).
+  This is integrated-current-main coverage; the earlier full Runtime selection
+  of 5871 passed, 133 skipped and two named macOS exclusions remains recorded
+  on the implementation tasks and was not silently relabeled as this run.
+  Logs: /tmp/runtime-v433-006-runtime.log, /tmp/runtime-v433-006-lint.log and
+  /tmp/runtime-v433-006-wire.log. No live model, deployment or demo migration.
+implementation_commit: 6c898154f1f1dfe1dea87054ada4c19551c7c677
+landing: >-
+  Main contains the Runtime branch through --no-ff merge
+  6c898154f1f1dfe1dea87054ada4c19551c7c677, with previous main
+  62603ca1728a4872059ec7a0c1acd5ed242a6cc4 and source
+  9b349798978cb85a802bb63a12853793c49dacb4 as parents.
+  The primary main checkout was clean before and after the merge. The
+  disposable PostgreSQL database was removed after the shared-fixture gate.
+  V433-003/V433-005 remain pending; V435-001 remains in_progress.

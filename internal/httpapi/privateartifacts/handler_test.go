@@ -639,10 +639,10 @@ func newProductionGrantHandler(
 		}
 		registration := control.AgentRegistration{
 			APIVersion: contracts.APIVersion, InstanceID: identity.instanceID, SoftwareVersion: "0.1.0",
-			StartedAt:     time.Date(2026, 9, 1, 10, 0, 0, 0, time.UTC),
-			ControlURL:    "https://" + identity.instanceID + ".example:9443",
-			A2AURL:        "https://" + identity.instanceID + ".example:9444",
-			InitialLabels: []string{}, SupportedRuntimes: []string{"adk@1"},
+			StartedAt:         time.Date(2026, 9, 1, 10, 0, 0, 0, time.UTC),
+			ControlURL:        "https://" + identity.instanceID + ".example:9443",
+			A2AURL:            "https://" + identity.instanceID + ".example:9444",
+			SupportedRuntimes: []string{"adk@1"},
 			SupportedToolsets: []control.ToolsetCapability{{
 				Ref: "run-artifacts@1", Tools: []string{"list_artifacts", "read_artifact", "write_artifact"},
 			}},

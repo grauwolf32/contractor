@@ -96,18 +96,18 @@ class BootstrapPostgres(unittest.TestCase):
 
         assign()
         original = self.api.writes[-1]
-        self.check_replay(original, self.principal_path, "2")
+        self.check_replay(original, self.principal_path, "3")
         self.api.request(
             "PUT",
             self.principal_path + "/labels",
             {"labels": ["unrelated"]},
-            {"If-Match": '"2"', "Idempotency-Key": "external-remove"},
+            {"If-Match": '"3"', "Idempotency-Key": "external-remove"},
         )
         self.api.lose_next = True
         with self.assertRaises(RemoteDisconnected):
             assign()
         restored = self.api.writes[-1]
-        self.check_replay(restored, self.principal_path, "4")
+        self.check_replay(restored, self.principal_path, "5")
         self.assertEqual(self.current(self.principal_path)["labels"], ["cloud-llm", "unrelated"])
         count = len(self.api.writes)
         assign()
