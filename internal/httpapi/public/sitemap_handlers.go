@@ -13,40 +13,35 @@ type ProjectSitemap interface {
 	Mutate(context.Context, projectsitemap.Authority, string, projectsitemap.Mutation) (projectsitemap.Result, error)
 }
 
-func (h *projectHandlers) mutateSitemap(w http.ResponseWriter, r *http.Request) {
+func (h *projectHandlers) mutateSitemap(w http.ResponseWriter, r *http.Request) error {
 	w.Header().Set("Cache-Control", "no-store")
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	if err := requireJSONMediaType(r); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	key, err := requireIdempotencyKey(r)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	var command projectsitemap.EditorMutation
 	if err := decodeJSONBounded(w, r, &command, projectsitemap.MaxBatchBytes); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	if command.Operation == "observe" {
-		handleError(w, errInvalidRequest)
-		return
+		return errInvalidRequest
 	}
 	sourceID := projectsitemap.OwnerSourceID
 	authority := projectsitemap.Authority{OwnerID: principalUserID(r.Context()), ProjectID: r.PathValue("projectId"),
 		SourceID: sourceID, Kind: "manual"}
 	result, err := h.Sitemap.Mutate(r.Context(), authority, key, command.WithSource(sourceID))
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	if result.Replayed {
 		w.Header().Set("Idempotency-Replayed", "true")
 	}
 	writeJSON(w, http.StatusOK, result)
+	return nil
 }

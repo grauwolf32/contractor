@@ -31,28 +31,28 @@ type artifactArchiveFileResponse struct {
 
 type archiveStoreResolver func(http.ResponseWriter, *http.Request) (artifacts.ScopedStore, bool)
 
-func (h *artifactHandlers) getArtifactArchive(w http.ResponseWriter, r *http.Request) {
-	h.serveArchive(w, r, h.userArchiveStore, false)
+func (h *artifactHandlers) getArtifactArchive(w http.ResponseWriter, r *http.Request) error {
+	return h.serveArchive(w, r, h.userArchiveStore, false)
 }
 
-func (h *artifactHandlers) getArtifactArchiveFile(w http.ResponseWriter, r *http.Request) {
-	h.serveArchive(w, r, h.userArchiveStore, true)
+func (h *artifactHandlers) getArtifactArchiveFile(w http.ResponseWriter, r *http.Request) error {
+	return h.serveArchive(w, r, h.userArchiveStore, true)
 }
 
-func (h *artifactHandlers) getProjectArtifactArchive(w http.ResponseWriter, r *http.Request) {
-	h.serveArchive(w, r, h.projectArchiveStore, false)
+func (h *artifactHandlers) getProjectArtifactArchive(w http.ResponseWriter, r *http.Request) error {
+	return h.serveArchive(w, r, h.projectArchiveStore, false)
 }
 
-func (h *artifactHandlers) getProjectArtifactArchiveFile(w http.ResponseWriter, r *http.Request) {
-	h.serveArchive(w, r, h.projectArchiveStore, true)
+func (h *artifactHandlers) getProjectArtifactArchiveFile(w http.ResponseWriter, r *http.Request) error {
+	return h.serveArchive(w, r, h.projectArchiveStore, true)
 }
 
-func (h *artifactHandlers) getRunArtifactArchive(w http.ResponseWriter, r *http.Request) {
-	h.serveArchive(w, r, h.runArchiveStore, false)
+func (h *artifactHandlers) getRunArtifactArchive(w http.ResponseWriter, r *http.Request) error {
+	return h.serveArchive(w, r, h.runArchiveStore, false)
 }
 
-func (h *artifactHandlers) getRunArtifactArchiveFile(w http.ResponseWriter, r *http.Request) {
-	h.serveArchive(w, r, h.runArchiveStore, true)
+func (h *artifactHandlers) getRunArtifactArchiveFile(w http.ResponseWriter, r *http.Request) error {
+	return h.serveArchive(w, r, h.runArchiveStore, true)
 }
 
 func (h *artifactHandlers) userArchiveStore(w http.ResponseWriter, r *http.Request) (artifacts.ScopedStore, bool) {
@@ -85,7 +85,7 @@ func (h *artifactHandlers) runArchiveStore(w http.ResponseWriter, r *http.Reques
 	return store, true
 }
 
-func (h *artifactHandlers) serveArchive(w http.ResponseWriter, r *http.Request, resolve archiveStoreResolver, file bool) {
+func (h *artifactHandlers) serveArchive(w http.ResponseWriter, r *http.Request, resolve archiveStoreResolver, file bool) error {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	allowed := []string{"revision"}
@@ -94,33 +94,28 @@ func (h *artifactHandlers) serveArchive(w http.ResponseWriter, r *http.Request, 
 	}
 	query, err := exactQuery(r.URL.RawQuery, allowed...)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	revision := query.Get("revision")
 	if err := validatePublicRevision(revision); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	if err := validateArtifactRouteNames(r); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	if file && !artifactpreview.ValidPath(query.Get("path")) {
-		handleError(w, errInvalidRequest)
-		return
+		return errInvalidRequest
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 	r = r.WithContext(ctx)
 	store, ok := resolve(w, r)
 	if !ok {
-		return
+		return nil
 	}
 	r, transfer, err := artifacttransfer.Acquire(w, r)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	defer transfer.Close()
 	etag, body, err := archivePreview(r.Context(), store, contracts.ArtifactRef{
@@ -131,14 +126,14 @@ func (h *artifactHandlers) serveArchive(w http.ResponseWriter, r *http.Request, 
 	// the response must not keep the transfer slot.
 	transfer.ReleaseBeforeWrite(int64(len(body)))
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	w.Header().Set("ETag", etag)
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Content-Length", strconv.Itoa(len(body)))
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(body)
+	return nil
 }
 
 // archivePreview reads and inspects the payload while the caller holds the

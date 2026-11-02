@@ -43,25 +43,21 @@ type projectHandlers struct {
 	cursors pageCursors
 }
 
-func (h *projectHandlers) createProject(w http.ResponseWriter, r *http.Request) {
+func (h *projectHandlers) createProject(w http.ResponseWriter, r *http.Request) error {
 	w.Header().Set("Cache-Control", "no-store")
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	if err := requireJSONMediaType(r); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	key, err := requireIdempotencyKey(r)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	var request createProjectRequest
 	if err := decodeJSON(w, r, &request); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	params := projectstore.CreateParams{
 		OwnerID: principalUserID(r.Context()), Kind: request.Kind,
@@ -70,37 +66,33 @@ func (h *projectHandlers) createProject(w http.ResponseWriter, r *http.Request) 
 	}
 	params.RequestDigest, err = projectstore.CreateRequestDigest(params)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	params.ProjectID, err = h.NewID("project_")
 	if err != nil {
-		handleError(w, fmt.Errorf("generate Project ID: %w", err))
-		return
+		return fmt.Errorf("generate Project ID: %w", err)
 	}
 	project, created, err := h.Projects.Create(r.Context(), params)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	if !created {
 		w.Header().Set("Idempotency-Replayed", "true")
 	}
 	writeProject(w, http.StatusCreated, project)
+	return nil
 }
 
-func (h *projectHandlers) listProjects(w http.ResponseWriter, r *http.Request) {
+func (h *projectHandlers) listProjects(w http.ResponseWriter, r *http.Request) error {
 	query, limit, encodedCursor, err := pageQuery(r.URL.RawQuery, "kind")
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	var kind *projectstore.Kind
 	if values, present := query["kind"]; present {
 		candidate := projectstore.Kind(values[0])
 		if !candidate.Valid() {
-			handleError(w, errInvalidRequest)
-			return
+			return errInvalidRequest
 		}
 		kind = &candidate
 	}
@@ -110,8 +102,7 @@ func (h *projectHandlers) listProjects(w http.ResponseWriter, r *http.Request) {
 	}
 	cursor, err := h.cursors.decodePageCursor(encodedCursor, cursorKind, 2)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	params := projectstore.ListParams{
 		OwnerID: principalUserID(r.Context()), Kind: kind, Limit: pagelimit.FetchRows(limit),
@@ -119,72 +110,64 @@ func (h *projectHandlers) listProjects(w http.ResponseWriter, r *http.Request) {
 	if len(cursor) != 0 {
 		before, parseErr := time.Parse(time.RFC3339Nano, cursor[0])
 		if parseErr != nil {
-			handleError(w, errInvalidRequest)
-			return
+			return errInvalidRequest
 		}
 		params.BeforeCreatedAt = &before
 		params.BeforeProjectID = cursor[1]
 	}
 	projects, err := h.Projects.List(r.Context(), params)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	projects, page, err := paginate(h.cursors, projects, limit, cursorKind, func(last projectstore.Project) []string {
 		return []string{last.CreatedAt.UTC().Format(time.RFC3339Nano), last.ProjectID}
 	})
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	items := make([]projectResponse, 0, len(projects))
 	for _, project := range projects {
 		items = append(items, projectReadModel(project))
 	}
 	writeJSON(w, http.StatusOK, projectPageResponse{Items: items, Page: page})
+	return nil
 }
 
-func (h *projectHandlers) getProject(w http.ResponseWriter, r *http.Request) {
+func (h *projectHandlers) getProject(w http.ResponseWriter, r *http.Request) error {
 	w.Header().Set("Cache-Control", "no-store")
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	project, err := h.Projects.Get(
 		r.Context(), principalUserID(r.Context()), r.PathValue("projectId"),
 	)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	writeProject(w, http.StatusOK, project)
+	return nil
 }
 
-func (h *projectHandlers) updateProject(w http.ResponseWriter, r *http.Request) {
+func (h *projectHandlers) updateProject(w http.ResponseWriter, r *http.Request) error {
 	w.Header().Set("Cache-Control", "no-store")
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	if err := requireJSONMediaType(r); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	revision, err := requiredRevision(r, "Project update")
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	var request updateProjectRequest
 	if err := decodeJSON(w, r, &request); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	ownerID, projectID := principalUserID(r.Context()), r.PathValue("projectId")
 	current, err := h.Projects.Get(r.Context(), ownerID, projectID)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	name, description := current.Name, current.Description
 	httpTarget := current.HTTPTarget.Clone()
@@ -225,34 +208,32 @@ func (h *projectHandlers) updateProject(w http.ResponseWriter, r *http.Request) 
 		err = update()
 	}
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	writeProject(w, http.StatusOK, project)
+	return nil
 }
 
-func (h *projectHandlers) deleteProject(w http.ResponseWriter, r *http.Request) {
+func (h *projectHandlers) deleteProject(w http.ResponseWriter, r *http.Request) error {
 	w.Header().Set("Cache-Control", "no-store")
 	if _, err := exactQuery(r.URL.RawQuery); err != nil ||
 		r.ContentLength > 0 || len(r.TransferEncoding) != 0 {
-		handleError(w, errInvalidRequest)
-		return
+		return errInvalidRequest
 	}
 	revision, err := requiredRevision(r, "Project deletion")
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	project, _, err := h.Projects.BeginDeletion(r.Context(), projectstore.BeginDeletionParams{
 		ProjectID: r.PathValue("projectId"), OwnerID: principalUserID(r.Context()),
 		ExpectedRevision: revision,
 	})
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	h.ProjectDeletionNotifier.Wake()
 	writeProject(w, http.StatusAccepted, project)
+	return nil
 }
 
 func writeProject(w http.ResponseWriter, status int, project projectstore.Project) {

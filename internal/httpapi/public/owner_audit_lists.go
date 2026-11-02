@@ -54,19 +54,17 @@ func (h *auditHandlers) ownerListPosition(cursorValue, kind string) (*time.Time,
 	return &createdAt, cursor[1], nil
 }
 
-func (h *auditHandlers) listOwnerFindings(w http.ResponseWriter, r *http.Request) {
+func (h *auditHandlers) listOwnerFindings(w http.ResponseWriter, r *http.Request) error {
 	w.Header().Set("Cache-Control", "no-store")
 	query, limit, cursor, err := pageQuery(r.URL.RawQuery, "state", "verdict", "severity")
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	params := auditstore.OwnerFindingListParams{OwnerID: principalUserID(r.Context()), Limit: pagelimit.FetchRows(limit)}
 	if values, ok := query["state"]; ok {
 		state := auditstore.FindingState(values[0])
 		if !state.Valid() {
-			handleError(w, errInvalidRequest)
-			return
+			return errInvalidRequest
 		}
 		params.State = &state
 	}
@@ -76,8 +74,7 @@ func (h *auditHandlers) listOwnerFindings(w http.ResponseWriter, r *http.Request
 		} else {
 			verdict := auditstore.AnalystVerdict(values[0])
 			if verdict != auditstore.VerdictTruePositive && verdict != auditstore.VerdictFalsePositive {
-				handleError(w, errInvalidRequest)
-				return
+				return errInvalidRequest
 			}
 			params.Verdict = &verdict
 		}
@@ -85,35 +82,30 @@ func (h *auditHandlers) listOwnerFindings(w http.ResponseWriter, r *http.Request
 	if values, ok := query["severity"]; ok {
 		severity := auditstore.FindingSeverity(values[0])
 		if !severity.Valid() || params.Unreviewed {
-			handleError(w, errInvalidRequest)
-			return
+			return errInvalidRequest
 		}
 		params.Severity = &severity
 	}
 	kind := "owner-findings:" + params.OwnerID + ":" + query.Get("state") + ":" + query.Get("verdict") + ":" + query.Get("severity")
 	params.BeforeCreatedAt, params.BeforeFindingID, err = h.ownerListPosition(cursor, kind)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	window, err := h.Audits.ListOwnerFindings(r.Context(), params)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	items := window.Items
 	items, page, err := paginate(h.cursors, items, limit, kind, func(last auditstore.ProjectFindingSummary) []string {
 		return []string{last.CreatedAt.UTC().Format(time.RFC3339Nano), last.FindingID}
 	})
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	if last := window.ContinueBefore; last != nil {
 		cursor, err := h.cursors.encodePageCursor(kind, last.CreatedAt.UTC().Format(time.RFC3339Nano), last.FindingID)
 		if err != nil {
-			handleError(w, err)
-			return
+			return err
 		}
 		page = pageInfoResponse{HasMore: true, NextCursor: &cursor}
 	}
@@ -124,46 +116,41 @@ func (h *auditHandlers) listOwnerFindings(w http.ResponseWriter, r *http.Request
 		Items []auditstore.ProjectFindingSummary `json:"items"`
 		Page  pageInfoResponse                   `json:"page"`
 	}{items, page})
+	return nil
 }
 
-func (h *auditHandlers) listOwnerReviews(w http.ResponseWriter, r *http.Request) {
+func (h *auditHandlers) listOwnerReviews(w http.ResponseWriter, r *http.Request) error {
 	w.Header().Set("Cache-Control", "no-store")
 	query, limit, cursor, err := pageQuery(r.URL.RawQuery, "state", "auditState")
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	params := auditstore.OwnerReviewListParams{OwnerID: principalUserID(r.Context()), Limit: pagelimit.FetchRows(limit)}
 	params.AuditStates, err = parseAuditStates(query.Get("auditState"))
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	if values, ok := query["state"]; ok {
 		state := auditstore.ReviewState(values[0])
 		if !state.Valid() {
-			handleError(w, errInvalidRequest)
-			return
+			return errInvalidRequest
 		}
 		params.State = &state
 	}
 	kind := "owner-reviews:" + params.OwnerID + ":" + query.Get("state") + ":" + auditStateKey(params.AuditStates)
 	params.BeforeCreatedAt, params.BeforeRequestID, err = h.ownerListPosition(cursor, kind)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	items, err := h.Audits.ListOwnerReviews(r.Context(), params)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	items, page, err := paginate(h.cursors, items, limit, kind, func(last auditstore.ReviewRequest) []string {
 		return []string{last.CreatedAt.UTC().Format(time.RFC3339Nano), last.RequestID}
 	})
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	if items == nil {
 		items = []auditstore.ReviewRequest{}
@@ -172,4 +159,5 @@ func (h *auditHandlers) listOwnerReviews(w http.ResponseWriter, r *http.Request)
 		Items []auditstore.ReviewRequest `json:"items"`
 		Page  pageInfoResponse           `json:"page"`
 	}{items, page})
+	return nil
 }

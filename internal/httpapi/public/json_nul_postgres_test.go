@@ -117,7 +117,7 @@ func TestPostgresPublicJSONNULEscapesBeforeSideEffects(t *testing.T) {
 				resume.SetPathValue("runId", run.RunID)
 				resume.Header.Set("Content-Type", "application/json")
 				resumed := httptest.NewRecorder()
-				cancelHandler.resumeRun(resumed, resume)
+				serve(cancelHandler.resumeRun)(resumed, resume)
 				if problem := apiDecode[errorResponse](t, resumed); resumed.Code != http.StatusBadRequest || problem.Code != "invalid_request" || problem.Retryable {
 					t.Fatalf("NUL resumption = %d %+v", resumed.Code, problem)
 				}
@@ -131,7 +131,7 @@ func TestPostgresPublicJSONNULEscapesBeforeSideEffects(t *testing.T) {
 					request.SetPathValue("runId", run.RunID)
 					request.Header.Set("Content-Type", "application/json")
 					response := httptest.NewRecorder()
-					cancelHandler.cancelRun(response, request)
+					serve(cancelHandler.cancelRun)(response, request)
 					return response
 				}
 				bad := cancelRequest("reason\x00text")
@@ -167,7 +167,7 @@ func TestPostgresFindingImportRejectsNULEscapeBeforeSideEffects(t *testing.T) {
 	request.SetPathValue("auditId", "audit")
 	request.Header.Set("Content-Type", "application/json")
 	response := httptest.NewRecorder()
-	handler.importAuditFindingProposal(response, request)
+	serve(handler.importAuditFindingProposal)(response, request)
 	problem := apiDecode[errorResponse](t, response)
 	if response.Code != http.StatusBadRequest || problem.Code != "invalid_request" || problem.Retryable || !maps.Equal(before, nulWriteCounts(t, h)) {
 		t.Fatalf("NUL finding import = %d %+v", response.Code, problem)

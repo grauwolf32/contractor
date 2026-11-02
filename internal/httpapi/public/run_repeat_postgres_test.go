@@ -163,7 +163,7 @@ func TestPostgresRunRepeatUsesExactCreationLineageWithoutMutation(t *testing.T) 
 						request := httptest.NewRequest(http.MethodGet, "/v1/runs/"+runID+"/repeat-draft", nil).WithContext(auth.WithPrincipal(ctx, auth.Principal{UserID: "user-1"}))
 						request.SetPathValue("runId", runID)
 						response := httptest.NewRecorder()
-						h.getRunRepeatDraft(response, request)
+						serve(h.getRunRepeatDraft)(response, request)
 						var repeat runRepeatDraftResponse
 						decodeQueryResponse(t, response, &repeat)
 						if response.Code != http.StatusOK || repeat.Authority != repeatAuthorityOrdinary {
@@ -231,7 +231,7 @@ func TestPostgresRepeatRefusesChangedInputSourceScope(t *testing.T) {
 	request := httptest.NewRequest(http.MethodGet, "/v1/runs/"+runID+"/repeat-draft", nil).WithContext(auth.WithPrincipal(ctx, auth.Principal{UserID: "user-1"}))
 	request.SetPathValue("runId", runID)
 	response := httptest.NewRecorder()
-	h.getRunRepeatDraft(response, request)
+	serve(h.getRunRepeatDraft)(response, request)
 	var repeat runRepeatDraftResponse
 	decodeQueryResponse(t, response, &repeat)
 	if response.Code != http.StatusOK || repeat.Draft == nil || repeat.Draft.Inputs["rulepack"].Status != repeatStatusUnavailable || !hasRepeatNotice(repeat.Notices, "input_source_scope_changed") {

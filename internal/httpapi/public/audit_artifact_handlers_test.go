@@ -44,7 +44,7 @@ func TestAuditArtifactReadsExactReceiptAndValidatedMember(t *testing.T) {
 		r := auditAuthenticatedRequest(http.MethodGet, "/v1/audits/audit-one/artifacts?"+tc.query, nil)
 		r.SetPathValue("auditId", "audit-one")
 		response := httptest.NewRecorder()
-		h.getAuditArtifact(response, r)
+		serve(h.getAuditArtifact)(response, r)
 		if response.Code != tc.status || (tc.body != "" && response.Body.String() != tc.body) {
 			t.Fatalf("%s: %d %s", tc.query, response.Code, response.Body.String())
 		}

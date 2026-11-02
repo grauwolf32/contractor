@@ -111,7 +111,7 @@ func TestPostgresRunDetailFixedBatchQueries(t *testing.T) {
 		r.SetPathValue("runId", runID)
 		r = r.WithContext(auth.WithPrincipal(ctx, auth.Principal{UserID: owner}))
 		w := httptest.NewRecorder()
-		h.getRun(w, r)
+		serve(h.getRun)(w, r)
 		return w
 	}
 	wantTotal := 0

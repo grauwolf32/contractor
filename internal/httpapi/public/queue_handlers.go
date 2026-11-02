@@ -32,50 +32,43 @@ type queueHandlers struct {
 	cursors pageCursors
 }
 
-func (h *queueHandlers) getOwnerQueueControl(w http.ResponseWriter, r *http.Request) {
+func (h *queueHandlers) getOwnerQueueControl(w http.ResponseWriter, r *http.Request) error {
 	w.Header().Set("Cache-Control", "no-store")
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	control, err := h.RunQueue.GetOwnerQueueControl(
 		r.Context(), principalUserID(r.Context()),
 	)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	writeOwnerQueueControl(w, http.StatusOK, control)
+	return nil
 }
 
-func (h *queueHandlers) putOwnerQueueControl(w http.ResponseWriter, r *http.Request) {
+func (h *queueHandlers) putOwnerQueueControl(w http.ResponseWriter, r *http.Request) error {
 	w.Header().Set("Cache-Control", "no-store")
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	if err := requireJSONMediaType(r); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	raw, err := httpx.RequiredIfMatch(r.Header)
 	if err != nil {
-		handleError(w, fmt.Errorf("%w: Queue control requires one If-Match", errInvalidRequest))
-		return
+		return fmt.Errorf("%w: Queue control requires one If-Match", errInvalidRequest)
 	}
 	revision, err := parseOwnerQueueControlETag(raw)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	var request updateOwnerQueueControlRequest
 	if err := decodeJSON(w, r, &request); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	if request.Paused == nil {
-		handleError(w, fmt.Errorf("%w: Queue control paused is required", errInvalidRequest))
-		return
+		return fmt.Errorf("%w: Queue control paused is required", errInvalidRequest)
 	}
 	control, err := h.RunQueue.UpdateOwnerQueueControl(
 		r.Context(),
@@ -85,11 +78,11 @@ func (h *queueHandlers) putOwnerQueueControl(w http.ResponseWriter, r *http.Requ
 		},
 	)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	h.RunNotifier.Wake()
 	writeOwnerQueueControl(w, http.StatusOK, control)
+	return nil
 }
 
 // parseOwnerQueueControlETag reads the one strong If-Match of the owner
@@ -120,18 +113,16 @@ func writeOwnerQueueControl(w http.ResponseWriter, status int, control runstore.
 	writeJSON(w, status, response)
 }
 
-func (h *queueHandlers) listRunQueue(w http.ResponseWriter, r *http.Request) {
+func (h *queueHandlers) listRunQueue(w http.ResponseWriter, r *http.Request) error {
 	query, limit, encodedCursor, err := pageQuery(r.URL.RawQuery, "state", "membership")
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	var state *runstore.WorkflowRunState
 	if values, present := query["state"]; present {
 		candidate := runstore.WorkflowRunState(values[0])
 		if !runstore.RunLifecycleActive.Includes(candidate) {
-			handleError(w, fmt.Errorf("%w: Queue state must be non-terminal", errInvalidRequest))
-			return
+			return fmt.Errorf("%w: Queue state must be non-terminal", errInvalidRequest)
 		}
 		state = &candidate
 	}
@@ -139,16 +130,14 @@ func (h *queueHandlers) listRunQueue(w http.ResponseWriter, r *http.Request) {
 	if values, present := query["membership"]; present {
 		candidate := runstore.RunQueueMembership(values[0])
 		if !candidate.Valid() {
-			handleError(w, fmt.Errorf("%w: Queue membership is invalid", errInvalidRequest))
-			return
+			return fmt.Errorf("%w: Queue membership is invalid", errInvalidRequest)
 		}
 		membership = &candidate
 	}
 	cursorKind := runQueueCursorKind(state, membership)
 	cursor, err := h.cursors.decodePageCursor(encodedCursor, cursorKind, 2)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	params := runstore.ListRunQueueParams{
 		OwnerID: principalUserID(r.Context()), State: state,
@@ -157,23 +146,20 @@ func (h *queueHandlers) listRunQueue(w http.ResponseWriter, r *http.Request) {
 	if len(cursor) != 0 {
 		after, parseErr := time.Parse(time.RFC3339Nano, cursor[0])
 		if parseErr != nil {
-			handleError(w, fmt.Errorf("%w: invalid Queue cursor", errInvalidRequest))
-			return
+			return fmt.Errorf("%w: invalid Queue cursor", errInvalidRequest)
 		}
 		params.AfterCreatedAt = &after
 		params.AfterRunID = cursor[1]
 	}
 	runs, err := h.RunQueue.ListRunQueue(r.Context(), params)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	runs, page, err := paginate(h.cursors, runs, limit, cursorKind, func(last runstore.WorkflowRunQueueItem) []string {
 		return []string{last.CreatedAt.UTC().Format(time.RFC3339Nano), last.RunID}
 	})
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	items := make([]queueItemResponse, 0, len(runs))
 	for _, run := range runs {
@@ -195,6 +181,7 @@ func (h *queueHandlers) listRunQueue(w http.ResponseWriter, r *http.Request) {
 		items = append(items, item)
 	}
 	writeJSON(w, http.StatusOK, queuePageResponse{Items: items, Page: page})
+	return nil
 }
 
 func runQueueCursorKind(

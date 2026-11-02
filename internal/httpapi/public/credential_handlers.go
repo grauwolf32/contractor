@@ -29,16 +29,14 @@ type credentialHandlers struct {
 	cursors pageCursors
 }
 
-func (h *credentialHandlers) listCredentials(w http.ResponseWriter, r *http.Request) {
+func (h *credentialHandlers) listCredentials(w http.ResponseWriter, r *http.Request) error {
 	_, limit, encodedCursor, err := pageQuery(r.URL.RawQuery)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	cursor, err := h.cursors.decodePageCursor(encodedCursor, "credentials", 1)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	after := ""
 	if len(cursor) != 0 {
@@ -46,61 +44,53 @@ func (h *credentialHandlers) listCredentials(w http.ResponseWriter, r *http.Requ
 	}
 	records, err := h.ManagedCredentials.ListCredentials(r.Context(), after, pagelimit.FetchRows(limit))
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	records, page, err := paginate(h.cursors, records, limit, "credentials", func(last credentials.Record) []string {
 		return []string{last.CredentialID}
 	})
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	writeJSON(w, http.StatusOK, credentialPageResponse{Items: records, Page: page})
+	return nil
 }
 
-func (h *credentialHandlers) getCredential(w http.ResponseWriter, r *http.Request) {
+func (h *credentialHandlers) getCredential(w http.ResponseWriter, r *http.Request) error {
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	credentialID := r.PathValue("credentialId")
 	if err := (llmgateway.LLMCredentialRef{CredentialID: credentialID}).Validate(); err != nil {
-		handleError(w, fmt.Errorf("%w: invalid credential ID", errInvalidRequest))
-		return
+		return fmt.Errorf("%w: invalid credential ID", errInvalidRequest)
 	}
 	record, err := h.ManagedCredentials.GetCredential(r.Context(), credentialID)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	writeJSON(w, http.StatusOK, record)
+	return nil
 }
 
-func (h *credentialHandlers) createCredential(w http.ResponseWriter, r *http.Request) {
+func (h *credentialHandlers) createCredential(w http.ResponseWriter, r *http.Request) error {
 	if err := requireJSONMediaType(r); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	idempotencyKey, err := requireIdempotencyKey(r)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	var request createCredentialRequest
 	if err := decodeJSON(w, r, &request); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	label := ""
 	if request.Label != nil {
 		if *request.Label == "" {
-			handleError(w, fmt.Errorf("%w: credential label must not be empty", errInvalidRequest))
-			return
+			return fmt.Errorf("%w: credential label must not be empty", errInvalidRequest)
 		}
 		label = *request.Label
 	}
@@ -110,52 +100,47 @@ func (h *credentialHandlers) createCredential(w http.ResponseWriter, r *http.Req
 		IdempotencyKey: idempotencyKey, ActorID: principalUserID(r.Context()),
 	})
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	if !result.Replayed {
 		if err := h.OperationsInvalidator.InvalidateOperations(
 			controlplane.OperationsCredential, result.Credential.CredentialID,
 		); err != nil {
-			handleError(w, err)
-			return
+			return err
 		}
 	}
 	if result.Replayed {
 		w.Header().Set("Idempotency-Replayed", "true")
 	}
 	writeJSON(w, http.StatusCreated, result.Credential)
+	return nil
 }
 
-func (h *credentialHandlers) deleteCredential(w http.ResponseWriter, r *http.Request) {
+func (h *credentialHandlers) deleteCredential(w http.ResponseWriter, r *http.Request) error {
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	credentialID := r.PathValue("credentialId")
 	if err := (llmgateway.LLMCredentialRef{CredentialID: credentialID}).Validate(); err != nil {
-		handleError(w, fmt.Errorf("%w: invalid credential ID", errInvalidRequest))
-		return
+		return fmt.Errorf("%w: invalid credential ID", errInvalidRequest)
 	}
 	idempotencyKey, err := requireIdempotencyKey(r)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	result, err := h.ManagedCredentials.Delete(r.Context(), credentials.DeleteRequest{
 		CredentialID: credentialID, IdempotencyKey: idempotencyKey, ActorID: principalUserID(r.Context()),
 	})
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	if !result.Replayed {
 		if err := h.OperationsInvalidator.InvalidateOperations(
 			controlplane.OperationsCredential, credentialID,
 		); err != nil {
-			handleError(w, err)
-			return
+			return err
 		}
 	}
 	w.WriteHeader(http.StatusNoContent)
+	return nil
 }

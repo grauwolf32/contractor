@@ -57,15 +57,13 @@ func (h *sessionHandlers) cookieName() string {
 	return auth.SecureCookieName
 }
 
-func (h *sessionHandlers) login(w http.ResponseWriter, r *http.Request) {
+func (h *sessionHandlers) login(w http.ResponseWriter, r *http.Request) error {
 	w.Header().Set("Cache-Control", "no-store")
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	if err := requireJSONMediaType(r); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	controller := http.NewResponseController(w)
 	_ = controller.SetReadDeadline(time.Now().Add(loginBodyReadTimeout))
@@ -73,13 +71,11 @@ func (h *sessionHandlers) login(w http.ResponseWriter, r *http.Request) {
 	decodeErr := decodeOpaqueJSONBounded(w, r, &request, maximumLoginBodyBytes)
 	_ = controller.SetReadDeadline(time.Time{})
 	if decodeErr != nil {
-		handleError(w, decodeErr)
-		return
+		return decodeErr
 	}
 	peerIP, err := h.TrustedPeers.ClientIP(r.RemoteAddr, r.Header.Values("X-Forwarded-For"))
 	if err != nil {
-		handleError(w, errInvalidRequest)
-		return
+		return errInvalidRequest
 	}
 	password := []byte(request.Password)
 	request.Password = ""
@@ -96,49 +92,49 @@ func (h *sessionHandlers) login(w http.ResponseWriter, r *http.Request) {
 			}
 			w.Header().Set("Retry-After", strconv.Itoa(retryAfter))
 			writeError(w, apierror.RateLimited, "authentication attempts are temporarily limited")
-			return
+			return nil
 		}
 		if errors.Is(err, auth.ErrInvalidCredentials) {
 			w.Header().Set("WWW-Authenticate", "Session")
 			writeError(w, apierror.Unauthorized, "credentials are invalid")
-			return
+			return nil
 		}
-		handleError(w, err)
-		return
+		return err
 	}
 	h.setSessionCookie(w, result.CookieValue, result.Session.AbsoluteExpiresAt)
 	result.CookieValue = ""
 	writeJSON(w, http.StatusOK, authSession(result.Session))
+	return nil
 }
 
-func (h *sessionHandlers) getSession(w http.ResponseWriter, r *http.Request) {
+func (h *sessionHandlers) getSession(w http.ResponseWriter, r *http.Request) error {
 	w.Header().Set("Cache-Control", "no-store")
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	session, ok := browserSessionFromContext(r.Context())
 	if !ok {
 		writeSessionUnauthorized(w)
-		return
+		return nil
 	}
 	writeJSON(w, http.StatusOK, authSession(session))
+	return nil
 }
 
-func (h *sessionHandlers) logout(w http.ResponseWriter, r *http.Request) {
+func (h *sessionHandlers) logout(w http.ResponseWriter, r *http.Request) error {
 	w.Header().Set("Cache-Control", "no-store")
 	if _, err := exactQuery(r.URL.RawQuery); err != nil || r.ContentLength > 0 || len(r.TransferEncoding) != 0 {
-		handleError(w, errInvalidRequest)
-		return
+		return errInvalidRequest
 	}
 	session, ok := browserSessionFromContext(r.Context())
 	if !ok {
 		writeSessionUnauthorized(w)
-		return
+		return nil
 	}
 	h.Authentication.Destroy(session.Handle)
 	h.clearSessionCookie(w)
 	w.WriteHeader(http.StatusNoContent)
+	return nil
 }
 
 func (h *sessionHandlers) authenticate(next http.Handler) http.Handler {

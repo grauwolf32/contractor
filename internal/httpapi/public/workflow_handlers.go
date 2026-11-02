@@ -44,30 +44,26 @@ type catalogHandlers struct {
 	cursors pageCursors
 }
 
-func (h *catalogHandlers) listWorkflows(w http.ResponseWriter, r *http.Request) {
+func (h *catalogHandlers) listWorkflows(w http.ResponseWriter, r *http.Request) error {
 	values, limit, encodedCursor, err := pageQuery(r.URL.RawQuery, "q", "name")
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	_, namePresent := values["name"]
 	query, err := parseCatalogQuery(values.Get("q"), values.Get("name"), namePresent)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	// The snapshot fingerprinted its Workflows once; a page copies only the
 	// Workflows it returns (CAT-R67).
 	discovery, err := h.Config.WorkflowDiscovery()
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	cursorKind := catalogPageCursorKind(workflowPageCursorKind, query, discovery.SourceFingerprint)
 	cursor, err := h.cursors.decodePageCursor(encodedCursor, cursorKind, 1)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	after := ""
 	if len(cursor) != 0 {
@@ -87,28 +83,26 @@ func (h *catalogHandlers) listWorkflows(w http.ResponseWriter, r *http.Request) 
 		return []string{last.Ref.Name + "@" + last.Ref.Version}
 	})
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	writeJSON(w, http.StatusOK, workflowPageResponse{Items: items, Page: page})
+	return nil
 }
 
-func (h *catalogHandlers) getWorkflow(w http.ResponseWriter, r *http.Request) {
+func (h *catalogHandlers) getWorkflow(w http.ResponseWriter, r *http.Request) error {
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	selector := r.PathValue("name") + "@" + r.PathValue("version")
 	if _, err := resolved.ParseSelector(selector); err != nil {
-		handleError(w, fmt.Errorf("%w: invalid Workflow selector", errInvalidRequest))
-		return
+		return fmt.Errorf("%w: invalid Workflow selector", errInvalidRequest)
 	}
 	workflow, err := h.Config.Workflow(selector)
 	if err != nil {
-		handleError(w, fmt.Errorf("%w: Workflow was not found", runstore.ErrNotFound))
-		return
+		return fmt.Errorf("%w: Workflow was not found", runstore.ErrNotFound)
 	}
 	writeJSON(w, http.StatusOK, workflowResourceReadModel(workflow))
+	return nil
 }
 
 func workflowSummaryReadModel(workflow resolved.ResolvedWorkflow) workflowSummaryResponse {

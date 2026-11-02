@@ -85,35 +85,32 @@ type runHandlers struct {
 	cursors pageCursors
 }
 
-func (h *runHandlers) listRuns(w http.ResponseWriter, r *http.Request) {
-	h.listRunsFromProject(w, r, nil)
+func (h *runHandlers) listRuns(w http.ResponseWriter, r *http.Request) error {
+	return h.listRunsFromProject(w, r, nil)
 }
 
-func (h *runHandlers) listProjectRuns(w http.ResponseWriter, r *http.Request) {
+func (h *runHandlers) listProjectRuns(w http.ResponseWriter, r *http.Request) error {
 	projectID := r.PathValue("projectId")
 	if _, err := h.Projects.Get(
 		r.Context(), principalUserID(r.Context()), projectID,
 	); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
-	h.listRunsFromProject(w, r, &projectID)
+	return h.listRunsFromProject(w, r, &projectID)
 }
 
-func (h *runHandlers) listRunsFromProject(w http.ResponseWriter, r *http.Request, projectID *string) {
+func (h *runHandlers) listRunsFromProject(w http.ResponseWriter, r *http.Request, projectID *string) error {
 	query, limit, encodedCursor, err := pageQueryWithRepeated(
 		r.URL.RawQuery, "label", runstore.MaxRunMetadataLabels, "state", "lifecycle",
 	)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	var state *runstore.WorkflowRunState
 	if values, present := query["state"]; present {
 		candidate := runstore.WorkflowRunState(values[0])
 		if !candidate.Valid() {
-			handleError(w, fmt.Errorf("%w: unknown Run state", errInvalidRequest))
-			return
+			return fmt.Errorf("%w: unknown Run state", errInvalidRequest)
 		}
 		state = &candidate
 	}
@@ -121,21 +118,18 @@ func (h *runHandlers) listRunsFromProject(w http.ResponseWriter, r *http.Request
 	if values, present := query["lifecycle"]; present {
 		candidate := runstore.WorkflowRunLifecycle(values[0])
 		if !candidate.Valid() {
-			handleError(w, fmt.Errorf("%w: unknown Run lifecycle", errInvalidRequest))
-			return
+			return fmt.Errorf("%w: unknown Run lifecycle", errInvalidRequest)
 		}
 		lifecycle = &candidate
 	}
 	selectors, err := parseRunMetadataLabelSelectors(query["label"])
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	cursorKind := runListCursorKindForProject(state, lifecycle, selectors, projectID)
 	cursor, err := h.cursors.decodePageCursor(encodedCursor, cursorKind, 2)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	params := runstore.ListRunsParams{
 		OwnerID: principalUserID(r.Context()), State: state, Lifecycle: lifecycle,
@@ -144,23 +138,20 @@ func (h *runHandlers) listRunsFromProject(w http.ResponseWriter, r *http.Request
 	if len(cursor) != 0 {
 		before, parseErr := time.Parse(time.RFC3339Nano, cursor[0])
 		if parseErr != nil {
-			handleError(w, fmt.Errorf("%w: invalid Run cursor", errInvalidRequest))
-			return
+			return fmt.Errorf("%w: invalid Run cursor", errInvalidRequest)
 		}
 		params.BeforeCreatedAt = &before
 		params.BeforeRunID = cursor[1]
 	}
 	runs, err := h.Runs.ListRuns(r.Context(), params)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	runs, page, err := paginate(h.cursors, runs, limit, cursorKind, func(last runstore.WorkflowRunSummary) []string {
 		return []string{last.CreatedAt.UTC().Format(time.RFC3339Nano), last.RunID}
 	})
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	runIDs := make([]string, 0, len(runs))
 	for _, run := range runs {
@@ -168,8 +159,7 @@ func (h *runHandlers) listRunsFromProject(w http.ResponseWriter, r *http.Request
 	}
 	deletable, err := h.RunDeletion.DeletableRuns(r.Context(), params.OwnerID, runIDs)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	items := make([]runSummaryResponse, 0, len(runs))
 	for _, run := range runs {
@@ -182,6 +172,7 @@ func (h *runHandlers) listRunsFromProject(w http.ResponseWriter, r *http.Request
 		})
 	}
 	writeJSON(w, http.StatusOK, runPageResponse{Items: items, Page: page})
+	return nil
 }
 
 func parseRunMetadataLabelSelectors(values []string) ([]runstore.RunMetadataLabelSelector, error) {
@@ -223,27 +214,27 @@ func runListCursorKindForProject(
 	return kind + ":labels:" + string(encoded)
 }
 
-func (h *runHandlers) createRun(w http.ResponseWriter, r *http.Request) {
+func (h *runHandlers) createRun(w http.ResponseWriter, r *http.Request) error {
 	if idempotencyKey, ok := runCreationKey(w, r); ok {
-		h.createRunFromProject(w, r, nil, idempotencyKey)
+		return h.createRunFromProject(w, r, nil, idempotencyKey)
 	}
+	return nil
 }
 
 // createProjectRun checks the request metadata, then Project ownership, and
 // only then reads the body (API-R112).
-func (h *runHandlers) createProjectRun(w http.ResponseWriter, r *http.Request) {
+func (h *runHandlers) createProjectRun(w http.ResponseWriter, r *http.Request) error {
 	idempotencyKey, ok := runCreationKey(w, r)
 	if !ok {
-		return
+		return nil
 	}
 	projectID := r.PathValue("projectId")
 	if _, err := h.Projects.Get(
 		r.Context(), principalUserID(r.Context()), projectID,
 	); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
-	h.createRunFromProject(w, r, &projectID, idempotencyKey)
+	return h.createRunFromProject(w, r, &projectID, idempotencyKey)
 }
 
 // runCreationKey checks the query and media type of a Run creation and
@@ -267,21 +258,18 @@ func runCreationKey(w http.ResponseWriter, r *http.Request) (string, bool) {
 
 func (h *runHandlers) createRunFromProject(
 	w http.ResponseWriter, r *http.Request, projectID *string, idempotencyKey string,
-) {
+) error {
 	var request createRunRequest
 	if err := decodeJSON(w, r, &request); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	normalizedLabels, err := runtimeconfig.NormalizeLabels([]string(request.RuntimeLabels))
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	metadataLabels, err := runstore.NormalizeRunMetadataLabels(request.Labels)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	credentialUser := runtimeCredentialUser(r.Context())
 	params := runservice.PublicCreateParams{
@@ -293,13 +281,11 @@ func (h *runHandlers) createRunFromProject(
 	}
 	params.RequestDigest, err = runservice.PublicRequestDigest(params)
 	if err != nil {
-		handleError(w, fmt.Errorf("digest Run request: %w", err))
-		return
+		return fmt.Errorf("digest Run request: %w", err)
 	}
 	result, err := h.RunCreator.CreatePublic(r.Context(), params)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	// Skill package validation and RunScope forking are intentionally deferred
 	// to Scheduler recovery. The creation transaction above has already pinned
@@ -313,6 +299,7 @@ func (h *runHandlers) createRunFromProject(
 		w.Header().Set("Idempotency-Replayed", "true")
 	}
 	writeJSON(w, http.StatusAccepted, createRunReadModel(result.Run))
+	return nil
 }
 
 func createRunReadModel(run runstore.WorkflowRun) createRunResponse {
@@ -326,36 +313,30 @@ func createRunReadModel(run runstore.WorkflowRun) createRunResponse {
 	}
 }
 
-func (h *runHandlers) cancelRun(w http.ResponseWriter, r *http.Request) {
+func (h *runHandlers) cancelRun(w http.ResponseWriter, r *http.Request) error {
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	if err := requireJSONMediaType(r); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	var request *cancelRunRequest
 	if err := decodeJSON(w, r, &request); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	if request == nil {
-		handleError(w, fmt.Errorf("%w: cancellation request must be an object", errInvalidRequest))
-		return
+		return fmt.Errorf("%w: cancellation request must be an object", errInvalidRequest)
 	}
 	if request.Reason != nil {
 		trimmed := strings.TrimSpace(*request.Reason)
 		if trimmed == "" || len([]byte(trimmed)) > maxCancellationReasonBytes {
-			handleError(w, fmt.Errorf("%w: cancellation reason is empty or too large", errInvalidRequest))
-			return
+			return fmt.Errorf("%w: cancellation reason is empty or too large", errInvalidRequest)
 		}
 		request.Reason = &trimmed
 	}
 	run, err := ownedRun(r, h.Runs)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	requestedBy := principalUserID(r.Context())
 	run, err = h.RunLifecycle.RequestRunCancellation(r.Context(), run.RunID, runstore.WorkflowRunCancellation{
@@ -365,8 +346,7 @@ func (h *runHandlers) cancelRun(w http.ResponseWriter, r *http.Request) {
 		Reason:      request.Reason,
 	})
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	status := http.StatusOK
 	if run.State == runstore.RunCancelling {
@@ -376,78 +356,69 @@ func (h *runHandlers) cancelRun(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, status, cancelRunResponse{
 		RunID: run.RunID, State: run.State, Cancellation: run.Cancellation,
 	})
+	return nil
 }
 
-func (h *runHandlers) resumeRun(w http.ResponseWriter, r *http.Request) {
+func (h *runHandlers) resumeRun(w http.ResponseWriter, r *http.Request) error {
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	if err := requireJSONMediaType(r); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	var request struct {
 		StageExecutionID string `json:"stageExecutionId"`
 	}
 	if err := decodeJSON(w, r, &request); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	if request.StageExecutionID == "" {
-		handleError(w, fmt.Errorf("%w: stageExecutionId is required", errInvalidRequest))
-		return
+		return fmt.Errorf("%w: stageExecutionId is required", errInvalidRequest)
 	}
 	run, err := ownedRun(r, h.Runs)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	targetID, err := h.NewID("stage_execution_")
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	result, err := h.RunLifecycle.ResumeFailedRun(r.Context(), principalUserID(r.Context()), run.RunID, request.StageExecutionID, targetID)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	h.RunNotifier.Wake()
 	writeJSON(w, http.StatusAccepted, result)
+	return nil
 }
 
-func (h *runHandlers) deleteRun(w http.ResponseWriter, r *http.Request) {
+func (h *runHandlers) deleteRun(w http.ResponseWriter, r *http.Request) error {
 	if _, err := exactQuery(r.URL.RawQuery); err != nil ||
 		r.ContentLength > 0 || len(r.TransferEncoding) != 0 {
-		handleError(w, errInvalidRequest)
-		return
+		return errInvalidRequest
 	}
 	if err := h.RunDeletion.DeleteReleasedTerminalRun(
 		r.Context(), principalUserID(r.Context()), r.PathValue("runId"),
 	); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	w.WriteHeader(http.StatusNoContent)
+	return nil
 }
 
-func (h *runHandlers) getRun(w http.ResponseWriter, r *http.Request) {
+func (h *runHandlers) getRun(w http.ResponseWriter, r *http.Request) error {
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	detail, err := h.RunDetails.Read(
 		r.Context(), principalUserID(r.Context()), r.PathValue("runId"),
 	)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	attempts, activeExecutionID, err := stageAttemptsReadModel(detail)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	run := detail.Run
 	writeJSON(w, http.StatusOK, runStatusResponse{
@@ -473,6 +444,7 @@ func (h *runHandlers) getRun(w http.ResponseWriter, r *http.Request) {
 		CreatedAt:              run.CreatedAt, UpdatedAt: run.UpdatedAt,
 		StartedAt: run.StartedAt, FinishedAt: run.FinishedAt,
 	})
+	return nil
 }
 
 // stageAttemptsReadModel projects StageExecutions in order and reports the

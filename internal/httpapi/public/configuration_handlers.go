@@ -11,36 +11,31 @@ import (
 	"github.com/grauwolf32/contractor/internal/helpers/pagelimit"
 )
 
-func (h *catalogHandlers) listConfigurations(w http.ResponseWriter, r *http.Request) {
+func (h *catalogHandlers) listConfigurations(w http.ResponseWriter, r *http.Request) error {
 	kind, err := config.ParseConfigurationKind(r.PathValue("kind"))
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	values, limit, encodedCursor, err := pageQuery(r.URL.RawQuery, "q", "name")
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	_, namePresent := values["name"]
 	query, err := parseCatalogQuery(values.Get("q"), values.Get("name"), namePresent)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	// Resources and their fingerprint come from one snapshot, which encoded
 	// them once (CAT-R67).
 	discovery, err := h.Config.ConfigurationDiscovery(kind)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	resources := discovery.Resources
 	cursorKind := catalogPageCursorKind("configurations:"+string(kind), query, discovery.SourceFingerprint)
 	cursor, err := h.cursors.decodePageCursor(encodedCursor, cursorKind, 1)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	after := ""
 	if len(cursor) != 0 {
@@ -66,59 +61,51 @@ func (h *catalogHandlers) listConfigurations(w http.ResponseWriter, r *http.Requ
 		return []string{last.Ref.Name + "@" + last.Ref.Version}
 	})
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	writeJSON(w, http.StatusOK, configurationPageResponse{Items: items, Page: page})
+	return nil
 }
 
-func (h *catalogHandlers) getConfiguration(w http.ResponseWriter, r *http.Request) {
+func (h *catalogHandlers) getConfiguration(w http.ResponseWriter, r *http.Request) error {
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	kind, err := config.ParseConfigurationKind(r.PathValue("kind"))
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	selector := r.PathValue("name") + "@" + r.PathValue("version")
 	if _, err := resolved.ParseSelector(selector); err != nil {
-		handleError(w, fmt.Errorf("%w: invalid configuration selector", errInvalidRequest))
-		return
+		return fmt.Errorf("%w: invalid configuration selector", errInvalidRequest)
 	}
 	resource, err := h.Config.Configuration(kind, selector)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	w.Header().Set("ETag", strconv.Quote(resource.Ref.Digest))
 	writeJSON(w, http.StatusOK, resource)
+	return nil
 }
 
-func (h *catalogHandlers) publishConfiguration(w http.ResponseWriter, r *http.Request) {
+func (h *catalogHandlers) publishConfiguration(w http.ResponseWriter, r *http.Request) error {
 	if err := requireJSONMediaType(r); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	kind, err := config.ParseConfigurationKind(r.PathValue("kind"))
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	idempotencyKey, err := requireIdempotencyKey(r)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	var request publishConfigurationRequest
 	if err := decodeJSON(w, r, &request); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	result, err := h.ConfigurationPublisher.Publish(r.Context(), config.PublicationRequest{
 		Kind: kind, Name: request.Name, Version: request.Version,
@@ -126,15 +113,13 @@ func (h *catalogHandlers) publishConfiguration(w http.ResponseWriter, r *http.Re
 		IdempotencyKey: idempotencyKey, ActorID: principalUserID(r.Context()),
 	})
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	if !result.Replayed {
 		if err := h.OperationsInvalidator.InvalidateOperations(
 			controlplane.OperationsConfiguration, "",
 		); err != nil {
-			handleError(w, err)
-			return
+			return err
 		}
 	}
 	w.Header().Set("ETag", strconv.Quote(result.Resource.Ref.Digest))
@@ -142,4 +127,5 @@ func (h *catalogHandlers) publishConfiguration(w http.ResponseWriter, r *http.Re
 		w.Header().Set("Idempotency-Replayed", "true")
 	}
 	writeJSON(w, http.StatusCreated, result.Resource)
+	return nil
 }

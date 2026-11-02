@@ -18,21 +18,18 @@ type agentTemplateWorkflowBindingPageResponse struct {
 	Page  pageInfoResponse                       `json:"page"`
 }
 
-func (h *catalogHandlers) listAgentTemplateWorkflowBindings(w http.ResponseWriter, r *http.Request) {
+func (h *catalogHandlers) listAgentTemplateWorkflowBindings(w http.ResponseWriter, r *http.Request) error {
 	_, limit, encodedCursor, err := pageQuery(r.URL.RawQuery)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	selector := r.PathValue("name") + "@" + r.PathValue("version")
 	if _, err := resolved.ParseSelector(selector); err != nil {
-		handleError(w, fmt.Errorf("%w: invalid AgentTemplate selector", errInvalidRequest))
-		return
+		return fmt.Errorf("%w: invalid AgentTemplate selector", errInvalidRequest)
 	}
 	index, err := h.Config.AgentTemplateWorkflowBindings(selector)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	cursorKind := catalogPageCursorKind(
 		agentTemplateWorkflowBindingsCursorKind+":"+selector,
@@ -40,16 +37,14 @@ func (h *catalogHandlers) listAgentTemplateWorkflowBindings(w http.ResponseWrite
 	)
 	cursor, err := h.cursors.decodePageCursor(encodedCursor, cursorKind, 3)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 
 	after := agentTemplateWorkflowBindingResponse{}
 	if len(cursor) != 0 {
 		name, version, ok := splitWorkflowSelector(cursor[0])
 		if !ok {
-			handleError(w, fmt.Errorf("%w: invalid cursor", errInvalidRequest))
-			return
+			return fmt.Errorf("%w: invalid cursor", errInvalidRequest)
 		}
 		after = agentTemplateWorkflowBindingResponse{
 			Workflow: resolved.WorkflowRef{Name: name, Version: version},
@@ -69,12 +64,12 @@ func (h *catalogHandlers) listAgentTemplateWorkflowBindings(w http.ResponseWrite
 		}
 	})
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	writeJSON(w, http.StatusOK, agentTemplateWorkflowBindingPageResponse{
 		Items: pageItems, Page: page,
 	})
+	return nil
 }
 
 func splitWorkflowSelector(selector string) (string, string, bool) {

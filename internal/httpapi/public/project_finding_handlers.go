@@ -18,40 +18,35 @@ type editProjectFindingRequest struct {
 	DuplicateTargetID *string                     `json:"duplicateTargetId,omitempty"`
 }
 
-func (h *auditHandlers) getProjectFinding(w http.ResponseWriter, r *http.Request) {
+func (h *auditHandlers) getProjectFinding(w http.ResponseWriter, r *http.Request) error {
 	w.Header().Set("Cache-Control", "no-store")
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	finding, err := h.Audits.GetProjectFinding(r.Context(), principalUserID(r.Context()), r.PathValue("projectId"), r.PathValue("findingId"))
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	w.Header().Set("ETag", strconv.Quote(strconv.FormatUint(finding.Revision, 10)))
 	writeJSON(w, http.StatusOK, finding)
+	return nil
 }
 
-func (h *auditHandlers) editProjectFinding(w http.ResponseWriter, r *http.Request) {
+func (h *auditHandlers) editProjectFinding(w http.ResponseWriter, r *http.Request) error {
 	w.Header().Set("Cache-Control", "no-store")
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	if err := requireJSONMediaType(r); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	key, revision, err := auditMutationHeaders(r)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	var body editProjectFindingRequest
 	if err := decodeJSON(w, r, &body); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	params := auditservice.ProjectFindingEditParams{ProjectFindingEdit: auditstore.ProjectFindingEdit{
 		OwnerID: principalUserID(r.Context()), ProjectID: r.PathValue("projectId"), FindingID: r.PathValue("findingId"),
@@ -59,67 +54,59 @@ func (h *auditHandlers) editProjectFinding(w http.ResponseWriter, r *http.Reques
 	}, IdempotencyKey: key}
 	params.RequestDigest, err = auditservice.ProjectFindingEditRequestDigest(params)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	result, err := h.Audits.EditProjectFinding(r.Context(), params)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	if result.Replayed {
 		w.Header().Set("Idempotency-Replayed", "true")
 	}
 	w.Header().Set("ETag", strconv.Quote(strconv.FormatUint(result.Finding.Revision, 10)))
 	writeJSON(w, http.StatusOK, result)
+	return nil
 }
 
-func (h *auditHandlers) listProjectFindings(w http.ResponseWriter, r *http.Request) {
+func (h *auditHandlers) listProjectFindings(w http.ResponseWriter, r *http.Request) error {
 	w.Header().Set("Cache-Control", "no-store")
 	query, limit, encoded, err := pageQuery(r.URL.RawQuery, "projectRevision")
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	owner, project := principalUserID(r.Context()), r.PathValue("projectId")
 	kind := "project-findings:" + owner + ":" + project
 	cursor, err := h.cursors.decodePageCursor(encoded, kind, 3)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	params := auditservice.ProjectFindingListParams{OwnerFindingListParams: auditstore.OwnerFindingListParams{OwnerID: owner, ProjectID: project, Limit: limit + 1}}
 	params.ProjectRevision, err = optionalProjectRevision(query.Get("projectRevision"))
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	if len(cursor) != 0 {
 		created, parseErr := time.Parse(time.RFC3339Nano, cursor[0])
 		revision, revisionErr := projectSourceCursorRevision(cursor[2])
 		if parseErr != nil || revisionErr != nil || (params.ProjectRevision != nil && *params.ProjectRevision != *revision) {
-			handleError(w, errInvalidRequest)
-			return
+			return errInvalidRequest
 		}
 		params.BeforeCreatedAt, params.BeforeFindingID, params.ProjectRevision = &created, cursor[1], revision
 	}
 	result, err := h.Audits.ListProjectFindings(r.Context(), params)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	items, page, err := paginate(h.cursors, result.Items, limit, kind, func(last auditstore.ProjectFindingSummary) []string {
 		return []string{last.CreatedAt.UTC().Format(time.RFC3339Nano), last.FindingID, strconv.FormatUint(result.ProjectRevision, 10)}
 	})
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	if last := result.ContinueBefore; last != nil {
 		cursor, err := h.cursors.encodePageCursor(kind, last.CreatedAt.UTC().Format(time.RFC3339Nano), last.FindingID, strconv.FormatUint(result.ProjectRevision, 10))
 		if err != nil {
-			handleError(w, err)
-			return
+			return err
 		}
 		page = pageInfoResponse{HasMore: true, NextCursor: &cursor}
 	}
@@ -128,6 +115,7 @@ func (h *auditHandlers) listProjectFindings(w http.ResponseWriter, r *http.Reque
 		ProjectRevision uint64                             `json:"projectRevision"`
 		Page            pageInfoResponse                   `json:"page"`
 	}{items, result.ProjectRevision, page})
+	return nil
 }
 
 func (request *editProjectFindingRequest) UnmarshalJSON(data []byte) error {

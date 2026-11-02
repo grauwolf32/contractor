@@ -55,14 +55,13 @@ type importFindingProposalResponse struct {
 	Replayed bool                    `json:"replayed"`
 }
 
-func (h *findingHandlers) listRunFindingProposals(w http.ResponseWriter, r *http.Request) {
+func (h *findingHandlers) listRunFindingProposals(w http.ResponseWriter, r *http.Request) error {
 	w.Header().Set("Cache-Control", "no-store")
 	run, err := ownedRun(r, h.Runs)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
-	h.listFindingProposals(
+	return h.listFindingProposals(
 		w, r, "run-findings:"+run.RunID,
 		func(query findingintake.ListQuery) ([]findingintake.Receipt, error) {
 			return h.FindingProposals.ListRun(
@@ -72,16 +71,15 @@ func (h *findingHandlers) listRunFindingProposals(w http.ResponseWriter, r *http
 	)
 }
 
-func (h *findingHandlers) listAuditFindingProposals(w http.ResponseWriter, r *http.Request) {
+func (h *findingHandlers) listAuditFindingProposals(w http.ResponseWriter, r *http.Request) error {
 	w.Header().Set("Cache-Control", "no-store")
 	auditID := r.PathValue("auditId")
 	if _, err := h.Audits.Get(
 		r.Context(), principalUserID(r.Context()), auditID,
 	); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
-	h.listFindingProposals(
+	return h.listFindingProposals(
 		w, r, "audit-findings:"+auditID,
 		func(query findingintake.ListQuery) ([]findingintake.Receipt, error) {
 			return h.FindingProposals.ListAuditInbox(
@@ -96,55 +94,48 @@ func (h *findingHandlers) listFindingProposals(
 	r *http.Request,
 	cursorKind string,
 	list func(findingintake.ListQuery) ([]findingintake.Receipt, error),
-) {
+) error {
 	_, limit, encodedCursor, err := pageQuery(r.URL.RawQuery)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	cursor, err := h.cursors.decodePageCursor(encodedCursor, cursorKind, 2)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	query := findingintake.ListQuery{Limit: pagelimit.FetchRows(limit)}
 	if len(cursor) != 0 {
 		after, parseErr := time.Parse(time.RFC3339Nano, cursor[0])
 		if parseErr != nil {
-			handleError(w, errInvalidRequest)
-			return
+			return errInvalidRequest
 		}
 		query.AfterCreatedAt, query.AfterReceiptID = &after, cursor[1]
 	}
 	items, err := list(query)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	items, page, err := paginate(h.cursors, items, limit, cursorKind, func(last findingintake.Receipt) []string {
 		return []string{last.CreatedAt.UTC().Format(time.RFC3339Nano), last.ReceiptID}
 	})
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	writeJSON(w, http.StatusOK, findingProposalPageResponse{Items: items, Page: page})
+	return nil
 }
 
-func (h *findingHandlers) importAuditFindingProposal(w http.ResponseWriter, r *http.Request) {
+func (h *findingHandlers) importAuditFindingProposal(w http.ResponseWriter, r *http.Request) error {
 	w.Header().Set("Cache-Control", "no-store")
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	if err := requireJSONMediaType(r); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	var request importFindingProposalRequest
 	if err := decodeJSON(w, r, &request); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	hold, replayed, err := h.FindingProposals.ImportIntoAudit(
 		r.Context(), findingintake.ImportRequest{
@@ -153,12 +144,12 @@ func (h *findingHandlers) importAuditFindingProposal(w http.ResponseWriter, r *h
 		},
 	)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	status := http.StatusCreated
 	if replayed {
 		status = http.StatusOK
 	}
 	writeJSON(w, status, importFindingProposalResponse{Hold: hold, Replayed: replayed})
+	return nil
 }

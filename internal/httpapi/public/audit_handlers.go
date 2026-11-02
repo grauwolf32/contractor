@@ -72,16 +72,14 @@ type auditHandlers struct {
 	cursors pageCursors
 }
 
-func (h *auditHandlers) listAuditProfiles(w http.ResponseWriter, r *http.Request) {
+func (h *auditHandlers) listAuditProfiles(w http.ResponseWriter, r *http.Request) error {
 	_, limit, encodedCursor, err := pageQuery(r.URL.RawQuery)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	cursor, err := h.cursors.decodePageCursor(encodedCursor, "audit-profiles", 1)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	after := ""
 	if len(cursor) != 0 {
@@ -108,50 +106,44 @@ func (h *auditHandlers) listAuditProfiles(w http.ResponseWriter, r *http.Request
 		return []string{last.Ref.Name + "@" + last.Ref.Version}
 	})
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	writeJSON(w, http.StatusOK, auditProfilePageResponse{Items: items, Page: page})
+	return nil
 }
 
-func (h *auditHandlers) getAuditProfile(w http.ResponseWriter, r *http.Request) {
+func (h *auditHandlers) getAuditProfile(w http.ResponseWriter, r *http.Request) error {
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	selector := auditservice.ProfileSelector{Name: r.PathValue("name"), Version: r.PathValue("version")}
 	if _, err := resolved.ParseSelector(selector.Name + "@" + selector.Version); err != nil {
-		handleError(w, errInvalidRequest)
-		return
+		return errInvalidRequest
 	}
 	profile, err := h.Audits.Profile(selector)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	w.Header().Set("ETag", strconv.Quote(profile.Profile.Ref.Digest))
 	writeJSON(w, http.StatusOK, auditProfileReadModel(profile, true))
+	return nil
 }
 
-func (h *auditHandlers) createAudit(w http.ResponseWriter, r *http.Request) {
+func (h *auditHandlers) createAudit(w http.ResponseWriter, r *http.Request) error {
 	w.Header().Set("Cache-Control", "no-store")
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	if err := requireJSONMediaType(r); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	key, err := requireIdempotencyKey(r)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	var request createAuditRequest
 	if err := decodeJSON(w, r, &request); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	params := auditservice.CreateDraftParams{
 		Labels:  runlabels.RunMetadataLabels(request.Labels).Clone(),
@@ -163,43 +155,38 @@ func (h *auditHandlers) createAudit(w http.ResponseWriter, r *http.Request) {
 	}
 	params.RequestDigest, err = auditservice.CreateDraftRequestDigest(params)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	params.AuditID, err = h.NewID("audit_")
 	if err != nil {
-		handleError(w, fmt.Errorf("generate Audit ID: %w", err))
-		return
+		return fmt.Errorf("generate Audit ID: %w", err)
 	}
 	audit, created, err := h.Audits.CreateDraft(r.Context(), params)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	if !created {
 		w.Header().Set("Idempotency-Replayed", "true")
 	}
 	response, err := h.readAuditDetail(r, audit)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	writeAuditJSON(w, http.StatusCreated, response)
+	return nil
 }
 
-func (h *auditHandlers) listProjectAudits(w http.ResponseWriter, r *http.Request) {
+func (h *auditHandlers) listProjectAudits(w http.ResponseWriter, r *http.Request) error {
 	w.Header().Set("Cache-Control", "no-store")
 	projectID := r.PathValue("projectId")
 	if projectID != "" {
 		if _, err := h.Projects.Get(r.Context(), principalUserID(r.Context()), projectID); err != nil {
-			handleError(w, err)
-			return
+			return err
 		}
 	}
 	query, limit, encodedCursor, err := pageQuery(r.URL.RawQuery, "state", "profile")
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	// The owner-wide list accepts a comma-separated state set; a Project list
 	// filters by one state.
@@ -208,14 +195,12 @@ func (h *auditHandlers) listProjectAudits(w http.ResponseWriter, r *http.Request
 		if projectID == "" {
 			states, err = parseAuditStates(values[0])
 			if err != nil {
-				handleError(w, err)
-				return
+				return err
 			}
 		} else {
 			candidate := auditstore.AuditState(values[0])
 			if !candidate.Valid() {
-				handleError(w, errInvalidRequest)
-				return
+				return errInvalidRequest
 			}
 			states = []auditstore.AuditState{candidate}
 		}
@@ -225,8 +210,7 @@ func (h *auditHandlers) listProjectAudits(w http.ResponseWriter, r *http.Request
 	if values, ok := query["profile"]; ok {
 		selector, parseErr := resolved.ParseSelector(values[0])
 		if parseErr != nil {
-			handleError(w, errInvalidRequest)
-			return
+			return errInvalidRequest
 		}
 		profileSelector = selector.String()
 		profileName, profileVersion = &selector.ID, &selector.Version
@@ -237,8 +221,7 @@ func (h *auditHandlers) listProjectAudits(w http.ResponseWriter, r *http.Request
 	}
 	cursor, err := h.cursors.decodePageCursor(encodedCursor, cursorKind, 2)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	params := auditstore.ListParams{
 		OwnerID: principalUserID(r.Context()), States: states, VisibleProjects: projectID == "",
@@ -250,8 +233,7 @@ func (h *auditHandlers) listProjectAudits(w http.ResponseWriter, r *http.Request
 	if len(cursor) != 0 {
 		before, parseErr := time.Parse(time.RFC3339Nano, cursor[0])
 		if parseErr != nil {
-			handleError(w, errInvalidRequest)
-			return
+			return errInvalidRequest
 		}
 		params.BeforeCreatedAt, params.BeforeAuditID = &before, cursor[1]
 	}
@@ -259,22 +241,19 @@ func (h *auditHandlers) listProjectAudits(w http.ResponseWriter, r *http.Request
 	// from one commit (ASC-R150).
 	audits, preparation, err := h.Audits.ListPage(r.Context(), params, auditListHydratesPreparation)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	audits, page, err := paginate(h.cursors, audits, limit, cursorKind, func(last auditstore.Audit) []string {
 		return []string{last.CreatedAt.UTC().Format(time.RFC3339Nano), last.AuditID}
 	})
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	items := make([]auditResponse, 0, len(audits))
 	for _, audit := range audits {
 		item, modelErr := auditReadModel(audit)
 		if modelErr != nil {
-			handleError(w, modelErr)
-			return
+			return modelErr
 		}
 		if roles, selected := preparation[audit.AuditID]; selected {
 			item.Preparation = auditPreparationReadModel(roles)
@@ -282,52 +261,46 @@ func (h *auditHandlers) listProjectAudits(w http.ResponseWriter, r *http.Request
 		items = append(items, item)
 	}
 	writeJSON(w, http.StatusOK, auditPageResponse{Items: items, Page: page})
+	return nil
 }
 
-func (h *auditHandlers) getAudit(w http.ResponseWriter, r *http.Request) {
+func (h *auditHandlers) getAudit(w http.ResponseWriter, r *http.Request) error {
 	w.Header().Set("Cache-Control", "no-store")
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	audit, err := h.Audits.Get(r.Context(), principalUserID(r.Context()), r.PathValue("auditId"))
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	response, err := h.readAuditDetail(r, audit)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	writeAuditJSON(w, http.StatusOK, response)
+	return nil
 }
 
-func (h *auditHandlers) startAudit(w http.ResponseWriter, r *http.Request) {
+func (h *auditHandlers) startAudit(w http.ResponseWriter, r *http.Request) error {
 	w.Header().Set("Cache-Control", "no-store")
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	if err := requireOptionalJSONMediaType(r); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	key, revision, err := auditMutationHeaders(r)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	seconds, err := readAuditTimeLimit(w, r)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	auditID := r.PathValue("auditId")
 	digest, err := auditservice.LifecycleRequestDigest("start", auditID, revision, seconds)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	credentialUser := runtimeCredentialUser(r.Context())
 	started, err := h.Audits.Start(r.Context(), auditservice.StartParams{
@@ -336,8 +309,7 @@ func (h *auditHandlers) startAudit(w http.ResponseWriter, r *http.Request) {
 		IdempotencyKey: key, RequestDigest: digest, DeadlineSeconds: seconds,
 	})
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	if started.Replayed {
 		w.Header().Set("Idempotency-Replayed", "true")
@@ -346,13 +318,11 @@ func (h *auditHandlers) startAudit(w http.ResponseWriter, r *http.Request) {
 	// ASC-R149).
 	detail, err := h.Audits.StartedDetail(r.Context(), credentialUser.UserID, started, auditDetailHydratesPreparation)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	audit, err := auditDetailReadModel(detail.AuditDetail)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	items := make([]auditItemResponse, len(detail.Items))
 	for index := range detail.Items {
@@ -367,40 +337,38 @@ func (h *auditHandlers) startAudit(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, auditStartResponse{
 		Audit: audit, Round: round, Items: items,
 	})
+	return nil
 }
 
-func (h *auditHandlers) pauseAudit(w http.ResponseWriter, r *http.Request) {
-	h.mutateAudit(w, r, "pause", http.StatusOK)
+func (h *auditHandlers) pauseAudit(w http.ResponseWriter, r *http.Request) error {
+	return h.mutateAudit(w, r, "pause", http.StatusOK)
 }
 
-func (h *auditHandlers) resumeAudit(w http.ResponseWriter, r *http.Request) {
-	h.mutateAudit(w, r, "resume", http.StatusOK)
+func (h *auditHandlers) resumeAudit(w http.ResponseWriter, r *http.Request) error {
+	return h.mutateAudit(w, r, "resume", http.StatusOK)
 }
 
-func (h *auditHandlers) cancelAudit(w http.ResponseWriter, r *http.Request) {
-	h.mutateAudit(w, r, "cancel", http.StatusAccepted)
+func (h *auditHandlers) cancelAudit(w http.ResponseWriter, r *http.Request) error {
+	return h.mutateAudit(w, r, "cancel", http.StatusAccepted)
 }
 
-func (h *auditHandlers) deleteAudit(w http.ResponseWriter, r *http.Request) {
-	h.mutateAudit(w, r, "delete", http.StatusAccepted)
+func (h *auditHandlers) deleteAudit(w http.ResponseWriter, r *http.Request) error {
+	return h.mutateAudit(w, r, "delete", http.StatusAccepted)
 }
 
-func (h *auditHandlers) mutateAudit(w http.ResponseWriter, r *http.Request, action string, status int) {
+func (h *auditHandlers) mutateAudit(w http.ResponseWriter, r *http.Request, action string, status int) error {
 	w.Header().Set("Cache-Control", "no-store")
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	if action == "resume" {
 		if err := requireOptionalJSONMediaType(r); err != nil {
-			handleError(w, err)
-			return
+			return err
 		}
 	}
 	key, revision, err := auditMutationHeaders(r)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	var seconds *int
 	if action == "resume" {
@@ -409,8 +377,7 @@ func (h *auditHandlers) mutateAudit(w http.ResponseWriter, r *http.Request, acti
 		err = requireEmptyBody(w, r)
 	}
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	params := auditservice.MutationParams{
 		OwnerID: principalUserID(r.Context()), AuditID: r.PathValue("auditId"),
@@ -418,8 +385,7 @@ func (h *auditHandlers) mutateAudit(w http.ResponseWriter, r *http.Request, acti
 	}
 	params.RequestDigest, err = auditservice.LifecycleRequestDigest(action, params.AuditID, revision, seconds)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	var result auditservice.MutationResult
 	switch action {
@@ -435,26 +401,24 @@ func (h *auditHandlers) mutateAudit(w http.ResponseWriter, r *http.Request, acti
 		err = errInvalidRequest
 	}
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	if result.Replayed {
 		w.Header().Set("Idempotency-Replayed", "true")
 	}
 	response, err := h.readAuditDetail(r, result.Audit)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	writeAuditJSON(w, status, response)
+	return nil
 }
 
-func (h *auditHandlers) listAuditItems(w http.ResponseWriter, r *http.Request) {
+func (h *auditHandlers) listAuditItems(w http.ResponseWriter, r *http.Request) error {
 	w.Header().Set("Cache-Control", "no-store")
 	query, limit, encodedCursor, err := pageQuery(r.URL.RawQuery, "round", "state", "subject")
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	var roundID, subject *string
 	if values, ok := query["round"]; ok {
@@ -467,8 +431,7 @@ func (h *auditHandlers) listAuditItems(w http.ResponseWriter, r *http.Request) {
 	if values, ok := query["state"]; ok {
 		candidate := auditstore.ItemState(values[0])
 		if !candidate.Valid() {
-			handleError(w, errInvalidRequest)
-			return
+			return errInvalidRequest
 		}
 		state = &candidate
 	}
@@ -476,8 +439,7 @@ func (h *auditHandlers) listAuditItems(w http.ResponseWriter, r *http.Request) {
 	cursorKind := "audit-items:" + auditID + ":" + pointerString(roundID) + ":" + pointerItemState(state) + ":" + pointerString(subject)
 	cursor, err := h.cursors.decodePageCursor(encodedCursor, cursorKind, 3)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	params := auditstore.ListItemsParams{
 		OwnerID: principalUserID(r.Context()), AuditID: auditID, RoundID: roundID,
@@ -487,15 +449,13 @@ func (h *auditHandlers) listAuditItems(w http.ResponseWriter, r *http.Request) {
 		roundOrdinal, roundErr := strconv.Atoi(cursor[0])
 		itemOrdinal, itemErr := strconv.Atoi(cursor[1])
 		if roundErr != nil || itemErr != nil {
-			handleError(w, errInvalidRequest)
-			return
+			return errInvalidRequest
 		}
 		params.AfterRoundOrdinal, params.AfterItemOrdinal, params.AfterItemID = &roundOrdinal, &itemOrdinal, cursor[2]
 	}
 	items, err := h.Audits.ListItems(r.Context(), params)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	page := pageInfoResponse{}
 	if len(items) > limit {
@@ -503,15 +463,13 @@ func (h *auditHandlers) listAuditItems(w http.ResponseWriter, r *http.Request) {
 		last := items[len(items)-1]
 		round, roundErr := h.Audits.GetRound(r.Context(), params.OwnerID, auditID, last.RoundID)
 		if roundErr != nil {
-			handleError(w, roundErr)
-			return
+			return roundErr
 		}
 		next, cursorErr := h.cursors.encodePageCursor(
 			cursorKind, strconv.Itoa(round.Ordinal), strconv.Itoa(last.Ordinal), last.ItemID,
 		)
 		if cursorErr != nil {
-			handleError(w, cursorErr)
-			return
+			return cursorErr
 		}
 		page.HasMore, page.NextCursor = true, &next
 	}
@@ -525,8 +483,7 @@ func (h *auditHandlers) listAuditItems(w http.ResponseWriter, r *http.Request) {
 			r.Context(), params.OwnerID, auditID, itemIDs,
 		)
 		if err != nil {
-			handleError(w, err)
-			return
+			return err
 		}
 	}
 	response := make([]auditItemResponse, len(items))
@@ -539,20 +496,19 @@ func (h *auditHandlers) listAuditItems(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeJSON(w, http.StatusOK, auditItemPageResponse{Items: response, Page: page})
+	return nil
 }
 
-func (h *auditHandlers) listAuditCoverage(w http.ResponseWriter, r *http.Request) {
+func (h *auditHandlers) listAuditCoverage(w http.ResponseWriter, r *http.Request) error {
 	w.Header().Set("Cache-Control", "no-store")
 	query, limit, encodedCursor, err := pageQuery(r.URL.RawQuery, "round", "auditRevision")
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	ownerID, auditID := principalUserID(r.Context()), r.PathValue("auditId")
 	audit, err := h.Audits.Get(r.Context(), ownerID, auditID)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	roundID := ""
 	if values, ok := query["round"]; ok {
@@ -563,44 +519,39 @@ func (h *auditHandlers) listAuditCoverage(w http.ResponseWriter, r *http.Request
 	cursorKind := "audit-coverage:" + auditID + ":" + roundID
 	cursor, revision, err := h.decodeAuditPageCursor(encodedCursor, cursorKind, query.Get("auditRevision"), 2)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	// The page, and the current Round it was chosen from, belong to one
 	// revision: the pinned one, or the one just read.
 	if revision == nil {
 		revision = &audit.Revision
 	} else if *revision != audit.Revision {
-		handleError(w, auditstore.ErrConflict)
-		return
+		return auditstore.ErrConflict
 	}
 	if roundID == "" {
 		writeJSON(w, http.StatusOK, auditCoveragePageResponse{
 			Items: []auditCoverageResponse{}, Page: pageInfoResponse{}, AuditRevision: audit.Revision,
 		})
-		return
+		return nil
 	}
 	after := -1
 	if len(cursor) != 0 {
 		after, err = strconv.Atoi(cursor[0])
 		if err != nil || after < 0 {
-			handleError(w, errInvalidRequest)
-			return
+			return errInvalidRequest
 		}
 	}
 	result, err := h.Audits.ListCoverage(
 		r.Context(), ownerID, auditID, roundID, after, pagelimit.FetchRows(limit), revision,
 	)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	coverage, page, err := paginate(h.cursors, result.Rows, limit, cursorKind, func(last auditstore.CoverageRow) []string {
 		return []string{strconv.Itoa(last.Ordinal), strconv.FormatUint(result.AuditRevision, 10)}
 	})
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	items := make([]auditCoverageResponse, len(coverage))
 	for index, row := range coverage {
@@ -611,24 +562,24 @@ func (h *auditHandlers) listAuditCoverage(w http.ResponseWriter, r *http.Request
 		}
 	}
 	writeJSON(w, http.StatusOK, auditCoveragePageResponse{Items: items, Page: page, AuditRevision: result.AuditRevision})
+	return nil
 }
 
-func (h *auditHandlers) getAuditReport(w http.ResponseWriter, r *http.Request) {
+func (h *auditHandlers) getAuditReport(w http.ResponseWriter, r *http.Request) error {
 	w.Header().Set("Cache-Control", "no-store")
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	projection, err := h.Audits.GetReport(
 		r.Context(), principalUserID(r.Context()), r.PathValue("auditId"),
 	)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	writeJSON(w, http.StatusOK, auditReportResponse{
 		Status: projection.Status, Review: projection.Review, MachineArtifact: projection.MachineArtifact,
 		SummaryArtifact: projection.SummaryArtifact, Machine: projection.Machine,
 		Summary: projection.Summary,
 	})
+	return nil
 }

@@ -60,21 +60,18 @@ type runRepeatHandlers struct {
 	RunRepeatDependencies
 }
 
-func (h *runRepeatHandlers) getRunRepeatDraft(w http.ResponseWriter, r *http.Request) {
+func (h *runRepeatHandlers) getRunRepeatDraft(w http.ResponseWriter, r *http.Request) error {
 	// Source authorization and availability are rechecked for every draft.
 	w.Header().Set("Cache-Control", "no-store")
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	run, err := ownedRun(r, h.Runs)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	if !runstore.RunLifecycleTerminal.Includes(run.State) {
-		handleError(w, fmt.Errorf("%w: only terminal Runs have a repeat draft", runstore.ErrConflict))
-		return
+		return fmt.Errorf("%w: only terminal Runs have a repeat draft", runstore.ErrConflict)
 	}
 	response := runRepeatDraftResponse{
 		SourceRunID: run.RunID,
@@ -94,7 +91,7 @@ func (h *runRepeatHandlers) getRunRepeatDraft(w http.ResponseWriter, r *http.Req
 			Message: "This Run belongs to an Audit. Continue from the owning Audit instead of creating an untracked copy.",
 		})
 		writeJSON(w, http.StatusOK, response)
-		return
+		return nil
 	}
 	response.Authority = repeatAuthorityOrdinary
 	projectUploadsAllowed := false
@@ -108,8 +105,7 @@ func (h *runRepeatHandlers) getRunRepeatDraft(w http.ResponseWriter, r *http.Req
 				Message: "The owning Project is no longer available. Its ProjectScope inputs cannot be used for another Run.",
 			})
 		} else if projectErr != nil {
-			handleError(w, projectErr)
-			return
+			return projectErr
 		} else if project.Lifecycle == projectstore.LifecycleDeleting {
 			response.Notices = append(response.Notices, runRepeatDraftNotice{
 				Code: "project_deleting", Severity: "blocking", Field: "projectId",
@@ -133,15 +129,14 @@ func (h *runRepeatHandlers) getRunRepeatDraft(w http.ResponseWriter, r *http.Req
 	inputs, err := h.originalInputSources(r.Context(), run)
 	if err != nil {
 		if !errors.Is(err, blob.ErrIntegrity) {
-			handleError(w, err)
-			return
+			return err
 		}
 		response.Notices = append(response.Notices, runRepeatDraftNotice{
 			Code: "input_provenance_invalid", Severity: "blocking", Field: "inputs",
 			Message: "The original Run input sources could not be verified. Configure a new Run from the Workflow.",
 		})
 		writeJSON(w, http.StatusOK, response)
-		return
+		return nil
 	}
 
 	draft := &runRepeatDraft{
@@ -153,8 +148,7 @@ func (h *runRepeatHandlers) getRunRepeatDraft(w http.ResponseWriter, r *http.Req
 	response.Draft = draft
 	draft.Inputs, err = h.repeatInputsFromSources(r.Context(), run, inputs, projectUploadsAllowed)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	if workflowAvailable {
 		for slot, source := range inputs {
@@ -170,8 +164,7 @@ func (h *runRepeatHandlers) getRunRepeatDraft(w http.ResponseWriter, r *http.Req
 			r.Context(), selector, h.Credentials,
 		); errors.Is(resolveErr, resolved.ErrCredentialLookup) {
 			// An outage is not an unavailable selection; let the client retry.
-			handleError(w, resolveErr)
-			return
+			return resolveErr
 		} else if resolveErr != nil {
 			response.Notices = append(response.Notices, runRepeatDraftNotice{
 				Code: "execution_configuration_unavailable", Severity: "blocking", Field: "workflow",
@@ -195,8 +188,7 @@ func (h *runRepeatHandlers) getRunRepeatDraft(w http.ResponseWriter, r *http.Req
 		})
 	}
 	if err := h.appendRuntimeBindingNotices(r.Context(), run, &response.Notices); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	sort.SliceStable(response.Notices, func(left, right int) bool {
 		if response.Notices[left].Field != response.Notices[right].Field {
@@ -205,6 +197,7 @@ func (h *runRepeatHandlers) getRunRepeatDraft(w http.ResponseWriter, r *http.Req
 		return response.Notices[left].Code < response.Notices[right].Code
 	})
 	writeJSON(w, http.StatusOK, response)
+	return nil
 }
 
 func (h *runRepeatHandlers) originalInputSources(ctx context.Context, run runstore.WorkflowRun) (map[string]artifacts.LineageEdge, error) {

@@ -92,22 +92,22 @@ func (h *handler) mutateSitemap(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, errInvalidRequest)
 		return
 	}
+	var result projectsitemap.Result
 	err = h.withSitemapGrant(r, func(grant controlplane.AllocationGrant) bool {
 		return grant.WritePolicy == controlplane.WriteInputsAndIntermediates && slices.Contains(grant.SitemapTools, tool)
 	}, func(ctx context.Context, access projectsitemap.AllocationAccess) error {
-		result, err := h.dependencies.Sitemap.MutateAllocation(ctx, access, keys[0], command)
-		if err != nil {
-			return err
-		}
-		writeJSON(w, http.StatusOK, struct {
-			APIVersion string                `json:"apiVersion"`
-			Result     projectsitemap.Result `json:"result"`
-		}{contracts.APIVersion, result})
-		return nil
+		var mutationErr error
+		result, mutationErr = h.dependencies.Sitemap.MutateAllocation(ctx, access, keys[0], command)
+		return mutationErr
 	})
 	if err != nil {
 		h.handleError(w, err)
+		return
 	}
+	writeJSON(w, http.StatusOK, struct {
+		APIVersion string                `json:"apiVersion"`
+		Result     projectsitemap.Result `json:"result"`
+	}{contracts.APIVersion, result})
 }
 
 func (h *handler) snapshotSitemap(w http.ResponseWriter, r *http.Request) {
@@ -139,20 +139,20 @@ func (h *handler) snapshotSitemap(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
+	var result projectsitemap.SnapshotResult
 	err = h.withSitemapGrant(r, func(grant controlplane.AllocationGrant) bool {
 		return grant.WritePolicy == controlplane.WriteInputsAndIntermediates && slices.Contains(grant.SitemapTools, contracts.SitemapSnapshotTool)
 	}, func(ctx context.Context, access projectsitemap.AllocationAccess) error {
-		result, err := h.dependencies.Sitemap.SnapshotAllocation(ctx, access, keys[0], selection)
-		if err != nil {
-			return err
-		}
-		writeJSON(w, http.StatusOK, struct {
-			APIVersion string                        `json:"apiVersion"`
-			Result     projectsitemap.SnapshotResult `json:"result"`
-		}{contracts.APIVersion, result})
-		return nil
+		var mutationErr error
+		result, mutationErr = h.dependencies.Sitemap.SnapshotAllocation(ctx, access, keys[0], selection)
+		return mutationErr
 	})
 	if err != nil {
 		h.handleError(w, err)
+		return
 	}
+	writeJSON(w, http.StatusOK, struct {
+		APIVersion string                        `json:"apiVersion"`
+		Result     projectsitemap.SnapshotResult `json:"result"`
+	}{contracts.APIVersion, result})
 }

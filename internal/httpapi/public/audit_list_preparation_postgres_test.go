@@ -467,7 +467,7 @@ func TestSharedPostgresAuditListsHydratePreparationInFixedStatements(t *testing.
 		request.SetPathValue("projectId", projectID)
 		trace.take()
 		response := httptest.NewRecorder()
-		h.listProjectAudits(response, request)
+		serve(h.listProjectAudits)(response, request)
 		statements := trace.take()
 		var page listPage
 		if response.Code == http.StatusOK {
@@ -605,7 +605,7 @@ func TestSharedPostgresAuditListsHydratePreparationInFixedStatements(t *testing.
 			detail := auditAuthenticatedRequest(http.MethodGet, "/v1/audits/"+listed.AuditID, nil)
 			detail.SetPathValue("auditId", listed.AuditID)
 			detailed := httptest.NewRecorder()
-			h.getAudit(detailed, detail)
+			serve(h.getAudit)(detailed, detail)
 			var read struct {
 				Preparation json.RawMessage `json:"preparation"`
 			}

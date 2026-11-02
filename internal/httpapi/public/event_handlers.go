@@ -9,20 +9,19 @@ import (
 	publicevents "github.com/grauwolf32/contractor/internal/httpapi/public/events"
 )
 
-func (h *sessionHandlers) connectEventsWebSocket(w http.ResponseWriter, r *http.Request) {
+func (h *sessionHandlers) connectEventsWebSocket(w http.ResponseWriter, r *http.Request) error {
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	session, ok := browserSessionFromContext(r.Context())
 	if !ok {
 		writeSessionUnauthorized(w)
-		return
+		return nil
 	}
 	err := h.Events.Serve(w, r, session)
 	switch {
 	case err == nil:
-		return
+		return nil
 	case errors.Is(err, publicevents.ErrInvalidOrigin):
 		writeError(w, apierror.Forbidden, "browser origin is not allowed")
 	case errors.Is(err, publicevents.ErrSession):
@@ -35,4 +34,5 @@ func (h *sessionHandlers) connectEventsWebSocket(w http.ResponseWriter, r *http.
 	default:
 		handleError(w, err)
 	}
+	return nil
 }

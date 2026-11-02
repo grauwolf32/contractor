@@ -100,7 +100,7 @@ func TestPostgresRunDetailResponseKeepsStateWithItsCursor(t *testing.T) {
 	request.SetPathValue("runId", runID)
 	request = request.WithContext(auth.WithPrincipal(ctx, auth.Principal{UserID: "user-1"}))
 	response := httptest.NewRecorder()
-	h.getRun(response, request)
+	serve(h.getRun)(response, request)
 	if response.Code != http.StatusOK {
 		t.Fatalf("GET Run = %d %s", response.Code, response.Body.String())
 	}

@@ -94,7 +94,7 @@ func TestAuditPostgresStartKeepsWorkflowCredentialLookupClass(t *testing.T) {
 		request.Header.Set("Idempotency-Key", "start-audit-credential-lookup")
 		request.Header.Set("If-Match", `"1"`)
 		response := httptest.NewRecorder()
-		h.startAudit(response, request)
+		serve(h.startAudit)(response, request)
 		return response
 	}
 	for _, outcome := range workflowCredentialLookupOutcomes {

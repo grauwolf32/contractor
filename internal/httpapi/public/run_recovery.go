@@ -8,34 +8,30 @@ import (
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
-func (h *runHandlers) retryRunGateway(w http.ResponseWriter, r *http.Request) {
+func (h *runHandlers) retryRunGateway(w http.ResponseWriter, r *http.Request) error {
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	if err := requireJSONMediaType(r); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	var request struct{}
 	if err := decodeJSON(w, r, &request); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	run, err := ownedRun(r, h.Runs)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	if err := h.GatewayRecovery.Retry(r.Context(), run.OwnerID, run.RunID); err != nil {
 		if gatewayrecovery.IsUnavailable(err) {
 			err = fmt.Errorf("%w: Run has no retryable gateway wait", runstore.ErrConflict)
 		}
-		handleError(w, err)
-		return
+		return err
 	}
 	h.RunNotifier.Wake()
 	writeJSON(w, http.StatusAccepted, struct {
 		RunID string `json:"runId"`
 	}{run.RunID})
+	return nil
 }

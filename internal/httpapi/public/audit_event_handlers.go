@@ -9,12 +9,11 @@ import (
 	"github.com/grauwolf32/contractor/internal/helpers/pagelimit"
 )
 
-func (h *auditHandlers) listAuditEvents(w http.ResponseWriter, r *http.Request) {
+func (h *auditHandlers) listAuditEvents(w http.ResponseWriter, r *http.Request) error {
 	w.Header().Set("Cache-Control", "no-store")
 	_, limit, cursor, err := pageQuery(r.URL.RawQuery)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	p := auditstore.EventListParams{OwnerID: principalUserID(r.Context()), AuditID: r.PathValue("auditId"), Limit: pagelimit.FetchRows(limit)}
 	kind := "audit-events:" + strconv.Quote(p.OwnerID) + ":" + strconv.Quote(p.AuditID)
@@ -29,20 +28,17 @@ func (h *auditHandlers) listAuditEvents(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	result, err := h.Audits.ListEventsPage(r.Context(), p)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	items, page, err := paginate(h.cursors, result.Items, limit, kind, func(last auditservice.Event) []string {
 		return []string{strconv.FormatUint(result.ThroughSequence, 10), strconv.FormatUint(last.Sequence, 10)}
 	})
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	if items == nil {
 		items = []auditservice.Event{}
@@ -53,4 +49,5 @@ func (h *auditHandlers) listAuditEvents(w http.ResponseWriter, r *http.Request) 
 		ThroughSequence uint64               `json:"throughSequence"`
 		Total           int                  `json:"total"`
 	}{items, page, result.ThroughSequence, result.Total})
+	return nil
 }

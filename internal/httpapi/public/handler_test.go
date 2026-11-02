@@ -348,7 +348,7 @@ func TestProjectHTTPTargetRejectsAnotherOwnersCredential(t *testing.T) {
 			request.Header.Set("If-Match", `"1"`)
 			request = request.WithContext(auth.WithPrincipal(request.Context(), test.principal))
 			response := httptest.NewRecorder()
-			current.updateProject(response, request)
+			serve(current.updateProject)(response, request)
 			if response.Code != test.wantStatus {
 				t.Fatalf("attach = %d, want %d: %s", response.Code, test.wantStatus, response.Body.String())
 			}
@@ -421,7 +421,7 @@ func TestProjectRunRechecksHTTPTargetCredentialUse(t *testing.T) {
 			request.Header.Set(idempotencyKeyHeader, "project-run-two")
 			request = request.WithContext(auth.WithPrincipal(request.Context(), test.principal))
 			response := httptest.NewRecorder()
-			current.createProjectRun(response, request)
+			serve(current.createProjectRun)(response, request)
 			if response.Code != test.wantStatus {
 				t.Fatalf("create Project Run = %d, want %d: %s", response.Code, test.wantStatus, response.Body.String())
 			}

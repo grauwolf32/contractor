@@ -9,21 +9,18 @@ import (
 	"github.com/grauwolf32/contractor/internal/httpapi/artifacttransfer"
 )
 
-func (h *auditHandlers) getAuditArtifact(w http.ResponseWriter, r *http.Request) {
+func (h *auditHandlers) getAuditArtifact(w http.ResponseWriter, r *http.Request) error {
 	w.Header().Set("Cache-Control", "no-store")
 	query, err := exactQuery(r.URL.RawQuery, "key", "revision", "member")
 	if err != nil || !validAuditArtifactSelector(query.Get("key"), query.Get("revision"), query.Get("member")) {
-		handleError(w, errInvalidRequest)
-		return
+		return errInvalidRequest
 	}
 	if _, err := h.Audits.Get(r.Context(), principalUserID(r.Context()), r.PathValue("auditId")); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	r, transfer, err := artifacttransfer.Acquire(w, r)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	defer transfer.Close()
 	ctx, cancel := artifacttransfer.StorageContext(r.Context())
@@ -31,26 +28,24 @@ func (h *auditHandlers) getAuditArtifact(w http.ResponseWriter, r *http.Request)
 	read, err := h.Audits.ReadArtifact(ctx, principalUserID(r.Context()), r.PathValue("auditId"), query.Get("key"), query.Get("revision"))
 	if err != nil {
 		transfer.ReleaseBeforeWrite(0)
-		handleError(w, err)
-		return
+		return err
 	}
 	if id := query.Get("member"); id != "" {
 		pkg, err := auditdomain.ValidatePackage(read.Payload.Data)
 		if err != nil {
 			transfer.ReleaseBeforeWrite(0)
-			handleError(w, artifacts.ErrArtifactNotFound)
-			return
+			return artifacts.ErrArtifactNotFound
 		}
 		member, exists := pkg.MemberByID(id)
 		if !exists {
 			transfer.ReleaseBeforeWrite(0)
-			handleError(w, artifacts.ErrArtifactNotFound)
-			return
+			return artifacts.ErrArtifactNotFound
 		}
 		read.Payload = artifacts.Payload{MediaType: member.Metadata().MediaType, Data: member.Data()}
 	}
 	transfer.BoundWrite(int64(len(read.Payload.Data)))
 	writeArtifactBytes(w, read, "")
+	return nil
 }
 
 // validAuditArtifactSelector bounds the selector of one Audit artifact read
