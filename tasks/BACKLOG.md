@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-87 open tasks: 19 in progress, 55 pending, 13 deferred. 1368 finished: 1350 completed, 18 archived.
+86 open tasks: 18 in progress, 55 pending, 13 deferred. 1369 finished: 1351 completed, 18 archived.
 
 ## In progress
 
@@ -26,7 +26,6 @@ the epics are in [epics.yml](epics.yml).
 | [V437-005](v437-005-inject-artifact-storage-dependencies.yml) | projects-artifacts | chore | P2 | Inject Artifact storage dependencies explicitly |
 | [V437-006](v437-006-group-artifact-policy-and-preview.yml) | projects-artifacts | chore | P3 | Group shared Artifact policy and previews under artifacts |
 | [V437-007](v437-007-name-scheduler-fixture-sqlstate.yml) | execution-core | chore | P3 | Name the Scheduler discard fixture SQL condition |
-| [V439-003](v439-003-simplify-label-json-reader.yml) | api-contracts | defect | P2 | Reuse strict JSON validation for public metadata labels |
 | [V439-004](v439-004-move-project-and-repeat-orchestration.yml) | projects-artifacts | chore | P2 | Move Project editing and Run repeat orchestration to their owners |
 | [V439-005](v439-005-cache-eval-binding-discovery.yml) | evals | chore | P2 | Page Eval capabilities from immutable catalog discovery |
 | [V439-007](v439-007-integrate-storage-dependencies.yml) | api-contracts | chore | P2 | Integrate committed Artifact storage dependencies with HTTP review changes |
@@ -137,7 +136,7 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V411-017](v411-017-pentest-api-cli.yml) | feature | P1 | V411-015, V411-016, V64-008 | Expose HTTP engagement setup and results through existing API and CLI |
-| [V439-006](v439-006-verify-httpapi-review.yml) | chore | P2 | V439-003, V439-004, V439-005, V439-007 | Verify the HTTP API review cleanup |
+| [V439-006](v439-006-verify-httpapi-review.yml) | chore | P2 | V439-004, V439-005, V439-007 | Verify the HTTP API review cleanup |
 
 ### PostgreSQL persistence and schema (`persistence`)
 
@@ -200,6 +199,6 @@ tasks in `introduced_by`.
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 5 |
 | Web UI (`ui`) | 2 | 34 | 69 | 25 | 69 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 18 | 46 | 9 | 22 |
-| Public API and wire contracts (`api-contracts`) | 4 | 2 | 39 | 28 | 19 |
+| Public API and wire contracts (`api-contracts`) | 3 | 2 | 39 | 28 | 19 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 27 | 47 | 17 |
 | Quality, CI and process (`quality`) | 11 | 1 | 29 | 121 | 27 |

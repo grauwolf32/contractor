@@ -6,7 +6,7 @@ epic: api-contracts
 kind: defect
 introduced_by: V20-002
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages: [go]
 goal: >-
@@ -51,3 +51,8 @@ tests:
     covers: [A1, A2, A3]
   - command: "make verify-public-api"
     covers: [A1, A2, A3]
+implementation_commit: d8daa3a83c0ba406d48c2ba0751b0229a3e0fe02
+verification:
+  date: "2026-11-03"
+  result: >-
+    Full public HTTP, runlabels and strictjson suites passed against disposable TCP PostgreSQL, including -race. The original decoder overlay fails the real-store cloud:null regression by accepting the request; the new decoder rejects null without a Run or receipt and accepts the same key with an empty string. make verify-public-api and make lint passed.
