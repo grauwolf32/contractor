@@ -1,0 +1,50 @@
+schema_version: "1.0"
+id: V429-021
+title: Align the New check preview objective with the form
+milestone: ui-journey-usability
+epic: ui
+kind: defect
+introduced_by: V429-020
+priority: P2
+status: in_progress
+depends_on: [V429-020]
+languages: [html, css, javascript]
+goal: Keep the objective aligned with the New check form and readable at desktop and phone widths.
+context:
+  authority: User review 2026-11-02 says the YOUR OBJECTIVE, IN YOUR OWN WORDS block has drifted; correct its presentation in the preview.
+  finding: >-
+    docs/design/ui/experiments/new-check-opendesign-2026-11-02/opendesign.css:13
+    caps the standalone objective at 72ch while the workbench spans the page,
+    leaving an unbalanced half-width card and oversized space before setup.
+  siblings: >-
+    All three preview scenarios and light/dark/black themes share this card.
+    The input seed, generated original, earlier screenshots and actual React
+    references are retained unchanged. Production New check is outside scope.
+  design: docs/design/ui/README.md
+  decision: >-
+    Apply a separate assistant review stylesheet to the candidate only. Match
+    the objective card to the workbench edges, keep natural label/hint wrapping
+    and reduce textarea height. Original OpenDesign output remains immutable.
+scope:
+  in:
+    - Correct candidate objective geometry with shared fonts and theme tokens.
+    - Check ready/missing/unsupported at 1440/1100/390/320px and all themes.
+    - Retain original model output, record correction and open updated preview.
+  out:
+    - Production UI, API, launch behavior, model calls and OpenDesign state writes.
+acceptance_criteria:
+  - id: A1
+    text: Objective and workbench left/right edges align across four widths and three themes, and label, textarea and hint stay contained without overlap or horizontal overflow.
+  - id: A2
+    text: Existing local preview interactions and readonly isolation checks pass; generated original/controller and all prior design artifacts remain preserved.
+  - id: A3
+    text: Updated desktop/phone captures and correction provenance are saved and the corrected candidate is visible in the preview.
+tests:
+  - command: node docs/design/ui/experiments/new-check-opendesign-2026-11-02/verify.mjs
+    covers: [A1, A2, A3]
+  - command: python3 scripts/check_tasks.py
+    covers: [A3]
+  - command: python3 scripts/check_spec.py
+    covers: [A2]
+  - command: git diff --check
+    covers: [A3]

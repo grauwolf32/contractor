@@ -20,8 +20,11 @@ prepared the bounded functional seed and schema-valid synthetic data. OpenDesign
 wrote responsive CSS and assembled the complete HTML without changing that
 controller or its fixtures. `original.html`, `opendesign.css`, `rationale.md`,
 `seed-submitted.html`, `prompt.txt` and `brief.md` retain the exact contributions.
-`preview.html` currently equals the generated original: no post-generation
-presentation corrections were needed. Shared fonts and theme tokens remain.
+`preview.html` retains the original controller and adds `review-objective.css`
+for the user-requested V429-021 objective alignment correction. The objective
+now spans the workbench width with a compact textarea and wrapping label/hint.
+`original.html` and all generation files remain unchanged. Shared fonts and
+theme tokens remain.
 
 `examples.json` contains validated real API shapes created with the UI's existing
 test builders. Demo profile inputs are deliberately unambiguous (ZIP source,
