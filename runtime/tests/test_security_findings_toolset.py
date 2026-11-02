@@ -205,7 +205,7 @@ def test_finding_transport_loss_retries_byte_identical_submission() -> None:
 
 
 # The distinctive reserved Namespaces, the same names the Go scan
-# (internal/artifactpolicy/namespace_literal_test.go) and the UI scan
+# (internal/artifacts/policy/namespace_literal_test.go) and the UI scan
 # (ui/src/api/artifacts.test.ts) check: the purpose-reserved Run Namespaces the
 # contracts module names (ART-R114) and the UserScope Audit standard catalog
 # (ART-R25), which no Runtime code names. inputs, outputs and skills are

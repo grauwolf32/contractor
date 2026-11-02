@@ -110,7 +110,7 @@ test-agent-skills-packaging:
 test-shared-memory-matrix: test-hardening-matrices
 
 test-shared-memory-faults: require-database
-	$(call run-family-test,CONTRACTOR_TEST_DATABASE_URL="$$CONTRACTOR_TEST_DATABASE_URL" go test -race -count=1 ./internal/artifactpolicy/... ./internal/config/... ./internal/memory/... ./internal/httpapi/privateartifacts/... ./internal/scheduler/...)
+	$(call run-family-test,CONTRACTOR_TEST_DATABASE_URL="$$CONTRACTOR_TEST_DATABASE_URL" go test -race -count=1 ./internal/artifacts/policy/... ./internal/config/... ./internal/memory/... ./internal/httpapi/privateartifacts/... ./internal/scheduler/...)
 	$(call run-family-test,cd runtime && uv run pytest -W error tests/test_memory_toolset.py -k 'response_loss or changed or serialized or unexpected_tool_failure or reconciliation or purpose_reserved')
 
 test-shared-memory-hardening: test-shared-memory-matrix test-memory-contracts test-shared-memory-faults test-shared-memory-e2e test-production-memory-e2e
