@@ -6,7 +6,7 @@ epic: findings
 kind: defect
 introduced_by: V43-003
 priority: P2
-status: pending
+status: in_progress
 depends_on: [V432-001]
 languages: [python, markdown]
 goal: Preparing a full findings collection leaves the Runtime event loop available while retaining exact Artifact references and cancellation ownership.
@@ -15,6 +15,8 @@ context:
     User request 2026-11-02: recheck synchronous findings preparation and create
     a task to move decoding and projection construction to to_thread_until_done.
     This is scheduling/ownership work, not a change to Finding domain semantics.
+    User decision 2026-11-02: implement the CPU parsing P2s in the existing
+    codex/runtime-shutdown-deadline branch before merging it.
   specification:
     - docs/spec/findings/findings.md#FND-R122
     - docs/spec/findings/findings.md#FND-R123
@@ -46,6 +48,17 @@ context:
     started thread through repeated cancellation before allocation ownership
     can be released. Preserve main's Project Finding snapshots and existing
     Artifact receipts/CAS; do not take over the in-progress V64-014/V425-034.
+  decision: >-
+    Decode and prepare projections in one owned thread operation per phase,
+    and build each requested page in one operation. Verify a retained/exact
+    document in an owned thread only on the existing reconciliation path,
+    preserving its fail-fast read/write order; successful new writes add no
+    per-document thread dispatch. A reader-local lock preserves the previous
+    atomic call/close lifecycle while joined CPU work executes. The simpler
+    bare to_thread alternative is rejected because caller cancellation could
+    detach CPU work and release its resources. Reopen only if measured bounded
+    work still requires stronger scheduling isolation; no process pool or hard
+    interpreter-lock latency guarantee is introduced.
 scope:
   in:
     - Offload ZIP/JSON/canonicalization, digest verification and projection construction through joined worker threads, avoiding one thread dispatch per tiny row.
@@ -79,7 +92,7 @@ acceptance_criteria:
   - id: A3
     text: Golden package bytes, Project Finding snapshot metadata, exact document refs, ambiguity/denial handling, page sizes/cursors and detached projections remain unchanged; new scheduling regressions fail on current synchronous preparation.
 tests:
-  - command: cd runtime && uv run pytest -W error tests/test_findings_reader_toolset.py tests/test_security_findings_toolset.py tests/test_finding_tool_contracts.py tests/test_allocation.py tests/test_threads.py
+  - command: cd runtime && uv run pytest -W error tests/test_findings_reader_scheduling.py tests/test_findings_reader_toolset.py tests/test_security_findings_toolset.py tests/test_finding_tool_contracts.py tests/test_allocation.py tests/test_threads.py
     covers: [A1, A2, A3]
   - command: make test-wire-cross-language
     covers: [A3]
