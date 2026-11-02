@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-81 open tasks: 11 in progress, 59 pending, 11 deferred. 1349 finished: 1331 completed, 18 archived.
+81 open tasks: 12 in progress, 58 pending, 11 deferred. 1349 finished: 1331 completed, 18 archived.
 
 ## In progress
 
@@ -22,6 +22,7 @@ the epics are in [epics.yml](epics.yml).
 | [V420-002](v420-002-planner-compaction-vertical-slice.yml) | planner-worker | feature | P1 | Implement opt-in bounded compaction for Streamline and Router Planners |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Enable shared Planner compaction and reuse native YAML in shipped Workflows |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
+| [V433-002](v433-002-gateway-response-bounds.yml) | planner-worker | defect | P2 | Bound Gateway response streaming and move JSON parsing off the event loop |
 
 ## Pending
 
@@ -40,7 +41,6 @@ the epics are in [epics.yml](epics.yml).
 | [V417-007](v417-007-context-compaction-state-and-ui.yml) | feature | P1 | V417-003 | Report compaction progress and costs without exposing context content |
 | [V420-003](v420-003-planner-compaction-fault-scale-conformance.yml) | chore | P1 | V420-002 | Verify Planner compaction persistence cancellation and scale boundaries |
 | [V420-004](v420-004-planner-compaction-diagnostics.yml) | feature | P1 | V420-002 | Expose bounded truthful Planner compaction diagnostics |
-| [V433-002](v433-002-gateway-response-bounds.yml) | defect | P2 | — | Bound Gateway response streaming and move JSON parsing off the event loop |
 
 ### Run workspaces and project filesystem (`workspaces`)
 

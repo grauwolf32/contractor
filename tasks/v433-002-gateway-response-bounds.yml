@@ -5,7 +5,7 @@ milestone: runtime-resource-bounds-2026-11
 epic: planner-worker
 kind: defect
 priority: P2
-status: pending
+status: in_progress
 depends_on: [V432-001]
 languages: [python, markdown]
 goal: A Gateway cannot make a Runtime buffer or synchronously parse an unbounded response, independently of model token accounting.
@@ -14,6 +14,8 @@ context:
     User request 2026-11-02: recheck the unbounded Gateway response finding and
     create its fix task. The user requires streamed byte admission and bounded
     JSON parsing, independently of Worker max_tokens.
+    User decision 2026-11-02: fix the CPU parsing P2s in the existing
+    codex/runtime-shutdown-deadline branch before merging it.
   specification:
     - docs/spec/execution/worker.md#WRK-R8
     - docs/spec/execution/worker.md#WRK-R9
@@ -48,6 +50,15 @@ context:
     registry before coding; this value is an engineering proposal, not a
     previously stated user or ModelPolicy guarantee. Do not derive a byte
     limit from max_tokens or add a speculative configuration surface.
+  decision: >-
+    Agent implementation decision within the authorized fix: select the
+    proposed 4-MiB received/decoded response ceiling, matching the existing
+    Go Planner client. Keep it fixed and test both consumers against one
+    shared fixture; there is no new configuration or public wire field.
+    Parsing and ADK response projection use joined threads. The simpler
+    alternative of offloading an unbounded response is rejected because it
+    retains the memory defect. Reopen the ceiling only with a concrete valid
+    configured-model response that cannot fit, updating all owners together.
   boundary: >-
     GatewayClientHandle owns raw response admission, response closure and
     transport classification. Parse only admitted bytes through an owned
@@ -81,7 +92,11 @@ acceptance_criteria:
   - id: A3
     text: Add streamed boundary and overflow regressions that fail on current eager buffering, then pass the full Gateway client, classification, recovery, ADK conformance and HTTP-body suites; verify exact-boundary success and limit-plus-one rejection without a live Gateway.
 tests:
-  - command: cd runtime && uv run pytest -W error tests/test_gateway_client.py tests/test_gateway_error_classification.py tests/test_gateway_recovery.py tests/test_shared_gateway_recovery_participant.py tests/test_openai_gateway_llm.py tests/test_adk_gateway_conformance.py tests/test_http_proxy_adapter.py tests/test_http_body.py
+  - command: cd runtime && uv run pytest -W error tests/test_gateway_client.py tests/test_gateway_response_bounds.py tests/test_gateway_error_classification.py tests/test_gateway_recovery.py tests/test_shared_gateway_recovery_participant.py tests/test_openai_gateway_llm.py tests/test_adk_gateway_conformance.py tests/test_http_proxy_adapter.py tests/test_http_body.py
     covers: [A1, A2, A3]
+  - command: go test -count=1 ./internal/planner/streamline
+    covers: [A3]
+  - command: make test-wire-cross-language
+    covers: [A3]
   - command: make lint
     covers: [A1, A2, A3]
