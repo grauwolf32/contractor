@@ -1,0 +1,49 @@
+schema_version: "1.0"
+id: V434-002
+title: Inject the native release cleanup fault at its current owner
+milestone: runtime-ownership-2026-11
+epic: execution-core
+kind: chore
+introduced_by: V432-006
+priority: P1
+status: in_progress
+depends_on: [V432-006]
+languages: [python]
+goal: >-
+  The existing native ADK process test actually fails the first release cache
+  cleanup and verifies fencing and successful release retry after the owner split.
+context:
+  finding: >-
+    runtime/tests/fakes/adk_process_faults.py:199 patches
+    allocation.service.release_adk_tool_caches, but normal release now calls the
+    independent import in allocation.cleanup. Consequently
+    TestCrossLanguageMTLSAllocationLifecycleNativeADKFaults/native_cleanup_failure_fences_until_release
+    fails at runtime_native_faults_integration_test.go:640 with cleanup failure = nil.
+    Reproduced twice while verifying V434-001; none of those production cleanup
+    files were changed by the label removal.
+  siblings: >-
+    Keep failed preparation cleanup in allocation.service unchanged. The fault
+    scenario exercises normal release, whose owner is allocation.cleanup. Other
+    native fault modes retain their existing behavior and run in the full suite.
+  authority: >-
+    Agent-proposed minimal test-only verification prerequisite for the user-authorized
+    2026-11-02 removal of Runtime startup label assignments. No cleanup production
+    behavior changes or supporting subsystem work is included.
+scope:
+  in:
+    - Patch the existing fault scenario's cache cleanup symbol in allocation.cleanup.
+    - Verify the failed first release, fencing and successful retry through real mTLS processes.
+  out:
+    - Production cleanup behavior, deadlines, allocation ownership or Runtime shutdown changes.
+acceptance_criteria:
+  - id: A1
+    text: The native cleanup fault scenario returns allocation_cleanup_failed on its first release, fences the slot, and completes the existing retry assertions.
+  - id: A2
+    text: The full Control Plane integration suite and Runtime lint pass with all sibling fault modes preserved.
+tests:
+  - command: "go test -tags=integration -count=1 ./internal/controlplane"
+    covers: [A1, A2]
+  - command: "cd runtime && uv run ruff check tests/fakes/adk_process_faults.py"
+    covers: [A2]
+  - command: "cd runtime && uv run ruff format --check tests/fakes/adk_process_faults.py"
+    covers: [A2]
