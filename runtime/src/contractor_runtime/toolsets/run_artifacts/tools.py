@@ -41,6 +41,7 @@ from contractor_runtime.toolsets.common.artifacts import (
     _unconfigured_client,
 )
 from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
+from contractor_runtime.toolsets.common.resources import ToolResources
 from contractor_runtime.toolsets.common.tool_base import ArtifactTool
 from contractor_runtime.workspace import AllocationWorkspace
 
@@ -70,16 +71,16 @@ class RunArtifactsToolsetFactory:
         namespace: str,
         runtime_settings: RuntimeSettings,
         workspace: AllocationWorkspace,
-        state: Any,
+        resources: ToolResources,
         adapter_handles: AdapterHandles = EMPTY_ADAPTER_HANDLES,
         project_workspace: Any = None,
     ) -> Mapping[str, Any]:
         del adapter_handles
         require_selected_tools(selected, self.exported_tools)
-        metrics = require_metrics(state, "run-artifacts@1")
+        metrics = require_metrics(resources, "run-artifacts@1")
         client = self._client_factory(allocation_id, runtime_settings)
         secrets = runtime_secrets(runtime_settings)
-        cache = allocation_artifact_read_cache(state) if "read_artifact" in selected else None
+        cache = allocation_artifact_read_cache(resources) if "read_artifact" in selected else None
         constructors = {
             "list_artifacts": ListArtifactsTool,
             "read_artifact": partial(ReadArtifactTool, cache=cache),

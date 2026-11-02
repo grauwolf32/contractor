@@ -16,9 +16,6 @@ from contractor_runtime.contracts import (
 from contractor_runtime.contracts.base import json_byte_size
 from contractor_runtime.shared_config import get_shared_config
 from contractor_runtime.telemetry.metrics import MetricsState
-from contractor_runtime.toolsets.common.http_observations import HTTPObservationSink
-from contractor_runtime.toolsets.common.report_publications import ReportPublicationSink
-from contractor_runtime.worker.execution import WorkerExecutionState
 from contractor_runtime.worker.observations import validate_workspace_observation
 
 WORKER_STATE_SCHEMA_VERSION = 2
@@ -86,15 +83,6 @@ class WorkerStateStore:
 
     def __init__(self, metrics: MetricsState | None = None) -> None:
         self.metrics = metrics or MetricsState()
-        self.execution = WorkerExecutionState()
-        # Private allocation-owned resource, excluded from JSON/model state.
-        self.http_session: Any = None
-        self.http_captures: Any = None
-        self.http_observation_sink: HTTPObservationSink | None = None
-        self.caido_observation_sink: HTTPObservationSink | None = None
-        self.report_publication_sink: ReportPublicationSink | None = None
-        self.sitemap_read_flush: Any = None
-        self.before_completion: Any = None
         self._lock = asyncio.Lock()
         self._state: dict[str, Any] = {
             "schemaVersion": WORKER_STATE_SCHEMA_VERSION,

@@ -7,6 +7,7 @@ from types import SimpleNamespace
 import httpx
 import pytest
 from fakes.model import json_result, scripted_model
+from fakes.worker_state import WorkerStateStore
 from google.genai import types
 from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import ExportTraceServiceRequest
 from test_instrumentation import FakeContext, FakeOwner, FakeTool
@@ -21,7 +22,6 @@ from contractor_runtime.adapters.content import (
 from contractor_runtime.adapters.otlp_http import OTLPHTTPAdapterFactory
 from contractor_runtime.adapters.otlp_retry import classify_response
 from contractor_runtime.worker.instrumentation import WorkerInstrumentationPlugin
-from contractor_runtime.worker.state import WorkerStateStore
 from contractor_runtime.worker.summarizer import SummarizerFailure, TerminalSummarizer
 
 
@@ -41,8 +41,10 @@ def test_model_tool_and_finalizer_capture_opt_in(enabled: bool) -> None:
             adapter_context(), settings
         )
         tool = FakeTool("probe", FakeOwner())
+        state = WorkerStateStore()
         plugin = WorkerInstrumentationPlugin(
-            state=WorkerStateStore(),
+            state=state,
+            execution=state.resources.execution,
             budget=lambda: None,
             observe_artifacts=lambda _owner, _cursor: None,
             instrumentation=adapter.handles.instrumentation,

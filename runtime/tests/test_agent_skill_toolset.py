@@ -14,6 +14,7 @@ from typing import Any
 import httpx
 import pytest
 from fakes.model import scripted_model, text_result, tool_call
+from fakes.worker_state import WorkerState
 from google.adk.tools.base_tool import BaseTool
 from google.adk.tools.skill_toolset import SkillDiscoveryMode
 
@@ -30,7 +31,6 @@ from contractor_runtime.agent_skills.runtime import (
     prepare_agent_skills,
     probe_native_agent_skills,
 )
-from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import ArtifactTransportError, ArtifactValue
 from contractor_runtime.contracts import (
     API_VERSION,
@@ -931,6 +931,7 @@ def build_context(
         workspace=allocation_workspace(tmp_path),
         tools={},
         state=state,
+        resources=state.resources,
         a2a_base_url="https://runtime.example",
         runtime_settings=runtime_settings(),
         sensitive_output_tools=frozenset(),

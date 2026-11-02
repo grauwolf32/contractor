@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import json
 from pathlib import Path, PurePosixPath
-from types import SimpleNamespace
 from urllib.parse import quote
 
 import pytest
@@ -16,6 +15,7 @@ from contractor_runtime.toolsets.code_analysis.tools import (
     CodeAnalysisError,
     CodeAnalysisToolsetFactory,
 )
+from contractor_runtime.toolsets.common.resources import ToolResources
 from contractor_runtime.workspace import AllocationWorkspace
 
 
@@ -55,7 +55,7 @@ def test_code_analysis_retained_state_metrics_errors_and_scratch_are_content_fre
                     request_timeout_seconds=10,
                 ),
                 workspace=AllocationWorkspace(root=root, path=scratch),
-                state=SimpleNamespace(metrics=metrics),
+                resources=ToolResources(metrics=metrics),
                 project_workspace=reader,
             )
         )

@@ -21,6 +21,7 @@ from contractor_runtime.contracts.artifacts import (
     is_reserved_memory_binding,
     is_reserved_result_binding,
 )
+from contractor_runtime.toolsets.common.resources import ToolResources
 from contractor_runtime.toolsets.memory.tools import MemoryToolsetFactory
 
 FIXTURES = Path(__file__).resolve().parents[2] / "api" / "testdata" / "v1alpha1"
@@ -81,7 +82,7 @@ def test_shared_memory_tools_refuse_purpose_reserved_namespaces(namespace: str) 
                 namespace=namespace,
                 runtime_settings=None,
                 workspace=None,
-                state=None,
+                resources=ToolResources(),
             )
 
     asyncio.run(scenario())

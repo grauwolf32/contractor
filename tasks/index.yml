@@ -164,6 +164,9 @@ execution_policy:
     P3: Low-impact correction with no user-visible failure, such as documentation, dead code or test hygiene.
 
 milestones:
+  - id: runtime-ownership-2026-11
+    exit_task: V432-008
+    outcome: Runtime shares owned-task joining, typed allocation resources, exact Artifact CAS and HTTP rules; focused Worker and allocation orchestrators preserve existing authority and lifecycle contracts with integrated deterministic verification.
   - id: runtime-shared-config-2026-10
     exit_task: V427-003
     outcome: Runtime and UI load immutable non-secret shared policy at startup; Server-owned Artifact, pagination, Worker result/State, HTTP evidence and Git/metadata input ceilings drive consumers, generated schemas and persistence checks.

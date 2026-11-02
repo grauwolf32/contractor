@@ -339,7 +339,7 @@ def test_shared_post_publication_cleanup_failure_overrides_completion_diagnostic
         assert (await state.agent_state_snapshot()).state.metrics.completion == diagnostic
         assert not state.metrics.counters.get("llm_errors", 0)
         assert state.begins == state.completions == 1
-        assert not runtime._invoke_lock.locked()
+        assert not runtime._invocation.lock.locked()
         await runtime.abort(datetime.now(UTC) + timedelta(seconds=2))
 
     asyncio.run(scenario())

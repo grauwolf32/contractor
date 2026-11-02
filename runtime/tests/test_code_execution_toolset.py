@@ -5,6 +5,7 @@ import json
 from datetime import UTC, datetime
 
 import pytest
+from fakes.worker_state import WorkerStateStore
 from google.adk.tools import FunctionTool
 
 from contractor_runtime.sandbox.contracts import (
@@ -19,8 +20,7 @@ from contractor_runtime.toolsets.code_execution.tools import (
     CodeExecutionToolsetFactory,
     ExecCommandTool,
 )
-from contractor_runtime.worker.execution import SandboxExecutionFailed
-from contractor_runtime.worker.state import WorkerStateStore
+from contractor_runtime.toolsets.common.execution import SandboxExecutionFailed
 
 
 class Executor:
@@ -39,7 +39,7 @@ def test_exact_schema_nonzero_result_and_content_free_metrics():
     async def scenario():
         state = WorkerStateStore()
         executor = Executor()
-        tool = ExecCommandTool(executor, state)
+        tool = ExecCommandTool(executor, state.resources)
         declaration = FunctionTool(tool)._get_declaration()
         assert set(declaration.parameters_json_schema["properties"]) == {
             "command",
@@ -82,11 +82,11 @@ def test_invalid_arguments_launch_nothing(args):
     async def scenario():
         executor = Executor()
         state = WorkerStateStore()
-        tool = ExecCommandTool(executor, state)
+        tool = ExecCommandTool(executor, state.resources)
         assert isinstance(tool.contractor_raw_argument_error(args), SandboxContractError)
         result = await tool(**args)
         assert result["status"] == "failed" and result["exitCode"] is None
-        assert executor.calls == [] and state.execution.failure is None
+        assert executor.calls == [] and state.resources.execution.failure is None
 
     asyncio.run(scenario())
 
@@ -105,7 +105,7 @@ def test_operator_maximum_is_advertised_and_larger_timeouts_are_rejected():
             namespace="n",
             runtime_settings=None,
             workspace=None,
-            state=state,
+            resources=state.resources,
         )
         tool = tools["exec_command"]
         declaration = FunctionTool(tool)._get_declaration()
@@ -115,7 +115,7 @@ def test_operator_maximum_is_advertised_and_larger_timeouts_are_rejected():
         assert isinstance(tool.contractor_raw_argument_error(too_long), SandboxContractError)
         result = await tool(**too_long)
         assert result["errorCode"] == SandboxErrorCode.INVALID_COMMAND.value
-        assert executor.calls == [] and state.execution.failure is None
+        assert executor.calls == [] and state.resources.execution.failure is None
         longest = {"command": "make", "timeout_seconds": 300}
         assert tool.contractor_raw_argument_error(longest) is None
         assert (await tool("make", timeout_seconds=300))["status"] == "completed"
@@ -133,7 +133,7 @@ def test_selected_factory_never_advertises_or_hands_out_unselected_executor():
             namespace="n",
             runtime_settings=None,
             workspace=None,
-            state=WorkerStateStore(),
+            resources=WorkerStateStore().resources,
         )
         assert await factory.probe() == frozenset()
         assert await factory.create_selected(selected=[], **kwargs) == {}
@@ -158,7 +158,7 @@ def test_fatal_observation_blocks_further_calls(code):
             ExecutionResult(ExecutionStatus.FAILED, None, "", "", False, False, 1, code)
         )
         state = WorkerStateStore()
-        tool = ExecCommandTool(executor, state)
+        tool = ExecCommandTool(executor, state.resources)
         assert (await tool("private"))["errorCode"] == code.value
         with pytest.raises(SandboxExecutionFailed):
             await tool("must not run")
@@ -209,7 +209,7 @@ def test_adk_fatal_execution_stops_model_finalizer_and_later_invocations(tmp_pat
             [tool_call("exec_command", {"command": "private"}, call_id="exec-1")]
         )
         runtime = await create_runtime(
-            tmp_path, state, {"exec_command": ExecCommandTool(executor, state)}, model
+            tmp_path, state, {"exec_command": ExecCommandTool(executor, state.resources)}, model
         )
         try:
             completion = await runtime.invoke(stage_request())
@@ -248,7 +248,7 @@ def test_adk_rejects_extra_authority_before_binding_without_metric_content(tmp_p
             ]
         )
         runtime = await create_runtime(
-            tmp_path, state, {"exec_command": ExecCommandTool(executor, state)}, model
+            tmp_path, state, {"exec_command": ExecCommandTool(executor, state.resources)}, model
         )
         try:
             assert (await runtime.invoke(stage_request())).result is not None

@@ -233,7 +233,7 @@ def test_waiter_timeout_or_cancel_never_releases_running_writer(tmp_path, cancel
             assert guard.fenced and guard._lock.locked()
             with pytest.raises(WorkspaceStorageError):
                 await context.project_workspace.read_text("src/main.py")
-            assert context.worker_state.execution.failure is not None
+            assert context.resources.execution.failure is not None
             commands.resume.set()
             await service.finalize(finalization(spec))
             await service.release(release(spec))

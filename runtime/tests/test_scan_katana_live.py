@@ -11,9 +11,9 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from fakes.worker_state import WorkerState
 from target_policy_fixtures import SCAN_TEST_POLICY
 
-from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import ArtifactAPIError
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.toolsets.scan.tools import KatanaTool, ScanToolsetFactory
@@ -60,7 +60,7 @@ async def make_live_katana(tmp_path, monkeypatch):
             artifactApiUrl="https://artifacts.invalid", requestTimeoutSeconds=30
         ),
         workspace=AllocationWorkspace(root=tmp_path, path=workspace),
-        state=state,
+        resources=state.resources,
     )
     return tools["scan_katana"], artifacts, state, workspace
 

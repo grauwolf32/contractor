@@ -3,11 +3,11 @@
 import asyncio
 
 import pytest
+from fakes.worker_state import WorkerState
 from google.adk.tools import FunctionTool
 from test_filesystem_toolset import create_tools, workspace
 
 import contractor_runtime.toolsets.filesystem.tools as filesystem
-from contractor_runtime.allocation import WorkerState
 from contractor_runtime.toolsets.common.filesystem_errors import FilesystemToolError
 
 

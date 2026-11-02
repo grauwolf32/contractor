@@ -7,9 +7,9 @@ import threading
 from pathlib import Path
 
 import pytest
+from fakes.worker_state import WorkerState
 from test_edit_files_toolset import hydrated_workspace, make_tools
 
-from contractor_runtime.allocation import WorkerState
 from contractor_runtime.projectfs import OverlayWorkspaceSession, WorkspaceStorageError
 
 

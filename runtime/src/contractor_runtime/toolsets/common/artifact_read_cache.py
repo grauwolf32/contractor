@@ -8,13 +8,16 @@ from array import array
 from bisect import bisect_right
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING
 
 from contractor_runtime.artifacts import ArtifactClient, ArtifactValue
 from contractor_runtime.contracts import ArtifactRef
 from contractor_runtime.core.lines import LINE_BREAK_BYTES
 from contractor_runtime.shared_config import artifact_payload_max_bytes
 from contractor_runtime.threads import to_thread_until_done
+
+if TYPE_CHECKING:
+    from contractor_runtime.toolsets.common.resources import ToolResources
 
 # The Artifact API ceiling comes from startup policy. Retain at most one such
 # payload across Run and text artifact readers in an allocation.
@@ -187,12 +190,8 @@ class ExactArtifactReadCache:
             self._entry = None
 
 
-def allocation_artifact_read_cache(state: Any) -> ExactArtifactReadCache:
-    cache = getattr(state, "_artifact_read_cache", None)
-    if cache is None:
-        cache = ExactArtifactReadCache()
-        state._artifact_read_cache = cache
-    return cache
+def allocation_artifact_read_cache(resources: ToolResources) -> ExactArtifactReadCache:
+    return resources.artifact_read_cache
 
 
 async def _derive(entry: _Entry, *, lines: bool) -> ExactArtifactRead:

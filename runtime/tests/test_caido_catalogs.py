@@ -16,12 +16,12 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from fakes.worker_state import WorkerState
 from test_caido_adapter import adapter_context
 from test_caido_read_tools import CAIDO_TOKEN, FakeArtifactClient, close_tools
 
 from contractor_runtime.adapters import caido_graphql
 from contractor_runtime.adapters.caido_graphql import CaidoGraphQLAdapter
-from contractor_runtime.allocation import WorkerState
 from contractor_runtime.contracts import CaidoSettings, RuntimeSettings
 from contractor_runtime.toolsets.caido import tools as caido_tools
 from contractor_runtime.toolsets.caido.tools import CaidoToolError, CaidoToolsetFactory
@@ -145,7 +145,7 @@ async def caido_server(tmp_path: Path, responses: dict[str, Any]):
                 caido=settings,
             ),
             workspace=AllocationWorkspace(root=tmp_path, path=tmp_path / "allocation"),
-            state=state,
+            resources=state.resources,
             adapter_handles=adapter.handles,
         )
     )

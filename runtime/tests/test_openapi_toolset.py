@@ -24,10 +24,10 @@ from document_preparation_probes import (
     yield_to_loop,
 )
 from document_write_faults import FaultInjectingArtifactClient
+from fakes.worker_state import WorkerState
 from shared_config_defaults import MAX_ARTIFACT_BYTES
 
 import contractor_runtime.toolsets.openapi.tools as openapi_module
-from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import (
     ArtifactAPIError,
     ArtifactResponseLimitError,
@@ -195,7 +195,7 @@ def test_openapi_rejects_missing_workspace_before_creating_clients(tmp_path: Pat
                 namespace="openapi",
                 runtime_settings=runtime_settings(),
                 workspace=AllocationWorkspace(root=tmp_path.parent, path=tmp_path),
-                state=WorkerState(),
+                resources=WorkerState().resources,
             )
 
     asyncio.run(scenario())
@@ -1613,7 +1613,7 @@ def test_factory_rejects_unknown_tools_and_builtin_registry_matches(tmp_path: Pa
             namespace="openapi",
             runtime_settings=runtime_settings(),
             workspace=AllocationWorkspace(root=tmp_path.parent, path=tmp_path),
-            state=WorkerState(),
+            resources=WorkerState().resources,
             project_workspace=StaticWorkspaceReader({}),
         )
         assert set(selected) == {"get_openapi_info"}
@@ -1625,7 +1625,7 @@ def test_factory_rejects_unknown_tools_and_builtin_registry_matches(tmp_path: Pa
                 namespace="openapi",
                 runtime_settings=runtime_settings(),
                 workspace=AllocationWorkspace(root=tmp_path.parent, path=tmp_path),
-                state=WorkerState(),
+                resources=WorkerState().resources,
             )
 
     asyncio.run(scenario())
@@ -2231,7 +2231,7 @@ async def make_tools(
         namespace=namespace,
         runtime_settings=runtime_settings(),
         workspace=AllocationWorkspace(root=tmp_path.parent, path=tmp_path),
-        state=state,
+        resources=state.resources,
         project_workspace=project_workspace,
     )
     return dict(selected)

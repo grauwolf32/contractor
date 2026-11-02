@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import threading
 from pathlib import Path, PurePosixPath
-from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -26,6 +25,7 @@ from contractor_runtime.toolsets.code_analysis.tools import (
     CodeAnalysisError,
     CodeAnalysisToolsetFactory,
 )
+from contractor_runtime.toolsets.common.resources import ToolResources
 from contractor_runtime.workspace import AllocationWorkspace
 
 
@@ -262,7 +262,7 @@ async def _shallow_tools(reader: Any, root: Path) -> dict[str, Any]:
             namespace="analysis",
             runtime_settings=_runtime_settings(),
             workspace=AllocationWorkspace(root=root, path=root),
-            state=SimpleNamespace(metrics=MetricsState()),
+            resources=ToolResources(metrics=MetricsState()),
             project_workspace=reader,
         )
     )
@@ -283,7 +283,7 @@ async def _graph_tools(
             namespace="analysis",
             runtime_settings=_runtime_settings(),
             workspace=AllocationWorkspace(root=root, path=scratch),
-            state=SimpleNamespace(metrics=MetricsState()),
+            resources=ToolResources(metrics=MetricsState()),
             project_workspace=reader,
         )
     )

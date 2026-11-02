@@ -10,8 +10,8 @@ from urllib.parse import parse_qs, unquote, urlsplit
 
 import pytest
 from fakes.model import json_result, scripted_model, text_result
+from fakes.worker_state import WorkerState
 
-from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import (
     ArtifactClient,
     ArtifactHTTPResponse,
@@ -798,6 +798,7 @@ def build_context(
         workspace=AllocationWorkspace(root=tmp_path, path=tmp_path),
         tools={},
         state=state,
+        resources=state.resources,
         a2a_base_url="https://runtime.example",
         runtime_settings=RuntimeSettings(
             llmGatewayUrl="https://llm.example/v1",

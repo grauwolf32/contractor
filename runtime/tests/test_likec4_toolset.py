@@ -20,10 +20,10 @@ from document_preparation_probes import (
     yield_to_loop,
 )
 from document_write_faults import FaultInjectingArtifactClient
+from fakes.worker_state import WorkerState
 from shared_config_defaults import MAX_ARTIFACT_BYTES
 
 import contractor_runtime.toolsets.likec4.tools as likec4_module
-from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import (
     ArtifactAPIError,
     ArtifactResponseLimitError,
@@ -622,7 +622,7 @@ def test_factory_rejects_unknown_tools_and_builtin_registry_matches(tmp_path: Pa
             namespace="architecture",
             runtime_settings=runtime_settings(),
             workspace=AllocationWorkspace(root=tmp_path.parent, path=tmp_path),
-            state=WorkerState(),
+            resources=WorkerState().resources,
         )
         assert set(selected) == {"read_likec4"}
         with pytest.raises(ValueError, match="unknown selected tools"):
@@ -633,7 +633,7 @@ def test_factory_rejects_unknown_tools_and_builtin_registry_matches(tmp_path: Pa
                 namespace="architecture",
                 runtime_settings=runtime_settings(),
                 workspace=AllocationWorkspace(root=tmp_path.parent, path=tmp_path),
-                state=WorkerState(),
+                resources=WorkerState().resources,
             )
 
     asyncio.run(scenario())
@@ -846,7 +846,7 @@ async def make_tools(
         namespace=namespace,
         runtime_settings=runtime_settings(),
         workspace=AllocationWorkspace(root=tmp_path.parent, path=tmp_path),
-        state=state,
+        resources=state.resources,
     )
     return dict(selected)
 

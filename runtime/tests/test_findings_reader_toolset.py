@@ -16,9 +16,9 @@ from urllib.parse import parse_qs, urlsplit
 import jcs
 import pytest
 from fakes import finding_collection
+from fakes.worker_state import WorkerState
 from google.adk.tools import FunctionTool
 
-from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import (
     ArtifactClient,
     ArtifactHTTPResponse,
@@ -272,7 +272,7 @@ async def _tools(transport, selected=("list_findings",)):
             requestTimeoutSeconds=5,
         ),
         workspace=AllocationWorkspace(root=Path("/tmp/findings"), path=Path("/tmp/findings/a")),
-        state=state,
+        resources=state.resources,
     )
     return tools, client, state
 

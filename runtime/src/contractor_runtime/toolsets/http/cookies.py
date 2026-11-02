@@ -15,6 +15,7 @@ from contractor_runtime.artifacts import (
     ArtifactTransportError,
 )
 from contractor_runtime.contracts import ArtifactRef
+from contractor_runtime.core.async_tasks import join_owned_task
 from contractor_runtime.core.http_session import (
     MAX_COOKIE_SESSION_BYTES,
     CookieStateError,
@@ -53,14 +54,7 @@ def decode_cookies(data, origin, now):
 async def _joined[T](operation: Awaitable[T]) -> T:
     """Cancellation cannot release the session owner while an Artifact PUT lives."""
     task = asyncio.create_task(operation)
-    cancelled = False
-    while not task.done():
-        try:
-            await asyncio.shield(task)
-        except asyncio.CancelledError:
-            cancelled = True
-        except Exception:
-            break
+    cancelled = await join_owned_task(task)
     if cancelled:
         # Retrieve a possible exception without leaking its content. The inner
         # operation records unconfirmed state before its bounded task ends.

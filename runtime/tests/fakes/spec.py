@@ -142,7 +142,7 @@ def runtime_provenance() -> ResolvedRuntimeConfigProvenance:
 
 
 def summarizer_config():
-    from contractor_runtime.allocation.service import _effective_summarizer
+    from contractor_runtime.allocation.preparation import _effective_summarizer
 
     result = _effective_summarizer(allocation_spec(summarizer=True))
     if result is None:

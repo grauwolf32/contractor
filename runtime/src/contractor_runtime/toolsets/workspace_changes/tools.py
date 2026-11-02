@@ -30,6 +30,7 @@ from contractor_runtime.toolsets.common.cursors import (
 )
 from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
 from contractor_runtime.toolsets.common.filesystem_errors import FilesystemToolError
+from contractor_runtime.toolsets.common.resources import ToolResources
 from contractor_runtime.workspace import AllocationWorkspace
 
 MAX_PAGE_ITEMS = 100
@@ -58,7 +59,7 @@ class WorkspaceChangesToolsetFactory:
         namespace: str,
         runtime_settings: RuntimeSettings,
         workspace: AllocationWorkspace,
-        state: Any,
+        resources: ToolResources,
         adapter_handles: AdapterHandles = EMPTY_ADAPTER_HANDLES,
         project_workspace: WorkspaceChanges | None = None,
     ) -> Mapping[str, Any]:
@@ -69,7 +70,7 @@ class WorkspaceChangesToolsetFactory:
         for method in ("change_entries", "diff", "rollback_changes"):
             if not callable(getattr(project_workspace, method, None)):
                 raise FilesystemToolError("workspace_mode_unsupported")
-        metrics = require_metrics(state, "workspace-changes@1")
+        metrics = require_metrics(resources, "workspace-changes@1")
         session = _ChangesSession(project_workspace)
         builders: dict[str, Callable[[], Any]] = {
             "changed_paths": lambda: ChangedPathsTool(session, metrics),

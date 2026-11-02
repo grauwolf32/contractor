@@ -9,6 +9,7 @@ import zipfile
 from pathlib import Path
 
 import pytest
+from fakes.worker_state import WorkerState
 
 from contractor_runtime import threads
 from contractor_runtime.toolsets.common import finding_anchors as anchors
@@ -234,7 +235,6 @@ def test_shared_code_publisher_uses_hidden_exact_anchor_metadata():
     from test_finding_facades import context, finding_tool
     from test_security_findings_toolset import FakeFindingClient
 
-    from contractor_runtime.allocation import WorkerState
     from contractor_runtime.artifacts import ArtifactHTTPResponse, ArtifactTransportError
     from contractor_runtime.contracts import ArtifactRef
     from contractor_runtime.toolsets.security_findings.facades import CodeFindingsToolsetFactory
@@ -435,7 +435,6 @@ class SourceAPI:
 async def code_finding_tool(api):
     from test_security_findings_toolset import _settings, _workspace
 
-    from contractor_runtime.allocation import WorkerState
     from contractor_runtime.artifacts import ArtifactClient
     from contractor_runtime.toolsets.security_findings.facades import CodeFindingsToolsetFactory
 
@@ -447,7 +446,7 @@ async def code_finding_tool(api):
         namespace="worker",
         runtime_settings=_settings(),
         workspace=_workspace(),
-        state=WorkerState(),
+        resources=WorkerState().resources,
     )
     return tools["finding"], client
 

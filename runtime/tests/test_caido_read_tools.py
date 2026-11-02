@@ -9,11 +9,11 @@ from typing import Any
 
 import httpx
 import pytest
+from fakes.worker_state import WorkerState
 
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.caido_graphql import CaidoGraphQLClient
 from contractor_runtime.adapters.host import RuntimeAdapterMetricsState
-from contractor_runtime.allocation import WorkerState
 from contractor_runtime.contracts import (
     ArtifactRef,
     CaidoSettings,
@@ -100,7 +100,7 @@ def test_all_read_tools_use_static_operations_and_normalize_bounded_results(
         assert detail["raw"]["truncated"] is True
         assert detail["created_at"] == expected_time
         assert detail["response"]["raw"]["kind"] == "binary"
-        stored = await state.http_captures.get("caido", "request-1")
+        stored = await state.resources.http_captures.get("caido", "request-1")
         attempt = stored["attempts"][0]
         assert base64.b64decode(attempt["request"]["message"]["data_base64"]) == raw_request
         assert base64.b64decode(attempt["response"]["message"]["data_base64"]) == raw_response
@@ -203,7 +203,7 @@ async def create_tools(
         requestTimeoutSeconds=10,
     )
     state = WorkerState()
-    state.caido_observation_sink = observation_sink
+    state.resources.caido_observation_sink = observation_sink
     factory = factory or CaidoToolsetFactory(lambda _allocation, _settings: artifacts)
     selected_tools = selected or {
         "caido_automate_results",
@@ -221,7 +221,7 @@ async def create_tools(
         namespace="analyst",
         runtime_settings=settings,
         workspace=AllocationWorkspace(root=tmp_path, path=tmp_path / "allocation"),
-        state=state,
+        resources=state.resources,
         adapter_handles=AdapterHandles(caido_graphql=handle),
     )
     return dict(result), state, handle

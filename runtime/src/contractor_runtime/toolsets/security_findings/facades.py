@@ -22,6 +22,7 @@ from contractor_runtime.toolsets.common.finding_locations import (
     Location,
     StandardReference,
 )
+from contractor_runtime.toolsets.common.resources import ToolResources
 from contractor_runtime.toolsets.security_findings.publisher import FindingPublisher
 from contractor_runtime.toolsets.security_findings.reader import prepare_reader
 from contractor_runtime.workspace import AllocationWorkspace
@@ -236,7 +237,7 @@ class GeneralFindingsToolsetFactory:
         namespace: str,
         runtime_settings: RuntimeSettings,
         workspace: AllocationWorkspace,
-        state: Any,
+        resources: ToolResources,
         adapter_handles: AdapterHandles = EMPTY_ADAPTER_HANDLES,
         project_workspace: Any = None,
     ) -> Mapping[str, Any]:
@@ -244,13 +245,13 @@ class GeneralFindingsToolsetFactory:
         require_selected_tools(
             selected, self.exported_tools, description="unknown selected finding tools"
         )
-        metrics = require_metrics(state, "finding toolset")
+        metrics = require_metrics(resources, "finding toolset")
         client = self._client_factory(allocation_id, runtime_settings)
         publisher = FindingPublisher(
             FindingProposalClient(client.allocation_id, client.transport),
             metrics,
             runtime_secrets(runtime_settings),
-            state,
+            resources,
             artifacts=client,
         )
         result = {}

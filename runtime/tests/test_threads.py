@@ -86,3 +86,41 @@ def test_consumed_task_exception_is_never_reported_as_unretrieved() -> None:
     asyncio.run(scenario())
 
     assert [context["message"] for context in reports] == ["Task exception was never retrieved"]
+
+
+@pytest.mark.parametrize("outcome", ["value", "failure", "cancelled"])
+def test_owned_join_leaves_outcome_and_cancellation_policy_to_caller(outcome: str) -> None:
+    from contractor_runtime.core.async_tasks import join_owned_task
+
+    async def scenario() -> None:
+        entered, release = asyncio.Event(), asyncio.Event()
+
+        async def child() -> str:
+            entered.set()
+            await release.wait()
+            if outcome == "failure":
+                raise ValueError("child failure")
+            if outcome == "cancelled":
+                raise asyncio.CancelledError
+            return "value"
+
+        task = asyncio.create_task(child())
+        owner = asyncio.create_task(join_owned_task(task))
+        await entered.wait()
+        for _ in range(3):
+            owner.cancel()
+            await asyncio.sleep(0)
+            assert not owner.done()
+            assert not task.cancelled()
+        release.set()
+        assert await owner is True
+        if outcome == "failure":
+            with pytest.raises(ValueError, match="child failure"):
+                task.result()
+        elif outcome == "cancelled":
+            assert task.cancelled()
+        else:
+            assert task.result() == "value"
+        assert await join_owned_task(task) is False
+
+    asyncio.run(scenario())

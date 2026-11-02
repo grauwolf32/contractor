@@ -9,13 +9,13 @@ from datetime import UTC, datetime, timedelta
 import httpx
 import pytest
 from fakes.spec import summarizer_config
+from fakes.worker_state import WorkerState
 from google.adk.runners import Runner
 from test_adk_runtime import build_context, stage_request
 from test_result_finalizer import RecordingObserver, policy
 
 import contractor_runtime.worker.finalizer as finalizer_module
 import contractor_runtime.worker.summarizer as summarizer_module
-from contractor_runtime.allocation import WorkerState
 from contractor_runtime.llm.client import new_gateway_client
 from contractor_runtime.llm.openai import OpenAICompatibleGatewayLlm
 from contractor_runtime.worker.finalizer import ResultFinalizerFailure, WorkerResultFinalizer

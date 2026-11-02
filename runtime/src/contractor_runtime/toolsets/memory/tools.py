@@ -23,8 +23,14 @@ from contractor_runtime.artifacts import (
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.contracts.artifacts import PURPOSE_RESERVED_NAMESPACES
 from contractor_runtime.core.tool_metrics import RecordedToolCall, ToolMetrics
+from contractor_runtime.toolsets.common.artifact_write import (
+    ArtifactReconciliationFailed,
+    definite_write_rejection,
+    write_artifact_exact,
+)
 from contractor_runtime.toolsets.common.artifacts import ArtifactClientFactory, _unconfigured_client
 from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
+from contractor_runtime.toolsets.common.resources import ToolResources
 from contractor_runtime.toolsets.memory.codec import (
     ARTIFACT_NAME_PREFIX,
     MAXIMUM_EXACT_ORDINAL,
@@ -99,7 +105,7 @@ class MemoryToolsetFactory:
         namespace: str,
         runtime_settings: RuntimeSettings,
         workspace: AllocationWorkspace,
-        state: Any,
+        resources: ToolResources,
         adapter_handles: AdapterHandles = EMPTY_ADAPTER_HANDLES,
         project_workspace: Any = None,
     ) -> Mapping[str, Any]:
@@ -107,7 +113,7 @@ class MemoryToolsetFactory:
         if namespace in PURPOSE_RESERVED_NAMESPACES:
             raise ValueError("MemoryTools requires a non-purpose Agent Namespace")
         require_selected_tools(selected, self.exported_tools)
-        metrics = require_metrics(state, "memory-tools@1")
+        metrics = require_metrics(resources, "memory-tools@1")
         session = _MemorySession(self._client_factory(allocation_id, runtime_settings), namespace)
         constructors = {
             "list_memories": ListMemoriesTool,
@@ -266,53 +272,34 @@ class _MemorySession:
     ) -> ArtifactWriteValue | ArtifactValue:
         target = ArtifactRef(namespace=self._namespace, name=binding_name)
         try:
-            return await self._client.write_artifact(
+            return await write_artifact_exact(
+                self._client,
                 target,
                 data=payload,
                 media_type=MEDIA_TYPE,
                 expected_revision=expected_revision,
+                max_bytes=MAXIMUM_PAYLOAD_BYTES,
+                reject_first=lambda error: (
+                    _mapped_client_error(error).code == "memory_forbidden"
+                    or error.code == ARTIFACT_HISTORY_MAINTENANCE_PENDING
+                    or definite_write_rejection(error)
+                ),
+                # Memory's current read remains authoritative after any replay
+                # rejection, including a denied or unavailable replay.
+                reject_replay=lambda _error: False,
             )
-        except ArtifactTransportError:
-            pass
         except ArtifactAPIError as error:
             if error.code == "artifact_conflict":
                 raise MemoryToolError("memory_changed") from None
-            mapped = _mapped_client_error(error)
-            if (
-                mapped.code == "memory_forbidden"
-                or error.code == ARTIFACT_HISTORY_MAINTENANCE_PENDING
-                or not 500 <= error.status_code < 600
+            raise _mapped_client_error(error) from None
+        except ArtifactReconciliationFailed as error:
+            if error.current is not None or isinstance(
+                error.read_error, ArtifactResponseLimitError
             ):
-                # Pending history maintenance stored nothing: it is a definite
-                # answer the model may retry, not a lost reply to reconcile.
-                raise mapped from None
-
-        # Transport loss and server failures may follow a committed PUT (for
-        # example, a lost database acknowledgement mapped to HTTP 500). Replay
-        # only the same immutable bytes with the same precondition, once.
-        try:
-            return await self._client.write_artifact(
-                target,
-                data=payload,
-                media_type=MEDIA_TYPE,
-                expected_revision=expected_revision,
-            )
-        except (ArtifactTransportError, ArtifactAPIError):
-            pass
-
-        try:
-            current = await self._client.read_artifact(target, max_bytes=MAXIMUM_PAYLOAD_BYTES)
-        except ArtifactResponseLimitError:
-            # A current value larger than any note cannot equal the payload.
-            raise MemoryToolError("memory_changed") from None
-        except (ArtifactTransportError, ArtifactAPIError) as read_error:
-            # The reconciliation read is authoritative for whether the current
-            # value could be inspected. A retry conflict alone cannot prove
-            # memory_changed when that read was forbidden or unavailable.
-            raise _mapped_client_error(read_error) from None
-        if current.media_type == MEDIA_TYPE and current.data == payload:
-            return current
-        raise MemoryToolError("memory_changed")
+                raise MemoryToolError("memory_changed") from None
+            if error.read_error is None:
+                raise RuntimeError("Artifact reconciliation has no outcome") from None
+            raise _mapped_client_error(error.read_error) from None
 
 
 class _BaseMemoryTool:

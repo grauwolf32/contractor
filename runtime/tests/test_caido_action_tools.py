@@ -930,7 +930,7 @@ async def assert_payload_result(
         assert result["response"]["raw"]["truncated"] is True
         assert "echo [REDACTED]" in result["response"]["raw"]["data"]
         assert "Authorization: [runtime-credential]" in result["raw"]["data"]
-        capture = (await state.http_captures.get("caido", "request-1"))["attempts"][0]
+        capture = (await state.resources.http_captures.get("caido", "request-1"))["attempts"][0]
         message = capture["response"]["message"]["data_base64"]
         assert base64.b64decode(message) == response
         assert base64.b64decode(capture["request"]["message"]["data_base64"]) == scrubbed(
@@ -941,7 +941,9 @@ async def assert_payload_result(
         assert result["status"] == "completed"
         assert result["response_raw"]["size"] == len(response)
         assert "Authorization: [runtime-credential]" in result["raw"]["data"]
-        capture = (await state.http_captures.get("caido", "replayed-request"))["attempts"][0]
+        capture = (await state.resources.http_captures.get("caido", "replayed-request"))[
+            "attempts"
+        ][0]
         assert base64.b64decode(capture["response"]["message"]["data_base64"]) == response
     elif path == "workflow":
         output = scrubbed(payloads["output"])

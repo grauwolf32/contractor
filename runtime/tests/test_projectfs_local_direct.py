@@ -14,10 +14,10 @@ from pathlib import Path
 
 import pytest
 from descriptor_paths import descriptor_path
+from fakes.worker_state import WorkerState
 from test_filesystem_toolset import create_tools
 from test_projectfs_zip import archive, settings, workspace_inputs
 
-from contractor_runtime.allocation import WorkerState
 from contractor_runtime.projectfs import (
     DirectWorkspaceSession,
     LocalWorkspaceProvider,

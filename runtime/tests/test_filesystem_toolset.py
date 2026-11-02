@@ -6,11 +6,11 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from fakes.worker_state import WorkerState
 from test_projectfs_paths import reference_glob_matches
 
 import contractor_runtime.projectfs.paths as paths_module
 import contractor_runtime.toolsets.filesystem.tools as filesystem_module
-from contractor_runtime.allocation import WorkerState
 from contractor_runtime.contracts import RuntimeSettings
 from contractor_runtime.factories import built_in_factories
 from contractor_runtime.projectfs import (
@@ -564,7 +564,7 @@ async def create_tools(
             requestTimeoutSeconds=30,
         ),
         workspace=AllocationWorkspace(root=tmp_path, path=tmp_path),
-        state=state,
+        resources=state.resources,
         project_workspace=project_workspace,
     )
     return dict(result)

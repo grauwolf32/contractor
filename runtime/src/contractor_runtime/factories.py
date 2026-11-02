@@ -42,6 +42,7 @@ from contractor_runtime.toolsets.audit_results.v2 import AuditResultsToolsetFact
 from contractor_runtime.toolsets.caido.tools import CaidoToolsetFactory
 from contractor_runtime.toolsets.code_analysis.tools import CodeAnalysisToolsetFactory
 from contractor_runtime.toolsets.code_execution.tools import CodeExecutionToolsetFactory
+from contractor_runtime.toolsets.common.resources import ToolResources
 from contractor_runtime.toolsets.edit_files.tools import EditFilesToolsetFactory
 from contractor_runtime.toolsets.filesystem.tools import FilesystemToolsetFactory
 from contractor_runtime.toolsets.http.tools import HTTPToolsetFactory
@@ -74,6 +75,7 @@ if TYPE_CHECKING:
         WorkspaceReader,
         WorkspaceWriter,
     )
+    from contractor_runtime.worker.state import WorkerStateStore
 
 
 class WorkerRuntime(Protocol):
@@ -108,7 +110,8 @@ class WorkerBuildContext:
     model_policy: ResolvedModelPolicy | None
     workspace: AllocationWorkspace
     tools: Mapping[str, ToolInstance]
-    state: Any
+    state: WorkerStateStore
+    resources: ToolResources
     a2a_base_url: str
     runtime_settings: RuntimeSettings = field(repr=False)
     # Tool names that the registered toolset factories declare as returning
@@ -133,6 +136,8 @@ class WorkerBuildContext:
     workspace_export: AllocationWorkspaceExport | None = None
 
     def __post_init__(self) -> None:
+        if self.resources.metrics is not self.state.metrics:
+            raise TypeError("Worker State and tool resources must share allocation metrics")
         if not isinstance(self.sensitive_output_tools, frozenset) or not all(
             isinstance(name, str) for name in self.sensitive_output_tools
         ):
@@ -179,7 +184,7 @@ class ToolsetFactory(Protocol):
         namespace: str,
         runtime_settings: RuntimeSettings,
         workspace: AllocationWorkspace,
-        state: Any,
+        resources: ToolResources,
         adapter_handles: AdapterHandles = EMPTY_ADAPTER_HANDLES,
         project_workspace: WorkspaceReader | WorkspaceWriter | WorkspaceChanges | None = None,
     ) -> Mapping[str, ToolInstance]: ...

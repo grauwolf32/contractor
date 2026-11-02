@@ -7,13 +7,13 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
+from fakes.worker_state import WorkerState
 from target_policy_fixtures import SCAN_TEST_POLICY
 from test_scan_toolset import executable
 
 import contractor_runtime.toolsets.scan.ffuf as ffuf_module
 import contractor_runtime.toolsets.scan.process as process_module
 import contractor_runtime.toolsets.scan.tools as scan
-from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import ArtifactClient, ArtifactHTTPResponse
 from contractor_runtime.contracts import RuntimeSettings
 from contractor_runtime.core.input_errors import ToolInputError
@@ -131,7 +131,7 @@ async def make_ffuf(tmp_path, transport):
             artifactApiUrl="https://artifacts.invalid", requestTimeoutSeconds=60
         ),
         workspace=AllocationWorkspace(root=tmp_path, path=workspace),
-        state=state,
+        resources=state.resources,
     )
     return tools["scan_ffuf"], state
 

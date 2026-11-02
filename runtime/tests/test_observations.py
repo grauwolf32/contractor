@@ -5,6 +5,7 @@ import json
 from dataclasses import replace
 
 import pytest
+from fakes.worker_state import WorkerStateStore
 from shared_config_defaults import MAX_AGENT_STATE_SNAPSHOT_BYTES
 
 import contractor_runtime.worker.observations as observations_module
@@ -17,7 +18,6 @@ from contractor_runtime.worker.observations import (
     lean_workspace_summary,
     validate_workspace_observation,
 )
-from contractor_runtime.worker.state import WorkerStateStore
 
 
 def metadata(*paths: str, digest_character: str = "0") -> WorkspaceObservationMetadata:

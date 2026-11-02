@@ -206,11 +206,11 @@ planning-review gate; старое `context.decision_needed` о самом пе�
   evidence, API/UI и снимки отчётов. Старые review/prepare/result-admission
   предпосылки заменены. V411-020 становится composed HTTP extension gate после
   V64-011; дополнительные sitemap/sandbox сценарии не блокируют ранний HTTP demo.
-- V410-006/007 остаются отдельной sitemap-веткой вне V64-011. SMT владеет
-  discovery/reconciliation; при подключении к Audit используются обычные
-  задания и общие exact input/output механизмы. V411-014/020 сохраняют
-  зависимости от существующих sitemap-задач; базовый HTTP demo от них
-  не зависит. Самостоятельное перепланирование sitemap в этот пакет не входит.
+- V410-006/007 выпускают standalone sitemap независимо от Audit. Отдельная
+  [V410-025](../../tasks/v410-025-sitemap-audit-composition.yml) подключает эту
+  часть к ordinary Audit tasks после готовности общего ядра; она вне V64-011.
+  SMT остаётся владельцем discovery/reconciliation. V411-014/020 зависят от
+  Audit-интеграции, а базовый HTTP demo — нет.
 - V417-005 сохраняет trusted context/results через compaction на новом пути;
   V417-009 обновляет Audit ветку process gate. Обычный Worker/Planner scope не
   расширяется и не становится prerequisite базового Audit.

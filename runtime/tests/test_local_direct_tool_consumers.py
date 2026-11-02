@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 
 import pytest
+from fakes.worker_state import WorkerState, WorkerStateStore
 from test_code_analysis_graph import _close as close_graph
 from test_code_analysis_graph import _tools as graph_tools
 from test_code_analysis_shallow import _tools as shallow_tools
@@ -21,7 +22,6 @@ from test_taint_annotations import make_tools as annotation_tools
 
 import contractor_runtime.toolsets.openapi.tools as openapi_module
 import contractor_runtime.toolsets.taint_annotations.tools as annotations_module
-from contractor_runtime.allocation import WorkerState
 from contractor_runtime.projectfs.config import WorkspaceLimits
 from contractor_runtime.toolsets.code_analysis.tools import CodeAnalysisError
 from contractor_runtime.toolsets.common.filesystem_errors import FilesystemToolError
@@ -29,7 +29,6 @@ from contractor_runtime.toolsets.filesystem.tools import FilesystemToolsetFactor
 from contractor_runtime.toolsets.taint_annotations.tools import TaintAnnotationError
 from contractor_runtime.worker.instrumentation import WorkerInstrumentationPlugin
 from contractor_runtime.worker.observations import lean_workspace_summary
-from contractor_runtime.worker.state import WorkerStateStore
 
 
 def test_filesystem_and_edits_see_external_create_write_rename_delete(tmp_path: Path) -> None:
@@ -283,6 +282,7 @@ def test_observation_scope_and_read_coverage_acquire_current_disk_each_invocatio
             state = WorkerStateStore()
             plugin = WorkerInstrumentationPlugin(
                 state=state,
+                execution=state.resources.execution,
                 budget=lambda: None,
                 instrumentation=None,
                 model_alias="model",

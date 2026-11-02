@@ -100,6 +100,61 @@ likec4 validate docs/spec
 likec4 start docs/spec
 ```
 
+## Runtime resource ownership
+
+`AllocationService` owns the single slot, command replay, state transitions,
+fencing and final reports. `AllocationPreparation` acquires resources and exposes
+its partial acquisition to the existing rollback owner if construction fails.
+Only the service commits the resulting allocation. `AllocationResourceCleanup`
+closes and erases resources; the service keeps cleanup task replay and decides
+whether a failure fences the process.
+
+```mermaid
+flowchart LR
+    S[AllocationService] --> P[AllocationPreparation]
+    P --> C[AllocationContext]
+    S --> X[AllocationResourceCleanup]
+    X --> C
+    C --> R[ToolResources: private allocation resources]
+    C --> J[WorkerStateStore: revisioned JSON and metrics]
+    C --> W[AdkWorkerRuntime]
+    W --> R
+    W --> J
+```
+
+`WorkerBuildContext` passes State and resources separately, sharing the same
+allocation metrics reducer. Tool factories receive `ToolResources`, never the
+revisioned State store. The bundle contains typed execution fencing, read cache,
+HTTP captures, subscribers, checkpoints and a narrow proposal-collector callback.
+It does not enter ADK State or the model prompt. Each selected tool owns closing
+its session; there is no duplicate session pointer on State.
+
+```mermaid
+flowchart LR
+    W[AdkWorkerRuntime: admission and phase sequencing] --> I[InvocationLifecycle: task, lock, budget, session]
+    W --> A[AdkTurnRunner: ADK events and history settlement]
+    W --> P[WorkerCompletionPipeline: completion, finalizer, summary, result assembly]
+    A --> H[ToolHistory and WorkerSessionLifecycle]
+    P --> F[Existing schema constrained result finalizer]
+    P --> O[Exact artifact refs and observations]
+```
+
+The shared mechanisms retain narrow boundaries:
+
+- `core.async_tasks.join_owned_task` joins through repeated cancellation; callers
+  choose outcome precedence and keep their existing deadlines and fencing.
+- `toolsets.common.artifact_write` replays identical bytes/preconditions once and
+  reads bounded current state. Memory and documents retain their own rejection
+  classification and repair errors; no semantic mutation is repeated.
+- `toolsets.http.headers` owns input grammar, case-insensitive merging and header
+  ceilings. Ordinary and controlled HTTP retain their separate credential and
+  capture authority. A controlled retained prefix stays incomplete and reports
+  truncation in history and body pages, including cached pages.
+
+These boundaries preserve the existing model finalizer contract. Revisit them
+when a concrete caller needs a different guarantee; do not introduce a general
+resource/retry framework or move domain authority into these shared mechanisms.
+
 ## Layer checks
 
 Two checks keep code dependencies pointing down the layer stack: a package or

@@ -15,11 +15,11 @@ from google.adk.sessions import InMemorySessionService
 from google.adk.tools import ToolContext
 from test_adk_runtime import build_context, stage_request
 
-from contractor_runtime.allocation import WorkerState
 from contractor_runtime.contracts import WorkerSessionMode
 from contractor_runtime.llm.client import new_gateway_client
 from contractor_runtime.llm.openai import OpenAICompatibleGatewayLlm
 from contractor_runtime.worker.runtime import AdkWorkerRuntime
+from fakes.worker_state import WorkerState
 
 FINALIZER_MARKER = "Contractor Worker result finalization input (JSON):\n"
 

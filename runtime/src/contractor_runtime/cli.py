@@ -300,14 +300,13 @@ async def _serve(
             # do not let a second await skip listener cleanup in this finally.
             with contextlib.suppress(asyncio.CancelledError, Exception):
                 await watchdog_task
-        if lifecycle is not None:
-            # Stop work and remove binds before the outer owner close. The
-            # existing write fence/abort behavior is preserved by this seam.
-            with contextlib.suppress(Exception):
-                await asyncio.wait_for(
-                    allocation_service.expire_control_lease(settings.shutdown_grace_seconds),
-                    timeout=settings.shutdown_grace_seconds,
-                )
+        # Every profile owns an in-process Worker and tool resources. Stop them
+        # while Artifact connections and the private listener still exist.
+        with contextlib.suppress(Exception):
+            await asyncio.wait_for(
+                allocation_service.expire_control_lease(settings.shutdown_grace_seconds),
+                timeout=settings.shutdown_grace_seconds,
+            )
         await runtime_state.begin_stopping()
         server.should_exit = True
         try:

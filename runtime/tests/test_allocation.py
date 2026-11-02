@@ -25,7 +25,7 @@ from test_adk_runtime import stage_request as adk_stage_request
 from test_http_caido_process_e2e import MockCaidoAdapterFactory, MockHTTPProxyAdapterFactory
 from test_text_artifacts_toolset import MemoryArtifactClient
 
-import contractor_runtime.allocation.service as allocation_service_module
+import contractor_runtime.allocation.cleanup as allocation_cleanup_module
 import contractor_runtime.worker.adk_caches as adk_caches
 import contractor_runtime.worker.state as worker_state_module
 from contractor_runtime.adapters import AdapterHandles, AdapterPreparationError
@@ -33,6 +33,7 @@ from contractor_runtime.adapters.host import RuntimeAdapterBuildContext, Runtime
 from contractor_runtime.adapters.interactsh import InteractshClient
 from contractor_runtime.agent_skills.runtime import AgentSkillPreparationError
 from contractor_runtime.allocation import AllocationError, AllocationService
+from contractor_runtime.allocation.preparation import AllocationPreparation
 from contractor_runtime.capabilities import CapabilitySnapshot
 from contractor_runtime.contracts import (
     API_VERSION,
@@ -427,7 +428,7 @@ def test_failed_prepare_rolls_back_once_before_classifying(
             rollbacks.append("rollback")
             await rollback(*args, **kwargs)
 
-        monkeypatch.setattr(service, "_create_tools", fail)
+        monkeypatch.setattr(AllocationPreparation, "_create_tools", fail)
         monkeypatch.setattr(service, "_rollback_prepare", track_rollback)
         expected = (
             asyncio.CancelledError if isinstance(error, asyncio.CancelledError) else AllocationError
@@ -491,7 +492,7 @@ def test_prepare_does_not_translate_rollback_failure(
         async def fail_rollback(*args: object, **kwargs: object) -> None:
             raise cleanup_error
 
-        monkeypatch.setattr(service, "_create_tools", fail_prepare)
+        monkeypatch.setattr(AllocationPreparation, "_create_tools", fail_prepare)
         monkeypatch.setattr(service, "_rollback_prepare", fail_rollback)
         with pytest.raises(RuntimeError) as failure:
             await service.prepare(make_spec())
@@ -1352,7 +1353,7 @@ def test_resource_sampler_discarded_after_failed_or_cancelled_prepare(
                 await asyncio.Event().wait()
             raise RuntimeError("synthetic prepare failure")
 
-        monkeypatch.setattr(service, "_create_tools", fail)
+        monkeypatch.setattr(AllocationPreparation, "_create_tools", fail)
         spec = allocation_spec()
         spec.performance_metrics = PerformanceMetricsRequest(version=1, intervalSeconds=15)
         pending = asyncio.create_task(service.prepare(spec))
@@ -1743,7 +1744,7 @@ def test_failed_cache_release_keeps_the_slot_fenced_until_the_retry_repeats_it(
             raise RuntimeError("synthetic cache release failure")
         adk_caches.release_adk_tool_caches()
 
-    monkeypatch.setattr(allocation_service_module, "release_adk_tool_caches", release_once_failing)
+    monkeypatch.setattr(allocation_cleanup_module, "release_adk_tool_caches", release_once_failing)
 
     async def scenario() -> None:
         state, service = await make_service(

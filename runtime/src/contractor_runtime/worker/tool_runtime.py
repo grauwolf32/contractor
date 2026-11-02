@@ -29,6 +29,7 @@ from contractor_runtime.contracts import (
     WorkerResult,
 )
 from contractor_runtime.contracts.artifacts import MEMORY_ARTIFACT_PREFIX
+from contractor_runtime.core.async_tasks import join_owned_task
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.digests import jcs_digest, sha256_digest
 from contractor_runtime.toolsets.common.report_publications import notify_report_publication
@@ -60,20 +61,6 @@ FAILURE_CODES = frozenset(
 
 class ToolWorkerError(Exception):
     """Fixed, content-free execution diagnostic."""
-
-
-async def _join_owned_task(task: asyncio.Task) -> bool:
-    """Keep ownership through repeated cancellation; let the caller read the outcome."""
-
-    interrupted = False
-    while not task.done():
-        try:
-            # Like threads.to_thread_until_done, wait never forwards cancellation
-            # into the owned task or raises its exception before it is joined.
-            await asyncio.wait({task})
-        except asyncio.CancelledError:
-            interrupted = True
-    return interrupted
 
 
 def _check_deadline(deadline: float) -> None:
@@ -173,6 +160,7 @@ class ToolWorkerRuntime:
                 name not in fields or self._input.model_fields[name].is_required()
             ):
                 raise ValueError("optional artifact binding requires a callable default")
+        self._resources = context.resources
         self._state = context.state
         self.allocation_id = context.allocation_id
         self._active: asyncio.Task | None = None
@@ -312,7 +300,7 @@ class ToolWorkerRuntime:
             # must not interrupt a child that is joining after external cancel.
             if not task.done():
                 task.cancel()
-            interrupted = await _join_owned_task(task)
+            interrupted = await join_owned_task(task)
             if not task.cancelled():
                 task.exception()  # consume a failure that lost to cancellation
             if interrupted:
@@ -505,7 +493,7 @@ class ToolWorkerRuntime:
                 except Exception:
                     raise ToolWorkerError("tool_report_failed") from None
                 await notify_report_publication(
-                    self._state.report_publication_sink, self._execution.tool, report
+                    self._resources.report_publication_sink, self._execution.tool, report
                 )
                 if observation["status"] == "failed":
                     raise ToolWorkerError("tool_execution_failed")
@@ -522,7 +510,7 @@ class ToolWorkerRuntime:
             # Join it before the matching terminal revision is published. A
             # failed admission committed nothing (its error is already the
             # outcome), so it is joined without re-raising and not completed.
-            if await _join_owned_task(beginning):
+            if await join_owned_task(beginning):
                 error, cancelled = "tool_cancelled", True
             begun = not beginning.cancelled() and beginning.exception() is None
             if not begun:
@@ -563,8 +551,8 @@ class ToolWorkerRuntime:
             self._state.metrics.record_outcome("failed" if error else "succeeded")
 
             async def finish_state():
-                if begun and self._state.before_completion is not None:
-                    await self._state.before_completion()
+                if begun and self._resources.before_completion is not None:
+                    await self._resources.before_completion()
                 return await asyncio.wait_for(
                     self._state.complete_invocation(
                         invocation_id=invocation_id,
@@ -583,7 +571,7 @@ class ToolWorkerRuntime:
             finishing = asyncio.create_task(finish_state())
             # Read the bounded publication's result only after every repeated
             # cancellation has been absorbed and its work has actually settled.
-            cancelled = await _join_owned_task(finishing) or cancelled
+            cancelled = await join_owned_task(finishing) or cancelled
             try:
                 snapshot = finishing.result()
             except (Exception, asyncio.CancelledError):

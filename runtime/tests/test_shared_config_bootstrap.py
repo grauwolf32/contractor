@@ -406,6 +406,7 @@ def test_received_http_policy_controls_post_import_models_and_tools(monkeypatch)
         CapturedHTTPResponse,
         StructuredHTTPMessage,
     )
+    from contractor_runtime.toolsets.http import headers as http_headers
     from contractor_runtime.toolsets.http import tools as http_tools
 
     monkeypatch.setattr(
@@ -437,7 +438,7 @@ def test_received_http_policy_controls_post_import_models_and_tools(monkeypatch)
     with pytest.raises(http_tools.HTTPToolError):
         http_tools._request_body("text", "éxx")
     assert http_tools.decoded_body_cache_max_bytes() == 4 * 5 + 128
-    assert http_tools.request_header_max_bytes() == 6
+    assert http_headers.request_header_max_bytes() == 6
 
 
 def test_received_metadata_policy_controls_wire_validation_and_telemetry(monkeypatch):

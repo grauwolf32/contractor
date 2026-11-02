@@ -26,9 +26,9 @@ from contractor_runtime.contracts import ArtifactRef
 from contractor_runtime.llm.client import new_gateway_client
 from contractor_runtime.llm.openai import GatewayModelError, OpenAICompatibleGatewayLlm
 from contractor_runtime.worker.budget import _InvocationBudget
+from contractor_runtime.worker.completion import _latest_observed_exact_refs
 from contractor_runtime.worker.function_tools import ContractorFunctionTool
 from contractor_runtime.worker.instrumentation import WorkerInstrumentationPlugin
-from contractor_runtime.worker.runtime import _latest_observed_exact_refs
 
 TASK = "Exact objective; parameter=value; input=source@revision; subtask=7"
 
@@ -255,6 +255,7 @@ def test_real_runner_two_checkpoints_preserve_logical_owner_and_gateway_requests
 
         plugin = WorkerInstrumentationPlugin(
             state=state,
+            execution=state.resources.execution,
             budget=lambda: budget,
             instrumentation=None,
             model_alias="scripted",

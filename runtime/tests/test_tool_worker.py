@@ -13,11 +13,12 @@ from a2a.client import ClientConfig, ClientFactory
 from a2a.types import AgentCard
 from a2a.utils.constants import TransportProtocol
 from fakes.process_markers import atomic_marker_source
+from fakes.worker_state import WorkerState
 from google.protobuf.json_format import ParseDict
 from target_policy_fixtures import SCAN_TEST_POLICY
 from test_a2a_server import data_request, send
 
-from contractor_runtime.allocation import AllocationService, WorkerState
+from contractor_runtime.allocation import AllocationService
 from contractor_runtime.artifacts import (
     ArtifactClient,
     ArtifactHTTPResponse,
@@ -179,6 +180,7 @@ class FixtureTool:
 
 async def worker(tmp_path, store, tool, *, spec=None):
     spec = spec or tool_spec()
+    state = WorkerState()
     context = WorkerBuildContext(
         allocation_id=spec.allocation_id,
         run_id=spec.run_id,
@@ -194,7 +196,8 @@ async def worker(tmp_path, store, tool, *, spec=None):
         template_ref=spec.agent_template.ref,
         workspace=AllocationWorkspace(root=tmp_path, path=tmp_path),
         tools={tool.name: tool},
-        state=WorkerState(),
+        state=state,
+        resources=state.resources,
         a2a_base_url="https://runtime.invalid",
         runtime_settings=spec.runtime_settings,
         sensitive_output_tools=frozenset(),
