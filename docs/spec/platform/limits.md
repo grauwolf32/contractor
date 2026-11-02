@@ -704,7 +704,7 @@ its owning requirement.
 | `LIM-RTA-3` | 60 s | Total budget of opt-in Podman discovery | Runtime Agent capability discovery (Podman discovery) | [RTA-R13](../execution/runtime-agent.md) |
 | `LIM-RTA-4` | 30 s | Shared Podman profile and execution probe | Runtime Agent capability discovery (Podman discovery) | [RTA-R13](../execution/runtime-agent.md) |
 | `LIM-RTA-5` | 8 s | Cleanup reserve inside the shared Podman profile and execution probe (LIM-RTA-4) | Runtime Agent capability discovery (Podman discovery) | [RTA-R13](../execution/runtime-agent.md) |
-| `LIM-RTA-6` | 10 s (default of CONTRACTOR_SHUTDOWN_GRACE_SECONDS) | Stopping and destroying the Worker after local lease loss; also the bound before forced termination | Runtime Agent local watchdog | [RTA-R24](../execution/runtime-agent.md) |
+| `LIM-RTA-6` | 10 s (default of CONTRACTOR_SHUTDOWN_GRACE_SECONDS) | Stopping and destroying the Worker after local lease loss; one common budget for all graceful process cleanup, before forced termination | Runtime Agent local watchdog and process cleanup owner | [RTA-R24](../execution/runtime-agent.md), [RTA-R87](../execution/runtime-agent.md) |
 | `LIM-RTA-7` | 1 A2A address | Stable authenticated A2A address per Runtime Agent | Runtime Agent A2A server | [RTA-R71](../execution/runtime-agent.md) |
 | `LIM-RTA-8` | 1 skill | Contractor stage-content skills exposed on the allocation Agent Card | Runtime Agent Agent Card construction | [RTA-R73](../execution/runtime-agent.md) |
 | `LIM-RTA-9` | 1 sampler (with a constant-size accumulator) | Cancellable resource sampler per measured allocation | Runtime Agent resource collector | [RTA-R97](../execution/runtime-agent.md) |
