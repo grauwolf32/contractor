@@ -6,7 +6,8 @@ epic: execution-core
 kind: chore
 introduced_by: V438-003
 priority: P3
-status: in_progress
+status: completed
+implementation_commit: 24c7bad3a56f335511bef5446a629ad9944e3785
 depends_on: [V438-003]
 languages: [go]
 goal: Native Runtime fault tests reach the Runtime with the exact intended grant after an allocation identity changes.
@@ -39,3 +40,6 @@ acceptance_criteria:
   - {id: A3, text: "The complete tagged controlplane suite passes without relaxing core grant checks."}
 tests:
   - {command: "go test -tags=integration -count=1 ./internal/controlplane/...", covers: [A1, A2, A3]}
+verification:
+  before_fix: "Full tagged package run failed exactly the rollback/replacement and failed-cleanup competing-allocation cases at the new client authority check."
+  result: "Complete tagged controlplane and engagementadapter suites passed after advancing only the exact fixture grants; Runtime conflict assertions remain unchanged."

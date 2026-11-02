@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-82 open tasks: 14 in progress, 57 pending, 11 deferred. 1367 finished: 1349 completed, 18 archived.
+81 open tasks: 13 in progress, 57 pending, 11 deferred. 1368 finished: 1350 completed, 18 archived.
 
 ## In progress
 
@@ -24,7 +24,6 @@ the epics are in [epics.yml](epics.yml).
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
 | [V435-001](v435-001-server-owned-agent-labels.yml) | runtime-config | defect | P1 | Remove Runtime startup label assignments and keep agent infrastructure settings Server-owned |
 | [V438-004](v438-004-organize-registry-capability-matching.yml) | execution-core | chore | P2 | Organize Registry lifecycle and compile immutable capability lookups |
-| [V438-005](v438-005-native-harness-allocation-grants.yml) | execution-core | chore | P3 | Update native lifecycle fixture grants when testing another allocation |
 
 ## Pending
 
@@ -193,7 +192,7 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 4 | 47 | 65 | 33 | 92 |
+| Run execution core (`execution-core`) | 3 | 47 | 65 | 33 | 92 |
 | Planners and the Worker model boundary (`planner-worker`) | 9 | 35 | 49 | 30 | 75 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 10 | 26 | 14 | 5 | 45 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 3 | 13 |
