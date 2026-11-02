@@ -6,7 +6,7 @@ epic: projects-artifacts
 kind: chore
 introduced_by: V370-016
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V437-003]
 languages: [go]
 goal: "Artifact operations have separate domain, PostgreSQL registry and physical payload implementations."
@@ -47,3 +47,18 @@ tests:
     covers: [A1, A2]
   - command: "go test -count=1 -tags integration -p 2 ./internal/... ./cmd/..."
     covers: [A1, A2]
+implementation_commit: bd74d58c09025e2ce5d3b810254401c1034cfda3
+verification: >-
+  make lint passed. The complete Go integration suites under internal/... and
+  cmd/... passed with a TCP PostgreSQL test connection (-p 2). Complete Artifact
+  suites passed on PostgreSQL and filesystem; finding intake passed on filesystem.
+  Controlled replay/date/prepared-publication regressions passed with -race.
+  TestLocalGoToPythonArtifactCopy and TestArtifactHistoryAcrossProductionProcesses
+  passed through real Server/Runtime processes. The complete backup/restore
+  integration suite, ordinary e2e/Eval fixture suites, verify-public-api and
+  verify-architecture passed. Tagged integration/e2e test consumers compile.
+  SQL ownership and ERD are regenerated and consistent. The initial Unix-socket
+  full run was stopped after TCP keepalive/proxy test configuration failures;
+  its complete TCP replacement passed. Full browser and release-verify gates
+  were not run. Storage context injection remains pending in V437-005 by the
+  explicit scope decision above.
