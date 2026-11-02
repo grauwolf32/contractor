@@ -97,7 +97,7 @@ func TestModelStageHoldPostgresGivesReleasedSharedAgentToWaitingModelStage(t *te
 // can serve several Stages.
 func templateCapabilities(templates ...contracts.ResolvedAgentTemplate) control.AgentRegistration {
 	registration := control.AgentRegistration{
-		InitialLabels: []string{}, SupportedRuntimeAdapters: []runtimesettings.RuntimeAdapterRef{},
+		SupportedRuntimeAdapters: []runtimesettings.RuntimeAdapterRef{},
 	}
 	for _, template := range templates {
 		runtime := template.Runtime.RuntimeID + "@" + template.Runtime.Version

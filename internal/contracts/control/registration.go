@@ -25,7 +25,6 @@ type AgentRegistration struct {
 	StartedAt                           time.Time                            `json:"startedAt" strictjson:"required"`
 	ControlURL                          string                               `json:"controlUrl" strictjson:"required"`
 	A2AURL                              string                               `json:"a2aUrl" strictjson:"required"`
-	InitialLabels                       []string                             `json:"initialLabels" strictjson:"required"`
 	PlacementLabels                     []string                             `json:"placementLabels,omitempty"`
 	SupportedRuntimes                   []string                             `json:"supportedRuntimes" strictjson:"required"`
 	SupportedToolsets                   []ToolsetCapability                  `json:"supportedToolsets" strictjson:"required"`
@@ -68,9 +67,6 @@ func (r AgentRegistration) Validate() error {
 	if err := validateCapabilities(r.SupportedRuntimes, r.SupportedToolsets, r.SupportedSandboxProfiles); err != nil {
 		return err
 	}
-	if r.InitialLabels == nil || runtimesettings.ValidateCanonicalRuntimeLabels(r.InitialLabels) != nil {
-		return contracts.Invalidf("initialLabels must be a Runtime label set in canonical order")
-	}
 	if err := contracts.ValidatePlacementLabels(r.PlacementLabels); err != nil {
 		return err
 	}
@@ -112,7 +108,6 @@ func NormalizeAgentRegistration(source AgentRegistration) AgentRegistration {
 		value.CompletionContracts = append([]string{}, source.Capabilities.CompletionContracts...)
 		result.Capabilities = &value
 	}
-	result.InitialLabels = append([]string{}, source.InitialLabels...)
 	result.PlacementLabels = append([]string{}, source.PlacementLabels...)
 	result.SupportedRuntimes = append([]string{}, source.SupportedRuntimes...)
 	result.SupportedSandboxProfiles = append([]string{}, source.SupportedSandboxProfiles...)
@@ -129,7 +124,6 @@ func NormalizeAgentRegistration(source AgentRegistration) AgentRegistration {
 		result.SupportedToolsets[index].Tools = append([]string(nil), capability.Tools...)
 		sort.Strings(result.SupportedToolsets[index].Tools)
 	}
-	sort.Strings(result.InitialLabels)
 	sort.Strings(result.PlacementLabels)
 	sort.Strings(result.SupportedRuntimes)
 	sort.Strings(result.SupportedSandboxProfiles)
@@ -142,12 +136,10 @@ func NormalizeAgentRegistration(source AgentRegistration) AgentRegistration {
 	return result
 }
 
-// AgentRegistrationFingerprint excludes mutable observation and startup
-// configuration-label seeds. Placement labels are immutable and remain in the
-// fingerprint. It is not the TLS principal fingerprint.
+// AgentRegistrationFingerprint excludes mutable observation. Placement labels
+// are immutable and remain in the fingerprint. It is not the TLS principal fingerprint.
 func AgentRegistrationFingerprint(source AgentRegistration) (string, error) {
 	normalized := NormalizeAgentRegistration(source)
-	normalized.InitialLabels = nil
 	normalized.ObservedState = ""
 	normalized.AllocationID = nil
 	canonical, err := strictjson.Canonical(normalized)

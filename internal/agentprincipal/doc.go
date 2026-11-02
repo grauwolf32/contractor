@@ -1,7 +1,7 @@
 // Package agentprincipal is the durable registry of Runtime Agent
 // principals: the certificate-key identity a Runtime Agent registers with,
-// the Runtime labels assigned to it and their revision. It seeds a principal
-// at its first registration, replaces labels and deletes principals under
+// the Runtime labels assigned to it and their revision. It creates an unlabeled
+// principal at its first registration, replaces labels and deletes principals under
 // CAS with idempotent Runtime management receipts, and serves RuntimeConfig
 // label management the principals that hold a label
 // (runtimeconfig.LabelHolders). The label grammar, bindings and their

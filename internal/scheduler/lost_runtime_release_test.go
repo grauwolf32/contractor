@@ -59,8 +59,8 @@ func registerTerminalReleaseGrant(
 	registration := control.AgentRegistration{
 		APIVersion: contracts.APIVersion, InstanceID: "unreachable-runtime", SoftwareVersion: "0.1.0",
 		StartedAt: options.Now(), ControlURL: "https://unreachable.example:9443", A2AURL: "https://unreachable.example:9444",
-		InitialLabels: []string{}, SupportedRuntimeAdapters: []runtimesettings.RuntimeAdapterRef{},
-		SupportedRuntimes: []string{"adk@1"},
+		SupportedRuntimeAdapters: []runtimesettings.RuntimeAdapterRef{},
+		SupportedRuntimes:        []string{"adk@1"},
 		SupportedToolsets: []control.ToolsetCapability{{
 			Ref: "run-artifacts@1", Tools: []string{"list_artifacts", "read_artifact", "write_artifact"},
 		}},

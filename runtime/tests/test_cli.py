@@ -80,7 +80,7 @@ def test_shutdown_cancels_inflight_heartbeat_and_stops_listener(
 
 
 _LABELS_REJECTED = (
-    b'{"code":"invalid_runtime_labels","message":"Runtime Agent labels cannot be registered",'
+    b'{"code":"invalid_request","message":"request does not satisfy the private API contract",'
     b'"retryable":false,"requestId":"request_1"}'
 )
 
@@ -121,7 +121,7 @@ def test_permanent_registration_rejection_fails_startup_and_stops_listener(
         )
         monkeypatch.setattr(runtime_cli, "log_runtime_certificate_expiry", lambda *_, **__: None)
 
-        with pytest.raises(RegistrationRejectedError, match="HTTP 400 invalid_runtime_labels"):
+        with pytest.raises(RegistrationRejectedError, match="HTTP 400 invalid_request"):
             await asyncio.wait_for(
                 runtime_cli.serve(
                     make_settings(tmp_path),
@@ -167,7 +167,7 @@ def test_main_reports_permanent_registration_rejection(
     messages = [record.getMessage() for record in caplog.records]
     assert any(
         "runtime agent failed: Control Plane rejected the Runtime Agent registration "
-        "permanently (HTTP 400 invalid_runtime_labels, request request_1)" in message
+        "permanently (HTTP 400 invalid_request, request request_1)" in message
         for message in messages
     ), messages
     assert not any("labels cannot be registered" in message for message in messages)

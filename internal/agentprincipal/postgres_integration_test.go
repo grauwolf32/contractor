@@ -130,7 +130,7 @@ func TestPostgresPrincipalAdapterPagesBatchAndPreserveSnapshot(t *testing.T) {
 	}
 }
 
-func TestPostgresRuntimeAgentPrincipalSeedCASAndDelete(t *testing.T) {
+func TestPostgresRuntimeAgentPrincipalRegistrationCASAndDelete(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedPrincipalPool(t, ctx)
@@ -178,26 +178,52 @@ func TestPostgresRuntimeAgentPrincipalSeedCASAndDelete(t *testing.T) {
 		t.Fatal(err)
 	}
 	principalID := strings.Repeat("a", 64)
-	created, err := service.Register(ctx, principalID, []string{"agent-route"})
-	if err != nil || created.LabelRevision != 1 || !slices.Equal(created.Labels, []string{"agent-route"}) {
-		t.Fatalf("created principal = (%+v, %v)", created, err)
+	// Concurrent first registrations converge on one empty, revision-1 principal.
+	type registrationResult struct {
+		principal Principal
+		err       error
 	}
-	// Startup arguments are seed-only after the first successful registration.
-	replayed, err := service.Register(ctx, principalID, []string{})
-	if err != nil || replayed.LabelRevision != 1 || !slices.Equal(replayed.Labels, created.Labels) {
-		t.Fatalf("replayed principal = (%+v, %v)", replayed, err)
+	registrations := make(chan registrationResult, 2)
+	start := make(chan struct{})
+	for range 2 {
+		go func() {
+			<-start
+			principal, err := service.Register(ctx, principalID)
+			registrations <- registrationResult{principal, err}
+		}()
+	}
+	close(start)
+	for range 2 {
+		created := <-registrations
+		if created.err != nil || created.principal.LabelRevision != 1 ||
+			created.principal.Labels == nil || len(created.principal.Labels) != 0 {
+			t.Fatalf("created unlabeled principal = (%+v, %v)", created.principal, created.err)
+		}
+	}
+	assigned := registerPrincipalWithLabels(t, ctx, service, principalID, []string{"agent-route"})
+	// Process restarts and registration retries cannot overwrite Operations assignments.
+	restartedService, err := NewService(ServiceOptions{
+		Pool: pool, DeletionGuard: guard, Now: func() time.Time { return now.Add(time.Hour) },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	replayed, err := restartedService.Register(ctx, principalID)
+	if err != nil || replayed.LabelRevision != assigned.LabelRevision || !slices.Equal(replayed.Labels, assigned.Labels) ||
+		!replayed.UpdatedAt.Equal(assigned.UpdatedAt) || replayed.UpdatedBy != assigned.UpdatedBy {
+		t.Fatalf("replayed principal = (%+v, %v), want %+v", replayed, err, assigned)
 	}
 	// The refusal still matches runtimeconfig.ErrConflict, but the public API
 	// answers its own 409 runtime_agent_in_use.
 	if _, err := service.DeleteIdempotent(
-		ctx, principalID, 1, "principal-delete-labeled", "operator", now.Add(time.Minute),
+		ctx, principalID, 2, "principal-delete-labeled", "operator", now.Add(time.Minute),
 	); !errors.Is(err, ErrInUse) || !errors.Is(err, runtimeconfig.ErrConflict) {
 		t.Fatalf("delete labeled principal error = %v", err)
 	} else if classified, ok := apierror.Of(err); !ok || classified.ErrorKind() != apierror.RuntimeAgentInUse {
 		t.Fatalf("delete labeled principal answers %v, want runtime_agent_in_use", err)
 	}
 	if _, err := service.ReplaceLabelsIdempotent(
-		ctx, principalID, 1, []string{"missing"}, "principal-unknown-label", "operator", now.Add(time.Minute),
+		ctx, principalID, 2, []string{"missing"}, "principal-unknown-label", "operator", now.Add(time.Minute),
 	); !errors.Is(err, runtimeconfig.ErrUnknownLabel) || !errors.Is(err, runtimeconfig.ErrNotFound) {
 		t.Fatalf("unknown body label error = %v", err)
 	}
@@ -216,7 +242,7 @@ func TestPostgresRuntimeAgentPrincipalSeedCASAndDelete(t *testing.T) {
 	for _, key := range []string{"principal-labels-a", "principal-labels-b"} {
 		go func(key string) {
 			result, replaceErr := service.ReplaceLabelsIdempotent(
-				ctx, principalID, 1, []string{}, key, "operator", now.Add(time.Minute),
+				ctx, principalID, 2, []string{}, key, "operator", now.Add(time.Minute),
 			)
 			results <- concurrentResult{key: key, result: result, err: replaceErr}
 		}(key)
@@ -236,36 +262,36 @@ func TestPostgresRuntimeAgentPrincipalSeedCASAndDelete(t *testing.T) {
 		}
 	}
 	if successes != 1 || preconditions != 1 || successful.result.Principal == nil ||
-		successful.result.Principal.LabelRevision != 2 || len(successful.result.Principal.Labels) != 0 {
+		successful.result.Principal.LabelRevision != 3 || len(successful.result.Principal.Labels) != 0 {
 		t.Fatalf("concurrent label replacements = success %d precondition %d result %+v", successes, preconditions, successful)
 	}
 	replayedMutation, err := service.ReplaceLabelsIdempotent(
-		ctx, principalID, 1, []string{}, successful.key, "operator", now.Add(time.Minute),
+		ctx, principalID, 2, []string{}, successful.key, "operator", now.Add(time.Minute),
 	)
 	if err != nil || !replayedMutation.Replayed || replayedMutation.Principal == nil ||
-		replayedMutation.Principal.LabelRevision != 2 {
+		replayedMutation.Principal.LabelRevision != 3 {
 		t.Fatalf("label response-loss replay = (%+v, %v)", replayedMutation, err)
 	}
 	// The same key with other labels is a different request: permanent, and
 	// the replayed result stays the original one.
 	if _, err := service.ReplaceLabelsIdempotent(
-		ctx, principalID, 1, []string{"agent-route"}, successful.key, "operator", now.Add(time.Minute),
+		ctx, principalID, 2, []string{"agent-route"}, successful.key, "operator", now.Add(time.Minute),
 	); !errors.Is(err, contracts.ErrIdempotencyConflict) || errors.Is(err, runtimeconfig.ErrConflict) {
 		t.Fatalf("label key reused with another request error = %v", err)
 	}
 	if _, err := service.ReplaceLabelsIdempotent(
-		ctx, principalID, 1, []string{}, "principal-stale", "operator", now.Add(2*time.Minute),
+		ctx, principalID, 2, []string{}, "principal-stale", "operator", now.Add(2*time.Minute),
 	); !errors.Is(err, runtimeconfig.ErrPrecondition) {
 		t.Fatalf("stale principal CAS error = %v", err)
 	}
 	deleted, err := service.DeleteIdempotent(
-		ctx, principalID, 2, "principal-delete", "operator", now.Add(2*time.Minute),
+		ctx, principalID, 3, "principal-delete", "operator", now.Add(2*time.Minute),
 	)
 	if err != nil || !deleted.Deleted || deleted.Replayed {
 		t.Fatalf("delete empty offline principal = (%+v, %v)", deleted, err)
 	}
 	deleteReplay, err := service.DeleteIdempotent(
-		ctx, principalID, 2, "principal-delete", "operator", now.Add(2*time.Minute),
+		ctx, principalID, 3, "principal-delete", "operator", now.Add(2*time.Minute),
 	)
 	if err != nil || !deleteReplay.Deleted || !deleteReplay.Replayed {
 		t.Fatalf("delete response-loss replay = (%+v, %v)", deleteReplay, err)
@@ -276,6 +302,22 @@ func TestPostgresRuntimeAgentPrincipalSeedCASAndDelete(t *testing.T) {
 	if guard.begins != 2 || guard.releases != 2 {
 		t.Fatalf("deletion guard calls = begin %d release %d", guard.begins, guard.releases)
 	}
+}
+
+// registerPrincipalWithLabels sets up Server-owned assignments through the same
+// durable CAS path used by Operations, after ordinary unlabeled registration.
+func registerPrincipalWithLabels(t *testing.T, ctx context.Context, service *Service, id string, labels []string) Principal {
+	t.Helper()
+	principal, err := service.Register(ctx, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assigned, err := service.ReplaceLabelsIdempotent(ctx, id, principal.LabelRevision, labels,
+		"assign-"+id, "operator", service.now())
+	if err != nil || assigned.Principal == nil {
+		t.Fatalf("assign principal labels = (%+v, %v)", assigned, err)
+	}
+	return *assigned.Principal
 }
 
 type recordingDeletionGuard struct {

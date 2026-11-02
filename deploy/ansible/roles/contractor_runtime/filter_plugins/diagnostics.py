@@ -39,7 +39,6 @@ def input_errors(instances, defaults):
     ]
     sequence_fields = [
         "extra_args",
-        "labels",
         "placement_labels",
         "allowed_target_networks",
         "cert_dns",

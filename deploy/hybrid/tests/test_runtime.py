@@ -38,7 +38,6 @@ class RuntimePlacement(unittest.TestCase):
             version="HEAD",
             full_capabilities=False,
             defer_restarts=False,
-            labels=["cloud-llm"],
         )
         self.document = {
             "version": 1,
@@ -94,7 +93,7 @@ class RuntimePlacement(unittest.TestCase):
                     self.inventory()
                     self.assertEqual(path.read_bytes(), first)
                     config = json.loads(first)["contractor_runtime"]
-                    self.assertEqual(config["vars"]["contractor_runtime_labels"], ["cloud-llm"])
+                    self.assertNotIn("contractor_runtime_labels", config["vars"])
                     self.assertEqual(config["vars"]["contractor_runtime_restart"], not deferred)
                     for source in self.document["hosts"]:
                         host = config["hosts"][source["ssh"]]

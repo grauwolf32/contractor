@@ -64,8 +64,7 @@ contractor pki issue-runtime --name agent-proxy
 contractor pki issue-runtime --name agent-telemetry
 ```
 
-After binding an optional startup label such as `site-proxy`, start the first
-process with its own certificate and an immutable adapter subset:
+Start the first process with its own certificate and an immutable adapter subset:
 
 ```shell
 cd runtime
@@ -78,7 +77,6 @@ uv run contractor-runtime \
   --private-key-file ../.local/pki/agents/agent-proxy.key \
   --listen 127.0.0.1:9443 \
   --work-root ../.local/runtime/agent-proxy \
-  --initial-label site-proxy \
   --runtime-adapter http-proxy@1
 ```
 
@@ -98,9 +96,13 @@ file `contractor-runtime.lock` (a single-link regular file, mode 0600) in each
 root. It stays after the Runtime stops and is not leftover work; do not delete
 it while any Runtime may use that root, or two processes can own the same root.
 Omit `--runtime-adapter` to probe all built-ins, or
-repeat it for an explicit subset. Startup labels seed only a previously unseen
-certificate principal; subsequent assignments use CAS on
+repeat it for an explicit subset. A new certificate principal starts with no
+configuration labels. After registration, bind a label such as `site-proxy` and
+assign it through Operations using CAS on
 `PUT /v1/operations/runtime-agent-principals/{runtimeAgentId}/labels`.
+
+Deploy Server and Runtime from the same revision: registration no longer accepts
+startup label assignments. Existing Server-managed labels need no data migration.
 
 Inspect certificate identity, authoritative labels and safe adapter capability
 without receiving an endpoint or credential value:
@@ -188,7 +190,7 @@ of at most 63 ASCII bytes each, and all values must form one ancestor chain.
 The Runtime publishes its location at registration, and Operations returns it
 as `live.placementLabels` on the Runtime principal. Changing the declaration
 requires a new process incarnation. It needs no RuntimeConfig binding and is
-independent of the durable configuration labels seeded by `--initial-label`.
+independent of the durable configuration labels assigned through Operations.
 For Ansible, set `contractor_runtime_placement_labels` at host/group level or
 `placement_labels` on an instance.
 

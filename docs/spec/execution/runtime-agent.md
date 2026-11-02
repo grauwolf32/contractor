@@ -246,7 +246,8 @@ invalid paths, incompatible branches and limit violations before registration,
 using the shared placement grammar owned by
 [CTL-R156](control-plane.md) and LIM-CTL-11/LIM-CTL-12. It publishes the
 same declaration for every registration of this process incarnation. These
-arguments are separate from configuration-label seeds (`--initial-label`).
+arguments never assign RuntimeConfig labels; those are managed through Server
+Operations ([CTL-R26](control-plane.md)).
 
 ### Startup capability discovery
 

@@ -44,27 +44,9 @@ func ValidateAgentLabels(labels []string) error {
 	return nil
 }
 
-// LockAgentLabels share-locks the bindings of an agent label set in db's
-// transaction and requires every bound RuntimeConfig to carry a Worker
-// setting (ErrAgentLabelNotApplicable) and the set to merge in one layer.
-func LockAgentLabels(ctx context.Context, db persistencepostgres.DBTX, labels []string) error {
-	if err := ValidateAgentLabels(labels); err != nil {
-		return err
-	}
-	repository := NewRepository(db)
-	bindings, err := repository.LockBindings(ctx, labels)
-	if err != nil {
-		return err
-	}
-	versions, err := repository.versionsOfBindings(ctx, bindings)
-	if err != nil {
-		return err
-	}
-	return validateAgentLayer(bindings, versions)
-}
-
-// ValidateLockedAgentLabels applies the LockAgentLabels rules to bindings the
-// caller has already locked; a missing binding is ErrUnknownLabel.
+// ValidateLockedAgentLabels requires each bound RuntimeConfig to carry a Worker
+// setting (ErrAgentLabelNotApplicable) and the set to merge in one layer. The
+// caller has already locked the bindings; a missing one is ErrUnknownLabel.
 func ValidateLockedAgentLabels(ctx context.Context, db persistencepostgres.DBTX, labels []string) error {
 	return validateLockedAgentLabelSets(ctx, db, [][]string{labels})
 }
