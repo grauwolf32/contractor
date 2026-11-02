@@ -1,0 +1,91 @@
+schema_version: "1.0"
+id: V429-025
+title: Explore a clearer Operations overview with OpenDesign
+milestone: ui-journey-usability
+epic: ui
+kind: feature
+priority: P2
+status: in_progress
+depends_on: [V429-024]
+languages: [typescript, javascript, html, css]
+goal: Operators can scan execution slots, current roles and reconciliation warnings in a consistent Operations overview and inspect the source facts without confusing idle capacity, transport freshness or observed state with execution guarantees.
+demonstration: Capture the actual React Operations overview with schema-valid synthetic snapshots, use the isolated OpenDesign instance and unchanged configured Contractor model to produce a new native design, then show a working local comparison with normal, attention, empty, reconnecting and read-failure states at desktop and phone widths.
+context:
+  authority: >-
+    User 2026-11-02 chooses Operations as the next UI screen to improve after
+    the approved New check transfer. The established workflow uses OpenDesign
+    and presents a preview before production transfer. Agent proposal: begin
+    with Operations Overview and its navigation, slot summary, attention and
+    bounded drill-downs from existing snapshot facts; retain other section destinations.
+  specification: docs/spec/operations/operations.md
+  design: docs/design/ui/README.md
+  decision: >-
+    Production APIs, execution state, capabilities and write controls remain
+    unchanged in this exploration. Current React captures and generated schemas
+    define source facts. The local controller owns fixture switching, navigation
+    acknowledgements and read-only disclosures; OpenDesign owns the presentation.
+    A new native project receives only explicit synthetic references and shared
+    tokens/fonts. Use the existing isolated internal-only container and bounded
+    single-model Contractor gateway relay; verify complete backups and preserve
+    every previous native project, conversation and file. Review feedback shapes
+    a separately authorized production transfer.
+scope:
+  in:
+    - Actual Operations baseline and schema-validated synthetic normal/attention/empty/reconnecting/error snapshots.
+    - Genuine OpenDesign generation with current shared fonts, tokens, icons and clear observation/assignment distinctions.
+    - Responsive local comparison, bounded read-only Runtime/allocation drill-downs and reachable section navigation.
+    - Immutable inputs/native output/provenance, before/after backup and preservation proof, relay cleanup and visual verification.
+  out:
+    - Production UI transfer, main merge, deployment, execution/configuration mutations, new APIs and invented queue or performance telemetry.
+requirements:
+  - id: R1
+    text: Overview leads with observed slot distribution and actionable reconciliation facts while preserving full identities/capabilities/lease and observed-versus-authoritative details on demand.
+  - id: R2
+    text: Only provided snapshot facts determine counts; idle is not compatible Run capacity, allocated observation is not proof of a running Worker, and reconnection/read failure never shows fabricated zero or healthy values.
+  - id: R3
+    text: A real OpenDesign run produces a token-only responsive presentation without changing the preserved controller, fixtures or prior native data.
+  - id: R4
+    text: The live preview works in all three themes and at 1440/1100/390/320px, keeps navigation labelled and controls reachable, and performs no business writes or external resource requests.
+failure_outcomes:
+  - operation: Native design generation
+    permanent: Retain the input, run receipt and diagnostic metadata; preserve originals and show only verified output.
+    retryable: At most one deliberate continuation within the same bounded relay budget and model; no automatic retry of an ambiguous submission.
+    ambiguous: Save client request identity before submission and reconcile native project/run state before another submission.
+    cancelled: Stop only the owned design run and relay; keep the new project and outputs for recovery.
+    timeout: Increase the bounded design wait rather than change the model; expire and stop the one-hour relay.
+  - operation: Read-only preview interactions
+    permanent: Show explicit synthetic error/unknown state without fabricated health or counts.
+    retryable: Local Refresh acknowledges the simulated reread; no production mutation or background network retry.
+    ambiguous: No business writes.
+    cancelled: Closing the browser or preview stops local interaction only.
+    timeout: Preview has no long-running external operations.
+cardinality:
+  - collection: Synthetic Operations snapshot
+    expected: Six Runtime Agents and a few current allocations
+    maximum: Eight agents and six allocations per explicit fixture
+    bound: One bounded fixture render; no live deployment inventory scan or new polling loop.
+  - collection: Generation inputs and requests
+    expected: One brief, one functional seed, current screenshots and shared tokens
+    maximum: One new native project and 24 model requests before one-hour relay expiry
+    bound: Existing internal-only file/network sandbox, no host repository/secret mounts and only the configured gateway route.
+lifecycle:
+  - entity: Operations design experiment
+    delete: No prior assets or native data are deleted; no cleanup of user business data.
+    cascade: No new production entities.
+    retention: Keep exact inputs, generation output, conversation/run provenance, comparisons and verified recovery archives.
+acceptance_criteria:
+  - id: A1
+    text: Baseline captures render the real React Overview; synthetic inputs validate against the public schema and the preview's counts and state distinctions match them.
+  - id: A2
+    text: A successful native OpenDesign generation changes only presentation and every prior native project file and history row remains identical in verified before/after backups; relay is stopped and upstream credential removed.
+  - id: A3
+    text: Theme/width/scenario checks, local controls, technical disclosures, labelled navigation and no-overflow/no-business-write checks pass; the generated preview is visually inspected and opened for the user.
+tests:
+  - command: node docs/design/ui/experiments/operations-opendesign-2026-11-02/verify.mjs
+    covers: [A1, A2, A3]
+  - command: python3 scripts/check_tasks.py
+    covers: [A3]
+  - command: python3 scripts/check_spec.py
+    covers: [A1]
+  - command: git diff --check
+    covers: [A1, A2, A3]
