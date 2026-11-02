@@ -24,6 +24,11 @@ context:
     - docs/spec/configuration/catalog.md
   finding: >-
     internal/httpapi/public/project_handlers.go:183 owns patch merge and credential fencing; run_repeat_handlers.go:63 owns exact input/configuration availability and notices.
+  credential_port: >-
+    ProjectStore does not import Credentials: composition supplies a narrow
+    credential-validation function and the existing lifecycle guard. This avoids
+    cycles in Credentials/RunStore real-store tests while retaining the same
+    credential authority and lock interval.
   boundary: >-
     HTTP owns wire validation and rendering; domain owners own edits, exact repeat availability and compatibility. Existing transfer slots, fences, receipts and immutable catalog snapshots remain authoritative.
   decision: >-

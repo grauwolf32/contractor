@@ -53,6 +53,7 @@ type testProjects interface {
 type testRuntimeCredentials interface {
 	RuntimeCredentialManagement
 	projectstore.EditCredentialGuard
+	runservice.RuntimeCredentialValidator
 }
 
 // testServices is the flat set of services a test handler is built from.
@@ -137,7 +138,7 @@ func (s testServices) dependencies() Dependencies {
 			OperationsInvalidator: s.OperationsInvalidator,
 		},
 		Projects: ProjectDependencies{
-			Projects: s.Projects, Editor: projectstore.NewEditor(s.Projects, s.RuntimeCredentials),
+			Projects: s.Projects, Editor: testProjectEditor(s.Projects, s.RuntimeCredentials),
 			Sitemap:                 s.Sitemap,
 			ProjectDeletionNotifier: s.ProjectDeletionNotifier, NewID: s.NewID,
 		},
@@ -393,4 +394,10 @@ func testCapabilitySnapshot(catalog testCatalog) func() *config.Snapshot {
 	default:
 		panic("test catalog provides no immutable snapshot")
 	}
+}
+
+func testProjectEditor(projects projectstore.EditStore, validator testRuntimeCredentials) *projectstore.Editor {
+	return projectstore.NewEditor(projects, validator, func(ctx context.Context, ownerID string, operations bool, credentialID, kind string) error {
+		return validator.ValidateRuntimeCredentialUse(ctx, credentials.RuntimeCredentialUser{UserID: ownerID, Operations: operations}, credentialID, kind)
+	})
 }

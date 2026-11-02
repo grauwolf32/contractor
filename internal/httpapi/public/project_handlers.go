@@ -162,8 +162,9 @@ func (h *projectHandlers) updateProject(w http.ResponseWriter, r *http.Request) 
 	if request.HTTPTarget != nil {
 		target = &runtimesettings.HTTPOriginTargetRef{URL: request.HTTPTarget.URL, Credential: request.HTTPTarget.Credential}
 	}
+	actor := runtimeCredentialUser(r.Context())
 	project, err := h.Editor.Edit(r.Context(), projectstore.EditParams{
-		Actor: runtimeCredentialUser(r.Context()), ProjectID: r.PathValue("projectId"), ExpectedRevision: revision,
+		OwnerID: actor.UserID, OperationsPrincipal: actor.Operations, ProjectID: r.PathValue("projectId"), ExpectedRevision: revision,
 		Name: request.Name, Description: request.Description, HTTPTarget: target, SetHTTPTarget: request.targetSet, ActiveChecks: request.ActiveChecks,
 	})
 	if err != nil {

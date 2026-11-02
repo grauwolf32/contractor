@@ -342,7 +342,7 @@ func TestProjectHTTPTargetRejectsAnotherOwnersCredential(t *testing.T) {
 				Lifecycle: projectstore.LifecycleActive, Name: "Target", Revision: 1, CreatedAt: now, UpdatedAt: now,
 			}
 			current := &projectHandlers{ProjectDependencies: ProjectDependencies{
-				Projects: fixture.projects, Editor: projectstore.NewEditor(fixture.projects, fixture.runtimeCredentials),
+				Projects: fixture.projects, Editor: testProjectEditor(fixture.projects, fixture.runtimeCredentials),
 			}}
 			request := httptest.NewRequest(http.MethodPatch, "/v1/projects/project-target", bytes.NewReader([]byte(
 				`{"httpTarget":{"url":"https://attacker.example.test","credential":{"credentialId":"origin","kind":"http-origin-bearer@1"}}}`,

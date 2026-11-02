@@ -21,10 +21,17 @@ func (h *runRepeatHandlers) getRunRepeatDraft(w http.ResponseWriter, r *http.Req
 	if err != nil {
 		return err
 	}
-	response := runRepeatDraftResponse{SourceRunID: source.SourceRunID, Authority: source.Authority, Workflow: source.Workflow, ProjectID: source.ProjectID, AuditID: source.AuditID, Notices: source.Notices}
+	response := runRepeatDraftResponse{
+		SourceRunID: source.SourceRunID, Authority: source.Authority, Workflow: source.Workflow,
+		ProjectID: source.ProjectID, AuditID: source.AuditID, Notices: source.Notices,
+	}
 	if source.Draft != nil {
 		draft := source.Draft
-		response.Draft = &runRepeatDraft{RequiredPlacementLabels: draft.RequiredPlacementLabels, Parameters: draft.Parameters, RuntimeLabels: draft.RuntimeLabels, Labels: draft.Labels, Inputs: make(map[string]runRepeatInputSelection, len(draft.Inputs))}
+		response.Draft = &runRepeatDraft{
+			RequiredPlacementLabels: draft.RequiredPlacementLabels,
+			Parameters:              draft.Parameters, RuntimeLabels: draft.RuntimeLabels, Labels: draft.Labels,
+			Inputs: make(map[string]runRepeatInputSelection, len(draft.Inputs)),
+		}
 		for slot, input := range draft.Inputs {
 			selection := runRepeatInputSelection{Status: input.Status, SourceScope: input.SourceScope, Artifact: input.Artifact, Code: input.Code, Message: input.Message}
 			if input.Metadata != nil {

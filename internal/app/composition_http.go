@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auth"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/controlplane"
+	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/gitimport"
 	"github.com/grauwolf32/contractor/internal/helpers/randomid"
@@ -79,6 +81,9 @@ func configureHTTP(
 		return serverHandlers{}, fmt.Errorf("configure Run detail reader: %w", err)
 	}
 	projects := projectstore.NewPostgresStore(pool)
+	projectEditor := projectstore.NewEditor(projects, credentialSet.runtime, func(ctx context.Context, ownerID string, operations bool, credentialID, kind string) error {
+		return credentialSet.runtime.ValidateRuntimeCredentialUse(ctx, credentials.RuntimeCredentialUser{UserID: ownerID, Operations: operations}, credentialID, kind)
+	})
 	publicHandler, err := publicapi.NewHandler(publicapi.Dependencies{
 		BearerToken:  cfg.PublicBearerToken,
 		NewRequestID: func() (string, error) { return randomid.New("request_") },
@@ -92,7 +97,7 @@ func configureHTTP(
 			OperationsInvalidator: control.registry,
 		},
 		Projects: publicapi.ProjectDependencies{
-			Projects: projects, Editor: projectstore.NewEditor(projects, credentialSet.runtime),
+			Projects: projects, Editor: projectEditor,
 			Sitemap:                 projectsitemap.NewService(pool, storage),
 			ProjectDeletionNotifier: workflows.projectDeletion, NewID: randomid.New,
 		},
