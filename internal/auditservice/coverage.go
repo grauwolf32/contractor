@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 )
@@ -16,7 +18,7 @@ func (s *Service) describeCoverage(ctx context.Context, projectID string, rows [
 	if err != nil {
 		return nil, err
 	}
-	repository := artifacts.NewPostgresRepository(s.pool)
+	repository := artifactpostgres.NewRepository(s.pool)
 	// Deduplicate shared batch results and decode each result archive once. Reads
 	// retain the repository's combined byte limit and exact-revision checks.
 	tasks, results := make(map[string][]int), make(map[string][]int)
@@ -46,12 +48,12 @@ func (s *Service) describeCoverage(ctx context.Context, projectID string, rows [
 	}
 	var readBatch func([]string) error
 	readBatch = func(batch []string) error {
-		requests := make([]artifacts.ExactReadRequest, len(batch))
+		requests := make([]artifactpostgres.ExactReadRequest, len(batch))
 		for index, key := range batch {
-			requests[index] = artifacts.ExactReadRequest{Scope: scope, Ref: refs[key].Ref}
+			requests[index] = artifactpostgres.ExactReadRequest{Scope: scope, Ref: refs[key].Ref}
 		}
 		reads, err := repository.ReadExactBatch(ctx, requests)
-		if errors.Is(err, artifacts.ErrPayloadTooLarge) && len(batch) > 1 {
+		if errors.Is(err, blob.ErrTooLarge) && len(batch) > 1 {
 			middle := len(batch) / 2
 			if err := readBatch(batch[:middle]); err != nil {
 				return err
@@ -64,7 +66,7 @@ func (s *Service) describeCoverage(ctx context.Context, projectID string, rows [
 		for index, read := range reads {
 			key := batch[index]
 			if read.Payload.MediaType != auditdomain.PackageMediaType || auditdomain.DigestBytes(read.Payload.Data) != refs[key].Digest {
-				return artifacts.ErrArtifactIntegrity
+				return blob.ErrIntegrity
 			}
 			if len(tasks[key]) != 0 {
 				for _, rowIndex := range tasks[key] {
@@ -76,7 +78,7 @@ func (s *Service) describeCoverage(ctx context.Context, projectID string, rows [
 			if len(results[key]) != 0 {
 				pkg, err := auditdomain.DecodeCheckResultPackage(read.Payload.Data)
 				if err != nil {
-					return artifacts.ErrArtifactIntegrity
+					return blob.ErrIntegrity
 				}
 				for _, rowIndex := range results[key] {
 					if err := describeCoverageResult(pkg, &rows[rowIndex]); err != nil {
@@ -98,15 +100,15 @@ func (s *Service) describeCoverage(ctx context.Context, projectID string, rows [
 func describeCoverageTask(payload []byte, row *auditstore.CoverageRow) error {
 	pkg, err := auditdomain.ValidatePackage(payload)
 	if err != nil || pkg.Manifest.Kind != auditdomain.PackageKindTask || len(pkg.Members()) != 1 {
-		return artifacts.ErrArtifactIntegrity
+		return blob.ErrIntegrity
 	}
 	member, exists := pkg.MemberByID("task-document")
 	if !exists || member.Metadata().Path != "task.json" || member.Metadata().MediaType != auditdomain.JSONMediaType {
-		return artifacts.ErrArtifactIntegrity
+		return blob.ErrIntegrity
 	}
 	task, err := auditdomain.DecodeItemTask(member.Data())
 	if err != nil || task.ItemKey != row.ItemKey || task.SubjectKey != row.SubjectKey {
-		return artifacts.ErrArtifactIntegrity
+		return blob.ErrIntegrity
 	}
 	details := row.Details
 	details.TaskDocument = member.Data()
@@ -160,5 +162,5 @@ func describeCoverageResult(pkg auditdomain.CheckResultPackage, row *auditstore.
 		}
 		return nil
 	}
-	return artifacts.ErrArtifactIntegrity
+	return blob.ErrIntegrity
 }

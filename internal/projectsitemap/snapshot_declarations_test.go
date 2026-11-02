@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 )
 
 func TestPostgresSitemapSnapshotPreservesSelectedConcreteDeclarations(t *testing.T) {
@@ -64,7 +65,7 @@ func TestPostgresSitemapSnapshotPreservesSelectedConcreteDeclarations(t *testing
 				if err != nil {
 					t.Fatal(err)
 				}
-				run, err := artifacts.NewService(artifacts.NewPostgresRepository(pool)).Run(access.RunID)
+				run, err := artifacts.NewService(artifactpostgres.NewRepository(pool)).Run(access.RunID)
 				if err != nil {
 					t.Fatal(err)
 				}

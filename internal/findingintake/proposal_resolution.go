@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/jackc/pgx/v5"
 )
@@ -69,7 +69,7 @@ func (s *Service) ResolveAuditProposals(
 		case len(matched) > 1:
 			return nil, ErrConflict
 		case matched[0].heldProposalInvalid:
-			return nil, artifacts.ErrArtifactIntegrity
+			return nil, blob.ErrIntegrity
 		}
 		receipts[index] = matched[0].receipt
 	}

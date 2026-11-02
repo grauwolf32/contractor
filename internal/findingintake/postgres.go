@@ -10,8 +10,9 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
-
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
@@ -89,10 +90,10 @@ func scanReceiptRow(row pgx.Row) (Receipt, error) {
 	if projectProposalJSON != nil {
 		var retained ExactArtifact
 		if err := strictjson.Decode(projectProposalJSON, &retained); err != nil || retained.Validate() != nil || !retained.HasMetadata() {
-			return Receipt{}, artifacts.ErrArtifactIntegrity
+			return Receipt{}, blob.ErrIntegrity
 		}
 		if err := strictjson.Decode(projectEvidenceJSON, &result.ProjectEvidence); err != nil {
-			return Receipt{}, artifacts.ErrArtifactIntegrity
+			return Receipt{}, blob.ErrIntegrity
 		}
 		result.ProjectProposal = &retained
 	}
@@ -453,7 +454,7 @@ func classifyProposalData(err error) error {
 	case errors.Is(err, artifacts.ErrArtifactNotFound), errors.Is(err, artifacts.ErrExactRevisionRequired),
 		errors.Is(err, artifacts.ErrInvalidName):
 		return &unretainableProposal{reason: "finding-proposal-artifact-missing", err: err}
-	case errors.Is(err, artifacts.ErrArtifactIntegrity):
+	case errors.Is(err, blob.ErrIntegrity):
 		return &unretainableProposal{reason: "finding-proposal-artifact-invalid", err: err}
 	case errors.Is(err, ErrConflict):
 		return &unretainableProposal{reason: "finding-proposal-receipt-conflict", err: err}
@@ -553,7 +554,7 @@ func (s *Service) importIntoAuditWithTx(
 		Ref: sourceProposal, Digest: proposalDigest,
 		MediaType: proposalMediaType, SizeBytes: proposalSizeBytes,
 	}
-	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(tx))
+	artifactService := artifacts.NewService(artifactpostgres.NewRepository(tx))
 	var heldProposalJSON, heldEvidenceJSON []byte
 	var createdAt time.Time
 	replayed := false
@@ -576,7 +577,7 @@ SELECT proposal_ref, evidence, created_at
 		if projectProposalJSON != nil {
 			if strictjson.Decode(projectProposalJSON, &result.Proposal) != nil ||
 				strictjson.Decode(projectEvidenceJSON, &result.Evidence) != nil {
-				return AuditHold{}, false, artifacts.ErrArtifactIntegrity
+				return AuditHold{}, false, blob.ErrIntegrity
 			}
 		} else {
 			namespace := artifactpolicy.FindingMaterialsNamespace
@@ -589,7 +590,7 @@ SELECT proposal_ref, evidence, created_at
 			if verifiedProposal.Digest != proposalSource.Digest ||
 				verifiedProposal.MediaType != proposalSource.MediaType ||
 				verifiedProposal.SizeBytes != proposalSource.SizeBytes {
-				return AuditHold{}, false, classifyProposalData(artifacts.ErrArtifactIntegrity)
+				return AuditHold{}, false, classifyProposalData(blob.ErrIntegrity)
 			}
 			result.Proposal, err = retainFindingArtifact(
 				ctx, artifactService, request.RunID, projectID, namespace,
@@ -606,7 +607,7 @@ SELECT proposal_ref, evidence, created_at
 				}
 				if verified.Digest != source.Digest || verified.MediaType != source.MediaType ||
 					verified.SizeBytes != source.SizeBytes {
-					return AuditHold{}, false, classifyProposalData(artifacts.ErrArtifactIntegrity)
+					return AuditHold{}, false, classifyProposalData(blob.ErrIntegrity)
 				}
 				retained, err := retainFindingArtifact(
 					ctx, artifactService, request.RunID, projectID, namespace,

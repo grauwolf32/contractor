@@ -10,7 +10,8 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	postgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 )
 
@@ -54,7 +55,7 @@ func parseBlobCleanupConfig(args []string, getenv func(string) string) (cfg blob
 	if cfg.databaseURL == "" {
 		return cfg, errors.New("database URL is required")
 	}
-	_, err = artifacts.ValidateBlobConfig(string(artifacts.BlobFilesystem), cfg.path)
+	_, err = blob.ValidateConfig(string(blob.Filesystem), cfg.path)
 	return
 }
 
@@ -68,7 +69,7 @@ func runBlobCleanupCLI(ctx context.Context, args []string, getenv func(string) s
 		return err
 	}
 	defer pool.Close()
-	report, err := artifacts.CleanupFilesystemBlobs(ctx, pool, cfg.path, cfg.apply)
+	report, err := artifactpostgres.CleanupFilesystemBlobs(ctx, pool, cfg.path, cfg.apply)
 	if err != nil {
 		return fmt.Errorf("offline blob cleanup: %w", err)
 	}

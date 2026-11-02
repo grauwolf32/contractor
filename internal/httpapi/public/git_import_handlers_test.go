@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/grauwolf32/contractor/internal/helpers/sourcezip"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -18,9 +17,14 @@ import (
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob/backends/filesystem"
+	inline "github.com/grauwolf32/contractor/internal/artifacts/blob/backends/postgres"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/gitimport"
+	"github.com/grauwolf32/contractor/internal/helpers/sourcezip"
 	"github.com/grauwolf32/contractor/internal/httpapi/artifacttransfer"
 	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -120,19 +124,19 @@ func TestGitImportResponseWriteHasItsOwnDeadline(t *testing.T) {
 }
 
 func TestGitImportPublicationAndAdmission(t *testing.T) {
-	for _, backend := range []artifacts.BlobBackend{artifacts.BlobPostgres, artifacts.BlobFilesystem} {
+	for _, backend := range []blob.Backend{blob.Postgres, blob.Filesystem} {
 		t.Run(string(backend), func(t *testing.T) {
 			pool := isolatedPublicPool(t, t.Context())
-			var blob artifacts.BlobStore = artifacts.PostgresBlobStore{}
-			if backend == artifacts.BlobFilesystem {
-				fs, err := artifacts.OpenFilesystemBlobStore(t.Context(), t.TempDir())
+			var storage blob.Storage = inline.Store{}
+			if backend == blob.Filesystem {
+				fs, err := filesystem.Open(t.Context(), t.TempDir())
 				if err != nil {
 					t.Fatal(err)
 				}
 				defer fs.Close()
-				blob = fs
+				storage = fs
 			}
-			ctx := artifacts.WithBlobRuntime(t.Context(), artifacts.NewBlobRuntime(blob, nil))
+			ctx := blob.WithRuntime(t.Context(), blob.NewRuntime(storage, nil))
 			cipher, _ := credentials.NewTokenCipher(bytes.Repeat([]byte{1}, 32))
 			keys := credentials.NewGitKeys(pool, cipher)
 			var count atomic.Int32
@@ -147,7 +151,7 @@ func TestGitImportPublicationAndAdmission(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+			service := artifacts.NewService(artifactpostgres.NewRepository(pool))
 			projects := projectstore.NewPostgresStore(pool)
 			fixture := newHandlerFixtureWithAuth(t, "../../config/testdata/valid", newTestAuthentication(t), mustTestOrigins(t), false, nil, func(d *testServices) { d.GitImports = importer; d.Artifacts = service; d.Projects = projects })
 			call := func(path, repository string, expected *string) *httptest.ResponseRecorder {
@@ -229,14 +233,14 @@ func TestGitImportPublicationAndAdmission(t *testing.T) {
 					t.Error(err)
 				}
 				for range 3 {
-					_, release, err := artifacts.AcquireTransfer(ctx)
+					_, release, err := blob.AcquireTransfer(ctx)
 					if err != nil {
 						t.Error(err)
 						return
 					}
 					defer release()
 				}
-				if _, release, err := artifacts.AcquireTransfer(ctx); !errors.Is(err, artifacts.ErrTransferCapacity) {
+				if _, release, err := blob.AcquireTransfer(ctx); !errors.Is(err, blob.ErrTransferCapacity) {
 					release()
 					t.Errorf("Git response lost transfer lease: %v", err)
 				}
@@ -275,12 +279,12 @@ func TestGitImportPublicationAndAdmission(t *testing.T) {
 
 func TestConfiguredGitSnapshotPublishesExactFilesystemBlob(t *testing.T) {
 	pool := isolatedPublicPool(t, t.Context())
-	blob, err := artifacts.OpenFilesystemBlobStore(t.Context(), t.TempDir())
+	storage, err := filesystem.Open(t.Context(), t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer blob.Close()
-	ctx := artifacts.WithBlobRuntime(t.Context(), artifacts.NewBlobRuntime(blob, nil))
+	defer storage.Close()
+	ctx := blob.WithRuntime(t.Context(), blob.NewRuntime(storage, nil))
 	limits := sourcezip.Limits{MaxExpandedBytes: 128 << 20, MaxFileBytes: 16 << 20, MaxEntries: 10000}
 	content := bytes.Repeat([]byte("source line\n"), (5<<20)/len("source line\n")+1)
 	members := make([]sourcezip.Member, 14)
@@ -306,7 +310,7 @@ func TestConfiguredGitSnapshotPublishesExactFilesystemBlob(t *testing.T) {
 	if err := importer.DoImport(ctx, gitimport.ImportRequest{OwnerID: "user-1", Target: artifacts.ArtifactRef{Namespace: "source", Name: "configured"}, RepositoryURL: "https://example.test/repo.git"}, func(value gitimport.ImportResult) { result = value }); err != nil {
 		t.Fatal(err)
 	}
-	user, err := artifacts.NewService(artifacts.NewPostgresRepository(pool)).User("user-1")
+	user, err := artifacts.NewService(artifactpostgres.NewRepository(pool)).User("user-1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -389,7 +393,7 @@ func TestSharedGitImportModes(t *testing.T) {
 
 func TestGitAnalysisPublicationRetainsCoverage(t *testing.T) {
 	pool := isolatedPublicPool(t, t.Context())
-	ctx := artifacts.WithBlobRuntime(t.Context(), artifacts.NewBlobRuntime(artifacts.PostgresBlobStore{}, nil))
+	ctx := blob.WithRuntime(t.Context(), blob.NewRuntime(inline.Store{}, nil))
 	summary := &artifacts.GitAnalysis{Policy: artifacts.GitAnalysisPolicy, ReportPath: artifacts.GitAnalysisReportPath, IncludedFiles: 1, ExcludedEntries: 1}
 	report := []byte(`{"policy":"source-analysis-v1","resolvedCommit":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","includedFiles":1,"excluded":[{"path":"module","reason":"submodule"}]}`)
 	content := []byte("source bytes\n")
@@ -419,7 +423,7 @@ func TestGitAnalysisPublicationRetainsCoverage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	user, err := artifacts.NewService(artifacts.NewPostgresRepository(pool)).User("user-1")
+	user, err := artifacts.NewService(artifactpostgres.NewRepository(pool)).User("user-1")
 	if err != nil {
 		t.Fatal(err)
 	}

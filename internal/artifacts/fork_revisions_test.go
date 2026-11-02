@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 )
 
 func TestDescribeForkRevisionsValidatesBeforeStorage(t *testing.T) {
@@ -22,7 +24,7 @@ func TestDescribeForkRevisionsValidatesBeforeStorage(t *testing.T) {
 		"duplicate":  {[]string{"source", "source"}, ErrInvalidName},
 		"invalid":    {[]string{"source", "../escape"}, ErrInvalidName},
 		"empty name": {[]string{""}, ErrInvalidName},
-		"too many":   {tooMany, ErrPayloadTooLarge},
+		"too many":   {tooMany, blob.ErrTooLarge},
 	} {
 		t.Run(name, func(t *testing.T) {
 			if result, err := run.DescribeForkRevisions(context.Background(), "selected", test.names, LineageContextProjection); result != nil || !errors.Is(err, test.want) {

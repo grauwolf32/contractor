@@ -14,6 +14,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auth"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
@@ -130,7 +131,7 @@ func TestPostgresRunDetailFixedBatchQueries(t *testing.T) {
 			); err != nil {
 				t.Fatal(err)
 			}
-			service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+			service := artifacts.NewService(artifactpostgres.NewRepository(pool))
 			runArtifacts, _ := service.Run(runID)
 			source, err := runArtifacts.Write(ctx, contracts.ArtifactRef{Namespace: "scratch", Name: "source"}, artifacts.Payload{MediaType: "text/plain", Data: []byte("exact output")}, nil)
 			if err != nil {

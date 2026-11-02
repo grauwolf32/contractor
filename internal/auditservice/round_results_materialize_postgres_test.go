@@ -12,6 +12,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
@@ -38,7 +39,7 @@ func TestPostgresRoundResultsMaterializerResumesDependencyChunks(t *testing.T) {
 	defer cancel()
 	pool := isolatedAuditServicePool(t, ctx, databaseURL)
 	audits := auditstoretest.NewStore(pool)
-	service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	project, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{
 		ProjectID: "project", OwnerID: "owner", Kind: projectstore.KindProject, Name: "Dependency chunks",
 		IdempotencyKey: "project", RequestDigest: serviceTestDigest("project"),
@@ -250,7 +251,7 @@ func TestPostgresRoundResultsMaterializerResumesDependencyChunks(t *testing.T) {
 				state = &runstore.AuditInputMaterialization{Identity: identity, DeadlineAt: child.CreatedAt.Add(runstore.AuditInputMaterializationTimeout),
 					Checkpoint: json.RawMessage(`{}`), Refs: []contracts.ArtifactRef{}}
 			}
-			next, err = callback(ctx, artifacts.NewService(artifacts.NewPostgresRepository(tx)), intent, child, *state)
+			next, err = callback(ctx, artifacts.NewService(artifactpostgres.NewRepository(tx)), intent, child, *state)
 			if err != nil {
 				return err
 			}

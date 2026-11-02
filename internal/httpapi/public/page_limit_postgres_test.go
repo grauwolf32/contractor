@@ -11,6 +11,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/agentprincipal"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
@@ -63,7 +64,7 @@ func TestPostgresPublicPagedListsAcceptTheLargestPage(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	artifactService := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	var input artifacts.WriteResult
 	for _, seed := range []struct {
 		store func(string) (artifacts.ScopedStore, error)

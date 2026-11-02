@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 )
 
 func TestPostgresSitemapHTTPCollectionProjectionAndReceipt(t *testing.T) {
@@ -71,8 +71,8 @@ func TestPostgresSitemapHTTPCollectionProjectionAndReceipt(t *testing.T) {
 			}
 		}
 	}
-	history, _ := artifacts.NewHistoryPolicy(2, artifacts.DefaultHistoryMaxBytes)
-	ctx = artifacts.WithHistoryPolicy(ctx, history)
+	history, _ := artifactpostgres.NewHistoryPolicy(2, artifactpostgres.DefaultHistoryMaxBytes)
+	ctx = artifactpostgres.WithHistoryPolicy(ctx, history)
 	for n := range 4 {
 		next := input
 		next.Observations = []Observation{observation(fmt.Sprintf("/next/%d", n))}

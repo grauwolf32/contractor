@@ -1,0 +1,51 @@
+schema_version: "1.0"
+id: V437-003
+title: "Prepare filesystem deduplication before publication locks"
+milestone: artifact-release-cleanup-2026-11
+epic: projects-artifacts
+kind: chore
+introduced_by: V370-016
+priority: P2
+status: completed
+depends_on: [V437-002]
+languages: [go]
+goal: "Publication reuses a verified physical generation without reading its full payload while authoritative locks are held."
+context:
+  authority: >-
+    User decision 2026-11-02: implement the internal/artifacts review fixes,
+    move bulk deduplication verification out of publication transactions and
+    split registry and payload backends as proposed, keeping the artifacts name.
+  specification:
+    - docs/spec/artifacts/artifact-store.md
+    - docs/spec/artifacts/blob-storage.md
+    - docs/spec/platform/persistence.md
+  finding: >-
+    blob_dedup.go:63 performs a full filesystem read inside transaction-bound writes even when PreparePayload staged bytes beforehand.
+  siblings: >-
+    Cover ordinary writes, Git import, Memory, finding intake, sitemap and Server-generated Audit material; preserve corrupt, missing, cancelled, changed-key and ambiguous-commit outcomes.
+  boundary: >-
+    ArtifactStore owns normalized identity, revisions, history, lineage and
+    persistence. Payload backends own physical byte operations. Domain callers
+    retain authorization, deadlines and transaction boundaries. No wire or schema
+    changes, compatibility aliases, new receipts or plugin framework.
+scope:
+  in:
+    - "Prepare bounded candidate and verified existing generation outside publication, with SQL retaining exact-key conditional reuse and real-store fault injection."
+  out:
+    - "Renaming the public Artifact concept, database tables or wire fields."
+acceptance_criteria:
+  - id: A1
+    text: "Prepared transactional publication performs no full filesystem read and never attaches an unverified competing generation."
+  - id: A2
+    text: "Healthy deduplication, missing-content repair, corruption rejection, rollback and lost acknowledgements retain their contracts on both backends."
+tests:
+  - command: "go test -count=1 -tags integration ./internal/artifacts/... ./internal/gitimport ./internal/memory ./internal/findingintake ./internal/projectsitemap"
+    covers: [A1, A2]
+  - command: "CONTRACTOR_TEST_ARTIFACT_BACKEND=filesystem go test -count=1 -tags integration ./internal/artifacts/... ./internal/findingintake"
+    covers: [A1, A2]
+implementation_commit: 1733401ede06de01c702c24ac93f1982f35a4172
+verification: >-
+  Complete Artifact, Git import, Memory, finding intake and sitemap integration suites passed;
+  Artifact and finding intake suites also passed with filesystem payloads. Private HTTP
+  integration passed. The new prepared-publication tests prohibit payload reads inside
+  the transaction and cover a competing unverified physical generation.

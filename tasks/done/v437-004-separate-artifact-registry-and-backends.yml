@@ -1,0 +1,64 @@
+schema_version: "1.0"
+id: V437-004
+title: "Separate Artifact registry and payload backend packages"
+milestone: artifact-release-cleanup-2026-11
+epic: projects-artifacts
+kind: chore
+introduced_by: V370-016
+priority: P2
+status: completed
+depends_on: [V437-003]
+languages: [go]
+goal: "Artifact operations have separate domain, PostgreSQL registry and physical payload implementations."
+context:
+  authority: >-
+    User decision 2026-11-02: implement the internal/artifacts review fixes,
+    move bulk deduplication verification out of publication transactions and
+    split registry and payload backends as proposed, keeping the artifacts name.
+  specification:
+    - docs/spec/artifacts/artifact-store.md
+    - docs/spec/artifacts/blob-storage.md
+    - docs/spec/platform/persistence.md
+  scope_decision: >-
+    User decision 2026-11-02 after scope clarification: complete fixes, optimization
+    and package separation now; leave full runtime/history dependency injection
+    and related subsystem constructor changes to a separate task.
+  finding: >-
+    The flat package mixes the generic service with registry SQL, filesystem operations and process dependencies hidden in context; doc.go no longer describes all entry points.
+  siblings: >-
+    Migrate every constructor, transaction-bound repository, purger, transport transfer caller and tests; update layer classification, ownership registry, ERD, release selectors and source guards.
+  boundary: >-
+    ArtifactStore owns normalized identity, revisions, history, lineage and
+    persistence. Payload backends own physical byte operations. Domain callers
+    retain authorization, deadlines and transaction boundaries. No wire or schema
+    changes, compatibility aliases, new receipts or plugin framework.
+scope:
+  in:
+    - "Extract postgres and blob/backends packages, clarify Fork validation and document publication/lifecycle ownership."
+  out:
+    - "Renaming the public Artifact concept, database tables or wire fields."
+acceptance_criteria:
+  - id: A1
+    text: "Registry and physical backends have acyclic packages with updated production callers; existing context propagation remains until the separate dependency migration."
+  - id: A2
+    text: "All migrated Go consumers compile and their package suites, layer/ownership guards, real-store backend suites and lint pass; generated ERD matches moved SQL ownership."
+tests:
+  - command: "make lint"
+    covers: [A1, A2]
+  - command: "go test -count=1 -tags integration -p 2 ./internal/... ./cmd/..."
+    covers: [A1, A2]
+implementation_commit: bd74d58c09025e2ce5d3b810254401c1034cfda3
+verification: >-
+  make lint passed. The complete Go integration suites under internal/... and
+  cmd/... passed with a TCP PostgreSQL test connection (-p 2). Complete Artifact
+  suites passed on PostgreSQL and filesystem; finding intake passed on filesystem.
+  Controlled replay/date/prepared-publication regressions passed with -race.
+  TestLocalGoToPythonArtifactCopy and TestArtifactHistoryAcrossProductionProcesses
+  passed through real Server/Runtime processes. The complete backup/restore
+  integration suite, ordinary e2e/Eval fixture suites, verify-public-api and
+  verify-architecture passed. Tagged integration/e2e test consumers compile.
+  SQL ownership and ERD are regenerated and consistent. The initial Unix-socket
+  full run was stopped after TCP keepalive/proxy test configuration failures;
+  its complete TCP replacement passed. Full browser and release-verify gates
+  were not run. Storage context injection remains pending in V437-005 by the
+  explicit scope decision above.

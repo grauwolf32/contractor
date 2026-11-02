@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -203,7 +204,7 @@ AND round.results_sealed AND `+auditClaims.LiveCondition("claim", "$2", "$3"), p
 	if strictjson.Decode(encoded, &descriptor) != nil || descriptor.Validate() != nil || !descriptor.HasMetadata() {
 		return nil, invalidf("published Round results page is invalid")
 	}
-	project, err := artifacts.NewService(artifacts.NewPostgresRepository(s.db)).Project(projectID)
+	project, err := artifacts.NewService(artifactpostgres.NewRepository(s.db)).Project(projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -522,7 +523,7 @@ func verifyRoundResultsPublication(ctx context.Context, tx pgx.Tx, p auditstore.
 	if err := tx.QueryRow(ctx, `SELECT project_id FROM audits WHERE audit_id=$1`, p.Claim.AuditID).Scan(&projectID); err != nil {
 		return err
 	}
-	project, err := artifacts.NewService(artifacts.NewPostgresRepository(tx)).Project(projectID)
+	project, err := artifacts.NewService(artifactpostgres.NewRepository(tx)).Project(projectID)
 	if err != nil {
 		return err
 	}

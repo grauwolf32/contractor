@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/planner"
@@ -26,11 +27,11 @@ var verificationFailures = []struct {
 	{"rejected scope", artifacts.ErrInvalidScope, true},
 	{"versionless reference", artifacts.ErrExactRevisionRequired, true},
 	{"malformed reference", contracts.Invalidf("artifact revision is required"), true},
-	{"other revision", fmt.Errorf("%w: ArtifactStore resolved a different artifact revision", artifacts.ErrArtifactIntegrity), true},
+	{"other revision", fmt.Errorf("%w: ArtifactStore resolved a different artifact revision", blob.ErrIntegrity), true},
 	{"lock timeout", fmt.Errorf("read artifact metadata: %w",
 		&pgconn.PgError{Code: persistencepostgres.SQLStateLockNotAvailable}), false},
 	{"unclassified database failure", errors.New("temporary database failure"), false},
-	{"transfer capacity", artifacts.ErrTransferCapacity, false},
+	{"transfer capacity", blob.ErrTransferCapacity, false},
 	{"cancelled lookup", context.Canceled, false},
 }
 
@@ -109,7 +110,7 @@ func TestArtifactResolverRejectsAnInexactStoreAnswer(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err = resolver.Resolve(t.Context(), "run-1", exactRef("builder", "copied", "result-r1"))
-	if !errors.Is(err, artifacts.ErrArtifactIntegrity) || !artifacts.IsExactReferenceRejection(err) {
+	if !errors.Is(err, blob.ErrIntegrity) || !artifacts.IsExactReferenceRejection(err) {
 		t.Fatalf("inexact store answer = %v, want a rejected reference", err)
 	}
 }

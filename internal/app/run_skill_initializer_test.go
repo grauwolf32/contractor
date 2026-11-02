@@ -14,6 +14,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -35,7 +36,7 @@ func TestPostgresRunSkillInitializerUsesCommittedExactSelection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	owner, _ := service.User("owner-1")
 	packageA := appSkillPackage(t, "Package A.")
 	created, err := owner.Write(
@@ -49,7 +50,7 @@ func TestPostgresRunSkillInitializerUsesCommittedExactSelection(t *testing.T) {
 	}
 	err = persistencepostgres.InTx(ctx, pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead}, func(tx pgx.Tx) error {
 		store := runstore.NewPostgresStore(tx)
-		txService := artifacts.NewService(artifacts.NewPostgresRepository(tx))
+		txService := artifacts.NewService(artifactpostgres.NewRepository(tx))
 		catalog, _ := agentskills.NewCatalog(txService)
 		refs, err := resolved.WorkflowSkillRefs(workflow)
 		if err != nil {
@@ -119,7 +120,7 @@ func TestPostgresRunSkillInitializerRollsBackInvalidSetAndDoesNotBlockAnotherRun
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedAppPool(t, ctx)
-	service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	owner, _ := service.User("owner-1")
 	validPayload := appSkillPackageForName(t, "alpha", "Valid package.")
 	valid, err := owner.Write(
@@ -182,11 +183,11 @@ func TestPostgresRunSkillInitializerFailsRunWhosePinnedSourceIsGone(t *testing.T
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedAppPool(t, ctx)
-	policy, err := artifacts.NewHistoryPolicy(artifacts.HistoryRevisionsFloor, artifacts.HistoryBytesFloor)
+	policy, err := artifactpostgres.NewHistoryPolicy(artifactpostgres.HistoryRevisionsFloor, artifactpostgres.HistoryBytesFloor)
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx = artifacts.WithHistoryPolicy(ctx, policy)
+	ctx = artifactpostgres.WithHistoryPolicy(ctx, policy)
 	workflow := appSkillWorkflow(t)
 	workflowSnapshot, err := json.Marshal(workflow)
 	if err != nil {
@@ -196,7 +197,7 @@ func TestPostgresRunSkillInitializerFailsRunWhosePinnedSourceIsGone(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	owner, _ := service.User("owner-1")
 	binding := artifacts.ArtifactRef{Namespace: contracts.AgentSkillNamespace, Name: "review"}
 	pinned, err := owner.Write(
@@ -343,7 +344,7 @@ func createAppSkillRunSelection(
 	err = persistencepostgres.InTx(ctx, pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead}, func(tx pgx.Tx) error {
 		store := runstore.NewPostgresStore(tx)
 		catalog, err := agentskills.NewCatalog(
-			artifacts.NewService(artifacts.NewPostgresRepository(tx)),
+			artifacts.NewService(artifactpostgres.NewRepository(tx)),
 		)
 		if err != nil {
 			return err

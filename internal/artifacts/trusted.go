@@ -23,7 +23,7 @@ import (
 // binding: an existing one is a *ConflictError, or ErrArtifactFrozen when it
 // is frozen.
 func (s *Service) Create(ctx context.Context, scope Scope, target ArtifactRef, payload Payload) (WriteResult, error) {
-	if err := validateCreate(scope, target, payload, false); err != nil {
+	if err := ValidateCreate(scope, target, payload, false); err != nil {
 		return WriteResult{}, err
 	}
 	return s.repository.Write(ctx, scope, target, payload, nil)
@@ -32,7 +32,7 @@ func (s *Service) Create(ctx context.Context, scope Scope, target ArtifactRef, p
 // Replace advances a purpose-owned mutable binding by exact CAS. The trusted
 // caller owns domain validation and authorization, as it does for Create.
 func (s *Service) Replace(ctx context.Context, scope Scope, target ArtifactRef, payload Payload, expectedRevision string) (WriteResult, error) {
-	if err := validateCreate(scope, target, payload, false); err != nil {
+	if err := ValidateCreate(scope, target, payload, false); err != nil {
 		return WriteResult{}, err
 	}
 	if err := validateRevision(expectedRevision); err != nil {
@@ -50,7 +50,7 @@ func (s *Service) Replace(ctx context.Context, scope Scope, target ArtifactRef, 
 // written without staging another blob (REV-R149). Any other existing binding
 // is ErrAuditArtifactCollision.
 func (s *Service) CreateFrozen(ctx context.Context, scope Scope, target ArtifactRef, payload Payload) (WriteResult, error) {
-	if err := validateCreate(scope, target, payload, true); err != nil {
+	if err := ValidateCreate(scope, target, payload, true); err != nil {
 		return WriteResult{}, err
 	}
 	if written, found, err := s.writtenFrozen(ctx, scope, target, payload); err != nil || found {
@@ -86,12 +86,12 @@ func (s *Service) writtenFrozen(
 	}
 	return WriteResult{
 		Ref: existing.Ref, MediaType: existing.MediaType, Size: existing.Size,
-		BindingCreatedAt: existing.CreatedAt, RevisionCreatedAt: existing.CreatedAt,
+		BindingCreatedAt: existing.BindingCreatedAt, RevisionCreatedAt: existing.CreatedAt,
 	}, true, nil
 }
 
-func validateCreate(scope Scope, target ArtifactRef, payload Payload, frozen bool) error {
-	if err := validateScope(scope); err != nil {
+func ValidateCreate(scope Scope, target ArtifactRef, payload Payload, frozen bool) error {
+	if err := ValidateScope(scope); err != nil {
 		return err
 	}
 	if err := validateTarget(target); err != nil {
@@ -100,7 +100,7 @@ func validateCreate(scope Scope, target ArtifactRef, payload Payload, frozen boo
 	if scope.kind == ScopeRun && target.Namespace == "outputs" || !frozen && auditManaged(scope, target) {
 		return ErrReservedNamespace
 	}
-	return validatePayload(payload)
+	return ValidatePayload(payload)
 }
 
 // auditManaged reports an Audit-managed Project binding (ART-R26).
@@ -116,22 +116,19 @@ func (s *Service) Fork(ctx context.Context, fork Fork) (ForkResult, error) {
 	if !validLineageKind(fork.Kind) {
 		return ForkResult{}, ErrInvalidName
 	}
-	if err := validateScope(fork.Source); err != nil {
+	if err := ValidateScope(fork.Source); err != nil {
 		return ForkResult{}, err
 	}
-	if err := validateScope(fork.Target); err != nil {
+	if err := ValidateScope(fork.Target); err != nil {
 		return ForkResult{}, err
 	}
-	if !forkScopesAllowed(fork.Source, fork.Target) ||
-		(fork.Source.kind == ScopeAudit || fork.Target.kind == ScopeAudit) && !(fork.Kind == LineageAuditOutput && fork.Source.kind == ScopeRun && fork.Target.kind == ScopeAudit ||
-			fork.Kind == LineageAuditInput && fork.Source.kind == ScopeAudit && fork.Target.kind == ScopeRun ||
-			fork.Kind == LineageAuditPublish && fork.Source.kind == ScopeAudit && fork.Target.kind == ScopeProject) {
+	if !forkRouteAllowed(fork) {
 		return ForkResult{}, ErrInvalidScope
 	}
 	if fork.Source.kind == ScopeProject && fork.Source == fork.Target && !fork.Frozen {
 		return ForkResult{}, ErrInvalidScope
 	}
-	if err := validateRef(fork.SourceRef); err != nil {
+	if err := ValidateRef(fork.SourceRef); err != nil {
 		return ForkResult{}, err
 	}
 	if err := validateTarget(fork.TargetRef); err != nil {
@@ -168,10 +165,10 @@ func forkScopesAllowed(source, target Scope) bool {
 // Freeze freezes every binding of namespace in scope; a namespace without
 // bindings is a successful no-op (ART-R96).
 func (s *Service) Freeze(ctx context.Context, scope Scope, namespace string) error {
-	if err := validateScope(scope); err != nil {
+	if err := ValidateScope(scope); err != nil {
 		return err
 	}
-	if err := validateComponent(namespace); err != nil {
+	if err := ValidateComponent(namespace); err != nil {
 		return err
 	}
 	return s.repository.Freeze(ctx, scope, namespace)
@@ -181,11 +178,32 @@ func (s *Service) Freeze(ctx context.Context, scope Scope, namespace string) err
 // lock on it until the caller's transaction ends, so a concurrent purge cannot
 // remove it underneath the caller.
 func (s *Service) RequireExact(ctx context.Context, scope Scope, ref ArtifactRef) error {
-	if err := validateScope(scope); err != nil {
+	if err := ValidateScope(scope); err != nil {
 		return err
 	}
 	if err := validateExact(ref); err != nil {
 		return err
 	}
 	return s.repository.RequireExact(ctx, scope, ref)
+}
+
+// forkRouteAllowed adds the lineage rule for an Audit handoff to the ordinary
+// scope routes. Project membership is enforced by the registry source selection.
+func forkRouteAllowed(fork Fork) bool {
+	if !forkScopesAllowed(fork.Source, fork.Target) {
+		return false
+	}
+	if fork.Source.kind != ScopeAudit && fork.Target.kind != ScopeAudit {
+		return true
+	}
+	switch fork.Kind {
+	case LineageAuditOutput:
+		return fork.Source.kind == ScopeRun && fork.Target.kind == ScopeAudit
+	case LineageAuditInput:
+		return fork.Source.kind == ScopeAudit && fork.Target.kind == ScopeRun
+	case LineageAuditPublish:
+		return fork.Source.kind == ScopeAudit && fork.Target.kind == ScopeProject
+	default:
+		return false
+	}
 }

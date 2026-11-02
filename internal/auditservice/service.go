@@ -11,6 +11,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -40,7 +41,7 @@ func New(options Options) (*Service, error) {
 		return nil, err
 	}
 	standards, err := auditstandards.NewCatalog(
-		artifacts.NewService(artifacts.NewPostgresRepository(options.Pool)),
+		artifacts.NewService(artifactpostgres.NewRepository(options.Pool)),
 	)
 	if err != nil {
 		return nil, err
@@ -155,7 +156,7 @@ func (s *Service) CreateDraft(
 		err = s.credentialGuard.WithRunCreation(ctx, func() error {
 			return persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
 				var readErr error
-				engagement, readErr = readEngagement(ctx, artifacts.NewService(artifacts.NewPostgresRepository(tx)), params.ProjectID, profile, DraftSelection{Inputs: inputs})
+				engagement, readErr = readEngagement(ctx, artifacts.NewService(artifactpostgres.NewRepository(tx)), params.ProjectID, profile, DraftSelection{Inputs: inputs})
 				if readErr != nil {
 					return readErr
 				}
@@ -341,7 +342,7 @@ func (s *Service) GetReport(
 	if machineErr != nil || summaryErr != nil {
 		return ReportProjection{}, errors.New("stored Audit report link set is incomplete")
 	}
-	project, err := artifacts.NewService(artifacts.NewPostgresRepository(s.pool)).Project(audit.ProjectID)
+	project, err := artifacts.NewService(artifactpostgres.NewRepository(s.pool)).Project(audit.ProjectID)
 	if err != nil {
 		return ReportProjection{}, err
 	}
@@ -399,7 +400,7 @@ func (s *Service) selectDraftInputs(
 		}
 	}
 	projectArtifacts, err := artifacts.NewService(
-		artifacts.NewPostgresRepository(s.pool),
+		artifactpostgres.NewRepository(s.pool),
 	).Project(projectID)
 	if err != nil {
 		return nil, err

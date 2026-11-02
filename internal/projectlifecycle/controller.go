@@ -11,7 +11,7 @@ import (
 	"math"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	"github.com/grauwolf32/contractor/internal/evalstore"
 	"github.com/grauwolf32/contractor/internal/findingintake"
@@ -422,7 +422,7 @@ func (c *Controller) purgeProject(ctx context.Context, claim projectstore.Deleti
 		if err != nil || !projectReceiptsGone {
 			return err
 		}
-		purger, err := artifacts.NewPostgresPurger(tx)
+		purger, err := artifactpostgres.NewPurger(tx)
 		if err != nil {
 			return err
 		}

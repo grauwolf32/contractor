@@ -6,6 +6,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
@@ -62,7 +63,7 @@ func (r *Resolver) Resolve(ctx context.Context, owner string, v evaldomain.Varia
 			if err != nil {
 				return err
 			}
-			service := artifacts.NewService(artifacts.NewPostgresRepository(tx))
+			service := artifacts.NewService(artifactpostgres.NewRepository(tx))
 			binding, err := r.resolveBinding(ctx, owner, v, lookup, service)
 			if err != nil {
 				return err

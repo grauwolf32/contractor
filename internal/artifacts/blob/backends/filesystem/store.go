@@ -1,0 +1,299 @@
+package filesystem
+
+import (
+	"context"
+	"crypto/sha256"
+	"errors"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strings"
+	"syscall"
+
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/helpers/randomid"
+)
+
+var blobKeyPattern = regexp.MustCompile(`^[0-9a-f]{2}/[0-9a-f]{32}$`)
+var stagingKeyPattern = regexp.MustCompile(`^\.staging-[0-9a-f]{32}$`)
+
+// Store owns a descriptor rooted at the configured directory.
+// Close is called only after all Server request/background work has drained.
+type Store struct {
+	root *os.Root
+	// sync, when set, replaces (*os.File).Sync so tests can observe flushes.
+	sync func(*os.File) error
+}
+
+func Open(ctx context.Context, path string) (*Store, error) {
+	store, err := openRoot(ctx, path, true)
+	if err != nil {
+		return nil, err
+	}
+	probe, err := store.Store(ctx, []byte("contractor blob probe"))
+	if err == nil {
+		_, err = store.Read(ctx, probe)
+	}
+	if err == nil {
+		err = store.Delete(ctx, probe)
+	}
+	if err != nil {
+		_ = store.Close()
+		return nil, fmt.Errorf("artifact blob directory probe failed: %w", err)
+	}
+	return store, nil
+}
+
+func openRoot(ctx context.Context, path string, create bool) (*Store, error) {
+	if _, err := blob.ValidateConfig(string(blob.Filesystem), path); err != nil {
+		return nil, err
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	// Reject existing symlink components before creating a dedicated root.
+	current := string(filepath.Separator)
+	for _, component := range strings.Split(strings.TrimPrefix(path, current), string(filepath.Separator)) {
+		current = filepath.Join(current, component)
+		info, err := os.Lstat(current)
+		if errors.Is(err, os.ErrNotExist) {
+			break
+		}
+		if err != nil {
+			return nil, blobIOError(err)
+		}
+		if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+			return nil, fmt.Errorf("invalid artifact blob directory: %w", blob.ErrIO)
+		}
+	}
+	if create {
+		if err := os.MkdirAll(path, 0700); err != nil {
+			return nil, fmt.Errorf("artifact blob directory is not writable: %w", blobIOError(err))
+		}
+	}
+	root, err := os.OpenRoot(path)
+	if err != nil {
+		return nil, fmt.Errorf("cannot open artifact blob directory: %w", blobIOError(err))
+	}
+	return &Store{root: root}, nil
+}
+
+func (s *Store) Close() error { return s.root.Close() }
+
+func (s *Store) Store(ctx context.Context, data []byte) (result blob.Object, err error) {
+	if err := ctx.Err(); err != nil {
+		return result, err
+	}
+	if len(data) > contracts.MaxArtifactPayloadBytes {
+		return result, blob.ErrTooLarge
+	}
+	id, err := randomid.New("")
+	if err != nil {
+		return result, err
+	}
+	shard := id[:2]
+	if err := s.root.Mkdir(shard, 0700); err == nil {
+		if err := s.syncDirectory("."); err != nil {
+			return result, err
+		}
+	} else if !errors.Is(err, os.ErrExist) {
+		return result, blobIOError(err)
+	}
+	if err := s.checkDirectory(shard); err != nil {
+		return result, err
+	}
+	staging, key := ".staging-"+id, shard+"/"+id
+	f, err := s.root.OpenFile(staging, os.O_CREATE|os.O_EXCL|os.O_WRONLY|syscall.O_NOFOLLOW, 0600)
+	if err != nil {
+		return result, blobIOError(err)
+	}
+	defer func() { _ = f.Close(); _ = s.root.Remove(staging) }()
+	hash := sha256.New()
+	for offset := 0; offset < len(data); {
+		if err := ctx.Err(); err != nil {
+			return result, err
+		}
+		end := min(offset+64*1024, len(data))
+		n, err := f.Write(data[offset:end])
+		if err != nil {
+			return result, blobIOError(err)
+		}
+		if n != end-offset {
+			return result, io.ErrShortWrite
+		}
+		_, _ = hash.Write(data[offset:end])
+		offset = end
+	}
+	// Flush the bytes and the published directory entry before the caller's
+	// registry transaction can commit a reference to this key.
+	if err := s.flush(f); err != nil {
+		return result, blobIOError(err)
+	}
+	if err := f.Close(); err != nil {
+		return result, blobIOError(err)
+	}
+	if err := ctx.Err(); err != nil {
+		return result, err
+	}
+	// A hard link publishes a complete inode without overwriting an existing key.
+	// Both names are rooted on the same filesystem; the staging name is removed.
+	if err := s.root.Link(staging, key); err != nil {
+		return result, blobIOError(err)
+	}
+	if err := s.syncDirectory(shard); err != nil {
+		// No registry row can reference the fresh generation yet.
+		_ = s.root.Remove(key)
+		return result, err
+	}
+	return blob.Object{Backend: blob.Filesystem, Key: key, Digest: hash.Sum(nil), Size: int64(len(data))}, nil
+}
+
+func (s *Store) syncDirectory(name string) error {
+	directory, err := s.root.Open(name)
+	if err != nil {
+		return blobIOError(err)
+	}
+	defer directory.Close()
+	if err := s.flush(directory); err != nil {
+		return blobIOError(err)
+	}
+	return nil
+}
+
+func (s *Store) flush(f *os.File) error {
+	if s.sync != nil {
+		return s.sync(f)
+	}
+	return f.Sync()
+}
+
+func (s *Store) Check(ctx context.Context, object blob.Object) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if object.Backend != blob.Filesystem || !blobKeyPattern.MatchString(object.Key) || object.Size < 0 || object.Size > contracts.MaxArtifactPayloadBytes {
+		return blob.ErrIntegrity
+	}
+	if err := s.checkDirectory(object.Key[:2]); err != nil {
+		return err
+	}
+	info, err := s.root.Lstat(object.Key)
+	if err != nil {
+		return blobIOError(err)
+	}
+	if !info.Mode().IsRegular() || info.Size() != object.Size {
+		return blob.ErrIntegrity
+	}
+	return nil
+}
+
+func (s *Store) Read(ctx context.Context, object blob.Object) ([]byte, error) {
+	if err := s.Check(ctx, object); err != nil {
+		return nil, err
+	}
+	f, err := s.root.OpenFile(object.Key, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
+	if err != nil {
+		return nil, blobIOError(err)
+	}
+	defer f.Close()
+	actual, err := f.Stat()
+	if err != nil {
+		return nil, blobIOError(err)
+	}
+	if !actual.Mode().IsRegular() || actual.Size() != object.Size {
+		return nil, blob.ErrIntegrity
+	}
+	data, err := readBlobContent(ctx, f, object.Size)
+	if err != nil {
+		return nil, err
+	}
+	if err := blob.Verify(object, data); err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
+// readBlobContent reads exactly size bytes. Content shorter or longer than
+// its recorded size is corrupt; any other read failure is storage I/O that
+// may succeed on retry, so it is never reported as an integrity failure.
+func readBlobContent(ctx context.Context, file io.Reader, size int64) ([]byte, error) {
+	data := make([]byte, int(size))
+	for offset := 0; offset < len(data); {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		end := min(offset+64*1024, len(data))
+		n, err := io.ReadFull(file, data[offset:end])
+		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+			return nil, blob.ErrIntegrity
+		}
+		if err != nil {
+			return nil, blobIOError(err)
+		}
+		offset += n
+	}
+	var extra [1]byte
+	n, err := file.Read(extra[:])
+	if n != 0 {
+		return nil, blob.ErrIntegrity
+	}
+	if !errors.Is(err, io.EOF) {
+		return nil, blobIOError(err)
+	}
+	return data, nil
+}
+
+func (s *Store) Delete(ctx context.Context, object blob.Object) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if object.Backend != blob.Filesystem || !blobKeyPattern.MatchString(object.Key) {
+		return blob.ErrIntegrity
+	}
+	if err := s.checkDirectory(object.Key[:2]); err != nil {
+		if errors.Is(err, blob.ErrMissing) {
+			return nil
+		}
+		return err
+	}
+	info, err := s.root.Lstat(object.Key)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return blobIOError(err)
+	}
+	if !info.Mode().IsRegular() {
+		return blob.ErrIntegrity
+	}
+	if err := s.root.Remove(object.Key); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return blobIOError(err)
+	}
+	return nil
+}
+
+func (s *Store) checkDirectory(name string) error {
+	info, err := s.root.Lstat(name)
+	if err != nil {
+		return blobIOError(err)
+	}
+	if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		return blob.ErrIntegrity
+	}
+	return nil
+}
+
+func blobIOError(err error) error {
+	if errors.Is(err, os.ErrNotExist) {
+		return blob.ErrMissing
+	}
+	return blob.ErrIO
+}
+
+// OpenExisting opens a retained root without creating it or probing writes.
+func OpenExisting(ctx context.Context, path string) (*Store, error) {
+	return openRoot(ctx, path, false)
+}

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -49,7 +50,7 @@ func newOutputBindingHarness(
 		recording.AtomicPersistence = persistence
 		return recording
 	})
-	service := artifacts.NewService(artifacts.NewPostgresRepository(h.pool))
+	service := artifacts.NewService(artifactpostgres.NewRepository(h.pool))
 	runArtifacts, err := service.Run("run-1")
 	if err != nil {
 		t.Fatal(err)

@@ -7,6 +7,8 @@ import (
 	"fmt"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditbaseline"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
@@ -73,7 +75,7 @@ func (s *Service) PrepareInitialRound(ctx context.Context, claim auditstore.Cont
 	}
 	var validation *auditdomain.ValidationError
 	var inconsistent *RoundPreparationError
-	if errors.Is(err, ErrInvalid) || errors.Is(err, auditstore.ErrInvalid) || errors.As(err, &validation) || errors.As(err, &inconsistent) || errors.Is(err, artifacts.ErrArtifactIntegrity) || errors.Is(err, artifacts.ErrArtifactNotFound) || errors.Is(err, auditstore.ErrNotFound) {
+	if errors.Is(err, ErrInvalid) || errors.Is(err, auditstore.ErrInvalid) || errors.As(err, &validation) || errors.As(err, &inconsistent) || errors.Is(err, blob.ErrIntegrity) || errors.Is(err, artifacts.ErrArtifactNotFound) || errors.Is(err, auditstore.ErrNotFound) {
 		return auditstore.AcceptInitialRoundParams{}, &auditstore.StopReason{
 			Code: "invalid_inventory", Message: "The prepared Audit inventory failed validation: " + err.Error(),
 		}, nil
@@ -93,7 +95,7 @@ func (s *Service) prepareInitialInventory(ctx context.Context, claim auditstore.
 	}
 	selection := DraftSelection{Labels: baseline.Labels.Clone(), Inputs: baseline.Inputs, Scope: baseline.Scope, RuntimeLabels: baseline.RuntimeLabels,
 		RequiredPlacementLabels: append([]string{}, baseline.RequiredPlacementLabels...)}
-	service := artifacts.NewService(artifacts.NewPostgresRepository(s.pool))
+	service := artifacts.NewService(artifactpostgres.NewRepository(s.pool))
 	original, err := readAndVerifyInputs(ctx, service, audit.ProjectID, profile, selection)
 	if err != nil {
 		return auditstore.AcceptInitialRoundParams{}, err
@@ -128,7 +130,7 @@ func (s *Service) prepareInitialInventory(ctx context.Context, claim auditstore.
 			return artifacts.ReadResult{}, fmt.Errorf("%w: inventory %s output is not accepted", ErrInvalid, name)
 		}
 		if !exact.HasMetadata() {
-			return artifacts.ReadResult{}, artifacts.ErrArtifactIntegrity
+			return artifacts.ReadResult{}, blob.ErrIntegrity
 		}
 		read, err := project.ReadExact(ctx, exact)
 		if err != nil {

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
@@ -210,7 +211,7 @@ func TestProjectFindingExplicitPublicationRetainsIndependentSources(t *testing.T
 			if err != nil || source.Retention != RetentionProjectHeld || !source.Origin.RunDeleted || source.ProjectProposal == nil || !reflect.DeepEqual(source.Document, inputs[sourceIndex].Proposal) || !reflect.DeepEqual(source.ProjectEvidence, original.ProjectEvidence) {
 				t.Fatalf("independent source after purge: %+v %v", source, err)
 			}
-			scope, err := artifacts.NewService(artifacts.NewPostgresRepository(pool)).Project(project)
+			scope, err := artifacts.NewService(artifactpostgres.NewRepository(pool)).Project(project)
 			if err != nil {
 				t.Fatal(err)
 			}

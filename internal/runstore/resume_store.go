@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
@@ -114,7 +115,7 @@ func (s *PostgresStore) ResumeFailedRun(ctx context.Context, ownerID, runID, sou
 		if err != nil {
 			return err
 		}
-		service := artifacts.NewService(artifacts.NewPostgresRepository(tx))
+		service := artifacts.NewService(artifactpostgres.NewRepository(tx))
 		scope, err := artifacts.RunScope(runID)
 		if err != nil {
 			return err
@@ -131,7 +132,7 @@ func (s *PostgresStore) ResumeFailedRun(ctx context.Context, ownerID, runID, sou
 			return err
 		}
 		// The database permits thawing only in this receipt's transaction.
-		err = artifacts.NewPostgresTxRepository(tx).ThawOutputs(ctx, scope)
+		err = artifactpostgres.NewTxRepository(tx).ThawOutputs(ctx, scope)
 		result.StageExecutionID = next.StageExecutionID
 		return err
 	}

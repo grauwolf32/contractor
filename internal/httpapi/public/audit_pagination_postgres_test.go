@@ -8,6 +8,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -31,7 +32,7 @@ func seedPublicPaginationFinding(t *testing.T, ctx context.Context, pool *pgxpoo
 	}
 
 	evidenceBytes := []byte("Exact source evidence " + suffix)
-	storedEvidence, err := artifactstest.WriteAuditArtifact(ctx, artifacts.NewService(artifacts.NewPostgresRepository(pool)), projectID, contracts.ArtifactRef{Namespace: artifactpolicy.FindingMaterialsNamespace, Name: "evidence-" + suffix}, artifacts.Payload{MediaType: "text/plain", Data: evidenceBytes})
+	storedEvidence, err := artifactstest.WriteAuditArtifact(ctx, artifacts.NewService(artifactpostgres.NewRepository(pool)), projectID, contracts.ArtifactRef{Namespace: artifactpolicy.FindingMaterialsNamespace, Name: "evidence-" + suffix}, artifacts.Payload{MediaType: "text/plain", Data: evidenceBytes})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +45,7 @@ func seedPublicPaginationFinding(t *testing.T, ctx context.Context, pool *pgxpoo
 	if err != nil {
 		t.Fatal(err)
 	}
-	written, err := artifactstest.WriteAuditArtifact(ctx, artifacts.NewService(artifacts.NewPostgresRepository(pool)), projectID,
+	written, err := artifactstest.WriteAuditArtifact(ctx, artifacts.NewService(artifactpostgres.NewRepository(pool)), projectID,
 		contracts.ArtifactRef{Namespace: artifactpolicy.FindingMaterialsNamespace, Name: document.ClientKey},
 		artifacts.Payload{MediaType: "application/json", Data: payload})
 	if err != nil {

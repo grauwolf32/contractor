@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/ownerstore"
 	"github.com/grauwolf32/contractor/internal/config"
@@ -64,7 +65,7 @@ func TestAuditRulepackMetadataAdmissionPostgres(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			store, err := artifacts.NewService(artifacts.NewPostgresRepository(pool)).Project(project.ProjectID)
+			store, err := artifacts.NewService(artifactpostgres.NewRepository(pool)).Project(project.ProjectID)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -241,7 +242,7 @@ func TestAuditRulepackMetadataPrecedesPayloadReadsPostgres(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	repo := artifacts.NewPostgresRepository(pool)
+	repo := artifactpostgres.NewRepository(pool)
 	store, _ := artifacts.NewService(repo).Project("metadata-project")
 	profile, err := aliasedRulepackCatalog(t).AuditProfile("aliased-web-scan@1")
 	if err != nil {

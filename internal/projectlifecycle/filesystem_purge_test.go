@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
-	"github.com/grauwolf32/contractor/internal/findingintake"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,9 +13,13 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob/backends/filesystem"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
+	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
@@ -31,17 +34,17 @@ func TestProjectAndAuditPurgesUnlinkOnlyUnreferencedFilesystemBlobs(t *testing.T
 	defer cancel()
 	pool := isolatedPool(t, ctx)
 	root := t.TempDir()
-	files, err := artifacts.OpenFilesystemBlobStore(ctx, root)
+	files, err := filesystem.Open(ctx, root)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer files.Close()
-	ctx = artifacts.WithBlobRuntime(ctx, artifacts.NewBlobRuntime(files, nil))
+	ctx = blob.WithRuntime(ctx, blob.NewRuntime(files, nil))
 
 	projects := projectstore.NewPostgresStore(pool)
 	runs := runstore.NewPostgresStore(pool)
 	audits := auditstoretest.NewStore(pool).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch)
-	service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	project, _, err := projects.Create(ctx, projectstore.CreateParams{
 		ProjectID: "project-files", OwnerID: "user-1", Kind: projectstore.KindProject,
 		Name: "Filesystem purge", IdempotencyKey: "create-project-files",
@@ -126,7 +129,7 @@ SELECT object_key FROM artifact_blobs WHERE backend = 'filesystem' AND sha256 = 
 				t.Errorf("%s: object of %q: %v, want it unlinked", stage, content, err)
 			}
 		}
-		report, err := artifacts.CleanupFilesystemBlobs(ctx, pool, root, false)
+		report, err := artifactpostgres.CleanupFilesystemBlobs(ctx, pool, root, false)
 		if err != nil || report.Referenced != referenced || report.Orphans != 0 || report.Missing != 0 {
 			t.Fatalf("%s: filesystem blobs = (%+v, %v), want %d referenced, no orphan or missing object",
 				stage, report, err, referenced)

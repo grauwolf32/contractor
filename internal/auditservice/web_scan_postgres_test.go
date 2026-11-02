@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -39,7 +40,7 @@ func TestWebScanAuditPinsOneProjectWithoutModelOrOpenAPI(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			store, err := artifacts.NewService(artifacts.NewPostgresRepository(pool)).Project(project.ProjectID)
+			store, err := artifacts.NewService(artifactpostgres.NewRepository(pool)).Project(project.ProjectID)
 			if err != nil {
 				t.Fatal(err)
 			}

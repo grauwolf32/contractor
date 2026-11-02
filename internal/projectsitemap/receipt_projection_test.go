@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -59,11 +60,11 @@ func TestPostgresSitemapReceiptPreservesStructuralOmissions(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			pool := sitemapPool(t)
-			history, err := artifacts.NewHistoryPolicy(2, artifacts.DefaultHistoryMaxBytes)
+			history, err := artifactpostgres.NewHistoryPolicy(2, artifactpostgres.DefaultHistoryMaxBytes)
 			if err != nil {
 				t.Fatal(err)
 			}
-			ctx := artifacts.WithHistoryPolicy(t.Context(), history)
+			ctx := artifactpostgres.WithHistoryPolicy(t.Context(), history)
 			service := NewService(pool)
 			owner := Authority{OwnerID: "owner", ProjectID: "project", SourceID: "rules", Kind: "manual"}
 			rules := append(slices.Clone(tc.rules), stable)

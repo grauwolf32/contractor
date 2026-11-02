@@ -15,6 +15,9 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob/backends/filesystem"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
@@ -51,12 +54,12 @@ func testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *te
 	var blobPath string
 	if os.Getenv("CONTRACTOR_TEST_ARTIFACT_BACKEND") == "filesystem" {
 		blobPath = t.TempDir()
-		files, err := artifacts.OpenFilesystemBlobStore(ctx, blobPath)
+		files, err := filesystem.Open(ctx, blobPath)
 		if err != nil {
 			t.Fatal(err)
 		}
 		defer files.Close()
-		ctx = artifacts.WithBlobRuntime(ctx, artifacts.NewBlobRuntime(files, nil))
+		ctx = blob.WithRuntime(ctx, blob.NewRuntime(files, nil))
 	}
 
 	const (
@@ -160,7 +163,7 @@ func testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *te
 		LogicalAgentName: "builder", Namespace: binding.Namespace,
 	}
 
-	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	artifactService := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	runArtifacts, err := artifactService.Run(runID)
 	if err != nil {
 		t.Fatal(err)
@@ -185,7 +188,7 @@ func testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *te
 			}
 		}()
 		for range 4 {
-			_, release, err := artifacts.AcquireTransfer(ctx)
+			_, release, err := blob.AcquireTransfer(ctx)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -195,10 +198,10 @@ func testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *te
 		for _, release := range leases {
 			release()
 		}
-		if !errors.Is(submitErr, artifacts.ErrTransferCapacity) {
+		if !errors.Is(submitErr, blob.ErrTransferCapacity) {
 			t.Fatalf("full-budget proposal submission = %v, want capacity error", submitErr)
 		}
-		report, err := artifacts.CleanupFilesystemBlobs(ctx, pool, blobPath, false)
+		report, err := artifactpostgres.CleanupFilesystemBlobs(ctx, pool, blobPath, false)
 		if err != nil || report.Orphans != 0 {
 			t.Fatalf("blob files after rejected proposal = %+v, %v", report, err)
 		}
@@ -276,14 +279,14 @@ func testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *te
 	}()
 	if blobPath != "" {
 		service.afterPrepare = func(held context.Context) {
-			if _, nested, err := artifacts.AcquireTransfer(held); err != nil {
+			if _, nested, err := blob.AcquireTransfer(held); err != nil {
 				t.Fatalf("prepared proposal lost its outer lease: %v", err)
 			} else {
 				nested()
 			}
 			for {
-				_, release, err := artifacts.AcquireTransfer(ctx)
-				if errors.Is(err, artifacts.ErrTransferCapacity) {
+				_, release, err := blob.AcquireTransfer(ctx)
+				if errors.Is(err, blob.ErrTransferCapacity) {
 					break
 				}
 				if err != nil {

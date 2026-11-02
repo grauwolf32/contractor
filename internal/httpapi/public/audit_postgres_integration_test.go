@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
@@ -61,7 +62,7 @@ func TestAuditPostgresPublicCreateStartAndQuery(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	projectArtifacts, err := artifacts.NewService(artifacts.NewPostgresRepository(pool)).Project(project.ProjectID)
+	projectArtifacts, err := artifacts.NewService(artifactpostgres.NewRepository(pool)).Project(project.ProjectID)
 	if err != nil {
 		t.Fatal(err)
 	}

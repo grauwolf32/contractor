@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -34,7 +35,7 @@ func admissionProposal(t *testing.T, f collectingAuditFixture) (auditstore.Exact
 	if err != nil {
 		t.Fatal(err)
 	}
-	service := artifacts.NewService(artifacts.NewPostgresRepository(f.pool))
+	service := artifacts.NewService(artifactpostgres.NewRepository(f.pool))
 	scope, _ := artifacts.ProjectScope(f.audit.ProjectID)
 	written, err := service.CreateFrozen(f.ctx, scope, contracts.ArtifactRef{Namespace: auditdomain.ArtifactNamespace(f.audit.AuditID), Name: "admission-test-proposal"}, artifacts.Payload{MediaType: "application/json", Data: data})
 	if err != nil {

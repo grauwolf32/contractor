@@ -17,6 +17,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
@@ -78,7 +79,7 @@ func TestAuditDraftStartReplayAndAtomicUnsupportedRollback(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	projectArtifacts, err := artifacts.NewService(artifacts.NewPostgresRepository(pool)).Project(project.ProjectID)
+	projectArtifacts, err := artifacts.NewService(artifactpostgres.NewRepository(pool)).Project(project.ProjectID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -681,7 +682,7 @@ func TestAuditStartUsesOwningTransactionWithSaturatedPool(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	projectArtifacts, err := artifacts.NewService(artifacts.NewPostgresRepository(pool)).Project(project.ProjectID)
+	projectArtifacts, err := artifacts.NewService(artifactpostgres.NewRepository(pool)).Project(project.ProjectID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -788,7 +789,7 @@ func TestAuditStartRechecksProjectHTTPTargetCredentialUse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	projectArtifacts, err := artifacts.NewService(artifacts.NewPostgresRepository(pool)).Project(project.ProjectID)
+	projectArtifacts, err := artifacts.NewService(artifactpostgres.NewRepository(pool)).Project(project.ProjectID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -913,7 +914,7 @@ func TestAuditReportAcceptanceUsesFrozenCandidate(t *testing.T) {
 	}
 	artifact := func(name, media, content string) auditstore.ExactArtifact {
 		written, err := artifactstest.WriteAuditArtifact(
-			ctx, artifacts.NewService(artifacts.NewPostgresRepository(pool)), project.ProjectID,
+			ctx, artifacts.NewService(artifactpostgres.NewRepository(pool)), project.ProjectID,
 			contracts.ArtifactRef{Namespace: "audit-report-review", Name: name},
 			artifacts.Payload{MediaType: media, Data: []byte(content)},
 		)
@@ -1117,7 +1118,7 @@ func seedAuditFindingProjected(
 	retainedEvidence := make([]findingintake.ExactArtifact, 0, len(document.EvidenceIDs))
 	for _, id := range document.EvidenceIDs {
 		body := []byte("Retained evidence " + suffix + " " + id)
-		file, err := artifactstest.WriteAuditArtifact(ctx, artifacts.NewService(artifacts.NewPostgresRepository(pool)), projectID, contracts.ArtifactRef{Namespace: artifactpolicy.FindingMaterialsNamespace, Name: suffix + "-" + id}, artifacts.Payload{MediaType: "text/plain", Data: body})
+		file, err := artifactstest.WriteAuditArtifact(ctx, artifacts.NewService(artifactpostgres.NewRepository(pool)), projectID, contracts.ArtifactRef{Namespace: artifactpolicy.FindingMaterialsNamespace, Name: suffix + "-" + id}, artifacts.Payload{MediaType: "text/plain", Data: body})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1133,7 +1134,7 @@ func seedAuditFindingProjected(
 		t.Fatal(err)
 	}
 	namespace := artifactpolicy.FindingMaterialsNamespace
-	written, err := artifactstest.WriteAuditArtifact(ctx, artifacts.NewService(artifacts.NewPostgresRepository(pool)), projectID,
+	written, err := artifactstest.WriteAuditArtifact(ctx, artifacts.NewService(artifactpostgres.NewRepository(pool)), projectID,
 		contracts.ArtifactRef{Namespace: namespace, Name: "candidate-" + suffix},
 		artifacts.Payload{MediaType: "application/json", Data: payload})
 	if err != nil {

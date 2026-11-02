@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -37,7 +38,7 @@ func TestPostgresPrivateFindingNULEscapeStopsBeforeIntake(t *testing.T) {
 	intake := &privateNULIntakeCounter{FindingIntake: service}
 	handler, err := NewHandler(Dependencies{
 		Registry:  &fakeRegistry{grant: grant},
-		Artifacts: artifacts.NewService(artifacts.NewPostgresRepository(pool)), Findings: intake,
+		Artifacts: artifacts.NewService(artifactpostgres.NewRepository(pool)), Findings: intake,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -102,7 +103,7 @@ func TestPostgresPrivateArtifactBytesKeepNULAndJSONEscapes(t *testing.T) {
 	createPrivateArtifactRun(t, ctx, pool, "run-a")
 	handler, err := NewHandler(Dependencies{
 		Registry:  &fakeRegistry{grant: testGrant("run-a")},
-		Artifacts: artifacts.NewService(artifacts.NewPostgresRepository(pool)),
+		Artifacts: artifacts.NewService(artifactpostgres.NewRepository(pool)),
 	})
 	if err != nil {
 		t.Fatal(err)

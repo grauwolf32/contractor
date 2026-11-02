@@ -3,14 +3,15 @@ package evalstore
 import (
 	"context"
 	"encoding/json"
-	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"strings"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/ownerstore"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -41,7 +42,7 @@ func TestPostgresEvalRunOutputAndEvidenceReadTheArtifactStore(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	run, err := service.Run("run-outputs")
 	if err != nil {
 		t.Fatal(err)

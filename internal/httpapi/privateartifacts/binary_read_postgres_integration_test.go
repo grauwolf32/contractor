@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 )
 
 // The read_artifact tool of the Python Runtime refuses an archive from the
@@ -33,7 +33,7 @@ func TestPostgresBinaryReadIsRefusedBeforeDownload(t *testing.T) {
 			next.ServeHTTP(w, request)
 		})
 	}
-	harness := newCrossLanguageHarness(t, artifacts.NewPostgresRepository(pool), record)
+	harness := newCrossLanguageHarness(t, artifactpostgres.NewRepository(pool), record)
 	result := harness.probe("--mode", "binary-read")
 	if message, _ := result["error"].(string); !strings.Contains(message, "binary (application/zip)") {
 		t.Fatalf("binary read through read_artifact = %+v", result)

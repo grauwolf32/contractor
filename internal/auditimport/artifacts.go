@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
@@ -207,7 +208,7 @@ func (a *ServiceArtifactAccess) retainRunExact(
 			MediaType: result.MediaType, SizeBytes: result.Size,
 		}
 		if retained.MediaType != source.MediaType || retained.SizeBytes != source.SizeBytes {
-			return auditstore.ExactArtifact{}, artifacts.ErrArtifactIntegrity
+			return auditstore.ExactArtifact{}, blob.ErrIntegrity
 		}
 		return retained, nil
 	}
@@ -226,7 +227,7 @@ func (a *ServiceArtifactAccess) retainRunExact(
 	expected := source
 	expected.Ref = metadata.Ref
 	if err := expected.Verify(metadata.Exact()); err != nil {
-		return auditstore.ExactArtifact{}, fmt.Errorf("%w: Audit retained binding collision", artifacts.ErrArtifactIntegrity)
+		return auditstore.ExactArtifact{}, fmt.Errorf("%w: Audit retained binding collision", blob.ErrIntegrity)
 	}
 	lineage, lineageErr := store.ListLineage(ctx, metadata.Ref, artifacts.LineagePageQuery{Limit: 2})
 	if lineageErr != nil {
@@ -236,7 +237,7 @@ func (a *ServiceArtifactAccess) retainRunExact(
 		lineage[0].SourceScope != artifacts.ScopeRun || lineage[0].SourceScopeID != runID ||
 		lineage[0].TargetScope != artifacts.ScopeProject || lineage[0].TargetScopeID != projectID ||
 		!lineage[0].Source.SameExact(source.Ref) || !lineage[0].Target.SameExact(metadata.Ref) {
-		return auditstore.ExactArtifact{}, fmt.Errorf("%w: Audit retained lineage collision", artifacts.ErrArtifactIntegrity)
+		return auditstore.ExactArtifact{}, fmt.Errorf("%w: Audit retained lineage collision", blob.ErrIntegrity)
 	}
 	return metadata.Exact(), nil
 }

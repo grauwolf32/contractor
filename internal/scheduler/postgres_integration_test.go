@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -123,7 +124,7 @@ func testPostgresSchedulerPublication(t *testing.T, scenario schedulerPublicatio
 		workflow.Stages[workflow.EntryStage] = stage
 	}
 	store := runstore.NewPostgresStore(pool)
-	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	artifactService := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	projectID := "project-scheduler"
 	_, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{
 		ProjectID: projectID, OwnerID: "user-1", Kind: projectstore.KindProject,
@@ -392,7 +393,7 @@ func TestPostgresProjectOutputPublicationRaceKeepsBothRunsSucceeded(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	for _, runID := range []string{"run-publication-a", "run-publication-b"} {
 		createBoundProjectRunOutput(t, ctx, pool, service, runID, projectID, "result", runID+"\n")
 	}
@@ -472,7 +473,7 @@ func TestPostgresProjectOutputPublicationRollsBackWithTerminalTransactionAndRetr
 	if err != nil {
 		t.Fatal(err)
 	}
-	service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	runID := "run-publication-retry"
 	createBoundProjectRunOutput(t, ctx, pool, service, runID, projectID, "result", "retry\n")
 	contractsByName := map[string]resolved.ArtifactSlot{
@@ -549,7 +550,7 @@ func TestPostgresProjectOutputPublicationFailureDoesNotChangeRunSuccess(t *testi
 	if err != nil {
 		t.Fatal(err)
 	}
-	service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	runID := "run-publication-failure"
 	createBoundProjectRunOutput(t, ctx, pool, service, runID, projectID, "result", "failure\n")
 	if _, err := pool.Exec(ctx, `
@@ -607,7 +608,7 @@ func TestPostgresProjectOutputPublicationRecordsPermanentFailureOnce(t *testing.
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedSchedulerPool(t, ctx)
-	service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	store := runstore.NewPostgresStore(pool)
 	contractsByName := map[string]resolved.ArtifactSlot{
 		"result": {Required: true, MediaTypes: []string{"text/plain"}},
@@ -887,7 +888,7 @@ func TestPostgresRetryProgressionAtomicallyCreatesFreshAttempt(t *testing.T) {
 	pool := isolatedSchedulerPool(t, ctx)
 	workflow := loadSchedulerWorkflow(t)
 	store := runstore.NewPostgresStore(pool)
-	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	artifactService := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	runArtifacts := createSchedulerRun(t, ctx, store, artifactService, workflow)
 	persistence, err := NewPostgresPersistence(pool)
 	if err != nil {
@@ -1057,7 +1058,7 @@ func TestPostgresEscalationProgressionIsAtomicAndOrdinalIsUnique(t *testing.T) {
 	pool := isolatedSchedulerPool(t, ctx)
 	workflow := loadSchedulerWorkflow(t)
 	store := runstore.NewPostgresStore(pool)
-	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	artifactService := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	runArtifacts := createSchedulerRun(t, ctx, store, artifactService, workflow)
 	persistence, err := NewPostgresPersistence(pool)
 	if err != nil {
@@ -1231,7 +1232,7 @@ func createRunningStageFixture(t *testing.T, ctx context.Context, pool *pgxpool.
 	t.Helper()
 	workflow := loadSchedulerWorkflow(t)
 	store := runstore.NewPostgresStore(pool)
-	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	artifactService := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	runArtifacts := createSchedulerRun(t, ctx, store, artifactService, workflow)
 	input, err := runArtifacts.Read(ctx, contracts.ArtifactRef{Namespace: "inputs", Name: "source"})
 	if err != nil {

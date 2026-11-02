@@ -14,12 +14,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
-
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
+	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -50,7 +50,7 @@ func TestImporterFinalizesLargeAuditUnderPageBudgetAndResumes(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 	seed := seedLargeReportAudit(t, ctx, pool)
-	access, err := NewArtifactAccess(artifacts.NewService(artifacts.NewPostgresRepository(pool)), hookstore.NewClaimedArtifacts(pool))
+	access, err := NewArtifactAccess(artifacts.NewService(artifactpostgres.NewRepository(pool)), hookstore.NewClaimedArtifacts(pool))
 	mustCompletion(t, err)
 	store := &budgetedReportStore{Store: auditstoretest.NewStore(pool), reads: map[string]int{}}
 	importer, err := New(store, store, runstore.NewPostgresStore(pool), access)

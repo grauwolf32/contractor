@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 )
 
 // Transfer is one admitted exchange. A context deadline alone does not
@@ -29,7 +29,7 @@ type Transfer struct {
 // carries the slot lease, so nested Artifact operations share it, and no
 // deadline: client I/O deadlines must not cancel storage work.
 func Acquire(w http.ResponseWriter, r *http.Request) (*http.Request, *Transfer, error) {
-	ctx, release, err := artifacts.AcquireTransfer(r.Context())
+	ctx, release, err := blob.AcquireTransfer(r.Context())
 	if err != nil {
 		return r, nil, err
 	}
@@ -48,7 +48,7 @@ func Acquire(w http.ResponseWriter, r *http.Request) (*http.Request, *Transfer, 
 // so the server's drain of an unread body cannot block.
 func (t *Transfer) ReadBody(r *http.Request, limit int64) ([]byte, error) {
 	if r.ContentLength > limit {
-		return nil, artifacts.ErrPayloadTooLarge
+		return nil, blob.ErrTooLarge
 	}
 	deadline := time.Now().Add(Duration(r.ContentLength))
 	_ = t.controller.SetReadDeadline(deadline)
@@ -97,7 +97,7 @@ func expectEOF(body io.Reader) error {
 	for {
 		n, err := body.Read(probe[:])
 		if n > 0 {
-			return artifacts.ErrPayloadTooLarge
+			return blob.ErrTooLarge
 		}
 		if errors.Is(err, io.EOF) {
 			return nil

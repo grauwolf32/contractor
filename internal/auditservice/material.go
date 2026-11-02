@@ -7,6 +7,8 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/ownerstore"
@@ -73,7 +75,7 @@ func (s *Service) PublishMaterial(ctx context.Context, ownerID, projectID, key s
 				if err != nil {
 					return persistencepostgres.Receipt{}, err
 				}
-				service := artifacts.NewService(artifacts.NewPostgresRepository(tx))
+				service := artifacts.NewService(artifactpostgres.NewRepository(tx))
 				source, _ := artifacts.AuditScope(audit.AuditID)
 				store, _ := service.Scoped(source)
 				described, err := store.DescribeExact(ctx, []contracts.ArtifactRef{request.Source})
@@ -81,7 +83,7 @@ func (s *Service) PublishMaterial(ctx context.Context, ownerID, projectID, key s
 					return persistencepostgres.Receipt{}, err
 				}
 				if len(described) != 1 || exact.Verify(described[0]) != nil {
-					return persistencepostgres.Receipt{}, artifacts.ErrArtifactIntegrity
+					return persistencepostgres.Receipt{}, blob.ErrIntegrity
 				}
 				target, _ := artifacts.ProjectScope(audit.ProjectID)
 				fork, err := service.Fork(ctx, artifacts.Fork{Kind: artifacts.LineageAuditPublish, Source: source, SourceRef: request.Source,
@@ -111,7 +113,7 @@ func (s *Service) PublishMaterial(ctx context.Context, ownerID, projectID, key s
 	})
 	var pending *artifacts.HistoryMaintenanceError
 	if errors.As(err, &pending) {
-		err = artifacts.NewPostgresRepository(s.pool).MaintainHistory(ctx, pending)
+		err = artifactpostgres.NewRepository(s.pool).MaintainHistory(ctx, pending)
 	}
 	return result, err
 }

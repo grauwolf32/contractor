@@ -206,7 +206,7 @@ func (h *handler) putArtifact(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := artifacttransfer.StorageContext(r.Context())
 	defer cancel()
-	preparedPayload, err := artifacts.PreparePayload(ctx, artifacts.Payload{MediaType: mediaType, Data: payload})
+	preparedPayload, err := h.dependencies.Artifacts.PreparePayload(ctx, artifacts.Payload{MediaType: mediaType, Data: payload})
 	if err != nil {
 		transfer.ReleaseBeforeWrite(0)
 		h.handleError(w, err)

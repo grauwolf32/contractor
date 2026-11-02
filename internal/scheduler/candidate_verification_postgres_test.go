@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/planner"
@@ -24,7 +25,7 @@ type postgresVerifiers struct {
 
 func newPostgresVerifiers(t *testing.T, pool *pgxpool.Pool) postgresVerifiers {
 	t.Helper()
-	service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	inspector, err := planner.NewArtifactServiceInspector(service)
 	if err != nil {
 		t.Fatal(err)
@@ -46,7 +47,7 @@ func TestPostgresResultArtifactVerificationClassifiesMissingAndUnavailable(t *te
 	defer cancel()
 	pool := isolatedSchedulerPool(t, ctx)
 	workflowSnapshot := loadSchedulerWorkflow(t)
-	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	artifactService := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	runStore := createSchedulerRun(t, ctx, runstore.NewPostgresStore(pool), artifactService, workflowSnapshot)
 	written, err := runStore.Write(ctx, contracts.ArtifactRef{Namespace: "builder", Name: "copied"},
 		artifacts.Payload{MediaType: "text/plain", Data: []byte("copied\n")}, nil)

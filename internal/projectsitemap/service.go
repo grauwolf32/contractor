@@ -10,6 +10,8 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
@@ -93,7 +95,7 @@ func (s *Service) mutationTransaction(ctx context.Context, appendCompatible bool
 			return contracts.ErrIdempotencyConflict
 		}
 		if errors.Is(err, artifacts.ErrHistoryMaintenancePending) {
-			return artifacts.NewPostgresRepository(s.pool).MaintainHistory(ctx, err)
+			return artifactpostgres.NewRepository(s.pool).MaintainHistory(ctx, err)
 		}
 		if err == nil || (!postgres.IsTransactionConflict(err) && !(appendCompatible && errors.Is(err, artifacts.ErrArtifactConflict))) {
 			return err
@@ -138,7 +140,7 @@ func mutateTransaction(ctx context.Context, tx pgx.Tx, a Authority, idempotencyK
 	if err != nil {
 		return Result{}, err
 	}
-	service := artifacts.NewService(artifacts.NewPostgresTxRepository(tx))
+	service := artifacts.NewService(artifactpostgres.NewTxRepository(tx))
 	store, err := service.Project(a.ProjectID)
 	if err != nil {
 		return Result{}, err
@@ -153,7 +155,7 @@ func mutateTransaction(ctx context.Context, tx pgx.Tx, a Authority, idempotencyK
 		}
 		policy = record.Policy
 	} else {
-		admitted, release, err := artifacts.AcquireTransfer(ctx)
+		admitted, release, err := blob.AcquireTransfer(ctx)
 		if err != nil {
 			return Result{}, err
 		}

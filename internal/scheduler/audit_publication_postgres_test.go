@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
@@ -131,7 +132,7 @@ func TestAuditManagedRunSkipsGenericProjectOutputPublication(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	artifactService := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	runArtifacts, err := artifactService.Run(runID)
 	if err != nil {
 		t.Fatal(err)

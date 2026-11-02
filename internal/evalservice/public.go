@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalstore"
 	"github.com/grauwolf32/contractor/internal/helpers/randomid"
@@ -171,7 +172,7 @@ func (s *Service) PutDataset(ctx context.Context, scope evalstore.Scope, doc eva
 	}
 	var result evalstore.Receipt
 	err = pg.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		artifactService := artifacts.NewService(artifacts.NewPostgresRepository(tx))
+		artifactService := artifacts.NewService(artifactpostgres.NewRepository(tx))
 		for _, c := range data.Cases {
 			for _, ref := range c.Inputs {
 				if err := verifyArtifact(ctx, tx, artifactService, scope.OwnerID, ref); err != nil {

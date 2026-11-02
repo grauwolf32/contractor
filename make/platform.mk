@@ -72,7 +72,7 @@ test-project-workspaces-release: test-project-workspaces-hardening test-project-
 test-lifecycle-controls-matrix: test-hardening-matrices
 
 test-lifecycle-controls-hardening: test-lifecycle-controls-matrix require-database
-	$(call run-family-test,CONTRACTOR_TEST_DATABASE_URL="$$CONTRACTOR_TEST_DATABASE_URL" go test -race -count=1 ./internal/runstore ./internal/scheduler ./internal/artifacts ./internal/projectlifecycle ./internal/httpapi/public -run '^(TestPostgresOwnerQueueControlSerializesWithStageAdmission|TestPostgresQueuePauseAllowsTerminalResultCommit|TestSchedulerOwnerQueuePauseDefersInitialAdmissionUntilResume|TestSchedulerOwnerQueuePauseDrainsCurrentStageWithoutAdmittingNext|TestSchedulerOwnerQueuePauseDoesNotBlockCancellation|TestPostgresIntegrationDeletesReleasedTerminalRunWithoutSharedArtifacts|TestPostgresIntegrationRunDeletionParticipatesInCallerTransaction|TestProjectDeletionCancelsDrainsPurgesAndRetainsSharedResources|TestProjectDeleteIsCASDurableIdempotentAndFencesMutations|TestDeleteRunRequiresOwnedReleasedTerminalRun|TestUserArtifactNamespaceExclusionPrecedesPagination)$$')
+	$(call run-family-test,CONTRACTOR_TEST_DATABASE_URL="$$CONTRACTOR_TEST_DATABASE_URL" go test -race -count=1 ./internal/runstore ./internal/scheduler ./internal/artifacts/... ./internal/projectlifecycle ./internal/httpapi/public -run '^(TestPostgresOwnerQueueControlSerializesWithStageAdmission|TestPostgresQueuePauseAllowsTerminalResultCommit|TestSchedulerOwnerQueuePauseDefersInitialAdmissionUntilResume|TestSchedulerOwnerQueuePauseDrainsCurrentStageWithoutAdmittingNext|TestSchedulerOwnerQueuePauseDoesNotBlockCancellation|TestPostgresIntegrationDeletesReleasedTerminalRunWithoutSharedArtifacts|TestPostgresIntegrationRunDeletionParticipatesInCallerTransaction|TestProjectDeletionCancelsDrainsPurgesAndRetainsSharedResources|TestProjectDeleteIsCASDurableIdempotentAndFencesMutations|TestDeleteRunRequiresOwnedReleasedTerminalRun|TestUserArtifactNamespaceExclusionPrecedesPagination)$$')
 	cd ui && corepack pnpm test --run src/api/projects.test.ts src/api/project-artifacts.test.ts src/api/queue.test.ts src/routes/projects/projects.test.tsx src/routes/queue.test.tsx src/routes/runs/runs.test.tsx
 
 test-lifecycle-controls-e2e: require-database runtime-venv
@@ -138,7 +138,7 @@ test-git-read-only: require-git-container-linux
 test-git-artifacts: require-git-container-linux require-database runtime-venv test-git-read-only
 	@command -v git >/dev/null || (echo "native git is required for fixtures" >&2; exit 1)
 	@command -v podman >/dev/null || (echo "podman is required" >&2; exit 1)
-	$(call run-family-test,go test -race -tags=integration -count=1 ./internal/credentials ./internal/gitimport ./internal/artifacts ./internal/httpapi/public ./internal/app ./internal/persistence/postgres)
+	$(call run-family-test,go test -race -tags=integration -count=1 ./internal/credentials ./internal/gitimport ./internal/artifacts/... ./internal/httpapi/public ./internal/app ./internal/persistence/postgres)
 	$(call run-family-test,cd runtime && uv run pytest -q tests/test_source_analysis_toolset.py tests/test_workspace_auto_export.py tests/test_projectfs_overlay.py)
 	$(MAKE) ui-typecheck ui-lint ui-test verify-public-api
 	node ui/server/git-artifacts-gate.mjs
@@ -147,7 +147,7 @@ test-git-artifacts: require-git-container-linux require-database runtime-venv te
 # The packages whose tests take their Artifact blob backend from
 # CONTRACTOR_TEST_ARTIFACT_BACKEND; the release-graph guard keeps the list
 # complete. Their tests use the PostgreSQL backend unless it says filesystem.
-ARTIFACT_BACKEND_PACKAGES := ./internal/artifacts ./internal/findingintake
+ARTIFACT_BACKEND_PACKAGES := ./internal/artifacts/postgres ./internal/findingintake
 
 # Every one of those tests on the filesystem backend, without Podman; a
 # release-verify-integration pass. Tests that always use filesystem
@@ -157,7 +157,7 @@ test-artifact-filesystem: require-database
 
 test-artifact-blob-backends: require-database
 	@command -v podman >/dev/null || (echo "podman is required" >&2; exit 1)
-	$(call run-family-test,go test -race -tags=integration -count=1 ./internal/artifacts ./internal/app ./internal/persistence/postgres ./internal/httpapi/public ./internal/httpapi/privateartifacts ./internal/auditstore/internal/pgstore ./internal/findingintake ./internal/projectlifecycle)
+	$(call run-family-test,go test -race -tags=integration -count=1 ./internal/artifacts/... ./internal/app ./internal/persistence/postgres ./internal/httpapi/public ./internal/httpapi/privateartifacts ./internal/auditstore/internal/pgstore ./internal/findingintake ./internal/projectlifecycle)
 	$(call run-family-test,CONTRACTOR_TEST_ARTIFACT_BACKEND=filesystem go test -race -tags=integration -count=1 $(ARTIFACT_BACKEND_PACKAGES))
 	$(call run-family-test,cd runtime && uv run pytest -q tests/test_artifacts.py tests/test_workspace_auto_export.py tests/test_projectfs_overlay.py)
 	$(call run-family-test,go test -tags=e2e -count=1 -timeout=8m ./tests/e2e -run '^TestArtifactBlobBackendsContainers$$' -v)

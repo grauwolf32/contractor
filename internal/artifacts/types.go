@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -51,7 +52,8 @@ type ArtifactRef = contracts.ArtifactRef
 type Payload struct {
 	MediaType string
 	Data      []byte
-	prepared  *BlobObject
+	// Prepared is trusted internal state and never comes from wire JSON.
+	Prepared *blob.Prepared `json:"-"`
 }
 
 type ReadResult struct {
@@ -86,6 +88,8 @@ type ForkResult struct {
 // Metadata describes one exact immutable Artifact revision and its relation to
 // the current logical binding. It never contains bytes or a physical blob key.
 type Metadata struct {
+	// BindingCreatedAt is the authoritative logical binding creation time.
+	BindingCreatedAt  time.Time         `json:"-"`
 	GitSource         *GitSource        `json:"gitSource,omitempty"`
 	StorageTimestamps StorageTimestamps `json:"storageTimestamps"`
 	Ref               ArtifactRef       `json:"artifact"`
@@ -224,12 +228,13 @@ type Fork struct {
 	Replay bool
 }
 
-// Repository is the one storage port of Service. PostgresRepository is its
+// Repository is the one storage port of Service. postgres.Repository is its
 // only production implementation; the port exists so that the handler and
 // catalog unit suites run on in-memory doubles without a database. Service
 // validates every request before it reaches the port, so implementations
 // trust their arguments.
 type Repository interface {
+	PreparePayload(context.Context, Payload) (Payload, error)
 	// Write creates target when expectedRevision is nil and otherwise advances
 	// the unfrozen binding whose current revision it is (WritePrecondition).
 	Write(context.Context, Scope, ArtifactRef, Payload, *string) (WriteResult, error)
@@ -262,23 +267,23 @@ type Repository interface {
 
 // validateScope rejects a Scope that its constructors would not return, such
 // as the zero value.
-func validateScope(scope Scope) error {
+func ValidateScope(scope Scope) error {
 	_, err := newScope(scope.kind, scope.id)
 	return err
 }
 
-func validateComponent(value string) error {
+func ValidateComponent(value string) error {
 	if contracts.ValidateArtifactName(value) != nil {
 		return ErrInvalidName
 	}
 	return nil
 }
 
-func validateRef(ref ArtifactRef) error {
-	if err := validateComponent(ref.Namespace); err != nil {
+func ValidateRef(ref ArtifactRef) error {
+	if err := ValidateComponent(ref.Namespace); err != nil {
 		return err
 	}
-	if err := validateComponent(ref.Name); err != nil {
+	if err := ValidateComponent(ref.Name); err != nil {
 		return err
 	}
 	if ref.Revision != nil {
@@ -291,7 +296,7 @@ func validateRef(ref ArtifactRef) error {
 
 // validateTarget validates a versionless write or fork target.
 func validateTarget(ref ArtifactRef) error {
-	if err := validateRef(ref); err != nil {
+	if err := ValidateRef(ref); err != nil {
 		return err
 	}
 	if ref.Revision != nil {
@@ -307,25 +312,25 @@ func validateRevision(value string) error {
 	return nil
 }
 
-func validateMediaType(value string) error {
+func ValidateMediaType(value string) error {
 	if !contracts.ValidMediaType(value) {
 		return ErrInvalidMediaType
 	}
 	return nil
 }
 
-func validatePayload(payload Payload) error {
-	if err := validateMediaType(payload.MediaType); err != nil {
+func ValidatePayload(payload Payload) error {
+	if err := ValidateMediaType(payload.MediaType); err != nil {
 		return err
 	}
 	if len(payload.Data) > MaxPayloadSize {
-		return ErrPayloadTooLarge
+		return blob.ErrTooLarge
 	}
 	return nil
 }
 
 func validateExact(ref ArtifactRef) error {
-	if err := validateRef(ref); err != nil {
+	if err := ValidateRef(ref); err != nil {
 		return err
 	}
 	if ref.Revision == nil {
@@ -333,3 +338,6 @@ func validateExact(ref ArtifactRef) error {
 	}
 	return nil
 }
+
+// MaxExactReadBatchSize bounds one exact registry query (LIM-ART-8).
+const MaxExactReadBatchSize = 32

@@ -17,6 +17,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
@@ -54,7 +55,7 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	runs := runstore.NewPostgresStore(pool)
 	nextRunID := "run-public"
 	managedCredentials := newFakeManagedCredentials()
@@ -224,7 +225,7 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 	}
 	var outputRef contracts.ArtifactRef
 	err = persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		txArtifacts := artifacts.NewService(artifacts.NewPostgresRepository(tx))
+		txArtifacts := artifacts.NewService(artifactpostgres.NewRepository(tx))
 		bound, err := artifactstest.BindOutput(ctx, txArtifacts, "run-public", "result", intermediate.Ref)
 		if err != nil {
 			return err
@@ -440,7 +441,7 @@ func (u integrationUnitOfWork) Do(ctx context.Context, fn func(RunWriter, *artif
 		if err != nil {
 			return err
 		}
-		var repository artifacts.Repository = artifacts.NewPostgresRepository(tx)
+		var repository artifacts.Repository = artifactpostgres.NewRepository(tx)
 		if u.wrapArtifacts != nil {
 			repository = u.wrapArtifacts(repository)
 		}

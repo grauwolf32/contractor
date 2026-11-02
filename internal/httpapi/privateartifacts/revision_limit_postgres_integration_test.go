@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 )
 
 // A Run that has used up its revision limit (LIM-ART-6) gets the permanent
@@ -20,7 +21,7 @@ func TestPostgresPrivateRunRevisionLimitIsPermanent(t *testing.T) {
 	defer cancel()
 	pool := isolatedPrivateArtifactPool(t, ctx)
 	createPrivateArtifactRun(t, ctx, pool, "run-a")
-	service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	store, err := service.Run("run-a")
 	if err != nil {
 		t.Fatal(err)

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
@@ -70,7 +71,7 @@ func (s *AdmissionSession) WithCandidate(ctx context.Context, fn func(context.Co
 	reader := *s.reader
 	reader.QueryStore = NewQueryStore(child)
 	reader.db = child
-	keep, err := fn(ctx, artifacts.NewService(artifacts.NewPostgresRepository(child)), &reader)
+	keep, err := fn(ctx, artifacts.NewService(artifactpostgres.NewRepository(child)), &reader)
 	if err != nil || !keep {
 		return false, err
 	}
@@ -149,7 +150,7 @@ func (s *ClaimedAdmission) WithStep(ctx context.Context, params auditstore.Admis
 			return auditstore.ErrAdmissionDeadline
 		}
 		reader := newAdmissionReader(tx, state, owner, project)
-		session := &AdmissionSession{State: state, Artifacts: artifacts.NewService(artifacts.NewPostgresRepository(tx)), Reads: reader, tx: tx, reader: reader}
+		session := &AdmissionSession{State: state, Artifacts: artifacts.NewService(artifactpostgres.NewRepository(tx)), Reads: reader, tx: tx, reader: reader}
 		mutation, err := fn(ctx, session)
 		if err != nil {
 			return err

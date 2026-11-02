@@ -10,6 +10,7 @@ import (
 
 	"github.com/getkin/kin-openapi/routers/gorillamux"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
@@ -39,7 +40,7 @@ func TestSharedPostgresCompositeStringByteBounds(t *testing.T) {
 		d.Projects, d.Runs = projects, runs
 		d.RunQueue, d.RunLifecycle = runs, runs
 		d.Sitemap = projectsitemap.NewService(pool)
-		d.Artifacts = artifacts.NewService(artifacts.NewPostgresRepository(pool))
+		d.Artifacts = artifacts.NewService(artifactpostgres.NewRepository(pool))
 	})
 	router, err := gorillamux.NewRouter(loadPublicOpenAPI(t))
 	if err != nil {

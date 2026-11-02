@@ -18,12 +18,12 @@ func TestSharedStoreMediaTypeMatchesSharedCases(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, value := range cases.Valid {
-		if err := validateMediaType(value); err != nil {
+		if err := ValidateMediaType(value); err != nil {
 			t.Errorf("valid media type %q rejected: %v", value, err)
 		}
 	}
 	for _, value := range cases.Invalid {
-		if validateMediaType(value) == nil {
+		if ValidateMediaType(value) == nil {
 			t.Errorf("invalid media type %q accepted", value)
 		}
 	}

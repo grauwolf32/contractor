@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -95,7 +96,7 @@ func newEscalationFixture(t *testing.T, ctx context.Context, outcome string) esc
 	if err != nil {
 		t.Fatal(err)
 	}
-	runArtifacts, err := artifacts.NewService(artifacts.NewPostgresRepository(h.pool)).Run("run-1")
+	runArtifacts, err := artifacts.NewService(artifactpostgres.NewRepository(h.pool)).Run("run-1")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
@@ -193,12 +194,12 @@ func writeFingerprintReportInputs(t *testing.T, ctx context.Context, pool *pgxpo
 		source = sourceData[0]
 	}
 	for index, payload := range []artifacts.Payload{{MediaType: "application/zip", Data: source}, {MediaType: "application/sarif+json", Data: report}} {
-		prepared, err := artifacts.PreparePayload(ctx, payload)
+		prepared, err := artifactpostgres.PreparePayload(ctx, pool, payload)
 		if err != nil {
 			t.Fatal(err)
 		}
 		err = persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-			repo := artifacts.NewPostgresTxRepository(tx)
+			repo := artifactpostgres.NewTxRepository(tx)
 			store, err := artifacts.NewService(repo).Run(run)
 			if err != nil {
 				return err

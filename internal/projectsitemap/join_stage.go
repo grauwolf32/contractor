@@ -7,6 +7,8 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
@@ -90,13 +92,13 @@ func (s *Service) joinStage(ctx context.Context, request StageJoin, apply bool) 
 		}
 		key := postgres.ProjectReceiptKey(owner.OwnerID, owner.ProjectID, owner.ProjectID, "sitemap.join", request.StageID)
 		receipt, replayed, err := postgres.KeyedMutation(ctx, tx, key, digest, func() (postgres.Receipt, error) {
-			admitted, release, err := artifacts.AcquireTransfer(ctx)
+			admitted, release, err := blob.AcquireTransfer(ctx)
 			if err != nil {
 				return postgres.Receipt{}, err
 			}
 			defer release()
 			ctx = admitted
-			service := artifacts.NewService(artifacts.NewPostgresTxRepository(tx))
+			service := artifacts.NewService(artifactpostgres.NewTxRepository(tx))
 			consumer, err := service.Run(request.RunID)
 			if err != nil {
 				return postgres.Receipt{}, err

@@ -5,14 +5,14 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 )
 
 // The retained-history limits default to LIM-ART-9 and follow the Server
 // configuration precedence: defaults < YAML < environment < flags.
 func TestArtifactHistoryConfigDefaultsAndPrecedence(t *testing.T) {
 	defaults, err := ParseConfig(nil, func(string) string { return "" })
-	if err != nil || defaults.ArtifactHistory != artifacts.DefaultHistoryPolicy() {
+	if err != nil || defaults.ArtifactHistory != artifactpostgres.DefaultHistoryPolicy() {
 		t.Fatalf("default history limits: %+v, %v", defaults.ArtifactHistory, err)
 	}
 	directory := t.TempDir()
@@ -34,22 +34,22 @@ spec:
 		}
 	}
 	assertHistory("YAML", nil, 500, 268435456)
-	env["CONTRACTOR_ARTIFACT_HISTORY_MAX_REVISIONS"] = strconv.FormatInt(artifacts.HistoryRevisionsCeiling, 10)
-	env["CONTRACTOR_ARTIFACT_HISTORY_MAX_BYTES"] = strconv.FormatInt(artifacts.HistoryBytesCeiling, 10)
-	assertHistory("environment", nil, artifacts.HistoryRevisionsCeiling, artifacts.HistoryBytesCeiling)
+	env["CONTRACTOR_ARTIFACT_HISTORY_MAX_REVISIONS"] = strconv.FormatInt(artifactpostgres.HistoryRevisionsCeiling, 10)
+	env["CONTRACTOR_ARTIFACT_HISTORY_MAX_BYTES"] = strconv.FormatInt(artifactpostgres.HistoryBytesCeiling, 10)
+	assertHistory("environment", nil, artifactpostgres.HistoryRevisionsCeiling, artifactpostgres.HistoryBytesCeiling)
 	env["CONTRACTOR_ARTIFACT_HISTORY_MAX_REVISIONS"] = "invalid overridden value"
 	assertHistory("flag", []string{
-		"--artifact-history-max-revisions=2", "--artifact-history-max-bytes=" + strconv.FormatInt(artifacts.HistoryBytesFloor, 10),
-	}, 2, artifacts.HistoryBytesFloor)
+		"--artifact-history-max-revisions=2", "--artifact-history-max-bytes=" + strconv.FormatInt(artifactpostgres.HistoryBytesFloor, 10),
+	}, 2, artifactpostgres.HistoryBytesFloor)
 }
 
 func TestArtifactHistoryConfigRejectsLimitsOutsideTheirRange(t *testing.T) {
 	for _, test := range []struct{ name, revisions, bytes string }{
-		{"revisions below floor", strconv.FormatInt(artifacts.HistoryRevisionsFloor-1, 10), ""},
-		{"revisions above ceiling", strconv.FormatInt(artifacts.HistoryRevisionsCeiling+1, 10), ""},
+		{"revisions below floor", strconv.FormatInt(artifactpostgres.HistoryRevisionsFloor-1, 10), ""},
+		{"revisions above ceiling", strconv.FormatInt(artifactpostgres.HistoryRevisionsCeiling+1, 10), ""},
 		{"revisions not an integer", "2k", ""},
-		{"bytes below floor", "", strconv.FormatInt(artifacts.HistoryBytesFloor-1, 10)},
-		{"bytes above ceiling", "", strconv.FormatInt(artifacts.HistoryBytesCeiling+1, 10)},
+		{"bytes below floor", "", strconv.FormatInt(artifactpostgres.HistoryBytesFloor-1, 10)},
+		{"bytes above ceiling", "", strconv.FormatInt(artifactpostgres.HistoryBytesCeiling+1, 10)},
 		{"bytes not an integer", "", "1GiB"},
 	} {
 		t.Run(test.name, func(t *testing.T) {

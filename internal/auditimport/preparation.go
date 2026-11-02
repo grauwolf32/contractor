@@ -9,6 +9,7 @@ import (
 	"slices"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
@@ -36,7 +37,7 @@ func (i *Importer) commitRoleFailure(ctx context.Context, claim auditstore.Contr
 	for _, name := range slices.Sorted(maps.Keys(binding.Outputs)) {
 		slot := binding.Outputs[name]
 		exact, _, frozen, err := i.artifacts.ReadRunBinding(ctx, *execution.RunID, contracts.ArtifactRef{Namespace: "outputs", Name: slot})
-		if errors.Is(err, artifacts.ErrArtifactNotFound) || errors.Is(err, artifacts.ErrArtifactIntegrity) {
+		if errors.Is(err, artifacts.ErrArtifactNotFound) || errors.Is(err, blob.ErrIntegrity) {
 			continue
 		}
 		if err != nil {

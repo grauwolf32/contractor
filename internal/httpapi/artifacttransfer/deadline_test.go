@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 )
 
 func TestDurationAllowsMaximumPayloadAtMinimumThroughput(t *testing.T) {
@@ -44,7 +45,7 @@ func (d *deadlineRecorder) SetWriteDeadline(deadline time.Time) error {
 }
 
 func TestReleaseBeforeWriteFreesTheSlotAndBoundsTheResponse(t *testing.T) {
-	ctx := artifacts.WithBlobRuntime(context.Background(), artifacts.NewBlobRuntime(nil, nil))
+	ctx := blob.WithRuntime(context.Background(), blob.NewRuntime(nil, nil))
 	request := httptest.NewRequestWithContext(ctx, http.MethodPut, "/artifact", nil)
 	recorders := make([]*deadlineRecorder, 4)
 	transfers := make([]*Transfer, 4)
@@ -62,7 +63,7 @@ func TestReleaseBeforeWriteFreesTheSlotAndBoundsTheResponse(t *testing.T) {
 		}
 	}()
 	rejected := &deadlineRecorder{ResponseRecorder: httptest.NewRecorder()}
-	if _, _, err := Acquire(rejected, request); !errors.Is(err, artifacts.ErrTransferCapacity) {
+	if _, _, err := Acquire(rejected, request); !errors.Is(err, blob.ErrTransferCapacity) {
 		t.Fatalf("fifth transfer = %v, want capacity error", err)
 	}
 	if len(rejected.read)+len(rejected.write) != 0 {
@@ -83,7 +84,7 @@ func TestReleaseBeforeWriteFreesTheSlotAndBoundsTheResponse(t *testing.T) {
 	// Repeated release and Close must not free a slot another request now holds.
 	transfers[0].ReleaseBeforeWrite(0)
 	transfers[0].Close()
-	if _, _, err := Acquire(&deadlineRecorder{ResponseRecorder: httptest.NewRecorder()}, request); !errors.Is(err, artifacts.ErrTransferCapacity) {
+	if _, _, err := Acquire(&deadlineRecorder{ResponseRecorder: httptest.NewRecorder()}, request); !errors.Is(err, blob.ErrTransferCapacity) {
 		t.Fatalf("transfer after repeated release = %v, want capacity error", err)
 	}
 	for _, deadline := range append(recorders[0].read, recorders[0].write...) {
@@ -94,7 +95,7 @@ func TestReleaseBeforeWriteFreesTheSlotAndBoundsTheResponse(t *testing.T) {
 }
 
 func TestBoundWriteMeasuresTheResponseFromTheWrite(t *testing.T) {
-	ctx := artifacts.WithBlobRuntime(context.Background(), artifacts.NewBlobRuntime(nil, nil))
+	ctx := blob.WithRuntime(context.Background(), blob.NewRuntime(nil, nil))
 	recorder := &deadlineRecorder{ResponseRecorder: httptest.NewRecorder()}
 	request := httptest.NewRequestWithContext(ctx, http.MethodGet, "/artifact", nil)
 	_, transfer, err := Acquire(recorder, request)
@@ -120,7 +121,7 @@ func TestBoundWriteMeasuresTheResponseFromTheWrite(t *testing.T) {
 }
 
 func TestAcquireLeavesStorageWorkWithoutAClientDeadline(t *testing.T) {
-	ctx := artifacts.WithBlobRuntime(context.Background(), artifacts.NewBlobRuntime(nil, nil))
+	ctx := blob.WithRuntime(context.Background(), blob.NewRuntime(nil, nil))
 	recorder := &deadlineRecorder{ResponseRecorder: httptest.NewRecorder()}
 	admitted, transfer, err := Acquire(recorder, httptest.NewRequestWithContext(ctx, http.MethodPut, "/artifact", nil))
 	if err != nil {
@@ -140,7 +141,7 @@ func TestAcquireLeavesStorageWorkWithoutAClientDeadline(t *testing.T) {
 	if !ok || deadline.Before(started.Add(StorageBudget)) || deadline.After(time.Now().Add(StorageBudget)) {
 		t.Fatalf("storage deadline = %v (%t), want %s from the start of storage work", deadline, ok, StorageBudget)
 	}
-	if _, nested, err := artifacts.AcquireTransfer(storage); err != nil {
+	if _, nested, err := blob.AcquireTransfer(storage); err != nil {
 		t.Fatalf("storage work does not share the transfer lease: %v", err)
 	} else {
 		nested()
@@ -156,7 +157,7 @@ type failingReader struct{}
 func (failingReader) Read([]byte) (int, error) { return 0, errors.New("body must not be read") }
 
 func TestReadBodyAllocatesAtMostTheDeclaredBound(t *testing.T) {
-	ctx := artifacts.WithBlobRuntime(context.Background(), artifacts.NewBlobRuntime(nil, nil))
+	ctx := blob.WithRuntime(context.Background(), blob.NewRuntime(nil, nil))
 	read := func(body io.Reader, declared, limit int64) ([]byte, uint64, *deadlineRecorder, error) {
 		t.Helper()
 		request := httptest.NewRequestWithContext(ctx, http.MethodPut, "/artifact", body)
@@ -199,13 +200,13 @@ func TestReadBodyAllocatesAtMostTheDeclaredBound(t *testing.T) {
 	if cap(data) != limit || allocated > 2*limit+limit/8 {
 		t.Fatalf("unknown-length body allocated %d bytes, capacity %d, limit %d", allocated, cap(data), limit)
 	}
-	if _, _, recorder, err = read(onlyReader{bytes.NewReader(append(exact, 'z'))}, -1, limit); !errors.Is(err, artifacts.ErrPayloadTooLarge) {
+	if _, _, recorder, err = read(onlyReader{bytes.NewReader(append(exact, 'z'))}, -1, limit); !errors.Is(err, blob.ErrTooLarge) {
 		t.Fatalf("unknown-length body above the limit = %v", err)
 	}
 	if len(recorder.read) != 1 || recorder.read[0].IsZero() {
 		t.Fatalf("failed read cleared its deadline: %v", recorder.read)
 	}
-	if _, _, recorder, err = read(failingReader{}, limit+1, limit); !errors.Is(err, artifacts.ErrPayloadTooLarge) {
+	if _, _, recorder, err = read(failingReader{}, limit+1, limit); !errors.Is(err, blob.ErrTooLarge) {
 		t.Fatalf("declared body above the limit = %v", err)
 	}
 	if len(recorder.read)+len(recorder.write) != 0 {

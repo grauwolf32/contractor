@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
@@ -74,7 +75,7 @@ func TestPostgresPublicRunCreationRecoversFreshPinsAndRolledBackResults(t *testi
 			if err != nil {
 				t.Fatal(err)
 			}
-			serviceArtifacts := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+			serviceArtifacts := artifacts.NewService(artifactpostgres.NewRepository(pool))
 			user, _ := serviceArtifacts.User("owner-retry")
 			source, err := user.Write(ctx, contracts.ArtifactRef{Namespace: "sources", Name: "source"}, artifacts.Payload{MediaType: "text/plain", Data: []byte("source")}, nil)
 			if err != nil {

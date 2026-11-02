@@ -13,6 +13,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auth"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
@@ -29,7 +30,7 @@ func TestPostgresRunRepeatUsesExactCreationLineageWithoutMutation(t *testing.T) 
 	ctx := t.Context()
 	pool := isolatedPublicPool(t, ctx)
 	fixture := newHandlerFixture(t)
-	repository := artifacts.NewPostgresRepository(pool)
+	repository := artifactpostgres.NewRepository(pool)
 	service := artifacts.NewService(repository)
 	runs := runstore.NewPostgresStore(pool)
 	projects := projectstore.NewPostgresStore(pool)
@@ -203,7 +204,7 @@ func TestPostgresRepeatRefusesChangedInputSourceScope(t *testing.T) {
 	ctx := t.Context()
 	pool := isolatedPublicPool(t, ctx)
 	fixture := newHandlerFixture(t)
-	service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	runs := runstore.NewPostgresStore(pool)
 	projects := projectstore.NewPostgresStore(pool)
 	project, _, err := projects.Create(ctx, projectstore.CreateParams{ProjectID: "scope-drift-project", OwnerID: "user-1", Kind: projectstore.KindProject, Name: "Scope drift", IdempotencyKey: "scope-drift-project", RequestDigest: "sha256:" + strings.Repeat("a", 64)})

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
@@ -36,7 +37,7 @@ func PostgresRunDetailTransaction(pool *pgxpool.Pool) RunDetailTransaction {
 			}
 			return fn(RunDetailStores{
 				Runs: runs, Deletion: rundeletion.New(tx),
-				Artifacts: artifacts.NewService(artifacts.NewPostgresRepository(tx)),
+				Artifacts: artifacts.NewService(artifactpostgres.NewRepository(tx)),
 				Plans:     plans, Metrics: savepointStageMetrics{tx: tx},
 				Resources: telemetry.NewRepository(tx),
 				Recovery: func(ctx context.Context, runID string) (*gatewayrecovery.Status, error) {

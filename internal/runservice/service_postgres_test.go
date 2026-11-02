@@ -18,6 +18,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/config"
@@ -50,7 +51,7 @@ func TestPostgresTrustedAuditRunIsAtomicReplayableAndPinsExactSkill(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	artifactService := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	projectArtifacts, err := artifactService.Project(project.ProjectID)
 	if err != nil {
 		t.Fatal(err)
@@ -305,7 +306,7 @@ func postgresPublicTransaction(pool *pgxpool.Pool) PublicTransaction {
 			}
 			return fn(
 				runstore.NewRunCreationPostgresStore(tx, lookup, credentials.NewRuntimeCredentialRepository(tx)),
-				artifacts.NewService(artifacts.NewPostgresRepository(tx)),
+				artifacts.NewService(artifactpostgres.NewRepository(tx)),
 			)
 		})
 	}
@@ -315,7 +316,7 @@ func postgresAuditTransaction(pool *pgxpool.Pool) AuditTransaction {
 	return func(ctx context.Context, fn func(AuditRunWriter, *artifacts.Service, AuditExecutionWriter) error) error {
 		return persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 			return fn(
-				runstore.NewPostgresTxStore(tx), artifacts.NewService(artifacts.NewPostgresRepository(tx)),
+				runstore.NewPostgresTxStore(tx), artifacts.NewService(artifactpostgres.NewRepository(tx)),
 				auditstoretest.NewStore(tx),
 			)
 		})

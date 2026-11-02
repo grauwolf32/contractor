@@ -14,6 +14,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
@@ -171,7 +172,7 @@ func TestFindingExportInvalidInputsAndAtomicRollback(t *testing.T) {
 		}
 	}
 	scope, _ := artifacts.ProjectScope("project")
-	metadata, err := artifacts.NewPostgresRepository(pool).Metadata(ctx, scope, result.Artifact.Ref)
+	metadata, err := artifactpostgres.NewRepository(pool).Metadata(ctx, scope, result.Artifact.Ref)
 	if err != nil || !metadata.Frozen {
 		t.Fatalf("not frozen: %+v %v", metadata, err)
 	}
@@ -238,7 +239,7 @@ func TestFindingExportRetainsResolvedCodeAndSafeHTTPAfterSourceDeletion(t *testi
 	ctx, pool := collectionTestPool(t)
 	createCorrelationAudit(t, ctx, pool, "owner", "project", "audit")
 	seedCollectionRun(t, ctx, pool, "owner", "source-run", "project")
-	service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	run, err := service.Run("source-run")
 	if err != nil {
 		t.Fatal(err)

@@ -4,13 +4,14 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 )
 
 func TestEvalNativeStructuralChecksAndPinnedFailures(t *testing.T) {
 	pool := serviceTestPool(t)
-	scope, err := artifacts.NewService(artifacts.NewPostgresRepository(pool)).User("owner")
+	scope, err := artifacts.NewService(artifactpostgres.NewRepository(pool)).User("owner")
 	if err != nil {
 		t.Fatal(err)
 	}

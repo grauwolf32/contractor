@@ -14,6 +14,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
@@ -291,7 +292,7 @@ func newFindingImportFixture(t *testing.T, direct bool) deletionImportFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	store := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	written, err := artifactstest.WriteFindingProposal(ctx, store, runID, "proposal",
 		artifacts.Payload{MediaType: proposalMediaType, Data: canonical.proposalBytes})
 	if err != nil {

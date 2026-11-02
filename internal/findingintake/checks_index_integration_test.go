@@ -7,6 +7,9 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob/backends/filesystem"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -18,12 +21,12 @@ func TestPostgresFindingChecksIndexIntakeImmutabilityAndRetention(t *testing.T) 
 			ctx := t.Context()
 			pool := isolatedFindingPool(t, ctx)
 			if backend == "filesystem" {
-				files, err := artifacts.OpenFilesystemBlobStore(ctx, t.TempDir())
+				files, err := filesystem.Open(ctx, t.TempDir())
 				if err != nil {
 					t.Fatal(err)
 				}
 				defer files.Close()
-				ctx = artifacts.WithBlobRuntime(ctx, artifacts.NewBlobRuntime(files, nil))
+				ctx = blob.WithRuntime(ctx, blob.NewRuntime(files, nil))
 			}
 			const owner, project, run = "owner", "delete-project", "run"
 			if _, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{ProjectID: project,
@@ -55,7 +58,7 @@ func TestPostgresFindingChecksIndexIntakeImmutabilityAndRetention(t *testing.T) 
 			if err != nil || len(projection.Checks) != 2 || projection.Checks[0].Status != "registered" || projection.Checks[1].Status != "unsupported" {
 				t.Fatalf("trusted index: %+v %v", projection, err)
 			}
-			store, _ := artifacts.NewService(artifacts.NewPostgresRepository(pool)).Run(run)
+			store, _ := artifacts.NewService(artifactpostgres.NewRepository(pool)).Run(run)
 			source, err := store.ReadExact(ctx, receipt.Proposal)
 			if err != nil {
 				t.Fatal(err)

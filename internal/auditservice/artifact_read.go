@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 )
 
@@ -32,7 +33,7 @@ func (s *Service) ReadArtifact(ctx context.Context, ownerID, auditID, key, revis
 	if err != nil {
 		return artifacts.ReadResult{}, err
 	}
-	project, err := artifacts.NewService(artifacts.NewPostgresRepository(s.pool)).Scoped(scope)
+	project, err := artifacts.NewService(artifactpostgres.NewRepository(s.pool)).Scoped(scope)
 	if err != nil {
 		return artifacts.ReadResult{}, err
 	}
