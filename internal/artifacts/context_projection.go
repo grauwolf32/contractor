@@ -47,7 +47,7 @@ func (r *PostgresTxRepository) CreateContextProjection(ctx context.Context, sour
 		if !matches {
 			return WriteResult{}, false, contracts.ErrIdempotencyConflict
 		}
-		return WriteResult{Ref: current.Ref, MediaType: current.MediaType, Size: current.Size, RevisionCreatedAt: current.CreatedAt}, true, nil
+		return WriteResult{Ref: current.Ref, MediaType: current.MediaType, Size: current.Size, BindingCreatedAt: current.BindingCreatedAt, RevisionCreatedAt: current.CreatedAt}, true, nil
 	}
 	if !errors.Is(err, ErrArtifactNotFound) {
 		return WriteResult{}, false, err

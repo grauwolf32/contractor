@@ -122,7 +122,7 @@ func TestPostgresConcurrentContextProjection(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer tx.Rollback(context.Background())
-	_, _, err = NewPostgresTxRepository(tx).CreateContextProjection(ctx, source, original.Ref, target, ref, payload)
+	first, _, err := NewPostgresTxRepository(tx).CreateContextProjection(ctx, source, original.Ref, target, ref, payload)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,7 +138,10 @@ func TestPostgresConcurrentContextProjection(t *testing.T) {
 	defer secondTx.Rollback(context.Background())
 	done := make(chan error, 1)
 	go func() {
-		_, replay, err := NewPostgresTxRepository(secondTx).CreateContextProjection(ctx, source, original.Ref, target, ref, payload)
+		second, replay, err := NewPostgresTxRepository(secondTx).CreateContextProjection(ctx, source, original.Ref, target, ref, payload)
+		if err == nil && (!second.BindingCreatedAt.Equal(first.BindingCreatedAt) || !second.RevisionCreatedAt.Equal(first.RevisionCreatedAt)) {
+			err = fmt.Errorf("projection replay changed creation timestamps")
+		}
 		if err == nil && !replay {
 			err = fmt.Errorf("concurrent result was not marked as replay")
 		}
@@ -185,5 +188,27 @@ func TestPostgresConcurrentContextProjection(t *testing.T) {
 	var edges int
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM artifact_lineage`).Scan(&edges); err != nil || edges != 1 {
 		t.Fatalf("projection lineage count = %d, err = %v", edges, err)
+	}
+}
+
+func TestPostgresFrozenReplayPreservesBindingDate(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	pool := isolatedArtifactPool(t, ctx)
+	ctx = testBlobContext(t, ctx, pool)
+	service := NewService(NewPostgresRepository(pool))
+	scope, _ := UserScope("review-dates")
+	ref := ArtifactRef{Namespace: "docs", Name: "frozen"}
+	payload := Payload{MediaType: "text/plain", Data: []byte("fixed")}
+	first, err := service.CreateFrozen(ctx, scope, ref, payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	replay, err := service.CreateFrozen(ctx, scope, ref, payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !first.BindingCreatedAt.Equal(replay.BindingCreatedAt) {
+		t.Fatalf("replay changed fixed binding creation date: first=%s replay=%s revision=%s", first.BindingCreatedAt, replay.BindingCreatedAt, first.RevisionCreatedAt)
 	}
 }

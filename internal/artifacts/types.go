@@ -86,6 +86,8 @@ type ForkResult struct {
 // Metadata describes one exact immutable Artifact revision and its relation to
 // the current logical binding. It never contains bytes or a physical blob key.
 type Metadata struct {
+	// BindingCreatedAt is the authoritative logical binding creation time.
+	BindingCreatedAt  time.Time         `json:"-"`
 	GitSource         *GitSource        `json:"gitSource,omitempty"`
 	StorageTimestamps StorageTimestamps `json:"storageTimestamps"`
 	Ref               ArtifactRef       `json:"artifact"`

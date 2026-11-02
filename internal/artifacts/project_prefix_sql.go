@@ -12,7 +12,7 @@ WITH selected AS MATERIALIZED (
  ORDER BY name COLLATE "C" LIMIT $5
 )
 SELECT binding.namespace,binding.name,revision.revision,version.media_type,blob.size_bytes,
- true,binding.frozen,revision.created_at,scope.created_at,blob.created_at,version.created_at,binding.updated_at,` + gitSourceProjection + `
+ true,binding.frozen,binding.created_at,revision.created_at,scope.created_at,blob.created_at,version.created_at,binding.updated_at,` + gitSourceProjection + `
 FROM selected AS binding
 JOIN artifact_scopes AS scope ON scope.scope_kind=binding.scope_kind AND scope.scope_id=binding.scope_id
 JOIN artifact_binding_revisions AS revision ON revision.scope_kind=binding.scope_kind AND revision.scope_id=binding.scope_id

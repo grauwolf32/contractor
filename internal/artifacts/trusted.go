@@ -86,7 +86,7 @@ func (s *Service) writtenFrozen(
 	}
 	return WriteResult{
 		Ref: existing.Ref, MediaType: existing.MediaType, Size: existing.Size,
-		BindingCreatedAt: existing.CreatedAt, RevisionCreatedAt: existing.CreatedAt,
+		BindingCreatedAt: existing.BindingCreatedAt, RevisionCreatedAt: existing.CreatedAt,
 	}, true, nil
 }
 

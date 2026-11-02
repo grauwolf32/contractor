@@ -42,7 +42,7 @@ LIMIT $11`
 var metadataSQL = `
 SELECT revision.revision, version.media_type, blob.size_bytes,
        'sha256:' || encode(blob.sha256, 'hex'), version.version_id,
-       revision.revision = binding.current_revision, binding.frozen, revision.created_at, scope.created_at, blob.created_at, version.created_at, binding.updated_at, ` + gitSourceProjection + `
+       revision.revision = binding.current_revision, binding.frozen, binding.created_at, revision.created_at, scope.created_at, blob.created_at, version.created_at, binding.updated_at, ` + gitSourceProjection + `
 FROM artifact_bindings AS binding
 JOIN artifact_scopes AS scope ON scope.scope_kind = binding.scope_kind AND scope.scope_id = binding.scope_id
 JOIN artifact_binding_revisions AS revision
@@ -65,7 +65,7 @@ WHERE binding.scope_kind = $1 AND binding.scope_id = $2
 // it is not empty, at most $8 rows. Used by PostgresRepository.ListMetadata.
 var listMetadataSQL = `
 SELECT binding.namespace, binding.name, revision.revision,
-       version.media_type, blob.size_bytes, true, binding.frozen, revision.created_at, scope.created_at, blob.created_at, version.created_at, binding.updated_at, ` + gitSourceProjection + `
+       version.media_type, blob.size_bytes, true, binding.frozen, binding.created_at, revision.created_at, scope.created_at, blob.created_at, version.created_at, binding.updated_at, ` + gitSourceProjection + `
 FROM artifact_bindings AS binding
 JOIN artifact_scopes AS scope ON scope.scope_kind = binding.scope_kind AND scope.scope_id = binding.scope_id
 JOIN artifact_binding_revisions AS revision
@@ -98,7 +98,7 @@ LIMIT $8`
 // PostgresRepository.ListMetadata.
 var listProjectMetadataSQL = `
 SELECT binding.namespace, binding.name, revision.revision,
-       version.media_type, blob.size_bytes, true, binding.frozen, revision.created_at, scope.created_at, blob.created_at, version.created_at, binding.updated_at, ` + gitSourceProjection + `
+       version.media_type, blob.size_bytes, true, binding.frozen, binding.created_at, revision.created_at, scope.created_at, blob.created_at, version.created_at, binding.updated_at, ` + gitSourceProjection + `
 FROM artifact_bindings AS binding
 JOIN artifact_scopes AS scope ON scope.scope_kind = binding.scope_kind AND scope.scope_id = binding.scope_id
 JOIN artifact_binding_revisions AS revision
@@ -126,7 +126,7 @@ LIMIT $6`
 var listVersionsSQL = `
 SELECT revision.namespace, revision.name, revision.revision,
        version.media_type, blob.size_bytes,
-       revision.revision = binding.current_revision, binding.frozen, revision.created_at, scope.created_at, blob.created_at, version.created_at, binding.updated_at, ` + gitSourceProjection + `
+       revision.revision = binding.current_revision, binding.frozen, binding.created_at, revision.created_at, scope.created_at, blob.created_at, version.created_at, binding.updated_at, ` + gitSourceProjection + `
 FROM artifact_binding_revisions AS revision
 JOIN artifact_bindings AS binding
   ON binding.scope_kind = revision.scope_kind
@@ -146,7 +146,7 @@ LIMIT $7`
 // and catalog packages do not enter the scan before LIMIT (ART-R119).
 var listUserMetadataSQL = `
 SELECT binding.namespace, binding.name, revision.revision,
-       version.media_type, blob.size_bytes, true, binding.frozen, revision.created_at, scope.created_at, blob.created_at, version.created_at, binding.updated_at, ` + gitSourceProjection + `
+       version.media_type, blob.size_bytes, true, binding.frozen, binding.created_at, revision.created_at, scope.created_at, blob.created_at, version.created_at, binding.updated_at, ` + gitSourceProjection + `
 FROM artifact_bindings AS binding
 JOIN artifact_scopes AS scope ON scope.scope_kind = binding.scope_kind AND scope.scope_id = binding.scope_id
 JOIN artifact_binding_revisions AS revision

@@ -16,7 +16,7 @@ type StorageTimestamps struct {
 // date. PostgreSQL timestamptz can also contain infinity or a year outside the
 // public RFC 3339 range; pgx rejects infinity while this checks finite dates.
 func normalizeMetadataDates(metadata *Metadata) error {
-	for _, date := range []*time.Time{&metadata.CreatedAt,
+	for _, date := range []*time.Time{&metadata.BindingCreatedAt, &metadata.CreatedAt,
 		&metadata.StorageTimestamps.ScopeCreatedAt, &metadata.StorageTimestamps.BlobCreatedAt,
 		&metadata.StorageTimestamps.VersionCreatedAt, &metadata.StorageTimestamps.BindingUpdatedAt} {
 		if date.IsZero() || date.Year() < 1 || date.Year() > 9999 {
