@@ -6,7 +6,7 @@ epic: projects-artifacts
 kind: defect
 introduced_by: V370-016
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages: [go]
 goal: "Identical concurrent exact Artifact handoffs converge on one binding and one lineage edge."
@@ -43,3 +43,7 @@ tests:
     covers: [A1, A2]
   - command: "CONTRACTOR_TEST_ARTIFACT_BACKEND=filesystem go test -count=1 -tags integration ./internal/artifacts/..."
     covers: [A1, A2]
+implementation_commit: ef65a449e3346e07a361c700e16842e63e50eda9
+verification: >-
+  Full Artifact integration suites passed with PostgreSQL and filesystem payloads.
+  Controlled equal-key waits now converge; different source identities remain conflicts.

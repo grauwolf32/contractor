@@ -6,7 +6,7 @@ epic: projects-artifacts
 kind: defect
 introduced_by: V370-016
 priority: P3
-status: pending
+status: in_progress
 depends_on: [V437-001]
 languages: [go]
 goal: "Original and replayed immutable Artifact writes return the same authoritative creation timestamps."
