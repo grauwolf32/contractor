@@ -5,7 +5,7 @@ milestone: audit-check-prioritization
 epic: audits
 kind: feature
 priority: P1
-status: pending
+status: in_progress
 depends_on:
 - V64-001
 - V64-004
@@ -58,9 +58,9 @@ context:
     Work is isolated on codex/audit-task-coordinator. No demo deployment is authorized.
   implementation_gate: >-
     Implementation is assigned. V64-001, V64-004 and V64-021 are completed; the user explicitly
-    waived waiting for formal V64-014 completion for this task on 2026-11-02. The newly discovered
-    V64-026 prerequisite must complete before resuming dependent implementation; the existing
-    assignment remains valid and does not need to be repeated.
+    waived waiting for formal V64-014 completion for this task on 2026-11-02. V64-026 completed at
+    6e75823c634f71471fd916e52b175ab35a9c478f with all declared checks; dependent implementation
+    resumes under the existing assignment without another approval.
   explicit_task_handoff: >-
     User decision 2026-11-02: after collection of Run A output, accept task B through the common
     authenticated task-creation API with an explicitly selected exact input. The controller creates
@@ -85,6 +85,9 @@ context:
     Preparatory commit 8947ae49bf91122340322a3779c7312f9553aabf adds shared typed Program decoding
     through the existing strict common validator and migrates the real catalog validation caller to it.
     Full auditcontract, config/... and configload/... Go suites passed with canonical macOS TMPDIR.
+    V64-026 is completed at 6e75823c634f71471fd916e52b175ab35a9c478f. Catalog slot validation now
+    returns the exact allowed Workflow closures through the owning auditprofile module, sharing one
+    rule with offline validation and the upcoming accepted-task path; complete config/configload suites passed.
     Coordinator, task API, migrations, YAML cutover and basic E2E are not implemented yet. No database
     acceptance or full lint result is claimed. The eight YAML have not been removed ahead of the loader
     switch; V64-012 records the accepted removal/restoration boundary.
