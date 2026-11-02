@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-83 open tasks: 16 in progress, 54 pending, 13 deferred. 1372 finished: 1354 completed, 18 archived.
+82 open tasks: 15 in progress, 54 pending, 13 deferred. 1373 finished: 1355 completed, 18 archived.
 
 ## In progress
 
@@ -26,7 +26,6 @@ the epics are in [epics.yml](epics.yml).
 | [V437-005](v437-005-inject-artifact-storage-dependencies.yml) | projects-artifacts | chore | P2 | Inject Artifact storage dependencies explicitly |
 | [V437-006](v437-006-group-artifact-policy-and-preview.yml) | projects-artifacts | chore | P3 | Group shared Artifact policy and previews under artifacts |
 | [V437-007](v437-007-name-scheduler-fixture-sqlstate.yml) | execution-core | chore | P3 | Name the Scheduler discard fixture SQL condition |
-| [V439-006](v439-006-verify-httpapi-review.yml) | api-contracts | chore | P2 | Verify the HTTP API review cleanup |
 
 ## Pending
 
@@ -196,6 +195,6 @@ tasks in `introduced_by`.
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 5 |
 | Web UI (`ui`) | 2 | 34 | 69 | 25 | 69 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 18 | 46 | 9 | 22 |
-| Public API and wire contracts (`api-contracts`) | 2 | 2 | 39 | 28 | 19 |
+| Public API and wire contracts (`api-contracts`) | 1 | 2 | 39 | 28 | 19 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 27 | 47 | 17 |
 | Quality, CI and process (`quality`) | 11 | 1 | 29 | 121 | 27 |

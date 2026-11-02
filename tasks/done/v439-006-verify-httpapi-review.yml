@@ -6,7 +6,7 @@ epic: api-contracts
 kind: chore
 introduced_by: V370-009
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V439-001, V439-002, V439-003, V439-004, V439-005, V439-007]
 languages: [go]
 goal: >-
@@ -101,3 +101,4 @@ verification:
     branch: codex/httpapi-review
     merged_to_main: false
     primary_checkout: "Unrelated user work preserved."
+implementation_commit: 55aa8b20600cebcc6a621b5e1b7c4be948d6c022
