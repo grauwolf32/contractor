@@ -5,7 +5,7 @@ milestone: audit-check-prioritization
 epic: audits
 kind: feature
 priority: P1
-status: in_progress
+status: pending
 depends_on:
 - V64-001
 - V64-004
@@ -64,6 +64,24 @@ context:
     scenarios in the common format with actual assertion behavior. Do not keep an old reader,
     executor or unsupported-profile mode. Original YAML remains available in Git at main
     9b4ba9c8b1901c5c7eeb301015ad7e61cd94066d, without duplicate archived catalog files.
+  decision_needed: >-
+    Implementation investigation 2026-11-02 found an unresolved executable boundary for the six
+    migrated profiles: current auditdomain.BuildOpenAPIInventory and BuildOpenAPIScanInventory
+    construct separate per-operation tasks from selected exact source/settings, whereas the common
+    program's closed initial_work contract contains only explicit tasks and input selections.
+    Decide whether to preserve separate Audit tasks using the existing deterministic domain builder
+    through common acceptance (agent recommendation; any necessary contract extension needs its own
+    prerequisite task), or execute operation selection/fanout inside an ordinary Workflow/Run and
+    accept changed task/progress/retry granularity. Do not silently restore inventory/phase machinery
+    or weaken current observation/scan behavior. User question is pending; return this task to pending
+    under AGENTS.md 4.1 until this consequential ownership/behavior choice is settled.
+  implementation_progress: >-
+    Preparatory commit 8947ae49bf91122340322a3779c7312f9553aabf adds shared typed Program decoding
+    through the existing strict common validator and migrates the real catalog validation caller to it.
+    Full auditcontract, config/... and configload/... Go suites passed with canonical macOS TMPDIR.
+    Coordinator, task API, migrations, YAML cutover and basic E2E are not implemented yet. No database
+    acceptance or full lint result is claimed. The eight YAML have not been removed ahead of the loader
+    switch; V64-012 records the accepted removal/restoration boundary.
   design:
   - docs/proposals/0050-audit-common-hypothesis-model.md
   - docs/plans/2026-10-31-audit-redesign.md
