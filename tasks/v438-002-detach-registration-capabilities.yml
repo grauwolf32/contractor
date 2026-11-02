@@ -32,3 +32,6 @@ acceptance_criteria:
   - {id: A3, text: "The new regression fails before the fix and the wire fixture suite retains current behavior."}
 tests:
   - {command: "go test -race -count=1 ./internal/contracts/control ./internal/controlplane/...", covers: [A1, A2, A3]}
+verification:
+  regression_before_fix: "Registration-result mutation changed the capability returned by PlacementCandidates."
+  result: "Complete contracts/control and controlplane suites passed with real PostgreSQL and -race."

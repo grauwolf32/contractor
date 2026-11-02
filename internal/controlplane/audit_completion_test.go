@@ -119,3 +119,26 @@ func TestAuditCompletionPrepareSendsPinnedContract(t *testing.T) {
 		t.Fatal("wire contract changed")
 	}
 }
+
+func TestCompletionCapabilitySnapshotsCannotChangePlacement(t *testing.T) {
+	registry := newTestRegistry(t, newTestClock())
+	registration := testRegistration("capable")
+	registration.Capabilities = &contracts.RuntimeCompletionCapabilities{CompletionContracts: []string{contracts.AuditCheckResultsV1}}
+	registration.SupportedToolsets = append(registration.SupportedToolsets, control.ToolsetCapability{Ref: "audit-results@2", Tools: []string{"read_audit_task", "submit_check_result"}})
+	returned, err := registry.Register(registration)
+	if err != nil {
+		t.Fatal(err)
+	}
+	registerReadyWith(t, registry, registration)
+	returned.Registration.Capabilities.CompletionContracts[0] = "changed-registration-result"
+	candidates := registry.PlacementCandidates()
+	if got := candidates[0].Registration.Capabilities.CompletionContracts[0]; got != contracts.AuditCheckResultsV1 {
+		t.Fatalf("registration result changed frozen capability: %s", got)
+	}
+	candidates[0].Registration.Capabilities.CompletionContracts[0] = "changed-placement-result"
+	request := ReservationRequest{RunID: "run-clone", StageExecutionID: "stage-clone", Bindings: []BindingRequirement{completionBinding(t)}}
+	reservations, err := registry.ReserveAll(request)
+	if err != nil || len(reservations) != 1 {
+		t.Fatalf("snapshot changed completion placement: count=%d err=%v", len(reservations), err)
+	}
+}

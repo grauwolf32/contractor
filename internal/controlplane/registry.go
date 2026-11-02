@@ -195,7 +195,7 @@ func (r *InMemoryRegistry) RegisterAuthenticated(
 	if err != nil {
 		return AgentSnapshot{}, fmt.Errorf("encode registration identity: %w", err)
 	}
-	orderKey := r.agentOrderKey(cloneRegistration(normalized))
+	orderKey := r.agentOrderKey(normalized.Clone())
 	now := r.now()
 
 	r.mu.Lock()
@@ -1396,7 +1396,7 @@ func normalizeRegistration(source control.AgentRegistration) control.AgentRegist
 func snapshotAgent(entry *agentEntry) AgentSnapshot {
 	return AgentSnapshot{
 		Principal:    clonePrincipal(entry.principal),
-		Registration: cloneRegistration(entry.registration), LastSeenAt: entry.lastSeenAt,
+		Registration: entry.registration.Clone(), LastSeenAt: entry.lastSeenAt,
 		LastHeartbeatSeq: entry.lastHeartbeatSeq, LastIssuedAckSeq: entry.lastIssuedAckSeq,
 		LastConfirmedAckSeq: entry.lastConfirmedAckSeq, ConfirmedLeaseExpiresAt: entry.confirmedLeaseExpiresAt,
 		AuthoritativeAllocationID: clone.Pointer(entry.authoritativeAllocationID),
