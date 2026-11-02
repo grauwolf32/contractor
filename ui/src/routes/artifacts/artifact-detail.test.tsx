@@ -125,10 +125,8 @@ describe("Material detail", () => {
       "/projects/project-1/artifacts",
     );
 
-    const facts = screen.getByText("Format").closest("dl")!;
-    expect(within(facts).getByText("ZIP")).toBeVisible();
-    expect(within(facts).getByText("64 B")).toBeVisible();
-    expect(within(facts).getByText("no")).toBeVisible();
+    const facts = screen.getByText("Format · Size").closest("dl")!;
+    expect(within(facts).getByText("ZIP · 64 B")).toBeVisible();
     expect(
       within(facts).getByText("https://example.test:443/team/service.git"),
     ).toBeVisible();
@@ -161,6 +159,11 @@ describe("Material detail", () => {
       );
     expect(historyReads()).toHaveLength(0);
     await user.click(screen.getByRole("button", { name: "Versions" }));
+    expect(revision).not.toBeVisible();
+    expect(historyReads()).toHaveLength(1);
+    await user.click(
+      screen.getByText("Technical details", { selector: ".ui-tech-label" }),
+    );
     expect(await screen.findByText("input fork")).toBeVisible();
     expect(revision).toBeVisible();
     expect(screen.getByRole("link", { name: "Run run-7" })).toHaveAttribute(
@@ -422,7 +425,9 @@ describe("Material detail", () => {
     expect(
       await screen.findByRole("heading", { level: 1, name: "outputs/report" }),
     ).toBeVisible();
-    expect(await screen.findByText("yes")).toBeVisible();
+    expect(
+      await screen.findByText("Locked", { selector: ".materials-detail-chip" }),
+    ).toBeVisible();
     expect(
       screen.queryByText("Upload a new version", { selector: "summary" }),
     ).toBeNull();

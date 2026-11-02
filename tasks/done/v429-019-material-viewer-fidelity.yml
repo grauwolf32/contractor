@@ -1,0 +1,114 @@
+schema_version: "1.0"
+id: V429-019
+title: Match the material viewer to the approved design
+milestone: ui-journey-usability
+epic: ui
+kind: defect
+introduced_by: V429-018
+priority: P2
+status: completed
+depends_on: [V429-018]
+languages: [typescript, css]
+goal: Correct the incomplete visual transfer so real material details closely match the approved OpenDesign examples, with selected-operation OpenAPI navigation, numbered source and the reviewed header/support hierarchy.
+context:
+  authority: >-
+    User decision 2026-11-02: after reviewing the merged UI, asked for an honest
+    fidelity assessment and approved correcting the acknowledged OpenAPI, source,
+    header and metadata differences. Preserve all OpenDesign data, shared fonts,
+    real artifact behavior and renderer semantics; show actual desktop/phone
+    preview with paired reference captures before claiming visual completion.
+  specification: docs/spec/ui/ui.md
+  design: docs/design/ui/README.md
+  finding: >-
+    previews/openapi.tsx:24 renders the full Scalar reference rather than the
+    approved selected operation; loaded-preview.tsx:40 lacks source line numbers;
+    metadata-summary.tsx:45 and material-detail.css retain different metadata
+    grouping/density. Previous functional/overflow tests do not assess fidelity.
+  siblings: >-
+    Shared ArtifactDetailView in User/Project/Run/Eval, plain/JSON and literal
+    source modes, archive text, Markdown/diff/HTTP, all themes and phone widths.
+    Real Scalar/LikeC4/Markdown/HTTP/archive owners retain interpretation and bytes.
+  decision: >-
+    OpenAPI selection is a projection of the already parsed saved document:
+    the existing Scalar renderer receives the selected path/operation with all
+    original component definitions and path-level data retained. It owns schema
+    and reference interpretation. Local navigation is bounded and complete.
+    Documents with local references to other paths stay complete in Scalar;
+    public renderer slug IDs restrict the visible operation without losing targets.
+    The support column reads at most one real Project detail through its existing
+    cached query; failure falls back to the real scope ID without blocking the file.
+    Versions and technical lineage remain separate lazy reads of existing owners.
+    Numbered source keeps exact text and falls back to the existing single text
+    node beyond a documented display bound. No parser, store or external network access
+    is introduced. Metadata uses real scope/context, never synthetic provenance.
+scope:
+  in:
+    - Selected operation/schema navigation over the current OpenAPI renderer and readable detail geometry.
+    - Real source line numbers, wrap behavior and exact source text with a bounded large-file fallback.
+    - Approved title, copy/actions, metadata density and quiet disclosures with exact identity reachable.
+    - Paired captures against preserved reference at 1440/390px, all themes/width regression and actual preview.
+    - Preserve existing explicit reads, bytes, scopes, history, upload/conflict owners and every OpenDesign output.
+  out:
+    - Server/API/schema or business-data changes, new model calls, replacing Scalar/LikeC4 or shipping synthetic state machines.
+requirements:
+  - id: R1
+    text: Direct OpenAPI selections show one operation with original path-level parameters and local references; schemas and referenced path items remain inspectable through the actual renderer without execution/network.
+  - id: R2
+    text: Typical source lines have real aligned numbers, including wrapped and blank lines, while raw text and downloads remain exact; large line counts never create an unbounded DOM.
+  - id: R3
+    text: Header/support scale and grouping match the reference with shared fonts/tokens, no fabricated context and readable current/historical/error states in every scope.
+failure_outcomes:
+  - operation: Existing saved document/metadata/preview reads
+    permanent: Keep classified errors and unsupported/source/download paths; never invent operation/schema data.
+    retryable: Existing explicit retry/refresh owners only.
+    ambiguous: Existing exact-revision writes/receipts remain untouched.
+    cancelled: Revision unmount resets selection and source state; existing read signals remain authoritative.
+    timeout: Existing payload/renderer bounds and explicit large-document request remain.
+cardinality:
+  - collection: Source rows and OpenAPI navigation
+    expected: Four source lines and three operations in the approved examples
+    maximum: At most 4000 numbered lines and 50 navigation rows at once
+    bound: Larger source keeps its complete single-text preview; local search/paging reaches every operation/schema within the existing one MiB payload cap.
+lifecycle:
+  - entity: Local reader selection and design evidence
+    delete: No business deletion; earlier OpenDesign files remain intact.
+    cascade: Revision changes reset local state without new persistence.
+    retention: Original source/output, paired captures and verification receipts remain in Git/private host archives.
+acceptance_criteria:
+  - id: A1
+    text: Actual UI captures show the reviewed selected-operation reference, numbered code, compact title/actions and supporting metadata, with recorded side-by-side visual review at 1440/390px.
+  - id: A2
+    text: Scalar parameters/responses/local references and Swagger/OpenAPI sources remain correct; navigation reaches realistic large inventories and source DOM stays bounded while preserving exact bytes.
+  - id: A3
+    text: All scopes, formats, themes and 320/390/1100/1440px pass regression and no-overflow checks; uploads/conflicts, explicit load/history and no-execution behavior remain intact and actual preview is shown.
+tests:
+  - command: make ui-verify
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+  - command: cd ui && corepack pnpm playwright test e2e/material-detail-design.spec.ts e2e/artifact-preview.spec.ts e2e/archive-preview.spec.ts --workers=2
+    covers: [A1, A2, A3]
+
+verification:
+  - >-
+    Paired dark-theme source/OpenAPI captures at 1440/390px visually reviewed and
+    preserved with hashes in docs/design/ui/experiments/material-viewer-fidelity-2026-11-02.
+    Read-only actual React preview and side-by-side comparison are available at 17560.
+  - >-
+    make ui-verify passed: 220 files, 2632 tests passed, one pre-existing expected
+    failure; generated client checks, lint, TypeScript, server tests and build pass.
+  - >-
+    make lint passed; make ui-gates repeated successfully after final responsive
+    navigation changes. Task/spec registries and CSS/export inventories pass.
+  - >-
+    Production Playwright command passed all 30 tests with workers=2 against an
+    isolated UI 0.11.2 build. Seven formats across three themes and four widths
+    (84 paths), four scope/revision contexts, exact copy/download, archive safety,
+    source DOM bound, 6800-operation navigation, Swagger and cross-path references.
+  - >-
+    Original OpenDesign experiment trees have no diff from main. All originals,
+    generated data, conversations, prior evidence and sandbox backups remain intact.
+    No model call or business-data write was made. Branch is ready for user review;
+    main remains unchanged by this task.
+
+implementation_commit: e1bbe211ebe1dc3d3cadc1b1f578ada0837fe68e

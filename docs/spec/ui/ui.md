@@ -1559,8 +1559,25 @@ version selection, and existing upload eligibility/conflict owners remain.
 Preview/archive reads stay explicit and retain their scope and size policies.
 The existing Markdown, diff, HTTP, Scalar OpenAPI and LikeC4 engines remain the
 rendering owners, styled with the shared font/theme tokens. Source wrapping is
-a local control without a per-line DOM expansion. After explicit archive Browse,
+a local control; line-number DOM expansion is bounded by UI-R225. After explicit archive Browse,
 a readable SKILL.md is selected first, otherwise a readable root README.md;
 other archives ask for a selection. The archive tree can collapse on phones and
 selecting a file returns the reading space to its content. No file is executed,
 no API request is sent by a renderer and no synthetic preview data ships in UI.
+
+**UI-R225.** Material source previews number up to 4,000 lines (LIM-UI-18),
+  including blank and wrapped lines. Number labels are presentation only; the
+  literal text, CRLF/LF endings and downloads remain unchanged. Beyond that
+  display bound the complete source stays in a single text node, with an
+  explanation that numbering is hidden.
+
+**UI-R226.** OpenAPI material reference navigation selects one saved operation
+  or schema. The existing Scalar renderer owns parameter/schema/reference
+  interpretation, including Swagger 2 and OpenAPI 3. A selected direct operation
+  retains all path-level data and root component definitions. Referenced path
+  items are passed intact to Scalar. Documents with references to other paths
+  stay complete in Scalar, with operation visibility controlled by its public
+  slug generator. API information remains available explicitly. On narrow
+  screens the API browser collapses above the selection. Navigation renders at most 50 rows
+  (LIM-UI-19); search and local paging reach the entire bounded document.
+  Display selection does not execute requests or allow remote references.

@@ -1,0 +1,50 @@
+{
+  "date": "2026-11-02",
+  "task": "V429-019",
+  "uiVersion": "0.11.2",
+  "status": "reviewed",
+  "baseCommit": "28abf2bc4a00dc0f33a73d8385cda0cc7bbf67f6",
+  "visualReview": {
+    "pairs": 4,
+    "widths": [
+      1440,
+      390
+    ],
+    "theme": "dark",
+    "cases": [
+      "source",
+      "openapi"
+    ],
+    "operation": "GET /orders/{orderId}",
+    "observations": [
+      "Source: bare name, revision chips, action row, line numbers and support facts align with the reference hierarchy.",
+      "OpenAPI: document intro, boxed coloured navigation, selected operation, parameters and expanded response schemas now occupy the same reading areas.",
+      "Phone: API browser collapses above the selection; support follows content; Versions and Technical details are separate disclosures.",
+      "Fonts and colours use existing shared tokens. No document overflow in paired captures.",
+      "Scalar retains rich schema controls, examples and field ordering; the global shell, Rendered/Source terms, real provenance and locale dates remain product-wide conventions."
+    ]
+  },
+  "checks": {
+    "make ui-verify": "passed: 220 files, 2632 tests passed and one existing expected failure; generated client check, lint, typecheck, server tests and build",
+    "make lint": "passed: UI gates, task/spec/release checks, Go vet/staticcheck/layers and Runtime lint/import checks",
+    "make ui-gates": "passed again after final responsive navigation changes",
+    "production browser": "30 passed with workers=2 on isolated UI 0.11.2 production build; 84 seven-format theme/width paths, four scope/revision contexts, large OpenAPI paging/search, Swagger local definitions/path parameters and cross-path references",
+    "final typecheck": "passed again after the final responsive handler change"
+  },
+  "preservation": "git diff against main is empty for both original OpenDesign experiment folders. No OpenDesign state mutation, model request or business-data write was made.",
+  "captureSha256": {
+    "actual-openapi-1440.png": "b636f10e1793ca9e75cb0c412ff6170b14167912d3837a7aa44c8fdbfc502b33",
+    "actual-openapi-390.png": "6382b4865e3bf3a2b1474fd8025016816b53bc12fd7b7a726871d8ec242e8a08",
+    "actual-source-1440.png": "a46c2bf72aeb70f6a182744ee2f18f4161bf92c4c676976333d289a60d015c38",
+    "actual-source-390.png": "3b5622d7298f8f18acc03c6cbf29192c0827cb416f1277ad6d1a34ffbdfe4c20",
+    "capture-metrics.json": "fee0d9f46ff89cd6e32d57b2e02d7b3b308dcc13bf4163b335a446c0f9aa664c",
+    "reference-openapi-1440.png": "b9a4a41241329c37c7599621b697fb0a5ef93417e09fa46573e5e6531cc068e3",
+    "reference-openapi-390.png": "c68b422bca1d710e0bee16bc5dc22db1001e70a3eadf54656132a9a7f5a28755",
+    "reference-source-1440.png": "1105ecbc5cb2699c8871cf20c9beba48b7fddedcfdbaf12a97e176c20ce3fb2b",
+    "reference-source-390.png": "e4cae8361028d41444cd49996564e755e7408f683da3958835feafdc430f2f70"
+  },
+  "preview": "http://127.0.0.1:17560/test-results/material-production/index.html?case=source&theme=dark&width=390",
+  "comparison": "http://127.0.0.1:17560/test-results/material-production/comparison/index.html?case=openapi&width=1440",
+  "delivery": "Verified feature branch; not merged into main.",
+  "implementationCommit": "e1bbe211ebe1dc3d3cadc1b1f578ada0837fe68e"
+}

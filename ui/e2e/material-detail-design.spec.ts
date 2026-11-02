@@ -10,7 +10,7 @@ import {
   uiOrigin,
 } from "./support/mock-api";
 
-async function install(page: Page) {
+async function install(page: Page, openapiSource?: string) {
   await mockAPI(page, async (route, request, url) => {
     if (request.method() !== "GET")
       return fulfillError(route, 403, "forbidden");
@@ -47,7 +47,10 @@ async function install(page: Page) {
           revision: v.revision,
         },
         mediaType: file.mediaType,
-        size: file.sizeBytes,
+        size:
+          file.id === "openapi" && openapiSource !== undefined
+            ? Buffer.byteLength(openapiSource)
+            : file.sizeBytes,
         current: v.current,
         frozen: v.frozen,
         canUploadNewVersion: v.canUploadNewVersion,
@@ -99,7 +102,9 @@ async function install(page: Page) {
       route,
       file.payloadBase64
         ? Buffer.from(file.payloadBase64, "base64")
-        : file.source,
+        : file.id === "openapi" && openapiSource !== undefined
+          ? openapiSource
+          : file.source,
       file.mediaType,
     );
   });
@@ -205,12 +210,74 @@ for (const theme of ["light", "dark", "black"])
             await expect(
               page.locator(".materials-detail-reader pre"),
             ).toContainText("demo-customer");
-          if (file.id === "openapi")
+          if (file.id === "openapi") {
             await expect(
               page
                 .locator(".openapi-artifact-preview")
-                .getByRole("heading", { name: "Shop API", exact: true }),
+                .getByRole("heading", { name: "List orders", exact: true }),
             ).toBeVisible();
+            const nav = page.getByRole("navigation", {
+              name: "API reference",
+              exact: true,
+            });
+            if (width > 1100) {
+              const browse = page.getByRole("button", { name: /Browse API ·/ });
+              await expect(browse).toHaveAttribute("aria-expanded", "true");
+              await browse.click();
+              await expect(nav).not.toBeVisible();
+              await browse.click();
+              await expect(nav).toBeVisible();
+            }
+            async function choose(name: string) {
+              if (width <= 1100)
+                await page
+                  .getByRole("button", { name: /Browse API ·/ })
+                  .click();
+              await nav.getByRole("button", { name, exact: true }).click();
+            }
+            await choose("GET /orders/{orderId}");
+            const renderer = page.locator(".openapi-artifact-preview");
+            await expect(
+              renderer.getByRole("heading", {
+                name: "Get an order",
+                exact: true,
+              }),
+            ).toBeVisible();
+            await expect(
+              renderer.getByRole("button", {
+                name: "Copy link to orderId",
+                exact: true,
+              }),
+            ).toBeVisible();
+            await expect(
+              renderer.getByRole("button", {
+                name: "Copy link to customerId",
+                exact: true,
+              }),
+            ).toBeVisible();
+            await choose("Order");
+            await expect(
+              renderer.locator(
+                '[id$="/models/material-selected-schema-content"]',
+              ),
+            ).toBeVisible();
+            await expect(
+              renderer.getByRole("heading", { name: "NewOrder", exact: true }),
+            ).not.toBeVisible();
+            await choose("GET /orders/{orderId}");
+            await expect(
+              renderer.getByRole("heading", {
+                name: "Get an order",
+                exact: true,
+              }),
+            ).toBeVisible();
+          }
+          if (file.id === "source") {
+            await expect(page.locator(".materials-source-line")).toHaveCount(4);
+            expect(
+              await page.locator("pre.artifact-preview").textContent(),
+            ).toBe(file.source);
+          }
           if (file.id === "likec4")
             await expect(
               page.getByRole("combobox", { name: "View", exact: true }),
@@ -290,4 +357,121 @@ test("scope and revision retain context, exact identity and local reader state",
       page.getByText("Upload a new version", { exact: true }),
     ).toHaveCount(0);
   }
+});
+
+test("Swagger definitions and path-level parameters survive selection", async ({
+  page,
+}) => {
+  await install(
+    page,
+    JSON.stringify({
+      swagger: "2.0",
+      info: { title: "Saved Swagger", version: "1" },
+      paths: {
+        "/orders/{id}": {
+          parameters: [
+            {
+              name: "id",
+              in: "path",
+              required: true,
+              type: "integer",
+              description: "Shared path parameter",
+            },
+          ],
+          get: {
+            summary: "Read saved order",
+            responses: {
+              "200": {
+                description: "Saved result",
+                schema: { $ref: "#/definitions/Order" },
+              },
+            },
+          },
+          delete: {
+            summary: "Delete declaration",
+            responses: { "204": { description: "Saved declaration" } },
+          },
+        },
+      },
+      definitions: {
+        Order: {
+          type: "object",
+          properties: { customerId: { type: "string" } },
+        },
+      },
+    }),
+  );
+  await page.goto(
+    "/projects/project_shop/artifacts/outputs/shop-api?revision=shop-api-r2",
+  );
+  await page.getByRole("button", { name: "Load preview", exact: true }).click();
+  const renderer = page.locator(".openapi-artifact-preview");
+  await expect(
+    renderer.getByRole("heading", { name: "Read saved order", exact: true }),
+  ).toBeVisible();
+  await expect(
+    renderer.getByText("Shared path parameter", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    renderer.getByRole("button", {
+      name: "Copy link to customerId",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await page
+    .getByRole("navigation", { name: "API reference", exact: true })
+    .getByRole("button", { name: "Order", exact: true })
+    .click();
+  await expect(
+    renderer.locator('[id$="/models/material-selected-schema-content"]'),
+  ).toBeVisible();
+});
+
+test("local references to other paths keep their actual Scalar targets", async ({
+  page,
+}) => {
+  await install(
+    page,
+    JSON.stringify({
+      openapi: "3.0.3",
+      info: { title: "Path references", version: "1" },
+      paths: {
+        "/orders": { $ref: "#/paths/~1shared" },
+        "/shared": {
+          get: {
+            summary: "Shared saved operation",
+            responses: { "200": { description: "Reference target retained" } },
+          },
+        },
+      },
+    }),
+  );
+  await page.goto(
+    "/projects/project_shop/artifacts/outputs/shop-api?revision=shop-api-r2",
+  );
+  await page.getByRole("button", { name: "Load preview", exact: true }).click();
+  const renderer = page.locator(".openapi-artifact-preview");
+  await expect(
+    renderer.getByRole("heading", {
+      name: "Shared saved operation",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    renderer
+      .getByText("Reference target retained", { exact: true })
+      .filter({ visible: true })
+      .first(),
+  ).toBeVisible();
+  const nav = page.getByRole("navigation", {
+    name: "API reference",
+    exact: true,
+  });
+  await nav.getByRole("button", { name: "GET /shared", exact: true }).click();
+  await expect(
+    renderer.getByRole("heading", {
+      name: "Shared saved operation",
+      exact: true,
+    }),
+  ).toBeVisible();
 });

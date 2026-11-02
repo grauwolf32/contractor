@@ -110,6 +110,7 @@ export function groupMaterialsByKind<T extends KindSource>(
 /** Short format name ("ZIP", "Markdown"), else the media type itself. */
 export function formatLabel(mediaType: string): string {
   if (mediaType === HTTP_EXCHANGE_MEDIA_TYPE) return "HTTP exchange";
+  if (MEDIA_TYPE_KINDS[mediaType] === "api") return "OpenAPI";
   return Object.hasOwn(workflowFormats, mediaType)
     ? workflowFormats[mediaType]!
     : mediaType;
