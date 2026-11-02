@@ -136,3 +136,24 @@ func TestSharedPerformanceGoldenCapabilities(t *testing.T) {
 		}
 	}
 }
+
+func TestSharedRegistrationCloneAndNormalizationDetachObservations(t *testing.T) {
+	allocationID := "allocation-original"
+	original, err := contracts.DecodePrivateStrict[AgentRegistration](contractstest.ReadFixture(t, "valid", "agent-registration.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	original.AllocationID = &allocationID
+	original.Capabilities = &contracts.RuntimeCompletionCapabilities{CompletionContracts: []string{contracts.AuditCheckResultsV1}}
+	for _, detached := range []AgentRegistration{original.Clone(), NormalizeAgentRegistration(original)} {
+		*detached.AllocationID = "allocation-changed"
+		detached.Capabilities.CompletionContracts[0] = "changed"
+		detached.SupportedRuntimes[0] = "changed@1"
+		detached.SupportedSandboxProfiles[0] = "changed@1"
+		detached.SupportedRuntimeAdapters[0] = runtimesettings.RuntimeAdapterHTTPTarget
+		detached.SupportedToolsets[0].Tools[0] = "changed"
+		if *original.AllocationID != "allocation-original" || original.Capabilities.CompletionContracts[0] != contracts.AuditCheckResultsV1 || original.SupportedRuntimes[0] == "changed@1" || original.SupportedSandboxProfiles[0] == "changed@1" || original.SupportedRuntimeAdapters[0] == runtimesettings.RuntimeAdapterHTTPTarget || original.SupportedToolsets[0].Tools[0] == "changed" {
+			t.Fatal("registration copy shares mutable data")
+		}
+	}
+}

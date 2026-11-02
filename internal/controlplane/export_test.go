@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
 )
 
@@ -60,4 +61,9 @@ func NewRuntimeControlClient(client *http.Client) (*RuntimeControlClient, error)
 		return errors.New("Runtime Agent redirects are not allowed")
 	}
 	return &RuntimeControlClient{client: &clone}, nil
+}
+
+// isCompatible keeps focused capability tests on the production predicate.
+func isCompatible(registration control.AgentRegistration, template contracts.ResolvedAgentTemplate, workspace *contracts.AllocationWorkspaceSpec) bool {
+	return indexToolCapabilities(registration.SupportedToolsets).supports(registration, template, workspace)
 }

@@ -1,0 +1,46 @@
+schema_version: "1.0"
+id: V439-005
+title: Update native lifecycle fixture grants when testing another allocation
+milestone: controlplane-review-2026-11
+epic: execution-core
+kind: chore
+introduced_by: V439-003
+priority: P3
+status: completed
+implementation_commit: 24c7bad3a56f335511bef5446a629ad9944e3785
+depends_on: [V439-003]
+languages: [go]
+goal: Native Runtime fault tests reach the Runtime with the exact intended grant after an allocation identity changes.
+context:
+  integration_note: "Renumbered from V438-005 during the user-requested 2026-11-02 main merge: main independently assigned V438-001 to the Scheduler review. Existing implementation commits are retained."
+  authority: "User decision 2026-11-02 authorizes the controlplane defect fixes and refactoring; extended verification found this fixture prerequisite."
+  specification:
+    - docs/spec/execution/control-plane.md#CTL-R168
+  finding: >-
+    runtime_native_faults_integration_test.go:307 replaces an allocation after failed prepare,
+    and line 645 probes the independent Runtime cleanup fence with a competing allocation.
+    The new mandatory protocol-client grant reader still supplies the original fixture grant,
+    so both calls stop at Server authority validation instead of exercising the Runtime.
+  siblings: >-
+    All NewMTLSRuntimeControlClient callers were inspected. The ordinary lifecycle fixture
+    uses one unchanged grant; principal mismatch and connection reuse tests call release/finalize.
+    Only these two native fault scenarios switch allocation identity.
+  decision: >-
+    Advance the fixture's exact grant at the two explicit allocation changes and restore the
+    original after the competing-allocation probe. Preserve mandatory production grant validation
+    and every Runtime conflict/cleanup assertion. Add no permissive grant-reader fallback.
+scope:
+  in:
+    - Exact fixture authority for the replacement and competing native allocations.
+    - Full tagged controlplane package verification, including all native fault modes.
+  out:
+    - Production authority, lifecycle behavior and Runtime implementation changes.
+acceptance_criteria:
+  - {id: A1, text: "Failed prepare rolls back and the subsequent exact allocation prepares successfully."}
+  - {id: A2, text: "A Runtime with failed cleanup still rejects a competing allocation with the asserted deterministic Runtime conflict."}
+  - {id: A3, text: "The complete tagged controlplane suite passes without relaxing core grant checks."}
+tests:
+  - {command: "go test -tags=integration -count=1 ./internal/controlplane/...", covers: [A1, A2, A3]}
+verification:
+  before_fix: "Full tagged package run failed exactly the rollback/replacement and failed-cleanup competing-allocation cases at the new client authority check."
+  result: "Complete tagged controlplane and engagementadapter suites passed after advancing only the exact fixture grants; Runtime conflict assertions remain unchanged."

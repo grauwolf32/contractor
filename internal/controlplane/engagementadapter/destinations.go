@@ -1,4 +1,4 @@
-package controlplane
+package engagementadapter
 
 import (
 	"context"
@@ -12,12 +12,13 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts/engagementcontract"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
+	"github.com/grauwolf32/contractor/internal/controlplane"
 )
 
-// ResolveEngagementProtectedDestinations pins infrastructure endpoints separately
+// resolveProtectedDestinations pins infrastructure endpoints separately
 // from target scope. Runtime repeats alias resolution in its own network. No
 // secret-bearing URL or header is included in the returned denyset.
-func ResolveEngagementProtectedDestinations(ctx context.Context, reservation Reservation, settings runtimesettings.RuntimeSettings) ([]engagementcontract.ProtectedDestination, error) {
+func resolveProtectedDestinations(ctx context.Context, reservation controlplane.Reservation, settings runtimesettings.RuntimeSettings) ([]engagementcontract.ProtectedDestination, error) {
 	endpoints := []string{settings.ArtifactAPIURL, reservation.ControlURL, reservation.A2AURL}
 	if settings.LLMGatewayURL != "" {
 		endpoints = append(endpoints, settings.LLMGatewayURL)

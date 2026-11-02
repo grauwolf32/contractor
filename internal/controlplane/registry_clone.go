@@ -8,34 +8,9 @@ package controlplane
 import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
-	"github.com/grauwolf32/contractor/internal/contracts/reporting"
-	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/helpers/clone"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
-
-func cloneRegistration(source control.AgentRegistration) control.AgentRegistration {
-	result := source
-	result.AllocationID = clone.Pointer(source.AllocationID)
-	result.PlacementLabels = append([]string{}, source.PlacementLabels...)
-	result.SupportedRuntimes = append([]string{}, source.SupportedRuntimes...)
-	result.SupportedSandboxProfiles = append([]string{}, source.SupportedSandboxProfiles...)
-	result.SupportedRuntimeAdapters = append([]runtimesettings.RuntimeAdapterRef{}, source.SupportedRuntimeAdapters...)
-	result.SupportedPerformanceMetricsVersions = append(
-		reporting.PerformanceMetricsVersions{}, source.SupportedPerformanceMetricsVersions...,
-	)
-	if source.WorkspaceCapabilities != nil {
-		capabilities := *source.WorkspaceCapabilities
-		capabilities.Modes = append([]contracts.WorkspaceMode{}, source.WorkspaceCapabilities.Modes...)
-		result.WorkspaceCapabilities = &capabilities
-	}
-	result.SupportedToolsets = make([]control.ToolsetCapability, len(source.SupportedToolsets))
-	for index, capability := range source.SupportedToolsets {
-		result.SupportedToolsets[index] = capability
-		result.SupportedToolsets[index].Tools = append([]string(nil), capability.Tools...)
-	}
-	return result
-}
 
 func clonePrincipal(source AuthenticatedPrincipal) AuthenticatedPrincipal {
 	result := source
