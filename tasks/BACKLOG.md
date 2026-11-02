@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-81 open tasks: 13 in progress, 55 pending, 13 deferred. 1366 finished: 1348 completed, 18 archived.
+87 open tasks: 14 in progress, 60 pending, 13 deferred. 1366 finished: 1348 completed, 18 archived.
 
 ## In progress
 
@@ -24,6 +24,7 @@ the epics are in [epics.yml](epics.yml).
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
 | [V435-001](v435-001-server-owned-agent-labels.yml) | runtime-config | defect | P1 | Remove Runtime startup label assignments and keep agent infrastructure settings Server-owned |
 | [V437-006](v437-006-group-artifact-policy-and-preview.yml) | projects-artifacts | chore | P3 | Group shared Artifact policy and previews under artifacts |
+| [V439-001](v439-001-bound-finding-http-transfers.yml) | findings | defect | P1 | Bound allocation finding HTTP transfers |
 
 ## Pending
 
@@ -82,6 +83,7 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V437-005](v437-005-inject-artifact-storage-dependencies.yml) | chore | P2 | — | Inject Artifact storage dependencies explicitly |
+| [V439-004](v439-004-move-project-and-repeat-orchestration.yml) | chore | P2 | — | Move Project editing and Run repeat orchestration to their owners |
 
 ### Audits (`audits`)
 
@@ -112,6 +114,7 @@ the epics are in [epics.yml](epics.yml).
 | [V411-021](v411-021-pentest-frozen-live-quality-evaluation.yml) | chore | P2 | V411-020 | Evaluate HTTP investigation quality with frozen repeated comparisons |
 | [V417-008](v417-008-context-compaction-eval-harness.yml) | chore | P2 | V417-001, V417-003 | Build frozen context-compaction evaluation fixtures and an opt-in harness |
 | [V417-010](v417-010-context-compaction-live-evaluation.yml) | chore | P2 | V417-008, V417-009 | Measure compaction and reasoning choices with repeated frozen live experiments |
+| [V439-005](v439-005-cache-eval-binding-discovery.yml) | chore | P2 | — | Page Eval capabilities from immutable catalog discovery |
 
 ### Podman sandbox (`sandbox`)
 
@@ -137,6 +140,9 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V411-017](v411-017-pentest-api-cli.yml) | feature | P1 | V411-015, V411-016, V64-008 | Expose HTTP engagement setup and results through existing API and CLI |
+| [V439-002](v439-002-simplify-http-adapters.yml) | chore | P2 | — | Simplify HTTP error handling and route options |
+| [V439-003](v439-003-simplify-label-json-reader.yml) | defect | P2 | — | Reuse strict JSON validation for public metadata labels |
+| [V439-006](v439-006-verify-httpapi-review.yml) | chore | P2 | V439-001, V439-002, V439-003, V439-004, V439-005 | Verify the HTTP API review cleanup |
 
 ### PostgreSQL persistence and schema (`persistence`)
 
@@ -182,23 +188,23 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 2 | 47 | 64 | 30 | 91 |
+| Run execution core (`execution-core`) | 2 | 47 | 64 | 30 | 92 |
 | Planners and the Worker model boundary (`planner-worker`) | 9 | 35 | 49 | 30 | 75 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 10 | 26 | 14 | 5 | 45 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 3 | 14 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
 | Run workspaces and project filesystem (`workspaces`) | 1 | 16 | 15 | 5 | 16 |
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
-| HTTP and Caido tools (`http-tools`) | 4 | 22 | 27 | 9 | 26 |
+| HTTP and Caido tools (`http-tools`) | 4 | 22 | 27 | 9 | 27 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 2 | 17 | 10 | 9 | 20 |
-| Findings tools and collections (`findings`) | 2 | 17 | 9 | 10 | 15 |
+| Findings tools and collections (`findings`) | 3 | 17 | 10 | 10 | 15 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 19 | 16 | 16 | 21 |
-| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 2 | 36 | 39 | 15 | 65 |
+| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 3 | 36 | 39 | 16 | 65 |
 | Audits (`audits`) | 17 | 67 | 90 | 38 | 137 |
-| Evaluations (`evals`) | 6 | 21 | 39 | 15 | 49 |
+| Evaluations (`evals`) | 7 | 21 | 39 | 16 | 49 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 5 |
 | Web UI (`ui`) | 2 | 34 | 69 | 25 | 69 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 18 | 46 | 9 | 22 |
-| Public API and wire contracts (`api-contracts`) | 1 | 2 | 38 | 25 | 16 |
+| Public API and wire contracts (`api-contracts`) | 4 | 2 | 39 | 27 | 20 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 27 | 47 | 17 |
 | Quality, CI and process (`quality`) | 11 | 1 | 29 | 121 | 27 |

@@ -1,0 +1,55 @@
+schema_version: "1.0"
+id: V439-006
+title: "Verify the HTTP API review cleanup"
+milestone: httpapi-review-cleanup-2026-11
+epic: api-contracts
+kind: chore
+introduced_by: V370-009
+priority: P2
+status: pending
+depends_on: [V439-001, V439-002, V439-003, V439-004, V439-005]
+languages: [go]
+goal: >-
+  The P1 fix and authorized adapter/domain/catalog simplifications pass the integrated HTTP contract and lint gates on one branch.
+context:
+  authority:
+    - date: "2026-11-02"
+      decision: "User requested fixing the HTTP review P1 and implementing the proposed simplifications and optimizations."
+  review: "HTTP API review in this chat on 2026-11-02."
+  specification:
+    - docs/spec/api/public-api.md
+    - docs/spec/artifacts/blob-storage.md
+    - docs/spec/execution/runs.md
+    - docs/spec/artifacts/projects.md
+    - docs/spec/configuration/catalog.md
+  finding: >-
+    The review changes cross HTTP, Project editing, Run repeat and immutable catalog boundaries and need one integrated gate.
+  boundary: >-
+    HTTP owns wire validation and rendering; domain owners own edits, exact repeat availability and compatibility. Existing transfer slots, fences, receipts and immutable catalog snapshots remain authoritative.
+  decision: >-
+    Reuse existing owners and helpers. The alternative of leaving orchestration in the HTTP layer is smaller but retains duplicate policy and expensive catalog reads. Reopen only if a concrete production caller requires another boundary.
+  siblings: >-
+    Inspect public/private Artifact transfers, finding JSON intake, all Run/Audit label consumers, Project edits, ordinary/Audit-managed repeat drafts and Eval kind-filtered pages. Unrelated Eval precondition and Audit-corruption P2 findings are outside this request.
+scope:
+  in:
+    - "Run full touched Go package suites against a disposable PostgreSQL database, race checks for HTTP and concurrency-sensitive owners, public API verification and make lint."
+    - "Record exact commands, remaining risks and production-line changes; preserve unrelated primary-checkout work."
+  out:
+    - "New endpoints, schemas, persistence mechanisms, generated client edits and unrelated review P2 fixes."
+acceptance_criteria:
+  - id: A1
+    text: >-
+      All implementation tasks pass their acceptance checks and all declared commands succeed on the final tree.
+  - id: A2
+    text: >-
+      Public HTTP behavior stays compatible except the explicit null-label correction; no unrelated P2 from the review is silently claimed fixed.
+  - id: A3
+    text: >-
+      Record the branch state and whether it has been merged; generated task backlog is current.
+tests:
+  - command: "go test -tags=integration -race -count=1 ./internal/httpapi/... ./internal/projectstore/... ./internal/runservice/... ./internal/config/... ./internal/auditservice/... ./internal/app/... ./internal/archtest/..."
+    covers: [A1, A2, A3]
+  - command: "make verify-public-api"
+    covers: [A1, A2, A3]
+  - command: "make lint"
+    covers: [A1, A2, A3]

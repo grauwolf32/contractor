@@ -1,0 +1,52 @@
+schema_version: "1.0"
+id: V439-001
+title: "Bound allocation finding HTTP transfers"
+milestone: httpapi-review-cleanup-2026-11
+epic: findings
+kind: defect
+introduced_by: V376-002
+priority: P1
+status: in_progress
+depends_on: []
+languages: [go]
+goal: >-
+  A slow Runtime finding upload cannot monopolize the shared Artifact transfer slots; accepted submissions retain their existing receipt and write-fence semantics.
+context:
+  authority:
+    - date: "2026-11-02"
+      decision: "User requested fixing the HTTP review P1 and implementing the proposed simplifications and optimizations."
+  review: "HTTP API review in this chat on 2026-11-02."
+  specification:
+    - docs/spec/api/public-api.md
+    - docs/spec/artifacts/blob-storage.md
+    - docs/spec/execution/runs.md
+    - docs/spec/artifacts/projects.md
+    - docs/spec/configuration/catalog.md
+  finding: >-
+    internal/httpapi/privateartifacts/finding_handlers.go:32 acquires shared transfer capacity without a socket deadline and holds it through response writes. Four unfinished bodies exhaust all transfers.
+  boundary: >-
+    HTTP owns wire validation and rendering; domain owners own edits, exact repeat availability and compatibility. Existing transfer slots, fences, receipts and immutable catalog snapshots remain authoritative.
+  decision: >-
+    Reuse existing owners and helpers. The alternative of leaving orchestration in the HTTP layer is smaller but retains duplicate policy and expensive catalog reads. Reopen only if a concrete production caller requires another boundary.
+  siblings: >-
+    Inspect public/private Artifact transfers, finding JSON intake, all Run/Audit label consumers, Project edits, ordinary/Audit-managed repeat drafts and Eval kind-filtered pages. Unrelated Eval precondition and Audit-corruption P2 findings are outside this request.
+scope:
+  in:
+    - "Reuse artifacttransfer for bounded reads, separate storage budget and release before response."
+    - "Preserve invalid_finding_request for invalid or interrupted JSON and existing replay/fence behavior."
+    - "Add deterministic deadline/slot regressions and exercise the real handler and PostgreSQL intake."
+  out:
+    - "New endpoints, schemas, persistence mechanisms, generated client edits and unrelated review P2 fixes."
+acceptance_criteria:
+  - id: A1
+    text: >-
+      Four stalled body reads install nonzero socket deadlines and no work reaches intake until strict JSON validation succeeds.
+  - id: A2
+    text: >-
+      The transfer is released before every small success/error response, and storage has its own bounded context.
+  - id: A3
+    text: >-
+      Regression tests fail on the original handler; existing private Artifact and finding tests pass.
+tests:
+  - command: "go test -tags=integration -count=1 ./internal/httpapi/privateartifacts/... ./internal/httpapi/artifacttransfer/... ./internal/findingintake/..."
+    covers: [A1, A2, A3]

@@ -1,0 +1,54 @@
+schema_version: "1.0"
+id: V439-002
+title: "Simplify HTTP error handling and route options"
+milestone: httpapi-review-cleanup-2026-11
+epic: api-contracts
+kind: chore
+introduced_by: V370-009
+priority: P2
+status: pending
+depends_on: []
+languages: [go]
+goal: >-
+  HTTP adapters expose explicit validation and domain calls with less repeated error plumbing, readable Artifact options and shorter allocation gate ownership.
+context:
+  authority:
+    - date: "2026-11-02"
+      decision: "User requested fixing the HTTP review P1 and implementing the proposed simplifications and optimizations."
+  review: "HTTP API review in this chat on 2026-11-02."
+  specification:
+    - docs/spec/api/public-api.md
+    - docs/spec/artifacts/blob-storage.md
+    - docs/spec/execution/runs.md
+    - docs/spec/artifacts/projects.md
+    - docs/spec/configuration/catalog.md
+  finding: >-
+    Repeated handleError-and-return blocks obscure operation flow; listArtifactBindings uses positional booleans/strings; model-selection nil branches contradict constructor requirements; sitemap writes responses inside WithWriteGrant.
+  boundary: >-
+    HTTP owns wire validation and rendering; domain owners own edits, exact repeat availability and compatibility. Existing transfer slots, fences, receipts and immutable catalog snapshots remain authoritative.
+  decision: >-
+    Reuse existing owners and helpers. The alternative of leaving orchestration in the HTTP layer is smaller but retains duplicate policy and expensive catalog reads. Reopen only if a concrete production caller requires another boundary.
+  siblings: >-
+    Inspect public/private Artifact transfers, finding JSON intake, all Run/Audit label consumers, Project edits, ordinary/Audit-managed repeat drafts and Eval kind-filtered pages. Unrelated Eval precondition and Audit-corruption P2 findings are outside this request.
+scope:
+  in:
+    - "Introduce one small error-returning handler adapter and migrate ordinary public operation handlers without moving validation order."
+    - "Replace positional Artifact list options, remove impossible model-service nil branches, and send private sitemap responses after the grant callback returns."
+    - "Preserve status codes, envelopes, request diagnostics, caching, HEAD/CORS behavior, ownership checks and body bounds."
+  out:
+    - "New endpoints, schemas, persistence mechanisms, generated client edits and unrelated review P2 fixes."
+acceptance_criteria:
+  - id: A1
+    text: >-
+      Migrated handlers return classified errors to one response adapter; route-table and OpenAPI tests remain valid.
+  - id: A2
+    text: >-
+      Artifact list call sites name their policy fields; sitemap serialization/writes occur after WithWriteGrant.
+  - id: A3
+    text: >-
+      Redundant constructor-proven nil branches are removed; complete HTTP suites pass with unchanged behavior.
+tests:
+  - command: "go test -tags=integration -count=1 ./internal/httpapi/..."
+    covers: [A1, A2, A3]
+  - command: "make verify-public-api"
+    covers: [A1, A2, A3]

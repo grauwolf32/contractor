@@ -1,0 +1,53 @@
+schema_version: "1.0"
+id: V439-003
+title: "Reuse strict JSON validation for public metadata labels"
+milestone: httpapi-review-cleanup-2026-11
+epic: api-contracts
+kind: defect
+introduced_by: V414-009
+priority: P2
+status: pending
+depends_on: []
+languages: [go]
+goal: >-
+  Run and Audit labels retain exact string values and reject null without maintaining a second streaming JSON parser.
+context:
+  authority:
+    - date: "2026-11-02"
+      decision: "User requested fixing the HTTP review P1 and implementing the proposed simplifications and optimizations."
+  review: "HTTP API review in this chat on 2026-11-02."
+  specification:
+    - docs/spec/api/public-api.md
+    - docs/spec/artifacts/blob-storage.md
+    - docs/spec/execution/runs.md
+    - docs/spec/artifacts/projects.md
+    - docs/spec/configuration/catalog.md
+  finding: >-
+    internal/httpapi/public/types_run_project.go:72 decodes null into an empty string, changing cloud/local placement; the custom parser duplicates strictjson validation.
+  boundary: >-
+    HTTP owns wire validation and rendering; domain owners own edits, exact repeat availability and compatibility. Existing transfer slots, fences, receipts and immutable catalog snapshots remain authoritative.
+  decision: >-
+    Reuse existing owners and helpers. The alternative of leaving orchestration in the HTTP layer is smaller but retains duplicate policy and expensive catalog reads. Reopen only if a concrete production caller requires another boundary.
+  siblings: >-
+    Inspect public/private Artifact transfers, finding JSON intake, all Run/Audit label consumers, Project edits, ordinary/Audit-managed repeat drafts and Eval kind-filtered pages. Unrelated Eval precondition and Audit-corruption P2 findings are outside this request.
+scope:
+  in:
+    - "Replace the custom token scanner with strictjson.DecodeNonNull plus the shared Run-label normalizer."
+    - "Cover Run and Audit request siblings, duplicates, invalid types and valid empty labels through existing handler paths."
+  out:
+    - "New endpoints, schemas, persistence mechanisms, generated client edits and unrelated review P2 fixes."
+acceptance_criteria:
+  - id: A1
+    text: >-
+      An explicit null label value is rejected before creation or a mutation receipt; empty strings remain valid and derive the same placement.
+  - id: A2
+    text: >-
+      Unknown/duplicate/type/UTF-8 and label-bound behavior remains enforced by existing shared owners.
+  - id: A3
+    text: >-
+      Real PostgreSQL-backed public regressions fail on the original decoder and pass after the simplification.
+tests:
+  - command: "go test -tags=integration -count=1 ./internal/httpapi/public/... ./internal/contracts/runlabels/... ./internal/helpers/strictjson/..."
+    covers: [A1, A2, A3]
+  - command: "make verify-public-api"
+    covers: [A1, A2, A3]

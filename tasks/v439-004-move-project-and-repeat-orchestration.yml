@@ -1,0 +1,55 @@
+schema_version: "1.0"
+id: V439-004
+title: "Move Project editing and Run repeat orchestration to their owners"
+milestone: httpapi-review-cleanup-2026-11
+epic: projects-artifacts
+kind: chore
+introduced_by: V436-001
+priority: P2
+status: pending
+depends_on: []
+languages: [go]
+goal: >-
+  Project editing and Run repeat projection have reusable domain operations; HTTP only validates wire metadata, invokes an operation and renders the existing response.
+context:
+  authority:
+    - date: "2026-11-02"
+      decision: "User requested fixing the HTTP review P1 and implementing the proposed simplifications and optimizations."
+  review: "HTTP API review in this chat on 2026-11-02."
+  specification:
+    - docs/spec/api/public-api.md
+    - docs/spec/artifacts/blob-storage.md
+    - docs/spec/execution/runs.md
+    - docs/spec/artifacts/projects.md
+    - docs/spec/configuration/catalog.md
+  finding: >-
+    internal/httpapi/public/project_handlers.go:183 owns patch merge and credential fencing; run_repeat_handlers.go:63 owns exact input/configuration availability and notices.
+  boundary: >-
+    HTTP owns wire validation and rendering; domain owners own edits, exact repeat availability and compatibility. Existing transfer slots, fences, receipts and immutable catalog snapshots remain authoritative.
+  decision: >-
+    Reuse existing owners and helpers. The alternative of leaving orchestration in the HTTP layer is smaller but retains duplicate policy and expensive catalog reads. Reopen only if a concrete production caller requires another boundary.
+  siblings: >-
+    Inspect public/private Artifact transfers, finding JSON intake, all Run/Audit label consumers, Project edits, ordinary/Audit-managed repeat drafts and Eval kind-filtered pages. Unrelated Eval precondition and Audit-corruption P2 findings are outside this request.
+scope:
+  in:
+    - "Extend existing projectstore and runservice owners with concrete edit/repeat operations used by production composition."
+    - "Preserve Project patch null/absence, revision CAS, credential guard and owner-safe errors."
+    - "Preserve exact Run input lineage, Audit-managed restrictions, notices, ordering, missing-source behavior and infrastructure failures."
+    - "Keep transport-only Artifact presentation and JSON rendering in httpapi; add no new persistence, package framework, receipt or compatibility path."
+  out:
+    - "New endpoints, schemas, persistence mechanisms, generated client edits and unrelated review P2 fixes."
+acceptance_criteria:
+  - id: A1
+    text: >-
+      Project patch application and credential-guarded mutation are outside httpapi with unchanged public behavior and real-store coverage.
+  - id: A2
+    text: >-
+      Run repeat orchestration is outside httpapi, reads only exact original input sources, and preserves existing notices and output contract.
+  - id: A3
+    text: >-
+      New exports have production callers, dependency layers remain valid, and complete owner/HTTP suites pass.
+tests:
+  - command: "go test -tags=integration -count=1 ./internal/projectstore/... ./internal/runservice/... ./internal/httpapi/... ./internal/app/... ./internal/archtest/..."
+    covers: [A1, A2, A3]
+  - command: "make verify-public-api"
+    covers: [A1, A2, A3]
