@@ -6,7 +6,7 @@ epic: findings
 kind: defect
 introduced_by: V376-002
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages: [go]
 goal: >-
@@ -50,3 +50,11 @@ acceptance_criteria:
 tests:
   - command: "go test -tags=integration -count=1 ./internal/httpapi/privateartifacts/... ./internal/httpapi/artifacttransfer/... ./internal/findingintake/..."
     covers: [A1, A2, A3]
+implementation_commit: 236c78d1e04ed920a0317eaee6bfe56779735b95
+verification:
+  date: "2026-11-02"
+  result: >-
+    Full declared suites passed with disposable PostgreSQL: privateartifacts 40.036s,
+    artifacttransfer 0.430s, findingintake 133.158s. Real HTTP upload/replay/interruption
+    and deterministic timeout tests pass; overlaying both original source files
+    makes the new deadline/storage/admission regressions fail.

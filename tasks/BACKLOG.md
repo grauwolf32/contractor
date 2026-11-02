@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-87 open tasks: 14 in progress, 60 pending, 13 deferred. 1366 finished: 1348 completed, 18 archived.
+86 open tasks: 13 in progress, 60 pending, 13 deferred. 1367 finished: 1349 completed, 18 archived.
 
 ## In progress
 
@@ -24,7 +24,6 @@ the epics are in [epics.yml](epics.yml).
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
 | [V435-001](v435-001-server-owned-agent-labels.yml) | runtime-config | defect | P1 | Remove Runtime startup label assignments and keep agent infrastructure settings Server-owned |
 | [V437-006](v437-006-group-artifact-policy-and-preview.yml) | projects-artifacts | chore | P3 | Group shared Artifact policy and previews under artifacts |
-| [V439-001](v439-001-bound-finding-http-transfers.yml) | findings | defect | P1 | Bound allocation finding HTTP transfers |
 
 ## Pending
 
@@ -142,7 +141,7 @@ the epics are in [epics.yml](epics.yml).
 | [V411-017](v411-017-pentest-api-cli.yml) | feature | P1 | V411-015, V411-016, V64-008 | Expose HTTP engagement setup and results through existing API and CLI |
 | [V439-002](v439-002-simplify-http-adapters.yml) | chore | P2 | — | Simplify HTTP error handling and route options |
 | [V439-003](v439-003-simplify-label-json-reader.yml) | defect | P2 | — | Reuse strict JSON validation for public metadata labels |
-| [V439-006](v439-006-verify-httpapi-review.yml) | chore | P2 | V439-001, V439-002, V439-003, V439-004, V439-005 | Verify the HTTP API review cleanup |
+| [V439-006](v439-006-verify-httpapi-review.yml) | chore | P2 | V439-002, V439-003, V439-004, V439-005 | Verify the HTTP API review cleanup |
 
 ### PostgreSQL persistence and schema (`persistence`)
 
@@ -197,7 +196,7 @@ tasks in `introduced_by`.
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
 | HTTP and Caido tools (`http-tools`) | 4 | 22 | 27 | 9 | 27 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 2 | 17 | 10 | 9 | 20 |
-| Findings tools and collections (`findings`) | 3 | 17 | 10 | 10 | 15 |
+| Findings tools and collections (`findings`) | 2 | 17 | 10 | 10 | 15 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 19 | 16 | 16 | 21 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 3 | 36 | 39 | 16 | 65 |
 | Audits (`audits`) | 17 | 67 | 90 | 38 | 137 |
