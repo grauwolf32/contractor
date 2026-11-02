@@ -1,0 +1,47 @@
+schema_version: "1.0"
+id: V439-003
+title: "Separate Audit engagement preparation from the Runtime protocol client"
+milestone: controlplane-review-2026-11
+epic: execution-core
+kind: chore
+introduced_by: V411-002
+priority: P2
+status: completed
+implementation_commit: f2144b49131bd977d48f4a4d137aa2c4f9835ebf
+depends_on: [V439-001, V439-002]
+languages: [go]
+goal: "The Runtime protocol client sends validated allocation data while a product-layer engagementadapter owns Audit integration and private identity preparation."
+context:
+  integration_note: "Renumbered from V438-003 during the user-requested 2026-11-02 main merge: main independently assigned V438-001 to the Scheduler review. Existing implementation commits are retained."
+  authority: "User decision 2026-11-02: fix the two reviewed controlplane defects and implement the proposed refactoring; engagementadapter is a child package of controlplane."
+  specification:
+    - docs/spec/execution/control-plane.md#CTL-R168
+    - docs/spec/execution/control-plane.md#CTL-R169
+    - docs/spec/audits/audits.md#AUD-R248
+    - docs/spec/platform/persistence.md
+  finding: >-
+    RuntimeControlClient.Prepare mixes the wire protocol with Audit projection lookup, identity materialization and network policy. app/composition_control.go separately wires several engagement callbacks.
+  siblings: >-
+    Placement Audit adapter requirements, protected destinations, metadata/HTTP prepare, private identity secret scanning and cross-language prepare tests consume this integration. Ordinary allocations and lifecycle finalize/abort/release keep their existing path.
+  decision: >-
+    Create internal/controlplane/engagementadapter in the product layer, composed by app and never imported by the core package. Auditservice retains baseline/domain ownership. The adapter scopes materials through the synchronous prepare call; core validates the complete AllocationSpec, rechecks authority immediately before dispatch and checks the returned Agent Card. Preserve the independent ten-second material budget and cleanup on every exit. Reopen the boundary only for a concrete second integration; no generic plugin framework.
+scope:
+  in:
+    - "Extract the concrete engagement adapter, update composition, remove old callback setters and relocate the existing tests."
+    - "Preserve protocol validation, cancellation, authority recheck, secret lifetime and separate provenance."
+    - "Update specification ownership and architecture package declarations."
+  out:
+    - "No wire schema, user configuration, database schema or Runtime execution behavior changes."
+acceptance_criteria:
+  - {id: A1, text: "Core Runtime client contains no Audit resolution, engagement policy decision or identity materialization callback."}
+  - {id: A2, text: "Metadata and controlled prepare preserve exact data; fenced, cancelled, failed-material and secret-leaking responses fail and clear material."}
+  - {id: A3, text: "Production app composes the adapter, all exports have callers and package dependencies remain acyclic."}
+  - {id: A4, text: "The existing cross-language mTLS metadata prepare scenario passes through the new production preparation seam."}
+tests:
+  - {command: "go test -race -count=1 ./internal/controlplane/... ./internal/auditservice ./internal/app ./internal/archtest", covers: [A1, A2, A3]}
+  - {command: "go test -tags=integration -count=1 -run ^TestCrossLanguageMTLSEngagementMetadataPrepare$ ./internal/controlplane", covers: [A4]}
+  - {command: "go test -tags=e2e -count=1 -run ^TestEngagementIdentitySessionsAcrossProcesses$ ./tests/e2e", covers: [A2, A3, A4]}
+verification:
+  result: "Full controlplane, engagementadapter, auditservice, app and archtest suites passed with PostgreSQL and -race. Native Python metadata prepare and full Server/Runtime identity-session process tests passed."
+  boundary: "One synchronous WithPreparedSpec callback scopes identity material through wire/Agent Card validation; production client construction requires a grant reader."
+  integration: "Merged completed Artifact refactor bd74d58c09025e2ce5d3b810254401c1034cfda3 to verify the current dependency tree and regenerated its dependency graph after the ownership spec update."

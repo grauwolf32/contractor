@@ -298,9 +298,17 @@ settings, reports and their consumers use the current fields under the
 original model names, with one schema and fixture catalog
 (CTL-R8).
 
-**CTL-R168.** An optional engagement engagement projection on AllocationSpec is
+**CTL-R168.** An optional engagement projection on AllocationSpec is
 resolved by the composition-owned Audit reader from the trusted Run/Stage
-reservation, outside Registry locks. It follows [AUD-R248](../audits/audits.md):
+reservation, outside Registry locks. The product-layer
+`internal/controlplane/engagementadapter` implements the core's synchronous
+allocation-preparation port. It owns Audit integration, infrastructure denyset
+assembly and private identity material lifetime around the prepare call;
+AuditService retains baseline interpretation and credential-reference authority.
+The Runtime protocol client validates the completed AllocationSpec, rechecks its
+grant immediately before dispatch and checks the returned Agent Card. It does
+not resolve Audit data or interpret engagement network policy. Composition
+connects the adapter; the core package never imports it. It follows [AUD-R248](../audits/audits.md):
 exact immutable attribution, no secret material, and only task-assigned routes,
 identities and inputs. Metadata-only preparation omits the typed `http`
 assignment. Controlled HTTP requires the explicit `http-target@1`

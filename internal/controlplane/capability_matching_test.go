@@ -1,6 +1,8 @@
 package controlplane
 
 import (
+	"fmt"
+	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"reflect"
 	"testing"
 )
@@ -60,5 +62,95 @@ func TestMatchingStableAugmentationAndReadOnlyGraph(t *testing.T) {
 		if !reflect.DeepEqual(graph, [][]int{{0, 1}, {0}}) {
 			t.Fatal("matching mutated graph")
 		}
+	}
+}
+
+func TestCapabilityIndexRetainsExactDetachedTools(t *testing.T) {
+	registration := testRegistration("indexed-agent")
+	index := indexToolCapabilities(registration.SupportedToolsets)
+	binding := testBinding(t, "worker", "worker", testTemplate(t))
+	registration.SupportedToolsets[0].Tools[0] = "caller-changed"
+	fresh := testRegistration("indexed-agent")
+	if !isBindingCompatibleWithTools(fresh, binding, index) {
+		t.Fatal("index shared registration tool memory")
+	}
+	binding.AgentTemplate.Toolsets[0].Tools = append(binding.AgentTemplate.Toolsets[0].Tools, "unsupported_tool")
+	if isBindingCompatibleWithTools(fresh, binding, index) {
+		t.Fatal("index widened the exact selected tool set")
+	}
+}
+
+// Compare repeated compatibility checks with the immutable registration index;
+// the graph subtest includes complete matching for 32 bindings and 256 slots.
+func BenchmarkCapabilityMatching(b *testing.B) {
+	template := testTemplate(b)
+	binding := BindingRequirement{LogicalAgentName: "worker", Namespace: "worker", AgentTemplate: template}
+	for _, toolsets := range []int{1, 16} {
+		registration := testRegistration("benchmark-agent")
+		for extra := 1; extra < toolsets; extra++ {
+			capability := control.ToolsetCapability{Ref: fmt.Sprintf("extra%d@1", extra)}
+			for tool := range 32 {
+				capability.Tools = append(capability.Tools, fmt.Sprintf("tool%d", tool))
+			}
+			registration.SupportedToolsets = append(registration.SupportedToolsets, capability)
+		}
+		index := indexToolCapabilities(registration.SupportedToolsets)
+		b.Run(fmt.Sprintf("toolsets%d/rebuild", toolsets), func(b *testing.B) {
+			b.ReportAllocs()
+			for b.Loop() {
+				if !isBindingCompatible(registration, binding) {
+					b.Fatal("incompatible fixture")
+				}
+			}
+		})
+		b.Run(fmt.Sprintf("toolsets%d/indexed", toolsets), func(b *testing.B) {
+			b.ReportAllocs()
+			for b.Loop() {
+				if !isBindingCompatibleWithTools(registration, binding, index) {
+					b.Fatal("incompatible fixture")
+				}
+			}
+		})
+	}
+	registration := testRegistration("benchmark-agent")
+	agents := make([]*agentEntry, 256)
+	for index := range agents {
+		agents[index] = &agentEntry{registration: registration, toolCapabilities: indexToolCapabilities(registration.SupportedToolsets)}
+	}
+	bindings := make([]BindingRequirement, 32)
+	for index := range bindings {
+		bindings[index] = binding
+	}
+	b.Run("graph32x256", func(b *testing.B) {
+		b.ReportAllocs()
+		for b.Loop() {
+			if _, ok := completeCapabilityAssignmentWithEdges(agents, bindings, nil); !ok {
+				b.Fatal("incomplete assignment")
+			}
+		}
+	})
+}
+
+func TestCapabilityMatchingPlacesThirtyTwoBindingsAcrossFleet(t *testing.T) {
+	registry := newTestRegistry(t, newTestClock())
+	for index := range 256 {
+		registerReady(t, registry, fmt.Sprintf("fleet-%03d", index))
+	}
+	template := testTemplate(t)
+	request := ReservationRequest{RunID: "run-fleet", StageExecutionID: "stage-fleet"}
+	for index := range 32 {
+		name := fmt.Sprintf("worker-%02d", index)
+		request.Bindings = append(request.Bindings, testBinding(t, name, name, template))
+	}
+	reservations, err := registry.ReserveAll(request)
+	if err != nil || len(reservations) != 32 {
+		t.Fatalf("fleet matching: count=%d err=%v", len(reservations), err)
+	}
+	instances := map[string]bool{}
+	for _, reservation := range reservations {
+		if instances[reservation.Grant.RuntimeInstanceID] {
+			t.Fatal("matching reused a slot")
+		}
+		instances[reservation.Grant.RuntimeInstanceID] = true
 	}
 }

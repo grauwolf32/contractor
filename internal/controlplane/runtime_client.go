@@ -18,7 +18,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
-	"github.com/grauwolf32/contractor/internal/contracts/engagementcontract"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/helpers/requestid"
@@ -51,18 +50,18 @@ func (e *RuntimeAPIError) Error() string {
 // (CTL-R164): Release closes the released principal's connections and Close
 // ends them all when the Server stops.
 type RuntimeControlClient struct {
-	engagementMaterials func(context.Context, *engagementcontract.AllocationProjection) (map[string]runtimesettings.HTTPIdentityMaterial, error)
-	engagementResolver  func(context.Context, Reservation, runtimesettings.WorkerExecutionSettings) (*engagementcontract.AllocationProjection, error)
-	grantReader         interface {
-		GetGrant(string) (AllocationGrant, error)
-	}
+	preparation  AllocationSpecPreparation
+	grantReader  AllocationGrantReader
 	client       *http.Client
 	transports   *mtls.RuntimeAgentTransports
 	timeout      time.Duration
 	requireHTTPS bool
 }
 
-func NewMTLSRuntimeControlClient(files mtls.Files, timeout time.Duration) (*RuntimeControlClient, error) {
+func NewMTLSRuntimeControlClient(files mtls.Files, timeout time.Duration, grants AllocationGrantReader, preparation AllocationSpecPreparation) (*RuntimeControlClient, error) {
+	if grants == nil {
+		return nil, errors.New("allocation grant reader is required")
+	}
 	if timeout <= 0 {
 		return nil, errors.New("Runtime Agent request timeout must be positive")
 	}
@@ -76,33 +75,8 @@ func NewMTLSRuntimeControlClient(files mtls.Files, timeout time.Duration) (*Runt
 	}
 	return &RuntimeControlClient{
 		transports: transports, timeout: timeout, requireHTTPS: true,
+		grantReader: grants, preparation: preparation,
 	}, nil
-}
-
-// WithEngagementResolver binds the Audit-owned projection port at composition.
-// The resolver performs I/O without holding the Registry mutex; the grant is
-// checked again afterwards, immediately before the private prepare request.
-func (c *RuntimeControlClient) WithEngagementResolver(resolve func(context.Context, Reservation, runtimesettings.WorkerExecutionSettings) (*engagementcontract.AllocationProjection, error), grants interface {
-	GetGrant(string) (AllocationGrant, error)
-}) *RuntimeControlClient {
-	c.engagementResolver, c.grantReader = resolve, grants
-	return c
-}
-
-// WithEngagementMaterials binds the private decrypt port after trusted assignment
-// resolution. No credential material is published in allocation provenance.
-func (c *RuntimeControlClient) WithEngagementMaterials(resolve func(context.Context, *engagementcontract.AllocationProjection) (map[string]runtimesettings.HTTPIdentityMaterial, error)) *RuntimeControlClient {
-	c.engagementMaterials = resolve
-	return c
-}
-
-// clearEngagementMaterials drops private target values immediately after the
-// prepare response is checked, or on any earlier error. It is safe to repeat.
-func clearEngagementMaterials(material map[string]runtimesettings.HTTPIdentityMaterial) {
-	for id, value := range material {
-		clear(value.Fields)
-		delete(material, id)
-	}
 }
 
 // Close ends every Runtime Agent connection the client owns. The Server calls
@@ -144,49 +118,33 @@ func (c *RuntimeControlClient) Prepare(
 		Workspace:                       contracts.CloneAllocationWorkspaceSpec(reservation.Workspace),
 		PerformanceMetrics:              clonePerformanceMetricsRequest(reservation.PerformanceMetrics),
 	}
-	if c.engagementResolver != nil {
-		projection, err := c.engagementResolver(ctx, reservation, settings)
-		if err != nil {
-			return contracts.WorkerHandle{}, err
-		}
+	if c.preparation != nil {
+		return c.preparation.WithPreparedSpec(ctx, reservation, spec, func(prepared control.AllocationSpec) (contracts.WorkerHandle, error) {
+			return c.prepareAllocation(ctx, reservation, prepared)
+		})
+	}
+	return c.prepareAllocation(ctx, reservation, spec)
+}
 
-		spec.Engagement = projection
-		if projection != nil && projection.HTTP != nil && c.engagementMaterials != nil {
-			materialCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-			material, materialErr := c.engagementMaterials(materialCtx, projection)
-			cancel()
-			spec.RuntimeSettings.HTTPIdentities = material
-			defer clearEngagementMaterials(material)
-			if materialErr != nil {
-				return contracts.WorkerHandle{}, materialErr
-			}
-		}
-
-		uncontrolled := resolved.TemplateRequiresNetwork(spec.AgentTemplate)
-		if projection != nil && projection.HTTP != nil {
-			uncontrolled = resolved.TemplateRequiresUncontrolledNetwork(spec.AgentTemplate)
-		}
-		if projection != nil && uncontrolled {
-			return contracts.WorkerHandle{}, fmt.Errorf("%w: engagement metadata does not authorize target transport", ErrInvalidRequest)
-		}
-		if c.grantReader == nil {
-			return contracts.WorkerHandle{}, fmt.Errorf("%w: allocation grant reader is unavailable", ErrInvalidRequest)
-		}
+func (c *RuntimeControlClient) prepareAllocation(ctx context.Context, reservation Reservation, spec control.AllocationSpec) (contracts.WorkerHandle, error) {
+	request := control.PrepareAllocationRequest{APIVersion: contracts.APIVersion, Spec: spec}
+	if err := request.Validate(); err != nil {
+		return contracts.WorkerHandle{}, fmt.Errorf("build prepare request: %w", err)
+	}
+	if c.grantReader != nil {
 		current, err := c.grantReader.GetGrant(reservation.Grant.AllocationID)
 		if err != nil {
 			return contracts.WorkerHandle{}, err
 		}
 		expected := reservation.Grant
 		if current.WriteFenced || current.Lost || current.AllocationID != expected.AllocationID || current.RunID != expected.RunID || current.StageExecutionID != expected.StageExecutionID || current.RuntimeAgentID != expected.RuntimeAgentID || current.RuntimeInstanceID != expected.RuntimeInstanceID || current.Namespace != expected.Namespace || current.LogicalAgentName != expected.LogicalAgentName {
-			return contracts.WorkerHandle{}, fmt.Errorf("%w: allocation authority changed during projection", ErrInvalidRequest)
+			return contracts.WorkerHandle{}, fmt.Errorf("%w: allocation authority changed during preparation", ErrInvalidRequest)
 		}
-		if err := ctx.Err(); err != nil {
-			return contracts.WorkerHandle{}, err
-		}
+	} else if c.preparation != nil {
+		return contracts.WorkerHandle{}, fmt.Errorf("%w: allocation grant reader is unavailable", ErrInvalidRequest)
 	}
-	request := control.PrepareAllocationRequest{APIVersion: contracts.APIVersion, Spec: spec}
-	if err := request.Validate(); err != nil {
-		return contracts.WorkerHandle{}, fmt.Errorf("build prepare request: %w", err)
+	if err := ctx.Err(); err != nil {
+		return contracts.WorkerHandle{}, err
 	}
 	var response control.PrepareAllocationResponse
 	if err := c.postJSON(
@@ -198,7 +156,6 @@ func (c *RuntimeControlClient) Prepare(
 	if err := validateWorkerHandle(response.WorkerHandle, reservation, spec.RuntimeSettings); err != nil {
 		return contracts.WorkerHandle{}, err
 	}
-	clearEngagementMaterials(spec.RuntimeSettings.HTTPIdentities)
 	response.WorkerHandle.RuntimeAgentID = reservation.Grant.RuntimeAgentID
 	return response.WorkerHandle, nil
 }

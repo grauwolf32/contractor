@@ -1,4 +1,4 @@
-package controlplane
+package engagementadapter
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts/engagementcontract"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
+	"github.com/grauwolf32/contractor/internal/controlplane"
 )
 
 func TestProtectedEngagementDestinationsDenyAliasesWithoutSecrets(t *testing.T) {
@@ -58,7 +59,7 @@ func TestProtectedEngagementDestinationsFailClosed(t *testing.T) {
 }
 func TestProtectedEngagementDestinationsIncludeEveryInfrastructureSurface(t *testing.T) {
 	settings := runtimesettings.RuntimeSettings{ArtifactAPIURL: "https://192.168.1.1", LLMGatewayURL: "https://192.168.1.2", Telemetry: &runtimesettings.TelemetrySettings{Endpoint: "https://192.168.1.3"}, Caido: &runtimesettings.CaidoSettings{Endpoint: "https://192.168.1.4"}, HTTPProxy: &runtimesettings.HTTPProxySettings{ProxyURL: "http://192.168.1.5:8080"}, Interactsh: &runtimesettings.InteractshSettings{Endpoint: "https://192.168.1.6"}}
-	result, err := ResolveEngagementProtectedDestinations(t.Context(), Reservation{ControlURL: "https://192.168.1.7", A2AURL: "https://192.168.1.8"}, settings)
+	result, err := resolveProtectedDestinations(t.Context(), controlplane.Reservation{ControlURL: "https://192.168.1.7", A2AURL: "https://192.168.1.8"}, settings)
 	if err != nil || len(result) != 8 {
 		t.Fatalf("infrastructure surfaces=%d err=%v", len(result), err)
 	}
