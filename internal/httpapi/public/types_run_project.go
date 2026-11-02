@@ -1,13 +1,10 @@
 package public
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"time"
-	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
@@ -15,6 +12,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -48,41 +46,11 @@ func (l *runRuntimeLabels) UnmarshalJSON(data []byte) error {
 type runMetadataLabels map[string]string
 
 func (l *runMetadataLabels) UnmarshalJSON(data []byte) error {
-	if !utf8.Valid(data) {
-		return errors.New("labels must contain valid UTF-8")
+	var value map[string]string
+	if err := strictjson.DecodeNonNull(data, &value); err != nil {
+		return err
 	}
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	opening, err := decoder.Token()
-	if err != nil || opening != json.Delim('{') {
-		return errors.New("labels must be an object of strings")
-	}
-	result := make(map[string]string)
-	for decoder.More() {
-		token, err := decoder.Token()
-		if err != nil {
-			return errors.New("labels must be an object of strings")
-		}
-		key, ok := token.(string)
-		if !ok {
-			return errors.New("labels must have string keys")
-		}
-		if _, duplicate := result[key]; duplicate {
-			return fmt.Errorf("labels contains duplicate key %q", key)
-		}
-		var value string
-		if err := decoder.Decode(&value); err != nil {
-			return fmt.Errorf("label %q must have a string value", key)
-		}
-		result[key] = value
-	}
-	closing, err := decoder.Token()
-	if err != nil || closing != json.Delim('}') {
-		return errors.New("labels must be an object of strings")
-	}
-	if _, err := decoder.Token(); !errors.Is(err, io.EOF) {
-		return errors.New("labels must contain one object")
-	}
-	normalized, err := runstore.NormalizeRunMetadataLabels(result)
+	normalized, err := runstore.NormalizeRunMetadataLabels(value)
 	if err != nil {
 		return err
 	}

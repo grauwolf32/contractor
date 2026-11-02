@@ -4,9 +4,9 @@ title: "Reuse strict JSON validation for public metadata labels"
 milestone: httpapi-review-cleanup-2026-11
 epic: api-contracts
 kind: defect
-introduced_by: V414-009
+introduced_by: V20-002
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages: [go]
 goal: >-
