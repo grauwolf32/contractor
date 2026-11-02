@@ -1,0 +1,511 @@
+{
+  "project": {
+    "projectId": "project_shop",
+    "kind": "project",
+    "name": "Shop API",
+    "description": "Synthetic design project · source code and API contract",
+    "lifecycle": "active",
+    "activeChecks": "automatic",
+    "revision": "1",
+    "createdAt": "2026-10-01T10:00:00Z",
+    "updatedAt": "2026-10-01T10:00:00Z"
+  },
+  "profiles": [
+    {
+      "ref": {
+        "name": "openapi-operation-trace",
+        "version": "1",
+        "digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+      },
+      "mode": "operation-tracing",
+      "standards": [],
+      "inputs": {
+        "source": {
+          "required": true,
+          "mediaTypes": [
+            "application/zip"
+          ]
+        },
+        "openapi": {
+          "required": true,
+          "mediaTypes": [
+            "application/yaml"
+          ]
+        }
+      },
+      "inventory": {
+        "implementation": "openapi-operations@1",
+        "source": {
+          "source": "audit-input",
+          "name": "openapi"
+        },
+        "itemWorkflowRole": "trace"
+      },
+      "execution": {
+        "roundMode": "fixed-barrier",
+        "maxRounds": 1,
+        "batchSize": 1,
+        "maxItemsPerRound": 256,
+        "maxItemsTotal": 256,
+        "maxSubmittedRuns": 768,
+        "maxItemRunAttempts": 3,
+        "deadlineSeconds": 86400,
+        "maxEvidenceBytes": 67108864,
+        "incompleteRound": "assess-with-gaps"
+      },
+      "interaction": {
+        "activeChecks": "prohibited",
+        "notApplicable": "human-required",
+        "reportAcceptance": "automatic"
+      },
+      "serverCompatible": true,
+      "requiresInputValidation": true,
+      "compatibilityReasons": []
+    },
+    {
+      "ref": {
+        "name": "owasp-top10-2025-source-risk",
+        "version": "1",
+        "digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+      },
+      "mode": "risk-assessment",
+      "standards": [
+        {
+          "scheme": "owasp-web-top10",
+          "version": "2025"
+        }
+      ],
+      "inputs": {
+        "source": {
+          "required": true,
+          "mediaTypes": [
+            "application/zip"
+          ]
+        }
+      },
+      "inventory": {
+        "implementation": "standard-mappings@1",
+        "itemWorkflowRole": "check"
+      },
+      "execution": {
+        "roundMode": "fixed-barrier",
+        "maxRounds": 1,
+        "batchSize": 1,
+        "maxItemsPerRound": 10,
+        "maxItemsTotal": 10,
+        "maxSubmittedRuns": 30,
+        "maxItemRunAttempts": 3,
+        "deadlineSeconds": 86400,
+        "maxEvidenceBytes": 67108864,
+        "incompleteRound": "assess-with-gaps"
+      },
+      "interaction": {
+        "activeChecks": "prohibited",
+        "notApplicable": "human-required",
+        "reportAcceptance": "automatic"
+      },
+      "serverCompatible": true,
+      "requiresInputValidation": true,
+      "compatibilityReasons": []
+    },
+    {
+      "ref": {
+        "name": "owasp-asvs-5-0-l1-source-review",
+        "version": "1",
+        "digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+      },
+      "mode": "requirements-verification",
+      "standards": [
+        {
+          "scheme": "owasp-asvs",
+          "version": "5.0.0-l1-source.1"
+        }
+      ],
+      "inputs": {
+        "source": {
+          "required": true,
+          "mediaTypes": [
+            "application/zip"
+          ]
+        }
+      },
+      "inventory": {
+        "implementation": "standard-mappings@1",
+        "itemWorkflowRole": "check",
+        "standardSelection": {
+          "scope": "ASVS 5.0 Level 1 source and documentation review (70 requirements)",
+          "levels": [
+            "1"
+          ],
+          "entryIds": [
+            "v5.0.0-0",
+            "v5.0.0-1",
+            "v5.0.0-2",
+            "v5.0.0-3",
+            "v5.0.0-4",
+            "v5.0.0-5",
+            "v5.0.0-6",
+            "v5.0.0-7",
+            "v5.0.0-8",
+            "v5.0.0-9",
+            "v5.0.0-10",
+            "v5.0.0-11",
+            "v5.0.0-12",
+            "v5.0.0-13",
+            "v5.0.0-14",
+            "v5.0.0-15",
+            "v5.0.0-16",
+            "v5.0.0-17",
+            "v5.0.0-18",
+            "v5.0.0-19",
+            "v5.0.0-20",
+            "v5.0.0-21",
+            "v5.0.0-22",
+            "v5.0.0-23",
+            "v5.0.0-24",
+            "v5.0.0-25",
+            "v5.0.0-26",
+            "v5.0.0-27",
+            "v5.0.0-28",
+            "v5.0.0-29",
+            "v5.0.0-30",
+            "v5.0.0-31",
+            "v5.0.0-32",
+            "v5.0.0-33",
+            "v5.0.0-34",
+            "v5.0.0-35",
+            "v5.0.0-36",
+            "v5.0.0-37",
+            "v5.0.0-38",
+            "v5.0.0-39",
+            "v5.0.0-40",
+            "v5.0.0-41",
+            "v5.0.0-42",
+            "v5.0.0-43",
+            "v5.0.0-44",
+            "v5.0.0-45",
+            "v5.0.0-46",
+            "v5.0.0-47",
+            "v5.0.0-48",
+            "v5.0.0-49",
+            "v5.0.0-50",
+            "v5.0.0-51",
+            "v5.0.0-52",
+            "v5.0.0-53",
+            "v5.0.0-54",
+            "v5.0.0-55",
+            "v5.0.0-56",
+            "v5.0.0-57",
+            "v5.0.0-58",
+            "v5.0.0-59",
+            "v5.0.0-60",
+            "v5.0.0-61",
+            "v5.0.0-62",
+            "v5.0.0-63",
+            "v5.0.0-64",
+            "v5.0.0-65",
+            "v5.0.0-66",
+            "v5.0.0-67",
+            "v5.0.0-68",
+            "v5.0.0-69"
+          ]
+        }
+      },
+      "execution": {
+        "roundMode": "fixed-barrier",
+        "maxRounds": 1,
+        "batchSize": 1,
+        "maxItemsPerRound": 70,
+        "maxItemsTotal": 70,
+        "maxSubmittedRuns": 210,
+        "maxItemRunAttempts": 3,
+        "deadlineSeconds": 86400,
+        "maxEvidenceBytes": 67108864,
+        "incompleteRound": "assess-with-gaps"
+      },
+      "interaction": {
+        "activeChecks": "prohibited",
+        "notApplicable": "human-required",
+        "reportAcceptance": "automatic"
+      },
+      "serverCompatible": true,
+      "requiresInputValidation": true,
+      "compatibilityReasons": []
+    },
+    {
+      "ref": {
+        "name": "owasp-asvs-5-0-l1-source-pilot",
+        "version": "1",
+        "digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+      },
+      "mode": "requirements-verification",
+      "standards": [
+        {
+          "scheme": "owasp-asvs",
+          "version": "5.0.0"
+        }
+      ],
+      "inputs": {
+        "source": {
+          "required": true,
+          "mediaTypes": [
+            "application/zip"
+          ]
+        }
+      },
+      "inventory": {
+        "implementation": "standard-mappings@1",
+        "itemWorkflowRole": "check",
+        "standardSelection": {
+          "scope": "ASVS 5.0 Level 1 source and documentation pilot (5 requirements)",
+          "levels": [
+            "1"
+          ],
+          "entryIds": [
+            "a",
+            "b",
+            "c",
+            "d",
+            "e"
+          ]
+        }
+      },
+      "execution": {
+        "roundMode": "fixed-barrier",
+        "maxRounds": 1,
+        "batchSize": 1,
+        "maxItemsPerRound": 5,
+        "maxItemsTotal": 5,
+        "maxSubmittedRuns": 10,
+        "maxItemRunAttempts": 2,
+        "deadlineSeconds": 86400,
+        "maxEvidenceBytes": 67108864,
+        "incompleteRound": "assess-with-gaps"
+      },
+      "interaction": {
+        "activeChecks": "prohibited",
+        "notApplicable": "human-required",
+        "reportAcceptance": "automatic"
+      },
+      "serverCompatible": true,
+      "requiresInputValidation": true,
+      "compatibilityReasons": []
+    },
+    {
+      "ref": {
+        "name": "source-checklist",
+        "version": "1",
+        "digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+      },
+      "mode": "custom-checklist",
+      "standards": [],
+      "inputs": {
+        "source": {
+          "required": true,
+          "mediaTypes": [
+            "application/zip"
+          ]
+        },
+        "checklist": {
+          "required": true,
+          "mediaTypes": [
+            "application/json"
+          ]
+        }
+      },
+      "inventory": {
+        "implementation": "checklist@1",
+        "source": {
+          "source": "audit-input",
+          "name": "checklist"
+        },
+        "itemWorkflowRole": "check"
+      },
+      "execution": {
+        "roundMode": "fixed-barrier",
+        "maxRounds": 1,
+        "batchSize": 1,
+        "maxItemsPerRound": 128,
+        "maxItemsTotal": 128,
+        "maxSubmittedRuns": 384,
+        "maxItemRunAttempts": 3,
+        "deadlineSeconds": 86400,
+        "maxEvidenceBytes": 67108864,
+        "incompleteRound": "assess-with-gaps"
+      },
+      "interaction": {
+        "activeChecks": "prohibited",
+        "notApplicable": "human-required",
+        "reportAcceptance": "automatic"
+      },
+      "serverCompatible": true,
+      "requiresInputValidation": true,
+      "compatibilityReasons": []
+    },
+    {
+      "ref": {
+        "name": "extended-source-review",
+        "version": "1",
+        "digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+      },
+      "mode": "risk-assessment",
+      "standards": [],
+      "inputs": {
+        "source": {
+          "required": true,
+          "mediaTypes": [
+            "application/zip"
+          ]
+        }
+      },
+      "inventory": {
+        "implementation": "standard-mappings@1",
+        "itemWorkflowRole": "check"
+      },
+      "execution": {
+        "roundMode": "fixed-barrier",
+        "maxRounds": 1,
+        "batchSize": 1,
+        "maxItemsPerRound": 10,
+        "maxItemsTotal": 10,
+        "maxSubmittedRuns": 30,
+        "maxItemRunAttempts": 3,
+        "deadlineSeconds": 86400,
+        "maxEvidenceBytes": 67108864,
+        "incompleteRound": "assess-with-gaps"
+      },
+      "interaction": {
+        "activeChecks": "prohibited",
+        "notApplicable": "human-required",
+        "reportAcceptance": "automatic"
+      },
+      "serverCompatible": false,
+      "requiresInputValidation": true,
+      "compatibilityReasons": [
+        "multiple_rounds_unsupported"
+      ]
+    }
+  ],
+  "materials": [
+    {
+      "canUploadNewVersion": true,
+      "storageTimestamps": {
+        "scopeCreatedAt": "2026-10-05T10:00:00Z",
+        "blobCreatedAt": "2026-10-05T10:00:00Z",
+        "versionCreatedAt": "2026-10-05T10:00:00Z",
+        "bindingUpdatedAt": "2026-10-05T10:00:00Z"
+      },
+      "artifact": {
+        "namespace": "sources",
+        "name": "shop-source",
+        "revision": "source-r3"
+      },
+      "mediaType": "application/zip",
+      "size": 2384971,
+      "current": true,
+      "frozen": false,
+      "createdAt": "2026-10-01T10:00:00Z"
+    },
+    {
+      "canUploadNewVersion": true,
+      "storageTimestamps": {
+        "scopeCreatedAt": "2026-10-05T10:00:00Z",
+        "blobCreatedAt": "2026-10-05T10:00:00Z",
+        "versionCreatedAt": "2026-10-05T10:00:00Z",
+        "bindingUpdatedAt": "2026-10-05T10:00:00Z"
+      },
+      "artifact": {
+        "namespace": "openapi",
+        "name": "shop-openapi",
+        "revision": "api-r2"
+      },
+      "mediaType": "application/yaml",
+      "size": 18214,
+      "current": true,
+      "frozen": false,
+      "createdAt": "2026-10-01T10:00:00Z"
+    },
+    {
+      "canUploadNewVersion": true,
+      "storageTimestamps": {
+        "scopeCreatedAt": "2026-10-05T10:00:00Z",
+        "blobCreatedAt": "2026-10-05T10:00:00Z",
+        "versionCreatedAt": "2026-10-05T10:00:00Z",
+        "bindingUpdatedAt": "2026-10-05T10:00:00Z"
+      },
+      "artifact": {
+        "namespace": "docs",
+        "name": "security-checklist",
+        "revision": "checklist-r1"
+      },
+      "mediaType": "application/json",
+      "size": 4210,
+      "current": true,
+      "frozen": false,
+      "createdAt": "2026-10-01T10:00:00Z"
+    },
+    {
+      "canUploadNewVersion": true,
+      "storageTimestamps": {
+        "scopeCreatedAt": "2026-10-05T10:00:00Z",
+        "blobCreatedAt": "2026-10-05T10:00:00Z",
+        "versionCreatedAt": "2026-10-05T10:00:00Z",
+        "bindingUpdatedAt": "2026-10-05T10:00:00Z"
+      },
+      "artifact": {
+        "namespace": "docs",
+        "name": "architecture-notes",
+        "revision": "notes-r1"
+      },
+      "mediaType": "text/markdown",
+      "size": 1602,
+      "current": true,
+      "frozen": false,
+      "createdAt": "2026-10-01T10:00:00Z"
+    }
+  ],
+  "limits": {
+    "objective": 65536,
+    "target": 65536,
+    "authorizationScope": 65536,
+    "maxRuntimeLabels": 32
+  },
+  "presentations": [
+    {
+      "id": "openapi-operation-trace",
+      "label": "API endpoint trace",
+      "description": "Traces every endpoint of your API spec through the source code and proposes possible issues.",
+      "order": 10
+    },
+    {
+      "id": "owasp-top10-2025-source-risk",
+      "label": "OWASP Top 10 (2025) review",
+      "description": "Ten source code risk scenarios mapped to the OWASP Top 10:2025. A risk overview, not exhaustive.",
+      "order": 30
+    },
+    {
+      "id": "owasp-asvs-5-0-l1-source-review",
+      "label": "OWASP ASVS 5.0 Level 1",
+      "description": "Verifies the source code and documentation against the ASVS 5.0 Level 1 requirements.",
+      "order": 40
+    },
+    {
+      "id": "owasp-asvs-5-0-l1-source-pilot",
+      "label": "OWASP ASVS 5.0 Level 1 pilot",
+      "description": "Five selected ASVS 5.0 Level 1 requirements.",
+      "order": 41
+    },
+    {
+      "id": "source-checklist",
+      "label": "Custom checklist",
+      "description": "Works through your own checklist against the source code.",
+      "order": 90
+    },
+    {
+      "id": "extended-source-review",
+      "label": "Extended source review",
+      "description": "Risk assessment, one requirement at a time.",
+      "order": 1000
+    }
+  ]
+}

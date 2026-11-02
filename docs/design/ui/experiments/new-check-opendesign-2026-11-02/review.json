@@ -1,0 +1,158 @@
+{
+  "date": "2026-11-02",
+  "task": "V429-020",
+  "projectId": "contractor-new-check-20261102",
+  "conversationId": "415b1f89-db66-4aab-bea7-35474ae32258",
+  "runId": "a8dbd3e7-86e6-4114-af63-b09f35a8dab9",
+  "status": "succeeded",
+  "model": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+  "sourceCommit": "9a2d6f9afe228e025c9381dff34233f5b6939083",
+  "contributions": {
+    "assistant": "Contract-valid synthetic fixtures, real React references, bounded functional seed, safe preview server and verification.",
+    "OpenDesign": "Actual responsive CSS composition and complete assembled HTML; raw files are preserved.",
+    "reviewCorrections": []
+  },
+  "artifacts": [
+    {
+      "file": "rationale-new-check-v1.md",
+      "kind": "markdown-document",
+      "status": "complete"
+    },
+    {
+      "file": "index-new-check-v1.html",
+      "kind": "html",
+      "status": "complete"
+    },
+    {
+      "file": "reference/new-check-seed.html",
+      "kind": "html",
+      "status": "complete"
+    },
+    {
+      "file": "reference/new-check-brief.md",
+      "kind": "markdown-document",
+      "status": "complete"
+    }
+  ],
+  "preservation": {
+    "preBackup": {
+      "backup": "/Users/ruslan/src/third-party/open-design-backups/20261102T172048Z",
+      "sqliteIntegrity": "ok",
+      "databaseCounts": {
+        "projects": 5,
+        "conversations": 10,
+        "messages": 52
+      },
+      "projectFiles": 140,
+      "archives": [
+        {
+          "name": "open-design-state.tar",
+          "bytes": 55608320,
+          "sha256": "7e55d0a7e3e5e4a0ad64104f72e21a7ad625d7584c6a2104d9c2bacfc7e48c54"
+        },
+        {
+          "name": "open-design-sandbox.tar.gz",
+          "bytes": 267997117,
+          "sha256": "23f04d3218ca227df0c359d68bea04eb42b7d5de4911151ad03a5cb54cbcad95"
+        }
+      ],
+      "application": "resumed and healthy"
+    },
+    "postBackup": {
+      "backup": "/Users/ruslan/src/third-party/open-design-backups/20261102T174349Z",
+      "sqliteIntegrity": "ok",
+      "databaseCounts": {
+        "projects": 6,
+        "conversations": 11,
+        "messages": 54
+      },
+      "projectFiles": 155,
+      "archives": [
+        {
+          "name": "open-design-state.tar",
+          "bytes": 57684992,
+          "sha256": "d559d3119a3426ae5cd3d5e350a08eb79a5c6073cacfcc2abb95f502e986f525"
+        },
+        {
+          "name": "open-design-sandbox.tar.gz",
+          "bytes": 268031848,
+          "sha256": "2e25a439720b578fba1f48cb76c5d07a08c81bad25c0bff4d6ffa5ae067606f7"
+        }
+      ],
+      "application": "resumed and healthy"
+    },
+    "comparison": {
+      "preBackup": "/Users/ruslan/src/third-party/open-design-backups/20261102T172048Z",
+      "postBackup": "/Users/ruslan/src/third-party/open-design-backups/20261102T174349Z",
+      "sqliteIntegrity": "ok",
+      "previousProjectFiles": 140,
+      "currentProjectFiles": 155,
+      "priorFilesChanged": 0,
+      "priorFilesMissing": 0,
+      "tables": {
+        "projects": {
+          "before": 5,
+          "after": 6,
+          "allPriorRowsIdentical": true
+        },
+        "conversations": {
+          "before": 10,
+          "after": 11,
+          "allPriorRowsIdentical": true
+        },
+        "messages": {
+          "before": 52,
+          "after": 54,
+          "allPriorRowsIdentical": true
+        }
+      }
+    }
+  },
+  "relay": {
+    "stopped": true,
+    "upstreamCredentialRemoved": true,
+    "requestsUsed": 22
+  },
+  "checks": {
+    "layouts": "36 passed: ready/missing/unsupported \u00d7 light/dark/black \u00d7 1440/1100/390/320px; no horizontal overflow and reachable primary actions.",
+    "controls": "Local type/search, exact material selection, missing-material repair, authored scope identity, time-limit bounds, draft/start acknowledgments, keyboard and live iframe resizing passed.",
+    "ownership": "The generated original preserves the exact submitted controller and fixtures; shared fonts/tokens and no external assets. No production source/API/schema or business data changed."
+  },
+  "preview": "http://127.0.0.1:17567/?version=new&case=ready&theme=dark&width=1440",
+  "limitations": [
+    "Presentation prototype; production transfer requires a separate user request.",
+    "Synthetic profile input formats are intentionally unambiguous and schema-valid, rather than copies of the full published catalog.",
+    "Current UI references are inert captures of the real React route; local candidate controls simulate selection, never actual launch/upload.",
+    "Only the existing source-review/operation-trace/ASVS/checklist examples are demonstrated; live web scan configuration stays outside this design trial."
+  ],
+  "sha256": {
+    "README.md": "a3cb2fd68f3ad44352559e13636ebabb87065316506909290769c43f45ca4f7f",
+    "baseline.css.gz": "35e4d1896f2431c7dd0e38873dc71367c4e9bf1c6bfb7570cff202423dea52d1",
+    "baseline.json.gz": "ca93501af865c53cc06e241e9806e4520a0e61934b366453a32d91567a1f723a",
+    "brief.md": "50e9502b43c8f4dac59cc660cd03c44710228b93ab3befef3a7329656bace40d",
+    "candidate-missing-dark-1440.png": "97daf65fff13da39f39502ce24815b4fc64e2cf452ae6e88ea15b30897b0c672",
+    "candidate-missing-dark-390.png": "81a471523ecf15814c73b16119d2dcb93bcdb012fb5a3b576c481e212f6d41ab",
+    "candidate-ready-dark-1440.png": "87170ad5b8af670ee0fdf23bac01c402e73c1e23622d9f5d0254c44acab0b0af",
+    "candidate-ready-dark-390.png": "2992eedfc5bdfb2968497a2743f8c0d06dcc11897995dfe004dae6d72b56af3c",
+    "candidate-unsupported-dark-1440.png": "626df246bd553d1a78985e7c28ac708a27b924944c039e93a75ef163e7635faf",
+    "candidate-unsupported-dark-390.png": "b4dcd9506142cf088c44835d29b0b0a66fbd039a50b63979153ed1f251548010",
+    "current-missing-1440.png": "b4d0b24e616bbdf488ddaea5f0c4ddadb0d9e044b1f687b73b760478bcc897c2",
+    "current-missing-390.png": "37e6ccef1bbbdb02bd208f322d1d42be64dcca9d25576d4bfc1145964b95bbde",
+    "current-ready-1440.png": "d2241df704a32bd258b69c34963166703ad23b0414d412ecc5aca58bdec0aa65",
+    "current-ready-390.png": "5e3d064772a3711061e1deed9e169ec06073b8a1aa434812717fc3f8cfeac0c9",
+    "current-unsupported-1440.png": "6aab3e45503f4a9da17f0ea6a4466785d075cb928bb8ae1a0c3ce54c8bab66f0",
+    "current-unsupported-390.png": "13b975d8636154213ce95da211a41e8f7358426bba7af6e1d1e8da06dbda516e",
+    "examples.json": "9b813d4d5068a7455f675780e6c738a797415121e7a5e60e7c0695a857b7ed01",
+    "opendesign.css": "649a38d3f03f6f69624eda7a5f46ac8743e4e802a3e696373cfbbfec091b7125",
+    "original.html": "0c5a46fc1586bdc9df8d1fe5e1f5be89ded9486ff9643b6fdc17c488995a200d",
+    "preview-fixtures.json": "e06abcaa554bd4d0813d94bbe347f7af6cb28d62a39f24efd8c6b6ff4d814186",
+    "preview.html": "0c5a46fc1586bdc9df8d1fe5e1f5be89ded9486ff9643b6fdc17c488995a200d",
+    "prompt.txt": "81cd7988536e726d7d1962b538250ce335543d1e7ab6c54225e4b3508e303042",
+    "rationale.md": "0f6bd84996f750636c54929d75ecc0c1564c029983602ccac732dba956d5ef13",
+    "seed-submitted.html": "cf0672346da716aa49c2b64ba9249783dc7de550bd998052cb08ee446be4ea36",
+    "seed.html": "cf0672346da716aa49c2b64ba9249783dc7de550bd998052cb08ee446be4ea36",
+    "serve.mjs": "8e42bb5905b88d683b886c31ef728eee37f44321ef27a1ed2eeace7f14417f5f",
+    "verify.mjs": "d435a99e7794525dc8e65a301b0d80e8abbdd3c5da315751704dcfb6b197d305"
+  },
+  "nativeReview": "Inspected the actual IAB ready desktop and missing-material 390px preview; labels, collapsed type browser, missing state and disabled launch remain readable."
+}
