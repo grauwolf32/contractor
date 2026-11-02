@@ -6,7 +6,8 @@ epic: execution-core
 kind: defect
 introduced_by: V411-002
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: aa8e7beb5560efccc0b95df2c9fa6b9d74c3dc77
 depends_on: []
 languages: [go]
 goal: "A Runtime supporting controlled HTTP and configured infrastructure adapters accepts the complete placement requirement."

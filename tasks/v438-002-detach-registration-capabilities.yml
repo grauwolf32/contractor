@@ -6,7 +6,7 @@ epic: execution-core
 kind: defect
 introduced_by: V39-001
 priority: P1
-status: pending
+status: in_progress
 depends_on: []
 languages: [go]
 goal: "Mutating any returned or supplied registration cannot change Registry-owned capabilities or observed allocation identity."
