@@ -9,7 +9,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/grauwolf32/contractor/internal/artifactpolicy"
+	artifactpolicy "github.com/grauwolf32/contractor/internal/artifacts/policy"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
 	"github.com/grauwolf32/contractor/internal/projectsitemap"

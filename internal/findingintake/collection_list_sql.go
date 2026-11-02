@@ -1,6 +1,6 @@
 package findingintake
 
-import "github.com/grauwolf32/contractor/internal/artifactpolicy"
+import artifactpolicy "github.com/grauwolf32/contractor/internal/artifacts/policy"
 
 // SQL statements for collection_list.go.
 

@@ -3,6 +3,9 @@
 // generic Namespace policy, while trusted primitives serve callers that own
 // their purpose-specific authorization and Namespace rules.
 //
+// Shared Namespace rules live in artifacts/policy; bounded archive browsing
+// lives in artifacts/preview. Both keep their existing dependency layers.
+//
 // Package artifacts/postgres implements the registry: bindings, immutable
 // revisions, lineage, retained-history admission, metadata reads and lifecycle
 // purge. Its transaction-only operations compose derived context and Git

@@ -1,4 +1,4 @@
-package artifactpolicy
+package policy
 
 import (
 	"go/ast"
@@ -147,11 +147,11 @@ func registeredFlagNames(file *ast.File) map[ast.Expr]bool {
 
 func TestReservedNamespacesAreNamedOnlyByArtifactPolicy(t *testing.T) {
 	t.Parallel()
-	root, err := filepath.Abs(filepath.Join("..", ".."))
+	root, err := filepath.Abs(filepath.Join("..", "..", ".."))
 	if err != nil {
 		t.Fatal(err)
 	}
-	owner := filepath.Join(root, "internal", "artifactpolicy")
+	owner := filepath.Join(root, "internal", "artifacts", "policy")
 	fset := token.NewFileSet()
 	var copies []string
 	scanned := 0
@@ -189,7 +189,7 @@ func TestReservedNamespacesAreNamedOnlyByArtifactPolicy(t *testing.T) {
 		t.Fatalf("scanned only %d Go files; the repository walk is broken", scanned)
 	}
 	if len(copies) > 0 {
-		t.Fatalf("Go copies of a reserved Namespace outside internal/artifactpolicy:\n%s", strings.Join(copies, "\n"))
+		t.Fatalf("Go copies of a reserved Namespace outside internal/artifacts/policy:\n%s", strings.Join(copies, "\n"))
 	}
 }
 

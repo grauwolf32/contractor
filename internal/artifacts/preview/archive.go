@@ -1,6 +1,6 @@
-// Package artifactpreview provides read-only, bounded inspection of untrusted
+// Package preview provides read-only, bounded inspection of untrusted
 // ZIP artifacts. It never extracts entries to a filesystem or follows links.
-package artifactpreview
+package preview
 
 import (
 	"archive/zip"

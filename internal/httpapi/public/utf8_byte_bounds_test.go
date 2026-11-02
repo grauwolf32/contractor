@@ -16,7 +16,7 @@ import (
 	"unicode"
 
 	"github.com/getkin/kin-openapi/openapi3"
-	"github.com/grauwolf32/contractor/internal/artifactpreview"
+	artifactpreview "github.com/grauwolf32/contractor/internal/artifacts/preview"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"

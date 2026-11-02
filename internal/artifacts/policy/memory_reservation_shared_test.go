@@ -1,4 +1,4 @@
-package artifactpolicy
+package policy
 
 import (
 	"bytes"

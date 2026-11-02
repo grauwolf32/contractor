@@ -30,7 +30,7 @@ var layers = []layerSpec{
 			"api/...",
 			// The public error code registry that domain errors report.
 			"internal/apierror",
-			"internal/artifactpolicy",
+			"internal/artifacts/policy",
 			"internal/helpers/cabundle",
 			// The claim lifecycle of one controller pass that the Audit
 			// controller and the Eval coordinator share (PER-R26).
@@ -99,7 +99,7 @@ var layers = []layerSpec{
 		name: "platform",
 		role: "infrastructure services: artifacts, telemetry, settings, previews",
 		packages: []string{
-			"internal/artifactpreview",
+			"internal/artifacts/preview",
 			"internal/artifacts",
 			"internal/artifacts/postgres",
 			"internal/artifacts/blob",
