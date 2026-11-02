@@ -1,8 +1,11 @@
 package runservice
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -43,6 +46,125 @@ type taskRunFixture struct {
 	source  auditstore.ExactArtifact
 }
 
+type taskCollectionReadFault struct {
+	auditimport.ArtifactAccess
+	missingContext bool
+	transient      bool
+}
+
+func (a *taskCollectionReadFault) WithClaim(claim auditstore.ControllerClaim) auditimport.ArtifactAccess {
+	a.ArtifactAccess = a.ArtifactAccess.WithClaim(claim)
+	return a
+}
+
+func (a *taskCollectionReadFault) DescribeRunBinding(ctx context.Context, runID string, ref contracts.ArtifactRef) (auditstore.ExactArtifact, bool, error) {
+	if a.missingContext && ref.Namespace == "inputs" && ref.Name == "context" {
+		return auditstore.ExactArtifact{}, false, artifacts.ErrArtifactNotFound
+	}
+	if a.transient {
+		a.transient = false
+		return auditstore.ExactArtifact{}, false, io.ErrUnexpectedEOF
+	}
+	return a.ArtifactAccess.DescribeRunBinding(ctx, runID, ref)
+}
+
+func TestSharedPostgresCommonTaskCollectionFailureOutcomes(t *testing.T) {
+	for _, test := range []struct {
+		name                                                string
+		semantic, output, failed, missingContext, transient bool
+		gap                                                 string
+		state                                               auditstore.TaskState
+	}{
+		{name: "invalid-conclusions", semantic: true, output: true, gap: "invalid-result", state: auditstore.TaskSettled},
+		{name: "missing-trusted-context", semantic: true, output: true, missingContext: true, gap: "collection-contract-invalid", state: auditstore.TaskSettled},
+		{name: "missing-output", gap: "missing-output", state: auditstore.TaskSettled},
+		{name: "failed-with-partial-output", output: true, failed: true, state: auditstore.TaskReady},
+		{name: "ambiguous-read", output: true, transient: true, state: auditstore.TaskSettled},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			f := newCommonTaskRunFixture(t, test.semantic)
+			ctx := t.Context()
+			created, err := f.service.CreateAudit(ctx, f.params)
+			if err != nil {
+				t.Fatal(err)
+			}
+			art := artifacts.NewService(artifacts.NewPostgresRepository(f.pool))
+			run, _ := art.Run(created.Run.RunID)
+			if test.output {
+				payload := artifacts.Payload{MediaType: "text/plain", Data: []byte("partial support")}
+				if test.semantic {
+					payload = artifacts.Payload{MediaType: "application/json", Data: []byte(`{"schema":"unknown"}`)}
+				}
+				written, err := run.Write(ctx, contracts.ArtifactRef{Namespace: "builder", Name: "result"}, payload, nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := artifactstest.BindOutput(ctx, art, created.Run.RunID, "result", written.Ref); err != nil {
+					t.Fatal(err)
+				}
+				if err := artifactstest.FreezeOutputs(ctx, art, created.Run.RunID); err != nil {
+					t.Fatal(err)
+				}
+			}
+			runs := runstore.NewPostgresStore(f.pool)
+			terminal := runstore.RunSucceeded
+			if test.failed {
+				terminal = runstore.RunFailed
+			}
+			for _, transition := range [][2]runstore.WorkflowRunState{{runstore.RunPending, runstore.RunRunning}, {runstore.RunRunning, terminal}} {
+				if _, err := runs.TransitionRun(ctx, created.Run.RunID, transition[0], transition[1], runstore.Reason{Code: "fixture"}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			cursor, err := runs.GetRunEventCursor(ctx, created.Run.RunID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			execution, err := f.audits.ObserveTerminal(ctx, auditstore.ObserveTerminalParams{Claim: f.params.Claim, ExecutionID: f.params.ExecutionID, RunID: created.Run.RunID, Generation: cursor.Generation, Sequence: uint64(cursor.Sequence)})
+			if err != nil {
+				t.Fatal(err)
+			}
+			audit, err := f.audits.Get(ctx, "owner", f.audit.AuditID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			access, err := auditimport.NewArtifactAccess(art, hookstore.NewClaimedArtifacts(f.pool))
+			if err != nil {
+				t.Fatal(err)
+			}
+			collector, err := auditimport.New(f.audits, f.audits, runs, &taskCollectionReadFault{ArtifactAccess: access, missingContext: test.missingContext, transient: test.transient})
+			if err != nil {
+				t.Fatal(err)
+			}
+			snapshot := auditstore.ReconcileSnapshot{Audit: audit}
+			if test.transient {
+				if changed, err := collector.Collect(ctx, f.params.Claim, snapshot, execution); changed || !errors.Is(err, io.ErrUnexpectedEOF) {
+					t.Fatalf("read ambiguity became a semantic gap: %v %v", changed, err)
+				}
+				if _, err := f.audits.CollectionReceipt(ctx, audit.AuditID, execution.ExecutionID); !errors.Is(err, auditstore.ErrNotFound) {
+					t.Fatalf("ambiguous read committed a receipt: %v", err)
+				}
+			}
+			if changed, err := collector.Collect(ctx, f.params.Claim, snapshot, execution); err != nil || !changed {
+				t.Fatalf("collection: %v %v", changed, err)
+			}
+			task, err := f.audits.GetTask(ctx, "owner", audit.AuditID, "ordinary-task")
+			if err != nil || task.State != test.state || test.gap != "" && (task.GapCode == nil || *task.GapCode != test.gap) {
+				t.Fatalf("failure outcome: %+v %v", task, err)
+			}
+			if test.failed {
+				link, err := f.audits.GetArtifactLink(ctx, audit.AuditID, "execution/"+execution.ExecutionID+"/output/material")
+				if err != nil || link.Artifact.Digest != contentdigest.Bytes([]byte("partial support")) {
+					t.Fatalf("partial output was lost: %+v %v", link, err)
+				}
+			}
+			if changed, err := collector.Collect(ctx, f.params.Claim, snapshot, execution); err != nil || changed {
+				t.Fatalf("permanent outcome was retried: %v %v", changed, err)
+			}
+		})
+	}
+}
+
 func TestSharedPostgresCommonTaskCollectsOrdinaryOutputWhilePaused(t *testing.T) {
 	for _, semantic := range []bool{false, true} {
 		t.Run(map[bool]string{false: "supporting-material", true: "observation-result"}[semantic], func(t *testing.T) {
@@ -60,15 +182,15 @@ func TestSharedPostgresCommonTaskCollectsOrdinaryOutputWhilePaused(t *testing.T)
 				if err != nil {
 					t.Fatal(err)
 				}
-				var context struct {
+				var trustedContext struct {
 					Items []struct {
 						Evidence []auditcontract.Material `json:"evidence"`
 					}
 				}
-				if err := json.Unmarshal(input.Payload.Data, &context); err != nil {
+				if err := json.Unmarshal(input.Payload.Data, &trustedContext); err != nil {
 					t.Fatal(err)
 				}
-				data, err := json.Marshal(map[string]any{"schema": "contractor.audit.conclusions.v1", "items": []any{map[string]any{"item_key": "item-00", "rationale": "The selected source was inspected", "tested_conditions": []string{"Exact selected source bytes"}, "limitations": []string{}, "evidence": context.Items[0].Evidence}}})
+				data, err := json.Marshal(map[string]any{"schema": "contractor.audit.conclusions.v1", "items": []any{map[string]any{"item_key": "item-00", "rationale": "The selected source was inspected", "tested_conditions": []string{"Exact selected source bytes"}, "limitations": []string{}, "evidence": trustedContext.Items[0].Evidence}}})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -171,7 +293,7 @@ func TestSharedPostgresCommonTaskCollectsOrdinaryOutputWhilePaused(t *testing.T)
 	}
 }
 
-func newCommonTaskRunFixture(t *testing.T, contextInput bool) taskRunFixture {
+func newCommonTaskRunFixture(t *testing.T, contextInput bool, memberCounts ...int) taskRunFixture {
 	t.Helper()
 	ctx := t.Context()
 	pool := postgrestest.NewPool(t, ctx, "", postgrestest.Options{Configure: func(config *pgxpool.Config) { config.MaxConns = 1 }})
@@ -232,7 +354,15 @@ func newCommonTaskRunFixture(t *testing.T, contextInput bool) taskRunFixture {
 	}
 	material := auditcontract.Material{ScopeKind: "audit", ScopeID: audit.AuditID, Ref: fork.TargetRef, Digest: source.Digest, MediaType: source.MediaType, SizeBytes: source.SizeBytes}
 	document := auditcontract.Task{Schema: auditcontract.TaskSchema, AuditID: audit.AuditID, TaskID: "ordinary-task", Workflow: "inspect", Inputs: map[string]auditcontract.Material{"source": material}, Parameters: map[string]string{}, Objective: "Inspect exact source"}
-	accepted, _, err := audits.AcceptTasks(ctx, auditstore.AcceptTasksParams{OwnerID: "owner", AuditID: audit.AuditID, ExpectedRevision: audit.Revision, IdempotencyKey: "accept", RequestDigest: contentdigest.Bytes([]byte("accept")), Tasks: []auditstore.AcceptedTask{{Document: document, Source: auditstore.TaskSource{Kind: "manual", Key: "first"}}}})
+	members := []auditstore.AcceptedTask{{Document: document, Source: auditstore.TaskSource{Kind: "manual", Key: "first"}}}
+	if len(memberCounts) > 0 {
+		for index := 1; index < memberCounts[0]; index++ {
+			next := document
+			next.TaskID, next.Objective = fmt.Sprintf("ordinary-task-%d", index), fmt.Sprintf("Inspect condition %d", index)
+			members = append(members, auditstore.AcceptedTask{Document: next, Source: auditstore.TaskSource{Kind: "manual", Key: fmt.Sprintf("member-%d", index)}})
+		}
+	}
+	accepted, _, err := audits.AcceptTasks(ctx, auditstore.AcceptTasksParams{OwnerID: "owner", AuditID: audit.AuditID, ExpectedRevision: audit.Revision, IdempotencyKey: "accept", RequestDigest: contentdigest.Bytes([]byte("accept")), Tasks: members})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -269,11 +399,11 @@ func TestSharedPostgresCommonTaskCreatesOrdinaryRunAndReplays(t *testing.T) {
 				t.Fatalf("exact fork: %+v %v", input, err)
 			}
 			if withContext {
-				context, err := run.Read(t.Context(), contracts.ArtifactRef{Namespace: "inputs", Name: "context"})
+				trustedContext, err := run.Read(t.Context(), contracts.ArtifactRef{Namespace: "inputs", Name: "context"})
 				if err != nil {
 					t.Fatal(err)
 				}
-				if _, err := auditcontract.Decode(context.Payload.Data, nil); err != nil {
+				if _, err := auditcontract.Decode(trustedContext.Payload.Data, nil); err != nil {
 					t.Fatal(err)
 				}
 				var value struct {
@@ -284,8 +414,8 @@ func TestSharedPostgresCommonTaskCreatesOrdinaryRunAndReplays(t *testing.T) {
 						Evidence []auditcontract.Material `json:"evidence"`
 					}
 				}
-				if json.Unmarshal(context.Payload.Data, &value) != nil || value.AuditID != f.audit.AuditID || value.RunID != created.Run.RunID || len(value.Items) != 1 || value.Items[0].TaskID != "ordinary-task" || len(value.Items[0].Evidence) != 1 || value.Items[0].Evidence[0].ScopeKind != "run" || value.Items[0].Evidence[0].ScopeID != created.Run.RunID || !value.Items[0].Evidence[0].Ref.SameExact(input.Ref) {
-					t.Fatalf("wrong trusted context: %s", context.Payload.Data)
+				if json.Unmarshal(trustedContext.Payload.Data, &value) != nil || value.AuditID != f.audit.AuditID || value.RunID != created.Run.RunID || len(value.Items) != 1 || value.Items[0].TaskID != "ordinary-task" || len(value.Items[0].Evidence) != 1 || value.Items[0].Evidence[0].ScopeKind != "run" || value.Items[0].Evidence[0].ScopeID != created.Run.RunID || !value.Items[0].Evidence[0].Ref.SameExact(input.Ref) {
+					t.Fatalf("wrong trusted context: %s", trustedContext.Payload.Data)
 				}
 			}
 			audit, err := f.audits.Get(t.Context(), "owner", f.audit.AuditID)
@@ -297,6 +427,109 @@ func TestSharedPostgresCommonTaskCreatesOrdinaryRunAndReplays(t *testing.T) {
 				t.Fatalf("invented legacy Round: %d %v", rounds, err)
 			}
 		})
+	}
+}
+
+func TestSharedPostgresCommonTaskBatchKeepsMembershipAndChargesEvidenceOnce(t *testing.T) {
+	f := newCommonTaskRunFixture(t, true, 2)
+	ctx := t.Context()
+	created, err := f.service.CreateAudit(ctx, f.params)
+	if err != nil {
+		t.Fatal(err)
+	}
+	art := artifacts.NewService(artifacts.NewPostgresRepository(f.pool))
+	run, _ := art.Run(created.Run.RunID)
+	trusted, err := run.Read(ctx, contracts.ArtifactRef{Namespace: "inputs", Name: "context"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var value struct {
+		Items []struct {
+			ItemKey  string                   `json:"item_key"`
+			TaskID   string                   `json:"task_id"`
+			Evidence []auditcontract.Material `json:"evidence"`
+		}
+	}
+	if json.Unmarshal(trusted.Payload.Data, &value) != nil || len(value.Items) != 2 || value.Items[0].TaskID == value.Items[1].TaskID {
+		t.Fatalf("lost batch context membership: %s", trusted.Payload.Data)
+	}
+	items := []any{}
+	for index, member := range value.Items {
+		items = append(items, map[string]any{"item_key": member.ItemKey, "rationale": fmt.Sprintf("Inspected condition %d", index), "tested_conditions": []string{fmt.Sprintf("Condition %d", index)}, "limitations": []string{}, "evidence": member.Evidence})
+	}
+	data, _ := json.Marshal(map[string]any{"schema": "contractor.audit.conclusions.v1", "items": items})
+	written, err := run.Write(ctx, contracts.ArtifactRef{Namespace: "builder", Name: "result"}, artifacts.Payload{MediaType: "application/json", Data: data}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := artifactstest.BindOutput(ctx, art, created.Run.RunID, "result", written.Ref); err != nil {
+		t.Fatal(err)
+	}
+	if err := artifactstest.FreezeOutputs(ctx, art, created.Run.RunID); err != nil {
+		t.Fatal(err)
+	}
+	runs := runstore.NewPostgresStore(f.pool)
+	for _, transition := range [][2]runstore.WorkflowRunState{{runstore.RunPending, runstore.RunRunning}, {runstore.RunRunning, runstore.RunSucceeded}} {
+		if _, err := runs.TransitionRun(ctx, created.Run.RunID, transition[0], transition[1], runstore.Reason{Code: "fixture"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cursor, err := runs.GetRunEventCursor(ctx, created.Run.RunID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	execution, err := f.audits.ObserveTerminal(ctx, auditstore.ObserveTerminalParams{Claim: f.params.Claim, ExecutionID: f.params.ExecutionID, RunID: created.Run.RunID, Generation: cursor.Generation, Sequence: uint64(cursor.Sequence)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	audit, err := f.audits.Get(ctx, "owner", f.audit.AuditID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	access, err := auditimport.NewArtifactAccess(art, hookstore.NewClaimedArtifacts(f.pool))
+	if err != nil {
+		t.Fatal(err)
+	}
+	collector, err := auditimport.New(f.audits, f.audits, runs, access)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if changed, err := collector.Collect(ctx, f.params.Claim, auditstore.ReconcileSnapshot{Audit: audit}, execution); err != nil || !changed {
+		t.Fatalf("batch collection: %v %v", changed, err)
+	}
+	page, err := f.audits.ListTasks(ctx, auditstore.ListTasksParams{OwnerID: "owner", AuditID: audit.AuditID, Limit: 10})
+	if err != nil || len(page.Tasks) != 2 {
+		t.Fatalf("batch Tasks: %+v %v", page, err)
+	}
+	for _, task := range page.Tasks {
+		if task.State != auditstore.TaskSettled || task.Result == nil || task.GapCode != nil {
+			t.Fatalf("invalid batch outcome: %+v", task)
+		}
+	}
+	if !page.Tasks[0].Result.Ref.SameExact(page.Tasks[1].Result.Ref) {
+		t.Fatal("one batch produced different retained output identities")
+	}
+	scope, _ := artifacts.AuditScope(audit.AuditID)
+	retained, _ := art.Scoped(scope)
+	result, err := retained.Read(ctx, page.Tasks[0].Result.Ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var normalized struct {
+		Items []struct {
+			Origin struct {
+				TaskID string `json:"task_id"`
+			}
+			Rationale string
+		}
+	}
+	if json.Unmarshal(result.Payload.Data, &normalized) != nil || len(normalized.Items) != 2 || normalized.Items[0].Origin.TaskID != value.Items[0].TaskID || normalized.Items[1].Origin.TaskID != value.Items[1].TaskID || normalized.Items[0].Rationale == normalized.Items[1].Rationale {
+		t.Fatalf("conclusion copied between members: %s", result.Payload.Data)
+	}
+	after, err := f.audits.Get(ctx, "owner", audit.AuditID)
+	wantBytes := int64(len(data)+len(result.Payload.Data)) + f.source.SizeBytes
+	if err != nil || after.RetainedEvidenceBytes != wantBytes {
+		t.Fatalf("shared evidence counted incorrectly: %d want %d: %v", after.RetainedEvidenceBytes, wantBytes, err)
 	}
 }
 

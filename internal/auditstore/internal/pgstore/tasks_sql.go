@@ -2,6 +2,49 @@ package pgstore
 
 import "github.com/grauwolf32/contractor/internal/auditstore"
 
+// Per-Workflow sparse index probes bound candidate work before sorting and
+// hydration. Only small index keys cross the at-most-16 alias probes.
+const readyTasksSQL = `
+WITH candidates AS MATERIALIZED (
+ SELECT candidate.* FROM unnest($2::text[]) AS allowed(alias)
+ CROSS JOIN LATERAL (
+  SELECT task_id,ordinal,metadata_bytes FROM audit_tasks
+   WHERE audit_id=$1 AND workflow_alias=allowed.alias AND state='ready'
+   ORDER BY ordinal LIMIT 64
+ ) AS candidate
+), selected AS MATERIALIZED (
+ SELECT * FROM candidates ORDER BY ordinal LIMIT 64
+), bounded AS (
+ SELECT task_id,ordinal,sum(metadata_bytes) OVER (ORDER BY ordinal) AS used_bytes
+ FROM selected
+)
+SELECT ` + taskColumnSQL + ` FROM audit_tasks JOIN bounded USING(task_id,ordinal)
+ WHERE used_bytes<=1048576 ORDER BY ordinal`
+
+var settledTaskEvents = auditEvents(auditEvent("'tasks.dispatch_closed'", "audit.audit_id", "audit.revision", "jsonb_build_object('count',(SELECT count(*) FROM changed_tasks))"))
+
+var settleUndispatchedTasksSQL = `
+WITH live_claim AS MATERIALIZED (
+ ` + auditClaims.LiveClaimSQL("$1", "$2", "$3") + `
+), target_audit AS MATERIALIZED (
+ SELECT audit.audit_id,audit.state FROM audits AS audit JOIN live_claim USING(audit_id)
+  WHERE audit.state IN ('finalizing','cancelling','deleting') FOR UPDATE OF audit
+), candidates AS MATERIALIZED (
+ SELECT task.task_id FROM audit_tasks AS task JOIN target_audit USING(audit_id)
+  WHERE task.state='ready' ORDER BY task.ordinal FOR UPDATE OF task LIMIT $4
+), changed_tasks AS (
+ UPDATE audit_tasks AS task SET state='settled',updated_at=clock_timestamp(),
+  gap_code=CASE WHEN target_audit.state='finalizing' THEN 'audit-closed-before-dispatch' ELSE 'audit-cancelled-before-dispatch' END
+ FROM candidates,target_audit WHERE task.task_id=candidates.task_id
+ RETURNING task.task_id
+), changed_audit AS (
+ UPDATE audits AS audit SET updated_at=clock_timestamp(),` + settledTaskEvents.advance() + `
+ FROM target_audit WHERE audit.audit_id=target_audit.audit_id AND EXISTS(SELECT 1 FROM changed_tasks)
+ RETURNING ` + settledTaskEvents.appended() + `
+)
+SELECT EXISTS(SELECT 1 FROM target_audit),(SELECT count(*) FROM changed_tasks)
+ FROM (SELECT count(*) FROM changed_audit) AS emitted`
+
 // Closed state literals let generic PostgreSQL plans use the sparse state's
 // statistics. A generic state parameter can prefer the ordinal index and
 // filter the entire settled history before finding a few ready tasks.
@@ -68,3 +111,16 @@ UPDATE audits AS audit
        updated_at=clock_timestamp(),` + tasksAcceptedEvents.advance() + `
  WHERE audit_id=$1
 RETURNING audit.revision,` + tasksAcceptedEvents.appended()
+
+var preparedSourceEvents = auditEvents(auditEvent("'execution.work_available'", "$2::text", "NULL", "jsonb_build_object('workCount',$4::integer)"))
+
+var recordPreparedSourceSQL = `
+WITH source AS (
+ UPDATE audit_executions SET prepared_work_source=$3::json,prepared_work_count=$4,
+        updated_at=clock_timestamp()
+  WHERE audit_id=$1 AND execution_id=$2 AND prepared_work_source IS NULL
+ RETURNING audit_id
+)
+UPDATE audits AS audit SET updated_at=clock_timestamp(),` + preparedSourceEvents.advance() + `
+ FROM source WHERE audit.audit_id=source.audit_id
+ RETURNING ` + preparedSourceEvents.appended()

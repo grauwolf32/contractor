@@ -109,8 +109,27 @@ context:
     the new routes' common contract gates and dedicated Task/attempt FK/purge topology. ERD is
     regenerated from four migrations. These are intermediate checks, not task acceptance; full
     gates must be rerun after the remaining integration and final schema cutover.
-    Controller/initial/prepared intake integration, strict loader/start/catalog cutover, six executable
-    profile migrations, removal of the retired pipeline and basic process E2E remain unfinished.
+    The next intermediate slice connects authored initial work and declared prepared-work outputs
+    to common acceptance. It verifies the real frozen producer output and every selected material,
+    checkpoints exact source/count/offset on the existing execution, and advances that offset with
+    the Task acceptance receipt. The producer stays collecting until intake finishes or closes.
+    PostgreSQL covers 256 entries over a 90000-Task history, lost acknowledgements, claim takeover,
+    paused intake, cancellation and immutable committed source/progress. The common controller uses
+    the existing claim pass, RunService and importer; sparse ready selection probes at most 64 small
+    keys per allowed Workflow then hydrates at most 64 Tasks / 1 MiB, excluding closed lane windows.
+    Custom and generic PostgreSQL plans pass the 100000-Task ready/source lookup and purge checks.
+    Real-store controller checks cover two different Workflow refs, paused collection, exact API-owner
+    handoff after source Run purge, Resume, completion without a finding or approval, lost creation
+    acknowledgement, reserved-intent Resume at the Run ceiling, lane fairness, deadline and cancellation.
+    Importer outcome checks retain failed partial output, settle malformed/missing output/context once,
+    and retry ambiguous reads without inventing a semantic gap. A two-Task ordinary Run preserves
+    distinct contexts/conclusions and charges shared selected evidence once through existing collection
+    links. Full affected Go suites passed with
+    PostgreSQL/integration tags; the architecture import-shadow failures were fixed and its full suite
+    rerun successfully. Full persistence tests and make lint passed; the ERD and dependency graph
+    are regenerated. These are component checks; the public create/start
+    cutover, common Finding integration, six executable profile migrations, deletion of the retired
+    pipeline and actual Server/Runtime process E2E remain unfinished.
     The current additive migration and temporary execution-role branches are development staging,
     not the final schema or a supported compatibility path. The eight YAML remain until the loader
     switch; V64-012 records their accepted removal/restoration boundary. No full lint/release result

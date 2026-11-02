@@ -61,6 +61,8 @@ type Store interface {
 	ObserveSubmissionFailure(context.Context, auditstore.ObserveSubmissionFailureParams) (auditstore.Execution, error)
 	AcceptNextRound(context.Context, auditstore.AcceptRoundParams) (auditstore.Round, bool, error)
 	SettleUndispatched(context.Context, auditstore.ControllerClaim, int) (int, error)
+	SettleUndispatchedTasks(context.Context, auditstore.ControllerClaim, int) (int, error)
+	SelectTasks(context.Context, auditstore.SelectTasksParams) (auditstore.Execution, bool, error)
 	ReleaseDispatchHold(context.Context, auditstore.ControllerClaim) (auditstore.Audit, bool, error)
 	NextLiveRunForDeletion(context.Context, auditstore.ControllerClaim) (string, bool, error)
 	PurgeClaimed(context.Context, auditstore.ControllerClaim, string) error
@@ -70,6 +72,7 @@ type Store interface {
 // snapshot: the exact members of an execution it submits. It is the read seam
 // of the Audit store.
 type Reader interface {
+	ListExecutionTasks(context.Context, string, string) ([]auditstore.Task, error)
 	ListExecutionItems(context.Context, string) ([]auditstore.ExecutionItem, error)
 	ListItemsByIDs(context.Context, string, []string) ([]auditstore.Item, error)
 }
@@ -143,6 +146,10 @@ type Clock interface {
 	After(time.Duration) <-chan time.Time
 }
 
+type TaskIntake interface {
+	AcceptInitialTasks(context.Context, auditstore.ControllerClaim, auditstore.ReconcileSnapshot) (auditstore.TaskIntakeResult, error)
+}
+
 type Options struct {
 	PollInterval        time.Duration
 	ClaimLease          time.Duration
@@ -155,6 +162,7 @@ type Options struct {
 	Collector           Collector
 	RoundBuilder        RoundBuilder
 	InitialRoundBuilder InitialRoundBuilder
+	TaskIntake          TaskIntake
 }
 
 type Controller struct {

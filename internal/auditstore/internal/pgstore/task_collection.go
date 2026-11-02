@@ -15,7 +15,7 @@ func validateCollection(p auditstore.CollectParams) error {
 	if len(p.Tasks) == 0 {
 		return ValidateCollect(p)
 	}
-	if validateClaimIdentity(p.Claim) != nil || !contracts.ValidResourceID(p.ReceiptID) || !contracts.ValidResourceID(p.ExecutionID) || !p.Disposition.Valid() || !contentdigest.Valid(p.RequestDigest) || len(p.Tasks) > auditstore.MaxCollectionItems || len(p.Items) != 0 || len(p.PreparationOutputs) != 0 || len(p.Retained) > auditcontract.MaxMutationRecords {
+	if validateClaimIdentity(p.Claim) != nil || !contracts.ValidResourceID(p.ReceiptID) || !contracts.ValidResourceID(p.ExecutionID) || !p.Disposition.Valid() || !contentdigest.Valid(p.RequestDigest) || len(p.Tasks) > auditstore.MaxCollectionItems || len(p.Items) != 0 || len(p.PreparationOutputs) != 0 || len(p.Retained) > auditstore.MaxArtifactLinksPerCall {
 		return auditstore.ErrInvalid
 	}
 	if (p.Disposition == auditstore.CollectionAccepted || p.Disposition == auditstore.CollectionInvalidResult) != (p.SourceOutput != nil) {

@@ -142,14 +142,14 @@ func acceptTasksInTransaction(ctx context.Context, tx pgx.Tx, p auditstore.Accep
 			continue
 		}
 		if count >= pinned.Program.Limits.MaxTasks {
-			return auditstore.TaskAcceptance{}, auditstore.ErrPrecondition
+			return auditstore.TaskAcceptance{}, auditstore.ErrTaskBudgetExhausted
 		}
 		if iterationCount >= pinned.Program.Limits.MaxTasksPerIteration {
 			iteration++
 			iterationCount = 0
 		}
 		if iteration > pinned.Program.Limits.MaxIterations {
-			return auditstore.TaskAcceptance{}, auditstore.ErrPrecondition
+			return auditstore.TaskAcceptance{}, auditstore.ErrTaskBudgetExhausted
 		}
 		count++
 		iterationCount++
@@ -283,7 +283,7 @@ func validateTaskIntakeProgress(ctx context.Context, tx pgx.Tx, audit auditstore
 	if progress := p.PreparedProgress; progress != nil {
 		var source json.RawMessage
 		var offset, count int
-		err := tx.QueryRow(ctx, `SELECT prepared_work_source,prepared_work_offset,prepared_work_count FROM audit_executions WHERE audit_id=$1 AND execution_id=$2 AND state='collected' AND prepared_work_source IS NOT NULL FOR UPDATE`, p.AuditID, progress.ExecutionID).Scan(&source, &offset, &count)
+		err := tx.QueryRow(ctx, `SELECT prepared_work_source,prepared_work_offset,prepared_work_count FROM audit_executions WHERE audit_id=$1 AND execution_id=$2 AND state='collecting' AND prepared_work_source IS NOT NULL FOR UPDATE`, p.AuditID, progress.ExecutionID).Scan(&source, &offset, &count)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return auditstore.ErrPrecondition
 		}

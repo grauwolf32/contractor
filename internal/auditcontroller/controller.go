@@ -93,6 +93,9 @@ func (c *Controller) reconcile(
 	}
 	defer cancel()
 	audit := snapshot.Audit
+	if pinned, decodeErr := auditprofile.DecodePinnedProgram(audit.ProfileSnapshot); decodeErr == nil {
+		return c.reconcileTasks(ctx, claim, snapshot, pinned)
+	}
 	// A non-nil phase result stops this pass, including retryable no-op outcomes.
 	if result := c.reconcileReviewAndDeadline(ctx, claim, snapshot); result != nil {
 		return result.changed, result.err
@@ -241,6 +244,10 @@ func (c *Controller) closeActiveAudit(
 	audit auditstore.Audit,
 	reason *auditstore.StopReason,
 ) (bool, error) {
+	if reason == nil {
+		_, err := c.store.TransitionClaimed(ctx, auditstore.ClaimedTransitionParams{Claim: claim, ExpectedRevision: audit.Revision, ExpectedState: auditstore.AuditActive, TargetState: auditstore.AuditFinalizing})
+		return err == nil, err
+	}
 	bounded := *reason
 	// PostgreSQL text holds no NUL, so it is replaced like an invalid byte.
 	bounded.Message = strings.ReplaceAll(strings.ToValidUTF8(bounded.Message, "\uFFFD"), "\x00", "\uFFFD")

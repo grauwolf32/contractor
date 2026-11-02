@@ -27,7 +27,16 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func TestSharedCommonTaskServiceAcceptsDefaultsAndExactOverrides(t *testing.T) {
+type commonTaskServiceFixture struct {
+	pool     *pgxpool.Pool
+	service  *Service
+	audit    auditstore.Audit
+	metadata artifacts.Metadata
+	pinned   auditprofile.PinnedProgram
+}
+
+func newCommonTaskServiceFixture(t *testing.T, configure func(*auditcontract.Program)) commonTaskServiceFixture {
+	t.Helper()
 	ctx := t.Context()
 	pool := postgrestest.NewPool(t, ctx, "", postgrestest.Options{Configure: func(config *pgxpool.Config) { config.MaxConns = 1 }})
 	if _, err := postgres.ApplyMigrations(ctx, pool, postgres.MigrationBudgets{}); err != nil {
@@ -35,6 +44,9 @@ func TestSharedCommonTaskServiceAcceptsDefaultsAndExactOverrides(t *testing.T) {
 	}
 	root := configtest.CopyWithPolicies(t, "../config/testdata/valid")
 	if err := os.CopyFS(root, os.DirFS("../config/testdata/audit-common-catalog")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.CopyFS(root, os.DirFS("../config/testdata/openapi-prepared-work")); err != nil {
 		t.Fatal(err)
 	}
 	catalog, _, err := configload.LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
@@ -45,7 +57,15 @@ func TestSharedCommonTaskServiceAcceptsDefaultsAndExactOverrides(t *testing.T) {
 	if err := json.Unmarshal(contractstest.ReadFile(t, "api", "testdata", "audit-common", "programs.json"), &fixture); err != nil {
 		t.Fatal(err)
 	}
-	pinned, err := auditprofile.PinProgram(resolved.Selector{ID: "common", Version: "1"}, []byte(fixture.Cases[0].Document), catalog.Workflow)
+	program, err := auditcontract.DecodeProgram([]byte(fixture.Cases[0].Document))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if configure != nil {
+		configure(&program)
+	}
+	data, _ := json.Marshal(program)
+	pinned, err := auditprofile.PinProgram(resolved.Selector{ID: "common", Version: "1"}, data, catalog.Workflow)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,6 +96,16 @@ func TestSharedCommonTaskServiceAcceptsDefaultsAndExactOverrides(t *testing.T) {
 		t.Fatal(err)
 	}
 	service := &Service{pool: pool}
+	audit, err = service.Get(ctx, "owner", audit.AuditID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return commonTaskServiceFixture{pool: pool, service: service, audit: audit, metadata: metadata, pinned: pinned}
+}
+
+func TestSharedCommonTaskServiceAcceptsDefaultsAndExactOverrides(t *testing.T) {
+	f := newCommonTaskServiceFixture(t, nil)
+	ctx, service, audit, metadata := t.Context(), f.service, f.audit, f.metadata
 	for _, explicit := range []bool{false, true} {
 		current, err := service.Get(ctx, "owner", audit.AuditID)
 		if err != nil {

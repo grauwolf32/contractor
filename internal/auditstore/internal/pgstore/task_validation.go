@@ -93,7 +93,7 @@ func validateAcceptedTasks(params auditstore.AcceptTasksParams) ([]validatedTask
 				return nil, auditstore.ErrInvalid
 			}
 			ref, err := strictjson.Canonical(material.Ref)
-			if err != nil {
+			if err != nil || len(ref) > auditstore.MaxArtifactRefBytes {
 				return nil, auditstore.ErrInvalid
 			}
 			materials[string(ref)] = true

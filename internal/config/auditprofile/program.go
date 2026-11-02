@@ -59,7 +59,7 @@ func ResolveProgramWorkflows(program auditcontract.Program, lookup func(string) 
 		}
 		for logical, output := range binding.Outputs {
 			slot, ok := workflow.Outputs[output]
-			if !ok || !slot.Required || logical == "result" && !contracts.AcceptsMediaType(slot.MediaTypes, "application/json") {
+			if !ok || !slot.Required || (logical == "result" || logical == "work") && !contracts.AcceptsMediaType(slot.MediaTypes, "application/json") {
 				return nil, apierror.New(apierror.AuditDocumentInvalid, "audit_document_invalid: output must name a required Workflow output")
 			}
 		}

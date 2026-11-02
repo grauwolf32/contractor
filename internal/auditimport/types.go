@@ -7,6 +7,7 @@ import (
 	"errors"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
@@ -59,12 +60,23 @@ type FindingRetention interface {
 }
 
 type Importer struct {
+	intake    TaskWorkIntake
 	store     Store
 	reads     Reader
 	runs      RunReader
 	artifacts ArtifactAccess
 	findings  FindingRetention
 	budget    reportBudget
+}
+
+type TaskWorkIntake interface {
+	AcceptPreparedWork(context.Context, auditstore.ControllerClaim, auditstore.ReconcileSnapshot, auditstore.Execution, auditcontract.Material, []byte) (auditstore.TaskIntakeResult, error)
+}
+
+func (i *Importer) WithTaskIntake(intake TaskWorkIntake) *Importer {
+	bound := *i
+	bound.intake = intake
+	return &bound
 }
 
 func New(

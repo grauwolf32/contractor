@@ -64,6 +64,21 @@ func TestSharedPostgresCommonTaskPagesAndPurgeAtCeiling(t *testing.T) {
 		t.Fatalf("sparse ready selection: %+v %v", page, err)
 	}
 	for _, mode := range []explaintest.Mode{explaintest.Custom, explaintest.Generic} {
+		origin, _ := strictjson.Canonical(auditstore.TaskSource{Kind: "manual", Key: "task-100000"})
+		sources, err := explaintest.ExplainPrepared(ctx, f.pool, mode, tasksBySourceSQL, f.audit.AuditID, []string{contentdigest.Bytes(origin), contentdigest.Bytes([]byte("absent"))})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if n := sources.Reads.Of("audit_tasks"); n > 16 || int(sources.Plan.Rows) != 1 {
+			t.Fatalf("%s admission source read %d tasks:\n%s", mode, n, sources.Plan)
+		}
+		selection, err := explaintest.ExplainPrepared(ctx, f.pool, mode, readyTasksSQL, f.audit.AuditID, []string{"inspect"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if n := selection.Reads.Of("audit_tasks"); n > 16 || int(selection.Plan.Rows) != 3 {
+			t.Fatalf("%s ready dispatch read %d tasks:\n%s", mode, n, selection.Plan)
+		}
 		analysis, err := explaintest.ExplainPrepared(ctx, f.pool, mode, fmt.Sprintf(taskPageSQL, taskStateFilterSQL(&ready)), f.audit.AuditID, 0, 11)
 		if err != nil {
 			t.Fatal(err)

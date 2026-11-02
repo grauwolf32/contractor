@@ -19,7 +19,7 @@ import (
 // retainTaskInput creates one ordinary immutable binding under the current
 // owner fence. Metadata-first reconciliation survives source purge and a lost
 // fork acknowledgement; no materialization journal or new receipt is needed.
-func (s *Service) retainTaskInput(ctx context.Context, audit auditstore.Audit, claim *auditstore.ControllerClaim, revision uint64, source auditcontract.Material) (auditcontract.Material, error) {
+func (s *Service) retainTaskInput(ctx context.Context, audit auditstore.Audit, claim *auditstore.ControllerClaim, revision uint64, source auditcontract.Material, preparedExecution string) (auditcontract.Material, error) {
 	var retained auditcontract.Material
 	err := postgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		current, err := ownerstore.NewTx(tx).LockTaskInputs(ctx, audit.OwnerID, audit.AuditID, claim)
@@ -44,6 +44,9 @@ func (s *Service) retainTaskInput(ctx context.Context, audit auditstore.Audit, c
 				sourceScope, err = artifacts.AuditScope(source.ScopeID)
 			case "run":
 				accepted, readErr := querystore.New(tx).CollectedRunInput(ctx, current.AuditID, source.ScopeID)
+				if readErr == nil && !accepted && claim != nil && preparedExecution != "" {
+					accepted, readErr = querystore.New(tx).PreparedRunInput(ctx, current.AuditID, preparedExecution, source.ScopeID)
+				}
 				if readErr != nil {
 					return readErr
 				}

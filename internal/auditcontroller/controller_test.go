@@ -905,6 +905,18 @@ type fakeControllerStore struct {
 	childRuns []string
 }
 
+// Retired item-pipeline fixtures never dispatch common Tasks. Common queue
+// reconciliation is exercised against PostgreSQL and the actual owner stores.
+func (s *fakeControllerStore) SelectTasks(context.Context, auditstore.SelectTasksParams) (auditstore.Execution, bool, error) {
+	return auditstore.Execution{}, false, auditstore.ErrInvalid
+}
+func (s *fakeControllerStore) SettleUndispatchedTasks(context.Context, auditstore.ControllerClaim, int) (int, error) {
+	return 0, auditstore.ErrInvalid
+}
+func (s *fakeControllerStore) ListExecutionTasks(context.Context, string, string) ([]auditstore.Task, error) {
+	return nil, auditstore.ErrInvalid
+}
+
 func newFakeControllerStore(t *testing.T, itemCount, window int) *fakeControllerStore {
 	t.Helper()
 	snapshot, _, err := configload.LoadUnionReadOnly("../../testdata/configs", filepath.Join(t.TempDir(), "managed"))

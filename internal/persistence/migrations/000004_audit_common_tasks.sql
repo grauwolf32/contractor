@@ -34,6 +34,8 @@ CREATE TABLE audit_tasks (
     CHECK(state='settled' OR (result IS NULL AND gap_code IS NULL))
 );
 CREATE INDEX audit_tasks_state_idx ON audit_tasks(audit_id, state, ordinal);
+CREATE INDEX audit_tasks_ready_workflow_idx ON audit_tasks(audit_id,workflow_alias,ordinal)
+    INCLUDE(task_id,metadata_bytes) WHERE state='ready';
 CREATE TRIGGER audit_tasks_protect_identity
     BEFORE UPDATE OF task_id,audit_id,source_key,source,document,batch_digest,ordinal,iteration
     ON audit_tasks FOR EACH ROW EXECUTE FUNCTION contractor_protect_immutable_history();
@@ -46,6 +48,24 @@ ALTER TABLE audit_executions
     ADD CONSTRAINT audit_executions_prepared_work_shape CHECK
         ((prepared_work_source IS NULL AND prepared_work_count IS NULL AND prepared_work_offset=0)
          OR (prepared_work_source IS NOT NULL AND prepared_work_count IS NOT NULL AND prepared_work_offset <= prepared_work_count));
+
+CREATE FUNCTION contractor_protect_audit_prepared_source() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    IF OLD.prepared_work_source IS NOT NULL AND (
+        NEW.prepared_work_source IS NULL OR
+        OLD.prepared_work_source::jsonb IS DISTINCT FROM NEW.prepared_work_source::jsonb OR
+        OLD.prepared_work_count IS DISTINCT FROM NEW.prepared_work_count OR
+        NEW.prepared_work_offset < OLD.prepared_work_offset OR
+        (OLD.state='collected' AND NEW.prepared_work_offset <> OLD.prepared_work_offset)
+    ) THEN
+        RAISE EXCEPTION 'prepared source and committed progress are immutable' USING ERRCODE='23514';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+CREATE TRIGGER audit_execution_protect_prepared_source
+    BEFORE UPDATE OF prepared_work_source,prepared_work_count,prepared_work_offset
+    ON audit_executions FOR EACH ROW EXECUTE FUNCTION contractor_protect_audit_prepared_source();
 
 -- During the caller cutover the shared execution/attempt relations also hold
 -- common tasks. These rows have no retired Round, manifest or task ZIP.

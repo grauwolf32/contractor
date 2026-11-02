@@ -898,7 +898,9 @@ type CoverageEvidence struct {
 }
 
 type ReconcileSnapshot struct {
-	Audit Audit
+	Audit             Audit
+	ReadyTasks        []Task
+	HasUnsettledTasks bool
 	// MaxConcurrentRuns and MaxConcurrentToolRuns are preflight hints from
 	// Scheduler settings, the dispatch windows of the `model` and `tool`
 	// classes. The CreateExecutionIntent SQL gate remains authoritative under

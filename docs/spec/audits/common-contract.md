@@ -207,10 +207,49 @@ submitting Runs. Cancellation/deletion may collect the output without accepting
 more work. Live Audit acceptance remains the owner's execution responsibility;
 this document's validation creates no task rows or controller.
 
+An authored binding selects a preparation output with the logical output key
+`work`, which names a required ordinary JSON Workflow output. Other material
+outputs are retained without inspecting their contents for work. The collecting
+owner validates that declared list and keeps its producer execution collecting
+while bounded intake is pending; this protects its explicitly selected sources
+from Run purge. Source identity, count and accepted offset live on the existing
+execution row, and Task acceptance advances that offset with its existing
+mutation receipt. Closing intake retains the original list and partial offset.
+Proposal generation and authored continuation use their own explicit contract;
+the coordinator does not infer either from an ordinary material's bytes.
+
 Bounds are LIM-ACT-5, with tighter ordinary Artifact/source/domain bounds still
 applying. Every selected material is explicitly retained before source deletion
 when an accepting consumer needs it. Publishing the list alone protects only its
 own bytes; no generic recursive dependency import or retention is implied.
+
+**ACT-R14.** Accepted common Tasks have only `ready`, `selected` and `settled`
+coordination states. Execution intent, technical outcome, attempts and collection
+remain the existing Run/execution/membership relations; common work creates no
+Round, inventory manifest or task archive. Reserving compatible work assigns one
+stable submission identity under the ordinary claim, Scheduler lane windows,
+Project/control/deadline and Run-budget fences. The ordinary RunService derives
+the Workflow, parameters, exact inputs and configuration from that locked pin;
+trusted task context uses the actual Run identity and its frozen input forks.
+Recovery resumes a reserved intent before checking whether another reservation
+is affordable. Pause preserves an unbound reservation for Resume. Cancellation
+settles undispatched Tasks with explicit gaps in bounded slices and drains
+selected attempts through terminal observation and the existing collection
+receipt.
+
+The reconcile snapshot probes no more than 64 ready index keys per allowed
+Workflow (at most 16 Workflows), then hydrates no more than 64 Tasks and 1 MiB
+of Task metadata. Closed lane windows exclude their aliases before selection,
+so a full model lane cannot hide ready tool work. A sparse queue does not read
+settled Task history. An active Audit completes only after its initial work is
+accepted or explicitly limited, its Tasks settle and its execution window
+drains; completion uses the same Audit revision/control fence as acceptance.
+An empty paused Audit never completes automatically. Successful supporting
+outputs are retained as ordinary bytes; only a declared logical `result` is
+normalized against trusted context. Permanent exact-data/contract rejections
+commit a technical gap once; ambiguous storage/read failures keep the original
+identity and retry through its existing receipt. Available partial outputs of a
+failed Run remain retained without inventing a semantic conclusion.
 
 ## Interfaces
 

@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/grauwolf32/contractor/internal/apierror"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -26,7 +27,7 @@ type taskOutput struct {
 // collectTasks retains ordinary declared outputs and a natural collection
 // receipt. A successful supporting Run creates no semantic verdict. Logical
 // result outputs alone pass through the common trusted-context normalizer.
-func (i *Importer) collectTasks(ctx context.Context, claim auditstore.ControllerClaim, snapshot auditstore.ReconcileSnapshot, execution auditstore.Execution) (bool, error) {
+func (i *Importer) collectTasks(ctx context.Context, claim auditstore.ControllerClaim, snapshot auditstore.ReconcileSnapshot, execution auditstore.Execution) (changed bool, err error) {
 	if execution.AuditID != claim.AuditID || execution.AuditID != snapshot.Audit.AuditID || execution.State != auditstore.ExecutionCollecting || execution.TerminalOutcome == nil {
 		return false, fmt.Errorf("%w: invalid Task collection observation", ErrPermanent)
 	}
@@ -63,6 +64,22 @@ func (i *Importer) collectTasks(ctx context.Context, claim auditstore.Controller
 		_, changed, err := i.store.Collect(ctx, params)
 		return changed, err
 	}
+	// A deterministic read/write rejection cannot become an endless retry of
+	// the same frozen output. Preserve a technical receipt without references
+	// whose validity failed. Transport/storage ambiguity keeps its original
+	// error and reconciles the existing natural receipt on the next pass.
+	defer func() {
+		if errors.Is(err, auditstore.ErrEvidenceBudgetExhausted) {
+			params.Disposition = auditstore.CollectionContractInvalid
+			params.SourceOutput, params.Retained = nil, nil
+			changed, err = commit("evidence-budget-exhausted", false, nil)
+		}
+		if permanentTaskCollectionError(err) {
+			params.Disposition = auditstore.CollectionContractInvalid
+			params.SourceOutput, params.Retained = nil, nil
+			changed, err = commit("collection-contract-invalid", false, nil)
+		}
+	}()
 	gapCode := ""
 	retryable := false
 	switch *execution.TerminalOutcome {
@@ -182,6 +199,11 @@ func (i *Importer) collectTasks(ctx context.Context, claim auditstore.Controller
 			return false, err
 		}
 		params.Retained = append(params.Retained, auditstore.ArtifactLink{Scope: artifacts.ScopeAudit, LogicalKey: "execution/" + execution.ExecutionID + "/result", Artifact: result, SourceProvenance: provenance})
+		evidence, err := taskResultEvidenceLinks(data)
+		if err != nil {
+			return false, err
+		}
+		params.Retained = append(params.Retained, evidence...)
 		material = auditcontract.Material{ScopeKind: "audit", ScopeID: execution.AuditID, Ref: result.Ref, Digest: result.Digest, MediaType: result.MediaType, SizeBytes: result.SizeBytes}
 		selected = &material
 	}
@@ -192,7 +214,41 @@ func (i *Importer) collectTasks(ctx context.Context, claim auditstore.Controller
 		}
 		return commit(gapCode, retryable, nil)
 	}
-	changed, err := commit(gapCode, retryable, selected)
+	if *execution.TerminalOutcome == auditstore.TerminalSucceeded {
+		for _, output := range outputs {
+			if output.logical != "work" {
+				continue
+			}
+			if i.intake == nil || output.source.MediaType != "application/json" || output.source.SizeBytes > auditcontract.MaxPreparedWorkBytes {
+				params.Disposition = auditstore.CollectionInvalidResult
+				params.SourceOutput = &output.source
+				return commit("prepared-work-invalid", false, nil)
+			}
+			_, data, err := i.artifacts.ReadRunExact(ctx, *execution.RunID, output.source.Ref)
+			if err != nil {
+				return false, err
+			}
+			source := auditcontract.Material{ScopeKind: "run", ScopeID: *execution.RunID, Ref: output.source.Ref, Digest: output.source.Digest, MediaType: output.source.MediaType, SizeBytes: output.source.SizeBytes}
+			intake, err := i.intake.AcceptPreparedWork(ctx, claim, snapshot, execution, source, data)
+			if err != nil {
+				var classified apierror.Classified
+				invalid := errors.Is(err, auditstore.ErrInvalid) || errors.Is(err, auditstore.ErrConflict) || artifacts.IsExactReferenceRejection(err) || artifacts.IsExactRevisionMissing(err) || errors.As(err, &classified) && classified.ErrorKind() == apierror.AuditDocumentInvalid
+				if !invalid {
+					return false, err
+				}
+				params.Disposition = auditstore.CollectionInvalidResult
+				params.SourceOutput = &output.source
+				return commit("prepared-work-invalid", false, nil)
+			}
+			if !intake.Complete {
+				return intake.Changed, nil
+			}
+			if intake.GapCode != "" {
+				gapCode = intake.GapCode
+			}
+		}
+	}
+	changed, err = commit(gapCode, retryable, selected)
 	if errors.Is(err, auditstore.ErrEvidenceBudgetExhausted) {
 		params.Retained = nil
 		if *execution.TerminalOutcome == auditstore.TerminalSucceeded {
@@ -202,6 +258,45 @@ func (i *Importer) collectTasks(ctx context.Context, claim auditstore.Controller
 		return commit("evidence-budget-exhausted", false, nil)
 	}
 	return changed, err
+}
+
+// Cited inputs already belong to Audit scope. Link their exact revisions
+// through the existing collection owner so evidence accounting charges them
+// once, including when several batch members cite the same selected bytes.
+func taskResultEvidenceLinks(data []byte) ([]auditstore.ArtifactLink, error) {
+	var result map[string]any
+	if strictjson.Decode(data, &result) != nil {
+		return nil, auditstore.ErrInvalid
+	}
+	links := []auditstore.ArtifactLink{}
+	seen := map[string]bool{}
+	for _, raw := range result["items"].([]any) {
+		for _, selected := range raw.(map[string]any)["evidence"].([]any) {
+			encoded, err := strictjson.Canonical(selected)
+			if err != nil {
+				return nil, err
+			}
+			key := contentdigest.Bytes(encoded)
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			var material auditcontract.Material
+			if strictjson.Decode(encoded, &material) != nil || material.ScopeKind != "audit" {
+				return nil, auditstore.ErrInvalid
+			}
+			links = append(links, auditstore.ArtifactLink{Scope: artifacts.ScopeAudit, LogicalKey: "evidence/" + strings.TrimPrefix(key, "sha256:"), Artifact: contracts.ExactArtifact{Ref: material.Ref, Digest: material.Digest, MediaType: material.MediaType, SizeBytes: material.SizeBytes}, SourceProvenance: encoded})
+		}
+	}
+	return links, nil
+}
+
+func permanentTaskCollectionError(err error) bool {
+	if err == nil {
+		return false
+	}
+	var classified apierror.Classified
+	return errors.Is(err, auditstore.ErrInvalid) || errors.Is(err, artifacts.ErrArtifactIntegrity) || errors.Is(err, artifacts.ErrBlobMissing) || artifacts.IsExactReferenceRejection(err) || artifacts.IsExactRevisionMissing(err) || errors.As(err, &classified) && (classified.ErrorKind() == apierror.InvalidRequest || classified.ErrorKind() == apierror.AuditDocumentInvalid)
 }
 
 func (i *Importer) normalizeTaskResult(ctx context.Context, execution auditstore.Execution, pinned auditprofile.PinnedProgram, tasks []auditstore.Task, output taskOutput) ([]byte, error) {

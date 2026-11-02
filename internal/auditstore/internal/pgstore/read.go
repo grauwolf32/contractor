@@ -595,6 +595,14 @@ SELECT `+prefixedAuditColumns("audit")+`
 	}
 	result.MaxConcurrentRuns = settings.MaxConcurrentRuns
 	result.MaxConcurrentToolRuns = settings.MaxConcurrentToolRuns
+	// Development cutover: common pins already use the replacement queue;
+	// the retired reads below disappear with the catalog/start cutover.
+	var envelope struct {
+		Program json.RawMessage `json:"program"`
+	}
+	if json.Unmarshal(audit.ProfileSnapshot, &envelope) == nil && envelope.Program != nil {
+		return s.readTaskReconcileSnapshot(ctx, result)
+	}
 	if audit.CurrentRoundID != nil {
 		round, roundErr := s.getRound(ctx, audit.AuditID, *audit.CurrentRoundID)
 		if roundErr != nil {

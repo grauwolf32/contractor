@@ -33,6 +33,7 @@ var (
 	// by the retained evidence budget. The budget only grows, so the same
 	// collection request can never succeed and needs a terminal receipt.
 	ErrEvidenceBudgetExhausted = fmt.Errorf("%w: Audit evidence budget is exhausted", ErrPrecondition)
+	ErrTaskBudgetExhausted     = fmt.Errorf("%w: Audit task or iteration budget is exhausted", ErrPrecondition)
 )
 
 // Exact accepted dependency lookup failures are permanent, classified source outcomes.

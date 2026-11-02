@@ -108,3 +108,27 @@ type TaskCollection struct {
 	GapCode         *string                 `json:"gap_code,omitempty"`
 	Retryable       bool                    `json:"retryable"`
 }
+
+type PreparedSourceParams struct {
+	Claim       ControllerClaim
+	ExecutionID string
+	Source      auditcontract.Material
+	Count       int
+}
+
+type PreparedSourceCursor struct {
+	Offset    int
+	Count     int
+	Accepting bool
+}
+
+type TaskIntakeResult struct {
+	Complete bool
+	Changed  bool
+	GapCode  string
+}
+
+func RemainingTaskCapacity(audit Audit) int {
+	return max(0, min(audit.Limits.MaxItemsTotal-audit.TaskCount,
+		(audit.Limits.MaxRounds-audit.TaskIteration)*audit.Limits.MaxItemsPerRound+audit.Limits.MaxItemsPerRound-audit.IterationTaskCount))
+}

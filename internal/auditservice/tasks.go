@@ -149,8 +149,12 @@ func (s *Service) acceptCommonWork(ctx context.Context, audit auditstore.Audit, 
 	}
 	sort.Strings(keys)
 	retained := map[string]auditcontract.Material{}
+	preparedExecution := ""
+	if params.PreparedProgress != nil {
+		preparedExecution = params.PreparedProgress.ExecutionID
+	}
 	for _, key := range keys {
-		material, err := s.retainTaskInput(ctx, audit, params.Claim, params.ExpectedRevision, materials[key])
+		material, err := s.retainTaskInput(ctx, audit, params.Claim, params.ExpectedRevision, materials[key], preparedExecution)
 		if err != nil {
 			return TaskCreationResult{}, err
 		}

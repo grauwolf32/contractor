@@ -83,6 +83,7 @@ func configureAudits(
 	if err != nil {
 		return auditServices{}, fmt.Errorf("configure Audit importer: %w", err)
 	}
+	auditImporter = auditImporter.WithTaskIntake(auditService)
 	auditController, err := auditcontroller.New(
 		auditClaims, auditReads, runstore.NewPostgresStore(pool, storage), rundeletion.New(pool, storage),
 		runCreationService, auditSubmissionBuilder, workflows.scheduler,
@@ -91,7 +92,7 @@ func configureAudits(
 			ClaimLease:       cfg.Operations.AuditController.ClaimLease,
 			OperationTimeout: cfg.Operations.AuditController.OperationTimeout,
 			ClaimBatch:       cfg.Operations.AuditController.ClaimBatch,
-			Logger:           logger, Collector: auditImporter, RoundBuilder: auditService, InitialRoundBuilder: auditService,
+			Logger:           logger, Collector: auditImporter, RoundBuilder: auditService, InitialRoundBuilder: auditService, TaskIntake: auditService,
 		},
 	)
 	if err != nil {

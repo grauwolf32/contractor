@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/contracts"
 	postgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/jackc/pgx/v5"
@@ -55,4 +56,16 @@ func (s *QueryStore) CollectedRunInput(ctx context.Context, auditID, runID strin
 	var found bool
 	err := s.db.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM audit_executions WHERE audit_id=$1 AND run_id=$2 AND state='collected')`, auditID, runID).Scan(&found)
 	return found, err
+}
+
+// PreparedRunInput additionally admits the producer while its terminal output
+// is being collected. Its declared source/cursor was pinned under the claim;
+// keeping the execution collecting prevents source Run purge before intake.
+func (s *QueryStore) PreparedRunInput(ctx context.Context, auditID, executionID, runID string) (bool, error) {
+	if !contracts.ValidResourceID(auditID) || !contracts.ValidResourceID(executionID) || !contracts.ValidResourceID(runID) {
+		return false, auditstore.ErrInvalid
+	}
+	var allowed bool
+	err := s.db.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM audit_executions WHERE audit_id=$1 AND execution_id=$2 AND run_id=$3 AND state IN ('collecting','collected') AND terminal_outcome='succeeded' AND prepared_work_source IS NOT NULL)`, auditID, executionID, runID).Scan(&allowed)
+	return allowed, err
 }
