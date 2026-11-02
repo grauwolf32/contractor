@@ -1265,7 +1265,7 @@ func TestReleaseDoesNotReuseSlotFromStaleIdleHeartbeat(t *testing.T) {
 	}
 }
 
-func testTemplate(t *testing.T) contracts.ResolvedAgentTemplate {
+func testTemplate(t testing.TB) contracts.ResolvedAgentTemplate {
 	t.Helper()
 	snapshot, _, err := configload.LoadUnionReadOnly("../config/testdata/valid", filepath.Join(t.TempDir(), "managed"))
 	if err != nil {

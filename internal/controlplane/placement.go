@@ -211,6 +211,13 @@ func (a *PlacementAllocator) candidateEdges(
 	attempt *placementAttemptCache,
 ) ([]CandidateEdge, map[string]runtimeconfig.ResolvedRuntimeConfig, error) {
 	candidates = matchingLocationCandidates(request.RequiredPlacementLabels, candidates)
+	if len(request.Bindings) > len(candidates) {
+		return []CandidateEdge{}, nil, nil
+	}
+	toolCapabilities := make([]toolCapabilityIndex, len(candidates))
+	for index, candidate := range candidates {
+		toolCapabilities[index] = indexToolCapabilities(candidate.Registration.SupportedToolsets)
+	}
 	optimistic := make(map[string]runtimeconfig.ResolvedRuntimeConfig)
 	lookups := placementCredentialLookups{
 		llm: a.llmCredentials, runtime: a.runtimeCredentials,
@@ -222,8 +229,8 @@ func (a *PlacementAllocator) candidateEdges(
 		if err != nil {
 			return nil, nil, fmt.Errorf("%w: AgentTemplate infrastructure requirements are invalid", ErrInvalidRequest)
 		}
-		for _, candidate := range candidates {
-			if !isBindingCompatible(candidate.Registration, binding) {
+		for candidateIndex, candidate := range candidates {
+			if !isBindingCompatibleWithTools(candidate.Registration, binding, toolCapabilities[candidateIndex]) {
 				continue
 			}
 			runtimeConfig, err := a.resolveAttemptCandidate(ctx, request, binding, candidate.Principal, lookups, attempt)
