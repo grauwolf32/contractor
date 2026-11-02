@@ -38,3 +38,8 @@ acceptance_criteria:
 tests:
   - {command: "go test -race -count=1 ./internal/controlplane/... ./internal/auditservice ./internal/app ./internal/archtest", covers: [A1, A2, A3]}
   - {command: "go test -tags=integration -count=1 -run ^TestCrossLanguageMTLSEngagementMetadataPrepare$ ./internal/controlplane", covers: [A4]}
+  - {command: "go test -tags=e2e -count=1 -run ^TestEngagementIdentitySessionsAcrossProcesses$ ./tests/e2e", covers: [A2, A3, A4]}
+verification:
+  result: "Full controlplane, engagementadapter, auditservice, app and archtest suites passed with PostgreSQL and -race. Native Python metadata prepare and full Server/Runtime identity-session process tests passed."
+  boundary: "One synchronous WithPreparedSpec callback scopes identity material through wire/Agent Card validation; production client construction requires a grant reader."
+  integration: "Merged completed Artifact refactor bd74d58c09025e2ce5d3b810254401c1034cfda3 to verify the current dependency tree and regenerated its dependency graph after the ownership spec update."
