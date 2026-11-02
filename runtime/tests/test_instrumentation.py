@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from fakes.worker_state import WorkerStateStore
 
 from contractor_runtime.adapters import RuntimeSpan, TelemetryAttribute
 from contractor_runtime.core.tool_metrics import RecordedToolCall
@@ -16,7 +17,6 @@ from contractor_runtime.worker.instrumentation import (
     WorkerInstrumentationPlugin,
     span_error_type,
 )
-from contractor_runtime.worker.state import WorkerStateStore
 
 SECRET = "instrumentation-secret-canary"
 PROMPT = "prompt-body-that-must-not-survive"
@@ -116,6 +116,7 @@ def test_plugin_correlates_every_callback_path_without_double_counting(
         instrumentation = RecordingInstrumentation()
         plugin = WorkerInstrumentationPlugin(
             state=state,
+            execution=state.resources.execution,
             allowed_tool_names=ALLOWED_TOOL_NAMES,
             budget=lambda: None,
             instrumentation=instrumentation,
@@ -393,6 +394,7 @@ def test_raised_tool_exception_is_a_bounded_failed_tool_result(
         state = WorkerStateStore()
         plugin = WorkerInstrumentationPlugin(
             state=state,
+            execution=state.resources.execution,
             allowed_tool_names=ALLOWED_TOOL_NAMES,
             budget=lambda: None,
             instrumentation=RecordingInstrumentation(),
@@ -446,6 +448,7 @@ def test_plugin_close_records_pending_tool_calls_as_cancelled() -> None:
         instrumentation = RecordingInstrumentation()
         plugin = WorkerInstrumentationPlugin(
             state=state,
+            execution=state.resources.execution,
             allowed_tool_names=ALLOWED_TOOL_NAMES,
             budget=lambda: None,
             instrumentation=instrumentation,
@@ -497,6 +500,7 @@ def test_plugin_retains_only_latest_sequential_invocation() -> None:
         state = WorkerStateStore()
         plugin = WorkerInstrumentationPlugin(
             state=state,
+            execution=state.resources.execution,
             allowed_tool_names=ALLOWED_TOOL_NAMES,
             budget=lambda: None,
             instrumentation=None,
@@ -591,6 +595,7 @@ def test_terminal_phase_survives_auxiliary_cleanup(phase: str, auxiliary_complet
         sink = RecordingInstrumentation()
         plugin = WorkerInstrumentationPlugin(
             state=state,
+            execution=state.resources.execution,
             allowed_tool_names=ALLOWED_TOOL_NAMES,
             budget=lambda: None,
             instrumentation=sink,
@@ -630,6 +635,7 @@ def test_finalizer_startup_owns_partial_registration(monkeypatch: pytest.MonkeyP
         sink = RecordingInstrumentation()
         plugin = WorkerInstrumentationPlugin(
             state=state,
+            execution=state.resources.execution,
             allowed_tool_names=ALLOWED_TOOL_NAMES,
             budget=lambda: None,
             instrumentation=sink,
@@ -720,6 +726,7 @@ def test_sdk_turns_keep_one_logical_state_budget_and_tool_identity() -> None:
         sink = RecordingInstrumentation()
         plugin = WorkerInstrumentationPlugin(
             state=state,
+            execution=state.resources.execution,
             budget=lambda: budget,
             instrumentation=sink,
             model_alias="model",
@@ -799,6 +806,7 @@ def test_stale_or_foreign_native_admission_has_no_charge_or_span(
         admissions: list[bool] = []
         plugin = WorkerInstrumentationPlugin(
             state=state,
+            execution=state.resources.execution,
             budget=lambda: budget,
             instrumentation=sink,
             model_alias="model",
@@ -848,6 +856,7 @@ def test_semantic_admission_precedes_summary_budget_and_span(
 
         plugin = WorkerInstrumentationPlugin(
             state=state,
+            execution=state.resources.execution,
             budget=lambda: budget,
             instrumentation=sink,
             model_alias="model",
@@ -893,6 +902,7 @@ def test_cancelled_tool_error_is_accounted_once_and_releases_correlation(
         sink = RecordingInstrumentation()
         plugin = WorkerInstrumentationPlugin(
             state=state,
+            execution=state.resources.execution,
             budget=lambda: budget,
             instrumentation=sink,
             model_alias="model",
@@ -961,6 +971,7 @@ def test_history_serialization_releases_plugin_lock_and_fences_premature_complet
         history = BlockingHistory()
         plugin = WorkerInstrumentationPlugin(
             state=state,
+            execution=state.resources.execution,
             budget=lambda: None,
             instrumentation=None,
             model_alias="model",
@@ -1015,6 +1026,7 @@ def test_after_model_assigns_owned_ids_only_to_missing_function_call_ids() -> No
         state = WorkerStateStore()
         plugin = WorkerInstrumentationPlugin(
             state=state,
+            execution=state.resources.execution,
             budget=lambda: None,
             instrumentation=None,
             model_alias="model",
@@ -1065,6 +1077,7 @@ def test_unknown_tool_before_callback_is_one_bounded_attempt_without_content() -
         history = RecordingHistory()
         plugin = WorkerInstrumentationPlugin(
             state=state,
+            execution=state.resources.execution,
             budget=lambda: budget,
             instrumentation=sink,
             model_alias="model",
@@ -1126,6 +1139,7 @@ def test_spent_callbacks_settle_after_admission_deadline_without_new_charges() -
 
         plugin = WorkerInstrumentationPlugin(
             state=state,
+            execution=state.resources.execution,
             budget=lambda: budget,
             instrumentation=sink,
             model_alias="model",
@@ -1181,6 +1195,7 @@ def test_cancelled_tool_keeps_original_cancellation_when_history_cleanup_fails(
         sink = RecordingInstrumentation()
         plugin = WorkerInstrumentationPlugin(
             state=state,
+            execution=state.resources.execution,
             budget=lambda: None,
             instrumentation=sink,
             model_alias="model",
@@ -1223,6 +1238,7 @@ def test_foreign_completion_callback_cannot_settle_an_owned_call_or_accept_text(
         sink = RecordingInstrumentation()
         plugin = WorkerInstrumentationPlugin(
             state=state,
+            execution=state.resources.execution,
             budget=lambda: budget,
             instrumentation=sink,
             model_alias="model",
@@ -1305,6 +1321,7 @@ def test_completed_invocation_rejects_late_native_completion(callback: str) -> N
         state = WorkerStateStore()
         plugin = WorkerInstrumentationPlugin(
             state=state,
+            execution=state.resources.execution,
             budget=lambda: None,
             instrumentation=None,
             model_alias="model",
@@ -1342,6 +1359,7 @@ def test_rejected_run_callback_cannot_clear_owned_output_limit_evidence() -> Non
         state = WorkerStateStore()
         plugin = WorkerInstrumentationPlugin(
             state=state,
+            execution=state.resources.execution,
             budget=lambda: None,
             instrumentation=None,
             model_alias="model",
@@ -1381,6 +1399,7 @@ def test_only_authorized_tool_cancellation_can_latch_current_turn(foreign):
         state = WorkerStateStore()
         plugin = WorkerInstrumentationPlugin(
             state=state,
+            execution=state.resources.execution,
             budget=lambda: None,
             instrumentation=None,
             model_alias="model",

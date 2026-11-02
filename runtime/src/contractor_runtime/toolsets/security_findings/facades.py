@@ -22,6 +22,7 @@ from contractor_runtime.toolsets.common.finding_locations import (
     Location,
     StandardReference,
 )
+from contractor_runtime.toolsets.common.resources import ToolResources
 from contractor_runtime.toolsets.security_findings.publisher import FindingPublisher
 from contractor_runtime.toolsets.security_findings.reader import prepare_reader
 from contractor_runtime.workspace import AllocationWorkspace
@@ -64,6 +65,8 @@ class GeneralFindingTool(_FindingFacade):
             cite every assigned entry ID.
         proposed_checks: Optional follow-up questions, each with objective and
             method. At most 512; these suggestions grant no execution authority.
+        publish_problem: Explicitly publish the described problem to the Project.
+            Requires selected exact evidence. False keeps an ordinary proposal.
     """
 
     async def __call__(
@@ -78,6 +81,7 @@ class GeneralFindingTool(_FindingFacade):
         evidence_refs: list[ExactEvidenceRef] | None = None,
         standard_refs: list[StandardReference] | None = None,
         proposed_checks: list[ProposedCheck] | None = None,
+        publish_problem: bool = False,
     ) -> dict[str, Any]:
         return await self._publisher.submit(
             title=title,
@@ -88,6 +92,7 @@ class GeneralFindingTool(_FindingFacade):
             evidence_refs=evidence_refs,
             standard_refs=standard_refs,
             proposed_checks=proposed_checks,
+            publish_problem=publish_problem,
             request_id=request_id,
             caido_request_id=caido_request_id,
         )
@@ -115,6 +120,8 @@ class CodeFindingTool(_FindingFacade):
             cite every assigned entry ID.
         proposed_checks: Optional follow-up questions, each with objective and
             method. At most 512; these suggestions grant no execution authority.
+        publish_problem: Explicitly publish the described problem to the Project.
+            Requires selected exact evidence. False keeps an ordinary proposal.
     """
 
     async def __call__(
@@ -129,6 +136,7 @@ class CodeFindingTool(_FindingFacade):
         evidence_refs: list[ExactEvidenceRef] | None = None,
         standard_refs: list[StandardReference] | None = None,
         proposed_checks: list[ProposedCheck] | None = None,
+        publish_problem: bool = False,
     ) -> dict[str, Any]:
         location: dict[str, Any] = {"file": file}
         if line is not None:
@@ -144,6 +152,7 @@ class CodeFindingTool(_FindingFacade):
             evidence_refs=evidence_refs,
             standard_refs=standard_refs,
             proposed_checks=proposed_checks,
+            publish_problem=publish_problem,
         )
 
 
@@ -173,6 +182,8 @@ class HTTPFindingTool(_FindingFacade):
             cite every assigned entry ID.
         proposed_checks: Optional follow-up questions, each with objective and
             method. At most 512; these suggestions grant no execution authority.
+        publish_problem: Explicitly publish the described problem to the Project.
+            Requires selected exact evidence. False keeps an ordinary proposal.
     """
 
     async def __call__(
@@ -188,6 +199,7 @@ class HTTPFindingTool(_FindingFacade):
         evidence_refs: list[ExactEvidenceRef] | None = None,
         standard_refs: list[StandardReference] | None = None,
         proposed_checks: list[ProposedCheck] | None = None,
+        publish_problem: bool = False,
     ) -> dict[str, Any]:
         return await self._publisher.submit(
             title=title,
@@ -198,6 +210,7 @@ class HTTPFindingTool(_FindingFacade):
             evidence_refs=evidence_refs,
             standard_refs=standard_refs,
             proposed_checks=proposed_checks,
+            publish_problem=publish_problem,
             request_id=request_id,
             caido_request_id=caido_request_id,
         )
@@ -224,7 +237,7 @@ class GeneralFindingsToolsetFactory:
         namespace: str,
         runtime_settings: RuntimeSettings,
         workspace: AllocationWorkspace,
-        state: Any,
+        resources: ToolResources,
         adapter_handles: AdapterHandles = EMPTY_ADAPTER_HANDLES,
         project_workspace: Any = None,
     ) -> Mapping[str, Any]:
@@ -232,13 +245,13 @@ class GeneralFindingsToolsetFactory:
         require_selected_tools(
             selected, self.exported_tools, description="unknown selected finding tools"
         )
-        metrics = require_metrics(state, "finding toolset")
+        metrics = require_metrics(resources, "finding toolset")
         client = self._client_factory(allocation_id, runtime_settings)
         publisher = FindingPublisher(
             FindingProposalClient(client.allocation_id, client.transport),
             metrics,
             runtime_secrets(runtime_settings),
-            state,
+            resources,
             artifacts=client,
         )
         result = {}

@@ -8,6 +8,7 @@ from types import SimpleNamespace
 
 import httpx
 import pytest
+from fakes.worker_state import WorkerState
 from google.adk.tools import FunctionTool
 from google.genai import types
 from http_cookie_store import HTTPToolsetFactory
@@ -15,7 +16,6 @@ from test_audit_result_collector import CONTEXT, fixture_assignment, tool_for
 from test_http_toolset import FakeArtifactClient, close_tools, create_tools, make_tools
 from test_security_findings_toolset import FakeFindingClient, _settings, _workspace
 
-from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import ArtifactClient
 from contractor_runtime.contracts import HTTPOriginTargetSettings, RuntimeSettings
 from contractor_runtime.core.http_limits import MAX_HISTORY, MAX_REQUEST_HEADER_BYTES
@@ -78,7 +78,7 @@ async def finding_tool(factory_type, client, state):
         namespace="worker",
         runtime_settings=_settings(),
         workspace=_workspace(),
-        state=state,
+        resources=state.resources,
     )
     return tools["finding"]
 
@@ -414,12 +414,14 @@ def test_audit_and_ordinary_findings_share_the_cwe_reference_check():
     async def scenario():
         collector, _, _ = tool_for(fixture_assignment("standard", "requirements-verification"))
         audit_state = WorkerState()
-        audit_state.audit_completion_binding = SimpleNamespace(current=lambda: collector)
+        audit_state.resources.proposal_collector = lambda: collector
         reference = StandardReference(scheme="CWE", version="4.20", requirement_id="CWE-534")
         failures = []
         for state in (audit_state, WorkerState()):
             client = FakeFindingClient()
-            finding = GeneralFindingTool(FindingPublisher(client, state.metrics, (), state))
+            finding = GeneralFindingTool(
+                FindingPublisher(client, state.metrics, (), state.resources)
+            )
             with pytest.raises(ToolInputError) as failure:
                 await finding(
                     title="Candidate",

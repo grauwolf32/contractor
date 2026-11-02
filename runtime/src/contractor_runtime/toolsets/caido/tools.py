@@ -63,6 +63,7 @@ from contractor_runtime.toolsets.common.http_capture import (
 )
 from contractor_runtime.toolsets.common.http_observations import HTTPObservationSink
 from contractor_runtime.toolsets.common.observation_metadata import normalize_http_observations
+from contractor_runtime.toolsets.common.resources import ToolResources
 from contractor_runtime.toolsets.common.subscribers import notify_subscriber
 from contractor_runtime.workspace import AllocationWorkspace
 
@@ -353,7 +354,7 @@ class CaidoToolsetFactory:
         namespace: str,
         runtime_settings: RuntimeSettings,
         workspace: AllocationWorkspace,
-        state: Any,
+        resources: ToolResources,
         adapter_handles: AdapterHandles = EMPTY_ADAPTER_HANDLES,
         project_workspace: Any = None,
     ) -> Mapping[str, Any]:
@@ -361,7 +362,7 @@ class CaidoToolsetFactory:
         require_selected_tools(
             selected, CAIDO_TOOL_NAMES, description="unavailable selected Caido tools"
         )
-        metrics = require_metrics(state, "caido@1")
+        metrics = require_metrics(resources, "caido@1")
         handle = adapter_handles.caido_graphql
         if not isinstance(handle, CaidoGraphQLClient):
             raise CaidoToolError("caido_not_configured")
@@ -375,8 +376,8 @@ class CaidoToolsetFactory:
             target_policy=policy,
             sleep=self._sleep,
             monotonic=self._monotonic,
-            captures=allocation_http_captures(state),
-            observation_sink=getattr(state, "caido_observation_sink", None),
+            captures=allocation_http_captures(resources),
+            observation_sink=resources.caido_observation_sink,
         )
         builders: dict[str, Callable[[], _CaidoTool]] = {
             "caido_scope": lambda: CaidoScopeTool(session, metrics),

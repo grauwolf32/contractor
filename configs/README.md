@@ -134,7 +134,7 @@ A Runtime must advertise local workspace and graph capabilities to run this prof
 
 `openapi-operation-trace@1` selects `audit_openapi_operation_tracer@1`, adding
 `security-findings-code@1.finding` and `text-artifacts@1.write_text_artifact` with
-`findingConfirmation: human-required`. It preserves the operation inventory and
+explicit Project problem publication. It preserves the operation inventory and
 prohibits active checks. Findings do not turn `operation-resolution` into full
 trace coverage. `findings-review@2` independently reads a pinned collection with
 `list_findings` and publishes an analysis report; it does not confirm findings.
@@ -437,3 +437,8 @@ needs `summarizerModelPolicy`. Use Workflow-wide defaults for shared selections
 and Stage/agent selections for exceptions, for example a small model for a
 bounded secret review Worker and a stronger model for a deeper source review.
 YAML anchors can reuse these selections within the same Workflow document.
+
+Planner compaction follows the same split: select its `compactorModelPolicy`
+in Workflow `executionConfig.planner` or the Stage's Planner execution selection.
+`plannerContextManagement` contains the strategy, instructions and thresholds.
+It contains no model selection; summary continuations use the same grammar.

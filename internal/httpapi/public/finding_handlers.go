@@ -8,10 +8,13 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingintake"
-	"github.com/grauwolf32/contractor/internal/pagelimit"
+	"github.com/grauwolf32/contractor/internal/helpers/pagelimit"
 )
 
 type FindingProposalManagement interface {
+	GetProjectReceipt(context.Context, string, string, string) (findingintake.Receipt, error)
+	ListProjectSources(context.Context, string, string, string, findingintake.ProjectSourceQuery) (findingintake.ProjectSourcePage, error)
+	ListProjectSourceHistory(context.Context, string, string, string, string, int, *uint64) (findingintake.ProjectSourceHistoryPage, error)
 	ListRun(context.Context, string, string, findingintake.ListQuery) ([]findingintake.Receipt, error)
 	ListAuditInbox(context.Context, string, string, findingintake.ListQuery) ([]findingintake.Receipt, error)
 	ImportIntoAudit(context.Context, findingintake.ImportRequest) (findingintake.AuditHold, bool, error)

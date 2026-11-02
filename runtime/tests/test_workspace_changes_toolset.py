@@ -8,8 +8,8 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from fakes.worker_state import WorkerState
 
-from contractor_runtime.allocation import WorkerState
 from contractor_runtime.contracts import RuntimeSettings
 from contractor_runtime.factories import built_in_factories
 from contractor_runtime.projectfs import (
@@ -389,7 +389,7 @@ async def make_tools(
             requestTimeoutSeconds=30,
         ),
         workspace=AllocationWorkspace(root=tmp_path, path=tmp_path),
-        state=state,
+        resources=state.resources,
         project_workspace=changes,
     )
     return dict(result)

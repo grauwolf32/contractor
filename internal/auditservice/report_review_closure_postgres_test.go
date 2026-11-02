@@ -12,7 +12,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingintake"
-	"github.com/grauwolf32/contractor/internal/pagelimit"
+	"github.com/grauwolf32/contractor/internal/helpers/pagelimit"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -136,26 +136,7 @@ func TestAuditReportReviewExpiresOnCancelOrDelete(t *testing.T) {
 				if err != nil || workspace.PendingReviews != 0 {
 					t.Fatalf("terminal pending decisions = (%+v, %v)", workspace, err)
 				}
-				created, err := service.CreateFindingReview(ctx, CreateFindingReviewParams{
-					OwnerID: audit.OwnerID, AuditID: audit.AuditID, FindingID: findingID,
-					ExpectedRevision: 1, RequestID: "review-finding-after-cancel",
-					IdempotencyKey: "review-finding-after-cancel",
-					RequestDigest:  serviceTestDigest("finding-review"),
-				})
-				if err != nil {
-					t.Fatalf("create finding review after report cancellation: %v", err)
-				}
-				if _, err := service.DecideFinding(ctx, DecideFindingParams{
-					OwnerID: audit.OwnerID, AuditID: audit.AuditID,
-					RequestID:               created.Request.RequestID,
-					ExpectedRequestRevision: created.Request.Revision,
-					DecisionID:              "decision-finding-after-cancel", Verdict: auditstore.VerdictNeedsEvidence,
-					Rationale:      "More evidence is needed.",
-					IdempotencyKey: "decision-finding-after-cancel",
-					RequestDigest:  serviceTestDigest("finding-decision"),
-				}); err != nil {
-					t.Fatalf("decide finding review after report cancellation: %v", err)
-				}
+				decideFindingForTest(t, ctx, service, audit.OwnerID, audit.AuditID, findingID, 1, "after-cancel", auditstore.VerdictNeedsEvidence, nil, nil)
 			}
 		})
 	}
@@ -225,17 +206,7 @@ func proposeReportForTest(
 		return encoded
 	}
 	if _, err := pool.Exec(ctx, `
-INSERT INTO audit_review_requests (
-    request_id, audit_id, finding_id, subject_kind, subject_id, kind,
-    subject_revision, subject_digest, requested_actions, state,
-    expires_at, idempotency_key, request_digest,
-    report_round_id, report_machine_link, report_summary_link
-) VALUES (
-    $1, $2, NULL, 'audit-report', $2, 'report-acceptance',
-    $3, $4, '["approve","reject"]'::jsonb, 'pending',
-    clock_timestamp() + interval '30 days', 'report-review', $4,
-    $5, $6::jsonb, $7::jsonb
-)`, requestID, audit.AuditID, finalizing.Revision, digest, roundID,
+INSERT INTO audit_review_requests (request_id, audit_id, subject_kind, subject_id, kind, subject_revision, subject_digest, requested_actions, state, expires_at, idempotency_key, request_digest, report_round_id, report_machine_link, report_summary_link) VALUES ($1, $2, 'audit-report', $2, 'report-acceptance', $3, $4, '["approve","reject"]'::jsonb, 'pending', clock_timestamp() + interval '30 days', 'report-review', $4, $5, $6::jsonb, $7::jsonb )`, requestID, audit.AuditID, finalizing.Revision, digest, roundID,
 		link(auditstore.ReportMachineLogicalKey, "report.json", "application/json"),
 		link(auditstore.ReportSummaryLogicalKey, "report.md", "text/markdown")); err != nil {
 		t.Fatal(err)

@@ -967,10 +967,12 @@ never relabels historical execution.
 
 **TPL-R117.** `compactorModelPolicy` selects the exact tool-free compactor
 policy of a `compact@1` Planner ([PLN-R125](../execution/planners.md)). The
-Stage's `plannerContextManagement.modelPolicy` is its lowest-precedence
-origin, `workflow.stages.<name>.plannerContextManagement`; a Workflow
-`executionConfig.planner` and an escalation Planner
-selection replace it with the precedence of TPL-R79 and TPL-R80. A Planner
+effective selection comes only from Workflow executionConfig (Workflow-wide
+or Stage-specific Planner leaves) and the existing escalation Planner selection,
+with the precedence of TPL-R79 and TPL-R80. `compact@1` requires an explicit
+compatible selection; `plannerContextManagement` owns only behavior and rejects
+`modelPolicy`. Ordinary Stages and summary continuations use the same closed
+context grammar. A Planner
 selection that names `compactorModelPolicy` applies only to `compact@1`
 Stages: a selection that would apply it to no such Stage, a Worker selection
 and an Agent binding selection are invalid. It cannot enable compaction or

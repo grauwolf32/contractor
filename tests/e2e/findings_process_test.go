@@ -213,7 +213,7 @@ func TestFindingsProducerAndReaderAcrossProcesses(t *testing.T) {
 		collection.Artifact.Ref.Name+"?revision="+url.QueryEscape(*collection.Artifact.Ref.Revision))
 	decoded, _, err := auditdomain.DecodeFindingCollectionPackage(raw)
 	if err != nil || mime != resolved.FindingCollectionMediaType || len(decoded.Entries) != 1 ||
-		decoded.Entries[0].ReceiptID != receipt.ReceiptID || len(decoded.Entries[0].Reviews) != 1 {
+		decoded.Entries[0].ReceiptID != receipt.ReceiptID || decoded.Entries[0].Finding == nil || decoded.Entries[0].Finding.State != nil {
 		t.Fatalf("published collection = %+v, %v", decoded, err)
 	}
 	readerRun := runFindingsReader(t, h, "findings-analysis", collection.Artifact.Ref)
@@ -272,7 +272,8 @@ func findingsProducerStage(name string) domainGatewayStage {
 				"title":       "Query concatenation in lookup",
 				"description": "GET /items/{item_id} passes its input to lookup (app.py:4-10). The query uses concatenation. Reproduce by supplying a quote in item_id and checking query parsing; source-inferred and unexecuted, database availability and surrounding controls remain unverified.",
 				"file":        "app.py", "range": map[string]int{"start_line": 4, "end_line": 6},
-				"evidence_refs": []any{evidence},
+				"evidence_refs":   []any{evidence},
+				"publish_problem": true,
 			}, nil
 		}),
 		toolGatewayStep("submit_check_result", func(request map[string]any) (map[string]any, error) {

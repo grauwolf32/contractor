@@ -13,7 +13,7 @@ import type {
   Audit,
   AuditCoverageRow,
   AuditEvent,
-  AuditFinding,
+  ProjectFinding,
   AuditItem,
   AuditReviewRequest,
 } from "../../../api/audits";
@@ -21,7 +21,11 @@ import { queryKeys } from "../../../api/query-keys";
 import { deferred } from "../../../test/deferred";
 import { SourceLink } from "../../catalog/audit-preset-checks";
 import { renderApplication } from "../../../test/application";
-import { auditRound } from "../../../test/builders";
+import {
+  auditRound,
+  findingSummary,
+  findingSource,
+} from "../../../test/builders";
 import { createApplicationQueryClient } from "../../../app/query-client";
 import { CHECK_STATE_LABELS } from "../../../app/vocabulary";
 import {
@@ -39,7 +43,7 @@ import {
   workspaceOf,
   type Handler,
 } from "./check-test-support";
-import { failure, json } from "../../../test/responses";
+import { json } from "../../../test/responses";
 
 import {
   compositionAudit,
@@ -71,7 +75,7 @@ interface CheckServer {
   audit: () => Audit;
   coverage?: (url: URL) => Response | AuditCoverageRow[];
   items?: (url: URL) => Response | AuditItem[];
-  findings?: (url: URL) => Response | AuditFinding[];
+  findings?: (url: URL) => Response | ProjectFinding[];
   reviews?: (url: URL) => Response | AuditReviewRequest[];
   workspace?: (audit: Audit) => Response | object;
   report?: () => unknown;
@@ -118,8 +122,18 @@ function serveCheck(server: CheckServer) {
       return answer(server.coverage, "revision");
     if (path === `/v1/audits/audit_example/items`)
       return answer(server.items, "none");
-    if (path === `/v1/audits/audit_example/findings`)
-      return answer(server.findings, "full");
+    if (path === `/v1/audits/audit_example/findings`) {
+      const value = server.findings?.(url) ?? [];
+      return value instanceof Response
+        ? value
+        : json({
+            items: value.map(findingSummary),
+            projectRevision: 1,
+            auditRevision: audit.revision,
+            asOf: audit.updatedAt,
+            page: { hasMore: false },
+          });
+    }
     if (path === `/v1/audits/audit_example/reviews`)
       return answer(server.reviews, "full");
     if (path === `/v1/audits/audit_example/workspace`) {
@@ -188,6 +202,7 @@ describe("Check page", () => {
       ordinal: number,
       subjectKey: string,
     ): AuditCoverageRow => ({
+      findingIds: [],
       roundId: "round_1",
       itemId,
       ordinal,
@@ -750,7 +765,7 @@ describe("Check page", () => {
       profileName: "openapi-operation-trace",
     });
     const finding = makeFinding(
-      "audit_example",
+      "project_example",
       "finding_1",
       "Any user reads any service report",
       "GET /workshop/api/mechanic/mechanic_report",
@@ -765,6 +780,7 @@ describe("Check page", () => {
           "/workshop/api/mechanic/mechanic_report",
           "traced-partial",
           {
+            findingIds: ["finding_1"],
             gaps: ["The identity service is outside this code."],
             resultSummary: "Anyone signed in can read any report.",
             evidence: [
@@ -803,10 +819,16 @@ describe("Check page", () => {
       ],
       findings: () => [finding],
       handle: (_request, url) => {
-        if (url.pathname === "/v1/audits/audit_example/findings/finding_1")
+        if (url.pathname === "/v1/projects/project_example/findings/finding_1")
           return json(finding, 200, { ETag: `"${finding.revision}"` });
-        if (url.pathname.endsWith("/finding_1/provenance"))
-          return failure(404, "not_found", "No retained provenance");
+        if (url.pathname.endsWith("/finding-sources/receipt_finding_1"))
+          return json(findingSource(finding));
+        if (url.pathname.endsWith("/finding_1/sources"))
+          return json({
+            items: [],
+            projectRevision: 1,
+            page: { hasMore: false },
+          });
         return undefined;
       },
       workspace: (audit) =>
@@ -856,11 +878,11 @@ describe("Check page", () => {
     const issue = within(view).getByRole("link", {
       name: "Any user reads any service report",
     });
-    expect(issue).toHaveAttribute("href", "/issues/audit_example/finding_1");
+    expect(issue).toHaveAttribute("href", "/issues/project_example/finding_1");
     const issueRow = issue.closest("li")!;
-    expect(issueRow).toHaveTextContent("CWE-639");
+    expect(issueRow).toHaveTextContent("Not assessed");
     expect(issueRow).toHaveTextContent("Severity not set");
-    expect(issueRow).toHaveTextContent("Needs review");
+    expect(issueRow).toHaveTextContent("Not assessed");
     expect(
       within(
         within(view).getByRole("list", { name: "Activity on this endpoint" }),
@@ -869,7 +891,7 @@ describe("Check page", () => {
     const progress = screen.getByRole("region", { name: "Check progress" });
     expect(
       within(progress).getByRole("link", { name: "Review 1 possible issue" }),
-    ).toHaveAttribute("href", "/issues?project=project_example&state=proposed");
+    ).toHaveAttribute("href", "/issues?project=project_example");
     expect(
       within(progress).getByRole("img", {
         name: "0 of 2 endpoints done: 1 partially traced, 1 checking now",
@@ -883,7 +905,7 @@ describe("Check page", () => {
     );
     await waitFor(() =>
       expect(router.state.location.pathname).toBe(
-        "/issues/audit_example/finding_1",
+        "/issues/project_example/finding_1",
       ),
     );
     expect(router.state.location.state).toMatchObject({
@@ -914,7 +936,7 @@ describe("Check page", () => {
     async (state) => {
       const current = auditAt("completed", 3);
       const finding = makeFinding(
-        "audit_example",
+        "project_example",
         "finding_1",
         "An owner check may be missing",
         "A01:2025",
@@ -929,6 +951,7 @@ describe("Check page", () => {
             "A01:2025",
             "Access control.",
             "violated",
+            { findingIds: ["finding_1"] },
           ),
         ],
         findings: () => [finding],
@@ -946,7 +969,7 @@ describe("Check page", () => {
       if (state === "proposed" || state === "needs-evidence") {
         expect(review).toHaveAttribute(
           "href",
-          "/issues/audit_example/finding_1",
+          "/issues/project_example/finding_1",
         );
       } else {
         expect(review).toBeNull();
@@ -1002,7 +1025,7 @@ describe("Check page", () => {
       kind: "report-acceptance",
     });
     const finding = makeFinding(
-      "audit_example",
+      "project_example",
       "finding_1",
       "Refunds skip the owner check",
       "A01:2025",
@@ -1085,7 +1108,7 @@ describe("Check page", () => {
       await within(issues).findByRole("link", {
         name: "Refunds skip the owner check",
       }),
-    ).toHaveAttribute("href", "/issues/audit_example/finding_1");
+    ).toHaveAttribute("href", "/issues/project_example/finding_1");
     expect(
       within(issues).getByText("This check has 1 possible issue."),
     ).toBeVisible();
@@ -1184,7 +1207,7 @@ describe("Check page", () => {
     );
     expect(
       within(progress).getByRole("link", { name: "Review 51 possible issues" }),
-    ).toHaveAttribute("href", "/issues?project=project_example&state=proposed");
+    ).toHaveAttribute("href", "/issues?project=project_example");
     const user = userEvent.setup();
     await user.click(
       within(progress).getByRole("link", {
@@ -1308,17 +1331,19 @@ describe("Check page", () => {
     const on = (
       id: string,
       title: string,
-      state: AuditFinding["state"],
+      state: ProjectFinding["state"],
       minute: number,
     ) =>
-      makeFinding("audit_example", id, title, "A01:2025", {
+      makeFinding("project_example", id, title, "A01:2025", {
         state,
         createdAt: `2026-10-05T10:${minute}:00Z`,
       });
     const { api } = serveCheck({
       audit: () => current,
       coverage: () => [
-        requirementRow("item_1", 0, "A01:2025", "Access control.", "violated"),
+        requirementRow("item_1", 0, "A01:2025", "Access control.", "violated", {
+          findingIds: ["f_confirmed", "f_possible", "f_rejected"],
+        }),
       ],
       findings: () => [
         on("f_confirmed", "Refunds skip the owner check", "confirmed", 15),
@@ -1376,7 +1401,7 @@ describe("Check page", () => {
       within(setAside).getByRole("link", {
         name: "Admin route reads any order",
       }),
-    ).toHaveAttribute("href", "/issues/audit_example/f_rejected");
+    ).toHaveAttribute("href", "/issues/project_example/f_rejected");
     expect(within(setAside).getByText("Not an issue")).toBeVisible();
   });
 
@@ -1385,11 +1410,13 @@ describe("Check page", () => {
     const { api } = serveCheck({
       audit: () => current,
       coverage: () => [
-        requirementRow("item_1", 0, "A01:2025", "Access control.", "violated"),
+        requirementRow("item_1", 0, "A01:2025", "Access control.", "violated", {
+          findingIds: ["f_1"],
+        }),
       ],
       findings: () => [
         makeFinding(
-          "audit_example",
+          "project_example",
           "f_1",
           "Refunds skip the owner check",
           "A01:2025",

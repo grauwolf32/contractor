@@ -122,7 +122,7 @@ func configureRunCreation(pool *pgxpool.Pool, configurationManager *workflowconf
 				transactionContext, pool, pgx.TxOptions{},
 				func(tx pgx.Tx) error {
 					return fn(
-						runstore.NewPostgresStore(tx),
+						runstore.NewPostgresTxStore(tx),
 						artifacts.NewService(artifacts.NewPostgresRepository(tx)),
 						claimstore.New(tx),
 					)

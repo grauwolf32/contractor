@@ -20,7 +20,7 @@ from contractor_runtime.artifacts import ArtifactAPIError, ArtifactValue
 from contractor_runtime.contracts import ArtifactRef, ArtifactWriteResult, WorkerCompletionContract
 from contractor_runtime.toolsets.audit_results.collector import AuditCollectionError
 from contractor_runtime.toolsets.audit_results.v2 import AuditResultsToolsetFactory
-from contractor_runtime.worker import runtime as worker_runtime
+from contractor_runtime.worker import completion as worker_runtime
 from contractor_runtime.worker.runtime import AdkWorkerRuntime
 
 
@@ -102,7 +102,7 @@ async def runtime_for(
         allocation_id="allocation-1",
         namespace="builder",
         runtime_settings=context.runtime_settings,
-        state=state,
+        resources=state.resources,
         completion_contract=contract(),
     )
     context = replace(
@@ -254,7 +254,7 @@ def test_real_runner_continues_once_with_one_owner_and_publishes_on_last_allowed
         assert completion.result.artifacts == {
             "report": ArtifactRef(namespace="builder", name="report", revision="published-r1")
         }
-        assert runtime._result_finalizer is None
+        assert runtime._pipeline.finalizer is None
         assert len(model.requests) == 4 and len(client.writes) == 1
         assert len(client.reads) == 2
         assert "Runtime completion reminder" in model.requests[-1]["contentText"]
@@ -455,7 +455,7 @@ def test_exact_preparation_rejects_alias_receipt_and_toolset_without_contract(tm
             allocation_id="allocation-1",
             namespace="builder",
             runtime_settings=context.runtime_settings,
-            state=state,
+            resources=state.resources,
         )
         with pytest.raises(ValueError):
             await factory.create_selected(**kwargs)
@@ -530,7 +530,7 @@ def test_audit_typed_assembly_preserves_reminder_publication_and_refs_without_mo
         assert len(client.writes) == 1
         assert len(model.requests) == 4
         assert all(not request["hasResponseSchema"] for request in model.requests)
-        assert runtime._result_finalizer is None
+        assert runtime._pipeline.finalizer is None
         assert state.begins == state.completions == 1
         metrics = (await state.snapshot())["lastCompletedInvocation"]["metrics"]
         assert metrics["modelCalls"] == 4 and metrics["toolCalls"] == 2
@@ -563,7 +563,7 @@ def test_fatal_model_event_sandbox_or_deadline_prevents_audit_success(tmp_path, 
         if failure == "sandbox":
 
             async def fail_sandbox():
-                state.execution.fail(SandboxErrorCode.UNAVAILABLE)
+                state.resources.execution.fail(SandboxErrorCode.UNAVAILABLE)
 
             client.on_write = fail_sandbox
         result = await runtime.invoke(request)
@@ -679,7 +679,7 @@ def test_cancellation_during_normal_discard_keeps_ownership_until_cleanup_settle
         await asyncio.wait_for(started.wait(), 2)
         invocation.cancel()
         await asyncio.sleep(0)
-        assert not invocation.done() and runtime._invoke_lock.locked()
+        assert not invocation.done() and runtime._invocation.lock.locked()
         release.set()
         with pytest.raises(asyncio.CancelledError):
             await invocation

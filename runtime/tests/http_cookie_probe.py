@@ -7,10 +7,10 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+from fakes.worker_state import WorkerState
 
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.http_proxy import ProxyHTTPClient
-from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import ArtifactAPIError, ArtifactClient
 from contractor_runtime.contracts import ArtifactRef, HTTPOriginTargetSettings, RuntimeSettings
 from contractor_runtime.toolsets.http.cookies import COOKIE_BINDING, CookieCheckpoint
@@ -50,7 +50,7 @@ async def cookie_probe(client: ArtifactClient, action: str, proxy: bool) -> dict
                 run_id="allocation-bound",
                 namespace="builder",
                 runtime_settings=settings,
-                state=WorkerState(),
+                resources=WorkerState().resources,
                 workspace=AllocationWorkspace(
                     root=Path("/nonexistent/cookie-probe"),
                     path=Path("/nonexistent/cookie-probe/slot"),

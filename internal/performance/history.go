@@ -1,7 +1,6 @@
 package performance
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"math"
@@ -17,21 +16,26 @@ import (
 var ErrHistoryRange = apierror.New(apierror.InvalidRequest, "performance history range exceeds its bounds")
 
 func (m Minute) Validate() error {
+	_, err := m.encode()
+	return err
+}
+
+func (m Minute) encode() ([]byte, error) {
 	if m.Version != 1 || strings.TrimSpace(m.Generation) == "" || len(m.Generation) > 128 || m.MinuteStart.IsZero() || !m.MinuteStart.Equal(m.MinuteStart.Truncate(time.Minute)) || m.CoverageSeconds < 0 || m.CoverageSeconds > 60 || math.IsNaN(m.CoverageSeconds) || math.IsInf(m.CoverageSeconds, 0) {
-		return errInvalidRecord
+		return nil, errInvalidRecord
 	}
 	if m.Status != OK && m.Status != Partial && m.Status != Unavailable {
-		return errInvalidRecord
+		return nil, errInvalidRecord
 	}
 	if m.GPU != nil && m.GPU.Validate(m.MinuteStart.Add(time.Minute)) != nil {
-		return errInvalidRecord
+		return nil, errInvalidRecord
 	}
 	if m.CPU != nil && (m.CPU.DurationSeconds <= 0 || m.CPU.DurationSeconds > 60) {
-		return errInvalidRecord
+		return nil, errInvalidRecord
 	}
 	for _, g := range []*GaugeSummary{m.Process.RSSBytes, m.Process.HeapLiveBytes, m.Process.Goroutines, m.Pool.Acquired, m.Pool.Idle, m.Pool.Total, m.Pool.Max} {
 		if g != nil && (g.Samples == 0 || g.ObservedAt.IsZero() || g.ObservedAt.After(m.MinuteStart.Add(time.Minute)) || g.Min > g.Last || g.Last > g.Max) {
-			return errInvalidRecord
+			return nil, errInvalidRecord
 		}
 	}
 	sample := Sample{Version: 1, Generation: m.Generation, ObservedAt: m.MinuteStart.Add(time.Minute), Database: m.Database, DatabaseSize: m.DatabaseSize, Pool: m.PoolLast}
@@ -42,19 +46,9 @@ func (m Minute) Validate() error {
 		sample.HTTP = &HTTP{Freshness: freshness(m.MinuteStart, m.MinuteStart.Add(time.Minute), 1, "", true), Surfaces: *m.HTTP}
 	}
 	if sample.Validate() != nil {
-		return errInvalidRecord
+		return nil, errInvalidRecord
 	}
-	raw, err := json.Marshal(m)
-	if err != nil || len(raw) > MaxRecordBytes {
-		return errInvalidRecord
-	}
-	d := json.NewDecoder(bytes.NewReader(raw))
-	d.UseNumber()
-	var value any
-	if d.Decode(&value) != nil || !validNumbers(value) {
-		return errInvalidRecord
-	}
-	return nil
+	return encodeRecord(m)
 }
 
 // Flush performs one idempotent bounded batch and one bounded expiry pass in a
@@ -68,7 +62,8 @@ func (s *DatabaseStore) Flush(ctx context.Context, minutes []Minute, now time.Ti
 	var coverage []float64
 	var payloads [][]byte
 	for _, minute := range minutes {
-		if minute.Validate() != nil {
+		raw, err := minute.encode()
+		if err != nil {
 			return errInvalidRecord
 		}
 		if !minute.MinuteStart.Add(HistoryRetention).After(now) {
@@ -77,7 +72,6 @@ func (s *DatabaseStore) Flush(ctx context.Context, minutes []Minute, now time.Ti
 		if minute.MinuteStart.After(now) {
 			return errInvalidRecord
 		}
-		raw, _ := json.Marshal(minute)
 		generations = append(generations, minute.Generation)
 		starts = append(starts, minute.MinuteStart)
 		coverage = append(coverage, minute.CoverageSeconds)
@@ -179,14 +173,7 @@ func (r *HistoryRepository) Read(ctx context.Context, from, to time.Time, step t
 	points := b.finish()
 	for _, p := range points {
 		// A bounded input can still overflow the JSON-safe aggregate domain.
-		raw, err := json.Marshal(p)
-		if err != nil || len(raw) > MaxRecordBytes {
-			return nil, errInvalidRecord
-		}
-		d := json.NewDecoder(bytes.NewReader(raw))
-		d.UseNumber()
-		var value any
-		if d.Decode(&value) != nil || !validNumbers(value) {
+		if _, err := encodeRecord(p); err != nil {
 			return nil, errInvalidRecord
 		}
 	}

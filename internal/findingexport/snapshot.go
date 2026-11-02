@@ -12,10 +12,10 @@ import (
 	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/auditdomain"
-	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/grauwolf32/contractor/internal/documentnumber"
-	"github.com/grauwolf32/contractor/internal/strictjson"
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
+	"github.com/grauwolf32/contractor/internal/helpers/documentnumber"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 )
 
 var gitCommit = regexp.MustCompile(`^[0-9a-f]{40}$`)
@@ -202,18 +202,10 @@ func validateSnapshot(value Snapshot) error {
 			}
 			used[id] = true
 		}
-		if !slices.Contains([]string{"proposed", "confirmed", "rejected", "duplicate", "needs-evidence"}, r.Review.State) {
+		if auditdomain.ValidateFindingAssessment(r.Review.State, r.Review.Verdict, r.Review.Severity, r.Review.DuplicateTargetID) != nil || r.Review.DuplicateTargetID == r.FindingID || r.Review.DuplicateTargetID != "" && !contracts.ValidResourceID(r.Review.DuplicateTargetID) {
 			return ErrInvalid
 		}
-		if (r.Review.State == "duplicate") != (r.Review.DuplicateTargetID != "") || r.Review.DuplicateTargetID == r.FindingID || r.Review.DuplicateTargetID != "" && !contracts.ValidIdempotencyKey(r.Review.DuplicateTargetID) {
-			return ErrInvalid
-		}
-		if r.Review.Severity != "" && !slices.Contains([]string{"informational", "low", "medium", "high", "critical"}, r.Review.Severity) {
-			return ErrInvalid
-		}
-		if r.Review.Severity != "" && (r.Review.State != "confirmed" || r.Review.Verdict != "true_positive" || r.Review.DecisionID == "") {
-			return ErrInvalid
-		}
+
 		if p := r.PrimaryKey; p != nil {
 			key, err := auditdomain.FindingGroupKey(p.ProjectID, p.Algorithm, p.Value)
 			if err != nil || key != p.GroupKey || p.Policy == "" {

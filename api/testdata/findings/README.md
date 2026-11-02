@@ -1,6 +1,6 @@
 # Finding collection conformance
 
-`finding-collection-v1.fixture.json` is a shared Go/Python contract fixture.
+`finding-collection-v2.fixture.json` is a shared Go/Python contract fixture.
 `collection` is the metadata value; `contents` maps document IDs to exact UTF-8
 text bytes. `package_id` and `package_digest` freeze the expected canonical ZIP.
 The fixture file itself is pretty-printed for review; package metadata is RFC

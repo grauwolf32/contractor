@@ -14,16 +14,19 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
-	"github.com/grauwolf32/contractor/internal/pagelimit"
+	"github.com/grauwolf32/contractor/internal/helpers/pagelimit"
 )
 
 type AuditManagement interface {
 	PublishMaterial(context.Context, string, string, string, auditservice.MaterialPublicationRequest, *string) (auditservice.MaterialPublication, error)
+	ListProjectFindings(context.Context, auditservice.ProjectFindingListParams) (auditservice.ProjectFindingPage, error)
+	GetProjectFinding(context.Context, string, string, string) (auditstore.ProjectFinding, error)
+	GetAuditProjectFinding(context.Context, string, string, string) (auditstore.ProjectFinding, error)
+	EditProjectFinding(context.Context, auditservice.ProjectFindingEditParams) (auditservice.ProjectFindingEditResult, error)
 	FindingCandidates(context.Context, auditservice.FindingCandidatesParams) (auditservice.FindingCandidatesPage, error)
 	CompareFindings(context.Context, auditservice.FindingComparisonParams) (auditservice.FindingComparisonPage, error)
-	FindingGroupMembers(context.Context, auditservice.FindingMembersParams) (auditservice.FindingMembersPage, error)
 	ListEventsPage(context.Context, auditstore.EventListParams) (auditservice.EventPage, error)
-	ListOwnerFindings(context.Context, auditstore.OwnerFindingListParams) ([]auditservice.Finding, error)
+	ListOwnerFindings(context.Context, auditstore.OwnerFindingListParams) (auditstore.FindingWindow, error)
 	ListOwnerReviews(context.Context, auditstore.OwnerReviewListParams) ([]auditstore.ReviewRequest, error)
 	GetWorkspace(context.Context, string, string) (auditstore.WorkspaceSummary, error)
 	ListFindingsPage(context.Context, auditstore.FindingListParams) (auditservice.FindingPage, error)
@@ -51,12 +54,8 @@ type AuditManagement interface {
 	GetRound(context.Context, string, string, string) (auditstore.Round, error)
 	ListCoverage(context.Context, string, string, string, int, int, *uint64) (auditservice.CoveragePage, error)
 	GetReport(context.Context, string, string) (auditservice.ReportProjection, error)
-	GetFinding(context.Context, string, string, string) (auditservice.Finding, error)
-	CreateFindingReview(context.Context, auditservice.CreateFindingReviewParams) (auditservice.FindingReviewResult, error)
-	DecideFinding(context.Context, auditservice.DecideFindingParams) (auditservice.FindingDecisionResult, error)
 	DecideActionReview(context.Context, auditservice.DecideActionReviewParams) (auditservice.ActionReviewDecisionResult, error)
 	GetReview(context.Context, string, string, string) (auditstore.ReviewRequest, error)
-	ListFindingProvenance(context.Context, auditstore.ProvenanceListParams) ([]auditservice.FindingProvenance, error)
 }
 
 // AuditDependencies serve AuditProfiles, AuditStandards, Audits, their
@@ -606,7 +605,7 @@ func (h *auditHandlers) listAuditCoverage(w http.ResponseWriter, r *http.Request
 	items := make([]auditCoverageResponse, len(coverage))
 	for index, row := range coverage {
 		items[index] = auditCoverageResponse{
-			RoundID: row.RoundID, ItemID: row.ItemID, Ordinal: row.Ordinal,
+			FindingIDs: append([]string{}, row.FindingIDs...), RoundID: row.RoundID, ItemID: row.ItemID, Ordinal: row.Ordinal,
 			ItemKey: row.ItemKey, SubjectKey: row.SubjectKey, Coverage: row.Coverage,
 			Result: row.Result, UpdatedAt: row.UpdatedAt, Details: row.Details,
 		}

@@ -5,7 +5,6 @@ import (
 	"sort"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore/querystore"
 	"github.com/grauwolf32/contractor/internal/findingexport"
@@ -30,33 +29,16 @@ func (s *Service) SelectExportFindings(ctx context.Context, tx pgx.Tx, ownerID, 
 	if err != nil {
 		return nil, collectionError(err)
 	}
-	var decisionAudits, decisionIDs, assessmentAudits, assessmentIDs []string
-	for _, v := range selections {
-		row, ok := records[v.FindingID]
-		if !ok {
+	for _, selection := range selections {
+		row, found := records[selection.FindingID]
+		if !found {
 			return nil, findingintake.ErrNotFound
 		}
-		if row.Revision != v.Revision {
+		if row.Revision != selection.Revision {
 			return nil, findingintake.ErrConflict
-		}
-		if row.CurrentDecisionID != nil {
-			decisionAudits = append(decisionAudits, auditID)
-			decisionIDs = append(decisionIDs, *row.CurrentDecisionID)
-		}
-		if row.CurrentAssessmentID != nil {
-			assessmentAudits = append(assessmentAudits, auditID)
-			assessmentIDs = append(assessmentIDs, *row.CurrentAssessmentID)
 		}
 	}
 	contributions, err := reads.ExportContributions(ctx, auditID, ids)
-	if err != nil {
-		return nil, collectionError(err)
-	}
-	decisions, err := reads.ReadFindingDecisions(ctx, ownerID, decisionAudits, decisionIDs)
-	if err != nil {
-		return nil, collectionError(err)
-	}
-	assessments, err := reads.ReadFindingAssessments(ctx, ownerID, assessmentAudits, assessmentIDs)
 	if err != nil {
 		return nil, collectionError(err)
 	}
@@ -75,7 +57,7 @@ func (s *Service) SelectExportFindings(ctx context.Context, tx pgx.Tx, ownerID, 
 		if !members[presentation] {
 			return nil, findingintake.ErrNotFound
 		}
-		result := findingexport.Result{FindingID: row.FindingID, Revision: row.Revision, PresentationReceiptID: presentation, ReceiptIDs: []string{}, Review: findingexport.Review{State: string(row.State)}}
+		result := findingexport.Result{FindingID: row.FindingID, Revision: row.Revision, PresentationReceiptID: presentation, ReceiptIDs: []string{}, Review: findingexport.Review{}}
 		for id := range members {
 			result.ReceiptIDs = append(result.ReceiptIDs, id)
 			all[id] = true
@@ -87,39 +69,27 @@ func (s *Service) SelectExportFindings(ctx context.Context, tx pgx.Tx, ownerID, 
 		if row.DuplicateTargetID != nil {
 			result.Review.DuplicateTargetID = *row.DuplicateTargetID
 		}
-		if row.CurrentAssessmentID != nil {
-			result.Review.AssessmentID = *row.CurrentAssessmentID
-			a, ok := assessments[*row.CurrentAssessmentID]
-			if !ok {
-				return nil, artifacts.ErrArtifactIntegrity
-			}
-			result.Assessment = &findingexport.Assessment{ID: a.AssessmentID, SemanticAssessment: a.SemanticAssessment, ReceiptID: a.ReceiptID, Result: a.Result, DirectVerification: a.DirectVerification, Contract: a.Contract, AcceptedAt: a.AcceptedAt.UTC().Format(time.RFC3339Nano)}
-			if a.ItemID != nil {
-				result.Assessment.ItemID = *a.ItemID
-			}
-			if a.ExecutionItemID != nil {
-				result.Assessment.ExecutionItemID = *a.ExecutionItemID
-			}
-			if a.CollectionReceiptID != nil {
-				result.Assessment.CollectionReceiptID = *a.CollectionReceiptID
-			}
+		if row.State != nil {
+			value := string(*row.State)
+			result.Review.State = &value
 		}
-		if row.CurrentDecisionID != nil {
-			d, ok := decisions[*row.CurrentDecisionID]
-			if !ok || d.AuditID != auditID || d.FindingID != row.FindingID {
-				return nil, artifacts.ErrArtifactIntegrity
-			}
-			result.Review.DecisionID = d.DecisionID
-			result.Review.Verdict = string(d.Verdict)
-			result.Review.Rationale = d.Rationale
-			result.Review.ActorID = d.ActorID
-			result.Review.DecisionAt = d.CreatedAt.UTC().Format(time.RFC3339Nano)
-			if d.Severity != nil {
-				result.Review.Severity = string(*d.Severity)
-			}
+		if row.AnalystVerdict != nil {
+			result.Review.Verdict = string(*row.AnalystVerdict)
+		}
+		if row.AnalystSeverity != nil {
+			result.Review.Severity = string(*row.AnalystSeverity)
+		}
+		if row.Rationale != nil {
+			result.Review.Rationale = *row.Rationale
+		}
+		if row.ActorID != nil {
+			result.Review.ActorID = *row.ActorID
+		}
+		if row.AssessedAt != nil {
+			result.Review.DecisionAt = row.AssessedAt.UTC().Format(time.RFC3339Nano)
 		}
 		if row.CorrelationGroupKey != "" {
-			result.PrimaryKey = &findingexport.PrimaryKey{ProjectID: row.CorrelationProjectID, Algorithm: row.CorrelationAlgorithm, Value: row.CorrelationValue, GroupKey: row.CorrelationGroupKey, Policy: auditdomain.FindingCorrelationPolicy}
+			result.PrimaryKey = &findingexport.PrimaryKey{ProjectID: row.ProjectID, Algorithm: row.CorrelationAlgorithm, Value: row.CorrelationValue, GroupKey: row.CorrelationGroupKey, Policy: auditdomain.FindingCorrelationPolicy}
 		}
 		results = append(results, result)
 	}

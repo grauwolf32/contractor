@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from functools import partial
 from types import MappingProxyType
 from typing import Any
 
@@ -35,6 +36,7 @@ from contractor_runtime.toolsets.common.finding_analysis import (
 from contractor_runtime.toolsets.common.finding_analysis import (
     canonical_analysis,
 )
+from contractor_runtime.toolsets.common.resources import ToolResources
 from contractor_runtime.toolsets.common.tool_base import ArtifactTool
 from contractor_runtime.workspace import AllocationWorkspace
 
@@ -66,25 +68,23 @@ class TextArtifactsToolsetFactory:
         namespace: str,
         runtime_settings: RuntimeSettings,
         workspace: AllocationWorkspace,
-        state: Any,
+        resources: ToolResources,
         adapter_handles: AdapterHandles = EMPTY_ADAPTER_HANDLES,
         project_workspace: Any = None,
     ) -> Mapping[str, Any]:
         del run_id, workspace, adapter_handles
         require_selected_tools(selected, self.exported_tools)
-        metrics = require_metrics(state, "text-artifacts@1")
+        metrics = require_metrics(resources, "text-artifacts@1")
         client = self._client_factory(allocation_id, runtime_settings)
         secrets = runtime_secrets(runtime_settings)
-        cache = allocation_artifact_read_cache(state) if "read_text_artifact" in selected else None
-        builders: dict[str, Callable[[], Any]] = {
-            "read_text_artifact": lambda: ReadTextArtifactTool(
-                client, metrics, secrets, cache=cache
-            ),
-            "write_text_artifact": lambda: WriteTextArtifactTool(
-                client, metrics, secrets, namespace
-            ),
+        cache = (
+            allocation_artifact_read_cache(resources) if "read_text_artifact" in selected else None
+        )
+        constructors = {
+            "read_text_artifact": partial(ReadTextArtifactTool, cache=cache),
+            "write_text_artifact": partial(WriteTextArtifactTool, namespace=namespace),
         }
-        return {name: builders[name]() for name in selected}
+        return {name: constructors[name](client, metrics, secrets) for name in selected}
 
 
 class ReadTextArtifactTool(ArtifactTool):

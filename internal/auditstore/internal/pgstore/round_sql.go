@@ -95,11 +95,11 @@ const initialRoundRowsSQL = `), inserted_round AS (
               approval_kind, approval_subject_digest
 ), inserted_reviews AS (
     INSERT INTO audit_review_requests (
-        request_id, audit_id, finding_id, subject_kind, subject_id, kind,
+        request_id, audit_id, subject_kind, subject_id, kind,
         subject_revision, subject_digest, requested_actions, state,
         expires_at, idempotency_key, request_digest
     )
-    SELECT 'review-' || item.item_id, item.audit_id, NULL,
+    SELECT 'review-' || item.item_id, item.audit_id,
            'audit-item-action', item.item_id, item.approval_kind,
            1, item.approval_subject_digest,
            CASE WHEN item.approval_kind = 'requirement-applicability'
@@ -247,11 +247,11 @@ WITH live_claim AS MATERIALIZED (
     ON CONFLICT (audit_id,logical_key) DO NOTHING
 ), inserted_reviews AS (
     INSERT INTO audit_review_requests (
-        request_id, audit_id, finding_id, subject_kind, subject_id, kind,
+        request_id, audit_id, subject_kind, subject_id, kind,
         subject_revision, subject_digest, requested_actions, state,
         expires_at, idempotency_key, request_digest
     )
-    SELECT 'review-' || item.item_id, item.audit_id, NULL,
+    SELECT 'review-' || item.item_id, item.audit_id,
            'audit-item-action', item.item_id, item.approval_kind,
            1, item.approval_subject_digest,
            CASE WHEN item.approval_kind = 'requirement-applicability'

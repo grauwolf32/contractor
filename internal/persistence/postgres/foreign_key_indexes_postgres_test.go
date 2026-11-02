@@ -43,9 +43,6 @@ var foreignKeyProbeAllowances = map[string]probeAllowance{
 		prefixIndex: "audit_execution_items_item_attempt", reason: "the attempts of one item, at most MaxItemRunAttempts",
 	},
 
-	"audit_finding_contributions_finding_fkey": {
-		prefixIndex: "audit_finding_contributions_pkey", reason: "the contributions of one finding",
-	},
 	"audit_items_last_execution_item_fkey": {
 		prefixIndex: "audit_items_pkey", reason: "item_id is unique",
 	},

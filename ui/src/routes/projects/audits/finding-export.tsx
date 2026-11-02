@@ -1,4 +1,4 @@
-import type { AuditFinding } from "../../../api/audits";
+import type { ProjectFindingSummary } from "../../../api/audits";
 import { PublicAPIError } from "../../../api/error";
 import { MAX_EXPORT_SELECTION } from "../../../api/finding-exports";
 import { ErrorNotice } from "../../../app/error-notice";
@@ -15,7 +15,7 @@ export function FindingExportPanel({
   onRefresh,
 }: {
   state: ExportState;
-  visible: readonly AuditFinding[];
+  visible: readonly ProjectFindingSummary[];
   stale: boolean;
   onRefresh: () => void;
 }) {

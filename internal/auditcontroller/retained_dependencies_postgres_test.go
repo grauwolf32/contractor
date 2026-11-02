@@ -25,7 +25,6 @@ func TestPostgresRetainedDependenciesUseAcceptedPrepareAndItemAfterProducerDelet
 	catalog := preparationControllerConfig(t, false, func(files map[string]string) {
 		profile := files["audit-profiles/checklist.yaml"]
 		profile = strings.Replace(profile, "maxRounds: 1", "maxRounds: 3", 1)
-		profile = strings.Replace(profile, "findingConfirmation: disabled", "findingConfirmation: human-required", 1)
 		profile = strings.Replace(profile, "        task: {source: item-package}", "        task: {source: item-package}\n        prepared: {source: prepare-output, role: z-seed, name: list}\n        previous_result: {source: retained-dependency, name: source-result}\n        previous_prepared: {source: retained-dependency, name: prepare.z-seed.list}", 1)
 
 		profile = strings.Replace(profile, "  inventory:\n", "    spare: {required: false, mediaTypes: [application/json]}\n  inventory:\n", 1)

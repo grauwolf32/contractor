@@ -16,10 +16,10 @@ func TestPostgresAuditArtifactScopeMigrationPreservesExactMaterial(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(available) < 3 || available[2].name != "000003_audit_artifact_scope.sql" {
+	if len(available) < 2 || available[1].name != "000002_audit_artifact_scope.sql" {
 		t.Fatal("expected Audit scope migration")
 	}
-	if _, err := applyMigrations(ctx, pool, MigrationBudgets{}, available[:2]); err != nil {
+	if _, err := applyMigrations(ctx, pool, MigrationBudgets{}, available[:1]); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, auditScopeMigrationFixtureSQL); err != nil {

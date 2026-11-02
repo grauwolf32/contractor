@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
-	"github.com/grauwolf32/contractor/internal/strictjson"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 )
 
 func TestSharedRoundResultsStrictCompleteDocuments(t *testing.T) {
@@ -46,8 +46,8 @@ func TestSharedRoundResultsStrictCompleteDocuments(t *testing.T) {
 	if DigestBytes(canonical) != manifest.Pages[0].Artifact.Digest || int64(len(canonical)) != manifest.MetadataBytes {
 		t.Fatal("shared manifest does not pin exact canonical page bytes")
 	}
-	if page.Items[0].SelectedAttempt.Attempt != 2 || page.Items[0].Findings[0].State != "proposed" || consumer.SourceGeneration != manifest.SourceGeneration {
-		t.Fatal("attempt, conservative finding state or source generation lost")
+	if page.Items[0].SelectedAttempt.Attempt != 2 || page.Items[0].Findings[0].ProjectID != "project-fixture" || consumer.SourceGeneration != manifest.SourceGeneration {
+		t.Fatal("attempt, canonical Project Finding identity or source generation lost")
 	}
 	for name, mutate := range map[string]func(*RoundResultsConsumer){
 		"missing mapping":      func(c *RoundResultsConsumer) { c.Mappings = nil },

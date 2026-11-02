@@ -8,11 +8,11 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from fakes.worker_state import WorkerState
 from test_projectfs_zip import archive, settings, workspace_inputs
 from test_taint_annotations import MemoryWriter, make_tools
 
 import contractor_runtime.toolsets.taint_annotations.tools as taint_annotations
-from contractor_runtime.allocation import WorkerState
 from contractor_runtime.contracts import RuntimeSettings
 from contractor_runtime.projectfs import MemoryWorkspaceProvider, hydrate_workspace
 from contractor_runtime.projectfs.storage import WorkspaceStorageError
@@ -113,7 +113,7 @@ def test_real_workspace_cross_toolset_race_preserves_the_edit_winner(
             namespace="analysis",
             runtime_settings=runtime_settings(),
             workspace=AllocationWorkspace(root=tmp_path, path=tmp_path),
-            state=WorkerState(),
+            resources=WorkerState().resources,
             project_workspace=workspace.writer_view(),
         )
         annotation = asyncio.create_task(annotation_tools["annotate_trace"]("app.py", "handler"))

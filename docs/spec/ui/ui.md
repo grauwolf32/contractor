@@ -1502,3 +1502,82 @@ focus behavior, retaining router return state.
 retaining their exact Artifact destination and an accessible name identifying
 the output revision. On narrow cards Preview and download form a separate row
 below metadata badges; desktop actions remain beside the output title.
+
+
+### Issue review workspace
+
+**UI-R221.** The Issues list/detail workspace shares the global font/theme tokens.
+The detail header keeps title, subject, human state, a link to independent verification results and the separate
+AI suggestion or analyst severity above Summary/Evidence/History. File subjects
+use a compact FILE badge and file icon before the path. The Summary
+presents the original proposal and retained evidence in the main column, with
+Impact before Verification and Limitations in the supporting column when width
+allows. A recorded-decision surface uses only the actual analyst decision and
+keeps its actor, recorded time and rationale readable. The shared FindingDecision
+owner retains eligibility, required inputs, stale checks, receipts and focus rules;
+Mark as duplicate is an explicit action. The compact composer expands after a
+verdict is selected. Why sits above a full-width rationale field, with Record
+decision on its own row (full width on phones) and the existing required-input
+help. At phone widths the header and full composer scroll with the content; the
+four review verdicts use two columns, and the redundant Next item footer action
+is omitted. Previous/count/Next share one header row and View in Project (or an explicitly selected check context)
+occupies the next; J/K navigation remains.
+
+**UI-R222.** Issues offers severity, newest, oldest, state and title sorting plus
+text search over loaded title/subject previews and Project. Severity sorting uses an
+analyst rating when set, otherwise the separate AI suggestion, with unset last;
+ties are deterministic by creation time and identity. State and analyst severity
+filters read the canonical Project state; an absent assessment is shown explicitly. Coloured severity pills in the source list
+retain explicit analyst/AI labels and never imply an analyst rating from a
+suggestion. Sort/search are URL-backed projections of
+the existing bounded loaded list, preserve the selected finding and its draft, and
+supply the same order to neighbour/keyboard navigation. Incomplete and failed
+reads remain explicit; the UI never claims to sort unloaded rows.
+
+**UI-R223.** Issue evidence offers explicit Preview, copy, download and concise
+`details →` below the evidence divider, at the selected source's exact retained Project revision. Neither metadata
+nor payload is read automatically except for the bounded saved source snippets:
+at most the first two evidence files may display text/plain snippets, each up to
+64 KiB after authoritative metadata admission. Larger or structured/HTTP evidence
+remains explicit. Preview reuses the shared Artifact size/format bounds; failure
+is visible and retryable, without another-scope fallback. Absent
+scope has no fabricated action or bytes; source locations do not imply readable
+source snippets. Captured HTTP credential values keep independent show/hide
+controls. Sorting and presentation introduce no new business persistence or
+verification/analyst state.
+
+### Material reader
+
+**UI-R224.** Material/file detail in User, Project, Run and Eval contexts uses
+one content-first composition: a compact exact identity and selected revision,
+authoritative current/historical and locked chips, icon-only copy/download with
+accessible labels, and Versions/Refresh above the main reader. Facts, Git source,
+eligible new-version upload, storage details and paged history/lineage form a
+quiet supporting column; on phones they follow the content in ordinary flow.
+Copy/download retain the exact selected identity/bytes, return state survives
+version selection, and existing upload eligibility/conflict owners remain.
+Preview/archive reads stay explicit and retain their scope and size policies.
+The existing Markdown, diff, HTTP, Scalar OpenAPI and LikeC4 engines remain the
+rendering owners, styled with the shared font/theme tokens. Source wrapping is
+a local control; line-number DOM expansion is bounded by UI-R225. After explicit archive Browse,
+a readable SKILL.md is selected first, otherwise a readable root README.md;
+other archives ask for a selection. The archive tree can collapse on phones and
+selecting a file returns the reading space to its content. No file is executed,
+no API request is sent by a renderer and no synthetic preview data ships in UI.
+
+**UI-R225.** Material source previews number up to 4,000 lines (LIM-UI-18),
+  including blank and wrapped lines. Number labels are presentation only; the
+  literal text, CRLF/LF endings and downloads remain unchanged. Beyond that
+  display bound the complete source stays in a single text node, with an
+  explanation that numbering is hidden.
+
+**UI-R226.** OpenAPI material reference navigation selects one saved operation
+  or schema. The existing Scalar renderer owns parameter/schema/reference
+  interpretation, including Swagger 2 and OpenAPI 3. A selected direct operation
+  retains all path-level data and root component definitions. Referenced path
+  items are passed intact to Scalar. Documents with references to other paths
+  stay complete in Scalar, with operation visibility controlled by its public
+  slug generator. API information remains available explicitly. On narrow
+  screens the API browser collapses above the selection. Navigation renders at most 50 rows
+  (LIM-UI-19); search and local paging reach the entire bounded document.
+  Display selection does not execute requests or allow remote references.

@@ -27,6 +27,7 @@ from contractor_runtime.telemetry.metrics import (
     reset_tool_metric_correlation,
     safe_error_code,
 )
+from contractor_runtime.toolsets.common.execution import WorkerExecutionState
 from contractor_runtime.worker.observations import (
     WorkspaceObservationReducer,
     WorkspaceObservationSource,
@@ -105,6 +106,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
         self,
         *,
         state: WorkerStateStore,
+        execution: WorkerExecutionState,
         budget: Callable[[], InvocationBudget | None],
         instrumentation: RuntimeInstrumentation | None,
         model_alias: str,
@@ -118,6 +120,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
     ) -> None:
         super().__init__(name="contractor_worker_instrumentation")
         self._state = state
+        self._execution = execution
         self._metrics: MetricsState = state.metrics
         self._budget = budget
         self._instrumentation = instrumentation
@@ -190,7 +193,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
                     or self._active_session_identity != _session_identity(invocation_context)
                 ):
                     raise RuntimeError("Worker instrumentation continuation is stale")
-                self._state.execution.check()
+                self._execution.check()
                 self._model_output_limited = False
                 self._tool_cancellation_observed = False
                 self._active_sdk_invocation_id = self._continuation[1]
@@ -875,7 +878,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
         return invocation_id
 
     def _admit_call(self) -> None:
-        self._state.execution.check()
+        self._execution.check()
         if self._check_admission is not None:
             self._check_admission()
 

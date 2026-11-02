@@ -1,17 +1,17 @@
+import { pollInterval } from "../../../app/polling";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useId, type ReactNode } from "react";
-import { Link, useLocation } from "react-router";
+import { useId } from "react";
+import { Link } from "react-router";
 
 import {
   getAuditFinding,
-  getAuditReview,
   listAuditFindings,
   type Audit,
 } from "../../../api/audits";
 import { usePublicAPI } from "../../../api/context";
 import { queryKeys } from "../../../api/query-keys";
 import { ContextLink } from "../../../app/context-navigation";
-import { Button, EmptyState, FilterChips, ListSection } from "../../../ui";
+import { EmptyState, FilterChips, ListSection } from "../../../ui";
 import { IssueRow } from "../../issues/issue-row";
 import { issueHref, type StateFilter } from "../../issues/links";
 import { AuditFindingCard } from "./finding-card";
@@ -40,36 +40,12 @@ const STATE_CHIPS: readonly { value: StateFilter; label: string }[] = [
   { value: "all", label: "All" },
 ];
 
-interface ListLocation {
-  to: { pathname: string; search: string };
-  /** The page's navigation state, so its return link survives. */
-  state: unknown;
-}
-
-/** The section's own URL without the deep link to one possible issue. */
-function useListLocation(): ListLocation {
-  const location = useLocation();
-  const params = new URLSearchParams(location.search);
-  params.delete("finding");
-  params.delete("review");
-  const search = params.toString();
-  return {
-    to: {
-      pathname: location.pathname,
-      search: search === "" ? "" : `?${search}`,
-    },
-    state: location.state,
-  };
-}
-
 function SectionHead({
   audit,
   headingId,
-  back,
 }: {
   audit: Audit;
   headingId: string;
-  back?: ListLocation | undefined;
 }) {
   return (
     <header className="issues-section-head">
@@ -77,11 +53,6 @@ function SectionHead({
         Possible issues
       </h2>
       <div className="issues-section-links">
-        {back === undefined ? null : (
-          <Link to={back.to} state={back.state}>
-            All possible issues in this check
-          </Link>
-        )}
         <ContextLink
           returnLabel="Check possible issues"
           to={`/projects/${encodeURIComponent(audit.projectId)}/findings`}
@@ -101,109 +72,38 @@ function SectionHead({
 function ExactFinding({
   audit,
   findingId,
-  reviewId,
 }: {
   audit: Audit;
   findingId: string;
-  reviewId: string | null;
 }) {
   const api = usePublicAPI();
-  const queryClient = useQueryClient();
-  const headingId = useId();
-  const back = useListLocation();
   const finding = useQuery({
-    queryKey: queryKeys.issues.finding(audit.auditId, findingId),
+    queryKey: ["project-findings", audit.projectId, findingId],
     queryFn: () => getAuditFinding(api, audit.auditId, findingId),
+    retry: false,
+    refetchInterval: pollInterval({ interval: 20_000 }),
   });
-  const review = useQuery({
-    queryKey: queryKeys.issues.review(audit.auditId, reviewId ?? ""),
-    queryFn: () => getAuditReview(api, audit.auditId, reviewId ?? ""),
-    enabled: reviewId !== null,
-  });
-  const refresh = () =>
-    void queryClient.invalidateQueries({
-      queryKey: queryKeys.audits.detail(audit.auditId),
-    });
-  const head = <SectionHead audit={audit} headingId={headingId} back={back} />;
-  let content: ReactNode;
-  if (finding.error !== null || review.error !== null)
-    content = (
-      <AuditQueueError
-        error={(finding.error ?? review.error) as Error}
-        onRefresh={refresh}
-      />
-    );
-  else if (finding.isPending || (reviewId !== null && review.isPending))
-    content = (
-      <p className="ui-caption" role="status">
-        Loading the possible issue and its review…
-      </p>
-    );
-  else {
-    const requested = review.data;
-    const stale =
-      requested !== undefined &&
-      (requested.subjectKind !== "finding" ||
-        requested.findingId !== findingId ||
-        (requested.state === "pending" &&
-          requested.subjectRevision !== finding.data.revision));
-    content = (
-      <>
-        {stale ? (
-          <div className="issues-notice" data-tone="warning" role="alert">
-            <p>
-              The requested review no longer matches this possible issue&apos;s
-              current version. Refresh the context before making a decision.
-            </p>
-            <div className="issues-notice-actions">
-              <Button size="xs" onClick={refresh}>
-                Refresh context
-              </Button>
-            </div>
-          </div>
-        ) : null}
-        <p className="issues-section-note">
-          <Link
-            to={issueHref(finding.data, {
-              state: "all",
-              project: audit.projectId,
-            })}
-          >
-            Open in Issues
-          </Link>
-        </p>
-        <AuditFindingCard
-          audit={audit}
-          finding={finding.data}
-          pendingReview={
-            !stale && requested?.state === "pending" ? requested : undefined
-          }
-          reviewError={
-            stale
-              ? new Error(
-                  "Deciding is closed until the context is refreshed: the requested review changed.",
-                )
-              : null
-          }
-        />
-      </>
-    );
-  }
+  if (finding.error !== null)
+    return <p role="alert">{finding.error.message}</p>;
+  if (finding.data === undefined)
+    return <p role="status">Loading possible issue…</p>;
   return (
-    <section className="issues-section" aria-labelledby={headingId}>
-      <AuditAnchor ready={finding.data !== undefined} />
-      {head}
-      {content}
-    </section>
+    <>
+      <p>
+        <Link
+          to={issueHref(finding.data, {
+            state: "all",
+            project: audit.projectId,
+          })}
+        >
+          Open in Issues
+        </Link>
+      </p>
+      <AuditFindingCard finding={finding.data} />
+    </>
   );
 }
 
-/**
- * The check's possible issues, filtered on the Server by state, decision
- * and the analyst's severity, one page at a time pinned to the check's
- * revision. Each row opens the possible issue on the Issues destination;
- * `?finding=` shows one in full here.
- */
 export function AuditFindings({ audit }: { audit: Audit }) {
   return <AuditFindingList key={audit.auditId} audit={audit} />;
 }
@@ -244,13 +144,7 @@ function AuditFindingList({ audit }: { audit: Audit }) {
     });
   };
   if (exactId !== null)
-    return (
-      <ExactFinding
-        audit={audit}
-        findingId={exactId}
-        reviewId={queue.params.get("review")}
-      />
-    );
+    return <ExactFinding audit={audit} findingId={exactId} />;
   return (
     <section className="issues-section" aria-labelledby={headingId}>
       <AuditAnchor ready={findings.data !== undefined} />
@@ -349,7 +243,7 @@ function AuditFindingList({ audit }: { audit: Audit }) {
                       exporter.open ? (
                         <input
                           type="checkbox"
-                          aria-label={`Select ${finding.firstProposal.document.title} for export`}
+                          aria-label={`Select ${finding.title} for export`}
                           checked={exporter.selected.has(finding.findingId)}
                           disabled={
                             exporter.busy ||

@@ -1,0 +1,58 @@
+schema_version: '1.0'
+id: V425-043
+title: Resolve historical Run snapshots after Workflow-owned model selection
+milestone: hub-audit-structure-2026-10
+epic: workflows
+kind: defect
+introduced_by: V425-041
+priority: P2
+status: pending
+depends_on: []
+languages: [go, sql, markdown]
+goal: Historical ordinary Run cards have an explicit supported retention outcome after the model-policy contract change, without legacy runtime readers.
+context:
+  authority: >-
+    Discovered during the user-authorized demo update on 2026-11-02. The assigned V64-023/V428-002
+    preserves ordinary Run rows unchanged; it does not authorize rewriting their immutable execution
+    snapshots or deleting them. This task records the separate issue and does not implement a repair.
+  finding: >-
+    internal/httpapi/public/run_handlers.go:485 decodes every retained StageSpecSnapshot with the
+    current strict ResolvedStage grammar. Four terminal ordinary demo Runs return HTTP 500 because
+    an old nested AgentTemplate has modelPolicy, removed by commit
+    1fd73753871b7c96eb83e3dd084d5c0ba294c211 (V425-041). RunDetailReader.Read succeeds for all 12
+    ordinary Runs; resolved.DecodeResolvedStageSnapshot reports unknown member modelPolicy for four.
+    The cutover and baseline fold preserved every ordinary Run byte. Eight cards return HTTP 200;
+    Project material downloads and current empty Finding reads pass.
+  siblings: >-
+    Stored Workflow and Stage snapshots, base/escalated/summary attempts, allocation policy pins,
+    HTTP detail/repeat/resume projections and other removed model-policy fields need one chosen
+    historical retention boundary. Do not silently strip fields on read.
+  specification:
+  - docs/spec/configuration/workflows.md
+  - docs/spec/platform/persistence.md
+  decision_needed: >-
+    Choose a one-time offline snapshot transformation with original immutable artifacts and proved
+    preservation of effective model/budget pins, or retire the old executable Runs into ordinary
+    immutable history. Recommendation for any required readable Run cards is the explicit one-time
+    transformation, after backup and disposable rehearsal. Neither path is authorized here; do not
+    change configured live models, mutate old snapshots ad hoc or restore old runtime types/readers.
+scope:
+  in:
+  - Settle the historical retention outcome and record user authority before implementation.
+  - Execute the selected bounded one-time transformation against a verified disposable restore before demo application.
+  - Prove Project results, evidence, model/budget pins and unrelated Runs survive; regress the real public detail path.
+  out:
+  - Lenient readers, runtime synchronization, automatic snapshot repair, generic archival frameworks or changing configured live models.
+acceptance_criteria:
+- id: A1
+  text: An explicit recorded decision defines retention and lifecycle of incompatible historical Runs without legacy execution compatibility.
+- id: A2
+  text: The selected one-time path is rehearsed on real PostgreSQL and preserves the declared immutable originals, exact results and unrelated data.
+- id: A3
+  text: The four demo Run cards and sibling snapshot paths observe the chosen supported outcome without unclassified 500 responses.
+tests:
+- command: go test -tags=integration -count=1 ./internal/config/resolved/... ./internal/runstore/... ./internal/runservice/... ./internal/httpapi/public/...
+  covers: [A2, A3]
+- command: make lint
+  covers: [A1, A2, A3]
+implementation_commit: null

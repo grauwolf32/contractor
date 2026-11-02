@@ -6,9 +6,9 @@ import json
 from pathlib import Path
 
 import pytest
+from fakes.worker_state import WorkerState
 
 import contractor_runtime
-from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import (
     ArtifactClient,
     ArtifactHTTPResponse,
@@ -116,7 +116,7 @@ def test_finding_uses_runtime_identity_and_exact_evidence() -> None:
             namespace="worker",
             runtime_settings=_settings(),
             workspace=_workspace(),
-            state=state,
+            resources=state.resources,
         )
         result = await tools["finding"](
             title="Missing ownership guard",
@@ -167,7 +167,7 @@ def test_finding_rejects_non_exact_and_duplicate_evidence() -> None:
             namespace="worker",
             runtime_settings=_settings(),
             workspace=_workspace(),
-            state=state,
+            resources=state.resources,
         )
         with pytest.raises(ValueError):
             ExactEvidenceRef(namespace="worker", name="trace")

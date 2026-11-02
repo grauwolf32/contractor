@@ -1,0 +1,12 @@
+{
+  "engine": "@likec4/language-services/browser 1.56.0",
+  "validated": true,
+  "sourceSha256": "d7ed3b784294c53e8132eff4816c31a4bbc1de028b48009e626e8901e794e096",
+  "layoutSha256": "64b777436e249f00b972fc4d741cb4c501eff538040bfe46a495b2616ce79323",
+  "authoredViews": [
+    "overview",
+    "backend"
+  ],
+  "phoneLayout": "The same engine generated index/landscape layout, filtered to the selected authored view without new nodes/relations.",
+  "capture": "ui/test-results/material-formats/layout.html, actual installed browser engine"
+}

@@ -8,6 +8,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from fakes.model import scripted_model, text_result, tool_call
+from fakes.worker_state import WorkerStateStore as WorkerState
 from google.adk.events import Event, EventActions
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
@@ -22,7 +23,6 @@ from contractor_runtime.worker.sessions import (
     WorkerSessionLifecycle,
     WorkerSessionLifecycleError,
 )
-from contractor_runtime.worker.state import WorkerStateStore as WorkerState
 
 
 @pytest.mark.parametrize("proposed", [10_000, 10_001])

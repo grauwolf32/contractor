@@ -31,6 +31,7 @@ from contractor_runtime.toolsets.common.artifacts import (
     _reject_unconfigured_client,
 )
 from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
+from contractor_runtime.toolsets.common.resources import ToolResources
 from contractor_runtime.workspace import AllocationWorkspace
 
 TOOL_NAMES = frozenset({"interactsh_register", "interactsh_poll"})
@@ -69,7 +70,7 @@ class InteractshToolsetFactory:
         namespace: str,
         runtime_settings: RuntimeSettings,
         workspace: AllocationWorkspace,
-        state: Any,
+        resources: ToolResources,
         adapter_handles: AdapterHandles = EMPTY_ADAPTER_HANDLES,
         project_workspace: Any = None,
     ) -> Mapping[str, Any]:
@@ -86,7 +87,7 @@ class InteractshToolsetFactory:
             namespace,
             runtime_secrets(runtime_settings),
         )
-        metrics = require_metrics(state, self.ref)
+        metrics = require_metrics(resources, self.ref)
         builders = {"interactsh_register": RegisterTool, "interactsh_poll": PollTool}
         return {name: builders[name](session, metrics) for name in selected}
 

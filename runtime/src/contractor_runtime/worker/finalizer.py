@@ -12,6 +12,7 @@ from google.adk.models.base_llm import BaseLlm
 from pydantic import PrivateAttr
 
 from contractor_runtime.contracts import ResolvedModelPolicy, WorkerModelResult
+from contractor_runtime.core.async_tasks import join_owned_task
 from contractor_runtime.worker.one_shot import OneShotModel, generation_config, one_shot_session
 
 MAX_RESULT_FINALIZER_INPUT_BYTES = 256 * 1024
@@ -177,8 +178,8 @@ async def _notify_cancelled_safely(
         ),
         name="worker-result-finalizer-observer-cleanup",
     )
-    try:
-        await asyncio.shield(task)
-    except asyncio.CancelledError:
+    if await join_owned_task(task) or task.cancelled():
         with contextlib.suppress(Exception, asyncio.CancelledError):
-            await task
+            task.result()
+    else:
+        task.result()

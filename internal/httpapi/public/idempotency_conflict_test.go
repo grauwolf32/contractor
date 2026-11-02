@@ -102,15 +102,14 @@ func keyedOperationRequests(t *testing.T) (handlerFixture, *reusedKeyAudits, map
 		"createProjectRun":     {http.MethodPost, "/v1/projects/project-one/runs", runBody, nil},
 		"createAudit": {http.MethodPost, "/v1/projects/project-one/audits",
 			`{"profile":{"name":"checklist","version":"1"},"inputs":{},"runtimeLabels":[],"scope":{"objective":"Keyed"}}`, nil},
-		"startAudit":  {http.MethodPost, "/v1/audits/audit-one/start", "", map[string]string{"If-Match": `"1"`}},
-		"pauseAudit":  {http.MethodPost, "/v1/audits/audit-one/pause", "", map[string]string{"If-Match": `"2"`}},
-		"resumeAudit": {http.MethodPost, "/v1/audits/audit-one/resume", `{"deadlineSeconds":0}`, map[string]string{"If-Match": `"3"`}},
-		"cancelAudit": {http.MethodPost, "/v1/audits/audit-one/cancel", "", map[string]string{"If-Match": `"3"`}},
-		"deleteAudit": {http.MethodDelete, "/v1/audits/audit-one", "", map[string]string{"If-Match": `"4"`}},
-		"createAuditFindingReview": {http.MethodPost, "/v1/audits/audit-one/findings/finding-one/reviews", `{}`,
-			map[string]string{"If-Match": `"1"`}},
+		"startAudit":         {http.MethodPost, "/v1/audits/audit-one/start", "", map[string]string{"If-Match": `"1"`}},
+		"pauseAudit":         {http.MethodPost, "/v1/audits/audit-one/pause", "", map[string]string{"If-Match": `"2"`}},
+		"resumeAudit":        {http.MethodPost, "/v1/audits/audit-one/resume", `{"deadlineSeconds":0}`, map[string]string{"If-Match": `"3"`}},
+		"cancelAudit":        {http.MethodPost, "/v1/audits/audit-one/cancel", "", map[string]string{"If-Match": `"3"`}},
+		"deleteAudit":        {http.MethodDelete, "/v1/audits/audit-one", "", map[string]string{"If-Match": `"4"`}},
+		"editProjectFinding": {http.MethodPatch, "/v1/projects/project-one/findings/finding-one", `{"verdict":"false_positive","rationale":"Not an issue."}`, map[string]string{"If-Match": `"1"`}},
 		"decideAuditReview": {http.MethodPost, "/v1/audits/audit-one/reviews/review-one/decisions",
-			`{"verdict":"true-positive","rationale":"Confirmed."}`, map[string]string{"If-Match": `"1"`}},
+			`{"action":"approve","rationale":"Approved."}`, map[string]string{"If-Match": `"1"`}},
 		"publishConfiguration": {http.MethodPost, "/v1/configurations/model-policies",
 			`{"name":"keyed","version":"1","modelPolicy":{"model":"m"}}`, nil},
 		"publishRuntimeConfig": {http.MethodPost, "/v1/operations/runtime-configs",
@@ -183,7 +182,7 @@ func TestEveryKeyedOperationReportsKeyReuseAsPermanent(t *testing.T) {
 			t.Errorf("%s does not take the IdempotencyKey parameter", operation)
 		}
 	}
-	if !audits.reached["DecideFinding"] || !audits.reached["CreateDraft"] {
+	if !audits.reached["EditProjectFinding"] || !audits.reached["CreateDraft"] {
 		t.Fatalf("Audit mutations were not reached: %v", audits.reached)
 	}
 }
@@ -336,18 +335,6 @@ func (a *reusedKeyAudits) Delete(context.Context, auditservice.MutationParams) (
 	return auditservice.MutationResult{}, a.reach("Delete")
 }
 
-func (a *reusedKeyAudits) CreateFindingReview(
-	context.Context, auditservice.CreateFindingReviewParams,
-) (auditservice.FindingReviewResult, error) {
-	return auditservice.FindingReviewResult{}, a.reach("CreateFindingReview")
-}
-
-func (a *reusedKeyAudits) DecideFinding(
-	context.Context, auditservice.DecideFindingParams,
-) (auditservice.FindingDecisionResult, error) {
-	return auditservice.FindingDecisionResult{}, a.reach("DecideFinding")
-}
-
 func (a *reusedKeyAudits) DecideActionReview(
 	context.Context, auditservice.DecideActionReviewParams,
 ) (auditservice.ActionReviewDecisionResult, error) {
@@ -356,4 +343,8 @@ func (a *reusedKeyAudits) DecideActionReview(
 
 func (a *reusedKeyAudits) PublishMaterial(context.Context, string, string, string, auditservice.MaterialPublicationRequest, *string) (auditservice.MaterialPublication, error) {
 	return auditservice.MaterialPublication{}, a.reach("PublishMaterial")
+}
+
+func (a *reusedKeyAudits) EditProjectFinding(context.Context, auditservice.ProjectFindingEditParams) (auditservice.ProjectFindingEditResult, error) {
+	return auditservice.ProjectFindingEditResult{}, a.reach("EditProjectFinding")
 }

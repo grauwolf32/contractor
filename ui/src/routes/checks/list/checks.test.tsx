@@ -265,7 +265,7 @@ describe("Checks list", () => {
     ).toHaveAttribute("href", "/");
     expect(
       within(detail).getByRole("link", { name: "2 possible issues to review" }),
-    ).toHaveAttribute("href", "/issues?project=project_b&state=proposed");
+    ).toHaveAttribute("href", "/issues?project=project_b");
     expect(
       within(detail).getByRole("link", { name: "Need follow-up: 1" }),
     ).toHaveAttribute(

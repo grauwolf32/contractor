@@ -8,7 +8,7 @@ import (
 	"reflect"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/grauwolf32/contractor/internal/requestid"
+	"github.com/grauwolf32/contractor/internal/helpers/requestid"
 )
 
 // Dependencies groups the services of the public API by the context that

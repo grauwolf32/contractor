@@ -99,14 +99,14 @@ cases:
     category: findings
     acceptance: [A2, A5]
     faults: [F20]
-    expected: TP/FP, severity corrections, reopen, duplicate-cycle rejection, pagination revision checks and exact source/verifier history remain readable after source Run deletion.
-    test: {source: internal/auditservice/service_postgres_test.go, kind: go_test, name: TestAuditFindingReviewHistoryAndDeletedRunProvenance, gate: hardening}
+    expected: Direct Project TP/FP, needs-evidence, reopen and duplicate edits share one canonical state across Audits, preserve independent exact sources, and reject stale/cyclic/foreign changes.
+    test: {source: internal/auditservice/multi_audit_finding_postgres_test.go, kind: go_test, name: TestProjectFindingEditsAreSharedAcrossAuditsAndReplayOriginalSnapshots, gate: hardening}
   - id: revision_bound_backtrace_restarts_atomically
     category: recovery
     acceptance: [A1, A5]
     faults: [F21]
     expected: A conflict on any provenance page discards buffered output and restarts from current Audit and finding revisions; a bounded mutation storm fails without emitting a mixed history.
-    test: {source: tests/e2e/audit_backtrace_script_test.go, kind: go_test, name: TestAuditFindingBacktraceScriptRestartsRevisionBoundTraversal, gate: hardening}
+    test: {source: tests/e2e/audit_backtrace_script_test.go, kind: go_test, name: TestProjectFindingBacktraceScriptRestartsRevisionBoundTraversal, gate: hardening}
   - id: ordinary_run_proposal_retention_is_bounded
     category: isolation
     acceptance: [A3, A5]

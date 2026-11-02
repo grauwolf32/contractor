@@ -1,0 +1,59 @@
+schema_version: "1.0"
+id: V432-001
+title: "Keep owned Runtime tasks joined through repeated cancellation"
+milestone: runtime-ownership-2026-11
+epic: planner-worker
+kind: defect
+introduced_by: V17-002
+priority: P1
+status: completed
+depends_on: []
+languages: [python]
+goal: "Invocation cleanup finishes before its lock or session can be reused, even after repeated cancellation."
+context:
+  authority: >-
+    User decision 2026-11-02: implement the accepted points 1–5 from the Runtime
+    review: shared async joining, typed resources, CAS reconciliation, HTTP rules
+    and responsibility-based orchestrator extraction. Confirmed lifecycle and
+    HTTP defects have their own tasks in this package.
+  specification:
+    - docs/spec/execution/runtime-agent.md
+    - docs/spec/execution/worker.md
+    - docs/spec/platform/failure-model.md
+  finding: "worker/runtime.py:1571 and finalizer.py:185 shield once then await the child directly; a second cancellation interrupts State finalization and leaves stale instrumentation. Siblings: session release, history seal, summarizer observer, tool Worker, thread/process cleanup and subscriber notifications."
+  boundary: >-
+    Common modules own mechanics; callers retain deadlines, fencing, authority,
+    failure classification and semantic completion. Keep the model finalizer,
+    configured model, Artifact API and allocation state/idempotency contracts.
+    No generic retry or lifecycle framework and no new wire fields.
+  scale_and_failure: >-
+    No new concurrent fan-out or unbounded collection reads. Join only work
+    already owned under the existing operation deadline; retain caller error
+    precedence on success, failure, cancellation and timeout. CAS replays exact
+    bytes once and reads under the current domain byte ceiling.
+scope:
+  in:
+    - "One common outcome-neutral join primitive; migrate matching owned-task loops while preserving caller cancellation/error precedence and existing timeouts."
+    - "Real ADK invocation regression with repeated cancellation, blocked cleanup, no early lock release, and successful next invocation."
+  out:
+    - Removing the model result finalizer, Memory read parallelism, A2A retention and Gateway/OTLP response limits.
+    - Reopening V425-034, changing public/wire contracts or modifying unrelated macOS baseline failures V425-001/002.
+acceptance_criteria:
+  - id: A1
+    text: "One common outcome-neutral join primitive; migrate matching owned-task loops while preserving caller cancellation/error precedence and existing timeouts."
+  - id: A2
+    text: "Real ADK invocation regression with repeated cancellation, blocked cleanup, no early lock release, and successful next invocation."
+tests:
+  - command: cd runtime && uv run pytest -W error tests/test_threads.py tests/test_adk_runtime.py tests/test_adk_runtime_history.py tests/test_audit_completion_runtime.py tests/test_tool_worker.py tests/test_tool_process.py tests/test_audit_results_toolset.py
+    covers: [A1, A2]
+  - command: cd runtime && uv run ruff check . && uv run ruff format --check . && uv run lint-imports --no-cache --no-logo
+    covers: [A1, A2]
+implementation_commit: 6b007b94e0f532946333ab91afe7176d66c9af7d
+verification: >-
+  Required focused suite: 290 passed. Ruff check/format and all four import
+  contracts pass. The new real ADK regression verifies repeated cancellation
+  does not release the invocation lock or leave stale instrumentation.
+renumbering: >-
+  Integration 2026-11-02: main independently allocated V429-001 through
+  V429-018 to UI work. Preserve those published identities and move this
+  Runtime package to V432 with original implementation commits unchanged.

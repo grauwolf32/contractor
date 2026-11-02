@@ -39,7 +39,6 @@ func TestPostgresNextRoundStopsBeforeWritingUnsupportedScanTasks(t *testing.T) {
 		t.Fatal(err)
 	}
 	modified := strings.Replace(string(profileYAML), "maxRounds: 1", "maxRounds: 2", 1)
-	modified = strings.Replace(modified, "findingConfirmation: disabled", "findingConfirmation: human-required", 1)
 	if modified == string(profileYAML) {
 		t.Fatal("scan profile fixture did not enable later finding-confirmation Rounds")
 	}

@@ -9,6 +9,7 @@ from datetime import UTC, datetime, timedelta
 
 import httpx
 import pytest
+from fakes.worker_state import WorkerState
 from google.adk.tools import ToolContext
 from opentelemetry import trace
 from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import ExportTraceServiceRequest
@@ -25,7 +26,6 @@ from test_otlp_adapter import HEADER_SECRET, adapter_context, telemetry_settings
 
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.otlp_http import OTLPHTTPAdapterFactory
-from contractor_runtime.allocation import WorkerState
 from contractor_runtime.core.tool_metrics import RecordedToolCall
 from contractor_runtime.llm.client import new_gateway_client
 from contractor_runtime.llm.openai import OpenAICompatibleGatewayLlm
@@ -304,13 +304,13 @@ def test_actual_gateway_role_cancellation_joins_request_or_recovery_without_rese
             if role == "finalizer" and authority is not None:
                 # Only the isolated serializer waits for recovery; the main
                 # response is already spent and must remain charged once.
-                original = runtime._result_finalizer.run
+                original = runtime._pipeline.finalizer.run
 
                 async def finalizer_with_recovery(**kwargs):
                     normal._client_handle.recovery = authority
                     return await original(**kwargs)
 
-                runtime._result_finalizer.run = finalizer_with_recovery
+                runtime._pipeline.finalizer.run = finalizer_with_recovery
             task = asyncio.create_task(runtime.invoke(stage_request()))
             try:
                 await asyncio.wait_for(waiting.wait(), timeout=5)

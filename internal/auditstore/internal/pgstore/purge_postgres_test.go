@@ -10,6 +10,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -198,7 +199,7 @@ func collectPurgeFinding(t *testing.T, f collectingAuditFixture, receiptID strin
 	proposal := testExact("audit-findings", "candidate-"+receiptID, "proposal-r1")
 	proposal.MediaType, proposal.SizeBytes = "application/json", 128
 	findingID := insertAuditChildFinding(t, f, receiptID, proposal)
-	result := testExact(f.audit.AuditID, "result", "result-r1")
+	result := writeCollectionFixtureArtifact(t, f.ctx, f.pool, f.project.ProjectID, f.audit.AuditID, "result")
 	if _, inserted, err := f.store.Collect(f.ctx, auditstore.CollectParams{
 		Claim: f.claim, ReceiptID: "collection-" + receiptID, ExecutionID: f.execution.ExecutionID,
 		Disposition: auditstore.CollectionAccepted, SourceOutput: &result, RequestDigest: testDigest("9"),
@@ -221,8 +222,8 @@ func collectPurgeFinding(t *testing.T, f collectingAuditFixture, receiptID strin
 }
 
 // seedDecidedPurgeReviews records the decided review ledger an owner leaves
-// behind: a confirmed finding, a duplicate of it, an approved item action
-// and a rejected report candidate.
+// behind for an approved item and rejected report. Independent canonical
+// Finding assessments survive that Audit and exercise the Project graph.
 func seedDecidedPurgeReviews(t *testing.T, f collectingAuditFixture, confirmedID, duplicateID string) {
 	t.Helper()
 	digest := testDigest("c")
@@ -240,62 +241,30 @@ func seedDecidedPurgeReviews(t *testing.T, f collectingAuditFixture, confirmedID
 	machine := link(auditstore.ReportMachineLogicalKey, "report.json", "application/json")
 	summary := link(auditstore.ReportSummaryLogicalKey, "report.md", "text/markdown")
 	err := persistencepostgres.InTx(f.ctx, f.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		for _, request := range []struct {
-			id, findingID, subjectKind, subjectID, kind, actions string
-		}{
-			{"review-purge-confirmed", confirmedID, "finding", confirmedID, "finding-triage", `["true_positive"]`},
-			{"review-purge-duplicate", duplicateID, "finding", duplicateID, "finding-triage", `["duplicate"]`},
-			{"review-purge-item", "", "audit-item-action", f.itemID, "active-check-approval", `["approve","reject"]`},
-			{"review-purge-report", "", "audit-report", f.audit.AuditID, "report-acceptance", `["approve","reject"]`},
+		for _, subject := range []struct{ id, kind, subject string }{
+			{"item", "audit-item-action", f.itemID}, {"report", "audit-report", f.audit.AuditID},
 		} {
-			if _, err := tx.Exec(f.ctx, `
-INSERT INTO audit_review_requests (
-    request_id, audit_id, finding_id, subject_kind, subject_id, kind,
-    subject_revision, subject_digest, requested_actions, state,
-    idempotency_key, request_digest,
-    report_round_id, report_machine_link, report_summary_link
-) VALUES ($1, $2, NULLIF($3, ''), $4, $5, $6, 1, $7, $8::jsonb, 'decided', $1, $7,
-          CASE WHEN $4 = 'audit-report' THEN $9 END,
-          CASE WHEN $4 = 'audit-report' THEN $10::jsonb END,
-          CASE WHEN $4 = 'audit-report' THEN $11::jsonb END)`,
-				request.id, f.audit.AuditID, request.findingID, request.subjectKind,
-				request.subjectID, request.kind, digest, request.actions,
-				*f.audit.CurrentRoundID, machine, summary); err != nil {
+			kind, action := "active-check-approval", "approve"
+			if subject.id == "report" {
+				kind, action = "report-acceptance", "reject"
+			}
+			_, err := tx.Exec(f.ctx, `INSERT INTO audit_review_requests(request_id,audit_id,subject_kind,subject_id,kind,subject_revision,subject_digest,requested_actions,state,idempotency_key,request_digest,report_round_id,report_machine_link,report_summary_link)
+              VALUES($1,$2,$3,$4,$5,1,$6,'["approve","reject"]'::jsonb,'decided',$1,$6,
+              CASE WHEN $3='audit-report' THEN $7 END,CASE WHEN $3='audit-report' THEN $8::jsonb END,CASE WHEN $3='audit-report' THEN $9::jsonb END)`,
+				"review-purge-"+subject.id, f.audit.AuditID, subject.kind, subject.subject, kind, digest, *f.audit.CurrentRoundID, machine, summary)
+			if err != nil {
+				return err
+			}
+			if _, err = tx.Exec(f.ctx, `INSERT INTO audit_review_decisions(decision_id,request_id,audit_id,actor_id,action,rationale,subject_revision,subject_digest,idempotency_key,request_digest)
+              VALUES($1,$2,$3,$4,$5,'Decided before deletion.',1,$6,$1,$6)`, "decision-purge-"+subject.id, "review-purge-"+subject.id, f.audit.AuditID, f.audit.OwnerID, action, digest); err != nil {
 				return err
 			}
 		}
-		for _, decision := range []struct {
-			id, requestID, findingID, action, verdict, severity, duplicateTarget string
-		}{
-			{"decision-purge-confirmed", "review-purge-confirmed", confirmedID, "true_positive", "true_positive", "high", ""},
-			{"decision-purge-duplicate", "review-purge-duplicate", duplicateID, "duplicate", "duplicate", "", confirmedID},
-			{"decision-purge-item", "review-purge-item", "", "approve", "", "", ""},
-			{"decision-purge-report", "review-purge-report", "", "reject", "", "", ""},
-		} {
-			if _, err := tx.Exec(f.ctx, `
-INSERT INTO audit_review_decisions (
-    decision_id, request_id, audit_id, finding_id, actor_id, action, verdict,
-    severity, rationale, duplicate_target_id, subject_revision, subject_digest,
-    idempotency_key, request_digest
-) VALUES ($1, $2, $3, NULLIF($4, ''), $5, $6, NULLIF($7, ''), NULLIF($8, ''),
-          'Decided before deletion.', NULLIF($9, ''), 1, $10, $1, $10)`,
-				decision.id, decision.requestID, f.audit.AuditID, decision.findingID,
-				f.audit.OwnerID, decision.action, decision.verdict, decision.severity,
-				decision.duplicateTarget, digest); err != nil {
-				return err
-			}
-		}
-		if _, err := tx.Exec(f.ctx, `
-UPDATE audit_findings
-   SET state = 'confirmed', current_decision_id = 'decision-purge-confirmed',
-       revision = revision + 1
- WHERE finding_id = $1`, confirmedID); err != nil {
+		severity := auditstore.SeverityHigh
+		if _, err := NewOwnerTxStore(tx).AssessProjectFinding(f.ctx, auditstore.ProjectFindingEdit{OwnerID: f.audit.OwnerID, ProjectID: f.project.ProjectID, FindingID: confirmedID, ExpectedRevision: 1, Verdict: auditstore.VerdictTruePositive, Severity: &severity, Rationale: "Confirmed before Audit deletion."}); err != nil {
 			return err
 		}
-		_, err := tx.Exec(f.ctx, `
-UPDATE audit_findings
-   SET state = 'duplicate', duplicate_target_id = $2, revision = revision + 1
- WHERE finding_id = $1`, duplicateID, confirmedID)
+		_, err := NewOwnerTxStore(tx).AssessProjectFinding(f.ctx, auditstore.ProjectFindingEdit{OwnerID: f.audit.OwnerID, ProjectID: f.project.ProjectID, FindingID: duplicateID, ExpectedRevision: 1, Verdict: auditstore.VerdictDuplicate, DuplicateTargetID: &confirmedID, Rationale: "Linked before Audit deletion."})
 		return err
 	})
 	if err != nil {
@@ -356,3 +325,64 @@ func deleteChildRunForPurge(t *testing.T, f collectingAuditFixture) {
 
 // Populate the journal's audit ownership and composite action identity keys;
 // parent purge must remove attempts before intents without cascading a batch.
+
+func TestProjectFindingPurgeBoundsLargeAnalystMetadata(t *testing.T) {
+	f := newCollectingAuditFixture(t, "finding-metadata-purge", 1<<20)
+	base := collectPurgeFinding(t, f, "metadata-source")
+	// Size is the concern here; clone a schema-valid canonical identity, preserving
+	// its real retained first receipt. No legacy Finding schema participates.
+	_, err := f.pool.Exec(f.ctx, `INSERT INTO project_findings
+ SELECT (jsonb_populate_record(NULL::project_findings,to_jsonb(seed)||jsonb_build_object(
+ 'finding_id','metadata-'||n,'title',repeat('"',65536),'state','duplicate','analyst_verdict','duplicate',
+ 'rationale',repeat('"',65536),'actor_id','owner','assessed_at',clock_timestamp(),'duplicate_target_id',$1::text))).*
+ FROM project_findings AS seed CROSS JOIN generate_series(1,8) AS n WHERE finding_id=$1`, base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sizes := map[string]int{}
+	rows, err := f.pool.Query(f.ctx, `SELECT finding_id,octet_length(to_jsonb(finding)::text) FROM project_findings AS finding WHERE project_id=$1 AND duplicate_target_id IS NOT NULL`, f.project.ProjectID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for rows.Next() {
+		var id string
+		var bytes int
+		if err := rows.Scan(&id, &bytes); err != nil {
+			t.Fatal(err)
+		}
+		sizes[id] = bytes
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	rows.Close()
+	if _, _, err := projectstore.NewPostgresStore(f.pool).BeginDeletion(f.ctx, projectstore.BeginDeletionParams{OwnerID: f.project.OwnerID, ProjectID: f.project.ProjectID, ExpectedRevision: f.project.Revision}); err != nil {
+		t.Fatal(err)
+	}
+	if err := persistencepostgres.InTx(f.ctx, f.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		_, err := NewOwnerTxStore(tx).PurgeProjectFindings(f.ctx, f.project.ProjectID)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	rows, err = f.pool.Query(f.ctx, `SELECT finding_id FROM project_findings WHERE project_id=$1 AND finding_id LIKE 'metadata-%' AND state IS NULL`, f.project.ProjectID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	records, bytes := 0, 0
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			t.Fatal(err)
+		}
+		records++
+		bytes += sizes[id]
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	rows.Close()
+	if records == 0 || records > 128 || bytes > 1<<20 {
+		t.Fatalf("purge slice changed %d records/%d metadata bytes", records, bytes)
+	}
+}

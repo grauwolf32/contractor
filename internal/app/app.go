@@ -95,9 +95,6 @@ func runCLI(
 	if len(args) > 0 && args[0] == "migrate" {
 		return runMigrateCLI(ctx, args[1:], getenv, logger)
 	}
-	if len(args) > 0 && args[0] == "data-migrate" {
-		return runDataMigrateCLI(ctx, args[1:], getenv, logger)
-	}
 	if len(args) > 0 && args[0] == "auth" {
 		return runAuthCLI(args[1:])
 	}

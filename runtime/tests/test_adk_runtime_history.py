@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 from fakes.clock import advance_clock, run_with_advanceable_clock
 from fakes.model import text_result, tool_call
+from fakes.worker_state import WorkerState
 from test_adk_runtime import (
     PAST_STAGE_DEADLINE_SECONDS,
     CapturingScriptedLlm,
@@ -22,7 +23,6 @@ from test_adk_runtime import (
 )
 
 import contractor_runtime.worker.runtime as runtime_module
-from contractor_runtime.allocation import WorkerState
 from contractor_runtime.contracts import WorkerSessionMode
 from contractor_runtime.worker.history import ToolHistory, ToolHistoryError
 from contractor_runtime.worker.one_shot import OneShotSession
@@ -89,9 +89,9 @@ def test_started_tool_cancellation_keeps_paired_truthful_history_for_next_shared
             assert finished.is_set()
             assert effects == ["started"]
             assert not runtime._session_lifecycle.failed
-            assert runtime._active_task is None
-            assert runtime._active_budget is None
-            assert not runtime._invoke_lock.locked()
+            assert runtime._invocation.task is None
+            assert runtime._invocation.budget is None
+            assert not runtime._invocation.lock.locked()
             snapshot = await runtime._worker_state.snapshot()
             assert snapshot["lastCompletedInvocation"]["phase"] == "cancelled"
             payload_count = len(model.payloads)
@@ -275,13 +275,13 @@ def test_cancelled_invocation_joins_its_shielded_history_append_before_return(
             runtime.cancel_active(task)
             await asyncio.wait_for(seal_entered.wait(), timeout=10)
             assert not task.done()
-            assert runtime._invoke_lock.locked()
-            assert runtime._active_task is task
+            assert runtime._invocation.lock.locked()
+            assert runtime._invocation.task is task
             seal_release.set()
             with pytest.raises(asyncio.CancelledError):
                 await task
-            assert runtime._active_task is None
-            assert not runtime._invoke_lock.locked()
+            assert runtime._invocation.task is None
+            assert not runtime._invocation.lock.locked()
             assert len(model.payloads) == 1
             await assert_session_responses_once(runtime, ["cancelled-call"])
         finally:
@@ -311,7 +311,7 @@ def test_sealing_uses_bounded_public_reads_without_copying_full_history(tmp_path
         )
         inside_seal = ContextVar("test_inside_history_seal", default=False)
         seal_reads, ordinary_reads = [], []
-        original_seal = runtime._seal_tool_history
+        original_seal = runtime._turns.seal
         original_get = runtime._session_service.get_session
 
         async def observed_seal():
@@ -329,7 +329,7 @@ def test_sealing_uses_bounded_public_reads_without_copying_full_history(tmp_path
                 ordinary_reads.append(config)
             return await original_get(**kwargs)
 
-        monkeypatch.setattr(runtime, "_seal_tool_history", observed_seal)
+        monkeypatch.setattr(runtime._turns, "seal", observed_seal)
         monkeypatch.setattr(runtime._session_service, "get_session", observed_get)
         try:
             completion = await runtime.invoke(stage_request())
@@ -374,8 +374,8 @@ def test_seal_failure_during_cancel_preserves_cancel_and_fences_shared_reuse(
             with pytest.raises(asyncio.CancelledError):
                 await task
             assert runtime._session_lifecycle.failed
-            assert runtime._active_task is None
-            assert not runtime._invoke_lock.locked()
+            assert runtime._invocation.task is None
+            assert not runtime._invocation.lock.locked()
             snapshot = await runtime._worker_state.snapshot()
             assert snapshot["lastCompletedInvocation"]["phase"] == "cancelled"
             completion = await runtime.invoke(

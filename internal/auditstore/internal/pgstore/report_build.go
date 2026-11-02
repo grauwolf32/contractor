@@ -12,6 +12,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -44,11 +46,11 @@ func ValidateRecordReportPage(params auditstore.RecordReportPageParams) error {
 		return err
 	}
 	page := params.Page
-	if params.ExpectedAuditRevision == 0 || params.ExpectedAuditRevision > math.MaxInt64 ||
+	if params.ExpectedProjectRevision == 0 || params.ExpectedProjectRevision > contracts.MaxExactInteger || params.ExpectedAuditRevision == 0 || params.ExpectedAuditRevision > math.MaxInt64 ||
 		page.Ordinal < 0 || page.Ordinal >= auditstore.MaxReportPages || !page.Section.Valid() ||
 		page.EntryCount < 0 || page.EntryCount > auditstore.MaxReportPageRows ||
 		(page.EntryCount == 0) != (len(params.Content) == 0) ||
-		page.EntryCount == 0 && !page.Exhausted || len(params.Content) > artifacts.MaxPayloadSize {
+		page.EntryCount == 0 && !page.Exhausted && page.Section == auditstore.ReportSectionItems || len(params.Content) > artifacts.MaxPayloadSize {
 		return invalidf("report page is invalid")
 	}
 	if page.Section == auditstore.ReportSectionItems {
@@ -62,7 +64,7 @@ func ValidateRecordReportPage(params auditstore.RecordReportPageParams) error {
 			return invalidf("report items page coverage counts are invalid")
 		}
 	} else if page.RoundID != nil || page.LastItemOrdinal != nil || page.CoverageCounts != nil ||
-		(page.LastFinding == nil) != (page.EntryCount == 0) ||
+		(page.EntryCount > 0 || !page.Exhausted) && page.LastFinding == nil ||
 		page.LastFinding != nil && (page.LastFinding.CreatedAt.IsZero() ||
 			validateID("report page finding", page.LastFinding.FindingID) != nil) {
 		return invalidf("report findings page is invalid")
@@ -106,7 +108,7 @@ func (s *ClaimStore) RecordReportPage(ctx context.Context, params auditstore.Rec
 		params.Claim.AuditID, params.Claim.HolderID, params.Claim.Epoch,
 		params.ExpectedAuditRevision, page.Ordinal, string(page.Section), page.RoundID,
 		page.LastItemOrdinal, lastCreatedAt, lastFindingID, page.Exhausted,
-		page.EntryCount, content, coverageCounts,
+		page.EntryCount, content, coverageCounts, params.ExpectedProjectRevision,
 	).Scan(&recorded)
 	if err == nil {
 		return nil
@@ -124,14 +126,14 @@ func (s *ClaimStore) RecordReportPage(ctx context.Context, params auditstore.Rec
 
 // ListReportPages returns the metadata of the pages recorded for one Audit
 // revision, in page order, without their content.
-func (s *QueryStore) ListReportPages(ctx context.Context, auditID string, revision uint64) ([]auditstore.ReportPage, error) {
+func (s *QueryStore) ListReportPages(ctx context.Context, auditID string, revision, projectRevision uint64) ([]auditstore.ReportPage, error) {
 	if err := validateID("auditID", auditID); err != nil {
 		return nil, err
 	}
 	if revision == 0 || revision > math.MaxInt64 {
 		return nil, invalidf("report revision is invalid")
 	}
-	rows, err := s.db.Query(ctx, listReportPagesSQL, auditID, int64(revision), auditstore.MaxReportPages+1)
+	rows, err := s.db.Query(ctx, listReportPagesSQL, auditID, int64(revision), auditstore.MaxReportPages+1, projectRevision)
 	if err != nil {
 		return nil, fmt.Errorf("list Audit report pages: %w", err)
 	}
@@ -189,7 +191,7 @@ func scanReportPage(row scanner) (auditstore.ReportPage, error) {
 // Audit revision's report build. Recording bounds the total content by the
 // machine report bound, so the result is bounded too.
 func (s *QueryStore) ReadReportSections(
-	ctx context.Context, auditID string, revision uint64,
+	ctx context.Context, auditID string, revision, projectRevision uint64,
 ) (map[auditstore.ReportSection]auditstore.ReportSectionContent, error) {
 	if err := validateID("auditID", auditID); err != nil {
 		return nil, err
@@ -197,7 +199,7 @@ func (s *QueryStore) ReadReportSections(
 	if revision == 0 || revision > math.MaxInt64 {
 		return nil, invalidf("report revision is invalid")
 	}
-	rows, err := s.db.Query(ctx, readReportSectionsSQL, auditID, int64(revision))
+	rows, err := s.db.Query(ctx, readReportSectionsSQL, auditID, int64(revision), projectRevision)
 	if err != nil {
 		return nil, fmt.Errorf("read Audit report sections: %w", err)
 	}
@@ -294,120 +296,85 @@ func scanReportItem(row scanner) (auditstore.ReportItem, error) {
 // ListReportFindings reads one bounded page of report findings with their
 // current assessment and decision and the report projection stored at
 // intake. more reports whether the section continues after the page.
-func (s *QueryStore) ListReportFindings(
-	ctx context.Context, params auditstore.ReportFindingPageParams,
-) (findings []auditstore.ReportFinding, more bool, err error) {
+func (s *QueryStore) ListReportFindings(ctx context.Context, params auditstore.ReportFindingPageParams) (auditstore.ReportFindingWindow, error) {
 	if err := validateID("auditID", params.AuditID); err != nil {
-		return nil, false, err
+		return auditstore.ReportFindingWindow{}, err
 	}
-	if !findingSection(params.Section) || params.Limit < 1 || params.Limit > auditstore.MaxReportPageRows ||
-		params.ProjectionBytes < 1 || params.ProjectionBytes > artifacts.MaxPayloadSize ||
-		params.After != nil && (params.After.CreatedAt.IsZero() || validateID("finding cursor", params.After.FindingID) != nil) {
-		return nil, false, invalidf("report finding page is invalid")
+	if !findingSection(params.Section) || params.Limit < 1 || params.Limit > auditstore.MaxReportPageRows || params.ProjectionBytes < 1 || params.ProjectionBytes > artifacts.MaxPayloadSize || params.After != nil && (params.After.CreatedAt.IsZero() || validateID("finding cursor", params.After.FindingID) != nil) {
+		return auditstore.ReportFindingWindow{}, invalidf("report finding page is invalid")
 	}
 	var afterCreatedAt *time.Time
 	var afterFindingID *string
 	if params.After != nil {
-		createdAt := params.After.CreatedAt.UTC()
-		afterCreatedAt, afterFindingID = &createdAt, &params.After.FindingID
+		afterCreatedAt, afterFindingID = &params.After.CreatedAt, &params.After.FindingID
 	}
-	rows, err := s.db.Query(ctx, listReportFindingsSQL, params.AuditID, string(params.Section),
-		afterCreatedAt, afterFindingID, params.Limit+1, params.ProjectionBytes)
+	rows, err := s.db.Query(ctx, listReportFindingsSQL, params.AuditID, string(params.Section), afterCreatedAt, afterFindingID, params.Limit+1, params.ProjectionBytes)
 	if err != nil {
-		return nil, false, fmt.Errorf("list Audit report findings: %w", err)
+		return auditstore.ReportFindingWindow{}, fmt.Errorf("list report Finding window: %w", err)
 	}
 	defer rows.Close()
-	findings = make([]auditstore.ReportFinding, 0, params.Limit)
+	result := auditstore.ReportFindingWindow{Items: make([]auditstore.ReportFinding, 0, params.Limit)}
+	var last *auditstore.ReportFindingCursor
+	examined := 0
 	for rows.Next() {
-		value, included, scanErr := scanReportFinding(rows)
-		if scanErr != nil {
-			return nil, false, scanErr
+		value, matches, included, err := scanReportFinding(rows)
+		if err != nil {
+			return auditstore.ReportFindingWindow{}, err
 		}
-		if !included || len(findings) == params.Limit {
-			more = true
-			continue
+		if examined == params.Limit || (matches && !included) {
+			result.ContinueAfter = last
+			break
 		}
-		if value.State != string(params.Section) {
-			return nil, false, errors.New("stored Audit report finding state is invalid")
+		examined++
+		last = &auditstore.ReportFindingCursor{CreatedAt: value.CreatedAt, FindingID: value.FindingID}
+		if matches {
+			result.Items = append(result.Items, value)
 		}
-		findings = append(findings, value)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, false, fmt.Errorf("iterate Audit report findings: %w", err)
+		return auditstore.ReportFindingWindow{}, err
 	}
-	return findings, more, nil
+	return result, nil
 }
-
-func scanReportFinding(row scanner) (auditstore.ReportFinding, bool, error) {
+func scanReportFinding(row scanner) (auditstore.ReportFinding, bool, bool, error) {
 	var value auditstore.ReportFinding
 	var proposalJSON, projection []byte
-	var included bool
-	var revision int64
-	var assessmentID, semantic, resultDigest, contractDigest *string
-	var resultJSON, contractJSON []byte
-	var direct *bool
-	var assessmentAt *time.Time
-	var decisionID, actor, verdict, severity, rationale, subjectDigest *string
-	var subjectRevision *int64
-	var decisionAt *time.Time
-	if err := row.Scan(
-		&value.FindingID, &value.State, &proposalJSON, &value.DuplicateTargetID, &revision,
-		&value.CreatedAt, &included, &projection,
-		&assessmentID, &semantic, &resultJSON, &resultDigest, &direct,
-		&contractJSON, &contractDigest, &assessmentAt,
-		&decisionID, &actor, &verdict, &severity, &rationale, &subjectRevision,
-		&subjectDigest, &decisionAt,
-	); err != nil {
-		return auditstore.ReportFinding{}, false, fmt.Errorf("scan Audit report finding: %w", err)
+	var included, matches bool
+	if err := row.Scan(&value.FindingID, &value.ProjectID, &value.State, &proposalJSON, &value.DuplicateTargetID, &value.Revision, &value.CreatedAt, &included, &matches, &projection, &value.AnalystVerdict, &value.AnalystSeverity, &value.Rationale, &value.ActorID, &value.AssessedAt); err != nil {
+		return value, false, false, err
 	}
-	if !included {
-		return auditstore.ReportFinding{}, false, nil
+	if !contracts.ValidResourceID(value.FindingID) || value.CreatedAt.IsZero() {
+		return value, false, false, errors.New("stored report Finding cursor is invalid")
 	}
-	if revision < 1 || json.Unmarshal(proposalJSON, &value.FirstProposal) != nil ||
-		validateExactArtifact("first proposal", value.FirstProposal, true) != nil {
-		return auditstore.ReportFinding{}, false, errors.New("stored Audit report finding is invalid")
+	if !matches || !included {
+		return value, matches, included, nil
 	}
-	value.Revision = uint64(revision)
+	if value.Revision < 1 || strictjson.Decode(proposalJSON, &value.FirstProposal) != nil || validateExactArtifact("first proposal", value.FirstProposal, true) != nil {
+		return value, false, false, errors.New("stored report Finding is invalid")
+	}
 	var err error
-	if value.Projection, err = auditdomain.DecodeFindingReportProjection(projection); err != nil {
-		return auditstore.ReportFinding{}, false, errors.New("stored Audit report finding projection is invalid")
+	value.Projection, err = auditdomain.DecodeFindingReportProjection(projection)
+	if err != nil {
+		return value, false, false, errors.New("stored report Finding claim is invalid")
 	}
-	if assessmentID != nil {
-		if semantic == nil || resultDigest == nil || direct == nil || assessmentAt == nil {
-			return auditstore.ReportFinding{}, false, errors.New("stored Audit report assessment is incomplete")
-		}
-		assessment := &auditstore.ReportFindingAssessment{
-			AssessmentID: *assessmentID, SemanticAssessment: *semantic,
-			Result: auditstore.ExactArtifact{Digest: *resultDigest}, DirectVerification: *direct,
-			AcceptedAt: *assessmentAt,
-		}
-		if json.Unmarshal(resultJSON, &assessment.Result.Ref) != nil ||
-			validateExactArtifact("assessment result", assessment.Result, false) != nil {
-			return auditstore.ReportFinding{}, false, errors.New("stored Audit report assessment result is invalid")
-		}
-		if contractJSON != nil {
-			if contractDigest == nil {
-				return auditstore.ReportFinding{}, false, errors.New("stored Audit report assessment contract is incomplete")
-			}
-			assessment.Contract = &auditstore.ExactArtifact{Digest: *contractDigest}
-			if json.Unmarshal(contractJSON, &assessment.Contract.Ref) != nil ||
-				validateExactArtifact("assessment contract", *assessment.Contract, false) != nil {
-				return auditstore.ReportFinding{}, false, errors.New("stored Audit report assessment contract is invalid")
-			}
-		}
-		value.Assessment = assessment
+	return value, true, true, nil
+}
+
+// ReportProjectRevision pins report assembly to the canonical Finding owner.
+func (s *QueryStore) ReportProjectRevision(ctx context.Context, auditID string) (uint64, error) {
+	if err := validateID("auditID", auditID); err != nil {
+		return 0, err
 	}
-	if decisionID != nil {
-		if actor == nil || verdict == nil || rationale == nil || subjectRevision == nil ||
-			*subjectRevision < 1 || subjectDigest == nil || decisionAt == nil {
-			return auditstore.ReportFinding{}, false, errors.New("stored Audit report decision is incomplete")
-		}
-		value.Decision = &auditstore.ReportFindingDecision{
-			DecisionID: *decisionID, ActorID: *actor, Verdict: *verdict,
-			Severity: severity, Rationale: *rationale,
-			SubjectRevision: uint64(*subjectRevision), SubjectDigest: *subjectDigest,
-			CreatedAt: *decisionAt,
-		}
+	var revision uint64
+	err := s.db.QueryRow(ctx, reportProjectRevisionSQL, auditID).Scan(&revision)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, auditstore.ErrNotFound
 	}
-	return value, true, nil
+	if err != nil {
+		return 0, fmt.Errorf("read report Project revision: %w", err)
+	}
+	if revision < 1 || revision > contracts.MaxExactInteger {
+		return 0, errors.New("stored report Project revision is invalid")
+	}
+	return revision, nil
 }

@@ -12,9 +12,9 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore/ownerstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/querystore"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
-	"github.com/grauwolf32/contractor/internal/strictjson"
 	"github.com/jackc/pgx/v5"
 )
 

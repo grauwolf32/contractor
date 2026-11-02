@@ -15,9 +15,9 @@ from contractor_runtime.threads import to_thread_until_done
 from contractor_runtime.toolsets.common.http_capture import RecentHTTPCaptures
 from contractor_runtime.toolsets.http.capture import CapturedAttempt, CapturedExchange
 from contractor_runtime.toolsets.http.errors import HTTPToolError
+from contractor_runtime.toolsets.http.headers import body_headers, merge_headers, validate_headers
 from contractor_runtime.toolsets.http.tools import (
     _encode_body,
-    _headers,
     _HTTPSession,
     _method,
     _request_body,
@@ -114,9 +114,9 @@ class ControlledHTTPSession(_HTTPSession):
             raise ControlledHTTPError("http_request_invalid")
         async with self._lock:
             self._require_open()
-            selected_headers = {**self._default_headers, **_headers(headers)}
-            if content_type is not None:
-                selected_headers.setdefault("Content-Type", content_type)
+            selected_headers = body_headers(
+                self._default_headers, validate_headers(headers), content_type
+            )
             request_id = self._next_request_id
             self._next_request_id += 1
             started = time.monotonic()
@@ -166,7 +166,12 @@ class ControlledHTTPSession(_HTTPSession):
             )
             attempt.receive(message)
             exchange = CapturedExchange(
-                request_id, tag, attempts=[attempt], complete=True, response_body=response.body
+                request_id,
+                tag,
+                attempts=[attempt],
+                complete=not response.truncated,
+                response_body=response.body,
+                error="response_too_large" if response.truncated else None,
             )
             evidence = await to_thread_until_done(
                 exchange.evidence, name="audit-http-response-buffer"
@@ -187,10 +192,10 @@ class ControlledHTTPSession(_HTTPSession):
                 preview=preview,
                 headers=safe_headers,
                 headers_truncated=headers_truncated,
+                retained_body_truncated=response.truncated,
             )
             self._history.append(record)
             result = record.projection(include_preview=True)
-            result["body_truncated"] = bool(result.get("body_truncated")) or response.truncated
             if not response.session_valid:
                 result["session_error"] = "http_cookie_state_invalid"
             return result
@@ -222,15 +227,14 @@ class ControlledHTTPSession(_HTTPSession):
             or type(replace_headers) is not bool
         ):
             raise ControlledHTTPError("http_request_invalid")
-        selected = _headers(headers)
+        selected = validate_headers(headers)
         if any(name.lower() in {"authorization", "cookie"} for name in selected):
             raise ControlledHTTPError("http_request_invalid")
         async with self._lock:
             self._require_open()
-            self._default_headers = {
-                **({} if replace_headers else self._default_headers),
-                **selected,
-            }
+            self._default_headers = merge_headers(
+                {} if replace_headers else self._default_headers, selected
+            )
         return await self.get_session()
 
     async def clear_session(self):

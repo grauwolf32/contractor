@@ -7,6 +7,7 @@ import { checkBrowserSpecs, runBrowserGate } from "./browser-gate.mjs";
 const mockedSpecs = [
   "e2e/archive-preview.spec.ts",
   "e2e/artifact-preview.spec.ts",
+  "e2e/material-detail-design.spec.ts",
   "e2e/audit-labels.spec.ts",
   "e2e/audit-presets.spec.ts",
   "e2e/catalog.spec.ts",
@@ -17,7 +18,8 @@ const mockedSpecs = [
   "e2e/evals-design.spec.ts",
   "e2e/evals-setup.spec.ts",
   "e2e/evals-skills.spec.ts",
-  "e2e/finding-duplicates.spec.ts",
+  "e2e/project-finding-sources.spec.ts",
+  "e2e/issue-review-design.spec.ts",
   "e2e/git-artifacts.spec.ts",
   "e2e/model-selection.spec.ts",
   "e2e/operations-forms.spec.ts",

@@ -4,6 +4,7 @@ import asyncio
 from types import SimpleNamespace
 
 import pytest
+from fakes.worker_state import WorkerState
 from test_caido_read_tools import FakeArtifactClient as CaidoArtifacts
 from test_caido_read_tools import create_tools as caido_tools
 from test_http_toolset import create_tools as http_tools
@@ -18,7 +19,6 @@ from test_source_analysis_toolset import make_tools as source_tools
 from test_text_artifacts_toolset import MemoryArtifactClient
 from test_text_artifacts_toolset import make_tools as text_tools
 
-from contractor_runtime.allocation import WorkerState
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.telemetry.metrics import MetricsState
 from contractor_runtime.toolsets.caido.tools import CaidoToolError
@@ -47,7 +47,7 @@ def assert_repair(error, field, metrics):
 def test_finding_rejects_invalid_types_and_unicode_with_repair(field, value):
     async def scenario():
         client, metrics = FakeFindingClient(), MetricsState()
-        tool = GeneralFindingTool(FindingPublisher(client, metrics, (), WorkerState()))
+        tool = GeneralFindingTool(FindingPublisher(client, metrics, (), WorkerState().resources))
         arguments = {"title": "Candidate", "description": "Description", field: value}
         with pytest.raises(ToolInputError) as caught:
             await tool(

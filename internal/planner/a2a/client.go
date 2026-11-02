@@ -19,9 +19,9 @@ import (
 	sdk "github.com/a2aproject/a2a-go/v2/a2a"
 	"github.com/a2aproject/a2a-go/v2/a2aclient"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/helpers/requestid"
 	"github.com/grauwolf32/contractor/internal/mtls"
 	"github.com/grauwolf32/contractor/internal/planner"
-	"github.com/grauwolf32/contractor/internal/requestid"
 )
 
 const (

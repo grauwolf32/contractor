@@ -1,12 +1,239 @@
-/* The OpenAPI preview (openapi.tsx) around the Scalar reference. */
-
-.openapi-artifact-preview {
-  height: min(70vh, 52rem);
-  min-height: 32rem;
-  overflow: auto;
+/* Scalar owns interpretation; Contractor owns the saved-document reader shell. */
+.materials-api-intro {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-4) 0;
+  border-bottom: 1px solid var(--line);
+  font-size: var(--text-sm);
+}
+.materials-api-intro strong {
+  font-size: var(--text-xl);
+  font-weight: 600;
+}
+.materials-api-intro > span {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+.materials-api-intro > .ui-btn {
+  margin-left: auto;
+  font-weight: 400;
+}
+.materials-api-layout {
+  display: grid;
+  grid-template-columns: 236px minmax(0, 1fr);
+  min-width: 0;
+}
+.materials-api-browser {
+  align-self: start;
+  min-width: 0;
+  margin: var(--space-6) var(--space-6) 0 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
   background: var(--sunken);
 }
+.materials-api-browser > .materials-api-browse {
+  width: 100%;
+  justify-content: flex-start;
+  padding: var(--space-3);
+  color: var(--muted);
+  font-size: var(--text-2xs);
+  font-weight: 400;
+  text-align: left;
+}
+.materials-api-nav {
+  min-width: 0;
+  max-height: 40rem;
+  overflow: auto;
+  padding: var(--space-3);
+}
+.materials-api-group {
+  margin: var(--space-4) 0 var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: var(--text-2xs);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.materials-api-nav > div:first-of-type .materials-api-group {
+  margin-top: 0;
+}
+.materials-api-nav button {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted-strong);
+  text-align: left;
+  font: var(--text-xs)/1.5 var(--font-mono);
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.materials-api-nav button:hover {
+  background: var(--surface-hover);
+}
+.materials-api-nav button[aria-current] {
+  background: var(--sel);
+  color: var(--text);
+  box-shadow: inset 2px 0 var(--link);
+}
+.materials-api-method {
+  flex: 0 0 3.5em;
+  padding: var(--space-0-5) var(--space-1-5);
+  border-radius: var(--radius-sm);
+  color: var(--info);
+  background: var(--info-bg);
+  font-size: var(--text-2xs);
+  text-align: center;
+}
+.materials-api-method[data-method="post"] {
+  color: var(--success);
+  background: var(--success-bg);
+}
+.materials-api-method[data-method="delete"] {
+  color: var(--danger);
+  background: var(--danger-bg);
+}
+.materials-api-method[data-method="patch"],
+.materials-api-method[data-method="put"] {
+  color: var(--warning);
+  background: var(--warning-bg);
+}
+.materials-api-nav label {
+  display: grid;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  padding: var(--space-2);
+}
+.materials-api-nav input {
+  min-width: 0;
+  width: 100%;
+}
+.materials-api-pages {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-xs);
+}
+.materials-api-pages button {
+  width: auto;
+}
+.materials-api-policy {
+  margin: var(--space-3) 0 0;
+  font-size: var(--text-2xs);
+  color: var(--muted);
+}
+.materials-api-selection {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--line);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+.materials-api-selection code {
+  min-width: 0;
+}
+.materials-api-selection .materials-api-method {
+  flex: 0 0 auto;
+  font-family: var(--font-mono);
+}
+.openapi-artifact-preview {
+  min-width: 0;
+  overflow: auto;
+  padding: var(--space-6) 0 var(--space-3) var(--space-6);
+  background: var(--surface);
+}
+.openapi-artifact-preview :is(.scalar-app, .light-mode, .dark-mode) {
+  --scalar-font: var(--font-sans);
+  --scalar-font-code: var(--font-mono);
+  --scalar-color-1: var(--text);
+  --scalar-color-2: var(--muted-strong);
+  --scalar-color-3: var(--muted);
+  --scalar-background-1: var(--surface);
+  --scalar-background-2: var(--sunken);
+  --scalar-background-3: var(--surface-raised);
+  --scalar-border-color: var(--line);
+  --scalar-color-accent: var(--link);
+  --scalar-color-blue: var(--info);
+  --scalar-color-green: var(--success);
+  --scalar-color-orange: var(--warning);
+  --scalar-color-red: var(--danger);
+  --scalar-font-normal: 400;
+  --scalar-font-medium: 500;
+  --scalar-font-bold: 600;
+  --scalar-font-size-2: var(--text-sm);
+  --scalar-font-size-3: var(--text-sm);
+}
+/* Public Scalar slug generators provide stable selection IDs without changing refs. */
+.openapi-artifact-preview
+  .collapsible-section:has([id*="/models/material-other-schema-"]),
+.openapi-artifact-preview
+  [data-testid="lazy-container"][id*="material-other-operation-"],
+.openapi-artifact-preview
+  [data-testid="lazy-container"]:has(
+    > section[id*="material-other-operation-"]
+  ) {
+  display: none;
+}
+.materials-api-reader[data-show-info="false"] .introduction-section,
+.materials-api-reader[data-show-info="false"]
+  .tag-section-container
+  > .section {
+  display: none;
+}
+.materials-api-layout .openapi-artifact-preview .section {
+  padding: var(--space-4) 0;
+  border: 0;
+}
+.openapi-artifact-preview .operation-layout {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "heading" "badge" "description" "details" "examples";
+  gap: var(--space-3);
+}
+.openapi-artifact-preview .operation-title {
+  margin-bottom: 0;
+  --scalar-heading-1: var(--text-lg);
+  --scalar-bold: 500;
+}
+.openapi-artifact-preview .examples {
+  position: static;
+}
+.openapi-artifact-preview p {
+  font-size: var(--text-xs);
+  line-height: 1.6;
+}
+@media (max-width: 1100px) {
+  .materials-api-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .materials-api-browser {
+    margin: var(--space-3) 0;
+    background: transparent;
+    border: 0;
+    border-bottom: 1px solid var(--line);
+    border-radius: 0;
+  }
+  .materials-api-browser > .materials-api-browse {
+    padding-inline: 0;
+  }
+  .materials-api-nav {
+    max-height: 20rem;
+    padding: 0 0 var(--space-3);
+  }
+  .openapi-artifact-preview {
+    padding: var(--space-3) 0;
+  }
+}
 
-.openapi-artifact-preview .scalar-app {
-  min-height: 100%;
+.materials-api-browser[data-open="false"] .materials-api-nav {
+  display: none;
 }

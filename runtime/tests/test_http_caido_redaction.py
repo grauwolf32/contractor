@@ -107,7 +107,7 @@ def test_http_secrets_are_absent_from_every_retained_projection(tmp_path: Path) 
 
         encoded_artifacts = b"\n".join(artifacts.payloads.values())
         assert encoded_artifacts == b""
-        captured = await state.http_captures.get("http", "1")
+        captured = await state.resources.http_captures.get("http", "1")
         assert (
             base64.b64decode(captured["attempts"][-1]["response"]["message"]["body_base64"])
             == HTTP_RESPONSE_BODY.encode()
@@ -326,7 +326,7 @@ def test_caido_results_and_artifacts_scrub_runtime_injected_credentials(
         assert findings["findings"][0]["description"] == "Authorization: [REDACTED]"
         assert converted["output"].startswith("Authorization: [runtime-target-credential]\n")
 
-        stored = await _state.http_captures.get("caido", "request-1")
+        stored = await _state.resources.http_captures.get("caido", "request-1")
         attempt = stored["attempts"][0]
         assert (
             base64.b64decode(attempt["request"]["message"]["data_base64"]).decode()
@@ -390,7 +390,7 @@ def test_caido_short_injected_credentials_are_replaced_as_whole_header_values(
         )
         response = base64.b64decode(detail["response"]["raw"]["data_b64"])
         assert response == b"HTTP/1.1 200 OK\r\n\r\n\xff[REDACTED]\x00"
-        stored = await _state.http_captures.get("caido", "request-1")
+        stored = await _state.resources.http_captures.get("caido", "request-1")
         attempt = stored["attempts"][0]
         assert (
             base64.b64decode(attempt["request"]["message"]["data_base64"]).decode()

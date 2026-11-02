@@ -3,7 +3,7 @@ package contracts
 import (
 	"fmt"
 
-	"github.com/grauwolf32/contractor/internal/strictjson"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 )
 
 const (

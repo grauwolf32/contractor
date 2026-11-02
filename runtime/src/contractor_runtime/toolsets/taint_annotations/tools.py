@@ -29,6 +29,7 @@ from contractor_runtime.toolsets.code_analysis.tools import (
     dependency_versions_match,
 )
 from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
+from contractor_runtime.toolsets.common.resources import ToolResources
 from contractor_runtime.toolsets.taint_annotations.languages import (
     AnnotationParseResult,
     AnnotationTarget,
@@ -145,7 +146,7 @@ class TaintAnnotationsToolsetFactory:
         namespace: str,
         runtime_settings: RuntimeSettings,
         workspace: AllocationWorkspace,
-        state: Any,
+        resources: ToolResources,
         adapter_handles: AdapterHandles = EMPTY_ADAPTER_HANDLES,
         project_workspace: WorkspaceWriter | None = None,
     ) -> Mapping[str, Any]:
@@ -157,7 +158,7 @@ class TaintAnnotationsToolsetFactory:
         )
         if project_workspace is None:
             raise TaintAnnotationError("workspace_required")
-        metrics = require_metrics(state, "taint-annotations@1")
+        metrics = require_metrics(resources, "taint-annotations@1")
         session = _TaintAnnotationSession(project_workspace)
         builders: dict[str, Callable[[], Any]] = {
             "annotate_trace": lambda: AnnotateTraceTool(session, metrics),
@@ -708,11 +709,11 @@ def _args(value: str) -> str:
         if len(parts) != 2:
             raise TaintAnnotationError("taint_annotation_input_invalid")
         name = _argument_token(parts[0].strip())
-        state = parts[1].strip()
-        if state not in _ARG_STATES or name in names:
+        resources = parts[1].strip()
+        if resources not in _ARG_STATES or name in names:
             raise TaintAnnotationError("taint_annotation_input_invalid")
         names.add(name)
-        result.append(f"{name}:{state}")
+        result.append(f"{name}:{resources}")
     return ",".join(result)
 
 

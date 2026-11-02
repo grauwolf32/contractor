@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
@@ -32,6 +33,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/persistence/leasetest"
 	"github.com/grauwolf32/contractor/internal/persistence/postgres"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/persistence/postgrestest"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
@@ -932,6 +934,10 @@ func TestAuditReportAcceptanceUsesFrozenCandidate(t *testing.T) {
 			Artifact: artifact("report.md", "text/markdown", "# Frozen report\n"), SourceProvenance: provenance},
 		RequestDigest: serviceTestDigest("report-candidate"),
 	}
+	params.ExpectedProjectRevision, err = store.ReportProjectRevision(ctx, audit.AuditID)
+	if err != nil {
+		t.Fatal(err)
+	}
 	testLegacyReportWriteRejection(t, ctx, pool, params)
 	waiting, inserted, err := store.ProposeReport(ctx, params)
 	if err != nil || !inserted || waiting.State != auditstore.AuditWaitingReview {
@@ -1023,14 +1029,8 @@ UPDATE audit_review_requests
 	if len(claims) != 0 {
 		t.Fatalf("non-expired report review was claimed for reconciliation: %+v", claims)
 	}
-	if _, err := reviewService.CreateFindingReview(ctx, CreateFindingReviewParams{
-		OwnerID: project.OwnerID, AuditID: audit.AuditID, FindingID: findingID,
-		ExpectedRevision: 1, RequestID: "review-during-report-acceptance",
-		IdempotencyKey: "review-during-report-acceptance",
-		RequestDigest:  serviceTestDigest("review-during-report-acceptance"),
-	}); !errors.Is(err, auditstore.ErrPrecondition) {
-		t.Fatalf("finding review during report acceptance error = %v", err)
-	}
+	decideFindingForTest(t, ctx, reviewService, project.OwnerID, audit.AuditID, findingID, 1, "during-report", auditstore.VerdictNeedsEvidence, nil, nil)
+
 	if _, err := reviewService.Pause(ctx, MutationParams{
 		OwnerID: project.OwnerID, AuditID: audit.AuditID, ExpectedRevision: waiting.Revision,
 		IdempotencyKey: "pause-report-review", RequestDigest: serviceTestDigest("pause-report-review"),
@@ -1070,399 +1070,8 @@ UPDATE audit_review_requests
 		}
 	}
 	testLegacyCommittedReportRejection(t, ctx, pool, reviewService, project.OwnerID, project.ProjectID, params)
-	if _, err := reviewService.CreateFindingReview(ctx, CreateFindingReviewParams{
-		OwnerID: project.OwnerID, AuditID: audit.AuditID, FindingID: findingID,
-		ExpectedRevision: 1, RequestID: "review-after-report-acceptance",
-		IdempotencyKey: "review-after-report-acceptance",
-		RequestDigest:  serviceTestDigest("review-after-report-acceptance"),
-	}); err != nil {
-		t.Fatalf("finding review after report acceptance: %v", err)
-	}
-}
+	decideFindingForTest(t, ctx, reviewService, project.OwnerID, audit.AuditID, findingID, 2, "after-report", auditstore.VerdictFalsePositive, nil, nil)
 
-func TestAuditFindingReviewHistoryAndDeletedRunProvenance(t *testing.T) {
-	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
-	if databaseURL == "" {
-		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
-	defer cancel()
-	pool := isolatedAuditServicePool(t, ctx, databaseURL)
-
-	const ownerID = "owner-finding-review"
-	project, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{
-		ProjectID: "project-finding-review", OwnerID: ownerID, Kind: projectstore.KindProject,
-		Name: "Finding review", IdempotencyKey: "create-finding-review-project",
-		RequestDigest: serviceTestDigest("finding-review-project"),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	const auditID = "audit-finding-review"
-	if _, _, err := auditstoretest.NewStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{
-		AuditID: auditID, OwnerID: ownerID, ProjectID: project.ProjectID,
-		Profile: auditstore.ProfileIdentity{
-			Name: "finding-review", Version: "1", Digest: serviceTestDigest("finding-profile"),
-		},
-		ProfileSnapshot: json.RawMessage(`{"interaction":{"findingConfirmation":"human-required"}}`),
-		InputSelection:  json.RawMessage(`{}`),
-		Limits: auditstore.Limits{
-			MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: 2, MaxItemsTotal: 2,
-			MaxSubmittedRuns: 2, MaxItemRunAttempts: 1, MaxEvidenceBytes: 1 << 20,
-		},
-		IdempotencyKey: "create-finding-review-audit", RequestDigest: serviceTestDigest("finding-audit"),
-	}); err != nil {
-		t.Fatal(err)
-	}
-	firstID := seedAuditFinding(t, ctx, pool, project.ProjectID, ownerID, auditID, "first")
-	secondID := seedAuditFinding(t, ctx, pool, project.ProjectID, ownerID, auditID, "second")
-	intake, err := findingintake.New(pool)
-	if err != nil {
-		t.Fatal(err)
-	}
-	now := time.Date(2026, 9, 6, 3, 0, 0, 0, time.UTC)
-	service := &Service{pool: pool, findings: intake, now: func() time.Time { return now }}
-
-	listed, err := service.ListFindings(ctx, auditstore.FindingListParams{OwnerID: ownerID, AuditID: auditID, Limit: 10})
-	if err != nil || len(listed) != 2 || listed[0].AnalystVerdict != nil ||
-		listed[0].FirstProposal.Origin.RunDeleted != true || listed[0].Fingerprint == nil ||
-		listed[0].Fingerprint.Reason != "not_recorded" {
-		t.Fatalf("initial findings = (%+v, %v)", listed, err)
-	}
-	request, err := service.CreateFindingReview(ctx, CreateFindingReviewParams{
-		OwnerID: ownerID, AuditID: auditID, FindingID: firstID, ExpectedRevision: 1,
-		RequestID: "review-first-1", IdempotencyKey: "review-first-1",
-		RequestDigest: serviceTestDigest("review-first-1"),
-	})
-	if err != nil || request.Replayed || request.Request.SubjectRevision != 1 ||
-		request.Request.State != auditstore.ReviewPending {
-		t.Fatalf("create finding review = (%+v, %v)", request, err)
-	}
-	if _, err := service.CreateFindingReview(ctx, CreateFindingReviewParams{
-		OwnerID: ownerID, AuditID: auditID, FindingID: firstID, ExpectedRevision: 1,
-		RequestID: "review-first-1", IdempotencyKey: "review-first-1",
-		RequestDigest: serviceTestDigest("review-first-1-changed"),
-	}); !errors.Is(err, contracts.ErrIdempotencyConflict) || errors.Is(err, auditstore.ErrConflict) {
-		t.Fatalf("finding review key reused with another request = %v", err)
-	}
-	severity := auditstore.SeverityHigh
-	decisionParams := DecideFindingParams{
-		OwnerID: ownerID, AuditID: auditID, RequestID: request.Request.RequestID,
-		ExpectedRequestRevision: request.Request.Revision, DecisionID: "decision-first-1",
-		Verdict: auditstore.VerdictTruePositive, Severity: &severity, Rationale: "Confirmed by exact evidence.",
-		IdempotencyKey: "decision-first-1", RequestDigest: serviceTestDigest("decision-first-1"),
-	}
-	decided, err := service.DecideFinding(ctx, decisionParams)
-	if err != nil || decided.Finding.State != auditstore.FindingConfirmed || decided.Finding.Revision != 2 ||
-		decided.Finding.AnalystVerdict == nil || *decided.Finding.AnalystVerdict != auditstore.VerdictTruePositive ||
-		decided.Finding.AnalystSeverity == nil || *decided.Finding.AnalystSeverity != auditstore.SeverityHigh {
-		t.Fatalf("true-positive decision = (%+v, %v)", decided, err)
-	}
-	reportFindings, more, err := auditstoretest.NewStore(pool).ListReportFindings(ctx, auditstore.ReportFindingPageParams{
-		AuditID: auditID, Section: auditstore.ReportSectionConfirmed, Limit: 10, ProjectionBytes: 1 << 20,
-	})
-	var reportFinding *auditstore.ReportFinding
-	for index := range reportFindings {
-		if reportFindings[index].FindingID == firstID {
-			reportFinding = &reportFindings[index]
-		}
-	}
-	if err != nil || more || len(reportFindings) != 1 || reportFinding == nil ||
-		reportFinding.Decision == nil || reportFinding.Decision.Verdict != string(auditstore.VerdictTruePositive) ||
-		reportFinding.Decision.Severity == nil || *reportFinding.Decision.Severity != string(auditstore.SeverityHigh) {
-		t.Fatalf("report finding snapshot = (%+v, %v)", reportFindings, err)
-	}
-	decisionParams.DecisionID = "ignored-replay-id"
-	replayed, err := service.DecideFinding(ctx, decisionParams)
-	if err != nil || !replayed.Replayed || replayed.Decision.DecisionID != "decision-first-1" {
-		t.Fatalf("decision replay = (%+v, %v)", replayed, err)
-	}
-	changedDecision := decisionParams
-	changedDecision.RequestDigest = serviceTestDigest("decision-first-1-changed")
-	if _, err := service.DecideFinding(ctx, changedDecision); !errors.Is(err, contracts.ErrIdempotencyConflict) ||
-		errors.Is(err, auditstore.ErrConflict) {
-		t.Fatalf("decision key reused with another request = %v", err)
-	}
-	if _, err := service.CreateFindingReview(ctx, CreateFindingReviewParams{
-		OwnerID: ownerID, AuditID: auditID, FindingID: firstID, ExpectedRevision: 1,
-		RequestID: "stale-review", IdempotencyKey: "stale-review",
-		RequestDigest: serviceTestDigest("stale-review"),
-	}); !errors.Is(err, auditstore.ErrPrecondition) {
-		t.Fatalf("stale finding revision error = %v", err)
-	}
-
-	corrected := decideFindingForTest(t, ctx, service, ownerID, auditID, firstID, 2,
-		"correction", auditstore.VerdictTruePositive, reviewStringPointer(string(auditstore.SeverityMedium)), nil)
-	if corrected.State != auditstore.FindingConfirmed || corrected.AnalystSeverity == nil ||
-		*corrected.AnalystSeverity != auditstore.SeverityMedium || corrected.Revision != 3 {
-		t.Fatalf("corrected finding = %+v", corrected)
-	}
-	falsePositive := decideFindingForTest(t, ctx, service, ownerID, auditID, firstID, 3,
-		"false-positive", auditstore.VerdictFalsePositive, nil, nil)
-	if falsePositive.State != auditstore.FindingRejected || falsePositive.AnalystVerdict == nil ||
-		*falsePositive.AnalystVerdict != auditstore.VerdictFalsePositive || falsePositive.RejectionReason == nil {
-		t.Fatalf("false-positive finding = %+v", falsePositive)
-	}
-	reopened := decideFindingForTest(t, ctx, service, ownerID, auditID, firstID, 4,
-		"reopen", auditstore.VerdictReopen, nil, nil)
-	if reopened.State != auditstore.FindingProposed || reopened.AnalystVerdict != nil || reopened.Revision != 5 {
-		t.Fatalf("reopened finding = %+v", reopened)
-	}
-
-	secondReview, err := service.CreateFindingReview(ctx, CreateFindingReviewParams{
-		OwnerID: ownerID, AuditID: auditID, FindingID: secondID, ExpectedRevision: 1,
-		RequestID: "review-second-cycle", IdempotencyKey: "review-second-cycle",
-		RequestDigest: serviceTestDigest("review-second-cycle"),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	duplicate := decideFindingForTest(t, ctx, service, ownerID, auditID, firstID, 5,
-		"duplicate", auditstore.VerdictDuplicate, nil, &secondID)
-	if duplicate.State != auditstore.FindingDuplicate || duplicate.DuplicateTargetID == nil ||
-		*duplicate.DuplicateTargetID != secondID {
-		t.Fatalf("duplicate finding = %+v", duplicate)
-	}
-	_, err = service.DecideFinding(ctx, DecideFindingParams{
-		OwnerID: ownerID, AuditID: auditID, RequestID: secondReview.Request.RequestID,
-		ExpectedRequestRevision: secondReview.Request.Revision, DecisionID: "decision-second-cycle",
-		Verdict: auditstore.VerdictDuplicate, DuplicateTargetID: &firstID, Rationale: "Would form a cycle.",
-		IdempotencyKey: "decision-second-cycle", RequestDigest: serviceTestDigest("decision-second-cycle"),
-	})
-	if !errors.Is(err, auditstore.ErrConflict) {
-		t.Fatalf("duplicate cycle error = %v", err)
-	}
-	if _, err := pool.Exec(ctx, `
-UPDATE audit_review_requests SET expires_at = clock_timestamp() - interval '1 second'
- WHERE request_id = $1`, secondReview.Request.RequestID); err != nil {
-		t.Fatal(err)
-	}
-	_, err = service.DecideFinding(ctx, DecideFindingParams{
-		OwnerID: ownerID, AuditID: auditID, RequestID: secondReview.Request.RequestID,
-		ExpectedRequestRevision: secondReview.Request.Revision, DecisionID: "decision-second-expired",
-		Verdict: auditstore.VerdictNeedsEvidence, Rationale: "This request has expired.",
-		IdempotencyKey: "decision-second-expired", RequestDigest: serviceTestDigest("decision-second-expired"),
-	})
-	if !errors.Is(err, auditstore.ErrPrecondition) {
-		t.Fatalf("expired review decision error = %v", err)
-	}
-	expiredReview, err := service.GetReview(ctx, ownerID, auditID, secondReview.Request.RequestID)
-	if err != nil || expiredReview.State != auditstore.ReviewExpired || expiredReview.Revision != 2 {
-		t.Fatalf("persisted expired review = (%+v, %v)", expiredReview, err)
-	}
-
-	history, err := service.ListReviews(ctx, auditstore.ReviewListParams{
-		OwnerID: ownerID, AuditID: auditID, FindingID: &firstID, Limit: 10,
-	})
-	if err != nil || len(history) != 5 || history[0].Decision == nil || history[4].Decision == nil {
-		t.Fatalf("finding decision history = (%+v, %v)", history, err)
-	}
-	seedAuditFindingAttemptHistory(t, ctx, pool, auditID, firstID, "receipt-first")
-	provenance, err := service.ListFindingProvenance(ctx, auditstore.ProvenanceListParams{
-		OwnerID: ownerID, AuditID: auditID, FindingID: firstID, Limit: 10,
-	})
-	if err != nil || len(provenance) != 4 || provenance[0].Kind != auditstore.ProvenanceSourceProposal ||
-		!provenance[0].Origin.RunDeleted || provenance[1].Attempt == nil ||
-		provenance[1].Attempt.ItemAttempt != 1 ||
-		provenance[1].Attempt.CollectionDisposition == nil ||
-		*provenance[1].Attempt.CollectionDisposition != auditstore.CollectionExecutionFailed ||
-		provenance[1].Attempt.Result != nil || provenance[2].Attempt == nil ||
-		provenance[2].Attempt.ItemAttempt != 2 || provenance[2].Assessment == nil ||
-		provenance[2].Assessment.SemanticAssessment != "supported" ||
-		provenance[2].Attempt.Result == nil || !provenance[2].Attempt.RunDeleted ||
-		provenance[2].Attempt.RunProvenance == nil ||
-		provenance[2].Attempt.RunProvenance.RunID != "deleted-run-attempt-two" ||
-		provenance[3].Kind != auditstore.ProvenanceDirect || provenance[3].Attempt != nil ||
-		provenance[3].Assessment == nil || !provenance[3].Assessment.DirectVerification ||
-		provenance[3].Assessment.Contract == nil ||
-		provenance[3].Assessment.SemanticAssessment != "supported" ||
-		!provenance[3].Origin.RunDeleted {
-		t.Fatalf("deleted-Run provenance = (%+v, %v)", provenance, err)
-	}
-	if _, err := service.GetFinding(ctx, "another-owner", auditID, firstID); !errors.Is(err, auditstore.ErrNotFound) {
-		t.Fatalf("foreign finding read error = %v", err)
-	}
-
-	// Finalization owns an immutable report snapshot. Review remains available
-	// after completion, but may not change the Audit revision between report
-	// artifact creation and its transactional commit.
-	finalizingReview, err := service.CreateFindingReview(ctx, CreateFindingReviewParams{
-		OwnerID: ownerID, AuditID: auditID, FindingID: firstID, ExpectedRevision: 6,
-		RequestID: "review-finalizing", IdempotencyKey: "review-finalizing",
-		RequestDigest: serviceTestDigest("review-finalizing"),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := pool.Exec(ctx, `
-UPDATE audits
-   SET state = 'finalizing', dispatch_state = 'closed',
-       baseline_snapshot = '{}'::jsonb, started_at = $2::timestamptz,
-       deadline_at = $2::timestamptz + interval '1 hour'
- WHERE audit_id = $1`, auditID, now); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := service.CreateFindingReview(ctx, CreateFindingReviewParams{
-		OwnerID: ownerID, AuditID: auditID, FindingID: secondID, ExpectedRevision: 1,
-		RequestID: "review-during-finalizing", IdempotencyKey: "review-during-finalizing",
-		RequestDigest: serviceTestDigest("review-during-finalizing"),
-	}); !errors.Is(err, auditstore.ErrPrecondition) {
-		t.Fatalf("create review during finalization error = %v", err)
-	}
-	if _, err := service.DecideFinding(ctx, DecideFindingParams{
-		OwnerID: ownerID, AuditID: auditID, RequestID: finalizingReview.Request.RequestID,
-		ExpectedRequestRevision: finalizingReview.Request.Revision,
-		DecisionID:              "decision-during-finalizing", Verdict: auditstore.VerdictReopen,
-		Rationale: "Must wait for report commit.", IdempotencyKey: "decision-during-finalizing",
-		RequestDigest: serviceTestDigest("decision-during-finalizing"),
-	}); !errors.Is(err, auditstore.ErrPrecondition) {
-		t.Fatalf("decide review during finalization error = %v", err)
-	}
-}
-
-func seedAuditFindingAttemptHistory(
-	t *testing.T, ctx context.Context, pool *pgxpool.Pool,
-	auditID, findingID, proposalReceiptID string,
-) {
-	t.Helper()
-	digest := func(value string) string { return serviceTestDigest("attempt-" + value) }
-	taskRef := `{"namespace":"audit-task-packages","name":"check-one","revision":"task-r1"}`
-	resultRef := `{"namespace":"audit-results","name":"check-one","revision":"result-r2"}`
-	sourceRevision := "checks-r1"
-	origin, err := json.Marshal(auditstore.ItemOrigin{
-		Schema: auditstore.ItemOriginSchema, EntryKey: "check-one",
-		SourceRef:           &contracts.ArtifactRef{Namespace: "inputs", Name: "checks", Revision: &sourceRevision},
-		SourceContentDigest: digest("source"), SourceMediaType: "application/json",
-		CanonicalInventoryDigest: digest("inventory"),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = postgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		if _, err := tx.Exec(ctx, `
-INSERT INTO audit_rounds (
-    round_id, audit_id, ordinal, manifest_ref, manifest_digest, state, expected_item_count
-) VALUES (
-    'round-finding-attempts', $1, 1,
-    '{"namespace":"audit-rounds","name":"round-one","revision":"round-r1"}'::jsonb,
-    $2, 'closed', 1
-)`, auditID, digest("round")); err != nil {
-			return err
-		}
-		if _, err := tx.Exec(ctx, `
-INSERT INTO audit_items (
-    item_id, audit_id, round_id, item_key, ordinal, kind, subject_key,
-    task_ref, task_digest, origin, workflow_role, state,
-    coverage_status, coverage_requested, coverage_completed, coverage_gaps
-) VALUES (
-    'item-finding-attempts', $1, 'round-finding-attempts', 'check-one', 0,
-    'check', 'component-one', $2::jsonb, $3, $4::jsonb, 'check-role', 'ready',
-    'not-tested', '[]', '[]', '[]'
-)`, auditID, taskRef, digest("task"), origin); err != nil {
-			return err
-		}
-		for _, attempt := range []struct {
-			executionID, memberID, runID, outcome, disposition string
-			ordinal                                            int
-			hasResult                                          bool
-		}{
-			{"execution-attempt-one", "execution-item-attempt-one", "deleted-run-attempt-one", "failed", "execution-failed", 1, false},
-			{"execution-attempt-two", "execution-item-attempt-two", "deleted-run-attempt-two", "succeeded", "accepted-result", 2, true},
-		} {
-			workflow := &auditstore.WorkflowProvenance{
-				Name: "check", Version: "1", SchemaVersion: contracts.APIVersion,
-				ClosureDigest: digest("workflow"),
-			}
-			workflow.ConfigurationRef.Name = workflow.Name
-			workflow.ConfigurationRef.Version = workflow.Version
-			runProvenance, _ := json.Marshal(auditstore.RunProvenance{
-				Schema: "contractor.audit.run-provenance.v1", RunID: attempt.runID,
-				Workflow: workflow,
-			})
-			if _, err := tx.Exec(ctx, `
-INSERT INTO audit_executions (
-    lane_class, execution_id, audit_id, round_id, role, workflow_role, manifest_ref, manifest_digest,
-    submission_key, request_digest, run_id, state, terminal_outcome,
-    terminal_run_generation, terminal_run_sequence, terminal_observed_at,
-    run_provenance, run_deleted_at
-) VALUES (
-    'model', $1, $2, 'round-finding-attempts', 'check', 'check-role',
-    '{"namespace":"audit-executions","name":"check-one","revision":"execution-r1"}'::jsonb,
-    $3, $4, $5, $6, 'collected', $7, 'generation-one', $8,
-    clock_timestamp(), $9::jsonb, clock_timestamp()
-)`, attempt.executionID, auditID, digest(attempt.executionID),
-				"submission-"+attempt.executionID, digest("request-"+attempt.executionID),
-				attempt.runID, attempt.outcome, attempt.ordinal, runProvenance); err != nil {
-				return err
-			}
-			var storedResultRef any
-			var storedResultDigest any
-			if attempt.hasResult {
-				storedResultRef = resultRef
-				storedResultDigest = digest("result")
-			}
-			if _, err := tx.Exec(ctx, `
-INSERT INTO audit_execution_items (
-    execution_item_id, execution_id, audit_id, round_id, item_id,
-    batch_ordinal, item_attempt, task_ref, task_digest, input_refs,
-    state, collection_disposition, result_ref, result_digest, collected_at
-) VALUES (
-    $1, $2, $3, 'round-finding-attempts', 'item-finding-attempts',
-    0, $4, $5::jsonb, $6, '[]'::jsonb, 'settled', $7,
-    $8::jsonb, $9, clock_timestamp()
-)`, attempt.memberID, attempt.executionID, auditID, attempt.ordinal,
-				taskRef, digest("task"), attempt.disposition, storedResultRef,
-				storedResultDigest); err != nil {
-				return err
-			}
-		}
-		if _, err := tx.Exec(ctx, `
-UPDATE audit_executions
-   SET collection_receipt_id = 'collection-attempt-two', collection_disposition = 'accepted-result',
-       collection_source_output_ref = $2::jsonb, collection_source_output_digest = $3,
-       collection_retained_refs = '[]'::jsonb, collection_request_digest = $4,
-       collected_at = clock_timestamp()
- WHERE audit_id = $1 AND execution_id = 'execution-attempt-two'`, auditID, resultRef, digest("result"), digest("collection")); err != nil {
-			return err
-		}
-		if _, err := tx.Exec(ctx, `
-INSERT INTO audit_finding_assessments (
-    assessment_id, finding_id, audit_id, receipt_id, item_id,
-    execution_item_id, collection_receipt_id, semantic_assessment,
-    result_ref, result_digest
-) VALUES (
-    'assessment-attempt-two', $4, $1, $5, 'item-finding-attempts',
-    'execution-item-attempt-two', 'collection-attempt-two', 'supported',
-    $2::jsonb, $3
-)`, auditID, resultRef, digest("result"), findingID, proposalReceiptID); err != nil {
-			return err
-		}
-		directResultRef := `{"namespace":"audit-results","name":"direct","revision":"direct-result-r1"}`
-		directContractRef := `{"namespace":"audit-contracts","name":"direct","revision":"direct-contract-r1"}`
-		if _, err := tx.Exec(ctx, `
-INSERT INTO audit_finding_assessments (
-    assessment_id, finding_id, audit_id, receipt_id,
-    semantic_assessment, result_ref, result_digest,
-    direct_verification, contract_ref, contract_digest
-) VALUES (
-    'assessment-direct', $4, $1, $5, 'supported', $2::jsonb, $3,
-    true, $6::jsonb, $7
-)`, auditID, directResultRef, digest("direct-result"), findingID,
-			proposalReceiptID, directContractRef, digest("direct-contract")); err != nil {
-			return err
-		}
-		_, err := tx.Exec(ctx, `
-UPDATE audit_items
-   SET state = 'settled', final_disposition = 'accepted-result',
-       accepted_result_ref = $2::jsonb, accepted_result_digest = $3,
-       last_execution_item_id = 'execution-item-attempt-two'
- WHERE audit_id = $1 AND item_id = 'item-finding-attempts'`,
-			auditID, resultRef, digest("result"))
-		return err
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
 }
 
 func seedAuditFinding(
@@ -1499,9 +1108,22 @@ func seedAuditFindingDocument(
 
 func seedAuditFindingProjected(
 	t *testing.T, ctx context.Context, pool *pgxpool.Pool,
-	projectID, ownerID, auditID, suffix string, document auditdomain.FindingProposal, fingerprint auditdomain.FindingFingerprint, anchors auditdomain.FindingAnchorProjection, namespaces ...string,
+	projectID, ownerID, auditID, suffix string, document auditdomain.FindingProposal, fingerprint auditdomain.FindingFingerprint, anchors auditdomain.FindingAnchorProjection,
 ) string {
 	t.Helper()
+	if len(document.EvidenceIDs) == 0 {
+		document.EvidenceIDs = []string{"evidence-1"}
+	}
+	retainedEvidence := make([]findingintake.ExactArtifact, 0, len(document.EvidenceIDs))
+	for _, id := range document.EvidenceIDs {
+		body := []byte("Retained evidence " + suffix + " " + id)
+		file, err := artifactstest.WriteAuditArtifact(ctx, artifacts.NewService(artifacts.NewPostgresRepository(pool)), projectID, contracts.ArtifactRef{Namespace: artifactpolicy.FindingMaterialsNamespace, Name: suffix + "-" + id}, artifacts.Payload{MediaType: "text/plain", Data: body})
+		if err != nil {
+			t.Fatal(err)
+		}
+		retainedEvidence = append(retainedEvidence, findingintake.ExactArtifact{Ref: file.Ref, Digest: auditdomain.DigestBytes(body), MediaType: file.MediaType, SizeBytes: file.Size})
+	}
+	evidenceJSON, _ := json.Marshal(retainedEvidence)
 	payload, err := auditdomain.EncodeFindingProposal(document)
 	if err != nil {
 		t.Fatal(err)
@@ -1510,10 +1132,7 @@ func seedAuditFindingProjected(
 	if err != nil {
 		t.Fatal(err)
 	}
-	namespace := "audit-finding-proposals"
-	if len(namespaces) == 1 {
-		namespace = namespaces[0]
-	}
+	namespace := artifactpolicy.FindingMaterialsNamespace
 	written, err := artifactstest.WriteAuditArtifact(ctx, artifacts.NewService(artifacts.NewPostgresRepository(pool)), projectID,
 		contracts.ArtifactRef{Namespace: namespace, Name: "candidate-" + suffix},
 		artifacts.Payload{MediaType: "application/json", Data: payload})
@@ -1543,36 +1162,35 @@ INSERT INTO finding_proposal_receipts (
     workflow_name, workflow_version, workflow_schema_version,
     workflow_configuration_ref, workflow_closure_digest,
     proposal_ref, proposal_digest, proposal_media_type,
-    proposal_size_bytes, evidence, report_projection, fingerprint_projection, anchor_projection
-) VALUES ($1, $2, $3, 'runtime-review', 'instance-review', 'stage-review', 'worker',
+    proposal_size_bytes, evidence, report_projection, fingerprint_projection, anchor_projection,
+ retention_state,source_run_deleted_at,project_proposal,project_evidence,publication_requested
+, checks_projection) VALUES ($1, $2, $3, 'runtime-review', 'instance-review', 'stage-review', 'worker',
           $4, $5, $6, $7, $8, $9, $10,
           'finding-source', '1', 'contractor/v1alpha1',
           '{"name":"finding-source","version":"1"}'::jsonb, $11,
-          $12::jsonb, $13, 'application/json', $14, '[]'::jsonb, $15, $16,$17)`,
+          $12::jsonb, $13, 'application/json', $14, $18::jsonb, $15, $16,$17,'project-held',clock_timestamp(),$19::jsonb,$18::jsonb,true, json_build_object('schema','contractor.audit.finding-checks-projection.v1','proposal_digest',($13)::text,'size_bytes',($14)::bigint,'discarded',false,'subject',NULL,'limitations',NULL,'checks','[]'::json))`,
 		receiptID, "proposal-"+suffix, "allocation-"+suffix,
 		"invocation-"+suffix, "submission-"+suffix, document.ClientKey,
 		serviceTestDigest("request-"+suffix), "deleted-run-"+suffix, ownerID, projectID,
 		serviceTestDigest("workflow-"+suffix), proposalRefJSON, proposal.Digest, proposal.SizeBytes,
-		string(projection), string(fingerprintJSON), string(anchorJSON),
+		string(projection), string(fingerprintJSON), string(anchorJSON), evidenceJSON, proposalJSON,
 	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `
-UPDATE finding_proposal_receipts
-   SET retention_state = 'audit-held', source_run_deleted_at = clock_timestamp()
- WHERE receipt_id = $1`, receiptID); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := pool.Exec(ctx, `
-INSERT INTO finding_proposal_audit_holds (
-    receipt_id, audit_id, project_id, proposal_ref, evidence
-) VALUES ($1, $2, $3, $4::jsonb, '[]'::jsonb)`,
-		receiptID, auditID, projectID, proposalJSON); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO finding_proposal_audit_holds(receipt_id,audit_id,project_id,proposal_ref,evidence) VALUES($1,$2,$3,$4::jsonb,$5::jsonb)`, receiptID, auditID, projectID, proposalJSON, evidenceJSON); err != nil {
 		t.Fatal(err)
 	}
 	var findingID string
-	if err := pool.QueryRow(ctx, `SELECT finding_id FROM audit_findings
-WHERE audit_id = $1 AND first_receipt_id = $2`, auditID, receiptID).Scan(&findingID); err != nil {
+	err = persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		events := hookstore.NewFindingEventsTx(tx)
+		var err error
+		findingID, err = events.AdmitProjectFinding(ctx, projectID, receiptID, "finding-"+suffix)
+		if err != nil {
+			return err
+		}
+		return events.RecordFindingSourceAdded(ctx, auditID, receiptID, "deleted-run-"+suffix)
+	})
+	if err != nil {
 		t.Fatal(err)
 	}
 	return findingID
@@ -1582,27 +1200,21 @@ func decideFindingForTest(
 	t *testing.T, ctx context.Context, service *Service,
 	ownerID, auditID, findingID string, findingRevision uint64, key string,
 	verdict auditstore.AnalystVerdict, severityValue *string, duplicateTarget *string,
-) Finding {
+) auditstore.ProjectFinding {
 	t.Helper()
-	request, err := service.CreateFindingReview(ctx, CreateFindingReviewParams{
-		OwnerID: ownerID, AuditID: auditID, FindingID: findingID,
-		ExpectedRevision: findingRevision, RequestID: "review-" + key,
-		IdempotencyKey: "review-" + key, RequestDigest: serviceTestDigest("review-" + key),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
+
 	var severity *auditstore.FindingSeverity
 	if severityValue != nil {
 		value := auditstore.FindingSeverity(*severityValue)
 		severity = &value
 	}
-	result, err := service.DecideFinding(ctx, DecideFindingParams{
-		OwnerID: ownerID, AuditID: auditID, RequestID: request.Request.RequestID,
-		ExpectedRequestRevision: request.Request.Revision, DecisionID: "decision-" + key,
-		Verdict: verdict, Severity: severity, Rationale: "Analyst decision for " + key + ".",
-		DuplicateTargetID: duplicateTarget, IdempotencyKey: "decision-" + key,
-		RequestDigest: serviceTestDigest("decision-" + key),
+	current, err := service.reads().GetAuditProjectFinding(ctx, ownerID, auditID, findingID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := service.EditProjectFinding(ctx, ProjectFindingEditParams{
+		ProjectFindingEdit: auditstore.ProjectFindingEdit{OwnerID: ownerID, ProjectID: current.ProjectID, FindingID: findingID, ExpectedRevision: findingRevision, Verdict: verdict, Severity: severity, Rationale: "Analyst decision for " + key + ".", DuplicateTargetID: duplicateTarget},
+		IdempotencyKey:     "decision-" + key, RequestDigest: serviceTestDigest("decision-" + key),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -1830,7 +1442,6 @@ spec:
     incompleteRound: assess-with-gaps
   interaction:
     activeChecks: prohibited
-    findingConfirmation: disabled
     notApplicable: profile-rule
     reportAcceptance: automatic
 `,

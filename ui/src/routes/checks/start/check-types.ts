@@ -90,7 +90,6 @@ function variantKey(profile: AuditProfile): string | undefined {
     inputContract(profile),
     [
       interaction.activeChecks,
-      interaction.findingConfirmation,
       interaction.notApplicable,
       interaction.reportAcceptance,
     ],
@@ -590,7 +589,6 @@ const REASON_WORDS: Readonly<Record<CompatibilityReason, string>> = {
     "active checks are disabled in Project settings",
   automatic_active_checks_unsupported: "automatic live tests",
   active_check_approval_unsupported: "approvals for live tests",
-  finding_confirmation_unsupported: "confirming possible issues",
   manual_applicability_unsupported: "manual applicability decisions",
   report_acceptance_unsupported: "report acceptance",
   manual_item_unsupported: "manual items",

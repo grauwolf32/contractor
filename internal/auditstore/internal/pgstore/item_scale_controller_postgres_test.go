@@ -30,11 +30,8 @@ import (
 func TestPostgresControllerReadsAtItemScale(t *testing.T) {
 	f := newItemScaleFixture(t)
 	if _, err := f.pool.Exec(f.ctx, `
-INSERT INTO audit_review_requests (request_id, audit_id, finding_id, subject_kind, subject_id, kind,
-       subject_revision, subject_digest, requested_actions, state, expires_at, idempotency_key, request_digest)
-SELECT 'old-' || item_id, audit_id, NULL, 'audit-item-action', item_id, 'active-check-approval',
-       1, $2, '["approve"]'::jsonb, 'expired', clock_timestamp() - interval '1 day', 'old-' || item_id, $2
-  FROM audit_items WHERE audit_id = $1 AND state = 'settled' AND ordinal % 10 = 0`, f.auditID, testDigest("9")); err != nil {
+INSERT INTO audit_review_requests (request_id, audit_id, subject_kind, subject_id, kind, subject_revision, subject_digest, requested_actions, state, expires_at, idempotency_key, request_digest)
+SELECT 'old-' || item_id, audit_id, 'audit-item-action', item_id, 'active-check-approval', 1, $2, '["approve"]'::jsonb, 'expired', clock_timestamp() - interval '1 day', 'old-' || item_id, $2 FROM audit_items WHERE audit_id = $1 AND state = 'settled' AND ordinal % 10 = 0`, f.auditID, testDigest("9")); err != nil {
 		t.Fatal(err)
 	}
 	// The approval items' live reviews pass their expiry; nothing has stored

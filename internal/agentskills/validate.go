@@ -9,8 +9,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/grauwolf32/contractor/internal/contentdigest"
-	"github.com/grauwolf32/contractor/internal/zipdirectory"
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
+	"github.com/grauwolf32/contractor/internal/helpers/zipdirectory"
 )
 
 func Validate(payload []byte, expectedName string) (*Package, error) {

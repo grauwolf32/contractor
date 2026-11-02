@@ -10,8 +10,8 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	"github.com/grauwolf32/contractor/internal/runstore"
-	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 const (

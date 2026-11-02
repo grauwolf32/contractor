@@ -3,7 +3,7 @@ package artifactpreview
 import (
 	"errors"
 
-	"github.com/grauwolf32/contractor/internal/zipdirectory"
+	"github.com/grauwolf32/contractor/internal/helpers/zipdirectory"
 )
 
 // checkDirectory bounds actual central-directory records before zip.NewReader

@@ -1,7 +1,7 @@
 {
   "general": {
     "name": "finding",
-    "description": "Record one finding with optional source/web locations.\n\nA proposal records an observation, not a confirmed vulnerability. Describe\nthe impact and supporting observations. Locations may combine code and HTTP.\nEach location is either file with optional line/range, or url with optional\nmethod. Omit unknown coordinates and classification instead of guessing.\n\nArgs:\n    title: Short non-empty finding title.\n    description: Observation, impact, prerequisites and reproduction details.\n    locations: Optional explicit source or web locations.\n    request_id: Optional recent http_request ID from this invocation.\n    caido_request_id: Optional Caido ID inspected in this invocation. Select\n        one HTTP source; selected exchanges are saved automatically.\n    cwe: Optional CWE-NNN weakness identifier from the pinned catalog.\n    evidence_refs: Optional exact artifact references copied from tool output.\n        With any selected exchange they total at most 64 MiB; a larger set\n        fails with invalid_finding_request, so cite fewer artifacts.\n    standard_refs: Optional exact standard identities copied from an assigned\n        Audit task. A finding linked to a standard-mapped Audit result must\n        cite every assigned entry ID.\n    proposed_checks: Optional follow-up questions, each with objective and\n        method. At most 512; these suggestions grant no execution authority.",
+    "description": "Record one finding with optional source/web locations.\n\nA proposal records an observation, not a confirmed vulnerability. Describe\nthe impact and supporting observations. Locations may combine code and HTTP.\nEach location is either file with optional line/range, or url with optional\nmethod. Omit unknown coordinates and classification instead of guessing.\n\nArgs:\n    title: Short non-empty finding title.\n    description: Observation, impact, prerequisites and reproduction details.\n    locations: Optional explicit source or web locations.\n    request_id: Optional recent http_request ID from this invocation.\n    caido_request_id: Optional Caido ID inspected in this invocation. Select\n        one HTTP source; selected exchanges are saved automatically.\n    cwe: Optional CWE-NNN weakness identifier from the pinned catalog.\n    evidence_refs: Optional exact artifact references copied from tool output.\n        With any selected exchange they total at most 64 MiB; a larger set\n        fails with invalid_finding_request, so cite fewer artifacts.\n    standard_refs: Optional exact standard identities copied from an assigned\n        Audit task. A finding linked to a standard-mapped Audit result must\n        cite every assigned entry ID.\n    proposed_checks: Optional follow-up questions, each with objective and\n        method. At most 512; these suggestions grant no execution authority.\n    publish_problem: Explicitly publish the described problem to the Project.\n        Requires selected exact evidence. False keeps an ordinary proposal.",
     "parameters": {
       "$defs": {
         "ExactEvidenceRef": {
@@ -255,6 +255,11 @@
           ],
           "default": null,
           "title": "Proposed Checks"
+        },
+        "publish_problem": {
+          "default": false,
+          "title": "Publish Problem",
+          "type": "boolean"
         }
       },
       "required": [
@@ -267,7 +272,7 @@
   },
   "code": {
     "name": "finding",
-    "description": "Record one code finding at an explicit source file.\n\nExplain the observation, impact and prerequisites. This records a proposal;\nit does not confirm exploitability. Use line or range, never both. Coordinates\nare one-based and inclusive. Omit unknown line numbers rather than guessing.\n\nArgs:\n    title: Short non-empty finding title.\n    description: Source observation, reasoning, impact and prerequisites.\n    file: Exact case-sensitive relative POSIX path in the inspected source.\n    line: Optional one-based line number.\n    range: Optional inclusive start_line/end_line object.\n    cwe: Optional CWE-NNN weakness identifier from the pinned catalog.\n    evidence_refs: Optional exact artifact references copied from tool output.\n        They total at most 64 MiB; a larger set fails with\n        invalid_finding_request, so cite fewer artifacts.\n    standard_refs: Optional exact standard identities copied from an assigned\n        Audit task. A finding linked to a standard-mapped Audit result must\n        cite every assigned entry ID.\n    proposed_checks: Optional follow-up questions, each with objective and\n        method. At most 512; these suggestions grant no execution authority.",
+    "description": "Record one code finding at an explicit source file.\n\nExplain the observation, impact and prerequisites. This records a proposal;\nit does not confirm exploitability. Use line or range, never both. Coordinates\nare one-based and inclusive. Omit unknown line numbers rather than guessing.\n\nArgs:\n    title: Short non-empty finding title.\n    description: Source observation, reasoning, impact and prerequisites.\n    file: Exact case-sensitive relative POSIX path in the inspected source.\n    line: Optional one-based line number.\n    range: Optional inclusive start_line/end_line object.\n    cwe: Optional CWE-NNN weakness identifier from the pinned catalog.\n    evidence_refs: Optional exact artifact references copied from tool output.\n        They total at most 64 MiB; a larger set fails with\n        invalid_finding_request, so cite fewer artifacts.\n    standard_refs: Optional exact standard identities copied from an assigned\n        Audit task. A finding linked to a standard-mapped Audit result must\n        cite every assigned entry ID.\n    proposed_checks: Optional follow-up questions, each with objective and\n        method. At most 512; these suggestions grant no execution authority.\n    publish_problem: Explicitly publish the described problem to the Project.\n        Requires selected exact evidence. False keeps an ordinary proposal.",
     "parameters": {
       "$defs": {
         "ExactEvidenceRef": {
@@ -457,6 +462,11 @@
           ],
           "default": null,
           "title": "Proposed Checks"
+        },
+        "publish_problem": {
+          "default": false,
+          "title": "Publish Problem",
+          "type": "boolean"
         }
       },
       "required": [
@@ -470,7 +480,7 @@
   },
   "http": {
     "name": "finding",
-    "description": "Record one HTTP finding at an explicit URL and method.\n\nDescribe the observed behavior, impact and authorization context. An optional\nrequest_id attaches the captured outgoing request and response evidence from\nthis invocation's recent HTTP history. Omit the ID to report without captured\nevidence. Reporting never sends or replays an HTTP request.\n\nArgs:\n    title: Short non-empty finding title.\n    description: Observations, impact, prerequisites and reproduction details.\n    url: Absolute HTTP/HTTPS URL of the affected endpoint.\n    method: Explicit HTTP method; no default method is inferred.\n    request_id: Optional ID returned by http_request in this invocation.\n    caido_request_id: Optional ID from caido_request_detail or a completed\n        caido_replay in this invocation. Select this or request_id; finding\n        saves the selected exchange automatically without sending traffic.\n    cwe: Optional CWE-NNN weakness identifier from the pinned catalog.\n    evidence_refs: Optional exact artifact references copied from tool output.\n        With any selected exchange they total at most 64 MiB; a larger set\n        fails with invalid_finding_request, so cite fewer artifacts.\n    standard_refs: Optional exact standard identities copied from an assigned\n        Audit task. A finding linked to a standard-mapped Audit result must\n        cite every assigned entry ID.\n    proposed_checks: Optional follow-up questions, each with objective and\n        method. At most 512; these suggestions grant no execution authority.",
+    "description": "Record one HTTP finding at an explicit URL and method.\n\nDescribe the observed behavior, impact and authorization context. An optional\nrequest_id attaches the captured outgoing request and response evidence from\nthis invocation's recent HTTP history. Omit the ID to report without captured\nevidence. Reporting never sends or replays an HTTP request.\n\nArgs:\n    title: Short non-empty finding title.\n    description: Observations, impact, prerequisites and reproduction details.\n    url: Absolute HTTP/HTTPS URL of the affected endpoint.\n    method: Explicit HTTP method; no default method is inferred.\n    request_id: Optional ID returned by http_request in this invocation.\n    caido_request_id: Optional ID from caido_request_detail or a completed\n        caido_replay in this invocation. Select this or request_id; finding\n        saves the selected exchange automatically without sending traffic.\n    cwe: Optional CWE-NNN weakness identifier from the pinned catalog.\n    evidence_refs: Optional exact artifact references copied from tool output.\n        With any selected exchange they total at most 64 MiB; a larger set\n        fails with invalid_finding_request, so cite fewer artifacts.\n    standard_refs: Optional exact standard identities copied from an assigned\n        Audit task. A finding linked to a standard-mapped Audit result must\n        cite every assigned entry ID.\n    proposed_checks: Optional follow-up questions, each with objective and\n        method. At most 512; these suggestions grant no execution authority.\n    publish_problem: Explicitly publish the described problem to the Project.\n        Requires selected exact evidence. False keeps an ordinary proposal.",
     "parameters": {
       "$defs": {
         "ExactEvidenceRef": {
@@ -642,6 +652,11 @@
           ],
           "default": null,
           "title": "Proposed Checks"
+        },
+        "publish_problem": {
+          "default": false,
+          "title": "Publish Problem",
+          "type": "boolean"
         }
       },
       "required": [
@@ -656,7 +671,7 @@
   },
   "reader": {
     "name": "list_findings",
-    "description": "List finding proposals from this Run's prepared collection.\n\nReturns bounded previews and exact current-Run artifact references. Use\nread_artifact with proposal.ref or evidence[].ref for full content. Source\nrefs are provenance only. Captured reviews describe the collection snapshot;\nlisting does not confirm, deduplicate or change a finding.\n\nArgs:\n    subject_kind: Optional exact, case-sensitive subject kind identifier.\n    subject_key: Optional exact subject key; requires subject_kind.\n    limit: Maximum items to return, from 1 to 100; defaults to 20. The byte\n        limit may shorten a page. Follow next_cursor until it is null.\n    cursor: Opaque next_cursor from this collection with the same filters.\n        Omit for the first page. The limit may change between pages.\n\nReturns:\n    items with receipt identity, subject, title and description previews,\n    hypothesis presence, proposal and evidence refs, and captured reviews;\n    next_cursor is null when no matching entries remain. No matches returns\n    an empty items list. Invalid filters or cursors and oversized individual\n    items fail explicitly without dropping entries.",
+    "description": "List finding proposals from this Run's prepared collection.\n\nReturns bounded previews and exact current-Run artifact references. Use\nread_artifact with proposal.ref or evidence[].ref for full content. Source\nrefs are provenance only. Captured Project Finding metadata describes the collection snapshot;\nlisting does not confirm, deduplicate or change a finding.\n\nArgs:\n    subject_kind: Optional exact, case-sensitive subject kind identifier.\n    subject_key: Optional exact subject key; requires subject_kind.\n    limit: Maximum items to return, from 1 to 100; defaults to 20. The byte\n        limit may shorten a page. Follow next_cursor until it is null.\n    cursor: Opaque next_cursor from this collection with the same filters.\n        Omit for the first page. The limit may change between pages.\n\nReturns:\n    items with receipt identity, subject, title and description previews,\n    hypothesis presence, proposal and evidence refs, and the captured\n    Project Finding when published;\n    next_cursor is null when no matching entries remain. No matches returns\n    an empty items list. Invalid filters or cursors and oversized individual\n    items fail explicitly without dropping entries.",
     "parameters": {
       "properties": {
         "subject_kind": {

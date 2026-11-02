@@ -14,15 +14,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
-	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/helpers/clone"
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
+	"github.com/grauwolf32/contractor/internal/helpers/randomid"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	"github.com/grauwolf32/contractor/internal/planner"
-	"github.com/grauwolf32/contractor/internal/randomid"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/stageresult"
-	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 const (
@@ -38,7 +38,7 @@ type Store interface {
 	GetStageExecution(context.Context, string) (runstore.StageExecution, error)
 	StartPlanner(context.Context, runstore.StartPlannerParams) error
 	GetPlannerSession(context.Context, string) (runstore.PlannerSession, error)
-	GetPlannerSessions(context.Context, []string) (map[string]runstore.PlannerSession, error)
+	ReadPlannerSessions(context.Context, []string, func(runstore.PlannerSession) error) error
 	AppendPlannerEvent(context.Context, runstore.AppendPlannerEventParams) error
 }
 

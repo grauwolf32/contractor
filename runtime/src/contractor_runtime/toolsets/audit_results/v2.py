@@ -37,6 +37,7 @@ from contractor_runtime.toolsets.common.http_capture import (
     HTTPObservation,
     allocation_http_captures,
 )
+from contractor_runtime.toolsets.common.resources import ToolResources
 
 
 def _text(value, field, key):
@@ -409,7 +410,7 @@ class AuditResultsToolsetFactory:
         allocation_id,
         namespace,
         runtime_settings,
-        state,
+        resources: ToolResources,
         completion_contract=None,
         **kwargs,
     ):
@@ -428,14 +429,14 @@ class AuditResultsToolsetFactory:
             client=self._client_factory(allocation_id, runtime_settings),
             timeout=runtime_settings.request_timeout_seconds,
         )
-        binding.diagnostics_sink = state.metrics.record_completion
-        state.audit_completion_binding = binding
+        binding.diagnostics_sink = resources.metrics.record_completion
+        resources.proposal_collector = binding.current
         tools = {
             "read_audit_task": ReadAuditTaskTool(
-                binding.current, completion_contract.task, state.metrics
+                binding.current, completion_contract.task, resources.metrics
             ),
             "submit_check_result": SubmitCheckResultTool(
-                binding.current, state.metrics, allocation_http_captures(state)
+                binding.current, resources.metrics, allocation_http_captures(resources)
             ),
         }
         for tool in tools.values():

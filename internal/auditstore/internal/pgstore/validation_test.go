@@ -74,8 +74,8 @@ func TestReportSummaryRequiresMarkdown(t *testing.T) {
 	}
 	for _, media := range []string{"text/markdown", "text/plain", "text/html", "text/markdown; charset=utf-8", ""} {
 		params := auditstore.CommitReportParams{
-			Claim:                 auditstore.ControllerClaim{AuditID: "audit", HolderID: "holder", Epoch: 1},
-			ExpectedAuditRevision: 1, RoundID: "round", ExpectedRoundRevision: 1,
+			Claim:                   auditstore.ControllerClaim{AuditID: "audit", HolderID: "holder", Epoch: 1},
+			ExpectedProjectRevision: 1, ExpectedAuditRevision: 1, RoundID: "round", ExpectedRoundRevision: 1,
 			RequestDigest: testDigest("2"),
 			Machine:       link(auditstore.ReportMachineLogicalKey, "application/json"),
 			Summary:       link(auditstore.ReportSummaryLogicalKey, media),

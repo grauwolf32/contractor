@@ -117,8 +117,7 @@ func TestTop10ProfileUsesOrdinaryCompatibleRunBoundary(t *testing.T) {
 	compatibility := auditservice.ProfileCompatibility(profile)
 	if !compatibility.ServerCompatible || profile.Mode != auditprofile.AuditModeRiskAssessment ||
 		profile.Inventory.Implementation != "standard-mappings@1" ||
-		profile.Inventory.Source != nil || profile.Execution.BatchSize != 1 ||
-		profile.Interaction.FindingConfirmation != auditprofile.AuditFindingHumanRequired {
+		profile.Inventory.Source != nil || profile.Execution.BatchSize != 1 {
 		t.Fatalf("Top 10 profile is not runnable: profile=%+v compatibility=%+v", profile, compatibility)
 	}
 	binding := profile.Workflows["check"]

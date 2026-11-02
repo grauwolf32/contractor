@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/grauwolf32/contractor/internal/auditstore/ownerstore"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
@@ -49,6 +50,13 @@ func PurgeProjectReceipts(ctx context.Context, tx pgx.Tx, projectID string) (boo
 		ctx, `SELECT set_config('contractor.lifecycle_purge', 'project', true)`,
 	); err != nil {
 		return false, fmt.Errorf("enable Project lifecycle purge: %w", err)
+	}
+	findingsGone, err := ownerstore.NewTx(tx).PurgeProjectFindings(ctx, projectID)
+	if err != nil {
+		return false, err
+	}
+	if !findingsGone {
+		return false, nil
 	}
 	budget := persistencepostgres.CleanupBudget{RowLimit: receiptPurgeBatchSize, ByteLimit: receiptPurgeBatchBytes}
 	gone, err := persistencepostgres.DeleteWithinBudget(ctx, tx, &budget, persistencepostgres.BoundedDelete{

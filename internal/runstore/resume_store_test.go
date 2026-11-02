@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"reflect"
 	"slices"
 	"strings"
@@ -15,6 +14,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"

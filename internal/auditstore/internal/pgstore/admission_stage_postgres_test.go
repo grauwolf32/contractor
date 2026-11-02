@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/agentskills"
+	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditbaseline"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
@@ -90,7 +91,7 @@ func stagedProposal(t *testing.T, f collectingAuditFixture, count int, ids ...st
 	}
 	service := artifacts.NewService(artifacts.NewPostgresRepository(f.pool))
 	scope, _ := artifacts.ProjectScope(f.audit.ProjectID)
-	written, err := service.CreateFrozen(f.ctx, scope, contracts.ArtifactRef{Namespace: auditdomain.ArtifactNamespace(f.audit.AuditID), Name: "staged-source-" + receiptID}, artifacts.Payload{MediaType: auditdomain.JSONMediaType, Data: data})
+	written, err := service.CreateFrozen(f.ctx, scope, contracts.ArtifactRef{Namespace: artifactpolicy.FindingMaterialsNamespace, Name: "staged-source-" + receiptID}, artifacts.Payload{MediaType: auditdomain.JSONMediaType, Data: data})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -340,7 +341,7 @@ func TestPostgresAdmissionPreparedAndAcceptedMembershipPurgeWithAudit(t *testing
 			// This shared purge fixture removes the native Run row directly. Seed the
 			// exact receipt boundary that the Run deletion hook records; its complete
 			// production path is covered by finding intake's deletion integration tests.
-			tag, e := f.pool.Exec(f.ctx, `UPDATE finding_proposal_receipts SET source_run_deleted_at=clock_timestamp(),retention_state='audit-held' WHERE run_id=$1 AND NOT EXISTS(SELECT 1 FROM workflow_runs WHERE run_id=$1)`, *f.execution.RunID)
+			tag, e := f.pool.Exec(f.ctx, `UPDATE finding_proposal_receipts SET source_run_deleted_at=clock_timestamp() WHERE run_id=$1 AND NOT EXISTS(SELECT 1 FROM workflow_runs WHERE run_id=$1)`, *f.execution.RunID)
 			if e != nil || tag.RowsAffected() != 1 {
 				t.Fatalf("deleted producer boundary=%d,%v", tag.RowsAffected(), e)
 			}
@@ -381,8 +382,8 @@ func TestPostgresAdmissionPreparedAndAcceptedMembershipPurgeWithAudit(t *testing
 				t.Fatal(e)
 			}
 			projection, e := auditdomain.DecodeFindingChecksProjection(projectionBytes)
-			if e != nil || !projection.Discarded || len(projection.Checks) != 0 {
-				t.Fatalf("last hold source discarded=%v checks=%d error=%v", projection.Discarded, len(projection.Checks), e)
+			if e != nil || projection.Discarded || len(projection.Checks) != 9 {
+				t.Fatalf("Project source after last Audit hold discarded=%v checks=%d error=%v", projection.Discarded, len(projection.Checks), e)
 			}
 		})
 	}

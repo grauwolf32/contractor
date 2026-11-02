@@ -1355,3 +1355,25 @@ form.materials-filter.inline-form button {
   font-size: 0.8rem;
   overflow-wrap: anywhere;
 }
+
+/* Shared bounded source view; no per-line DOM expansion for large files. */
+.materials-source-reader {
+  min-width: 0;
+}
+.materials-source-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+.materials-source-reader .artifact-preview {
+  margin: 0;
+}
+.materials-source-reader .artifact-preview[data-wrap="false"] {
+  white-space: pre;
+  word-break: normal;
+  overflow-wrap: normal;
+}

@@ -4,9 +4,8 @@ import asyncio
 from pathlib import Path
 from typing import Any
 
+from fakes.worker_state import WorkerState
 from test_edit_files_toolset import hydrated_workspace, make_tools
-
-from contractor_runtime.allocation import WorkerState
 
 
 def test_complete_edit_matrix_matches_all_direct_overlay_local_memory_backends(

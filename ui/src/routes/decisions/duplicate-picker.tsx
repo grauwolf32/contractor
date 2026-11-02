@@ -1,196 +1,109 @@
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useId, useState } from "react";
-
-import { collectAuditPages } from "../../api/audit-collections";
-import {
-  AUDIT_ID_PATTERN,
-  listAuditFindings,
-  type AuditFinding,
-} from "../../api/audits";
+import { listProjectFindings } from "../../api/audits";
 import { usePublicAPI } from "../../api/context";
-import { queryKeys } from "../../api/query-keys";
+import { collectAuditPages } from "../../api/audit-collections";
 import { Button } from "../../ui";
 
-interface DuplicatePickerProps {
-  auditId: string;
-  /** The possible issue being decided; it cannot be its own original. */
-  findingId: string;
-  /** The chosen original's ID, or "". */
-  value: string;
-  onChange: (findingId: string) => void;
-  /** Id of the search field, so the caller can move focus to it. */
-  searchId: string;
-}
-
-function Candidate({
-  name,
-  id,
-  title,
-  checked,
-  onChange,
-}: {
-  name: string;
-  id: string;
-  title: string;
-  checked: boolean;
-  onChange: (id: string) => void;
-}) {
-  return (
-    <label className="decisions-duplicate-option">
-      <input
-        type="radio"
-        name={name}
-        value={id}
-        checked={checked}
-        onChange={() => onChange(id)}
-      />
-      <span className="decisions-duplicate-text">
-        <span className="decisions-duplicate-title">{title}</span>{" "}
-        <span className="decisions-duplicate-id">{id}</span>
-      </span>
-    </label>
-  );
-}
-
-/**
- * Chooses the original of a duplicate among the other possible issues of the
- * same check. It reads up to five pages of the check's possible issues and
- * searches them by title or ID. An exact ID can always be used as typed, also
- * from beyond those pages and while the list loads or after it failed (S19:
- * the Server validates the target).
- */
 export function DuplicatePicker({
-  auditId,
+  projectId,
   findingId,
   value,
   onChange,
   searchId,
-}: DuplicatePickerProps) {
+}: {
+  projectId: string;
+  findingId: string;
+  value: string;
+  onChange: (id: string) => void;
+  searchId?: string;
+}) {
   const api = usePublicAPI();
-  const name = useId();
-  const [query, setQuery] = useState("");
-  const candidates = useQuery({
-    queryKey: [
-      ...queryKeys.audits.detail(auditId),
-      "decisions",
-      "duplicate-candidates",
-    ],
-    queryFn: () =>
-      collectAuditPages((cursor) =>
-        listAuditFindings(api, auditId, cursor === undefined ? {} : { cursor }),
+  const client = useQueryClient();
+  const generatedId = useId();
+  const inputId = searchId ?? generatedId;
+  const [search, setSearch] = useState("");
+  const queryKey = ["project-findings", projectId, "duplicate-targets"];
+  const candidates = useInfiniteQuery({
+    queryKey,
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam }) =>
+      collectAuditPages(
+        (cursor) =>
+          listProjectFindings(
+            api,
+            projectId,
+            cursor === undefined ? {} : { cursor },
+          ),
+        pageParam === undefined ? {} : { cursor: pageParam },
       ),
+    getNextPageParam: (last) => (last.truncated ? last.nextCursor : undefined),
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    retry: false,
   });
-  const others: AuditFinding[] = (candidates.data?.items ?? []).filter(
-    (candidate) => candidate.findingId !== findingId,
+  const choices = (
+    candidates.data?.pages.flatMap((page) => page.items) ?? []
+  ).filter(
+    (item) =>
+      item.findingId !== findingId &&
+      (item.title + " " + item.findingId)
+        .toLowerCase()
+        .includes(search.toLowerCase()),
   );
-  const needle = query.trim().toLocaleLowerCase();
-  const matches =
-    needle === ""
-      ? others
-      : others.filter(
-          (candidate) =>
-            candidate.findingId.toLocaleLowerCase().includes(needle) ||
-            candidate.firstProposal.document.title
-              .toLocaleLowerCase()
-              .includes(needle),
-        );
-  const selected = others.find((candidate) => candidate.findingId === value);
-  const visible =
-    selected === undefined || matches.includes(selected)
-      ? matches
-      : [selected, ...matches];
-  const typed = query.trim();
-  // Without the list (loading or failed) `others` is empty, so a well-formed
-  // ID is offered as typed.
-  const offerTyped =
-    typed !== "" &&
-    typed !== value &&
-    typed !== findingId &&
-    AUDIT_ID_PATTERN.test(typed) &&
-    !others.some((candidate) => candidate.findingId === typed);
-  const typedSelected = value !== "" && selected === undefined;
-  const truncated = candidates.data?.truncated ?? false;
-
   return (
-    <fieldset className="decisions-duplicate">
-      <legend className="decisions-duplicate-legend">Duplicate of</legend>
-      <label className="ui-visually-hidden" htmlFor={searchId}>
-        Search possible issues in this check
-      </label>
+    <div className="decisions-duplicate-picker">
+      <label htmlFor={inputId}>Original possible issue</label>
       <input
-        id={searchId}
-        className="decisions-duplicate-search"
-        type="search"
-        autoComplete="off"
-        spellCheck={false}
-        placeholder="Search by title or ID"
-        value={query}
-        onChange={(event) => setQuery(event.target.value)}
+        id={inputId}
+        value={search}
+        onChange={(event) => setSearch(event.target.value)}
+        placeholder="Search this Project"
       />
-      {visible.length > 0 || typedSelected || offerTyped ? (
-        <div className="decisions-duplicate-options">
-          {typedSelected ? (
-            <Candidate
-              name={name}
-              id={value}
-              title="ID entered by you"
-              checked
-              onChange={onChange}
-            />
-          ) : null}
-          {visible.map((candidate) => (
-            <Candidate
-              key={candidate.findingId}
-              name={name}
-              id={candidate.findingId}
-              title={candidate.firstProposal.document.title}
-              checked={candidate.findingId === value}
-              onChange={onChange}
-            />
-          ))}
-          {offerTyped ? (
-            <Candidate
-              name={name}
-              id={typed}
-              title="Use this ID"
-              checked={false}
-              onChange={onChange}
-            />
-          ) : null}
-        </div>
-      ) : null}
-      {candidates.isPending ? (
-        <p className="ui-caption">
-          Loading possible issues… You can also enter the exact ID of the
-          original.
-        </p>
-      ) : candidates.isError ? (
-        <p className="ui-caption" role="alert">
-          The possible issues of this check could not be loaded. You can still
-          enter the exact ID of the original.{" "}
+      <label>
+        Finding ID
+        <input
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+        />
+      </label>
+      {candidates.error === null ? null : (
+        <p role="alert">
+          Candidates could not be loaded. You can enter an ID, or{" "}
           <Button
-            variant="link"
             size="xs"
-            onClick={() => void candidates.refetch()}
+            onClick={() => void client.resetQueries({ queryKey, exact: true })}
           >
-            Try again
+            restart the list
           </Button>
+          .
         </p>
-      ) : others.length === 0 ? (
-        <p className="ui-caption">
-          No other possible issue in this check yet. Enter the exact ID of the
-          original.
-        </p>
-      ) : visible.length === 0 && !offerTyped ? (
-        <p className="ui-caption">
-          No possible issue matches. Search by title, or enter an exact ID.
-        </p>
-      ) : truncated ? (
-        <p className="ui-caption">
-          Showing the first {others.length} possible issues. For another one,
-          enter its exact ID.
-        </p>
+      )}
+      <p className="ui-caption">
+        Search covers loaded candidates. You can also enter an exact Finding ID.
+      </p>
+      <ul>
+        {choices.slice(0, 20).map((item) => (
+          <li key={item.findingId}>
+            <Button size="xs" onClick={() => onChange(item.findingId)}>
+              {item.title}
+            </Button>
+          </li>
+        ))}
+      </ul>
+      {choices.length > 20 ? (
+        <p className="ui-caption">Refine the search to see more matches.</p>
       ) : null}
-    </fieldset>
+      {candidates.hasNextPage ? (
+        <Button
+          size="xs"
+          pending={candidates.isFetchingNextPage}
+          onClick={() => void candidates.fetchNextPage()}
+        >
+          Load more candidates
+        </Button>
+      ) : null}
+    </div>
   );
 }

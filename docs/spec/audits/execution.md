@@ -534,20 +534,24 @@ rest. A definite transaction conflict, such as Project correlation fence
 contention (FND-R177), replays only the transaction it aborted, from the same
 proposal and with the same bound (FAIL-AUX-3).
 
-**AUX-R50.** For an Audit child Run, collection accounts for every committed
-proposal receipt before making the Run deletable: an allowed proposal receives
-an exact Audit-owned inbox link and hold.
+**AUX-R50.** Collection accounts for every committed child-Run receipt before allowing Run purge:
+accepted materials receive exact Project retention and Audit membership;
+rejected/unavailable inputs receive the existing durable disposition. Incidental
+discoveries receive the same Project retention as task-selected Finding sources.
 
 **AUX-R51.** A proposal whose own proposal or evidence revision is missing or
 no longer matches its receipt can never be retained. Collection records it as
 rejected, like a proposal with invalid standard references, and keeps
 collecting the others (FAIL-AUX-3).
 
-**AUX-R52.** A profile with `findingConfirmation: disabled` cannot select the
-`security-findings@1` Toolset.
+**AUX-R52.** Finding publication has no AuditProfile confirmation gate. The selected Workflow
+Toolsets define proposal emission; explicit intent and exact evidence define problem
+publication (FND-R210).
 
-**AUX-R92.** Under such a profile, an unexpected proposal receipt makes
-collection contract-invalid rather than admitting it (FAIL-AUX-3).
+**AUX-R92.** An ordinary proposal or unsupported publication remains ordinary intake material.
+Invalid publication intent/evidence records its permanent publication error without
+failing the Run solely for that reason. Collection still classifies malformed result
+contracts under its existing failure policy.
 
 **AUX-R53.** The source Run may be purged only after the durable disposition
 of every committed proposal receipt (LIFE-AUX-1).
@@ -1032,8 +1036,8 @@ Registry entries owned by this document:
   `proposal_inventory_limit_exceeded` (AUX-R65), `next_round_invalid`
   (AUX-R66), `next_round_contract_invalid` (AUX-R67) and
   `role_dispatch_contract_invalid` (AUX-R99), plus typed admission's
-  `next_round_validation_deadline` and `source_projection_pending`
-  (AUX-R101, ASC-R180).
+  `next_round_validation_deadline` (AUX-R101). Invalid stored check indexes
+  fail permanently (ASC-R180).
 
 Entries owned elsewhere and used here: `batchSize` (LIM-AUD-3, LIM-AUD-8), the
 Audit package hard limits including 4,096 inventory items (LIM-AUD-9 to

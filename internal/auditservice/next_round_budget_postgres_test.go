@@ -38,7 +38,7 @@ func TestPostgresNextRoundSpreadsLargeProposalsAndReportsUnschedulable(t *testin
 	pool := isolatedAuditServicePool(t, ctx, databaseURL)
 	snapshot := loadAuditServiceProfilesWithProfile(t, func(profile string) string {
 		profile = strings.Replace(profile, "maxRounds: 1", "maxRounds: 4", 1)
-		return strings.Replace(profile, "findingConfirmation: disabled", "findingConfirmation: human-required", 1)
+		return profile
 	})
 	gateway, err := snapshot.LLMGateway("test-gateway@1")
 	if err != nil {
@@ -150,7 +150,7 @@ func TestPostgresNextRoundPreparesNineNearLimitProposals(t *testing.T) {
 	pool := isolatedAuditServicePool(t, ctx, databaseURL)
 	snapshot := loadAuditServiceProfilesWithProfile(t, func(profile string) string {
 		profile = strings.Replace(profile, "maxRounds: 1", "maxRounds: 4", 1)
-		return strings.Replace(profile, "findingConfirmation: disabled", "findingConfirmation: human-required", 1)
+		return profile
 	})
 	gateway, err := snapshot.LLMGateway("test-gateway@1")
 	if err != nil {

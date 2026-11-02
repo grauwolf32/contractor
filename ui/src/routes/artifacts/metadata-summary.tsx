@@ -1,4 +1,9 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router";
+import { usePublicAPI } from "../../api/context";
+import { getProject } from "../../api/projects";
+import { queryKeys } from "../../api/query-keys";
 
 import type { ArtifactArchiveScope } from "../../api/artifact-archive";
 import type { ArtifactMetadata } from "../../api/artifacts";
@@ -35,15 +40,53 @@ export function ArtifactRevisionLede({
 }
 
 /** Format, size, creation, lock and the Git source of one revision. */
-export function ArtifactFacts({ metadata }: { metadata: ArtifactMetadata }) {
+export function ArtifactFacts({
+  metadata,
+  scope,
+}: {
+  metadata: ArtifactMetadata;
+  scope?: ArtifactArchiveScope;
+}) {
+  const api = usePublicAPI();
+  const projectId = scope?.kind === "project" ? scope.id : undefined;
+  const project = useQuery({
+    queryKey: queryKeys.projects.detail(projectId ?? ""),
+    queryFn: () => getProject(api, projectId!),
+    enabled: projectId !== undefined,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
   const git = metadata.gitSource;
   return (
     <Facts
       layout="row"
       className="materials-facts"
       items={[
-        { term: "Format", value: formatLabel(metadata.mediaType) },
-        { term: "Size", value: formatBytes(metadata.size) },
+        ...(scope?.kind === "project"
+          ? [
+              {
+                term: "Project",
+                value: (
+                  <Link to={`/projects/${encodeURIComponent(scope.id)}`}>
+                    {project.data?.name ?? scope.id}
+                  </Link>
+                ),
+              },
+            ]
+          : scope?.kind === "run"
+            ? [
+                {
+                  term: "Run",
+                  value: (
+                    <Link to={`/runs/${encodeURIComponent(scope.id)}`}>
+                      {scope.id}
+                    </Link>
+                  ),
+                },
+              ]
+            : scope?.kind === "user"
+              ? [{ term: "Location", value: "My files" }]
+              : []),
         {
           term: "Created",
           value: (
@@ -52,7 +95,10 @@ export function ArtifactFacts({ metadata }: { metadata: ArtifactMetadata }) {
             </time>
           ),
         },
-        { term: "Locked", value: metadata.frozen ? "yes" : "no" },
+        {
+          term: "Format · Size",
+          value: `${formatLabel(metadata.mediaType)} · ${formatBytes(metadata.size)}`,
+        },
         ...(git === undefined
           ? []
           : [
@@ -96,15 +142,36 @@ export function ArtifactTechnicalDetails({
   scope,
   metadata,
   titleAs,
+  separateVersions = false,
 }: {
   scope: ArtifactArchiveScope;
   metadata: ArtifactMetadata;
   /** Heading level of Versions and Lineage. Default "h3". */
   titleAs?: "h2" | "h3" | undefined;
+  separateVersions?: boolean;
 }) {
+  const [versionsOpened, setVersionsOpened] = useState(false);
   const [opened, setOpened] = useState(false);
   return (
     <div id={HISTORY_ID} className="materials-tech">
+      {separateVersions ? (
+        <TechnicalDetails
+          summary="Versions"
+          onToggle={(open) => {
+            if (open) setVersionsOpened(true);
+          }}
+        >
+          {versionsOpened ? (
+            <ArtifactHistory
+              key={metadata.artifact.revision}
+              scope={scope}
+              metadata={metadata}
+              titleAs={titleAs}
+              section="versions"
+            />
+          ) : null}
+        </TechnicalDetails>
+      ) : null}
       <TechnicalDetails
         description="Revision, storage dates, versions and lineage."
         onToggle={(open) => {
@@ -121,6 +188,7 @@ export function ArtifactTechnicalDetails({
               wide: true,
             },
             { term: "Media type", value: <code>{metadata.mediaType}</code> },
+            { term: "Locked", value: metadata.frozen ? "yes" : "no" },
           ]}
         />
         <Facts
@@ -168,6 +236,7 @@ export function ArtifactTechnicalDetails({
             scope={scope}
             metadata={metadata}
             titleAs={titleAs}
+            section={separateVersions ? "lineage" : undefined}
           />
         ) : null}
       </TechnicalDetails>

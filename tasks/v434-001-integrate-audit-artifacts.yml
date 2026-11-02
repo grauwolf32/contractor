@@ -19,7 +19,9 @@ goal: Land the verified Audit material handoff and publication on current main w
   Finding ownership, shared helpers and folded schema baseline.
 context:
   authority: User requested merging codex/audit-artifact-workspace into main on 2026-11-02. This authorizes
-    routine merge reconciliation and required checks, with --no-ff landing after verification.
+    routine merge reconciliation and required checks, with --no-ff landing after verification. Later in
+    the same chat on 2026-11-02 the user limited this turn to reconciling the feature branch with main
+    and stopping; main landing is no longer authorized in this turn.
   finding: main advanced from d946c448f557ab84aa1a52afb27a0aa10405f064 to 9a2d6f9afe228e025c9381dff34233f5b6939083
     during V64-004. It moved shared helpers, replaced Audit-local Finding operations and folded migrations
     into 000001_baseline.sql. The old feature migration and overlapping controller/public fixtures must
@@ -33,6 +35,9 @@ context:
     Project Findings and Runtime ownership. Renumber the feature migration after the folded baseline and
     adapt only actual integration conflicts; add no compatibility reader, coordinator, receipt store or
     deployment.
+  stop_boundary: Resolve and commit the main integration on codex/audit-artifact-workspace, verify compilation
+    and the focused real-store/process workspace slice, then stop. Keep this integration task in_progress
+    while the remaining full gates and main landing remain outstanding.
 scope:
   in:
   - Merge current main into the feature branch and reconcile actual source/specification/fixture conflicts.

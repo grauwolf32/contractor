@@ -3,7 +3,7 @@ import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import type { FindingExportRequest } from "../../../api/finding-exports";
-import { audit, finding } from "../../../test/builders";
+import { audit, finding, findingSummary } from "../../../test/builders";
 import { fakeServer } from "../../../test/fake-server";
 import { EXPORT_BYTES, publishedExport } from "../../../test/finding-export";
 import { renderWithAPI } from "../../../test/render";
@@ -25,10 +25,10 @@ function open() {
 }
 function findingPage(items = [first, second], more = false) {
   return {
-    ...page(items, more ? "next" : undefined),
+    ...page(items.map(findingSummary), more ? "next" : undefined),
     auditRevision: 1,
     asOf: "2026-10-30T12:00:00Z",
-    total: 2,
+    projectRevision: 1,
   };
 }
 
@@ -204,12 +204,12 @@ it("bounds a multi-page selection at 256 without selecting a hidden remainder", 
       const offset = Number(url.searchParams.get("cursor") ?? "0");
       return json({
         ...page(
-          items.slice(offset, offset + 50),
+          items.slice(offset, offset + 50).map(findingSummary),
           offset + 50 < items.length ? String(offset + 50) : undefined,
         ),
         auditRevision: 1,
         asOf: "2026-10-30T12:00:00Z",
-        total: items.length,
+        projectRevision: 1,
       });
     },
   });

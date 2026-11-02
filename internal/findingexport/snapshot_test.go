@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditdomain"
-	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/grauwolf32/contractor/internal/strictjson"
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 )
 
 func testSnapshot(t *testing.T, count int) Snapshot {
@@ -41,7 +41,7 @@ func testSnapshot(t *testing.T, count int) Snapshot {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := s.AddResult(Result{FindingID: selected.FindingID, Revision: 1, PresentationReceiptID: id, ReceiptIDs: []string{id}, Review: Review{State: "proposed"}}); err != nil {
+		if err := s.AddResult(Result{FindingID: selected.FindingID, Revision: 1, PresentationReceiptID: id, ReceiptIDs: []string{id}, Review: Review{State: nil}}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -62,12 +62,13 @@ func assignKey(t *testing.T, rows []Result, indices ...int) {
 
 func TestDuplicateParameterProjectsSelectedGroupsWithoutChangingReviews(t *testing.T) {
 	s := testSnapshot(t, 6)
-	assignKey(t, s.Results, 0, 1)
-	s.Results[2].Review = Review{State: "duplicate", DuplicateTargetID: s.Results[1].FindingID}
+	assignKey(t, s.Results, 0)
+	s.Results[1].Review = Review{State: findingStateForTest("duplicate"), Verdict: "duplicate", DuplicateTargetID: s.Results[0].FindingID}
+	s.Results[2].Review = Review{State: findingStateForTest("duplicate"), Verdict: "duplicate", DuplicateTargetID: s.Results[1].FindingID}
 	// Two selected duplicates share a target that is not selected. Neither
 	// implicitly selects it nor loses its own independent triage.
 	for _, i := range []int{3, 4} {
-		s.Results[i].Review = Review{State: "duplicate", DuplicateTargetID: "unselected"}
+		s.Results[i].Review = Review{State: findingStateForTest("duplicate"), Verdict: "duplicate", DuplicateTargetID: "unselected"}
 	}
 	before, err := EncodeSnapshot(s)
 	if err != nil {
@@ -80,7 +81,7 @@ func TestDuplicateParameterProjectsSelectedGroupsWithoutChangingReviews(t *testi
 	if len(groups) != 3 || !reflect.DeepEqual(groups[0].FindingIDs, []string{"finding-000", "finding-001", "finding-002"}) || !reflect.DeepEqual(groups[1].FindingIDs, []string{"finding-003", "finding-004"}) || groups[2].Result.FindingID != "finding-005" {
 		t.Fatalf("groups: %+v", groups)
 	}
-	if groups[0].Result.FindingID != "finding-000" || groups[1].Result.Review.State != "duplicate" {
+	if groups[0].Result.FindingID != "finding-000" || !groups[1].Result.Review.IsState("duplicate") {
 		t.Fatal("representative/rating changed")
 	}
 	after, _ := EncodeSnapshot(s)
@@ -172,5 +173,26 @@ func TestSnapshotHistoricalExporterVersionIsProvenanceNotLiveCode(t *testing.T) 
 	decoded, err := DecodeSnapshot(encoded)
 	if err != nil || decoded.ExporterVersion != "0.9.0" {
 		t.Fatalf("frozen metadata required the live renderer version: %+v %v", decoded, err)
+	}
+}
+
+func findingStateForTest(value string) *string { return &value }
+
+// Frozen exports cannot smuggle a current assessment absent from the canonical
+// model, even when their JSON is structurally valid and all source bytes exist.
+func TestSnapshotRejectsInventedOrIncoherentCurrentAssessment(t *testing.T) {
+	for _, review := range []Review{
+		{State: nil, Verdict: "true_positive", Severity: "high"},
+		{State: findingStateForTest("confirmed")},
+		{State: findingStateForTest("confirmed"), Verdict: "false_positive"},
+		{State: findingStateForTest("rejected"), Verdict: "false_positive", Severity: "high"},
+		{State: findingStateForTest("proposed"), Verdict: "reopen", DuplicateTargetID: "other"},
+		{State: findingStateForTest("duplicate"), Verdict: "duplicate"},
+	} {
+		snapshot := testSnapshot(t, 1)
+		snapshot.Results[0].Review = review
+		if _, err := EncodeSnapshot(snapshot); err == nil {
+			t.Fatalf("invalid current assessment was frozen: %+v", review)
+		}
 	}
 }

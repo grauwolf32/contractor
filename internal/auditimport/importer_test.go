@@ -104,7 +104,7 @@ func TestImporterBatchRejectsIncompleteSetWithoutPartialAcceptance(t *testing.T)
 
 func TestImporterBatchKeepsFindingProposalOnItsExactMember(t *testing.T) {
 	harness := newImportHarness(t)
-	profile := loadResultProfileWithFindingConfirmation(t, "human-required")
+	profile := loadResultProfile(t)
 	profileSnapshot, err := json.Marshal(profile)
 	if err != nil {
 		t.Fatal(err)
@@ -147,7 +147,7 @@ func TestImporterBatchKeepsFindingProposalOnItsExactMember(t *testing.T) {
 
 func TestImporterBatchRejectsProposalAliasedAcrossMembers(t *testing.T) {
 	harness := newImportHarness(t)
-	profile := loadResultProfileWithFindingConfirmation(t, "human-required")
+	profile := loadResultProfile(t)
 	profileSnapshot, err := json.Marshal(profile)
 	if err != nil {
 		t.Fatal(err)
@@ -431,7 +431,7 @@ func TestImporterCollectsMemberOutsideReconcileWindow(t *testing.T) {
 func newFindingImportHarness(t *testing.T) (importHarness, *fakeFindingRetention) {
 	t.Helper()
 	harness := newImportHarness(t)
-	profile := loadResultProfileWithFindingConfirmation(t, "human-required")
+	profile := loadResultProfile(t)
 	profileSnapshot, err := json.Marshal(profile)
 	if err != nil {
 		t.Fatal(err)
@@ -487,7 +487,7 @@ func TestImporterSkipsCompletedFindingRetentionButRechecksPreterminalHold(t *tes
 
 func TestImporterCollectsWhenClosedAuditCannotHoldFindingProposal(t *testing.T) {
 	harness := newImportHarness(t)
-	profile := loadResultProfileWithFindingConfirmation(t, "human-required")
+	profile := loadResultProfile(t)
 	profileSnapshot, err := json.Marshal(profile)
 	if err != nil {
 		t.Fatal(err)
@@ -528,7 +528,7 @@ func TestImporterCollectsWhenClosedAuditCannotHoldFindingProposal(t *testing.T) 
 
 func TestImporterRejectsOnlyInvalidOrUnreadableFindingProposals(t *testing.T) {
 	harness := newImportHarness(t)
-	profile := loadResultProfileWithFindingConfirmation(t, "human-required")
+	profile := loadResultProfile(t)
 	profileSnapshot, err := json.Marshal(profile)
 	if err != nil {
 		t.Fatal(err)
@@ -602,7 +602,7 @@ func TestImporterRejectsOnlyInvalidOrUnreadableFindingProposals(t *testing.T) {
 
 func TestImporterAssociatesOnlyExactInvocationLocalFindingProposal(t *testing.T) {
 	harness := newImportHarness(t)
-	profile := loadResultProfileWithFindingConfirmation(t, "human-required")
+	profile := loadResultProfile(t)
 	profileSnapshot, err := json.Marshal(profile)
 	if err != nil {
 		t.Fatal(err)
@@ -646,7 +646,7 @@ func TestImporterAssociatesOnlyExactInvocationLocalFindingProposal(t *testing.T)
 
 func TestImporterAssociatesLaterRoundResultWithExactTaskProposal(t *testing.T) {
 	harness := newImportHarness(t)
-	profile := loadResultProfileWithFindingConfirmation(t, "human-required")
+	profile := loadResultProfile(t)
 	profileSnapshot, err := json.Marshal(profile)
 	if err != nil {
 		t.Fatal(err)
@@ -705,7 +705,7 @@ func TestImporterAssociatesLaterRoundResultWithExactTaskProposal(t *testing.T) {
 
 func TestImporterBatchAllowsDistinctTaskChecksFromOneProposalReceipt(t *testing.T) {
 	harness := newImportHarness(t)
-	profile := loadResultProfileWithFindingConfirmation(t, "human-required")
+	profile := loadResultProfile(t)
 	profileSnapshot, err := json.Marshal(profile)
 	if err != nil {
 		t.Fatal(err)
@@ -895,20 +895,17 @@ func TestImporterFinalizesTruthfulReportWithZeroDenominator(t *testing.T) {
 		},
 		Digest: auditdomain.DigestBytes(proposalBytes), MediaType: "application/json", SizeBytes: int64(len(proposalBytes)),
 	}
-	analystSeverity := "high"
 	projection := auditdomain.ProjectFindingReport(proposalDocument)
 	store := &fakeImportStore{
 		reportItems: []auditstore.ReportItem{item},
 		counts:      auditstore.CollectionDispositionCounts{ExecutionFailed: 1},
 		findings: []auditstore.ReportFinding{
-			{FindingID: "finding-confirmed", State: "confirmed", FirstProposal: proposalArtifact,
+			{FindingID: "finding-confirmed", State: reportState(auditstore.FindingConfirmed), FirstProposal: proposalArtifact,
 				Revision: 3, CreatedAt: time.Unix(80, 0), Projection: projection,
-				Decision: &auditstore.ReportFindingDecision{
-					DecisionID: "decision-report", ActorID: "owner-report", Verdict: "true_positive",
-					Severity: &analystSeverity, Rationale: "Confirmed against retained evidence.",
-					SubjectRevision: 2, SubjectDigest: auditdomain.DigestBytes([]byte("finding-subject")), CreatedAt: time.Unix(90, 0),
-				}},
-			{FindingID: "finding-proposed", State: "proposed", FirstProposal: proposalArtifact, Revision: 1,
+				AnalystVerdict: reportVerdict(auditstore.VerdictTruePositive), AnalystSeverity: reportSeverity(auditstore.SeverityHigh),
+				Rationale: reportString("Confirmed against retained evidence."), ActorID: reportString("owner-report"), AssessedAt: reportTime(time.Unix(90, 0)),
+			},
+			{FindingID: "finding-proposed", State: reportState(auditstore.FindingProposed), FirstProposal: proposalArtifact, Revision: 1,
 				CreatedAt: time.Unix(85, 0), Projection: projection},
 		},
 	}
@@ -944,7 +941,7 @@ func TestImporterFinalizesTruthfulReportWithZeroDenominator(t *testing.T) {
 		store.committed.Summary.Artifact.Ref.Revision == nil {
 		t.Fatalf("finalize report = (%t, %v, %+v)", worked, err, store.committed)
 	}
-	machineBytes := artifactAccess.writes["report.json"]
+	machineBytes := artifactAccess.writes["report-7-1.json"]
 	if !containsBytes(machineBytes, `"conclusion":"completed-with-gaps"`) ||
 		!containsBytes(machineBytes, `"zeroDenominator":true`) ||
 		!containsBytes(machineBytes, `"executionFailed":1`) ||
@@ -952,11 +949,11 @@ func TestImporterFinalizesTruthfulReportWithZeroDenominator(t *testing.T) {
 		!containsBytes(machineBytes, `"proposed":[{"findingId":"finding-proposed"`) ||
 		!containsBytes(machineBytes, `"severitySuggestion":"medium"`) ||
 		!containsBytes(machineBytes, `"preconditions":[]`) ||
-		!containsBytes(machineBytes, `"verdict":"true_positive"`) {
+		!containsBytes(machineBytes, `"analystVerdict":"true_positive"`) {
 		t.Fatalf("machine report is not truthful: %s", machineBytes)
 	}
 
-	humanProfile := loadResultProfileFixture(t, "disabled", false, "human-required")
+	humanProfile := loadResultProfileFixture(t, false, "human-required")
 	humanSnapshot, err := json.Marshal(humanProfile)
 	if err != nil {
 		t.Fatal(err)
@@ -975,10 +972,10 @@ func TestImporterFinalizesTruthfulReportWithZeroDenominator(t *testing.T) {
 		t.Fatalf("propose report for human acceptance = (%t, %v, %+v)", worked, err, store.proposed)
 	}
 	if store.proposed.Summary.Artifact.MediaType != "text/markdown" ||
-		!containsBytes(artifactAccess.writes["report.md"], "## Findings\n\n| Status | Count |") ||
-		!containsBytes(artifactAccess.writes["report.md"], "| confirmed | 1 |\n| proposed | 1 |") ||
-		!containsBytes(artifactAccess.writes["report.md"], "not a security or compliance certification") {
-		t.Fatalf("human Markdown summary omitted qualification: %s", artifactAccess.writes["report.md"])
+		!containsBytes(artifactAccess.writes["report-7-1.md"], "## Findings\n\n| Status | Count |") ||
+		!containsBytes(artifactAccess.writes["report-7-1.md"], "| confirmed | 1 |\n| proposed | 1 |") ||
+		!containsBytes(artifactAccess.writes["report-7-1.md"], "not a security or compliance certification") {
+		t.Fatalf("human Markdown summary omitted qualification: %s", artifactAccess.writes["report-7-1.md"])
 	}
 
 }
@@ -1051,12 +1048,12 @@ func TestImporterFinalizesReportAcrossEveryRound(t *testing.T) {
 		} `json:"items"`
 		Conclusion string `json:"conclusion"`
 	}
-	if err := json.Unmarshal(artifactAccess.writes["report.json"], &report); err != nil {
+	if err := json.Unmarshal(artifactAccess.writes["report-9-1.json"], &report); err != nil {
 		t.Fatal(err)
 	}
 	want := []string{"item-round-1-0", "item-round-2-0", "item-round-2-1"}
 	if report.Coverage.SelectedItems != len(want) || len(report.Items) != len(want) || report.Conclusion != "completed" {
-		t.Fatalf("multi-Round report = %s", artifactAccess.writes["report.json"])
+		t.Fatalf("multi-Round report = %s", artifactAccess.writes["report-9-1.json"])
 	}
 	for index, itemID := range want {
 		if report.Items[index].ItemID != itemID || report.Items[index].RoundID != items[index].RoundID {
@@ -1150,7 +1147,7 @@ func TestImporterFinalizesLargeInventoryWithFullMachineGapList(t *testing.T) {
 		store.committed.Machine.Artifact.Ref.Revision == nil {
 		t.Fatalf("finalize large inventory = (%t, %v, %+v)", worked, err, store.committed)
 	}
-	summary := string(artifactAccess.writes["report.md"])
+	summary := string(artifactAccess.writes["report-7-1.md"])
 	shown := strings.Count(summary, "- Inventory gap: ")
 	omitted := len(gaps) - shown
 	if len(summary) > auditstore.MaxSummaryBytes || omitted <= 0 ||
@@ -1162,7 +1159,7 @@ func TestImporterFinalizesLargeInventoryWithFullMachineGapList(t *testing.T) {
 			InventoryGaps []string `json:"inventoryGaps"`
 		} `json:"baseline"`
 	}
-	if err := json.Unmarshal(artifactAccess.writes["report.json"], &machine); err != nil {
+	if err := json.Unmarshal(artifactAccess.writes["report-7-1.json"], &machine); err != nil {
 		t.Fatal(err)
 	}
 	if !slices.Equal(machine.Baseline.InventoryGaps, gaps) {
@@ -1596,9 +1593,10 @@ type fakeImportStore struct {
 
 // fakeReportPage is one recorded report page of the in-memory store.
 type fakeReportPage struct {
-	revision uint64
-	page     auditstore.ReportPage
-	content  []byte
+	projectRevision uint64
+	revision        uint64
+	page            auditstore.ReportPage
+	content         []byte
 }
 
 func (f *fakeImportStore) GetArtifactLink(context.Context, string, string) (auditstore.ArtifactLink, error) {
@@ -1643,51 +1641,52 @@ func (f *fakeImportStore) ListReportItems(_ context.Context, _, roundID string, 
 // ListReportFindings pages like querystore.Store: one state in creation order,
 // at most Limit findings, and the first finding whose canonical projection
 // would take the page past ProjectionBytes starts the next page.
-func (f *fakeImportStore) ListReportFindings(
-	_ context.Context, params auditstore.ReportFindingPageParams,
-) ([]auditstore.ReportFinding, bool, error) {
+func (f *fakeImportStore) ListReportFindings(_ context.Context, params auditstore.ReportFindingPageParams) (auditstore.ReportFindingWindow, error) {
+	result := auditstore.ReportFindingWindow{Items: []auditstore.ReportFinding{}}
 	if params.Limit < 1 || params.Limit > auditstore.MaxReportPageRows || params.ProjectionBytes < 1 {
-		return nil, false, auditstore.ErrInvalid
+		return result, auditstore.ErrInvalid
 	}
-	selected := make([]auditstore.ReportFinding, 0)
+	selected := []auditstore.ReportFinding{}
 	for _, finding := range f.findings {
-		after := params.After == nil || finding.CreatedAt.After(params.After.CreatedAt) ||
-			finding.CreatedAt.Equal(params.After.CreatedAt) && finding.FindingID > params.After.FindingID
-		if finding.State == string(params.Section) && after {
+		if params.After == nil || finding.CreatedAt.After(params.After.CreatedAt) || finding.CreatedAt.Equal(params.After.CreatedAt) && finding.FindingID > params.After.FindingID {
 			selected = append(selected, finding)
 		}
 	}
-	sort.Slice(selected, func(left, right int) bool {
-		if !selected[left].CreatedAt.Equal(selected[right].CreatedAt) {
-			return selected[left].CreatedAt.Before(selected[right].CreatedAt)
+	sort.Slice(selected, func(i, j int) bool {
+		if !selected[i].CreatedAt.Equal(selected[j].CreatedAt) {
+			return selected[i].CreatedAt.Before(selected[j].CreatedAt)
 		}
-		return selected[left].FindingID < selected[right].FindingID
+		return selected[i].FindingID < selected[j].FindingID
 	})
-	result := make([]auditstore.ReportFinding, 0, params.Limit)
 	bytes := 0
+	var last *auditstore.ReportFindingCursor
 	for index, finding := range selected {
+		matches := finding.State == nil && params.Section == auditstore.ReportSectionProposed || finding.State != nil && string(*finding.State) == string(params.Section)
+		if index == params.Limit || matches && bytes >= params.ProjectionBytes {
+			result.ContinueAfter = last
+			break
+		}
+		last = &auditstore.ReportFindingCursor{CreatedAt: finding.CreatedAt, FindingID: finding.FindingID}
+		if !matches {
+			continue
+		}
 		encoded, err := auditdomain.EncodeFindingReportProjection(finding.Projection)
 		if err != nil {
-			return nil, false, err
-		}
-		if index == params.Limit || bytes >= params.ProjectionBytes {
-			return result, true, nil
+			return result, err
 		}
 		bytes += len(encoded)
-		result = append(result, finding)
+		result.Items = append(result.Items, finding)
 	}
-	return result, false, nil
+	return result, nil
 }
 
-// RecordReportPage keeps claimstore.Store's page contract: the shared request
-// validation, contiguous ordinals and discarding other revisions' pages.
 func (f *fakeImportStore) RecordReportPage(_ context.Context, params auditstore.RecordReportPageParams) error {
 	if err := auditstoretest.ValidateRecordReportPage(params); err != nil {
 		return err
 	}
 	kept := f.pages[:0]
 	for _, page := range f.pages {
-		if page.revision == params.ExpectedAuditRevision {
+		if page.revision == params.ExpectedAuditRevision && page.projectRevision == params.ExpectedProjectRevision {
 			kept = append(kept, page)
 		}
 	}
@@ -1698,25 +1697,25 @@ func (f *fakeImportStore) RecordReportPage(_ context.Context, params auditstore.
 	page := params.Page
 	page.ContentBytes = len(params.Content)
 	f.pages = append(f.pages, fakeReportPage{
-		revision: params.ExpectedAuditRevision, page: page, content: append([]byte(nil), params.Content...),
+		revision: params.ExpectedAuditRevision, projectRevision: params.ExpectedProjectRevision, page: page, content: append([]byte(nil), params.Content...),
 	})
 	return nil
 }
-func (f *fakeImportStore) ListReportPages(_ context.Context, _ string, revision uint64) ([]auditstore.ReportPage, error) {
+func (f *fakeImportStore) ListReportPages(_ context.Context, _ string, revision, projectRevision uint64) ([]auditstore.ReportPage, error) {
 	result := make([]auditstore.ReportPage, 0, len(f.pages))
 	for _, page := range f.pages {
-		if page.revision == revision {
+		if page.revision == revision && page.projectRevision == projectRevision {
 			result = append(result, page.page)
 		}
 	}
 	return result, nil
 }
 func (f *fakeImportStore) ReadReportSections(
-	_ context.Context, _ string, revision uint64,
+	_ context.Context, _ string, revision, projectRevision uint64,
 ) (map[auditstore.ReportSection]auditstore.ReportSectionContent, error) {
 	result := make(map[auditstore.ReportSection]auditstore.ReportSectionContent)
 	for _, page := range f.pages {
-		if page.revision != revision {
+		if page.revision != revision || page.projectRevision != projectRevision {
 			continue
 		}
 		section := result[page.page.Section]
@@ -2161,23 +2160,15 @@ func (f *fakeImportArtifacts) PutImmutableProject(_ context.Context, _ string, t
 }
 
 func loadResultProfile(t *testing.T) auditprofile.ResolvedAuditProfile {
-	return loadResultProfileWithFindingConfirmation(t, "disabled")
-}
-
-func loadResultProfileWithFindingConfirmation(
-	t *testing.T,
-	policy string,
-) auditprofile.ResolvedAuditProfile {
-	return loadResultProfileFixture(t, policy, false)
+	return loadResultProfileFixture(t, false)
 }
 
 func loadResultProfileWithDiscovery(t *testing.T) auditprofile.ResolvedAuditProfile {
-	return loadResultProfileFixture(t, "disabled", true)
+	return loadResultProfileFixture(t, true)
 }
 
 func loadResultProfileFixture(
 	t *testing.T,
-	policy string,
 	withDiscovery bool,
 	reportAcceptance ...string,
 ) auditprofile.ResolvedAuditProfile {
@@ -2253,13 +2244,9 @@ spec:
     {roundMode: fixed-barrier, maxRounds: 1, batchSize: 1, maxItemsPerRound: 10, maxItemsTotal: 10,
      maxSubmittedRuns: 20, maxItemRunAttempts: 2, deadlineSeconds: 3600, maxEvidenceBytes: 1048576,
      incompleteRound: assess-with-gaps}
-  interaction: {activeChecks: prohibited, findingConfirmation: disabled, notApplicable: profile-rule, reportAcceptance: automatic}
+  interaction: {activeChecks: prohibited, notApplicable: profile-rule, reportAcceptance: automatic}
 `,
 	}
-	files["audit-profiles/checklist.yaml"] = strings.Replace(
-		files["audit-profiles/checklist.yaml"],
-		"findingConfirmation: disabled", "findingConfirmation: "+policy, 1,
-	)
 	if len(reportAcceptance) == 1 {
 		files["audit-profiles/checklist.yaml"] = strings.Replace(
 			files["audit-profiles/checklist.yaml"],
@@ -2314,3 +2301,13 @@ func stringPointer(value string) *string { return &value }
 func containsBytes(value []byte, fragment string) bool {
 	return strings.Contains(string(value), fragment)
 }
+
+func reportState(state auditstore.FindingState) *auditstore.FindingState { return &state }
+func (f *fakeImportStore) ReportProjectRevision(context.Context, string) (uint64, error) {
+	return 1, nil
+}
+
+func reportVerdict(v auditstore.AnalystVerdict) *auditstore.AnalystVerdict    { return &v }
+func reportSeverity(v auditstore.FindingSeverity) *auditstore.FindingSeverity { return &v }
+func reportString(v string) *string                                           { return &v }
+func reportTime(v time.Time) *time.Time                                       { return &v }

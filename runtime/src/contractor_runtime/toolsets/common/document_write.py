@@ -6,11 +6,16 @@ from contractor_runtime.artifacts import (
     ARTIFACT_HISTORY_MAINTENANCE_PENDING,
     ArtifactAPIError,
     ArtifactClient,
-    ArtifactTransportError,
     ArtifactValue,
 )
 from contractor_runtime.contracts import ArtifactRef, ArtifactWriteResult
 from contractor_runtime.core.input_errors import ToolInputError
+from contractor_runtime.toolsets.common.artifact_write import (
+    AUTHORITY_DENIALS,
+    ArtifactReconciliationFailed,
+    definite_write_rejection,
+    write_artifact_exact,
+)
 
 
 class DocumentWriteUnconfirmed(ToolInputError):
@@ -19,9 +24,6 @@ class DocumentWriteUnconfirmed(ToolInputError):
     def __init__(self, message: str, *, conflict: bool) -> None:
         super().__init__(message, code="document_changed")
         self.conflict = conflict
-
-
-_DEFINITE_DENIALS = frozenset({"allocation_write_fenced", "artifact_access_denied"})
 
 
 async def write_document_exact(
@@ -44,50 +46,29 @@ async def write_document_exact(
             conflict=conflict,
         )
 
-    async def put() -> ArtifactWriteResult:
-        return await client.write_artifact(
+    try:
+        return await write_artifact_exact(
+            client,
             target,
             data=data,
             media_type=media_type,
             expected_revision=expected_revision,
+            max_bytes=max_bytes,
+            reject_first=definite_write_rejection,
+            reject_replay=lambda error: (
+                error.code == ARTIFACT_HISTORY_MAINTENANCE_PENDING
+                or (definite_write_rejection(error) and error.code != "artifact_conflict")
+            ),
         )
-
-    try:
-        return await put()
     except ArtifactAPIError as error:
         if error.code == "artifact_conflict":
             raise changed(conflict=True) from None
-        if _definite_rejection(error):
-            raise
-    except ArtifactTransportError:
-        pass
-
-    # The first PUT may have committed before the response was lost. Never
-    # alter its bytes or precondition for this one allowed replay.
-    try:
-        return await put()
-    except ArtifactAPIError as error:
-        if error.code == ARTIFACT_HISTORY_MAINTENANCE_PENDING or (
-            _definite_rejection(error) and error.code != "artifact_conflict"
-        ):
-            # Pending history maintenance stored nothing; it is no lost reply
-            # to reconcile.
-            raise
-    except ArtifactTransportError:
-        pass
-
-    try:
-        current = await client.read_artifact(target, max_bytes=max_bytes)
-    except ArtifactAPIError as error:
-        if error.code in _DEFINITE_DENIALS:
-            raise
-        raise changed() from None
-    except ArtifactTransportError:
-        raise changed() from None
-    if current.media_type == media_type and current.data == data:
-        return current
-    raise changed(conflict=current.artifact.revision != expected_revision)
-
-
-def _definite_rejection(error: ArtifactAPIError) -> bool:
-    return error.code in _DEFINITE_DENIALS or not 500 <= error.status_code < 600
+        raise
+    except ArtifactReconciliationFailed as error:
+        read_error = error.read_error
+        if isinstance(read_error, ArtifactAPIError) and read_error.code in AUTHORITY_DENIALS:
+            raise read_error from None
+        raise changed(
+            conflict=error.current is not None
+            and error.current.artifact.revision != expected_revision
+        ) from None

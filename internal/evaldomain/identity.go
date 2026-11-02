@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"regexp"
 
-	"github.com/grauwolf32/contractor/internal/contentdigest"
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 )
 
 var idPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,127}$`)

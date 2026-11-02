@@ -13,7 +13,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/grauwolf32/contractor/internal/pagelimit"
+	"github.com/grauwolf32/contractor/internal/helpers/pagelimit"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/persistence/postgrestest"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -119,6 +119,10 @@ func TestDeletionLocksRequireTransaction(t *testing.T) {
 		method   string
 	}{
 		{(*runstore.PostgresStore)(nil), (*runstore.PostgresTxStore)(nil), "LockRunForDeletion"},
+		{(*runstore.PostgresStore)(nil), (*runstore.PostgresTxStore)(nil), "LockRunQueueAdmission"},
+		{(*runstore.PostgresStore)(nil), (*runstore.PostgresTxStore)(nil), "LockRunSkillInitialization"},
+		{(*runstore.PostgresStore)(nil), (*runstore.PostgresTxStore)(nil), "LockAuditInputMaterialization"},
+		{(*runstore.PostgresStore)(nil), (*runstore.PostgresTxStore)(nil), "PinRuntimeLabels"},
 		{(*runstore.PostgresStore)(nil), (*runstore.PostgresTxStore)(nil), "DeleteLockedRunOutputPublications"},
 		{(*runstore.PostgresStore)(nil), (*runstore.PostgresTxStore)(nil), "DeleteLockedRun"},
 		{(*hookstore.RunDeletion)(nil), (*hookstore.RunDeletionTx)(nil), "LockRunDeletionAudits"},

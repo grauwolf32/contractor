@@ -12,9 +12,9 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	"github.com/grauwolf32/contractor/internal/httpapi/artifacttransfer"
 	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
-	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 const maxJSONRequestSize = 1 << 20

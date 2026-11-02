@@ -16,11 +16,11 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
-	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/persistence/postgrestest"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -327,7 +327,7 @@ WHERE allocation_id = 'allocation-1'`); persistencepostgres.SQLState(err) != per
 	if err := store.CompleteStageResult(ctx, execution.StageExecutionID, "contractor/v1alpha1", candidate); !errors.Is(err, ErrConflict) {
 		t.Fatalf("second completion error = %v, want conflict", err)
 	}
-	pendingRelease, err := store.ListTerminalStageExecutionsWithAllocations(ctx)
+	pendingRelease, err := store.ListTerminalStageExecutionsWithAllocations(ctx, nil)
 	if err != nil || len(pendingRelease) != 1 || pendingRelease[0].StageExecutionID != execution.StageExecutionID {
 		t.Fatalf("pending terminal allocation release = (%+v, %v)", pendingRelease, err)
 	}
@@ -345,7 +345,7 @@ WHERE allocation_id = 'allocation-1'`); persistencepostgres.SQLState(err) != per
 		allocations[0].ReleaseCompletedAt == nil {
 		t.Fatalf("allocation release state = (%+v, %v)", allocations, err)
 	}
-	pendingRelease, err = store.ListTerminalStageExecutionsWithAllocations(ctx)
+	pendingRelease, err = store.ListTerminalStageExecutionsWithAllocations(ctx, nil)
 	if err != nil || len(pendingRelease) != 0 {
 		t.Fatalf("completed release remained pending = (%+v, %v)", pendingRelease, err)
 	}
@@ -947,7 +947,7 @@ func TestPostgresStageAdmissionPreservesInitialQueueControlRevision(t *testing.T
 				t.Fatalf("initial Queue control = (%+v, %v)", initial, err)
 			}
 			if err := persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-				admission := NewPostgresStore(tx)
+				admission := NewPostgresTxStore(tx)
 				if err := admission.LockRunQueueAdmission(ctx, runID); err != nil {
 					return err
 				}
@@ -1062,7 +1062,7 @@ WHERE owner_id = 'user-1'`); persistencepostgres.SQLState(err) != persistencepos
 	admissionAfterPause := make(chan error, 1)
 	go func() {
 		admissionAfterPause <- persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-			return NewPostgresStore(tx).LockRunQueueAdmission(ctx, run.RunID)
+			return NewPostgresTxStore(tx).LockRunQueueAdmission(ctx, run.RunID)
 		})
 	}()
 	select {
@@ -1088,7 +1088,7 @@ WHERE owner_id = 'user-1'`); persistencepostgres.SQLState(err) != persistencepos
 	if err != nil {
 		t.Fatal(err)
 	}
-	admissionStore := NewPostgresStore(admissionTx)
+	admissionStore := NewPostgresTxStore(admissionTx)
 	if err := admissionStore.LockRunQueueAdmission(ctx, run.RunID); err != nil {
 		_ = admissionTx.Rollback(ctx)
 		t.Fatal(err)
@@ -1543,7 +1543,7 @@ func TestPostgresRunRuntimeLabelsPinExactBindingsAcrossConcurrentRebind(t *testi
 		t.Fatalf("binding rebind bypassed Run pin lock: %v", err)
 	case <-time.After(50 * time.Millisecond):
 	}
-	if _, err := createRun(ctx, txStore, CreateRunParams{
+	if _, err := createRun(ctx, txStore.PostgresStore, CreateRunParams{
 		LaneClass: resolved.LaneClassModel,
 		RunID:     "run-runtime-label-old", OwnerID: "user", WorkflowName: "workflow", WorkflowVersion: "1",
 		WorkflowSchemaVersion: contracts.APIVersion,
@@ -1686,7 +1686,7 @@ func newRunCreationTestStore(
 	t *testing.T,
 	tx pgx.Tx,
 	lookup resolved.CredentialLookup,
-) *PostgresStore {
+) *PostgresTxStore {
 	t.Helper()
 	bound, err := runtimeconfig.BindTransactionLLMCredentialLookup(
 		tx,

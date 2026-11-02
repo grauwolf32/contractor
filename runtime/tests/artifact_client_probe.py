@@ -7,8 +7,9 @@ import asyncio
 import json
 from pathlib import Path
 
+from fakes.worker_state import WorkerState
+
 from contractor_runtime._https import PrivateConnections
-from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import ArtifactAPIError, ArtifactClient, MTLSArtifactTransport
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.core.input_errors import ToolInputError
@@ -153,7 +154,7 @@ async def read_binary(client: ArtifactClient) -> dict[str, object]:
             root=Path("/nonexistent/contractor-probe"),
             path=Path("/nonexistent/contractor-probe/allocation-1"),
         ),
-        state=WorkerState(),
+        resources=WorkerState().resources,
     )
     try:
         await tools["read_artifact"]("builder", "archive")
@@ -190,7 +191,7 @@ async def page_through(client: ArtifactClient, limit: int) -> dict[str, object]:
             root=Path("/nonexistent/contractor-probe"),
             path=Path("/nonexistent/contractor-probe/allocation-1"),
         ),
-        state=state,
+        resources=state.resources,
     )
     tool_refs: list[list[str]] = []
     tool_pages = 0

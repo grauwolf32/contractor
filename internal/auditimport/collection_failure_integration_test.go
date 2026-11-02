@@ -27,7 +27,7 @@ import (
 func TestPostgresStandardReadFailureAfterRetentionKeepsExecutionCollecting(t *testing.T) {
 	var pinned auditstandards.PinnedPackage
 	f := newCompletionFixtureWithOptions(t, completionPool(t), completionOptions{
-		acceptance: "automatic", findingConfirmation: "human-required",
+		acceptance: "automatic",
 		standards: func(t *testing.T, f *completionFixture) []auditstandards.PinnedPackage {
 			pinned = f.retainStandard(t, top10ImportPackage(t))
 			return []auditstandards.PinnedPackage{pinned}
@@ -66,7 +66,7 @@ func TestPostgresStandardReadFailureAfterRetentionKeepsExecutionCollecting(t *te
 	var retention string
 	mustCompletion(t, f.pool.QueryRow(f.ctx, `
 SELECT retention_state FROM finding_proposal_receipts WHERE receipt_id = $1`, receiptID).Scan(&retention))
-	if retention != string(findingintake.RetentionAuditHeld) {
+	if retention != string(findingintake.RetentionProjectHeld) {
 		t.Fatalf("first attempt did not retain the proposal: %q", retention)
 	}
 	f.requireCollecting(t, execution.ExecutionID)
@@ -120,7 +120,7 @@ func TestPostgresInvalidPinnedStandardSettlesCollectionContractInvalid(t *testin
 			t.Run(corruption.name+"/"+entry.name, func(t *testing.T) {
 				var pinned auditstandards.PinnedPackage
 				f := newCompletionFixtureWithOptions(t, pool, completionOptions{
-					acceptance: "automatic", findingConfirmation: "human-required",
+					acceptance: "automatic",
 					standards: func(t *testing.T, f *completionFixture) []auditstandards.PinnedPackage {
 						pinned = f.retainStandard(t, top10ImportPackage(t))
 						corruption.corrupt(&pinned)
@@ -176,7 +176,7 @@ SELECT proposal_ref FROM finding_proposal_receipts WHERE receipt_id = $1`, recei
 				f.requireContractInvalid(t, execution.ExecutionID)
 				var assessments int
 				mustCompletion(t, f.pool.QueryRow(f.ctx, `
-SELECT count(*) FROM audit_finding_assessments WHERE receipt_id = $1`, receiptID).Scan(&assessments))
+SELECT count(*) FROM artifact_bindings WHERE scope_kind='project' AND scope_id=$2 AND namespace='finding-history' AND name LIKE $1`, auditdomain.FindingSourceHistoryPrefix(receiptID)+"direct-verification.%", f.id).Scan(&assessments))
 				if assessments != 0 {
 					t.Fatalf("contract-invalid collection assessed the proposal %d times", assessments)
 				}
@@ -277,11 +277,11 @@ INSERT INTO finding_proposal_receipts (
     workflow_schema_version, workflow_configuration_ref, workflow_closure_digest,
     proposal_ref, proposal_digest, proposal_media_type, proposal_size_bytes, evidence,
     report_projection
-) VALUES (
+, checks_projection) VALUES (
     $1, $2, $3, 'runtime', 'instance', 'stage', 'checker', $3, $3,
     $14, $4, $5, 'owner', $6, $7, $6, 'check', $8, $9,
     'contractor/v1alpha1', '{}', $10, $11::jsonb, $4, 'application/json', $12, '[]', $13
-)`, receiptID, f.id+"-proposal-"+clientKey, f.proposalInvocation(), completionDigest(proposal),
+, json_build_object('schema','contractor.audit.finding-checks-projection.v1','proposal_digest',($4)::text,'size_bytes',($12)::bigint,'discarded',false,'subject',NULL,'limitations',NULL,'checks','[]'::json))`, receiptID, f.id+"-proposal-"+clientKey, f.proposalInvocation(), completionDigest(proposal),
 		f.run.RunID, f.id, f.execution.ExecutionID, f.run.WorkflowName,
 		f.run.WorkflowVersion, completionDigest(f.run.WorkflowSnapshot),
 		string(proposalRef), len(proposal), string(projection), clientKey)
@@ -378,7 +378,9 @@ func (f *completionFixture) requireAcceptedAssessment(t *testing.T, executionID,
 	var assessments int
 	mustCompletion(t, f.pool.QueryRow(f.ctx, `
 SELECT execution.collection_disposition,
-       (SELECT count(*) FROM audit_finding_assessments WHERE receipt_id = $2)
+       (SELECT count(*) FROM audit_execution_items AS member
+        CROSS JOIN LATERAL jsonb_to_recordset(member.finding_sources) AS source(receipt_id text)
+        WHERE member.execution_id=$1 AND source.receipt_id=$2)
   FROM audit_executions AS execution WHERE execution.execution_id = $1`, executionID, receiptID).Scan(&disposition, &assessments))
 	if disposition != string(auditstore.CollectionAccepted) || assessments != 1 {
 		t.Fatalf("collection disposition=%s proposal assessments=%d", disposition, assessments)

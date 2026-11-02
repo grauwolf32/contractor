@@ -32,7 +32,7 @@ def test_shared_tool_notifies_exact_report_after_publication_without_changing_re
                 if subscriber == "cancel":
                     raise asyncio.CancelledError
 
-        runtime._state.report_publication_sink = Sink()
+        runtime._resources.report_publication_sink = Sink()
         result = await runtime.invoke(request(spec))
         if status == "completed":
             assert result.failure is None
@@ -63,7 +63,7 @@ def test_shared_failed_report_publication_never_notifies_unavailable_bytes(tmp_p
             async def receive_report(self, name, artifact):
                 received.append((name, artifact))
 
-        runtime._state.report_publication_sink = Sink()
+        runtime._resources.report_publication_sink = Sink()
         result = await runtime.invoke(request(spec))
         assert result.failure.code == "tool_report_failed" and not received
         await runtime.finalize(spec.lease_expires_at)

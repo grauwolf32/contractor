@@ -19,144 +19,53 @@ Styles live in `decisions.css` (classes start with `decisions-`, colours come
 from theme tokens) and are imported by the components. All optional props
 accept `undefined` (`exactOptionalPropertyTypes`).
 
-## Where they go
+## Project Finding components
 
-In a pane, put the summary in the body and the decision in the footer, so
-the bar is pinned and lines up with the pane insets:
+`FindingSummary` and `FindingDecision` take the same canonical `ProjectFinding`
+from any Project, check or Inbox view. They do not take an Audit ID or an Audit
+review request. The initial current assessment is nullable; source severity
+suggestions and check results never fill it in.
 
 ```tsx
 <DetailPane
   footer={
     <FindingDecision
-      auditId={issue.audit.auditId}
       finding={issue.finding}
       next={{ label: "Next possible issue", onNext: selectNext }}
       onDecided={() => selectNext()}
     />
   }
 >
-  <FindingSummary auditId={issue.audit.auditId} finding={issue.finding} />
+  <FindingSummary finding={issue.finding} />
 </DetailPane>
 ```
 
-Inside a card or panel instead of a pane, wrap the decision in
-`<div className="decisions-inline">`: it drops the pane insets and the
-divider above the bar.
+`FindingSummary` accepts `variant: "full" | "compact"` and `titleAs: "h2" | "h3"`.
+It renders the immutable initial claim separately from the current analyst
+verdict, severity, rationale, actor and time. Independent sources, exact
+evidence and result history belong to the issue workspace's Evidence and
+History tabs, and have no assessment commands.
 
-When a component shows a recorded decision without the bar (a
-`DecisionRecord`, a current decision), its root carries `ui-footer-record`:
-where `DetailPane`'s footer is pinned it is capped at `min(45vh, 24rem)` and
-scrolls on its own, drawing the divider above it (`src/ui` README,
-`DetailPane`). The keyboard reaches all of it: a request's decision record
-is a tab stop while it scrolls (the arrow keys scroll it; the focus ring is
-drawn inside), and a possible issue's Change decision and Next stay in view
-at the bottom while its reason scrolls under them (with focus on them, the
-arrow keys scroll it). The pending bar is never capped. Pages need no cap of
-their own.
+`FindingDecision` offers confirm with a required severity, false positive,
+needs evidence, duplicate and reopen. Reopen is available after an assessment.
+Every edit requires a reason of at most 64 KiB UTF-8. **Use issue summary** copies
+the claim's title and first sentence only on an explicit click. Duplicate
+selection reads the same Project, loads bounded groups of pages and supports
+further continuation or an exact Finding ID.
 
-## `FindingSummary`
+The component sends one `PATCH /v1/projects/{projectId}/findings/{findingId}`
+with the Finding revision in `If-Match` and a draft-specific `Idempotency-Key`.
+Retry reuses the same body and key. A stale response retains the draft and
+requires the user to select **Use current revision** before a new save. On
+success, Project, owner and Audit Finding views are invalidated; source and
+history pages remain independent. **Assessment saved** is announced and focus
+returns to an available control.
 
-```ts
-FindingSummary(props: {
-  auditId: string;
-  finding: AuditFinding;
-  variant?: "full" | "compact";   // default "full"
-  titleAs?: "h2" | "h3";          // default "h2"; sections use the next level
-})
-```
-
-An `<article>` named by the title. Every section comes from the proposal's
-own fields and is left out when they are empty; nothing is added to the
-AI's words.
-
-| Section                                   | Field                                                                               |
-| ----------------------------------------- | ----------------------------------------------------------------------------------- |
-| State chip and "Possible issue" / "Issue" | `state` (`findingStateLabel`); only `confirmed` reads as an issue                   |
-| Title                                     | `firstProposal.document.title`                                                      |
-| Endpoint (with `MethodChip`) or Subject   | `document.subject` (`"GET /path"` keys are endpoints)                               |
-| Weakness / Standard                       | `document.standard_refs` (scheme `CWE` / the rest)                                  |
-| Severity                                  | `analystSeverity`, else "Not set" and "AI suggestion: …" from `severity_suggestion` |
-| Duplicate of                              | `duplicateTargetId`, with the original's title when it can be read                  |
-| Verification                              | `currentAssessment.semanticAssessment`                                              |
-| What the AI found                         | `document.description` (Markdown) without its Impact part                           |
-| Impact                                    | an `Impact` heading section or a bold `**Impact:**` paragraph of the description    |
-| Locations                                 | `document.locations` and `http_exchange` (`FindingLocations`)                       |
-| What the AI is unsure about               | `document.limitations`, then "It depends on:" `document.preconditions`              |
-| Evidence                                  | `firstProposal.evidence` with `document.evidence_ids`                               |
-
-`compact` (Inbox preview) keeps the title, the facts, the first paragraph of
-what the AI found, the first three locations ("N more locations"), and what
-the AI is unsure about.
-
-## `FindingDecision`
-
-```ts
-FindingDecision(props: {
-  auditId: string;
-  finding: AuditFinding;
-  onDecided?: (result: AuditFindingDecisionResult) => void;
-  onRecording?: (recording: boolean) => void;
-  next?: { label: string; onNext: () => void };
-  autoFocus?: boolean;
-  pendingReview?: AuditReviewRequest | null;
-  shortcuts?: boolean;            // default true
-})
-```
-
-- **Verdicts.** Confirm issue (C, needs a severity), Not an issue (R), Needs
-  evidence (E); **More** holds Duplicate… (opens a picker over the same
-  check's possible issues, searchable by title or ID) and Reopen (decided
-  possible issues only). An exact ID of the same check can always be used as
-  typed: beyond the five pages read, and while that list loads or after it
-  failed (it is revision-fenced and answers 409 while an active check
-  changes). Only the verdicts an open review request names are offered. The
-  chosen More verdict shows as a pressed button. API mapping:
-  `true_positive` + `severity`, `false_positive`, `needs_evidence`,
-  `duplicate` + `duplicateTargetId`, `reopen`.
-- **Reason.** Required, trimmed, at most 64 KiB; "Use AI summary" inserts the
-  title and first sentence of what the AI found, only when pressed. The
-  helper text "Required. Saved with the decision." is a visible line right
-  above the reason (not a placeholder) until `DecisionBar` can show a hint
-  under its label.
-- **Recording.** Reuses the open finding-triage request of the finding's
-  current revision; without one it first opens it
-  (`POST /v1/audits/{auditId}/findings/{findingId}/reviews`, `If-Match` the
-  finding revision), then decides
-  (`POST /v1/audits/{auditId}/reviews/{requestId}/decisions`, `If-Match` the
-  request revision). Both carry an `Idempotency-Key` (`audit-finding-review-ui-…`).
-- **After the Server answers** (recorded or refused) it invalidates the check's
-  detail key (findings, reviews, workspace, report, provenance), project
-  check lists and the cross-project lists (`invalidateCrossProject`), and
-  waits for the refetch. A refused decision (409, 412, …) is explained in
-  one sentence with a "Request details" disclosure (code, status, request
-  ID, and the Server's message when the sentence does not carry it) and
-  never retried; the choice and reason stay for an explicit new attempt.
-  Nothing shows as decided before the Server says so. While a decision
-  records, until the refetched finding arrives, the bar keeps saying
-  "Recording…": refreshed reads that already show an open request for a
-  newer revision do not turn it into "changed since it was loaded".
-- **Recorded.** "Decision recorded: …" goes to a polite live region and
-  stays there for 8 s or until the next edit, also after the refetched
-  finding replaced the bar. Focus moves to the decision itself, a group named
-  "Decision on <title>", as soon as the Server answers: before the refetch,
-  which can take the bar away while slower reads still run, so focus never
-  falls back to the page body. A page that moves focus on in `onDecided`
-  does it in a layout effect of the render that shows the target (the
-  Issues detail header, the Inbox detail bar): a navigation commits in a
-  transition, whose passive effects run a task later, with focus on the
-  page body until then. A page that unmounts the component on success (for
-  example by moving to the next item in `onDecided`) loses that message and
-  should announce the outcome itself.
-- **Decided** possible issues show the current decision (outcome, severity,
-  who, when, why) with **Change decision**. Duplicate and needs-evidence
-  states load their reason on request ("Show the reason").
-- **`pendingReview`.** Pass the open request (or `null`) when the page has
-  already read the check's pending reviews, as the check pages do; omit it
-  and the component reads the finding's pending reviews itself.
-- **`shortcuts`.** Turn off where several decisions share a page.
-  Ctrl+Enter / ⌘+Enter records from the reason either way.
-- **`autoFocus`** focuses the first verdict (or Change decision) once the
-  review status has loaded.
+Optional props are `onDecided(ProjectFindingEditResult)`, `onRecording(boolean)`,
+`next`, `autoFocus`, `shortcuts` (default true), and `presentation: "review"` for
+the approved issue workspace layout. Ctrl+Enter / ⌘+Enter submits a valid draft.
+The component's editor is keyed by Finding identity, so changing the selected
+issue cannot carry a draft to another problem.
 
 ## `ActionDecision` and `ReportDecision`
 
@@ -210,17 +119,12 @@ announcement and focus stay; other mutations of the page do not count.
 DecisionRecord(props: { decision: AuditReviewDecision })
 ```
 
-One recorded decision for histories: outcome in the vocabulary ("Confirmed
-· High", "Not an issue", "Approved"), actor, relative time, the original of a
-duplicate, and the reason (Markdown).
+One recorded item or report approval for histories: outcome in the vocabulary,
+actor, relative time and reason (Markdown).
 
 ## Copy
 
-"Confirm issue", "Not an issue", "Needs evidence", "Duplicate…", "Reopen",
-"More" (named "More decisions"), "Record decision", "Why" with the helper
-line "Required. Saved with the decision.", "Use AI summary", "Change
-decision", "Keep current decision", "Approve", "Reject", "Not applicable",
-"Decision recorded: …", "Request details".
-Regions: "Your decision" (the bar), "Current decision" (a decided possible
-issue). Groups: "Decision on …" (each component's root), "Duplicate of"
-(the picker).
+Finding controls use “Confirm issue”, “Not an issue”, “Needs evidence”,
+“Mark as duplicate”, “Reopen”, “Record decision”, “Use issue summary” and
+“Assessment saved.” Item and report controls retain their request-specific
+approval wording and `DecisionRecord` history.

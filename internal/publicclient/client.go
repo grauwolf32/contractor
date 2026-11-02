@@ -16,8 +16,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/helpers/randomid"
 	publicapi "github.com/grauwolf32/contractor/internal/publicclient/generated"
-	"github.com/grauwolf32/contractor/internal/randomid"
 )
 
 const (

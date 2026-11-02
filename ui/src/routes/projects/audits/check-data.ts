@@ -17,7 +17,7 @@ import {
   listAuditFindings,
   listAuditReviews,
   type Audit,
-  type AuditFinding,
+  type ProjectFindingSummary,
   type AuditState,
   type AuditWorkspace,
 } from "../../../api/audits";
@@ -147,7 +147,7 @@ export function useCheckFindings(audit: Audit) {
   const api = usePublicAPI();
   const queryKey = checkKeys.findings(audit.auditId);
   const enabled = findingsReadable(audit);
-  const query = useAuditCollection<AuditCollection<AuditFinding>>({
+  const query = useAuditCollection<AuditCollection<ProjectFindingSummary>>({
     queryKey,
     loadBatch: (cursor) =>
       collectAuditPages(

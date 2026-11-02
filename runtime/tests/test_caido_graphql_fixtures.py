@@ -212,7 +212,7 @@ def test_response_over_adapter_bound_fails_before_tool_payload_processing(
         assert failure.value.code == "caido_response_too_large"
         assert failure.value.retryable is False
         assert decoded == []
-        assert not state.http_captures.contains("caido", "request-1")
+        assert not state.resources.http_captures.contains("caido", "request-1")
         assert artifacts.payloads == {}
         await handle.close()
 

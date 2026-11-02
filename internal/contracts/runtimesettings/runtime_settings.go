@@ -13,7 +13,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
-	"github.com/grauwolf32/contractor/internal/sourcezip"
+	"github.com/grauwolf32/contractor/internal/helpers/sourcezip"
 )
 
 // Byte bounds of the secret field values RuntimeSettings carries: a bearer or

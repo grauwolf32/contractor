@@ -35,9 +35,11 @@ INSERT INTO finding_proposal_receipts (
     workflow_name, workflow_version, workflow_schema_version,
     workflow_configuration_ref, workflow_closure_digest,
     proposal_ref, proposal_digest, proposal_media_type, proposal_size_bytes, evidence,
-    report_projection, fingerprint_projection, anchor_projection, checks_projection
+    report_projection, fingerprint_projection, anchor_projection, checks_projection,
+    publication_requested, publication_error, project_proposal, project_evidence, retention_state
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
     $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22,
-    $23, $24, $25, $26, $27, $28, $29, $30, $31::text::json
+    $23, $24, $25, $26, $27, $28, $29, $30, $31::text::json,
+    $32, $33, $34::jsonb, $35::jsonb, CASE WHEN $34::jsonb IS NULL THEN 'source-held' ELSE 'project-held' END
 )`

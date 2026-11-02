@@ -25,7 +25,6 @@ const lists = Object.entries(states).flatMap(([name, value]) =>
 
 describe("state lists", () => {
   it("read the full enums from the OpenAPI document", () => {
-    expect(states.AUDIT_STATES).toEqual(contractEnum("AuditState"));
     expect(states.RUN_STATES).toEqual(contractEnum("WorkflowRunState"));
     expect(states.NON_TERMINAL_RUN_STATES).toEqual(
       contractEnum("NonTerminalWorkflowRunState"),
@@ -87,18 +86,14 @@ describe("state lists", () => {
   });
 
   it("keeps the Audit subsets consistent with each other", () => {
-    expect(["draft", ...states.AUDIT_STATES_WITH_FINDINGS, "deleting"]).toEqual(
-      expect.arrayContaining([...states.AUDIT_STATES]),
-    );
+    const allAuditStates = contractEnum("AuditState");
     for (const subset of [
       states.WORKING_AUDIT_STATES,
       states.INBOX_AUDIT_STATES,
       states.OPEN_AUDIT_STATES,
       states.REPORT_AUDIT_STATES,
     ]) {
-      expect(states.AUDIT_STATES_WITH_FINDINGS).toEqual(
-        expect.arrayContaining([...subset]),
-      );
+      expect(allAuditStates).toEqual(expect.arrayContaining([...subset]));
     }
     expect(states.OPEN_AUDIT_STATES).toEqual(
       expect.arrayContaining([...states.INBOX_AUDIT_STATES]),

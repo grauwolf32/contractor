@@ -3,7 +3,7 @@ package scheduler
 import (
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/sourcezip"
+	"github.com/grauwolf32/contractor/internal/helpers/sourcezip"
 )
 
 func TestSchedulerMaterializesSourceArchiveBudgets(t *testing.T) {

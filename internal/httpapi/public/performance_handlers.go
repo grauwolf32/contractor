@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/pagelimit"
+	"github.com/grauwolf32/contractor/internal/helpers/pagelimit"
 	"github.com/grauwolf32/contractor/internal/performance"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 )

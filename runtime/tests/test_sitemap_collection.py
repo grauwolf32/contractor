@@ -8,10 +8,10 @@ from pathlib import Path
 import httpx
 import pytest
 from fakes.sitemap import SitemapTransport
+from fakes.worker_state import WorkerState
 from http_cookie_store import HTTPToolsetFactory
 
-from contractor_runtime.allocation import WorkerState
-from contractor_runtime.allocation.service import _SourceObservationSink
+from contractor_runtime.allocation.preparation import _SourceObservationSink
 from contractor_runtime.artifacts import ArtifactAPIError, ArtifactClient, ArtifactTransportError
 from contractor_runtime.contracts import RuntimeSettings
 from contractor_runtime.sitemap import SitemapClient
@@ -145,7 +145,7 @@ def test_http_collection_sends_only_attempt_metadata_and_preserves_credential_li
             )
 
         state = WorkerState()
-        state.http_observation_sink = _SourceObservationSink(collector, "http")
+        state.resources.http_observation_sink = _SourceObservationSink(collector, "http")
         factory = HTTPToolsetFactory(
             lambda: httpx.AsyncClient(transport=httpx.MockTransport(handler))
         )
@@ -163,7 +163,7 @@ def test_http_collection_sends_only_attempt_metadata_and_preserves_credential_li
                 },
             ),
             workspace=AllocationWorkspace(tmp_path, tmp_path / "allocation"),
-            state=state,
+            resources=state.resources,
         )
         try:
             result = await tools["http_request"](
@@ -212,7 +212,7 @@ def test_collection_keeps_http_sessions_and_request_tags_without_identity_metada
             return httpx.Response(200, request=request)
 
         state = WorkerState()
-        state.http_observation_sink = _SourceObservationSink(collector, "http")
+        state.resources.http_observation_sink = _SourceObservationSink(collector, "http")
         factory = HTTPToolsetFactory(
             lambda: httpx.AsyncClient(transport=httpx.MockTransport(handler))
         )
@@ -227,7 +227,7 @@ def test_collection_keeps_http_sessions_and_request_tags_without_identity_metada
                 httpOriginTarget={"url": "https://target.example"},
             ),
             workspace=AllocationWorkspace(tmp_path, tmp_path / "allocation"),
-            state=state,
+            resources=state.resources,
         )
         try:
             url = "https://target.example/resource"
@@ -487,7 +487,7 @@ def test_shared_resource_flush_does_not_consume_worker_state_cleanup_budget(tmp_
             runtime = await worker(tmp_path, ArtifactStore(), FixtureTool(), spec=spec)
             state = runtime._state
             invocation = request(spec)
-        state.before_completion = checkpoint
+        state.resources.before_completion = checkpoint
         task = asyncio.create_task(runtime.invoke(invocation))
         await entered.wait()
         # Advance the injected event-loop clock past State's five-second budget.
@@ -526,7 +526,7 @@ def test_http_capture_subscriber_failure_preserves_target_result_and_physical_ho
             )
 
         state = WorkerState()
-        state.http_observation_sink = Sink()
+        state.resources.http_observation_sink = Sink()
         factory = HTTPToolsetFactory(
             lambda: httpx.AsyncClient(transport=httpx.MockTransport(handler))
         )
@@ -539,7 +539,7 @@ def test_http_capture_subscriber_failure_preserves_target_result_and_physical_ho
                 artifactApiUrl="https://control.example", requestTimeoutSeconds=10
             ),
             workspace=AllocationWorkspace(tmp_path, tmp_path / "allocation"),
-            state=state,
+            resources=state.resources,
         )
         try:
             response = await tools["http_request"](
@@ -612,7 +612,7 @@ def test_malformed_target_status_does_not_poison_observation_batch(tmp_path, pro
         )
         client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
         state = WorkerState()
-        state.http_observation_sink = _SourceObservationSink(collector, "http")
+        state.resources.http_observation_sink = _SourceObservationSink(collector, "http")
         tools = await HTTPToolsetFactory(lambda: client).create_selected(
             selected=["http_request"],
             allocation_id="allocation",
@@ -622,7 +622,7 @@ def test_malformed_target_status_does_not_poison_observation_batch(tmp_path, pro
                 artifactApiUrl="https://control.example", requestTimeoutSeconds=10
             ),
             workspace=AllocationWorkspace(tmp_path, tmp_path / "allocation"),
-            state=state,
+            resources=state.resources,
             adapter_handles=AdapterHandles(tool_http=ProxyHTTPClient(client))
             if proxy
             else AdapterHandles(),
@@ -686,7 +686,7 @@ def test_http_subscriber_attributes_physical_retry_timeout_and_failure(
         client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
         factory = HTTPToolsetFactory(lambda: client)
         state = WorkerState()
-        state.http_observation_sink = Sink()
+        state.resources.http_observation_sink = Sink()
         tools = await factory.create_selected(
             selected=["http_request"],
             allocation_id="allocation",
@@ -696,7 +696,7 @@ def test_http_subscriber_attributes_physical_retry_timeout_and_failure(
                 artifactApiUrl="https://control.example", requestTimeoutSeconds=10
             ),
             workspace=AllocationWorkspace(tmp_path, tmp_path / "allocation"),
-            state=state,
+            resources=state.resources,
             adapter_handles=AdapterHandles(tool_http=ProxyHTTPClient(client))
             if proxy
             else AdapterHandles(),

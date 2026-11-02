@@ -21,7 +21,6 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/configtest"
@@ -32,6 +31,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/credentials"
+	"github.com/grauwolf32/contractor/internal/helpers/clone"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -2400,10 +2400,13 @@ func (s *memorySchedulerStore) ListStageExecutionsWithUnreleasedAllocations(
 }
 
 func (s *memorySchedulerStore) ListTerminalStageExecutionsWithAllocations(
-	_ context.Context,
+	_ context.Context, excluded []string,
 ) ([]runstore.StageExecution, error) {
 	result := make([]runstore.StageExecution, 0)
 	for _, execution := range s.stages {
+		if slices.Contains(excluded, execution.StageExecutionID) {
+			continue
+		}
 		if execution.State != runstore.StageSucceeded && execution.State != runstore.StageFailed &&
 			execution.State != runstore.StageInterrupted && execution.State != runstore.StageCancelled {
 			continue

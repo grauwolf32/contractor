@@ -23,7 +23,6 @@ import {
   type ListNavigationContainerProps,
   type StatusTone,
 } from "../../ui";
-import { weaknessReferences } from "../decisions/text";
 import { describeStopReason } from "../projects/audits/stop-reason";
 import { deriveRunTriage } from "../runs/triage";
 import { useWorkflowInventory } from "../workflows/inventory";
@@ -86,22 +85,15 @@ interface RowProps<T extends InboxRow["type"]> {
 }
 
 function IssueRow({ row, selected, onChoose }: RowProps<"issue">) {
-  const { project, audit, finding } = row.issue;
-  const document = finding.firstProposal.document;
-  const weakness = weaknessReferences(document)[0];
+  const { project, finding } = row.issue;
   return (
     <ListRow
       {...rowControl(row, selected, onChoose)}
       glyph={<StatusGlyph tone="review" />}
-      title={document.title}
+      title={finding.title}
       meta={[
         <Project key="project" name={project.name} />,
-        checkTypeLabel(audit),
-        weakness === undefined ? (
-          <RecordedTime key="time" value={finding.createdAt} />
-        ) : (
-          weakness.requirement_id
-        ),
+        <RecordedTime key="time" value={finding.createdAt} />,
       ]}
     />
   );

@@ -5,9 +5,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/findingexport"
-	"github.com/grauwolf32/contractor/internal/strictjson"
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 )
 
 const schemaURI = "https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json"
@@ -96,7 +96,7 @@ func (b *builder) result(group findingexport.ResultGroup) (object, error) {
 		}
 	}
 	kind, level := "review", "none"
-	if result.Review.State == "confirmed" {
+	if result.Review.IsState("confirmed") {
 		kind = "fail"
 		switch result.Review.Severity {
 		case "informational", "low":
@@ -215,7 +215,7 @@ func (b *builder) result(group findingexport.ResultGroup) (object, error) {
 	if severity == "" {
 		severity = "not rated"
 	}
-	message := []string{receipt.Proposal.Title, receipt.Proposal.Description, "Review state: " + result.Review.State + "; analyst severity: " + severity + "; proposal suggestion: " + receipt.Proposal.SeveritySuggestion}
+	message := []string{receipt.Proposal.Title, receipt.Proposal.Description, "Review state: " + reviewState(result.Review) + "; analyst severity: " + severity + "; proposal suggestion: " + receipt.Proposal.SeveritySuggestion}
 	if receipt.Proposal.Hypothesis != "" {
 		message = append(message, "Hypothesis: "+receipt.Proposal.Hypothesis)
 	}
@@ -260,4 +260,11 @@ func (b *builder) result(group findingexport.ResultGroup) (object, error) {
 		item[key] = value
 	}
 	return item, nil
+}
+
+func reviewState(review findingexport.Review) string {
+	if review.State == nil {
+		return "unset"
+	}
+	return *review.State
 }

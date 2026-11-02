@@ -128,6 +128,9 @@ func (s *Service) Fork(ctx context.Context, fork Fork) (ForkResult, error) {
 			fork.Kind == LineageAuditPublish && fork.Source.kind == ScopeAudit && fork.Target.kind == ScopeProject) {
 		return ForkResult{}, ErrInvalidScope
 	}
+	if fork.Source.kind == ScopeProject && fork.Source == fork.Target && !fork.Frozen {
+		return ForkResult{}, ErrInvalidScope
+	}
 	if err := validateRef(fork.SourceRef); err != nil {
 		return ForkResult{}, err
 	}
@@ -155,7 +158,7 @@ func forkScopesAllowed(source, target Scope) bool {
 	case target.kind == ScopeRun:
 		return source.kind == ScopeUser || source.kind == ScopeProject || source.kind == ScopeAudit || source == target
 	case target.kind == ScopeProject:
-		return source.kind == ScopeRun || source.kind == ScopeAudit
+		return source.kind == ScopeRun || source.kind == ScopeAudit || source == target
 	case target.kind == ScopeAudit:
 		return source.kind == ScopeRun
 	}

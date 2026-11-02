@@ -16,7 +16,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/findingintake"
-	"github.com/grauwolf32/contractor/internal/strictjson"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 )
 
 // dependencyConsumerPins binds configuration/Skills to their exact content,

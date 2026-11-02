@@ -52,8 +52,8 @@ def test_http_cancellation_during_capture_preserves_id_and_does_not_commit_cooki
         artifacts = FakeArtifactClient()
         tools, state = await create_tools(tmp_path, handler, artifacts=artifacts)
         buffer = BlockingCaptureBuffer()
-        state.http_captures = buffer
-        state.http_session._captures = buffer
+        state.resources.http_captures = buffer
+        tools["http_request"]._session._captures = buffer
         first = asyncio.create_task(tools["http_request"]("https://target.example/first"))
         await asyncio.wait_for(buffer.committed.wait(), timeout=1)
         first.cancel()

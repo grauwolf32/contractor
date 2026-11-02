@@ -11,6 +11,7 @@ from dataclasses import replace
 import jcs
 import pytest
 from fakes.clock import advance_clock, run_with_advanceable_clock
+from fakes.worker_state import WorkerState
 from test_artifacts import TIMESTAMP_HEADERS, json_response
 from test_audit_results_toolset import digest, fixture_batch_inputs, fixture_inputs
 
@@ -721,7 +722,6 @@ def test_shared_audit_http_observation_metadata():
     from pathlib import Path
     from types import SimpleNamespace
 
-    from contractor_runtime.allocation import WorkerState
     from contractor_runtime.toolsets.audit_results.collector import InvocationAuditCollector
     from contractor_runtime.toolsets.audit_results.v2 import SubmitCheckResultTool
     from contractor_runtime.toolsets.common.http_capture import HTTPObservation, RecentHTTPCaptures

@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditdomain"
-	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingexport"
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 )
 
 func noAnalysisSnapshot(t *testing.T, count int) findingexport.Snapshot {
@@ -42,7 +42,7 @@ func noAnalysisSnapshot(t *testing.T, count int) findingexport.Snapshot {
 		if err := snapshot.AddReceipt(findingexport.Receipt{ReceiptID: id, ProposalID: "proposal-" + id, ProposalArtifact: findingexport.Evidence{Original: doc, Retained: doc}, Proposal: proposal, Evidence: []findingexport.Evidence{}, Origin: findingexport.Origin{RunID: "run", InvocationID: "invocation", StageExecutionID: "stage", AllocationID: "allocation", LogicalAgentName: "worker", WorkflowName: "check", WorkflowVersion: "1", WorkflowClosureDigest: contentdigest.Bytes([]byte("workflow"))}}); err != nil {
 			t.Fatal(err)
 		}
-		if err := snapshot.AddResult(findingexport.Result{FindingID: selection.FindingID, Revision: 1, PresentationReceiptID: id, ReceiptIDs: []string{id}, Review: findingexport.Review{State: "proposed"}}); err != nil {
+		if err := snapshot.AddResult(findingexport.Result{FindingID: selection.FindingID, Revision: 1, PresentationReceiptID: id, ReceiptIDs: []string{id}, Review: findingexport.Review{State: nil}}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -51,7 +51,7 @@ func noAnalysisSnapshot(t *testing.T, count int) findingexport.Snapshot {
 
 func TestRenderNoAnalysisIsDeterministicAndHonorsDuplicateParameter(t *testing.T) {
 	snapshot := noAnalysisSnapshot(t, 2)
-	snapshot.Results[1].Review = findingexport.Review{State: "duplicate", DuplicateTargetID: snapshot.Results[0].FindingID}
+	snapshot.Results[1].Review = findingexport.Review{State: findingStateForTest("duplicate"), Verdict: "duplicate", DuplicateTargetID: snapshot.Results[0].FindingID}
 	first, _, diagnostics := rendered(t, snapshot)
 	if len(diagnostics.Items) == 0 {
 		t.Fatal("missing diagnostics")
@@ -109,3 +109,5 @@ func TestRenderDoesNotClaimAnotherExporterVersion(t *testing.T) {
 		t.Fatal("rendered under another implementation version")
 	}
 }
+
+func findingStateForTest(value string) *string { return &value }

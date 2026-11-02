@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -13,7 +14,7 @@ func acceptedPlanFixture(t *testing.T) AcceptedPlan {
 	revision := "r1"
 	original := contracts.ExactArtifact{Ref: contracts.ArtifactRef{Namespace: "findings", Name: "proposal", Revision: &revision}, Digest: DigestBytes([]byte("proposal")), MediaType: JSONMediaType, SizeBytes: 0}
 	retained := original
-	retained.Ref.Namespace = ArtifactNamespace("audit")
+	retained.Ref.Namespace = artifactpolicy.FindingMaterialsNamespace
 	plan := CheckPlan{Schema: contracts.FindingCheckPlanSchema, Method: "verify", Phase: "verify", Objective: "Кириллица <>& \"\n\u2028\u2029"}
 	data, err := EncodeCheckPlan(plan)
 	if err != nil {

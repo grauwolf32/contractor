@@ -1,0 +1,57 @@
+schema_version: "1.0"
+id: V430-004
+title: Distinguish CLI flag names from reserved Namespace literals
+milestone: hub-audit-guards-2026-10
+epic: quality
+kind: defect
+introduced_by: V64-001
+priority: P3
+status: completed
+implementation_commit: 68c1600fead513bab848169b3e537a60cbe0ddbe
+depends_on: []
+languages: [go]
+goal: The Namespace source guard accepts independent CLI flag names while still detecting duplicated Namespace values.
+context:
+  authority: >-
+    User-authorized helper integration on 2026-11-01 exposed this existing
+    main test failure; record its repair separately from V430-003.
+  finding: >-
+    internal/artifactpolicy/namespace_literal_test.go:55 interprets every
+    matching Go string literal as a Namespace. internal/app/config_command.go:32
+    registers the unrelated CLI flag audit-context, introduced by V64-001 in
+    cf6ab1cb5. The real repository scan fails on that flag on unmodified main
+    6af1bc56f as well as the helper integration tree. Coupling the flag's
+    spelling to artifactpolicy.AuditContextNamespace would assign it the wrong owner.
+  siblings: >-
+    Recognize names registered through the standard flag package, its
+    CommandLine and locally constructed FlagSets, including import aliases.
+    Continue scanning defaults, comparisons, SQL, arbitrary method calls and
+    all other literals. Runtime/UI scanners have no Go flag registration
+    syntax and require no change; no Namespace or CLI spelling changes.
+scope:
+  in:
+    - Exclude only known standard-library flag registration name arguments from this Go source guard.
+    - Retain the existing real repository scan and add a parser regression with legitimate flag names and real Namespace copies.
+  out:
+    - Production code, CLI contracts, Namespace ownership and allowlists by filename or line number.
+acceptance_criteria:
+  - id: A1
+    text: The full artifactpolicy suite, including its real repository scan, accepts the existing audit-context CLI flag without a production change.
+  - id: A2
+    text: A regression accepts standard flag/FlagSet registration names but still reports matching defaults, ordinary literals and names in unrelated method calls; it fails with the original guard.
+  - id: A3
+    text: Full owner-package tests and make lint pass on the integrated tree, without weakening any checker rule outside this syntactic distinction.
+tests:
+  - command: go test -count=1 ./internal/artifactpolicy
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+verification: >-
+  2026-11-01: complete go test -count=1 ./internal/artifactpolicy passed on
+  the repair branch and on the integrated helper tree; complete make lint
+  and the full Go/PostgreSQL suite passed on that combined tree. The new
+  regression was run with the original scanner and failed as required.
+  Object bindings distinguish real FlagSets and imported standard flag APIs
+  from unrelated receivers, shadowed imports and same-named variables in
+  other scopes. Only registration names are exempt; Namespace defaults,
+  ordinary literals and SQL remain checked. No production file changed.

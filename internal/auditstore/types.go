@@ -9,7 +9,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/grauwolf32/contractor/internal/pagelimit"
+	"github.com/grauwolf32/contractor/internal/helpers/pagelimit"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
@@ -508,6 +508,7 @@ type Round struct {
 }
 
 type Item struct {
+	FindingIDs          []string
 	Dependencies        *auditdomain.RetainedDependencyManifest
 	ItemID              string
 	AuditID             string
@@ -776,44 +777,29 @@ type CollectionDispositionCounts struct {
 // proposal stored at intake.
 type ReportFinding struct {
 	FindingID         string
-	State             string
+	ProjectID         string
+	State             *FindingState
 	FirstProposal     ExactArtifact
 	DuplicateTargetID *string
-	Assessment        *ReportFindingAssessment
-	Decision          *ReportFindingDecision
+	AnalystVerdict    *AnalystVerdict
+	AnalystSeverity   *FindingSeverity
+	Rationale         *string
+	ActorID           *string
+	AssessedAt        *time.Time
 	Revision          uint64
 	CreatedAt         time.Time
 	Projection        auditdomain.FindingReportProjection
 }
 
-type ReportFindingAssessment struct {
-	AssessmentID       string
-	SemanticAssessment string
-	Result             ExactArtifact
-	DirectVerification bool
-	Contract           *ExactArtifact
-	AcceptedAt         time.Time
-}
-
-type ReportFindingDecision struct {
-	DecisionID      string
-	ActorID         string
-	Verdict         string
-	Severity        *string
-	Rationale       string
-	SubjectRevision uint64
-	SubjectDigest   string
-	CreatedAt       time.Time
-}
-
 type CommitReportParams struct {
-	Claim                 ControllerClaim
-	ExpectedAuditRevision uint64
-	RoundID               string
-	ExpectedRoundRevision uint64
-	Machine               ArtifactLink
-	Summary               ArtifactLink
-	RequestDigest         string
+	ExpectedProjectRevision uint64
+	Claim                   ControllerClaim
+	ExpectedAuditRevision   uint64
+	RoundID                 string
+	ExpectedRoundRevision   uint64
+	Machine                 ArtifactLink
+	Summary                 ArtifactLink
+	RequestDigest           string
 }
 
 type ProposeReportParams = CommitReportParams
@@ -850,6 +836,7 @@ type Event struct {
 }
 
 type CoverageRow struct {
+	FindingIDs []string `json:"findingIds"`
 	AuditID    string
 	RoundID    string
 	ItemID     string

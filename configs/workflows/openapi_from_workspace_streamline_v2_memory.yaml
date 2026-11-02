@@ -38,6 +38,7 @@ spec:
       modelPolicy: planner@2
       llmGateway: local-litellm@1
       credential: development-planner
+      compactorModelPolicy: compactor@1
     workers:
       modelPolicy: worker@2
       llmGateway: local-litellm@1
@@ -69,7 +70,6 @@ spec:
       planner: streamline@1
       plannerContextManagement: &planner_compaction
         strategy: compact@1
-        modelPolicy: compactor@1
         instructions:
           ref: instructions/planner-compaction.md
       agents:

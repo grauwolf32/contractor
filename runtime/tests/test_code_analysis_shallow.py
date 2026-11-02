@@ -41,6 +41,7 @@ from contractor_runtime.toolsets.code_analysis.tools import (
     CodeAnalysisError,
     CodeAnalysisToolsetFactory,
 )
+from contractor_runtime.toolsets.common.resources import ToolResources
 from contractor_runtime.workspace import AllocationWorkspace
 
 LANGUAGE_SAMPLES = {
@@ -604,7 +605,7 @@ def test_factory_rejects_missing_workspace_and_unadvertised_graph_selection(
                 request_timeout_seconds=10,
             ),
             "workspace": AllocationWorkspace(root=tmp_path, path=tmp_path),
-            "state": SimpleNamespace(metrics=metrics),
+            "resources": ToolResources(metrics=metrics),
         }
         with pytest.raises(CodeAnalysisError) as missing:
             await factory.create_selected(selected=("search_def",), **common)
@@ -1278,7 +1279,7 @@ async def _tools(
             request_timeout_seconds=10,
         ),
         workspace=AllocationWorkspace(root=tmp_path, path=tmp_path),
-        state=SimpleNamespace(metrics=metrics),
+        resources=ToolResources(metrics=metrics),
         project_workspace=reader,
     )
     return dict(tools), metrics

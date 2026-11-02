@@ -9,7 +9,8 @@ import (
 	"net/url"
 	"strconv"
 
-	"github.com/grauwolf32/contractor/internal/pagelimit"
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/helpers/pagelimit"
 )
 
 const (
@@ -160,4 +161,19 @@ func (c pageCursors) mac(domain string, payload []byte) []byte {
 func pageCursorKind(value string) string {
 	digest := sha256.Sum256([]byte(value))
 	return base64.RawURLEncoding.EncodeToString(digest[:])
+}
+
+// Project source, Finding and history cursors share one exact integer bound.
+func projectSourceCursorRevision(raw string) (*uint64, error) {
+	value, err := strconv.ParseUint(raw, 10, 64)
+	if err != nil || value < 1 || value > contracts.MaxExactInteger {
+		return nil, errInvalidRequest
+	}
+	return &value, nil
+}
+func optionalProjectRevision(raw string) (*uint64, error) {
+	if raw == "" {
+		return nil, nil
+	}
+	return projectSourceCursorRevision(raw)
 }

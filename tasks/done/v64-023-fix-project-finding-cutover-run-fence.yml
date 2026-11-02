@@ -1,0 +1,100 @@
+schema_version: '1.0'
+id: V64-023
+title: Fix the Project Finding cutover fence for retained Audit Runs
+milestone: audit-check-prioritization
+epic: audits
+kind: defect
+introduced_by: V64-014
+priority: P1
+status: completed
+depends_on: [V64-024]
+languages: [go, sql, markdown]
+goal: >-
+  The one-time Project Finding transition has a complete cleanup boundary and reaches the new schema
+  without a late foreign-key failure or any old operational Finding/Audit compatibility path.
+context:
+  authority: >-
+    On 2026-11-01 the user requested review of codex/project-finding-ownership and explicitly said
+    legacy support is unnecessary. On 2026-11-02 the user requested a task description and diagrams
+    explaining the defect and proposed fix. This authorizes planning only; no migration, Run deletion,
+    database reset, deployment or implementation is performed by this task-formation change.
+    On 2026-11-02 the user explicitly assigned implementation and a data-preserving demo database
+    update followed by folding migrations. Use the recommended explicit retirement through existing
+    Run deletion, after preserving required Project materials and verifying a recoverable backup.
+  severity: high
+  reviewed_commit: e4b6df107d664192de4c3056b4af1c56a682932f
+  available_code: >-
+    V64-014 implementation is already on main through 2ccbf2cdd4790e23d8c8463921865b20500fb44e.
+    Its remaining verification/status does not require this repair to wait; introduced_by records
+    causality rather than a prerequisite on completion of unrelated gates.
+  finding: >-
+    internal/persistence/migrations/000003_project_findings.sql:302 deletes audit_executions while
+    retained terminal workflow_runs still reference them through workflow_runs_audit_submission_fkey
+    (000001_baseline.sql:7491, ON DELETE RESTRICT). The initial fence at 000003:4 checks only terminal
+    Run states and collected executions. A PostgreSQL probe with undrained_runs=0 and
+    uncollected_executions=0 still fails at DELETE audit_executions with SQLSTATE 23503.
+    Finishing/collecting a Run does not remove its row or this foreign key.
+  siblings: >-
+    Cover all terminal outcomes of Audit-managed Runs, allocation-release and collection boundaries,
+    existing Audit Run hard deletion/tombstoning, and mixed Projects containing ordinary Runs.
+    Existing deletion is owned by internal/rundeletion/deleter.go and internal/runstore/delete_store.go;
+    ArtifactStore owns scope purge and reference-safe collection. Do not bypass these responsibilities
+    with a raw workflow_runs DELETE, a global CASCADE, a disabled permanent FK or a new cleanup engine.
+  specification:
+  - docs/spec/findings/findings.md#FND-R215
+  - docs/spec/artifacts/retention-and-deletion.md#DEL-R16
+  - docs/spec/artifacts/retention-and-deletion.md#DEL-R17
+  - docs/spec/artifacts/retention-and-deletion.md#DEL-R22
+  - docs/spec/artifacts/retention-and-deletion.md#DEL-R58
+  - docs/spec/platform/persistence.md
+  decision: >-
+    Finish, release and collect Audit-managed Runs; retain required Project material, then delete only
+    those Runs through the existing terminal Run owner before cutover. The initial migration rejects
+    any remaining Run-to-execution reference before changing schema or archive. Ordinary Runs remain.
+    A separate persistence task folds the verified installed schema after demo migration; no old reader,
+    SQL cascade or general purge engine is introduced.
+
+scope:
+  in:
+  - Settle and document the one-time retirement procedure; implement the smallest selected fix in the existing owners.
+  - Make the initial cutover fence complete, actionable and atomic; finish/collect alone must not falsely imply readiness.
+  - Preserve the already agreed opaque Audit snapshots/results, independent Project bindings and unrelated ordinary Runs.
+  - Add real PostgreSQL migration regressions with a retained collected Audit Run, not only fixtures whose Runs are already gone.
+  out:
+  - Old Finding/Audit readers, writers, resume paths, compatibility modes, orphan references or another operational history model.
+  - Preserving every old Run workspace/sidecar, a generic dependency archiver, a new purge service or changing current Finding semantics.
+  - Resetting the demo or deleting business data during task formation or disposable-database verification.
+failure_outcomes:
+- operation: Apply the one-time Project Finding transition
+  success: The selected retirement preconditions hold; archive/removal and the new schema commit once.
+  permanent: >-
+    Active/unreleased/uncollected or still-referencing work fails the declared initial precondition,
+    before mutations. Keep it distinct from an unexpected late FK failure; no blind retry or partial cleanup.
+  retryable: Existing migration locking and transaction retry policy; do not add another receipt or lease.
+  ambiguous: Inspect the existing migration ledger; an applied migration is not replayed as a fresh cleanup operation.
+  cancelled: The migration transaction rolls back; any separate normal Run purge remains its own completed operation.
+  timeout: Existing migration and Run-purge owners keep their separate deadlines and failure boundaries.
+acceptance_criteria:
+- id: A1
+  given: A terminal collected Audit-managed Run remains, with a valid Run-to-execution FK; drain counters are zero.
+  when: The cutover is attempted before the selected retirement procedure is complete.
+  then: It stops at the explicit initial precondition, not DELETE audit_executions; schema, rows and archive remain unchanged.
+- id: A2
+  given: Mixed ordinary Runs and old Audit Runs with retained Project results, after the selected retirement procedure.
+  when: The migration commits, then normal new-model reads and a repeated migration invocation execute.
+  then: >-
+    The new Finding/intake model starts empty, retired Audit execution references are gone and no legacy
+    runtime model remains. Agreed opaque Audit facts/results and independent Project bytes stay readable;
+    ordinary Runs are unchanged and the migration ledger prevents replay of completed cleanup.
+- id: A3
+  given: Succeeded, failed and cancelled Audit Runs, plus active/unreleased/uncollected negative cases.
+  when: Real PostgreSQL regressions exercise the cutover and normal purge boundary.
+  then: >-
+    Each outcome observes the same release/collection guarantees, rejects unsafe cleanup without partial
+    writes, and the retained-Run regression fails on the reviewed implementation.
+tests:
+- command: make require-database
+- command: go test -tags=integration -count=1 ./internal/persistence/postgres/... ./internal/rundeletion/... ./internal/runstore/... ./internal/artifacts/...
+  covers: [A1, A2, A3]
+- command: make lint
+implementation_commit: 5aa77fee8d6ef8c88780c1352275c78346b6e18d

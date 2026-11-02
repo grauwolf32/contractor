@@ -21,6 +21,7 @@ from contractor_runtime.projectfs.paths import ProjectPathError
 from contractor_runtime.projectfs.storage import WorkspaceStorageError, WorkspaceWriter
 from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
 from contractor_runtime.toolsets.common.filesystem_errors import FilesystemToolError
+from contractor_runtime.toolsets.common.resources import ToolResources
 from contractor_runtime.workspace import AllocationWorkspace
 
 MAX_EDIT_REPLACEMENTS = 1000
@@ -61,7 +62,7 @@ class EditFilesToolsetFactory:
         namespace: str,
         runtime_settings: RuntimeSettings,
         workspace: AllocationWorkspace,
-        state: Any,
+        resources: ToolResources,
         adapter_handles: AdapterHandles = EMPTY_ADAPTER_HANDLES,
         project_workspace: WorkspaceWriter | None = None,
     ) -> Mapping[str, Any]:
@@ -69,7 +70,7 @@ class EditFilesToolsetFactory:
         require_selected_tools(selected, self.exported_tools)
         if project_workspace is None:
             raise FilesystemToolError("workspace_required")
-        metrics = require_metrics(state, "edit-files@1")
+        metrics = require_metrics(resources, "edit-files@1")
         session = _EditSession(project_workspace)
         builders: dict[str, Callable[[], Any]] = {
             "write_file": lambda: WriteFileTool(session, metrics),

@@ -11,6 +11,7 @@ from typing import Any
 
 import pytest
 from fakes.model import json_result, scripted_model, text_result, tool_call
+from fakes.worker_state import WorkerState
 from google.adk.events import Event, EventActions
 from google.adk.models.llm_response import LlmResponse
 from google.genai import types
@@ -22,7 +23,6 @@ from test_adk_runtime import (
     stage_request,
 )
 
-from contractor_runtime.allocation import WorkerState
 from contractor_runtime.contracts import (
     CompactWorkerContextManagement,
     ModelPolicyRef,
@@ -681,8 +681,8 @@ def test_cancellation_during_compactor_call_adds_no_marker(tmp_path: Path) -> No
             assert markers(appended) == []
             assert effects == ["a", "b"]
             assert runtime._compaction is not None and not runtime._compaction.active
-            assert runtime._active_task is None
-            assert not runtime._invoke_lock.locked()
+            assert runtime._invocation.task is None
+            assert not runtime._invocation.lock.locked()
         finally:
             await finish(runtime)
 

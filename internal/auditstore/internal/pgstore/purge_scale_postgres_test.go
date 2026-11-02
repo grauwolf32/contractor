@@ -14,7 +14,6 @@ import (
 const (
 	purgeScaleExecutions           = 100_000
 	purgeScaleBackgroundExecutions = 50_000
-	purgeScaleAssessments          = 2_000
 	purgeScaleFindings             = 2_000
 	// purgeScaleIndexMinBlocks is the smallest index whose whole reads the
 	// test tells apart from probes; a smaller index is cheap to read whole.
@@ -37,8 +36,8 @@ type purgeScaleReads struct {
 }
 
 // TestPostgresAuditPurgeAtScaleProbesForeignKeysThroughIndexes purges an
-// Audit with 100,000 executions and 2,000 assessments while another Audit
-// keeps 50,000 executions and 2,000 findings, and requires that the purge
+// Audit with 100,000 executions while another Audit keeps 50,000 executions
+// and the Project retains 2,001 canonical Findings with their sources, and requires that the purge
 // transaction, including every cascade and every deferred foreign-key check,
 // reads none of those tables whole (V370-023). Statistics stay absent, so the
 // planner treats each probe as selective, as it is in a database of many
@@ -66,7 +65,7 @@ func TestPostgresAuditPurgeAtScaleProbesForeignKeysThroughIndexes(t *testing.T) 
 	}
 	claim := drainDeletedAuditForPurge(t, f)
 
-	scaled := []string{"audit_executions", "audit_finding_assessments", "audit_findings"}
+	scaled := []string{"audit_executions", "project_finding_sources", "project_findings"}
 	conn, err := f.pool.Acquire(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -111,21 +110,21 @@ func TestPostgresAuditPurgeAtScaleProbesForeignKeysThroughIndexes(t *testing.T) 
 		"collection_receipt_id": `'background-collection-' || n`,
 	})
 	toggleExecutionTriggers("ENABLE")
-	cloneRows(t, ctx, setup, "audit_finding_assessments", "assessment_id", "assessment-receipt-purge-scale", purgeScaleAssessments, map[string]string{
-		"assessment_id": `src.assessment_id || '-scale-' || n`,
-		"result_digest": `'sha256:' || lpad(to_hex(n), 64, '0')`,
-	})
 	cloneRows(t, ctx, setup, "finding_proposal_receipts", "receipt_id", "receipt-purge-scale", purgeScaleFindings, map[string]string{
 		"receipt_id":    `'background-receipt-' || n`,
 		"proposal_id":   `'background-proposal-' || n`,
 		"submission_id": `'background-submission-' || n`,
 	})
-	cloneRows(t, ctx, setup, "audit_findings", "finding_id", findingID, purgeScaleFindings, map[string]string{
-		"finding_id": `'background-finding-' || n`, "audit_id": backgroundID,
-		"first_receipt_id": `'background-receipt-' || n`, "state": `'proposed'`,
-		"rejection_reason": `NULL`, "duplicate_target_id": `NULL`,
-		"current_assessment_id": `NULL`, "current_decision_id": `NULL`,
+	cloneRows(t, ctx, setup, "project_findings", "finding_id", findingID, purgeScaleFindings, map[string]string{
+		"finding_id": "'background-finding-'||n", "first_receipt_id": "'background-receipt-'||n",
 	})
+	cloneRows(t, ctx, setup, "project_finding_sources", "receipt_id", "receipt-purge-scale", purgeScaleFindings, map[string]string{
+		"receipt_id": "'background-receipt-'||n", "finding_id": "'background-finding-'||n",
+	})
+	if _, err := setup.Exec(ctx, `INSERT INTO project_finding_audits(audit_id,finding_id,project_id,finding_created_at,correlation_group_key)
+     SELECT $1,finding_id,project_id,created_at,correlation_group_key FROM project_findings WHERE finding_id LIKE 'background-finding-%'`, background.AuditID); err != nil {
+		t.Fatal(err)
+	}
 	// The copies take longer than the fixture's claim lease; the purge holds
 	// a lease that no run of the test outlives, however loaded the machine.
 	if _, err := setup.Exec(ctx, `
@@ -144,8 +143,8 @@ UPDATE audit_controller_claims SET expires_at = clock_timestamp() + interval '1 
 		}
 		counts[table] = count
 	}
-	if counts["audit_executions"] <= purgeScaleExecutions+purgeScaleBackgroundExecutions || counts["audit_finding_assessments"] <= purgeScaleAssessments ||
-		counts["audit_findings"] <= purgeScaleFindings {
+	if counts["audit_executions"] <= purgeScaleExecutions+purgeScaleBackgroundExecutions || counts["project_finding_sources"] <= purgeScaleFindings ||
+		counts["project_findings"] <= purgeScaleFindings {
 		t.Fatalf("scaled fixture = %v", counts)
 	}
 
@@ -212,16 +211,17 @@ UPDATE audit_controller_claims SET expires_at = clock_timestamp() + interval '1 
 	if largeIndexScans == 0 {
 		t.Fatalf("purge scanned no large index; scale fixture is too small")
 	}
-	var executions, assessments, kept int
-	if err := conn.QueryRow(ctx, `
-SELECT (SELECT count(*) FROM audit_executions WHERE audit_id = $1), (SELECT count(*) FROM audit_finding_assessments),
-       (SELECT count(*) FROM audit_findings WHERE audit_id = $2)`, f.audit.AuditID, background.AuditID).Scan(
-		&executions, &assessments, &kept); err != nil {
+	var executions, sources, kept int
+	if err := conn.QueryRow(ctx, `SELECT
+      (SELECT count(*) FROM audit_executions WHERE audit_id=$1),
+      (SELECT count(*) FROM project_finding_sources WHERE project_id=$2),
+      (SELECT count(*) FROM project_findings WHERE project_id=$2)`, f.audit.AuditID, f.project.ProjectID).Scan(&executions, &sources, &kept); err != nil {
 		t.Fatal(err)
 	}
-	if executions != 0 || assessments != 0 || kept != purgeScaleFindings {
-		t.Fatalf("after purge: %d executions, %d assessments, %d background findings", executions, assessments, kept)
+	if executions != 0 || sources != purgeScaleFindings+1 || kept != purgeScaleFindings+1 {
+		t.Fatalf("after Audit purge: executions=%d retained Project sources=%d Findings=%d", executions, sources, kept)
 	}
+
 }
 
 // cloneRows inserts count copies of the row of table whose keyColumn is key.

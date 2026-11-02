@@ -103,7 +103,6 @@ func TestPostgresAuditStateSetsMatchSchema(t *testing.T) {
 				Subsets: map[string][]string{"pending": {string(auditstore.ReviewPending)}},
 			}},
 			Indexes: map[string]map[string]string{
-				"audit_review_requests_finding_idx":             nil,
 				"audit_review_requests_item_subject_idx":        nil,
 				"audit_review_requests_pending_subject_unique":  {"state": "pending"},
 				"audit_review_requests_report_candidate_unique": nil,
@@ -113,18 +112,12 @@ func TestPostgresAuditStateSetsMatchSchema(t *testing.T) {
 		{
 			// The pointer indexes serve foreign-key probes and purge: they
 			// select the rows that hold a pointer, whatever their state.
-			Name: "audit_findings",
-			Columns: []statesettest.Column{{
-				Name: "state", Check: "audit_findings_state_check", Values: findings,
-			}},
+			Name:    "project_findings",
+			Columns: []statesettest.Column{{Name: "state", Check: "project_findings_state_check", Values: findings}},
 			Indexes: map[string]map[string]string{
-				"audit_findings_correlation_audit_group_order_idx":   nil,
-				"audit_findings_correlation_group_idx":               nil,
-				"audit_findings_correlation_project_group_order_idx": nil,
-				"audit_findings_current_assessment_idx":              nil,
-				"audit_findings_current_decision_idx":                nil,
-				"audit_findings_duplicate_target_idx":                nil,
-				"audit_findings_purge_pointers_idx":                  nil,
+				"project_findings_duplicate_idx": nil,
+
+				"project_findings_qualified_key_idx": nil,
 			},
 		},
 	} {

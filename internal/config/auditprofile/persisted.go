@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/grauwolf32/contractor/internal/config/resolved"
-	"github.com/grauwolf32/contractor/internal/strictjson"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 )
 
 // JSON members and PostgreSQL text-array paths of persisted snapshots that SQL
@@ -13,10 +13,9 @@ import (
 // constant; internal/persistence pins each one against an encoded value and
 // the migrations.
 const (
-	AuditProfileWorkflowsMember         = "workflows"
-	AuditWorkflowKindMember             = "kind"
-	AuditWorkflowMaxRunAttemptsMember   = "maxRunAttempts"
-	AuditProfileFindingConfirmationPath = "{interaction,findingConfirmation}"
+	AuditProfileWorkflowsMember       = "workflows"
+	AuditWorkflowKindMember           = "kind"
+	AuditWorkflowMaxRunAttemptsMember = "maxRunAttempts"
 )
 
 // DecodeResolvedAuditProfileSnapshot strictly decodes and validates the

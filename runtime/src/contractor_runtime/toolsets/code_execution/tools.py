@@ -18,6 +18,7 @@ from contractor_runtime.sandbox.contracts import (
 )
 from contractor_runtime.sandbox.podman.executor import failed
 from contractor_runtime.sandbox.podman.settings import PODMAN_LIMIT_CEILINGS, PodmanSettings
+from contractor_runtime.toolsets.common.resources import ToolResources
 
 
 class CodeExecutionToolsetFactory:
@@ -48,7 +49,7 @@ class CodeExecutionToolsetFactory:
         namespace,
         runtime_settings,
         workspace,
-        state,
+        resources: ToolResources,
         adapter_handles=None,
         project_workspace=None,
         sandbox_executor=None,
@@ -61,7 +62,7 @@ class CodeExecutionToolsetFactory:
             self.ref, tuple(selected), self.infrastructure_channels, sandbox_executor
         )
         settings = self._settings() if self._settings is not None else None
-        return {name: ExecCommandTool(executor, state, settings=settings) for name in selected}
+        return {name: ExecCommandTool(executor, resources, settings=settings) for name in selected}
 
 
 _DESCRIPTION = """Run a shell command in the allocation container.
@@ -90,9 +91,11 @@ class ExecCommandTool:
     name = "exec_command"
     contractor_sensitive_output = True
 
-    def __init__(self, executor, state, *, settings: PodmanSettings | None = None):
+    def __init__(
+        self, executor, resources: ToolResources, *, settings: PodmanSettings | None = None
+    ):
         self._executor = executor
-        self._state = state
+        self._resources = resources
         self._closed = False
         # The operator maximum is the real ceiling: advertise it and reject more
         # instead of silently shortening the requested limit.
@@ -132,13 +135,13 @@ class ExecCommandTool:
             error = SandboxContractError(SandboxErrorCode.INVALID_COMMAND)
         if error is not None:
             # Record before ADK's fallback can summarize arbitrary unknown keys.
-            self._state.metrics.record_tool_call(
+            self._resources.metrics.record_tool_call(
                 self.name, arguments={}, error=error, duration_ms=0
             )
         return error
 
     async def __call__(self, command: str, cwd: str = "", timeout_seconds: int = 60) -> dict:
-        self._state.execution.check()
+        self._resources.execution.check()
         started = time.monotonic()
         if self._closed:
             return failed(SandboxErrorCode.UNAVAILABLE, started).observation()
@@ -150,8 +153,8 @@ class ExecCommandTool:
         except SandboxContractError as error:
             result = failed(error.code, started)
         except asyncio.CancelledError:
-            self._state.execution.fail(SandboxErrorCode.OUTCOME_UNKNOWN)
-            self._state.metrics.record_tool_call(
+            self._resources.execution.fail(SandboxErrorCode.OUTCOME_UNKNOWN)
+            self._resources.metrics.record_tool_call(
                 self.name,
                 arguments={},
                 error=SandboxContractError(SandboxErrorCode.OUTCOME_UNKNOWN),
@@ -163,15 +166,15 @@ class ExecCommandTool:
             SandboxErrorCode.INVALID_COMMAND,
             SandboxErrorCode.INVALID_CWD,
         }:
-            self._state.execution.fail(result.error_code)
-        self._state.metrics.record_sandbox_execution(
+            self._resources.execution.fail(result.error_code)
+        self._resources.metrics.record_sandbox_execution(
             stdout_bytes=result.stdout_bytes,
             stderr_bytes=result.stderr_bytes,
             stdout_truncated=result.stdout_truncated,
             stderr_truncated=result.stderr_truncated,
             exit_code=result.exit_code,
         )
-        self._state.metrics.record_tool_call(
+        self._resources.metrics.record_tool_call(
             self.name,
             arguments={},
             result={

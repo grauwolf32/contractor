@@ -16,9 +16,9 @@ from urllib.parse import parse_qs, urlsplit
 import jcs
 import pytest
 from fakes import finding_collection
+from fakes.worker_state import WorkerState
 from google.adk.tools import FunctionTool
 
-from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import (
     ArtifactClient,
     ArtifactHTTPResponse,
@@ -41,7 +41,7 @@ from contractor_runtime.toolsets.security_findings.reader import ListFindingsToo
 from contractor_runtime.worker.instrumentation import _safe_tool_response
 from contractor_runtime.workspace import AllocationWorkspace
 
-FIXTURE = Path(__file__).parents[2] / "api/testdata/findings/finding-collection-v1.fixture.json"
+FIXTURE = Path(__file__).parents[2] / "api/testdata/findings/finding-collection-v2.fixture.json"
 TIMESTAMPS = {
     "x-contractor-binding-created-at": "2026-09-06T09:00:00Z",
     "x-contractor-revision-created-at": "2026-09-06T09:00:00Z",
@@ -272,7 +272,7 @@ async def _tools(transport, selected=("list_findings",)):
             requestTimeoutSeconds=5,
         ),
         workspace=AllocationWorkspace(root=Path("/tmp/findings"), path=Path("/tmp/findings/a")),
-        state=state,
+        resources=state.resources,
     )
     return tools, client, state
 
@@ -298,7 +298,8 @@ def test_shared_go_python_fixture_and_exact_consumer_reads():
         for index, item in enumerate(result["items"]):
             entry = collection["entries"][index]
             assert item["receipt_id"] == entry["receipt_id"]
-            assert item["reviews"] == entry["reviews"]
+            assert item.get("finding") == entry.get("finding")
+            assert item["selected_sources"] == entry["selected_sources"]
             assert item["has_hypothesis"] == (index == 1)
             for document in [item["proposal"], *item["evidence"]]:
                 ref = document["ref"]
@@ -569,11 +570,11 @@ def test_invalid_collection_fails_before_any_materialization(damage):
         elif damage == "bad-snapshot":
             collection["snapshot_at"] = "2026-02-30T12:00:00Z"
         elif damage == "fractional-revision":
-            collection["entries"][1]["reviews"][0]["revision"] = 1.5
+            collection["entries"][1]["finding"]["revision"] = 1.5
         elif damage == "empty-holds":
             collection["entries"][0]["audit_holds"] = []
         elif damage == "wrong-schema":
-            collection["schema"] = "contractor.findings.collection.v2"
+            collection["schema"] = "contractor.findings.collection.v1"
         elif damage == "invalid-source":
             collection["sources"] = [{"kind": "run", "id": "not-selected"}]
         elif damage == "missing-link":
@@ -697,6 +698,8 @@ def test_page_item_bound_and_cursor_can_change_limit():
 def test_collection_supports_audit_holds_and_noncanonical_proposals():
     collection, contents = _fixture()
     collection["sources"] = [{"kind": "audit", "id": "audit-a"}]
+    for entry in collection["entries"]:
+        entry["selected_sources"] = [{"kind": "audit", "id": "audit-a"}]
     collection["entries"][0]["audit_holds"] = ["audit-a"]
     _replace_proposal(collection, contents, 0, lambda body: b" \n" + body + b"\n")
     payload = _package(collection, contents)
@@ -815,7 +818,7 @@ def _sized_items(count, sizes):
             else {"kind": "code" if index % 3 else "route", "key": f"subject-{index % 2}"},
             "title_preview": {"text": "t" * sizes(index), "truncated": False},
             "evidence": [],
-            "reviews": [],
+            "selected_sources": [],
         }
         for index in range(count)
     )

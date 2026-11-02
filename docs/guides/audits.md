@@ -163,7 +163,7 @@ export CONTRACTOR_API_URL="$CONTRACTOR_URL"
 export CONTRACTOR_API_TOKEN="$CONTRACTOR_TOKEN"
 export AUDIT_ID="$audit_id"
 export FINDING_ID=finding_...
-docs/examples/audit-finding-backtrace.sh
+docs/examples/project-finding-backtrace.sh
 ```
 
 The output starts with the current analyst verdict/severity and then emits one

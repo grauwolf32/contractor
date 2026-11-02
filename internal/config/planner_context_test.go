@@ -13,7 +13,6 @@ const compactingSelector = "compacting-review@1"
 
 const compactBlock = `      plannerContextManagement:
         strategy: compact@1
-        modelPolicy: test-compactor@1
         instructions:
           ref: instructions/planner-compaction.md
 `
@@ -44,7 +43,7 @@ func TestPlannerContextManagementResolvesExplicitCompactBranch(t *testing.T) {
 	planner := stage.ExecutionConfig.Planner
 	if planner == nil || planner.CompactorModelPolicy == nil ||
 		planner.CompactorModelPolicy.Ref.PolicyID != "test-compactor" ||
-		planner.Origins.CompactorModelPolicy != "workflow.stages.review.plannerContextManagement" ||
+		planner.Origins.CompactorModelPolicy != "workflow.executionConfig.planner" ||
 		planner.ModelPolicy.Ref.PolicyID != "test-window-planner" {
 		t.Fatalf("Planner selection = %+v", planner)
 	}
@@ -77,6 +76,7 @@ func TestPlannerContextManagementNoneKeepsSnapshotUnchanged(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			root := compactionFixture(t)
+			replaceFile(t, compactingWorkflowPath(root), "      compactorModelPolicy: test-compactor@1\n", "")
 			replaceFile(t, compactingWorkflowPath(root), compactBlock, test.block)
 			workflow, err := mustLoad(t, root).Workflow(compactingSelector)
 			if err != nil {
@@ -107,17 +107,20 @@ func TestPlannerContextManagementRejectsInvalidAuthoring(t *testing.T) {
 	}{
 		{name: "null", old: compactBlock, new: "      plannerContextManagement: null\n"},
 		{name: "none with empty field", old: compactBlock, new: "      plannerContextManagement: {strategy: none, modelPolicy: \"\"}\n"},
-		{name: "null through merge", old: compactBlock, new: "      plannerContextManagement:\n        <<: {strategy: compact@1, modelPolicy: test-compactor@1, instructions: {ref: instructions/planner-compaction.md}, contextWindowRatio: null}\n"},
+		{name: "null through merge", old: compactBlock, new: "      plannerContextManagement:\n        <<: {strategy: compact@1, instructions: {ref: instructions/planner-compaction.md}, contextWindowRatio: null}\n"},
 		{name: "null-member", old: "        strategy: compact@1\n", new: "        strategy: compact@1\n        contextWindowRatio: null\n"},
 		{name: "unknown", old: "        strategy: compact@1\n", new: "        strategy: compact@1\n        modelURL: http://model\n"},
 		{name: "duplicate", old: "        strategy: compact@1\n", new: "        strategy: compact@1\n        strategy: none\n"},
 		{name: "none-mixed", old: "        strategy: compact@1\n", new: "        strategy: none\n"},
 		{name: "terminal", old: "        strategy: compact@1\n", new: "        strategy: terminal@1\n"},
 		{name: "summarizer", old: "        strategy: compact@1\n", new: "        strategy: compact@1\n        summarizerModelPolicy: test-compactor@1\n"},
-		{name: "missing-policy", old: "        modelPolicy: test-compactor@1\n", new: ""},
+		{name: "removed-policy", old: "        strategy: compact@1\n", new: "        strategy: compact@1\n        modelPolicy: test-compactor@1\n"},
+		{name: "removed-null-policy", old: "        strategy: compact@1\n", new: "        strategy: compact@1\n        modelPolicy: null\n"},
+		{name: "removed-policy-through-merge", old: "        strategy: compact@1\n", new: "        strategy: compact@1\n        <<: {modelPolicy: test-compactor@1}\n"},
+		{name: "missing-policy", old: "      compactorModelPolicy: test-compactor@1\n", new: ""},
 		{name: "missing-instructions", old: "        instructions:\n          ref: instructions/planner-compaction.md\n", new: ""},
-		{name: "unknown-policy", old: "modelPolicy: test-compactor@1", new: "modelPolicy: absent-compactor@1"},
-		{name: "tool-policy", old: "modelPolicy: test-compactor@1", new: "modelPolicy: test-worker@1"},
+		{name: "unknown-policy", old: "compactorModelPolicy: test-compactor@1", new: "compactorModelPolicy: absent-compactor@1"},
+		{name: "tool-policy", old: "compactorModelPolicy: test-compactor@1", new: "compactorModelPolicy: test-worker@1"},
 		{name: "ratio-zero", old: "        strategy: compact@1\n", new: "        strategy: compact@1\n        contextWindowRatio: 0\n"},
 		{name: "ratio-one", old: "        strategy: compact@1\n", new: "        strategy: compact@1\n        contextWindowRatio: 1\n"},
 		{name: "recent-17", old: "        strategy: compact@1\n", new: "        strategy: compact@1\n        keepRecentGroups: 17\n"},
@@ -131,7 +134,7 @@ func TestPlannerContextManagementRejectsInvalidAuthoring(t *testing.T) {
 			replaceFile(t, compactingWorkflowPath(root), test.old, test.new)
 			if test.planner == "remove" {
 				replaceFile(t, compactingWorkflowPath(root),
-					"    planner:\n      modelPolicy: test-window-planner@1\n      llmGateway: local-litellm@1\n", "")
+					"    planner:\n      modelPolicy: test-window-planner@1\n      llmGateway: local-litellm@1\n      compactorModelPolicy: test-compactor@1\n", "")
 			}
 			_, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
 			if err == nil {
@@ -163,8 +166,7 @@ func TestCompactorModelPolicySelectionPrecedence(t *testing.T) {
 	writeFile(t, filepath.Join(root, "model-policies/test-compactor-2.yaml"), []byte(strings.ReplaceAll(
 		string(readFile(t, filepath.Join(root, "model-policies/test-compactor.yaml"))), "name: test-compactor", "name: test-compactor-two",
 	)))
-	replaceFile(t, compactingWorkflowPath(root), "      modelPolicy: test-window-planner@1\n",
-		"      modelPolicy: test-window-planner@1\n      compactorModelPolicy: test-compactor-two@1\n")
+	replaceFile(t, compactingWorkflowPath(root), "compactorModelPolicy: test-compactor@1", "compactorModelPolicy: test-compactor-two@1")
 	snapshot := mustLoad(t, root)
 	workflow, err := snapshot.Workflow(compactingSelector)
 	if err != nil {
@@ -173,6 +175,15 @@ func TestCompactorModelPolicySelectionPrecedence(t *testing.T) {
 	planner := workflow.Stages["review"].ExecutionConfig.Planner
 	if planner.CompactorModelPolicy.Ref.PolicyID != "test-compactor-two" || planner.Origins.CompactorModelPolicy != "workflow.executionConfig.planner" {
 		t.Fatalf("Workflow compactor = %s from %s", planner.CompactorModelPolicy.Ref.PolicyID, planner.Origins.CompactorModelPolicy)
+	}
+	writeWorkflowExecutionConfig(t, root, filepath.Base(compactingWorkflowPath(root)), `{"planner":{"modelPolicy":"test-window-planner@1","compactorModelPolicy":"test-compactor-two@1","llmGateway":"local-litellm@1"},"workers":{"modelPolicy":"test-worker@1"},"stages":{"review":{"planner":{"compactorModelPolicy":"test-compactor@1"}}}}`)
+	specific, err := mustLoad(t, root).Workflow(compactingSelector)
+	if err != nil {
+		t.Fatal(err)
+	}
+	consumer := specific.Stages["review"].ExecutionConfig.Planner
+	if consumer.CompactorModelPolicy.Ref.PolicyID != "test-compactor" || consumer.Origins.CompactorModelPolicy != "workflow.executionConfig.stages.review.planner" {
+		t.Fatalf("Stage compactor selection = %+v", consumer)
 	}
 	for _, patch := range []string{
 		`{"workers":{"compactorModelPolicy":"test-compactor@1"}}`,
@@ -189,8 +200,7 @@ func TestCompactorModelPolicySelectionPrecedence(t *testing.T) {
 func TestCompactorSelectionRejectedWithoutCompactingStage(t *testing.T) {
 	root := compactionFixture(t)
 	replaceFile(t, compactingWorkflowPath(root), compactBlock, "")
-	replaceFile(t, compactingWorkflowPath(root), "      modelPolicy: test-window-planner@1\n",
-		"      modelPolicy: test-window-planner@1\n      compactorModelPolicy: test-compactor@1\n")
+
 	if _, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed")); err == nil {
 		t.Fatal("ignored compactor selection on a none Workflow loaded")
 	}
@@ -301,5 +311,35 @@ func TestPlannerContextYAMLAliasesAndMergesResolveLikeInlineConfiguration(t *tes
 				t.Fatal("independent Stage context policies share mutable state")
 			}
 		})
+	}
+}
+
+func TestPlannerCompactorPolicyRemainsPinnedAfterCatalogReload(t *testing.T) {
+	root := compactionFixture(t)
+	workflow, err := mustLoad(t, root).Workflow(compactingSelector)
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := resolved.EncodeResolvedWorkflowSnapshot(workflow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	before := workflow.Stages["review"].ExecutionConfig.Planner.CompactorModelPolicy.Clone()
+	replaceFile(t, filepath.Join(root, "model-policies/test-compactor.yaml"), "model: compactor-model", "model: changed-compactor-model")
+	reloaded, err := mustLoad(t, root).Workflow(compactingSelector)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pinned, err := resolved.DecodeResolvedWorkflowSnapshot(encoded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stored := pinned.Stages["review"].ExecutionConfig.Planner.CompactorModelPolicy
+	current := reloaded.Stages["review"].ExecutionConfig.Planner.CompactorModelPolicy
+	if stored.Ref != before.Ref || stored.Model != before.Model || current.Ref.Digest == before.Ref.Digest || current.Model != "changed-compactor-model" {
+		t.Fatalf("pinned/current compactor = %+v / %+v", stored, current)
+	}
+	if pinned.Stages["review"].ExecutionConfig.Planner.Origins.CompactorModelPolicy != "workflow.executionConfig.planner" {
+		t.Fatal("pinned compactor retained a removed context-block origin")
 	}
 }

@@ -13,6 +13,7 @@ import {
   type ArtifactPreviewPlan,
 } from "./preview-plan";
 import { Button } from "../../ui";
+import { SourcePreview } from "./source-preview";
 import { ScanReportSummary } from "../../widgets/scan-reports/view";
 import type { HTTPPreviewContext } from "./previews/http-exchange";
 import { PanelTabs } from "./tabs";
@@ -205,9 +206,7 @@ export function LoadedArtifactPreview({
         {mediaType === "application/json" ? (
           <ScanReportSummary source={source} />
         ) : null}
-        <pre className="artifact-preview" tabIndex={0}>
-          {source}
-        </pre>
+        <SourcePreview source={source} />
       </div>
     );
   }
@@ -239,11 +238,7 @@ export function LoadedArtifactPreview({
           {
             id: "source",
             label: "Source",
-            panel: (
-              <pre className="artifact-preview" tabIndex={0}>
-                {source}
-              </pre>
-            ),
+            panel: <SourcePreview source={source} />,
           },
         ]}
       />

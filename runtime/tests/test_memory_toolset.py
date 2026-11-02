@@ -11,10 +11,10 @@ from typing import Any
 from urllib.parse import parse_qs, unquote, urlsplit
 
 import pytest
+from fakes.worker_state import WorkerState
 from google.adk.tools import FunctionTool
 from shared_config_defaults import MAX_ARTIFACT_BYTES
 
-from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import (
     ArtifactAPIError,
     ArtifactClient,
@@ -434,6 +434,7 @@ def test_http_ambiguity_preserves_reconciliation_authority_and_cancellation(
     [
         (403, "artifact_access_denied", "memory_forbidden"),
         (503, "allocation_write_fenced", "memory_forbidden"),
+        (503, "allocation_not_found", "memory_forbidden"),
         (409, "artifact_conflict", "memory_changed"),
         (409, "artifact_limit_exceeded", "memory_namespace_full"),
         (400, "invalid_request", "memory_unavailable"),
@@ -812,7 +813,7 @@ def test_factory_rejects_purpose_reserved_memory_namespace(namespace: str) -> No
                 namespace=namespace,
                 runtime_settings=settings,
                 workspace=AllocationWorkspace(root=workspace_path.parent, path=workspace_path),
-                state=WorkerState(),
+                resources=WorkerState().resources,
             )
 
     asyncio.run(scenario())
@@ -884,7 +885,7 @@ async def create_tools(
             namespace="builder",
             runtime_settings=settings,
             workspace=AllocationWorkspace(root=workspace_path.parent, path=workspace_path),
-            state=state,
+            resources=state.resources,
         )
     )
 

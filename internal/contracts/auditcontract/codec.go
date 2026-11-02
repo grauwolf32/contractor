@@ -15,7 +15,7 @@ import (
 	wireschema "github.com/grauwolf32/contractor/api/v1alpha1"
 	"github.com/grauwolf32/contractor/internal/apierror"
 	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/grauwolf32/contractor/internal/strictjson"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	jsonschema "github.com/santhosh-tekuri/jsonschema/v6"
 	"strings"
 )
@@ -158,18 +158,26 @@ func decode(data []byte) (map[string]any, error) {
 }
 
 func validHypothesisSizes(value map[string]any) bool {
-	if value["schema"] != "contractor.audit.context.v1" {
-		return true
-	}
-	for _, raw := range value["items"].([]any) {
-		if hypothesis, ok := raw.(map[string]any)["hypothesis"]; ok {
-			data, err := strictjson.Canonical(hypothesis)
-			if err != nil || len(data) > 32768 {
+	switch value["schema"] {
+	case "contractor.audit.program.v1", "contractor.audit.proposals.v1":
+		for _, seed := range value["hypotheses"].(map[string]any) {
+			if !withinHypothesisByteLimit(seed) {
+				return false
+			}
+		}
+	case "contractor.audit.context.v1":
+		for _, raw := range value["items"].([]any) {
+			if hypothesis, ok := raw.(map[string]any)["hypothesis"]; ok && !withinHypothesisByteLimit(hypothesis) {
 				return false
 			}
 		}
 	}
 	return true
+}
+
+func withinHypothesisByteLimit(value any) bool {
+	data, err := strictjson.Canonical(value)
+	return err == nil && len(data) <= documentLimit("contractor.audit.hypothesis.v1")
 }
 
 func checkingBinding(binding map[string]any) bool {
@@ -351,7 +359,7 @@ func validInputSelections(task, binding, inputs, materials map[string]any) bool 
 func validProposals(v, program, materials map[string]any) bool {
 	seeds := v["hypotheses"].(map[string]any)
 	work := v["work"].([]any)
-	if len(seeds)+len(work) == 0 || len(seeds)+len(work) > 128 {
+	if len(seeds)+len(work) > 128 {
 		return false
 	}
 	aliases := map[string]bool{}

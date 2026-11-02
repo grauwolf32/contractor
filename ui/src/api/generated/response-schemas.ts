@@ -41,7 +41,6 @@ export type PublicSchemaName =
   | "FindingCandidatesPage"
   | "FindingComparisonRow"
   | "FindingComparisonPage"
-  | "FindingMembersPage"
   | "EvalId"
   | "EvalCheckParameterName"
   | "EvalOpaque"
@@ -233,7 +232,6 @@ export type PublicSchemaName =
   | "AuditWorkflowProvenance"
   | "AuditRunProvenance"
   | "AuditItemAttempt"
-  | "AuditFindingAttempt"
   | "AuditItemOrigin"
   | "AuditStandardEvidenceOrigin"
   | "AuditStandardItemOrigin"
@@ -261,9 +259,7 @@ export type PublicSchemaName =
   | "FindingAnchorKeys"
   | "FindingAnchorProjection"
   | "FindingCorrelationScope"
-  | "FindingCorrelationReference"
   | "FindingCorrelationBasis"
-  | "FindingCorrelation"
   | "FindingSubject"
   | "FindingStandardReference"
   | "FindingProposedCheck"
@@ -294,33 +290,18 @@ export type PublicSchemaName =
   | "FindingProposalPage"
   | "ImportFindingProposalRequest"
   | "ImportFindingProposalResponse"
-  | "AuditFindingState"
-  | "AuditFindingSeverity"
-  | "AuditAnalystVerdict"
   | "AuditReviewAction"
   | "AuditReviewRequestedAction"
   | "AuditReviewSubjectKind"
   | "AuditReviewState"
-  | "AuditFindingAssessment"
   | "AuditReviewDecision"
   | "AuditReviewRequest"
-  | "AuditFinding"
   | "AuditWorkspace"
   | "OwnerFindingPage"
   | "OwnerReviewPage"
   | "AuditFindingPage"
   | "AuditReviewPage"
-  | "AuditFindingProvenance"
-  | "AuditFindingProvenancePage"
-  | "CreateAuditFindingReviewRequest"
-  | "DecideAuditFindingRequest"
-  | "DecideAuditFindingTruePositiveRequest"
-  | "DecideAuditFindingDuplicateRequest"
-  | "DecideAuditFindingOtherRequest"
-  | "DecideAuditActionRequest"
   | "DecideAuditReviewRequest"
-  | "AuditFindingDecisionResult"
-  | "AuditActionDecisionResult"
   | "AuditReviewDecisionResult"
   | "RuntimeInfrastructureId"
   | "RuntimeCredentialId"
@@ -558,6 +539,20 @@ export type PublicSchemaName =
   | "OperationsSnapshot"
   | "RuntimeAgentPage"
   | "AllocationPage"
+  | "FindingState"
+  | "FindingSeverity"
+  | "FindingVerdict"
+  | "FindingActorIdentity"
+  | "ProjectFinding"
+  | "FindingClaim"
+  | "ProjectFindingSummary"
+  | "ProjectFindingPage"
+  | "DecisionRationale"
+  | "EditProjectFindingRequest"
+  | "EditProjectFindingResult"
+  | "ProjectFindingSourcePreview"
+  | "ProjectFindingSourcePage"
+  | "ProjectFindingSourceHistoryPage"
   | "IdempotencyKeyHeader"
   | "RequiredIfMatchHeader"
   | "OptionalOriginHeader"
@@ -1450,31 +1445,10 @@ export const RESPONSE_SCHEMAS = {
     "503": "Error",
   },
   "GET /v1/audits/{auditId}/findings/{findingId}": {
-    "200": "AuditFinding",
+    "200": "ProjectFinding",
     "400": "Error",
     "401": "Error",
     "404": "Error",
-    "500": "Error",
-    "503": "Error",
-  },
-  "GET /v1/audits/{auditId}/findings/{findingId}/provenance": {
-    "200": "AuditFindingProvenancePage",
-    "400": "Error",
-    "401": "Error",
-    "404": "Error",
-    "409": "Error",
-    "500": "Error",
-    "503": "Error",
-  },
-  "POST /v1/audits/{auditId}/findings/{findingId}/reviews": {
-    "201": "AuditReviewRequest",
-    "400": "Error",
-    "401": "Error",
-    "403": "Error",
-    "404": "Error",
-    "409": "Error",
-    "412": "Error",
-    "413": "Error",
     "500": "Error",
     "503": "Error",
   },
@@ -2093,13 +2067,60 @@ export const RESPONSE_SCHEMAS = {
     "500": "Error",
     "503": "Error",
   },
-  "GET /v1/projects/{projectId}/finding-correlations/{groupKey}/members": {
-    "200": "FindingMembersPage",
+  "GET /v1/projects/{projectId}/findings": {
+    "200": "ProjectFindingPage",
     "400": "Error",
     "401": "Error",
     "404": "Error",
     "409": "Error",
-    "422": "Error",
+    "500": "Error",
+    "503": "Error",
+  },
+  "GET /v1/projects/{projectId}/findings/{findingId}": {
+    "200": "ProjectFinding",
+    "400": "Error",
+    "401": "Error",
+    "404": "Error",
+    "409": "Error",
+    "500": "Error",
+    "503": "Error",
+  },
+  "PATCH /v1/projects/{projectId}/findings/{findingId}": {
+    "200": "EditProjectFindingResult",
+    "400": "Error",
+    "401": "Error",
+    "403": "Error",
+    "404": "Error",
+    "409": "Error",
+    "412": "Error",
+    "413": "Error",
+    "500": "Error",
+    "503": "Error",
+  },
+  "GET /v1/projects/{projectId}/finding-sources": {
+    "200": "ProjectFindingSourcePage",
+    "400": "Error",
+    "401": "Error",
+    "404": "Error",
+    "409": "Error",
+    "500": "Error",
+    "503": "Error",
+  },
+  "GET /v1/projects/{projectId}/finding-sources/{receiptId}": {
+    "200": "FindingProposalReceipt",
+    "400": "Error",
+    "401": "Error",
+    "404": "Error",
+    "409": "Error",
+    "500": "Error",
+    "503": "Error",
+  },
+  "GET /v1/projects/{projectId}/finding-sources/{receiptId}/history": {
+    "200": "ProjectFindingSourceHistoryPage",
+    "400": "Error",
+    "401": "Error",
+    "404": "Error",
+    "409": "Error",
     "500": "Error",
     "503": "Error",
   },
@@ -2125,7 +2146,6 @@ export const PUBLIC_PAGED_OPERATIONS: readonly string[] = [
   "GET /v1/audits/{auditId}/finding-proposals",
   "GET /v1/audits/{auditId}/events",
   "GET /v1/audits/{auditId}/findings",
-  "GET /v1/audits/{auditId}/findings/{findingId}/provenance",
   "GET /v1/audits/{auditId}/reviews",
   "GET /v1/queue",
   "GET /v1/runs",
@@ -2145,6 +2165,7 @@ export const PUBLIC_PAGED_OPERATIONS: readonly string[] = [
   "GET /v1/operations/credentials",
   "GET /v1/operations/runtime-agents",
   "GET /v1/operations/allocations",
+  "GET /v1/projects/{projectId}/findings",
 ];
 
 /** The PublicSchemaName of each request header an operation declares. */
@@ -2288,12 +2309,6 @@ export const REQUEST_HEADER_SCHEMAS = {
     Origin: "OptionalOriginHeader",
     "X-CSRF-Token": "OptionalCSRFTokenHeader",
   },
-  "POST /v1/audits/{auditId}/findings/{findingId}/reviews": {
-    "Idempotency-Key": "IdempotencyKeyHeader",
-    "If-Match": "RequiredIfMatchHeader",
-    Origin: "OptionalOriginHeader",
-    "X-CSRF-Token": "OptionalCSRFTokenHeader",
-  },
   "POST /v1/audits/{auditId}/reviews/{requestId}/decisions": {
     "Idempotency-Key": "IdempotencyKeyHeader",
     "If-Match": "RequiredIfMatchHeader",
@@ -2401,6 +2416,12 @@ export const REQUEST_HEADER_SCHEMAS = {
     Origin: "OriginHeader",
     "Sec-WebSocket-Protocol":
       "connectEventsWebSocketSecWebSocketProtocolHeader",
+  },
+  "PATCH /v1/projects/{projectId}/findings/{findingId}": {
+    "Idempotency-Key": "IdempotencyKeyHeader",
+    "If-Match": "RequiredIfMatchHeader",
+    Origin: "OptionalOriginHeader",
+    "X-CSRF-Token": "OptionalCSRFTokenHeader",
   },
 } as const satisfies Partial<
   Record<ResponseOperation, Record<string, PublicSchemaName>>

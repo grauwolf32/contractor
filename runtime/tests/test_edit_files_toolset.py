@@ -5,9 +5,9 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from fakes.worker_state import WorkerState
 from test_projectfs_zip import archive, settings, workspace_inputs
 
-from contractor_runtime.allocation import WorkerState
 from contractor_runtime.contracts import RuntimeSettings
 from contractor_runtime.core.lines import newline_style, split_lines
 from contractor_runtime.factories import built_in_factories
@@ -244,7 +244,7 @@ async def make_tools(
             requestTimeoutSeconds=30,
         ),
         workspace=AllocationWorkspace(root=tmp_path, path=tmp_path),
-        state=state,
+        resources=state.resources,
         project_workspace=writer,
     )
     return dict(result)

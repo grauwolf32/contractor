@@ -8,9 +8,9 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/helpers/pagelimit"
 	"github.com/grauwolf32/contractor/internal/httpapi/artifacttransfer"
 	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
-	"github.com/grauwolf32/contractor/internal/pagelimit"
 )
 
 // ArtifactScopes opens the Artifact store of one scope.

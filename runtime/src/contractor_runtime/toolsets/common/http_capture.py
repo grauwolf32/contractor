@@ -7,7 +7,7 @@ import re
 from collections import OrderedDict
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Annotated, Any, Literal
+from typing import TYPE_CHECKING, Annotated, Any, Literal
 
 from pydantic import Field, field_validator, model_validator
 
@@ -21,6 +21,9 @@ from contractor_runtime.core.http_limits import (
 from contractor_runtime.shared_config import get_shared_config
 from contractor_runtime.toolsets.common.finding_locations import ClosedModel, WebLocation
 from contractor_runtime.toolsets.common.http_evidence import HTTPHeader
+
+if TYPE_CHECKING:
+    from contractor_runtime.toolsets.common.resources import ToolResources
 
 HTTP_EXCHANGE_MEDIA_TYPE = "application/vnd.contractor.http-exchange+json"
 HTTP_EXCHANGE_SCHEMA = "contractor.http.exchange.v1"
@@ -278,11 +281,5 @@ class RecentHTTPCaptures:
                 self._bytes -= len(data) + (metadata.size_bytes if metadata is not None else 0)
 
 
-def allocation_http_captures(state: Any) -> RecentHTTPCaptures:
-    value = getattr(state, "http_captures", None)
-    if value is None:
-        value = RecentHTTPCaptures()
-        state.http_captures = value
-    if not isinstance(value, RecentHTTPCaptures):
-        raise TypeError("allocation HTTP capture buffer is invalid")
-    return value
+def allocation_http_captures(resources: ToolResources) -> RecentHTTPCaptures:
+    return resources.http_captures

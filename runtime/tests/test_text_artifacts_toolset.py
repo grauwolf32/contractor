@@ -10,11 +10,11 @@ from pathlib import Path
 
 import pytest
 from fakes.artifact_reads import CountingPayload, count_derivations, hold_preparation
+from fakes.worker_state import WorkerState
 from shared_config_defaults import MAX_ARTIFACT_BYTES
 
 import contractor_runtime.toolsets.common.artifact_read_cache as read_cache
 import contractor_runtime.toolsets.text_artifacts.tools as text_module
-from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import (
     ArtifactAPIError,
     ArtifactResponseLimitError,
@@ -176,11 +176,11 @@ def test_exact_artifact_cache_is_shared_bounded_and_cleared_on_close(
             namespace="worker-space",
             runtime_settings=runtime_settings(),
             workspace=AllocationWorkspace(root=tmp_path, path=tmp_path),
-            state=state,
+            resources=state.resources,
         )
         read_bytes = run_tools["read_artifact"]
         read_text = text_tools["read_text_artifact"]
-        cache = state._artifact_read_cache
+        cache = state.resources.artifact_read_cache
         try:
             first = await read_bytes("inputs", "report", source.revision, length=4)
             assert first["size"] == 8 and first["nextOffset"] == 4
@@ -311,7 +311,7 @@ def test_cache_budget_holds_for_worst_case_inputs_of_the_largest_artifact(
             tracemalloc.stop()
         # Paging never materialized the decoded payload or one object per line.
         assert peak < 16 * 1024 * 1024
-        entry = state._artifact_read_cache._entry
+        entry = state.resources.artifact_read_cache._entry
         assert entry is not None and entry.lines is not None and entry.value.data is data
         index_budget = read_cache.artifact_read_cache_max_bytes() - MAX_ARTIFACT_BYTES
         starts = entry.lines._starts_before_block
@@ -361,7 +361,7 @@ def test_concurrent_first_reads_share_one_preparation(
         assert held.calls == 2 and client.read_calls == 2
         # The download and the cached read of the log are content observations.
         assert client.observed_exact_refs_since(cursor) == (source, source, other)
-        entry = state._artifact_read_cache._entry
+        entry = state.resources.artifact_read_cache._entry
         assert entry is not None and entry.value.artifact == other
 
     asyncio.run(scenario())
@@ -376,7 +376,7 @@ def test_cancelled_preparation_is_joined_discarded_and_blocks_close(
         source = client.seed("inputs", "log", "text/plain", b"one\ntwo\n")
         state = WorkerState()
         read = (await make_tools(tmp_path, client, state))["read_text_artifact"]
-        cache = state._artifact_read_cache
+        cache = state.resources.artifact_read_cache
 
         reading = asyncio.create_task(read("inputs", "log", source.revision))
         assert await asyncio.to_thread(held.started.wait, 60)
@@ -465,7 +465,7 @@ def test_run_and_text_readers_share_one_utf8_validation(
             namespace="worker-space",
             runtime_settings=runtime_settings(),
             workspace=AllocationWorkspace(root=tmp_path, path=tmp_path),
-            state=state,
+            resources=state.resources,
         )
         read_bytes = run_tools["read_artifact"]
         assert (await read_bytes("inputs", "log", source.revision))["size"] == 11
@@ -737,7 +737,7 @@ def test_factory_rejects_unknown_tools_and_builtin_registry_matches(tmp_path: Pa
                 namespace="analysis",
                 runtime_settings=runtime_settings(),
                 workspace=AllocationWorkspace(root=tmp_path, path=tmp_path),
-                state=WorkerState(),
+                resources=WorkerState().resources,
             )
 
     asyncio.run(scenario())
@@ -761,7 +761,7 @@ async def make_tools(
         namespace="worker-space",
         runtime_settings=runtime_settings(),
         workspace=AllocationWorkspace(root=tmp_path, path=tmp_path),
-        state=state,
+        resources=state.resources,
     )
     return dict(selected)
 

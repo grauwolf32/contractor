@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/randomid"
+	"github.com/grauwolf32/contractor/internal/helpers/randomid"
 	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )

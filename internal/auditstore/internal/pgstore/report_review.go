@@ -34,7 +34,7 @@ func (s *ClaimStore) ProposeReport(
 	audit, err := scanAudit(persistencepostgres.SavepointQueryRow(ctx, s.db, proposeReportSQL+prefixedAuditColumns("changed")+` FROM changed`,
 		params.Claim.AuditID, params.Claim.HolderID, params.Claim.Epoch,
 		params.ExpectedAuditRevision, params.RoundID, params.ExpectedRoundRevision,
-		reviewID, params.RequestDigest, machine, summary,
+		reviewID, params.RequestDigest, machine, summary, params.ExpectedProjectRevision,
 	))
 	if err == nil {
 		return audit, true, nil

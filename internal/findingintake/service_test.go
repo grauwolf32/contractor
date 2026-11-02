@@ -52,12 +52,12 @@ func TestCanonicalSubmissionRejectsLimitationsThatCannotEnterAuditCoverage(t *te
 			input := testSubmission("worker-invocation-1", "candidate-1", nil)
 			input.Proposal.ProposedChecks = []auditdomain.ProposedCheck{{Objective: "Verify the finding", Method: "static"}}
 			input.Proposal.Limitations = test.limitations
-			legacy, err := auditdomain.EncodeFindingProposal(input.Proposal)
+			encoded, err := auditdomain.EncodeFindingProposal(input.Proposal)
 			if err != nil {
-				t.Fatalf("legacy proposal codec rejected retained document: %v", err)
+				t.Fatalf("proposal codec rejected retained document: %v", err)
 			}
-			if _, err := auditdomain.DecodeFindingProposal(legacy); err != nil {
-				t.Fatalf("legacy proposal codec could not read retained document: %v", err)
+			if _, err := auditdomain.DecodeFindingProposal(encoded); err != nil {
+				t.Fatalf("proposal codec could not read retained document: %v", err)
 			}
 			if _, err := canonicalize(input); !errors.Is(err, ErrInvalid) {
 				t.Fatalf("invalid proposed-check limitations admitted: %v", err)

@@ -27,6 +27,7 @@ from contractor_runtime.sandbox.lifecycle import PreparedExecution
 from contractor_runtime.sitemap_collection import SitemapCollector
 from contractor_runtime.state import ProcessState
 from contractor_runtime.telemetry.resources import ResourceCollector
+from contractor_runtime.toolsets.common.resources import ToolResources
 from contractor_runtime.worker.state import WorkerStateStore
 from contractor_runtime.workspace import AllocationWorkspace
 
@@ -58,6 +59,7 @@ class _AllocationContext:
     project_workspace: DirectWorkspaceSession | None = field(repr=False)
     adapter_host: AllocationAdapterHost = field(repr=False)
     tools: dict[str, ToolInstance]
+    resources: ToolResources | None = field(repr=False)
     worker_state: WorkerStateStore | None
     runtime_settings: RuntimeSettings | None = field(repr=False)
     worker: WorkerRuntime | None = field(repr=False)

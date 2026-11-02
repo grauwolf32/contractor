@@ -8,7 +8,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/findinganalysis"
 	"github.com/grauwolf32/contractor/internal/findingexport"
-	"github.com/grauwolf32/contractor/internal/strictjson"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 )
 
 func obj(value any) object  { v, _ := value.(map[string]any); return v }
@@ -245,7 +245,7 @@ func validateSemantics(document object, snapshot findingexport.Snapshot) error {
 }
 
 func expectedRating(result findingexport.Result) (string, string) {
-	if result.Review.State != "confirmed" {
+	if !result.Review.IsState("confirmed") {
 		return "review", "none"
 	}
 	switch result.Review.Severity {

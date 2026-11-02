@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/grauwolf32/contractor/internal/strictjson"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 )
 
 func TestJSONExtentMatchesStrictParser(t *testing.T) {

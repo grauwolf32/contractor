@@ -304,7 +304,6 @@ export function starter(kind: Kind): Draft {
             },
             interaction: {
               activeChecks: "prohibited",
-              findingConfirmation: "human-required",
               notApplicable: "profile-rule",
               reportAcceptance: "automatic",
             },

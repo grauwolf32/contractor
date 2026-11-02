@@ -11,12 +11,12 @@ import httpcore
 import pytest
 import yaml
 from fakes.engagement_socket import SocketTarget, resolver_for, socket_spec, tls_contexts
+from fakes.worker_state import WorkerState
 from test_audit_http_credentials import tools_for
 from test_engagement_identity import identity_spec
 from test_tool_worker import ArtifactStore
 
 from contractor_runtime.adapters.http_transport import HTTPTransport
-from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import ArtifactClient
 from contractor_runtime.contracts.engagement import HTTPLimits
 from contractor_runtime.core.input_errors import ToolInputError
@@ -63,7 +63,7 @@ async def scanner(tmp_path, target, *, spec=None, templates=None, tls=None):
         namespace="scanner",
         runtime_settings=spec.runtime_settings,
         workspace=AllocationWorkspace(root=tmp_path, path=workspace),
-        state=WorkerState(),
+        resources=WorkerState().resources,
         controlled_http=owner,
     )
     return tools["scan_nuclei"], owner, store

@@ -150,6 +150,19 @@ func (s *Service) hydrateAuditReceipts(
 			}
 		}
 	}
+	for _, receipt := range receipts {
+		for _, hold := range receipt.AuditHolds {
+			if receipt.ProjectProposal == nil || receipt.ProjectID == nil || hold.ProjectID != *receipt.ProjectID || receipt.ProjectProposal.Verify(hold.Proposal) != nil || len(hold.Evidence) != len(receipt.ProjectEvidence) {
+				return nil, artifacts.ErrArtifactIntegrity
+			}
+			for index, evidence := range hold.Evidence {
+				if receipt.ProjectEvidence[index].Verify(evidence) != nil {
+					return nil, artifacts.ErrArtifactIntegrity
+				}
+			}
+		}
+	}
+
 	return s.hydrateAuditReceiptBatch(ctx, receipts)
 }
 
@@ -252,13 +265,12 @@ func receiptArtifact(receipt Receipt) (artifacts.ExactReadRequest, ExactArtifact
 	var scope artifacts.Scope
 	var expected ExactArtifact
 	var err error
-	if !receipt.Origin.RunDeleted {
+	if receipt.ProjectProposal != nil && receipt.ProjectID != nil {
+		scope, err = artifacts.ProjectScope(*receipt.ProjectID)
+		expected = *receipt.ProjectProposal
+	} else if !receipt.Origin.RunDeleted {
 		scope, err = artifacts.RunScope(receipt.Origin.RunID)
 		expected = receipt.Proposal
-	} else if len(receipt.AuditHolds) != 0 {
-		hold := receipt.AuditHolds[0]
-		scope, err = artifacts.ProjectScope(hold.ProjectID)
-		expected = hold.Proposal
 	} else {
 		return artifacts.ExactReadRequest{}, ExactArtifact{}, ErrNotFound
 	}

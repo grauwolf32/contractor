@@ -10,9 +10,9 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/contentdigest"
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
-	"github.com/grauwolf32/contractor/internal/strictjson"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -165,7 +165,7 @@ func encodeAdmissionProgress(state auditstore.AdmissionProgress) ([]byte, error)
 		state.SelectedCount < 0 || state.SelectedCount > auditdomain.MaximumItems || state.StagedCount < 0 || state.StagedCount > state.SelectedCount ||
 		state.PublishedPages < 0 || state.StagedPages < 0 || state.StagedPages > state.PublishedPages || validateJSONObject("admission budget", state.Budget, 4096) != nil || state.SourceCutoffAt.IsZero() || state.RoundOrdinal < 2 || state.RoundOrdinal > 33 || state.RoundOrdinal == 33 && state.SelectedCount > 0 ||
 		state.StopCode != "" && state.StopCode != "round_budget_exhausted" && state.StopCode != "item_budget_exhausted" && state.StopCode != "evidence_budget_exhausted" && state.StopCode != "submission_budget_exhausted" ||
-		(state.BlockedCode == "") != (state.BlockedReceiptID == "") || state.Cursor.Ordinal < 0 || state.Cursor.Ordinal > 512 {
+		state.Cursor.Ordinal < 0 || state.Cursor.Ordinal > 512 {
 		return nil, auditstore.ErrInvalid
 	}
 	if state.PublishedPages > state.SelectedCount || state.StagedPages > state.StagedCount ||

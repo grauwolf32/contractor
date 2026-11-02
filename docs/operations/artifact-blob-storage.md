@@ -253,25 +253,6 @@ storage. Using `medium: Memory` instead also charges blob files to container
 memory. A PVC may replace this volume if persistence is desired, but is not
 required. S3 is not implemented.
 
-## Finding check index data migration
-
-After applying schema migrations, derive indexes for receipts retained before
-typed check routing was installed:
-
-```sh
-contractor-server data-migrate finding-checks --artifact-blob-path=/var/lib/contractor/blobs
-```
-
-Use the same database and filesystem blob root as the Server. The command also
-honors `CONTRACTOR_DATABASE_URL` and `CONTRACTOR_ARTIFACT_BLOB_PATH`; the path is
-needed for existing filesystem objects even when new writes use PostgreSQL.
-It reads exact proposal bytes and adds only their private check indexes, in
-bounded batches. It never rewrites proposal bytes, receipts, reports or evidence.
-Restarting resumes the remaining NULL indexes. Missing or corrupt bytes fail
-explicitly and leave those receipts pending; repair the exact source and rerun.
-Typed admission waits for a pending index rather than parsing the full proposal
-as a fallback. Existing ordinary finding readers keep their current behavior.
-
 ## Release verification
 
 Every release runs `make test-artifact-filesystem` in `release-verify-integration`:

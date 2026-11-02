@@ -6,11 +6,11 @@ import asyncio
 from pathlib import Path
 
 import pytest
+from fakes.worker_state import WorkerState
 from test_edit_files_toolset import hydrated_workspace
 from test_edit_files_toolset import make_tools as make_edit_tools
 from test_filesystem_toolset import create_tools as make_read_tools
 
-from contractor_runtime.allocation import WorkerState
 from contractor_runtime.projectfs import OverlayWorkspaceSession
 from contractor_runtime.toolsets.filesystem.tools import FilesystemToolsetFactory
 

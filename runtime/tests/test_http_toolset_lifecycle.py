@@ -6,11 +6,11 @@ from typing import Any
 
 import httpx
 import pytest
+from fakes.worker_state import WorkerState
 from http_cookie_store import CookieArtifactStore, HTTPToolsetFactory
 
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.http_proxy import ProxyHTTPClient
-from contractor_runtime.allocation import WorkerState
 from contractor_runtime.contracts import ArtifactRef, HTTPProxySettings, RuntimeSettings
 from contractor_runtime.toolsets.http.tools import HTTPToolError
 from contractor_runtime.workspace import AllocationWorkspace
@@ -44,7 +44,7 @@ def test_close_erases_ephemeral_auth_and_replacement_restores_cookies(tmp_path: 
             namespace="worker",
             runtime_settings=settings,
             workspace=AllocationWorkspace(root=tmp_path, path=tmp_path / allocation_id),
-            state=WorkerState(),
+            resources=WorkerState().resources,
         )
         return dict(result)
 
@@ -103,7 +103,7 @@ def test_tool_cleanup_succeeds_after_terminal_proxy_adapter_detach(tmp_path: Pat
                 namespace="worker",
                 runtime_settings=settings,
                 workspace=AllocationWorkspace(root=tmp_path, path=tmp_path / "allocation"),
-                state=WorkerState(),
+                resources=WorkerState().resources,
                 adapter_handles=AdapterHandles(tool_http=handle),
             )
         )

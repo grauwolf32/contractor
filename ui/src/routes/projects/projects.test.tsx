@@ -873,6 +873,11 @@ describe("Project routes", () => {
     await userEvent
       .setup()
       .click(screen.getByRole("button", { name: "Versions" }));
+    await userEvent
+      .setup()
+      .click(
+        screen.getByText("Technical details", { selector: ".ui-tech-label" }),
+      );
     expect(await screen.findByText("project output publish")).toBeVisible();
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Load preview" }));

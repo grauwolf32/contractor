@@ -15,7 +15,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/findingintake"
-	"github.com/grauwolf32/contractor/internal/pagelimit"
+	"github.com/grauwolf32/contractor/internal/helpers/pagelimit"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -109,10 +109,6 @@ func TestPublicListFakesRejectReadsBeyondThePageFetchBound(t *testing.T) {
 		}},
 		{"audit reviews", pagelimit.MaxFetchRows, auditstore.ErrInvalid, func(rows int) error {
 			_, err := audits.ListReviewsPage(ctx, auditstore.ReviewListParams{Limit: rows})
-			return err
-		}},
-		{"audit finding provenance", pagelimit.MaxFetchRows, auditstore.ErrInvalid, func(rows int) error {
-			_, err := audits.ListFindingProvenance(ctx, auditstore.ProvenanceListParams{Limit: rows})
 			return err
 		}},
 		{"owner findings", pagelimit.MaxFetchRows, auditstore.ErrInvalid, func(rows int) error {

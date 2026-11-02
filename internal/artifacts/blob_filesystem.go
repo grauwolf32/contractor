@@ -12,7 +12,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/grauwolf32/contractor/internal/randomid"
+	"github.com/grauwolf32/contractor/internal/helpers/randomid"
 )
 
 var blobKeyPattern = regexp.MustCompile(`^[0-9a-f]{2}/[0-9a-f]{32}$`)

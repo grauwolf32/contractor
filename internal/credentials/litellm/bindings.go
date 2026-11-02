@@ -14,7 +14,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/credentials"
-	"github.com/grauwolf32/contractor/internal/securefile"
+	"github.com/grauwolf32/contractor/internal/helpers/securefile"
 	"go.yaml.in/yaml/v4"
 )
 

@@ -1,7 +1,11 @@
 import { type ReactNode } from "react";
 
 import type { ArtifactMetadata } from "../../api/artifacts";
-import type { Audit, AuditFinding, AuditState } from "../../api/audits";
+import type {
+  Audit,
+  ProjectFindingSummary,
+  AuditState,
+} from "../../api/audits";
 import type { Project } from "../../api/projects";
 import type { RunSummary } from "../../api/runs";
 import { ContextLink } from "../../app/context-navigation";
@@ -20,7 +24,6 @@ import {
 } from "../../ui";
 import { artifactDetailPath } from "../artifacts/paths";
 import { auditProfileLabel } from "./audits/labels";
-import type { CheckIssues } from "./overview-data";
 import { RunPrimaryResult } from "./overview-runs";
 import { projectPath } from "./project-sections";
 import {
@@ -56,9 +59,6 @@ const CHECK_PHRASES: Readonly<Record<AuditState, string>> = {
   failed: "failed",
   deleting: "is being deleted",
 };
-
-const HTTP_OPERATION =
-  /^(get|put|post|delete|options|head|patch|trace)\s+(\/\S*)$/i;
 
 function stopReason(audit: Audit): string | undefined {
   const reason = audit.stopReason;
@@ -110,34 +110,20 @@ function checkEvent(
   };
 }
 
-function issueEvent(finding: AuditFinding): TimelineEvent {
-  const document = finding.firstProposal.document;
-  const operation =
-    document.subject === null
-      ? null
-      : HTTP_OPERATION.exec(document.subject.key.trim());
+function issueEvent(finding: ProjectFindingSummary): TimelineEvent {
   return {
-    id: `issue:${finding.auditId}/${finding.findingId}`,
+    id: `issue:${finding.projectId}/${finding.findingId}`,
     kind: "issues",
     time: finding.createdAt,
     tone: "review",
     title: "Possible issue found",
     text: (
       <>
-        {operation === null ? null : (
-          <>
-            on{" "}
-            <span className="ui-mono">
-              {operation[1]!.toUpperCase()} {operation[2]}
-            </span>
-            {": "}
-          </>
-        )}
         <ContextLink
           returnLabel="Project Overview"
-          to={`/issues/${encodeURIComponent(finding.auditId)}/${encodeURIComponent(finding.findingId)}`}
+          to={`/issues/${encodeURIComponent(finding.projectId)}/${encodeURIComponent(finding.findingId)}`}
         >
-          {document.title}
+          {finding.title}
         </ContextLink>{" "}
         <StatusChip tone="review" size="sm" glyph={false}>
           Needs review
@@ -217,7 +203,7 @@ function dayLabel(time: string, now: Date): string {
 interface ProjectTimelineProps {
   project: Project;
   checks: readonly Audit[];
-  issues: readonly CheckIssues[];
+  issues: readonly ProjectFindingSummary[];
   runs: readonly RunSummary[];
   materials: readonly ArtifactMetadata[];
   filter: TimelineFilter;
@@ -240,14 +226,9 @@ export function ProjectTimeline({
   onFilter,
 }: ProjectTimelineProps) {
   const projectId = project.projectId;
-  const toReview = new Map(
-    issues.map((check) => [check.audit.auditId, check.total]),
-  );
   const events: TimelineEvent[] = [
-    ...checks.map((audit) =>
-      checkEvent(audit, projectId, toReview.get(audit.auditId) ?? 0),
-    ),
-    ...issues.flatMap((check) => check.items.map(issueEvent)),
+    ...checks.map((audit) => checkEvent(audit, projectId, 0)),
+    ...issues.map(issueEvent),
     // A check's own Runs are told by the check.
     ...runs
       .filter((run) => !("audit.id" in run.labels))

@@ -232,10 +232,10 @@ func (d *Diagnostics) Snapshot() DiagnosticView {
 // records skipped minutes, never a backlog of synthetic samples.
 func (d *Diagnostics) Observe(sample Sample) {
 	// Own the retained frame: callers may reuse their readers' pointer fields.
-	if sample.Validate() != nil {
+	raw, err := sample.encode()
+	if err != nil {
 		return
 	}
-	raw, _ := json.Marshal(sample)
 	var detached Sample
 	_ = json.Unmarshal(raw, &detached)
 	sample = detached

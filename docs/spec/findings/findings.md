@@ -87,8 +87,8 @@ document owns are:
 - **Collection document.** The exact retained bytes of one proposal or
   evidence artifact inside a collection, identified by a document ID derived
   from its scope, exact ref and content metadata.
-- **Review observation.** The captured Audit review state of one finding at
-  one revision, recorded as provenance inside a collection entry.
+- **Canonical snapshot.** The nullable current assessment of one Project Finding,
+  captured at an explicit revision for a frozen collection.
 - **Publication receipt.** The small JSON artifact in
   `finding-collection-receipts/<clientKey>` that records the normalized
   request digest and the exact ZIP metadata of one published collection.
@@ -157,22 +157,22 @@ The transport manifest is `manifest.json`.
 
 | Object | Fields |
 | --- | --- |
-| Collection | `schema: contractor.findings.collection.v1`, `snapshot_at`, `sources`, `documents`, `entries` |
+| Collection | `schema: contractor.findings.collection.v2`, `snapshot_at`, `sources`, `documents`, `entries` |
 | Source | `kind: run\|audit`, `id` |
 | Document | `id`, `scope: {kind: run\|project\|user, id}`, exact `ref`, `digest`, `media_type`, `size_bytes` |
-| Entry | `receipt_id`, `proposal_id`, `run_id`, `invocation_id`, optional `audit_origin`, optional `audit_holds`, `retention`, `proposal_document_id`, `evidence`, `reviews` |
+| Entry | `selected_sources`, `receipt_id`, `proposal_id`, `run_id`, `invocation_id`, optional `audit_origin`, optional `audit_holds`, `retention`, `proposal_document_id`, `evidence`, optional `finding` |
 | Audit origin | `audit_id`, `execution_id`, `role` |
 | Evidence link | `evidence_id`, `document_id` |
-| Review observation | `audit_id`, `finding_id`, `revision`, `state`; optional `decision_id`, `assessment_id`, `duplicate_target_id` |
+| Finding snapshot | `project_id`, `finding_id`, `revision`, nullable `state`; optional coherent `verdict`, `severity`, `duplicate_target_id` |
 
 ### Receipt retention of an ordinary-Run proposal
 
 An entry's `retention` records one of the receipt states `source-held`,
-`audit-held` or `discarded` (FND-R83). A proposal of an ordinary Run stays
+`project-held` or `discarded` (FND-R83). A proposal of an ordinary Run stays
 readable in its source RunScope (FND-R63); hard deletion of the source Run
 discards it when it was never imported (FND-R154, and
 [retention and deletion](../artifacts/retention-and-deletion.md), DEL-R28).
-This document does not specify when a receipt enters `audit-held`. The
+Project retention is specified by FND-R214. The
 receipt itself stays as tombstone provenance until its Project is deleted
 (DEL-R61).
 
@@ -289,14 +289,12 @@ invocation and tool-call submission identity.
 be selected independently of a creation facade: AgentTemplate selection can
 expose creation, reading or both.
 
-**FND-R21.** Selecting reading does not imply finding emission, Audit
-confirmation or review authority. Those mutations are owned by the Audit
-review contract ([review and reports](../audits/review-and-reports.md)).
+**FND-R21.** Selecting reading grants no publication or analyst mutation authority. Current Finding
+ownership and commands are FND-R209 through FND-R219.
 
-**FND-R22.** A `finding` call registers a candidate. It does not confirm a
-vulnerability, create an AuditItem or Run, publish to ProjectScope or grant
-approval. The Worker never chooses the Project or Audit and never starts
-work.
+**FND-R22.** A finding call records an ordinary proposal receipt. Its explicit publish_problem flag
+additionally requests canonical Project problem publication under FND-R210. The Worker
+never chooses the Project or Audit, grants approval or starts work.
 
 **FND-R23.** Model-visible arguments contain no `audit_id`,
 `project_id`, owner or Run identity, or execution override.
@@ -772,105 +770,47 @@ LIM-FND-38 through LIM-FND-41; failures/lifecycle reuse FAIL-FND-1 and LIFE-FND-
 
 ### Automatic correlation across Audits
 
-**FND-R174.** Every admitted Audit finding retains its own observation identity,
-first receipt, evidence, assessments and human results. Freeze the primary key
-from that first receipt: a qualified `contractor/producer-issue/v1` key under
-`pinned-sarif-native/v1` first, otherwise exactly one distinct qualified
-`contractor/snapshot-issue-anchor/v1` issue key. Several distinct issue keys are
-`primary_key_ambiguous`; site-only, unsupported or missing keys are
-`no_qualified_key`; both original projections marked `not_recorded` remain
-`not_recorded`. Later contributions never change the primary key or bridge
-separate schemes. No LLM, embedding, prose similarity or human confirmation
-participates in automatic equality.
+**FND-R174.** Qualified publication admits one canonical Project Finding. Its first receipt freezes
+the primary key: a qualified contractor/producer-issue/v1 key under pinned-sarif-
+native/v1 first, otherwise exactly one distinct qualified contractor/snapshot-issue-
+anchor/v1 issue key. Several distinct issue keys are primary_key_ambiguous; site-only,
+unsupported or missing keys are no_qualified_key; both original projections marked
+not_recorded remain not_recorded. Later sources never change the primary key or bridge
+separate schemes. Every independent receipt and result survives. No model or human
+confirmation participates in automatic equality.
 
-**FND-R175.** Persist only immutable primary algorithm/value, unavailable reason,
-actual Audit Project and group hash on the existing finding row. The group hash
-is SHA-256 hex of RFC 8785 JSON
-`["contractor/finding-group/v1", project_id, algorithm, value]`.
-The database derives scope from the Audit, enforces its composite foreign key,
-validates the group shape and rejects primary/first-receipt mutation. There is no global identity, membership table, extra receipt or
-background controller.
+**FND-R175.** The canonical row stores immutable primary algorithm/value, unavailable reason, Project
+scope and group hash: SHA-256 hex of RFC 8785 JSON ["contractor/finding-group/v1",
+project_id, algorithm, value]. Qualified keys are unique within the Project. Its
+immutable owner_id is derived from the Project on insert and exists solely to bound
+owner-index scans; a database trigger verifies it and prevents later identity changes.
+It is neither another state owner nor an authorization fallback. There is no
+representative Audit Finding or background synchronization.
 
-**FND-R176.** Authorized finding detail/list responses include the closed
-`contractor.finding.correlation.v1` projection under policy
-`qualified-snapshot/v1`. It returns Project scope/revision, availability and
-reason, or group/basis, `matchedDomain: snapshot`, representative Audit/finding,
-`automaticDuplicate` and `hasOtherObservations`. Choose the bytewise smallest
-retained finding ID in that Project group. Only other members have
-`automaticDuplicate: true`; the representative reports whether another member
-exists. Unavailable keys have neither group nor representative and both flags
-are false. Representative choice confers no truth, severity or discovery credit.
-The read uses one PostgreSQL statement snapshot, deduplicated requested page
-groups and two indexed first/next probes per group, with no peer count or
-per-peer hydration (LIM-FND-42). Ownership is checked before group presentation.
-Model/private finding tools and collection contents remain unchanged.
+**FND-R176.** The former automatic-duplicate presentation over separate Audit Findings is retired.
+Lists return canonical Project summaries; exact source receipts retain the independent
+observations. A shared qualified key resolves to the same Finding identity on write,
+without a representative reader or copied current state.
 
-**FND-R177.** An opaque Project finding correlation revision fences current
-membership, triage/assessment, additional contributions and retained source
-availability. It lives in the Project's finding correlation fence row
-(`finding_correlation_fences`), which `internal/auditstore/internal/pgstore`
-owns ([PER-R23](../platform/persistence.md)); the Project row holds no part of
-it. The Project's first Audit creates the row in the Audit's own transaction,
-and the row is removed only with its Project (LIFE-FND-4). A Project without
-the row has never had an Audit and reads revision 1, the revision the row
-starts with. Advance the revision within the existing transaction once per
-affected Project per mutation statement, the Projects in sorted order;
-natural-key replay advances neither membership nor revision/events. Every
-finding writer takes the fence without waiting: the Project row `FOR SHARE
-NOWAIT`, then the fence row `FOR NO KEY UPDATE NOWAIT`. Keep Run then Audit
-authority order; import takes the fence through the Audit store after its Run
-and Audit locks and before any retained artifact admission. Another finding
-writer of the Project, or a Project deletion, lifecycle change or metadata
-update that holds the Project row exclusively, is contention, and contention
-becomes the existing retryable SQLSTATE `40001`, finite transaction retries and
-the retryable HTTP `503 storage_transaction_conflict` (PER-R16). Run creation,
-Audit start, Project artifact admission, Git import and Eval checks share the
-Project row and never contend with a finding writer. A missing fence row where
-a finding mutation needs one is a permanent internal failure. Owner import,
-each bounded collection transaction and an analyst finding decision replay
-only the whole transaction that aborted, at most three transactions within the
-caller's context and budget; a permanent, cancelled or uncertain outcome is
-never replayed (FAIL-REV-7, FAIL-AUX-3, FAIL-REV-1). No new claim or advisory
-lock is introduced. The revision is an exact integer in 1..9007199254740991
-and cannot decrease or skip an increment. A finding page's Audit revision
-still fences its own observations; the explicit Project revision fences
-current correlation, which may change when another Audit admits or removes a
-peer. Existing events invalidate the affected Audit; there is no synthetic
-human decision/event or fanout write to peer Audits.
+**FND-R177.** The existing finding_correlation_fences row owns the exact Project revision
+(1..9007199254740991), initialized atomically when the Project is created and removed
+only with that Project. A missing required fence is an integrity failure, never revision
+1. Canonical publication, analyst edits and source/result availability advance it in
+their owning transaction; replay does not. Writers lock the Project FOR SHARE NOWAIT
+then its fence FOR NO KEY UPDATE NOWAIT, preserving existing Run/Audit authority order.
+Contention uses SQLSTATE 40001, bounded whole-transaction retries and
+storage_transaction_conflict 503. Audit purge removes execution membership without
+deleting Project sources or advancing canonical state. Project and Audit Finding pages
+pin this revision. Owner-wide lists use live owner-scoped keysets. This reuses the
+existing lock domain: moving revision onto the Project row would falsely contend with
+ordinary Run and Artifact admission; adding another lock or receipt mechanism is
+rejected. Reopen this boundary only if Project admission locking changes.
 
-Rationale: only finding writers change the revision, but unrelated
-admissions share-lock the Project row to fence its change to `deleting`. When
-the revision was a column of that row, a finding writer's exclusive lock
-aborted import, collection and analyst decisions whenever the Audit
-Controller created a child Run in the same Project, and triggers on finding
-tables wrote a relation that `internal/projectstore` owns. The order is safe
-against Project deletion, which takes the Project row exclusively first in
-each of its transactions: a finding writer that meets that lock aborts at
-once, and a deletion that meets a writer's shared lock waits for a writer that
-never waits on the Project row again, because its later admissions request a
-lock it already holds. The fence row is locked only after the shared Project
-lock, so a deletion that holds the Project row never meets a held fence row,
-and Audit creation inserts the row only when its snapshot shows none, so it
-never waits on a finding writer. Rejected alternatives: keeping the column and
-locking it through a `projectstore` API keeps the false contention and the
-trigger writes; an advisory lock is a new lock mechanism; weakening Run and
-artifact admission to `FOR KEY SHARE` loses their fence against the change to
-`deleting`. The fence row is its own lock domain with its own owner, not an
-immutability split of the Project row. Reopen this when unrelated admissions
-stop share-locking the Project row, or when findings move under
-`internal/projectstore` ownership.
-
-**FND-R178.** Automatic marks never change analyst state, TP/FP, severity,
-manual duplicate targets, finding revision, pending review subject or frozen
-accepted reports. Current correlation remains readable alongside independently
-confirmed/rejected/manual-duplicate results. Source Run deletion retains exact
-Audit-held keys/evidence and advances the provenance fence. Audit purge removes
-only its own memberships in existing bounded batches, advances affected Audit
-and Project fences and deterministically promotes any surviving representative
-without peer writes. Project purge removes all memberships under existing
-lifecycle authority. Rejection/cancellation rolls back; uncertain commits
-reconcile existing receipt/natural keys before another mutation (FAIL-FND-6,
-LIFE-FND-4).
+**FND-R178.** Source collection and negative rechecks append ordinary immutable results without
+changing current analyst fields, duplicate target or Finding revision. Audit deletion
+removes only execution-local membership and holds; Project sources and exact material
+remain. Frozen reports remain historical captures. Final Project deletion releases the
+canonical rows, receipts and material in bounded dependency order.
 
 ### Bounded candidate, comparison and member reads
 
@@ -929,16 +869,10 @@ independent-discovery totals. Profile and baseline digest (explicitly
 or unmatched observations never imply a fixed/new vulnerability or clean scan.
 No whole-comparison totals or complete-coverage claims are inferred.
 
-**FND-R183.** Member pages select Project, one Audit or an exact Audit pair,
-return every retained observation through signed keyset cursors and choose the
-representative within that same explicit scope. Pair traversal uses separate
-bounded probes of each selected Audit rather than scanning and filtering a
-Project-wide group. An unrelated third Audit's update cannot stale a pair
-comparison/member traversal. Current Project membership and independent
-results continue to follow FND-R178; the read adds no lifecycle resource. The
-Server supplies each scoped preview role (`representative` or
-`automatic-duplicate`) separately from human triage; the browser computes no
-finding equality.
+**FND-R183.** The separate automatic-group member API is retired. Canonical Finding sources are
+reached through bounded Project source pages; Audit lists query indexed membership in
+those same canonical identities. There is no source-specific Finding identity or current
+state.
 
 ### Proposals of ordinary Runs
 
@@ -946,45 +880,12 @@ finding equality.
 its source RunScope until it is either imported by exact revision into an
 Audit or durably discarded (LIFE-FND-1).
 
-**FND-R154.** Hard deleting its source Run atomically marks every unimported
-proposal discarded, purges its proposal and evidence revisions with the
-RunScope, and retains only bounded tombstone provenance; an imported proposal
-is protected by the destination Audit's own exact holds (LIFE-FND-1).
-
-The discarded receipt retains its receipt/proposal IDs, submission and request
-digest, client key, source owner/Project/Run/Stage/allocation/runtime identities,
-Workflow identity and closure digest, optional Audit origin, retention state
-and timestamps. Their existing identity bounds still apply (LIM-FND-51): receipt/proposal
-IDs and owner/Run/Stage/allocation/runtime IDs are at most 256 bytes, invocation,
-submission, logical Agent and Workflow identity strings at most 128 bytes,
-and the stored client key at most 160 ASCII bytes. The Workflow configuration
-reference is at most 4 KiB of JSON; digests are SHA-256 descriptors.
-The exact proposal reference (at most 4 KiB of JSON), its digest, fixed JSON
-media type and original byte size (at most 8 MiB), and the exact evidence
-descriptor array (at most 1 MiB of JSON) also remain. These are immutable
-identity/provenance descriptors, containing no Artifact payload; they preserve
-exact submission replay after source deletion (FND-R167).
-
-The report projection is replaced with the two-byte empty object `{}`; the
-fingerprint, anchor and comparison projections keep only their closed
-unavailable/discarded markers. The same erasure applies when the last Audit
-hold is purged after source deletion and to already discarded receipts during
-schema migration. A source-held or audit-held report projection remains
-immutable. Discarded receipts cannot acquire report content on insert or update.
-
-Rationale: Run deletion therefore cannot leak abandoned proposals or silently
-remove evidence already retained by an Audit. Keeping proposal/evidence
-descriptors rather than clearing them preserves exact receipt replay and its
-source provenance without retaining content. Revisit that choice only if the
-replay contract changes or those descriptors acquire payload-bearing fields;
-finding intake owns that boundary.
-
-Hard deletion of a Run as a whole is specified in
-[retention and deletion](../artifacts/retention-and-deletion.md) (DEL-R28,
-DEL-R29). Import is specified in
-[review and reports](../audits/review-and-reports.md#proposal-import-from-ordinary-runs),
-which also shows the
-[end-to-end example](../audits/review-and-reports.md#proposal-from-an-ordinary-run).
+**FND-R154.** Deleting a source Run discards only source-held receipts without retained Project
+material, erasing their report/fingerprint/anchor/comparison projections and preserving
+bounded immutable receipt provenance for exact replay. Project-held receipts retain
+their exact proposal, evidence and result material after both Run and Audit deletion.
+Losing the last Audit membership does not discard Project material. Only normal Project
+cleanup deletes those receipts and Artifacts (FND-R214).
 
 ### Finding collections
 
@@ -1052,10 +953,10 @@ the Artifact plane's own namespace, name and revision constraints
 insignificant fractional zeros omitted. It records when the selection was
 captured; it is not a query for the latest database state.
 
-**FND-R79.** `sources` records the requested Run and Audit scopes. Every
-entry must match a Run source through `run_id`, or an Audit source through
-its Audit origin, an Audit hold or a review observation. This is a
-consistency check, not proof of server authority.
+**FND-R79.** Sources identify the requested Run or Audit scopes. Each entry explicitly records
+selected_sources, a sorted nonempty subset of the collection sources authorized during
+selection. This captures selection separately from native producer origin and surviving
+Audit holds; JSON provenance never grants authority.
 
 **FND-R80.** A document's `scope` identifies where the exact retained
 bytes were read: a producer Run, or an authorized retained Project or User
@@ -1071,9 +972,9 @@ membership independently of producer origin and review state; it does not
 create a finding ID or imply confirmation. Absent or empty holds encode by
 omitting the member.
 
-**FND-R83.** `retention` captures the existing receipt state:
-`source-held`, `audit-held` or `discarded`. It never substitutes for package
-byte availability.
+**FND-R83.** Retention is source-held, project-held or discarded. It never substitutes for exact
+package byte availability. Audit membership is independent of the Project material
+owner.
 
 **FND-R84.** A discarded receipt can be included only if all its
 selected exact bytes remain available through an authorized retained copy;
@@ -1084,26 +985,25 @@ the retained copy of an Audit source that selected it (the lowest such Audit
 ID holding one), never from another destination's copy; without such a copy
 publication fails.
 
-**FND-R86.** A review `revision` is an integer in 1–9007199254740991
-(LIM-FND-13). `state` is `proposed`, `confirmed`, `rejected`, `duplicate` or
-`needs-evidence`.
+**FND-R86.** An optional finding snapshot contains canonical project_id, finding_id, revision and
+nullable state, with coherent optional verdict, severity and duplicate_target_id.
+Revision is an exact integer in 1..9007199254740991. Unassessed state stays null; no
+source rating supplies a current assessment.
 
-**FND-R87.** The optional review IDs (`decision_id`, `assessment_id`,
-`duplicate_target_id`) are copied only when present in the captured server
-record; in particular, current projections can have `duplicate` or
-`needs-evidence` without `current_decision_id`. The collection does not infer
-a decision or assessment.
+**FND-R87.** Collection v2 has no per-Audit review observations, current assessment IDs or Finding
+decision IDs. The optional canonical snapshot is a historical capture and never a
+mutation capability.
 
-**FND-R88.** These IDs are provenance, not dereference capabilities
-or full decision documents. A later review requires a new snapshot.
+**FND-R88.** Canonical identities and selected source identities in a collection are provenance, not
+dereference capabilities. Runtime reads only the exact documents materialized in its
+current Run.
 
-**FND-R89.** An ordinary Run proposal has no invented Audit origin,
-finding ID or review state.
+**FND-R89.** An ordinary producer has no invented Audit origin or review. A receipt may link to one
+canonical Project Finding independently of whether any Audit selected it.
 
-**FND-R90.** Sources are sorted by `(kind, id)`, documents by `id`, entries
-by `receipt_id`, each entry's evidence by `evidence_id` and its reviews by
-`(audit_id, finding_id)`, in ascending ASCII lexical order. Each key is
-unique, and proposal IDs are also unique across entries.
+**FND-R90.** Sources and each entry selected_sources sort by (kind,id), documents by id, entries by
+receipt_id and evidence by evidence_id, in ascending ASCII lexical order. Keys are
+unique within their containing array.
 
 **FND-R91.** If source selections overlap, the publisher keeps one receipt
 entry and merges its distinct review observations. Different receipts remain
@@ -1117,8 +1017,8 @@ evidence-link IDs exactly; the proposal's array order need not be lexical.
 `evidence-2` and so on to the receipt's sorted exact refs; it does not
 renumber links after sorting the collection.
 
-**FND-R94.** Review observations never replace or rewrite the original
-proposal.
+**FND-R94.** The optional canonical Finding snapshot never rewrites the original proposal, source
+rating or independent verification results.
 
 ### Document identity and bounds
 
@@ -1189,8 +1089,9 @@ package entry and byte bounds.
 **FND-R104.** Overlap across sources is permitted and deduplicates only
 the same receipt identity. Input order is normalized for replay identity.
 
-**FND-R105.** Selection is explicit about receipts versus admitted Audit
-findings and about any retention or review filters.
+**FND-R105.** Selection explicitly names receipt IDs or canonical Finding IDs/revisions within a Run
+or Audit source. There is no implicit review queue or automatic publication from
+selection.
 
 **FND-R155.** The caller enumerates its desired receipt IDs using existing
 paginated APIs. Empty arrays explicitly select nothing; there is no implicit
@@ -1199,8 +1100,9 @@ paginated APIs. Empty arrays explicitly select nothing; there is no implicit
 **FND-R156.** Admission, retention and review policy is expressed by the
 selected IDs and finding revisions.
 
-**FND-R106.** Selecting an Audit finding includes all its contributing
-selected-source receipts, not just `FirstProposal`.
+**FND-R106.** Selecting a Finding through an Audit includes its explicitly associated receipts from
+that Audit, preserving every selected independent source. It never hydrates all lifetime
+sources merely to fill a page.
 
 **FND-R107.** Selection is fully enumerated before any bytes are fetched.
 Page limits, missing retained bytes or exceeded package limits cannot produce
@@ -1363,11 +1265,11 @@ no filter, while empty strings are invalid.
 
 **FND-R129.** `limit` defaults to 20 and ranges from 1 to 100 (LIM-FND-26).
 
-**FND-R130.** Each item returns `receipt_id`, `proposal_id`, `run_id`,
-`invocation_id`, optional `audit_origin` and `audit_holds`, `retention`, the
-original `subject`, `title_preview`, `description_preview`, `has_hypothesis`,
-`proposal`, `evidence` and `reviews`. Reviews have the
-[review observation](#collection-metadata-objects) shape.
+**FND-R130.** Each reader item returns receipt_id, proposal_id, run_id, invocation_id,
+selected_sources, optional audit_origin and audit_holds, retention, original subject,
+title_preview, description_preview, has_hypothesis, proposal, evidence and an optional
+canonical finding snapshot. There is no reviews array or per-source current problem
+state.
 
 **FND-R131.** `proposal` is
 `{ref, digest, media_type, size_bytes, source: {scope, ref}}`, and each
@@ -1474,7 +1376,7 @@ receipts of the ordinary Workflow.
 ### Conformance
 
 **FND-R151.** The
-[shared fixture](../../../api/testdata/findings/finding-collection-v1.fixture.json)
+[shared fixture](../../../api/testdata/findings/finding-collection-v2.fixture.json)
 is the conformance reference for the Go and Python codecs and for Runtime
 preparation. It contains generic function and configuration subjects,
 ordinary Run and Audit origins, an optional hypothesis, a review without a
@@ -1591,7 +1493,7 @@ optional `includeDuplicates` defaulting to false. Limits are LIM-FND-49.
 
 **FND-R198.** The frozen snapshot retains every selected finding, its complete
 contribution membership, explicit presentation receipt (default first receipt),
-its own current decision/rating/assessment, qualified primary correlation key
+its nullable canonical current analyst fields, qualified primary correlation key
 and policy, resolved native analysis, exact original and retained evidence
 identities and trusted Git origin. Supporting contributions do not replace
 presentation fields or inherit another finding's rating. HTTP projections omit
@@ -1601,15 +1503,16 @@ policy versions plus normalized request digest. Rendering consults this snapshot
 alone and calls no model, network or store.
 
 **FND-R199.** `includeDuplicates: false` emits one selected representative per
-connected group of qualified primary-key equality and explicit same-Audit manual
-duplicate links. Prefer a selected non-duplicate, then the lexically first
+connected group of explicit same-Project manual duplicate links. Qualified
+equality has already selected one canonical identity during admission; export
+never reconstructs separate Audit Finding observations under that key. Prefer a selected non-duplicate, then the lexically first
 finding ID. Shared targets outside the selection may connect selected siblings,
 but neither targets nor peers are selected implicitly. Similar text, titles,
 weak candidates and overlapping contributions never establish equality. The
 representative retains its own triage and presentation; all selected member IDs
-remain in output properties, and all independent decisions remain in the
-snapshot. `true` emits every selected finding. The option does not change native
-Audit state, and `resultCount` may be below `selectedCount`.
+remain in output properties, and all canonical decisions remain in the
+snapshot. `true` emits every selected finding. The option does not change canonical
+Finding state, and `resultCount` may be below `selectedCount`.
 
 **FND-R200.** Snapshot, SARIF, diagnostics and replay receipt publish atomically
 as frozen bindings in the existing ProjectScope namespace of the owning Audit;
@@ -1618,7 +1521,7 @@ Audit-local `clientKey` and normalized request determine export identity. Omitte
 and explicit false duplicate inclusion normalize identically; changing the
 option or selection with the same key returns permanent `idempotency_conflict`.
 Replay verifies immutable descriptors/digests and returns original bytes before
-reading live findings, source evidence or current reviews (FAIL-FND-8).
+reading live findings, source evidence or current analyst fields (FAIL-FND-8).
 
 **FND-R201.** The public collection is
 `POST /v1/audits/{auditId}/findings/exports`. It returns 201 for publication,
@@ -1722,7 +1625,7 @@ analysis still exports its identity, text and independent review, with
   [public API schema](../../../api/openapi/contractor-public-v1.yaml), which
   owns the precise HTTP field spelling and the error envelopes.
 - Media type `application/vnd.contractor.findings-collection+zip`, schema
-  `contractor.findings.collection.v1` for `collection.json`, and schema
+  `contractor.findings.collection.v2` for `collection.json`, and schema
   `contractor.audit.finding-proposal.v1` for proposals.
 
 ### Exact proposed-check indexes
@@ -1741,21 +1644,15 @@ otherwise valid ordinary finding.
 hold, then reads the exact original content or its byte-identical retained
 copy through ArtifactStore. It verifies and strictly decodes only selected
 check and context fragments, and recomputes registered plan digests. A missing
-index is data-migration-pending, never a fallback to a full proposal parser or
-mutable current content. Discard clears all index entries and context; existing
+index is invalid stored data and fails permanently; no source reparse or
+repair command runs in admission. Discard clears all index entries and context; existing
 Run/Audit/Project deletion owns its lifecycle (LIFE-FND-5).
 
-**FND-R190.** Existing retained receipts receive their indexes only through
-the explicit bounded `data-migrate finding-checks` operation. It reads actual
-exact proposal bytes using the configured inline or filesystem blob reader,
-strictly validates the current FindingProposal, and compare-and-sets the
-previously NULL index against the unchanged receipt descriptor. Each batch
-examines at most 128 small source headers and reads at most 32 exact proposals
-and 64 MiB payload. Committed indexes are durable progress and replay unchanged;
-the operation creates no receipt or lease. Missing, corrupt, unavailable or
-invalid sources fail explicitly without changing their provenance or inventing
-an empty index. Cancellation/transient I/O leaves remaining rows NULL. Ordinary
-finding readers and profiles without typed mappings retain their existing path.
+**FND-R190.** Retired. The pre-release cutover removes all old operational
+receipts (FND-R215). The check-index rebuild command and migration-pending
+reader/state are removed. Every new receipt includes its validated immutable
+index at insertion; PostgreSQL rejects a NULL index. Source deletion retains
+the same index with its exact Project-held materials.
 
 ## Limits, failures and errors
 
@@ -1893,6 +1790,103 @@ toolsets:
 
 The end-to-end path of a proposal from an ordinary Run to an Audit is shown in
 [review and reports](../audits/review-and-reports.md#proposal-from-an-ordinary-run).
+
+## Project ownership and historical sources
+
+**FND-R209.** A problem has one Project Finding identity and one optional current
+analyst assessment. Audits reference that identity through execution membership.
+They own no mutable Finding, source status, confirmation or review authority.
+Unassessed state is explicitly null. Reopening is an analyst action and records
+its own rationale, actor and time. Immutable first-source identity and claim do
+not change when another source or check arrives.
+
+**FND-R210.** Intake creates a Project Finding only when the producer explicitly
+requests problem publication (`publishProblem`, exposed by the Runtime tool as
+`publish_problem`) with a nonempty problem assertion and selected exact evidence
+in an active ordinary Project. Ordinary observations, hypotheses, positive-property
+results and refuted problem checks are retained without inventing publication
+intent. Evidence, supported results, qualified keys and severity suggestions never
+stand in for that intent. Invalid publication preserves the ordinary receipt and
+reports its permanent publication error; it alone does not fail a Run.
+
+**FND-R211.** A source is an immutable receipt and its provenance, evidence and
+independent result history, with an optional link to the canonical Finding.
+It has no current problem state or separate analyst mutation commands. Qualified
+producer/structural equality uses the existing Project fence and algorithm; equal
+qualified publications attach independent receipts to one identity. Weak or
+unavailable keys never merge by prose, evidence or inferred semantic similarity.
+Replay adds neither a source nor another material binding.
+
+**FND-R212.** The owner edits the canonical Project Finding directly with a current
+revision and idempotency key: true positive plus severity, false positive, needs
+evidence, reopen, or a same-Project duplicate target. Rationale is required; actor
+and time are authoritative. Verdict/state, severity and duplicate target form one
+closed coherent shape. Foreign targets, self references, cycles and paths exceeding
+127 target records fail without a partial edit. The existing keyed mutation receipt
+captures the returned revision; replay returns that exact snapshot even after later
+edits. A stale revision never overwrites a newer assessment. No Finding review
+request, expiration, renewal or confirmation policy participates.
+
+**FND-R213.** Current Project, Audit, owner list, UI and command readers select the
+same canonical state and revision. Audit membership is an indexed execution filter,
+not a representative Finding or a state copy. Source collection and negative
+rechecks append independent result facts and never call the analyst edit operation.
+Current reads do not derive an aggregate verification verdict from the latest or
+first source. AI severity suggestions remain distinct from the analyst rating.
+
+**FND-R214.** Exact source and result material is frozen in ordinary Project
+Artifacts before the producing Run/Audit can release its execution holds. Reading
+creates no hold. Source Run or Audit purge does not remove the Project Finding,
+its independent receipts, evidence or accepted results, including incidental
+discoveries. Project deletion clears duplicate edges and releases sources,
+Findings, receipts and ordinary Artifacts through bounded owner cleanup; no orphan
+hold may block the parent. A deleting Project admits no new publication or edit.
+
+**FND-R215.** The pre-release cutover is one atomic transformation after current
+Runs have finished, all allocations have completed release and their results have
+been collected. Before migration, retain required Project results/materials and
+retire old Audit-managed Runs through ordinary terminal Run deletion (DEL-R16,
+DEL-R17, DEL-R22, DEL-R58). The initial fence rejects any remaining Run-to-execution
+reference before archive or schema mutation. Ordinary Runs remain. It preserves old Audit
+snapshots, exact result bytes and fact/selection metadata as opaque immutable
+ordinary Project Artifacts, then removes executable old Audit rows and old
+operational Finding/intake rows. The new operational model starts empty. Working
+code neither decodes old AuditProfile nor resumes old Audits; continued research
+starts a new Audit. There is no old model reader/writer, fallback, digest-chain
+rewrite, synchronization or semantic promotion from historical records.
+
+**FND-R216.** Lists use compact immutable title/subject/severity-suggestion previews
+and canonical current fields, with explicit title/subject truncation flags. Full
+claims, evidence and source histories are separate bounded detail reads. A source
+page has at most 64 rows plus one storage sentinel; Finding lists use the ordinary
+public page bound. Mutations and cleanup process at most 128 primary records and
+1 MiB metadata per slice. Work and bytes are bounded independently of lifetime
+history cardinality, including a Finding with 10000 independent sources.
+
+**FND-R217.** Project-scoped Finding/source/history continuations and Audit-filtered
+Finding/candidate/comparison pages pin the Project revision. Audit revision additionally
+fences execution membership. Each read rechecks the fence after its last selected read;
+concurrent edits conflict. Owner-wide Finding lists instead use live owner-scoped
+keysets and promise no cross-Project snapshot. Both forms bound candidates before
+current-state filters and Project-visibility checks. A page can contain no matches while
+hasMore is true; clients follow nextCursor until hasMore is false. No reader supplies a
+default missing revision or scans arbitrary foreign owners.
+
+**FND-R218.** A frozen report captures one Project revision throughout resumable
+page assembly and checks it when publishing accepted links. A concurrent edit
+restarts the build rather than mixing states from different Project revisions.
+Report sections scan bounded indexed membership windows before current-state filters;
+empty progress pages durably preserve the last examined identity.
+Artifacts of a different pinned build use different immutable names. Ordinary
+Round result associations retain canonical Project/Finding identities alongside
+their independent execution results; they do not copy current analyst state.
+Frozen exports and collections describe an explicit historical capture and never
+authorize a future mutation.
+
+**FND-R219.** Source/result/analyst-edit history uses the ordinary immutable Artifact
+metadata, exact reads, publication and retention mechanisms. History listing does
+not deserialize an old Finding model or hydrate a whole source fanout. Source
+history is historical data, never a second executable assessment ledger.
 
 ## Non-goals
 

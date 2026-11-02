@@ -62,7 +62,7 @@ func publicRequestBodyBounds() map[string]requestBodyBound {
 	}
 	for _, operation := range []string{
 		"publishFindingCollection", "publishAuditFindingExport", "createProject", "updateProject", "createProjectRun", "createAudit",
-		"importAuditFindingProposal", "createAuditFindingReview", "decideAuditReview", "putOwnerQueueControl",
+		"importAuditFindingProposal", "editProjectFinding", "decideAuditReview", "putOwnerQueueControl",
 		"createRun", "retryRunGateway", "resumeRun", "cancelRun", "publishConfiguration", "putRuntimeLabel",
 		"createRuntimeCredential", "replaceRuntimeAgentPrincipalLabels", "createCredential", "putModelSelection",
 		"putSchedulerSettings",

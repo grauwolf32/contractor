@@ -936,7 +936,7 @@ refreshed by later reviews. Interrupted capture and publication reuse the
 Round, generation and exact page digests (FAIL-ASC-8).
 
 **ASC-R157.** The strict versioned documents are
-`contractor.audit.round-results.v1`, `contractor.audit.round-results-page.v1`
+`contractor.audit.round-results.v2`, `contractor.audit.round-results-page.v2`
 and `contractor.audit.round-results-consumer.v1`. The source root names all
 pages, exact refs/digests/media/sizes, item counts and its source generation.
 Each page carries that identity and ordered complete items. Source root and
@@ -1108,12 +1108,10 @@ disposition and creates no item or child. A receipt with no checks advances
 the cursor without fabricating a check. Profiles without method mappings
 retain their existing inventory role and whole-package next-Round path.
 
-**ASC-R180.** An absent private check projection blocks that exact receipt
-with `source_projection_pending`; it is neither empty input nor a rejected
-ordinal. Repeated readiness probes change no checkpoint or decision. Only
-an explicit bounded index rebuild makes the source ready; resumption keeps
-the original generation and validation deadline and never parses a whole
-proposal as an admission fallback.
+**ASC-R180.** Finding check admission strictly rejects an absent or invalid
+private check index as invalid stored data. It creates no waiting generation,
+rebuild operation or guessed empty check. New receipt publication supplies the
+validated index atomically (FND-R188, FND-R190).
 
 **ASC-R181.** Each candidate is prepared inside the current claimed
 transaction's savepoint. Its exact retained dependency closure, selected

@@ -1,3 +1,4 @@
+import * as build from "../../test/builders";
 import { useQuery } from "@tanstack/react-query";
 import { act, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
@@ -27,7 +28,6 @@ import {
   AUDIT_ID,
   makeActionReview,
   makeDecision,
-  makeTriageReview,
   proposedReport,
 } from "./test-support";
 import { fakeServer, type Routes } from "../../test/fake-server";
@@ -88,9 +88,7 @@ function reviewServer(
         action: body.action,
         rationale: body.rationale,
       });
-      delete decision.verdict;
-      delete decision.severity;
-      delete decision.findingId;
+
       state.review = {
         ...state.review,
         state: "decided",
@@ -337,8 +335,7 @@ describe("ActionDecision", () => {
       state: "decided",
       decision: { ...makeDecision({ action: "reject" }) },
     });
-    delete decided.decision?.verdict;
-    delete decided.decision?.severity;
+
     const noRequests = () => {
       throw new Error("no request expected");
     };
@@ -408,8 +405,7 @@ describe("ActionDecision", () => {
         state: "decided",
         decision: { ...makeDecision({ action: "approve" }) },
       });
-      delete decided.decision?.verdict;
-      delete decided.decision?.severity;
+
       renderWithAPI(<ActionDecision auditId={AUDIT_ID} review={decided} />, {
         server: () => {
           throw new Error("no request expected");
@@ -455,7 +451,10 @@ describe("ActionDecision", () => {
 
   it("renders nothing for a request that is not an item action", () => {
     const { container } = renderWithAPI(
-      <ActionDecision auditId={AUDIT_ID} review={makeTriageReview()} />,
+      <ActionDecision
+        auditId={AUDIT_ID}
+        review={build.review(AUDIT_ID, "report_request", "report-acceptance")}
+      />,
       {
         server: () => {
           throw new Error("no request expected");
@@ -805,8 +804,7 @@ describe("ReportDecision", () => {
         requestId: "review_report",
         action: "reject",
       });
-      delete decided.decision.verdict;
-      delete decided.decision.severity;
+
       renderWithAPI(<ReportDecision auditId={AUDIT_ID} review={decided} />, {
         server: () => {
           throw new Error("no request expected");

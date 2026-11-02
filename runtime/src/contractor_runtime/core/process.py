@@ -11,6 +11,8 @@ from contextlib import suppress
 from pathlib import Path
 from typing import Protocol
 
+from contractor_runtime.core.async_tasks import join_owned_task
+
 
 class ProcessOutputLimitError(RuntimeError):
     def __init__(self, returncode: int | None, stdout: bytes, stderr: bytes) -> None:
@@ -39,12 +41,7 @@ class _OutputLimit(Exception):
 
 async def _join_cleanup(task: asyncio.Task[None]) -> bool:
     """Repeated cancellation cannot detach the task which owns the child."""
-    cancelled = False
-    while not task.done():
-        try:
-            await asyncio.shield(task)
-        except asyncio.CancelledError:
-            cancelled = True
+    cancelled = await join_owned_task(task)
     task.result()
     return cancelled
 

@@ -14,7 +14,8 @@ import {
   type ArtifactMetadata,
 } from "../../api/artifacts";
 import { ErrorNotice } from "../../app/error-notice";
-import { Button } from "../../ui";
+import { Button, IconButton } from "../../ui";
+import { Icon } from "../../app/icon";
 import { ArchivePreviewPanel } from "./archive-preview";
 import { LoadedArtifactPreview } from "./loaded-preview";
 import "./materials.css";
@@ -34,6 +35,8 @@ export function ArtifactPreviewPanel({
   loadPreview: () => Promise<string>;
   loadOnMountKey?: readonly unknown[] | undefined;
   unavailableCopy: string;
+  /** Inline retained snippets keep their existing file toolbar; errors still offer Retry. */
+  compact?: boolean | undefined;
   /** Heading level of the section title. Default "h3". */
   titleAs?: "h2" | "h3" | undefined;
 }) {
@@ -68,6 +71,7 @@ function TextArtifactPreviewPanel({
   unavailableCopy,
   titleAs: Title,
   scope,
+  compact = false,
 }: {
   metadata: ArtifactMetadata;
   loadPreview: () => Promise<string>;
@@ -75,6 +79,7 @@ function TextArtifactPreviewPanel({
   unavailableCopy: string;
   titleAs: "h2" | "h3";
   scope?: ArtifactArchiveScope | undefined;
+  compact?: boolean | undefined;
 }) {
   const headingId = useId();
   const manualPreview = useMutation({ mutationFn: loadPreview });
@@ -104,11 +109,30 @@ function TextArtifactPreviewPanel({
       className="artifact-preview-panel materials-section"
       aria-labelledby={headingId}
     >
-      <div className="materials-section-head">
-        <Title id={headingId} className="materials-section-title">
+      <div
+        className={
+          compact && automatic && error === null && canPreview
+            ? "ui-visually-hidden"
+            : `materials-section-head${data === undefined ? "" : " materials-preview-loaded"}`
+        }
+      >
+        <Title
+          id={headingId}
+          className={`materials-section-title${data === undefined ? "" : " ui-visually-hidden"}`}
+        >
           Preview
         </Title>
-        {!canPreview && automatic ? null : (
+        {(compact && automatic && error === null && canPreview) ||
+        (!canPreview && automatic) ? null : data !== undefined ? (
+          <IconButton
+            size="sm"
+            variant="ghost"
+            label="Reload preview"
+            icon={<Icon name="refresh" />}
+            pending={pending}
+            onClick={requestPreview}
+          />
+        ) : (
           <Button
             size="sm"
             disabled={!canPreview}
@@ -124,12 +148,19 @@ function TextArtifactPreviewPanel({
           </Button>
         )}
       </div>
-      {canPreview ? (
-        <p className="ui-caption">
-          {automatic
-            ? `Text files up to ${PREVIEW_LIMIT_LABEL} are shown here.`
-            : `Text files up to ${PREVIEW_LIMIT_LABEL}. The preview loads only when you ask for it.`}
+      {compact && pending && data === undefined ? (
+        <p className="ui-caption" role="status">
+          Loading evidence…
         </p>
+      ) : null}
+      {canPreview ? (
+        compact || data !== undefined ? null : (
+          <p className="ui-caption">
+            {automatic
+              ? `Text files up to ${PREVIEW_LIMIT_LABEL} are shown here.`
+              : `Text files up to ${PREVIEW_LIMIT_LABEL}. The preview loads only when you ask for it.`}
+          </p>
+        )
       ) : (
         <p className="ui-caption">
           {metadata.mediaType === HTTP_EXCHANGE_MEDIA_TYPE &&

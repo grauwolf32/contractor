@@ -44,6 +44,7 @@ from contractor_runtime.toolsets.common.artifacts import (
 )
 from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
 from contractor_runtime.toolsets.common.line_window import bounded_line_window
+from contractor_runtime.toolsets.common.resources import ToolResources
 from contractor_runtime.toolsets.common.tool_base import SessionArtifactTool
 from contractor_runtime.workspace import AllocationWorkspace
 
@@ -149,13 +150,13 @@ class SourceAnalysisToolsetFactory:
         namespace: str,
         runtime_settings: RuntimeSettings,
         workspace: AllocationWorkspace,
-        state: Any,
+        resources: ToolResources,
         adapter_handles: AdapterHandles = EMPTY_ADAPTER_HANDLES,
         project_workspace: Any = None,
     ) -> Mapping[str, Any]:
         del run_id, namespace, adapter_handles
         require_selected_tools(selected, self.exported_tools)
-        metrics = require_metrics(state, "source-analysis@1")
+        metrics = require_metrics(resources, "source-analysis@1")
         client = self._client_factory(allocation_id, runtime_settings)
         session = _SourceArchiveSession(
             client,

@@ -4,24 +4,18 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import json
-import math
 import uuid
-from collections.abc import AsyncGenerator, Mapping
+from collections.abc import Mapping
 from dataclasses import replace
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from google.adk.agents import LlmAgent
-from google.adk.agents.run_config import RunConfig
 from google.adk.apps import App
 from google.adk.events import Event, EventActions
 from google.adk.models.base_llm import BaseLlm
 from google.adk.runners import Runner
 from google.adk.sessions import BaseSessionService
-from google.adk.sessions.session import Session
-from google.genai import types
-from pydantic import ValidationError
 from starlette.types import ASGIApp
 
 from contractor_runtime.a2a_server import (
@@ -38,26 +32,15 @@ from contractor_runtime.agent_skills.runtime import (
 from contractor_runtime.contracts import (
     API_VERSION,
     AgentStateSnapshot,
-    ArtifactRef,
-    ResolvedModelPolicy,
     StageContentRequest,
-    ToolObservationCount,
     WorkerCompletion,
     WorkerFailure,
-    WorkerModelResult,
-    WorkerObservations,
     WorkerResult,
     WorkerSessionMode,
-    WorkerSummarizerConfig,
 )
-from contractor_runtime.contracts.artifacts import (
-    is_reserved_memory_binding,
-    is_reserved_result_binding,
-)
-from contractor_runtime.contracts.base import is_blank
+from contractor_runtime.core.async_tasks import join_owned_task
 from contractor_runtime.core.worker_completion import (
     ContinueCompletion,
-    FailCompletion,
     WorkerCompletionError,
     bind_worker_completion,
 )
@@ -68,23 +51,15 @@ from contractor_runtime.llm.openai import (
 )
 from contractor_runtime.llm.response import output_limit_reached
 from contractor_runtime.projectfs import (
-    MAX_EXPORTED_RESULT_ARTIFACTS,
-    MAX_EXPORTED_RESULT_JSON_BYTES,
     WorkspaceAutoExporter,
     WorkspaceExportError,
 )
-from contractor_runtime.redaction import (
-    contains_private_value,
-    runtime_secrets,
-    runtime_setting_values,
-    substring_values,
-)
-from contractor_runtime.shared_config import get_shared_config
 from contractor_runtime.telemetry.execution import (
     ContentFreeInstrumentation,
     declares_sensitive_output,
 )
 from contractor_runtime.worker.adk_features import require_supported_adk_features
+from contractor_runtime.worker.adk_turn import AdkTurnRunner
 from contractor_runtime.worker.budget import WorkerBudgetExceeded, _InvocationBudget
 from contractor_runtime.worker.compaction import (
     CompactionCoordinator,
@@ -92,40 +67,45 @@ from contractor_runtime.worker.compaction import (
     append_marker,
     run_compactor,
 )
-from contractor_runtime.worker.finalizer import (
-    ResultFinalizerFailure,
-    WorkerResultFinalizer,
+from contractor_runtime.worker.completion import WorkerCompletionPipeline, _lean_observations
+from contractor_runtime.worker.failures import (
+    _chained_error,
+    _compaction_failure,
+    _failure,
+    _gateway_worker_failure,
 )
 from contractor_runtime.worker.function_tools import ContractorFunctionTool
-from contractor_runtime.worker.history import ToolHistory, ToolHistoryError
+from contractor_runtime.worker.history import ToolHistory
 from contractor_runtime.worker.instrumentation import (
     WorkerCompactionRequested,
     WorkerInstrumentationPlugin,
     WorkerSummarizationRequested,
     span_error_type,
 )
-from contractor_runtime.worker.observations import lean_workspace_summary
+from contractor_runtime.worker.invocation import (
+    INVOCATION_CLEANUP_TIMEOUT_SECONDS,
+    InvocationDeadline,
+    InvocationLifecycle,
+)
 from contractor_runtime.worker.one_shot import candidate_text, generation_config
+from contractor_runtime.worker.prompts import (
+    _exposes_private_value,
+    _summarizer_secrets,
+    _task_prompt,
+)
 from contractor_runtime.worker.sessions import (
     WorkerSessionLifecycle,
     WorkerSessionLifecycleError,
 )
 from contractor_runtime.worker.state import InvocationPhase, WorkerStateStore
 from contractor_runtime.worker.summarizer import (
-    SummarizerFailure,
-    SummarizerUsage,
-    TerminalSummarizer,
     TranscriptRecorder,
-    build_summarizer_prompt,
 )
 
 if TYPE_CHECKING:
     from contractor_runtime.factories import WorkerBuildContext
 
-INVOCATION_CLEANUP_TIMEOUT_SECONDS = 5.0
 MAX_STAGE_REQUEST_JSON_BYTES = 256 * 1024
-MAX_STAGE_RESULT_JSON_BYTES = MAX_EXPORTED_RESULT_JSON_BYTES
-MAX_RESULT_ARTIFACTS = MAX_EXPORTED_RESULT_ARTIFACTS
 
 
 def requires_content_free_telemetry(
@@ -143,29 +123,6 @@ def requires_content_free_telemetry(
         name in sensitive_output_tools or declares_sensitive_output(tool)
         for name, tool in tools.items()
     )
-
-
-class _InvocationDeadline:
-    """The effective Worker-call deadline on the event loop's monotonic clock.
-
-    It is converted once, at invocation start, so continuations never reset it.
-    ``scope`` cancels the work in flight once the loop runs its timer; ADK then
-    joins its node task. ``check`` refuses to start the next phase when the
-    deadline passed while this task ran without yielding to that timer
-    (WRK-R167).
-    """
-
-    def __init__(self, deadline: datetime) -> None:
-        self._loop = asyncio.get_running_loop()
-        self.when = self._loop.time() + (deadline - datetime.now(UTC)).total_seconds()
-        self.scope = asyncio.timeout_at(self.when)
-
-    def passed(self) -> bool:
-        return self.scope.expired() or self._loop.time() >= self.when
-
-    def check(self) -> None:
-        if self.passed():
-            raise TimeoutError("Worker invocation deadline exceeded")
 
 
 class AdkWorkerRuntime:
@@ -204,18 +161,22 @@ class AdkWorkerRuntime:
         )
         self._session_service = self._session_lifecycle.service
         self._accepting = True
-        self._invoke_lock = asyncio.Lock()
-        self._active_task: asyncio.Task[Any] | None = None
+        self._invocation = InvocationLifecycle(
+            sessions=self._session_lifecycle,
+            state=context.state,
+            policy=context.model_policy,
+            summarizer=context.summarizer,
+            completion=self._completion,
+            stop_accepting=self._stop_accepting,
+        )
         self._runner: Runner | None = None
         self._agent: LlmAgent | None = None
-        self._active_budget: _InvocationBudget | None = None
-        self._active_deadline: _InvocationDeadline | None = None
         self._tool_history = ToolHistory(self._app_name, self._user_id)
-        self._invocation_observed_refs: list[ArtifactRef] = []
         self._agent_skills: PreparedAgentSkills | None = context.agent_skills
         self._workspace_exporter = workspace_exporter
         if not isinstance(context.state, WorkerStateStore):
             raise TypeError("adk@1 requires WorkerStateStore")
+        self._resources = context.resources
         self._worker_state = context.state
 
         policy = context.model_policy
@@ -252,10 +213,11 @@ class AdkWorkerRuntime:
             )
         self._plugin = WorkerInstrumentationPlugin(
             state=self._worker_state,
-            budget=lambda: self._active_budget,
+            execution=self._resources.execution,
+            budget=lambda: self._invocation.budget,
             instrumentation=self._instrumentation,
             model_alias=policy.model,
-            observe_artifacts=self._observe_tool_artifacts,
+            observe_artifacts=lambda tool, cursor: self._pipeline.observe_artifacts(tool, cursor),
             workspace_observation_source=context.project_workspace,
             summarizer_enabled=context.summarizer is not None,
             allowed_tool_names=allowed_tool_names,
@@ -265,14 +227,19 @@ class AdkWorkerRuntime:
         )
         if self._completion is not None:
             self._completion.phase_sink = self._plugin.record_completion
-        self._result_finalizer: WorkerResultFinalizer | None = (
-            None
-            if self._completion
-            else WorkerResultFinalizer(
-                model=model,
-                policy=policy,
-                observer=self._plugin,
-            )
+        self._pipeline = WorkerCompletionPipeline(
+            context=context,
+            state=self._worker_state,
+            resources=self._resources,
+            plugin=self._plugin,
+            completion=self._completion,
+            invocation=self._invocation,
+            model=model,
+            model_factory=self._model_factory,
+            instrumentation=self._instrumentation,
+            reserved_slots=workspace_exporter.reserved_slots if workspace_exporter else frozenset(),
+            check_active=self._check_active,
+            admit=self._admit_semantic_work,
         )
         instruction = context.instruction
         self._agent = LlmAgent(
@@ -297,6 +264,17 @@ class AdkWorkerRuntime:
         self._runner = Runner(
             app=self._app,
             session_service=self._session_service,
+        )
+        self._turns = AdkTurnRunner(
+            runner=self._runner,
+            sessions=self._session_lifecycle,
+            history=self._tool_history,
+            app_name=self._app_name,
+            user_id=self._user_id,
+            max_model_calls=policy.max_model_calls,
+            compaction=self._compaction,
+            observe_cancellation=self._raise_observed_tool_cancellation,
+            fence=self._fence_compacted_session,
         )
         endpoint = (
             f"{context.a2a_base_url.rstrip('/')}/private/v1/allocations/{context.allocation_id}/a2a"
@@ -367,11 +345,11 @@ class AdkWorkerRuntime:
     async def _invoke(
         self, request: StageContentRequest
     ) -> tuple[WorkerCompletion, dict[str, int]]:
-        if self._worker_state.execution.failure is not None:
+        if self._resources.execution.failure is not None:
             self._accepting = False
             return (
                 await self._untracked_failure_completion(
-                    self._worker_state.execution.failure.value, "Sandbox execution failed", False
+                    self._resources.execution.failure.value, "Sandbox execution failed", False
                 ),
                 {},
             )
@@ -382,7 +360,7 @@ class AdkWorkerRuntime:
                 ),
                 {},
             )
-        if self._invoke_lock.locked():
+        if self._invocation.lock.locked():
             return (
                 await self._untracked_failure_completion(
                     "worker_busy", "Worker already has an active A2A invocation", True
@@ -402,7 +380,7 @@ class AdkWorkerRuntime:
         completion: WorkerCompletion | None = None
         attributes: dict[str, int] = {}
         try:
-            async with self._invocation_ownership() as (session_id, budget):
+            async with self._invocation.own() as (session_id, budget):
                 completion, attributes = await self._execute_invocation(request, session_id, budget)
             return completion, attributes
         except WorkerSessionLifecycleError as error:
@@ -439,100 +417,6 @@ class AdkWorkerRuntime:
                 {},
             )
 
-    @contextlib.asynccontextmanager
-    async def _invocation_ownership(
-        self,
-    ) -> AsyncGenerator[tuple[str, _InvocationBudget]]:
-        """Own the lock, task, session and budget across every acquisition/exit."""
-
-        await self._invoke_lock.acquire()
-        session_acquired = False
-        invocation_failed = False
-        completion = self._completion
-        previous_diagnostics = completion.diagnostics if completion is not None else None
-
-        async def record_completion_cancellation():
-            if completion is not None and completion.diagnostics is not previous_diagnostics:
-                await completion.record_phase("failed", "worker_cancelled")
-
-        try:
-            self._active_task = asyncio.current_task()
-            try:
-                session_id = await self._session_lifecycle.begin_invocation(
-                    await self._worker_state.snapshot()
-                )
-            except asyncio.CancelledError:
-                if self._session_lifecycle.failed:
-                    self._accepting = False
-                raise
-            except WorkerSessionLifecycleError:
-                self._accepting = False
-                raise
-            except Exception as error:
-                self._accepting = False
-                raise WorkerSessionLifecycleError("state_snapshot_failed") from error
-            session_acquired = True
-            policy = self._context.model_policy
-            budget = _InvocationBudget(
-                max_model_calls=policy.max_model_calls,
-                max_tool_calls=policy.max_tool_calls,
-                max_total_tokens=policy.max_total_tokens,
-                metrics=self._metrics,
-                cumulative_budget=(
-                    self._context.summarizer.cumulative_budget
-                    if self._context.summarizer is not None
-                    else None
-                ),
-                summary_prompt_boundary=_summary_prompt_boundary(policy, self._context.summarizer),
-            )
-            self._active_budget = budget
-            yield session_id, budget
-        except asyncio.CancelledError:
-            invocation_failed = True
-            await record_completion_cancellation()
-            raise
-        except BaseException:
-            invocation_failed = True
-            raise
-        finally:
-            try:
-                if session_acquired:
-                    try:
-                        await self._release_invocation_session()
-                    except asyncio.CancelledError:
-                        await record_completion_cancellation()
-                        raise
-                    except Exception:
-                        self._accepting = False
-                        if not invocation_failed:
-                            raise
-            finally:
-                self._active_budget = None
-                self._active_task = None
-                self._invoke_lock.release()
-
-    async def _release_invocation_session(self) -> None:
-        async def release() -> None:
-            try:
-                await asyncio.wait_for(
-                    self._session_lifecycle.finish_invocation(),
-                    timeout=INVOCATION_CLEANUP_TIMEOUT_SECONDS,
-                )
-            except TimeoutError as error:
-                raise WorkerSessionLifecycleError("cleanup_timeout") from error
-
-        task = asyncio.create_task(release(), name="worker-invocation-session-release")
-        try:
-            await asyncio.shield(task)
-        except asyncio.CancelledError:
-            # Retain ownership until the bounded release settles, including
-            # cancellation arriving during normal-completion cleanup.
-            with contextlib.suppress(Exception, asyncio.CancelledError):
-                await task
-            if self._session_lifecycle.failed:
-                self._accepting = False
-            raise
-
     async def _execute_invocation(
         self, request: StageContentRequest, session_id: str, budget: _InvocationBudget
     ) -> tuple[WorkerCompletion, dict[str, int]]:
@@ -556,7 +440,7 @@ class AdkWorkerRuntime:
                 exportable = False
             else:
                 outcome, exportable = await self._run_adk(request, invocation_id, session_id)
-            self._worker_state.execution.check()
+            self._resources.execution.check()
             exporter = self._workspace_exporter
             if exportable and exporter is not None:
                 try:
@@ -583,7 +467,7 @@ class AdkWorkerRuntime:
             invocation_phase = "cancelled"
             raise
         except Exception as error:
-            sandbox_failure = self._worker_state.execution.failure
+            sandbox_failure = self._resources.execution.failure
             gateway_error = _chained_error(error, GatewayModelError)
             if (
                 sandbox_failure is None
@@ -638,10 +522,10 @@ class AdkWorkerRuntime:
                     raise
         if state_snapshot is None:
             raise RuntimeError("Worker State did not produce a terminal revision")
-        if self._worker_state.execution.failure is not None:
+        if self._resources.execution.failure is not None:
             self._accepting = False
             outcome = _failure(
-                self._worker_state.execution.failure.value, "Sandbox execution failed", False
+                self._resources.execution.failure.value, "Sandbox execution failed", False
             )
         if isinstance(outcome, WorkerFailure) and self._completion is not None:
             await self._completion.record_phase("failed", outcome.code)
@@ -665,7 +549,7 @@ class AdkWorkerRuntime:
         return completion, _invocation_count_attributes(state_snapshot, invocation_id)
 
     def cancel_active(self, owner: asyncio.Task[Any]) -> None:
-        task = self._active_task
+        task = self._invocation.task
         if (
             task is not None
             and task is owner
@@ -702,13 +586,13 @@ class AdkWorkerRuntime:
                 include_reasoning=self._context.summarizer.include_reasoning,
                 secrets=summary_secrets,
             )
-        self._invocation_observed_refs.clear()
+        self._pipeline.refs.clear()
         completion = self._completion
         # The Planner's deadline covers the whole logical invocation, ordinary
         # or Audit (WRK-R158, WRK-R167). The request timeout still applies
         # independently inside model/tool clients (WRK-R157).
-        deadline = _InvocationDeadline(request.deadline)
-        self._active_deadline = deadline
+        deadline = InvocationDeadline(request.deadline)
+        self._invocation.deadline = deadline
         sdk_invocation_id = invocation_id
         try:
             if completion is not None:
@@ -733,9 +617,7 @@ class AdkWorkerRuntime:
                         # An early return must close ADK's generator in this task:
                         # its tracing contexts cannot be detached by GC in another one.
                         async with contextlib.aclosing(
-                            self._adk_turn_events(
-                                runner, invocation_id, sdk_invocation_id, session_id, prompt
-                            )
+                            self._turns.events(invocation_id, sdk_invocation_id, session_id, prompt)
                         ) as events:
                             async for event in events:
                                 if transcript is not None:
@@ -760,7 +642,7 @@ class AdkWorkerRuntime:
                                 if text is not None:
                                     candidate = text
                     except Exception as error:
-                        self._worker_state.execution.check()
+                        self._resources.execution.check()
                         # Work that ends after the deadline, including a
                         # summarization request, ends with the deadline.
                         deadline.check()
@@ -773,11 +655,11 @@ class AdkWorkerRuntime:
                                 True,
                             ), False
                         if _chained_error(error, WorkerSummarizationRequested) is not None:
-                            return await self._run_terminal_summarizer(
+                            return await self._pipeline.summarize(
                                 request=request,
                                 invocation_id=invocation_id,
                                 transcript=transcript,
-                                observed_refs=tuple(self._invocation_observed_refs),
+                                observed_refs=tuple(self._pipeline.refs),
                                 secrets=summary_secrets,
                             )
                         compaction_error = _chained_error(error, WorkerCompactionError)
@@ -833,7 +715,7 @@ class AdkWorkerRuntime:
                     if completion is None:
                         # No finalizer call starts once the deadline has passed.
                         deadline.check()
-                    outcome, exportable = await self._complete_normal_finish(
+                    outcome, exportable = await self._pipeline.finish(
                         request=request,
                         candidate=candidate,
                         invocation_id=invocation_id,
@@ -864,13 +746,13 @@ class AdkWorkerRuntime:
                 raise
             return completion.failure(error), False
         finally:
-            self._active_deadline = None
+            self._invocation.deadline = None
             if self._compaction is not None:
                 self._compaction.end()
             self._tool_history.clear()
             if completion is not None:
                 await completion.end()
-            self._invocation_observed_refs.clear()
+            self._pipeline.refs.clear()
             _clear_artifact_observation_logs(self._context.tools)
 
     async def _project_compacted_request(self, callback_context: Any, llm_request: Any) -> None:
@@ -955,8 +837,8 @@ class AdkWorkerRuntime:
             except WorkerCompactionError:
                 raise
             except Exception as error:
-                if self._active_deadline is not None:
-                    self._active_deadline.check()
+                if self._invocation.deadline is not None:
+                    self._invocation.deadline.check()
                 budget_error = _chained_error(error, WorkerBudgetExceeded)
                 if budget_error is not None:
                     raise budget_error from None
@@ -984,9 +866,9 @@ class AdkWorkerRuntime:
                 fence=self._fence_compacted_session,
             )
             compaction.commit(plan, summary, marker)
-            if self._active_budget is not None:
+            if self._invocation.budget is not None:
                 # A new context generation needs its own measured main usage.
-                self._active_budget.latest_prompt_tokens = None
+                self._invocation.budget.latest_prompt_tokens = None
             outcome, cause = "succeeded", ""
         except WorkerCompactionError as error:
             cause = error.cause
@@ -1003,6 +885,9 @@ class AdkWorkerRuntime:
                 attributes={"compaction.cause": cause} if cause else {},
             )
 
+    def _stop_accepting(self) -> None:
+        self._accepting = False
+
     def _fence_compacted_session(self) -> None:
         self._accepting = False
         self._session_lifecycle.fence()
@@ -1013,474 +898,34 @@ class AdkWorkerRuntime:
     def _admit_semantic_work(self) -> None:
         self._check_active()
         self._tool_history.check()
-        if self._active_deadline is None:
+        if self._invocation.deadline is None:
             raise RuntimeError("Worker has no active invocation deadline")
-        self._active_deadline.check()
+        self._invocation.deadline.check()
         self._raise_observed_tool_cancellation()
 
     def _raise_observed_tool_cancellation(self) -> None:
         if not self._plugin.tool_cancellation_observed:
             return
-        self._worker_state.execution.check()
-        if self._active_deadline is not None:
-            self._active_deadline.check()
+        self._resources.execution.check()
+        if self._invocation.deadline is not None:
+            self._invocation.deadline.check()
         # A refused budget can cause the SDK to cancel admitted siblings.
         # That secondary cancellation must not replace its owning failure.
-        if self._active_budget is not None and self._active_budget.failure is not None:
-            raise self._active_budget.failure
+        if self._invocation.budget is not None and self._invocation.budget.failure is not None:
+            raise self._invocation.budget.failure
         raise asyncio.CancelledError
 
-    async def _adk_turn_events(
-        self, runner: Runner, logical_id: str, sdk_id: str, session_id: str, prompt: str
-    ) -> AsyncGenerator[Event]:
-        cancelled = False
-        try:
-            self._tool_history.begin_turn(logical_id, sdk_id, session_id)
-            async with contextlib.aclosing(
-                runner.run_async(
-                    user_id=self._user_id,
-                    session_id=session_id,
-                    invocation_id=sdk_id,
-                    run_config=RunConfig(max_llm_calls=self._context.model_policy.max_model_calls),
-                    new_message=types.Content(role="user", parts=[types.Part(text=prompt)]),
-                )
-            ) as events:
-                async for event in events:
-                    # Runner yields only after SessionService accepted this event.
-                    self._tool_history.persisted(event)
-                    if self._compaction is not None:
-                        await self._compaction.observe(event)
-                    yield event
-            # Some SDK node runners absorb a child's CancelledError and end
-            # normally. Observe it before selecting a result or entering cleanup.
-            self._raise_observed_tool_cancellation()
-        except asyncio.CancelledError:
-            cancelled = True
-            raise
-        except Exception as error:
-            if _chained_error(error, ToolHistoryError) is None:
-                try:
-                    self._raise_observed_tool_cancellation()
-                except asyncio.CancelledError:
-                    cancelled = True
-                    raise
-            raise
-        finally:
-            try:
-                await self._seal_tool_history()
-            except (Exception, asyncio.CancelledError):
-                if not cancelled:
-                    raise
-
-    async def _seal_tool_history(self) -> None:
-        async def seal() -> None:
-            self._tool_history.check()
-            if self._tool_history.needs_seal:
-                session_id = self._session_lifecycle.active_session_id
-                if session_id is None:
-                    raise WorkerSessionLifecycleError("session_absent")
-                # Supply the owner's identity only. The ledger obtains its
-                # bounded event suffix through the public SessionService itself.
-                session = Session(app_name=self._app_name, user_id=self._user_id, id=session_id)
-                await self._tool_history.seal(self._session_service, session)
-
-        async def bounded_seal() -> None:
-            try:
-                await asyncio.wait_for(seal(), timeout=INVOCATION_CLEANUP_TIMEOUT_SECONDS)
-            except ToolHistoryError as error:
-                self._accepting = False
-                self._session_lifecycle.fence()
-                raise WorkerSessionLifecycleError(error.code) from None
-            except (Exception, asyncio.CancelledError):
-                self._accepting = False
-                self._session_lifecycle.fence()
-                raise WorkerSessionLifecycleError("tool_history_unavailable") from None
-
-        task = asyncio.create_task(bounded_seal(), name="worker-tool-history-seal")
-        try:
-            await asyncio.shield(task)
-        except asyncio.CancelledError:
-            # Cleanup owns no semantic work and must join before session release.
-            with contextlib.suppress(Exception, asyncio.CancelledError):
-                await task
-            raise
-
     def _check_active(self):
-        self._worker_state.execution.check()
+        self._resources.execution.check()
         task = asyncio.current_task()
         if not self._accepting or (task is not None and task.cancelling()):
             raise asyncio.CancelledError
-        if self._active_budget is not None and self._active_budget.failure is not None:
-            raise self._active_budget.failure
-
-    async def _complete_normal_finish(self, *, request, candidate, invocation_id, deadline):
-        """One semantic dispatch before terminal State or session cleanup."""
-        if self._completion is not None:
-            try:
-                decision = await self._completion.finish(
-                    request=request,
-                    deadline=deadline,
-                    check_active=self._check_active,
-                )
-            except Exception as error:
-                self._check_active()
-                return self._completion.failure(error), False
-            if isinstance(decision, ContinueCompletion):
-                return decision, False
-            if isinstance(decision, FailCompletion):
-                return decision.failure, False
-            # Completion owns the published text/receipts, while Runtime owns
-            # identity, artifact slots and observations. Validate fresh fields:
-            # the completion's mutable WorkerResult is not the final projection.
-            fields = _validate_result_fields(
-                {"subtaskId": request.subtask_id, "result": decision.result.result},
-                expected_subtask_id=request.subtask_id,
-            )
-            if isinstance(fields, WorkerFailure):
-                return fields, False
-            return self._assemble_runtime_result(
-                request,
-                fields,
-                tuple(self._invocation_observed_refs),
-                verified_finalizer_refs=tuple(decision.result.artifacts.values()),
-            )
-        return await self._complete_ordinary_finish(request, candidate, invocation_id)
-
-    async def _complete_ordinary_finish(self, request, candidate, invocation_id):
-        self._worker_state.execution.check()
-        if candidate is None:
-            return self._build_runtime_result(
-                request, candidate, tuple(self._invocation_observed_refs)
-            )
-        try:
-            return await self._run_result_finalizer(
-                request=request,
-                candidate=candidate,
-                invocation_id=invocation_id,
-                observed_refs=tuple(self._invocation_observed_refs),
-            )
-        except Exception as error:
-            # ADK wraps callback exceptions. The absolute invocation deadline
-            # still owns a refusal in the finalizer's actual model callback.
-            if self._active_deadline is not None:
-                self._active_deadline.check()
-            budget_error = _chained_error(error, WorkerBudgetExceeded)
-            if budget_error is not None:
-                self._metrics.record_worker_budget_exhausted(budget_error.dimension)
-                return (
-                    _failure(
-                        "worker_budget_exhausted",
-                        f"Worker invocation budget exhausted ({budget_error.dimension})",
-                        True,
-                    ),
-                    False,
-                )
-            gateway_error = _chained_error(error, GatewayModelError)
-            if gateway_error is not None:
-                return _gateway_worker_failure(gateway_error), False
-            finalizer_error = _chained_error(error, ResultFinalizerFailure)
-            if finalizer_error is not None:
-                if finalizer_error.code == "output_limit_exceeded":
-                    return _failure(
-                        "worker_output_limit_exceeded",
-                        "Worker result finalizer reached its output token limit",
-                        True,
-                    ), False
-                if finalizer_error.code == "input_too_large":
-                    return _failure(
-                        "worker_result_too_large",
-                        "Worker result finalization input exceeds its limit",
-                        False,
-                    ), False
-                return _failure(
-                    "worker_result_finalizer_failed",
-                    f"Worker result finalizer failed ({finalizer_error.code})",
-                    True,
-                ), False
-            return _failure(
-                "worker_result_finalizer_failed",
-                "Worker result finalizer failed (runtime_failed)",
-                True,
-            ), False
-
-    async def _run_result_finalizer(
-        self,
-        *,
-        request: StageContentRequest,
-        candidate: str,
-        invocation_id: str,
-        observed_refs: tuple[ArtifactRef, ...],
-    ) -> tuple[WorkerResult | WorkerFailure, bool]:
-        candidate_bytes = len(candidate.encode("utf-8"))
-        if candidate_bytes > get_shared_config().worker_result_max_bytes:
-            return _failure(
-                "worker_result_too_large", "Worker terminal result exceeds its limit", False
-            ), False
-        if is_blank(candidate):
-            return _failure(
-                "worker_result_invalid", "Worker returned an invalid terminal result", True
-            ), False
-        if _exposes_private_value(candidate, self._context):
-            return _failure(
-                "unsafe_worker_result", "Worker returned content blocked by Runtime policy", False
-            ), False
-        finalizer = self._result_finalizer
-        if finalizer is None:
-            return _failure(
-                "worker_draining", "Worker is no longer accepting A2A work", True
-            ), False
-        structured_candidate = await finalizer.run(
-            subtask_id=request.subtask_id,
-            result_text=candidate,
-            invocation_id=invocation_id,
-        )
-        result, exportable = self._build_runtime_result(
-            request,
-            structured_candidate,
-            observed_refs,
-        )
-        if isinstance(result, WorkerResult) and result.result != candidate:
-            return _failure(
-                "worker_result_finalizer_mismatch",
-                "Worker result finalizer changed the terminal result",
-                True,
-            ), False
-        return result, exportable
-
-    async def _run_terminal_summarizer(
-        self,
-        *,
-        request: StageContentRequest,
-        invocation_id: str,
-        transcript: TranscriptRecorder | None,
-        observed_refs: tuple[ArtifactRef, ...],
-        secrets: tuple[str, ...],
-    ) -> tuple[WorkerResult | WorkerFailure, bool]:
-        config = self._context.summarizer
-        if config is None or transcript is None:
-            raise RuntimeError("Worker summarization was requested while disabled")
-        usage = SummarizerUsage()
-        retryable = True
-        summarizer: TerminalSummarizer | None = None
-        summary_model: BaseLlm | None = None
-        try:
-            groups = transcript.finish()
-            live_state = await self._worker_state.snapshot()
-            observations = _lean_observations(
-                live_state,
-                invocation_id,
-                projection_failed=self._plugin.projection_failed,
-            )
-            prompt = build_summarizer_prompt(
-                request,
-                observations,
-                groups,
-                transcript_truncated=transcript.truncated,
-                include_reasoning=config.include_reasoning,
-                reasoning_truncated=transcript.reasoning_truncated,
-                secrets=secrets,
-            )
-            summary_context = replace(
-                self._context,
-                model_policy=config.model_policy,
-                summarizer=None,
-                tools={},
-                resolved_skills=(),
-                agent_skills=None,
-                project_workspace=None,
-                workspace_export=None,
-            )
-            summary_model = self._model_factory(summary_context)
-            if summary_model is self._model:
-                raise SummarizerFailure("model_not_isolated")
-            summarizer = TerminalSummarizer(
-                model=summary_model,
-                policy=config.model_policy,
-                instructions=config.instructions.text if config.instructions is not None else None,
-                include_reasoning=config.include_reasoning,
-                instrumentation=self._instrumentation,
-                check_admission=self._admit_semantic_work,
-            )
-            candidate = await summarizer.run(prompt=prompt, invocation_id=invocation_id)
-            usage = summarizer.usage
-            result, exportable = self._build_runtime_result(request, candidate, observed_refs)
-            if not isinstance(result, WorkerResult):
-                failure_code = _summarizer_result_failure_code(result.code)
-                await self._complete_summarizer_attempt(
-                    invocation_id=invocation_id,
-                    succeeded=False,
-                    usage=usage,
-                    failure_code=failure_code,
-                )
-                return _summarizer_failure(failure_code), False
-            await self._complete_summarizer_attempt(
-                invocation_id=invocation_id,
-                succeeded=True,
-                usage=usage,
-            )
-            return result.model_copy(update={"summarized": True}), exportable
-        except asyncio.CancelledError:
-            usage = summarizer.usage if summarizer is not None else usage
-            await _await_safely(
-                self._complete_summarizer_attempt(
-                    invocation_id=invocation_id,
-                    succeeded=False,
-                    usage=usage,
-                    failure_code="cancelled",
-                )
-            )
-            raise
-        except TimeoutError:
-            usage = summarizer.usage if summarizer is not None else usage
-            if self._active_deadline is not None and self._active_deadline.passed():
-                await _await_safely(
-                    self._complete_summarizer_attempt(
-                        invocation_id=invocation_id,
-                        succeeded=False,
-                        usage=usage,
-                        failure_code="cancelled",
-                    )
-                )
-                raise
-            failure_code = "runtime_failed"
-        except SummarizerFailure as error:
-            usage = summarizer.usage if summarizer is not None else usage
-            failure_code = error.code
-            retryable = error.retryable
-        except Exception:
-            usage = summarizer.usage if summarizer is not None else usage
-            failure_code = "runtime_failed"
-        finally:
-            if (
-                isinstance(summary_model, OpenAICompatibleGatewayLlm)
-                and summary_model is not self._model
-            ):
-                await summary_model.close()
-
-        await self._complete_summarizer_attempt(
-            invocation_id=invocation_id,
-            succeeded=False,
-            usage=usage,
-            failure_code=failure_code,
-        )
-        return _summarizer_failure(failure_code, retryable=retryable), False
-
-    async def _complete_summarizer_attempt(
-        self,
-        *,
-        invocation_id: str,
-        succeeded: bool,
-        usage: SummarizerUsage,
-        failure_code: str | None = None,
-    ) -> None:
-        await self._worker_state.complete_summarization(
-            invocation_id=invocation_id,
-            succeeded=succeeded,
-            model_calls=usage.model_calls,
-            input_tokens=usage.input_tokens,
-            output_tokens=usage.output_tokens,
-            total_tokens=usage.total_tokens,
-            token_usage_unavailable=usage.token_usage_unavailable,
-            failure_code=failure_code,
-        )
-        self._metrics.record_summarizer_attempt(
-            succeeded=succeeded,
-            model_calls=usage.model_calls,
-            input_tokens=usage.input_tokens,
-            output_tokens=usage.output_tokens,
-            total_tokens=usage.total_tokens,
-            token_usage_unavailable=usage.token_usage_unavailable,
-            failure_code=failure_code,
-        )
-
-    def _build_runtime_result(
-        self,
-        request: StageContentRequest,
-        candidate: str | None,
-        observed_refs: tuple[ArtifactRef, ...],
-        *,
-        verified_finalizer_refs: tuple[ArtifactRef, ...] = (),
-    ) -> tuple[WorkerResult | WorkerFailure, bool]:
-        """Model-authored JSON boundary shared by finalizer and summarizer."""
-        fields = _decode_model_result(candidate, expected_subtask_id=request.subtask_id)
-        if isinstance(fields, WorkerFailure):
-            return fields, False
-        return self._assemble_runtime_result(
-            request, fields, observed_refs, verified_finalizer_refs=verified_finalizer_refs
-        )
-
-    def _assemble_runtime_result(
-        self,
-        request: StageContentRequest,
-        validated_fields: WorkerModelResult,
-        observed_refs: tuple[ArtifactRef, ...],
-        *,
-        verified_finalizer_refs: tuple[ArtifactRef, ...] = (),
-    ) -> tuple[WorkerResult | WorkerFailure, bool]:
-        """Project freshly validated fields through Runtime-owned result policy.
-
-        Both private callers validate immediately before this synchronous call;
-        no model/strategy-supplied identity, observations or slots are inherited.
-        """
-        if _exposes_private_value(validated_fields.result, self._context):
-            return _failure(
-                "unsafe_worker_result", "Worker returned content blocked by Runtime policy", False
-            ), False
-        observed = {
-            (ref.namespace, ref.name): ref
-            for ref in _latest_observed_exact_refs((*observed_refs, *verified_finalizer_refs))
-        }
-        artifacts: dict[str, ArtifactRef] = {}
-        exporter = self._workspace_exporter
-        reserved_slots = exporter.reserved_slots if exporter is not None else frozenset()
-        for slot, binding in request.result_artifacts.items():
-            if slot in reserved_slots:
-                continue
-            if is_reserved_result_binding(binding.namespace, binding.name):
-                return _failure(
-                    "invalid_worker_result_binding",
-                    "Worker result binding is reserved by Runtime policy",
-                    False,
-                ), False
-            exact = observed.get((binding.namespace, binding.name))
-            if exact is not None:
-                artifacts[slot] = exact
-        if len(artifacts) > MAX_RESULT_ARTIFACTS - len(reserved_slots):
-            return _failure(
-                "worker_result_too_large", "Worker result exceeds its limit", False
-            ), False
-        result = WorkerResult(
-            subtaskId=request.subtask_id,
-            result=validated_fields.result,
-            observations=WorkerObservations(profile="lean@1", tools={}, truncated=False),
-            artifacts=artifacts,
-            summarized=False,
-        )
-        if len(result.model_dump_json(by_alias=True).encode("utf-8")) > MAX_STAGE_RESULT_JSON_BYTES:
-            return _failure(
-                "worker_result_too_large", "Worker result exceeds its limit", False
-            ), False
-        return result, True
-
-    def _observe_tool_artifacts(self, tool: Any, cursor: int) -> None:
-        observations = getattr(tool, "observed_exact_refs_since", None)
-        if not callable(observations):
-            return
-        try:
-            refs = observations(cursor)
-            for ref in refs:
-                exact = ref.require_exact()
-                if not is_reserved_memory_binding(exact.namespace, exact.name):
-                    self._invocation_observed_refs.append(exact)
-        except Exception:
-            # A provenance adapter defect must not turn a completed tool side
-            # effect into an invented result. Omitting the ref fails the Stage
-            # result contract closed at the Planner boundary.
-            return
+        if self._invocation.budget is not None and self._invocation.budget.failure is not None:
+            raise self._invocation.budget.failure
 
     async def _stop(self, deadline: datetime) -> None:
         self._accepting = False
-        task = self._active_task
+        task = self._invocation.task
         if task is not None and task is not asyncio.current_task() and not task.done():
             task.cancel()
             remaining = max(0.0, (deadline - datetime.now(UTC)).total_seconds())
@@ -1521,7 +966,8 @@ class AdkWorkerRuntime:
                 except Exception as error:
                     failures.append(error)
             self._agent = None
-            self._result_finalizer = None
+            self._pipeline.release()
+            self._turns = None
             self._instrumentation = None
             self._agent_skills = None
             self._context = None  # type: ignore[assignment]
@@ -1559,20 +1005,19 @@ class AdkWorkerRuntime:
         async def checkpoint_and_finish() -> dict[str, Any]:
             # Resource I/O has its own bounded allowance, separate from the
             # five-second State finalization budget.
-            if self._worker_state.before_completion is not None:
-                await self._worker_state.before_completion()
+            if self._resources.before_completion is not None:
+                await self._resources.before_completion()
             return await asyncio.wait_for(finish(), timeout=INVOCATION_CLEANUP_TIMEOUT_SECONDS)
 
         task = asyncio.create_task(
             checkpoint_and_finish(),
             name="worker-invocation-state-finalize",
         )
-        try:
-            return await asyncio.shield(task)
-        except asyncio.CancelledError:
+        if await join_owned_task(task):
             with contextlib.suppress(Exception, asyncio.CancelledError):
-                await task
-            raise
+                task.result()
+            raise asyncio.CancelledError
+        return task.result()
 
     async def _untracked_failure_completion(
         self, code: str, message: str, retryable: bool
@@ -1612,156 +1057,11 @@ class AdkWorkerRuntime:
         )
 
 
-def _decode_model_result(
-    candidate: str | None, *, expected_subtask_id: str
-) -> WorkerModelResult | WorkerFailure:
-    """Decode actual model output without changing validation/error precedence."""
-    if candidate is None:
-        return _failure("worker_result_missing", "Worker returned no structured result", True)
-    if len(candidate.encode("utf-8")) > MAX_STAGE_RESULT_JSON_BYTES:
-        return _failure(
-            "worker_result_too_large", "Worker structured result exceeds its limit", False
-        )
-    try:
-        raw_candidate = json.loads(candidate)
-    except (json.JSONDecodeError, TypeError):
-        return _failure(
-            "worker_result_invalid", "Worker returned an invalid structured result", True
-        )
-    return _validate_result_fields(raw_candidate, expected_subtask_id=expected_subtask_id)
-
-
-def _validate_result_fields(
-    raw_candidate: Any, *, expected_subtask_id: str
-) -> WorkerModelResult | WorkerFailure:
-    """Validate fresh fields from decoded JSON or a trusted completion decision."""
-    if (
-        isinstance(raw_candidate, dict)
-        and isinstance(raw_candidate.get("result"), str)
-        and len(raw_candidate["result"].encode("utf-8"))
-        > get_shared_config().worker_result_max_bytes
-    ):
-        return _failure(
-            "worker_result_too_large", "Worker structured result exceeds its limit", False
-        )
-    try:
-        fields = WorkerModelResult.model_validate(raw_candidate)
-    except ValidationError:
-        return _failure(
-            "worker_result_invalid", "Worker returned an invalid structured result", True
-        )
-    if fields.subtask_id != expected_subtask_id:
-        return _failure(
-            "worker_result_subtask_mismatch",
-            "Worker result does not match the requested subtask",
-            True,
-        )
-    return fields
-
-
-def _latest_observed_exact_refs(refs: tuple[ArtifactRef, ...]) -> list[ArtifactRef]:
-    latest: dict[tuple[str, str], ArtifactRef] = {}
-    for ref in refs:
-        exact = ref.require_exact()
-        if is_reserved_memory_binding(exact.namespace, exact.name):
-            continue
-        latest[(exact.namespace, exact.name)] = exact
-    return [latest[key] for key in sorted(latest)]
-
-
 def _clear_artifact_observation_logs(tools: Mapping[str, Any]) -> None:
     for tool in tools.values():
         clear = getattr(tool, "clear_artifact_observations", None)
         if callable(clear):
             clear()
-
-
-def _task_prompt(request: StageContentRequest) -> str:
-    """Render Planner-supplied task data; wire/lifecycle contracts stay Runtime-private."""
-
-    inputs = {
-        name: ref.model_dump(mode="json", by_alias=True)
-        for name, ref in sorted(request.artifacts.items())
-    }
-    return (
-        f"Subtask ID:\n{request.subtask_id}\n\n"
-        f"Objective:\n{request.objective}\n\n"
-        f"Task instructions:\n{request.instructions}\n\n"
-        "String parameters:\n"
-        + json.dumps(request.parameters, ensure_ascii=False, sort_keys=True, indent=2)
-        + "\n\nNamed input artifacts:\n"
-        + json.dumps(inputs, ensure_ascii=False, sort_keys=True, indent=2)
-    )
-
-
-def _summary_prompt_boundary(
-    policy: ResolvedModelPolicy,
-    config: WorkerSummarizerConfig | None,
-) -> int | None:
-    """Derive the normal-loop prompt boundary from pinned model metadata."""
-
-    if config is None:
-        return None
-    if policy.context_window_tokens is None or policy.max_output_tokens is None:
-        raise RuntimeError("summarized Worker policy has no context-window metadata")
-    ratio_boundary = math.floor(policy.context_window_tokens * config.context_window_ratio)
-    output_safe_boundary = policy.context_window_tokens - policy.max_output_tokens
-    return min(ratio_boundary, output_safe_boundary)
-
-
-def _gateway_token(context: WorkerBuildContext) -> str:
-    token = context.runtime_settings.llm_gateway_token
-    return token.get_secret_value() if token is not None else ""
-
-
-def _exposes_private_value(text: str, context: WorkerBuildContext) -> bool:
-    """Whether Worker-authored text contains an allocation credential.
-
-    Covers every RuntimeSettings credential (Gateway token, telemetry headers,
-    proxy, Caido and HTTP origin target credentials) under the Agent Card
-    matching policy; the LLM Gateway token additionally matches at any length.
-    Endpoints are not credentials: a result may name them, for example when a
-    same-host deployment audits a service next to its own.
-    """
-
-    gateway_token = _gateway_token(context)
-    if gateway_token and gateway_token in text:
-        return True
-    return contains_private_value(text, runtime_secrets(context.runtime_settings))
-
-
-def _summarizer_secrets(context: WorkerBuildContext) -> tuple[str, ...]:
-    """Return allocation-private values that must not enter summarizer input."""
-
-    candidates = (
-        _gateway_token(context),
-        *substring_values(runtime_setting_values(context.runtime_settings)),
-        str(context.workspace.path),
-        str(context.workspace.root),
-    )
-    # Replacing '/' would destroy every path-like value rather than protect a
-    # useful host path, so only non-root concrete paths are admitted. Short
-    # settings values (for example a proxy username) are not replaced inside
-    # ordinary transcript text for the same reason.
-    return tuple(dict.fromkeys(value for value in candidates if len(value) > 1))
-
-
-def _chained_error[E: BaseException](error: BaseException, kind: type[E]) -> E | None:
-    """Find a Runtime signal or failure of ``kind`` through ADK's callback wrappers.
-
-    ADK re-raises plugin and callback failures inside its own exceptions, so the
-    walk follows the explicit cause first, then the implicit context, and stops
-    at the first repeated exception.
-    """
-
-    current: BaseException | None = error
-    seen: set[int] = set()
-    while current is not None and id(current) not in seen:
-        seen.add(id(current))
-        if isinstance(current, kind):
-            return current
-        current = current.__cause__ or current.__context__
-    return None
 
 
 def _record_worker_error(
@@ -1796,61 +1096,6 @@ def _invocation_count_attributes(snapshot: Mapping[str, Any], invocation_id: str
     return result
 
 
-def _compaction_failure(error: WorkerCompactionError) -> WorkerFailure:
-    if error.code == "worker_context_limit_exceeded":
-        return _failure(error.code, f"Worker context limit exceeded ({error.cause})", False)
-    return _failure(
-        error.code, f"Worker context compaction failed ({error.cause})", error.retryable
-    )
-
-
-def _failure(code: str, message: str, retryable: bool) -> WorkerFailure:
-    return WorkerFailure(code=code, message=message, retryable=retryable)
-
-
-def _summarizer_failure(cause: str, *, retryable: bool = True) -> WorkerFailure:
-    return _failure(
-        "worker_summarization_failed",
-        f"Worker terminal summarization failed ({cause})",
-        retryable,
-    )
-
-
-def _summarizer_result_failure_code(code: str) -> str:
-    return {
-        "worker_result_missing": "result_missing",
-        "worker_result_invalid": "result_invalid",
-        "worker_result_subtask_mismatch": "result_subtask_mismatch",
-        "worker_result_too_large": "result_too_large",
-        "unsafe_worker_result": "unsafe_result",
-        "invalid_worker_result_binding": "invalid_result_binding",
-    }.get(code, "result_rejected")
-
-
-async def _await_safely(awaitable: Any) -> Any:
-    task = asyncio.create_task(awaitable, name="worker-summarizer-state-finalize")
-    try:
-        return await asyncio.shield(task)
-    except asyncio.CancelledError:
-        with contextlib.suppress(Exception, asyncio.CancelledError):
-            await task
-        return None
-
-
-def _gateway_worker_failure(error: GatewayModelError) -> WorkerFailure:
-    if error.request_invalid:
-        return _failure(
-            "worker_gateway_invalid_request",
-            "Worker LLM Gateway request is invalid",
-            False,
-        )
-    return _failure(
-        "worker_gateway_unavailable",
-        "Worker LLM Gateway request failed",
-        error.retryable,
-    )
-
-
 def _empty_invocation_metrics() -> dict[str, Any]:
     return {
         "modelCalls": 0,
@@ -1865,43 +1110,3 @@ def _empty_invocation_metrics() -> dict[str, Any]:
         "tools": {},
         "truncated": False,
     }
-
-
-def _lean_observations(
-    snapshot: Mapping[str, Any],
-    invocation_id: str,
-    *,
-    projection_failed: bool,
-) -> WorkerObservations:
-    invocation = snapshot.get("currentInvocation")
-    if not isinstance(invocation, Mapping) or invocation.get("invocationId") != invocation_id:
-        invocation = snapshot.get("lastCompletedInvocation")
-    if not isinstance(invocation, Mapping) or invocation.get("invocationId") != invocation_id:
-        raise RuntimeError("Worker State invocation correlation is invalid")
-    metrics = invocation.get("metrics")
-    if not isinstance(metrics, Mapping):
-        raise RuntimeError("Worker invocation metrics are unavailable")
-    raw_tools = metrics.get("tools")
-    if not isinstance(raw_tools, Mapping):
-        raise RuntimeError("Worker invocation tool metrics are unavailable")
-    tools: dict[str, ToolObservationCount] = {}
-    for name in sorted(raw_tools)[: get_shared_config().worker_observation_max_tools]:
-        aggregate = raw_tools[name]
-        if not isinstance(name, str) or not isinstance(aggregate, Mapping):
-            raise RuntimeError("Worker invocation tool metrics are invalid")
-        tools[name] = ToolObservationCount(
-            calls=aggregate.get("calls"),
-            failures=aggregate.get("failures"),
-        )
-    workspace, workspace_truncated = lean_workspace_summary(invocation.get("workspace"))
-    return WorkerObservations(
-        profile="lean@1",
-        tools=tools,
-        **({"workspace": workspace} if workspace is not None else {}),
-        truncated=(
-            bool(metrics.get("truncated"))
-            or workspace_truncated
-            or projection_failed
-            or len(raw_tools) > get_shared_config().worker_observation_max_tools
-        ),
-    )

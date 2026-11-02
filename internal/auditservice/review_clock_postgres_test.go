@@ -1,12 +1,10 @@
 package auditservice
 
 import (
-	"errors"
 	"testing"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 )
 
 // Review expiry follows the PostgreSQL clock that the Controller and
@@ -58,85 +56,8 @@ SELECT count(*), count(*) FILTER (WHERE state = 'pending')
 		t.Fatalf("decide unexpired item review with a skewed clock: %v", err)
 	}
 
-	// A process clock far behind the database neither shortens a new
-	// request's window nor keeps an expired request decidable.
-	*now = base.Add(-30 * 24 * time.Hour)
-	findingID := seedAuditFinding(t, ctx, pool, audit.ProjectID, audit.OwnerID, audit.AuditID, "clock")
-	review, err := service.CreateFindingReview(ctx, CreateFindingReviewParams{
-		OwnerID: audit.OwnerID, AuditID: audit.AuditID, FindingID: findingID, ExpectedRevision: 1,
-		RequestID: "review-clock", IdempotencyKey: "review-clock",
-		RequestDigest: serviceTestDigest("review-clock"),
-	})
-	if err != nil || review.Request.ExpiresAt == nil ||
-		!review.Request.ExpiresAt.After(time.Now().Add(defaultReviewTTL-time.Hour)) {
-		t.Fatalf("finding review window = (%+v, %v)", review.Request, err)
-	}
-	if _, err := pool.Exec(ctx, `
-UPDATE audit_review_requests SET expires_at = clock_timestamp() - interval '1 second'
- WHERE request_id = $1`, review.Request.RequestID); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := service.DecideFinding(ctx, DecideFindingParams{
-		OwnerID: audit.OwnerID, AuditID: audit.AuditID, RequestID: review.Request.RequestID,
-		ExpectedRequestRevision: review.Request.Revision, DecisionID: "decision-clock-finding",
-		Verdict: auditstore.VerdictNeedsEvidence, Rationale: "Decided after the database expiry.",
-		IdempotencyKey: "decision-clock-finding", RequestDigest: serviceTestDigest("decision-clock-finding"),
-	}); !errors.Is(err, auditstore.ErrPrecondition) {
-		t.Fatalf("decide expired finding review with a lagging clock = %v", err)
-	}
-	expired, err := service.GetReview(ctx, audit.OwnerID, audit.AuditID, review.Request.RequestID)
-	if err != nil || expired.State != auditstore.ReviewExpired {
-		t.Fatalf("expired finding review = (%+v, %v)", expired, err)
-	}
 }
 
-func TestReplacingExpiredFindingReviewRecordsExpiryAndRequest(t *testing.T) {
-	ctx, pool, service, started, _ := newTimeControlAudit(t, 7200)
-	audit := started.Audit
-	findingID := seedAuditFinding(t, ctx, pool, audit.ProjectID, audit.OwnerID, audit.AuditID, "replacement")
-	params := CreateFindingReviewParams{
-		OwnerID: audit.OwnerID, AuditID: audit.AuditID, FindingID: findingID, ExpectedRevision: 1,
-		RequestID: "review-old", IdempotencyKey: "review-old", RequestDigest: serviceTestDigest("review-old"),
-	}
-	old, err := service.CreateFindingReview(ctx, params)
-	if err != nil {
-		t.Fatal(err)
-	}
-	// Exercise the monotonic timestamp guard even when the stored timestamp
-	// is ahead of the database clock. Authority still expires by expires_at.
-	var oldUpdated time.Time
-	if err := pool.QueryRow(ctx, `
-UPDATE audit_review_requests
-   SET expires_at=clock_timestamp()-interval '1 second', updated_at='2100-01-01'::timestamptz
- WHERE request_id=$1 RETURNING updated_at`, old.Request.RequestID).Scan(&oldUpdated); err != nil {
-		t.Fatal(err)
-	}
-	store := auditstoretest.NewStore(pool)
-	before, err := store.Get(ctx, audit.OwnerID, audit.AuditID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	params.RequestID, params.IdempotencyKey, params.RequestDigest = "review-new", "review-new", serviceTestDigest("review-new")
-	fresh, err := service.CreateFindingReview(ctx, params)
-	if err != nil || fresh.Replayed || fresh.Request.State != auditstore.ReviewPending {
-		t.Fatalf("replacement = (%+v, %v)", fresh, err)
-	}
-	expired, err := service.GetReview(ctx, audit.OwnerID, audit.AuditID, old.Request.RequestID)
-	if err != nil || expired.State != auditstore.ReviewExpired || expired.Revision != old.Request.Revision+1 || !expired.UpdatedAt.After(oldUpdated) {
-		t.Fatalf("expired request = (%+v, %v)", expired, err)
-	}
-	events, err := store.EventsAfter(ctx, audit.OwnerID, audit.AuditID, before.EventSequence, 3)
-	if err != nil || len(events) != 2 || events[0].Kind != "review.expired" || events[0].EntityID != old.Request.RequestID ||
-		events[1].Kind != "review.requested" || events[1].EntityID != fresh.Request.RequestID || events[1].Sequence != events[0].Sequence+1 {
-		t.Fatalf("replacement events = (%+v, %v)", events, err)
-	}
-}
-
-// The owner-wide pending list behind the Inbox offers only requests that can
-// still be decided: a stored pending request past its expiry at the
-// PostgreSQL clock is left out before anything has expired it, exactly as
-// the workspace's pending count leaves it out. The unfiltered list and the
-// expired filter keep reporting the stored state.
 func TestOwnerPendingReviewsLeaveOutRequestsPastExpiry(t *testing.T) {
 	ctx, pool, service, started, now := newTimeControlAudit(t, 7200)
 	audit := started.Audit

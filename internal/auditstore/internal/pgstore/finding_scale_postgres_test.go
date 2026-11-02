@@ -3,12 +3,10 @@ package pgstore
 import (
 	"context"
 	"fmt"
-	"slices"
 	"testing"
-	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/pagelimit"
+	"github.com/grauwolf32/contractor/internal/helpers/pagelimit"
 	"github.com/grauwolf32/contractor/internal/persistence/explaintest"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -32,9 +30,9 @@ func TestPostgresAuditReadsAtFindingScale(t *testing.T) {
 	owner, auditID := f.audit.OwnerID, f.audit.AuditID
 	var findings, unreviewed, proposed, reviews, unexpired, collected int64
 	if err := f.pool.QueryRow(f.ctx, `
-SELECT (SELECT count(*) FROM audit_findings WHERE audit_id = $1),
-       (SELECT count(*) FROM audit_findings WHERE audit_id = $1 AND current_decision_id IS NULL),
-       (SELECT count(*) FROM audit_findings WHERE audit_id = $1 AND state = 'proposed'),
+SELECT (SELECT count(*) FROM project_finding_audits WHERE audit_id = $1),
+       (SELECT count(*) FROM project_findings JOIN project_finding_audits USING(project_id,finding_id) WHERE audit_id = $1 AND analyst_verdict IS NULL),
+       (SELECT count(*) FROM project_findings JOIN project_finding_audits USING(project_id,finding_id) WHERE audit_id = $1 AND state IS NULL),
        (SELECT count(*) FROM audit_review_requests WHERE audit_id = $1),
        (SELECT count(*) FROM audit_review_requests
          WHERE audit_id = $1 AND state = 'pending' AND expires_at > clock_timestamp()),
@@ -91,86 +89,9 @@ SELECT (SELECT count(*) FROM audit_findings WHERE audit_id = $1),
 			// One pass over the Audit's findings and one over its review
 			// requests, each row once.
 			within(t, mode, getWorkspaceSQL, workspaceArgs(owner, auditID), map[string]int64{
-				"audit_findings": findings, "audit_review_requests": reviews, "audit_executions": 0,
+				"project_findings": findings, "project_finding_audits": findings, "audit_review_requests": reviews, "audit_executions": 0,
 			})
 		})
-	})
-
-	t.Run("finding pages", func(t *testing.T) {
-		rows, err := f.pool.Query(f.ctx, `
-SELECT finding_id, state, current_decision_id IS NULL FROM audit_findings
- WHERE audit_id = $1 ORDER BY created_at, finding_id`, auditID)
-		if err != nil {
-			t.Fatal(err)
-		}
-		type referenceFinding struct {
-			ID, State  string
-			Unreviewed bool
-		}
-		reference, err := pgx.CollectRows(rows, pgx.RowToStructByPos[referenceFinding])
-		if err != nil {
-			t.Fatal(err)
-		}
-		state := auditstore.FindingProposed
-		verdict := auditstore.VerdictTruePositive
-		severity := auditstore.SeverityHigh
-		for _, test := range []struct {
-			name   string
-			params auditstore.FindingListParams
-			total  int64
-			match  func(referenceFinding) bool
-		}{
-			{"unfiltered", auditstore.FindingListParams{}, findings, func(referenceFinding) bool { return true }},
-			{"unreviewed", auditstore.FindingListParams{Unreviewed: true}, unreviewed, func(row referenceFinding) bool { return row.Unreviewed }},
-			{"state", auditstore.FindingListParams{State: &state}, proposed, func(row referenceFinding) bool { return row.State == string(state) }},
-			{"verdict", auditstore.FindingListParams{Verdict: &verdict}, 0, func(referenceFinding) bool { return false }},
-			{"severity", auditstore.FindingListParams{Severity: &severity}, 0, func(referenceFinding) bool { return false }},
-		} {
-			t.Run(test.name, func(t *testing.T) {
-				params := test.params
-				params.OwnerID, params.AuditID, params.Limit = owner, auditID, fetch
-				var matching []string
-				for _, row := range reference {
-					if test.match(row) {
-						matching = append(matching, row.ID)
-					}
-				}
-				inModes(t, func(t *testing.T, mode explaintest.Mode) {
-					basis, err := store.FindingPageBasis(f.ctx, params)
-					if err != nil || int64(basis.Total) != test.total || int64(len(matching)) != test.total {
-						t.Fatalf("%s: total = %d, %v; want %d of %d matching", mode, basis.Total, err, test.total, len(matching))
-					}
-					within(t, mode, findingPageBasisSQL, findingFilterArgs(params), map[string]int64{"audit_findings": findings})
-					for _, start := range []int{0, 3_500} {
-						page := params
-						if start > 0 && len(matching) > start {
-							var after time.Time
-							if err := f.pool.QueryRow(f.ctx, `SELECT created_at FROM audit_findings WHERE finding_id = $1`,
-								matching[start-1]).Scan(&after); err != nil {
-								t.Fatal(err)
-							}
-							page.AfterCreatedAt, page.AfterFindingID = &after, matching[start-1]
-						} else if start > 0 {
-							continue
-						}
-						records, err := store.ListFindings(f.ctx, page)
-						if err != nil {
-							t.Fatal(err)
-						}
-						got := make([]string, len(records))
-						for index, record := range records {
-							got[index] = record.FindingID
-						}
-						want := matching[min(start, len(matching)):min(start+fetch, len(matching))]
-						if !slices.Equal(got, want) {
-							t.Fatalf("%s: page after %d holds %d findings, want %d", mode, start, len(got), len(want))
-						}
-						within(t, mode, listFindingsSQL, append(findingFilterArgs(page), page.AfterCreatedAt, page.AfterFindingID, page.Limit),
-							map[string]int64{"audit_findings": findings})
-					}
-				})
-			})
-		}
 	})
 
 	t.Run("review pages", func(t *testing.T) {
@@ -187,9 +108,9 @@ SELECT finding_id, state, current_decision_id IS NULL FROM audit_findings
 			}
 			// Kept: the count reads the Audit's requests once through
 			// audit_review_requests_list_idx, and the page one fetch.
-			within(t, mode, reviewPageBasisSQL, []any{owner, auditID, nil, string(pending)},
+			within(t, mode, reviewPageBasisSQL, []any{owner, auditID, string(pending)},
 				map[string]int64{"audit_review_requests": reviews})
-			within(t, mode, listReviewsSQL, []any{owner, auditID, nil, string(pending), nil, "", fetch},
+			within(t, mode, listReviewsSQL, []any{owner, auditID, string(pending), nil, "", fetch},
 				map[string]int64{"audit_review_requests": int64(fetch)})
 		})
 	})

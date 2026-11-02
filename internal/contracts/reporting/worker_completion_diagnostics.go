@@ -2,7 +2,7 @@ package reporting
 
 import (
 	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/grauwolf32/contractor/internal/strictjson"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 )
 
 // WorkerCompletionDiagnostics describes the latest invocation's local work.

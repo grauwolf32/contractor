@@ -10,6 +10,7 @@ import pytest
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from fakes.worker_state import WorkerState
 
 from contractor_runtime.adapters.host import AdapterHandles, RuntimeAdapterMetricsState
 from contractor_runtime.adapters.interactsh import (
@@ -21,7 +22,6 @@ from contractor_runtime.adapters.interactsh import (
     InteractshClient,
     InteractshError,
 )
-from contractor_runtime.allocation import WorkerState
 from contractor_runtime.contracts import ArtifactRef, InteractshSettings, RuntimeSettings
 from contractor_runtime.toolsets.interactsh.tools import (
     EVIDENCE_MEDIA_TYPE,
@@ -492,7 +492,7 @@ def test_factory_requires_private_channel_and_exposes_only_selected_tools(tmp_pa
             namespace="worker",
             runtime_settings=runtime,
             workspace=AllocationWorkspace(tmp_path, tmp_path),
-            state=WorkerState(),
+            resources=WorkerState().resources,
         )
         with pytest.raises(InteractshError, match="interactsh_not_configured"):
             await factory.create_selected(**args)
@@ -558,7 +558,7 @@ def test_model_errors_are_bounded_and_retry_after_is_preserved(tmp_path):
             namespace="worker",
             runtime_settings=runtime,
             workspace=AllocationWorkspace(tmp_path, tmp_path),
-            state=WorkerState(),
+            resources=WorkerState().resources,
             adapter_handles=AdapterHandles(interactsh=handle),
         )
         invalid = await tools["interactsh_register"]("\ud800")

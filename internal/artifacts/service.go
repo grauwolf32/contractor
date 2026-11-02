@@ -3,10 +3,11 @@ package artifacts
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/grauwolf32/contractor/internal/pagelimit"
+	"github.com/grauwolf32/contractor/internal/helpers/pagelimit"
 )
 
 // Service validates every Artifact request once, before it reaches its
@@ -174,6 +175,9 @@ func (s ScopedStore) ListMetadata(
 	if err := validateBindingPageQuery(query); err != nil {
 		return nil, err
 	}
+	if query.NamePrefix != "" && s.scope.kind != ScopeProject {
+		return nil, ErrInvalidScope
+	}
 	return s.service.repository.ListMetadata(ctx, s.scope, query)
 }
 
@@ -212,6 +216,14 @@ func (s ScopedStore) ListLineage(
 func validateBindingPageQuery(query BindingPageQuery) error {
 	if !pagelimit.ValidFetch(query.Limit) {
 		return ErrInvalidName
+	}
+	if query.NamePrefix != "" {
+		if validateComponent(query.NamePrefix) != nil || query.Namespace == nil ||
+			query.ExcludeNamespace != nil || query.ExcludeNamespacePrefix != "" || query.HiddenNamespace != "" ||
+			(query.AfterName != "" && !strings.HasPrefix(query.AfterName, query.NamePrefix)) ||
+			(query.AfterNamespace != "" && query.AfterNamespace != *query.Namespace) {
+			return ErrInvalidName
+		}
 	}
 	if query.Namespace != nil {
 		if err := validateComponent(*query.Namespace); err != nil {

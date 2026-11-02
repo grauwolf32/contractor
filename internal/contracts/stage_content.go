@@ -4,7 +4,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/clone"
+	"github.com/grauwolf32/contractor/internal/helpers/clone"
 )
 
 type StageContentRequest struct {

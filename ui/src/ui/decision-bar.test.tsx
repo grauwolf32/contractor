@@ -333,3 +333,34 @@ describe("DecisionBar", () => {
     );
   });
 });
+
+it("defers a compact draft until a verdict is chosen and focuses the newly mounted rationale", async () => {
+  render(<Harness deferDraft withSeverity />);
+  expect(screen.queryByRole("textbox", { name: "Why" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Record decision" })).toBeNull();
+  const user = userEvent.setup();
+  await user.keyboard("c");
+  expect(reasonField()).toHaveFocus();
+  expect(recordButton()).toBeDisabled();
+  await user.type(reasonField(), "The request reaches this path.");
+  expect(recordButton()).toBeDisabled();
+  await user.click(screen.getByRole("radio", { name: "High" }));
+  expect(recordButton()).toBeEnabled();
+});
+
+it("keeps an incomplete draft editable while a validation problem prevents recording", async () => {
+  const user = userEvent.setup();
+  const onSubmit = vi.fn();
+  render(
+    <Harness
+      initialSelected="evidence"
+      validationProblem="Choose an exact target."
+      onSubmit={onSubmit}
+    />,
+  );
+  await user.type(reasonField(), "A reason that can still be edited.");
+  expect(reasonField()).toHaveValue("A reason that can still be edited.");
+  expect(recordButton()).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Confirm issue" })).toBeEnabled();
+  expect(onSubmit).not.toHaveBeenCalled();
+});

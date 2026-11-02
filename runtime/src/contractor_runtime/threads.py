@@ -9,6 +9,8 @@ import asyncio
 from collections.abc import Callable
 from typing import Any
 
+from contractor_runtime.core.async_tasks import join_owned_task
+
 
 async def to_thread_until_done[T](function: Callable[..., T], *args: Any, name: str) -> T:
     """Run ``function`` in a thread and wait for it even when cancelled.
@@ -23,14 +25,7 @@ async def to_thread_until_done[T](function: Callable[..., T], *args: Any, name: 
     """
 
     task = asyncio.create_task(asyncio.to_thread(function, *args), name=name)
-    cancelled = False
-    while not task.done():
-        try:
-            # asyncio.wait neither cancels the task nor raises its exception,
-            # so a failure after a cancellation cannot mask that cancellation.
-            await asyncio.wait({task})
-        except asyncio.CancelledError:
-            cancelled = True
+    cancelled = await join_owned_task(task)
     if cancelled:
         consume_task_exception(task)
         raise asyncio.CancelledError
