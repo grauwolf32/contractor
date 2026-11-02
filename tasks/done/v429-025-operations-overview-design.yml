@@ -5,7 +5,7 @@ milestone: ui-journey-usability
 epic: ui
 kind: feature
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V429-024]
 languages: [typescript, javascript, html, css]
 goal: Operators can scan execution slots, current roles and reconciliation warnings in a consistent Operations overview and inspect the source facts without confusing idle capacity, transport freshness or observed state with execution guarantees.
@@ -89,3 +89,12 @@ tests:
     covers: [A1]
   - command: git diff --check
     covers: [A1, A2, A3]
+
+verification:
+  - Captured ten real React Operations references through Application and the existing route with schema-valid synthetic normal/attention/empty/reconnecting/error snapshots. The bounded seed passed twelve initial layout/state checks; static comparison works at desktop/phone widths without external assets.
+  - Native OpenDesign run 89e4398f-15b8-4d47-a72f-e97e39f2269d succeeded in new project contractor-operations-20261102 using the unchanged Contractor worker model. Exact CSS, assembled HTML, rationale, input, prompt, icons and fixtures are retained; candidate equals native output with no manual styling correction.
+  - Full verified pre/post backups passed SQLite integrity. All 173 prior project files and all previous Project/Conversation/Message rows are identical; the new project adds sixteen files. The isolated read-only-root container kept only its ordinary state-volume mount. Relay stopped, upstream credential removed, 20 of 24 allowed model requests used.
+  - verify.mjs passed 60 theme/width/scenario layouts, exact counts/unknown-state boundaries, observed-versus-authoritative distinctions, labelled navigation, process/allocation disclosures, exact Run destinations, keyboard-native controls and live resize; zero overflow, page errors or external requests. It also verifies native CSS-only insertion, exact scripts/fixtures, shared tokens/fonts and preservation/cleanup provenance.
+  - Desktop and 390px native captures were visually inspected, the interactive OpenDesign/current/seed comparison is open on port 17568 and selected captures/complete metrics are committed. Frozen baseline capture/seed guards prevent accidental replacement of reviewed inputs.
+  - Task/spec/whitespace checks passed. The artifact is committed on codex/operations-opendesign; production transfer and main merge remain subsequent review work.
+implementation_commit: 83f222a99b219d627456755f7c96c21c4a360645
