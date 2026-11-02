@@ -43,7 +43,7 @@ func TestWorkflowCatalogPageDoesNotCopyOrEncodeTheCatalog(t *testing.T) {
 		}
 	}
 	fixture := newHandlerFixtureWithConfig(t, root)
-	encoded, err := json.Marshal(fixture.configs.Workflows())
+	encoded, err := json.Marshal(fixture.configs.Snapshot().Workflows())
 	if err != nil {
 		t.Fatal(err)
 	}

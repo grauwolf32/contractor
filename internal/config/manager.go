@@ -272,8 +272,6 @@ func (m *Manager) Workflow(raw string) (resolved.ResolvedWorkflow, error) {
 	return m.Snapshot().Workflow(raw)
 }
 
-func (m *Manager) Workflows() []resolved.ResolvedWorkflow { return m.Snapshot().Workflows() }
-
 func (m *Manager) WorkflowDiscovery() (WorkflowDiscovery, error) {
 	return m.Snapshot().WorkflowDiscovery()
 }
