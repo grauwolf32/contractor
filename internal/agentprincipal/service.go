@@ -72,10 +72,10 @@ func NewService(options ServiceOptions) (*Service, error) {
 	}, nil
 }
 
-// Register seeds labels only for a previously unseen certificate-key
-// principal. Existing principals are returned before mutable binding lookup.
-func (s *Service) Register(ctx context.Context, runtimeAgentID string, initialLabels []string) (Principal, error) {
-	if err := validateRuntimeAgentID(runtimeAgentID); err != nil || runtimeconfig.ValidateAgentLabels(initialLabels) != nil {
+// Register creates an unlabeled certificate-key principal. Existing principals
+// retain their Server-managed labels and revision across process restarts.
+func (s *Service) Register(ctx context.Context, runtimeAgentID string) (Principal, error) {
+	if err := validateRuntimeAgentID(runtimeAgentID); err != nil {
 		return Principal{}, invalid("Runtime Agent principal registration is invalid")
 	}
 	existing, err := s.repository.Get(ctx, runtimeAgentID)
@@ -88,12 +88,9 @@ func (s *Service) Register(ctx context.Context, runtimeAgentID string, initialLa
 
 	var result Principal
 	err = persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		if err := runtimeconfig.LockAgentLabels(ctx, tx, initialLabels); err != nil {
-			return err
-		}
 		now := s.now().UTC()
 		candidate := Principal{
-			RuntimeAgentID: runtimeAgentID, Labels: append([]string{}, initialLabels...),
+			RuntimeAgentID: runtimeAgentID, Labels: []string{},
 			LabelRevision: 1, CreatedBy: "runtime-registration", CreatedAt: now,
 			UpdatedBy: "runtime-registration", UpdatedAt: now,
 		}

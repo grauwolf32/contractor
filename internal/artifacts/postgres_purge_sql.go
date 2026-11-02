@@ -39,11 +39,13 @@ WHERE target_scope_kind = $1 AND target_scope_id = $2
   AND (target_namespace, target_name, target_revision) <= ($6, $7, $8)`
 
 // purgeSourceLineageSQL deletes the lineage edges, in any target scope, whose
-// source revision of scope ($1, $2) lies in the key range
+// source revision of scope ($1, $2) lies in the key range, preserving historical
+// Audit handoff/publication provenance after the source owner is purged.
 // (($3, $4, $5), ($6, $7, $8)]. Used by PostgresPurger.purgeRevisionBatch.
 var purgeSourceLineageSQL = `
 DELETE FROM artifact_lineage
 WHERE source_scope_kind = $1 AND source_scope_id = $2
+  AND lineage_kind NOT IN ('audit_output', 'audit_input', 'audit_publish')
   AND (source_namespace, source_name, source_revision) > ($3, $4, $5)
   AND (source_namespace, source_name, source_revision) <= ($6, $7, $8)`
 

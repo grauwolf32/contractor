@@ -70,9 +70,6 @@ func (s *Service) Mutate(ctx context.Context, a Authority, idempotencyKey string
 		if m.Operation != "observe" || m.Artifact.ValidateExact() != nil {
 			return Result{}, ErrInvalid
 		}
-		if artifactpolicy.IsRunSystemNamespace(m.Artifact.Namespace) {
-			return Result{}, artifacts.ErrReservedNamespace
-		}
 	}
 	appendCompatible := m.Operation == "observe" || m.Operation == "replace-source" && m.ExpectedRevision == ""
 	var result Result

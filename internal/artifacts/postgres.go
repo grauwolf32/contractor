@@ -23,14 +23,9 @@ func isRunRevisionLimit(err error) bool {
 
 // exactHoldConstraint names the database rejection of a strict exact-reference
 // hold on a revision that does not exist (DEL-R63), raised by
-// contractor_artifact_hold_apply; lineageSourceConstraint is the foreign key
-// of a lineage edge to its source revision. Either means the exact revision
-// a writer read is gone, typically removed by history retention between the
-// read and the reference (ART-R124).
-const (
-	exactHoldConstraint     = "artifact_exact_hold"
-	lineageSourceConstraint = "artifact_lineage_source_scope_kind_source_scope_id_source__fkey"
-)
+// contractor_artifact_hold_apply or strict lineage source validation. It means
+// the exact revision a writer read is gone (ART-R124).
+const exactHoldConstraint = "artifact_exact_hold"
 
 // IsExactRevisionMissing reports whether err rejects a reference to an exact
 // revision that no longer exists. A strict holder's writer that is not an
@@ -41,7 +36,7 @@ func IsExactRevisionMissing(err error) bool {
 		return false
 	}
 	constraint := persistencepostgres.ConstraintName(err)
-	return constraint == exactHoldConstraint || constraint == lineageSourceConstraint
+	return constraint == exactHoldConstraint
 }
 
 // storeError classifies the failure of a statement that creates scopes,

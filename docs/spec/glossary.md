@@ -834,7 +834,6 @@ Terms used across the specification. Each entry names the document that owns the
 
 **Repeat draft** — The owner-only, read-only projection of a terminal Run that the UI uses to configure another Run. Owner: [Runs](execution/runs.md).
 
-**Repeat-request fragment** — The bounded non-secret part of the create-Run request that Run creation retains for the repeat draft. Owner: [Runs](execution/runs.md).
 
 **Replay** — A repeated submission of identical canonical content, which returns the existing receipt without incrementing the item revision. Owner: [Audit Worker completion](audits/worker-completion.md).
 
@@ -852,7 +851,7 @@ Terms used across the specification. Each entry names the document that owns the
 
 **Reservation** — Capacity set aside inside a shared ceiling or budget before the content that uses it is admitted. Owner: [Limits](platform/limits.md).
 
-**Reserved Namespace** — A Namespace or Namespace prefix with its own contract: `inputs`, `outputs`, `skills`, `finding-proposals` and the hidden `contractor-system` in RunScope, none of which can be a Stage Agent Namespace; exactly `audit-standards` in UserScope; the `audit-*` prefix in ProjectScope. Write rules differ per Namespace: the allocation baseline write grant permits CAS updates of existing `inputs` bindings (working input copies) but never creates one, while `outputs`, `skills`, `finding-proposals`, `contractor-system`, `audit-standards` and `audit-*` bindings are written only by trusted Server operations. Owner: [Artifact store](artifacts/artifact-store.md).
+**Reserved Namespace** — A Namespace or Namespace prefix with its own contract: `inputs`, `outputs`, `skills`, `finding-proposals` and `audit-context` in RunScope, none of which can be a Stage Agent Namespace; exactly `audit-standards` in UserScope; the `audit-*` prefix in ProjectScope. Write rules differ per Namespace: the allocation baseline write grant permits CAS updates of existing `inputs` bindings (working input copies) but never creates one, while `outputs`, `skills`, `finding-proposals`, `audit-context`, `audit-standards` and `audit-*` bindings are written only by trusted Server operations. Owner: [Artifact store](artifacts/artifact-store.md).
 
 **ResolvedExecutionConfig** — The effective per-consumer ModelPolicy, Gateway and credential selection that Run initialization stores in the immutable WorkflowRun snapshot. Owner: [Agent templates](configuration/agent-templates.md).
 

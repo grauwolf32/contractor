@@ -27,7 +27,6 @@ var reservedNamespaceOwners = map[string]string{
 	FindingMaterialsNamespace:     "artifactpolicy.FindingMaterialsNamespace",
 	HistoricalAuditsNamespace:     "artifactpolicy.HistoricalAuditsNamespace",
 	FindingHistoryNamespace:       "artifactpolicy.FindingHistoryNamespace",
-	RunSystemNamespace:            "artifactpolicy.RunSystemNamespace",
 	AuditContextNamespace:         "artifactpolicy.AuditContextNamespace",
 }
 
@@ -198,7 +197,7 @@ func TestReservedNamespaceScanReportsCopiesNotRoutes(t *testing.T) {
 	t.Parallel()
 	source := "package sample\n\n" +
 		"func reserved(namespace string) bool {\n" +
-		"\treturn namespace == \"finding-proposals\" || namespace == `contractor-system`\n" +
+		"\treturn namespace == \"finding-proposals\" || namespace == `audit-context`\n" +
 		"}\n\n" +
 		"const route = \"POST /private/v1/allocations/{allocationID}/finding-proposals\"\n" +
 		"const query = `SELECT 1 FROM artifact_bindings WHERE namespace = 'finding-proposals'`\n" +
@@ -230,7 +229,7 @@ func configure() {
 	local := flags.NewFlagSet("command", flags.ContinueOnError)
 	local.StringVar(&value, "audit-context", "", "trusted context file")
 	global.String("finding-proposals", "", "proposal file")
-	flags.String("contractor-system", "", "system file")
+	flags.String("audit-context", "", "system file")
 	flags.CommandLine.Bool("audit-standards", false, "catalog option")
 	local.String("ordinary", "audit-context", "Namespace default")
 	_ = "audit-context"

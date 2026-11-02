@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-82 open tasks: 11 in progress, 60 pending, 11 deferred. 1352 finished: 1334 completed, 18 archived.
+79 open tasks: 12 in progress, 54 pending, 13 deferred. 1365 finished: 1347 completed, 18 archived.
 
 ## In progress
 
@@ -22,6 +22,7 @@ the epics are in [epics.yml](epics.yml).
 | [V420-002](v420-002-planner-compaction-vertical-slice.yml) | planner-worker | feature | P1 | Implement opt-in bounded compaction for Streamline and Router Planners |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Enable shared Planner compaction and reuse native YAML in shipped Workflows |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
+| [V435-001](v435-001-server-owned-agent-labels.yml) | runtime-config | defect | P1 | Remove Runtime startup label assignments and keep agent infrastructure settings Server-owned |
 
 ## Pending
 
@@ -30,7 +31,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V425-016](v425-016-run-event-history-bound.yml) | chore | P3 | — | Bound or detect the per-Run event history and delete it in bounded batches |
-| [V433-001](v433-001-runtime-shutdown-deadline.yml) | defect | P1 | — | Bound every Runtime shutdown phase by one cleanup deadline |
 
 ### Planners and the Worker model boundary (`planner-worker`)
 
@@ -41,19 +41,6 @@ the epics are in [epics.yml](epics.yml).
 | [V417-007](v417-007-context-compaction-state-and-ui.yml) | feature | P1 | V417-003 | Report compaction progress and costs without exposing context content |
 | [V420-003](v420-003-planner-compaction-fault-scale-conformance.yml) | chore | P1 | V420-002 | Verify Planner compaction persistence cancellation and scale boundaries |
 | [V420-004](v420-004-planner-compaction-diagnostics.yml) | feature | P1 | V420-002 | Expose bounded truthful Planner compaction diagnostics |
-| [V433-002](v433-002-gateway-response-bounds.yml) | defect | P2 | — | Bound Gateway response streaming and move JSON parsing off the event loop |
-
-### Run workspaces and project filesystem (`workspaces`)
-
-| Task | Kind | Priority | Waiting for | Title |
-| --- | --- | --- | --- | --- |
-| [V425-001](v425-001-apfs-opaque-leaf-normalization.yml) | defect | P3 | — | Keep an NFD opaque leaf unreadable through its NFC name on a normalization-insensitive volume |
-
-### Code analysis and taint annotations (`code-analysis`)
-
-| Task | Kind | Priority | Waiting for | Title |
-| --- | --- | --- | --- | --- |
-| [V425-002](v425-002-trailmark-mirror-path-max.yml) | defect | P3 | — | Build the Trailmark graph for workspace paths longer than the host PATH_MAX |
 
 ### HTTP and Caido tools (`http-tools`)
 
@@ -76,8 +63,7 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V411-007](v411-007-trusted-http-capture.yml) | feature | P1 | V64-002 | Retain actual HTTP exchanges in ordinary check results and findings |
-| [V411-011](v411-011-project-findings-reader.yml) | feature | P1 | V64-002, V64-004, V64-014 | Read selected Project findings in ordinary investigation Workflows |
-| [V433-004](v433-004-findings-prepare-offloop.yml) | defect | P2 | — | Move findings collection preparation and projections off the event loop |
+| [V411-011](v411-011-project-findings-reader.yml) | feature | P1 | V64-002, V64-014 | Read selected Project findings in ordinary investigation Workflows |
 
 ### Workflow catalog and document workflows (`workflows`)
 
@@ -94,14 +80,13 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V64-002](v64-002-audit-priority-store.yml) | feature | P1 | V64-004, V64-014 | Coordinate durable Audit tasks through ordinary Runs |
-| [V64-004](v64-004-audit-priority-context.yml) | feature | P1 | — | Add Audit artifact ownership and exact Project publication |
+| [V64-002](v64-002-audit-priority-store.yml) | feature | P1 | V64-014 | Coordinate durable Audit tasks through ordinary Runs |
 | [V64-005](v64-005-independent-priority-verdicts.yml) | feature | P2 | V64-012, V64-013 | Optionally rank the common Audit ready-task shortlist |
 | [V64-008](v64-008-audit-priority-api-coverage.yml) | feature | P1 | V64-012, V64-013, V411-010 | Expose Audit tasks check results findings and selected materials |
-| [V64-010](v64-010-audit-priority-profile.yml) | feature | P1 | V64-012, V64-013, V411-010 | Migrate shipped Audit programs and retire the old pipeline |
+| [V64-010](v64-010-audit-priority-profile.yml) | feature | P1 | V64-012, V64-013, V411-010 | Verify shipped Audit programs and retire the remaining old pipeline |
 | [V64-011](v64-011-audit-priority-release.yml) | feature | P1 | V64-009, V64-010, V411-015, V425-017 | Gate the basic Audit research scenario and complexity reduction |
 | [V64-012](v64-012-audit-hypothesis-registry.yml) | feature | P1 | V64-002, V64-014 | Verify fixed and manual hypotheses through Audit tasks |
-| [V64-013](v64-013-audit-hypothesis-generation.yml) | feature | P1 | V64-012, V64-004, V411-011 | Generate scoped hypotheses from selected materials and check results |
+| [V64-013](v64-013-audit-hypothesis-generation.yml) | feature | P1 | V64-012, V411-011 | Generate scoped hypotheses from selected materials and check results |
 | [V64-015](v64-015-audit-research-frontier.yml) | feature | P2 | V64-011 | Measure whether a larger Audit frontier needs incremental indexing |
 | [V64-016](v64-016-audit-research-ranking-evaluation.yml) | chore | P2 | V64-005, V64-011 | Evaluate optional Audit ranking against the deterministic baseline |
 | [V64-017](v64-017-audit-attack-tree-projection.yml) | feature | P2 | V64-011 | Project optional attack trees over retained research conclusions |
@@ -163,7 +148,7 @@ the epics are in [epics.yml](epics.yml).
 | [V417-009](v417-009-context-compaction-release-gate.yml) | chore | P1 | V417-003, V417-004, V417-005, V417-006, V417-007 | Verify context compaction across real processes and close the deterministic milestone |
 | [V420-005](v420-005-planner-compaction-release-gate.yml) | chore | P1 | V420-006, V420-003, V420-004 | Accept Planner compaction through real-process and integrated release gates |
 | [V425-014](v425-014-runtime-tests-fail-on-macos.yml) | chore | P3 | — | Make the Runtime process-liveness assertions able to fail on macOS |
-| [V433-005](v433-005-runtime-resource-bounds-gate.yml) | chore | P3 | V433-001, V433-002, V433-003, V433-004 | Verify the Runtime resource-bound fixes and reconcile the review dispositions |
+| [V433-005](v433-005-runtime-resource-bounds-gate.yml) | chore | P3 | V433-003 | Verify the Runtime resource-bound fixes and reconcile the review dispositions |
 
 ## Deferred
 
@@ -180,6 +165,8 @@ the epics are in [epics.yml](epics.yml).
 | [V61-009](v61-009-toolset-configuration-release.yml) | runtime-config | 2026-10-11 | Explicit user decision that external MCP tools are needed (for example for autonomous pentest Audits, proposal 0033); then port the branch onto main rather than reimplementing, renumber its migration and rerun the V61-009 release gate. |
 | [V62-008](v62-008-project-analysis-preparation.yml) | audits | 2026-09-20 | Explicit user approval of standalone analysis-report reuse and the additional two-Workflow chain. |
 | [V365-016](v365-016-fold-planner-execution-reports.yml) | persistence | 2026-10-04 | Explicit user approval of making Planner reports a mutable slot on stage_metrics. |
+| [V425-001](v425-001-apfs-opaque-leaf-normalization.yml) | workspaces | 2026-11-02 | Explicit user decision to require separate macOS filename hardening; first rescope its acceptance and dedicated coverage rather than treating this Linux fixture as a required macOS test. |
+| [V425-002](v425-002-trailmark-mirror-path-max.yml) | code-analysis | 2026-11-02 | Explicit user decision to require separate macOS long-path support; first rescope its acceptance and dedicated coverage rather than treating this Linux fixture as a required macOS test. |
 
 ## Epics
 
@@ -188,23 +175,23 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 3 | 47 | 63 | 26 | 88 |
-| Planners and the Worker model boundary (`planner-worker`) | 10 | 35 | 49 | 30 | 75 |
-| Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 13 | 5 | 44 |
+| Run execution core (`execution-core`) | 2 | 47 | 63 | 30 | 90 |
+| Planners and the Worker model boundary (`planner-worker`) | 9 | 35 | 49 | 30 | 75 |
+| Runtime labels, configuration and credentials (`runtime-config`) | 10 | 26 | 14 | 5 | 45 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 3 | 13 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
 | Run workspaces and project filesystem (`workspaces`) | 1 | 16 | 15 | 5 | 16 |
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
 | HTTP and Caido tools (`http-tools`) | 4 | 22 | 27 | 9 | 26 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 2 | 17 | 10 | 9 | 20 |
-| Findings tools and collections (`findings`) | 3 | 17 | 9 | 10 | 15 |
+| Findings tools and collections (`findings`) | 2 | 17 | 9 | 10 | 15 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 19 | 16 | 16 | 21 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 36 | 37 | 11 | 60 |
-| Audits (`audits`) | 18 | 67 | 89 | 37 | 134 |
+| Audits (`audits`) | 17 | 67 | 90 | 38 | 137 |
 | Evaluations (`evals`) | 6 | 21 | 39 | 15 | 49 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 5 |
-| Web UI (`ui`) | 2 | 37 | 70 | 24 | 68 |
+| Web UI (`ui`) | 2 | 37 | 70 | 25 | 70 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 18 | 46 | 9 | 22 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 38 | 25 | 16 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 27 | 47 | 17 |
-| Quality, CI and process (`quality`) | 11 | 1 | 29 | 119 | 27 |
+| Quality, CI and process (`quality`) | 11 | 1 | 29 | 121 | 27 |

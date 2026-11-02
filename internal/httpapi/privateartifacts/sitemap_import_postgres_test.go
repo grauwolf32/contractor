@@ -9,7 +9,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
@@ -82,10 +81,6 @@ func TestPostgresPrivateSitemapImportAuthorityAndExactSources(t *testing.T) {
 	input.Input.Observations[0].Status = 700
 	assertPrivateErrorEnvelope(t, request("mismatch", input), 400, "invalid_request", false)
 	input.Input.Observations[0].Status = 200
-	system := own
-	system.Namespace = artifactpolicy.RunSystemNamespace
-	input.Input.Artifact = &system
-	assertPrivateErrorEnvelope(t, request("system", input), 403, "artifact_access_denied", false)
 	input.Input.Artifact = &otherNamespace
 	if response := request("other-explicit", input); response.Code != http.StatusOK {
 		t.Fatalf("ordinary current-Run report access: %d %s", response.Code, response.Body.String())

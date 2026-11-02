@@ -9,6 +9,12 @@ project:
 
 execution_policy:
   current_delivery_focus: >-
+    User decision 2026-11-02 splits the actual shipped Audit YAML rewrite between the tasks delivering
+    its behavior: V64-002 owns six observation/tracing/scan programs and V64-012 owns eight checklist/standard
+    assertion programs, including required Workflow/template/instruction bindings and real callers.
+    Rewrite ordinary pre-release catalog content directly; add no legacy reader/executor or unsupported-profile
+    compatibility mode. V64-010 verifies the integrated catalog and removes remaining obsolete callers,
+    rather than postponing these YAML rewrites. Dependencies and pending implementation gates are unchanged.
     User decision 2026-11-01 rejects codex/project-problem-findings: its unmerged head is archived as
     archive/v64-014-project-problem-findings-2026-11-01. V64-014 is in progress and must move the existing
     Finding model to Project scope with one current state and command owner. Sources/results/history

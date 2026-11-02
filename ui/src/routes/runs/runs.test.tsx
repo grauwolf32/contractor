@@ -1556,12 +1556,8 @@ describe("Run routes", () => {
 
   it.each([
     [
-      "repeat_request_unavailable",
-      "The original Run request is unavailable. Configure a new Run from the Workflow.",
-    ],
-    [
-      "repeat_request_invalid",
-      "The saved Run request could not be verified. Configure a new Run from the Workflow.",
+      "input_provenance_invalid",
+      "The original Run input sources could not be verified. Configure a new Run from the Workflow.",
     ],
   ])(
     "keeps a Run with %s on its detail page without preparing a draft",

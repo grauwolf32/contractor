@@ -3,6 +3,7 @@ package auditstore
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/grauwolf32/contractor/internal/artifacts"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditdomain"
@@ -687,11 +688,12 @@ type FindingAssociation struct {
 }
 
 type ArtifactLink struct {
-	LogicalKey       string          `json:"logicalKey"`
-	Artifact         ExactArtifact   `json:"artifact"`
-	SourceProvenance json.RawMessage `json:"sourceProvenance"`
-	DisplayRef       string          `json:"displayRef,omitempty"`
-	CreatedAt        time.Time       `json:"createdAt,omitempty"`
+	Scope            artifacts.ScopeKind `json:"scope"`
+	LogicalKey       string              `json:"logicalKey"`
+	Artifact         ExactArtifact       `json:"artifact"`
+	SourceProvenance json.RawMessage     `json:"sourceProvenance"`
+	DisplayRef       string              `json:"displayRef,omitempty"`
+	CreatedAt        time.Time           `json:"createdAt,omitempty"`
 }
 
 type CollectParams struct {

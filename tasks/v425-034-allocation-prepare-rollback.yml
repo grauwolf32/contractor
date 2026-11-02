@@ -11,6 +11,11 @@ depends_on: []
 languages: [python]
 goal: Give failed Allocation preparation one rollback call site while preserving resource ownership, cancellation and private API errors.
 context:
+  acceptance_update: >-
+    User decision 2026-11-02: the V425-001/002 fixtures are Linux-only under
+    OPS-R1/V433-007. Their historical macOS failures no longer block this
+    task's acceptance; the standard Runtime gate reports expected skips.
+    This does not change this task's status or close its other verification.
   renumbering: >-
     Integration 2026-10-31: this task was created as V425-030 before main
     assigned that ID to the pgx row-collection task. Preserve the completed

@@ -16,9 +16,10 @@ const (
 	ScopeUser    ScopeKind = "user"
 	ScopeProject ScopeKind = "project"
 	ScopeRun     ScopeKind = "run"
+	ScopeAudit   ScopeKind = "audit"
 )
 
-// Scope is created only through UserScope, ProjectScope or RunScope;
+// Scope is created only through UserScope, ProjectScope, AuditScope or RunScope;
 // ArtifactRef never carries these fields.
 type Scope struct {
 	kind ScopeKind
@@ -31,8 +32,10 @@ func ProjectScope(projectID string) (Scope, error) { return newScope(ScopeProjec
 
 func RunScope(runID string) (Scope, error) { return newScope(ScopeRun, runID) }
 
+func AuditScope(auditID string) (Scope, error) { return newScope(ScopeAudit, auditID) }
+
 func newScope(kind ScopeKind, id string) (Scope, error) {
-	if kind != ScopeUser && kind != ScopeProject && kind != ScopeRun ||
+	if kind != ScopeUser && kind != ScopeProject && kind != ScopeRun && kind != ScopeAudit ||
 		strings.TrimSpace(id) == "" || strings.ContainsRune(id, 0) {
 		return Scope{}, ErrInvalidScope
 	}
@@ -40,6 +43,8 @@ func newScope(kind ScopeKind, id string) (Scope, error) {
 }
 
 func (s Scope) Kind() ScopeKind { return s.kind }
+
+func (s Scope) ID() string { return s.id }
 
 type ArtifactRef = contracts.ArtifactRef
 
@@ -110,7 +115,7 @@ type BindingPageQuery struct {
 	ExcludeNamespace *string
 	// HiddenNamespace is one exact Namespace a trusted presentation layer
 	// hides besides the caller's ExcludeNamespace, such as the reserved
-	// audit-standards catalog (ART-R25) or contractor-system (ART-R17).
+	// audit-standards catalog (ART-R25).
 	HiddenNamespace string
 	// ExcludeNamespacePrefix is used by trusted presentation layers to hide
 	// purpose-managed Project bindings that have their own acceptance API.
@@ -179,6 +184,9 @@ const (
 	LineageProjectOutputPublish = "project_output_publish"
 	LineageAuditImport          = "audit_import"
 	LineageContextProjection    = "context_projection"
+	LineageAuditOutput          = "audit_output"
+	LineageAuditInput           = "audit_input"
+	LineageAuditPublish         = "audit_publish"
 )
 
 // Fork describes one trusted fork: a new target binding whose first revision
@@ -188,6 +196,10 @@ const (
 // and authorization (ART-R72); Service.Fork enforces only the rules every fork
 // shares.
 type Fork struct {
+	// ExpectedRevision explicitly replaces an unfrozen destination by CAS.
+	// Supported for the actual Audit-to-Project publication caller. A nil
+	// precondition retains create-only semantics.
+	ExpectedRevision *string
 	// Kind is one of the Lineage kinds.
 	Kind string
 	// Source is the scope SourceRef is resolved in. A fork reads a UserScope
@@ -233,6 +245,9 @@ type Repository interface {
 	// DescribeForkRevisions describes at most MaxExactReadBatchSize exact target
 	// revisions of selected lineage edges without payload I/O, omitting absent names.
 	DescribeForkRevisions(context.Context, Scope, string, []string, string) ([]contracts.ExactArtifact, error)
+	// DescribeForkSources returns creation lineage for selected existing bindings.
+	// A binding without exactly one selected fork is an integrity failure.
+	DescribeForkSources(context.Context, Scope, string, []string, string) ([]LineageEdge, error)
 	ListRefs(context.Context, Scope, RefPageQuery) (RefPage, error)
 	ListMetadata(context.Context, Scope, BindingPageQuery) ([]Metadata, error)
 	ListVersions(context.Context, Scope, ArtifactRef, VersionPageQuery) ([]Metadata, error)

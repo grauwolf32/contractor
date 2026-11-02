@@ -1208,6 +1208,22 @@ Toolset and performs it in these steps (FAIL-FND-4, LIFE-FND-3):
    a replay verifies and reuses them, and existing Run cleanup owns their
    lifecycle.
 
+The Runtime executes collection ZIP/JSON/canonicalization and digest/link
+validation, retained-document verification, preparation projections and each
+reader page projection outside the event-loop thread through
+`threads.to_thread_until_done`. Async Artifact I/O retains the existing
+sequential create/read/reconcile order; offloading adds no parallel writes or
+publication boundary. Decode and preparation/page projection are batched,
+while an existing document is verified before further materialization.
+
+Repeated cancellation joins already started CPU work before preparation
+unwinds or the reader can close. Reader calls and close share allocation-local
+ownership so a page cannot retain work past close; cancellation does not
+expose a partially prepared tool or a partially built page. Existing
+preparation/stop deadlines remain authoritative. Thread execution alone does
+not guarantee a fixed heartbeat latency for native code holding the
+interpreter lock.
+
 **FND-R123.** A failed preparation reports one bounded code of the
 findings tool vocabulary ([errors](../platform/errors.md), ERR-R23) as the
 allocation error. `findings_collection_unavailable` (the collection input)

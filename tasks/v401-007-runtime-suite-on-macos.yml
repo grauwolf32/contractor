@@ -8,8 +8,15 @@ priority: P3
 status: in_progress
 depends_on: []
 languages: [python, markdown]
-goal: "make test-runtime on a macOS developer host passes except for tests that belong to a filed macOS defect, skips only the Podman tests whose behaviour the specification limits to Linux (OPS-R1), each with that reason, and the testing guide says so."
+goal: "make test-runtime on a macOS developer host passes with the explicit OPS-R1 Linux-only Podman and filesystem fixture skips; the remaining portable tests run and the testing guide states their acceptance scope."
 context:
+  acceptance_update: >-
+    User decision 2026-11-02: the two fixtures tracked by V425-001/002 must
+    not execute on macOS or affect acceptance. V433-007 adds their explicit
+    Linux-only marker. Earlier failure classifications below are historical;
+    macOS acceptance now requires the standard gate to pass with expected
+    platform skips. This policy update does not complete this task's other
+    portability and regression-proof requirements or change its status.
   review: "2026-10-23 merged verification run of the quick-win batch on macOS (102 failures on main @ 257c57d8); reclassified 2026-10-24 on b523ae77"
   specification:
     - docs/testing/README.md
@@ -95,7 +102,7 @@ scope:
     - "One shared marker skips the Podman tests of (a) and (b) on non-Linux hosts with the OPS-R1 reason; they still run and pass on Linux."
     - "The test artefacts of (c) and (d) become portable (for example sys.executable for the fake CLI, a short socket directory instead of /proc/self/fd, fcntl F_GETPATH or a descriptor set instead of /proc readlink, os.setsid from Python instead of setsid(1), resource.RLIM_INFINITY instead of -1), so they run on macOS and Linux and still fail when the behaviour they check breaks."
     - "The parser loop-gap test of (e) asserts a bound the specification supports (CAN-R60) without a fixed wall-clock threshold, or is replaced by a deterministic check that the parse runs off the event loop."
-    - "A defect task for each finding of (f), with its failing test named; until it is fixed, that test is the only macOS failure it explains."
+    - "Retain the historical (f) concerns in V425-001/002 as deferred non-blocking work; their two fixtures are Linux-only under the 2026-11-02 user decision and OPS-R1."
     - "docs/testing/README.md records the macOS status: which tests skip and why, and which open tasks explain remaining failures."
   out:
     - "Making the Podman sandbox work on macOS."
@@ -104,15 +111,15 @@ acceptance_criteria:
   - id: A1
     given: "A Linux host with the release toolchain"
     when: "make test-runtime runs"
-    then: "No Podman unit test is skipped by the new marker, and the suite passes as before."
+    then: "Neither the Podman nor the two filesystem fixtures are skipped by the platform markers on Linux; platform eligibility is preserved."
   - id: A2
     given: "A macOS arm64 developer host"
     when: "make test-runtime runs"
-    then: "It fails only for the tests named by the defect tasks of (f); the Podman tests of (a) and (b) are reported as skipped with the OPS-R1 reason, and every test of (c), (d) and (e) passes."
+    then: "It passes with OPS-R1 skips for the Podman tests of (a)/(b) and the two Linux filesystem fixtures of (f); every portable test of (c), (d) and (e) passes without manual deselection."
   - id: A3
     text: "Each portable fixture still fails when its behaviour breaks: checked once per changed test by breaking the asserted behaviour (for example letting the detached holder keep the pipes, or reading the whole binary file)."
   - id: A4
-    text: "docs/testing/README.md names the Linux-only marker, its reason and the open macOS defect tasks."
+    text: "docs/testing/README.md names the Linux-only markers, reasons and non-blocking status of the two historical filesystem concerns."
 tests:
   - command: "make test-runtime"
     covers: [A1, A2, A3]

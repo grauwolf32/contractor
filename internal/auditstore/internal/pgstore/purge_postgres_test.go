@@ -47,11 +47,15 @@ func TestPostgresPurgeCoversEveryAuditOwnedForeignKey(t *testing.T) {
 	seedDecidedPurgeReviews(t, f, confirmedID, duplicateID)
 	seedPublishedSnapshotForPurge(t, f)
 
+	if _, err := f.pool.Exec(f.ctx, `INSERT INTO artifact_scopes(scope_kind,scope_id) VALUES('audit',$1)`, f.audit.AuditID); err != nil {
+		t.Fatal(err)
+	}
 	keys := auditOwnedForeignKeys(t, f)
 	for _, key := range keys {
 		switch {
-		case key.name == auditChildRunForeignKey:
-			// Guarded by the purge precondition, exercised below.
+		case key.name == auditChildRunForeignKey || key.name == "artifact_scopes_audit_id_fkey":
+			// Child Runs are guarded by the drain precondition. The Artifact
+			// owner explicitly purges Audit scope before removing its parent.
 		case key.referencingDepth < 0:
 			t.Errorf("%s: %s rows have no cascade path from audits and block purge",
 				key.name, key.referencing)
@@ -199,8 +203,7 @@ func collectPurgeFinding(t *testing.T, f collectingAuditFixture, receiptID strin
 	if _, inserted, err := f.store.Collect(f.ctx, auditstore.CollectParams{
 		Claim: f.claim, ReceiptID: "collection-" + receiptID, ExecutionID: f.execution.ExecutionID,
 		Disposition: auditstore.CollectionAccepted, SourceOutput: &result, RequestDigest: testDigest("9"),
-		Retained: []auditstore.ArtifactLink{{
-			LogicalKey: "result/" + f.memberID, Artifact: result,
+		Retained: []auditstore.ArtifactLink{{Scope: "project", LogicalKey: "result/" + f.memberID, Artifact: result,
 			SourceProvenance: json.RawMessage(`{"runId":"` + *f.execution.RunID + `"}`),
 		}},
 		Items: []auditstore.CollectionItem{{
@@ -227,8 +230,7 @@ func seedDecidedPurgeReviews(t *testing.T, f collectingAuditFixture, confirmedID
 	link := func(key, name, media string) []byte {
 		artifact := testExact(f.audit.AuditID, name, "report-r1")
 		artifact.MediaType, artifact.SizeBytes = media, 16
-		encoded, err := json.Marshal(auditstore.ArtifactLink{
-			LogicalKey: key, Artifact: artifact,
+		encoded, err := json.Marshal(auditstore.ArtifactLink{Scope: "project", LogicalKey: key, Artifact: artifact,
 			SourceProvenance: json.RawMessage(`{"schema":"contractor.audit.report-provenance.v1"}`),
 		})
 		if err != nil {

@@ -94,7 +94,8 @@ document owns are:
 - **`fenced`.** The slot state in which the Runtime rejects all work and keeps
   the old allocation identity until release is authoritatively acknowledged.
 - **Shutdown grace.** The bound within which the Runtime stops and destroys its
-  Worker after lease loss, before forced termination.
+  Worker after lease loss, and the common budget for graceful process cleanup
+  across all resource owners, before forced termination.
 - **`AllocationFinalReport`.** The report that finalization or abort produces,
   cached with the allocation until release.
 - **Allocation-scoped A2A endpoint.** The Runtime Agent's one stable
@@ -246,7 +247,8 @@ invalid paths, incompatible branches and limit violations before registration,
 using the shared placement grammar owned by
 [CTL-R156](control-plane.md) and LIM-CTL-11/LIM-CTL-12. It publishes the
 same declaration for every registration of this process incarnation. These
-arguments are separate from configuration-label seeds (`--initial-label`).
+arguments never assign RuntimeConfig labels; those are managed through Server
+Operations ([CTL-R26](control-plane.md)).
 
 ### Startup capability discovery
 
@@ -779,6 +781,27 @@ uses the same bounded stop for every sandbox profile, before closing private
 Artifact connections and the listener; in-process work cannot outlive that
 resource owner merely because no Podman container exists.
 
+Process shutdown has one monotonic deadline, set at the first cleanup or
+caller cancellation to the current time plus the configured shutdown grace
+(LIM-RTA-6). Joining registration, heartbeats and the lease watchdog, stopping
+the allocation and listener, and closing Artifact connections, the archive
+cache, the Podman owner and Control Plane connections all consume that same
+budget. Nested resource owners cannot restart it; operations that take a
+deadline or duration receive only the original deadline or its remainder.
+An independent event-loop timer exits the Runtime process with status 70 at
+deadline exhaustion, including while an awaited operation is settling
+cancellation. Cancelling such an operation and waiting for it again does not
+establish a bound (FAIL-RTA-4).
+
+One process task owns this cleanup and the work-root locks. The first caller
+cancellation requests its cancellation only if cleanup has not started;
+subsequent caller cancellations join that task without interrupting cleanup.
+The caller receives cancellation after its owned work finishes. Startup
+failure also enters the same cleanup path, including failures before listener
+construction completes. A successful stop is reported and the deadline timer
+retired only after the outer resource owners have closed; unresolved cleanup
+must not be reported as stopped or release ownership for reuse.
+
 **RTA-R88.** The finalize command is idempotent for
 `finalization_id`. The Runtime Agent waits only until the supplied deadline;
 if it cannot guarantee that the Worker stopped, it exits its own process
@@ -955,7 +978,7 @@ Startup configuration:
 | Setting | Form | Meaning |
 | --- | --- | --- |
 | RuntimeAdapter allowlist | Repeated `--runtime-adapter <ref>` flags or the comma-separated `CONTRACTOR_RUNTIME_ADAPTERS` value; absent means every installed built-in adapter | Narrows the probed and advertised adapters (RTA-R7) |
-| Shutdown grace | `CONTRACTOR_SHUTDOWN_GRACE_SECONDS`, default 10 seconds | Bound for stopping the Worker after lease loss (RTA-R24) |
+| Shutdown grace | `CONTRACTOR_SHUTDOWN_GRACE_SECONDS`, default 10 seconds | Worker stop after lease loss (RTA-R24), and one budget for all graceful process cleanup (RTA-R87) |
 | Work root | Operator configuration; a dedicated directory | Parent of allocation directories (RTA-R49); probes create resources below a Runtime-owned probe or work root (RTA-R17) |
 | Workspace storage provider | Immutable process configuration | [Workspace](../tools/workspace.md) |
 

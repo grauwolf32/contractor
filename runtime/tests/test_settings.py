@@ -18,7 +18,6 @@ def test_settings_use_environment_and_cli_override(tmp_path: Path) -> None:
         "CONTRACTOR_PRIVATE_KEY_FILE": str(files[2]),
         "CONTRACTOR_RUNTIME_LISTEN": "127.0.0.1:9000",
         "CONTRACTOR_WORK_ROOT": str(tmp_path / "work"),
-        "CONTRACTOR_INITIAL_LABELS": "debug,caido",
         "CONTRACTOR_RUNTIME_ADAPTERS": "otlp-http@1,http-proxy@1",
     }
     settings = parse_settings(
@@ -27,8 +26,6 @@ def test_settings_use_environment_and_cli_override(tmp_path: Path) -> None:
             "127.0.0.1:9001",
             "--log-level",
             "debug",
-            "--initial-label",
-            "site_proxy",
             "--runtime-adapter",
             "otlp-http@1",
         ],
@@ -37,16 +34,8 @@ def test_settings_use_environment_and_cli_override(tmp_path: Path) -> None:
     assert (settings.host, settings.port) == ("127.0.0.1", 9001)
     assert settings.log_level == "debug"
     assert settings.control_plane_url == "https://control.example:8443"
-    assert settings.initial_labels == ("site_proxy",)
     assert settings.enabled_runtime_adapters == ("otlp-http@1",)
     assert str(files[2]) not in repr(settings)
-
-
-def test_initial_labels_are_sorted_and_environment_is_used_without_cli(tmp_path: Path) -> None:
-    settings = parse_settings(
-        base_arguments(tmp_path), {"CONTRACTOR_INITIAL_LABELS": "debug,caido"}
-    )
-    assert settings.initial_labels == ("caido", "debug")
 
 
 def test_placement_labels_environment_and_cli_override(tmp_path: Path) -> None:
@@ -124,22 +113,11 @@ def test_invalid_allowed_target_networks_are_rejected(tmp_path: Path, value: str
         parse_settings(base_arguments(tmp_path), {"CONTRACTOR_ALLOWED_TARGET_NETWORKS": value})
 
 
-@pytest.mark.parametrize(
-    "labels",
-    [
-        ["default"],
-        ["Debug"],
-        ["debug", "debug"],
-        ["x" * 64],
-        [f"label_{index}" for index in range(33)],
-    ],
-)
-def test_invalid_initial_labels_are_rejected(tmp_path: Path, labels: list[str]) -> None:
-    arguments = base_arguments(tmp_path)
-    for label in labels:
-        arguments.extend(("--initial-label", label))
-    with pytest.raises(SystemExit):
-        parse_settings(arguments, {})
+def test_removed_initial_label_argument_is_rejected(tmp_path: Path, capsys) -> None:
+    with pytest.raises(SystemExit) as error:
+        parse_settings([*base_arguments(tmp_path), "--initial-label", "debug"], {})
+    assert error.value.code == 2
+    assert "unrecognized arguments: --initial-label debug" in capsys.readouterr().err
 
 
 def test_required_private_settings_are_enforced() -> None:

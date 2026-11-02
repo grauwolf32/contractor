@@ -129,7 +129,8 @@ func (b *PinnedSubmissionBuilder) PrepareRole(
 	if err != nil {
 		return PreparedSubmission{}, err
 	}
-	if err := b.validateRulepackInputs(ctx, audit.ProjectID, binding.Workflow, runInputs); err != nil {
+	auditInputs := auditInputSlots(binding, nil)
+	if err := b.validateRulepackInputs(ctx, audit, binding.Workflow, runInputs, auditInputs); err != nil {
 		return PreparedSubmission{}, err
 	}
 	parameters, err := resolveRoleParameters(binding, baseline.Scope)
@@ -161,6 +162,7 @@ func (b *PinnedSubmissionBuilder) PrepareRole(
 		Workflow                resolved.ResolvedWorkflow            `json:"workflow"`
 		Parameters              map[string]string                    `json:"parameters"`
 		Inputs                  map[string]auditstore.ExactArtifact  `json:"inputs"`
+		AuditInputs             map[string]bool                      `json:"auditInputs"`
 		RuntimeConfig           any                                  `json:"runtimeConfig"`
 		Skills                  []agentskills.RunSkillSnapshot       `json:"skills"`
 		ProjectTarget           *runtimesettings.HTTPOriginTargetRef `json:"projectTarget,omitempty"`
@@ -171,7 +173,7 @@ func (b *PinnedSubmissionBuilder) PrepareRole(
 		RoundID: roundID, ExecutionID: executionID, Kind: kind,
 		WorkflowRole: workflowRole, Attempt: attempt, ProfileDigest: audit.Profile.Digest,
 		Manifest: manifestArtifact, Workflow: binding.Workflow, Parameters: parameters,
-		Inputs: runInputs, RuntimeConfig: baseline.RuntimeConfig, Skills: skills,
+		Inputs: runInputs, AuditInputs: auditInputs, RuntimeConfig: baseline.RuntimeConfig, Skills: skills,
 		ProjectTarget: baseline.ProjectHTTPTarget,
 	})
 	if err != nil {
@@ -206,6 +208,7 @@ func (b *PinnedSubmissionBuilder) PrepareRole(
 			RequestDigest: requestDigest, Members: []auditstore.ExecutionMemberIntent{},
 		},
 		Run: runservice.AuditCreateParams{
+			AuditInputs:  auditInputs,
 			RoundResults: roundResults, InputMaterializationID: materializationID, MaterializeInputs: materialize,
 			RequiredPlacementLabels: append([]string{}, baseline.RequiredPlacementLabels...),
 			ExecutionID:             executionID, Workflow: binding.Workflow,
@@ -254,6 +257,9 @@ func (b *PinnedSubmissionBuilder) resolveRoleInputs(
 			if err != nil {
 				return nil, fmt.Errorf("resolve retained output for role %q: %w", workflowRole, err)
 			}
+			if link.Scope != artifacts.ScopeAudit {
+				return nil, invalidSubmission("retained role output is not Audit-owned")
+			}
 			result[slot] = link.Artifact.Clone()
 		case auditprofile.AuditInputFromRoundResults:
 			artifact, err := b.prepareRoundResults(ctx, snapshot)
@@ -285,13 +291,19 @@ func (b *PinnedSubmissionBuilder) preparationOutput(ctx context.Context, auditID
 // Prepared and retained outputs do not exist at original Audit admission.
 // Check their exact metadata once resolved, before an execution intent or Run
 // can be submitted. The same boundary covers every Audit role and source kind.
-func (b *PinnedSubmissionBuilder) validateRulepackInputs(ctx context.Context, projectID string, workflow resolved.ResolvedWorkflow, inputs map[string]auditstore.ExactArtifact) error {
+func (b *PinnedSubmissionBuilder) validateRulepackInputs(ctx context.Context, audit auditstore.Audit, workflow resolved.ResolvedWorkflow, inputs map[string]auditstore.ExactArtifact, auditInputs map[string]bool) error {
 	for _, slot := range resolved.NucleiRulepackInputs(workflow) {
 		expected, exists := inputs[slot]
 		if !exists {
 			continue
 		}
-		metadata, err := b.artifacts.ResolveProjectExact(ctx, projectID, expected)
+		var metadata auditstore.ExactArtifact
+		var err error
+		if auditInputs[slot] {
+			metadata, err = b.artifacts.ResolveAuditExact(ctx, audit.AuditID, expected)
+		} else {
+			metadata, err = b.artifacts.ResolveProjectExact(ctx, audit.ProjectID, expected)
+		}
 		if err != nil {
 			return err
 		}
@@ -506,7 +518,8 @@ func (b *PinnedSubmissionBuilder) PrepareBatch(
 			Task: tasks[index], Inputs: memberInputs,
 		}
 	}
-	if err := b.validateRulepackInputs(ctx, audit.ProjectID, binding.Workflow, runInputs); err != nil {
+	auditInputs := auditInputSlots(binding, selected[0].Item.Dependencies)
+	if err := b.validateRulepackInputs(ctx, audit, binding.Workflow, runInputs, auditInputs); err != nil {
 		return PreparedSubmission{}, err
 	}
 	skills, err := selectSkills(binding.Workflow, baseline.Skills)
@@ -557,6 +570,7 @@ func (b *PinnedSubmissionBuilder) PrepareBatch(
 		Members: members,
 	}
 	run := runservice.AuditCreateParams{
+		AuditInputs:             auditInputs,
 		RequiredPlacementLabels: append([]string{}, baseline.RequiredPlacementLabels...),
 		ExecutionID:             executionID, Workflow: binding.Workflow,
 		RuntimeConfig: baseline.RuntimeConfig, Skills: skills,
@@ -840,6 +854,9 @@ func (b *PinnedSubmissionBuilder) resolveInputs(
 			if err != nil {
 				return nil, nil, fmt.Errorf("resolve retained output for check role: %w", err)
 			}
+			if link.Scope != artifacts.ScopeAudit {
+				return nil, nil, invalidSubmission("retained role output is not Audit-owned")
+			}
 			runInputs[slot] = link.Artifact.Clone()
 		default:
 			return nil, nil, invalidSubmission("Audit input mapping is invalid")
@@ -930,4 +947,21 @@ func stringsDigest(value string) string {
 
 func invalidSubmission(message string) error {
 	return fmt.Errorf("%w: %s", ErrInvalidSubmission, message)
+}
+
+func auditInputSlots(binding auditprofile.ResolvedAuditWorkflowBinding, dependencies *auditdomain.RetainedDependencyManifest) map[string]bool {
+	result := map[string]bool{}
+	for slot, mapping := range binding.Inputs {
+		if mapping.Source == auditprofile.AuditInputFromRetainedDependency && dependencies != nil {
+			for _, dependency := range dependencies.Dependencies {
+				if dependency.Name == mapping.Name && dependency.Kind == "prepare-output" {
+					result[slot] = true
+				}
+			}
+		}
+		if mapping.Source == auditprofile.AuditInputFromPreparation || mapping.Source == auditprofile.AuditInputFromRetainedOutput {
+			result[slot] = true
+		}
+	}
+	return result
 }

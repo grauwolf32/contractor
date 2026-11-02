@@ -142,7 +142,6 @@ func TestArtifactArchiveRejectsForeignAndHiddenScopes(t *testing.T) {
 		"/v1/runs/foreign/artifacts/files/package",
 		"/v1/artifacts/" + artifactpolicy.AuditStandardCatalogNamespace + "/package",
 		"/v1/projects/owned/artifacts/" + artifactpolicy.AuditManagedProjectNamespacePrefix + "test/package",
-		"/v1/runs/owned/artifacts/" + artifactpolicy.RunSystemNamespace + "/package",
 	} {
 		for _, endpoint := range []string{"/archive?revision=r1", "/archive/file?revision=r1&path=SKILL.md"} {
 			response := httptest.NewRecorder()

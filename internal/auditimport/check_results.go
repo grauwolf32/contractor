@@ -369,9 +369,8 @@ func (i *Importer) retainCheckResults(
 		if provenanceErr != nil {
 			return false, provenanceErr
 		}
-		links = append(links, auditstore.ArtifactLink{
-			LogicalKey: "result/" + member.member.ExecutionItemID,
-			Artifact:   retainedResult, SourceProvenance: provenance,
+		links = append(links, auditstore.ArtifactLink{Scope: "project", LogicalKey: "result/" + member.member.ExecutionItemID,
+			Artifact: retainedResult, SourceProvenance: provenance,
 		})
 		collectionItems[index] = auditstore.CollectionItem{
 			ExecutionItemID: member.member.ExecutionItemID,
@@ -407,9 +406,8 @@ func (i *Importer) retainCheckResults(
 		if provenanceErr != nil {
 			return false, provenanceErr
 		}
-		links = append(links, auditstore.ArtifactLink{
-			LogicalKey: "evidence/" + execution.ExecutionID + "/" + id,
-			Artifact:   artifact, SourceProvenance: provenance, DisplayRef: displayRef,
+		links = append(links, auditstore.ArtifactLink{Scope: "project", LogicalKey: "evidence/" + execution.ExecutionID + "/" + id,
+			Artifact: artifact, SourceProvenance: provenance, DisplayRef: displayRef,
 		})
 	}
 	changed, err := i.commitCollection(ctx, claim, execution, auditstore.CollectionAccepted,

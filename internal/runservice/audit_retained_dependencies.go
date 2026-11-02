@@ -85,11 +85,17 @@ func MaterializeAuditRetainedDependencies(ctx context.Context, service *artifact
 			if !authorized {
 				return state, fmt.Errorf("%w: undeclared retained dependency input", ErrInvalid)
 			}
+			sourceStore, sourceScope, kind := project, projectScope, artifacts.LineageInputFork
+			if dependency.Kind == "prepare-output" {
+				sourceScope, _ = artifacts.AuditScope(intent.Execution.AuditID)
+				sourceStore, _ = service.Scoped(sourceScope)
+				kind = artifacts.LineageAuditInput
+			}
 			// ReadExact verifies payload bytes, not only the stored hash, before a
 			// child can execute. Consumer reads use the same normal Artifact bounds.
 
 			if !verified[dependency.Retained.Ref.Key()] {
-				if _, err := project.ReadExact(ctx, dependency.Retained); err != nil {
+				if _, err := sourceStore.ReadExact(ctx, dependency.Retained); err != nil {
 					if errors.Is(err, contracts.ErrExactArtifactMismatch) {
 						return state, fmt.Errorf("%w: accepted retained dependency content differs", ErrInvalid)
 					}
@@ -99,7 +105,7 @@ func MaterializeAuditRetainedDependencies(ctx context.Context, service *artifact
 			}
 
 			target := contracts.ArtifactRef{Namespace: artifactpolicy.AuditContextNamespace, Name: auditdomain.DeterministicID("retained-input", member.ItemID, dependency.Name)}
-			fork, err := service.Fork(ctx, artifacts.Fork{Kind: artifacts.LineageInputFork, Source: projectScope, SourceRef: dependency.Retained.Ref, Target: runScope, TargetRef: target, Frozen: true, Replay: true})
+			fork, err := service.Fork(ctx, artifacts.Fork{Kind: kind, Source: sourceScope, SourceRef: dependency.Retained.Ref, Target: runScope, TargetRef: target, Frozen: true, Replay: true})
 			if err != nil {
 				return state, err
 			}

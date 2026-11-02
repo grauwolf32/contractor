@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import uuid
 from asyncio import sleep
 from dataclasses import dataclass, field
@@ -19,18 +20,22 @@ from contractor_runtime.contracts.settings import (
     GatewayFailureSignatures,
     default_gateway_failure_signatures,
 )
+from contractor_runtime.core.async_tasks import join_owned_task
+from contractor_runtime.http_body import BodyTooLarge, read_limited_body
 from contractor_runtime.llm.errors import GatewayFailure, classify_response
 from contractor_runtime.llm.recovery import (
     TERMINAL_RECOVERY_ACTIONS,
     GatewayRecoveryClient,
     RecoveryStoppedError,
 )
+from contractor_runtime.threads import consume_task_exception, to_thread_until_done
 
 if TYPE_CHECKING:
     from contractor_runtime.factories import WorkerBuildContext
 
 GATEWAY_MAX_RETRIES = 3
 GATEWAY_RETRY_GRACE_SECONDS = 60.0
+MAX_GATEWAY_RESPONSE_BYTES = 4 * 1024 * 1024  # LIM-WRK-37
 # Bound on the best-effort probe release sent when a granted model call is
 # abandoned; the Server's own probe timeout covers a release that is lost.
 RECOVERY_RELEASE_TIMEOUT_SECONDS = 5.0
@@ -132,8 +137,17 @@ class GatewayClientHandle:
             error: GatewayRequestError | None = None
             should_retry = True
             retry_after: float | None = None
+            body = b""
             try:
-                response = await client.send(request)
+                response = await client.send(request, stream=True)
+                body = await read_limited_body(response, MAX_GATEWAY_RESPONSE_BYTES)
+            except (BodyTooLarge, httpx.DecodingError):
+                error = GatewayRequestError("InvalidGatewayResponse", retryable=False)
+                should_retry = False
+            except asyncio.CancelledError:
+                if response is not None:
+                    await _close_response(response, interrupted_read=True)
+                raise
             except (httpx.ConnectTimeout, httpx.PoolTimeout, httpx.WriteTimeout):
                 # The Gateway never received the whole request.
                 error = GatewayRequestError(
@@ -154,24 +168,36 @@ class GatewayClientHandle:
                 )
             if response is not None:
                 try:
-                    if response.is_success:
+                    if error is not None:
+                        pass
+                    elif response.is_success:
                         try:
-                            return response.json()
-                        except ValueError:
+                            return await to_thread_until_done(
+                                json.loads, body, name="gateway-response-json"
+                            )
+                        except (ValueError, RecursionError):
                             error = GatewayRequestError("InvalidGatewayResponse", retryable=False)
                         should_retry = False
                     else:
-                        error = _status_error(response, self.failure_signatures)
+                        failure = await to_thread_until_done(
+                            _classify_error_response,
+                            body,
+                            response.status_code,
+                            response.headers.get("x-should-retry"),
+                            self.failure_signatures,
+                            name="gateway-error-json",
+                        )
+                        error = _status_error(response, failure)
                         retry_after = _retry_after_seconds(response.headers)
-                        should_retry = _should_retry(response, retry_after, self.failure_signatures)
+                        should_retry = _should_retry(response, retry_after, failure)
                         if response.headers.get("x-should-retry") == "false":
                             error.transport_retry_allowed = False
                         if retry_after is not None and isfinite(retry_after):
                             error.retry_after_seconds = max(0, retry_after)
                 finally:
-                    await response.aclose()
+                    await _close_response(response)
             # Release request/response buffers before a retry delay or failure.
-            del request, response
+            del request, response, body
             if error is None:
                 raise RuntimeError("LLM gateway attempt produced no response")
             if not should_retry or attempt >= max_retries:
@@ -217,9 +243,12 @@ class GatewayClientHandle:
                 except RecoveryStoppedError:
                     raise
                 except (asyncio.CancelledError, Exception):
-                    await asyncio.shield(
-                        _release_probe(recovery, model, request_id, *_redelivery(terminal))
+                    release = asyncio.create_task(
+                        _release_probe(recovery, model, request_id, *_redelivery(terminal)),
+                        name="gateway-probe-release",
                     )
+                    await join_owned_task(release)
+                    consume_task_exception(release)
                     raise
                 if error is None:
                     return result
@@ -367,10 +396,27 @@ def new_gateway_client(
     )
 
 
-def _status_error(
-    response: httpx.Response, signatures: GatewayFailureSignatures
-) -> GatewayRequestError:
-    failure = classify_response(response, signatures)
+async def _close_response(response: httpx.Response, *, interrupted_read: bool = False) -> None:
+    # HTTPX marks a response closed before awaiting the stream's close at EOF.
+    # If cancellation interrupted that await, finish the underlying close too.
+    close = response.stream.aclose if interrupted_read and response.is_closed else response.aclose
+    task = asyncio.create_task(close(), name="gateway-response-close")
+    if await join_owned_task(task):
+        consume_task_exception(task)
+        raise asyncio.CancelledError
+    task.result()
+
+
+def _classify_error_response(
+    body: bytes, status: int, retry_hint: str | None, signatures: GatewayFailureSignatures
+) -> GatewayFailure:
+    # The admitted body is already decoded. Keep only the classification
+    # header, so HTTPX cannot decode it again or retain provider credentials.
+    headers = {} if retry_hint is None else {"x-should-retry": retry_hint}
+    return classify_response(httpx.Response(status, headers=headers, content=body), signatures)
+
+
+def _status_error(response: httpx.Response, failure: GatewayFailure) -> GatewayRequestError:
     provider_error_type = _STATUS_ERROR_TYPES.get(
         response.status_code,
         "InternalServerError" if response.status_code >= 500 else "APIStatusError",
@@ -396,9 +442,8 @@ def _retry_after_seconds(headers: httpx.Headers) -> float | None:
 
 
 def _should_retry(
-    response: httpx.Response, retry_after: float | None, signatures: GatewayFailureSignatures
+    response: httpx.Response, retry_after: float | None, failure: GatewayFailure
 ) -> bool:
-    failure = classify_response(response, signatures)
     if not failure.retryable:
         return False
     if retry_after is not None and isfinite(retry_after) and retry_after > _MAX_RETRY_AFTER_SECONDS:

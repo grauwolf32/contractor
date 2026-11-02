@@ -34,8 +34,8 @@ authentication, create a separate `http-proxy-basic@1` or
 The `caido-api` credential cannot be reused for that different credential kind.
 
 Each concurrently connected Runtime process needs a distinct CA-signed key and
-certificate. Startup labels seed a previously unseen certificate principal;
-later changes use the principal-label Operations endpoint. Runtime adapters
+certificate. New certificate principals start with empty labels; all assignments
+and changes use the principal-label Operations endpoint. Runtime adapters
 are all enabled by default. To expose a deliberate subset, repeat
 `--runtime-adapter`; a Runtime eligible for `security-analysis@4` needs both
 `--runtime-adapter http-proxy@1` and `--runtime-adapter caido-graphql@1` when an

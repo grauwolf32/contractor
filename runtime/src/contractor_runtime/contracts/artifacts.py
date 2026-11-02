@@ -29,15 +29,10 @@ from contractor_runtime.shared_config import artifact_payload_max_bytes
 # rule; api/testdata/v1alpha1/memory-reservation-cases.json pins both.
 # FINDING_PROPOSAL_NAMESPACE (artifactpolicy.FindingProposalNamespace) holds the
 # proposals and frozen HTTP exchanges Server finding intake writes;
-# RUN_SYSTEM_NAMESPACE (artifactpolicy.RunSystemNamespace) holds the bindings
-# trusted Control Plane services own (ART-R17). Runtime code outside this
-# package names them only through the constants.
 FINDING_PROPOSAL_NAMESPACE = "finding-proposals"
-RUN_SYSTEM_NAMESPACE = "contractor-system"
 AUDIT_CONTEXT_NAMESPACE = "audit-context"
 PURPOSE_RESERVED_NAMESPACES = frozenset(
     {
-        RUN_SYSTEM_NAMESPACE,
         FINDING_PROPOSAL_NAMESPACE,
         AUDIT_CONTEXT_NAMESPACE,
         "inputs",

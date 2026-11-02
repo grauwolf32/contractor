@@ -25,8 +25,9 @@ type ArtifactAccess interface {
 // RunRetention names an exact revision of an Audit child Run and the
 // create-only Audit-managed binding that retains it.
 type RunRetention struct {
-	Source auditstore.ExactArtifact
-	Target contracts.ArtifactRef
+	AuditOwned bool
+	Source     auditstore.ExactArtifact
+	Target     contracts.ArtifactRef
 }
 
 type ServiceArtifactAccess struct {
@@ -158,7 +159,7 @@ func (a *ServiceArtifactAccess) RetainRunExact(
 			bound := *a
 			bound.service = service
 			for _, retention := range chunk {
-				one, retainErr := bound.retainRunExact(ctx, runID, retention.Source, projectID, retention.Target)
+				one, retainErr := bound.retainRunExact(ctx, runID, retention.Source, projectID, retention.Target, retention.AuditOwned)
 				if retainErr != nil {
 					return retainErr
 				}
@@ -175,7 +176,7 @@ func (a *ServiceArtifactAccess) RetainRunExact(
 }
 
 func (a *ServiceArtifactAccess) retainRunExact(
-	ctx context.Context, runID string, source auditstore.ExactArtifact, projectID string, target contracts.ArtifactRef,
+	ctx context.Context, runID string, source auditstore.ExactArtifact, projectID string, target contracts.ArtifactRef, auditOwned bool,
 ) (auditstore.ExactArtifact, error) {
 	run, err := artifacts.RunScope(runID)
 	if err != nil {
@@ -188,9 +189,17 @@ func (a *ServiceArtifactAccess) retainRunExact(
 	if source.Ref.Revision == nil {
 		return auditstore.ExactArtifact{}, artifacts.ErrExactRevisionRequired
 	}
+	kind := artifacts.LineageAuditImport
+	if auditOwned {
+		project, err = artifacts.AuditScope(a.claim.AuditID)
+		if err != nil {
+			return auditstore.ExactArtifact{}, err
+		}
+		kind = artifacts.LineageAuditOutput
+	}
 	result, err := a.service.Fork(ctx, artifacts.Fork{
-		Kind: artifacts.LineageAuditImport, Source: run, SourceRef: source.Ref,
-		Target: project, TargetRef: target, Frozen: true,
+		Kind: kind, Source: run, SourceRef: source.Ref,
+		Target: project, TargetRef: target, Frozen: true, Replay: auditOwned,
 	})
 	if err == nil {
 		retained := auditstore.ExactArtifact{
@@ -205,7 +214,7 @@ func (a *ServiceArtifactAccess) retainRunExact(
 	if !errors.Is(err, artifacts.ErrArtifactConflict) {
 		return auditstore.ExactArtifact{}, err
 	}
-	store, scopeErr := a.service.Project(projectID)
+	store, scopeErr := a.service.Scoped(project)
 	if scopeErr != nil {
 		return auditstore.ExactArtifact{}, scopeErr
 	}

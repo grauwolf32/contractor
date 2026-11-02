@@ -101,7 +101,6 @@ func TestPrivateArtifactMetadataReadSkipsThePayload(t *testing.T) {
 		{"/private/v1/allocations/allocation-1/artifacts/inputs/source/metadata?runId=run-b", http.StatusBadRequest, "invalid_request"},
 		{"/private/v1/allocations/allocation-1/artifacts/inputs/source/metadata?revision=revision-c", http.StatusNotFound, "artifact_not_found"},
 		{"/private/v1/allocations/allocation-1/artifacts/inputs/missing/metadata", http.StatusNotFound, "artifact_not_found"},
-		{"/private/v1/allocations/allocation-1/artifacts/contractor-system/repeat/metadata", http.StatusForbidden, "artifact_access_denied"},
 	} {
 		response := read(test.target)
 		assertPrivateErrorEnvelope(t, response, test.status, test.code, false)
@@ -143,10 +142,6 @@ func TestPrivateArtifactSkillReadRequiresTheLiveAllocationGrant(t *testing.T) {
 
 func TestPrivateArtifactWriteEnforcesCASAndReservedOutputs(t *testing.T) {
 	repository := newMemoryRepository()
-	repository.seed(
-		"run-a", artifactpolicy.RunSystemNamespace, artifactpolicy.RunRepeatRequestName,
-		"revision-system", []byte("internal request"),
-	)
 	// The trusted Workflow input fork created inputs/source (ART-R76).
 	repository.seed("run-a", "inputs", "source", "revision-input", []byte("forked input"))
 	registry := &fakeRegistry{grant: testGrant("run-a")}
@@ -235,29 +230,6 @@ func TestPrivateArtifactWriteEnforcesCASAndReservedOutputs(t *testing.T) {
 		t.Fatal("reserved finding proposal write reached the repository")
 	}
 
-	systemWrite := putArtifact(
-		t, handler, artifactpolicy.RunSystemNamespace,
-		artifactpolicy.RunRepeatRequestName, "*", []byte("forged request"),
-	)
-	if systemWrite.Code != http.StatusForbidden {
-		t.Fatalf("system write = %d %s", systemWrite.Code, systemWrite.Body.String())
-	}
-	systemRead := httptest.NewRecorder()
-	handler.ServeHTTP(systemRead, trustedRequest(
-		http.MethodGet,
-		"/private/v1/allocations/allocation-1/artifacts/"+artifactpolicy.RunSystemNamespace+"/"+artifactpolicy.RunRepeatRequestName,
-		nil,
-	))
-	if systemRead.Code != http.StatusForbidden || bytes.Contains(systemRead.Body.Bytes(), []byte("internal request")) {
-		t.Fatalf("system read = %d %s", systemRead.Code, systemRead.Body.String())
-	}
-	list := httptest.NewRecorder()
-	handler.ServeHTTP(list, trustedRequest(
-		http.MethodGet, "/private/v1/allocations/allocation-1/artifacts?limit=10", nil,
-	))
-	if list.Code != http.StatusOK || bytes.Contains(list.Body.Bytes(), []byte(artifactpolicy.RunSystemNamespace)) {
-		t.Fatalf("system list visibility = %d %s", list.Code, list.Body.String())
-	}
 }
 
 func TestPrivateArtifactResponseLossRetryCreatesNoSecondRevision(t *testing.T) {
@@ -667,10 +639,10 @@ func newProductionGrantHandler(
 		}
 		registration := control.AgentRegistration{
 			APIVersion: contracts.APIVersion, InstanceID: identity.instanceID, SoftwareVersion: "0.1.0",
-			StartedAt:     time.Date(2026, 9, 1, 10, 0, 0, 0, time.UTC),
-			ControlURL:    "https://" + identity.instanceID + ".example:9443",
-			A2AURL:        "https://" + identity.instanceID + ".example:9444",
-			InitialLabels: []string{}, SupportedRuntimes: []string{"adk@1"},
+			StartedAt:         time.Date(2026, 9, 1, 10, 0, 0, 0, time.UTC),
+			ControlURL:        "https://" + identity.instanceID + ".example:9443",
+			A2AURL:            "https://" + identity.instanceID + ".example:9444",
+			SupportedRuntimes: []string{"adk@1"},
 			SupportedToolsets: []control.ToolsetCapability{{
 				Ref: "run-artifacts@1", Tools: []string{"list_artifacts", "read_artifact", "write_artifact"},
 			}},

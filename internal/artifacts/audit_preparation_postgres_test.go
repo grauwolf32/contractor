@@ -198,8 +198,11 @@ func (f preparationFixture) collecting(t *testing.T, intent auditstore.CreateExe
 			t.Fatal(err)
 		}
 		for i := range outputs {
-			retained, err := importAuditArtifact(f.ctx, f.artifacts, runID, outputs[i].Source.Ref, f.audit.ProjectID,
-				ArtifactRef{Namespace: auditdomain.ArtifactNamespace(f.audit.AuditID), Name: execution.ExecutionID + "-" + outputs[i].LogicalName})
+			source, _ := RunScope(runID)
+			target, _ := AuditScope(f.audit.AuditID)
+			retained, err := f.artifacts.Fork(f.ctx, Fork{Kind: LineageAuditOutput, Source: source,
+				SourceRef: outputs[i].Source.Ref, Target: target, Frozen: true,
+				TargetRef: ArtifactRef{Namespace: auditdomain.ArtifactNamespace(f.audit.AuditID), Name: execution.ExecutionID + "-" + outputs[i].LogicalName}})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -461,7 +464,10 @@ func TestSharedPostgresAuditPreparationRetentionAndLifecycleWithoutRound(t *test
 		if err != nil || !reflect.DeepEqual(accepted.Output, output) {
 			t.Fatalf("retained output after source deletion: %+v %v", accepted, err)
 		}
-		read, err := NewPostgresRepository(f.pool).Read(f.ctx, mustProjectScope(t, f.audit.ProjectID), output.Retained.Ref)
+		read, err := func() (ReadResult, error) {
+			scope, _ := AuditScope(f.audit.AuditID)
+			return NewPostgresRepository(f.pool).Read(f.ctx, scope, output.Retained.Ref)
+		}()
 		if err != nil || auditdomain.DigestBytes(read.Payload.Data) != output.Retained.Digest {
 			t.Fatalf("retained content: %v", err)
 		}
@@ -474,7 +480,10 @@ func TestSharedPostgresAuditPreparationRetentionAndLifecycleWithoutRound(t *test
 		if _, err := project.Write(f.ctx, mutable, changed, output.Retained.Ref.Revision); !errors.Is(err, ErrReservedNamespace) {
 			t.Fatalf("generic write of a retained binding: %v", err)
 		}
-		if _, err := NewPostgresRepository(f.pool).Write(f.ctx, mustProjectScope(t, f.audit.ProjectID), mutable, changed, output.Retained.Ref.Revision); !errors.Is(err, ErrArtifactFrozen) {
+		if _, err := func() (WriteResult, error) {
+			scope, _ := AuditScope(f.audit.AuditID)
+			return NewPostgresRepository(f.pool).Write(f.ctx, scope, mutable, changed, output.Retained.Ref.Revision)
+		}(); !errors.Is(err, ErrArtifactFrozen) {
 			t.Fatalf("retained binding was mutable: %v", err)
 		}
 	}

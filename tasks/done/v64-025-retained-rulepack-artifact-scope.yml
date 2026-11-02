@@ -1,0 +1,96 @@
+schema_version: '1.0'
+id: V64-025
+title: Resolve prepared rulepacks from their accepted Artifact scope
+milestone: audit-check-prioritization
+epic: audits
+kind: defect
+introduced_by: V64-004
+priority: P2
+status: completed
+depends_on:
+- V64-004
+languages:
+- go
+- markdown
+goal: A checking Workflow consumes the selected exact prepared Nuclei rulepack from Audit scope through
+  retained-dependency and reaches ordinary Run creation.
+context:
+  authority: User requested this defect fix in this chat on 2026-11-02, with real-PostgreSQL regression
+    coverage and complete auditcontroller/runservice suites plus lint. Work remains on codex/audit-artifact-workspace;
+    no main merge is requested.
+  finding: internal/auditcontroller/builder.go:304 selects Audit scope only for direct prepare-output
+    and retained-output mappings. A retained-dependency whose accepted kind is prepare-output is resolved
+    from Project scope and fails with artifact not found before checking Run creation. Reproduced by the
+    user at c7c2b4ee7; git blame attributes the branch to a94043cc3 (V64-004).
+  siblings:
+  - PrepareRole and PrepareBatch both call validateRulepackInputs; use their existing auditInputSlots
+    selection consistently for metadata validation and Run initialization.
+  - validateItemDependencies and runservice retained-dependency materialization already select Audit scope
+    for kind prepare-output; preserve those rules and exact revision/digest/media/size validation. Direct
+    prepared/retained outputs stay Audit-owned; other retained dependencies stay Project-owned.
+  specification:
+  - docs/spec/audits/scans.md#ASC-R152
+  - docs/spec/audits/scans.md#ASC-R172
+  - docs/spec/artifacts/artifact-store.md#ART-R137
+scope:
+  in:
+  - Use the accepted input scope selection for Nuclei rulepack metadata at both submission call sites.
+  - Extend real-PostgreSQL production preparation/dependency/checking Run coverage and scope/invalid-metadata
+    cases; prove failure on the original implementation.
+  - Clarify the owning specification and run complete touched-package suites and lint.
+  out:
+  - Scope fallback, copying materials, new public/wire fields, new material stores or changes to Runtime
+    rulepack parsing.
+  - Finishing the separate current-main integration task or merging/deploying main.
+acceptance_criteria:
+- id: A1
+  text: A prepared rulepack exists only in Audit scope; a checking Run selected through an accepted retained-dependency
+    is created with the exact same material/version in its inputs.
+- id: A2
+  text: Both rulepack-validation call sites share Run initialization scope selection. Direct prepare-output/retained-output
+    remain Audit-scoped and Project-owned dependencies remain Project-scoped.
+- id: A3
+  text: Missing, mismatched or oversized rulepack metadata is refused before a checking Run is launched,
+    preserving exact revision, digest, media and size checks.
+- id: A4
+  text: The real-store regression fails with artifact not found on the original implementation and passes
+    after the fix.
+tests:
+- command: go test -tags=integration -count=1 ./internal/auditcontroller/... ./internal/runservice
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+implementation_commit: 1d507bfb08c413d95ef5af58eaa9cf0662e7bb35
+verification:
+  date: '2026-11-02'
+  environment: Go 1.26.9 and disposable PostgreSQL 17, with CONTRACTOR_TEST_DATABASE_URL configured; fixture
+    schemas are isolated.
+  results:
+  - command: go test -tags=integration -count=1 ./internal/auditcontroller -run '^TestPostgresRetainedDependenciesUseAcceptedPrepareAndItemAfterProducerDeletion$'
+    outcome: The extended production-path regression failed on the unfixed builder with artifact not found
+      (/private/tmp/v64-025-before.log). After the fix it passed; the Audit-only accepted prepared rulepack
+      reaches ordinary checking Run creation, reusing the selected immutable version and exact bytes.
+  - command: go test -tags=integration -count=1 ./internal/auditcontroller -run '^(TestPostgresPreparedRulepackRefusedBeforeScanDispatch|TestPostgresRetainedDependenciesUseAcceptedPrepareAndItemAfterProducerDeletion|TestPostgresRetainedRulepackRefusedBeforeRunCreation)$'
+    outcome: Passed real-store scope cases for direct prepared output, retained output, prepared dependency
+      and Project-owned dependency; absent revision, digest/media/size mismatches and wrong scope are
+      rejected. Oversized and unsupported-media accepted dependencies fail PrepareBatch before an additional
+      checking execution is created.
+  - command: go test -tags=integration -count=1 ./internal/auditcontroller/... ./internal/runservice
+    outcome: 'Passed both complete package suites with PostgreSQL: auditcontroller 90.656s, runservice
+      8.096s. No database skip was used.'
+  - command: make lint
+    outcome: Passed, including Go vet/staticcheck, export ownership, release selectors, specification/tasks,
+      generated artifacts, Runtime lint/import layers and UI lint.
+  boundary: Both PrepareRole and PrepareBatch use the existing auditInputSlots map for metadata admission
+    and pass that same selection into Run initialization. Existing validateItemDependencies and RunService
+    materialization remain unchanged. No fallback, material copying or contract field was added.
+  delivery: Committed on codex/audit-artifact-workspace; main is unchanged. The separate V434-001 integration
+    task remains unfinished.

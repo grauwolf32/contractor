@@ -11,12 +11,25 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	"github.com/grauwolf32/contractor/internal/helpers/requestid"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"google.golang.org/adk/v2/model"
 	"google.golang.org/genai"
 )
+
+func TestSharedGatewayResponseByteCeiling(t *testing.T) {
+	var fixture struct {
+		MaxResponseBytes int `json:"max_response_bytes"`
+	}
+	if err := json.Unmarshal(contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "gateway-response-limits.json"), &fixture); err != nil {
+		t.Fatal(err)
+	}
+	if maxGatewayResponseBytes != fixture.MaxResponseBytes {
+		t.Fatalf("Gateway response limit = %d, shared fixture = %d", maxGatewayResponseBytes, fixture.MaxResponseBytes)
+	}
+}
 
 func TestOpenAICompatibleModelConvertsADKToolConversation(t *testing.T) {
 	const token = "sk-gateway-test"

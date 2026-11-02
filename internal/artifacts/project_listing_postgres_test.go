@@ -186,11 +186,11 @@ func TestPostgresIntegrationUserListingSkipsSystemBindingsByIndex(t *testing.T) 
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `INSERT INTO artifact_binding_revisions(scope_kind,scope_id,namespace,name,revision,version_id)
-SELECT 'user','system-library-owner',$1,'system-fixture.'||i||'.rulepack','rev-system-'||i,$2 FROM generate_series(1,6000) i`, artifactpolicy.RunSystemNamespace, version); err != nil {
+SELECT 'user','system-library-owner',$1,'system-fixture.'||i||'.rulepack','rev-system-'||i,$2 FROM generate_series(1,6000) i`, artifactpolicy.AuditStandardCatalogNamespace, version); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `INSERT INTO artifact_bindings(scope_kind,scope_id,namespace,name,current_revision,frozen,retained_revisions,retained_bytes)
-SELECT scope_kind,scope_id,namespace,name,revision,true,1,0 FROM artifact_binding_revisions WHERE scope_kind='user' AND scope_id='system-library-owner' AND namespace=$1`, artifactpolicy.RunSystemNamespace); err != nil {
+SELECT scope_kind,scope_id,namespace,name,revision,true,1,0 FROM artifact_binding_revisions WHERE scope_kind='user' AND scope_id='system-library-owner' AND namespace=$1`, artifactpolicy.AuditStandardCatalogNamespace); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `ANALYZE artifact_bindings`); err != nil {

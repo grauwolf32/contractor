@@ -34,9 +34,9 @@ func TestPostgresCollectionReportsEvidenceBudgetExhaustion(t *testing.T) {
 		Claim: f.claim, ReceiptID: "receipt-budget", ExecutionID: f.execution.ExecutionID,
 		Disposition: auditstore.CollectionAccepted, SourceOutput: &result, RequestDigest: testDigest("5"),
 		Retained: []auditstore.ArtifactLink{
-			{LogicalKey: "result/" + f.memberID, Artifact: result, SourceProvenance: provenance},
-			{LogicalKey: "evidence/budget/one", Artifact: evidence, SourceProvenance: provenance},
-			{LogicalKey: "evidence/budget/two", Artifact: evidence, SourceProvenance: provenance},
+			{Scope: "project", LogicalKey: "result/" + f.memberID, Artifact: result, SourceProvenance: provenance},
+			{Scope: "project", LogicalKey: "evidence/budget/one", Artifact: evidence, SourceProvenance: provenance},
+			{Scope: "project", LogicalKey: "evidence/budget/two", Artifact: evidence, SourceProvenance: provenance},
 		},
 		Items: []auditstore.CollectionItem{{
 			ExecutionItemID: f.memberID, Disposition: auditstore.CollectionAccepted,
@@ -195,8 +195,7 @@ func TestPostgresCollectionAcceptsBatchedChecksOfOneFindingProposal(t *testing.T
 	if _, inserted, err := store.Collect(ctx, auditstore.CollectParams{
 		Claim: claim, ReceiptID: "receipt-collection-two-checks", ExecutionID: execution.ExecutionID,
 		Disposition: auditstore.CollectionAccepted, SourceOutput: &result, RequestDigest: testDigest("6"),
-		Retained: []auditstore.ArtifactLink{{
-			LogicalKey: "result/two-checks", Artifact: result,
+		Retained: []auditstore.ArtifactLink{{Scope: "project", LogicalKey: "result/two-checks", Artifact: result,
 			SourceProvenance: json.RawMessage(`{"runId":"run-two-checks"}`),
 		}},
 		Items: collected,
@@ -482,7 +481,7 @@ func TestPostgresNegativeRecheckRetainsHistoryWithoutChangingCanonicalFinding(t 
 		t.Fatal(err)
 	}
 	result := writeCollectionFixtureArtifact(t, f.ctx, f.pool, f.project.ProjectID, auditdomain.ArtifactNamespace(f.audit.AuditID), "negative-result")
-	params := auditstore.CollectParams{Claim: f.claim, ReceiptID: "negative-check-collection", ExecutionID: f.execution.ExecutionID, Disposition: auditstore.CollectionAccepted, SourceOutput: &result, RequestDigest: testDigest("6"), Retained: []auditstore.ArtifactLink{{LogicalKey: "negative-result", Artifact: result, SourceProvenance: json.RawMessage(`{}`)}}, Items: []auditstore.CollectionItem{{ExecutionItemID: f.memberID, Disposition: auditstore.CollectionAccepted, FinalDisposition: auditstore.FinalAccepted, Result: &result, Coverage: auditstore.Coverage{Status: auditstore.CoverageInconclusive, Requested: []string{}, Completed: []string{}, Gaps: []string{}}, FindingAssociations: []auditstore.FindingAssociation{{AssessmentID: "negative-check-result", ReceiptID: receiptID, Proposal: proposal, SemanticAssessment: "refuted"}}}}}
+	params := auditstore.CollectParams{Claim: f.claim, ReceiptID: "negative-check-collection", ExecutionID: f.execution.ExecutionID, Disposition: auditstore.CollectionAccepted, SourceOutput: &result, RequestDigest: testDigest("6"), Retained: []auditstore.ArtifactLink{{Scope: "project", LogicalKey: "negative-result", Artifact: result, SourceProvenance: json.RawMessage(`{}`)}}, Items: []auditstore.CollectionItem{{ExecutionItemID: f.memberID, Disposition: auditstore.CollectionAccepted, FinalDisposition: auditstore.FinalAccepted, Result: &result, Coverage: auditstore.Coverage{Status: auditstore.CoverageInconclusive, Requested: []string{}, Completed: []string{}, Gaps: []string{}}, FindingAssociations: []auditstore.FindingAssociation{{AssessmentID: "negative-check-result", ReceiptID: receiptID, Proposal: proposal, SemanticAssessment: "refuted"}}}}}
 	for attempt := 0; attempt < 2; attempt++ {
 		_, inserted, err := f.store.Collect(f.ctx, params)
 		if err != nil || inserted != (attempt == 0) {

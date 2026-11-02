@@ -1,0 +1,78 @@
+schema_version: "1.0"
+id: V433-007
+title: Scope Linux filesystem fixtures out of macOS Runtime acceptance
+milestone: runtime-resource-bounds-2026-11
+epic: quality
+kind: chore
+priority: P3
+status: completed
+depends_on: []
+languages: [python, markdown, yaml, json]
+goal: The two Linux-specific filesystem fixtures never execute or block feature acceptance on macOS, without manual pytest deselection.
+context:
+  authority: >-
+    User decision 2026-11-02, while reviewing V64-014 closure: the two named
+    filesystem tests must not run on macOS or affect acceptance. This
+    supersedes interpreting their macOS failures as mandatory gate defects.
+  specification:
+    - docs/spec/operations/operations.md#OPS-R1
+    - docs/testing/README.md
+  origin: >-
+    V425-001 and V425-002 tracked failures of fixtures that assume Linux
+    byte-exact Unicode names and long paths. The user changed the acceptance
+    policy; this chore changes test/platform scope and tracking, not production
+    filesystem or Trailmark behavior. No originating implementation defect
+    is assigned to this new policy change.
+  boundary: >-
+    Use the existing platform_markers mechanism on exactly the two functions.
+    Other tests in both modules remain portable and required. Preserve Linux
+    execution and report macOS outcomes as expected skips, never as Linux
+    coverage or repaired production behavior. Retain the old OS concerns as
+    deferred, non-blocking work that needs explicit reactivation. Keep V64-014
+    and other agents' in-progress tasks open; update only their acceptance
+    interpretation and evidence.
+scope:
+  in:
+    - Mark test_limits_deadline_names_and_binary_classification and test_graph_collection_stops_at_encoded_result_ceiling_with_resumable_cursor Linux-only with explicit reasons.
+    - Document the platform acceptance rule, defer the superseded macOS remediation work and remove manual deselection from the open Runtime gate.
+    - Update V64-014 and other open records that name these failures; preserve historical results and verify the unmodified standard make test-runtime command.
+  out:
+    - Production fixes, dropped macOS support, skipping complete modules, hiding unrelated failures, deployment and automatically closing V64-014.
+acceptance_criteria:
+  - id: A1
+    text: On macOS the two exact node IDs report expected Linux-only skips; no manual --deselect is needed, and the markers do not skip them on Linux.
+  - id: A2
+    text: All remaining tests in both affected modules pass and the complete standard make test-runtime succeeds with platform/opt-in skips explicitly reported.
+  - id: A3
+    text: Specification/testing guidance and task/evidence records agree that these skips do not block macOS acceptance; original failure evidence remains historical and no unrelated task is completed.
+tests:
+  - command: cd runtime && uv run pytest -W error tests/test_projectfs_local_io.py tests/test_code_analysis_graph.py -rs
+    covers: [A1, A2]
+  - command: make test-runtime
+    covers: [A1, A2, A3]
+  - command: cd runtime && uv run ruff check tests/platform_markers.py tests/test_projectfs_local_io.py tests/test_code_analysis_graph.py && uv run ruff format --check tests/platform_markers.py tests/test_projectfs_local_io.py tests/test_code_analysis_graph.py && uv run lint-imports --no-cache --no-logo
+    covers: [A1, A2]
+  - command: cd runtime && uv run python ../scripts/check_tasks.py --check-backlog && uv run python ../scripts/check_spec.py
+    covers: [A3]
+verification: >-
+  On macOS both affected modules passed: 45 passed, 2 expected OPS-R1
+  Linux-filesystem skips. The unmodified standard make test-runtime command
+  passed: 5866 passed, 135 skipped in 357.82 seconds, no --deselect; Runtime
+  JUnit report verification passed. Exactly two skips are newly declared by
+  this policy; 133 existing platform/opt-in skips remain. Isolated marker
+  predicate checks return True for darwin and False for linux; no native
+  Linux execution is claimed. Ruff checks/formatting, all four import-layer
+  contracts, task/backlog consistency and specification checks passed.
+  The V64-014 evidence retains the original failure record under historical
+  failures and records this new standard-gate result. Other task statuses
+  remain unchanged except the two explicitly deferred OS concerns.
+  Full log: /tmp/runtime-v433-007-full.log.
+  After integrating main 9b4ba9c8b1901c5c7eeb301015ad7e61cd94066d,
+  the seven Runtime modules covering these filesystem fixtures, contracts,
+  Run artifacts, security findings, shared Memory reservations and Memory
+  tools passed with exactly the two expected OPS-R1 skips. Ruff, all four
+  import-layer contracts, task/backlog consistency, specification checks and
+  the dependency graph check passed on the combined tree. The full Runtime
+  suite result above belongs to the feature revision before this integration.
+implementation_commit: ef762220a852bcab5476568041be18b22fa53a14
+landing: Merged into main with --no-ff from codex/runtime-linux-test-scope on 2026-11-02, after integration verification against main 9b4ba9c8b1901c5c7eeb301015ad7e61cd94066d.

@@ -67,7 +67,6 @@
     contractor_runtime_instances:
       - name: scan-1
         port: 9443
-        labels: [scan, site-a]
         placement_labels: [cloud/hetzner]
         adapters: [http-proxy@1]
         allowed_target_networks: [127.0.0.0/8]
@@ -106,7 +105,7 @@
           - _scan.args[_scan.args.index('--workspace-storage') + 1] == 'memory'
           - "'--workspace-work-root' not in _scan.args"
           - "'--podman-enabled' not in _scan.args"
-          - _scan.args | select('equalto', '--initial-label') | list | length == 2
+          - "'--initial-label' not in _scan.args"
           - _scan.args[_scan.args.index('--placement-label') + 1] == 'cloud/hetzner'
           - _scan.args[_scan.args.index('--runtime-adapter') + 1] == 'http-proxy@1'
           - _scan.args[_scan.args.index('--allowed-target-network') + 1] == '127.0.0.0/8'
@@ -310,7 +309,7 @@
   gather_facts: false
   vars:
     expected: 'whitespace'
-    contractor_runtime_labels: ['site a']
+    contractor_runtime_placement_labels: ['local/site a']
   tasks:
     - name: Expect the rejection
       ansible.builtin.include_tasks: expect_failure.yml

@@ -14,6 +14,7 @@ import (
 // ArtifactAccess keeps package construction testable while production uses
 // the existing ProjectScope artifact authority.
 type ArtifactAccess interface {
+	ResolveAuditExact(context.Context, string, auditstore.ExactArtifact) (auditstore.ExactArtifact, error)
 	WithClaim(auditstore.ControllerClaim) ArtifactAccess
 	PutImmutableProject(
 		context.Context, string, contracts.ArtifactRef, artifacts.Payload,
@@ -117,6 +118,27 @@ func (a *ProjectArtifactAccess) ResolveProjectExact(
 	}
 	if err := descriptor.Verify(metadata.Exact()); err != nil {
 		return auditstore.ExactArtifact{}, fmt.Errorf("%w: exact Project artifact digest changed: %v", ErrInvalidSubmission, err)
+	}
+	return metadata.Exact(), nil
+}
+
+// ResolveAuditExact verifies selected material without granting allocation access
+// to its containing Audit scope. Run creation forks only the admitted inputs.
+func (a *ProjectArtifactAccess) ResolveAuditExact(ctx context.Context, auditID string, descriptor auditstore.ExactArtifact) (auditstore.ExactArtifact, error) {
+	scope, err := artifacts.AuditScope(auditID)
+	if err != nil {
+		return auditstore.ExactArtifact{}, err
+	}
+	store, err := a.service.Scoped(scope)
+	if err != nil {
+		return auditstore.ExactArtifact{}, err
+	}
+	metadata, err := store.Metadata(ctx, descriptor.Ref)
+	if err != nil {
+		return auditstore.ExactArtifact{}, err
+	}
+	if descriptor.Verify(metadata.Exact()) != nil {
+		return auditstore.ExactArtifact{}, ErrInvalidSubmission
 	}
 	return metadata.Exact(), nil
 }

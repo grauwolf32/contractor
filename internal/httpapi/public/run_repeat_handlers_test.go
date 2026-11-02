@@ -7,20 +7,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
-	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configtest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/projectstore"
-	"github.com/grauwolf32/contractor/internal/runrepeat"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 )
 
-func TestRunRepeatDraftRetainsExactRequestAndHidesSystemArtifact(t *testing.T) {
+func TestRunRepeatDraftUsesOriginalInputSources(t *testing.T) {
 	fixture := newHandlerFixtureWithConfig(t, configtest.CopyWithPolicies(t, "../../../testdata/configs"))
 	user, _ := fixture.artifacts.User("user-1")
 	source, err := user.Write(
@@ -58,85 +55,6 @@ func TestRunRepeatDraftRetainsExactRequestAndHidesSystemArtifact(t *testing.T) {
 		t.Fatalf("repeat notices = %+v", repeat.Notices)
 	}
 
-	listed := serveQuery(t, fixture.handler, "/v1/runs/run_fixed/artifacts")
-	if listed.Code != http.StatusOK || bytes.Contains(listed.Body.Bytes(), []byte(artifactpolicy.RunSystemNamespace)) {
-		t.Fatalf("owner Artifact list exposed repeat request = %d %s", listed.Code, listed.Body.String())
-	}
-	raw := serveQuery(t, fixture.handler,
-		"/v1/runs/run_fixed/artifacts/"+artifactpolicy.RunSystemNamespace+"/"+artifactpolicy.RunRepeatRequestName)
-	if raw.Code != http.StatusNotFound {
-		t.Fatalf("raw repeat request = %d %s", raw.Code, raw.Body.String())
-	}
-	for _, suffix := range []string{"/metadata", "/versions", "/lineage"} {
-		raw = serveQuery(t, fixture.handler,
-			"/v1/runs/run_fixed/artifacts/"+artifactpolicy.RunSystemNamespace+"/"+
-				artifactpolicy.RunRepeatRequestName+suffix)
-		if raw.Code != http.StatusNotFound {
-			t.Fatalf("raw repeat request%s = %d %s", suffix, raw.Code, raw.Body.String())
-		}
-	}
-}
-
-func TestRunRepeatDraftBlocksMissingOrInvalidAuthorityDespiteLineage(t *testing.T) {
-	for _, test := range []struct {
-		name, snapshot, code string
-	}{
-		{"missing", "", "repeat_request_unavailable"},
-		{"malformed", "{", "repeat_request_invalid"},
-		{"empty-patch", `{"schemaVersion":"contractor.run-repeat-request/v3","workflow":{"name":"artifact-copy","version":"1"},"inputs":{},"executionConfig":{}}`, "repeat_request_invalid"},
-		{"null-patch", `{"schemaVersion":"contractor.run-repeat-request/v3","workflow":{"name":"artifact-copy","version":"1"},"inputs":{},"executionConfig":null}`, "repeat_request_invalid"},
-		{"wrong-workflow", `{"schemaVersion":"contractor.run-repeat-request/v3","workflow":{"name":"other","version":"1"},"inputs":{}}`, "repeat_request_invalid"},
-		{"wrong-project", `{"schemaVersion":"contractor.run-repeat-request/v3","workflow":{"name":"artifact-copy","version":"1"},"projectId":"other","inputs":{}}`, "repeat_request_invalid"},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			fixture := newHandlerFixture(t)
-			user, _ := fixture.artifacts.User("user-1")
-			source, err := user.Write(t.Context(), contracts.ArtifactRef{Namespace: "sources", Name: "original"},
-				artifacts.Payload{MediaType: "text/plain", Data: []byte("retained source")}, nil)
-			if err != nil {
-				t.Fatal(err)
-			}
-			run := queryRun("run-historical", "user-1", runstore.RunFailed, time.Now().UTC())
-			run.PublicationMode = runstore.PublicationOrdinary
-			run.RuntimeConfig = runtimeconfigtest.BuiltInRunSnapshot()
-			fixture.runs.runs[run.RunID] = run
-			if _, err := artifactstest.ForkInput(t.Context(), fixture.artifacts, run.OwnerID, source.Ref, run.RunID, "source"); err != nil {
-				t.Fatal(err)
-			}
-			if test.snapshot != "" {
-				if err := runrepeat.Retain(t.Context(), fixture.artifacts, run.RunID, []byte(test.snapshot)); err != nil {
-					t.Fatal(err)
-				}
-			}
-			writes, reads, queries := fixture.repository.writes, fixture.repository.reads, fixture.repository.queryReads
-			var first []byte
-			for range 2 {
-				response := serveQuery(t, fixture.handler, "/v1/runs/"+run.RunID+"/repeat-draft")
-				var repeat runRepeatDraftResponse
-				decodeQueryResponse(t, response, &repeat)
-				if response.Code != http.StatusOK || repeat.Authority != repeatAuthorityOrdinary || repeat.Draft != nil {
-					t.Fatalf("untrusted repeat draft = %d, %+v", response.Code, repeat)
-				}
-				assertRepeatDraftNotCached(t, response)
-				blocked := false
-				for _, notice := range repeat.Notices {
-					if notice.Code == test.code && notice.Severity == "blocking" {
-						blocked = true
-					}
-				}
-				if !blocked {
-					t.Fatalf("missing blocking notice: %+v", repeat.Notices)
-				}
-				if first != nil && !bytes.Equal(first, response.Body.Bytes()) {
-					t.Fatal("repeated read changed the response")
-				}
-				first = append([]byte(nil), response.Body.Bytes()...)
-			}
-			if fixture.repository.writes != writes || fixture.repository.reads != reads+2 || fixture.repository.queryReads != queries || len(fixture.runs.runs) != 1 {
-				t.Fatal("blocked Repeat wrote data or consulted input metadata/lineage")
-			}
-		})
-	}
 }
 
 func TestRunRepeatDraftBlocksRetiredDefaultWorkflow(t *testing.T) {
@@ -197,19 +115,19 @@ func TestRunRepeatDraftPreservesAuditAuthorityAndTerminalBoundary(t *testing.T) 
 func TestRunRepeatDraftReportsChangedRuntimeBinding(t *testing.T) {
 	fixture := newHandlerFixture(t)
 	run := queryRun("run-changed-binding", "user-1", runstore.RunCancelled, time.Now().UTC())
-	run.PublicationMode = runstore.PublicationOrdinary
-	run.RuntimeConfig = runtimeconfigtest.BuiltInRunSnapshot()
-	fixture.runs.runs[run.RunID] = run
-	retained, err := runrepeat.Encode(runrepeat.Snapshot{
-		Workflow: resolved.WorkflowRef{Name: run.WorkflowName, Version: run.WorkflowVersion},
-		Inputs:   map[string]runrepeat.InputSource{},
-	})
+	run.WorkflowSnapshot = repeatTestSnapshot(t, fixture)
+	owner, _ := fixture.artifacts.User(run.OwnerID)
+	source, err := owner.Write(t.Context(), contracts.ArtifactRef{Namespace: "sources", Name: "original"}, artifacts.Payload{MediaType: "text/plain", Data: []byte("source")}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := runrepeat.Retain(t.Context(), fixture.artifacts, run.RunID, retained); err != nil {
+	if _, err := artifactstest.ForkInput(t.Context(), fixture.artifacts, run.OwnerID, source.Ref, run.RunID, "source"); err != nil {
 		t.Fatal(err)
 	}
+
+	run.PublicationMode = runstore.PublicationOrdinary
+	run.RuntimeConfig = runtimeconfigtest.BuiltInRunSnapshot()
+	fixture.runs.runs[run.RunID] = run
 	fixture.runtimeConfigs.mu.Lock()
 	binding := fixture.runtimeConfigs.bindings[runtimeconfig.DefaultLabel]
 	binding.Revision++

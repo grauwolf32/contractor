@@ -365,7 +365,7 @@ describe("Run API", () => {
     expect(await downloaded.blob.text()).toBe("ok");
   });
 
-  it.each(["repeat_request_unavailable", "repeat_request_invalid"])(
+  it.each(["input_provenance_invalid"])(
     "accepts an ordinary Run blocked by %s without a draft",
     async (code) => {
       const blocked = {

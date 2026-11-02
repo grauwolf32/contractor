@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import copy
 import re
@@ -12,13 +13,16 @@ from contractor_runtime.artifacts import (
     ArtifactClient,
     ArtifactResponseLimitError,
     ArtifactTransportError,
+    ArtifactValue,
 )
 from contractor_runtime.contracts import ArtifactRef
 from contractor_runtime.core.tool_metrics import RecordedToolCall, ToolMetrics
 from contractor_runtime.digests import sha256_digest
+from contractor_runtime.threads import to_thread_until_done
 from contractor_runtime.toolsets.security_findings.collection import (
     COLLECTION_MEDIA_TYPE,
     MAX_ARCHIVE_BYTES,
+    FindingCollection,
     FindingsError,
     canonical,
     decode_collection,
@@ -45,7 +49,9 @@ async def prepare_reader(
         ) from error
     require(source.media_type == COLLECTION_MEDIA_TYPE)
     # Validate every member before creating any destination or exposing any tool.
-    collection = decode_collection(source.data)
+    collection = await to_thread_until_done(
+        decode_collection, source.data, name="findings-collection-decode"
+    )
     documents = {}
     for document in collection.metadata["documents"]:
         target = ArtifactRef(namespace=collection.namespace, name=document["id"])
@@ -88,24 +94,23 @@ async def prepare_reader(
                         # The first write did not commit; one create retry is safe.
                         continue
                     raise
-                ref = retained.artifact.require_exact()
-                require(
-                    (ref.namespace, ref.name) == (target.namespace, target.name)
-                    and retained.media_type == document["media_type"]
-                    and len(retained.data) == document["size_bytes"]
-                    and sha256_digest(retained.data) == document["digest"]
-                    and retained.data == data,
-                    "findings_document_conflict",
+                ref = await to_thread_until_done(
+                    _verify_document,
+                    retained,
+                    target,
+                    document,
+                    data,
+                    name="findings-document-verify",
                 )
                 # Confirm the discovered revision before publishing its exact ref.
                 confirmed = await client.read_artifact(ref, max_bytes=MAX_ARCHIVE_BYTES)
-                require(
-                    confirmed.artifact == ref
-                    and confirmed.media_type == document["media_type"]
-                    and len(confirmed.data) == document["size_bytes"]
-                    and sha256_digest(confirmed.data) == document["digest"]
-                    and confirmed.data == data,
-                    "findings_document_conflict",
+                await to_thread_until_done(
+                    _verify_document,
+                    confirmed,
+                    ref,
+                    document,
+                    data,
+                    name="findings-exact-document-verify",
                 )
                 break
             except ArtifactResponseLimitError as error:
@@ -123,6 +128,32 @@ async def prepare_reader(
             "size_bytes": document["size_bytes"],
             "source": {"scope": document["scope"], "ref": document["ref"]},
         }
+    items = await to_thread_until_done(
+        _project_items, collection, documents, name="findings-reader-projection"
+    )
+    # Only previews and metadata survive preparation. Full bytes stay in artifacts.
+    return ListFindingsTool(items, collection.digest, metrics, secrets)
+
+
+def _verify_document(
+    value: ArtifactValue, expected: ArtifactRef, document: dict[str, Any], data: bytes
+) -> ArtifactRef:
+    ref = value.artifact.require_exact()
+    require(
+        (ref.namespace, ref.name) == (expected.namespace, expected.name)
+        and (expected.revision is None or ref == expected)
+        and value.media_type == document["media_type"]
+        and len(value.data) == document["size_bytes"]
+        and sha256_digest(value.data) == document["digest"]
+        and value.data == data,
+        "findings_document_conflict",
+    )
+    return ref
+
+
+def _project_items(
+    collection: FindingCollection, documents: dict[str, dict[str, Any]]
+) -> tuple[dict[str, Any], ...]:
     items = []
     for entry in collection.metadata["entries"]:
         proposal = collection.proposals[entry["proposal_document_id"]]
@@ -149,8 +180,7 @@ async def prepare_reader(
             }
         )
         items.append(item)
-    # Only previews and metadata survive preparation. Full bytes stay in artifacts.
-    return ListFindingsTool(tuple(items), collection.digest, metrics, secrets)
+    return tuple(items)
 
 
 class ListFindingsTool:
@@ -191,13 +221,15 @@ class ListFindingsTool:
         self._metrics = metrics
         self._secrets = secrets
         self._closed = False
+        self._lock = asyncio.Lock()
         self.__name__ = self.name
         self.__doc__ = self.description
 
     async def close(self) -> None:
-        self._closed = True
-        self._items = ()
-        self._secrets = ()
+        async with self._lock:
+            self._closed = True
+            self._items = ()
+            self._secrets = ()
 
     async def __call__(
         self,
@@ -212,56 +244,78 @@ class ListFindingsTool:
             "has_cursor": cursor is not None,
             "limit": limit if type(limit) is int and 1 <= limit <= 100 else None,
         }
-        with RecordedToolCall(self._metrics, self.name, arguments, secrets=self._secrets) as call:
-            require(not self._closed, "findings_reader_unavailable")
-            require(subject_kind is None or identifier(subject_kind), "findings_arguments_invalid")
-            require(
-                subject_key is None or (subject_kind is not None and identifier(subject_key)),
-                "findings_arguments_invalid",
-            )
-            page_limit = 20 if limit is None else limit
-            require(
-                type(page_limit) is int and 1 <= page_limit <= 100, "findings_arguments_invalid"
-            )
-            matching = [
-                item
-                for item in self._items
-                if (subject_kind is None or (item["subject"] or {}).get("kind") == subject_kind)
-                and (subject_key is None or (item["subject"] or {}).get("key") == subject_key)
-            ]
-            start = 0
-            if cursor is not None:
-                after = self._decode_cursor(cursor, subject_kind, subject_key)
-                positions = [i for i, item in enumerate(matching) if item["receipt_id"] == after]
-                require(len(positions) == 1, "findings_cursor_invalid")
-                start = positions[0] + 1
-            page: list[dict[str, Any]] = []
-            page_cursor: str | None = None
-            item_bytes = 0
-            for index in range(start, min(len(matching), start + page_limit)):
-                item = matching[index]
-                next_cursor = (
-                    None
-                    if index + 1 == len(matching)
-                    else self._cursor(item["receipt_id"], subject_kind, subject_key)
+        async with self._lock:
+            with RecordedToolCall(
+                self._metrics, self.name, arguments, secrets=self._secrets
+            ) as call:
+                require(not self._closed, "findings_reader_unavailable")
+                require(
+                    subject_kind is None or identifier(subject_kind), "findings_arguments_invalid"
                 )
-                # Each candidate is canonicalized once; the page size adds it to
-                # the admitted items, its separator and the envelope with its cursor.
-                size = len(canonical(item))
-                if _page_bytes(item_bytes + size, len(page) + 1, next_cursor) > MAX_PAGE_BYTES:
-                    require(page, "findings_limit_exceeded")
-                    break
-                page.append(item)
-                item_bytes += size
-                page_cursor = next_cursor
-            result: dict[str, Any] = {"items": page, "next_cursor": page_cursor}
-            call.succeed(
-                {
-                    "item_count": len(result["items"]),
-                    "has_more": result["next_cursor"] is not None,
-                }
+                require(
+                    subject_key is None or (subject_kind is not None and identifier(subject_key)),
+                    "findings_arguments_invalid",
+                )
+                page_limit = 20 if limit is None else limit
+                require(
+                    type(page_limit) is int and 1 <= page_limit <= 100, "findings_arguments_invalid"
+                )
+                result = await to_thread_until_done(
+                    self._page,
+                    subject_kind,
+                    subject_key,
+                    page_limit,
+                    cursor,
+                    name="findings-reader-page",
+                )
+                call.succeed(
+                    {
+                        "item_count": len(result["items"]),
+                        "has_more": result["next_cursor"] is not None,
+                    }
+                )
+                return result
+
+    def _page(
+        self,
+        subject_kind: str | None,
+        subject_key: str | None,
+        page_limit: int,
+        cursor: str | None,
+    ) -> dict[str, Any]:
+        matching = [
+            item
+            for item in self._items
+            if (subject_kind is None or (item["subject"] or {}).get("kind") == subject_kind)
+            and (subject_key is None or (item["subject"] or {}).get("key") == subject_key)
+        ]
+        start = 0
+        if cursor is not None:
+            after = self._decode_cursor(cursor, subject_kind, subject_key)
+            positions = [i for i, item in enumerate(matching) if item["receipt_id"] == after]
+            require(len(positions) == 1, "findings_cursor_invalid")
+            start = positions[0] + 1
+        page: list[dict[str, Any]] = []
+        page_cursor: str | None = None
+        item_bytes = 0
+        for index in range(start, min(len(matching), start + page_limit)):
+            item = matching[index]
+            next_cursor = (
+                None
+                if index + 1 == len(matching)
+                else self._cursor(item["receipt_id"], subject_kind, subject_key)
             )
-            return copy.deepcopy(result)
+            # Each candidate is canonicalized once; the page size adds it to
+            # the admitted items, its separator and the envelope with its cursor.
+            size = len(canonical(item))
+            if _page_bytes(item_bytes + size, len(page) + 1, next_cursor) > MAX_PAGE_BYTES:
+                require(page, "findings_limit_exceeded")
+                break
+            page.append(item)
+            item_bytes += size
+            page_cursor = next_cursor
+        result: dict[str, Any] = {"items": page, "next_cursor": page_cursor}
+        return copy.deepcopy(result)
 
     def _cursor(self, after: str, kind: str | None, key: str | None) -> str:
         return (
