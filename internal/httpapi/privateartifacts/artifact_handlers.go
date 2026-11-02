@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
@@ -75,9 +74,6 @@ func (h *handler) listArtifacts(w http.ResponseWriter, r *http.Request) {
 		if listErr != nil {
 			h.handleError(w, listErr)
 			return
-		}
-		if artifactpolicy.IsRunSystemNamespace(*namespace) {
-			refs = refs[:0]
 		}
 		response.Artifacts = refs
 	} else {
@@ -188,10 +184,6 @@ func (h *handler) putArtifact(w http.ResponseWriter, r *http.Request) {
 	// catches a fence established while the request body was arriving.
 	if _, err := h.runStore(r, true); err != nil {
 		h.handleError(w, err)
-		return
-	}
-	if artifactpolicy.IsRunSystemNamespace(ref.Namespace) {
-		h.handleError(w, artifacts.ErrReservedNamespace)
 		return
 	}
 	allocationID := r.PathValue("allocationID")

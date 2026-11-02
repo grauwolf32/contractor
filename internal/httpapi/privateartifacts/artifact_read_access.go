@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"slices"
 
-	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
@@ -47,9 +46,6 @@ func (h *handler) withReadTarget(r *http.Request, accessOnly bool, read func(con
 		store, err := h.runStore(r, false)
 		if err != nil {
 			return err
-		}
-		if artifactpolicy.IsRunSystemNamespace(ref.Namespace) {
-			return artifacts.ErrReservedNamespace
 		}
 		return read(r.Context(), store, ref)
 	}

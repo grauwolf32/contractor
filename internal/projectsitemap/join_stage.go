@@ -52,11 +52,6 @@ func (s *Service) joinStage(ctx context.Context, request StageJoin, apply bool) 
 	if request.Sitemap.ValidateExact() != nil || request.OpenAPI.ValidateExact() != nil || !contracts.ValidResourceID(request.RunID) || !contracts.ValidResourceID(request.StageID) {
 		return StageJoinResult{}, ErrInvalid
 	}
-	for _, ref := range []contracts.ArtifactRef{request.Sitemap, request.OpenAPI} {
-		if artifactpolicy.IsRunSystemNamespace(ref.Namespace) {
-			return StageJoinResult{}, artifacts.ErrReservedNamespace
-		}
-	}
 	if request.Output != nil && (request.Output.Validate() != nil || request.Output.Revision != nil || artifactpolicy.IsPurposeReservedNamespace(request.Output.Namespace)) {
 		return StageJoinResult{}, ErrInvalid
 	}

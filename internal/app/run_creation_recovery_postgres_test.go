@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
@@ -82,7 +81,7 @@ func TestPostgresPublicRunCreationRecoversFreshPinsAndRolledBackResults(t *testi
 				t.Fatal(err)
 			}
 			if name == "rollback-after-create" {
-				installRunCreationAbortAfterRepeatRequest(t, ctx, pool)
+				installRunCreationAbortAfterInputFork(t, ctx, pool)
 			}
 			service, err := configureRunCreation(pool, manager, runCreationCredentials{
 				provider: provider, guard: guard, runtime: guard, transactionLookup: transactionLookup,
@@ -117,40 +116,38 @@ func TestPostgresPublicRunCreationRecoversFreshPinsAndRolledBackResults(t *testi
 			if err != nil || !replay.Replayed || replay.Created || attempts != 2 || generated != 1 {
 				t.Fatalf("replay=%+v, %v", replay, err)
 			}
-			// Run creation retains both the input and the protected repeat request.
-			// Neither an aborted attempt nor an idempotent replay may add revisions.
-			var runs, refs, inputs, repeatRequests int
+			// Creation retains only the input fork. Neither an aborted attempt nor
+			// an idempotent replay may add another revision.
+			var runs, refs, inputs int
 			err = pool.QueryRow(ctx, `
 SELECT (SELECT count(*) FROM workflow_runs), count(*),
-       count(*) FILTER (WHERE scope_id=$1 AND namespace='inputs' AND name='source'),
-       count(*) FILTER (WHERE scope_id=$1 AND namespace=$2 AND name=$3)
-FROM artifact_binding_revisions WHERE scope_kind='run'`,
-				result.Run.RunID, artifactpolicy.RunSystemNamespace, artifactpolicy.RunRepeatRequestName,
-			).Scan(&runs, &refs, &inputs, &repeatRequests)
-			if err != nil || runs != 1 || refs != 2 || inputs != 1 || repeatRequests != 1 {
-				t.Fatalf("retry resource counts: runs=%d revisions=%d inputs=%d repeatRequests=%d error=%v", runs, refs, inputs, repeatRequests, err)
+       count(*) FILTER (WHERE scope_id=$1 AND namespace='inputs' AND name='source')
+FROM artifact_binding_revisions WHERE scope_kind='run'`, result.Run.RunID).Scan(&runs, &refs, &inputs)
+			if err != nil || runs != 1 || refs != 1 || inputs != 1 {
+				t.Fatalf("retry resource counts: runs=%d revisions=%d inputs=%d error=%v", runs, refs, inputs, err)
 			}
+
 		})
 	}
 }
 
-func installRunCreationAbortAfterRepeatRequest(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
+func installRunCreationAbortAfterInputFork(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 	t.Helper()
 	// A sequence survives transaction rollback, so only the first attempt aborts
 	// after Run and artifact writes through the production transaction callback.
 	for _, statement := range []string{
-		`CREATE SEQUENCE abort_after_repeat_request_sequence`,
-		`CREATE FUNCTION abort_after_repeat_request_once() RETURNS trigger LANGUAGE plpgsql AS $$
+		`CREATE SEQUENCE abort_after_input_fork_sequence`,
+		`CREATE FUNCTION abort_after_input_fork_once() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
-  IF NEW.scope_kind='run' AND NEW.namespace='contractor-system' AND NEW.name='repeat-request' THEN
-    IF nextval('abort_after_repeat_request_sequence')=1 THEN
+  IF NEW.scope_kind='run' AND NEW.namespace='inputs' AND NEW.name='source' THEN
+    IF nextval('abort_after_input_fork_sequence')=1 THEN
       RAISE EXCEPTION 'injected definite abort after writes' USING ERRCODE='serialization_failure';
     END IF;
   END IF;
   RETURN NEW;
 END $$`,
-		`CREATE TRIGGER abort_after_repeat_request_once AFTER INSERT ON artifact_binding_revisions
-FOR EACH ROW EXECUTE FUNCTION abort_after_repeat_request_once()`,
+		`CREATE TRIGGER abort_after_input_fork_once AFTER INSERT ON artifact_binding_revisions
+FOR EACH ROW EXECUTE FUNCTION abort_after_input_fork_once()`,
 	} {
 		if _, err := pool.Exec(ctx, statement); err != nil {
 			t.Fatal(err)

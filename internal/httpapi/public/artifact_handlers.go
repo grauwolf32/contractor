@@ -93,7 +93,7 @@ func (h *artifactHandlers) listRunArtifacts(w http.ResponseWriter, r *http.Reque
 	}
 	h.listArtifactBindings(
 		w, r, store, false, "run-artifacts:"+runID, false,
-		artifactpolicy.RunSystemNamespace, "",
+		"", "",
 	)
 }
 
@@ -101,9 +101,6 @@ func (h *artifactHandlers) getRunArtifact(w http.ResponseWriter, r *http.Request
 	store, _, err := h.ownedRunArtifactStore(r)
 	if err != nil {
 		handleError(w, err)
-		return
-	}
-	if h.rejectRunSystemArtifactRoute(w, r) {
 		return
 	}
 	ref, err := artifactRouteRef(r)
@@ -120,9 +117,6 @@ func (h *artifactHandlers) getRunArtifactMetadata(w http.ResponseWriter, r *http
 		handleError(w, err)
 		return
 	}
-	if h.rejectRunSystemArtifactRoute(w, r) {
-		return
-	}
 	h.getArtifactMetadataFromStore(w, r, store, false)
 }
 
@@ -130,9 +124,6 @@ func (h *artifactHandlers) listRunArtifactVersions(w http.ResponseWriter, r *htt
 	store, runID, err := h.ownedRunArtifactStore(r)
 	if err != nil {
 		handleError(w, err)
-		return
-	}
-	if h.rejectRunSystemArtifactRoute(w, r) {
 		return
 	}
 	h.listArtifactVersionsFromStore(w, r, store, false, "run-artifact-versions:"+runID)
@@ -144,20 +135,7 @@ func (h *artifactHandlers) listRunArtifactLineage(w http.ResponseWriter, r *http
 		handleError(w, err)
 		return
 	}
-	if h.rejectRunSystemArtifactRoute(w, r) {
-		return
-	}
 	h.listArtifactLineageFromStore(w, r, store, "run-artifact-lineage:"+runID)
-}
-
-func (h *artifactHandlers) rejectRunSystemArtifactRoute(w http.ResponseWriter, r *http.Request) bool {
-	if !artifactpolicy.IsRunSystemNamespace(r.PathValue("namespace")) {
-		return false
-	}
-	// The owner-facing repeat projection exposes a validated, sanitized view;
-	// raw system bindings remain indistinguishable from absent Artifacts.
-	handleError(w, artifacts.ErrArtifactNotFound)
-	return true
 }
 
 func (h *artifactHandlers) ownedRunArtifactStore(r *http.Request) (artifacts.ScopedStore, string, error) {
@@ -417,7 +395,7 @@ func (h *artifactHandlers) putArtifact(w http.ResponseWriter, r *http.Request) {
 		handleError(w, err)
 		return
 	}
-	if artifactpolicy.IsAuditStandardCatalogNamespace(r.PathValue("namespace")) || artifactpolicy.IsRunSystemNamespace(r.PathValue("namespace")) {
+	if artifactpolicy.IsAuditStandardCatalogNamespace(r.PathValue("namespace")) {
 		handleError(w, artifacts.ErrReservedNamespace)
 		return
 	}
@@ -524,7 +502,7 @@ func validateUserArtifactReadRoute(r *http.Request) error {
 	if err := validateArtifactRouteNames(r); err != nil {
 		return err
 	}
-	if artifactpolicy.IsAuditStandardCatalogNamespace(r.PathValue("namespace")) || artifactpolicy.IsRunSystemNamespace(r.PathValue("namespace")) {
+	if artifactpolicy.IsAuditStandardCatalogNamespace(r.PathValue("namespace")) {
 		return artifacts.ErrArtifactNotFound
 	}
 	return nil

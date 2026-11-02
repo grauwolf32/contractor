@@ -36,8 +36,7 @@ It leaves to other documents:
 - Allocation replay identity and placement: [Control Plane](control-plane.md).
 - Delivery of Workflow parameters to Planners as StageContext data:
   [Planners](planners.md).
-- Input forks, the reserved `inputs`, `outputs`, `skills` and
-  `contractor-system` Namespaces, Workflow output binding and freezing, and
+- Input forks, the reserved `inputs`, `outputs` and `skills` Namespaces, Workflow output binding and freezing, and
   publication: [Artifact store](../artifacts/artifact-store.md).
 - Projects, Project Runs and the global Queue:
   [Projects](../artifacts/projects.md).
@@ -75,7 +74,6 @@ document owns are:
 | Manual continuation | The owner's explicit continuation of an eligible failed Run from its latest `failed` or `interrupted` StageExecution. |
 | Manual-continuation receipt | The durable record of one manual continuation, unique per source execution. |
 | Repeat draft | The owner-only, read-only projection of a terminal Run that the UI uses to configure another Run. |
-| Repeat-request fragment | The bounded non-secret part of the create-Run request that Run creation retains for the repeat draft. |
 | AttemptDiagnostics | The optional public projection of normalized Planner and Worker report errors in Run status. |
 
 This document also uses Runtime labels, the `runtimeLabels` names a Run selects
@@ -101,7 +99,7 @@ One Workflow invocation creates one WorkflowRun. A Run durably records:
 - its lifecycle state, the first `started_at` and its finish time;
 - a WorkflowRunError while `failed`, and a WorkflowRunCancellation while
   `cancelling` or `cancelled`;
-- the repeat-request fragment (RUN-R99).
+- the exact creation-source lineage of its input forks (RUN-R99).
 
 ### Run lifecycle
 
@@ -195,7 +193,7 @@ flowchart TD
     DIG --> LOOK{"committed (owner, key)?"}
     LOOK -->|"same digest"| REPLAY["return the existing Run; no label or Skill resolution, input fork or Scheduler notification"]
     LOOK -->|"different digest"| CONFLICT["idempotency conflict; original Run unchanged"]
-    LOOK -->|"none"| TX["one transaction: lock and resolve default and selected Runtime-label bindings, credentials and Skill sources; store Run, key and digest, execution configuration, Runtime-label pins, metadata labels, input forks, Skill selection outcome, repeat-request fragment"]
+    LOOK -->|"none"| TX["one transaction: lock and resolve default and selected Runtime-label bindings, credentials and Skill sources; store Run, key and digest, execution configuration, Runtime-label pins, metadata labels, input forks, Skill selection outcome, original input-source lineage"]
     TX --> INIT["Run initialization commits pending"]
 ```
 
@@ -845,30 +843,21 @@ and truncation are explicit, and diagnostic read outcomes never alter the Run.
 **Configure another Run**. This is not continuation, Scheduler retry or
 mutation of execution history.
 
-**RUN-R97.** `GET /v1/runs/{run_id}/repeat-draft` is an owner-only,
-read-only projection. For an ordinary Run it returns the exact Workflow ref,
-Project membership, string parameters, requested Runtime labels, user metadata
-labels and each verified original
-UserScope or ProjectScope input ref. It is the only owner access to the
-retained `contractor-system` fragment and rechecks authorization and source
-scopes on every read.
+**RUN-R97.** `GET /v1/runs/{run_id}/repeat-draft` is an owner-only, read-only projection of the stored Run settings and its original input-fork lineage. For an ordinary Run it returns the exact Workflow ref, Project membership, string parameters, requested Runtime labels, placement labels, user metadata labels and each verified original UserScope or ProjectScope input ref. It rechecks authorization and source scopes on every read.
 
 **RUN-R98.** The projection never returns the frozen RunScope
 input fork as a reusable source and never resolves a missing revision to the
 current binding. A repeat Run uses authorized exact source refs rather than
 treating RunScope refs as UserScope or ProjectScope inputs.
 
-**RUN-R99.** Run creation retains the bounded non-secret request fragment in the same transaction as the input forks. The strict `contractor.run-repeat-request/v3` fragment stores the Workflow and Project identity and each exact original source ref with its `sourceScope` (`user` or `project`). It contains no execution patch, credential or RuntimeSettings. It is held in the `repeat-request` binding of the hidden `contractor-system` Namespace ([ART-R17, ART-R18](../artifacts/artifact-store.md)).
+**RUN-R99.** Run creation records each exact original source scope and revision in its `input_fork` lineage in the same transaction as the Run and input copies. Repeat uses those database records and the stored Workflow snapshot to interpret input slots. It stores no duplicate request snapshot or system Artifact.
 
 **RUN-R100.** Existing durable Run fields remain authoritative
 for parameters, labels and Runtime-label selection.
 
-**RUN-R101.** A repeat requires a valid retained fragment that
-matches its Run's Workflow and Project. A missing or invalid fragment returns a
-blocking notice and no draft; neither lineage nor current or effective
-configuration may reconstruct the original request (FAIL-RUN-8).
+**RUN-R101.** A repeat requires a valid stored Workflow snapshot and exactly one original `input_fork` for each existing declared input binding. Missing required inputs, missing or ambiguous provenance for an existing input and a source outside the Run-authorized scope return the blocking `input_provenance_invalid` notice and no draft (FAIL-RUN-8). Optional absent inputs remain absent. Original-source selection never uses the current Project/User binding or an edited Run input revision.
 
-**RUN-R102.** Repeat-draft reads never repair or rewrite retained data. Prior fragment versions and patch-bearing shapes are invalid. If the current Workflow selects a different source scope for an input, its repeat selection is unavailable with `input_source_scope_changed`.
+**RUN-R102.** Repeat-draft reads never repair or rewrite Run or Artifact data. Original fork lookups select only the pinned Workflow input names, in LIM-ART-8 batches; unrelated artifacts do not increase lookup work. If the current Workflow selects a different source scope for an input, its repeat selection is unavailable with `input_source_scope_changed`.
 
 **RUN-R103.** The projection validates that the exact Workflow,
 Project, source revisions, selected configurations, credential identities and
@@ -966,9 +955,8 @@ Lifecycle ([registry](../platform/lifecycle.md)):
 - LIFE-RUN-2 — WorkflowRun metadata labels (RUN-R70,
   RUN-R73).
 - The WorkflowRun itself and its hard deletion: LIFE-DEL-1
-  ([Retention and deletion](../artifacts/retention-and-deletion.md)); the
-  `contractor-system` bindings that hold the repeat-request fragment:
-  LIFE-ART-1; Run `outputs` bindings: LIFE-ART-2
+  ([Retention and deletion](../artifacts/retention-and-deletion.md));
+  Run `outputs` bindings: LIFE-ART-2
   ([Artifact store](../artifacts/artifact-store.md)).
 
 Errors ([registry](../platform/errors.md)):

@@ -28,6 +28,9 @@ func TestDescribeForkRevisionsValidatesBeforeStorage(t *testing.T) {
 			if result, err := run.DescribeForkRevisions(context.Background(), "selected", test.names, LineageContextProjection); result != nil || !errors.Is(err, test.want) {
 				t.Fatalf("selection=%v result=%v err=%v, want %v", test.names, result, err, test.want)
 			}
+			if result, err := run.DescribeForkSources(context.Background(), "selected", test.names, LineageContextProjection); result != nil || !errors.Is(err, test.want) {
+				t.Fatalf("source selection=%v result=%v err=%v, want %v", test.names, result, err, test.want)
+			}
 		})
 	}
 	for _, kind := range []ScopeKind{ScopeUser, ScopeProject, ScopeRun} {

@@ -19,7 +19,6 @@ from contractor_runtime.contracts.artifacts import (
     AUDIT_CONTEXT_NAMESPACE,
     FINDING_PROPOSAL_NAMESPACE,
     PURPOSE_RESERVED_NAMESPACES,
-    RUN_SYSTEM_NAMESPACE,
 )
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.finding_proposals import FindingProposalClient
@@ -212,7 +211,7 @@ def test_finding_transport_loss_retries_byte_identical_submission() -> None:
 # (ART-R25), which no Runtime code names. inputs, outputs and skills are
 # ordinary words of other rules and are not scanned.
 RESERVED_NAMESPACES = frozenset(
-    {FINDING_PROPOSAL_NAMESPACE, RUN_SYSTEM_NAMESPACE, AUDIT_CONTEXT_NAMESPACE, "audit-standards"}
+    {FINDING_PROPOSAL_NAMESPACE, AUDIT_CONTEXT_NAMESPACE, "audit-standards"}
 )
 
 
@@ -245,7 +244,7 @@ def _reserved_namespace_copies(source: str) -> list[int]:
 def test_reserved_namespaces_are_named_only_by_contracts() -> None:
     """Runtime code names reserved Namespaces through contracts.artifacts."""
 
-    assert {FINDING_PROPOSAL_NAMESPACE, RUN_SYSTEM_NAMESPACE} <= PURPOSE_RESERVED_NAMESPACES
+    assert {FINDING_PROPOSAL_NAMESPACE} <= PURPOSE_RESERVED_NAMESPACES
     package = Path(contractor_runtime.__file__).parent
     owner = package / "contracts"
     sources = [path for path in package.rglob("*.py") if owner not in path.parents]
@@ -265,7 +264,7 @@ def test_reserved_namespace_scan_reports_copies_not_routes() -> None:
         "    pass\n"
         'derived = "audit-finding-proposals"\n'
         'joined = "finding-" "proposals"\n'
-        'hidden = frozenset({"skills", "contractor-system"})\n'
+        'hidden = frozenset({"skills", "audit-context"})\n'
         'catalog = "audit-standards"\n'
         'route = "/v1/audit-standards"\n'
         'notes = "audit-standards-notes"\n'
