@@ -36,7 +36,13 @@ context:
     The user accepted the common execution skeleton and requested concrete tasks; implementation is a
     subsequent step, not part of this task-formation request. User decision on 2026-11-01 rejects parallel
     Audit/Project Finding models: V64-014 supplies one Project identity/current state and its existing
-    read/edit callers; this task reuses that owner rather than adding another Finding lifecycle.'
+    read/edit callers; this task reuses that owner rather than adding another Finding lifecycle.
+    User decision on 2026-11-02 moves shipped YAML rewriting into the tasks delivering its execution:
+    V64-002 owns exploratory/supporting/observation/scan programs; V64-012 owns checklist and assertion-check
+    programs. Rewrite the configurations with their actual consumers rather than retaining the old format
+    or introducing an unsupported-profile compatibility mode. V64-010 verifies the combined catalog and
+    removes remaining obsolete callers; it no longer owns the initial YAML rewrite. This is a planning
+    amendment, not assignment of dependent implementation.'
   implementation_gate: V64-001 decisions are settled. Keep pending until implementation is assigned and
     dependencies are complete; this task amendment starts no code, migrations, live Runs or deployment.
   design:
@@ -61,6 +67,20 @@ context:
   contract_review_followup: User-requested implementation review on 2026-11-01 found a V64-001 contract
     defect. V64-021 supplies this consumer's corrected boundary before implementation; the accepted Audit
     skeleton and this task's remaining scope are unchanged.
+  shipped_yaml:
+    boundary: The current observation/tracing and bounded scanner programs below do not need a dummy
+      hypothesis or a generator. Migrate their YAML and the Workflow/template/instruction/result bindings
+      required by the real caller together. Source-to-OpenAPI supporting work uses ordinary exact material
+      handoff and the same task-creation operation; it does not justify another dependency engine.
+    profiles:
+    - configs/audit-profiles/openapi_operation_observe.yaml
+    - configs/audit-profiles/openapi_operation_trace.yaml
+    - configs/audit-profiles/openapi_nuclei_scan.yaml
+    - configs/audit-profiles/openapi_sqlmap_scan.yaml
+    - configs/audit-profiles/source_openapi_sqlmap_scan.yaml
+    - configs/audit-profiles/web_scan.yaml
+    next_owner: V64-012 rewrites the eight checklist/standard assertion profiles. Their full behavior
+      is not this task's acceptance and must not create a dependency back from V64-002 to V64-012.
 scope:
   in:
   - Reuse and simplify the existing Audit controller/service/store and ordinary RunService submission
@@ -76,9 +96,15 @@ scope:
   - Collect ordinary immutable result outputs even when no finding is emitted. Preserve exact conditions/evidence
     and optional finding references through the existing output publication/receipt path; do not make
     successful task completion depend on creation of a problem card.
+  - Rewrite the six context.shipped_yaml profiles as common programs with selected inputs, allowed Workflows,
+    initial ordinary work, operation policy and bounded budgets. Adapt their actual catalog/execution
+    bindings and equivalent testdata in the same change; preserve useful observation/scan behavior and
+    evidence without old Round/approval/ZIP authoring. Do not postpone this rewrite to V64-010.
   out:
   - A new Scheduler, admission service, collector service, research controller, report approval or universal
     program DSL.
+  - Checklist/standard hypothesis execution and its eight shipped profiles (V64-012), automatic generation
+    and proposal-driven continuation (V64-013), or preserving a legacy profile reader/executor.
   - Implementation during this planning-only update; changing user model configuration or deploying/migrating
     the demo.
 requirements:
@@ -100,6 +126,11 @@ requirements:
     task-creation operation. No second arbitrary Workflow graph or task-dependency engine is introduced.
     Initial work may use any allowed binding, including supporting work or generation. No finding or generator
     invocation is required for completion; hypothesis presence alone never launches a Run.'
+- id: R6
+  text: Migrated YAML uses the executable common contract and existing domain parsers/scanner adapters.
+    Preserve source/settings/rules selection, exact evidence, Workflow closures and applicable tighter
+    budgets. A prior kind=check label does not require an invented hypothesis for exploratory scanning
+    or observation. Retain actual assertion semantics with V64-012 rather than silently weakening them.
 failure_outcomes:
 - operation: Reconcile one bounded Audit task slice
   permanent: Reject invalid/foreign/unsupported content and exact-revision or collision conflicts through
@@ -115,7 +146,8 @@ failure_outcomes:
     timeouts remain with their owners. No post-deadline semantic work to repair persistence.
 cardinality:
 - collection: Reconcile one bounded Audit task slice
-  expected: 'Base fixture: 2 ordinary Runs, 2 seeded hypotheses, 1 generated hypothesis and several conclusions.'
+  expected: 'Base fixture: 2 ordinary Runs without hypotheses or generation, with retained results and
+    optional findings. Shipped rewrite: 6 observation/tracing/scan profiles.'
   maximum: Keep applicable published LIM-AUD/LIM-FND ceilings unless proposal 0050 explicitly identifies
     a reviewed change; no new full-pool work.
   bound: At most 128 admitted primary records / 1 MiB metadata per mutation slice; lists use existing
@@ -146,6 +178,12 @@ acceptance_criteria:
   given: at-ceiling pending task records with few ready tasks
   when: reconcile and purge run
   then: per-tick/transaction/page work stays bounded without full-history hydration
+- id: A5
+  given: the six context.shipped_yaml profiles and equivalent isolated catalog/process fixtures
+  when: their rewritten programs resolve and their real task/Run callers execute
+  then: the owned observation/scan scenarios use the common path with selected exact materials, original
+    scope/budgets and ordinary retained outputs; none executes the retired profile pipeline or requires
+    a fabricated hypothesis/generator; validation-only YAML changes do not satisfy this criterion
 tests:
 - command: make require-database
 - command: go test -tags=integration -count=1 ./internal/auditdomain ./internal/auditstore/... ./internal/auditservice
@@ -161,6 +199,10 @@ tests:
   - A2
   - A3
   - A4
+  - A5
+- command: go test -count=1 ./internal/config/... ./internal/configload/...
+  covers:
+  - A5
 - command: make verify-public-api verify-public-api-postgres
   covers:
   - A1

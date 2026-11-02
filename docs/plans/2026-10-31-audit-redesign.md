@@ -64,13 +64,13 @@ V64-001 остаётся завершённой историей; исправл
 | 1 | [V64-001](../../tasks/done/v64-001-audit-priority-contracts.yml) | Общие строгие program/task/result contracts, owning boundaries, fixtures, лимиты и карта удаления/cutover |
 | 2 | [V64-004](../../tasks/done/v64-004-audit-priority-context.yml) | Audit workspace, exact handoff и публикация в Project через существующий ArtifactStore с реальным caller |
 | 2 | [V64-014](../../tasks/v64-014-audit-hypothesis-assessments.yml) | Одна Finding model в Project: существующая дедупликация, источники/evidence, единые чтение и изменение; удаление Audit finding lifecycle |
-| 3 | [V64-002](../../tasks/v64-002-audit-priority-store.yml) | Один coordinator, обычные Runs, pause/recovery и первый сквозной exploratory сценарий |
-| 4 | [V64-012](../../tasks/v64-012-audit-hypothesis-registry.yml) | Fixed/manual hypotheses, результаты проверок с автоматической exact association, необязательный finding, простой выбор работы и checklist coverage |
+| 3 | [V64-002](../../tasks/v64-002-audit-priority-store.yml) | Один coordinator, обычные Runs, pause/recovery, первый exploratory сценарий и переписывание YAML шести observation/tracing/scan программ |
+| 4 | [V64-012](../../tasks/v64-012-audit-hypothesis-registry.yml) | Fixed/manual hypotheses, automatic exact association и checklist coverage; переписывание YAML восьми checklist/standard программ вместе с их проверяющими consumers |
 | 4 | [V411-010](../../tasks/v411-010-pentest-program-availability.yml) | Удаление оставшихся item/report approvals и Audit control policy; использование готовых Project Finding-команд |
 | 4 | [V411-011](../../tasks/v411-011-project-findings-reader.yml) | Реальный обычный consumer выбранных Project findings и exact snapshots/evidence |
 | 5 | [V64-013](../../tasks/v64-013-audit-hypothesis-generation.yml) | Обычный Workflow генерации по материалам, findings и результатам, включая опровержения/пробелы; следующая итерация тем же путём |
 | 6 | [V64-008](../../tasks/v64-008-audit-priority-api-coverage.yml) | API/CLI чтение цепочки исследования, управление и публикация материалов |
-| 6 | [V64-010](../../tasks/v64-010-audit-priority-profile.yml) | Перенос shipped программ и удаление старых ZIP/round/admission/review механизмов после миграции callers |
+| 6 | [V64-010](../../tasks/v64-010-audit-priority-profile.yml) | Итоговая проверка уже перенесённых shipped программ и удаление оставшихся ZIP/round/admission/review механизмов |
 | 7 | [V64-009](../../tasks/v64-009-audit-priority-ui.yml) | Общий UI-путь исследования, без approval inbox и ручного ввода системных связей |
 | 7 | [V425-017](../../tasks/v425-017-machine-report-ceiling-test.yml) | Регрессия retained report ceiling на новом выбранном assembler |
 | 8 | [V64-011](../../tasks/v64-011-audit-priority-release.yml) | Базовый real-store/process/browser gate и доказательство контроля сложности |
@@ -86,6 +86,19 @@ Audit scope и передачу материалов, вторая перено�
 дедупликации. Смысловое сопоставление в V64-014 не входит. V64-002 зависит от
 обеих задач и даёт раннюю сквозную демонстрацию через реальные компоненты.
 После неё добавляются гипотезы, генерация и общий API/UI.
+
+Решение пользователя от 2026-11-02: YAML переписывается вместе с поведением,
+а не откладывается целиком в V64-010. V64-002 переносит `openapi-operation-observe`,
+`openapi-operation-trace`, `openapi-nuclei-scan`, `openapi-sqlmap-scan`,
+`source-openapi-sqlmap-scan` и `web-scan` как наблюдение, исследование и сканирование
+без фиктивной гипотезы. V64-012 переносит `source-checklist` и семь OWASP/ASVS/WSTG
+профилей как проверки утверждений с точными гипотезами и сохранением coverage.
+Точные YAML-пути закреплены в обеих задачах и карте удаления. Меняются также
+нужные Workflow/template/instruction bindings и изолированные fixtures;
+редактирования формата без работающего caller недостаточно. Старый reader,
+executor или специальный режим совместимости не сохраняются. V64-010 проверяет
+общий каталог и завершает очистку; V64-013 по-прежнему владеет необязательной
+генерацией. Эта корректировка плана не запускает реализацию и не меняет зависимости.
 
 В V64-014 explicit problem publication требует exact evidence, а proposal без
 evidence остаётся обычным результатом. Оценки источников и прежние duplicate
