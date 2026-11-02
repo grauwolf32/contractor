@@ -117,7 +117,7 @@ func configureHTTP(
 		},
 		Evals: publicapi.EvalDependencies{
 			Evals: evals.service, EvalNotifier: evals.coordinator,
-			Config: configurationManager, Audits: audits.service,
+			CatalogSnapshot: configurationManager.Snapshot,
 		},
 		Operations: publicapi.OperationsDependencies{
 			ModelSelection: configurationManager,

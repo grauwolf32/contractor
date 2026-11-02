@@ -9,6 +9,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auth"
+	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/credentials"
@@ -31,7 +32,6 @@ type testCatalog interface {
 	ResolvePinnedRunWorkflow(context.Context, resolved.ResolvedWorkflow, resolved.CredentialLookup) (resolved.ResolvedWorkflow, error)
 	CatalogReader
 	runservice.RepeatWorkflowResolver
-	WorkflowLister
 }
 
 // testManagedCredentials is the managed LLM credential service a test serves;
@@ -158,7 +158,7 @@ func (s testServices) dependencies() Dependencies {
 			Audits: s.Audits, Runs: s.Runs,
 		},
 		Evals: EvalDependencies{
-			Evals: s.Evals, EvalNotifier: s.EvalNotifier, Config: s.Config, Audits: s.Audits,
+			Evals: s.Evals, EvalNotifier: s.EvalNotifier, CatalogSnapshot: testCapabilitySnapshot(s.Config),
 		},
 		Operations: OperationsDependencies{
 			ModelSelection: s.ModelSelection,
@@ -377,4 +377,17 @@ func (missingFindingExports) PublishFindingExport(context.Context, string, strin
 }
 func (missingFindingExports) ReadFindingExport(context.Context, string, string, string, string) (findingintake.ExportDownload, error) {
 	return findingintake.ExportDownload{}, findingintake.ErrNotFound
+}
+
+// Test catalogs use either the production swappable Manager or one frozen
+// Snapshot. Both provide the same immutable view to the capability reader.
+func testCapabilitySnapshot(catalog testCatalog) func() *config.Snapshot {
+	switch source := catalog.(type) {
+	case interface{ Snapshot() *config.Snapshot }:
+		return source.Snapshot
+	case *config.Snapshot:
+		return func() *config.Snapshot { return source }
+	default:
+		panic("test catalog provides no immutable snapshot")
+	}
 }

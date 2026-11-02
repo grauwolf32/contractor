@@ -1233,7 +1233,11 @@ rules unchanged.
 **EVM-R210.** All managed Eval lists use keyset pagination with a default page
 size of 25 (LIM-EVM-14) and a maximum of 100 (LIM-EVM-15). An oversized limit
 is rejected with 422, not silently truncated. The member and document bounds of
-the [portable format](format.md) remain in force.
+the [portable format](format.md) remain in force. Capabilities bindings are prepared once per immutable
+configuration snapshot, using the Audit compatibility rule, and page reads
+copy only the selected lightweight bindings. The reader retains one snapshot;
+a changed binding projection invalidates its cursor while an unchanged
+projection keeps the same fingerprint.
 
 **EVM-R211.** A cursor is opaque, signed and bound to owner, resource, filters
 and sort. Experiment member and pair pages additionally bind to `viewSnapshot`.

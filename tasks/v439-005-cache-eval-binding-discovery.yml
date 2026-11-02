@@ -6,7 +6,7 @@ epic: evals
 kind: chore
 introduced_by: V370-009
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages: [go]
 goal: >-
@@ -26,6 +26,11 @@ context:
     internal/httpapi/public/eval_handlers.go:46 loads full Workflow/Profile copies and rebuilds all bindings and their digest before taking one page.
   boundary: >-
     HTTP owns wire validation and rendering; domain owners own edits, exact repeat availability and compatibility. Existing transfer slots, fences, receipts and immutable catalog snapshots remain authoritative.
+  cache_owner: >-
+    The cache is public catalog discovery, retained in httpapi/public under API-R8.
+    Importing the catalog Snapshot into EvalService would violate the existing
+    loader ownership boundary. AuditService still owns compatibility judgement;
+    no catalog-owner exception or new configuration abstraction is introduced.
   decision: >-
     Reuse existing owners and helpers. The alternative of leaving orchestration in the HTTP layer is smaller but retains duplicate policy and expensive catalog reads. Reopen only if a concrete production caller requires another boundary.
   siblings: >-

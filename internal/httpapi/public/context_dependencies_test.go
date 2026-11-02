@@ -40,7 +40,7 @@ var contextFiles = map[string][]string{
 	"findingHandlers": {"finding_handlers.go", "project_source_handlers.go", "finding_collection_handlers.go", "finding_export_handlers.go"},
 	"evalHandlers": {
 		"eval_handlers.go", "eval_helpers.go", "eval_records.go", "eval_comparison.go", "eval_bins.go",
-		"eval_types.go",
+		"eval_types.go", "eval_capabilities.go",
 	},
 	"operationsHandlers":           {"operations_handlers.go", "performance_handlers.go", "scheduler_settings_handlers.go", "model_selection_handlers.go"},
 	"credentialHandlers":           {"credential_handlers.go"},

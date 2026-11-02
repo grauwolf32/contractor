@@ -3,7 +3,6 @@ package public
 import (
 	"encoding/json"
 	"net/http"
-	"sort"
 	"strconv"
 	"time"
 
@@ -34,74 +33,26 @@ func (h *evalHandlers) evalCapabilities(w http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		return err
 	}
-	type binding struct {
-		Kind      string  `json:"kind"`
-		Selector  string  `json:"selector"`
-		Available bool    `json:"available"`
-		Reason    *string `json:"reason"`
-	}
-	bindings := []binding{}
-	if q.Get("kind") != "audit" {
-		for _, workflow := range h.Config.Workflows() {
-			bindings = append(bindings, binding{Kind: "workflow", Selector: workflow.Ref.Name + "@" + workflow.Ref.Version, Available: true})
-		}
-	}
-	if q.Get("kind") != "workflow" {
-		for _, profile := range h.Audits.Profiles() {
-			var reason *string
-			if !profile.Compatibility.ServerCompatible {
-				message := "This AuditProfile requires unsupported Server capabilities."
-				reason = &message
-			}
-			bindings = append(bindings, binding{
-				Kind:      "audit",
-				Selector:  profile.Profile.Ref.Name + "@" + profile.Profile.Ref.Version,
-				Available: profile.Compatibility.ServerCompatible,
-				Reason:    reason,
-			})
-		}
-	}
-	sort.Slice(bindings, func(i, j int) bool {
-		return bindings[i].Kind+":"+bindings[i].Selector < bindings[j].Kind+":"+bindings[j].Selector
-	})
-	raw, err := json.Marshal(bindings)
-	if err != nil {
-		return err
-	}
-	snapshot := evaldomain.Digest(raw)
-	if cursor.Snapshot != "" && cursor.Snapshot != snapshot {
-		return evaldomain.Failure("eval_view_changed")
-	}
 	after := ""
 	if len(cursor.Position) > 0 {
 		after = cursor.Position[0]
 	}
-	items := []binding{}
-	more := false
-	last := ""
-	for _, b := range bindings {
-		key := b.Kind + ":" + b.Selector
-		if key <= after {
-			continue
-		}
-		if len(items) == limit {
-			more = true
-			break
-		}
-		items = append(items, b)
-		last = key
-	}
-	page, err := h.evalPage(r, q, more, snapshot, last)
+	data, err := h.capabilities.bindings(h.CatalogSnapshot(), q.Get("kind"), after, limit, cursor.Snapshot)
 	if err != nil {
 		return err
 	}
+	page, err := h.evalPage(r, q, data.HasMore, data.Snapshot, data.LastKey)
+	if err != nil {
+		return err
+	}
+
 	evalJSON(w, http.StatusOK, "Capabilities", map[string]any{
 		"controlModes":   []string{"server", "external"},
 		"executionKinds": []string{"workflow", "audit"},
 		"checks":         evalCheckCapabilities(),
 		"schemas":        evalservice.RegisteredSchemas(),
 		"importVersions": []string{"dataset@1", "contractor.eval-registration@1"},
-		"bindings":       items,
+		"bindings":       data.Items,
 		"page":           page,
 	})
 	return nil
