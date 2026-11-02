@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/helpers/pagelimit"
 )
@@ -55,7 +56,7 @@ func (s *Service) Run(runID string) (ScopedStore, error) {
 // Scoped returns the view of scope for a trusted caller that already holds
 // the Scope of a stored exact Artifact.
 func (s *Service) Scoped(scope Scope) (ScopedStore, error) {
-	if err := validateScope(scope); err != nil {
+	if err := ValidateScope(scope); err != nil {
 		return ScopedStore{}, err
 	}
 	return ScopedStore{service: s, scope: scope}, nil
@@ -78,7 +79,7 @@ func (s ScopedStore) Write(
 	if genericWriteReserved(s.scope, target.Namespace, expectedRevision != nil) {
 		return WriteResult{}, ErrReservedNamespace
 	}
-	if err := validatePayload(payload); err != nil {
+	if err := ValidatePayload(payload); err != nil {
 		return WriteResult{}, err
 	}
 	return s.service.repository.Write(ctx, s.scope, target, payload, expectedRevision)
@@ -107,7 +108,7 @@ func genericWriteReserved(scope Scope, namespace string, advancing bool) bool {
 }
 
 func (s ScopedStore) Read(ctx context.Context, ref ArtifactRef) (ReadResult, error) {
-	if err := validateRef(ref); err != nil {
+	if err := ValidateRef(ref); err != nil {
 		return ReadResult{}, err
 	}
 	return s.service.repository.Read(ctx, s.scope, ref)
@@ -119,14 +120,14 @@ func (s ScopedStore) Read(ctx context.Context, ref ArtifactRef) (ReadResult, err
 // name exact content, and repeating the read cannot change it.
 func (s ScopedStore) ReadExact(ctx context.Context, expected contracts.ExactArtifact) (ReadResult, error) {
 	if err := expected.Validate(); err != nil {
-		return ReadResult{}, fmt.Errorf("%w: exact artifact descriptor is invalid: %v", ErrArtifactIntegrity, err)
+		return ReadResult{}, fmt.Errorf("%w: exact artifact descriptor is invalid: %v", blob.ErrIntegrity, err)
 	}
 	read, err := s.Read(ctx, expected.Ref)
 	if err != nil {
 		return ReadResult{}, err
 	}
 	if err := expected.Verify(read.Exact()); err != nil {
-		return ReadResult{}, fmt.Errorf("%w: %w", ErrArtifactIntegrity, err)
+		return ReadResult{}, fmt.Errorf("%w: %w", blob.ErrIntegrity, err)
 	}
 	return read, nil
 }
@@ -142,7 +143,7 @@ func (s ScopedStore) ReadExact(ctx context.Context, expected contracts.ExactArti
 // unverified.
 func (s ScopedStore) DescribeExact(ctx context.Context, refs []ArtifactRef) ([]contracts.ExactArtifact, error) {
 	for _, ref := range refs {
-		if err := validateRef(ref); err != nil {
+		if err := ValidateRef(ref); err != nil {
 			return nil, err
 		}
 		if ref.Revision == nil {
@@ -163,7 +164,7 @@ func (s ScopedStore) DescribeExact(ctx context.Context, refs []ArtifactRef) ([]c
 }
 
 func (s ScopedStore) Metadata(ctx context.Context, ref ArtifactRef) (Metadata, error) {
-	if err := validateRef(ref); err != nil {
+	if err := ValidateRef(ref); err != nil {
 		return Metadata{}, err
 	}
 	return s.service.repository.Metadata(ctx, s.scope, ref)
@@ -200,7 +201,7 @@ func (s ScopedStore) ListVersions(
 func (s ScopedStore) ListLineage(
 	ctx context.Context, ref ArtifactRef, query LineagePageQuery,
 ) ([]LineageEdge, error) {
-	if err := validateRef(ref); err != nil {
+	if err := ValidateRef(ref); err != nil {
 		return nil, err
 	}
 	if err := validateLineagePageQuery(query); err != nil {
@@ -218,7 +219,7 @@ func validateBindingPageQuery(query BindingPageQuery) error {
 		return ErrInvalidName
 	}
 	if query.NamePrefix != "" {
-		if validateComponent(query.NamePrefix) != nil || query.Namespace == nil ||
+		if ValidateComponent(query.NamePrefix) != nil || query.Namespace == nil ||
 			query.ExcludeNamespace != nil || query.ExcludeNamespacePrefix != "" || query.HiddenNamespace != "" ||
 			(query.AfterName != "" && !strings.HasPrefix(query.AfterName, query.NamePrefix)) ||
 			(query.AfterNamespace != "" && query.AfterNamespace != *query.Namespace) {
@@ -226,22 +227,22 @@ func validateBindingPageQuery(query BindingPageQuery) error {
 		}
 	}
 	if query.Namespace != nil {
-		if err := validateComponent(*query.Namespace); err != nil {
+		if err := ValidateComponent(*query.Namespace); err != nil {
 			return err
 		}
 	}
 	if query.ExcludeNamespace != nil {
-		if err := validateComponent(*query.ExcludeNamespace); err != nil {
+		if err := ValidateComponent(*query.ExcludeNamespace); err != nil {
 			return err
 		}
 	}
 	if query.HiddenNamespace != "" {
-		if err := validateComponent(query.HiddenNamespace); err != nil {
+		if err := ValidateComponent(query.HiddenNamespace); err != nil {
 			return err
 		}
 	}
 	if query.ExcludeNamespacePrefix != "" {
-		if err := validateComponent(query.ExcludeNamespacePrefix + "x"); err != nil {
+		if err := ValidateComponent(query.ExcludeNamespacePrefix + "x"); err != nil {
 			return err
 		}
 	}
@@ -249,10 +250,10 @@ func validateBindingPageQuery(query BindingPageQuery) error {
 		return ErrInvalidName
 	}
 	if query.AfterNamespace != "" {
-		if err := validateComponent(query.AfterNamespace); err != nil {
+		if err := ValidateComponent(query.AfterNamespace); err != nil {
 			return err
 		}
-		if err := validateComponent(query.AfterName); err != nil {
+		if err := ValidateComponent(query.AfterName); err != nil {
 			return err
 		}
 	}
@@ -307,7 +308,7 @@ func validLineageKind(value string) bool {
 // PreparePayload verifies physical content before the caller takes a write fence
 // or begins its publication transaction.
 func (s *Service) PreparePayload(ctx context.Context, payload Payload) (Payload, error) {
-	if err := validatePayload(payload); err != nil {
+	if err := ValidatePayload(payload); err != nil {
 		return Payload{}, err
 	}
 	return s.repository.PreparePayload(ctx, payload)

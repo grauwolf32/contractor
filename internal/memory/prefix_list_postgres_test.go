@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 )
 
 func TestPostgresMemoryIgnoresOrdinaryBindingsAndDetectsQuotaOverflow(t *testing.T) {
@@ -16,7 +17,7 @@ func TestPostgresMemoryIgnoresOrdinaryBindingsAndDetectsQuotaOverflow(t *testing
 	createRunningMemoryStage(t, ctx, pool, "prefix-run", "prefix-stage")
 	store, _ := NewPostgresStore(pool)
 	namespace, _ := NewNamespace(store, Binding{RunID: "prefix-run", StageExecutionID: "prefix-stage", Namespace: "builder"})
-	run, _ := artifacts.NewService(artifacts.NewPostgresRepository(pool)).Run("prefix-run")
+	run, _ := artifacts.NewService(artifactpostgres.NewRepository(pool)).Run("prefix-run")
 	_, err := run.Write(ctx, artifacts.ArtifactRef{Namespace: "builder", Name: "ordinary"}, artifacts.Payload{MediaType: "text/plain", Data: []byte("ordinary")}, nil)
 	if err != nil {
 		t.Fatal(err)

@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/planner"
@@ -364,7 +365,7 @@ func assertScanAuditRetentionForOperation(t *testing.T, h *scanProcessHarness, a
 	if resultLink.Artifact.Ref.Revision == nil {
 		t.Fatalf("receipt has no retained package: %s", retained)
 	}
-	scope, err := artifacts.NewService(artifacts.NewPostgresRepository(h.pool)).Project(audit.ProjectID)
+	scope, err := artifacts.NewService(artifactpostgres.NewRepository(h.pool)).Project(audit.ProjectID)
 	if err != nil {
 		t.Fatal(err)
 	}

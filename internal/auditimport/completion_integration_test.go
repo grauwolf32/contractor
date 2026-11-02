@@ -27,6 +27,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -194,7 +195,7 @@ func newCompletionFixtureWithOptions(t *testing.T, pool *pgxpool.Pool, options c
 	acceptance := options.acceptance
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	t.Cleanup(cancel)
-	f := &completionFixture{ctx: ctx, pool: pool, id: fmt.Sprintf("fixture-%d", time.Now().UnixNano()), artifacts: artifacts.NewService(artifacts.NewPostgresRepository(pool)), audits: auditstoretest.NewStore(pool).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch), runs: runstore.NewPostgresStore(pool), keys: []string{"first", "second"}}
+	f := &completionFixture{ctx: ctx, pool: pool, id: fmt.Sprintf("fixture-%d", time.Now().UnixNano()), artifacts: artifacts.NewService(artifactpostgres.NewRepository(pool)), audits: auditstoretest.NewStore(pool).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch), runs: runstore.NewPostgresStore(pool), keys: []string{"first", "second"}}
 	projects := projectstore.NewPostgresStore(pool)
 	_, _, err := projects.Create(ctx, projectstore.CreateParams{ProjectID: f.id, OwnerID: "owner", Kind: projectstore.KindProject, Name: "Completion gate", IdempotencyKey: f.id, RequestDigest: completionDigest([]byte(f.id))})
 	mustCompletion(t, err)
@@ -313,7 +314,7 @@ func newCompletionFixtureWithOptions(t *testing.T, pool *pgxpool.Pool, options c
 		},
 		AuditTransaction: func(ctx context.Context, fn func(runservice.AuditRunWriter, *artifacts.Service, runservice.AuditExecutionWriter) error) error {
 			return persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-				return fn(runstore.NewPostgresTxStore(tx), artifacts.NewService(artifacts.NewPostgresRepository(tx)), auditstoretest.NewStore(tx).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch))
+				return fn(runstore.NewPostgresTxStore(tx), artifacts.NewService(artifactpostgres.NewRepository(tx)), auditstoretest.NewStore(tx).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch))
 			})
 		},
 	})

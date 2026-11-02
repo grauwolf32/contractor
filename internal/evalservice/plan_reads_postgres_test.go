@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalstore"
@@ -23,7 +24,7 @@ import (
 func (h *serviceHarness) preparedAtNativeCeiling(t *testing.T, capacity int) evalstore.Experiment {
 	t.Helper()
 	draft, data, _ := planInputs(t)
-	source, _ := artifacts.NewService(artifacts.NewPostgresRepository(h.pool)).User(h.scope.OwnerID)
+	source, _ := artifacts.NewService(artifactpostgres.NewRepository(h.pool)).User(h.scope.OwnerID)
 	payload := []byte("fixture ZIP is not executed")
 	write, err := source.Write(t.Context(), contracts.ArtifactRef{Namespace: "fixtures", Name: "shared-task"}, artifacts.Payload{MediaType: "application/zip", Data: payload}, nil)
 	if err != nil {

@@ -9,8 +9,9 @@ import (
 	"sort"
 
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
-
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
@@ -88,7 +89,7 @@ func resolveDirectVerification(
 	}
 	if cache.ready {
 		if cache.runID != input.RunID || cache.projectID != input.ProjectID || cache.closure != input.WorkflowClosureDigest {
-			return nil, artifacts.ErrArtifactIntegrity
+			return nil, blob.ErrIntegrity
 		}
 		return cache.prepared, cache.err
 	}
@@ -204,11 +205,11 @@ func prepareDirectVerification(
 	}
 	if run.OwnerID == "" || run.ProjectID == nil || *run.ProjectID != input.ProjectID ||
 		run.RunID != input.RunID || auditdomain.DigestBytes(run.WorkflowSnapshot) != input.WorkflowClosureDigest {
-		return nil, artifacts.ErrArtifactIntegrity
+		return nil, blob.ErrIntegrity
 	}
 	workflow, err := resolved.DecodeResolvedWorkflowSnapshot(run.WorkflowSnapshot)
 	if err != nil || workflow.Ref.Name != run.WorkflowName || workflow.Ref.Version != run.WorkflowVersion {
-		return nil, artifacts.ErrArtifactIntegrity
+		return nil, blob.ErrIntegrity
 	}
 	outputName, outputContract, selected := selectDirectVerificationOutput(workflow)
 	if !selected {
@@ -238,7 +239,7 @@ func prepareDirectVerification(
 	if read.Payload.MediaType != descriptor.MediaType ||
 		int64(len(read.Payload.Data)) != descriptor.Size ||
 		auditdomain.DigestBytes(read.Payload.Data) != descriptor.Digest {
-		return nil, artifacts.ErrArtifactIntegrity
+		return nil, blob.ErrIntegrity
 	}
 	document, err := auditdomain.DecodeDirectVerificationSet(read.Payload.Data)
 	if err != nil {
@@ -305,7 +306,7 @@ func readExactFindingProposal(
 	}
 	proposal, err := auditdomain.DecodeFindingProposal(read.Payload.Data)
 	if err != nil {
-		return auditdomain.FindingProposal{}, artifacts.ErrArtifactIntegrity
+		return auditdomain.FindingProposal{}, blob.ErrIntegrity
 	}
 	return proposal, nil
 }
@@ -325,7 +326,7 @@ func isEvidenceSubset(selected, available []string) bool {
 
 func directAssessmentReplay(ctx context.Context, tx pgx.Tx, assessmentID string, input directVerificationInput,
 	semantic, resultDigest, contractDigest string) (bool, error) {
-	service := artifacts.NewService(artifacts.NewPostgresRepository(tx))
+	service := artifacts.NewService(artifactpostgres.NewRepository(tx))
 	project, err := service.Project(input.ProjectID)
 	if err != nil {
 		return false, err
@@ -339,7 +340,7 @@ func directAssessmentReplay(ctx context.Context, tx pgx.Tx, assessmentID string,
 		return false, err
 	}
 	if !metadata.Frozen || metadata.MediaType != "application/json" || metadata.Size > 32<<10 {
-		return false, artifacts.ErrArtifactIntegrity
+		return false, blob.ErrIntegrity
 	}
 	read, err := project.ReadExact(ctx, metadata.Exact())
 	if err != nil {

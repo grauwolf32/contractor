@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
@@ -675,7 +676,7 @@ func beginConcurrentProjectArtifactAdmission(t *testing.T, f deletionImportFixtu
 	t.Helper()
 	write := func(db persistencepostgres.DBTX, name string) {
 		t.Helper()
-		projectArtifacts, err := artifacts.NewService(artifacts.NewPostgresRepository(db)).Project("delete-project")
+		projectArtifacts, err := artifacts.NewService(artifactpostgres.NewRepository(db)).Project("delete-project")
 		if err != nil {
 			t.Fatal(err)
 		}

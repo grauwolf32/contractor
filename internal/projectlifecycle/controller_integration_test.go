@@ -11,6 +11,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
@@ -66,7 +67,7 @@ func TestProducerRunDeletionPreservesProjectSitemapAndReceipt(t *testing.T) {
 	if _, err := runs.GetRun(ctx, producer.RunID); !errors.Is(err, runstore.ErrNotFound) {
 		t.Fatalf("producer still exists: %v", err)
 	}
-	projectArtifacts, err := artifacts.NewService(artifacts.NewPostgresRepository(pool)).Project(project.ProjectID)
+	projectArtifacts, err := artifacts.NewService(artifactpostgres.NewRepository(pool)).Project(project.ProjectID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,7 +95,7 @@ func TestProjectDeletionCancelsDrainsPurgesAndRetainsSharedResources(t *testing.
 	pool := isolatedPool(t, ctx)
 	projects := projectstore.NewPostgresStore(pool)
 	runs := runstore.NewPostgresStore(pool)
-	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	artifactService := artifacts.NewService(artifactpostgres.NewRepository(pool))
 
 	project, _, err := projects.Create(ctx, projectstore.CreateParams{
 		ProjectID: "project-delete", OwnerID: "user-1", Kind: projectstore.KindProject,
@@ -591,7 +592,7 @@ func seedDecidedAuditHistory(t *testing.T, ctx context.Context, pool *pgxpool.Po
 	first := seedProjectFindingForDeletion(t, ctx, pool, audit.ProjectID, audit.OwnerID, audit.AuditID, "decided", doc, fp, anchors)
 	doc.ClientKey = "candidate-duplicate"
 	second := seedProjectFindingForDeletion(t, ctx, pool, audit.ProjectID, audit.OwnerID, audit.AuditID, "duplicate", doc, fp, anchors)
-	store := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	store := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	write := func(name string) auditstore.ExactArtifact {
 		payload := []byte(name)
 		file, err := artifactstest.WriteAuditArtifact(ctx, store, audit.ProjectID, contracts.ArtifactRef{Namespace: artifactpolicy.FindingMaterialsNamespace, Name: name}, artifacts.Payload{MediaType: "text/plain", Data: payload})
@@ -627,7 +628,7 @@ func seedProjectFindingForDeletion(
 	retainedEvidence := make([]findingintake.ExactArtifact, 0, len(document.EvidenceIDs))
 	for _, id := range document.EvidenceIDs {
 		body := []byte("Retained evidence " + suffix + " " + id)
-		file, err := artifactstest.WriteAuditArtifact(ctx, artifacts.NewService(artifacts.NewPostgresRepository(pool)), projectID, contracts.ArtifactRef{Namespace: artifactpolicy.FindingMaterialsNamespace, Name: suffix + "-" + id}, artifacts.Payload{MediaType: "text/plain", Data: body})
+		file, err := artifactstest.WriteAuditArtifact(ctx, artifacts.NewService(artifactpostgres.NewRepository(pool)), projectID, contracts.ArtifactRef{Namespace: artifactpolicy.FindingMaterialsNamespace, Name: suffix + "-" + id}, artifacts.Payload{MediaType: "text/plain", Data: body})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -643,7 +644,7 @@ func seedProjectFindingForDeletion(
 		t.Fatal(err)
 	}
 	namespace := artifactpolicy.FindingMaterialsNamespace
-	written, err := artifactstest.WriteAuditArtifact(ctx, artifacts.NewService(artifacts.NewPostgresRepository(pool)), projectID,
+	written, err := artifactstest.WriteAuditArtifact(ctx, artifacts.NewService(artifactpostgres.NewRepository(pool)), projectID,
 		contracts.ArtifactRef{Namespace: namespace, Name: "candidate-" + suffix},
 		artifacts.Payload{MediaType: "application/json", Data: payload})
 	if err != nil {

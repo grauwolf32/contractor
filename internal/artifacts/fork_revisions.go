@@ -3,6 +3,7 @@ package artifacts
 import (
 	"context"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -12,7 +13,7 @@ import (
 // It reads only metadata, never substitutes the current revision, and bounds
 // the selection by MaxExactReadBatchSize in the caller's repository/transaction.
 func (s ScopedStore) DescribeForkRevisions(ctx context.Context, namespace string, names []string, kind string) ([]contracts.ExactArtifact, error) {
-	if err := validateForkRevisionSelection(s.scope, namespace, names, kind); err != nil {
+	if err := ValidateForkRevisionSelection(s.scope, namespace, names, kind); err != nil {
 		return nil, err
 	}
 	if len(names) == 0 {
@@ -26,7 +27,7 @@ func (s ScopedStore) DescribeForkRevisions(ctx context.Context, namespace string
 // existing binding without exactly one matching fork is ErrArtifactIntegrity.
 // The request has the same metadata-only batch bound as DescribeForkRevisions.
 func (s ScopedStore) DescribeForkSources(ctx context.Context, namespace string, names []string, kind string) ([]LineageEdge, error) {
-	if err := validateForkRevisionSelection(s.scope, namespace, names, kind); err != nil {
+	if err := ValidateForkRevisionSelection(s.scope, namespace, names, kind); err != nil {
 		return nil, err
 	}
 	if len(names) == 0 {
@@ -35,19 +36,19 @@ func (s ScopedStore) DescribeForkSources(ctx context.Context, namespace string, 
 	return s.service.repository.DescribeForkSources(ctx, s.scope, namespace, names, kind)
 }
 
-func validateForkRevisionSelection(scope Scope, namespace string, names []string, kind string) error {
-	if err := validateScope(scope); err != nil {
+func ValidateForkRevisionSelection(scope Scope, namespace string, names []string, kind string) error {
+	if err := ValidateScope(scope); err != nil {
 		return err
 	}
-	if validateComponent(namespace) != nil || !validLineageKind(kind) {
+	if ValidateComponent(namespace) != nil || !validLineageKind(kind) {
 		return ErrInvalidName
 	}
 	if len(names) > MaxExactReadBatchSize {
-		return ErrPayloadTooLarge
+		return blob.ErrTooLarge
 	}
 	seen := make(map[string]bool, len(names))
 	for _, name := range names {
-		if validateComponent(name) != nil || seen[name] {
+		if ValidateComponent(name) != nil || seen[name] {
 			return ErrInvalidName
 		}
 		seen[name] = true

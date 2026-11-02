@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/projectsitemap"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -34,7 +35,7 @@ func seedUnifiedSitemap(t *testing.T, ctx context.Context, pool *pgxpool.Pool, o
 	if err != nil {
 		t.Fatal(err)
 	}
-	stored, err := artifacts.NewService(artifacts.NewPostgresRepository(pool)).Create(ctx, scope, contracts.ArtifactRef{Namespace: "schemas", Name: "unified-api"}, artifacts.Payload{MediaType: "application/json", Data: payload})
+	stored, err := artifacts.NewService(artifactpostgres.NewRepository(pool)).Create(ctx, scope, contracts.ArtifactRef{Namespace: "schemas", Name: "unified-api"}, artifacts.Payload{MediaType: "application/json", Data: payload})
 	if err != nil {
 		t.Fatal(err)
 	}

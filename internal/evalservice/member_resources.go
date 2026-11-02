@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
@@ -54,7 +55,7 @@ func (d *memberResources) inputs(ctx context.Context, e evalstore.Experiment, m 
 		if err := recovery.LockMember(ctx); err != nil {
 			return err
 		}
-		service := artifacts.NewService(artifacts.NewPostgresRepository(tx))
+		service := artifacts.NewService(artifactpostgres.NewRepository(tx))
 		target, err := service.Project(request.ProjectID)
 		if err != nil {
 			return err

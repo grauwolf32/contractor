@@ -17,6 +17,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -117,7 +118,7 @@ func newLargeDirectCollectionFixture(t *testing.T) deletionImportFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(f.pool))
+	artifactService := artifacts.NewService(artifactpostgres.NewRepository(f.pool))
 	runArtifacts, err := artifactService.Run(f.request.RunID)
 	if err != nil {
 		t.Fatal(err)
@@ -324,7 +325,7 @@ func assertFixtureHolds(t *testing.T, f deletionImportFixture, want int) {
 // fixture's source Run, in canonical reference order.
 func writeFixtureEvidence(t *testing.T, f deletionImportFixture, count int) []ExactArtifact {
 	t.Helper()
-	runArtifacts, err := artifacts.NewService(artifacts.NewPostgresRepository(f.pool)).Run(f.request.RunID)
+	runArtifacts, err := artifacts.NewService(artifactpostgres.NewRepository(f.pool)).Run(f.request.RunID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -350,7 +351,7 @@ func writeFixtureEvidence(t *testing.T, f deletionImportFixture, count int) []Ex
 // advances once, so the cited revision is not the current one.
 func writeLostFixtureEvidence(t *testing.T, f deletionImportFixture) ExactArtifact {
 	t.Helper()
-	runArtifacts, err := artifacts.NewService(artifacts.NewPostgresRepository(f.pool)).Run(f.request.RunID)
+	runArtifacts, err := artifacts.NewService(artifactpostgres.NewRepository(f.pool)).Run(f.request.RunID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -634,7 +635,7 @@ func TestPostgresCollectionRejectionKeepsEarlierDirectAssessments(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(f.pool))
+	artifactService := artifacts.NewService(artifactpostgres.NewRepository(f.pool))
 	runArtifacts, err := artifactService.Run(f.request.RunID)
 	if err != nil {
 		t.Fatal(err)
@@ -665,7 +666,7 @@ func TestPostgresCollectionRejectionKeepsEarlierDirectAssessments(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	prepared, err := prepareDirectVerification(f.ctx, tx, artifacts.NewService(artifacts.NewPostgresRepository(tx)),
+	prepared, err := prepareDirectVerification(f.ctx, tx, artifacts.NewService(artifactpostgres.NewRepository(tx)),
 		directVerificationInput{
 			AuditID: f.request.AuditID, ProjectID: "delete-project", RunID: f.request.RunID,
 			WorkflowClosureDigest: base.Origin.Workflow.ClosureDigest,

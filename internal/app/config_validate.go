@@ -9,7 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auth"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -90,7 +91,7 @@ func (c *serveConfigInputs) effectiveConfig() (Config, error) {
 		c.developmentPlannerToken = c.developmentWorkerToken
 	}
 
-	selectedBlobBackend, err := artifacts.ValidateBlobConfig(c.blobBackend, c.blobPath)
+	selectedBlobBackend, err := blob.ValidateConfig(c.blobBackend, c.blobPath)
 	if err != nil {
 		return Config{}, err
 	}
@@ -98,7 +99,7 @@ func (c *serveConfigInputs) effectiveConfig() (Config, error) {
 	if err != nil {
 		return Config{}, errors.New("artifact-blob-inline-max-bytes must be an integer byte count")
 	}
-	if err := artifacts.ValidateBlobInlineLimit(blobInlineMaxBytes); err != nil {
+	if err := blob.ValidateInlineLimit(blobInlineMaxBytes); err != nil {
 		return Config{}, err
 	}
 	historyMaxRevisions, err := strconv.ParseInt(c.historyMaxRevisions, 10, 64)
@@ -109,7 +110,7 @@ func (c *serveConfigInputs) effectiveConfig() (Config, error) {
 	if err != nil {
 		return Config{}, errors.New("artifact-history-max-bytes must be an integer byte count")
 	}
-	history, err := artifacts.NewHistoryPolicy(historyMaxRevisions, historyMaxBytes)
+	history, err := artifactpostgres.NewHistoryPolicy(historyMaxRevisions, historyMaxBytes)
 	if err != nil {
 		return Config{}, err
 	}

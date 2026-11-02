@@ -10,6 +10,8 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/claimpass"
@@ -835,11 +837,11 @@ func permanentSubmissionError(err error) bool {
 	var document *auditdomain.ValidationError
 	return errors.Is(err, runservice.ErrInvalid) || errors.Is(err, runstore.ErrInvalid) ||
 		errors.Is(err, auditstore.ErrInvalid) || errors.Is(err, auditstore.ErrConflict) ||
-		artifacts.IsExactReferenceRejection(err) || artifacts.IsExactRevisionMissing(err) ||
+		artifacts.IsExactReferenceRejection(err) || artifactpostgres.IsExactRevisionMissing(err) ||
 		errors.Is(err, artifacts.ErrHistoryProtected) || errors.Is(err, artifacts.ErrArtifactConflict) ||
 		errors.Is(err, artifacts.ErrRunRevisionLimit) || errors.Is(err, artifacts.ErrArtifactFrozen) ||
 		errors.Is(err, artifacts.ErrReservedNamespace) || errors.Is(err, artifacts.ErrInvalidMediaType) ||
-		errors.Is(err, artifacts.ErrPayloadTooLarge) || errors.Is(err, artifacts.ErrVersionedWriteTarget) ||
+		errors.Is(err, blob.ErrTooLarge) || errors.Is(err, artifacts.ErrVersionedWriteTarget) ||
 		errors.Is(err, contracts.ErrExactArtifactMismatch) || errors.As(err, &document) ||
 		errors.As(err, &skill) && !skill.Retryable
 }

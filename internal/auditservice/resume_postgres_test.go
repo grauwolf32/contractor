@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
@@ -45,7 +46,7 @@ func newTimeControlAudit(t *testing.T, seconds int) (context.Context, *pgxpool.P
 	if err != nil {
 		t.Fatal(err)
 	}
-	scoped, err := artifacts.NewService(artifacts.NewPostgresRepository(pool)).Project(project.ProjectID)
+	scoped, err := artifacts.NewService(artifactpostgres.NewRepository(pool)).Project(project.ProjectID)
 	if err != nil {
 		t.Fatal(err)
 	}

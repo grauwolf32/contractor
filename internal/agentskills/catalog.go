@@ -9,6 +9,7 @@ import (
 	"sort"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 )
@@ -157,7 +158,7 @@ func initializeSeed(
 	if err == nil {
 		return classifySeed(pkg, current), nil
 	}
-	if errors.Is(err, artifacts.ErrBlobMissing) {
+	if errors.Is(err, blob.ErrMissing) {
 		return missingSeed(pkg), nil
 	}
 	if !errors.Is(err, artifacts.ErrArtifactNotFound) {
@@ -174,7 +175,7 @@ func initializeSeed(
 		return SeedOutcome{}, err
 	}
 	current, err = store.Read(ctx, ref)
-	if errors.Is(err, artifacts.ErrBlobMissing) {
+	if errors.Is(err, blob.ErrMissing) {
 		return missingSeed(pkg), nil
 	}
 	if err != nil {

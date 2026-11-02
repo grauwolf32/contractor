@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -150,7 +151,7 @@ func TestProjectFindingEditsAreSharedAcrossAuditsAndReplayOriginalSnapshots(t *t
 		if err != nil || source.ProjectProposal == nil || len(source.ProjectEvidence) != 1 {
 			t.Fatalf("independent retained source: %+v %v", source, err)
 		}
-		project, _ := artifacts.NewService(artifacts.NewPostgresRepository(f.pool)).Project(f.project)
+		project, _ := artifacts.NewService(artifactpostgres.NewRepository(f.pool)).Project(f.project)
 		if _, err = project.Read(f.ctx, source.ProjectEvidence[0].Ref); err != nil {
 			t.Fatal(err)
 		}

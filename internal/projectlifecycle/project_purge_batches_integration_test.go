@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -162,7 +163,7 @@ UPDATE finding_proposal_receipts
 	}
 	seedFindingReceipts(t, ctx, pool, "other", "run-other", &other.ProjectID, 2)
 	seedFindingReceipts(t, ctx, pool, "standalone", "run-standalone", nil, 1)
-	projectArtifacts, err := artifacts.NewService(artifacts.NewPostgresRepository(pool)).Project(project.ProjectID)
+	projectArtifacts, err := artifacts.NewService(artifactpostgres.NewRepository(pool)).Project(project.ProjectID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -292,7 +293,7 @@ UPDATE finding_proposal_receipts
  WHERE run_id = 'run-deleted'`); err != nil {
 		t.Fatal(err)
 	}
-	projectArtifacts, err := artifacts.NewService(artifacts.NewPostgresRepository(pool)).Project(project.ProjectID)
+	projectArtifacts, err := artifacts.NewService(artifactpostgres.NewRepository(pool)).Project(project.ProjectID)
 	if err != nil {
 		t.Fatal(err)
 	}

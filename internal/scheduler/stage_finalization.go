@@ -11,6 +11,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
@@ -558,7 +559,7 @@ func (s *Scheduler) escalationAttempts(
 // prepareStageWorkers checks it before replaying the stored completion.
 func summaryPublicationRetryable(err error) bool {
 	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) ||
-		errors.Is(err, artifacts.ErrBlobIO) || persistencepostgres.IsTransientFailure(err)
+		errors.Is(err, blob.ErrIO) || persistencepostgres.IsTransientFailure(err)
 }
 
 func (s *Scheduler) acceptFinalizingDuringCancellation(

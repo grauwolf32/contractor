@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 )
 
 func TestWriteRejectsDistinctInvalidInputsBeforeRepository(t *testing.T) {
@@ -44,7 +45,7 @@ func TestWriteRejectsDistinctInvalidInputsBeforeRepository(t *testing.T) {
 		{
 			name: "oversized", scope: "user",
 			ref:     ArtifactRef{Namespace: "projects", Name: "archive"},
-			payload: Payload{MediaType: "application/zip", Data: make([]byte, MaxPayloadSize+1)}, want: ErrPayloadTooLarge,
+			payload: Payload{MediaType: "application/zip", Data: make([]byte, MaxPayloadSize+1)}, want: blob.ErrTooLarge,
 		},
 		{
 			name: "versioned write target", scope: "user",

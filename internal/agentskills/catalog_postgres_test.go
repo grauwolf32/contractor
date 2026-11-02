@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/persistence/postgrestest"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -18,7 +19,7 @@ func TestCatalogPostgresConcurrentInitializationIsCreateOnly(t *testing.T) {
 	defer cancel()
 	pool := isolatedSkillCatalogPool(t, ctx)
 	plan := bundledPlan(t, map[string]string{"alpha": "Alpha."})
-	service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	catalog, err := NewCatalog(service)
 	if err != nil {
 		t.Fatal(err)
@@ -90,12 +91,12 @@ func TestCatalogPostgresRunSourceRemovedByRetentionIsNotFound(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedSkillCatalogPool(t, ctx)
-	policy, err := artifacts.NewHistoryPolicy(artifacts.HistoryRevisionsFloor, artifacts.HistoryBytesFloor)
+	policy, err := artifactpostgres.NewHistoryPolicy(artifactpostgres.HistoryRevisionsFloor, artifactpostgres.HistoryBytesFloor)
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx = artifacts.WithHistoryPolicy(ctx, policy)
-	service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	ctx = artifactpostgres.WithHistoryPolicy(ctx, policy)
+	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	catalog, err := NewCatalog(service)
 	if err != nil {
 		t.Fatal(err)

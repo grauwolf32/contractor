@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
@@ -41,7 +42,7 @@ func TestPostgresPrivateSitemapRolesSafeBytesScopeAndFence(t *testing.T) {
 	createPrivateSitemapProjectRun(t, ctx, pool, "project-a", "run-a")
 	createPrivateSitemapProjectRun(t, ctx, pool, "project-b", "run-b")
 	service := projectsitemap.NewService(pool)
-	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	artifactService := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	registry := &fakeRegistry{grant: testGrant("run-a")}
 	registry.grant.SitemapPolicy = &contracts.ProjectSitemapPolicy{Version: contracts.SitemapAccessVersion}
 	setTools := func(tools ...string) {

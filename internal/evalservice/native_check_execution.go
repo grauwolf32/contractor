@@ -6,6 +6,8 @@ import (
 	"sort"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalstore"
@@ -144,15 +146,15 @@ func (c *nativeChecker) validateJSON(ctx context.Context, check evaldomain.Check
 	if err != nil {
 		return "", "", err
 	}
-	store, err := artifacts.NewService(artifacts.NewPostgresRepository(c.db)).Scoped(scope)
+	store, err := artifacts.NewService(artifactpostgres.NewRepository(c.db)).Scoped(scope)
 	if err != nil {
 		return "", "", err
 	}
 	read, err := store.Read(ctx, contracts.ArtifactRef{Namespace: ref.Namespace, Name: ref.Name, Revision: &ref.Revision})
-	if errors.Is(err, artifacts.ErrArtifactNotFound) || errors.Is(err, artifacts.ErrBlobMissing) {
+	if errors.Is(err, artifacts.ErrArtifactNotFound) || errors.Is(err, blob.ErrMissing) {
 		return "incomplete", "Exact output bytes are unavailable.", nil
 	}
-	if errors.Is(err, artifacts.ErrArtifactIntegrity) {
+	if errors.Is(err, blob.ErrIntegrity) {
 		return "error", "Exact output integrity verification failed.", nil
 	}
 	if err != nil {

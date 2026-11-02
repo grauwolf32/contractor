@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
@@ -61,7 +62,7 @@ func TestPostgresProposalEvidenceQuotaAdmitsExactlyItsLimit(t *testing.T) {
 		t.Fatal("exchange Artifacts of the two submissions differ in size")
 	}
 
-	runArtifacts, err := artifacts.NewService(artifacts.NewPostgresRepository(pool)).Run(run)
+	runArtifacts, err := artifacts.NewService(artifactpostgres.NewRepository(pool)).Run(run)
 	if err != nil {
 		t.Fatal(err)
 	}

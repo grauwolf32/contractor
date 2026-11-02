@@ -6,6 +6,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 )
@@ -18,7 +19,7 @@ func storeTestRunArtifact(
 	t *testing.T, ctx context.Context, db persistencepostgres.DBTX, runID, namespace, name string,
 ) contracts.ArtifactRef {
 	t.Helper()
-	ref, err := artifactstest.WriteRunArtifact(ctx, artifacts.NewService(artifacts.NewPostgresRepository(db)), runID,
+	ref, err := artifactstest.WriteRunArtifact(ctx, artifacts.NewService(artifactpostgres.NewRepository(db)), runID,
 		contracts.ArtifactRef{Namespace: namespace, Name: name},
 		artifacts.Payload{MediaType: "text/plain", Data: []byte(namespace + "/" + name)})
 	if err != nil {
@@ -31,7 +32,7 @@ func storeTestRunArtifact(
 // inputs/<slot> of runID, as Run creation does, and returns its exact ref.
 func storeTestRunInput(t *testing.T, ctx context.Context, db persistencepostgres.DBTX, runID, slot string) contracts.ArtifactRef {
 	t.Helper()
-	service := artifacts.NewService(artifacts.NewPostgresRepository(db))
+	service := artifacts.NewService(artifactpostgres.NewRepository(db))
 	user, err := service.User("user-1")
 	if err != nil {
 		t.Fatal(err)

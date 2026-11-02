@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/grauwolf32/contractor/internal/apierror"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/helpers/clone"
 )
@@ -15,14 +16,12 @@ var (
 	ErrInvalidScope          = apierror.New(apierror.InvalidRequest, "invalid artifact scope")
 	ErrInvalidName           = apierror.New(apierror.InvalidRequest, "invalid artifact namespace or name")
 	ErrInvalidMediaType      = apierror.New(apierror.InvalidRequest, "invalid artifact media type")
-	ErrPayloadTooLarge       = apierror.New(apierror.ArtifactTooLarge, "artifact payload exceeds size limit")
 	ErrVersionedWriteTarget  = apierror.New(apierror.InvalidRequest, "artifact write target must be versionless")
 	ErrExactRevisionRequired = apierror.New(apierror.InvalidRequest, "exact artifact revision is required")
 	ErrArtifactConflict      = apierror.New(apierror.Conflict, "artifact binding compare-and-swap conflict")
 	ErrArtifactNotFound      = apierror.New(apierror.NotFound, "artifact not found")
 	ErrReservedNamespace     = apierror.New(apierror.InvalidRequest, "artifact namespace is reserved")
 	ErrArtifactFrozen        = apierror.New(apierror.ArtifactFrozen, "artifact binding is frozen")
-	ErrArtifactIntegrity     = apierror.New(apierror.ArtifactContentCorrupt, "artifact payload integrity failure")
 	ErrScopeDeleting         = apierror.New(apierror.ProjectDeleting, "artifact Project scope is deleting")
 	// ErrRunRevisionLimit reports that a RunScope already holds the most
 	// binding revisions one Run may create (LIM-ART-6). It is permanent for
@@ -33,7 +32,7 @@ var (
 // ErrAuditArtifactCollision means a content-named Audit artifact binding
 // already holds other content. It is an integrity failure: retrying the same
 // write can never succeed.
-var ErrAuditArtifactCollision = fmt.Errorf("%w: Audit artifact binding holds other content", ErrArtifactIntegrity)
+var ErrAuditArtifactCollision = fmt.Errorf("%w: Audit artifact binding holds other content", blob.ErrIntegrity)
 
 // IsExactReferenceRejection reports whether err, returned while verifying an
 // exact Artifact reference, rejects the reference itself: its scope,
@@ -49,7 +48,7 @@ var ErrAuditArtifactCollision = fmt.Errorf("%w: Audit artifact binding holds oth
 func IsExactReferenceRejection(err error) bool {
 	return errors.Is(err, ErrInvalidScope) || errors.Is(err, ErrInvalidName) ||
 		errors.Is(err, ErrExactRevisionRequired) || errors.Is(err, ErrArtifactNotFound) ||
-		errors.Is(err, ErrArtifactIntegrity) || errors.Is(err, contracts.ErrValidation)
+		errors.Is(err, blob.ErrIntegrity) || errors.Is(err, contracts.ErrValidation)
 }
 
 type ConflictError struct {

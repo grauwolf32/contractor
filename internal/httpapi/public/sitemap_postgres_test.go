@@ -9,6 +9,7 @@ import (
 
 	"github.com/getkin/kin-openapi/routers/gorillamux"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 	"github.com/grauwolf32/contractor/internal/projectsitemap"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -26,14 +27,14 @@ func TestPostgresPublicProjectSitemap(t *testing.T) {
 	fixture := newHandlerFixtureWithAuth(t, "../../config/testdata/valid", newTestAuthentication(t), mustTestOrigins(t), false, nil, func(d *testServices) {
 		d.Projects = projects
 		d.Sitemap = projectsitemap.NewService(pool)
-		d.Artifacts = artifacts.NewService(artifacts.NewPostgresRepository(pool))
+		d.Artifacts = artifacts.NewService(artifactpostgres.NewRepository(pool))
 	})
 	router, err := gorillamux.NewRouter(loadPublicOpenAPI(t))
 	if err != nil {
 		t.Fatal(err)
 	}
-	policy, _ := artifacts.NewHistoryPolicy(2, artifacts.DefaultHistoryMaxBytes)
-	ctx = artifacts.WithHistoryPolicy(ctx, policy)
+	policy, _ := artifactpostgres.NewHistoryPolicy(2, artifactpostgres.DefaultHistoryMaxBytes)
+	ctx = artifactpostgres.WithHistoryPolicy(ctx, policy)
 	send := func(method, path, key, body string, status int) []byte {
 		t.Helper()
 		request := newPublicContractRequest(method, path, []byte(body)).WithContext(ctx)

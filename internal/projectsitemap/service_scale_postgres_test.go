@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 )
 
 // This serial volume proof keeps the production operation deadline. The complete
@@ -20,11 +21,11 @@ func TestPostgresSitemapSingleRunExceedsRemovedPublicationCaps(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 8*time.Minute)
 	defer cancel()
 	createSitemapRun(t, ctx, pool, "producer")
-	policy, err := artifacts.NewHistoryPolicy(2, artifacts.DefaultHistoryMaxBytes)
+	policy, err := artifactpostgres.NewHistoryPolicy(2, artifactpostgres.DefaultHistoryMaxBytes)
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx = artifacts.WithHistoryPolicy(ctx, policy)
+	ctx = artifactpostgres.WithHistoryPolicy(ctx, policy)
 	// A realistic map of 300 annotated operations ensures the assertion measures
 	// actual encoded publication bytes, rather than a synthetic byte counter.
 	d := Empty()
@@ -43,7 +44,7 @@ func TestPostgresSitemapSingleRunExceedsRemovedPublicationCaps(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	artifactsService := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	artifactsService := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	scope, _ := artifacts.ProjectScope("project")
 	if _, err := artifactsService.Create(ctx, scope, mapRef(), artifacts.Payload{MediaType: MediaType, Data: data}); err != nil {
 		t.Fatal(err)

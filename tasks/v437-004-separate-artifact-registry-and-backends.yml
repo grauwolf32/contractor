@@ -45,5 +45,5 @@ acceptance_criteria:
 tests:
   - command: "make lint"
     covers: [A1, A2]
-  - command: "go test -count=1 -tags integration ./internal/... ./cmd/..."
+  - command: "go test -count=1 -tags integration -p 2 ./internal/... ./cmd/..."
     covers: [A1, A2]

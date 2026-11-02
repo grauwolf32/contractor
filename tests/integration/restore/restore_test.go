@@ -19,6 +19,9 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob/backends/filesystem"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	postgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/jackc/pgx/v5"
@@ -30,7 +33,7 @@ import (
 // from its metadata. Only databases created by this test are ever dropped.
 func TestBackupRestorePreservesExactArtifactsAndCAS(t *testing.T) {
 	t.Run("readable tool failure", checkReadableToolFailure)
-	for _, backend := range []artifacts.BlobBackend{artifacts.BlobPostgres, artifacts.BlobFilesystem} {
+	for _, backend := range []blob.Backend{blob.Postgres, blob.Filesystem} {
 		t.Run(string(backend), func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
 			defer cancel()
@@ -53,7 +56,7 @@ func TestBackupRestorePreservesExactArtifactsAndCAS(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			store, err := artifacts.NewService(artifacts.NewPostgresRepository(source)).Project(project.ProjectID)
+			store, err := artifacts.NewService(artifactpostgres.NewRepository(source)).Project(project.ProjectID)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -81,7 +84,7 @@ func TestBackupRestorePreservesExactArtifactsAndCAS(t *testing.T) {
 			}
 			archive := filepath.Join(t.TempDir(), "database.dump")
 			runPostgresTool(t, ctx, config, sourceName, "pg_dump", "--format=custom", "--no-owner", "--file", archive)
-			if backend == artifacts.BlobFilesystem {
+			if backend == blob.Filesystem {
 				if err := os.CopyFS(backupDir, os.DirFS(sourceDir)); err != nil {
 					t.Fatal(err)
 				}
@@ -103,11 +106,11 @@ func TestBackupRestorePreservesExactArtifactsAndCAS(t *testing.T) {
 				t.Fatalf("restored rows of tables that call schema functions differ:\n%v\nwant\n%v", restoredRows, functionRows)
 			}
 			targetCtx := restoreBlobContext(t, ctx, backend, targetDir)
-			recoveredStore, err := artifacts.NewService(artifacts.NewPostgresRepository(target)).Project(project.ProjectID)
+			recoveredStore, err := artifacts.NewService(artifactpostgres.NewRepository(target)).Project(project.ProjectID)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if backend == artifacts.BlobFilesystem {
+			if backend == blob.Filesystem {
 				if _, err := recoveredStore.Read(targetCtx, latest.Ref); err == nil {
 					t.Fatal("database-only restore fabricated missing filesystem payload")
 				}
@@ -190,17 +193,17 @@ func restoreDatabase(t *testing.T, ctx context.Context, admin *pgxpool.Pool, con
 	return pool, name
 }
 
-func restoreBlobContext(t *testing.T, ctx context.Context, backend artifacts.BlobBackend, directory string) context.Context {
+func restoreBlobContext(t *testing.T, ctx context.Context, backend blob.Backend, directory string) context.Context {
 	t.Helper()
-	if backend != artifacts.BlobFilesystem {
+	if backend != blob.Filesystem {
 		return ctx
 	}
-	store, err := artifacts.OpenFilesystemBlobStore(ctx, directory)
+	store, err := filesystem.Open(ctx, directory)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = store.Close() })
-	return artifacts.WithBlobRuntime(ctx, artifacts.NewBlobRuntime(store, nil))
+	return blob.WithRuntime(ctx, blob.NewRuntime(store, nil))
 }
 
 func runPostgresTool(t *testing.T, ctx context.Context, config *pgxpool.Config, database, tool string, args ...string) {

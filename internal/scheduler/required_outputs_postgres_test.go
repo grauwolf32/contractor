@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/jackc/pgx/v5"
@@ -29,7 +30,7 @@ func TestPostgresRequiredWorkflowOutputsReadTheArtifactStore(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	createBoundProjectRunOutput(t, ctx, pool, service, "run-outputs", "project-outputs", "result", "bound output")
 
 	text := []string{"text/plain"}

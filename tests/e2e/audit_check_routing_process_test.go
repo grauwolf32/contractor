@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -245,7 +246,7 @@ func (r *typedCheckProcessReader) stage(method, role string, ordinal int) domain
 
 func assertTypedCheckConsumerBytes(t *testing.T, h *scanProcessHarness, auditID, projectID, producer string) {
 	t.Helper()
-	project, err := artifacts.NewService(artifacts.NewPostgresRepository(h.pool)).Project(projectID)
+	project, err := artifacts.NewService(artifactpostgres.NewRepository(h.pool)).Project(projectID)
 	if err != nil {
 		t.Fatal(err)
 	}

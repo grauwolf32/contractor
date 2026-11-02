@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -51,7 +52,7 @@ func TestFindingsReaderBoundariesAcrossProcesses(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer pool.Close()
-		service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+		service := artifacts.NewService(artifactpostgres.NewRepository(pool))
 		for _, test := range []struct {
 			run  string
 			data []byte

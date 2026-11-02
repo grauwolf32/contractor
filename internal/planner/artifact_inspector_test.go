@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	inline "github.com/grauwolf32/contractor/internal/artifacts/blob/backends/postgres"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/stageresult"
@@ -42,15 +44,15 @@ func (r *inspectorMetadataRepository) Metadata(
 
 func saturatedInspectorContext(t *testing.T) context.Context {
 	t.Helper()
-	ctx := artifacts.WithBlobRuntime(t.Context(), artifacts.NewBlobRuntime(artifacts.PostgresBlobStore{}, nil))
+	ctx := blob.WithRuntime(t.Context(), blob.NewRuntime(inline.Store{}, nil))
 	for range 4 {
-		_, release, err := artifacts.AcquireTransfer(ctx)
+		_, release, err := blob.AcquireTransfer(ctx)
 		if err != nil {
 			t.Fatal(err)
 		}
 		t.Cleanup(release)
 	}
-	if _, _, err := artifacts.AcquireTransfer(ctx); !errors.Is(err, artifacts.ErrTransferCapacity) {
+	if _, _, err := blob.AcquireTransfer(ctx); !errors.Is(err, blob.ErrTransferCapacity) {
 		t.Fatalf("transfer gate was not saturated: %v", err)
 	}
 	return ctx
@@ -101,7 +103,7 @@ func TestArtifactInspectorsUseExactMetadataWithTransferSlotsSaturated(t *testing
 		Ref:       contracts.ArtifactRef{Namespace: ref.Namespace, Name: ref.Name, Revision: &wrong},
 		MediaType: "application/json",
 	}
-	if _, err := inspector.Inspect(ctx, "run-1", ref); !errors.Is(err, artifacts.ErrArtifactIntegrity) {
+	if _, err := inspector.Inspect(ctx, "run-1", ref); !errors.Is(err, blob.ErrIntegrity) {
 		t.Fatalf("metadata for another revision = %v, want ErrArtifactIntegrity", err)
 	}
 }

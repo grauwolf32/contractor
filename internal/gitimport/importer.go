@@ -9,6 +9,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/apierror"
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -80,7 +82,7 @@ func (i *Importer) DoImport(ctx context.Context, request ImportRequest, respond 
 	}
 	ctx, cancel := context.WithTimeout(ctx, i.timeout)
 	defer cancel()
-	ctx, release, err := artifacts.AcquireTransfer(ctx)
+	ctx, release, err := blob.AcquireTransfer(ctx)
 	if err != nil {
 		return err
 	}
@@ -97,7 +99,7 @@ func (i *Importer) DoImport(ctx context.Context, request ImportRequest, respond 
 	if (request.ProjectID == "" && artifactpolicy.IsAuditStandardCatalogNamespace(request.Target.Namespace)) || (request.ProjectID != "" && artifactpolicy.IsAuditManagedProjectNamespace(request.Target.Namespace)) {
 		return artifacts.ErrReservedNamespace
 	}
-	service := artifacts.NewService(artifacts.NewPostgresRepository(i.pool))
+	service := artifacts.NewService(artifactpostgres.NewRepository(i.pool))
 	store, scope, err := importScope(service, request)
 	if err != nil {
 		return err
@@ -139,7 +141,7 @@ func (i *Importer) DoImport(ctx context.Context, request ImportRequest, respond 
 	if (request.Mode == ModeAnalysis) != (snapshot.Analysis != nil) {
 		return ErrContent
 	}
-	payload, err := artifacts.PreparePayload(ctx, i.pool, artifacts.Payload{MediaType: "application/zip", Data: snapshot.Data})
+	payload, err := artifactpostgres.PreparePayload(ctx, i.pool, artifacts.Payload{MediaType: "application/zip", Data: snapshot.Data})
 	if err != nil {
 		return err
 	}
@@ -159,7 +161,7 @@ func (i *Importer) DoImport(ctx context.Context, request ImportRequest, respond 
 				return projectstore.ErrDeleting
 			}
 		}
-		repository := artifacts.NewPostgresTxRepository(tx)
+		repository := artifactpostgres.NewTxRepository(tx)
 		store, _, err := importScope(artifacts.NewService(repository), request)
 		if err != nil {
 			return err
@@ -173,7 +175,7 @@ func (i *Importer) DoImport(ctx context.Context, request ImportRequest, respond 
 	if errors.Is(err, artifacts.ErrHistoryMaintenancePending) {
 		// The import's transaction rolled back and stored nothing; commit the
 		// one maintenance pass its binding needs before answering (ART-R127).
-		err = artifacts.NewPostgresRepository(i.pool).MaintainHistory(ctx, err)
+		err = artifactpostgres.NewRepository(i.pool).MaintainHistory(ctx, err)
 	}
 	if err != nil {
 		return err

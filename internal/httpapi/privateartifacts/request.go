@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	"github.com/grauwolf32/contractor/internal/httpapi/artifacttransfer"
 	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
@@ -47,10 +48,10 @@ func decodeBoundedJSON(w http.ResponseWriter, r *http.Request, maximum int64, ta
 // rejects negative lengths other than "unknown" and hides the read cause.
 func readArtifactBody(r *http.Request, transfer *artifacttransfer.Transfer) ([]byte, error) {
 	if r.ContentLength < -1 {
-		return nil, artifacts.ErrPayloadTooLarge
+		return nil, blob.ErrTooLarge
 	}
 	data, err := transfer.ReadBody(r, artifacts.MaxPayloadSize)
-	if err != nil && !errors.Is(err, artifacts.ErrPayloadTooLarge) {
+	if err != nil && !errors.Is(err, blob.ErrTooLarge) {
 		return nil, errors.New("read private artifact body")
 	}
 	return data, err

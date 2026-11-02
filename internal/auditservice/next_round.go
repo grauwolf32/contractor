@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
@@ -87,7 +88,7 @@ func (s *Service) PrepareNextRound(
 		return auditstore.AcceptRoundParams{}, nil, err
 	}
 	writer := auditArtifactWriter{
-		service:   artifacts.NewService(artifacts.NewPostgresRepository(s.pool)),
+		service:   artifacts.NewService(artifactpostgres.NewRepository(s.pool)),
 		projectID: snapshot.Audit.ProjectID,
 		claim:     &claim, writes: hookstore.NewClaimedArtifacts(s.pool),
 	}

@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -48,7 +49,7 @@ FOR UPDATE`, claim.AuditID, projectID).Scan(&id)
 		if err != nil {
 			return persistencepostgres.WrapError("lock Audit for artifact publication", err)
 		}
-		if err := write(artifacts.NewService(artifacts.NewPostgresRepository(tx))); err != nil {
+		if err := write(artifacts.NewService(artifactpostgres.NewRepository(tx))); err != nil {
 			return err
 		}
 		live, err := auditClaims.Live(ctx, tx, claim.AuditID, claim.HolderID, int64(claim.Epoch))

@@ -7,6 +7,7 @@ import (
 	"sort"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
@@ -49,7 +50,7 @@ func (p *PostgresPersistence) CreateStageWithContext(
 		if err != nil {
 			return err
 		}
-		artifactService := artifacts.NewService(artifacts.NewPostgresRepository(tx))
+		artifactService := artifacts.NewService(artifactpostgres.NewRepository(tx))
 		scope, err := artifacts.RunScope(params.RunID)
 		if err != nil {
 			return err
@@ -84,7 +85,7 @@ func (p *PostgresPersistence) EnterFinalizingWithResult(
 		if _, err := store.LockRunState(ctx, execution.RunID, finalizationRunStates...); err != nil {
 			return err
 		}
-		artifactService := artifacts.NewService(artifacts.NewPostgresRepository(tx))
+		artifactService := artifacts.NewService(artifactpostgres.NewRepository(tx))
 		scope, err := artifacts.RunScope(execution.RunID)
 		if err != nil {
 			return err
@@ -165,7 +166,7 @@ func (p *PostgresPersistence) CommitResultProgression(
 		}
 
 		if value.Result.Outcome == stageresult.StageSucceeded {
-			artifactService := artifacts.NewService(artifacts.NewPostgresRepository(tx))
+			artifactService := artifacts.NewService(artifactpostgres.NewRepository(tx))
 			outputNames := make([]string, 0, len(value.WorkflowOutputs))
 			for outputName := range value.WorkflowOutputs {
 				outputNames = append(outputNames, outputName)
@@ -279,7 +280,7 @@ func (p *PostgresPersistence) AcceptResultDuringCancellation(
 		if err := store.CompleteStageResult(ctx, stageExecutionID, contracts.APIVersion, result); err != nil {
 			return err
 		}
-		artifactService := artifacts.NewService(artifacts.NewPostgresRepository(tx))
+		artifactService := artifacts.NewService(artifactpostgres.NewRepository(tx))
 		if err := freezeOutputs(ctx, artifactService, runID); err != nil {
 			return fmt.Errorf("freeze Workflow outputs: %w", err)
 		}
@@ -312,7 +313,7 @@ func (p *PostgresPersistence) CommitTerminationAndFinishRun(
 		if err := store.CompleteStageTermination(ctx, stageExecutionID); err != nil {
 			return err
 		}
-		artifactService := artifacts.NewService(artifacts.NewPostgresRepository(tx))
+		artifactService := artifacts.NewService(artifactpostgres.NewRepository(tx))
 		if err := freezeOutputs(ctx, artifactService, runID); err != nil {
 			return fmt.Errorf("freeze Workflow outputs: %w", err)
 		}
@@ -356,7 +357,7 @@ func (p *PostgresPersistence) FailRunWithActiveStages(
 			return err
 		}
 		// The Run row is locked above, as before every other terminal freeze.
-		if err := freezeOutputs(ctx, artifacts.NewService(artifacts.NewPostgresRepository(tx)), runID); err != nil {
+		if err := freezeOutputs(ctx, artifacts.NewService(artifactpostgres.NewRepository(tx)), runID); err != nil {
 			return fmt.Errorf("freeze Workflow outputs: %w", err)
 		}
 		// Every active Stage ended above; a waiting Run's expected state is
@@ -377,7 +378,7 @@ func (p *PostgresPersistence) FinishCancelledRun(ctx context.Context, runID stri
 		if _, err := store.LockRunState(ctx, runID, runstore.RunCancelling); err != nil {
 			return err
 		}
-		if err := freezeOutputs(ctx, artifacts.NewService(artifacts.NewPostgresRepository(tx)), runID); err != nil {
+		if err := freezeOutputs(ctx, artifacts.NewService(artifactpostgres.NewRepository(tx)), runID); err != nil {
 			return fmt.Errorf("freeze Workflow outputs: %w", err)
 		}
 		_, err := store.TransitionRun(
@@ -534,7 +535,7 @@ func commitNextStage(
 	if created.StageExecutionID != progression.NextStage.Params.StageExecutionID {
 		return fmt.Errorf("created StageExecution identity differs from progression target")
 	}
-	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(tx))
+	artifactService := artifacts.NewService(artifactpostgres.NewRepository(tx))
 	scope, err := artifacts.RunScope(progression.NextStage.Params.RunID)
 	if err != nil {
 		return err
@@ -573,7 +574,7 @@ func commitTerminalRun(
 			return err
 		}
 	}
-	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(tx))
+	artifactService := artifacts.NewService(artifactpostgres.NewRepository(tx))
 	if err := freezeOutputs(ctx, artifactService, runID); err != nil {
 		return fmt.Errorf("freeze Workflow outputs: %w", err)
 	}
@@ -634,7 +635,7 @@ WHERE run_id = $1`, runID).Scan(&projectID, &publicationMode); err != nil {
 
 	exhausted := publicationFailures >= maxOutputPublicationFailures
 
-	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(tx))
+	artifactService := artifacts.NewService(artifactpostgres.NewRepository(tx))
 	runArtifacts, err := artifactService.Run(runID)
 	if err != nil {
 		return err
@@ -682,7 +683,7 @@ func publishOneProjectOutput(
 	if err != nil {
 		return fmt.Errorf("start Project output publication %q: %w", outputName, err)
 	}
-	attemptService := artifacts.NewService(artifacts.NewPostgresRepository(attempt))
+	attemptService := artifacts.NewService(artifactpostgres.NewRepository(attempt))
 	published, publishErr := publishRunOutput(ctx, attemptService, runID, projectID, outputName, source)
 	if publishErr == nil {
 		target := published.TargetRef
@@ -787,7 +788,7 @@ func verifyRequiredWorkflowOutputs(
 	if err != nil {
 		return err
 	}
-	repository := artifacts.NewPostgresRepository(tx)
+	repository := artifactpostgres.NewRepository(tx)
 	names := make([]string, 0, len(contractsByName))
 	for name := range contractsByName {
 		names = append(names, name)

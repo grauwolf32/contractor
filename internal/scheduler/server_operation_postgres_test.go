@@ -14,6 +14,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/configtest"
@@ -105,7 +106,7 @@ func newOperationHarness(t *testing.T, apply bool, customize ...func(*resolved.R
 	if err := resolved.ValidateWorkflowGraph(workflow); err != nil {
 		t.Fatal(err)
 	}
-	service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	domain := projectsitemap.NewService(pool)
 	store := runstore.NewPostgresStore(pool)
 	projectID := "operation-project"
