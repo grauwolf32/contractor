@@ -85,3 +85,22 @@ tests:
   - A2
   - A3
 implementation_commit: null
+verification_checkpoint:
+  date: '2026-11-02'
+  integrated_main: 9a2d6f9afe228e025c9381dff34233f5b6939083
+  integration_commit: 91973183ba1d7e818e01c4d5ce0d8bd2957158d1
+  outcome: Main is reconciled and committed on codex/audit-artifact-workspace. All conflicts are resolved;
+    the main branch itself is unchanged. Work stops here at the explicit user boundary.
+  checks:
+  - 'The focused Go integration selection compiled all listed Artifact/Audit/Run/public/persistence/finding/architecture/client
+    packages and passed the selected workspace, concurrent publication, bounded history, migration and
+    public material tests. Packages outside that selection were compilation-only; this is not a full-suite
+    claim. Log: /private/tmp/v434-001-focused.log.'
+  - 'python3 scripts/test-audit-composition-e2e.py --case-set workspace passed on clean integration commit
+    91973183ba1d7e818e01c4d5ce0d8bd2957158d1: five real-PostgreSQL cases and five real-process cases,
+    zero skips. Evidence: /private/tmp/v434-001-workspace-evidence/gate-workspace.json.'
+  - Public clients, database ERD (two migrations, 72 tables, 94 foreign keys), task backlog and dependency
+    graph were regenerated; task and specification consistency checks passed.
+  remaining: The complete task-listed Go suites, public/shared contract gates, ui-verify and lint were
+    not rerun on this integration. Main landing is deferred by the user request; the integration task
+    remains in_progress.
