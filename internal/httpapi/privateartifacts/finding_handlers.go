@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/findingintake"
+	"github.com/grauwolf32/contractor/internal/httpapi/artifacttransfer"
 )
 
 func (h *handler) postFindingProposal(w http.ResponseWriter, r *http.Request) {
@@ -29,18 +29,21 @@ func (h *handler) postFindingProposal(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	ctx, release, err := blob.AcquireTransfer(r.Context())
+	r, transfer, err := artifacttransfer.Acquire(w, r)
 	if err != nil {
 		h.handleError(w, err)
 		return
 	}
-	defer release()
+	defer transfer.Close()
+	input, err := readFindingSubmission(r, transfer)
+	if err != nil {
+		transfer.ReleaseBeforeWrite(0)
+		h.handleError(w, err)
+		return
+	}
+	ctx, cancel := artifacttransfer.StorageContext(r.Context())
+	defer cancel()
 	r = r.WithContext(ctx)
-	input, err := readFindingSubmission(w, r)
-	if err != nil {
-		h.handleError(w, err)
-		return
-	}
 	var receipt findingintake.Receipt
 	var found bool
 	var replayed bool
@@ -64,6 +67,7 @@ func (h *handler) postFindingProposal(w http.ResponseWriter, r *http.Request) {
 			return submitErr
 		},
 	)
+	transfer.ReleaseBeforeWrite(0)
 	if err != nil {
 		h.handleError(w, err)
 		return
@@ -75,9 +79,13 @@ func (h *handler) postFindingProposal(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, status, findingSubmissionResponse(receipt, replayed))
 }
 
-func readFindingSubmission(w http.ResponseWriter, r *http.Request) (findingintake.Submission, error) {
+func readFindingSubmission(r *http.Request, transfer *artifacttransfer.Transfer) (findingintake.Submission, error) {
 	var result findingintake.Submission
-	if err := decodeBoundedJSON(w, r, findingintake.MaxRequestBytes, &result); err != nil {
+	if r.ContentLength < -1 {
+		return result, findingintake.ErrInvalid
+	}
+	data, err := transfer.ReadBody(r, findingintake.MaxRequestBytes)
+	if err != nil || decodeRequestJSON(data, &result) != nil {
 		return result, findingintake.ErrInvalid
 	}
 	return result, nil

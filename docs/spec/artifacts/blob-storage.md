@@ -309,7 +309,12 @@ callers as retryable. Reopen if a client must tell a client-side abort from a
 Server failure.
 
 **BLB-R29.** Socket deadlines never cancel storage work; storage
-work has its own budget.
+work has its own budget. The allocation finding endpoint also holds
+transfer admission while reading its bounded JSON and publishing selected
+HTTP evidence. Its body uses the same socket budget, its intake work uses the
+separate storage budget, and it releases admission before its receipt or error
+response. An invalid or interrupted finding JSON body remains the permanent
+`400 invalid_finding_request` and never reaches intake.
 
 **BLB-R30.** Container memory sizing must account for driver and
 serialization buffers: four 64 MiB payloads (LIM-BLB-1, LIM-ART-4) are not a

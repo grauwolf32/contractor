@@ -11,6 +11,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingintake"
+	"github.com/grauwolf32/contractor/internal/httpapi/artifacttransfer"
 )
 
 func TestFindingSubmissionDecoderDistinguishesNULEscapeFromLiteralText(t *testing.T) {
@@ -28,7 +29,12 @@ func TestFindingSubmissionDecoderDistinguishesNULEscapeFromLiteralText(t *testin
 				t.Fatal(err)
 			}
 			request := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
-			decoded, err := readFindingSubmission(httptest.NewRecorder(), request)
+			request, transfer, err := artifacttransfer.Acquire(httptest.NewRecorder(), request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer transfer.Close()
+			decoded, err := readFindingSubmission(request, transfer)
 			if test.invalid {
 				if !errors.Is(err, findingintake.ErrInvalid) {
 					t.Fatalf("NUL submission decode error = %v", err)
