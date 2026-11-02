@@ -1,5 +1,5 @@
 schema_version: "1.0"
-id: V435-001
+id: V436-001
 title: "Build repeat drafts from Run records and input lineage"
 milestone: run-recovery-ui-2026-10
 epic: execution-core
@@ -7,7 +7,7 @@ kind: chore
 introduced_by: V37-008
 priority: P2
 status: completed
-depends_on: [V435-002]
+depends_on: [V436-002]
 languages: [go, python, typescript, sql]
 goal: >-
   Configure another Run from its stored settings and exact original input sources,
@@ -99,6 +99,6 @@ verification:
   - "make lint, make verify-public-api and make test-wire-cross-language passed."
   - "Runtime toolset suites passed (50 tests); public client and untagged e2e matrix suites passed."
   - "TestProjectWorkspaceLifecycleAcrossProductionProcesses passed with the real Server/Runtime processes."
-  - "V435-002 fixed the pre-existing material-history assertion race; VITEST_MAX_WORKERS=2 make ui-verify then passed completely."
+  - "V436-002 fixed the pre-existing material-history assertion race; VITEST_MAX_WORKERS=2 make ui-verify then passed completely."
 
 implementation_commit: e40ffcbfe9b7ecb9077bc2121ff9065c2e181ffa

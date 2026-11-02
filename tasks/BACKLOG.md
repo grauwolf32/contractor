@@ -22,7 +22,7 @@ the epics are in [epics.yml](epics.yml).
 | [V420-002](v420-002-planner-compaction-vertical-slice.yml) | planner-worker | feature | P1 | Implement opt-in bounded compaction for Streamline and Router Planners |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Enable shared Planner compaction and reuse native YAML in shipped Workflows |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
-| [V435-003](v435-003-integrate-run-repeat-main.yml) | execution-core | chore | P2 | Integrate database-backed Run repeat with the current Audit schema |
+| [V436-003](v436-003-integrate-run-repeat-main.yml) | execution-core | chore | P2 | Integrate database-backed Run repeat with the current Audit schema |
 
 ## Pending
 

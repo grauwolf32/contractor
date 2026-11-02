@@ -1,13 +1,13 @@
 schema_version: "1.0"
-id: V435-003
+id: V436-003
 title: "Integrate database-backed Run repeat with the current Audit schema"
 milestone: run-recovery-ui-2026-10
 epic: execution-core
 kind: chore
-introduced_by: V435-001
+introduced_by: V436-001
 priority: P2
 status: in_progress
-depends_on: [V435-001, V435-002]
+depends_on: [V436-001, V436-002]
 languages: [go, sql, typescript]
 goal: "Land the verified Run repeat simplification on current main with one sequential migration chain."
 context:
@@ -19,6 +19,11 @@ context:
     - docs/spec/execution/runs.md#RUN-R99
     - docs/spec/artifacts/artifact-store.md#ART-R133
     - docs/spec/platform/persistence.md#PER-R30
+  task_identity_note: >-
+    Main concurrently assigned V435-001/V435-002 to other Runtime work.
+    This lane moves its three records to V436-001/002/003 without changing
+    their recorded implementation hashes or the other lane records.
+    Current-main Runtime label ownership and resource fixes are included.
   finding: >-
     Main advanced to 1f6265fcc8e229bf0e62e2bc9b5c9605609eade5 and now owns
     000002_audit_artifact_scope.sql. The unmerged repeat cleanup also used version
