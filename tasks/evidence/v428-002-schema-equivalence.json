@@ -1,0 +1,158 @@
+{
+  "authority": "User-requested baseline fold, 2026-11-02",
+  "source_commit": "5aa77fee8d6ef8c88780c1352275c78346b6e18d",
+  "source_migrations": [
+    {
+      "name": "000001_baseline.sql",
+      "sha256": "8e99174cbbb0f4ee8f9ebb8510ea6372d36bd024e6e7630b524a2734e918df71"
+    },
+    {
+      "name": "000002_remove_scan_sweeps.sql",
+      "sha256": "445e602902e04c5c815bdfefff74c41dea1839c7f88ef530b75d7c3960e723ba"
+    },
+    {
+      "name": "000003_project_findings.sql",
+      "sha256": "5352e047824c027a4da93b7b6926462ddff6a232df8231dc47e810ac3bd0156e"
+    }
+  ],
+  "comparison": "Equal PostgreSQL catalogs and seed rows, excluding the migration ledger, physical dropped-column gaps and the per-database scheduler seed timestamp.",
+  "normalizations": [
+    {
+      "object": "project_findings_actor_id_check",
+      "reason": "PostgreSQL flattened nested AND operands when restoring its CHECK expression."
+    },
+    {
+      "object": "project_findings_owner_id_check",
+      "reason": "PostgreSQL flattened nested AND operands when restoring its CHECK expression."
+    },
+    {
+      "object": "project_findings_rationale_check",
+      "reason": "PostgreSQL flattened nested AND operands when restoring its CHECK expression."
+    },
+    {
+      "object": "project_findings_title_check",
+      "reason": "PostgreSQL flattened nested AND operands when restoring its CHECK expression."
+    }
+  ],
+  "counts": {
+    "relations": 74,
+    "columns": 843,
+    "constraints": 713,
+    "indexes": 272,
+    "triggers": 131,
+    "functions": 138,
+    "views": 1,
+    "sequences": 1,
+    "seed_rows": 1,
+    "placement_seed": 1,
+    "scheduler_seed": 1,
+    "row_counts": 72,
+    "sequence_state": 1
+  },
+  "catalog_sha256": "69009bcfd35aca495a9968c66e7afdaa85543d71982077b4cae45b2bd6950bf4",
+  "baseline_sha256": "b8737f31e67eed658ae3b2e6bea135691b89c45751152c683de8ec3b803073ae",
+  "verification": {
+    "fresh_production_migrator": "{\"time\":\"2026-11-02T01:28:59.059174+03:00\",\"level\":\"INFO\",\"msg\":\"database migrations complete\",\"applied\":1,\"current_version\":1}",
+    "production_migrator_replay": "{\"time\":\"2026-11-02T01:28:59.079781+03:00\",\"level\":\"INFO\",\"msg\":\"database migrations complete\",\"applied\":0,\"current_version\":1}",
+    "retired_chain_ledger": "Rejected as migration drift; all rows unchanged.",
+    "live_schema_equals_baseline": true,
+    "postgres_version": "17.11 (Homebrew)",
+    "schema_sha256": "b8737f31e67eed658ae3b2e6bea135691b89c45751152c683de8ec3b803073ae"
+  },
+  "retained_sql_source": "The metadata-label SQL routine keeps its original readable expression for the existing shared policy generator; its compiled catalog is identical.",
+  "demo": {
+    "status": "passed",
+    "schema_equals_fresh_baseline": true,
+    "business_tables_unchanged": 72,
+    "old_ledger": [
+      {
+        "version": 1,
+        "name": "000001_baseline.sql",
+        "checksum": "8e99174cbbb0f4ee8f9ebb8510ea6372d36bd024e6e7630b524a2734e918df71",
+        "applied_at": "2026-10-31T22:48:57.929374+03:00"
+      },
+      {
+        "version": 2,
+        "name": "000002_remove_scan_sweeps.sql",
+        "checksum": "445e602902e04c5c815bdfefff74c41dea1839c7f88ef530b75d7c3960e723ba",
+        "applied_at": "2026-10-31T22:48:57.932589+03:00"
+      },
+      {
+        "version": 3,
+        "name": "000003_project_findings.sql",
+        "checksum": "5352e047824c027a4da93b7b6926462ddff6a232df8231dc47e810ac3bd0156e",
+        "applied_at": "2026-11-02T01:24:25.212377+03:00"
+      }
+    ],
+    "new_ledger": [
+      {
+        "version": 1,
+        "name": "000001_baseline.sql",
+        "checksum": "b8737f31e67eed658ae3b2e6bea135691b89c45751152c683de8ec3b803073ae",
+        "applied_at": "2026-11-02T01:29:25.229765+03:00"
+      }
+    ],
+    "baseline_sha256": "b8737f31e67eed658ae3b2e6bea135691b89c45751152c683de8ec3b803073ae",
+    "strict_migrator_replay_applied": 0,
+    "backup": {
+      "database": "/Users/ruslan/src/contractor/.local/demo/backups/before-v64-023-20261101T221559Z.dump",
+      "database_sha256": "959011fc9f74ad2744a9b266fdd98f4f54b24e6b01e660e2f5ac9592033e21ec",
+      "files": "/Users/ruslan/src/contractor/.local/demo/backups/before-v64-023-20261101T221559Z.tar.gz",
+      "files_sha256": "3fc7534ce18b791ef052584650f9c0c9c7b53c0caa378ee0f5dd88afc8a9d47c",
+      "restore_log": "/Users/ruslan/src/contractor/.local/demo/backups/before-v64-023-20261101T221559Z.restore.log",
+      "verified_file_count": 366,
+      "verified_table_count": 73
+    },
+    "folded_restore_verified_backup": {
+      "database": "/Users/ruslan/src/contractor/.local/demo/backups/after-v428002-20261101T223046Z.dump",
+      "database_sha256": "654af35a0427f0a3c97ffc20fbf47c09b9393a1b2b0deb803c5a3f9f2cb0f211",
+      "restored_database": "contractor_v428002_restore_20261101t223046z",
+      "verified_tables": 73,
+      "restore_log": "/Users/ruslan/src/contractor/.local/demo/backups/after-v428002-20261101T223046Z.restore.log"
+    },
+    "public_material_verification": {
+      "models_unchanged": true,
+      "ordinary_runs_unchanged": true,
+      "projects_unchanged": true,
+      "original_material_identities_unchanged": true,
+      "exact_project_material_revisions_read": 622,
+      "protected_original_revisions_with_verified_aliases": 139,
+      "material_bytes_sha256_verified": 63431206,
+      "empty_project_findings": true,
+      "pki_secret_files_unchanged": 22,
+      "ui_http_status": 200,
+      "ui_version": "0.11.1"
+    },
+    "material_aliases": {
+      "count": 139,
+      "mapping": "/Users/ruslan/src/contractor/.local/demo/run/v428002-historical-materials.json",
+      "namespace": "historical-materials",
+      "frozen": true,
+      "operation": "Existing exact Project-to-Project Artifact fork with provenance; original bindings/bytes remain."
+    },
+    "readiness": {
+      "runtime_agents": 6,
+      "idle_agents": 6,
+      "allocations": 0,
+      "runtime_mtls_ready": 6,
+      "configured_models_unchanged": true,
+      "queue_paused": false,
+      "cloud_source_commit": "f69affeaec4796c7714aa13e5ca0205992e943ca"
+    },
+    "release_commit": "f69affeaec4796c7714aa13e5ca0205992e943ca",
+    "manifest": "/Users/ruslan/src/contractor/.local/demo/current/manifest.json"
+  },
+  "known_limitations": [
+    {
+      "task": "V425-043",
+      "scope": "Four preserved historical ordinary Run cards return HTTP 500 on removed AgentTemplate modelPolicy in strict Stage snapshot decoding. No snapshot mutation or compatibility code was added."
+    }
+  ],
+  "tests": {
+    "postgres_full_packages": "passed; /tmp/v428002-final-postgres.log",
+    "backup_restore": "passed; TestBackupRestorePreservesExactArtifactsAndCAS, 3.179s",
+    "matrix": "passed; /tmp/v428002-final-backup-matrix.log",
+    "shared_config_and_lint": "passed; /tmp/v428002-final-lint.log",
+    "current_schema_docs": "passed; /tmp/v428002-docs.log"
+  }
+}
