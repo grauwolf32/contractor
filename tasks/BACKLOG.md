@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-83 open tasks: 13 in progress, 59 pending, 11 deferred. 1350 finished: 1332 completed, 18 archived.
+82 open tasks: 12 in progress, 59 pending, 11 deferred. 1351 finished: 1333 completed, 18 archived.
 
 ## In progress
 
@@ -23,7 +23,6 @@ the epics are in [epics.yml](epics.yml).
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Enable shared Planner compaction and reuse native YAML in shipped Workflows |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
 | [V434-001](v434-001-integrate-audit-artifacts.yml) | audits | chore | P1 | Integrate Audit artifact ownership with current main |
-| [V434-002](v434-002-finding-export-wire-registry.yml) | quality | chore | P2 | Align Finding export wire-symbol registry with current imports |
 
 ## Pending
 
@@ -208,4 +207,4 @@ tasks in `introduced_by`.
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 18 | 46 | 9 | 22 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 38 | 25 | 16 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 27 | 47 | 17 |
-| Quality, CI and process (`quality`) | 12 | 1 | 29 | 120 | 27 |
+| Quality, CI and process (`quality`) | 11 | 1 | 29 | 120 | 27 |

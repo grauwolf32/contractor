@@ -6,15 +6,16 @@ epic: quality
 kind: chore
 introduced_by: V64-014
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages:
 - go
 goal: The contracts-kernel importer guard describes Finding export current wire-symbol use and passes
   without changing its enforcement or export behavior.
 context:
-  authority: Routine integration prerequisite discovered during the user-requested Audit workspace merge
-    on 2026-11-02. This narrow registry repair does not take over or close the separate V64-014 work.
+  authority: 'Agent proposal on 2026-11-02: a necessary registry-only prerequisite discovered during the
+    user-requested Audit workspace merge. This narrow maintenance does not take over or close the separate
+    V64-014 work.'
   finding: internal/archtest/contracts_importers_test.go:72 lists ExactArtifact for internal/findingexport,
     but current production export code no longer uses that symbol. The full architecture suite fails deterministically.
     git log -S contracts.ExactArtifact attributes the removal to 770f9227c34858666f00d9461cd582efe5ce9803
@@ -44,4 +45,15 @@ tests:
   covers:
   - A1
   - A2
-implementation_commit: null
+implementation_commit: 7676090aa67042abdea2609ad3d5c42540abadb2
+verification:
+  date: '2026-11-02'
+  results:
+  - command: go test -count=1 ./internal/archtest ./internal/findingexport/...
+    outcome: Passed all architecture and Finding export/SARIF package suites, including real-source importer
+      validation and the existing synthetic negative cases.
+  - command: make lint
+    outcome: Passed on the integrated tree after the registry repair. The final complete integration Go
+      command also passed every listed package, including archtest.
+  boundary: Only the existing registry entry changed from unused ExactArtifact to production-used ValidResourceID;
+    no production code, wire grammar or guard enforcement changed.
