@@ -1,3 +1,13 @@
+-- Finish current-revision checks queued by the preceding Audit material
+-- migration before changing this relation's index. Keep ordinary deferred
+-- artifact insertion semantics for the cleanup and subsequent migrations.
+SET CONSTRAINTS artifact_bindings_scope_kind_scope_id_namespace_name_curre_fkey IMMEDIATE;
+DROP INDEX artifact_bindings_user_listing_idx;
+CREATE INDEX artifact_bindings_user_listing_idx
+ON artifact_bindings (scope_id, namespace, name)
+WHERE scope_kind = 'user' AND namespace <> 'audit-standards';
+SET CONSTRAINTS artifact_bindings_scope_kind_scope_id_namespace_name_curre_fkey DEFERRED;
+
 -- Repeat drafts use workflow_runs and exact input_fork lineage. Remove the
 -- duplicate request records and their now-unused storage; ordinary artifacts
 -- sharing a version or blob retain it. This namespace had no other writer.
@@ -29,8 +39,3 @@ WHERE blob.sha256 = removed.blob_sha256
   );
 
 SELECT set_config('contractor.lifecycle_purge', '', true);
-
-DROP INDEX artifact_bindings_user_listing_idx;
-CREATE INDEX artifact_bindings_user_listing_idx
-ON artifact_bindings (scope_id, namespace, name)
-WHERE scope_kind = 'user' AND namespace <> 'audit-standards';
