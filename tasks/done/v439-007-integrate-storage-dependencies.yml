@@ -6,7 +6,7 @@ epic: api-contracts
 kind: chore
 introduced_by: V437-005
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages: [go]
 goal: >-
@@ -46,3 +46,8 @@ tests:
     covers: [A1, A2, A3]
   - command: make verify-public-api
     covers: [A1, A2, A3]
+implementation_commit: f2df6120731cb29e6884e1e60428664d9271a13d
+verification:
+  date: "2026-11-03"
+  result: >-
+    Merged only committed 6e619b7c1, preserved both changes and regenerated the dependency graph. Full HTTP, ProjectStore, RunService, app and architecture suites passed against disposable TCP PostgreSQL, including -race; finding socket/storage/replay/release regressions remained green. make verify-public-api, make lint and make docs-dependencies-check passed. No unrelated primary-checkout files were staged or modified; V437-005 remains owned by its original branch.
