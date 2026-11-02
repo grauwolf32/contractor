@@ -5,9 +5,9 @@ milestone: runtime-resource-bounds-2026-11
 epic: planner-worker
 kind: defect
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V432-001]
-languages: [python, markdown]
+languages: [python, go, json, markdown]
 goal: A Gateway cannot make a Runtime buffer or synchronously parse an unbounded response, independently of model token accounting.
 context:
   authority: >-
@@ -100,3 +100,24 @@ tests:
     covers: [A3]
   - command: make lint
     covers: [A1, A2, A3]
+verification: >-
+  Required focused Runtime suites: 227 passed. The new streamed Gateway
+  cases cover exact byte admission, oversized success/error bodies, gzip and
+  deflate, missing/false Content-Length, malformed/deep JSON, thread identity,
+  repeated cancellation while parsing/projecting/closing and recovery permit
+  settlement. The actual pre-fix main client fails the overflow regression
+  because it feeds the oversized body to JSON parsing. The complete Go
+  streamline package passed. Cross-language gate passed against a disposable
+  local PostgreSQL database: 373 fixtures, 393 Go and 289 Python shared tests
+  (1592 Python cases). The test database was removed after verification.
+  Combined make lint passed with cached pinned toolchains, including all
+  four Runtime layer contracts. No live Gateway or deployment was used.
+implementation_commit: edb7d022fdacdd7b2b89adfd62ee8ba479e03033
+landing: Implemented on codex/runtime-shutdown-deadline; not yet merged into main.
+integration_verification: >-
+  Combined Runtime selection on the P1/Gateway/findings branch: 5871 passed,
+  133 skipped, 2 deselected in 758.45 seconds. The two inherited macOS
+  exclusions remain V425-001 APFS normalization and V425-002 Trailmark
+  PATH_MAX, exactly as recorded by V433-005; they are not claimed fixed.
+  Full command and output: /tmp/runtime-v433-cpu-full.log. This run is
+  correctness evidence, not a performance comparison.
