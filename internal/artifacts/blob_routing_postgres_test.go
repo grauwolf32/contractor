@@ -65,7 +65,7 @@ func TestAutoBlobStorageThresholdAndRestart(t *testing.T) {
 		{"above", 1048577, BlobFilesystem},
 	} {
 		data := bytes.Repeat([]byte{0x5a}, tc.size)
-		payload, err := PreparePayload(current, Payload{MediaType: "application/octet-stream", Data: data})
+		payload, err := PreparePayload(current, pool, Payload{MediaType: "application/octet-stream", Data: data})
 		if err != nil {
 			t.Fatal(err)
 		}

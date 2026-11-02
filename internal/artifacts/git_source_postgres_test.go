@@ -92,7 +92,7 @@ func TestPostgresGitProvenanceRetainsExactRunInputAndRollsBack(t *testing.T) {
 	var first WriteResult
 	source := GitSource{Analysis: &GitAnalysis{Policy: GitAnalysisPolicy, ReportPath: GitAnalysisReportPath, IncludedFiles: 1, ExcludedEntries: 3}, RepositoryURL: "https://example.test:443/source.git", ResolvedCommit: strings.Repeat("a", 40), ImportedAt: time.Now().UTC().Truncate(time.Microsecond)}
 	write := func(name string, source GitSource, abort bool) error {
-		payload, err := PreparePayload(ctx, Payload{MediaType: "application/zip", Data: []byte("same bytes")})
+		payload, err := PreparePayload(ctx, pool, Payload{MediaType: "application/zip", Data: []byte("same bytes")})
 		if err != nil {
 			return err
 		}

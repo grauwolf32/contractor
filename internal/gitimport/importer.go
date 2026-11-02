@@ -139,7 +139,7 @@ func (i *Importer) DoImport(ctx context.Context, request ImportRequest, respond 
 	if (request.Mode == ModeAnalysis) != (snapshot.Analysis != nil) {
 		return ErrContent
 	}
-	payload, err := artifacts.PreparePayload(ctx, artifacts.Payload{MediaType: "application/zip", Data: snapshot.Data})
+	payload, err := artifacts.PreparePayload(ctx, i.pool, artifacts.Payload{MediaType: "application/zip", Data: snapshot.Data})
 	if err != nil {
 		return err
 	}

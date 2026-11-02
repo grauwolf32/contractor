@@ -33,13 +33,9 @@ func missingBlobRuntime(operation string) error {
 // PreparePayload lets a write-fenced/transactional caller do filesystem I/O
 // before taking its authoritative lock. Unpublished candidates may be orphans
 // after cancellation; only registry publication makes them accessible.
-func PreparePayload(ctx context.Context, payload Payload) (Payload, error) {
+func PreparePayload(ctx context.Context, db postgres.DBTX, payload Payload) (Payload, error) {
 	if err := validatePayload(payload); err != nil {
 		return payload, err
-	}
-	preparer, ok := activeBlobStore(ctx).(interface{ preparesFile(int) bool })
-	if !ok || !preparer.preparesFile(len(payload.Data)) {
-		return payload, nil
 	}
 	ctx, release, err := AcquireTransfer(ctx)
 	if err != nil {
@@ -50,16 +46,28 @@ func PreparePayload(ctx context.Context, payload Payload) (Payload, error) {
 	if err != nil {
 		return payload, err
 	}
-	payload.prepared = &object
+	key, err := reusableBlobKey(ctx, db, object)
+	if err != nil {
+		discardUnpublishedBlob(ctx, object)
+		return payload, err
+	}
+	payload.prepared = &preparedBlob{object: object, reusableKey: key}
 	return payload, nil
+}
+
+// preparedBlob retains the verified physical generation across transaction
+// retries. Publication may only reuse reusableKey, never a different generation.
+type preparedBlob struct {
+	object      BlobObject
+	reusableKey *string
 }
 
 func prepareBlob(ctx context.Context, payload Payload) (BlobObject, error) {
 	if payload.prepared != nil {
-		if err := verifyBlob(*payload.prepared, payload.Data); err != nil {
+		if err := verifyBlob(payload.prepared.object, payload.Data); err != nil {
 			return BlobObject{}, err
 		}
-		return *payload.prepared, nil
+		return payload.prepared.object, nil
 	}
 	return activeBlobStore(ctx).Store(ctx, payload.Data)
 }

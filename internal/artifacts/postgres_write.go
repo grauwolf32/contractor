@@ -62,7 +62,15 @@ func (r *PostgresRepository) write(
 			discardUnpublishedBlob(ctx, blob)
 		}
 	}
-	reusableKey, err := reusableBlobKey(ctx, r.db, blob)
+	var reusableKey *string
+	if payload.prepared != nil {
+		reusableKey = payload.prepared.reusableKey
+		if blob.Backend == BlobFilesystem {
+			err = activeBlobStore(ctx).Check(ctx, blob)
+		}
+	} else {
+		reusableKey, err = reusableBlobKey(ctx, r.db, blob)
+	}
 	if err != nil {
 		discardFreshCandidate()
 		return WriteResult{}, err

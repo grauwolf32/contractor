@@ -79,8 +79,6 @@ func openFilesystemBlobRoot(ctx context.Context, path string, create bool) (*Fil
 	return &FilesystemBlobStore{root: root}, nil
 }
 
-func (*FilesystemBlobStore) preparesFile(int) bool { return true }
-
 func (s *FilesystemBlobStore) Close() error { return s.root.Close() }
 
 func (s *FilesystemBlobStore) Store(ctx context.Context, data []byte) (result BlobObject, err error) {

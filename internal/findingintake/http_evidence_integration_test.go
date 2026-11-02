@@ -60,7 +60,7 @@ func TestPostgresFindingHTTPExchangePublishesAtomically(t *testing.T) {
 			lateRejected := testSubmission("http-invocation", "late-rejected", []contracts.ArtifactRef{})
 			lateRejected.HTTPEvidence = &capture
 			occupied := deterministicID("proposal", grant.AllocationID, lateRejected.InvocationID, lateRejected.SubmissionID)
-			collisionPayload, err := artifacts.PreparePayload(ctx, artifacts.Payload{MediaType: "application/json", Data: []byte(`{}`)})
+			collisionPayload, err := artifacts.PreparePayload(ctx, pool, artifacts.Payload{MediaType: "application/json", Data: []byte(`{}`)})
 			if err != nil {
 				t.Fatal(err)
 			}

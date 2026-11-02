@@ -193,7 +193,7 @@ func writeFingerprintReportInputs(t *testing.T, ctx context.Context, pool *pgxpo
 		source = sourceData[0]
 	}
 	for index, payload := range []artifacts.Payload{{MediaType: "application/zip", Data: source}, {MediaType: "application/sarif+json", Data: report}} {
-		prepared, err := artifacts.PreparePayload(ctx, payload)
+		prepared, err := artifacts.PreparePayload(ctx, pool, payload)
 		if err != nil {
 			t.Fatal(err)
 		}

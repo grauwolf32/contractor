@@ -109,7 +109,7 @@ func TestFilesystemBlobWithoutRuntimeFailsLoudly(t *testing.T) {
 	scope, _ := RunScope("runtimeless-run")
 	_, err = NewPostgresRepository(pool).ReadExactBatch(runtimeless, []ExactReadRequest{{Scope: scope, Ref: written.Ref}})
 	loud("exact batch read", err)
-	prepared, err := PreparePayload(installed, Payload{MediaType: "text/plain", Data: []byte("prepared bytes")})
+	prepared, err := PreparePayload(installed, pool, Payload{MediaType: "text/plain", Data: []byte("prepared bytes")})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -271,7 +271,7 @@ func TestFilesystemCreateOnlyConflictDiscardsCandidate(t *testing.T) {
 	if err := tx.Rollback(ctx); err != nil {
 		t.Fatal(err)
 	}
-	prepared, err := PreparePayload(ctx, Payload{MediaType: "text/plain", Data: []byte("shared prepared bytes")})
+	prepared, err := PreparePayload(ctx, pool, Payload{MediaType: "text/plain", Data: []byte("shared prepared bytes")})
 	if err != nil {
 		t.Fatal(err)
 	}

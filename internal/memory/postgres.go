@@ -94,7 +94,7 @@ func (s *PostgresStore) Write(
 	}
 	defer releaseTransfer()
 	var prepareErr error
-	payload, prepareErr = artifacts.PreparePayload(ctx, payload)
+	payload, prepareErr = artifacts.PreparePayload(ctx, s.pool, payload)
 	if prepareErr != nil {
 		return artifacts.WriteResult{}, prepareErr
 	}

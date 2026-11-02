@@ -110,3 +110,9 @@ ON CONFLICT DO NOTHING`, scope.kind, scope.id); err != nil {
 	}
 	return nil
 }
+
+// PreparePayload prepares bytes and verifies an existing physical generation
+// before constructing a transaction-bound repository for publication.
+func (r *PostgresRepository) PreparePayload(ctx context.Context, payload Payload) (Payload, error) {
+	return PreparePayload(ctx, r.db, payload)
+}

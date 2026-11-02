@@ -117,13 +117,13 @@ func (s *Service) Submit(
 		if encodeErr != nil || len(data) > artifacts.MaxPayloadSize {
 			return Receipt{}, false, fmt.Errorf("%w: HTTP evidence payload", ErrInvalid)
 		}
-		prepared, prepareErr := artifacts.PreparePayload(ctx, artifacts.Payload{MediaType: auditdomain.HTTPExchangeMediaType, Data: data})
+		prepared, prepareErr := artifacts.PreparePayload(ctx, s.pool, artifacts.Payload{MediaType: auditdomain.HTTPExchangeMediaType, Data: data})
 		if prepareErr != nil {
 			return Receipt{}, false, prepareErr
 		}
 		httpPayload = &prepared
 	}
-	preparedPayload, err := artifacts.PreparePayload(ctx, artifacts.Payload{MediaType: proposalMediaType, Data: canonical.proposalBytes})
+	preparedPayload, err := artifacts.PreparePayload(ctx, s.pool, artifacts.Payload{MediaType: proposalMediaType, Data: canonical.proposalBytes})
 	if err != nil {
 		return Receipt{}, false, err
 	}

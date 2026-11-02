@@ -68,11 +68,6 @@ type routedBlobStore struct {
 	tiered         bool
 }
 
-func (s *routedBlobStore) preparesFile(size int) bool {
-	_, filesystem := s.writer.(*FilesystemBlobStore)
-	return filesystem && (!s.tiered || int64(size) > s.inlineMaxBytes)
-}
-
 func (s *routedBlobStore) Store(ctx context.Context, data []byte) (BlobObject, error) {
 	if s.tiered && int64(len(data)) <= s.inlineMaxBytes {
 		return (PostgresBlobStore{}).Store(ctx, data)

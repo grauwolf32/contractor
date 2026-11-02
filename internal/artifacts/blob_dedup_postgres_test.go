@@ -221,7 +221,7 @@ func TestFilesystemDedupCorruptionDoesNotPublishOrOverwrite(t *testing.T) {
 func TestFilesystemDedupMissingPreparedCandidateIsNotPublished(t *testing.T) {
 	f := newDedupFixture(t)
 	payload := Payload{MediaType: "text/plain", Data: []byte("prepared candidate")}
-	prepared, err := PreparePayload(f.ctx, payload)
+	prepared, err := PreparePayload(f.ctx, f.pool, payload)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -272,7 +272,7 @@ func TestFilesystemDedupReadsOnlyTheExistingObject(t *testing.T) {
 	if len(recording.reads) != 0 {
 		t.Fatalf("write without a deduplication match read %v", recording.reads)
 	}
-	prepared, err := PreparePayload(ctx, f.payload)
+	prepared, err := PreparePayload(ctx, f.pool, f.payload)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -286,7 +286,7 @@ func TestFilesystemDedupReadsOnlyTheExistingObject(t *testing.T) {
 
 func TestFilesystemDedupRejectsTruncatedPreparedCandidate(t *testing.T) {
 	f := newDedupFixture(t)
-	prepared, err := PreparePayload(f.ctx, Payload{MediaType: "text/plain", Data: []byte("prepared candidate")})
+	prepared, err := PreparePayload(f.ctx, f.pool, Payload{MediaType: "text/plain", Data: []byte("prepared candidate")})
 	if err != nil {
 		t.Fatal(err)
 	}

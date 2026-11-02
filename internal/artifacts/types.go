@@ -51,7 +51,7 @@ type ArtifactRef = contracts.ArtifactRef
 type Payload struct {
 	MediaType string
 	Data      []byte
-	prepared  *BlobObject
+	prepared  *preparedBlob
 }
 
 type ReadResult struct {
@@ -232,6 +232,7 @@ type Fork struct {
 // validates every request before it reaches the port, so implementations
 // trust their arguments.
 type Repository interface {
+	PreparePayload(context.Context, Payload) (Payload, error)
 	// Write creates target when expectedRevision is nil and otherwise advances
 	// the unfrozen binding whose current revision it is (WritePrecondition).
 	Write(context.Context, Scope, ArtifactRef, Payload, *string) (WriteResult, error)

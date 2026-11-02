@@ -303,3 +303,12 @@ func validLineageKind(value string) bool {
 		value == LineageProjectOutputPublish || value == LineageAuditImport || value == LineageContextProjection ||
 		value == LineageAuditOutput || value == LineageAuditInput || value == LineageAuditPublish
 }
+
+// PreparePayload verifies physical content before the caller takes a write fence
+// or begins its publication transaction.
+func (s *Service) PreparePayload(ctx context.Context, payload Payload) (Payload, error) {
+	if err := validatePayload(payload); err != nil {
+		return Payload{}, err
+	}
+	return s.repository.PreparePayload(ctx, payload)
+}
