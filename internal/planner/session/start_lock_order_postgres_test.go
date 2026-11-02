@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -194,7 +196,7 @@ func TestPostgresCancelledBeginLeavesNoStartEffects(t *testing.T) {
 func lockOrderFixture(t *testing.T, ctx context.Context) (*pgxpool.Pool, *runstore.PostgresStore, *Service) {
 	t.Helper()
 	pool := isolatedPlannerPool(t, ctx)
-	store := runstore.NewPostgresStore(pool)
+	store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	createPlannerStage(t, ctx, store)
 	service, err := New(store, Options{})
 	if err != nil {
@@ -264,7 +266,7 @@ func holdPlannerRunLock(t *testing.T, ctx context.Context, pool *pgxpool.Pool) (
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = tx.Rollback(context.WithoutCancel(ctx)) })
-	holder := runstore.NewPostgresTxStore(tx)
+	holder := runstore.NewPostgresTxStore(tx, artifactpgtest.NewStorage())
 	if _, err := holder.LockRunState(ctx, lockOrderRunID); err != nil {
 		t.Fatal(err)
 	}

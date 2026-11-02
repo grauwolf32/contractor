@@ -4,8 +4,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/persistence/migrations"
 	"github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -21,7 +22,7 @@ func TestPostgresRemoveRepeatRequestMigrationPreservesRunAndSharedArtifacts(t *t
 	if _, err := postgres.ApplyMigrations(ctx, pool, postgres.MigrationBudgets{}); err != nil {
 		t.Fatal(err)
 	}
-	runs := runstore.NewPostgresStore(pool)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	if _, err := runstoretest.CreateRun(ctx, runs, runstore.CreateRunParams{
 		RunID: "repeat-migration", OwnerID: "owner", WorkflowName: "review", WorkflowVersion: "1",
 		WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: []byte(`{}`),
@@ -29,7 +30,7 @@ func TestPostgresRemoveRepeatRequestMigrationPreservesRunAndSharedArtifacts(t *t
 	}); err != nil {
 		t.Fatal(err)
 	}
-	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
+	service := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
 	scope, _ := artifacts.RunScope("repeat-migration")
 	for _, entry := range []struct{ namespace, name, body string }{
 		{"inputs", "source", "shared bytes"},

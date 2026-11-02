@@ -176,8 +176,10 @@ func runCLI(
 		defer closer.Close()
 	}
 	logger.Info("artifact blob storage initialized", "large_payload_backend", backend)
-	ctx = blob.WithRuntime(ctx, blob.NewRuntime(blobStore, logger))
-	ctx = artifactpostgres.WithHistoryPolicy(ctx, cfg.ArtifactHistory)
+	storage, err := artifactpostgres.NewStorage(blob.NewRuntime(blobStore, logger), cfg.ArtifactHistory)
+	if err != nil {
+		return err
+	}
 	configurationManager, bundles, err := loadServerConfiguration(cfg.OperatorConfigRoot, cfg.ManagedConfigRoot, logger)
 	if err != nil {
 		return fmt.Errorf("load configuration: %w", err)
@@ -185,7 +187,7 @@ func runCLI(
 	if err := configurationManager.ConfigureModelSelection(ctx, settingsstore.NewPostgresStore(pool)); err != nil {
 		return fmt.Errorf("configure deployment model selection: %w", err)
 	}
-	credentialSet, err := configureCredentials(ctx, pool, lease.server, configurationManager, cfg)
+	credentialSet, err := configureCredentials(ctx, pool, lease.server, configurationManager, cfg, storage)
 	if err != nil {
 		return err
 	}
@@ -195,21 +197,19 @@ func runCLI(
 	}
 
 	control, err := configureControlPlane(
-		pool, configurationManager, cfg, credentialSet, plannerTelemetryRegistry, logger,
-	)
+		pool, configurationManager, cfg, credentialSet, plannerTelemetryRegistry, logger, storage)
 	if err != nil {
 		return err
 	}
 	// ServeSystem returns only after the Scheduler stopped, so no lifecycle
 	// call outlives these Runtime Agent connections (CTL-R164).
 	defer control.runtimeClient.Close()
-	catalogs, err := configureCatalogs(ctx, pool, configurationManager, bundles, bootstrap.Principal.UserID, logger)
+	catalogs, err := configureCatalogs(ctx, pool, configurationManager, bundles, bootstrap.Principal.UserID, logger, storage)
 	if err != nil {
 		return err
 	}
 	workflows, err := configureWorkflows(
-		pool, cfg, catalogs, control, credentialSet, plannerTelemetryRegistry, logger,
-	)
+		pool, cfg, catalogs, control, credentialSet, plannerTelemetryRegistry, logger, storage)
 	if err != nil {
 		return err
 	}
@@ -219,25 +219,24 @@ func runCLI(
 	}
 	eventHub, err := publicevents.NewHub(publicevents.Options{
 		Context: ctx, Authentication: authentication, Origins: browserOrigins,
-		Runs: runstore.NewPostgresStore(pool), Operations: control.registry,
+		Runs: runstore.NewPostgresStore(pool, storage), Operations: control.registry,
 		RunNotifications: eventListener, Logger: logger,
 	})
 	if err != nil {
 		return fmt.Errorf("configure public event WebSocket: %w", err)
 	}
 	defer eventHub.Close()
-	audits, err := configureAudits(cfg, pool, configurationManager, credentialSet, catalogs, workflows, logger)
+	audits, err := configureAudits(cfg, pool, configurationManager, credentialSet, catalogs, workflows, logger, storage)
 	if err != nil {
 		return err
 	}
-	evals, err := configureEvals(pool, configurationManager, credentialSet, audits, workflows, logger)
+	evals, err := configureEvals(pool, configurationManager, credentialSet, audits, workflows, logger, storage)
 	if err != nil {
 		return fmt.Errorf("configure Evals: %w", err)
 	}
 	handlers, err := configureHTTP(
 		pool, configurationManager, cfg, authentication, browserOrigins, trustedPeers, eventHub,
-		credentialSet, control, catalogs, workflows, audits, evals, logger,
-	)
+		credentialSet, control, catalogs, workflows, audits, evals, logger, storage)
 	if err != nil {
 		return err
 	}

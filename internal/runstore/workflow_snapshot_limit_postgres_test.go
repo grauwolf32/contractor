@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 )
 
@@ -21,7 +23,7 @@ import (
 func TestPostgresStoreBoundsTheWorkflowSnapshotItStores(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
-	store := NewPostgresStore(isolatedRunStorePool(t, ctx))
+	store := NewPostgresStore(isolatedRunStorePool(t, ctx), artifactpgtest.NewStorage())
 
 	over := testRunParams("run-snapshot-over")
 	over.WorkflowSnapshot = workflowSnapshotOfSize(t, resolved.MaxWorkflowSnapshotBytes+1)

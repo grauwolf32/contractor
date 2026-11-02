@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/getkin/kin-openapi/routers/gorillamux"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -41,7 +43,7 @@ func TestPublicToolDiagnosticsReadsExactOwnedRetainedFacts(t *testing.T) {
 	}
 	ctx := t.Context()
 	pool := isolatedPublicPool(t, ctx)
-	runs := runstore.NewPostgresStore(pool)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	if _, err := runstoretest.CreateRun(ctx, runs, runstore.CreateRunParams{LaneClass: resolved.LaneClassModel, RunID: "tool-run", OwnerID: "user-1", WorkflowName: "workflow", WorkflowVersion: "1", WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{"name":"workflow"}`), Parameters: map[string]string{}, RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot()}); err != nil {
 		t.Fatal(err)
 	}

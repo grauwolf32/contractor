@@ -13,6 +13,10 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 )
 
+type Admission interface {
+	AcquireTransfer(context.Context) (context.Context, func(), error)
+}
+
 // Transfer is one admitted exchange. A context deadline alone does not
 // interrupt a blocked request read or response write, so each client socket
 // operation performed while the slot is held gets its own deadline. Storage
@@ -28,8 +32,8 @@ type Transfer struct {
 // before buffering a request body or reading a payload. The returned request
 // carries the slot lease, so nested Artifact operations share it, and no
 // deadline: client I/O deadlines must not cancel storage work.
-func Acquire(w http.ResponseWriter, r *http.Request) (*http.Request, *Transfer, error) {
-	ctx, release, err := blob.AcquireTransfer(r.Context())
+func Acquire(w http.ResponseWriter, r *http.Request, admission Admission) (*http.Request, *Transfer, error) {
+	ctx, release, err := admission.AcquireTransfer(r.Context())
 	if err != nil {
 		return r, nil, err
 	}

@@ -10,7 +10,6 @@ import (
 
 	. "github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 )
@@ -28,14 +27,14 @@ func TestPostgresAuditArtifactWriterIsTheOnlyFrozenPath(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
 			defer cancel()
 			pool := isolatedArtifactPool(t, ctx)
-			ctx = testBlobContext(t, ctx, pool)
+			artifactStorage := testBlobStorage(t, ctx, pool)
 			if _, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{
 				ProjectID: "audit-writer", OwnerID: "user-1", Kind: projectstore.KindProject,
 				Name: "Audit writer", IdempotencyKey: "audit-writer", RequestDigest: "sha256:" + strings.Repeat("b", 64),
 			}); err != nil {
 				t.Fatal(err)
 			}
-			service := NewService(artifactpostgres.NewRepository(pool))
+			service := NewService(artifactStorage.Repository(pool))
 			project, err := service.Project("audit-writer")
 			if err != nil {
 				t.Fatal(err)
@@ -115,8 +114,8 @@ func TestPostgresExactReadVerifiesTheDescriptor(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
-	ctx = testBlobContext(t, ctx, pool)
-	user, err := NewService(artifactpostgres.NewRepository(pool)).User("owner")
+	artifactStorage := testBlobStorage(t, ctx, pool)
+	user, err := NewService(artifactStorage.Repository(pool)).User("owner")
 	if err != nil {
 		t.Fatal(err)
 	}

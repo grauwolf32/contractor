@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"slices"
 
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalstore"
 	pg "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -24,7 +25,7 @@ func (s *Service) PutRecord(ctx context.Context, scope evalstore.Scope, id, memb
 	}
 	var receipt evalstore.Receipt
 	err := pg.InTxWithRetry(ctx, s.pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead}, func(tx pgx.Tx) error {
-		st := evalstore.NewTxStore(tx)
+		st := evalstore.NewTxStore(tx, s.storage)
 		var err error
 		receipt, err = st.PutRecord(ctx, evalstore.RecordParams{
 			Scope: scope, ExperimentID: id, MemberID: member, ActorID: scope.OwnerID, Operation: operation, Mutation: mutation,
@@ -38,10 +39,10 @@ func (s *Service) PutRecord(ctx context.Context, scope evalstore.Scope, id, memb
 					return evaldomain.Frozen{}, err
 				}
 				if doc.Kind() == "ResultInput" {
-					err = validateCollectedResult(ctx, tx, st, e, m, plan, doc)
+					err = validateCollectedResult(ctx, tx, st, e, m, plan, doc, s.storage)
 					return doc, err
 				}
-				return buildAssessment(ctx, tx, st, e, m, plan, doc)
+				return buildAssessment(ctx, tx, st, e, m, plan, doc, s.storage)
 			},
 		})
 		return err
@@ -49,7 +50,7 @@ func (s *Service) PutRecord(ctx context.Context, scope evalstore.Scope, id, memb
 	return receipt, err
 }
 
-func validateCollectedResult(ctx context.Context, db pg.DBTX, st *evalstore.Store, e evalstore.Experiment, member evalstore.Member, plan evalstore.PlanMetadata, doc evaldomain.Frozen) error {
+func validateCollectedResult(ctx context.Context, db pg.DBTX, st *evalstore.Store, e evalstore.Experiment, member evalstore.Member, plan evalstore.PlanMetadata, doc evaldomain.Frozen, storage *artifactpostgres.Storage) error {
 	var result evaldomain.ResultInput
 	if err := evaldomain.DecodeInto("ResultInput", doc.Bytes(), &result); err != nil {
 		return err
@@ -69,14 +70,14 @@ func validateCollectedResult(ctx context.Context, db pg.DBTX, st *evalstore.Stor
 	if err != nil {
 		return err
 	}
-	usage, err := observedUsage(ctx, db, e.OwnerID, member.MemberID, execution, inventory)
+	usage, err := observedUsage(ctx, db, e.OwnerID, member.MemberID, execution, inventory, storage)
 	if err != nil {
 		return err
 	}
 	if !reflect.DeepEqual(result.Usage, usage) {
 		return evaldomain.Failure("eval_member_conflict")
 	}
-	outputs, err := collectOutputs(ctx, db, e.OwnerID, member, execution, inventory)
+	outputs, err := collectOutputs(ctx, db, e.OwnerID, member, execution, inventory, storage)
 	if err != nil {
 		return err
 	}
@@ -105,7 +106,7 @@ func sameExecution(a, b evaldomain.ExecutionView) bool {
 	return string(rawA) == string(rawB)
 }
 
-func buildAssessment(ctx context.Context, db pg.DBTX, st *evalstore.Store, e evalstore.Experiment, member evalstore.Member, plan evalstore.PlanMetadata, doc evaldomain.Frozen) (evaldomain.Frozen, error) {
+func buildAssessment(ctx context.Context, db pg.DBTX, st *evalstore.Store, e evalstore.Experiment, member evalstore.Member, plan evalstore.PlanMetadata, doc evaldomain.Frozen, storage *artifactpostgres.Storage) (evaldomain.Frozen, error) {
 	var setup preparedSetup
 	if err := decodePreparedSetup(plan.Setup, &setup); err != nil {
 		return evaldomain.Frozen{}, err
@@ -143,7 +144,7 @@ func buildAssessment(ctx context.Context, db pg.DBTX, st *evalstore.Store, e eva
 		if len(checks) != len(request.CheckIDs) {
 			return evaldomain.Frozen{}, evaldomain.Failure("eval_invalid")
 		}
-		assessment.Checks, err = runNativeChecks(ctx, db, checks, member.Recipe.Case.Outputs, result)
+		assessment.Checks, err = runNativeChecks(ctx, db, checks, member.Recipe.Case.Outputs, result, storage)
 		if err != nil {
 			return evaldomain.Frozen{}, err
 		}
@@ -164,7 +165,7 @@ func buildAssessment(ctx context.Context, db pg.DBTX, st *evalstore.Store, e eva
 				automatic = append(automatic, check)
 			}
 		}
-		checked, err := runNativeChecks(ctx, db, automatic, member.Recipe.Case.Outputs, result)
+		checked, err := runNativeChecks(ctx, db, automatic, member.Recipe.Case.Outputs, result, storage)
 		if err != nil {
 			return evaldomain.Frozen{}, err
 		}

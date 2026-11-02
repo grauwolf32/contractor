@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 )
@@ -29,7 +28,7 @@ func (h *handler) postFindingProposal(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	ctx, release, err := blob.AcquireTransfer(r.Context())
+	ctx, release, err := h.dependencies.Transfers.AcquireTransfer(r.Context())
 	if err != nil {
 		h.handleError(w, err)
 		return

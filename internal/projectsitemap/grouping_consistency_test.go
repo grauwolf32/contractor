@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"slices"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
 )
 
 func TestSitemapDeclarationObservationSharePlacement(t *testing.T) {
@@ -31,7 +33,7 @@ func TestPostgresSitemapDeclarationObservationSharePlacement(t *testing.T) {
 				pool := sitemapPool(t)
 				ctx := t.Context()
 				createSitemapRun(t, ctx, pool, "grouping-run")
-				service := NewService(pool)
+				service := NewService(pool, artifactpgtest.NewStorage())
 				revision, sequence := "absent", 0
 				exerciseSitemapMemberPlacement(t, structural, declarationFirst, func(authority Authority, mutation Mutation) Document {
 					authority.OwnerID, authority.ProjectID = "owner", "project"

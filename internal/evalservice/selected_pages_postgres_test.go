@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalstore"
 	"github.com/jackc/pgx/v5"
@@ -49,7 +51,7 @@ func TestSharedPostgresSelectedPagesAtNativeCeilingReadOneStatementPerPage(t *te
 	h := newHarness(t)
 	ctx := t.Context()
 	e := h.preparedAtNativeCeiling(t, 1)
-	claims, err := evalstore.NewPostgresStore(h.pool).Claim(ctx, "collector", time.Minute, 10)
+	claims, err := evalstore.NewPostgresStore(h.pool, artifactpgtest.NewStorage()).Claim(ctx, "collector", time.Minute, 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +69,7 @@ func TestSharedPostgresSelectedPagesAtNativeCeilingReadOneStatementPerPage(t *te
 		if err = h.service.CollectView(ctx, e, claim); err != nil {
 			t.Fatal(err)
 		}
-		if view, err = evalstore.NewPostgresStore(h.pool).LatestView(ctx, e.OwnerID, e.ID); err != nil {
+		if view, err = evalstore.NewPostgresStore(h.pool, artifactpgtest.NewStorage()).LatestView(ctx, e.OwnerID, e.ID); err != nil {
 			t.Fatal(err)
 		}
 		if view != nil {

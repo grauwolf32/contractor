@@ -10,7 +10,6 @@ import (
 	"time"
 
 	. "github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -24,9 +23,9 @@ func TestPostgresConcurrentReplayFork(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
-	ctx = testBlobContext(t, ctx, pool)
+	artifactStorage := testBlobStorage(t, ctx, pool)
 	createArtifactRun(t, ctx, pool, "review-fork", false)
-	service := NewService(artifactpostgres.NewRepository(pool))
+	service := NewService(artifactStorage.Repository(pool))
 	run, _ := service.Run("review-fork")
 	written, err := run.Write(ctx, ArtifactRef{Namespace: "data", Name: "source"}, Payload{MediaType: "text/plain", Data: []byte("source")}, nil)
 	if err != nil {
@@ -39,7 +38,7 @@ func TestPostgresConcurrentReplayFork(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer tx.Rollback(context.Background())
-	first, err := NewService(artifactpostgres.NewRepository(tx)).Fork(ctx, fork)
+	first, err := NewService(artifactStorage.Repository(tx)).Fork(ctx, fork)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +50,7 @@ func TestPostgresConcurrentReplayFork(t *testing.T) {
 	pid := secondConn.Conn().PgConn().PID()
 	done := make(chan error, 1)
 	go func() {
-		second, err := NewService(artifactpostgres.NewRepository(secondConn.Conn())).Fork(ctx, fork)
+		second, err := NewService(artifactStorage.Repository(secondConn.Conn())).Fork(ctx, fork)
 		if err == nil && !second.TargetRef.SameExact(first.TargetRef) {
 			err = fmt.Errorf("different replay revisions")
 		}
@@ -93,17 +92,17 @@ func TestPostgresConcurrentContextProjection(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
-	ctx = testBlobContext(t, ctx, pool)
+	artifactStorage := testBlobStorage(t, ctx, pool)
 	projectID := "review-project"
 	_, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{ProjectID: projectID, OwnerID: "user-1", Kind: projectstore.KindProject, Name: "Review", IdempotencyKey: "review-project", RequestDigest: "sha256:" + strings.Repeat("0", 64)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = runstoretest.CreateRun(ctx, runstore.NewPostgresStore(pool), runstore.CreateRunParams{LaneClass: resolved.LaneClassModel, RunID: "review-projection", OwnerID: "user-1", ProjectID: &projectID, WorkflowName: "artifact-copy", WorkflowVersion: "1", WorkflowSchemaVersion: "contractor/v1alpha1", WorkflowSnapshot: json.RawMessage(`{"ref":{"name":"artifact-copy","version":"1"}}`), RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot()})
+	_, err = runstoretest.CreateRun(ctx, runstore.NewPostgresStore(pool, artifactStorage), runstore.CreateRunParams{LaneClass: resolved.LaneClassModel, RunID: "review-projection", OwnerID: "user-1", ProjectID: &projectID, WorkflowName: "artifact-copy", WorkflowVersion: "1", WorkflowSchemaVersion: "contractor/v1alpha1", WorkflowSnapshot: json.RawMessage(`{"ref":{"name":"artifact-copy","version":"1"}}`), RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot()})
 	if err != nil {
 		t.Fatal(err)
 	}
-	service := NewService(artifactpostgres.NewRepository(pool))
+	service := NewService(artifactStorage.Repository(pool))
 	project, _ := service.Project(projectID)
 	original, err := project.Write(ctx, ArtifactRef{Namespace: "data", Name: "source"}, Payload{MediaType: "text/plain", Data: []byte("source")}, nil)
 	if err != nil {
@@ -123,7 +122,7 @@ func TestPostgresConcurrentContextProjection(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer tx.Rollback(context.Background())
-	first, _, err := artifactpostgres.NewTxRepository(tx).CreateContextProjection(ctx, source, original.Ref, target, ref, payload)
+	first, _, err := artifactStorage.TxRepository(tx).CreateContextProjection(ctx, source, original.Ref, target, ref, payload)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,7 +138,7 @@ func TestPostgresConcurrentContextProjection(t *testing.T) {
 	defer secondTx.Rollback(context.Background())
 	done := make(chan error, 1)
 	go func() {
-		second, replay, err := artifactpostgres.NewTxRepository(secondTx).CreateContextProjection(ctx, source, original.Ref, target, ref, payload)
+		second, replay, err := artifactStorage.TxRepository(secondTx).CreateContextProjection(ctx, source, original.Ref, target, ref, payload)
 		if err == nil && (!second.BindingCreatedAt.Equal(first.BindingCreatedAt) || !second.RevisionCreatedAt.Equal(first.RevisionCreatedAt)) {
 			err = fmt.Errorf("projection replay changed creation timestamps")
 		}
@@ -183,7 +182,7 @@ func TestPostgresConcurrentContextProjection(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer conflicting.Rollback(context.Background())
-	if _, _, err := artifactpostgres.NewTxRepository(conflicting).CreateContextProjection(ctx, source, other.Ref, target, ref, payload); !errors.Is(err, contracts.ErrIdempotencyConflict) {
+	if _, _, err := artifactStorage.TxRepository(conflicting).CreateContextProjection(ctx, source, other.Ref, target, ref, payload); !errors.Is(err, contracts.ErrIdempotencyConflict) {
 		t.Fatalf("a different projection source must conflict: %v", err)
 	}
 	var edges int
@@ -196,8 +195,8 @@ func TestPostgresFrozenReplayPreservesBindingDate(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
-	ctx = testBlobContext(t, ctx, pool)
-	service := NewService(artifactpostgres.NewRepository(pool))
+	artifactStorage := testBlobStorage(t, ctx, pool)
+	service := NewService(artifactStorage.Repository(pool))
 	scope, _ := UserScope("review-dates")
 	ref := ArtifactRef{Namespace: "docs", Name: "frozen"}
 	payload := Payload{MediaType: "text/plain", Data: []byte("fixed")}

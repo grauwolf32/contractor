@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	pg "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
@@ -55,7 +57,7 @@ func runPass(ctx context.Context, pool *pgxpool.Pool, fn func(*Store) (PurgeProg
 		if err := tx.QueryRow(ctx, xactMutationsSQL).Scan(&earlier); err != nil {
 			return err
 		}
-		progress, err := fn(NewTxStore(tx))
+		progress, err := fn(NewTxStore(tx, artifactpgtest.NewStorage()))
 		if err != nil {
 			return err
 		}
@@ -92,7 +94,7 @@ var claimHolders atomic.Int64
 func claimExperiment(t *testing.T, pool *pgxpool.Pool, id string) Claim {
 	t.Helper()
 	ctx := context.Background()
-	store := NewPostgresStore(pool)
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
 	claims, err := store.Claim(ctx, fmt.Sprintf("controller-%d", claimHolders.Add(1)), time.Minute, 100)
 	if err != nil {
 		t.Fatal(err)
@@ -115,7 +117,7 @@ func claimExperiment(t *testing.T, pool *pgxpool.Pool, id string) Claim {
 
 func releaseClaim(t *testing.T, pool *pgxpool.Pool, claim Claim) {
 	t.Helper()
-	if err := NewPostgresStore(pool).ReleaseClaim(context.Background(), claim); err != nil && !errors.Is(err, ErrClaimLost) {
+	if err := NewPostgresStore(pool, artifactpgtest.NewStorage()).ReleaseClaim(context.Background(), claim); err != nil && !errors.Is(err, ErrClaimLost) {
 		t.Fatal(err)
 	}
 }
@@ -339,7 +341,7 @@ VALUES ($1, $2, 'run', $3, 'failed', false)`, e.ID, admitted.MemberID, id+"-dele
 	review := freeze(t, "AssessmentInput", assessment)
 	put(id+"-review", "assessment", review)
 	reviewSHA := review.Digest()
-	current, err := NewPostgresStore(pool).Get(ctx, scope.OwnerID, e.ID)
+	current, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).Get(ctx, scope.OwnerID, e.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -352,7 +354,7 @@ VALUES ($1, $2, 'run', $3, 'failed', false)`, e.ID, admitted.MemberID, id+"-dele
 		return err
 	})
 
-	dirty, err := NewPostgresStore(pool).DirtyMembers(ctx, scope.OwnerID, e.ID, 100)
+	dirty, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).DirtyMembers(ctx, scope.OwnerID, e.ID, 100)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -376,13 +378,13 @@ VALUES ($1, $2, 'run', $3, 'failed', false)`, e.ID, admitted.MemberID, id+"-dele
 		return err
 	})
 	releaseClaim(t, pool, claim)
-	if current, err = NewPostgresStore(pool).Get(ctx, scope.OwnerID, e.ID); err != nil {
+	if current, err = NewPostgresStore(pool, artifactpgtest.NewStorage()).Get(ctx, scope.OwnerID, e.ID); err != nil {
 		t.Fatal(err)
 	}
 	if current.Outstanding != 0 {
 		t.Fatalf("populated experiment is not drained: %+v", current)
 	}
-	view, err := NewPostgresStore(pool).LatestView(ctx, scope.OwnerID, e.ID)
+	view, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).LatestView(ctx, scope.OwnerID, e.ID)
 	if err != nil || view == nil {
 		t.Fatalf("populated experiment has no selected view: %+v, %v", view, err)
 	}
@@ -399,7 +401,7 @@ func fenceExperiment(t *testing.T, pool *pgxpool.Pool, scope Scope, e Experiment
 		_, err := s.BeginDeletion(ctx, scope, e.ID, mutation(t, e.ID+"-delete", e.Revision, deletion))
 		return err
 	})
-	fenced, err := NewPostgresStore(pool).Get(ctx, scope.OwnerID, e.ID)
+	fenced, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).Get(ctx, scope.OwnerID, e.ID)
 	if err != nil || fenced.DeletionRequestedAt == nil || fenced.Revision != e.Revision+1 {
 		t.Fatalf("fenced experiment = %+v, %v", fenced, err)
 	}
@@ -455,7 +457,7 @@ func TestSharedPostgresEvalExperimentPurgeIsBoundedAndRestartable(t *testing.T) 
 		}
 		cancelled, cancel := context.WithCancel(ctx)
 		err = pg.InTx(cancelled, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-			_, err := NewTxStore(tx).Purge(cancelled, scope, e.ID, claim)
+			_, err := NewTxStore(tx, artifactpgtest.NewStorage()).Purge(cancelled, scope, e.ID, claim)
 			cancel()
 			return err
 		})
@@ -465,7 +467,7 @@ func TestSharedPostgresEvalExperimentPurgeIsBoundedAndRestartable(t *testing.T) 
 		if now := footprint(t, pool, e.ID); now.bytes != want.bytes || fmt.Sprint(now.rows) != fmt.Sprint(want.rows) {
 			t.Fatalf("%s: failed passes left %+v, want %+v", label, now, want)
 		}
-		if view, err := NewPostgresStore(pool).LatestView(ctx, scope.OwnerID, e.ID); err != nil || (view != nil) != viewKept {
+		if view, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).LatestView(ctx, scope.OwnerID, e.ID); err != nil || (view != nil) != viewKept {
 			t.Fatalf("%s: view after failed passes = %+v, %v", label, view, err)
 		}
 	}
@@ -494,13 +496,13 @@ func TestSharedPostgresEvalExperimentPurgeIsBoundedAndRestartable(t *testing.T) 
 		if len(passes) == 1 {
 			// The first pass removes the selected view before its rows; the
 			// experiment's identity and plan stay until the last pass.
-			if view, err := NewPostgresStore(pool).LatestView(ctx, scope.OwnerID, e.ID); err != nil || view != nil {
+			if view, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).LatestView(ctx, scope.OwnerID, e.ID); err != nil || view != nil {
 				t.Fatalf("view after the first pass = %+v, %v", view, err)
 			}
-			if purging, err := NewPostgresStore(pool).Purging(ctx, scope.OwnerID, e.ID); err != nil || !purging {
+			if purging, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).Purging(ctx, scope.OwnerID, e.ID); err != nil || !purging {
 				t.Fatalf("Purging after the first pass = %t, %v", purging, err)
 			}
-			if _, err := NewPostgresStore(pool).FrozenPlan(ctx, scope.OwnerID, e.ID); err != nil {
+			if _, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).FrozenPlan(ctx, scope.OwnerID, e.ID); err != nil {
 				t.Fatalf("frozen plan during the purge: %v", err)
 			}
 		}
@@ -582,7 +584,7 @@ func TestSharedPostgresEvalPurgeWaitsForDrainAndAuthority(t *testing.T) {
 		if now := footprint(t, pool, e.ID); now.bytes != before.bytes || fmt.Sprint(now.rows) != fmt.Sprint(before.rows) {
 			t.Fatalf("%s removed rows: %+v, want %+v", label, now.rows, before.rows)
 		}
-		if view, err := NewPostgresStore(pool).LatestView(ctx, scope.OwnerID, e.ID); err != nil || view == nil {
+		if view, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).LatestView(ctx, scope.OwnerID, e.ID); err != nil || view == nil {
 			t.Fatalf("%s removed the selected view: %+v, %v", label, view, err)
 		}
 	}
@@ -774,7 +776,7 @@ func preparedNative(t *testing.T, pool *pgxpool.Pool, scope Scope, id string) Ex
 		return s.FreezePrepared(ctx, scope, e.ID, claim, plan, setup, cases, resources...)
 	})
 	releaseClaim(t, pool, claim)
-	e, err := NewPostgresStore(pool).Get(ctx, scope.OwnerID, e.ID)
+	e, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).Get(ctx, scope.OwnerID, e.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -784,7 +786,7 @@ func preparedNative(t *testing.T, pool *pgxpool.Pool, scope Scope, id string) Ex
 			Mutation: mutation(t, id+"-start", e.Revision, freeze(t, "Command", start))})
 		return err
 	})
-	if e, err = NewPostgresStore(pool).Get(ctx, scope.OwnerID, e.ID); err != nil {
+	if e, err = NewPostgresStore(pool, artifactpgtest.NewStorage()).Get(ctx, scope.OwnerID, e.ID); err != nil {
 		t.Fatal(err)
 	}
 	return e
@@ -931,7 +933,7 @@ func TestSharedPostgresEvalPurgeRemovesNativePlanResourcesAndCommands(t *testing
 	if left := footprint(t, pool, e.ID); len(left.rows) != 0 {
 		t.Fatalf("purge left %v", left.rows)
 	}
-	if _, err := NewPostgresStore(pool).CommandRecord(ctx, scope.OwnerID, e.ID, "native-prepare"); !code(err, "eval_not_found") {
+	if _, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).CommandRecord(ctx, scope.OwnerID, e.ID, "native-prepare"); !code(err, "eval_not_found") {
 		t.Fatalf("command after the purge = %v", err)
 	}
 	receipts := countWhere(t, pool, `SELECT count(*) FROM mutation_receipts WHERE key_scope[1] = 'eval' AND project_id = $1`, scope.ProjectID)

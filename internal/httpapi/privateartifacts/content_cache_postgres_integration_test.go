@@ -12,9 +12,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 )
@@ -27,7 +28,7 @@ func TestPostgresPrivateContentCacheIdentityAcrossForksAndPurge(t *testing.T) {
 	pool := isolatedPrivateArtifactPool(t, ctx)
 	createPrivateArtifactRun(t, ctx, pool, "run-a")
 	createPrivateArtifactRun(t, ctx, pool, "run-b")
-	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
+	service := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
 	user, err := service.User("user-1")
 	if err != nil {
 		t.Fatal(err)
@@ -47,7 +48,7 @@ func TestPostgresPrivateContentCacheIdentityAcrossForksAndPurge(t *testing.T) {
 	}
 	read := func(runID string, ref artifacts.ArtifactRef, status int) contracts.ArtifactMetadataResult {
 		t.Helper()
-		handler, err := NewHandler(Dependencies{
+		handler, err := NewHandler(Dependencies{Transfers: artifactpgtest.NewStorage(),
 			Registry: &fakeRegistry{grant: testGrant(runID)}, Artifacts: service,
 			NewRequestID: func() (string, error) { return "cache-identity", nil },
 		})
@@ -105,7 +106,7 @@ func TestPostgresPrivateContentCacheIdentityAcrossForksAndPurge(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer tx.Rollback(ctx)
-	purger, err := artifactpostgres.NewPurger(tx)
+	purger, err := artifactpgtest.NewStorage().Purger(tx)
 	if err != nil {
 		t.Fatal(err)
 	}

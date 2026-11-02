@@ -5,7 +5,6 @@ import (
 	"errors"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
@@ -45,7 +44,7 @@ func (s *Service) prepareFingerprint(ctx context.Context, grant controlplane.All
 	if len(selected) > 32 {
 		return absent("input_limit"), nil
 	}
-	runArtifacts, err := artifacts.NewService(artifactpostgres.NewRepository(s.pool)).Run(grant.RunID)
+	runArtifacts, err := artifacts.NewService(s.storage.Repository(s.pool)).Run(grant.RunID)
 	if err != nil {
 		return absent("not_provided"), err
 	}

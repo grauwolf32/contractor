@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -26,7 +28,7 @@ func TestPostgresListRunEventsBoundsPageDataBytes(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	pool := isolatedRunStorePool(t, ctx)
-	store := NewPostgresStore(pool)
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
 	history := startSizedPlannerEvents(t, ctx, pool, store, "run-event-pages", "stage-event-pages")
 	start := history.last
 	const small = 4096
@@ -150,7 +152,7 @@ func TestPostgresListRunEventsFailsOnInvalidStoredEventsAndKeepsGaps(t *testing.
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 	pool := isolatedRunStorePool(t, ctx)
-	store := NewPostgresStore(pool)
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
 	insert := func(runID string, sequence int64, kind RunEventKind, data string) {
 		t.Helper()
 		if _, err := pool.Exec(ctx, `

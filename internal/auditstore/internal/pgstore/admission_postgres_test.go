@@ -9,8 +9,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -26,7 +27,7 @@ func admissionFixture(t *testing.T, name string) (collectingAuditFixture, *Claim
 	if _, err := f.pool.Exec(f.ctx, `UPDATE audits SET max_rounds=4,max_items_per_round=4096,max_items_total=10000 WHERE audit_id=$1`, f.audit.AuditID); err != nil {
 		t.Fatal(err)
 	}
-	return f, NewClaimedAdmission(f.pool), auditstore.AdmissionStepParams{Claim: f.claim, PreviousRoundID: *f.audit.CurrentRoundID}
+	return f, NewClaimedAdmission(f.pool, artifactpgtest.NewStorage()), auditstore.AdmissionStepParams{Claim: f.claim, PreviousRoundID: *f.audit.CurrentRoundID}
 }
 func admissionProposal(t *testing.T, f collectingAuditFixture) (auditstore.ExactArtifact, []byte, auditdomain.FindingChecksProjection) {
 	t.Helper()
@@ -35,7 +36,7 @@ func admissionProposal(t *testing.T, f collectingAuditFixture) (auditstore.Exact
 	if err != nil {
 		t.Fatal(err)
 	}
-	service := artifacts.NewService(artifactpostgres.NewRepository(f.pool))
+	service := artifacts.NewService(artifactpgtest.NewStorage().Repository(f.pool))
 	scope, _ := artifacts.ProjectScope(f.audit.ProjectID)
 	written, err := service.CreateFrozen(f.ctx, scope, contracts.ArtifactRef{Namespace: auditdomain.ArtifactNamespace(f.audit.AuditID), Name: "admission-test-proposal"}, artifacts.Payload{MediaType: "application/json", Data: data})
 	if err != nil {
@@ -229,7 +230,7 @@ func TestPostgresAdmissionRaw128HeadersAndAllPortsUseSingleConnection(t *testing
 		t.Fatal(err)
 	}
 	defer pool.Close()
-	store := NewClaimedAdmission(pool)
+	store := NewClaimedAdmission(pool, artifactpgtest.NewStorage())
 	initial, err := store.WithStep(f.ctx, p, func(context.Context, *AdmissionSession) (auditstore.AdmissionMutation, error) {
 		return auditstore.AdmissionMutation{}, nil
 	})

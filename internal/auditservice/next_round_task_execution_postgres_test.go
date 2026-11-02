@@ -8,8 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
@@ -58,7 +59,7 @@ func TestPostgresNextRoundStopsBeforeWritingUnsupportedScanTasks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	service, err := New(Options{
+	service, err := New(Options{Storage: artifactpgtest.NewStorage(),
 		Pool: pool, Profiles: &switchableProfileCatalog{snapshot: snapshot, available: true},
 		CredentialGuard: &countingCredentialGuard{},
 		TransactionLLMCredentials: runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(
@@ -75,7 +76,7 @@ func TestPostgresNextRoundStopsBeforeWritingUnsupportedScanTasks(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	projectArtifacts, err := artifacts.NewService(artifactpostgres.NewRepository(pool)).Project(projectID)
+	projectArtifacts, err := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool)).Project(projectID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,7 +111,7 @@ func TestPostgresNextRoundStopsBeforeWritingUnsupportedScanTasks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store := auditstoretest.NewStore(pool)
+	store := auditstoretest.NewStore(pool, artifactpgtest.NewStorage())
 	claims, err := store.Claim(ctx, auditstore.ClaimParams{HolderID: "scan-round-controller", Lease: time.Minute, Limit: 1})
 	if err != nil || len(claims) != 1 {
 		t.Fatalf("claim = (%+v, %v)", claims, err)

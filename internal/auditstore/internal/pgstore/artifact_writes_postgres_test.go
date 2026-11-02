@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -13,7 +15,7 @@ import (
 
 func TestClaimedArtifactWritesFenceTakeoverAndPurge(t *testing.T) {
 	f := newCollectingAuditFixture(t, "artifact-fence", 1<<20)
-	writes := NewClaimedArtifacts(f.pool)
+	writes := NewClaimedArtifacts(f.pool, artifactpgtest.NewStorage())
 	namespace := auditdomain.ArtifactNamespace(f.audit.AuditID)
 	project, _ := artifacts.ProjectScope(f.project.ProjectID)
 	payload := artifacts.Payload{MediaType: "application/json", Data: []byte(`{"stable":true}`)}

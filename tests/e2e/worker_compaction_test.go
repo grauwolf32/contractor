@@ -16,6 +16,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/localpki"
@@ -178,7 +180,7 @@ func TestWorkerCompactionContinuesIsolatedWorker(t *testing.T) {
 	}
 
 	// The immutable Stage snapshot carries the exact compact@1 pins.
-	executions, err := runstore.NewPostgresStore(pool).ListStageExecutions(ctx, runID)
+	executions, err := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()).ListStageExecutions(ctx, runID)
 	if err != nil || len(executions) != 1 {
 		t.Fatalf("compaction StageExecutions = (%d, %v)", len(executions), err)
 	}

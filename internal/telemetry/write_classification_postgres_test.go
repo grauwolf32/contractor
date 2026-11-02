@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 )
@@ -16,7 +18,7 @@ func TestReportWriteKeepsDatabaseRejectionsPermanent(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedTelemetryPool(t, ctx)
-	runs := runstore.NewPostgresStore(pool)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	reports := telemetry.NewRepository(pool)
 	createTelemetryRun(t, ctx, runs)
 	stage := createTelemetryStage(t, ctx, runs, "stage-rejected", "allocation-rejected", "session-rejected")

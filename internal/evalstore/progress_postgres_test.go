@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 )
 
@@ -30,7 +32,7 @@ func TestSharedPostgresEvalProgressBucketsRetainRealObservationsAndGaps(t *testi
 		}
 	}
 	view := View{CreatedAt: start.Add(20000 * time.Second)}
-	store := NewPostgresStore(pool)
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
 	for _, suite := range []string{"", "trace"} {
 		points, width, err := store.Progress(t.Context(), e, view, suite, "a", "b")
 		if err != nil || len(points) == 0 || len(points) > evaldomain.MaxProgressBuckets || width <= 0 {

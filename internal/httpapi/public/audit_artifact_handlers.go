@@ -20,7 +20,7 @@ func (h *auditHandlers) getAuditArtifact(w http.ResponseWriter, r *http.Request)
 		handleError(w, err)
 		return
 	}
-	r, transfer, err := artifacttransfer.Acquire(w, r)
+	r, transfer, err := artifacttransfer.Acquire(w, r, h.Transfers)
 	if err != nil {
 		handleError(w, err)
 		return

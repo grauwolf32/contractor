@@ -15,8 +15,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
@@ -92,7 +93,7 @@ func newEngagementFixtureWithEdits(t *testing.T, editWorker func(string) string,
 	lookup := &switchableCredentialLookup{available: true, gateway: gateway.Ref}
 	barrier := credentials.NewLifecycleBarrier()
 	now := time.Date(2026, 10, 28, 10, 0, 0, 0, time.UTC)
-	service, err := New(Options{Pool: pool, Profiles: &switchableProfileCatalog{snapshot: snapshot, available: true}, TransactionLLMCredentials: runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (resolved.CredentialLookup, error) { return lookup, nil }), CredentialGuard: engagementGuard{barrier}, Now: func() time.Time { return now }})
+	service, err := New(Options{Storage: artifactpgtest.NewStorage(), Pool: pool, Profiles: &switchableProfileCatalog{snapshot: snapshot, available: true}, TransactionLLMCredentials: runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (resolved.CredentialLookup, error) { return lookup, nil }), CredentialGuard: engagementGuard{barrier}, Now: func() time.Time { return now }})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +101,7 @@ func newEngagementFixtureWithEdits(t *testing.T, editWorker func(string) string,
 	if err != nil {
 		t.Fatal(err)
 	}
-	creds, err := credentials.NewRuntimeCredentialService(credentials.RuntimeCredentialServiceOptions{Pool: pool, Lease: leasetest.Hold(t, pool).Lease, Cipher: cipher, Usage: credentials.NewRuntimeCredentialRepository(pool), Projects: projectstore.NewPostgresStore(pool), Audits: hookstore.NewCredentialHolds(pool), Barrier: barrier})
+	creds, err := credentials.NewRuntimeCredentialService(credentials.RuntimeCredentialServiceOptions{Pool: pool, Lease: leasetest.Hold(t, pool).Lease, Cipher: cipher, Usage: credentials.NewRuntimeCredentialRepository(pool), Projects: projectstore.NewPostgresStore(pool), Audits: hookstore.NewCredentialHolds(pool, artifactpgtest.NewStorage()), Barrier: barrier})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,7 +109,7 @@ func newEngagementFixtureWithEdits(t *testing.T, editWorker func(string) string,
 	if err != nil {
 		t.Fatal(err)
 	}
-	store, err := artifacts.NewService(artifactpostgres.NewRepository(pool)).Project(project.ProjectID)
+	store, err := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool)).Project(project.ProjectID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -373,7 +374,7 @@ func TestEngagementSourceAssistedRetainsExactInputsAndPurgeReleasesHolds(t *test
 	if err != nil {
 		t.Fatal(err)
 	}
-	store := auditstoretest.NewStore(f.pool).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch)
+	store := auditstoretest.NewStore(f.pool, artifactpgtest.NewStorage()).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch)
 	claim := claimAuditForPurge(t, f.ctx, store, draft.AuditID)
 	if deleted.Audit.State == auditstore.AuditCancelling {
 		if settled, err := store.SettleUndispatched(f.ctx, claim, auditstore.MaxReconcileRows); err != nil || settled != 1 {
@@ -588,7 +589,7 @@ func TestEngagementMetadataAdmissionPrecedesPayloadReads(t *testing.T) {
 		t.Fatal(err)
 	}
 	selection := DraftSelection{Inputs: map[string]contracts.ExactArtifact{"engagement": meta.Exact(), "checklist": f.checklist}}
-	probe := &rulepackReadProbe{Repository: artifactpostgres.NewRepository(f.pool), readErr: errors.New("unexpected engagement payload read")}
+	probe := &rulepackReadProbe{Repository: artifactpgtest.NewStorage().Repository(f.pool), readErr: errors.New("unexpected engagement payload read")}
 	if _, err = readAndVerifyInputs(f.ctx, artifacts.NewService(probe), f.project.ProjectID, profile, selection); !errors.Is(err, ErrInvalid) || probe.reads != 0 {
 		t.Fatalf("oversized engagement materialized: reads=%d err=%v", probe.reads, err)
 	}

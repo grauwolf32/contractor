@@ -7,10 +7,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	. "github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -28,7 +29,7 @@ func TestPostgresDescribeForkRevisionsPreservesTargetsAndBoundsWork(t *testing.T
 	defer pool.Close()
 	createArtifactRun(t, ctx, pool, "original-inputs", false)
 	createArtifactRun(t, ctx, pool, "foreign-inputs", false)
-	service := NewService(artifactpostgres.NewRepository(pool))
+	service := NewService(artifactpgtest.NewStorage().Repository(pool))
 	owner, _ := service.User("user-1")
 	run, _ := service.Run("original-inputs")
 	want := make(map[string]contracts.ExactArtifact)
@@ -71,7 +72,7 @@ func TestPostgresDescribeForkRevisionsPreservesTargetsAndBoundsWork(t *testing.T
 		}
 		defer tx.Rollback(ctx) //nolint:errcheck // cleanup after a successful commit is harmless
 		counter := &countingDB{DBTX: tx}
-		store, _ := NewService(artifactpostgres.NewRepository(counter)).Run("original-inputs")
+		store, _ := NewService(artifactpgtest.NewStorage().Repository(counter)).Run("original-inputs")
 		got, err := store.DescribeForkRevisions(ctx, "inputs", selection, LineageInputFork)
 		if err != nil {
 			t.Fatal(err)
@@ -107,7 +108,7 @@ func TestPostgresDescribeForkRevisionsPreservesTargetsAndBoundsWork(t *testing.T
 		t.Fatal(err)
 	}
 	counter := &countingDB{DBTX: tx}
-	selected, _ := NewService(artifactpostgres.NewRepository(counter)).Run("original-inputs")
+	selected, _ := NewService(artifactpgtest.NewStorage().Repository(counter)).Run("original-inputs")
 	sources, err := selected.DescribeForkSources(ctx, "inputs", names, LineageInputFork)
 	queries, payloads := counter.reset()
 	if err != nil || len(sources) != len(names) || queries != 1 || payloads != 0 {

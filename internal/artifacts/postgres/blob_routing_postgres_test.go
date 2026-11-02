@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	. "github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob/backends"
@@ -23,14 +25,14 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func startupBlobContext(t *testing.T, ctx context.Context, mode blob.Backend, path string, threshold int64) (context.Context, blob.Backend) {
+func startupBlobStorage(t *testing.T, ctx context.Context, mode blob.Backend, path string, threshold int64) (*artifactpostgres.Storage, blob.Backend) {
 	t.Helper()
 	backend, store, err := backends.Open(ctx, mode, path, threshold)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = store.(io.Closer).Close() })
-	return blob.WithRuntime(ctx, blob.NewRuntime(store, nil)), backend
+	return artifactpgtest.NewConfigured(blob.NewRuntime(store, nil), artifactpostgres.DefaultHistoryPolicy()), backend
 }
 
 func storedBlobLocation(t *testing.T, ctx context.Context, pool *pgxpool.Pool, data []byte) (blob.Backend, *string) {
@@ -53,11 +55,10 @@ func TestAutoBlobStorageThresholdAndRestart(t *testing.T) {
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
 	root := filepath.Join(t.TempDir(), "blobs")
-	current, backend := startupBlobContext(t, ctx, blob.Auto, root, blob.DefaultInlineMaxBytes)
+	current, backend := startupBlobStorage(t, ctx, blob.Auto, root, blob.DefaultInlineMaxBytes)
 	if backend != blob.Filesystem {
 		t.Fatalf("writable root selected %s", backend)
 	}
-	user, _ := NewService(artifactpostgres.NewRepository(pool)).User("routing-user")
 	for _, tc := range []struct {
 		name string
 		size int
@@ -68,11 +69,11 @@ func TestAutoBlobStorageThresholdAndRestart(t *testing.T) {
 		{"above", 1048577, blob.Filesystem},
 	} {
 		data := bytes.Repeat([]byte{0x5a}, tc.size)
-		payload, err := artifactpostgres.PreparePayload(current, pool, Payload{MediaType: "application/octet-stream", Data: data})
+		payload, err := current.PreparePayload(ctx, pool, Payload{MediaType: "application/octet-stream", Data: data})
 		if err != nil {
 			t.Fatal(err)
 		}
-		written, err := user.Write(current, ArtifactRef{Namespace: "docs", Name: tc.name}, payload, nil)
+		written, err := routingUser(t, current, pool, "routing-user").Write(ctx, ArtifactRef{Namespace: "docs", Name: tc.name}, payload, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -80,22 +81,22 @@ func TestAutoBlobStorageThresholdAndRestart(t *testing.T) {
 		if got != tc.want {
 			t.Fatalf("%s stored in %s, want %s", tc.name, got, tc.want)
 		}
-		restarted, selected := startupBlobContext(t, ctx, blob.Postgres, root, blob.DefaultInlineMaxBytes)
+		restarted, selected := startupBlobStorage(t, ctx, blob.Postgres, root, blob.DefaultInlineMaxBytes)
 		if selected != blob.Postgres {
 			t.Fatal("explicit PostgreSQL writer was ignored")
 		}
-		read, err := user.Read(restarted, written.Ref)
+		read, err := routingUser(t, restarted, pool, "routing-user").Read(ctx, written.Ref)
 		if err != nil || !bytes.Equal(read.Payload.Data, data) {
 			t.Fatalf("%s after restart: %v", tc.name, err)
 		}
 	}
-	pgContext, _ := startupBlobContext(t, ctx, blob.Postgres, root, blob.DefaultInlineMaxBytes)
+	pgContext, _ := startupBlobStorage(t, ctx, blob.Postgres, root, blob.DefaultInlineMaxBytes)
 	data := bytes.Repeat([]byte{0x31}, 1048577)
-	written, err := user.Write(pgContext, ArtifactRef{Namespace: "docs", Name: "large-inline"}, Payload{MediaType: "application/octet-stream", Data: data}, nil)
+	written, err := routingUser(t, pgContext, pool, "routing-user").Write(ctx, ArtifactRef{Namespace: "docs", Name: "large-inline"}, Payload{MediaType: "application/octet-stream", Data: data}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	read, err := user.Read(current, written.Ref)
+	read, err := routingUser(t, current, pool, "routing-user").Read(ctx, written.Ref)
 	if err != nil || !bytes.Equal(read.Payload.Data, data) {
 		t.Fatalf("retained inline bytes: %v", err)
 	}
@@ -106,12 +107,11 @@ func TestMixedBlobDedupKeepsExistingLocation(t *testing.T) {
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
 	root := t.TempDir()
-	pgContext, _ := startupBlobContext(t, ctx, blob.Postgres, root, blob.DefaultInlineMaxBytes)
-	fileContext, _ := startupBlobContext(t, ctx, blob.Filesystem, root, blob.DefaultInlineMaxBytes)
-	user, _ := NewService(artifactpostgres.NewRepository(pool)).User("dedup-routing-user")
+	pgContext, _ := startupBlobStorage(t, ctx, blob.Postgres, root, blob.DefaultInlineMaxBytes)
+	fileContext, _ := startupBlobStorage(t, ctx, blob.Filesystem, root, blob.DefaultInlineMaxBytes)
 	for _, tc := range []struct {
 		name        string
-		first, next context.Context
+		first, next *artifactpostgres.Storage
 		want        blob.Backend
 		value       byte
 	}{
@@ -120,12 +120,12 @@ func TestMixedBlobDedupKeepsExistingLocation(t *testing.T) {
 	} {
 		data := bytes.Repeat([]byte{tc.value}, 1048577)
 		payload := Payload{MediaType: "application/octet-stream", Data: data}
-		first, err := user.Write(tc.first, ArtifactRef{Namespace: "docs", Name: tc.name}, payload, nil)
+		first, err := routingUser(t, tc.first, pool, "dedup-routing-user").Write(ctx, ArtifactRef{Namespace: "docs", Name: tc.name}, payload, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
 		_, originalKey := storedBlobLocation(t, ctx, pool, data)
-		next, err := user.Write(tc.next, ArtifactRef{Namespace: "docs", Name: tc.name + "-duplicate"}, payload, nil)
+		next, err := routingUser(t, tc.next, pool, "dedup-routing-user").Write(ctx, ArtifactRef{Namespace: "docs", Name: tc.name + "-duplicate"}, payload, nil)
 		if err != nil {
 			t.Fatalf("%s across write policy: %v", tc.name, err)
 		}
@@ -134,7 +134,7 @@ func TestMixedBlobDedupKeepsExistingLocation(t *testing.T) {
 			t.Fatalf("%s moved its existing location", tc.name)
 		}
 		for _, ref := range []ArtifactRef{first.Ref, next.Ref} {
-			read, err := user.Read(tc.next, ref)
+			read, err := routingUser(t, tc.next, pool, "dedup-routing-user").Read(ctx, ref)
 			if err != nil || !bytes.Equal(read.Payload.Data, data) {
 				t.Fatalf("%s duplicate is unreadable: %v", tc.name, err)
 			}
@@ -151,10 +151,9 @@ func TestAutoBlobUnavailableFilesystemPreservesReadErrors(t *testing.T) {
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
 	root := filepath.Join(t.TempDir(), "blobs")
-	initial, _ := startupBlobContext(t, ctx, blob.Auto, root, blob.DefaultInlineMaxBytes)
-	user, _ := NewService(artifactpostgres.NewRepository(pool)).User("unavailable-routing-user")
+	initial, _ := startupBlobStorage(t, ctx, blob.Auto, root, blob.DefaultInlineMaxBytes)
 	fileData := bytes.Repeat([]byte{0x33}, 1048577)
-	file, err := user.Write(initial, ArtifactRef{Namespace: "docs", Name: "file"}, Payload{MediaType: "application/octet-stream", Data: fileData}, nil)
+	file, err := routingUser(t, initial, pool, "unavailable-routing-user").Write(ctx, ArtifactRef{Namespace: "docs", Name: "file"}, Payload{MediaType: "application/octet-stream", Data: fileData}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -164,30 +163,30 @@ func TestAutoBlobUnavailableFilesystemPreservesReadErrors(t *testing.T) {
 	if err := os.WriteFile(root, []byte("unavailable directory"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	restarted, selected := startupBlobContext(t, ctx, blob.Auto, root, blob.DefaultInlineMaxBytes)
+	restarted, selected := startupBlobStorage(t, ctx, blob.Auto, root, blob.DefaultInlineMaxBytes)
 	if selected != blob.Postgres {
 		t.Fatalf("unavailable root selected %s", selected)
 	}
 	data := bytes.Repeat([]byte{0x44}, 1048577)
-	written, err := user.Write(restarted, ArtifactRef{Namespace: "docs", Name: "fallback"}, Payload{MediaType: "application/octet-stream", Data: data}, nil)
+	written, err := routingUser(t, restarted, pool, "unavailable-routing-user").Write(ctx, ArtifactRef{Namespace: "docs", Name: "fallback"}, Payload{MediaType: "application/octet-stream", Data: data}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got, _ := storedBlobLocation(t, ctx, pool, data); got != blob.Postgres {
 		t.Fatal("large fallback payload was not inline")
 	}
-	read, err := user.Read(restarted, written.Ref)
+	read, err := routingUser(t, restarted, pool, "unavailable-routing-user").Read(ctx, written.Ref)
 	if err != nil || !bytes.Equal(read.Payload.Data, data) {
 		t.Fatalf("fallback bytes: %v", err)
 	}
-	if _, err := user.Read(restarted, file.Ref); !errors.Is(err, blob.ErrIO) {
+	if _, err := routingUser(t, restarted, pool, "unavailable-routing-user").Read(ctx, file.Ref); !errors.Is(err, blob.ErrIO) {
 		t.Fatalf("unavailable file became successful content: %v", err)
 	}
-	_, err = user.Write(restarted, ArtifactRef{Namespace: "docs", Name: "missing-duplicate"}, Payload{MediaType: "application/octet-stream", Data: fileData}, nil)
+	_, err = routingUser(t, restarted, pool, "unavailable-routing-user").Write(ctx, ArtifactRef{Namespace: "docs", Name: "missing-duplicate"}, Payload{MediaType: "application/octet-stream", Data: fileData}, nil)
 	if !errors.Is(err, blob.ErrIO) {
 		t.Fatalf("unavailable deduplication published success: %v", err)
 	}
-	if _, err := user.Metadata(ctx, ArtifactRef{Namespace: "docs", Name: "missing-duplicate"}); !errors.Is(err, ErrArtifactNotFound) {
+	if _, err := routingUser(t, initial, pool, "unavailable-routing-user").Metadata(ctx, ArtifactRef{Namespace: "docs", Name: "missing-duplicate"}); !errors.Is(err, ErrArtifactNotFound) {
 		t.Fatalf("failed duplicate left metadata: %v", err)
 	}
 	if _, _, err := backends.Open(ctx, blob.Filesystem, root, blob.DefaultInlineMaxBytes); err == nil {
@@ -200,9 +199,9 @@ func TestMixedBlobPurgeRoutesFilesAfterCommit(t *testing.T) {
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
 	root := t.TempDir()
-	current, _ := startupBlobContext(t, ctx, blob.Auto, root, blob.DefaultInlineMaxBytes)
-	createArtifactRun(t, current, pool, "mixed-purge-run", true)
-	run, _ := NewService(artifactpostgres.NewRepository(pool)).Run("mixed-purge-run")
+	current, _ := startupBlobStorage(t, ctx, blob.Auto, root, blob.DefaultInlineMaxBytes)
+	createArtifactRun(t, ctx, pool, "mixed-purge-run", true)
+	run, _ := NewService(current.Repository(pool)).Run("mixed-purge-run")
 	for _, item := range []struct {
 		name string
 		data []byte
@@ -210,7 +209,7 @@ func TestMixedBlobPurgeRoutesFilesAfterCommit(t *testing.T) {
 		{"inline", []byte("retained inline")},
 		{"file", bytes.Repeat([]byte{0x66}, 1048577)},
 	} {
-		if _, err := run.Write(current, ArtifactRef{Namespace: "scratch", Name: item.name}, Payload{MediaType: "application/octet-stream", Data: item.data}, nil); err != nil {
+		if _, err := run.Write(ctx, ArtifactRef{Namespace: "scratch", Name: item.name}, Payload{MediaType: "application/octet-stream", Data: item.data}, nil); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -218,13 +217,13 @@ func TestMixedBlobPurgeRoutesFilesAfterCommit(t *testing.T) {
 	if err := pool.QueryRow(ctx, "SELECT object_key FROM artifact_blobs WHERE backend='filesystem'").Scan(&key); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := runstore.NewPostgresStore(pool).TransitionRun(ctx, "mixed-purge-run", runstore.RunRunning, runstore.RunSucceeded, runstore.Reason{Code: "done"}); err != nil {
+	if _, err := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()).TransitionRun(ctx, "mixed-purge-run", runstore.RunRunning, runstore.RunSucceeded, runstore.Reason{Code: "done"}); err != nil {
 		t.Fatal(err)
 	}
-	deleting, _ := startupBlobContext(t, ctx, blob.Postgres, root, blob.DefaultInlineMaxBytes)
+	deleting, _ := startupBlobStorage(t, ctx, blob.Postgres, root, blob.DefaultInlineMaxBytes)
 	abort := errors.New("rollback")
-	err := postgres.InTx(deleting, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		if err := rundeletion.New(tx).DeleteReleasedTerminalRun(deleting, "user-1", "mixed-purge-run"); err != nil {
+	err := postgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		if err := rundeletion.New(tx, deleting).DeleteReleasedTerminalRun(ctx, "user-1", "mixed-purge-run"); err != nil {
 			return err
 		}
 		return abort
@@ -235,7 +234,7 @@ func TestMixedBlobPurgeRoutesFilesAfterCommit(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(root, key)); err != nil {
 		t.Fatalf("rollback removed file: %v", err)
 	}
-	if err := rundeletion.New(pool).DeleteReleasedTerminalRun(deleting, "user-1", "mixed-purge-run"); err != nil {
+	if err := rundeletion.New(pool, deleting).DeleteReleasedTerminalRun(ctx, "user-1", "mixed-purge-run"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(filepath.Join(root, key)); !errors.Is(err, os.ErrNotExist) {
@@ -248,14 +247,17 @@ func TestMixedBlobPurgeRoutesFilesAfterCommit(t *testing.T) {
 }
 
 func TestMixedDedupRejectsChangedUnverifiedFileKey(t *testing.T) {
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
 	ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
 	root := t.TempDir()
-	fileContext, _ := startupBlobContext(t, ctx, blob.Filesystem, root, blob.DefaultInlineMaxBytes)
-	user, _ := NewService(artifactpostgres.NewRepository(pool)).User("mixed-race-user")
+	fileContext, _ := startupBlobStorage(t, ctx, blob.Filesystem, root, blob.DefaultInlineMaxBytes)
 	payload := Payload{MediaType: "text/plain", Data: []byte("same digest during a backend change")}
-	if _, err := user.Write(fileContext, ArtifactRef{Namespace: "docs", Name: "original"}, payload, nil); err != nil {
+	if _, err := routingUser(t, fileContext, pool, "mixed-race-user").Write(ctx, ArtifactRef{Namespace: "docs", Name: "original"}, payload, nil); err != nil {
 		t.Fatal(err)
 	}
 	_, key := storedBlobLocation(t, ctx, pool, payload.Data)
@@ -265,7 +267,8 @@ func TestMixedDedupRejectsChangedUnverifiedFileKey(t *testing.T) {
 	}
 	defer store.(io.Closer).Close()
 	paused := pausedBlobRead{Storage: store, key: *key, entered: make(chan struct{}, 1), resume: make(chan struct{})}
-	delayed := blob.WithRuntime(ctx, blob.NewRuntime(paused, nil))
+	artifactRuntime = blob.NewRuntime(paused, nil)
+	artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
 	target := ArtifactRef{Namespace: "docs", Name: "delayed-inline"}
 	finished := make(chan error, 1)
 	var release sync.Once
@@ -273,7 +276,7 @@ func TestMixedDedupRejectsChangedUnverifiedFileKey(t *testing.T) {
 	writer.Add(1)
 	go func() {
 		defer writer.Done()
-		_, err := user.Write(delayed, target, payload, nil)
+		_, err := routingUser(t, artifactStorage, pool, "mixed-race-user").Write(ctx, target, payload, nil)
 		finished <- err
 	}()
 	defer func() { release.Do(func() { close(paused.resume) }); writer.Wait() }()
@@ -285,7 +288,7 @@ func TestMixedDedupRejectsChangedUnverifiedFileKey(t *testing.T) {
 	if err := os.Remove(filepath.Join(root, *key)); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := user.Write(fileContext, ArtifactRef{Namespace: "docs", Name: "repair"}, payload, nil); err != nil {
+	if _, err := routingUser(t, fileContext, pool, "mixed-race-user").Write(ctx, ArtifactRef{Namespace: "docs", Name: "repair"}, payload, nil); err != nil {
 		t.Fatal(err)
 	}
 	_, replacement := storedBlobLocation(t, ctx, pool, payload.Data)
@@ -299,7 +302,16 @@ func TestMixedDedupRejectsChangedUnverifiedFileKey(t *testing.T) {
 	if err := <-finished; err == nil {
 		t.Fatal("inline writer acknowledged an unverified replacement key")
 	}
-	if _, err := user.Metadata(ctx, target); !errors.Is(err, ErrArtifactNotFound) {
+	if _, err := routingUser(t, artifactStorage, pool, "mixed-race-user").Metadata(ctx, target); !errors.Is(err, ErrArtifactNotFound) {
 		t.Fatalf("rejected mixed-backend race left partial metadata: %v", err)
 	}
+}
+
+func routingUser(t *testing.T, storage *artifactpostgres.Storage, pool *pgxpool.Pool, owner string) ScopedStore {
+	t.Helper()
+	user, err := NewService(storage.Repository(pool)).User(owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return user
 }

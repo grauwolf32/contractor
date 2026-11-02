@@ -11,8 +11,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 )
 
 // PostgresRepository rejects every write to a frozen binding, and the private
@@ -22,7 +23,7 @@ func TestPostgresPrivateFrozenArtifactWriteIsPermanent(t *testing.T) {
 	defer cancel()
 	pool := isolatedPrivateArtifactPool(t, ctx)
 	createPrivateArtifactRun(t, ctx, pool, "run-a")
-	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
+	service := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
 	store, err := service.Run("run-a")
 	if err != nil {
 		t.Fatal(err)
@@ -37,7 +38,7 @@ WHERE scope_kind = 'run' AND scope_id = 'run-a' AND namespace = 'builder' AND na
 	if err != nil || tag.RowsAffected() != 1 {
 		t.Fatalf("freeze binding = %v, %v", tag, err)
 	}
-	handler, err := NewHandler(Dependencies{
+	handler, err := NewHandler(Dependencies{Transfers: artifactpgtest.NewStorage(),
 		Registry: &fakeRegistry{grant: testGrant("run-a")}, Artifacts: service,
 		NewRequestID: func() (string, error) { return "artifact-frozen", nil },
 	})

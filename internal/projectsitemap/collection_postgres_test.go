@@ -6,14 +6,20 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 )
 
 func TestPostgresSitemapHTTPCollectionProjectionAndReceipt(t *testing.T) {
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
 	pool := sitemapPool(t)
 	ctx := t.Context()
 	createSitemapRun(t, ctx, pool, "http-consumer")
-	s := NewService(pool)
+	s := NewService(pool, artifactStorage)
 	policy := readerPolicy()
 	policy.CollectObservations = true
 	access, err := s.AllocationAccess(ctx, "http-consumer", "research", policy)
@@ -72,7 +78,9 @@ func TestPostgresSitemapHTTPCollectionProjectionAndReceipt(t *testing.T) {
 		}
 	}
 	history, _ := artifactpostgres.NewHistoryPolicy(2, artifactpostgres.DefaultHistoryMaxBytes)
-	ctx = artifactpostgres.WithHistoryPolicy(ctx, history)
+	artifactHistory = history
+	artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+	s = NewService(pool, artifactStorage)
 	for n := range 4 {
 		next := input
 		next.Observations = []Observation{observation(fmt.Sprintf("/next/%d", n))}
@@ -97,7 +105,7 @@ func TestPostgresSitemapRetainsCredentialNamedMetadata(t *testing.T) {
 	pool := sitemapPool(t)
 	ctx := t.Context()
 	createSitemapRun(t, ctx, pool, "metadata-consumer")
-	service := NewService(pool)
+	service := NewService(pool, artifactpgtest.NewStorage())
 	policy := readerPolicy()
 	policy.CollectObservations = true
 	access, err := service.AllocationAccess(ctx, "metadata-consumer", "research", policy)

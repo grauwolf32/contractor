@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/rundeletion"
@@ -16,7 +18,7 @@ func init() {
 	findingintake.DeleteRunForTest = func(
 		ctx context.Context, db persistencepostgres.DBTX, ownerID, runID string,
 	) error {
-		return rundeletion.New(db).DeleteReleasedTerminalRun(ctx, ownerID, runID)
+		return rundeletion.New(db, artifactpgtest.NewStorage()).DeleteReleasedTerminalRun(ctx, ownerID, runID)
 	}
 }
 

@@ -17,6 +17,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/grauwolf32/contractor/internal/projectsitemap"
@@ -242,7 +244,7 @@ func testHTTPAndCaidoProcesses(t *testing.T, collection bool) {
 		t.Fatalf("open assertion database: %v", err)
 	}
 	t.Cleanup(pool.Close)
-	store := runstore.NewPostgresStore(pool)
+	store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	operations := &runtimeOperations{t: t, client: publicClient, baseURL: publicBaseURL}
 	operations.createRuntimeCredential("http-caido-proxy", "http-proxy-bearer@1", map[string]any{
 		"token": httpCaidoProxyCanary,

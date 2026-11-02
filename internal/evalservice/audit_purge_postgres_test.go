@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/findingintake"
 
 	"github.com/grauwolf32/contractor/internal/auditdomain"
@@ -39,7 +41,7 @@ func TestSharedPostgresEvalAuditWithDecidedHistoryPurges(t *testing.T) {
 	e = h.get(t, e.ID)
 	h.command(t, e, "cancel")
 	tick(t, c)
-	store := auditstoretest.NewStore(h.pool).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch)
+	store := auditstoretest.NewStore(h.pool, artifactpgtest.NewStorage()).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch)
 	claims, err := store.Claim(t.Context(), auditstore.ClaimParams{HolderID: "audit-controller", Lease: time.Minute, Limit: 10})
 	if err != nil || len(claims) != 1 || claims[0].AuditID != auditID {
 		t.Fatal(claims, err)

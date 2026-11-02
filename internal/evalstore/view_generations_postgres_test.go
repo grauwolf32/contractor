@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -37,7 +39,7 @@ func TestSharedPostgresEvalViewPublicationSkipsUnchangedAndPrunesSuperseded(t *t
 		t.Fatal(err)
 	}
 	claim := oneClaim(t, pool)
-	reader := NewPostgresStore(pool)
+	reader := NewPostgresStore(pool, artifactpgtest.NewStorage())
 	comparison := evaldomain.Comparison{Baseline: "a", Candidate: "b", Gates: evaldomain.Gates{MinCandidateEndToEndPass: 1}}
 	project := func(state string) {
 		t.Helper()

@@ -120,7 +120,7 @@ func (d *workflowAdapter) Cancel(ctx context.Context, e evalstore.Experiment, m 
 	}
 	reason := "Evaluation experiment stopped."
 	owner := e.OwnerID
-	run, err := runstore.NewPostgresStore(d.operations.pool).RequestRunCancellation(ctx, *sub.ExecutionID, runstore.WorkflowRunCancellation{
+	run, err := runstore.NewPostgresStore(d.operations.pool, d.operations.storage).RequestRunCancellation(ctx, *sub.ExecutionID, runstore.WorkflowRunCancellation{
 		Code:        runstore.CancellationUserRequested,
 		RequestedAt: request.RequestedAt,
 		RequestedBy: &owner,

@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
@@ -33,7 +35,7 @@ func TestPostgresPlannerMemoryTransactionKeepsTheOperationBudget(t *testing.T) {
 			err := tx.QueryRow(budgeted, `SELECT (extract(epoch FROM current_setting('statement_timeout')::interval)*1000)::bigint,
 (extract(epoch FROM current_setting('lock_timeout')::interval)*1000)::bigint`).Scan(&settings[0], &settings[1])
 			return settings, err
-		})
+		}, artifactpgtest.NewStorage())
 		if err != nil || settings != [2]int64{budgets.StatementTimeout.Milliseconds(), budgets.LockTimeout.Milliseconds()} {
 			t.Fatalf("mutation=%t Memory transaction settings = (%v, %v), want %+v", mutation, settings, err, budgets)
 		}

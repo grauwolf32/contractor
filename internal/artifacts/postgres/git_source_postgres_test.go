@@ -11,7 +11,6 @@ import (
 	. "github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -21,9 +20,10 @@ import (
 func TestSharedGitSourceURLBoundsCountUTF8Bytes(t *testing.T) {
 	characters, fields := contractstest.ReadUTF8ByteBoundCases(t)
 	pool := isolatedArtifactPool(t, t.Context())
-	ctx := testBlobContext(t, t.Context(), pool)
+	ctx := t.Context()
+	artifactStorage := testBlobStorage(t, ctx, pool)
 	scope, _ := UserScope("user-1")
-	user, _ := NewService(artifactpostgres.NewRepository(pool)).User("user-1")
+	user, _ := NewService(artifactStorage.Repository(pool)).User("user-1")
 	checked := false
 	for _, field := range fields {
 		if field.Rule != "LIM-GIT-24" {
@@ -38,7 +38,7 @@ func TestSharedGitSourceURLBoundsCountUTF8Bytes(t *testing.T) {
 				name := fmt.Sprintf("git-url-%d-%t", index, direct)
 				source := GitSource{RepositoryURL: value.Value, ResolvedCommit: strings.Repeat("a", 40), ImportedAt: time.Now().UTC().Truncate(time.Microsecond)}
 				err := postgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-					repo := artifactpostgres.NewTxRepository(tx)
+					repo := artifactStorage.TxRepository(tx)
 					store, _ := NewService(repo).User("user-1")
 					written, err := store.Write(ctx, ArtifactRef{Namespace: "source", Name: name}, Payload{MediaType: "application/zip", Data: []byte("fixture")}, nil)
 					if err != nil {
@@ -86,20 +86,20 @@ WHERE scope_kind='user' AND scope_id='user-1' AND namespace='source' AND name=$4
 func TestPostgresGitProvenanceRetainsExactRunInputAndRollsBack(t *testing.T) {
 	ctx := t.Context()
 	pool := isolatedArtifactPool(t, ctx)
-	ctx = testBlobContext(t, ctx, pool)
+	artifactStorage := testBlobStorage(t, ctx, pool)
 	createArtifactRun(t, ctx, pool, "run-git", false)
-	service := NewService(artifactpostgres.NewRepository(pool))
+	service := NewService(artifactStorage.Repository(pool))
 	scope, _ := UserScope("user-1")
 	user, _ := service.User("user-1")
 	var first WriteResult
 	source := GitSource{Analysis: &GitAnalysis{Policy: GitAnalysisPolicy, ReportPath: GitAnalysisReportPath, IncludedFiles: 1, ExcludedEntries: 3}, RepositoryURL: "https://example.test:443/source.git", ResolvedCommit: strings.Repeat("a", 40), ImportedAt: time.Now().UTC().Truncate(time.Microsecond)}
 	write := func(name string, source GitSource, abort bool) error {
-		payload, err := artifactpostgres.PreparePayload(ctx, pool, Payload{MediaType: "application/zip", Data: []byte("same bytes")})
+		payload, err := artifactStorage.PreparePayload(ctx, pool, Payload{MediaType: "application/zip", Data: []byte("same bytes")})
 		if err != nil {
 			return err
 		}
 		return postgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-			repo := artifactpostgres.NewTxRepository(tx)
+			repo := artifactStorage.TxRepository(tx)
 			store, _ := NewService(repo).User("user-1")
 			written, err := store.Write(ctx, ArtifactRef{Namespace: "source", Name: name}, payload, nil)
 			if err != nil {

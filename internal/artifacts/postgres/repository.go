@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	"github.com/grauwolf32/contractor/internal/helpers/randomid"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
@@ -73,12 +72,9 @@ func storeError(what string, err error, conflict *artifacts.ConflictError) error
 // transaction. Its Repository methods trust their arguments, which Service
 // validated.
 type Repository struct {
+	*Storage
 	db    persistencepostgres.DBTX
 	newID func(string) (string, error)
-}
-
-func NewRepository(db persistencepostgres.DBTX) *Repository {
-	return &Repository{db: db, newID: randomid.New}
 }
 
 var _ artifacts.Repository = (*Repository)(nil)
@@ -89,12 +85,6 @@ var _ artifacts.Repository = (*Repository)(nil)
 type TxRepository struct {
 	*Repository
 	tx pgx.Tx
-}
-
-// NewTxRepository binds a Repository to the caller's
-// transaction tx.
-func NewTxRepository(tx pgx.Tx) *TxRepository {
-	return &TxRepository{Repository: NewRepository(tx), tx: tx}
 }
 
 // ensureScope creates the row of scope unless it exists. It is a statement of
@@ -115,5 +105,5 @@ ON CONFLICT DO NOTHING`, scope.Kind(), scope.ID()); err != nil {
 // PreparePayload prepares bytes and verifies an existing physical generation
 // before constructing a transaction-bound repository for publication.
 func (r *Repository) PreparePayload(ctx context.Context, payload artifacts.Payload) (artifacts.Payload, error) {
-	return PreparePayload(ctx, r.db, payload)
+	return r.Storage.PreparePayload(ctx, r.db, payload)
 }

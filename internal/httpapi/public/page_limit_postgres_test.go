@@ -9,9 +9,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/agentprincipal"
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
@@ -53,7 +54,7 @@ func TestPostgresPublicPagedListsAcceptTheLargestPage(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	runs := runstore.NewPostgresStore(pool)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	project := projectID
 	if _, err := runstoretest.CreateRun(ctx, runs, runstore.CreateRunParams{
 		LaneClass: resolved.LaneClassModel,
@@ -64,7 +65,7 @@ func TestPostgresPublicPagedListsAcceptTheLargestPage(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	artifactService := artifacts.NewService(artifactpostgres.NewRepository(pool))
+	artifactService := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
 	var input artifacts.WriteResult
 	for _, seed := range []struct {
 		store func(string) (artifacts.ScopedStore, error)
@@ -97,7 +98,7 @@ func TestPostgresPublicPagedListsAcceptTheLargestPage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := auditstoretest.NewStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{
+	if _, _, err := auditstoretest.NewStore(pool, artifactpgtest.NewStorage()).CreateDraft(ctx, auditstore.CreateDraftParams{
 		AuditID: auditID, OwnerID: owner, ProjectID: projectID,
 		Profile:         auditstore.ProfileIdentity{Name: "page-profile", Version: "1", Digest: auditHandlerDigest("page-profile")},
 		ProfileSnapshot: json.RawMessage(`{"interaction":{}}`),
@@ -123,7 +124,7 @@ func TestPostgresPublicPagedListsAcceptTheLargestPage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	findings, err := findingintake.New(pool)
+	findings, err := findingintake.New(pool, artifactpgtest.NewStorage())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,7 +132,7 @@ func TestPostgresPublicPagedListsAcceptTheLargestPage(t *testing.T) {
 		newTestAuthentication(t), mustTestOrigins(t), false, nil,
 		func(dependencies *testServices) {
 			managed := newFakeManagedCredentials()
-			audits, err := auditservice.New(auditservice.Options{
+			audits, err := auditservice.New(auditservice.Options{Storage: artifactpgtest.NewStorage(),
 				Pool: pool, Profiles: dependencies.Config.(*config.Manager), CredentialGuard: managed,
 				TransactionLLMCredentials: runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(
 					func(pgx.Tx) (resolved.CredentialLookup, error) { return managed, nil },
@@ -142,7 +143,7 @@ func TestPostgresPublicPagedListsAcceptTheLargestPage(t *testing.T) {
 			}
 			dependencies.Projects = projects
 			dependencies.Runs, dependencies.RunQueue, dependencies.RunLifecycle = runs, runs, runs
-			dependencies.RunDeletion = rundeletion.New(pool)
+			dependencies.RunDeletion = rundeletion.New(pool, artifactpgtest.NewStorage())
 			dependencies.Artifacts = artifactService
 			dependencies.Audits = audits
 			dependencies.FindingProposals = findings

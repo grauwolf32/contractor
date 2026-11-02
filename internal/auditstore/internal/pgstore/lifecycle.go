@@ -131,12 +131,13 @@ func (s *ClaimStore) PurgeClaimed(
 		return invalidf("Audit purge requires dependent-row cleanup")
 	}
 	return persistencepostgres.Within(ctx, s.db, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		return purgeClaimedAudit(ctx, tx, claim, namespace, s.purgeDependencies)
+		return purgeClaimedAudit(ctx, tx, claim, namespace, s.purgeDependencies, s.storage)
 	})
 }
 
 func purgeClaimedAudit(
 	ctx context.Context, tx pgx.Tx, claim auditstore.ControllerClaim, namespace string, purgeDependencies auditstore.PurgeDependencies,
+	storage *artifactpostgres.Storage,
 ) error {
 	if err := auditClaims.Lock(ctx, tx, claim.AuditID, claim.HolderID, int64(claim.Epoch)); err != nil {
 		if errors.Is(err, persistencepostgres.ErrControllerClaimLost) {
@@ -198,7 +199,7 @@ func purgeClaimedAudit(
 	}
 	// References from decided history are gone before releasing holds; held
 	// material remains available until every hold has been released.
-	purger, err := artifactpostgres.NewPurger(tx)
+	purger, err := storage.Purger(tx)
 	if err != nil {
 		return err
 	}

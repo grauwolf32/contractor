@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"slices"
 	"testing"
 	"time"
+
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -59,7 +61,7 @@ func TestMemorySchedulerStoreTransitionsMatchPostgres(t *testing.T) {
 	}
 
 	pool := isolatedSchedulerPool(t, ctx)
-	store := runstore.NewPostgresStore(pool)
+	store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	for _, from := range parityRunStates {
 		for _, to := range parityRunStates {
 			runID := fmt.Sprintf("run-parity-%s-%s", from, to)
@@ -132,7 +134,7 @@ func TestMemorySchedulerStoreAllocationsMatchPostgres(t *testing.T) {
 	}
 
 	pool := isolatedSchedulerPool(t, ctx)
-	store := runstore.NewPostgresStore(pool)
+	store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	createParityRun(t, ctx, pool, "run-parity", runstore.RunRunning, true)
 	check("PostgreSQL", record(store))
 	recorded, err := store.ListStageAllocations(ctx, "stage-parity")
@@ -182,7 +184,7 @@ func TestMemoryAtomicPersistenceAbortRunStatesMatchPostgres(t *testing.T) {
 	}
 
 	pool := isolatedSchedulerPool(t, ctx)
-	persistence, err := NewPostgresPersistence(pool)
+	persistence, err := NewPostgresPersistence(pool, artifactpgtest.NewStorage())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -232,7 +234,7 @@ func TestMemorySchedulerStoreActiveStageMatchesPostgres(t *testing.T) {
 	}
 
 	pool := isolatedSchedulerPool(t, ctx)
-	store := runstore.NewPostgresStore(pool)
+	store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	for _, test := range cases {
 		runID := "run-active-" + test.name
 		memory := &memorySchedulerStore{run: runstore.WorkflowRun{RunID: runID, State: runstore.RunRunning}, events: &eventRecorder{}}
@@ -284,7 +286,7 @@ func createParityRun(
 	state runstore.WorkflowRunState, withStage bool,
 ) {
 	t.Helper()
-	store := runstore.NewPostgresStore(pool)
+	store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	if _, err := runstoretest.CreateRun(ctx, store, runstore.CreateRunParams{
 		LaneClass: resolved.LaneClassModel,
 		RunID:     runID, OwnerID: "user-parity", WorkflowName: "artifact-copy", WorkflowVersion: "1",
@@ -330,7 +332,7 @@ func createParityRun(
 			// Only the waiting operation moves a Run into waiting, under the
 			// Run row lock that model-availability recovery holds.
 			err = persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-				return runstore.NewPostgresTxStore(tx).EnterWaiting(ctx, runID, "parity")
+				return runstore.NewPostgresTxStore(tx, artifactpgtest.NewStorage()).EnterWaiting(ctx, runID, "parity")
 			})
 		} else {
 			_, err = store.TransitionRun(ctx, runID, current, next, runstore.Reason{Code: "parity"})

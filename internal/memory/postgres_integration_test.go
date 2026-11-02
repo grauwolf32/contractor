@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob/backends/filesystem"
@@ -36,7 +38,7 @@ func TestPostgresPlannerMemoryRequiresRunningStage(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedMemoryPool(t, ctx)
-	store, err := NewPostgresStore(pool)
+	store, err := NewPostgresStore(pool, artifactpgtest.NewStorage())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,7 +65,7 @@ func TestPostgresPlannerMemoryRequiresRunningStage(t *testing.T) {
 			if _, err := namespace.ReadMemory(ctx, "shared_note"); memoryErrorCode(err) != CodeForbidden {
 				t.Fatalf("post-transition read error = %v, want %s", err, CodeForbidden)
 			}
-			runArtifacts, _ := artifacts.NewService(artifactpostgres.NewRepository(pool)).Run(runID)
+			runArtifacts, _ := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool)).Run(runID)
 			stored, err := runArtifacts.Read(ctx, artifacts.ArtifactRef{
 				Namespace: "builder", Name: "memory.shared_note",
 			})
@@ -84,7 +86,7 @@ func TestPostgresPlannerMemoryReadTransactionDoesNotLockLifecycleRows(t *testing
 	pool := isolatedMemoryPool(t, ctx)
 	runID, stageID := "run-memory-read-no-lock", "stage-memory-read-no-lock"
 	createRunningMemoryStage(t, ctx, pool, runID, stageID)
-	store, err := NewPostgresStore(pool)
+	store, err := NewPostgresStore(pool, artifactpgtest.NewStorage())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +103,7 @@ func TestPostgresPlannerMemoryReadTransactionDoesNotLockLifecycleRows(t *testing
 	done := make(chan error, 1)
 	go func() {
 		_, err := withActiveStage(ctx, pool, false, binding, nil, func(tx pgx.Tx) (artifacts.ReadResult, error) {
-			artifactStore, err := runArtifactStore(tx, runID)
+			artifactStore, err := runArtifactStore(tx, runID, artifactpgtest.NewStorage())
 			if err != nil {
 				return artifacts.ReadResult{}, err
 			}
@@ -111,7 +113,7 @@ func TestPostgresPlannerMemoryReadTransactionDoesNotLockLifecycleRows(t *testing
 			close(entered)
 			<-release
 			return result, err
-		})
+		}, artifactpgtest.NewStorage())
 		done <- err
 	}()
 	select {
@@ -152,7 +154,7 @@ func TestPostgresPlannerMemoryCommitAmbiguityReplaysExactMutation(t *testing.T) 
 				runID := "run-memory-ambiguity-" + mutation + "-" + loss
 				stageID := "stage-memory-ambiguity-" + mutation + "-" + loss
 				createRunningMemoryStage(t, ctx, pool, runID, stageID)
-				store, err := NewPostgresStore(pool)
+				store, err := NewPostgresStore(pool, artifactpgtest.NewStorage())
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -220,6 +222,10 @@ func TestPostgresPlannerMemoryCommitAmbiguityReplaysExactMutation(t *testing.T) 
 }
 
 func TestPostgresPlannerMemoryRemovesDeduplicatedBlobCandidate(t *testing.T) {
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedMemoryPool(t, ctx)
@@ -231,10 +237,11 @@ func TestPostgresPlannerMemoryRemovesDeduplicatedBlobCandidate(t *testing.T) {
 	defer files.Close()
 	var logs bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelWarn}))
-	ctx = blob.WithRuntime(ctx, blob.NewRuntime(files, logger))
+	artifactRuntime = blob.NewRuntime(files, logger)
+	artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
 	runID, stageID := "run-memory-dedup", "stage-memory-dedup"
 	createRunningMemoryStage(t, ctx, pool, runID, stageID)
-	store, err := NewPostgresStore(pool)
+	store, err := NewPostgresStore(pool, artifactStorage)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -256,6 +263,10 @@ func TestPostgresPlannerMemoryRemovesDeduplicatedBlobCandidate(t *testing.T) {
 }
 
 func TestPostgresPlannerMemoryRetainsTransferLeaseThroughPublish(t *testing.T) {
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedMemoryPool(t, ctx)
@@ -265,10 +276,11 @@ func TestPostgresPlannerMemoryRetainsTransferLeaseThroughPublish(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer files.Close()
-	ctx = blob.WithRuntime(ctx, blob.NewRuntime(files, nil))
+	artifactRuntime = blob.NewRuntime(files, nil)
+	artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
 	runID, stageID := "run-memory-transfer", "stage-memory-transfer"
 	createRunningMemoryStage(t, ctx, pool, runID, stageID)
-	store, err := NewPostgresStore(pool)
+	store, err := NewPostgresStore(pool, artifactStorage)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -282,7 +294,7 @@ func TestPostgresPlannerMemoryRetainsTransferLeaseThroughPublish(t *testing.T) {
 		}
 	}()
 	for range 4 {
-		_, release, err := blob.AcquireTransfer(ctx)
+		_, release, err := artifactStorage.AcquireTransfer(ctx)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -301,13 +313,13 @@ func TestPostgresPlannerMemoryRetainsTransferLeaseThroughPublish(t *testing.T) {
 	}
 
 	store.writeBoundary = &postgresWriteBoundary{beforeLock: func(held context.Context) {
-		if _, nested, err := blob.AcquireTransfer(held); err != nil {
+		if _, nested, err := artifactStorage.AcquireTransfer(held); err != nil {
 			t.Fatalf("prepared write lost its outer lease: %v", err)
 		} else {
 			nested()
 		}
 		for {
-			_, release, err := blob.AcquireTransfer(ctx)
+			_, release, err := artifactStorage.AcquireTransfer(ctx)
 			if errors.Is(err, blob.ErrTransferCapacity) {
 				break
 			}
@@ -342,7 +354,7 @@ func TestPostgresPlannerMemorySameBindingInterferenceNeverOverwrites(t *testing.
 			runID := "run-memory-interference-" + boundary
 			stageID := "stage-memory-interference-" + boundary
 			createRunningMemoryStage(t, ctx, pool, runID, stageID)
-			store, err := NewPostgresStore(pool)
+			store, err := NewPostgresStore(pool, artifactpgtest.NewStorage())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -358,7 +370,7 @@ func TestPostgresPlannerMemorySameBindingInterferenceNeverOverwrites(t *testing.
 			}
 			recording.writes = nil
 			externalPayload := encodedTestNote(t, "shared", "external winner", 0)
-			runArtifacts, err := artifacts.NewService(artifactpostgres.NewRepository(pool)).Run(runID)
+			runArtifacts, err := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool)).Run(runID)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -432,7 +444,7 @@ func TestPostgresPlannerMemoryWriteLinearizesWithTerminalTransition(t *testing.T
 				runID := "run-memory-race-" + string(target) + "-" + winner
 				stageID := "stage-memory-race-" + string(target) + "-" + winner
 				createRunningMemoryStage(t, ctx, pool, runID, stageID)
-				store, err := NewPostgresStore(pool)
+				store, err := NewPostgresStore(pool, artifactpgtest.NewStorage())
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -658,7 +670,7 @@ func transitionProductionMemoryStage(
 		return err
 	}
 	ctx = scheduler.WithRunClaim(ctx, runID, "memory-fixture")
-	store, err := scheduler.NewPostgresPersistence(pool)
+	store, err := scheduler.NewPostgresPersistence(pool, artifactpgtest.NewStorage())
 	if err != nil {
 		return err
 	}
@@ -703,7 +715,7 @@ func createRunningMemoryStage(
 	stageID string,
 ) {
 	t.Helper()
-	store := runstore.NewPostgresStore(pool)
+	store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	_, err := runstoretest.CreateRun(ctx, store, runstore.CreateRunParams{
 		LaneClass: resolved.LaneClassModel,
 		RunID:     runID, OwnerID: "memory-test-user", WorkflowName: "memory-test", WorkflowVersion: "1",

@@ -15,7 +15,7 @@ import (
 func (p *PostgresPersistence) AdmitStage(ctx context.Context, runID, stageID string) (runstore.StageExecution, error) {
 	var stage runstore.StageExecution
 	err := persistencepostgres.InTx(ctx, p.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		store := runstore.NewPostgresTxStore(tx)
+		store := runstore.NewPostgresTxStore(tx, p.storage)
 		state, err := lockClaimedRun(ctx, store, runID, progressionRunStates...)
 		if err != nil {
 			return err
@@ -50,7 +50,7 @@ func (p *PostgresPersistence) DiscardUnadmittedPlacement(
 		return fmt.Errorf("placement discard is required")
 	}
 	return persistencepostgres.InTx(ctx, p.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		store := runstore.NewPostgresTxStore(tx)
+		store := runstore.NewPostgresTxStore(tx, p.storage)
 		if _, err := lockClaimedRun(ctx, store, runID, runstore.RunPending); err != nil {
 			return err
 		}

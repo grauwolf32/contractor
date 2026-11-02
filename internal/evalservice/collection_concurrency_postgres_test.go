@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
@@ -40,7 +42,7 @@ WHERE a.state = 'active' LIMIT 1`).Scan(&auditID, &memberID)
 		}
 	}
 	e = h.get(t, e.ID)
-	audits := auditstoretest.NewStore(h.pool)
+	audits := auditstoretest.NewStore(h.pool, artifactpgtest.NewStorage())
 	auditClaims, err := audits.Claim(t.Context(), auditstore.ClaimParams{HolderID: "projection-race-audit", Lease: 5 * time.Minute, Limit: 1})
 	if err != nil || len(auditClaims) != 1 || auditClaims[0].AuditID != auditID {
 		t.Fatalf("claim Audit: %v %v", auditClaims, err)
@@ -73,11 +75,11 @@ WHERE a.state = 'active' LIMIT 1`).Scan(&auditID, &memberID)
 func collectingEvalAudit(t *testing.T) (*serviceHarness, evalstore.Experiment, evalstore.Claim, string, auditstore.CollectParams) {
 	t.Helper()
 	h, e, memberID, claim, execution := evalAuditExecution(t)
-	claims, err := evalstore.NewPostgresStore(h.pool).Claim(t.Context(), "projection-race-collector", 5*time.Minute, 1)
+	claims, err := evalstore.NewPostgresStore(h.pool, artifactpgtest.NewStorage()).Claim(t.Context(), "projection-race-collector", 5*time.Minute, 1)
 	if err != nil || len(claims) != 1 {
 		t.Fatalf("claim Eval: %v %v", claims, err)
 	}
-	if _, err := auditstoretest.NewStore(h.pool).ObserveSubmissionFailure(t.Context(), auditstore.ObserveSubmissionFailureParams{
+	if _, err := auditstoretest.NewStore(h.pool, artifactpgtest.NewStorage()).ObserveSubmissionFailure(t.Context(), auditstore.ObserveSubmissionFailureParams{
 		Claim: claim, ExecutionID: execution.ExecutionID,
 	}); err != nil {
 		t.Fatal(err)
@@ -111,7 +113,7 @@ func raceAuditCollectionAndProjection(ctx context.Context, h *serviceHarness, e 
 		return err
 	}
 	defer func() { _ = projection.Rollback(context.WithoutCancel(ctx)) }()
-	st := evalstore.NewTxStore(projection)
+	st := evalstore.NewTxStore(projection, artifactpgtest.NewStorage())
 	if _, err := st.LockCollection(ctx, scope(e), e.ID, claim); err != nil {
 		return err
 	}
@@ -140,7 +142,7 @@ WHERE experiment_id = $1 FOR UPDATE`, e.ID); err != nil {
 			return
 		}
 		started <- tx.Conn().PgConn().PID()
-		_, changed, err := auditstoretest.NewTxStore(tx).Collect(ctx, collection)
+		_, changed, err := auditstoretest.NewTxStore(tx, artifactpgtest.NewStorage()).Collect(ctx, collection)
 		if err == nil && !changed {
 			err = errors.New("collection did not change its execution")
 		}

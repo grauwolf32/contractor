@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 )
@@ -29,7 +31,7 @@ func TestActionReviewDecisionUsesTheIdempotencyKeyGrammar(t *testing.T) {
 		params := valid
 		params.IdempotencyKey = key
 		// A zero Service has no pool: reaching storage would panic.
-		if _, err := (&Service{}).DecideActionReview(context.Background(), params); !errors.Is(err, auditstore.ErrInvalid) {
+		if _, err := (&Service{storage: artifactpgtest.NewStorage()}).DecideActionReview(context.Background(), params); !errors.Is(err, auditstore.ErrInvalid) {
 			t.Fatalf("action decision with key %q = %v, want ErrInvalid", key, err)
 		}
 	}

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"time"
 
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
@@ -24,13 +25,19 @@ var (
 )
 
 type Store struct {
+	storage *artifactpostgres.Storage
+
 	db pg.DBTX
 	tx pgx.Tx
 }
 
-func NewPostgresStore(db pg.DBTX) *Store { return &Store{db: db} }
+func NewPostgresStore(db pg.DBTX, storage *artifactpostgres.Storage) *Store {
+	return &Store{storage: storage, db: db}
+}
 
-func NewTxStore(tx pgx.Tx) *Store { return &Store{db: tx, tx: tx} }
+func NewTxStore(tx pgx.Tx, storage *artifactpostgres.Storage) *Store {
+	return &Store{storage: storage, db: tx, tx: tx}
+}
 
 func (s *Store) requireTx() error {
 	if s.tx == nil {

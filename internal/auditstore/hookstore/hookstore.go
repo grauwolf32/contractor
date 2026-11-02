@@ -9,6 +9,7 @@
 package hookstore
 
 import (
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -51,40 +52,40 @@ type ClaimedArtifacts = pgstore.ClaimedArtifacts
 type ClaimedAdmission = pgstore.ClaimedAdmission
 type AdmissionSession = pgstore.AdmissionSession
 
-func NewClaimedAdmission(db persistencepostgres.DBTX) *ClaimedAdmission {
-	return pgstore.NewClaimedAdmission(db)
+func NewClaimedAdmission(db persistencepostgres.DBTX, storage *artifactpostgres.Storage) *ClaimedAdmission {
+	return pgstore.NewClaimedAdmission(db, storage)
 }
 
-func NewClaimedArtifacts(db persistencepostgres.DBTX) *ClaimedArtifacts {
-	return pgstore.NewClaimedArtifacts(db)
+func NewClaimedArtifacts(db persistencepostgres.DBTX, storage *artifactpostgres.Storage) *ClaimedArtifacts {
+	return pgstore.NewClaimedArtifacts(db, storage)
 }
 
-func NewFindingEvents(db persistencepostgres.DBTX) *FindingEvents {
-	return pgstore.NewFindingEvents(db)
+func NewFindingEvents(db persistencepostgres.DBTX, storage *artifactpostgres.Storage) *FindingEvents {
+	return pgstore.NewFindingEvents(db, storage)
 }
 
-func NewFindingEventsTx(tx pgx.Tx) *FindingEventsTx {
-	return pgstore.NewFindingEventsTx(tx)
+func NewFindingEventsTx(tx pgx.Tx, storage *artifactpostgres.Storage) *FindingEventsTx {
+	return pgstore.NewFindingEventsTx(tx, storage)
 }
 
-func NewRunDeletion(db persistencepostgres.DBTX) *RunDeletion {
-	return pgstore.NewRunDeletion(db)
+func NewRunDeletion(db persistencepostgres.DBTX, storage *artifactpostgres.Storage) *RunDeletion {
+	return pgstore.NewRunDeletion(db, storage)
 }
 
-func NewRunDeletionTx(tx pgx.Tx) *RunDeletionTx {
-	return pgstore.NewRunDeletionTx(tx)
+func NewRunDeletionTx(tx pgx.Tx, storage *artifactpostgres.Storage) *RunDeletionTx {
+	return pgstore.NewRunDeletionTx(tx, storage)
 }
 
-func NewProjectDeletion(db persistencepostgres.DBTX) *ProjectDeletion {
-	return pgstore.NewProjectDeletion(db)
+func NewProjectDeletion(db persistencepostgres.DBTX, storage *artifactpostgres.Storage) *ProjectDeletion {
+	return pgstore.NewProjectDeletion(db, storage)
 }
 
-func NewCredentialHolds(db persistencepostgres.DBTX) *CredentialHolds {
-	return pgstore.NewCredentialHolds(db)
+func NewCredentialHolds(db persistencepostgres.DBTX, storage *artifactpostgres.Storage) *CredentialHolds {
+	return pgstore.NewCredentialHolds(db, storage)
 }
 
-func NewAuditCreations(db persistencepostgres.DBTX) *AuditCreations {
-	return pgstore.NewAuditCreations(db)
+func NewAuditCreations(db persistencepostgres.DBTX, storage *artifactpostgres.Storage) *AuditCreations {
+	return pgstore.NewAuditCreations(db, storage)
 }
 
 func PreparedPageStageBytes(page auditdomain.PreparedRoundPage) (int, error) {

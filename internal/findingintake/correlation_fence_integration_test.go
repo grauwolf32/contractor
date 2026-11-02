@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
@@ -29,10 +31,10 @@ func TestPostgresAuditPurgeLeavesTheCanonicalProjectFenceAlone(t *testing.T) {
 	if err != nil || !claimed {
 		t.Fatalf("claim: %t %v", claimed, err)
 	}
-	if _, err := hookstore.NewProjectDeletion(f.pool).RequestProjectOwnedDeletion(f.ctx, claim); err != nil {
+	if _, err := hookstore.NewProjectDeletion(f.pool, artifactpgtest.NewStorage()).RequestProjectOwnedDeletion(f.ctx, claim); err != nil {
 		t.Fatal(err)
 	}
-	audits := auditstoretest.NewStore(f.pool).WithPurgeDependencies(DeleteAuditHoldsBatch)
+	audits := auditstoretest.NewStore(f.pool, artifactpgtest.NewStorage()).WithPurgeDependencies(DeleteAuditHoldsBatch)
 	claims, err := audits.Claim(f.ctx, auditstore.ClaimParams{HolderID: "audit-controller", Lease: time.Minute, Limit: 1})
 	if err != nil || len(claims) != 1 {
 		t.Fatalf("Audit claim: %+v %v", claims, err)
@@ -77,7 +79,7 @@ func TestPostgresSourceRunDeletionKeepsTheProjectFenceWithoutAudits(t *testing.T
 		t.Fatal(err)
 	}
 	grant := quotaSubmissionGrant(t, ctx, pool, owner, project, run)
-	intake, err := New(pool)
+	intake, err := New(pool, artifactpgtest.NewStorage())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,7 +87,7 @@ func TestPostgresSourceRunDeletionKeepsTheProjectFenceWithoutAudits(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	runs := runstore.NewPostgresStore(pool)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	if err := runs.MarkStageAllocationReleased(ctx, grant.AllocationID); err != nil {
 		t.Fatal(err)
 	}

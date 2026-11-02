@@ -16,6 +16,9 @@ import (
 	"testing"
 	"time"
 
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
+	artifactpgtest "github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -76,7 +79,7 @@ func TestPublicArtifactStalledDownloadsReleaseTransferSlots(t *testing.T) {
 		artifacts.Payload{MediaType: "application/octet-stream", Data: bytes.Repeat([]byte("x"), payloadSize)}, nil); err != nil {
 		t.Fatal(err)
 	}
-	server, runtime := publicTransferServerForHandler(t, fixture.handler)
+	server, runtime := publicTransferServerForHandler(t, fixture)
 	for range 4 {
 		conn, err := net.Dial("tcp", server.Listener.Addr().String())
 		if err != nil {
@@ -142,7 +145,7 @@ func TestPublicArtifactSlowStorageOutlivesTheClientDeadline(t *testing.T) {
 			return ctx.Err()
 		}
 	}
-	server, _ := publicTransferServerForHandler(t, fixture.handler)
+	server, _ := publicTransferServerForHandler(t, fixture)
 	upload := func(name string, body []byte) string {
 		request, err := http.NewRequest(http.MethodPut, server.URL+"/v1/artifacts/projects/"+name, bytes.NewReader(body))
 		if err != nil {
@@ -176,6 +179,10 @@ func TestPublicArtifactSlowStorageOutlivesTheClientDeadline(t *testing.T) {
 // stop reading it must not keep transfer slots: the listing is built while the
 // payload is held, and the slot is released before the response is written.
 func TestPublicArchivePreviewStalledReadersLeaveTransferCapacity(t *testing.T) {
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
 	fixture := newHandlerFixture(t)
 	store, err := fixture.artifacts.User("user-1")
 	if err != nil {
@@ -186,7 +193,7 @@ func TestPublicArchivePreviewStalledReadersLeaveTransferCapacity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	server, runtime := publicTransferServerForHandler(t, fixture.handler)
+	server, runtime := publicTransferServerForHandler(t, fixture)
 	target := "/v1/artifacts/files/listing/archive?revision=" + url.QueryEscape(*written.Ref.Revision)
 	for range 4 {
 		conn, err := net.Dial("tcp", server.Listener.Addr().String())
@@ -209,10 +216,12 @@ func TestPublicArchivePreviewStalledReadersLeaveTransferCapacity(t *testing.T) {
 		_ = conn.SetReadDeadline(time.Time{})
 	}
 	// Every listing is now being written to a reader that stopped reading.
-	ctx := blob.WithRuntime(t.Context(), runtime)
+	ctx := t.Context()
+	artifactRuntime = runtime
+	artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
 	releases := make([]func(), 0, 4)
 	for range 4 {
-		_, release, err := blob.AcquireTransfer(ctx)
+		_, release, err := artifactStorage.AcquireTransfer(ctx)
 		if err != nil {
 			t.Fatalf("stalled archive previews hold transfer capacity: %v", err)
 		}
@@ -260,27 +269,30 @@ func largeListingArchive(t *testing.T) []byte {
 
 func publicTransferServer(t *testing.T) (*httptest.Server, *blob.Runtime) {
 	t.Helper()
-	return publicTransferServerForHandler(t, newHandlerFixture(t).handler)
+	return publicTransferServerForHandler(t, newHandlerFixture(t))
 }
 
-func publicTransferServerForHandler(t *testing.T, handler http.Handler) (*httptest.Server, *blob.Runtime) {
+func publicTransferServerForHandler(t *testing.T, fixture handlerFixture) (*httptest.Server, *blob.Runtime) {
 	t.Helper()
-	runtime := blob.NewRuntime(nil, nil)
-	server := httptest.NewUnstartedServer(handler)
-	server.Config.BaseContext = func(net.Listener) context.Context {
-		return blob.WithRuntime(context.Background(), runtime)
-	}
+	runtime := fixture.transfers
+	server := httptest.NewUnstartedServer(fixture.handler)
 	server.Start()
 	t.Cleanup(server.Close)
 	return server, runtime
 }
 
 func waitForPublicTransferSaturation(t *testing.T, runtime *blob.Runtime) {
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
 	t.Helper()
-	ctx := blob.WithRuntime(t.Context(), runtime)
+	ctx := t.Context()
+	artifactRuntime = runtime
+	artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
 	until := time.Now().Add(2 * time.Second)
 	for {
-		_, release, err := blob.AcquireTransfer(ctx)
+		_, release, err := artifactStorage.AcquireTransfer(ctx)
 		if errors.Is(err, blob.ErrTransferCapacity) {
 			return
 		}
@@ -296,11 +308,17 @@ func waitForPublicTransferSaturation(t *testing.T, runtime *blob.Runtime) {
 }
 
 func waitForPublicTransferAvailability(t *testing.T, runtime *blob.Runtime, timeout time.Duration) {
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
 	t.Helper()
-	ctx := blob.WithRuntime(t.Context(), runtime)
+	ctx := t.Context()
+	artifactRuntime = runtime
+	artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
 	until := time.Now().Add(timeout)
 	for {
-		_, release, err := blob.AcquireTransfer(ctx)
+		_, release, err := artifactStorage.AcquireTransfer(ctx)
 		if err == nil {
 			release()
 			return

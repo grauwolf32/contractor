@@ -13,8 +13,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -203,7 +204,7 @@ func seedRoundResultsProcessSnapshot(t *testing.T, h *scanProcessHarness, audit 
 	if len(items) != roundResultsProcessPages {
 		t.Fatalf("fixture membership=%d", len(items))
 	}
-	service := artifacts.NewService(artifactpostgres.NewRepository(tx))
+	service := artifacts.NewService(artifactpgtest.NewStorage().Repository(tx))
 	scope, _ := artifacts.ProjectScope(audit.ProjectID)
 	manifest := auditdomain.RoundResultsManifest{Schema: auditdomain.RoundResultsSchema, AuditID: audit.AuditID, RoundID: audit.CurrentRoundID, SourceGeneration: revision, ItemCount: len(items), Pages: []auditdomain.RoundResultsPageRef{}}
 	for index, item := range items {

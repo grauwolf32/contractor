@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -25,7 +27,7 @@ func liveMember(t *testing.T) (*serviceHarness, evalstore.Experiment, evalstore.
 	tick(t, c)
 	tick(t, c)
 
-	store := evalstore.NewPostgresStore(h.pool)
+	store := evalstore.NewPostgresStore(h.pool, artifactpgtest.NewStorage())
 	claims, err := store.Claim(t.Context(), "observe", time.Minute, 1)
 	if err != nil || len(claims) != 1 {
 		t.Fatalf("claim: %v %v", claims, err)
@@ -39,7 +41,7 @@ func liveMember(t *testing.T) (*serviceHarness, evalstore.Experiment, evalstore.
 
 func TestSharedPostgresEvalUsageTicksKeepListCursors(t *testing.T) {
 	h, e, claim, member := liveMember(t)
-	store := evalstore.NewPostgresStore(h.pool)
+	store := evalstore.NewPostgresStore(h.pool, artifactpgtest.NewStorage())
 	page, err := store.SummaryPage(t.Context(), evalstore.SummaryPageParams{
 		OwnerID: h.scope.OwnerID, ProjectID: h.scope.ProjectID, Limit: 1,
 	})
@@ -109,7 +111,7 @@ func TestSharedPostgresEvalIdleCoordinatorTicksKeepSelectedView(t *testing.T) {
 		t.Fatalf("fixture has %d accepted Runs, want 2", accepted)
 	}
 
-	store := evalstore.NewPostgresStore(h.pool)
+	store := evalstore.NewPostgresStore(h.pool, artifactpgtest.NewStorage())
 	outstanding, err := store.ReconciliationCandidates(t.Context(), e.OwnerID, e.ID, 2)
 	if err != nil || len(outstanding) != 2 {
 		t.Fatalf("reconciliation candidates: %v %v", outstanding, err)
@@ -188,7 +190,7 @@ FROM eval_projection_queue WHERE experiment_id=$1`, e.ID).Scan(
 	if runState != string(runstore.RunPending) {
 		t.Fatalf("fixture Run state = %s, want pending", runState)
 	}
-	if _, err := runstore.NewPostgresStore(h.pool).TransitionRun(t.Context(), runID, runstore.RunPending, runstore.RunRunning, runstore.Reason{Code: "fixture_admitted"}); err != nil {
+	if _, err := runstore.NewPostgresStore(h.pool, artifactpgtest.NewStorage()).TransitionRun(t.Context(), runID, runstore.RunPending, runstore.RunRunning, runstore.Reason{Code: "fixture_admitted"}); err != nil {
 		t.Fatal(err)
 	}
 	tick(t, c)

@@ -8,13 +8,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 func TestPostgresSitemapRepeatedRunsAggregateBehavior(t *testing.T) {
 	pool := sitemapPool(t)
 	ctx := t.Context()
-	service := NewService(pool)
+	service := NewService(pool, artifactpgtest.NewStorage())
 	policy := readerPolicy()
 	policy.CollectObservations = true
 	deployment := "production"
@@ -100,7 +102,7 @@ func TestPostgresSitemapRepeatedRunsAggregateBehavior(t *testing.T) {
 func TestPostgresSitemapManualRunsShareMetadataAndIsolateReceipts(t *testing.T) {
 	pool := sitemapPool(t)
 	ctx := t.Context()
-	service := NewService(pool)
+	service := NewService(pool, artifactpgtest.NewStorage())
 	createSitemapRun(t, ctx, pool, "editor-one")
 	createSitemapRun(t, ctx, pool, "editor-two")
 	first, err := service.AllocationAccess(ctx, "editor-one", "research", readerPolicy())

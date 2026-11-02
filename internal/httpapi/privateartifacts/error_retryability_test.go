@@ -8,6 +8,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
@@ -40,7 +42,7 @@ func TestPrivateArtifactWriteErrorsReportRetryability(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			repository := &rejectingWriteRepository{memoryRepository: newMemoryRepository(), err: test.err}
-			handler, err := NewHandler(Dependencies{
+			handler, err := NewHandler(Dependencies{Transfers: artifactpgtest.NewStorage(),
 				Registry: &fakeRegistry{grant: testGrant("run-a")}, Artifacts: artifacts.NewService(repository),
 				NewRequestID: func() (string, error) { return "artifact-retryability", nil },
 			})

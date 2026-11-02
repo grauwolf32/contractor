@@ -37,7 +37,7 @@ func (s *Service) collectNativeRecords(ctx context.Context, st *evalstore.Store,
 	if _, err = st.SaveNativeRecord(ctx, scope(e), e.ID, m.MemberID, claim, doc); err != nil {
 		return err
 	}
-	checkResults, err := runNativeChecks(ctx, db, checks, m.Recipe.Case.Outputs, result)
+	checkResults, err := runNativeChecks(ctx, db, checks, m.Recipe.Case.Outputs, result, s.storage)
 	if err != nil {
 		return err
 	}

@@ -3,6 +3,8 @@ package evalservice
 import (
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalstore"
 )
@@ -20,7 +22,7 @@ func TestSharedPostgresNativeLifecycleRetainsOnlyCurrentViewGeneration(t *testin
 		h.finishRuns(t)
 		e = h.get(t, e.ID)
 		var err error
-		if view, err = evalstore.NewPostgresStore(h.pool).LatestView(t.Context(), e.OwnerID, e.ID); err != nil {
+		if view, err = evalstore.NewPostgresStore(h.pool, artifactpgtest.NewStorage()).LatestView(t.Context(), e.OwnerID, e.ID); err != nil {
 			t.Fatal(err)
 		}
 		if e.State == evaldomain.StateFinished && view != nil && view.Freshness == "current" {

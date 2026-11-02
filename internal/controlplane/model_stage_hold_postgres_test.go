@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/configload/configloadtest"
@@ -37,7 +39,7 @@ func TestModelStageHoldPostgresGivesReleasedSharedAgentToWaitingModelStage(t *te
 		t.Fatal(err)
 	}
 	shared := fixture.registerProcess(t, ctx, "shared", "5", nil, templateCapabilities(fixture.template, scanTemplate))
-	if _, err := runstore.NewPostgresStore(pool).CreateStageExecution(ctx, runstore.CreateStageExecutionParams{
+	if _, err := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()).CreateStageExecution(ctx, runstore.CreateStageExecutionParams{
 		LaneClass:        resolved.LaneClassTool,
 		StageExecutionID: "stage-scan", RunID: fixture.runID, StageName: "scan", Attempt: 1,
 		ExecutionConfigVariant: runstore.StageExecutionConfigBase,
@@ -87,7 +89,7 @@ func TestModelStageHoldPostgresGivesReleasedSharedAgentToWaitingModelStage(t *te
 	if err != nil || len(placed) != 1 || placed[0].Grant.RuntimeAgentID != shared {
 		t.Fatalf("model Stage on its next attempt = (%+v, %v)", placed, err)
 	}
-	allocations, err := runstore.NewPostgresStore(pool).ListStageAllocations(ctx, fixture.stageExecutionID)
+	allocations, err := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()).ListStageAllocations(ctx, fixture.stageExecutionID)
 	if err != nil || len(allocations) != 1 || allocations[0].RuntimeAgentID != shared {
 		t.Fatalf("durable model allocations = (%+v, %v)", allocations, err)
 	}

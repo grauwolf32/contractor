@@ -12,6 +12,8 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -43,6 +45,10 @@ func (q *projectReadQueries) take() []string {
 }
 
 func TestPostgresPrivateProjectArtifactReadsUseConcreteTargetAndNoCacheHolds(t *testing.T) {
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
 	ctx := t.Context()
 	base := isolatedPrivateArtifactPool(t, ctx)
 	trace := &projectReadQueries{}
@@ -57,13 +63,19 @@ func TestPostgresPrivateProjectArtifactReadsUseConcreteTargetAndNoCacheHolds(t *
 	createPrivateSitemapProjectRun(t, ctx, pool, "project-a", "run-a")
 	createPrivateSitemapProjectRun(t, ctx, pool, "project-b", "run-b")
 	createPrivateArtifactRun(t, ctx, pool, "projectless")
-	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
+	service := artifacts.NewService(artifactStorage.Repository(pool))
 	project, _ := service.Project("project-a")
 	foreign, _ := service.Project("project-b")
 	run, _ := service.Run("run-a")
 	ref := contracts.ArtifactRef{Namespace: "notes", Name: "context"}
 	history, _ := artifactpostgres.NewHistoryPolicy(2, artifactpostgres.DefaultHistoryMaxBytes)
-	writeCtx := artifactpostgres.WithHistoryPolicy(ctx, history)
+	writeCtx := ctx
+	artifactHistory = history
+	artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+	service = artifacts.NewService(artifactStorage.Repository(pool))
+	project, _ = service.Project("project-a")
+	foreign, _ = service.Project("project-b")
+	run, _ = service.Run("run-a")
 	original, err := project.Write(writeCtx, ref, artifacts.Payload{MediaType: "text/plain", Data: []byte("original Project")}, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -77,7 +89,7 @@ func TestPostgresPrivateProjectArtifactReadsUseConcreteTargetAndNoCacheHolds(t *
 	}
 	registry := &fakeRegistry{grant: testGrant("run-a")}
 	registry.grant.ProjectArtifactReads = []controlplane.ProjectArtifactReadTarget{{Namespace: "notes", Name: "context", Operations: []string{"review_notes"}}}
-	server, err := NewHandler(Dependencies{Registry: registry, Artifacts: service, RunProjects: runstore.NewPostgresStore(pool), Projects: projectstore.NewPostgresStore(pool)})
+	server, err := NewHandler(Dependencies{Transfers: artifactStorage, Registry: registry, Artifacts: service, RunProjects: runstore.NewPostgresStore(pool, artifactStorage), Projects: projectstore.NewPostgresStore(pool)})
 	if err != nil {
 		t.Fatal(err)
 	}

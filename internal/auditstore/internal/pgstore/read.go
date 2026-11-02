@@ -566,7 +566,7 @@ func (s *ClaimStore) GetReconcileSnapshot(
 	var result auditstore.ReconcileSnapshot
 	err := persistencepostgres.Within(ctx, s.db, snapshotTransaction, func(tx pgx.Tx) error {
 		var err error
-		result, err = NewClaimStore(tx).readReconcileSnapshot(ctx, claim)
+		result, err = NewClaimStore(tx, s.storage).readReconcileSnapshot(ctx, claim)
 		return err
 	})
 	return result, err

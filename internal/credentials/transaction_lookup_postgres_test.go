@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
@@ -159,7 +161,7 @@ func TestTransactionLookupPinsRuntimeConfigWithoutAnotherPoolConnection(t *testi
 		_ = tx.Rollback(ctx)
 		t.Fatal(err)
 	}
-	store := runstore.NewRunCreationPostgresStore(tx, bound, NewRuntimeCredentialRepository(tx))
+	store := runstore.NewRunCreationPostgresStore(tx, bound, NewRuntimeCredentialRepository(tx), artifactpgtest.NewStorage())
 	pinned, err := store.PinRuntimeLabels(ctx, []string{"valid"})
 	if err != nil {
 		_ = tx.Rollback(ctx)
@@ -197,7 +199,7 @@ func TestTransactionLookupPinsRuntimeConfigWithoutAnotherPoolConnection(t *testi
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = runstore.NewRunCreationPostgresStore(missingTx, missingLookup, NewRuntimeCredentialRepository(missingTx)).
+	_, err = runstore.NewRunCreationPostgresStore(missingTx, missingLookup, NewRuntimeCredentialRepository(missingTx), artifactpgtest.NewStorage()).
 		PinRuntimeLabels(missingCtx, []string{"missing"})
 	if !errors.Is(err, runtimeconfig.ErrInvalid) || errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("missing transaction credential error = %v", err)

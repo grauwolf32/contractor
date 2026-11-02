@@ -6,8 +6,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -23,7 +24,7 @@ func TestPostgresAuditPurgeCommitsBoundedBatchesAndResumesAfterTakeover(t *testi
 	seedDecidedPurgeReviews(t, f, confirmedID, duplicateID)
 	namespace := auditdomain.ArtifactNamespace(f.audit.AuditID)
 	scope, _ := artifacts.ProjectScope(f.project.ProjectID)
-	service := artifacts.NewService(artifactpostgres.NewRepository(f.pool))
+	service := artifacts.NewService(artifactpgtest.NewStorage().Repository(f.pool))
 	for index := range 2005 {
 		if _, err := service.CreateFrozen(f.ctx, scope,
 			contracts.ArtifactRef{Namespace: namespace, Name: fmt.Sprintf("material-%05d", index)},

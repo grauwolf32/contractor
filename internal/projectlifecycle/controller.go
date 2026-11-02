@@ -51,6 +51,7 @@ type Clock interface {
 }
 
 type Options struct {
+	Storage       *artifactpostgres.Storage
 	PollInterval  time.Duration
 	ClaimDuration time.Duration
 	// OperationTimeout bounds claim bookkeeping and the cancelling/draining
@@ -63,6 +64,8 @@ type Options struct {
 }
 
 type Controller struct {
+	storage *artifactpostgres.Storage
+
 	pool     *pgxpool.Pool
 	runs     RunStore
 	deleter  RunDeleter
@@ -79,7 +82,7 @@ func New(
 	notifier RunCancellationNotifier,
 	options Options,
 ) (*Controller, error) {
-	if pool == nil || runs == nil || deleter == nil || notifier == nil {
+	if options.Storage == nil || pool == nil || runs == nil || deleter == nil || notifier == nil {
 		return nil, errors.New("Project deletion controller dependencies are incomplete")
 	}
 	if options.PollInterval == 0 {
@@ -107,7 +110,7 @@ func New(
 		options.OperationTimeout <= 0 || options.PurgeTimeout <= 0 {
 		return nil, errors.New("Project deletion controller durations must be positive")
 	}
-	return &Controller{
+	return &Controller{storage: options.Storage,
 		pool: pool, runs: runs, deleter: deleter, notifier: notifier, options: options,
 		purges: evalstore.NewPurgeMeter(options.Logger, options.Clock.Now),
 		wake:   make(chan struct{}, 1),
@@ -259,7 +262,7 @@ func (c *Controller) advance(
 func (c *Controller) requestOneAuditDeletion(
 	ctx context.Context, claim projectstore.DeletionClaim,
 ) (bool, error) {
-	changed, err := hookstore.NewProjectDeletion(c.pool).RequestProjectOwnedDeletion(ctx, claim)
+	changed, err := hookstore.NewProjectDeletion(c.pool, c.storage).RequestProjectOwnedDeletion(ctx, claim)
 	if err != nil {
 		return false, fmt.Errorf("request Project Audit deletion: %w", err)
 	}
@@ -317,7 +320,7 @@ func (c *Controller) waitForDrain(
 	ctx context.Context,
 	claim projectstore.DeletionClaim,
 ) (bool, bool, error) {
-	if blocked, err := evalstore.NewPostgresStore(c.pool).ProjectBlocked(ctx, claim.OwnerID, claim.ProjectID); err != nil || blocked {
+	if blocked, err := evalstore.NewPostgresStore(c.pool, c.storage).ProjectBlocked(ctx, claim.OwnerID, claim.ProjectID); err != nil || blocked {
 		return false, false, err
 	}
 	var blocked bool
@@ -403,7 +406,7 @@ func (c *Controller) purgeProject(ctx context.Context, claim projectstore.Deleti
 		if auditsRemain {
 			return errors.New("Project still has Audits during Artifact purge")
 		}
-		eval, err := evalstore.NewTxStore(tx).PurgeProject(ctx, evalstore.Scope{OwnerID: claim.OwnerID, ProjectID: claim.ProjectID})
+		eval, err := evalstore.NewTxStore(tx, c.storage).PurgeProject(ctx, evalstore.Scope{OwnerID: claim.OwnerID, ProjectID: claim.ProjectID})
 		if err != nil {
 			return err
 		}
@@ -411,7 +414,7 @@ func (c *Controller) purgeProject(ctx context.Context, claim projectstore.Deleti
 		if eval.Rows > 0 || !eval.Done {
 			return nil
 		}
-		receiptsGone, err := findingintake.PurgeProjectReceipts(ctx, tx, claim.ProjectID)
+		receiptsGone, err := findingintake.PurgeProjectReceipts(ctx, tx, claim.ProjectID, c.storage)
 		if err != nil {
 			return err
 		}
@@ -422,7 +425,7 @@ func (c *Controller) purgeProject(ctx context.Context, claim projectstore.Deleti
 		if err != nil || !projectReceiptsGone {
 			return err
 		}
-		purger, err := artifactpostgres.NewPurger(tx)
+		purger, err := c.storage.Purger(tx)
 		if err != nil {
 			return err
 		}

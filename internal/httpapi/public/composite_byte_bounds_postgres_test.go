@@ -8,9 +8,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/getkin/kin-openapi/routers/gorillamux"
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
@@ -35,12 +36,12 @@ func TestSharedPostgresCompositeStringByteBounds(t *testing.T) {
 	}
 	pool := isolatedPublicPool(t, t.Context())
 	projects := projectstore.NewPostgresStore(pool)
-	runs := runstore.NewPostgresStore(pool)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	fixture := newHandlerFixtureWithAuth(t, "../../config/testdata/valid", newTestAuthentication(t), mustTestOrigins(t), false, nil, func(d *testServices) {
 		d.Projects, d.Runs = projects, runs
 		d.RunQueue, d.RunLifecycle = runs, runs
-		d.Sitemap = projectsitemap.NewService(pool)
-		d.Artifacts = artifacts.NewService(artifactpostgres.NewRepository(pool))
+		d.Sitemap = projectsitemap.NewService(pool, artifactpgtest.NewStorage())
+		d.Artifacts = artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
 	})
 	router, err := gorillamux.NewRouter(loadPublicOpenAPI(t))
 	if err != nil {

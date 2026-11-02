@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
@@ -32,6 +33,7 @@ type RunNotifier interface {
 }
 
 type Driver struct {
+	Storage  *artifactpostgres.Storage
 	Pool     *pgxpool.Pool
 	Runs     RunCreator
 	Audits   AuditExecutor
@@ -52,14 +54,14 @@ type memberReconciler struct {
 }
 
 func (d *Driver) Reconcile(ctx context.Context, e evalstore.Experiment, m evalstore.Member, c evalstore.Claim) error {
-	if d.Pool == nil || d.Runs == nil || d.Audits == nil {
+	if d.Storage == nil || d.Pool == nil || d.Runs == nil || d.Audits == nil {
 		return errors.New("eval execution dependencies are incomplete")
 	}
 	now := d.Now
 	if now == nil {
 		now = time.Now
 	}
-	operations := &executionOperations{pool: d.Pool, now: now}
+	operations := &executionOperations{storage: d.Storage, pool: d.Pool, now: now}
 	resources := &memberResources{operations: operations}
 	var adapter executionAdapter
 	switch m.ExecutionKind {
@@ -74,7 +76,7 @@ func (d *Driver) Reconcile(ctx context.Context, e evalstore.Experiment, m evalst
 }
 
 func (d *memberReconciler) Reconcile(ctx context.Context, e evalstore.Experiment, m evalstore.Member, c evalstore.Claim) error {
-	store := evalstore.NewPostgresStore(d.operations.pool)
+	store := evalstore.NewPostgresStore(d.operations.pool, d.operations.storage)
 	sub, err := store.Submission(ctx, e.OwnerID, e.ID, m.MemberID)
 	if err != nil {
 		return err

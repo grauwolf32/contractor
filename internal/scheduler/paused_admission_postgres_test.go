@@ -3,9 +3,11 @@ package scheduler
 import (
 	"context"
 	"errors"
-	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"testing"
 	"time"
+
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
@@ -138,7 +140,7 @@ VALUES($1,$2,true,'model_unavailable',clock_timestamp()-interval '1 second',cloc
 		route.Key(), route.OwnerID); err != nil {
 		t.Fatal(err)
 	}
-	runs := runstore.NewPostgresStore(pool)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	pending := func(runID string) {
 		t.Helper()
 		if _, err := runstoretest.CreateRun(ctx, runs, runstore.CreateRunParams{

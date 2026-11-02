@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -52,7 +54,7 @@ func TestPostgresReleaseMarkersBatchAndKeepPerAllocationOutcomes(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
 	defer cancel()
 	pool := isolatedRunStorePool(t, ctx)
-	store := NewPostgresStore(pool)
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
 	createTestRun(t, ctx, store, "run-markers")
 	if _, err := store.CreateStageExecution(ctx, testActiveStageParams("run-markers", "stage-markers", "copy")); err != nil {
 		t.Fatal(err)
@@ -76,7 +78,7 @@ func TestPostgresReleaseMarkersBatchAndKeepPerAllocationOutcomes(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(counted.Close)
-	marked := NewPostgresStore(counted)
+	marked := NewPostgresStore(counted, artifactpgtest.NewStorage())
 	rows := func() map[string]StageAllocation {
 		t.Helper()
 		allocations, err := store.ListStageAllocations(ctx, "stage-markers")

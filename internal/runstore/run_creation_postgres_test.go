@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -21,7 +23,7 @@ func TestPostgresRunCreationPathsShareOneInsert(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedRunStorePool(t, ctx)
-	store := NewPostgresStore(pool)
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
 	projectID := "project-run-creation"
 	if _, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{
 		ProjectID: projectID, OwnerID: "user-1", Kind: projectstore.KindProject,
@@ -91,7 +93,7 @@ func TestPostgresRunCreationClassifiesTheMissingProjectParent(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedRunStorePool(t, ctx)
-	store := NewPostgresStore(pool)
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
 	projects := projectstore.NewPostgresStore(pool)
 	for index, project := range []struct{ id, owner string }{
 		{"project-present", "user-1"}, {"project-foreign", "user-2"}, {"project-deleting", "user-1"},

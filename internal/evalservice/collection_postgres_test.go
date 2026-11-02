@@ -3,15 +3,16 @@ package evalservice
 import (
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 )
 
 func TestEvalNativeStructuralChecksAndPinnedFailures(t *testing.T) {
 	pool := serviceTestPool(t)
-	scope, err := artifacts.NewService(artifactpostgres.NewRepository(pool)).User("owner")
+	scope, err := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool)).User("owner")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,7 +37,7 @@ func TestEvalNativeStructuralChecksAndPinnedFailures(t *testing.T) {
 		{ID: "unavailable", Evaluator: "json-schema@1", Required: true, ImplementationSHA256: evaldomain.Digest([]byte("old implementation")), Parameters: map[string]string{"output": "valid", "schema": "json@1"}},
 		{ID: "nul-shape", Evaluator: "json-schema@1", Required: true, ImplementationSHA256: NativePolicySHA256(), Parameters: map[string]string{"output": "nul", "schema": "json@1"}},
 	}
-	results, err := runNativeChecks(t.Context(), pool, checks, nil, result)
+	results, err := runNativeChecks(t.Context(), pool, checks, nil, result, artifactpgtest.NewStorage())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,7 +57,7 @@ func TestEvalNativeStructuralChecksAndPinnedFailures(t *testing.T) {
 	if _, err = pool.Exec(t.Context(), `ALTER TABLE artifact_binding_revisions RENAME TO unavailable_revisions`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = runNativeChecks(t.Context(), pool, checks[:1], nil, result); err == nil {
+	if _, err = runNativeChecks(t.Context(), pool, checks[:1], nil, result, artifactpgtest.NewStorage()); err == nil {
 		t.Fatal("database failure became a check result")
 	}
 }

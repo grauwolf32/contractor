@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -19,15 +21,16 @@ func TestCatalogPostgresConcurrentInitializationIsCreateOnly(t *testing.T) {
 	defer cancel()
 	pool := isolatedSkillCatalogPool(t, ctx)
 	plan := bundledPlan(t, map[string]string{"alpha": "Alpha."})
-	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
+	service := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
 	catalog, err := NewCatalog(service)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	var wait sync.WaitGroup
-	errorsFound := make(chan error, 8)
-	for range 8 {
+	// Four simultaneous writes exercise create races within the process transfer budget.
+	errorsFound := make(chan error, 4)
+	for range 4 {
 		wait.Add(1)
 		go func() {
 			defer wait.Done()
@@ -88,6 +91,10 @@ WHERE scope_kind = 'user' AND scope_id = 'postgres-owner'
 // initialization read (RUN-R27), while a cancelled request, which proves
 // nothing about the revision, stays the retryable skill_artifact_unavailable.
 func TestCatalogPostgresRunSourceRemovedByRetentionIsNotFound(t *testing.T) {
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedSkillCatalogPool(t, ctx)
@@ -95,8 +102,9 @@ func TestCatalogPostgresRunSourceRemovedByRetentionIsNotFound(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx = artifactpostgres.WithHistoryPolicy(ctx, policy)
-	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
+	artifactHistory = policy
+	artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+	service := artifacts.NewService(artifactStorage.Repository(pool))
 	catalog, err := NewCatalog(service)
 	if err != nil {
 		t.Fatal(err)

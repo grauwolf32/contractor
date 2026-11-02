@@ -9,8 +9,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
@@ -36,7 +37,7 @@ func newTimeControlAudit(t *testing.T, seconds int) (context.Context, *pgxpool.P
 		t.Fatal(err)
 	}
 	now := time.Now().UTC().Truncate(time.Microsecond)
-	service, err := New(Options{Pool: pool, Profiles: profiles, CredentialGuard: &countingCredentialGuard{}, Now: func() time.Time { return now }, TransactionLLMCredentials: runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (resolved.CredentialLookup, error) {
+	service, err := New(Options{Storage: artifactpgtest.NewStorage(), Pool: pool, Profiles: profiles, CredentialGuard: &countingCredentialGuard{}, Now: func() time.Time { return now }, TransactionLLMCredentials: runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (resolved.CredentialLookup, error) {
 		return &switchableCredentialLookup{available: true, gateway: gateway.Ref}, nil
 	})})
 	if err != nil {
@@ -46,7 +47,7 @@ func newTimeControlAudit(t *testing.T, seconds int) (context.Context, *pgxpool.P
 	if err != nil {
 		t.Fatal(err)
 	}
-	scoped, err := artifacts.NewService(artifactpostgres.NewRepository(pool)).Project(project.ProjectID)
+	scoped, err := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool)).Project(project.ProjectID)
 	if err != nil {
 		t.Fatal(err)
 	}

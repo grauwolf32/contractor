@@ -9,7 +9,6 @@ import (
 	"time"
 
 	. "github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -93,10 +92,10 @@ func TestSharedPostgresRefPagesExcludeModelHiddenBindingsBeforeTheLimit(t *testi
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
-	ctx = testBlobContext(t, ctx, pool)
+	artifactStorage := testBlobStorage(t, ctx, pool)
 	createArtifactRun(t, ctx, pool, "run-page", true)
 	createArtifactRun(t, ctx, pool, "run-foreign", true)
-	service := NewService(artifactpostgres.NewRepository(pool))
+	service := NewService(artifactStorage.Repository(pool))
 	run, err := service.Run("run-page")
 	if err != nil {
 		t.Fatal(err)

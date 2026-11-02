@@ -7,8 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/jackc/pgx/v5"
@@ -30,7 +31,7 @@ func TestPostgresRequiredWorkflowOutputsReadTheArtifactStore(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
+	service := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
 	createBoundProjectRunOutput(t, ctx, pool, service, "run-outputs", "project-outputs", "result", "bound output")
 
 	text := []string{"text/plain"}
@@ -53,7 +54,7 @@ func TestPostgresRequiredWorkflowOutputsReadTheArtifactStore(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			var verified error
 			if err := pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error {
-				verified = verifyRequiredWorkflowOutputs(ctx, tx, "run-outputs", test.slots)
+				verified = verifyRequiredWorkflowOutputs(ctx, tx, "run-outputs", test.slots, artifactpgtest.NewStorage())
 				return nil
 			}); err != nil {
 				t.Fatal(err)

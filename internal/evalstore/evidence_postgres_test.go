@@ -6,9 +6,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/ownerstore"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
@@ -34,7 +35,7 @@ func TestPostgresEvalRunOutputAndEvidenceReadTheArtifactStore(t *testing.T) {
 		t.Fatal(err)
 	}
 	project := "outputs"
-	if _, err := runstoretest.CreateRun(ctx, runstore.NewPostgresStore(pool), runstore.CreateRunParams{
+	if _, err := runstoretest.CreateRun(ctx, runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()), runstore.CreateRunParams{
 		LaneClass: resolved.LaneClassModel,
 		RunID:     "run-outputs", OwnerID: "owner", ProjectID: &project, WorkflowName: "copy", WorkflowVersion: "1",
 		WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{}`),
@@ -42,7 +43,7 @@ func TestPostgresEvalRunOutputAndEvidenceReadTheArtifactStore(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
+	service := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
 	run, err := service.Run("run-outputs")
 	if err != nil {
 		t.Fatal(err)
@@ -58,7 +59,7 @@ func TestPostgresEvalRunOutputAndEvidenceReadTheArtifactStore(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	store := NewPostgresStore(pool)
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
 	output, err := store.RunOutput(ctx, "owner", "run-outputs", "result")
 	want := evaldomain.Artifact{
 		Scope: "run", ScopeID: "run-outputs", Namespace: "outputs", Name: "result",
@@ -138,7 +139,7 @@ func TestSharedPostgresEvalBindsOnlyTheAuditItsMemberCreated(t *testing.T) {
 	mustTx(t, pool, func(s *Store) error {
 		return s.RecoverMember(scope, e.ID, m.MemberID, claim).PutSuboperation(ctx, create)
 	})
-	audits := ownerstore.New(pool)
+	audits := ownerstore.New(pool, artifactpgtest.NewStorage())
 	createAudit := func(auditID, key string) {
 		t.Helper()
 		if _, _, err := audits.CreateDraft(ctx, auditstore.CreateDraftParams{
@@ -169,7 +170,7 @@ func TestSharedPostgresEvalBindsOnlyTheAuditItsMemberCreated(t *testing.T) {
 			t.Fatalf("binding of the member's Audit = %v", err)
 		}
 	}
-	submission, err := NewPostgresStore(pool).Submission(ctx, scope.OwnerID, e.ID, m.MemberID)
+	submission, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).Submission(ctx, scope.OwnerID, e.ID, m.MemberID)
 	if err != nil || submission.State != "accepted" || submission.ExecutionID == nil ||
 		*submission.ExecutionID != "audit-member" {
 		t.Fatalf("bound submission = (%+v, %v)", submission, err)

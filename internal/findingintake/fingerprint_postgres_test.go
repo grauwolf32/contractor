@@ -11,8 +11,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
@@ -44,7 +45,7 @@ func TestPostgresFindingFingerprintIntakeReplayAndRetention(t *testing.T) {
 		refs = writeFingerprintInputs(t, ctx, pool, run)
 		return map[string]runstore.PinnedContextArtifact{"source": {Artifact: &refs[0]}, "report": {Artifact: &refs[1]}}
 	})
-	service, err := New(pool)
+	service, err := New(pool, artifactpgtest.NewStorage())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,7 +117,7 @@ func TestPostgresFindingFingerprintIntakeReplayAndRetention(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	runs := runstore.NewPostgresStore(pool)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	if err := runs.MarkStageAllocationReleased(ctx, grant.AllocationID); err != nil {
 		t.Fatal(err)
 	}
@@ -153,7 +154,7 @@ func TestPostgresFindingFingerprintIntakeReplayAndRetention(t *testing.T) {
 		if _, err := service.GetAuditReceipt(ctx, "foreign-owner", id, first.ReceiptID); !errors.Is(err, ErrNotFound) {
 			t.Fatalf("owner isolation=%v", err)
 		}
-		audits := auditstoretest.NewStore(pool).WithPurgeDependencies(DeleteAuditHoldsBatch)
+		audits := auditstoretest.NewStore(pool, artifactpgtest.NewStorage()).WithPurgeDependencies(DeleteAuditHoldsBatch)
 		audit, err := audits.Get(ctx, owner, id)
 		if err != nil {
 			t.Fatal(err)
@@ -194,12 +195,12 @@ func writeFingerprintReportInputs(t *testing.T, ctx context.Context, pool *pgxpo
 		source = sourceData[0]
 	}
 	for index, payload := range []artifacts.Payload{{MediaType: "application/zip", Data: source}, {MediaType: "application/sarif+json", Data: report}} {
-		prepared, err := artifactpostgres.PreparePayload(ctx, pool, payload)
+		prepared, err := artifactpgtest.NewStorage().PreparePayload(ctx, pool, payload)
 		if err != nil {
 			t.Fatal(err)
 		}
 		err = persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-			repo := artifactpostgres.NewTxRepository(tx)
+			repo := artifactpgtest.NewStorage().TxRepository(tx)
 			store, err := artifacts.NewService(repo).Run(run)
 			if err != nil {
 				return err
@@ -241,7 +242,7 @@ func TestPostgresFindingFingerprintOptionalBudgetKeepsOrdinaryProposal(t *testin
 		refs = writeFingerprintReportInputs(t, ctx, pool, run, []byte(strings.Repeat(" ", auditdomain.MaximumFingerprintReportBytes+1)))
 		return map[string]runstore.PinnedContextArtifact{"source": {Artifact: &refs[0]}, "report": {Artifact: &refs[1]}}
 	})
-	service, err := New(pool)
+	service, err := New(pool, artifactpgtest.NewStorage())
 	if err != nil {
 		t.Fatal(err)
 	}

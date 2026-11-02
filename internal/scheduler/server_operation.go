@@ -23,7 +23,7 @@ func (p *PostgresPersistence) StartStageOperation(ctx context.Context, runID, st
 	var execution runstore.StageExecution
 	err = postgres.InTx(ctx, p.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		var err error
-		execution, err = runstore.NewPostgresTxStore(tx).StartStageOperation(ctx, runID, stageID, claimID)
+		execution, err = runstore.NewPostgresTxStore(tx, p.storage).StartStageOperation(ctx, runID, stageID, claimID)
 		return err
 	})
 	return execution, err

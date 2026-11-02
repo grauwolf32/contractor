@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -20,6 +22,10 @@ func receiptProjectionRule(path string, selectors ...StructuralParameter) Rule {
 }
 
 func TestPostgresSitemapReceiptPreservesStructuralOmissions(t *testing.T) {
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
 	action := StructuralParameter{Name: "action", Allowed: []string{"read", "write"}}
 	format := StructuralParameter{Name: "format", Allowed: []string{"json", "xml"}}
 	stable := receiptProjectionRule("/stable", action)
@@ -64,8 +70,10 @@ func TestPostgresSitemapReceiptPreservesStructuralOmissions(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			ctx := artifactpostgres.WithHistoryPolicy(t.Context(), history)
-			service := NewService(pool)
+			ctx := t.Context()
+			artifactHistory = history
+			artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+			service := NewService(pool, artifactStorage)
 			owner := Authority{OwnerID: "owner", ProjectID: "project", SourceID: "rules", Kind: "manual"}
 			rules := append(slices.Clone(tc.rules), stable)
 			if _, err := service.Mutate(ctx, owner, "configure", Mutation{Operation: "replace-source", Source: &SourceUpdate{SourceID: owner.SourceID, Rules: rules}}); err != nil {
@@ -127,7 +135,7 @@ func TestPostgresSitemapReceiptPreservesStructuralOmissions(t *testing.T) {
 
 func TestPostgresSitemapDeclarationReceiptPreservesStructuralValues(t *testing.T) {
 	pool := sitemapPool(t)
-	service := NewService(pool)
+	service := NewService(pool, artifactpgtest.NewStorage())
 	ctx := t.Context()
 	owner := Authority{OwnerID: "owner", ProjectID: "project", SourceID: "rules", Kind: "manual"}
 	rule := receiptProjectionRule("/dispatch", StructuralParameter{Name: "action", Allowed: []string{"read", "write"}})
@@ -198,7 +206,7 @@ func TestSitemapReceiptConflictsStayWithinBatchAndReceiptBounds(t *testing.T) {
 
 func TestPostgresSitemapDeclarationReceiptPreservesParameterNames(t *testing.T) {
 	pool := sitemapPool(t)
-	service := NewService(pool)
+	service := NewService(pool, artifactpgtest.NewStorage())
 	ctx := t.Context()
 	owner := Authority{OwnerID: "owner", ProjectID: "project", SourceID: "rules", Kind: "manual"}
 	command := Mutation{Operation: "declare", ExpectedRevision: "absent", URL: "https://example.test/search?q=one", Method: "GET"}

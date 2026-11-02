@@ -128,7 +128,7 @@ type startRound struct {
 func (s *Service) stageStart(ctx context.Context, params StartParams) (startPlan, error) {
 	var plan startPlan
 	err := persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		staged, err := stageStartInTransaction(ctx, tx, params)
+		staged, err := stageStartInTransaction(ctx, tx, params, s.storage)
 		if err == nil {
 			plan = staged
 		}
@@ -137,8 +137,8 @@ func (s *Service) stageStart(ctx context.Context, params StartParams) (startPlan
 	return plan, err
 }
 
-func stageStartInTransaction(ctx context.Context, tx pgx.Tx, params StartParams) (startPlan, error) {
-	audit, err := ownerstore.NewTx(tx).LockForStartStaging(ctx, params.OwnerID, params.AuditID)
+func stageStartInTransaction(ctx context.Context, tx pgx.Tx, params StartParams, storage *artifactpostgres.Storage) (startPlan, error) {
+	audit, err := ownerstore.NewTx(tx, storage).LockForStartStaging(ctx, params.OwnerID, params.AuditID)
 	if err != nil {
 		return startPlan{}, err
 	}
@@ -167,7 +167,7 @@ func stageStartInTransaction(ctx context.Context, tx pgx.Tx, params StartParams)
 		return startPlan{}, err
 	}
 
-	artifactService := artifacts.NewService(artifactpostgres.NewRepository(tx))
+	artifactService := artifacts.NewService(storage.Repository(tx))
 	namespace := auditdomain.ArtifactNamespace(audit.AuditID)
 	standardCatalog, err := auditstandards.NewCatalog(artifactService)
 	if err != nil {
@@ -254,7 +254,7 @@ func stageStartInTransaction(ctx context.Context, tx pgx.Tx, params StartParams)
 func (s *Service) startInTransaction(
 	ctx context.Context, tx pgx.Tx, params StartParams, plan startPlan,
 ) (StartedAudit, error) {
-	owners, reads := ownerstore.New(tx), querystore.New(tx)
+	owners, reads := ownerstore.New(tx, s.storage), querystore.New(tx, s.storage)
 	if replay, found, err := owners.LookupMutationReplay(
 		ctx, params.OwnerID, auditstore.MutationStart,
 		params.IdempotencyKey, params.RequestDigest,
@@ -296,7 +296,7 @@ func (s *Service) startInTransaction(
 		return StartedAudit{}, err
 	}
 	runtimeCredentials := credentials.NewRuntimeCredentialRepository(tx)
-	runs := runstore.NewRunCreationPostgresStore(tx, txLLMCredentials, runtimeCredentials)
+	runs := runstore.NewRunCreationPostgresStore(tx, txLLMCredentials, runtimeCredentials, s.storage)
 	runtimeSnapshot, err := runs.PinRuntimeLabels(ctx, selection.RuntimeLabels)
 	if err != nil {
 		return StartedAudit{}, err
@@ -304,7 +304,7 @@ func (s *Service) startInTransaction(
 	if err := contentdigest.CheckPinnedSelection(params.ExpectedRuntimeSHA256, runtimeSnapshot); err != nil {
 		return StartedAudit{}, err
 	}
-	artifactService := artifacts.NewService(artifactpostgres.NewRepository(tx))
+	artifactService := artifacts.NewService(s.storage.Repository(tx))
 	engagement, err := readEngagement(ctx, artifactService, audit.ProjectID, profile, selection)
 	if err != nil {
 		return StartedAudit{}, err

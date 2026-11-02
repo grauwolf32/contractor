@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	pg "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -50,7 +52,7 @@ func seedWithoutStatementTimeout(ctx context.Context, t *testing.T, pool *pgxpoo
 }
 
 func transaction(pool *pgxpool.Pool, fn func(*Store) error) error {
-	return pg.InTx(context.Background(), pool, pgx.TxOptions{}, func(tx pgx.Tx) error { return fn(NewTxStore(tx)) })
+	return pg.InTx(context.Background(), pool, pgx.TxOptions{}, func(tx pgx.Tx) error { return fn(NewTxStore(tx, artifactpgtest.NewStorage())) })
 }
 func mustTx(t *testing.T, pool *pgxpool.Pool, fn func(*Store) error) {
 	t.Helper()
@@ -113,7 +115,7 @@ func createExperiment(t *testing.T, pool *pgxpool.Pool, scope Scope, id, portabl
 		_, err := s.Create(context.Background(), CreateParams{Scope: scope, ID: id, PortableID: portable, Document: doc, Mutation: m})
 		return err
 	})
-	e, err := NewPostgresStore(pool).Get(context.Background(), scope.OwnerID, id)
+	e, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).Get(context.Background(), scope.OwnerID, id)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -140,7 +142,7 @@ func members(t *testing.T, pool *pgxpool.Pool, e Experiment) []Member {
 		t.Fatal(err)
 	}
 	rows.Close()
-	reader := NewPostgresStore(pool)
+	reader := NewPostgresStore(pool, artifactpgtest.NewStorage())
 	result := make([]Member, 0, len(ids))
 	for _, id := range ids {
 		member, err := reader.Member(ctx, e.OwnerID, e.ID, id)
@@ -153,7 +155,7 @@ func members(t *testing.T, pool *pgxpool.Pool, e Experiment) []Member {
 }
 func oneClaim(t *testing.T, pool *pgxpool.Pool) Claim {
 	t.Helper()
-	c, err := NewPostgresStore(pool).Claim(context.Background(), "controller", time.Minute, 1)
+	c, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).Claim(context.Background(), "controller", time.Minute, 1)
 	if err != nil || len(c) != 1 {
 		t.Fatalf("claim: %v %v", c, err)
 	}
@@ -161,7 +163,7 @@ func oneClaim(t *testing.T, pool *pgxpool.Pool) Claim {
 }
 func planDigest(t *testing.T, pool *pgxpool.Pool, e Experiment) string {
 	t.Helper()
-	p, err := NewPostgresStore(pool).FrozenPlan(context.Background(), e.OwnerID, e.ID)
+	p, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).FrozenPlan(context.Background(), e.OwnerID, e.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -202,7 +204,7 @@ func TestSharedPostgresEvalDraftCASOwnerReplayAndPrivateDatasets(t *testing.T) {
 	b := setupProject(t, pool, "owner-b", "eval-b")
 	putDataset(t, pool, a)
 	putDataset(t, pool, b)
-	reader := NewPostgresStore(pool)
+	reader := NewPostgresStore(pool, artifactpgtest.NewStorage())
 	d, err := reader.Dataset(ctx, a, "trace-small", "r1")
 	if err != nil {
 		t.Fatal(err)
@@ -304,7 +306,7 @@ func TestSharedPostgresEvalExternalFreezeAdmissionAndDeletionFence(t *testing.T)
 	doc := fixture(t, "external-workflow", "CreateExperiment")
 	var input evaldomain.CreateExperiment
 	json.Unmarshal(doc.Bytes(), &input)
-	p, err := NewPostgresStore(pool).FrozenPlan(ctx, e.OwnerID, e.ID)
+	p, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).FrozenPlan(ctx, e.OwnerID, e.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -340,7 +342,7 @@ func TestSharedPostgresEvalExternalFreezeAdmissionAndDeletionFence(t *testing.T)
 	if winner < 0 {
 		t.Fatal(errs)
 	}
-	live, err := NewPostgresStore(pool).Get(ctx, e.OwnerID, e.ID)
+	live, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).Get(ctx, e.OwnerID, e.ID)
 	if err != nil || live.Outstanding != 1 || live.StartedAt == nil || live.DeadlineAt == nil {
 		t.Fatal(live, err)
 	}
@@ -357,11 +359,11 @@ func TestSharedPostgresEvalExternalFreezeAdmissionAndDeletionFence(t *testing.T)
 	if !code(err, "eval_project_deleting") {
 		t.Fatal(err)
 	}
-	after, err := NewPostgresStore(pool).Get(ctx, e.OwnerID, e.ID)
+	after, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).Get(ctx, e.OwnerID, e.ID)
 	if err != nil || after.DeletionRequestedAt == nil || after.Outstanding != 1 || !after.DeadlineAt.Equal(*live.DeadlineAt) {
 		t.Fatal(after, err)
 	}
-	if blocked, err := NewPostgresStore(pool).ProjectBlocked(ctx, scope.OwnerID, scope.ProjectID); err != nil || !blocked {
+	if blocked, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).ProjectBlocked(ctx, scope.OwnerID, scope.ProjectID); err != nil || !blocked {
 		t.Fatal(blocked, err)
 	}
 	if err = transaction(pool, func(s *Store) error { _, err := s.PurgeProject(ctx, scope); return err }); !errors.Is(err, ErrDrain) {
@@ -389,11 +391,11 @@ func TestSharedPostgresEvalNativeFreezeStaleClaimsAndSuboperationRecovery(t *tes
 	}
 	plan := fixture(t, "portable-plan", "playground.plan/v1")
 	mustTx(t, pool, func(s *Store) error { return s.FreezePrepared(ctx, scope, e.ID, claim, plan, setup, cases) })
-	saved, err := NewPostgresStore(pool).FrozenPlan(ctx, scope.OwnerID, e.ID)
+	saved, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).FrozenPlan(ctx, scope.OwnerID, e.ID)
 	if err != nil || !bytes.Equal(saved.Document.Bytes(), plan.Bytes()) {
 		t.Fatal("plan bytes changed", err)
 	}
-	e, err = NewPostgresStore(pool).Get(ctx, scope.OwnerID, e.ID)
+	e, err = NewPostgresStore(pool, artifactpgtest.NewStorage()).Get(ctx, scope.OwnerID, e.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -448,13 +450,13 @@ func TestSharedPostgresEvalNativeFreezeStaleClaimsAndSuboperationRecovery(t *tes
 	if err = <-done; !errors.Is(err, ErrClaimLost) {
 		t.Fatal("stale holder committed", err)
 	}
-	if err = NewPostgresStore(pool).ReleaseClaim(ctx, claim); !errors.Is(err, ErrClaimLost) {
+	if err = NewPostgresStore(pool, artifactpgtest.NewStorage()).ReleaseClaim(ctx, claim); !errors.Is(err, ErrClaimLost) {
 		t.Fatal(err)
 	}
 	replacement := claim
 	replacement.HolderID = "replacement"
 	replacement.Epoch++
-	old, err := NewPostgresStore(pool).Suboperation(ctx, scope.OwnerID, e.ID, ms[0].MemberID, op.Kind)
+	old, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).Suboperation(ctx, scope.OwnerID, e.ID, ms[0].MemberID, op.Kind)
 	if err != nil || old.State != "intent" {
 		t.Fatal(old, err)
 	}
@@ -463,7 +465,7 @@ func TestSharedPostgresEvalNativeFreezeStaleClaimsAndSuboperationRecovery(t *tes
 	})
 	mustTx(t, pool, func(s *Store) error { return s.RecoverMember(scope, e.ID, ms[0].MemberID, replacement).Settle(ctx) })
 	mustTx(t, pool, func(s *Store) error { return s.RecoverMember(scope, e.ID, ms[0].MemberID, replacement).Settle(ctx) })
-	e, err = NewPostgresStore(pool).Get(ctx, scope.OwnerID, e.ID)
+	e, err = NewPostgresStore(pool, artifactpgtest.NewStorage()).Get(ctx, scope.OwnerID, e.ID)
 	if err != nil || e.Outstanding != 0 {
 		t.Fatal(e, err)
 	}
@@ -479,7 +481,7 @@ func TestSharedPostgresEvalBoundedPagesPinnedPurgeAndReceiptRetention(t *testing
 	for i := range 12 {
 		createExperiment(t, pool, scope, fmt.Sprintf("exp-%02d", i), fmt.Sprintf("portable-%02d", i), "create-workflow")
 	}
-	reader := NewPostgresStore(pool)
+	reader := NewPostgresStore(pool, artifactpgtest.NewStorage())
 	page, err := reader.SummaryPage(ctx, SummaryPageParams{
 		OwnerID: scope.OwnerID, ProjectID: scope.ProjectID, Limit: 5,
 	})
@@ -554,7 +556,7 @@ func TestSharedPostgresEvalAdmissionAndProjectDeletionSerializeBothOrders(t *tes
 				}
 				go func() { done <- transaction(pool, func(s *Store) error { _, err := s.Admit(ctx, p); return err }) }()
 			} else {
-				if _, err = NewTxStore(tx).Admit(ctx, p); err != nil {
+				if _, err = NewTxStore(tx, artifactpgtest.NewStorage()).Admit(ctx, p); err != nil {
 					t.Fatal(err)
 				}
 				go func() {
@@ -574,7 +576,7 @@ func TestSharedPostgresEvalAdmissionAndProjectDeletionSerializeBothOrders(t *tes
 			if deletionFirst && !code(err, "eval_project_deleting") || !deletionFirst && err != nil {
 				t.Fatal(err)
 			}
-			e, err = NewPostgresStore(pool).Get(ctx, scope.OwnerID, e.ID)
+			e, err = NewPostgresStore(pool, artifactpgtest.NewStorage()).Get(ctx, scope.OwnerID, e.ID)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -616,15 +618,15 @@ func TestSharedPostgresEvalAuditWorkspaceDependencyFencesWithoutDeletingExperime
 	})
 	child := Scope{scope.OwnerID, "audit-workspace"}
 	beginProjectDeletion(t, pool, child)
-	current, err := NewPostgresStore(pool).Get(ctx, scope.OwnerID, e.ID)
+	current, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).Get(ctx, scope.OwnerID, e.ID)
 	if err != nil || current.State != "cancelling" || current.DeletionRequestedAt != nil {
 		t.Fatal("child deletion must not erase experiment", current, err)
 	}
-	if blocked, err := NewPostgresStore(pool).ProjectBlocked(ctx, child.OwnerID, child.ProjectID); err != nil || !blocked {
+	if blocked, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).ProjectBlocked(ctx, child.OwnerID, child.ProjectID); err != nil || !blocked {
 		t.Fatal(blocked, err)
 	}
 	mustTx(t, pool, func(s *Store) error { return s.RecoverMember(scope, e.ID, m.MemberID, claim).Settle(ctx) })
-	if blocked, err := NewPostgresStore(pool).ProjectBlocked(ctx, child.OwnerID, child.ProjectID); err != nil || blocked {
+	if blocked, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).ProjectBlocked(ctx, child.OwnerID, child.ProjectID); err != nil || blocked {
 		t.Fatal(blocked, err)
 	}
 	if _, err = admit(t, pool, e, members(t, pool, e)[1].MemberID, nil, "after-child-delete"); !code(err, "eval_not_ready") {
@@ -669,12 +671,12 @@ UPDATE eval_experiments SET state=$2, outstanding_count=0, revision=revision+1,
  WHERE experiment_id=$1`, experiment.ID, terminal); err != nil {
 				t.Fatal(err)
 			}
-			before, err := NewPostgresStore(pool).Get(ctx, scope.OwnerID, experiment.ID)
+			before, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).Get(ctx, scope.OwnerID, experiment.ID)
 			if err != nil {
 				t.Fatal(err)
 			}
 			beginProjectDeletion(t, pool, child)
-			after, err := NewPostgresStore(pool).Get(ctx, scope.OwnerID, experiment.ID)
+			after, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).Get(ctx, scope.OwnerID, experiment.ID)
 			if err != nil || after.State != terminal || after.Revision != before.Revision ||
 				!after.UpdatedAt.Equal(before.UpdatedAt) || after.DeletionRequestedAt != nil {
 				t.Fatalf("terminal Eval changed after child deletion: before=%+v after=%+v err=%v", before, after, err)
@@ -696,12 +698,12 @@ UPDATE eval_experiments SET state=$2, revision=revision+1,
  WHERE experiment_id=$1`, "exp", terminal); err != nil {
 				t.Fatal(err)
 			}
-			before, err := NewPostgresStore(pool).Get(ctx, scope.OwnerID, "exp")
+			before, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).Get(ctx, scope.OwnerID, "exp")
 			if err != nil {
 				t.Fatal(err)
 			}
 			beginProjectDeletion(t, pool, scope)
-			current, err := NewPostgresStore(pool).Get(ctx, scope.OwnerID, "exp")
+			current, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).Get(ctx, scope.OwnerID, "exp")
 			if err != nil || current.State != evaldomain.StateCancelling || current.DeletionRequestedAt == nil || current.Revision != before.Revision+1 {
 				t.Fatalf("own Project did not fence %s Eval: %+v (%v)", terminal, current, err)
 			}
@@ -737,7 +739,7 @@ func TestSharedPostgresEvalFrozenDeadlineAndOptionalTokenAllowance(t *testing.T)
 				_, err := s.Create(ctx, CreateParams{Scope: scope, ID: "exp", PortableID: "trace-1", Document: doc, Mutation: m})
 				return err
 			})
-			e, err := NewPostgresStore(pool).Get(ctx, scope.OwnerID, "exp")
+			e, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).Get(ctx, scope.OwnerID, "exp")
 			if err != nil {
 				t.Fatal(err)
 			}

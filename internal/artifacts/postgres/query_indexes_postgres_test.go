@@ -7,8 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	. "github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 )
@@ -49,7 +50,7 @@ SELECT 'user','plan-owner','history','long','r-'||i,'v-'||i,'2026-01-01'::timest
 	}
 	capture := &historyQueryCapture{}
 	scope, _ := UserScope("plan-owner")
-	_, _ = artifactpostgres.NewRepository(capture).ListVersions(ctx, scope, ArtifactRef{Namespace: "history", Name: "long"}, VersionPageQuery{Limit: 51})
+	_, _ = artifactpgtest.NewStorage().Repository(capture).ListVersions(ctx, scope, ArtifactRef{Namespace: "history", Name: "long"}, VersionPageQuery{Limit: 51})
 	probes := []struct {
 		name, sql, index string
 		args             []any
@@ -114,12 +115,12 @@ SELECT 'user','plan-owner','history','long','r-'||i,'v-'||i,'2026-01-01'::timest
 	if err := pool.QueryRow(ctx, `SELECT to_regclass('artifact_bindings_list_idx') IS NOT NULL`).Scan(&duplicate); err != nil || duplicate {
 		t.Fatalf("duplicate binding index remains: %v", err)
 	}
-	page, err := artifactpostgres.NewRepository(pool).ListVersions(ctx, scope, ArtifactRef{Namespace: "history", Name: "long"}, VersionPageQuery{Limit: 51})
+	page, err := artifactpgtest.NewStorage().Repository(pool).ListVersions(ctx, scope, ArtifactRef{Namespace: "history", Name: "long"}, VersionPageQuery{Limit: 51})
 	if err != nil || len(page) != 51 || *page[0].Ref.Revision != "r-50000" {
 		t.Fatalf("history page size=%d: %v", len(page), err)
 	}
 	last := page[len(page)-1]
-	next, err := artifactpostgres.NewRepository(pool).ListVersions(ctx, scope, ArtifactRef{Namespace: "history", Name: "long"}, VersionPageQuery{Limit: 51, BeforeCreatedAt: &last.CreatedAt, BeforeRevision: *last.Ref.Revision})
+	next, err := artifactpgtest.NewStorage().Repository(pool).ListVersions(ctx, scope, ArtifactRef{Namespace: "history", Name: "long"}, VersionPageQuery{Limit: 51, BeforeCreatedAt: &last.CreatedAt, BeforeRevision: *last.Ref.Revision})
 	if err != nil || len(next) != 51 || *next[0].Ref.Revision != "r-49949" {
 		t.Fatalf("next history page size=%d: %v", len(next), err)
 	}

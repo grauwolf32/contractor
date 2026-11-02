@@ -11,8 +11,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
@@ -312,7 +313,7 @@ func (f *completionFixture) tracedImporter(
 	mustCompletion(t, err)
 	t.Cleanup(traced.Close)
 	var access ArtifactAccess
-	access, err = NewArtifactAccess(artifacts.NewService(artifactpostgres.NewRepository(traced)), hookstore.NewClaimedArtifacts(traced))
+	access, err = NewArtifactAccess(artifacts.NewService(artifactpgtest.NewStorage().Repository(traced)), hookstore.NewClaimedArtifacts(traced, artifactpgtest.NewStorage()))
 	mustCompletion(t, err)
 	for _, apply := range wrap {
 		access = apply(access)

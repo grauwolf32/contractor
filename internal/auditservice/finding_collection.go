@@ -19,7 +19,7 @@ func (s *Service) SelectCollectionFindings(ctx context.Context, tx pgx.Tx, owner
 	for index, selection := range selected {
 		findings[index] = auditstore.FindingRevision{FindingID: selection.FindingID, Revision: selection.Revision}
 	}
-	ids, err := querystore.New(tx).CollectionReceiptIDs(ctx, ownerID, auditID, findings)
+	ids, err := querystore.New(tx, s.storage).CollectionReceiptIDs(ctx, ownerID, auditID, findings)
 	return ids, collectionError(err)
 }
 
@@ -27,7 +27,7 @@ func (s *Service) SelectCollectionFindings(ctx context.Context, tx pgx.Tx, owner
 // It deliberately preserves missing decision IDs and does not create findings
 // for unadmitted receipts or convert receipt retention into a review state.
 func (s *Service) ReadCollectionFindings(ctx context.Context, tx pgx.Tx, ownerID string, receiptIDs []string) (map[string]*auditdomain.FindingCollectionFinding, error) {
-	reviews, err := querystore.New(tx).CollectionFindings(ctx, ownerID, receiptIDs)
+	reviews, err := querystore.New(tx, s.storage).CollectionFindings(ctx, ownerID, receiptIDs)
 	return reviews, collectionError(err)
 }
 

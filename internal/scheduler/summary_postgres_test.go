@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob/backends"
@@ -185,6 +187,10 @@ func containsSummaryNote(data []byte) bool {
 }
 
 func TestPostgresSummaryContinuationReconcilesAndRetainsArtifactsAndMemory(t *testing.T) {
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
 	for _, backend := range []blob.Backend{blob.Postgres, blob.Filesystem} {
 		for _, fault := range []string{"none", "summary-response-loss", "process-loss-before-summary", "allocation-loss-after-summary", "transition-response-loss", "transaction-conflict", "pause", "cancel", "manual-resume"} {
 			t.Run(string(backend)+"/"+fault, func(t *testing.T) {
@@ -199,7 +205,8 @@ func TestPostgresSummaryContinuationReconcilesAndRetainsArtifactsAndMemory(t *te
 						_ = c.Close()
 					}
 				})
-				ctx = blob.WithRuntime(ctx, blob.NewRuntime(blobs, nil))
+				artifactRuntime = blob.NewRuntime(blobs, nil)
+				artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
 				h := newDeferredPlacementHarness(t, ctx, nil, func(workflow *resolved.ResolvedWorkflow) {
 					configureSummaryWorkflow(t, workflow)
 					stage := workflow.Stages[workflow.EntryStage]
@@ -212,7 +219,7 @@ func TestPostgresSummaryContinuationReconcilesAndRetainsArtifactsAndMemory(t *te
 						t.Fatal(err)
 					}
 				})
-				service := artifacts.NewService(artifactpostgres.NewRepository(h.pool))
+				service := artifacts.NewService(artifactStorage.Repository(h.pool))
 				store, _ := service.Run("run-1")
 				material, err := store.Write(ctx, contracts.ArtifactRef{Namespace: "builder", Name: "material"}, artifacts.Payload{MediaType: "text/plain", Data: []byte("original")}, nil)
 				if err != nil {
@@ -223,7 +230,7 @@ func TestPostgresSummaryContinuationReconcilesAndRetainsArtifactsAndMemory(t *te
 					t.Fatal(err)
 				}
 				inspector, _ := planner.NewArtifactServiceInspector(service)
-				memory, err := plannermemory.NewPostgresStore(h.pool)
+				memory, err := plannermemory.NewPostgresStore(h.pool, artifactStorage)
 				if err != nil {
 					t.Fatal(err)
 				}

@@ -14,6 +14,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/auth"
@@ -53,6 +56,7 @@ var (
 )
 
 type handlerFixture struct {
+	transfers           *blob.Runtime
 	handler             http.Handler
 	configs             *config.Manager
 	repository          *fakeArtifactRepository
@@ -404,7 +408,7 @@ func TestProjectRunRechecksHTTPTargetCredentialUse(t *testing.T) {
 			); err != nil {
 				t.Fatal(err)
 			}
-			services := testServices{
+			services := testServices{Transfers: artifactpgtest.NewRuntime(),
 				Config: fixture.configs, Credentials: fixture.credentials, ManagedCredentials: fixture.credentials,
 				RuntimeCredentials: fixture.runtimeCredentials, Projects: fixture.projects,
 			}
@@ -748,6 +752,7 @@ func newHandlerFixtureWithAuth(
 	if err != nil {
 		t.Fatalf("load test config: %v", err)
 	}
+	transferRuntime := artifactpgtest.NewRuntime()
 	repository := newFakeArtifactRepository()
 	service := artifacts.NewService(repository)
 	runs := newFakeRunStore()
@@ -801,7 +806,7 @@ func newHandlerFixtureWithAuth(
 	if logger == nil {
 		logger = slog.New(slog.DiscardHandler)
 	}
-	services := testServices{
+	services := testServices{Transfers: transferRuntime,
 		Authentication: authentication, BrowserOrigins: origins,
 		InsecureLoopbackCookie: insecureLoopbackCookie,
 		Config:                 manager, ConfigurationPublisher: manager,
@@ -844,7 +849,7 @@ func newHandlerFixtureWithAuth(
 	if err != nil {
 		t.Fatalf("NewHandler: %v", err)
 	}
-	return handlerFixture{
+	return handlerFixture{transfers: transferRuntime,
 		handler: handler, configs: manager, repository: repository, artifacts: service,
 		runs: runs, unit: unit, notifier: notifier, metrics: metrics, plans: plans,
 		allocationResources: allocationResources, detailStores: detailStores,

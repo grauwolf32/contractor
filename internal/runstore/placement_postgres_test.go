@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
@@ -46,7 +48,7 @@ func TestPostgresRunPlacementRequirementsAreImmutableAndReadStrictly(t *testing.
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedRunStorePool(t, ctx)
-	store := NewPostgresStore(pool)
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
 	params := testRunParams("run-location")
 	params.RequiredPlacementLabels = []string{"cloud/aws"}
 	params.MetadataLabels = map[string]string{"cloud": "aws"}
@@ -55,7 +57,7 @@ func TestPostgresRunPlacementRequirementsAreImmutableAndReadStrictly(t *testing.
 		t.Fatalf("create = %+v, %v", created, err)
 	}
 	params.RequiredPlacementLabels[0] = "local/lab"
-	loaded, err := NewPostgresStore(pool).GetRun(ctx, created.RunID)
+	loaded, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).GetRun(ctx, created.RunID)
 	if err != nil || !slices.Equal(loaded.RequiredPlacementLabels, []string{"cloud/aws"}) {
 		t.Fatalf("fresh store read = %+v, %v", loaded, err)
 	}

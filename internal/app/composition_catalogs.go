@@ -31,9 +31,10 @@ func configureCatalogs(
 	bundles configload.Bundles,
 	ownerID string,
 	logger *slog.Logger,
+	storage *artifactpostgres.Storage,
 ) (catalogServices, error) {
-	artifactService := artifacts.NewService(artifactpostgres.NewRepository(pool))
-	findingService, err := findingintake.New(pool)
+	artifactService := artifacts.NewService(storage.Repository(pool))
+	findingService, err := findingintake.New(pool, storage)
 	if err != nil {
 		return catalogServices{}, fmt.Errorf("configure finding intake: %w", err)
 	}

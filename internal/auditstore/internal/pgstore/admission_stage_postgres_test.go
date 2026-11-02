@@ -12,10 +12,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	artifactpolicy "github.com/grauwolf32/contractor/internal/artifacts/policy"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditbaseline"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -90,7 +91,7 @@ func stagedProposal(t *testing.T, f collectingAuditFixture, count int, ids ...st
 	if err != nil {
 		t.Fatal(err)
 	}
-	service := artifacts.NewService(artifactpostgres.NewRepository(f.pool))
+	service := artifacts.NewService(artifactpgtest.NewStorage().Repository(f.pool))
 	scope, _ := artifacts.ProjectScope(f.audit.ProjectID)
 	written, err := service.CreateFrozen(f.ctx, scope, contracts.ArtifactRef{Namespace: artifactpolicy.FindingMaterialsNamespace, Name: "staged-source-" + receiptID}, artifacts.Payload{MediaType: auditdomain.JSONMediaType, Data: data})
 	if err != nil {

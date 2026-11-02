@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
@@ -91,11 +93,11 @@ func TestPostgresRunProposalQuotaSerializesDistinctSubmissions(t *testing.T) {
 	defer gate.release()
 	first, firstPID := quotaActorPool(t, ctx, pool, gate)
 	second, _ := quotaActorPool(t, ctx, pool, nil)
-	firstService, err := New(first)
+	firstService, err := New(first, artifactpgtest.NewStorage())
 	if err != nil {
 		t.Fatal(err)
 	}
-	secondService, err := New(second)
+	secondService, err := New(second, artifactpgtest.NewStorage())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -191,7 +193,7 @@ func TestPostgresRunProposalQuotaRollbackLeavesSlot(t *testing.T) {
 	gate := &quotaCountGate{match: "INSERT INTO finding_proposal_receipts", held: make(chan struct{}), resume: make(chan struct{})}
 	defer gate.release()
 	actor, _ := quotaActorPool(t, ctx, pool, gate)
-	actorService, err := New(actor)
+	actorService, err := New(actor, artifactpgtest.NewStorage())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -224,7 +226,7 @@ SELECT (SELECT count(*) FROM artifact_bindings
 	if count := quotaReceiptCount(t, ctx, pool); count != maxProposalsPerRun-1 || bindings != 0 || revisions != 0 {
 		t.Fatalf("rolled-back submission left %d receipts, %d bindings, %d revisions", count, bindings, revisions)
 	}
-	service, err := New(pool)
+	service, err := New(pool, artifactpgtest.NewStorage())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -271,7 +273,7 @@ func quotaSubmissionGrantWithInputs(
 	if err != nil {
 		t.Fatal(err)
 	}
-	runs := runstore.NewPostgresStore(pool)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	project := projectID
 	if _, err := runstoretest.CreateRun(ctx, runs, runstore.CreateRunParams{
 		LaneClass: resolved.LaneClassModel,

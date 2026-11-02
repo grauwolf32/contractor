@@ -12,7 +12,7 @@ import (
 )
 
 func (r *Repository) Read(ctx context.Context, scope artifacts.Scope, ref artifacts.ArtifactRef) (artifacts.ReadResult, error) {
-	ctx, releaseTransfer, err := blob.AcquireTransfer(ctx)
+	ctx, releaseTransfer, err := r.AcquireTransfer(ctx)
 	if err != nil {
 		return artifacts.ReadResult{}, err
 	}
@@ -68,7 +68,7 @@ func (r *Repository) read(ctx context.Context, scope artifacts.Scope, ref artifa
 	if objectKey != nil {
 		object.Key = *objectKey
 	}
-	data, err = activeBlobStore(ctx).Read(ctx, object)
+	data, err = r.runtime.Store.Read(ctx, object)
 	if errors.Is(err, blob.ErrMissing) {
 		if removed, recheckErr := r.revisionRemoved(ctx, scope, ref, revision); recheckErr != nil {
 			return artifacts.ReadResult{}, recheckErr

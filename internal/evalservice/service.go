@@ -9,6 +9,7 @@ import (
 	"slices"
 	"time"
 
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalstore"
 	pg "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -31,6 +32,8 @@ type ExecutionDriver interface {
 }
 
 type Options struct {
+	Storage *artifactpostgres.Storage
+
 	Pool     *pgxpool.Pool
 	Resolver BindingResolver
 	Driver   ExecutionDriver
@@ -41,6 +44,8 @@ type Options struct {
 }
 
 type Service struct {
+	storage *artifactpostgres.Storage
+
 	pool     *pgxpool.Pool
 	resolver BindingResolver
 	driver   ExecutionDriver
@@ -49,7 +54,7 @@ type Service struct {
 }
 
 func New(o Options) (*Service, error) {
-	if o.Pool == nil || o.Resolver == nil || o.Driver == nil {
+	if o.Storage == nil || o.Pool == nil || o.Resolver == nil || o.Driver == nil {
 		return nil, errors.New("eval service dependencies are incomplete")
 	}
 	if o.Now == nil {
@@ -58,14 +63,14 @@ func New(o Options) (*Service, error) {
 	if o.Logger == nil {
 		o.Logger = slog.New(slog.DiscardHandler)
 	}
-	return &Service{
+	return &Service{storage: o.Storage,
 		pool: o.Pool, resolver: o.Resolver, driver: o.Driver, now: o.Now,
 		purges: evalstore.NewPurgeMeter(o.Logger, o.Now),
 	}, nil
 }
 
 func (s *Service) tx(ctx context.Context, fn func(*evalstore.Store) error) error {
-	return pg.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error { return fn(evalstore.NewTxStore(tx)) })
+	return pg.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error { return fn(evalstore.NewTxStore(tx, s.storage)) })
 }
 
 func scope(e evalstore.Experiment) evalstore.Scope {
@@ -83,7 +88,7 @@ func (s *Service) prepare(ctx context.Context, e evalstore.Experiment, claim eva
 	if err := evaldomain.DecodeInto("Draft", e.Draft.Bytes(), &draft); err != nil {
 		return err
 	}
-	dataset, err := evalstore.NewPostgresStore(s.pool).Dataset(ctx, scope(e), draft.Dataset.ID, draft.Dataset.Revision)
+	dataset, err := evalstore.NewPostgresStore(s.pool, s.storage).Dataset(ctx, scope(e), draft.Dataset.ID, draft.Dataset.Revision)
 	if err != nil {
 		return err
 	}
@@ -153,7 +158,7 @@ func (s *Service) Tick(ctx context.Context, claim evalstore.Claim) (bool, error)
 
 // publish collects the claimed experiment's view unless the tick purged it.
 func (s *Service) publish(ctx context.Context, claim evalstore.Claim) error {
-	store := evalstore.NewPostgresStore(s.pool)
+	store := evalstore.NewPostgresStore(s.pool, s.storage)
 	e, err := store.GetClaimed(ctx, claim)
 	if errors.Is(err, evalstore.ErrClaimLost) {
 		exists, checkErr := store.ClaimTargetExists(ctx, claim)
@@ -173,7 +178,7 @@ func (s *Service) publish(ctx context.Context, claim evalstore.Claim) error {
 // tickExecution returns the joined reconcile failures of individual members
 // separately from a failure that ends the tick.
 func (s *Service) tickExecution(ctx context.Context, claim evalstore.Claim) (progressed bool, memberErr, err error) {
-	store := evalstore.NewPostgresStore(s.pool)
+	store := evalstore.NewPostgresStore(s.pool, s.storage)
 	e, err := store.GetClaimed(ctx, claim)
 	if err != nil {
 		return false, nil, err
@@ -358,7 +363,7 @@ func (s *Service) preparationFailed(ctx context.Context, e evalstore.Experiment,
 // A crash can occur after committing a transition but before acknowledging its
 // command. Ready and terminal experiments with pending commands remain claimable.
 func (s *Service) recoverCommands(ctx context.Context, e evalstore.Experiment, claim evalstore.Claim) error {
-	rows, err := evalstore.NewPostgresStore(s.pool).PendingCommands(ctx, e.OwnerID, e.ID)
+	rows, err := evalstore.NewPostgresStore(s.pool, s.storage).PendingCommands(ctx, e.OwnerID, e.ID)
 	if err != nil {
 		return err
 	}
@@ -386,7 +391,7 @@ func (s *Service) recoverCommands(ctx context.Context, e evalstore.Experiment, c
 }
 
 func (s *Service) finishCommands(ctx context.Context, e evalstore.Experiment, claim evalstore.Claim, success bool, detail json.RawMessage, kinds ...evaldomain.CommandKind) error {
-	rows, err := evalstore.NewPostgresStore(s.pool).PendingCommands(ctx, e.OwnerID, e.ID)
+	rows, err := evalstore.NewPostgresStore(s.pool, s.storage).PendingCommands(ctx, e.OwnerID, e.ID)
 	if err != nil {
 		return err
 	}
@@ -406,7 +411,7 @@ func (s *Service) finishCommands(ctx context.Context, e evalstore.Experiment, cl
 // then yields; the next tick continues from the rows that are left. The
 // purge meter records each committed pass (EVM-R243).
 func (s *Service) purge(ctx context.Context, e evalstore.Experiment, claim evalstore.Claim) (bool, error) {
-	deps, err := evalstore.NewPostgresStore(s.pool).Dependencies(ctx, e.OwnerID, e.ID, "", evaldomain.MaxPageSize)
+	deps, err := evalstore.NewPostgresStore(s.pool, s.storage).Dependencies(ctx, e.OwnerID, e.ID, "", evaldomain.MaxPageSize)
 	if err != nil {
 		return false, err
 	}

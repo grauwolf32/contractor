@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -110,7 +112,7 @@ func TestPostgresTypedAdmissionContinuesBeyondOnePrimarySliceBeforeAtomicAccepta
 		files["audit-profiles/checklist.yaml"] = profile
 	})
 	h := newPostgresControllerHarnessWithConfig(t, ctx, 0, 1, catalog)
-	intake, err := findingintake.New(h.pool)
+	intake, err := findingintake.New(h.pool, artifactpgtest.NewStorage())
 	if err != nil {
 		t.Fatal(err)
 	}

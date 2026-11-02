@@ -11,8 +11,9 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/projectsitemap"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -35,12 +36,12 @@ func seedUnifiedSitemap(t *testing.T, ctx context.Context, pool *pgxpool.Pool, o
 	if err != nil {
 		t.Fatal(err)
 	}
-	stored, err := artifacts.NewService(artifactpostgres.NewRepository(pool)).Create(ctx, scope, contracts.ArtifactRef{Namespace: "schemas", Name: "unified-api"}, artifacts.Payload{MediaType: "application/json", Data: payload})
+	stored, err := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool)).Create(ctx, scope, contracts.ArtifactRef{Namespace: "schemas", Name: "unified-api"}, artifacts.Payload{MediaType: "application/json", Data: payload})
 	if err != nil {
 		t.Fatal(err)
 	}
 	exact := contracts.ExactContent(stored.Ref, "application/json", payload)
-	_, err = projectsitemap.NewService(pool).Mutate(ctx, projectsitemap.Authority{
+	_, err = projectsitemap.NewService(pool, artifactpgtest.NewStorage()).Mutate(ctx, projectsitemap.Authority{
 		OwnerID: ownerID, ProjectID: projectID, SourceID: "unified-openapi", Kind: "openapi",
 	}, "unified-openapi", projectsitemap.Mutation{Operation: "replace-source", Source: &projectsitemap.SourceUpdate{
 		SourceID: "unified-openapi", Artifact: &exact,

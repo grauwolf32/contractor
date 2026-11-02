@@ -12,8 +12,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/ownerstore"
 	"github.com/grauwolf32/contractor/internal/config"
@@ -36,7 +37,7 @@ func TestAuditRulepackMetadataAdmissionPostgres(t *testing.T) {
 	defer cancel()
 	pool := isolatedAuditServicePool(t, ctx, dsn)
 	catalog := &switchableProfileCatalog{snapshot: aliasedRulepackCatalog(t), available: true}
-	service, err := New(Options{Pool: pool, Profiles: catalog,
+	service, err := New(Options{Storage: artifactpgtest.NewStorage(), Pool: pool, Profiles: catalog,
 		TransactionLLMCredentials: runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (resolved.CredentialLookup, error) {
 			return &switchableCredentialLookup{available: true}, nil
 		}), CredentialGuard: &countingCredentialGuard{}})
@@ -65,7 +66,7 @@ func TestAuditRulepackMetadataAdmissionPostgres(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			store, err := artifacts.NewService(artifactpostgres.NewRepository(pool)).Project(project.ProjectID)
+			store, err := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool)).Project(project.ProjectID)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -151,7 +152,7 @@ func storedRulepackDraft(t *testing.T, ctx context.Context, service *Service, pr
 	if err != nil {
 		t.Fatal(err)
 	}
-	draft, _, err := ownerstore.New(service.pool).CreateDraft(ctx, auditstore.CreateDraftParams{
+	draft, _, err := ownerstore.New(service.pool, artifactpgtest.NewStorage()).CreateDraft(ctx, auditstore.CreateDraftParams{
 		AuditID: auditID, OwnerID: ownerID, ProjectID: projectID,
 		Profile:         auditstore.ProfileIdentity{Name: profile.Ref.Name, Version: profile.Ref.Version, Digest: profile.Ref.Digest},
 		ProfileSnapshot: snapshot, InputSelection: selection,
@@ -242,7 +243,7 @@ func TestAuditRulepackMetadataPrecedesPayloadReadsPostgres(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	repo := artifactpostgres.NewRepository(pool)
+	repo := artifactpgtest.NewStorage().Repository(pool)
 	store, _ := artifacts.NewService(repo).Project("metadata-project")
 	profile, err := aliasedRulepackCatalog(t).AuditProfile("aliased-web-scan@1")
 	if err != nil {

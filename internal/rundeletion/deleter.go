@@ -48,23 +48,25 @@ func (e *NotDeletableError) ErrorKind() apierror.Kind { return apierror.RunNotDe
 // Deleter deletes Runs on a pool, in its own retrying transaction, or inside
 // a caller's pgx.Tx so Project deletion can compose it atomically.
 type Deleter struct {
+	storage *artifactpostgres.Storage
+
 	db persistencepostgres.DBTX
 }
 
-func New(db persistencepostgres.DBTX) *Deleter {
-	return &Deleter{db: db}
+func New(db persistencepostgres.DBTX, storage *artifactpostgres.Storage) *Deleter {
+	return &Deleter{storage: storage, db: db}
 }
 
 // DeleteReleasedTerminalRun permanently removes one owner-visible terminal
 // Run and its Run-owned data.
 func (d *Deleter) DeleteReleasedTerminalRun(ctx context.Context, ownerID, runID string) error {
 	return persistencepostgres.Within(ctx, d.db, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		return deleteReleasedTerminalRun(ctx, tx, ownerID, runID)
+		return deleteReleasedTerminalRun(ctx, tx, ownerID, runID, d.storage)
 	})
 }
 
-func deleteReleasedTerminalRun(ctx context.Context, tx pgx.Tx, ownerID, runID string) error {
-	runs := runstore.NewPostgresTxStore(tx)
+func deleteReleasedTerminalRun(ctx context.Context, tx pgx.Tx, ownerID, runID string, storage *artifactpostgres.Storage) error {
+	runs := runstore.NewPostgresTxStore(tx, storage)
 	gates, err := runs.LockRunForDeletion(ctx, ownerID, runID)
 	if err != nil {
 		return err
@@ -79,7 +81,7 @@ func deleteReleasedTerminalRun(ctx context.Context, tx pgx.Tx, ownerID, runID st
 	// destination hold. Our Run lock makes this destination set stable. Take
 	// Audit locks before execution, retention and Artifact locks, matching
 	// import and Audit purge rather than adding an Audit lock at the end.
-	audits := hookstore.NewRunDeletionTx(tx)
+	audits := hookstore.NewRunDeletionTx(tx, storage)
 	auditIDs, err := audits.LockRunDeletionAudits(ctx, ownerID, runID)
 	if err != nil {
 		return err
@@ -108,7 +110,7 @@ func deleteReleasedTerminalRun(ctx context.Context, tx pgx.Tx, ownerID, runID st
 	if err := runs.DeleteLockedRunOutputPublications(ctx, runID); err != nil {
 		return err
 	}
-	purger, err := artifactpostgres.NewPurger(tx)
+	purger, err := storage.Purger(tx)
 	if err != nil {
 		return fmt.Errorf("prepare WorkflowRun %q Artifact purge: %w", runID, err)
 	}
@@ -166,7 +168,7 @@ func (d *Deleter) DeletableRuns(ctx context.Context, ownerID string, runIDs []st
 // blockers maps each existing owner-visible Run to its first deletion gate,
 // nil when none applies, in the order deletion checks them.
 func (d *Deleter) blockers(ctx context.Context, ownerID string, runIDs []string) (map[string]*Reason, error) {
-	gates, err := runstore.NewPostgresStore(d.db).ReadRunDeletionGates(ctx, ownerID, runIDs)
+	gates, err := runstore.NewPostgresStore(d.db, d.storage).ReadRunDeletionGates(ctx, ownerID, runIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -187,7 +189,7 @@ func (d *Deleter) blockers(ctx context.Context, ownerID string, runIDs []string)
 			runByExecution[*gate.AuditExecutionID] = runID
 		}
 	}
-	collected, err := hookstore.NewRunDeletion(d.db).CollectedExecutionRuns(ctx, runByExecution)
+	collected, err := hookstore.NewRunDeletion(d.db, d.storage).CollectedExecutionRuns(ctx, runByExecution)
 	if err != nil {
 		return nil, err
 	}

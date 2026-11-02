@@ -15,6 +15,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	"github.com/grauwolf32/contractor/internal/helpers/requestid"
+	"github.com/grauwolf32/contractor/internal/httpapi/artifacttransfer"
 	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
 	"github.com/grauwolf32/contractor/internal/mtls"
 	"github.com/grauwolf32/contractor/internal/projectsitemap"
@@ -30,6 +31,7 @@ type AllocationRegistry interface {
 }
 
 type Dependencies struct {
+	Transfers       artifacttransfer.Admission
 	GatewayRecovery *gatewayrecovery.Service
 	Registry        AllocationRegistry
 	Artifacts       *artifacts.Service
@@ -67,7 +69,7 @@ type authenticatedRuntime struct {
 type authenticatedRuntimeContextKey struct{}
 
 func NewHandler(dependencies Dependencies) (http.Handler, error) {
-	if dependencies.Registry == nil || dependencies.Artifacts == nil {
+	if dependencies.Transfers == nil || dependencies.Registry == nil || dependencies.Artifacts == nil {
 		return nil, errors.New("private Artifact API dependencies are incomplete")
 	}
 	current := &handler{dependencies: dependencies}

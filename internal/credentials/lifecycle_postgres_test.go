@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"os"
 	"sort"
 	"strings"
@@ -14,6 +13,9 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
@@ -118,7 +120,7 @@ func TestCredentialLifecycleRecoversCreateCrashWindow(t *testing.T) {
 	blockedService, err := NewService(ServiceOptions{
 		Pool: pool, Lease: leasetest.Hold(t, pool).Lease,
 		Gateways: staticGatewayLookup{gateway: fixture.gateway}, Managers: emptyRegistry,
-		Runs: runstore.NewPostgresStore(pool), Cipher: fixture.cipher,
+		Runs: runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()), Cipher: fixture.cipher,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -236,7 +238,7 @@ func TestCredentialDeletionRejectsPinnedRunThenDeletesAndReplays(t *testing.T) {
 	if _, err := fixture.service.Create(ctx, create); err != nil {
 		t.Fatal(err)
 	}
-	runs := runstore.NewPostgresStore(pool)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	createPinnedRun(t, ctx, runs, "run-pinned", create.CredentialID)
 	createPinnedRun(t, ctx, runs, "run-similar", create.CredentialID+"-extra")
 	deletion := DeleteRequest{
@@ -393,7 +395,7 @@ func TestCredentialFailedDeleteFencesOnlyItsOwnCredential(t *testing.T) {
 	}
 	assertCredentialOperationPhase(t, ctx, pool, OperationDelete, deletion.IdempotencyKey, OperationPrepared)
 
-	runs := runstore.NewPostgresStore(pool)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	if err := fixture.service.WithRunCreation(ctx, func() error {
 		if err := lookupManagedCredential(ctx, pool, unrelated.CredentialID); err != nil {
 			return err
@@ -471,7 +473,7 @@ func TestCredentialDeleteSerializesAgainstRunSnapshotCommit(t *testing.T) {
 	if _, err := fixture.service.Create(ctx, create); err != nil {
 		t.Fatal(err)
 	}
-	runs := runstore.NewPostgresStore(pool)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	entered := make(chan struct{})
 	release := make(chan struct{})
 	runResult := make(chan error, 1)
@@ -511,7 +513,7 @@ func TestCredentialDeleteSerializesAgainstRunSnapshotCommit(t *testing.T) {
 
 func TestCredentialRunReferenceQueryRejectsUnsafePublicRunIDs(t *testing.T) {
 	pool, ctx := lifecycleTestPool(t)
-	runs := runstore.NewPostgresStore(pool)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	// The store refuses an unsafe Run ID on write (API-R70), so the row that
 	// the read path must still refuse is copied in below the store.
 	if _, err := runstoretest.CreateRun(ctx, runs, pinnedRunParams("unsafe run id", "managed-worker")); !errors.Is(err, runstore.ErrInvalid) {
@@ -608,7 +610,7 @@ func newLifecycleFixtureWithCipher(
 	}
 	options := ServiceOptions{
 		Pool: pool, Lease: lease, Gateways: staticGatewayLookup{gateway: gateway}, Managers: registry,
-		Runs: runstore.NewPostgresStore(pool), Audits: overrides.Audits,
+		Runs: runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()), Audits: overrides.Audits,
 		Cipher: cipher, Barrier: overrides.Barrier,
 		Now: time.Now,
 		NewID: func(prefix string) (string, error) {

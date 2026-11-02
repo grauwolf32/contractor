@@ -3,7 +3,6 @@ package public
 import (
 	"context"
 	"encoding/json"
-	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -11,6 +10,9 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 
 	"github.com/grauwolf32/contractor/internal/auth"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -57,7 +59,7 @@ func TestPostgresRunDetailResponseKeepsStateWithItsCursor(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	pool := isolatedPublicPool(t, ctx)
-	runs := runstore.NewPostgresStore(pool)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	const runID = "run-detail-snapshot"
 	if _, err := runstoretest.CreateRun(ctx, runs, runstore.CreateRunParams{
 		LaneClass: resolved.LaneClassModel,
@@ -91,7 +93,7 @@ func TestPostgresRunDetailResponseKeepsStateWithItsCursor(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(readerPool.Close)
-	details, err := runservice.NewRunDetailReader(runservice.PostgresRunDetailTransaction(readerPool))
+	details, err := runservice.NewRunDetailReader(runservice.PostgresRunDetailTransaction(readerPool, artifactpgtest.NewStorage()))
 	if err != nil {
 		t.Fatal(err)
 	}

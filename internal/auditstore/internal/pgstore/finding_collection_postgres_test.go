@@ -9,6 +9,8 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -90,7 +92,7 @@ func TestPostgresCollectionReceiptIDsReadsSelectedFindingsInOneStatement(t *test
 		return result
 	}
 	counter := &statementCountingDB{DBTX: f.pool}
-	store := NewQueryStore(counter)
+	store := NewQueryStore(counter, artifactpgtest.NewStorage())
 
 	// The first finding and 254 others hold exactly the 256 receipts allowed.
 	selected := revisions(ids[:findings-1])

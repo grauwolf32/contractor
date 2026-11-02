@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/querystore"
@@ -98,11 +100,11 @@ func TestProjectFindingPagesStayBoundedAtTenThousandFindingsAndFiftyThousandSour
 		t.Fatal(err)
 	}
 	defer pool.Close()
-	intake, err := findingintake.New(pool)
+	intake, err := findingintake.New(pool, artifactpgtest.NewStorage())
 	if err != nil {
 		t.Fatal(err)
 	}
-	service := &Service{pool: pool, findings: intake, now: time.Now}
+	service := &Service{storage: artifactpgtest.NewStorage(), pool: pool, findings: intake, now: time.Now}
 	var after *time.Time
 	var afterID string
 	seen := map[string]bool{}
@@ -362,7 +364,7 @@ func TestProjectFindingPagesStayBoundedAtTenThousandFindingsAndFiftyThousandSour
 		windows := 0
 		for {
 			trace.reads = nil
-			window, err := querystore.New(pool).ListReportFindings(ctx, auditstore.ReportFindingPageParams{AuditID: f.first, Section: section, After: after, Limit: 128, ProjectionBytes: 1 << 20})
+			window, err := querystore.New(pool, artifactpgtest.NewStorage()).ListReportFindings(ctx, auditstore.ReportFindingPageParams{AuditID: f.first, Section: section, After: after, Limit: 128, ProjectionBytes: 1 << 20})
 			if err != nil {
 				t.Fatal(err)
 			}

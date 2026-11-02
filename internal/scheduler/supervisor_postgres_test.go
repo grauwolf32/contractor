@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/settingsstore"
@@ -135,7 +137,7 @@ func TestPostgresSchedulerSupervisorBoundsRealRunClaims(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedSchedulerPool(t, ctx)
-	postgresStore := runstore.NewPostgresStore(pool)
+	postgresStore := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	workflow := loadSchedulerWorkflow(t)
 	for _, runID := range []string{"run-lane-1", "run-lane-2", "run-lane-3"} {
 		createRunningPoolRun(t, ctx, postgresStore, runID, workflow, map[string]string{"objective": "hold lane"})
@@ -192,7 +194,7 @@ func TestPostgresSchedulerSupervisorResizesAndDrainsDurableLanes(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedSchedulerPool(t, ctx)
-	postgresStore := runstore.NewPostgresStore(pool)
+	postgresStore := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	workflow := loadSchedulerWorkflow(t)
 	for _, runID := range []string{"run-resize-1", "run-resize-2", "run-resize-3", "run-resize-4"} {
 		createRunningPoolRun(t, ctx, postgresStore, runID, workflow, map[string]string{"objective": "hold lane"})

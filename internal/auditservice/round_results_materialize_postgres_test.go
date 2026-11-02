@@ -10,9 +10,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	artifactpolicy "github.com/grauwolf32/contractor/internal/artifacts/policy"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
@@ -38,8 +39,8 @@ func TestPostgresRoundResultsMaterializerResumesDependencyChunks(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	pool := isolatedAuditServicePool(t, ctx, databaseURL)
-	audits := auditstoretest.NewStore(pool)
-	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
+	audits := auditstoretest.NewStore(pool, artifactpgtest.NewStorage())
+	service := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
 	project, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{
 		ProjectID: "project", OwnerID: "owner", Kind: projectstore.KindProject, Name: "Dependency chunks",
 		IdempotencyKey: "project", RequestDigest: serviceTestDigest("project"),
@@ -116,7 +117,7 @@ func TestPostgresRoundResultsMaterializerResumesDependencyChunks(t *testing.T) {
 		var run runstore.WorkflowRun
 		err := persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 			var err error
-			run, err = runstore.NewPostgresTxStore(tx).CreateAuditRun(ctx, runstore.CreateAuditRunParams{
+			run, err = runstore.NewPostgresTxStore(tx, artifactpgtest.NewStorage()).CreateAuditRun(ctx, runstore.CreateAuditRunParams{
 				CreateRunParams: runstore.CreateRunParams{RunID: runID, OwnerID: project.OwnerID, ProjectID: &project.ProjectID,
 					WorkflowName: workflow.Ref.Name, WorkflowVersion: workflow.Ref.Version, WorkflowSchemaVersion: contracts.APIVersion,
 					WorkflowSnapshot: workflowBytes, Parameters: map[string]string{}, MetadataLabels: runstore.RunMetadataLabels{},
@@ -125,7 +126,7 @@ func TestPostgresRoundResultsMaterializerResumesDependencyChunks(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			_, err = auditstoretest.NewTxStore(tx).BindRun(ctx, auditstore.BindRunParams{Claim: claim, ExecutionID: execution.ExecutionID, RunID: runID})
+			_, err = auditstoretest.NewTxStore(tx, artifactpgtest.NewStorage()).BindRun(ctx, auditstore.BindRunParams{Claim: claim, ExecutionID: execution.ExecutionID, RunID: runID})
 			return err
 		})
 		if err != nil {
@@ -157,7 +158,7 @@ func TestPostgresRoundResultsMaterializerResumesDependencyChunks(t *testing.T) {
 		retained = append(retained, auditstore.ArtifactLink{Scope: "project", LogicalKey: logical, Artifact: exact, SourceProvenance: provenance})
 		expectedBytes[exact.Ref.Key()], originals[exact.Ref.Key()] = content, original
 	}
-	runs := runstore.NewPostgresStore(pool)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	for _, transition := range [][2]runstore.WorkflowRunState{{runstore.RunInitializing, runstore.RunPending}, {runstore.RunPending, runstore.RunRunning}, {runstore.RunRunning, runstore.RunSucceeded}} {
 		if _, err := runs.TransitionRun(ctx, producer.RunID, transition[0], transition[1], runstore.Reason{Code: "fixture"}); err != nil {
 			t.Fatal(err)
@@ -234,7 +235,7 @@ func TestPostgresRoundResultsMaterializerResumesDependencyChunks(t *testing.T) {
 	slice := func(callback runservice.AuditInputMaterializer, rollback bool) (runstore.AuditInputMaterialization, error) {
 		var next runstore.AuditInputMaterialization
 		err := persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-			auditTx, runTx := auditstoretest.NewTxStore(tx), runstore.NewPostgresTxStore(tx)
+			auditTx, runTx := auditstoretest.NewTxStore(tx, artifactpgtest.NewStorage()), runstore.NewPostgresTxStore(tx, artifactpgtest.NewStorage())
 			intent, err := auditTx.GetRunCreationIntent(ctx, claim, assessment.ExecutionID)
 			if err != nil {
 				return err
@@ -251,7 +252,7 @@ func TestPostgresRoundResultsMaterializerResumesDependencyChunks(t *testing.T) {
 				state = &runstore.AuditInputMaterialization{Identity: identity, DeadlineAt: child.CreatedAt.Add(runstore.AuditInputMaterializationTimeout),
 					Checkpoint: json.RawMessage(`{}`), Refs: []contracts.ArtifactRef{}}
 			}
-			next, err = callback(ctx, artifacts.NewService(artifactpostgres.NewRepository(tx)), intent, child, *state)
+			next, err = callback(ctx, artifacts.NewService(artifactpgtest.NewStorage().Repository(tx)), intent, child, *state)
 			if err != nil {
 				return err
 			}
@@ -292,7 +293,7 @@ func TestPostgresRoundResultsMaterializerResumesDependencyChunks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	stored, err := runstore.NewPostgresTxStore(readTx).LockAuditInputMaterialization(ctx, child.RunID)
+	stored, err := runstore.NewPostgresTxStore(readTx, artifactpgtest.NewStorage()).LockAuditInputMaterialization(ctx, child.RunID)
 	if rollbackErr := readTx.Rollback(context.WithoutCancel(ctx)); rollbackErr != nil {
 		t.Fatal(rollbackErr)
 	}

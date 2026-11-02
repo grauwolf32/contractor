@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/agentprincipal"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
@@ -53,7 +55,7 @@ func TestPlacementPostgresUsesCandidateAdaptersAndPinsBeforeExposure(t *testing.
 		got[0] != runtimesettings.RuntimeAdapterOTLPHTTP {
 		t.Fatalf("required adapters = %v", got)
 	}
-	allocations, err := runstore.NewPostgresStore(pool).ListStageAllocations(ctx, fixture.stageExecutionID)
+	allocations, err := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()).ListStageAllocations(ctx, fixture.stageExecutionID)
 	if err != nil || len(allocations) != 1 || allocations[0].RuntimeConfiguration == nil ||
 		allocations[0].RuntimeAgentID != withAdapter {
 		t.Fatalf("durable allocations = (%+v, %v)", allocations, err)
@@ -226,7 +228,7 @@ func TestPlacementPostgresRechecksBindingChangedAfterOptimisticPass(t *testing.T
 	if _, err := fixture.allocator.ReserveAllContext(ctx, request); !errors.Is(err, ErrInsufficientCapacity) {
 		t.Fatalf("changed binding after optimistic resolution = %v, want capacity", err)
 	}
-	allocations, err := runstore.NewPostgresStore(pool).ListStageAllocations(ctx, fixture.stageExecutionID)
+	allocations, err := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()).ListStageAllocations(ctx, fixture.stageExecutionID)
 	if err != nil || len(allocations) != 0 {
 		t.Fatalf("changed binding created durable allocations: (%+v, %v)", allocations, err)
 	}
@@ -283,7 +285,7 @@ func TestPlacementPostgresDiscardsProvisionalBatchOnPrincipalRevisionChange(t *t
 	if err != nil || agent.AuthoritativeAllocationID == nil || agent.Principal.LabelRevision != 2 {
 		t.Fatalf("refreshed principal or committed slot = (%+v, %v)", agent, err)
 	}
-	allocations, err := runstore.NewPostgresStore(pool).ListStageAllocations(ctx, fixture.stageExecutionID)
+	allocations, err := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()).ListStageAllocations(ctx, fixture.stageExecutionID)
 	if err != nil || len(allocations) != 1 || allocations[0].RuntimeAgentLabelRevision != 2 {
 		t.Fatalf("retry did not pin current principal = (%+v, %v)", allocations, err)
 	}
@@ -348,7 +350,7 @@ func TestPlacementPostgresAdmissionDenialLeavesNoDurableAllocation(t *testing.T)
 	if err != nil || agent.AuthoritativeAllocationID != nil {
 		t.Fatalf("denied candidate was not discarded: (%+v, %v)", agent, err)
 	}
-	store := runstore.NewPostgresStore(pool)
+	store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	allocations, err := store.ListStageAllocations(ctx, fixture.stageExecutionID)
 	if err != nil || len(allocations) != 0 {
 		t.Fatalf("denied durable allocations = (%+v, %v)", allocations, err)
@@ -375,7 +377,7 @@ func TestPlacementPostgresDiscardedUnpreparedReservationIsPlacedAgain(t *testing
 	pool := isolatedPlacementPool(t, ctx)
 	fixture := newPlacementFixture(t, ctx, pool, nil)
 	fixture.registerCandidate(t, ctx, "runtime-discard", "5", nil)
-	store := runstore.NewPostgresStore(pool)
+	store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	first, err := fixture.allocator.ReserveAllContext(ctx, fixture.request())
 	if err != nil || len(first) != 1 {
 		t.Fatalf("first placement = (%+v, %v)", first, err)
@@ -479,7 +481,7 @@ func TestPlacementPostgresKeepsOldAgentBindingAndNextResolutionUsesRebind(t *tes
 		next.WorkerTelemetry.Endpoint != "https://new-otel.example/v1/traces" {
 		t.Fatalf("next Agent-label resolution = (%+v, %v)", next, err)
 	}
-	allocations, err := runstore.NewPostgresStore(pool).ListStageAllocations(ctx, fixture.stageExecutionID)
+	allocations, err := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()).ListStageAllocations(ctx, fixture.stageExecutionID)
 	if err != nil || len(allocations) != 1 || allocations[0].RuntimeConfiguration == nil ||
 		allocations[0].RuntimeConfiguration.Provenance.AgentLabels[0].Config.Name != oldRef.Name {
 		t.Fatalf("durable old Agent-label provenance = (%+v, %v)", allocations, err)
@@ -585,7 +587,7 @@ func newPlacementFixture(
 	if err != nil {
 		t.Fatal(err)
 	}
-	store := runstore.NewPostgresStore(tx)
+	store := runstore.NewPostgresStore(tx, artifactpgtest.NewStorage())
 	runID := "run-placement"
 	if _, err := runstoretest.CreateRun(ctx, store, runstore.CreateRunParams{
 		LaneClass: resolved.LaneClassModel,
@@ -610,7 +612,7 @@ func newPlacementFixture(
 	if err := tx.Commit(ctx); err != nil {
 		t.Fatal(err)
 	}
-	store = runstore.NewPostgresStore(pool)
+	store = runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	stageExecutionID := "stage-placement"
 	if _, err := store.CreateStageExecution(ctx, runstore.CreateStageExecutionParams{
 		LaneClass:        resolved.LaneClassModel,
@@ -628,7 +630,7 @@ func newPlacementFixture(
 	if err != nil {
 		t.Fatal(err)
 	}
-	allocator, err := NewPlacementAllocator(PlacementAllocatorOptions{
+	allocator, err := NewPlacementAllocator(PlacementAllocatorOptions{Storage: artifactpgtest.NewStorage(),
 		Pool: pool, Registry: registry,
 		Gateways:       placementGatewayLookup{gateway: *selection.LLMGateway},
 		LLMCredentials: llmCredentials, RuntimeCredentials: placementRuntimeCredentialLookup{},

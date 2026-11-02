@@ -117,7 +117,7 @@ func (h *artifactHandlers) serveArchive(w http.ResponseWriter, r *http.Request, 
 	if !ok {
 		return
 	}
-	r, transfer, err := artifacttransfer.Acquire(w, r)
+	r, transfer, err := artifacttransfer.Acquire(w, r, h.Transfers)
 	if err != nil {
 		handleError(w, err)
 		return

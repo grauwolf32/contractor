@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -21,7 +23,7 @@ const testObservationKind = "custom-scanner.v2"
 
 func writeObservationEvidence(t *testing.T, ctx context.Context, pool *pgxpool.Pool, runID, name string, data []byte) artifacts.WriteResult {
 	t.Helper()
-	run, err := artifacts.NewService(artifactpostgres.NewRepository(pool)).Run(runID)
+	run, err := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool)).Run(runID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,12 +51,18 @@ func preparedEvidenceBatch(report artifacts.WriteResult, path string) Collection
 }
 
 func TestPostgresSitemapPreparedBatchReplaysAfterEvidenceAndMapEviction(t *testing.T) {
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
 	counter := &allocationReadCounter{}
 	pool := sitemapPool(t, counter)
 	history, _ := artifactpostgres.NewHistoryPolicy(2, artifactpostgres.DefaultHistoryMaxBytes)
-	ctx := artifactpostgres.WithHistoryPolicy(t.Context(), history)
+	ctx := t.Context()
+	artifactHistory = history
+	artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
 	createSitemapRun(t, ctx, pool, "producer")
-	service := NewService(pool)
+	service := NewService(pool, artifactStorage)
 	access := collectionAccess(t, ctx, service, "producer") // Handler owns explicit-vs-automatic grants.
 	// Unknown source format, non-JSON bytes, and an artifact larger than scanner
 	// report bounds prove the Server does not own provider preprocessing.
@@ -96,7 +104,7 @@ func TestPostgresSitemapPreparedBatchReplaysAfterEvidenceAndMapEviction(t *testi
 	if member.Evidence[0].RunID != "producer" || !member.Evidence[0].Artifact.Ref.SameExact(report.Ref) || member.Evidence[0].Artifact.MediaType != "application/octet-stream" {
 		t.Fatal("missing exact evidence metadata")
 	}
-	run, _ := artifacts.NewService(artifactpostgres.NewRepository(pool)).Run("producer")
+	run, _ := artifacts.NewService(artifactStorage.Repository(pool)).Run("producer")
 	latest := report
 	for index := range 4 {
 		latest, err = run.Write(ctx, contracts.ArtifactRef{Namespace: "research", Name: "evidence"}, artifacts.Payload{MediaType: "application/octet-stream", Data: []byte(fmt.Sprintf("opaque %d", index))}, latest.Ref.Revision)
@@ -149,7 +157,7 @@ func TestPostgresSitemapPreparedBatchReplaysAfterEvidenceAndMapEviction(t *testi
 func TestPostgresSitemapObservationsAggregateAcrossRunsAndBoundEvidence(t *testing.T) {
 	pool := sitemapPool(t)
 	ctx := t.Context()
-	service := NewService(pool)
+	service := NewService(pool, artifactpgtest.NewStorage())
 	var firstTime, lastTime string
 	var access AllocationAccess
 	for index := range 32 {
@@ -210,7 +218,7 @@ func TestPostgresSitemapObservationBatchBoundaryAndRollback(t *testing.T) {
 	pool := sitemapPool(t)
 	ctx := t.Context()
 	createSitemapRun(t, ctx, pool, "producer")
-	service := NewService(pool)
+	service := NewService(pool, artifactpgtest.NewStorage())
 	access := collectionAccess(t, ctx, service, "producer")
 	maximum := CollectionIngress{Kind: testObservationKind, Observations: []Observation{}}
 	for index := range 100 {
@@ -228,7 +236,7 @@ func TestPostgresSitemapObservationBatchBoundaryAndRollback(t *testing.T) {
 		if _, err := service.CollectAllocation(ctx, access, "bounded", batch); !errors.Is(err, ErrInvalid) {
 			t.Fatalf("invalid batch accepted: %v", err)
 		}
-		project, _ := artifacts.NewService(artifactpostgres.NewRepository(pool)).Project("project")
+		project, _ := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool)).Project("project")
 		if _, err := project.Read(ctx, mapRef()); !errors.Is(err, artifacts.ErrArtifactNotFound) {
 			t.Fatalf("invalid batch wrote map: %v", err)
 		}
@@ -282,7 +290,7 @@ func TestPostgresSitemapObservationBatchBoundaryAndRollback(t *testing.T) {
 func TestPostgresSitemapObservationEvidenceVisibilityAndProjectLifecycle(t *testing.T) {
 	pool := sitemapPool(t)
 	ctx := t.Context()
-	service := NewService(pool)
+	service := NewService(pool, artifactpgtest.NewStorage())
 	createSitemapRun(t, ctx, pool, "source")
 	createSitemapRun(t, ctx, pool, "other")
 	access := collectionAccess(t, ctx, service, "source")
@@ -316,7 +324,7 @@ func TestPostgresSitemapObservationEvidenceVisibilityAndProjectLifecycle(t *test
 func TestPostgresSitemapNormalizedObservationBatchRejectsInvalidRows(t *testing.T) {
 	pool := sitemapPool(t)
 	ctx := t.Context()
-	service := NewService(pool)
+	service := NewService(pool, artifactpgtest.NewStorage())
 	createSitemapRun(t, ctx, pool, "producer")
 	access := collectionAccess(t, ctx, service, "producer")
 	valid := observation("/valid")
@@ -335,7 +343,7 @@ func TestPostgresSitemapNormalizedObservationBatchRejectsInvalidRows(t *testing.
 			}
 		}
 	}
-	project, _ := artifacts.NewService(artifactpostgres.NewRepository(pool)).Project("project")
+	project, _ := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool)).Project("project")
 	if _, err := project.Read(ctx, mapRef()); !errors.Is(err, artifacts.ErrArtifactNotFound) {
 		t.Fatal("invalid normalized batch partially wrote map")
 	}

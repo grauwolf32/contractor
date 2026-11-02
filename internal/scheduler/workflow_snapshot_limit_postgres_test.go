@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -32,7 +34,7 @@ func TestPostgresSchedulerDecodesAStoredSnapshotAtItsBound(t *testing.T) {
 	if err != nil || len(encoded) != resolved.MaxWorkflowSnapshotBytes {
 		t.Fatalf("snapshot fixture = (%d bytes, %v), want exactly %d", len(encoded), err, resolved.MaxWorkflowSnapshotBytes)
 	}
-	store := runstore.NewPostgresStore(isolatedSchedulerPool(t, ctx))
+	store := runstore.NewPostgresStore(isolatedSchedulerPool(t, ctx), artifactpgtest.NewStorage())
 	const runID = "run-snapshot-at-bound"
 	if _, err := runstoretest.CreateRun(ctx, store, runstore.CreateRunParams{
 		LaneClass: resolved.LaneClassModel,

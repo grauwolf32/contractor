@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalstore"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -46,7 +48,7 @@ func TestSharedPostgresStopDuringBatchAdmitsNothingAfterTransition(t *testing.T)
 			h := newHarness(t)
 			e := h.preparedWithCapacity(t, "workflow", 3)
 			h.command(t, e, "start")
-			store := evalstore.NewPostgresStore(h.pool)
+			store := evalstore.NewPostgresStore(h.pool, artifactpgtest.NewStorage())
 			claims, err := store.Claim(t.Context(), "batch-controller", time.Minute, 1)
 			if err != nil || len(claims) != 1 {
 				t.Fatalf("claim: %v %v", claims, err)
@@ -67,7 +69,7 @@ func TestSharedPostgresStopDuringBatchAdmitsNothingAfterTransition(t *testing.T)
 				t.Fatal(err)
 			}
 			defer func() { _ = tx.Rollback(context.Background()) }()
-			if _, err = evalstore.NewTxStore(tx).Command(t.Context(), evalstore.CommandParams{
+			if _, err = evalstore.NewTxStore(tx, artifactpgtest.NewStorage()).Command(t.Context(), evalstore.CommandParams{
 				Scope: h.scope, ExperimentID: e.ID, CommandID: "stop-during-batch",
 				Command: command, Mutation: identity(t, "stop-during-batch", e.Revision, doc),
 			}); err != nil {

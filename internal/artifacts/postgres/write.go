@@ -48,12 +48,12 @@ func (r *Repository) write(
 	if err != nil {
 		return artifacts.WriteResult{}, err
 	}
-	ctx, releaseTransfer, err := blob.AcquireTransfer(ctx)
+	ctx, releaseTransfer, err := r.AcquireTransfer(ctx)
 	if err != nil {
 		return artifacts.WriteResult{}, err
 	}
 	defer releaseTransfer()
-	candidate, err := prepareBlob(ctx, payload)
+	candidate, err := r.prepareBlob(ctx, payload)
 	if err != nil {
 		return artifacts.WriteResult{}, err
 	}
@@ -61,17 +61,17 @@ func (r *Repository) write(
 		// A preprepared file may have been published by an earlier use of the
 		// same Payload; only this write's fresh candidate is ours to remove.
 		if payload.Prepared == nil {
-			discardUnpublishedBlob(ctx, candidate)
+			r.discardUnpublishedBlob(ctx, candidate)
 		}
 	}
 	var reusableKey *string
 	if payload.Prepared != nil {
 		reusableKey = payload.Prepared.ReusableKey()
 		if candidate.Backend == blob.Filesystem {
-			err = activeBlobStore(ctx).Check(ctx, candidate)
+			err = r.runtime.Store.Check(ctx, candidate)
 		}
 	} else {
-		reusableKey, err = reusableBlobKey(ctx, r.db, candidate)
+		reusableKey, err = r.reusableBlobKey(ctx, r.db, candidate)
 	}
 	if err != nil {
 		discardFreshCandidate()
@@ -88,7 +88,7 @@ func (r *Repository) write(
 			nullableBlobKey(candidate.Key), reusableKey, frozen,
 		},
 		size:   candidate.Size,
-		policy: historyPolicy(ctx),
+		policy: r.history,
 	}
 	stored, err := write.exec(ctx, r.db, 0, 0)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -114,7 +114,7 @@ func (r *Repository) write(
 		return artifacts.WriteResult{}, err
 	}
 	if candidate.Backend == blob.Filesystem && (stored.objectKey == nil || *stored.objectKey != candidate.Key) {
-		discardUnusedBlob(ctx, r.db, candidate)
+		r.discardUnusedBlob(ctx, r.db, candidate)
 	}
 	return artifacts.WriteResult{
 		Ref:               artifactExactRef(target.Namespace, target.Name, stored.revision),

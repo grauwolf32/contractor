@@ -5,6 +5,8 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 )
@@ -42,7 +44,7 @@ func TestSharedPostgresEvalReceiptsKeepOnlyPublicIdempotencyKeys(t *testing.T) {
 	if count := receipts(); count != 0 {
 		t.Fatalf("rejected keys left %d receipts", count)
 	}
-	if _, err := NewPostgresStore(pool).Dataset(ctx, scope, "trace-small", "r-invalid"); !code(err, "eval_not_found") {
+	if _, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).Dataset(ctx, scope, "trace-small", "r-invalid"); !code(err, "eval_not_found") {
 		t.Fatalf("a rejected key wrote its dataset: %v", err)
 	}
 	for index, key := range cases.Valid {

@@ -27,7 +27,7 @@ func (s *Service) DecideActionReview(
 	var decisionID, requestID string
 	var replayed, expired bool
 	err := persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		reviews := reviewstore.NewTx(tx)
+		reviews := reviewstore.NewTx(tx, s.storage)
 		if err := reviews.LockActionReviews(ctx, params.AuditID); err != nil {
 			return err
 		}
@@ -75,7 +75,7 @@ func (s *Service) DecideActionReview(
 					"subjectKind": subjectKind,
 					"subjectId":   subjectID,
 					"kind":        kind,
-				})
+				}, s.storage)
 		}
 
 		switch subjectKind {
@@ -123,7 +123,7 @@ func (s *Service) DecideActionReview(
 			map[string]any{
 				"subjectKind": subjectKind, "subjectId": subjectID,
 				"kind": kind, "action": params.Action,
-			})
+			}, s.storage)
 	})
 	if err != nil {
 		return ActionReviewDecisionResult{}, err

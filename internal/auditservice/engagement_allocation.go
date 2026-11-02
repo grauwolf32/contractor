@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"slices"
 
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditbaseline"
-	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
-
 	"github.com/grauwolf32/contractor/internal/auditstore/querystore"
 	"github.com/grauwolf32/contractor/internal/contracts/engagementcontract"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/jackc/pgx/v5"
@@ -18,18 +18,18 @@ import (
 
 // allocationEngagement reads only the immutable Run binding and Audit baseline.
 // It finishes the snapshot before any DNS or private HTTP operation.
-func allocationEngagement(ctx context.Context, pool *pgxpool.Pool, runID, stageID string) (string, *auditbaseline.EngagementSnapshot, error) {
+func allocationEngagement(ctx context.Context, pool *pgxpool.Pool, runID, stageID string, storage *artifactpostgres.Storage) (string, *auditbaseline.EngagementSnapshot, error) {
 	var auditID string
 	var pin *auditbaseline.EngagementSnapshot
 	err := persistencepostgres.InTx(ctx, pool, pgx.TxOptions{AccessMode: pgx.ReadOnly, IsoLevel: pgx.RepeatableRead}, func(tx pgx.Tx) error {
-		binding, err := runstore.NewPostgresStore(tx).ReadAllocationAuditBinding(ctx, runID, stageID)
+		binding, err := runstore.NewPostgresStore(tx, storage).ReadAllocationAuditBinding(ctx, runID, stageID)
 		if err != nil {
 			return err
 		}
 		if binding.ExecutionID == nil {
 			return nil
 		}
-		id, encoded, err := querystore.New(tx).ReadAllocationBaseline(ctx, binding.OwnerID, *binding.ProjectID, *binding.ExecutionID, runID)
+		id, encoded, err := querystore.New(tx, storage).ReadAllocationBaseline(ctx, binding.OwnerID, *binding.ProjectID, *binding.ExecutionID, runID)
 		if err != nil {
 			return err
 		}
@@ -51,8 +51,8 @@ func allocationEngagement(ctx context.Context, pool *pgxpool.Pool, runID, stageI
 
 // AllocationEngagementAdapterRequirements adds only explicitly selected controlled
 // execution to placement. Ordinary and metadata-only allocations add nothing.
-func AllocationEngagementAdapterRequirements(ctx context.Context, pool *pgxpool.Pool, runID, stageID string) ([]runtimesettings.RuntimeAdapterRef, error) {
-	_, pin, err := allocationEngagement(ctx, pool, runID, stageID)
+func AllocationEngagementAdapterRequirements(ctx context.Context, pool *pgxpool.Pool, runID, stageID string, storage *artifactpostgres.Storage) ([]runtimesettings.RuntimeAdapterRef, error) {
+	_, pin, err := allocationEngagement(ctx, pool, runID, stageID, storage)
 	if err != nil {
 		return nil, err
 	}
@@ -65,8 +65,8 @@ func AllocationEngagementAdapterRequirements(ctx context.Context, pool *pgxpool.
 // ResolveAllocationEngagement derives the narrow private assignment from the
 // immutable Audit binding. Protected endpoint resolution runs after its two
 // bounded database reads, outside the transaction and Registry mutex.
-func ResolveAllocationEngagement(ctx context.Context, pool *pgxpool.Pool, runID, stageID string, protected func(context.Context) ([]engagementcontract.ProtectedDestination, error)) (*engagementcontract.AllocationProjection, error) {
-	auditID, pin, err := allocationEngagement(ctx, pool, runID, stageID)
+func ResolveAllocationEngagement(ctx context.Context, pool *pgxpool.Pool, runID, stageID string, protected func(context.Context) ([]engagementcontract.ProtectedDestination, error), storage *artifactpostgres.Storage) (*engagementcontract.AllocationProjection, error) {
+	auditID, pin, err := allocationEngagement(ctx, pool, runID, stageID, storage)
 	if err != nil || pin == nil {
 		return nil, err
 	}

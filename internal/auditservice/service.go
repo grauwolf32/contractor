@@ -11,7 +11,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -29,24 +28,24 @@ import (
 )
 
 func New(options Options) (*Service, error) {
-	if options.Pool == nil || options.Profiles == nil || options.TransactionLLMCredentials == nil ||
+	if options.Storage == nil || options.Pool == nil || options.Profiles == nil || options.TransactionLLMCredentials == nil ||
 		options.CredentialGuard == nil {
 		return nil, errors.New("Audit service dependencies are incomplete")
 	}
 	if options.Now == nil {
 		options.Now = time.Now
 	}
-	findings, err := findingintake.New(options.Pool)
+	findings, err := findingintake.New(options.Pool, options.Storage)
 	if err != nil {
 		return nil, err
 	}
 	standards, err := auditstandards.NewCatalog(
-		artifacts.NewService(artifactpostgres.NewRepository(options.Pool)),
+		artifacts.NewService(options.Storage.Repository(options.Pool)),
 	)
 	if err != nil {
 		return nil, err
 	}
-	return &Service{
+	return &Service{storage: options.Storage,
 		pool: options.Pool, profiles: options.Profiles,
 		transactionLLMCredentials: options.TransactionLLMCredentials,
 		credentialGuard:           options.CredentialGuard,
@@ -156,7 +155,7 @@ func (s *Service) CreateDraft(
 		err = s.credentialGuard.WithRunCreation(ctx, func() error {
 			return persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
 				var readErr error
-				engagement, readErr = readEngagement(ctx, artifacts.NewService(artifactpostgres.NewRepository(tx)), params.ProjectID, profile, DraftSelection{Inputs: inputs})
+				engagement, readErr = readEngagement(ctx, artifacts.NewService(s.storage.Repository(tx)), params.ProjectID, profile, DraftSelection{Inputs: inputs})
 				if readErr != nil {
 					return readErr
 				}
@@ -342,7 +341,7 @@ func (s *Service) GetReport(
 	if machineErr != nil || summaryErr != nil {
 		return ReportProjection{}, errors.New("stored Audit report link set is incomplete")
 	}
-	project, err := artifacts.NewService(artifactpostgres.NewRepository(s.pool)).Project(audit.ProjectID)
+	project, err := artifacts.NewService(s.storage.Repository(s.pool)).Project(audit.ProjectID)
 	if err != nil {
 		return ReportProjection{}, err
 	}
@@ -400,7 +399,7 @@ func (s *Service) selectDraftInputs(
 		}
 	}
 	projectArtifacts, err := artifacts.NewService(
-		artifactpostgres.NewRepository(s.pool),
+		s.storage.Repository(s.pool),
 	).Project(projectID)
 	if err != nil {
 		return nil, err

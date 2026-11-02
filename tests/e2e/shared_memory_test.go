@@ -17,6 +17,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/localpki"
 	contractormemory "github.com/grauwolf32/contractor/internal/memory"
@@ -177,7 +179,7 @@ func runSharedMemoryProcesses(t *testing.T, production bool) {
 		t.Fatalf("open assertion database: %v", err)
 	}
 	t.Cleanup(pool.Close)
-	store := runstore.NewPostgresStore(pool)
+	store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 
 	firstRunID := createEmptyWorkflowRun(
 		t, publicClient, publicBaseURL, "shared-memory-streamline@1", "shared-memory-streamline-first",

@@ -10,8 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
@@ -145,7 +146,7 @@ func newStartStagingService(t *testing.T, pool *pgxpool.Pool, guard CredentialRe
 	if err != nil {
 		t.Fatal(err)
 	}
-	service, err := New(Options{
+	service, err := New(Options{Storage: artifactpgtest.NewStorage(),
 		Pool: pool, Profiles: profiles, TransactionLLMCredentials: transactionCredentials,
 		CredentialGuard: guard,
 	})
@@ -176,7 +177,7 @@ func createStartStagingDraftWithSelection(
 	if err != nil {
 		t.Fatal(err)
 	}
-	projectArtifacts, err := artifacts.NewService(artifactpostgres.NewRepository(pool)).Project(project.ProjectID)
+	projectArtifacts, err := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool)).Project(project.ProjectID)
 	if err != nil {
 		t.Fatal(err)
 	}

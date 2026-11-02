@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob"
@@ -107,11 +109,11 @@ func TestPostgresControllerDispatchesOrdinaryRunsThroughDerivedWindow(t *testing
 		t.Fatal(err)
 	}
 	runID := *executions[0].RunID
-	blocker, err := rundeletion.New(harness.pool).RunDeletionBlocker(ctx, harness.started.Audit.OwnerID, runID)
+	blocker, err := rundeletion.New(harness.pool, artifactpgtest.NewStorage()).RunDeletionBlocker(ctx, harness.started.Audit.OwnerID, runID)
 	if err != nil || blocker == nil || *blocker != rundeletion.AuditCollectionPending {
 		t.Fatalf("uncollected Audit Run deletion blocker = (%v, %v)", blocker, err)
 	}
-	if err := rundeletion.New(harness.pool).DeleteReleasedTerminalRun(ctx, harness.started.Audit.OwnerID, runID); err == nil {
+	if err := rundeletion.New(harness.pool, artifactpgtest.NewStorage()).DeleteReleasedTerminalRun(ctx, harness.started.Audit.OwnerID, runID); err == nil {
 		t.Fatal("uncollected Audit Run deletion unexpectedly succeeded")
 	} else {
 		var blocked *rundeletion.NotDeletableError
@@ -621,6 +623,10 @@ func TestPostgresControllerFullWindowSkipsPreparationUntilSettingsIncrease(t *te
 }
 
 func TestPostgresImmutableProjectArtifactReuseLeavesNoFilesystemOrphans(t *testing.T) {
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	h := newPostgresControllerHarness(t, ctx, 1)
@@ -631,14 +637,15 @@ func TestPostgresImmutableProjectArtifactReuseLeavesNoFilesystemOrphans(t *testi
 		t.Fatal(err)
 	}
 	defer files.Close()
-	ctx = blob.WithRuntime(ctx, blob.NewRuntime(files, nil))
+	artifactRuntime = blob.NewRuntime(files, nil)
+	artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
 	project := h.started.Audit
 	claims, err := h.audits.Claim(ctx, auditstore.ClaimParams{HolderID: "immutable-writer", Lease: time.Minute, Limit: 1})
 	if err != nil || len(claims) != 1 {
 		t.Fatalf("claim: %v %v", claims, err)
 	}
-	base := artifactpostgres.NewRepository(pool)
-	unbound, err := NewProjectArtifactAccess(artifacts.NewService(base), hookstore.NewClaimedArtifacts(pool))
+	base := artifactStorage.Repository(pool)
+	unbound, err := NewProjectArtifactAccess(artifacts.NewService(base), hookstore.NewClaimedArtifacts(pool, artifactStorage))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1427,7 +1434,7 @@ func TestPostgresControllerCollectsAndPublishesExactAuditReport(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	access, err := auditimport.NewArtifactAccess(harness.artifacts, hookstore.NewClaimedArtifacts(harness.pool))
+	access, err := auditimport.NewArtifactAccess(harness.artifacts, hookstore.NewClaimedArtifacts(harness.pool, artifactpgtest.NewStorage()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1444,7 +1451,7 @@ func TestPostgresControllerCollectsAndPublishesExactAuditReport(t *testing.T) {
 		t.Fatalf("retained result replay after claim release = (%+v, %v)", replayed, err)
 	}
 
-	auditService, err := auditservice.New(auditservice.Options{
+	auditService, err := auditservice.New(auditservice.Options{Storage: artifactpgtest.NewStorage(),
 		Pool: harness.pool, Profiles: harness.snapshot,
 		TransactionLLMCredentials: controllerTransactionCredentialLookup(),
 		CredentialGuard:           controllerCredentialGuard{},
@@ -1476,7 +1483,7 @@ func TestPostgresControllerCollectsAndPublishesExactAuditReport(t *testing.T) {
 	// the report.
 	requireFrozenAuditBindings(t, ctx, harness.pool, completed.ProjectID, 5)
 
-	if err := rundeletion.New(harness.pool).DeleteReleasedTerminalRun(ctx, completed.OwnerID, runID); err != nil {
+	if err := rundeletion.New(harness.pool, artifactpgtest.NewStorage()).DeleteReleasedTerminalRun(ctx, completed.OwnerID, runID); err != nil {
 		t.Fatal(err)
 	}
 	attempts, err := harness.audits.ListItemAttempts(
@@ -1562,7 +1569,7 @@ func TestPostgresControllerDeletesActiveAuditWhileOwnerQueuePaused(t *testing.T)
 	); err != nil {
 		t.Fatal(err)
 	}
-	service, err := auditservice.New(auditservice.Options{
+	service, err := auditservice.New(auditservice.Options{Storage: artifactpgtest.NewStorage(),
 		Pool: harness.pool, Profiles: harness.snapshot,
 		TransactionLLMCredentials: controllerTransactionCredentialLookup(),
 		CredentialGuard:           controllerCredentialGuard{},
@@ -1668,7 +1675,7 @@ func newPostgresControllerHarnessWithPolicy(
 		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
 	}
 	pool := isolatedControllerPool(t, ctx, databaseURL)
-	artifactService := artifacts.NewService(artifactpostgres.NewRepository(pool))
+	artifactService := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
 	projects := projectstore.NewPostgresStore(pool)
 	project, _, err := projects.Create(ctx, projectstore.CreateParams{
 		ProjectID: "project-audit-controller", OwnerID: "owner-audit-controller",
@@ -1717,7 +1724,7 @@ func newPostgresControllerHarnessWithPolicy(
 		}
 	}
 	guard := controllerCredentialGuard{}
-	auditService, err := auditservice.New(auditservice.Options{
+	auditService, err := auditservice.New(auditservice.Options{Storage: artifactpgtest.NewStorage(),
 		Pool: pool, Profiles: snapshot,
 		TransactionLLMCredentials: controllerTransactionCredentialLookup(),
 		CredentialGuard:           guard,
@@ -1743,8 +1750,8 @@ func newPostgresControllerHarnessWithPolicy(
 	if err != nil {
 		t.Fatal(err)
 	}
-	runs := runstore.NewPostgresStore(pool)
-	audits := auditstoretest.NewStore(pool).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
+	audits := auditstoretest.NewStore(pool, artifactpgtest.NewStorage()).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch)
 	runCreation, err := runservice.New(runservice.Options{
 		Runs: runs, Workflows: snapshot, LLMCredentials: controllerCredentialLookup{},
 		CredentialGuard: guard, RuntimeCredentials: controllerRuntimeCredentials{}, Projects: projects,
@@ -1758,16 +1765,16 @@ func newPostgresControllerHarnessWithPolicy(
 					return bindErr
 				}
 				return fn(
-					runstore.NewRunCreationPostgresStore(tx, lookup, credentials.NewRuntimeCredentialRepository(tx)),
-					artifacts.NewService(artifactpostgres.NewRepository(tx)),
+					runstore.NewRunCreationPostgresStore(tx, lookup, credentials.NewRuntimeCredentialRepository(tx), artifactpgtest.NewStorage()),
+					artifacts.NewService(artifactpgtest.NewStorage().Repository(tx)),
 				)
 			})
 		},
 		AuditTransaction: func(ctx context.Context, fn func(runservice.AuditRunWriter, *artifacts.Service, runservice.AuditExecutionWriter) error) error {
 			return persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 				return fn(
-					runstore.NewPostgresTxStore(tx), artifacts.NewService(artifactpostgres.NewRepository(tx)),
-					auditstoretest.NewStore(tx).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch),
+					runstore.NewPostgresTxStore(tx, artifactpgtest.NewStorage()), artifacts.NewService(artifactpgtest.NewStorage().Repository(tx)),
+					auditstoretest.NewStore(tx, artifactpgtest.NewStorage()).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch),
 				)
 			})
 		},
@@ -1783,7 +1790,7 @@ func newPostgresControllerHarnessWithPolicy(
 
 func (h *postgresControllerHarness) builder(t *testing.T) *PinnedSubmissionBuilder {
 	t.Helper()
-	access, err := NewProjectArtifactAccess(h.artifacts, hookstore.NewClaimedArtifacts(h.pool))
+	access, err := NewProjectArtifactAccess(h.artifacts, hookstore.NewClaimedArtifacts(h.pool, artifactpgtest.NewStorage()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1798,7 +1805,7 @@ func (h *postgresControllerHarness) controller(t *testing.T) *Controller {
 	t.Helper()
 	var ids int
 	controller, err := New(
-		h.audits, h.audits, h.runs, rundeletion.New(h.pool), h.runService, h.builder(t), &postgresNotifier{},
+		h.audits, h.audits, h.runs, rundeletion.New(h.pool, artifactpgtest.NewStorage()), h.runService, h.builder(t), &postgresNotifier{},
 		Options{
 			HolderID: "postgres-audit-controller", ClaimLease: 5 * time.Second,
 			OperationTimeout: time.Second, ClaimBatch: 1,
@@ -1818,7 +1825,7 @@ func (h *postgresControllerHarness) controllerForHolder(t *testing.T, holderID s
 	t.Helper()
 	var ids int
 	controller, err := New(
-		h.audits, h.audits, h.runs, rundeletion.New(h.pool), h.runService, h.builder(t), &postgresNotifier{},
+		h.audits, h.audits, h.runs, rundeletion.New(h.pool, artifactpgtest.NewStorage()), h.runService, h.builder(t), &postgresNotifier{},
 		Options{
 			HolderID: holderID, ClaimLease: 5 * time.Second,
 			OperationTimeout: time.Second, ClaimBatch: 1,
@@ -1838,7 +1845,7 @@ func (h *postgresControllerHarness) controllerWithCollector(
 	t *testing.T, findings ...auditimport.FindingRetention,
 ) *Controller {
 	t.Helper()
-	access, err := auditimport.NewArtifactAccess(h.artifacts, hookstore.NewClaimedArtifacts(h.pool))
+	access, err := auditimport.NewArtifactAccess(h.artifacts, hookstore.NewClaimedArtifacts(h.pool, artifactpgtest.NewStorage()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1857,7 +1864,7 @@ func (h *postgresControllerHarness) controllerWithImportAccess(
 	}
 	var ids int
 	controller, err := New(
-		h.audits, h.audits, h.runs, rundeletion.New(h.pool), h.runService, h.builder(t), &postgresNotifier{},
+		h.audits, h.audits, h.runs, rundeletion.New(h.pool, artifactpgtest.NewStorage()), h.runService, h.builder(t), &postgresNotifier{},
 		Options{
 			HolderID: "postgres-audit-collection-controller", ClaimLease: 5 * time.Second,
 			OperationTimeout: 2 * time.Second, ClaimBatch: 1, Collector: collector,

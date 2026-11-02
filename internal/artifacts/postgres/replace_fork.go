@@ -15,7 +15,7 @@ func (r *Repository) replaceFork(ctx context.Context, fork artifacts.Fork) (arti
 	var result artifacts.ForkResult
 	err := persistencepostgres.Within(ctx, r.db, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		result = artifacts.ForkResult{}
-		bound := NewRepository(tx)
+		bound := r.Storage.Repository(tx)
 		if err := bound.ensureScope(ctx, fork.Target); err != nil {
 			return err
 		}
@@ -36,7 +36,7 @@ func (r *Repository) replaceFork(ctx context.Context, fork artifacts.Fork) (arti
 		if err != nil {
 			return err
 		}
-		policy := historyPolicy(ctx)
+		policy := r.history
 		write := writeStatement{size: size, policy: policy}
 		write.reuse = func(ctx context.Context, db persistencepostgres.DBTX, removed, bytes int64) (writeRow, error) {
 			var row writeRow

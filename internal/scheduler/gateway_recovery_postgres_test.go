@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"reflect"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
@@ -33,7 +35,7 @@ func newRecoveryFixture(t *testing.T) recoveryFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return recoveryFixture{service, pool, runstore.NewPostgresStore(pool), gatewayrecovery.Route{OwnerID: "owner", GatewayDigest: "gateway", Model: "model"}}
+	return recoveryFixture{service, pool, runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()), gatewayrecovery.Route{OwnerID: "owner", GatewayDigest: "gateway", Model: "model"}}
 }
 func (f recoveryFixture) run(t *testing.T, id string, routes ...gatewayrecovery.Route) *gatewayrecovery.Participant {
 	t.Helper()
@@ -443,7 +445,7 @@ func TestGatewayWaitingRunAcceptsStageResultAndDropsWaits(t *testing.T) {
 		}
 		participant := service.Planner("run-1", "stage-finalizing", route, llmgateway.DefaultGatewayFailureSignatures())
 		recoveryUpdate(t, participant, "outage", "failed")
-		run, err := runstore.NewPostgresStore(pool).GetRun(ctx, "run-1")
+		run, err := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()).GetRun(ctx, "run-1")
 		if err != nil || run.State != runstore.RunWaiting {
 			t.Fatalf("Run before result = (%+v, %v), want waiting", run, err)
 		}

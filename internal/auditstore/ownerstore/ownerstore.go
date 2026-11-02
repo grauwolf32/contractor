@@ -5,6 +5,7 @@
 package ownerstore
 
 import (
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
@@ -18,11 +19,11 @@ type Store = pgstore.OwnerStore
 type TxStore = pgstore.OwnerTxStore
 
 // New returns the owner's commands on db, a pool or a caller's transaction.
-func New(db persistencepostgres.DBTX) *Store {
-	return pgstore.NewOwnerStore(db)
+func New(db persistencepostgres.DBTX, storage *artifactpostgres.Storage) *Store {
+	return pgstore.NewOwnerStore(db, storage)
 }
 
 // NewTx returns the owner's commands bound to the caller's transaction tx.
-func NewTx(tx pgx.Tx) *TxStore {
-	return pgstore.NewOwnerTxStore(tx)
+func NewTx(tx pgx.Tx, storage *artifactpostgres.Storage) *TxStore {
+	return pgstore.NewOwnerTxStore(tx, storage)
 }

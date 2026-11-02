@@ -23,6 +23,7 @@ type ArtifactScopes interface {
 // ArtifactDependencies serve the UserScope, ProjectScope and RunScope
 // Artifact routes, Run outputs, archive previews and Git import.
 type ArtifactDependencies struct {
+	Transfers  artifacttransfer.Admission
 	Artifacts  ArtifactScopes
 	Projects   ProjectReader
 	Runs       RunGetter
@@ -424,7 +425,7 @@ func (h *artifactHandlers) putArtifact(w http.ResponseWriter, r *http.Request) {
 func (h *artifactHandlers) writeArtifactUpload(
 	w http.ResponseWriter, r *http.Request, store artifacts.ScopedStore, mediaType string, expectedRevision *string,
 ) {
-	r, transfer, err := artifacttransfer.Acquire(w, r)
+	r, transfer, err := artifacttransfer.Acquire(w, r, h.Transfers)
 	if err != nil {
 		handleError(w, err)
 		return
@@ -480,7 +481,7 @@ func (h *artifactHandlers) getArtifact(w http.ResponseWriter, r *http.Request) {
 func (h *artifactHandlers) writeArtifactRead(
 	w http.ResponseWriter, r *http.Request, store artifacts.ScopedStore, ref contracts.ArtifactRef,
 ) {
-	r, transfer, err := artifacttransfer.Acquire(w, r)
+	r, transfer, err := artifacttransfer.Acquire(w, r, h.Transfers)
 	if err != nil {
 		handleError(w, err)
 		return

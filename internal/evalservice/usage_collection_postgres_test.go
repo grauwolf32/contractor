@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
@@ -56,7 +58,7 @@ func observedRunUsage(t *testing.T, pool *pgxpool.Pool, runID string) (evaldomai
 	start, finish := time.Unix(0, 0).UTC(), time.Unix(1, 0).UTC()
 	return observedUsage(t.Context(), pool, "owner", evaldomain.Digest([]byte(runID))[7:], ExecutionView{
 		Ref: &ref, State: "succeeded", StartedAt: &start, FinishedAt: &finish,
-	}, inventory)
+	}, inventory, artifactpgtest.NewStorage())
 }
 
 // Collection reads the Planner's counters as stored, whatever the Stage's
@@ -65,7 +67,7 @@ func observedRunUsage(t *testing.T, pool *pgxpool.Pool, runID string) (evaldomai
 // (EVM-R81). No reader derives a counter from the Planner identity.
 func TestEvalObservedUsageReadsPlannerCountersAsReported(t *testing.T) {
 	pool := serviceTestPool(t)
-	runs := runstore.NewPostgresStore(pool)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	for _, planner := range []string{"passthrough", "streamline"} {
 		createRunningUsageRun(t, runs, planner)
 		if _, err := runs.CreateStageExecution(t.Context(), runstore.CreateStageExecutionParams{
@@ -102,7 +104,7 @@ VALUES($1,$2,'{"planner":{"complete":true,"truncated":false,"metrics":{"tools":{
 // counters itself (EVM-R81).
 func TestEvalObservedUsageOfRecordedPassthroughReportIsComplete(t *testing.T) {
 	pool := serviceTestPool(t)
-	runs := runstore.NewPostgresStore(pool)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	createRunningUsageRun(t, runs, "passthrough-run")
 	const stage = "passthrough-stage"
 	if err := runstoretest.CreateRunningNamedStage(t.Context(), runs, "passthrough-run", stage, "fixture", contracts.APIVersion); err != nil {
@@ -160,7 +162,7 @@ func TestEvalObservedUsageOfRecordedPassthroughReportIsComplete(t *testing.T) {
 // (TestEvalAttemptMetricsRejectStoredMetricsThatBreakTheirContract).
 func TestEvalObservedUsageRejectsStoredMetricsThatBreakTheirContract(t *testing.T) {
 	pool := serviceTestPool(t)
-	runs := runstore.NewPostgresStore(pool)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	for index, document := range []string{
 		`{"planner":{"complete":true,"truncated":false,"metrics":{"modelCalls":-1,"tools":{}}},"workers":{},"runtime":{}}`,
 		`{"planner":{"complete":true,"truncated":false,"metrics":{"totalTokens":9007199254740992,"tools":{}}},"workers":{},"runtime":{}}`,
@@ -200,7 +202,7 @@ func TestSharedEvalObservedAuditUsageCountsStagesOnceAndKeepsParentDuration(t *t
 	}
 	input := fixture.Observation
 	inventory := evalstore.Inventory{Complete: true, Gaps: []string{}}
-	runs := runstore.NewPostgresStore(pool)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	for _, ref := range input.Executions {
 		inventory.Entries = append(inventory.Entries, evalstore.InventoryEntry{Execution: &ref, Available: true})
 		if ref.Kind != "run" {
@@ -272,12 +274,12 @@ ON CONFLICT(stage_execution_id) DO UPDATE SET metrics=EXCLUDED.metrics`, attempt
 		t.Fatal(err)
 	}
 	execution := evaldomain.ExecutionView{Ref: &input.Parent, State: "succeeded", StartedAt: &start, FinishedAt: &finish}
-	usage, err := observedUsage(t.Context(), pool, "owner", input.MemberID, execution, inventory)
+	usage, err := observedUsage(t.Context(), pool, "owner", input.MemberID, execution, inventory, artifactpgtest.NewStorage())
 	if err != nil || usage.TotalTokens.Value == nil || *usage.TotalTokens.Value != 100 || usage.TotalTokens.Completeness != "complete" || *usage.ModelCalls.Value != 4 || *usage.WallMS.Value != 2000 {
 		t.Fatal("wrong SQL stage/parent accounting", usage, err)
 	}
 	runsRead := []string{"check-1", "discovery-1", "assessment-1"}
-	snapshots, err := evalstore.NewPostgresStore(pool).MetricSnapshots(t.Context(), "owner", runsRead)
+	snapshots, err := evalstore.NewPostgresStore(pool, artifactpgtest.NewStorage()).MetricSnapshots(t.Context(), "owner", runsRead)
 	if err != nil || len(snapshots) != 4 {
 		t.Fatal("metric snapshot cohort", snapshots, err)
 	}
@@ -287,18 +289,18 @@ ON CONFLICT(stage_execution_id) DO UPDATE SET metrics=EXCLUDED.metrics`, attempt
 		}
 	}
 	inventory.Entries = append(inventory.Entries, inventory.Entries[1])
-	replay, err := observedUsage(t.Context(), pool, "owner", input.MemberID, execution, inventory)
+	replay, err := observedUsage(t.Context(), pool, "owner", input.MemberID, execution, inventory, artifactpgtest.NewStorage())
 	if err != nil || !reflect.DeepEqual(usage, replay) {
 		t.Fatal("repeated inventory or snapshots doubled usage", err)
 	}
 	if _, err = pool.Exec(t.Context(), `DELETE FROM stage_metrics WHERE stage_execution_id='assessment'`); err != nil {
 		t.Fatal(err)
 	}
-	partial, err := observedUsage(t.Context(), pool, "owner", input.MemberID, execution, inventory)
+	partial, err := observedUsage(t.Context(), pool, "owner", input.MemberID, execution, inventory, artifactpgtest.NewStorage())
 	if err != nil || partial.TotalTokens.Value == nil || *partial.TotalTokens.Value != 60 || partial.TotalTokens.Completeness != "partial" || partial.WallMS.Completeness != "complete" || *partial.WallMS.Value != 2000 {
 		t.Fatal("missing child metrics lost partial scope or parent duration", partial, err)
 	}
-	snapshots, err = evalstore.NewPostgresStore(pool).MetricSnapshots(t.Context(), "foreign", runsRead)
+	snapshots, err = evalstore.NewPostgresStore(pool, artifactpgtest.NewStorage()).MetricSnapshots(t.Context(), "foreign", runsRead)
 	if err != nil || len(snapshots) != 0 {
 		t.Fatal("foreign child metrics disclosed", err)
 	}
@@ -314,7 +316,7 @@ func TestSharedPostgresEvalOverflowingUsageRecollectsWithoutNewRecords(t *testin
 	e := h.prepared(t, "workflow")
 	h.command(t, e, "start")
 	c := h.coordinator(t, "usage-overflow")
-	store := evalstore.NewPostgresStore(h.pool)
+	store := evalstore.NewPostgresStore(h.pool, artifactpgtest.NewStorage())
 	// Every counter lies within 2^53-1 (OBS-R111), so only many contributions
 	// leave the int64 range. The first stage's 1,025 tools at the bound
 	// overflow its tool calls inside its snapshot; 1,024 of them failed, which
@@ -340,7 +342,7 @@ func TestSharedPostgresEvalOverflowingUsageRecollectsWithoutNewRecords(t *testin
 		`{"planner":{"complete":true,"truncated":false,"metrics":{"modelCalls":1,"inputTokens":200,` +
 			`"outputTokens":0,"totalTokens":200,"tools":{"read":{"calls":1024,"failed":1024}}}},"workers":{},"runtime":{}}`,
 	}
-	runs := runstore.NewPostgresStore(h.pool)
+	runs := runstore.NewPostgresStore(h.pool, artifactpgtest.NewStorage())
 	stages := []string{}
 	finished := map[string]bool{}
 	for n := 0; n < 80; n++ {

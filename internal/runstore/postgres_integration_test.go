@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -36,7 +38,7 @@ func TestPostgresIntegrationStageLifecycleAndSessions(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedRunStorePool(t, ctx)
-	store := NewPostgresStore(pool)
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
 
 	run := createTestRun(t, ctx, store, "run-lifecycle")
 	if run.State != RunInitializing || run.WorkflowSnapshot == nil {
@@ -397,7 +399,7 @@ func TestPostgresWorkflowRunMetadataLabelsAreAtomicImmutableAndProjected(t *test
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedRunStorePool(t, ctx)
-	store := NewPostgresStore(pool)
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
 
 	params := testRunParams("run-metadata-labels")
 	params.MetadataLabels = RunMetadataLabels{
@@ -476,7 +478,7 @@ func TestPostgresWorkflowRunProjectMembershipIsOwnedImmutableAndFilterable(t *te
 			t.Fatalf("create Project %q: %v", projectID, err)
 		}
 	}
-	store := NewPostgresStore(pool)
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
 	projectID := "project-one"
 	projectParams := testRunParams("run-project-member")
 	projectParams.ProjectID = &projectID
@@ -540,7 +542,7 @@ func TestPostgresWorkflowRunQueueIsOwnedOldestFirstAndTerminalAware(t *testing.T
 			t.Fatal(err)
 		}
 	}
-	store := NewPostgresStore(pool)
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
 	create := func(runID string, projectID *string, labels RunMetadataLabels) WorkflowRun {
 		t.Helper()
 		params := testRunParams(runID)
@@ -634,7 +636,7 @@ func TestPostgresWorkflowRunMetadataLabelFilteringIsConjunctiveOwnedAndStable(t 
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedRunStorePool(t, ctx)
-	store := NewPostgresStore(pool)
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
 	create := func(runID, ownerID, leg string) WorkflowRun {
 		t.Helper()
 		params := testRunParams(runID)
@@ -729,7 +731,7 @@ func TestPostgresWorkflowRunLifecycleFilteringIsOwnedIntersectedAndStable(t *tes
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedRunStorePool(t, ctx)
-	store := NewPostgresStore(pool)
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
 
 	terminalOld := createTestRun(t, ctx, store, "run-lifecycle-terminal-old")
 	if _, err := store.TransitionRun(
@@ -826,7 +828,7 @@ func TestPostgresIntegrationClaimsConflictsAndExplicitTransactions(t *testing.T)
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedRunStorePool(t, ctx)
-	store := NewPostgresStore(pool)
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
 	createTestRun(t, ctx, store, "run-race")
 
 	var transitions int32
@@ -895,7 +897,7 @@ func TestPostgresIntegrationClaimsConflictsAndExplicitTransactions(t *testing.T)
 
 	rollback := errors.New("force rollback")
 	err := persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		txStore := NewPostgresStore(tx)
+		txStore := NewPostgresStore(tx, artifactpgtest.NewStorage())
 		if _, err := createRun(ctx, txStore, testRunParams("run-rolled-back")); err != nil {
 			return err
 		}
@@ -908,7 +910,7 @@ func TestPostgresIntegrationClaimsConflictsAndExplicitTransactions(t *testing.T)
 		t.Fatalf("rolled-back Run lookup error = %v", err)
 	}
 	err = persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		_, err := createRun(ctx, NewPostgresStore(tx), testRunParams("run-committed"))
+		_, err := createRun(ctx, NewPostgresStore(tx, artifactpgtest.NewStorage()), testRunParams("run-committed"))
 		return err
 	})
 	if err != nil {
@@ -923,7 +925,7 @@ func TestPostgresStageAdmissionPreservesInitialQueueControlRevision(t *testing.T
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedRunStorePool(t, ctx)
-	store := NewPostgresStore(pool)
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
 	for _, test := range []struct {
 		name   string
 		owner  string
@@ -947,7 +949,7 @@ func TestPostgresStageAdmissionPreservesInitialQueueControlRevision(t *testing.T
 				t.Fatalf("initial Queue control = (%+v, %v)", initial, err)
 			}
 			if err := persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-				admission := NewPostgresTxStore(tx)
+				admission := NewPostgresTxStore(tx, artifactpgtest.NewStorage())
 				if err := admission.LockRunQueueAdmission(ctx, runID); err != nil {
 					return err
 				}
@@ -992,7 +994,7 @@ func TestPostgresOwnerQueueControlSerializesWithStageAdmission(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedRunStorePool(t, ctx)
-	store := NewPostgresStore(pool)
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
 
 	initial, err := store.GetOwnerQueueControl(ctx, "user-1")
 	if err != nil || initial.Paused || initial.Revision != 0 || !initial.UpdatedAt.IsZero() {
@@ -1051,7 +1053,7 @@ WHERE owner_id = 'user-1'`); persistencepostgres.SQLState(err) != persistencepos
 	if err != nil {
 		t.Fatal(err)
 	}
-	pauseTxStore := NewPostgresStore(pauseTx)
+	pauseTxStore := NewPostgresStore(pauseTx, artifactpgtest.NewStorage())
 	paused, err = pauseTxStore.UpdateOwnerQueueControl(ctx, UpdateOwnerQueueControlParams{
 		OwnerID: "user-1", ExpectedRevision: 2, Paused: true,
 	})
@@ -1062,7 +1064,7 @@ WHERE owner_id = 'user-1'`); persistencepostgres.SQLState(err) != persistencepos
 	admissionAfterPause := make(chan error, 1)
 	go func() {
 		admissionAfterPause <- persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-			return NewPostgresTxStore(tx).LockRunQueueAdmission(ctx, run.RunID)
+			return NewPostgresTxStore(tx, artifactpgtest.NewStorage()).LockRunQueueAdmission(ctx, run.RunID)
 		})
 	}()
 	select {
@@ -1088,7 +1090,7 @@ WHERE owner_id = 'user-1'`); persistencepostgres.SQLState(err) != persistencepos
 	if err != nil {
 		t.Fatal(err)
 	}
-	admissionStore := NewPostgresTxStore(admissionTx)
+	admissionStore := NewPostgresTxStore(admissionTx, artifactpgtest.NewStorage())
 	if err := admissionStore.LockRunQueueAdmission(ctx, run.RunID); err != nil {
 		_ = admissionTx.Rollback(ctx)
 		t.Fatal(err)
@@ -1135,7 +1137,7 @@ func TestPostgresClaimRunnableRunRotatesAfterDeferredRelease(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedRunStorePool(t, ctx)
-	store := NewPostgresStore(pool)
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
 
 	first := createTestRun(t, ctx, store, "run-capacity-waiting")
 	if _, err := admitTestRun(ctx, store, first.RunID); err != nil {
@@ -1217,7 +1219,7 @@ func TestPostgresDeferredClaimAgesBackIntoItsStateTier(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedRunStorePool(t, ctx)
-	store := NewPostgresStore(pool)
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
 	claimAndDefer := func(claimID, wantRunID string) {
 		t.Helper()
 		claimed, err := store.ClaimRunnableRun(ctx, claimID, time.Minute, nil, resolved.LaneClassModel)
@@ -1276,7 +1278,7 @@ func TestPostgresIntegrationRunSkillSnapshotGatesRunnableClaim(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedRunStorePool(t, ctx)
-	store := NewPostgresStore(pool)
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
 	run := createTestRun(t, ctx, store, "run-skill-pending")
 	revision := "owner-revision-1"
 	selection := []agentskills.RunSkillSnapshot{{
@@ -1368,7 +1370,7 @@ func TestWorkflowRunEventNotificationIsVisibleOnlyAfterCommit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = createRun(ctx, NewPostgresStore(tx), CreateRunParams{
+	_, err = createRun(ctx, NewPostgresStore(tx, artifactpgtest.NewStorage()), CreateRunParams{
 		LaneClass: resolved.LaneClassModel,
 		RunID:     runID, OwnerID: "user", WorkflowName: "workflow", WorkflowVersion: "1",
 		WorkflowSchemaVersion: contracts.APIVersion,
@@ -1400,7 +1402,7 @@ func TestWorkflowRunEventNotificationIsVisibleOnlyAfterCommit(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("committed WorkflowRun event did not publish a wake-up notification")
 	}
-	page, err := NewPostgresStore(pool).ListRunEvents(ctx, runID, 0, 10)
+	page, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).ListRunEvents(ctx, runID, 0, 10)
 	events := page.Events
 	if err != nil || len(events) != 1 || page.More || events[0].Kind != RunEventLifecycleChanged ||
 		events[0].SequenceNumber != 1 || !strings.Contains(string(events[0].Data), `"state": "initializing"`) {
@@ -1412,7 +1414,7 @@ func TestPostgresIntegrationRunCancellationIsDurableAndIdempotent(t *testing.T) 
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedRunStorePool(t, ctx)
-	store := NewPostgresStore(pool)
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
 
 	requestedBy := "user-1"
 	reason := "stop this work"
@@ -1562,7 +1564,7 @@ func TestPostgresRunRuntimeLabelsPinExactBindingsAcrossConcurrentRebind(t *testi
 		t.Fatal(err)
 	}
 
-	stored, err := NewPostgresStore(pool).GetRun(ctx, "run-runtime-label-old")
+	stored, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).GetRun(ctx, "run-runtime-label-old")
 	if err != nil || stored.RuntimeConfig.Default.Config != defaultA || stored.RuntimeConfig.Labels[0].Config != debugA {
 		t.Fatalf("stored immutable RuntimeConfig snapshot = (%+v, %v)", stored.RuntimeConfig, err)
 	}
@@ -1588,7 +1590,7 @@ func TestPostgresNonTerminalCredentialUsageIncludesRuntimeConfigSnapshot(t *test
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedRunStorePool(t, ctx)
-	store := NewPostgresStore(pool)
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
 	snapshot := runtimeconfigtest.BuiltInRunSnapshot()
 	snapshot.LLMCredentialIDs = []string{"runtime-route"}
 	if _, err := createRun(ctx, store, CreateRunParams{
@@ -1618,7 +1620,7 @@ func TestPostgresCredentialUsageIncludesLiveAllocationProvenance(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedRunStorePool(t, ctx)
-	store := NewPostgresStore(pool)
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
 	run := createTestRun(t, ctx, store, "run-live-allocation-credential")
 	if _, err := admitTestRun(ctx, store, run.RunID); err != nil {
 		t.Fatal(err)
@@ -1697,7 +1699,7 @@ func newRunCreationTestStore(
 	if err != nil {
 		t.Fatal(err)
 	}
-	return NewRunCreationPostgresStore(tx, bound, pinTestRuntimeCredentials{})
+	return NewRunCreationPostgresStore(tx, bound, pinTestRuntimeCredentials{}, artifactpgtest.NewStorage())
 }
 
 func createTestRun(t *testing.T, ctx context.Context, store *PostgresStore, runID string) WorkflowRun {

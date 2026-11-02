@@ -11,8 +11,9 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -42,7 +43,7 @@ func TestPostgresCancellationCleanupRetainsRunClaim(t *testing.T) {
 			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
 			pool := isolatedSchedulerPool(t, ctx)
-			postgresStore := runstore.NewPostgresStore(pool)
+			postgresStore := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 			workflow := loadSchedulerWorkflow(t)
 			encoded, err := json.Marshal(workflow)
 			if err != nil {
@@ -76,7 +77,7 @@ func TestPostgresCancellationCleanupRetainsRunClaim(t *testing.T) {
 			s.store = store
 			// The Run has no Stage, so the cleanup ends with the commit that
 			// finishes a cancelled Run.
-			persistence, err := NewPostgresPersistence(pool)
+			persistence, err := NewPostgresPersistence(pool, artifactpgtest.NewStorage())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -190,14 +191,14 @@ func TestPostgresFailActiveRunEndsCancellingRunAsCancelled(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
 	defer cancel()
 	pool := isolatedSchedulerPool(t, ctx)
-	store := runstore.NewPostgresStore(pool)
-	createSchedulerRun(t, ctx, store, artifacts.NewService(artifactpostgres.NewRepository(pool)), loadSchedulerWorkflow(t))
+	store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
+	createSchedulerRun(t, ctx, store, artifacts.NewService(artifactpgtest.NewStorage().Repository(pool)), loadSchedulerWorkflow(t))
 	if _, err := store.RequestRunCancellation(ctx, "run-1", runstore.WorkflowRunCancellation{
 		Code: runstore.CancellationUserRequested, RequestedAt: time.Now(),
 	}); err != nil {
 		t.Fatal(err)
 	}
-	persistence, err := NewPostgresPersistence(pool)
+	persistence, err := NewPostgresPersistence(pool, artifactpgtest.NewStorage())
 	if err != nil {
 		t.Fatal(err)
 	}

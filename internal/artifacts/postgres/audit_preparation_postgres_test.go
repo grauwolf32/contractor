@@ -34,6 +34,7 @@ import (
 )
 
 type preparationFixture struct {
+	storage   *artifactpostgres.Storage
 	ctx       context.Context
 	pool      *pgxpool.Pool
 	store     *auditstoretest.Store
@@ -50,7 +51,7 @@ func newPreparationFixture(t *testing.T, dependency bool) preparationFixture {
 	ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
 	t.Cleanup(cancel)
 	pool := isolatedArtifactPool(t, ctx)
-	ctx = testBlobContext(t, ctx, pool)
+	artifactStorage := testBlobStorage(t, ctx, pool)
 	root := configtest.CopyWithPolicies(t, "../../config/testdata/valid")
 	for _, topic := range []string{"audit-scan-catalog", "audit-preparation-catalog"} {
 		if err := os.CopyFS(root, os.DirFS("../../config/testdata/"+topic)); err != nil {
@@ -89,7 +90,7 @@ func newPreparationFixture(t *testing.T, dependency bool) preparationFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	service := NewService(artifactpostgres.NewRepository(pool))
+	service := NewService(artifactStorage.Repository(pool))
 	projectArtifacts, _ := service.Project(project.ProjectID)
 	inputs := map[string]auditstore.ExactArtifact{}
 	for name, media := range map[string]string{"source": "application/zip", "settings": "application/json"} {
@@ -100,7 +101,7 @@ func newPreparationFixture(t *testing.T, dependency bool) preparationFixture {
 		}
 		inputs[name] = auditstore.ExactArtifact{Ref: written.Ref, Digest: auditdomain.DigestBytes(payload), MediaType: media, SizeBytes: int64(len(payload))}
 	}
-	store := auditstoretest.NewStore(pool).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch)
+	store := auditstoretest.NewStore(pool, artifactStorage).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch)
 	raw, _ := json.Marshal(profile)
 	audit, _, err := store.CreateDraft(ctx, auditstore.CreateDraftParams{
 		AuditID: "preparation-audit", OwnerID: project.OwnerID, ProjectID: project.ProjectID,
@@ -125,7 +126,7 @@ func newPreparationFixture(t *testing.T, dependency bool) preparationFixture {
 	if err != nil || len(claims) != 1 {
 		t.Fatalf("claim: %+v %v", claims, err)
 	}
-	return preparationFixture{ctx, pool, store, service, audit, claims[0], profile, start, inputs["source"]}
+	return preparationFixture{artifactStorage, ctx, pool, store, service, audit, claims[0], profile, start, inputs["source"]}
 }
 
 func prepDigest(value string) string { return auditdomain.DigestBytes([]byte(value)) }
@@ -160,7 +161,7 @@ func (f preparationFixture) collecting(t *testing.T, intent auditstore.CreateExe
 	err = persistencepostgres.InTx(f.ctx, f.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		binding := f.profile.Workflows[intent.WorkflowRole]
 		workflow, _ := json.Marshal(binding.Workflow)
-		_, err := runstore.NewPostgresStore(tx).CreateAuditRun(f.ctx, runstore.CreateAuditRunParams{
+		_, err := runstore.NewPostgresStore(tx, f.storage).CreateAuditRun(f.ctx, runstore.CreateAuditRunParams{
 			CreateRunParams: runstore.CreateRunParams{LaneClass: resolved.LaneClassModel, RunID: runID, OwnerID: f.audit.OwnerID, ProjectID: &f.audit.ProjectID,
 				WorkflowName: binding.Workflow.Ref.Name, WorkflowVersion: binding.Workflow.Ref.Version, WorkflowSchemaVersion: "contractor/v1alpha1",
 				WorkflowSnapshot: workflow, Parameters: intent.Preparation.Parameters, RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot()},
@@ -169,7 +170,7 @@ func (f preparationFixture) collecting(t *testing.T, intent auditstore.CreateExe
 		if err != nil {
 			return err
 		}
-		execution, err = auditstoretest.NewStore(tx).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch).BindRun(f.ctx, auditstore.BindRunParams{Claim: f.claim, ExecutionID: execution.ExecutionID, RunID: runID})
+		execution, err = auditstoretest.NewStore(tx, f.storage).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch).BindRun(f.ctx, auditstore.BindRunParams{Claim: f.claim, ExecutionID: execution.ExecutionID, RunID: runID})
 		return err
 	})
 	if err != nil {
@@ -454,7 +455,7 @@ func TestSharedPostgresAuditPreparationRetentionAndLifecycleWithoutRound(t *test
 		t.Fatalf("preparation credential hold: %v %v", ids, err)
 	}
 	beforeDelete := f.current(t)
-	if err := rundeletion.New(f.pool).DeleteReleasedTerminalRun(f.ctx, f.audit.OwnerID, *execution.RunID); err != nil {
+	if err := rundeletion.New(f.pool, f.storage).DeleteReleasedTerminalRun(f.ctx, f.audit.OwnerID, *execution.RunID); err != nil {
 		t.Fatalf("delete collected source Run: %v", err)
 	}
 	if f.current(t).Revision <= beforeDelete.Revision {
@@ -467,7 +468,7 @@ func TestSharedPostgresAuditPreparationRetentionAndLifecycleWithoutRound(t *test
 		}
 		read, err := func() (ReadResult, error) {
 			scope, _ := AuditScope(f.audit.AuditID)
-			return artifactpostgres.NewRepository(f.pool).Read(f.ctx, scope, output.Retained.Ref)
+			return f.storage.Repository(f.pool).Read(f.ctx, scope, output.Retained.Ref)
 		}()
 		if err != nil || auditdomain.DigestBytes(read.Payload.Data) != output.Retained.Digest {
 			t.Fatalf("retained content: %v", err)
@@ -483,7 +484,7 @@ func TestSharedPostgresAuditPreparationRetentionAndLifecycleWithoutRound(t *test
 		}
 		if _, err := func() (WriteResult, error) {
 			scope, _ := AuditScope(f.audit.AuditID)
-			return artifactpostgres.NewRepository(f.pool).Write(f.ctx, scope, mutable, changed, output.Retained.Ref.Revision)
+			return f.storage.Repository(f.pool).Write(f.ctx, scope, mutable, changed, output.Retained.Ref.Revision)
 		}(); !errors.Is(err, ErrArtifactFrozen) {
 			t.Fatalf("retained binding was mutable: %v", err)
 		}

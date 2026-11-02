@@ -13,8 +13,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
@@ -196,7 +197,7 @@ func captureIterativeOriginals(t *testing.T, h *scanProcessHarness, journal *ite
 	t.Helper()
 	journal.mu.Lock()
 	defer journal.mu.Unlock()
-	service := artifacts.NewService(artifactpostgres.NewRepository(h.pool))
+	service := artifacts.NewService(artifactpgtest.NewStorage().Repository(h.pool))
 	run, _ := service.Run(journal.producer)
 	result, err := run.Read(h.ctx, contracts.ArtifactRef{Namespace: "outputs", Name: "result"})
 	if err != nil {

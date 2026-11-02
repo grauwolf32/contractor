@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditbaseline"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -40,6 +41,8 @@ type CredentialReferenceGuard interface {
 }
 
 type Options struct {
+	Storage *artifactpostgres.Storage
+
 	Pool                      *pgxpool.Pool
 	Profiles                  ProfileCatalog
 	TransactionLLMCredentials runtimeconfig.TransactionLLMCredentialLookupFactory
@@ -48,6 +51,8 @@ type Options struct {
 }
 
 type Service struct {
+	storage *artifactpostgres.Storage
+
 	pool                      *pgxpool.Pool
 	profiles                  ProfileCatalog
 	transactionLLMCredentials runtimeconfig.TransactionLLMCredentialLookupFactory
@@ -59,9 +64,9 @@ type Service struct {
 
 // owners and reads are the owner and query seams of the Audit store on the
 // service's pool; a transaction builds the seams it uses from itself.
-func (s *Service) owners() *ownerstore.Store { return ownerstore.New(s.pool) }
+func (s *Service) owners() *ownerstore.Store { return ownerstore.New(s.pool, s.storage) }
 
-func (s *Service) reads() *querystore.Store { return querystore.New(s.pool) }
+func (s *Service) reads() *querystore.Store { return querystore.New(s.pool, s.storage) }
 
 type ProfileSelector struct {
 	Name    string `json:"name"`

@@ -39,7 +39,7 @@ func (h *findingHandlers) publishAuditFindingExport(w http.ResponseWriter, r *ht
 		handleError(w, err)
 		return
 	}
-	r, transfer, err := artifacttransfer.Acquire(w, r)
+	r, transfer, err := artifacttransfer.Acquire(w, r, h.Transfers)
 	if err != nil {
 		handleError(w, err)
 		return
@@ -82,7 +82,7 @@ func (h *findingHandlers) downloadFindingExportPart(w http.ResponseWriter, r *ht
 		handleError(w, err)
 		return
 	}
-	r, transfer, err := artifacttransfer.Acquire(w, r)
+	r, transfer, err := artifacttransfer.Acquire(w, r, h.Transfers)
 	if err != nil {
 		handleError(w, err)
 		return

@@ -12,9 +12,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
@@ -39,7 +40,7 @@ func failedResumeFixture(t *testing.T, ctx context.Context, pool *pgxpool.Pool, 
 // Stage and a failed tool Stage after it, and returns the failed Stage.
 func failedResumeFixtureOf(t *testing.T, ctx context.Context, pool *pgxpool.Pool, params CreateRunParams) (*PostgresStore, StageExecution) {
 	t.Helper()
-	store := NewPostgresStore(pool)
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
 	runID := params.RunID
 	run, err := createRun(ctx, store, params)
 	if err != nil {
@@ -49,7 +50,7 @@ func failedResumeFixtureOf(t *testing.T, ctx context.Context, pool *pgxpool.Pool
 		t.Fatal(err)
 	}
 	stageID := runID + "-stage"
-	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
+	service := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
 	scoped, _ := service.Run(runID)
 	written, err := scoped.Write(ctx, contracts.ArtifactRef{Namespace: "analysis", Name: "upstream"}, artifacts.Payload{MediaType: "text/plain", Data: []byte("retained successful output")}, nil)
 	if err != nil {
@@ -114,7 +115,7 @@ func failResumeStage(t *testing.T, ctx context.Context, store *PostgresStore, ru
 	if err := store.CompleteStageTermination(ctx, stageID); err != nil {
 		t.Fatal(err)
 	}
-	if err := artifactstest.FreezeOutputs(ctx, artifacts.NewService(artifactpostgres.NewRepository(store.db)), runID); err != nil {
+	if err := artifactstest.FreezeOutputs(ctx, artifacts.NewService(artifactpgtest.NewStorage().Repository(store.db)), runID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := store.RecordStageTransitionDecision(ctx, RecordStageTransitionDecisionParams{SourceExecutionID: stageID, RunID: runID, Action: StageTransitionFail}); err != nil {
@@ -138,7 +139,7 @@ func TestPostgresResumeFailedStageIsAtomicAndIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	artifactView, _ := artifacts.NewService(artifactpostgres.NewRepository(pool)).Run(before.RunID)
+	artifactView, _ := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool)).Run(before.RunID)
 	frozenMetadata, err := artifactView.Metadata(ctx, artifacts.ArtifactRef{Namespace: "outputs", Name: "upstream"})
 	if err != nil {
 		t.Fatal(err)
@@ -216,7 +217,7 @@ func TestPostgresResumeFailedStageIsAtomicAndIdempotent(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT frozen FROM artifact_bindings WHERE scope_kind='run' AND scope_id=$1 AND namespace='outputs' AND name='upstream'`, before.RunID).Scan(&frozen); err != nil || frozen {
 		t.Fatal("output not reopened", err)
 	}
-	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
+	service := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
 	scoped, _ := service.Run(before.RunID)
 	data, err := scoped.Read(ctx, *previous.StageContext.Artifacts["upstream"].Artifact)
 	if err != nil || string(data.Payload.Data) != "retained successful output" {
@@ -300,14 +301,14 @@ func TestPostgresResumeRequiresExactStageContextArtifacts(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedRunStorePool(t, ctx)
-	store := NewPostgresStore(pool)
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
 	for _, missing := range []bool{true, false} {
 		runID := fmt.Sprintf("run-resume-context-%t", missing)
 		run := createTestRun(t, ctx, store, runID)
 		if _, err := admitTestRun(ctx, store, runID); err != nil {
 			t.Fatal(err)
 		}
-		scoped, err := artifacts.NewService(artifactpostgres.NewRepository(pool)).Run(runID)
+		scoped, err := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool)).Run(runID)
 		if err != nil {
 			t.Fatal(err)
 		}

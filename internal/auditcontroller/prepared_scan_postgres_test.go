@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
@@ -163,7 +165,7 @@ func TestPostgresPreparedRulepackRefusedBeforeScanDispatch(t *testing.T) {
 			}
 			// The same exact material can be a retained dependency of an
 			// ordinary role. Source lookup changes, metadata authority does not.
-			access, err := NewProjectArtifactAccess(h.artifacts, hookstore.NewClaimedArtifacts(h.pool))
+			access, err := NewProjectArtifactAccess(h.artifacts, hookstore.NewClaimedArtifacts(h.pool, artifactpgtest.NewStorage()))
 			if err != nil {
 				t.Fatal(err)
 			}

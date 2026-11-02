@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -54,7 +56,7 @@ func TestPostgresToolParameterProjectionValidatesBeforeCreationAndPreservesStrin
 	if err != nil {
 		t.Fatal(err)
 	}
-	runs := runstore.NewPostgresStore(pool)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	service, err := New(Options{
 		Runs: runs, Workflows: manager, LLMCredentials: emptyCredentialLookup{},
 		CredentialGuard: openCredentialGuard{}, RuntimeCredentials: acceptRuntimeCredentials{},

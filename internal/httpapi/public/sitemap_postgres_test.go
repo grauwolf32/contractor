@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/getkin/kin-openapi/routers/gorillamux"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
@@ -16,6 +18,10 @@ import (
 )
 
 func TestPostgresPublicProjectSitemap(t *testing.T) {
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
 	ctx := t.Context()
 	pool := isolatedPublicPool(t, ctx)
 	projects := projectstore.NewPostgresStore(pool)
@@ -24,17 +30,18 @@ func TestPostgresPublicProjectSitemap(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	policy, _ := artifactpostgres.NewHistoryPolicy(2, artifactpostgres.DefaultHistoryMaxBytes)
+	artifactHistory = policy
+	artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
 	fixture := newHandlerFixtureWithAuth(t, "../../config/testdata/valid", newTestAuthentication(t), mustTestOrigins(t), false, nil, func(d *testServices) {
 		d.Projects = projects
-		d.Sitemap = projectsitemap.NewService(pool)
-		d.Artifacts = artifacts.NewService(artifactpostgres.NewRepository(pool))
+		d.Sitemap = projectsitemap.NewService(pool, artifactStorage)
+		d.Artifacts = artifacts.NewService(artifactStorage.Repository(pool))
 	})
 	router, err := gorillamux.NewRouter(loadPublicOpenAPI(t))
 	if err != nil {
 		t.Fatal(err)
 	}
-	policy, _ := artifactpostgres.NewHistoryPolicy(2, artifactpostgres.DefaultHistoryMaxBytes)
-	ctx = artifactpostgres.WithHistoryPolicy(ctx, policy)
 	send := func(method, path, key, body string, status int) []byte {
 		t.Helper()
 		request := newPublicContractRequest(method, path, []byte(body)).WithContext(ctx)

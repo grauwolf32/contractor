@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	artifactpolicy "github.com/grauwolf32/contractor/internal/artifacts/policy"
 	"github.com/grauwolf32/contractor/internal/auditservice"
@@ -658,7 +660,7 @@ func (f *fakeAuditManagement) ListReviews(
 }
 
 func auditTestHandler(audits AuditManagement) *auditHandlers {
-	return &auditHandlers{AuditDependencies: AuditDependencies{
+	return &auditHandlers{AuditDependencies: AuditDependencies{Transfers: artifactpgtest.NewStorage(),
 		Audits: audits, Projects: newFakeProjectStore(),
 		NewID: func(string) (string, error) { return "audit-fixed", nil },
 	}}
@@ -666,7 +668,7 @@ func auditTestHandler(audits AuditManagement) *auditHandlers {
 
 // findingTestHandler serves the finding proposals of the Audits of audits.
 func findingTestHandler(audits AuditReader, proposals FindingProposalManagement) *findingHandlers {
-	return &findingHandlers{FindingDependencies: FindingDependencies{
+	return &findingHandlers{FindingDependencies: FindingDependencies{Transfers: artifactpgtest.NewStorage(),
 		FindingProposals: proposals, FindingCollections: missingFindingCollections{}, FindingExports: missingFindingExports{},
 		Audits: audits, Runs: newFakeRunStore(),
 	}}

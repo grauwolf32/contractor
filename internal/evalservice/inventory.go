@@ -15,7 +15,7 @@ func (s *Service) Executions(ctx context.Context, owner, id, member, after strin
 		return out, evaldomain.Failure("eval_invalid")
 	}
 	err := pg.InTx(ctx, s.pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
-		st := evalstore.NewTxStore(tx)
+		st := evalstore.NewTxStore(tx, s.storage)
 		if err := refusePurging(ctx, st, owner, id); err != nil {
 			return err
 		}

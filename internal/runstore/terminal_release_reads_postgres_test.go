@@ -6,6 +6,8 @@ import (
 	"os"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/persistence/explaintest"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -47,7 +49,7 @@ CASE WHEN stage_execution_id='run-00001-stage-1' THEN 128 ELSE 4 END) n`,
 FROM pending JOIN stage_executions execution USING(stage_execution_id)
 ORDER BY pending.next_attempt_at, execution.stage_execution_id`
 	const busyStage = "run-00001-stage-1"
-	store := NewPostgresStore(pool)
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
 	for _, attempted := range []bool{false, true} {
 		if attempted {
 			if _, err := pool.Exec(ctx, `UPDATE stage_allocations SET release_attempted_at=timestamptz '2026-01-01 00:00:00Z'`); err != nil {

@@ -12,10 +12,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	. "github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -33,8 +34,8 @@ func TestPostgresIntegration64MiBPayloadBoundary(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
-	ctx = testBlobContext(t, ctx, pool)
-	service := NewService(artifactpostgres.NewRepository(pool))
+	artifactStorage := testBlobStorage(t, ctx, pool)
+	service := NewService(artifactStorage.Repository(pool))
 	user, _ := service.User("user-large-artifact")
 	data := make([]byte, 64<<20, (64<<20)+1)
 	data[0], data[len(data)-1] = 1, 255
@@ -64,9 +65,9 @@ func TestPostgresIntegrationInputForkAndHistoricalReads(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
-	ctx = testBlobContext(t, ctx, pool)
+	artifactStorage := testBlobStorage(t, ctx, pool)
 	createArtifactRun(t, ctx, pool, "run-fork", false)
-	service := NewService(artifactpostgres.NewRepository(pool))
+	service := NewService(artifactStorage.Repository(pool))
 	user, _ := service.User("user-1")
 	run, _ := service.Run("run-fork")
 
@@ -214,7 +215,7 @@ func TestPostgresIntegrationProjectInputForkPinsExactAndCurrentRevisions(t *test
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
-	ctx = testBlobContext(t, ctx, pool)
+	artifactStorage := testBlobStorage(t, ctx, pool)
 	projectID := "project-fork"
 	_, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{
 		ProjectID: projectID, OwnerID: "user-1", Kind: projectstore.KindProject,
@@ -225,7 +226,7 @@ func TestPostgresIntegrationProjectInputForkPinsExactAndCurrentRevisions(t *test
 		t.Fatalf("create Project: %v", err)
 	}
 	for _, runID := range []string{"run-project-exact", "run-project-current"} {
-		_, err := runstoretest.CreateRun(ctx, runstore.NewPostgresStore(pool), runstore.CreateRunParams{
+		_, err := runstoretest.CreateRun(ctx, runstore.NewPostgresStore(pool, artifactStorage), runstore.CreateRunParams{
 			LaneClass: resolved.LaneClassModel,
 			RunID:     runID, OwnerID: "user-1", ProjectID: &projectID,
 			WorkflowName: "artifact-copy", WorkflowVersion: "1",
@@ -240,7 +241,7 @@ func TestPostgresIntegrationProjectInputForkPinsExactAndCurrentRevisions(t *test
 	}
 	createArtifactRun(t, ctx, pool, "run-project-scope-mismatch", false)
 
-	service := NewService(artifactpostgres.NewRepository(pool))
+	service := NewService(artifactStorage.Repository(pool))
 	project, _ := service.Project(projectID)
 	first, err := project.Write(
 		ctx, ArtifactRef{Namespace: "sources", Name: "service"},
@@ -290,7 +291,7 @@ func TestPostgresIntegrationProjectScopeRevisions(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
-	ctx = testBlobContext(t, ctx, pool)
+	artifactStorage := testBlobStorage(t, ctx, pool)
 	_, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{
 		ProjectID: "project-artifacts", OwnerID: "user-1", Kind: projectstore.KindProject,
 		Name: "Artifacts", IdempotencyKey: "create-project-artifacts",
@@ -299,7 +300,7 @@ func TestPostgresIntegrationProjectScopeRevisions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	service := NewService(artifactpostgres.NewRepository(pool))
+	service := NewService(artifactStorage.Repository(pool))
 	project, err := service.Project("project-artifacts")
 	if err != nil {
 		t.Fatal(err)
@@ -337,8 +338,8 @@ func TestPostgresIntegrationListMetadataExcludesNamespaceBeforeLimit(t *testing.
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
-	ctx = testBlobContext(t, ctx, pool)
-	service := NewService(artifactpostgres.NewRepository(pool))
+	artifactStorage := testBlobStorage(t, ctx, pool)
+	service := NewService(artifactStorage.Repository(pool))
 	user, err := service.User("user-1")
 	if err != nil {
 		t.Fatal(err)
@@ -371,7 +372,7 @@ func TestPostgresIntegrationPublishesExactFrozenRunOutputToOwningProject(t *test
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
-	ctx = testBlobContext(t, ctx, pool)
+	artifactStorage := testBlobStorage(t, ctx, pool)
 	projectID := "project-output"
 	_, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{
 		ProjectID: projectID, OwnerID: "user-1", Kind: projectstore.KindProject,
@@ -381,7 +382,7 @@ func TestPostgresIntegrationPublishesExactFrozenRunOutputToOwningProject(t *test
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = runstoretest.CreateRun(ctx, runstore.NewPostgresStore(pool), runstore.CreateRunParams{
+	_, err = runstoretest.CreateRun(ctx, runstore.NewPostgresStore(pool, artifactStorage), runstore.CreateRunParams{
 		LaneClass: resolved.LaneClassModel,
 		RunID:     "run-project-output", OwnerID: "user-1", ProjectID: &projectID,
 		WorkflowName: "artifact-copy", WorkflowVersion: "1",
@@ -393,7 +394,7 @@ func TestPostgresIntegrationPublishesExactFrozenRunOutputToOwningProject(t *test
 	if err != nil {
 		t.Fatal(err)
 	}
-	service := NewService(artifactpostgres.NewRepository(pool))
+	service := NewService(artifactStorage.Repository(pool))
 	run, _ := service.Run("run-project-output")
 	workerResult, err := run.Write(
 		ctx, ArtifactRef{Namespace: "builder", Name: "openapi"},
@@ -440,7 +441,7 @@ func TestPostgresIntegrationDeletesReleasedTerminalRunWithoutSharedArtifacts(t *
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
-	ctx = testBlobContext(t, ctx, pool)
+	artifactStorage := testBlobStorage(t, ctx, pool)
 	projectID := "project-run-delete"
 	if _, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{
 		ProjectID: projectID, OwnerID: "user-1", Kind: projectstore.KindProject,
@@ -462,7 +463,7 @@ func TestPostgresIntegrationDeletesReleasedTerminalRunWithoutSharedArtifacts(t *
 		},
 		IdempotencyKey: "create-run-delete", RequestDigest: "sha256:" + strings.Repeat("b", 64),
 	}
-	runs := runstore.NewPostgresStore(pool)
+	runs := runstore.NewPostgresStore(pool, artifactStorage)
 	if _, created, err := runs.CreateRunIdempotent(ctx, runParams); err != nil || !created {
 		t.Fatalf("create deletion Run = created:%t error:%v", created, err)
 	}
@@ -477,7 +478,7 @@ func TestPostgresIntegrationDeletesReleasedTerminalRunWithoutSharedArtifacts(t *
 		t.Fatal(err)
 	}
 
-	service := NewService(artifactpostgres.NewRepository(pool))
+	service := NewService(artifactStorage.Repository(pool))
 	user, _ := service.User("user-1")
 	project, _ := service.Project(projectID)
 	run, _ := service.Run(runID)
@@ -567,7 +568,7 @@ INSERT INTO allocation_execution_reports (
 		t.Fatal(err)
 	}
 
-	deletions := rundeletion.New(pool)
+	deletions := rundeletion.New(pool, artifactStorage)
 	deletable, err := deletions.DeletableRuns(ctx, "user-1", []string{runID})
 	if err != nil || deletable[runID] {
 		t.Fatalf("release-pending Run deletable = (%v, %v)", deletable, err)
@@ -604,7 +605,7 @@ WHERE revision.scope_kind = 'run' AND revision.scope_id = $1
 	); err != nil {
 		t.Fatal(err)
 	}
-	if err := rundeletion.New(pool).DeleteReleasedTerminalRun(ctx, "user-1", runID); err != nil {
+	if err := rundeletion.New(pool, artifactStorage).DeleteReleasedTerminalRun(ctx, "user-1", runID); err != nil {
 		t.Fatalf("delete released terminal Run: %v", err)
 	}
 	if _, err := runs.GetRun(ctx, runID); !errors.Is(err, runstore.ErrNotFound) {
@@ -670,12 +671,12 @@ func TestPostgresIntegrationRunDeletionParticipatesInCallerTransaction(t *testin
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
-	ctx = testBlobContext(t, ctx, pool)
+	artifactStorage := testBlobStorage(t, ctx, pool)
 	const runID = "run-delete-rollback"
 	createArtifactRun(t, ctx, pool, runID, true)
 
-	runs := runstore.NewPostgresStore(pool)
-	service := NewService(artifactpostgres.NewRepository(pool))
+	runs := runstore.NewPostgresStore(pool, artifactStorage)
+	service := NewService(artifactStorage.Repository(pool))
 	run, _ := service.Run(runID)
 	written, err := run.Write(
 		ctx, ArtifactRef{Namespace: "scratch", Name: "rollback"},
@@ -693,14 +694,14 @@ func TestPostgresIntegrationRunDeletionParticipatesInCallerTransaction(t *testin
 
 	rollback := errors.New("rollback Run deletion")
 	err = persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		txRuns := runstore.NewPostgresStore(tx)
-		if err := rundeletion.New(tx).DeleteReleasedTerminalRun(ctx, "user-1", runID); err != nil {
+		txRuns := runstore.NewPostgresStore(tx, artifactStorage)
+		if err := rundeletion.New(tx, artifactStorage).DeleteReleasedTerminalRun(ctx, "user-1", runID); err != nil {
 			return err
 		}
 		if _, err := txRuns.GetRun(ctx, runID); !errors.Is(err, runstore.ErrNotFound) {
 			return fmt.Errorf("Run remains visible inside deletion transaction: %v", err)
 		}
-		txService := NewService(artifactpostgres.NewRepository(tx))
+		txService := NewService(artifactStorage.Repository(tx))
 		txRun, _ := txService.Run(runID)
 		if _, err := txRun.Read(ctx, written.Ref); !errors.Is(err, ErrArtifactNotFound) {
 			return fmt.Errorf("Run Artifact remains visible inside deletion transaction: %v", err)
@@ -729,8 +730,8 @@ func TestPostgresIntegrationArtifactCASRace(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
-	ctx = testBlobContext(t, ctx, pool)
-	service := NewService(artifactpostgres.NewRepository(pool))
+	artifactStorage := testBlobStorage(t, ctx, pool)
+	service := NewService(artifactStorage.Repository(pool))
 	user, _ := service.User("user-race")
 	initial, err := user.Write(
 		ctx,
@@ -783,7 +784,7 @@ func TestPostgresIntegrationConcurrentFirstScopeAndBlobWrites(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
-	ctx = testBlobContext(t, ctx, pool)
+	artifactStorage := testBlobStorage(t, ctx, pool)
 
 	t.Run("scope created by concurrent transaction", func(t *testing.T) {
 		createArtifactRun(t, ctx, pool, "run-scope-race", true)
@@ -791,7 +792,7 @@ func TestPostgresIntegrationConcurrentFirstScopeAndBlobWrites(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		first, _ := NewService(artifactpostgres.NewRepository(tx)).Run("run-scope-race")
+		first, _ := NewService(artifactStorage.Repository(tx)).Run("run-scope-race")
 		if _, err := first.Write(
 			ctx, ArtifactRef{Namespace: "builder", Name: "first"},
 			Payload{MediaType: "text/plain", Data: []byte("first payload")}, nil,
@@ -806,7 +807,7 @@ func TestPostgresIntegrationConcurrentFirstScopeAndBlobWrites(t *testing.T) {
 		}
 		defer conn.Release()
 		pid := postgresBackendPID(t, ctx, conn)
-		second, _ := NewService(artifactpostgres.NewRepository(conn)).Run("run-scope-race")
+		second, _ := NewService(artifactStorage.Repository(conn)).Run("run-scope-race")
 		done := make(chan error, 1)
 		go func() {
 			_, writeErr := second.Write(
@@ -824,7 +825,7 @@ func TestPostgresIntegrationConcurrentFirstScopeAndBlobWrites(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		first, _ := NewService(artifactpostgres.NewRepository(tx)).Run("run-blob-race")
+		first, _ := NewService(artifactStorage.Repository(tx)).Run("run-blob-race")
 		payload := Payload{MediaType: "text/plain", Data: []byte("shared payload")}
 		if _, err := first.Write(
 			ctx, ArtifactRef{Namespace: "builder", Name: "first"}, payload, nil,
@@ -839,7 +840,7 @@ func TestPostgresIntegrationConcurrentFirstScopeAndBlobWrites(t *testing.T) {
 		}
 		defer conn.Release()
 		pid := postgresBackendPID(t, ctx, conn)
-		second, _ := NewService(artifactpostgres.NewRepository(conn)).Run("run-blob-race")
+		second, _ := NewService(artifactStorage.Repository(conn)).Run("run-blob-race")
 		done := make(chan error, 1)
 		go func() {
 			_, writeErr := second.Write(
@@ -855,9 +856,9 @@ func TestPostgresIntegrationFreezeEmptyRunOutputs(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
-	ctx = testBlobContext(t, ctx, pool)
+	artifactStorage := testBlobStorage(t, ctx, pool)
 	createArtifactRun(t, ctx, pool, "run-empty-freeze", true)
-	service := NewService(artifactpostgres.NewRepository(pool))
+	service := NewService(artifactStorage.Repository(pool))
 	if err := artifactstest.FreezeOutputs(ctx, service, "run-empty-freeze"); err != nil {
 		t.Fatalf("freeze empty Run outputs: %v", err)
 	}
@@ -876,9 +877,9 @@ func TestPostgresIntegrationSkillForkUsesExactSourceAndReservedTarget(t *testing
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
-	ctx = testBlobContext(t, ctx, pool)
+	artifactStorage := testBlobStorage(t, ctx, pool)
 	createArtifactRun(t, ctx, pool, "run-skill-fork", false)
-	service := NewService(artifactpostgres.NewRepository(pool))
+	service := NewService(artifactStorage.Repository(pool))
 	user, _ := service.User("user-1")
 	first, err := user.Write(
 		ctx,
@@ -989,9 +990,9 @@ func TestPostgresIntegrationOutputBindingSharesCallerTransaction(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
-	ctx = testBlobContext(t, ctx, pool)
+	artifactStorage := testBlobStorage(t, ctx, pool)
 	createArtifactRun(t, ctx, pool, "run-output", true)
-	service := NewService(artifactpostgres.NewRepository(pool))
+	service := NewService(artifactStorage.Repository(pool))
 	run, _ := service.Run("run-output")
 
 	selected, err := run.Write(
@@ -1015,7 +1016,7 @@ func TestPostgresIntegrationOutputBindingSharesCallerTransaction(t *testing.T) {
 
 	rollback := errors.New("rollback output")
 	err = persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		txService := NewService(artifactpostgres.NewRepository(tx))
+		txService := NewService(artifactStorage.Repository(tx))
 		if _, err := artifactstest.BindOutput(ctx, txService, "run-output", "result", selected.Ref); err != nil {
 			return err
 		}
@@ -1033,14 +1034,14 @@ func TestPostgresIntegrationOutputBindingSharesCallerTransaction(t *testing.T) {
 	}
 
 	err = persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		txService := NewService(artifactpostgres.NewRepository(tx))
+		txService := NewService(artifactStorage.Repository(tx))
 		if _, err := artifactstest.BindOutput(ctx, txService, "run-output", "result", selected.Ref); err != nil {
 			return err
 		}
 		if err := artifactstest.FreezeOutputs(ctx, txService, "run-output"); err != nil {
 			return err
 		}
-		_, err := runstore.NewPostgresStore(tx).TransitionRun(
+		_, err := runstore.NewPostgresStore(tx, artifactStorage).TransitionRun(
 			ctx, "run-output", runstore.RunRunning, runstore.RunSucceeded,
 			runstore.Reason{Code: "outputs_frozen"},
 		)
@@ -1077,7 +1078,7 @@ func createArtifactRun(
 	start bool,
 ) {
 	t.Helper()
-	store := runstore.NewPostgresStore(pool)
+	store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	_, err := runstoretest.CreateRun(ctx, store, runstore.CreateRunParams{
 		LaneClass: resolved.LaneClassModel,
 		RunID:     runID, OwnerID: "user-1", WorkflowName: "artifact-copy", WorkflowVersion: "1",

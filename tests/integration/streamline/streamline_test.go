@@ -15,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
@@ -41,7 +43,7 @@ func TestPostgresGatewayWorkerFlowRecoversWithoutSemanticReplay(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedPool(t, ctx)
-	store := runstore.NewPostgresStore(pool)
+	store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	createStage(t, ctx, store)
 
 	const gatewayToken = "sk-streamline-integration-secret"
@@ -83,7 +85,7 @@ func TestPostgresGatewayWorkerFlowRecoversWithoutSemanticReplay(t *testing.T) {
 
 	// Simulate a process restart with fresh adapters over the same PostgreSQL
 	// state. Completed recovery must bypass ADK, Gateway, and Workers.
-	restartedSessions, err := plannersession.New(runstore.NewPostgresStore(pool), plannersession.Options{})
+	restartedSessions, err := plannersession.New(runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()), plannersession.Options{})
 	if err != nil {
 		t.Fatal(err)
 	}

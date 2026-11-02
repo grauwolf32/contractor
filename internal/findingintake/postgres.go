@@ -298,7 +298,7 @@ func (s *Service) ImportIntoAudit(
 	var replayed bool
 	err := s.importTransaction(ctx, func(tx pgx.Tx) error {
 		hold, replayed = AuditHold{}, false
-		if err := lockFindingImportAuthority(ctx, tx, request, false); err != nil {
+		if err := lockFindingImportAuthority(ctx, tx, request, false, s.storage); err != nil {
 			return err
 		}
 		var err error
@@ -393,7 +393,7 @@ func (s *Service) retainAuditCollectionPrefix(
 	committed := 0
 	err := s.importTransaction(ctx, func(tx pgx.Tx) error {
 		committed = 0
-		if err := lockFindingImportAuthority(ctx, tx, requests[0], true); err != nil {
+		if err := lockFindingImportAuthority(ctx, tx, requests[0], true, s.storage); err != nil {
 			return err
 		}
 		work := 0
@@ -403,7 +403,7 @@ func (s *Service) retainAuditCollectionPrefix(
 			}
 			if rejection != nil && index == rejection.index {
 				committed = index + 1
-				return rejectAuditCollectionWithTx(ctx, tx, request, rejection.reason)
+				return rejectAuditCollectionWithTx(ctx, tx, request, rejection.reason, s.storage)
 			}
 			hold, replayed, err := s.importIntoAuditWithTx(ctx, tx, request, true)
 			var unretainable *unretainableProposal
@@ -473,6 +473,7 @@ func validImportRequest(request ImportRequest) bool {
 // Audit purge use, and then the Project's finding correlation fence.
 func lockFindingImportAuthority(
 	ctx context.Context, tx pgx.Tx, request ImportRequest, collection bool,
+	storage *artifactpostgres.Storage,
 ) error {
 	var sourceProjectID string
 	err := tx.QueryRow(ctx, `
@@ -485,7 +486,7 @@ SELECT project_id FROM workflow_runs
 	if err != nil {
 		return fmt.Errorf("lock source Run for Audit finding import: %w", err)
 	}
-	auditState, err := lockFindingAudit(ctx, tx, request.OwnerID, request.AuditID, sourceProjectID)
+	auditState, err := lockFindingAudit(ctx, tx, request.OwnerID, request.AuditID, sourceProjectID, storage)
 	if err != nil {
 		return err
 	}
@@ -497,7 +498,7 @@ SELECT project_id FROM workflow_runs
 	// so take the fence, which shares the Project row without waiting, before
 	// any retained artifact write; otherwise a Project deleter can wait on our
 	// Audit while its parent lock blocks that artifact admission.
-	if err := hookstore.NewFindingEventsTx(tx).LockFindingCorrelationFence(ctx, sourceProjectID); err != nil {
+	if err := hookstore.NewFindingEventsTx(tx, storage).LockFindingCorrelationFence(ctx, sourceProjectID); err != nil {
 		return fmt.Errorf("lock Project correlation before finding retention: %w", err)
 	}
 	return nil
@@ -506,8 +507,8 @@ SELECT project_id FROM workflow_runs
 // lockFindingAudit takes the destination-Audit lock of finding intake through
 // auditstore, which owns the Audit row, and returns the Audit's state. An
 // empty projectID admits an Audit of any Project.
-func lockFindingAudit(ctx context.Context, tx pgx.Tx, ownerID, auditID, projectID string) (string, error) {
-	state, err := hookstore.NewFindingEventsTx(tx).LockFindingIntakeAudit(ctx, ownerID, auditID, projectID)
+func lockFindingAudit(ctx context.Context, tx pgx.Tx, ownerID, auditID, projectID string, storage *artifactpostgres.Storage) (string, error) {
+	state, err := hookstore.NewFindingEventsTx(tx, storage).LockFindingIntakeAudit(ctx, ownerID, auditID, projectID)
 	if errors.Is(err, auditstore.ErrNotFound) {
 		return "", ErrNotFound
 	}
@@ -554,7 +555,7 @@ func (s *Service) importIntoAuditWithTx(
 		Ref: sourceProposal, Digest: proposalDigest,
 		MediaType: proposalMediaType, SizeBytes: proposalSizeBytes,
 	}
-	artifactService := artifacts.NewService(artifactpostgres.NewRepository(tx))
+	artifactService := artifacts.NewService(s.storage.Repository(tx))
 	var heldProposalJSON, heldEvidenceJSON []byte
 	var createdAt time.Time
 	replayed := false
@@ -654,7 +655,7 @@ RETURNING created_at`, receiptID, request.AuditID, projectID, proposalJSON, reta
 			artifacts.Payload{MediaType: "application/json", Data: history}); err != nil {
 			return AuditHold{}, false, err
 		}
-		if err := hookstore.NewFindingEventsTx(tx).RecordFindingSourceAdded(ctx, request.AuditID, receiptID, request.RunID); err != nil {
+		if err := hookstore.NewFindingEventsTx(tx, s.storage).RecordFindingSourceAdded(ctx, request.AuditID, receiptID, request.RunID); err != nil {
 			return AuditHold{}, false, err
 		}
 	}
@@ -664,7 +665,7 @@ RETURNING created_at`, receiptID, request.AuditID, projectID, proposalJSON, reta
 		InvocationID: invocationID, ClientKey: clientKey,
 		WorkflowClosureDigest: workflowClosureDigest,
 		Proposal:              proposalSource,
-	}); err != nil {
+	}, s.storage); err != nil {
 		return AuditHold{}, false, err
 	}
 	return result, replayed, nil
@@ -684,20 +685,20 @@ func (s *Service) RejectAuditCollection(
 		return ErrInvalid
 	}
 	return persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		auditState, err := lockFindingAudit(ctx, tx, request.OwnerID, request.AuditID, "")
+		auditState, err := lockFindingAudit(ctx, tx, request.OwnerID, request.AuditID, "", s.storage)
 		if err != nil {
 			return err
 		}
 		if !slices.Contains(collectionRetentionAuditStates, auditState) {
 			return ErrAuditClosed
 		}
-		return rejectAuditCollectionWithTx(ctx, tx, request, reason)
+		return rejectAuditCollectionWithTx(ctx, tx, request, reason, s.storage)
 	})
 }
 
 // rejectAuditCollectionWithTx records one rejection in tx, which holds the
 // destination Audit lock for a state that admits collection.
-func rejectAuditCollectionWithTx(ctx context.Context, tx pgx.Tx, request ImportRequest, reason string) error {
+func rejectAuditCollectionWithTx(ctx context.Context, tx pgx.Tx, request ImportRequest, reason string, storage *artifactpostgres.Storage) error {
 	requestedProposal, _ := json.Marshal(request.Proposal)
 	var receiptID string
 	var recorded bool
@@ -719,7 +720,7 @@ SELECT receipt.receipt_id, EXISTS (
 	if err != nil || recorded {
 		return err
 	}
-	return hookstore.NewFindingEvents(tx).RecordRejectedFindingProposal(ctx,
+	return hookstore.NewFindingEvents(tx, storage).RecordRejectedFindingProposal(ctx,
 		auditstore.RejectedFindingProposalParams{
 			AuditID: request.AuditID, ReceiptID: receiptID,
 			RunID: request.RunID, Reason: reason,

@@ -7,6 +7,8 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
@@ -18,8 +20,8 @@ import (
 func TestPostgresSitemapSnapshotRebindsReportEvidenceToAuthorizedOriginalInput(t *testing.T) {
 	pool := sitemapPool(t)
 	ctx := t.Context()
-	service := NewService(pool)
-	stores := artifacts.NewService(artifactpostgres.NewRepository(pool))
+	service := NewService(pool, artifactpgtest.NewStorage())
+	stores := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
 	payload := []byte("opaque observation evidence\x00\xff")
 	var report contracts.ArtifactRef
 	for _, runID := range []string{"producer", "repeat-producer"} {
@@ -91,14 +93,14 @@ func TestPostgresSitemapSnapshotRebindsReportEvidenceToAuthorizedOriginalInput(t
 	}
 	// Purge both original producers before materializing; snapshot only needs
 	// its explicitly selected local original fork and must never reread them.
-	runs := runstore.NewPostgresStore(pool)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	for _, runID := range []string{"producer", "repeat-producer"} {
 		for _, transition := range [][2]runstore.WorkflowRunState{{runstore.RunInitializing, runstore.RunPending}, {runstore.RunPending, runstore.RunRunning}, {runstore.RunRunning, runstore.RunSucceeded}} {
 			if _, err := runs.TransitionRun(ctx, runID, transition[0], transition[1], runstore.Reason{Code: "fixture-complete"}); err != nil {
 				t.Fatal(err)
 			}
 		}
-		if err := rundeletion.New(pool).DeleteReleasedTerminalRun(ctx, "owner", runID); err != nil {
+		if err := rundeletion.New(pool, artifactpgtest.NewStorage()).DeleteReleasedTerminalRun(ctx, "owner", runID); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -140,7 +142,8 @@ func TestPostgresSitemapSnapshotRebindsReportEvidenceToAuthorizedOriginalInput(t
 		t.Fatalf("snapshot lost original report bytes: %v", err)
 	}
 	limited, _ := artifactpostgres.NewHistoryPolicy(2, artifactpostgres.DefaultHistoryMaxBytes)
-	if _, err := run.Write(artifactpostgres.WithHistoryPolicy(ctx, limited), contracts.ArtifactRef{Namespace: "inputs", Name: "selected-report"}, artifacts.Payload{MediaType: "application/json", Data: []byte(`{"changed":2}`)}, working.Ref.Revision); err != nil {
+	limitedRun, _ := artifacts.NewService(artifactpgtest.NewConfigured(artifactpgtest.NewRuntime(), limited).Repository(pool)).Run(access.RunID)
+	if _, err := limitedRun.Write(ctx, contracts.ArtifactRef{Namespace: "inputs", Name: "selected-report"}, artifacts.Payload{MediaType: "application/json", Data: []byte(`{"changed":2}`)}, working.Ref.Revision); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := run.Read(ctx, working.Ref); !errors.Is(err, artifacts.ErrArtifactNotFound) {

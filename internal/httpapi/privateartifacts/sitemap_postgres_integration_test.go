@@ -11,8 +11,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
@@ -30,7 +31,7 @@ func createPrivateSitemapProjectRun(t *testing.T, ctx context.Context, pool *pgx
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = runstoretest.CreateRun(ctx, runstore.NewPostgresStore(pool), runstore.CreateRunParams{RunID: run, OwnerID: "user-1", ProjectID: &project, LaneClass: resolved.LaneClassModel, WorkflowName: "sitemap", WorkflowVersion: "1", WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: []byte(`{"ref":{"name":"sitemap","version":"1"}}`), RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot()})
+	_, err = runstoretest.CreateRun(ctx, runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()), runstore.CreateRunParams{RunID: run, OwnerID: "user-1", ProjectID: &project, LaneClass: resolved.LaneClassModel, WorkflowName: "sitemap", WorkflowVersion: "1", WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: []byte(`{"ref":{"name":"sitemap","version":"1"}}`), RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -41,8 +42,8 @@ func TestPostgresPrivateSitemapRolesSafeBytesScopeAndFence(t *testing.T) {
 	pool := isolatedPrivateArtifactPool(t, ctx)
 	createPrivateSitemapProjectRun(t, ctx, pool, "project-a", "run-a")
 	createPrivateSitemapProjectRun(t, ctx, pool, "project-b", "run-b")
-	service := projectsitemap.NewService(pool)
-	artifactService := artifacts.NewService(artifactpostgres.NewRepository(pool))
+	service := projectsitemap.NewService(pool, artifactpgtest.NewStorage())
+	artifactService := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
 	registry := &fakeRegistry{grant: testGrant("run-a")}
 	registry.grant.SitemapPolicy = &contracts.ProjectSitemapPolicy{Version: contracts.SitemapAccessVersion}
 	setTools := func(tools ...string) {
@@ -55,7 +56,7 @@ func TestPostgresPrivateSitemapRolesSafeBytesScopeAndFence(t *testing.T) {
 		}
 	}
 	setTools(contracts.SitemapListTool)
-	handler, err := NewHandler(Dependencies{Registry: registry, Artifacts: artifactService, Sitemap: service, RunProjects: runstore.NewPostgresStore(pool), Projects: projectstore.NewPostgresStore(pool)})
+	handler, err := NewHandler(Dependencies{Transfers: artifactpgtest.NewStorage(), Registry: registry, Artifacts: artifactService, Sitemap: service, RunProjects: runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()), Projects: projectstore.NewPostgresStore(pool)})
 	if err != nil {
 		t.Fatal(err)
 	}

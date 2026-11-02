@@ -7,6 +7,8 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -46,7 +48,7 @@ func TestSharedPostgresNextMembersReadsBatchInOneQuery(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer traced.Close()
-	reader := NewPostgresStore(traced)
+	reader := NewPostgresStore(traced, artifactpgtest.NewStorage())
 	got, err := reader.NextMembers(ctx, e.OwnerID, e.ID, len(want))
 	if err != nil {
 		t.Fatal(err)
@@ -91,18 +93,18 @@ func TestSharedPostgresFrozenPlanRestoresStoredDocumentWithoutRevalidation(t *te
 	if _, err := evaldomain.Freeze("ExternalRegistration", stored); !code(err, "eval_invalid") {
 		t.Fatalf("probe kept the stored plan schema-valid: %v", err)
 	}
-	plan, err := NewPostgresStore(pool).FrozenPlan(ctx, e.OwnerID, e.ID)
+	plan, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).FrozenPlan(ctx, e.OwnerID, e.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if plan.Document.Kind() != "ExternalRegistration" || !bytes.Equal(plan.Document.Bytes(), stored) || plan.Document.Digest() != digest || plan.SHA256 != identity {
 		t.Fatalf("restored plan kind=%s digest=%s identity=%s", plan.Document.Kind(), plan.Document.Digest(), plan.SHA256)
 	}
-	metadata, err := NewPostgresStore(pool).FrozenPlanMetadata(ctx, e.OwnerID, e.ID)
+	metadata, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).FrozenPlanMetadata(ctx, e.OwnerID, e.ID)
 	if err != nil || metadata.SHA256 != plan.SHA256 || !bytes.Equal(metadata.Setup, plan.Setup) {
 		t.Fatalf("metadata differs from full plan: %+v, %v", metadata, err)
 	}
-	if _, err := NewPostgresStore(pool).FrozenPlanMetadata(ctx, "other-owner", e.ID); !code(err, "eval_not_found") {
+	if _, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).FrozenPlanMetadata(ctx, "other-owner", e.ID); !code(err, "eval_not_found") {
 		t.Fatalf("metadata crossed owner boundary: %v", err)
 	}
 	if digest != evaldomain.Digest(stored) {

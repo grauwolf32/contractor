@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/configload/configloadtest"
@@ -45,7 +47,7 @@ func TestPlacementPostgresToolWorkerWithoutModel(t *testing.T) {
 	if err != nil || len(reservations) != 1 {
 		t.Fatalf("model-free reservations = (%+v, %v)", reservations, err)
 	}
-	allocations, err := runstore.NewPostgresStore(pool).ListStageAllocations(ctx, fixture.stageExecutionID)
+	allocations, err := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()).ListStageAllocations(ctx, fixture.stageExecutionID)
 	if err != nil || len(allocations) != 1 || allocations[0].RuntimeConfiguration == nil {
 		t.Fatalf("model-free durable allocations = (%+v, %v)", allocations, err)
 	}

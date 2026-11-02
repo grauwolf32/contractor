@@ -10,6 +10,8 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
@@ -60,7 +62,7 @@ func TestPostgresAuditWorkspace(t *testing.T) {
 		if err != nil || link.Scope != artifacts.ScopeAudit {
 			t.Fatalf("accepted scope: %+v %v", link, err)
 		}
-		if err := rundeletion.New(h.pool).DeleteReleasedTerminalRun(ctx, h.started.Audit.OwnerID, output.RunID); err != nil {
+		if err := rundeletion.New(h.pool, artifactpgtest.NewStorage()).DeleteReleasedTerminalRun(ctx, h.started.Audit.OwnerID, output.RunID); err != nil {
 			t.Fatal(err)
 		}
 		read, err := child.ReadExact(ctx, copied.Exact())
@@ -98,7 +100,7 @@ func TestPostgresAuditWorkspace(t *testing.T) {
 		preparationStep(t, ctx, c)
 		preparationStep(t, ctx, c)
 		for _, execution := range preparationExecutions(t, ctx, h, 2) {
-			if err := rundeletion.New(h.pool).DeleteReleasedTerminalRun(ctx, audit.OwnerID, *execution.RunID); err != nil {
+			if err := rundeletion.New(h.pool, artifactpgtest.NewStorage()).DeleteReleasedTerminalRun(ctx, audit.OwnerID, *execution.RunID); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -265,6 +267,10 @@ func TestPostgresAuditMaterialConcurrentSources(t *testing.T) {
 }
 
 func TestPostgresAuditMaterialPublicationMaintainsHistoryAfterRollback(t *testing.T) {
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
 	ctx, h, _, output, _ := workspaceFixture(t)
 	a := h.started.Audit
 	project, _ := h.artifacts.Project(a.ProjectID)
@@ -281,7 +287,12 @@ func TestPostgresAuditMaterialPublicationMaintainsHistoryAfterRollback(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx = artifactpostgres.WithHistoryPolicy(ctx, policy)
+	artifactHistory = policy
+	artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+	h.service, err = auditservice.New(auditservice.Options{Storage: artifactStorage, Pool: h.pool, Profiles: h.snapshot, TransactionLLMCredentials: controllerTransactionCredentialLookup(), CredentialGuard: controllerCredentialGuard{}})
+	if err != nil {
+		t.Fatal(err)
+	}
 	request := auditservice.MaterialPublicationRequest{AuditID: a.AuditID, Source: output.Output.Retained.Ref, Target: target}
 	for range 2 {
 		_, err := h.service.PublishMaterial(ctx, a.OwnerID, a.ProjectID, "maintenance", request, current)

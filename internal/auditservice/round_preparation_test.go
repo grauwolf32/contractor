@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/auditstore"
 )
 
@@ -19,7 +21,7 @@ func TestPrepareNextRoundReportsInconsistentSnapshots(t *testing.T) {
 		"undecodable profile": {Audit: audit, Round: &auditstore.Round{RoundID: roundID, State: auditstore.RoundClosed}},
 	} {
 		t.Run(name, func(t *testing.T) {
-			params, reason, err := (&Service{}).PrepareNextRound(t.Context(), claim, snapshot)
+			params, reason, err := (&Service{storage: artifactpgtest.NewStorage()}).PrepareNextRound(t.Context(), claim, snapshot)
 			var inconsistent *RoundPreparationError
 			if params.RoundID != "" || reason != nil || !errors.Is(err, ErrRoundPreparationInconsistent) ||
 				!errors.As(err, &inconsistent) || inconsistent.Diagnostic == "" ||

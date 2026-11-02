@@ -21,6 +21,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/localpki"
@@ -1188,7 +1190,7 @@ func assertProjectRunDurable(
 	outputSlots map[string]string,
 ) projectRunEvidence {
 	t.Helper()
-	store := runstore.NewPostgresStore(pool)
+	store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	executions, err := store.ListStageExecutions(ctx, runID)
 	if err != nil || len(executions) != len(stages) {
 		t.Fatalf("StageExecutions = (%+v, %v), want %d", executions, err, len(stages))

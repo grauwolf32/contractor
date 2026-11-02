@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -20,7 +22,7 @@ func TestPostgresResumeEscalatedStage(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 			pool := isolatedRunStorePool(t, ctx)
-			store := NewPostgresStore(pool)
+			store := NewPostgresStore(pool, artifactpgtest.NewStorage())
 			runID := "review-resume"
 			run := createTestRun(t, ctx, store, runID)
 			if _, err := admitTestRun(ctx, store, runID); err != nil {
@@ -57,7 +59,7 @@ func TestPostgresResumeEscalatedStage(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			_, err = NewPostgresStore(tx).CreateStageExecution(ctx, CreateStageExecutionParams{
+			_, err = NewPostgresStore(tx, artifactpgtest.NewStorage()).CreateStageExecution(ctx, CreateStageExecutionParams{
 				LaneClass:        resolved.LaneClassModel,
 				StageExecutionID: "forged-manual", RunID: runID, StageName: previous.StageName,
 				Attempt: previous.Attempt + 1, PreviousExecutionID: &stageID, ResumeSourceExecutionID: &stageID,
@@ -117,7 +119,7 @@ func TestPostgresResumeEscalatedStage(t *testing.T) {
 			}
 			failResumeStage(t, ctx, store, runID, latest.StageExecutionID)
 			if err := persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-				locked := NewPostgresTxStore(tx)
+				locked := NewPostgresTxStore(tx, artifactpgtest.NewStorage())
 				if _, err := locked.LockRunForDeletion(ctx, run.OwnerID, runID); err != nil {
 					return err
 				}

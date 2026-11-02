@@ -15,6 +15,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 	"github.com/grauwolf32/contractor/internal/helpers/pagelimit"
+	"github.com/grauwolf32/contractor/internal/httpapi/artifacttransfer"
 )
 
 type AuditManagement interface {
@@ -62,9 +63,10 @@ type AuditManagement interface {
 // items, coverage, events, findings, reviews and reports, and the owner-wide
 // Audit, finding and review lists.
 type AuditDependencies struct {
-	Audits   AuditManagement
-	Projects ProjectReader
-	NewID    func(string) (string, error)
+	Transfers artifacttransfer.Admission
+	Audits    AuditManagement
+	Projects  ProjectReader
+	NewID     func(string) (string, error)
 }
 
 type auditHandlers struct {

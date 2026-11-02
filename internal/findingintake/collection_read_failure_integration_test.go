@@ -9,6 +9,9 @@ import (
 	"strings"
 	"testing"
 
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	inline "github.com/grauwolf32/contractor/internal/artifacts/blob/backends/postgres"
@@ -33,7 +36,7 @@ func TestPostgresCollectionIsolatesProposalReadFailures(t *testing.T) {
 			blobs := &collectionFaultBlobStore{Storage: inline.Store{},
 				digest: strings.TrimPrefix(bad.Proposal.Digest, "sha256:"), err: scenario.err,
 			}
-			f.ctx = blob.WithRuntime(f.ctx, blob.NewRuntime(blobs, nil))
+			f.intake.storage = artifactpgtest.NewConfigured(blob.NewRuntime(blobs, nil), artifactpostgres.DefaultHistoryPolicy())
 			err := collectFixtureProposals(f.ctx, f, false)
 			if scenario.reason == "" {
 				if !errors.Is(err, transient) {

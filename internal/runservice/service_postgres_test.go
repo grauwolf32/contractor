@@ -15,10 +15,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/config"
@@ -51,7 +52,7 @@ func TestPostgresTrustedAuditRunIsAtomicReplayableAndPinsExactSkill(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	artifactService := artifacts.NewService(artifactpostgres.NewRepository(pool))
+	artifactService := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
 	projectArtifacts, err := artifactService.Project(project.ProjectID)
 	if err != nil {
 		t.Fatal(err)
@@ -84,7 +85,7 @@ func TestPostgresTrustedAuditRunIsAtomicReplayableAndPinsExactSkill(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	audits := auditstoretest.NewStore(pool)
+	audits := auditstoretest.NewStore(pool, artifactpgtest.NewStorage())
 	draft, _, err := audits.CreateDraft(ctx, auditstore.CreateDraftParams{
 		AuditID: "audit-run-service", OwnerID: "owner-run-service", ProjectID: project.ProjectID,
 		Profile:         auditstore.ProfileIdentity{Name: "test", Version: "1", Digest: testDigest("2")},
@@ -163,7 +164,7 @@ func TestPostgresTrustedAuditRunIsAtomicReplayableAndPinsExactSkill(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := runstore.NewPostgresStore(pool).CreateAuditRun(ctx, runstore.CreateAuditRunParams{
+	if _, err := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()).CreateAuditRun(ctx, runstore.CreateAuditRunParams{
 		CreateRunParams: runstore.CreateRunParams{
 			LaneClass: resolved.LaneClassModel,
 			RunID:     "run-orphan-must-rollback", OwnerID: project.OwnerID, ProjectID: &project.ProjectID,
@@ -176,7 +177,7 @@ func TestPostgresTrustedAuditRunIsAtomicReplayableAndPinsExactSkill(t *testing.T
 	}); persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation {
 		t.Fatalf("unbound Audit-managed Run error = %v", err)
 	}
-	if _, err := runstore.NewPostgresStore(pool).GetRun(ctx, "run-orphan-must-rollback"); !errors.Is(err, runstore.ErrNotFound) {
+	if _, err := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()).GetRun(ctx, "run-orphan-must-rollback"); !errors.Is(err, runstore.ErrNotFound) {
 		t.Fatalf("unbound Audit-managed Run committed: %v", err)
 	}
 	// Advance the logical binding before dispatch. The trusted path must retain
@@ -191,7 +192,7 @@ func TestPostgresTrustedAuditRunIsAtomicReplayableAndPinsExactSkill(t *testing.T
 	}
 
 	service, err := New(Options{
-		Runs: runstore.NewPostgresStore(pool), Workflows: manager,
+		Runs: runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()), Workflows: manager,
 		LLMCredentials: emptyCredentialLookup{}, CredentialGuard: openCredentialGuard{},
 		RuntimeCredentials: acceptRuntimeCredentials{}, Projects: projects,
 		SkillInitializationAvailable: true,
@@ -234,7 +235,7 @@ func TestPostgresTrustedAuditRunIsAtomicReplayableAndPinsExactSkill(t *testing.T
 		results[0].Created == results[1].Created {
 		t.Fatalf("concurrent create results = %+v / %+v, generated=%d", results[0], results[1], generated.Load())
 	}
-	stored, err := runstore.NewPostgresStore(pool).GetRun(ctx, results[0].Run.RunID)
+	stored, err := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()).GetRun(ctx, results[0].Run.RunID)
 	if err != nil || !slices.Equal(stored.RequiredPlacementLabels, []string{"cloud/aws"}) {
 		t.Fatalf("child placement requirement = %v, %v", stored.RequiredPlacementLabels, err)
 	}
@@ -305,8 +306,8 @@ func postgresPublicTransaction(pool *pgxpool.Pool) PublicTransaction {
 				return err
 			}
 			return fn(
-				runstore.NewRunCreationPostgresStore(tx, lookup, credentials.NewRuntimeCredentialRepository(tx)),
-				artifacts.NewService(artifactpostgres.NewRepository(tx)),
+				runstore.NewRunCreationPostgresStore(tx, lookup, credentials.NewRuntimeCredentialRepository(tx), artifactpgtest.NewStorage()),
+				artifacts.NewService(artifactpgtest.NewStorage().Repository(tx)),
 			)
 		})
 	}
@@ -316,8 +317,8 @@ func postgresAuditTransaction(pool *pgxpool.Pool) AuditTransaction {
 	return func(ctx context.Context, fn func(AuditRunWriter, *artifacts.Service, AuditExecutionWriter) error) error {
 		return persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 			return fn(
-				runstore.NewPostgresTxStore(tx), artifacts.NewService(artifactpostgres.NewRepository(tx)),
-				auditstoretest.NewStore(tx),
+				runstore.NewPostgresTxStore(tx, artifactpgtest.NewStorage()), artifacts.NewService(artifactpgtest.NewStorage().Repository(tx)),
+				auditstoretest.NewStore(tx, artifactpgtest.NewStorage()),
 			)
 		})
 	}

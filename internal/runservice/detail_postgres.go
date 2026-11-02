@@ -22,7 +22,7 @@ import (
 // all of them. The transaction takes no row locks and writes nothing, so it
 // cannot fail with a serialization conflict and is never retried. Every
 // reader uses the transaction's connection, never a second one from pool.
-func PostgresRunDetailTransaction(pool *pgxpool.Pool) RunDetailTransaction {
+func PostgresRunDetailTransaction(pool *pgxpool.Pool, storage *artifactpostgres.Storage) RunDetailTransaction {
 	return func(ctx context.Context, fn func(RunDetailStores) error) error {
 		if pool == nil {
 			return fmt.Errorf("%w: Run detail database is missing", ErrNotConfigured)
@@ -30,14 +30,14 @@ func PostgresRunDetailTransaction(pool *pgxpool.Pool) RunDetailTransaction {
 		return persistencepostgres.InTx(ctx, pool, pgx.TxOptions{
 			IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly,
 		}, func(tx pgx.Tx) error {
-			runs := runstore.NewPostgresStore(tx)
+			runs := runstore.NewPostgresStore(tx, storage)
 			plans, err := plannersession.New(runs, plannersession.Options{})
 			if err != nil {
 				return err
 			}
 			return fn(RunDetailStores{
-				Runs: runs, Deletion: rundeletion.New(tx),
-				Artifacts: artifacts.NewService(artifactpostgres.NewRepository(tx)),
+				Runs: runs, Deletion: rundeletion.New(tx, storage),
+				Artifacts: artifacts.NewService(storage.Repository(tx)),
 				Plans:     plans, Metrics: savepointStageMetrics{tx: tx},
 				Resources: telemetry.NewRepository(tx),
 				Recovery: func(ctx context.Context, runID string) (*gatewayrecovery.Status, error) {

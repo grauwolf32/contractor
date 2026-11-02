@@ -15,9 +15,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
@@ -143,10 +144,10 @@ func TestPostgresRunCreationAnswersSkillFailuresWithTheirCodes(t *testing.T) {
 	root := copyPublicConfigTree(t)
 	selectSkills(t, filepath.Join(root, "agent-templates", "artifact_builder.yaml"),
 		"  sandboxProfile: local-workdir@1\n", selectedSkills...)
-	runs := runstore.NewPostgresStore(pool)
-	artifactService := artifacts.NewService(artifactpostgres.NewRepository(pool))
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
+	artifactService := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
 	projects := projectstore.NewPostgresStore(pool)
-	details, err := runservice.NewRunDetailReader(runservice.PostgresRunDetailTransaction(pool))
+	details, err := runservice.NewRunDetailReader(runservice.PostgresRunDetailTransaction(pool, artifactpgtest.NewStorage()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -275,7 +276,7 @@ func TestPostgresAuditStartAnswersSkillFailuresWithTheirCodes(t *testing.T) {
 			LLMGateway: gateway.Ref, Unrestricted: true,
 		},
 	}}
-	audits, err := auditservice.New(auditservice.Options{
+	audits, err := auditservice.New(auditservice.Options{Storage: artifactpgtest.NewStorage(),
 		Pool: pool, Profiles: configuration,
 		TransactionLLMCredentials: runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(
 			func(pgx.Tx) (resolved.CredentialLookup, error) { return lookup, nil },
@@ -295,7 +296,7 @@ func TestPostgresAuditStartAnswersSkillFailuresWithTheirCodes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	artifactService := artifacts.NewService(artifactpostgres.NewRepository(pool))
+	artifactService := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
 	projectArtifacts, err := artifactService.Project(project.ProjectID)
 	if err != nil {
 		t.Fatal(err)

@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/persistence/explaintest"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -173,7 +175,7 @@ func TestPostgresEvalSummaryPagesReadPageSizedRows(t *testing.T) {
 	const budget = 2 * (limit + 1)
 	for _, mode := range explaintest.Modes {
 		reader := planPool(ctx, t, pool, mode)
-		store := NewPostgresStore(reader)
+		store := NewPostgresStore(reader, artifactpgtest.NewStorage())
 		for _, projectID := range []string{"", "project-1-2"} {
 			rows, err := pool.Query(ctx, `SELECT experiment_id, created_at FROM eval_experiments
  WHERE owner_id = 'owner-1' AND ($1 = '' OR project_id = $1)

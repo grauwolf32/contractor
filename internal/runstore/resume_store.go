@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
@@ -41,7 +40,7 @@ func (s *PostgresStore) ResumeFailedRun(ctx context.Context, ownerID, runID, sou
 	}
 	var result ResumeRunResult
 	operation := func(tx pgx.Tx) error {
-		store := NewPostgresStore(tx)
+		store := NewPostgresStore(tx, s.storage)
 		// Match Project deletion's project-before-Run lock ordering.
 		var projectID *string
 		err := tx.QueryRow(ctx, `SELECT project_id FROM workflow_runs WHERE run_id=$1 AND owner_id=$2`, runID, ownerID).Scan(&projectID)
@@ -115,7 +114,7 @@ func (s *PostgresStore) ResumeFailedRun(ctx context.Context, ownerID, runID, sou
 		if err != nil {
 			return err
 		}
-		service := artifacts.NewService(artifactpostgres.NewRepository(tx))
+		service := artifacts.NewService(s.storage.Repository(tx))
 		scope, err := artifacts.RunScope(runID)
 		if err != nil {
 			return err
@@ -132,7 +131,7 @@ func (s *PostgresStore) ResumeFailedRun(ctx context.Context, ownerID, runID, sou
 			return err
 		}
 		// The database permits thawing only in this receipt's transaction.
-		err = artifactpostgres.NewTxRepository(tx).ThawOutputs(ctx, scope)
+		err = s.storage.TxRepository(tx).ThawOutputs(ctx, scope)
 		result.StageExecutionID = next.StageExecutionID
 		return err
 	}

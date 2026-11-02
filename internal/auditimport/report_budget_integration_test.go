@@ -14,8 +14,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
@@ -50,10 +51,10 @@ func TestImporterFinalizesLargeAuditUnderPageBudgetAndResumes(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 	seed := seedLargeReportAudit(t, ctx, pool)
-	access, err := NewArtifactAccess(artifacts.NewService(artifactpostgres.NewRepository(pool)), hookstore.NewClaimedArtifacts(pool))
+	access, err := NewArtifactAccess(artifacts.NewService(artifactpgtest.NewStorage().Repository(pool)), hookstore.NewClaimedArtifacts(pool, artifactpgtest.NewStorage()))
 	mustCompletion(t, err)
-	store := &budgetedReportStore{Store: auditstoretest.NewStore(pool), reads: map[string]int{}}
-	importer, err := New(store, store, runstore.NewPostgresStore(pool), access)
+	store := &budgetedReportStore{Store: auditstoretest.NewStore(pool, artifactpgtest.NewStorage()), reads: map[string]int{}}
+	importer, err := New(store, store, runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()), access)
 	mustCompletion(t, err)
 	importer.budget = reportBudget{pageRows: 500, pageBytes: 256 << 10, pagesPerAttempt: 4}
 	totalPages := largeReportItems/500 + len(largeReportFindingStates)*(largeReportFindings/500)
@@ -138,7 +139,7 @@ func seedLargeReportAudit(t *testing.T, ctx context.Context, pool *pgxpool.Pool)
 	profile := loadResultProfile(t)
 	profileSnapshot, err := json.Marshal(profile)
 	mustCompletion(t, err)
-	audits := auditstoretest.NewStore(pool)
+	audits := auditstoretest.NewStore(pool, artifactpgtest.NewStorage())
 	draft, _, err := audits.CreateDraft(ctx, auditstore.CreateDraftParams{
 		AuditID: id, OwnerID: owner, ProjectID: id,
 		Profile:         auditstore.ProfileIdentity{Name: profile.Ref.Name, Version: profile.Ref.Version, Digest: profile.Ref.Digest},

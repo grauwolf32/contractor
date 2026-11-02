@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
@@ -17,7 +16,7 @@ import (
 type memberResources struct{ operations *executionOperations }
 
 func (d *memberResources) binding(ctx context.Context, e evalstore.Experiment, m evalstore.Member) (BindingSnapshot, error) {
-	resource, err := evalstore.NewPostgresStore(d.operations.pool).PlanResource(ctx, e.OwnerID, e.ID, "bindings/"+m.VariantID+".json")
+	resource, err := evalstore.NewPostgresStore(d.operations.pool, d.operations.storage).PlanResource(ctx, e.OwnerID, e.ID, "bindings/"+m.VariantID+".json")
 	if err != nil {
 		return BindingSnapshot{}, err
 	}
@@ -55,7 +54,7 @@ func (d *memberResources) inputs(ctx context.Context, e evalstore.Experiment, m 
 		if err := recovery.LockMember(ctx); err != nil {
 			return err
 		}
-		service := artifacts.NewService(artifactpostgres.NewRepository(tx))
+		service := artifacts.NewService(d.operations.storage.Repository(tx))
 		target, err := service.Project(request.ProjectID)
 		if err != nil {
 			return err

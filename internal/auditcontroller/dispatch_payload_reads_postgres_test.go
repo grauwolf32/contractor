@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
@@ -92,7 +94,7 @@ func TestPostgresOrdinarySingletonDispatchReadsNoTaskPayload(t *testing.T) {
 func TestPostgresTypedSingletonDispatchReadsTaskPayloadOnce(t *testing.T) {
 	ctx := t.Context()
 	h := newPostgresControllerHarnessWithConfig(t, ctx, 0, 1, typedRoutingControllerConfig(t))
-	intake, err := findingintake.New(h.pool)
+	intake, err := findingintake.New(h.pool, artifactpgtest.NewStorage())
 	if err != nil {
 		t.Fatal(err)
 	}

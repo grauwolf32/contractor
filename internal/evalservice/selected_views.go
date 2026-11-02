@@ -38,7 +38,7 @@ func selectedPageParams(p MemberPageParams, v evalstore.View) evalstore.Selected
 
 func (s *Service) withSelectedView(ctx context.Context, p MemberPageParams, read func(*evalstore.Store, evalstore.Experiment, evalstore.View, preparedSetup) error) error {
 	return pg.InTx(ctx, s.pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
-		st := evalstore.NewTxStore(tx)
+		st := evalstore.NewTxStore(tx, s.storage)
 		e, err := st.Get(ctx, p.OwnerID, p.ExperimentID)
 		if err != nil {
 			return err

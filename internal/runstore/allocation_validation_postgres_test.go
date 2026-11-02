@@ -5,13 +5,15 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 func TestPostgresAllocationReadsEnforceWriteInvariants(t *testing.T) {
 	ctx := t.Context()
 	pool := isolatedRunStorePool(t, ctx)
-	store := NewPostgresStore(pool)
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
 	createPreparingStage(t, ctx, store, "run-allocation-validation", "stage-allocation-validation")
 	valid := testStageAllocation("stage-allocation-validation", "allocation-validation")
 	if err := store.RecordStageAllocation(ctx, valid); err != nil {

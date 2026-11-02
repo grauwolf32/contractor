@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -357,7 +359,7 @@ func TestTargetCredentialDeleteRacesAuditHoldWithoutDeadlock(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer pool.Close()
-			audits := auditstoretest.NewStore(pool)
+			audits := auditstoretest.NewStore(pool, artifactpgtest.NewStorage())
 			service := newTargetCredentialService(t, pool, audits)
 			materials := targetCredentialMaterials(t, "canary-target-a3-c51d")
 			project, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{
@@ -402,7 +404,7 @@ func TestTargetCredentialDeleteRacesAuditHoldWithoutDeadlock(t *testing.T) {
 								return err
 							}
 							revision := "r1"
-							_, _, err := auditstoretest.NewTxStore(tx).MaterializeRound(ctx, auditstore.MaterializeRoundParams{
+							_, _, err := auditstoretest.NewTxStore(tx, artifactpgtest.NewStorage()).MaterializeRound(ctx, auditstore.MaterializeRoundParams{
 								OwnerID: project.OwnerID, AuditID: auditID, ExpectedRevision: audit.Revision,
 								RoundID: "round-" + auditID, RoundOrdinal: 1,
 								Manifest: auditstore.ExactArtifact{

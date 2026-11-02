@@ -12,9 +12,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/configtest"
@@ -106,9 +107,9 @@ func newOperationHarness(t *testing.T, apply bool, customize ...func(*resolved.R
 	if err := resolved.ValidateWorkflowGraph(workflow); err != nil {
 		t.Fatal(err)
 	}
-	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
-	domain := projectsitemap.NewService(pool)
-	store := runstore.NewPostgresStore(pool)
+	service := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
+	domain := projectsitemap.NewService(pool, artifactpgtest.NewStorage())
+	store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	projectID := "operation-project"
 	if _, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{ProjectID: projectID, OwnerID: "user-1", Kind: projectstore.KindProject, Name: "Operation", IdempotencyKey: "create", RequestDigest: "sha256:" + strings.Repeat("a", 64)}); err != nil {
 		t.Fatal(err)
@@ -138,7 +139,7 @@ func newOperationHarness(t *testing.T, apply bool, customize ...func(*resolved.R
 	if err != nil {
 		t.Fatal(err)
 	}
-	transactions, _ := NewPostgresPersistence(pool)
+	transactions, _ := NewPostgresPersistence(pool, artifactpgtest.NewStorage())
 	return &operationHarness{pool: pool, store: store, artifacts: service, sitemap: domain, workflow: workflow, seed: seed.Ref, registry: registry, transactions: transactions}
 }
 
@@ -307,7 +308,7 @@ func TestPostgresServerOperationClaimFenceRejectsOldOwner(t *testing.T) {
 		t.Fatal(err)
 	}
 	err = postgres.InTx(ctx, h.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		_, err := runstore.NewPostgresTxStore(tx).LockStageOperation(ctx, claimed.RunID, stage.StageExecutionID, "first")
+		_, err := runstore.NewPostgresTxStore(tx, artifactpgtest.NewStorage()).LockStageOperation(ctx, claimed.RunID, stage.StageExecutionID, "first")
 		return err
 	})
 	if !errors.Is(err, runstore.ErrConflict) {

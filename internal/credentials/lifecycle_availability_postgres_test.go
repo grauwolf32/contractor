@@ -9,6 +9,8 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/persistence/leasetest"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -187,7 +189,7 @@ func TestCredentialDeleteBlocksReferencesAndMutationsOfOtherCredentialsAcrossIts
 
 	var log eventLog
 	const released = "remote delete released"
-	runs := runstore.NewPostgresStore(f.pool)
+	runs := runstore.NewPostgresStore(f.pool, artifactpgtest.NewStorage())
 	runtimeCreate := runtimeOTLPRequest(t, "otel-created-beside", "runtime-create-during-delete")
 	operations := map[string]func() error{
 		"Run creation pinning another LLM credential": func() error {
@@ -264,7 +266,7 @@ func TestCredentialDeleteWaitingForOneReferenceStopsEveryLaterReference(t *testi
 	f, ctx := newAvailabilityFixture(t)
 	var log eventLog
 	f.manager.deleteGate = func() { log.add("remote delete") }
-	runs := runstore.NewPostgresStore(f.pool)
+	runs := runstore.NewPostgresStore(f.pool, artifactpgtest.NewStorage())
 	entered := make(chan struct{})
 	release := make(chan struct{})
 	first := make(chan error, 1)
@@ -336,7 +338,7 @@ func TestCredentialPreparedDeleteFencesOwnReferencesAndEveryManagedMutation(t *t
 	if err := lookupManagedCredential(ctx, f.pool, f.deleting.CredentialID); !errors.Is(err, ErrRecoveryRequired) {
 		t.Fatalf("lookup of the credential with a prepared delete error = %v", err)
 	}
-	runs := runstore.NewPostgresStore(f.pool)
+	runs := runstore.NewPostgresStore(f.pool, artifactpgtest.NewStorage())
 	if err := f.service.WithRunCreation(ctx, func() error {
 		if err := lookupManagedCredential(ctx, f.pool, f.unrelated.CredentialID); err != nil {
 			return err
@@ -477,7 +479,7 @@ func TestCredentialDurableIntentFoundByReconciliationKeepsTheProcessWideFenceUnt
 		t.Fatalf("recovery Gateway deletes = %d, want 1", f.manager.deleteCalls())
 	}
 	assertCredentialOperationPhase(t, ctx, f.pool, OperationDelete, deletion.IdempotencyKey, OperationCompleted)
-	runs := runstore.NewPostgresStore(f.pool)
+	runs := runstore.NewPostgresStore(f.pool, artifactpgtest.NewStorage())
 	if err := restarted.service.WithRunCreation(ctx, func() error {
 		if err := lookupManagedCredential(ctx, f.pool, f.unrelated.CredentialID); err != nil {
 			return err
@@ -502,7 +504,7 @@ func TestCredentialDeleteWorkUnderTheBarrierDoesNotGrowWithHistory(t *testing.T)
 	// Thousands of finished operations and hundreds of non-terminal Runs of
 	// another credential add no statement to the work done under the barrier.
 	f.insertFinishedDeletes(t, ctx, 5000)
-	runs := runstore.NewPostgresStore(f.pool)
+	runs := runstore.NewPostgresStore(f.pool, artifactpgtest.NewStorage())
 	for index := range 200 {
 		createPinnedRun(t, ctx, runs, fmt.Sprintf("run-history-%03d", index), f.unrelated.CredentialID)
 	}

@@ -22,6 +22,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/stageresult"
@@ -205,7 +207,7 @@ func TestScanToolsAcrossProductionProcesses(t *testing.T) {
 		if err := json.Unmarshal(status.Attempts[0].Termination, &termination); err != nil || termination.Code != runstore.CancellationUserRequested {
 			t.Fatalf("cancelled scan termination = %s", status.Attempts[0].Termination)
 		}
-		allocations, err := runstore.NewPostgresStore(h.pool).ListStageAllocations(h.ctx, status.Attempts[0].StageExecutionID)
+		allocations, err := runstore.NewPostgresStore(h.pool, artifactpgtest.NewStorage()).ListStageAllocations(h.ctx, status.Attempts[0].StageExecutionID)
 		if err != nil || len(allocations) != 1 {
 			t.Fatalf("cancelled scan allocations = %+v %v", allocations, err)
 		}
@@ -413,7 +415,7 @@ http:
 				t.Fatal("runtime advertises missing scanner binaries")
 			}
 			runID := h.createRun(t, capacityWorkflow, map[string]string{"target": h.targetURL}, nil)
-			store := runstore.NewPostgresStore(h.pool)
+			store := runstore.NewPostgresStore(h.pool, artifactpgtest.NewStorage())
 			waiting := waitForUnallocatedPreparingExecution(t, ctx, store, runID)
 			assertSameUnallocatedPreparingExecution(t, ctx, store, waiting)
 			cancelWorkflowRun(t, h.client, h.baseURL, runID)
@@ -598,7 +600,7 @@ func (h *scanProcessHarness) assertExecution(t *testing.T, status runStatus, too
 			t.Fatalf("scan diagnostics omit %s: %s", failure, attempt.Diagnostics)
 		}
 	}
-	store := runstore.NewPostgresStore(h.pool)
+	store := runstore.NewPostgresStore(h.pool, artifactpgtest.NewStorage())
 	allocations, err := store.ListStageAllocations(h.ctx, attempt.StageExecutionID)
 	if err != nil || len(allocations) != 1 || allocations[0].RuntimeAgentInstanceID == "" {
 		t.Fatalf("scan bypassed real allocation: %+v %v", allocations, err)

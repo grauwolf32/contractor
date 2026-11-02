@@ -7,9 +7,10 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
@@ -25,7 +26,7 @@ func testLegacyReportWriteRejection(t *testing.T, ctx context.Context, pool *pgx
 	t.Helper()
 	legacy := current
 	legacy.Summary.Artifact.MediaType = "text/plain"
-	store := auditstoretest.NewStore(pool)
+	store := auditstoretest.NewStore(pool, artifactpgtest.NewStorage())
 	for name, operation := range map[string]func() error{
 		"propose-plain-summary": func() error { _, _, err := store.ProposeReport(ctx, legacy); return err },
 		"commit-plain-summary":  func() error { _, err := store.CommitReport(ctx, auditstore.CommitReportParams(legacy)); return err },
@@ -54,7 +55,7 @@ func testLegacyReportCandidateRejection(t *testing.T, ctx context.Context, pool 
 			t.Fatal(err)
 		}
 	}()
-	store := auditstoretest.NewStore(pool)
+	store := auditstoretest.NewStore(pool, artifactpgtest.NewStorage())
 	for name, operation := range map[string]func() error{
 		"read-plain-candidate":    func() error { _, err := store.GetReportCandidate(ctx, current.Claim.AuditID); return err },
 		"project-plain-candidate": func() error { _, err := service.GetReport(ctx, owner, current.Claim.AuditID); return err },
@@ -89,7 +90,7 @@ func testLegacyCommittedReportRejection(t *testing.T, ctx context.Context, pool 
 		t.Fatalf("foreign report read = %v", err)
 	}
 	payload := []byte(before.Summary)
-	written, err := artifactstest.WriteAuditArtifact(ctx, artifacts.NewService(artifactpostgres.NewRepository(pool)), project,
+	written, err := artifactstest.WriteAuditArtifact(ctx, artifacts.NewService(artifactpgtest.NewStorage().Repository(pool)), project,
 		contracts.ArtifactRef{Namespace: "audit-report-review", Name: "historical-report.txt"},
 		artifacts.Payload{MediaType: "text/plain", Data: payload})
 	if err != nil {

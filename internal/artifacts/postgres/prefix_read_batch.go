@@ -14,7 +14,7 @@ import (
 func (r *Repository) ReadPrefixBatch(
 	ctx context.Context, scope artifacts.Scope, namespace, prefix string, limit int,
 ) ([]artifacts.ReadResult, error) {
-	ctx, releaseTransfer, err := blob.AcquireTransfer(ctx)
+	ctx, releaseTransfer, err := r.AcquireTransfer(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -46,7 +46,7 @@ func (r *Repository) readPrefixBatch(
 		return nil, err
 	}
 	for index, object := range objects {
-		data, err := activeBlobStore(ctx).Read(ctx, object)
+		data, err := r.runtime.Store.Read(ctx, object)
 		if errors.Is(err, blob.ErrMissing) {
 			removed, recheckErr := r.revisionRemoved(ctx, scope, results[index].Ref, *results[index].Ref.Revision)
 			if recheckErr != nil {

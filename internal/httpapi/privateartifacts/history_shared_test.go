@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
@@ -47,7 +49,7 @@ func TestSharedArtifactHistoryPrivateErrors(t *testing.T) {
 				t.Fatalf("no Server error answers %s", test.Code)
 			}
 			repository := &rejectingWriteRepository{memoryRepository: newMemoryRepository(), err: cause}
-			handler, err := NewHandler(Dependencies{
+			handler, err := NewHandler(Dependencies{Transfers: artifactpgtest.NewStorage(),
 				Registry: &fakeRegistry{grant: testGrant("run-a")}, Artifacts: artifacts.NewService(repository),
 				NewRequestID: func() (string, error) { return "artifact-history", nil },
 			})

@@ -5,11 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
@@ -47,7 +49,7 @@ func admitRunOnRoute(
 	runID string, route gatewayrecovery.Route,
 ) *gatewayrecovery.Participant {
 	t.Helper()
-	runs := runstore.NewPostgresStore(pool)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	if _, err := runstoretest.CreateRun(ctx, runs, runstore.CreateRunParams{
 		LaneClass: resolved.LaneClassModel,
 		RunID:     runID, OwnerID: "user-1", WorkflowName: "test", WorkflowVersion: "1",

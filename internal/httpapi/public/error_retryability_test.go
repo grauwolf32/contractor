@@ -12,8 +12,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 )
 
 // A frozen binding never advances, so a write to it is the permanent 409
@@ -45,7 +46,7 @@ func TestPostgresPublicFrozenArtifactWriteIsPermanent(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedPublicPool(t, ctx)
-	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
+	service := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
 	fixture := newHandlerFixtureWithAuth(t, "../../config/testdata/valid", newTestAuthentication(t),
 		mustTestOrigins(t), false, nil, func(dependencies *testServices) { dependencies.Artifacts = service })
 	created := putPublicArtifact(fixture.handler, "notes", "report", "If-None-Match", "*", "first")

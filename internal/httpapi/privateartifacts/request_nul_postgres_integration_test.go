@@ -12,8 +12,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -24,7 +25,7 @@ func TestPostgresPrivateFindingNULEscapeStopsBeforeIntake(t *testing.T) {
 	defer cancel()
 	pool := isolatedPrivateArtifactPool(t, ctx)
 	createPrivateArtifactRun(t, ctx, pool, "run-a")
-	service, err := findingintake.New(pool)
+	service, err := findingintake.New(pool, artifactpgtest.NewStorage())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,9 +37,9 @@ func TestPostgresPrivateFindingNULEscapeStopsBeforeIntake(t *testing.T) {
 		t.Fatalf("valid literal-text submission replay = %t, %v", found, err)
 	}
 	intake := &privateNULIntakeCounter{FindingIntake: service}
-	handler, err := NewHandler(Dependencies{
+	handler, err := NewHandler(Dependencies{Transfers: artifactpgtest.NewStorage(),
 		Registry:  &fakeRegistry{grant: grant},
-		Artifacts: artifacts.NewService(artifactpostgres.NewRepository(pool)), Findings: intake,
+		Artifacts: artifacts.NewService(artifactpgtest.NewStorage().Repository(pool)), Findings: intake,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -101,9 +102,9 @@ func TestPostgresPrivateArtifactBytesKeepNULAndJSONEscapes(t *testing.T) {
 	defer cancel()
 	pool := isolatedPrivateArtifactPool(t, ctx)
 	createPrivateArtifactRun(t, ctx, pool, "run-a")
-	handler, err := NewHandler(Dependencies{
+	handler, err := NewHandler(Dependencies{Transfers: artifactpgtest.NewStorage(),
 		Registry:  &fakeRegistry{grant: testGrant("run-a")},
-		Artifacts: artifacts.NewService(artifactpostgres.NewRepository(pool)),
+		Artifacts: artifacts.NewService(artifactpgtest.NewStorage().Repository(pool)),
 	})
 	if err != nil {
 		t.Fatal(err)

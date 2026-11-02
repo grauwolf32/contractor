@@ -65,7 +65,7 @@ func (s *Service) EditProjectFinding(ctx context.Context, params ProjectFindingE
 	err := persistencepostgres.InTxWithRetry(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		key := persistencepostgres.ProjectReceiptKey(params.OwnerID, params.ProjectID, params.FindingID, "finding.assess", params.IdempotencyKey)
 		receipt, replayed, err := persistencepostgres.KeyedMutation(ctx, tx, key, params.RequestDigest, func() (persistencepostgres.Receipt, error) {
-			finding, err := ownerstore.NewTx(tx).AssessProjectFinding(ctx, params.ProjectFindingEdit)
+			finding, err := ownerstore.NewTx(tx, s.storage).AssessProjectFinding(ctx, params.ProjectFindingEdit)
 			if err != nil {
 				return persistencepostgres.Receipt{}, err
 			}

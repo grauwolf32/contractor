@@ -11,7 +11,7 @@ import (
 
 	. "github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/persistence/explaintest"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -39,8 +39,8 @@ func TestPostgresArtifactBindingWritesFireOnlyTheTriggersTheyConcern(t *testing.
 	ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
-	ctx = testBlobContext(t, ctx, pool)
-	project, _ := storageReviewProject(t, ctx, pool)
+	artifactStorage := testBlobStorage(t, ctx, pool)
+	project, _ := storageReviewProject(t, ctx, pool, artifactpgtest.NewStorage())
 	createArtifactRun(t, ctx, pool, "run-binding-triggers", true)
 	tx, err := pool.Begin(ctx)
 	if err != nil {
@@ -48,7 +48,7 @@ func TestPostgresArtifactBindingWritesFireOnlyTheTriggersTheyConcern(t *testing.
 	}
 	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
 	probe := explaintest.NewProbe(t, tx)
-	service := NewService(artifactpostgres.NewRepository(probe))
+	service := NewService(artifactStorage.Repository(probe))
 	expect := func(step string, want map[string]int64, action func() error) {
 		t.Helper()
 		probe.Reset()
@@ -93,7 +93,7 @@ func TestPostgresArtifactBindingWritesFireOnlyTheTriggersTheyConcern(t *testing.
 		return artifactstest.FreezeOutputs(ctx, service, runID)
 	})
 	expect("Run purge", map[string]int64{outputsOnDelete: 1}, func() error {
-		purger, err := artifactpostgres.NewPurger(probe)
+		purger, err := artifactStorage.Purger(probe)
 		if err != nil {
 			return err
 		}
@@ -173,12 +173,12 @@ func TestStorageReviewProjectDeletionBetweenScopeAndBinding(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 			defer cancel()
 			pool := isolatedArtifactPool(t, ctx)
-			ctx = testBlobContext(t, ctx, pool)
-			project, _ := storageReviewProject(t, ctx, pool)
+			artifactStorage := testBlobStorage(t, ctx, pool)
+			project, _ := storageReviewProject(t, ctx, pool, artifactpgtest.NewStorage())
 			target := ArtifactRef{Namespace: "docs", Name: "content"}
 			var prior *string
 			if update {
-				store, _ := NewService(artifactpostgres.NewRepository(pool)).Project(project.ProjectID)
+				store, _ := NewService(artifactStorage.Repository(pool)).Project(project.ProjectID)
 				initial, err := store.Write(ctx, target, Payload{MediaType: "text/plain", Data: []byte("initial")}, nil)
 				if err != nil {
 					t.Fatal(err)
@@ -198,7 +198,7 @@ func TestStorageReviewProjectDeletionBetweenScopeAndBinding(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer traced.Close()
-			store, _ := NewService(artifactpostgres.NewRepository(traced)).Project(project.ProjectID)
+			store, _ := NewService(artifactStorage.Repository(traced)).Project(project.ProjectID)
 			_, err = store.Write(ctx, target, Payload{MediaType: "text/plain", Data: []byte("rejected")}, prior)
 			if fired, changeErr := trace.fired, trace.err; !fired || changeErr != nil {
 				t.Fatalf("deletion between the scope and the binding: fired=%t %v", fired, changeErr)
