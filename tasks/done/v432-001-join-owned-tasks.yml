@@ -1,5 +1,5 @@
 schema_version: "1.0"
-id: V429-001
+id: V432-001
 title: "Keep owned Runtime tasks joined through repeated cancellation"
 milestone: runtime-ownership-2026-11
 epic: planner-worker
@@ -53,3 +53,7 @@ verification: >-
   Required focused suite: 290 passed. Ruff check/format and all four import
   contracts pass. The new real ADK regression verifies repeated cancellation
   does not release the invocation lock or leave stale instrumentation.
+renumbering: >-
+  Integration 2026-11-02: main independently allocated V429-001 through
+  V429-018 to UI work. Preserve those published identities and move this
+  Runtime package to V432 with original implementation commits unchanged.

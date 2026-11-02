@@ -1,5 +1,5 @@
 schema_version: "1.0"
-id: V429-005
+id: V432-005
 title: "Unify HTTP header admission and truthful truncated-body reads"
 milestone: runtime-ownership-2026-11
 epic: execution-core
@@ -58,3 +58,7 @@ verification: >-
   281 passed. New regressions use production HTTPTransport/httpcore for
   case replacement, aggregate count/bytes, exact Content-Type and text/binary
   retained prefixes. Ruff check/format and all four import contracts pass.
+renumbering: >-
+  Integration 2026-11-02: main independently allocated V429-001 through
+  V429-018 to UI work. Preserve those published identities and move this
+  Runtime package to V432 with original implementation commits unchanged.

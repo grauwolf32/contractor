@@ -135,7 +135,7 @@ execution_policy:
 
 milestones:
   - id: runtime-ownership-2026-11
-    exit_task: V429-006
+    exit_task: V432-008
     outcome: Runtime shares owned-task joining, typed allocation resources, exact Artifact CAS and HTTP rules; focused Worker and allocation orchestrators preserve existing authority and lifecycle contracts with integrated deterministic verification.
   - id: runtime-shared-config-2026-10
     exit_task: V427-003

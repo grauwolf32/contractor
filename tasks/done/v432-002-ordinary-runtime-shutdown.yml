@@ -1,5 +1,5 @@
 schema_version: "1.0"
-id: V429-002
+id: V432-002
 title: "Stop ordinary allocations before process dependencies close"
 milestone: runtime-ownership-2026-11
 epic: execution-core
@@ -54,3 +54,7 @@ verification: >-
   shutdown and the real AllocationService/ADK blocked-invocation regression.
   Ruff and all import-layer contracts pass. Go was restored to PATH from the
   installed macOS toolchain for the process test.
+renumbering: >-
+  Integration 2026-11-02: main independently allocated V429-001 through
+  V429-018 to UI work. Preserve those published identities and move this
+  Runtime package to V432 with original implementation commits unchanged.

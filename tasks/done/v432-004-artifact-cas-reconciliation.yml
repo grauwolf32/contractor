@@ -1,5 +1,5 @@
 schema_version: "1.0"
-id: V429-004
+id: V432-004
 title: "Share exact Artifact CAS replay and reconciliation"
 milestone: runtime-ownership-2026-11
 epic: memory
@@ -68,3 +68,7 @@ integration_verification: >-
   Final policy preservation matrix, including a 503 allocation_not_found
   denial through the real ArtifactClient: 207 passed across the five suites.
   Ruff check/format and all four import contracts pass.
+renumbering: >-
+  Integration 2026-11-02: main independently allocated V429-001 through
+  V429-018 to UI work. Preserve those published identities and move this
+  Runtime package to V432 with original implementation commits unchanged.

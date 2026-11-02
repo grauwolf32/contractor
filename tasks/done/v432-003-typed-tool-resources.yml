@@ -1,5 +1,5 @@
 schema_version: "1.0"
-id: V429-003
+id: V432-003
 title: "Separate typed private tool resources from Worker State"
 milestone: runtime-ownership-2026-11
 epic: execution-core
@@ -57,4 +57,8 @@ verification: >-
   Ruff check/format and all four import contracts pass. Broader initial run
   reached 4707 passes and 133 skips before interruption to repair a mismatched
   test resource owner; its 22 old-fixture failures and the blocked checkpoint
-  pass in the repaired focused suites. V429-006 owns final full integration.
+  pass in the repaired focused suites. V432-006 owns final full integration.
+renumbering: >-
+  Integration 2026-11-02: main independently allocated V429-001 through
+  V429-018 to UI work. Preserve those published identities and move this
+  Runtime package to V432 with original implementation commits unchanged.

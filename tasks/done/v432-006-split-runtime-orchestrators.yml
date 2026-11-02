@@ -1,5 +1,5 @@
 schema_version: "1.0"
-id: V429-006
+id: V432-006
 title: "Separate invocation execution and allocation resource operations"
 milestone: runtime-ownership-2026-11
 epic: execution-core
@@ -7,7 +7,7 @@ kind: chore
 introduced_by: V17-002
 priority: P3
 status: completed
-depends_on: ["V429-001", "V429-002", "V429-003", "V429-004", "V429-005", "V429-007"]
+depends_on: ["V432-001", "V432-002", "V432-003", "V432-004", "V432-005", "V432-007"]
 languages: [python]
 goal: "Worker and Allocation orchestrators expose their lifecycle clearly through focused ownership, execution, completion and resource-operation modules."
 context:
@@ -22,7 +22,7 @@ context:
     - docs/spec/platform/failure-model.md
   finding: "worker/runtime.py (~1900 lines) and allocation/service.py (~1300) combine independent responsibilities; existing sessions, budget, completion and cleanup mechanisms must remain the owners."
   integration_prerequisite: >-
-    V429-007 repairs the inherited stale export-exception owners that prevent
+    V432-007 repairs the inherited stale export-exception owners that prevent
     make lint reaching Runtime checks; it changes no Go behavior or exception count.
   boundary: >-
     Common modules own mechanics; callers retain deadlines, fencing, authority,
@@ -96,3 +96,7 @@ verification: >-
   UV_PYTHON=3.13 after an online PyPI connection timeout; no check was disabled.
   Ruff check/format, generated dependency graph and git diff --check pass.
 implementation_commit: f881749bb6b5761cd8615b286430b565d8397ef8
+renumbering: >-
+  Integration 2026-11-02: main independently allocated V429-001 through
+  V429-018 to UI work. Preserve those published identities and move this
+  Runtime package to V432 with original implementation commits unchanged.

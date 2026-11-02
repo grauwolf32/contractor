@@ -1,0 +1,59 @@
+schema_version: "1.0"
+id: V432-008
+title: Integrate Runtime ownership refactoring with current main
+milestone: runtime-ownership-2026-11
+epic: execution-core
+kind: chore
+introduced_by: V432-006
+priority: P3
+status: in_progress
+depends_on: [V432-001, V432-002, V432-003, V432-004, V432-005, V432-006, V432-007]
+languages: [python]
+goal: Land the verified Runtime ownership package on current main while preserving its Workflow and Project Finding contracts.
+context:
+  authority: >-
+    User decision 2026-11-02: merge codex/runtime-ownership-refactor into main.
+    Current main is 8c50a3769ce7dcd1211040f40621f9514cb02bb0 and has changed
+    Workflow model/execution policy, Project Findings and Artifact tool factories
+    since the package fork. Routine conflict resolution and caller migration
+    implement that merge; no new product behavior or compatibility is authorized.
+  specification:
+    - docs/spec/execution/runtime-agent.md
+    - docs/spec/execution/worker.md
+    - docs/spec/configuration/workflows.md
+    - docs/spec/findings/findings.md
+  boundary: >-
+    Keep main's current wire/domain rules, Workflow-owned policies and Finding
+    publication/receipt authority. Carry our allocation-local typed resources,
+    invocation/ADK/completion owners, joined cancellation, exact CAS and HTTP
+    fixes into those callers. Preserve main's removal of obsolete export
+    exceptions rather than restoring them. The model finalizer contract stays.
+  scale_and_failure: >-
+    No new I/O, retry, fan-out, identity or deadline. Preserve existing partial
+    preparation rollback, stop/fencing, request replay and classified failures.
+    Use the same bounded Runtime suites and explicit two macOS baseline exclusions.
+  renumbering: >-
+    V429 Runtime IDs collided with main's independent completed UI tasks. The
+    package is renumbered V432-001 through V432-007 before merging, retaining
+    its original implementation hashes and historical evidence.
+scope:
+  in:
+    - Resolve merge conflicts and adapt current-main Runtime callers to typed resources and extracted owners.
+    - Preserve Workflow policy and Project Finding semantics from main; regenerate dependency graph and backlog.
+    - Verify the integrated Runtime and lint gates, then merge into main through a no-fast-forward merge.
+  out:
+    - New capabilities, live deployment, database migration, model changes, remote push and unrelated task execution.
+acceptance_criteria:
+  - id: A1
+    text: Both histories merge without conflict markers, duplicate task IDs or restored obsolete paths, and current main contracts remain authoritative.
+  - id: A2
+    text: The complete Runtime selection and lint gates pass, with skips and exclusions explicitly recorded.
+  - id: A3
+    text: main contains the Runtime branch through a merge commit and its worktree is clean.
+tests:
+  - command: cd runtime && uv run pytest -W error tests --deselect=tests/test_projectfs_local_io.py::test_limits_deadline_names_and_binary_classification --deselect=tests/test_code_analysis_graph.py::test_graph_collection_stops_at_encoded_result_ceiling_with_resumable_cursor
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2]
+  - command: git diff --check
+    covers: [A1, A3]
