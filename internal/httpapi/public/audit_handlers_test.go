@@ -795,3 +795,7 @@ func (f *fakeFindingProposalManagement) ListProjectSourceHistory(ctx context.Con
 	}
 	return findingintake.ProjectSourceHistoryPage{Items: []artifacts.Metadata{}, ProjectRevision: 1}, nil
 }
+
+func (f *fakeAuditManagement) PublishMaterial(context.Context, string, string, string, auditservice.MaterialPublicationRequest, *string) (auditservice.MaterialPublication, error) {
+	return auditservice.MaterialPublication{}, auditstore.ErrNotFound
+}

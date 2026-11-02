@@ -778,3 +778,10 @@ channel (PRJ-R94). Shared rules are in
 The narrow domain surface for safe shared HTTP metadata is specified in
 [Project sitemap](project-sitemap.md). It preserves this document's owner boundary
 and ordinary Project input selection.
+
+
+**PRJ-R105.** Explicit publication of accepted exact Audit material follows
+ART-R138 and ART-R139. Its Project-scoped receipt and independently owned
+Artifact remain readable after the source Audit is purged. Automatic ordinary
+Run output publication retains its separate create-only contract; trusted
+Audit child Runs continue using `audit-managed` publication mode.

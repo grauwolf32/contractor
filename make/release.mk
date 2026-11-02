@@ -100,7 +100,7 @@ test-release-non-race: require-database
 # Shards are balanced from uncached CI test durations; all three run on
 # separate runners. Keep the full local test-e2e command below.
 RELEASE_ITERATIVE_TESTS := $(shell python3 scripts/release_test_reports.py iterative-pattern)
-RELEASE_E2E_TESTS_A := TestAuditProgramsAcrossProductionProcesses|TestMemoryMVPProcesses|TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses|TestGatewayRecoveryKeepsThreeQueuedRunsAcrossProcesses|TestLocalGoToPythonArtifactCopy|TestArtifactHistoryAcrossProductionProcesses|TestProjectSitemapToolsAcrossProductionProcesses|TestProjectSitemapHTTPCollectionAcrossProductionProcesses|TestProjectSitemapReportImportsAcrossProductionProcesses|TestProjectSitemapServerOperationsAcrossProductionProcesses|$(RELEASE_ITERATIVE_TESTS)
+RELEASE_E2E_TESTS_A := TestAuditWorkspaceAcrossProductionProcesses|TestAuditProgramsAcrossProductionProcesses|TestMemoryMVPProcesses|TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses|TestGatewayRecoveryKeepsThreeQueuedRunsAcrossProcesses|TestLocalGoToPythonArtifactCopy|TestArtifactHistoryAcrossProductionProcesses|TestProjectSitemapToolsAcrossProductionProcesses|TestProjectSitemapHTTPCollectionAcrossProductionProcesses|TestProjectSitemapReportImportsAcrossProductionProcesses|TestProjectSitemapServerOperationsAcrossProductionProcesses|$(RELEASE_ITERATIVE_TESTS)
 RELEASE_HTTP_TESTS := $(shell python3 scripts/test-engagement-http-process.py --process-names)
 RELEASE_E2E_TESTS_B := $(RELEASE_HTTP_TESTS)|TestWorkerSummarizerProductionBoundaries|TestRoutingAndEscalationProductionBoundaries|TestLabelDrivenRuntimeConfigurationAcrossProcesses|TestRuntimeAdapterSelectionAllowsAdditionalCapabilities|TestRunMetadataLabelsAcrossProcesses|TestSchedulerConcurrencyAcrossProductionProcesses|TestTaintAnnotationsAcrossRealRuntimeProcess|TestAuditProgramCatalogReplacementRestartsServer
 RELEASE_FINDINGS_TESTS := $(shell python3 scripts/release_test_reports.py findings-pattern)
@@ -111,11 +111,13 @@ test-release-process-e2e: require-database runtime-venv
 	python3 scripts/release_test_reports.py run --report "$(RELEASE_REPORTS)/go-process.jsonl" --timeout-seconds 3300 -- go test -json -tags=e2e -count=1 -timeout=50m ./tests/e2e -run '^($(RELEASE_E2E_TESTS))$$'
 	python3 scripts/release_test_reports.py verify-findings --report "$(RELEASE_REPORTS)/go-process.jsonl"
 	python3 scripts/release_test_reports.py verify-iterative-process --report "$(RELEASE_REPORTS)/go-process.jsonl"
+	python3 scripts/test-audit-composition-e2e.py --case-set workspace --verify-only "$(RELEASE_REPORTS)/go-process.jsonl" --boundary process
 	python3 scripts/test-engagement-http-process.py --verify-process-report "$(RELEASE_REPORTS)/go-process.jsonl"
 
 test-release-process-e2e-a: require-database runtime-venv
 	python3 scripts/release_test_reports.py run --report "$(RELEASE_REPORTS)/go-process-a.jsonl" --timeout-seconds 3300 -- go test -json -tags=e2e -count=1 -timeout=50m ./tests/e2e -run '^($(RELEASE_E2E_TESTS_A))$$'
 	python3 scripts/release_test_reports.py verify-iterative-process --report "$(RELEASE_REPORTS)/go-process-a.jsonl"
+	python3 scripts/test-audit-composition-e2e.py --case-set workspace --verify-only "$(RELEASE_REPORTS)/go-process-a.jsonl" --boundary process
 
 test-release-process-e2e-b: require-database runtime-venv
 	python3 scripts/release_test_reports.py run --report "$(RELEASE_REPORTS)/go-process-b.jsonl" --timeout-seconds 3300 -- go test -json -tags=e2e -count=1 -timeout=50m ./tests/e2e -run '^($(RELEASE_E2E_TESTS_B))$$'

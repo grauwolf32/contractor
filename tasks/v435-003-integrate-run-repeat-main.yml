@@ -1,0 +1,52 @@
+schema_version: "1.0"
+id: V435-003
+title: "Integrate database-backed Run repeat with the current Audit schema"
+milestone: run-recovery-ui-2026-10
+epic: execution-core
+kind: chore
+introduced_by: V435-001
+priority: P2
+status: in_progress
+depends_on: [V435-001, V435-002]
+languages: [go, sql]
+goal: "Land the verified Run repeat simplification on current main with one sequential migration chain."
+context:
+  authority: >-
+    User decision 2026-11-02: merge the completed branch and update the demo database.
+    The operational backup, migration and preservation evidence belongs in the
+    demo release manifest; this task tracks only the code integration prerequisite.
+  specification:
+    - docs/spec/execution/runs.md#RUN-R99
+    - docs/spec/artifacts/artifact-store.md#ART-R133
+    - docs/spec/platform/persistence.md#PER-R30
+  finding: >-
+    Main advanced to 1f6265fcc8e229bf0e62e2bc9b5c9605609eade5 and now owns
+    000002_audit_artifact_scope.sql. The unmerged repeat cleanup also used version
+    000002. Preserve the published Audit migration and move the unapplied cleanup
+    to 000003 before landing. Resolve generated task/dependency graph conflicts
+    through their generators and verify the combined Artifact/Run paths.
+scope:
+  in:
+    - "Merge current main, renumber the unapplied cleanup and update its migration regression."
+    - "Regenerate the ERD, task backlog and dependency graph for the combined revision."
+    - "Verify ordinary repeat provenance alongside Audit Artifact scope."
+  out:
+    - "Changes to already-applied migrations, model selections or business-data resets."
+acceptance_criteria:
+  - id: A1
+    text: "The integrated branch contains unchanged baseline/Audit migrations 000001/000002 and repeat cleanup 000003."
+  - id: A2
+    text: "Real PostgreSQL regressions and the public/cross-language contracts pass against the combined revision."
+  - id: A3
+    text: "Generated registries are current, lint passes, and the UI verifies with the integrated public client."
+tests:
+  - command: make lint
+    covers: [A1, A2, A3]
+  - command: "go test -tags=integration -count=1 ./internal/artifacts/... ./internal/runstore/... ./internal/runservice/... ./internal/httpapi/... ./internal/persistence/... ./internal/auditservice/... ./internal/auditcontroller/..."
+    covers: [A1, A2]
+  - command: make verify-public-api
+    covers: [A2]
+  - command: make test-wire-cross-language
+    covers: [A2]
+  - command: "VITEST_MAX_WORKERS=2 make ui-verify"
+    covers: [A3]

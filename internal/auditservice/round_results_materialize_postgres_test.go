@@ -153,7 +153,7 @@ func TestPostgresRoundResultsMaterializerResumesDependencyChunks(t *testing.T) {
 			logical = "result/member"
 			provenance = []byte(`{"executionItemId":"member"}`)
 		}
-		retained = append(retained, auditstore.ArtifactLink{LogicalKey: logical, Artifact: exact, SourceProvenance: provenance})
+		retained = append(retained, auditstore.ArtifactLink{Scope: "project", LogicalKey: logical, Artifact: exact, SourceProvenance: provenance})
 		expectedBytes[exact.Ref.Key()], originals[exact.Ref.Key()] = content, original
 	}
 	runs := runstore.NewPostgresStore(pool)

@@ -1182,3 +1182,11 @@ allocations; the Server deliberately keeps no global target request counter.
 The owning Audit/Runtime boundary is reopened if a production requirement needs
 a quota independent of allocation count or lifetime. Tests prove independent
 allocation budgets; this accepted risk does not weaken scope or credentials.
+
+
+**AUX-R107.** Declared ordinary preparation/discovery/assessment outputs use
+AuditScope retention under their existing live claim and collection receipt.
+Collection names each producer Run/output once and reconciles the same fork
+on replay. Accepted preparation and role-output lookup supply exact Audit
+inputs to ordinary Run initialization. Existing sequencing remains the caller;
+material handoff introduces no coordinator, execution mode or dependency walker.

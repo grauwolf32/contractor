@@ -39,7 +39,7 @@ func TestPostgresRemoveRepeatRequestMigrationPreservesRunAndSharedArtifacts(t *t
 			t.Fatal(err)
 		}
 	}
-	contents, err := migrations.Files.ReadFile("000002_remove_repeat_request.sql")
+	contents, err := migrations.Files.ReadFile("000003_remove_repeat_request.sql")
 	if err != nil {
 		t.Fatal(err)
 	}

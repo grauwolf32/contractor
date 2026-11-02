@@ -30,7 +30,13 @@ func (b *PinnedSubmissionBuilder) validateItemDependencies(ctx context.Context, 
 	// Resolve the complete closure, including leaves with no Workflow slot,
 	// before creating an intent. Embedded JSON refs are never traversed.
 	for _, dependency := range d.Dependencies {
-		resolved, err := b.artifacts.ResolveProjectExact(ctx, snapshot.Audit.ProjectID, dependency.Retained)
+		var resolved auditstore.ExactArtifact
+		var err error
+		if dependency.Kind == "prepare-output" {
+			resolved, err = b.artifacts.ResolveAuditExact(ctx, snapshot.Audit.AuditID, dependency.Retained)
+		} else {
+			resolved, err = b.artifacts.ResolveProjectExact(ctx, snapshot.Audit.ProjectID, dependency.Retained)
+		}
 		if err != nil {
 			return err
 		}

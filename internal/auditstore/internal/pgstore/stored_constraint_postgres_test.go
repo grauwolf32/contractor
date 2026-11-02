@@ -144,8 +144,7 @@ func TestSharedPostgresStoredConstraintRejectionsAreInvalid(t *testing.T) {
 				Claim: f.claim, ExpectedAuditRevision: f.audit.Revision, RoundID: "round-storedcheck-initial",
 				Manifest: testExact("audits", "storedcheck-initial-worklist", "worklist-r1"),
 				Items:    []auditstore.MaterializedItem{item("storedcheck-initial")},
-				Inventory: auditstore.ArtifactLink{
-					LogicalKey: auditstore.InitialInventoryLogicalKey, SourceProvenance: json.RawMessage(`{}`),
+				Inventory: auditstore.ArtifactLink{Scope: "project", LogicalKey: auditstore.InitialInventoryLogicalKey, SourceProvenance: json.RawMessage(`{}`),
 					Artifact: testExact("audits", "storedcheck-inventory", "inventory-r1"),
 				},
 			})
@@ -235,8 +234,7 @@ func storedCheckCollect(f collectingAuditFixture, result auditstore.ExactArtifac
 	return auditstore.CollectParams{
 		Claim: f.claim, ReceiptID: "receipt-" + f.execution.ExecutionID, ExecutionID: f.execution.ExecutionID,
 		Disposition: auditstore.CollectionAccepted, SourceOutput: &result, RequestDigest: testDigest("7"),
-		Retained: []auditstore.ArtifactLink{{
-			LogicalKey: "result/" + f.memberID, Artifact: result,
+		Retained: []auditstore.ArtifactLink{{Scope: "project", LogicalKey: "result/" + f.memberID, Artifact: result,
 			SourceProvenance: json.RawMessage(`{"runId":"run-storedcheck"}`),
 		}},
 		Items: []auditstore.CollectionItem{{

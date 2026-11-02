@@ -309,19 +309,15 @@ func (i *Importer) collectSucceededRole(
 	// The outputs are then retained in bounded artifact-write transactions
 	// (AUX-R98), and all accepted preparation descriptors commit in one
 	// receipt write.
-	scopeID := snapshot.Audit.AuditID
-	if snapshot.Round != nil {
-		scopeID = snapshot.Round.RoundID
-	}
 	retentions := make([]RunRetention, len(frozenOutputs))
 	for index, output := range frozenOutputs {
 		retentions[index] = RunRetention{
-			Source: output.artifact,
+			AuditOwned: true,
+			Source:     output.artifact,
 			Target: contracts.ArtifactRef{
 				Namespace: auditdomain.ArtifactNamespace(snapshot.Audit.AuditID),
 				Name: auditdomain.DeterministicID(
-					"role-output", scopeID, execution.WorkflowRole,
-					execution.ExecutionID, output.logical,
+					"role-output", run.RunID, output.slot,
 				),
 			},
 		}
@@ -376,10 +372,9 @@ func (i *Importer) collectSucceededRole(
 		if encodeErr != nil {
 			return false, encodeErr
 		}
-		links = append(links, auditstore.ArtifactLink{
-			LogicalKey: auditstore.RoleOutputLogicalKey(
-				snapshot.Round.Ordinal, execution.WorkflowRole, logicalName,
-			),
+		links = append(links, auditstore.ArtifactLink{Scope: "audit", LogicalKey: auditstore.RoleOutputLogicalKey(
+			snapshot.Round.Ordinal, execution.WorkflowRole, logicalName,
+		),
 			Artifact: retained, SourceProvenance: provenance,
 		})
 	}

@@ -120,6 +120,7 @@ type writeStatement struct {
 	arguments []any
 	size      int64
 	policy    HistoryPolicy
+	reuse     func(context.Context, persistencepostgres.DBTX, int64, int64) (writeRow, error)
 }
 
 // writeRow is what writeSQL returns for a stored revision.
@@ -138,6 +139,9 @@ type writeRow struct {
 func (w writeStatement) exec(
 	ctx context.Context, db persistencepostgres.DBTX, removedRevisions, removedBytes int64,
 ) (writeRow, error) {
+	if w.reuse != nil {
+		return w.reuse(ctx, db, removedRevisions, removedBytes)
+	}
 	var row writeRow
 	arguments := append(append([]any(nil), w.arguments...),
 		w.policy.MaxRevisions(), w.policy.MaxBytes(), removedRevisions, removedBytes)

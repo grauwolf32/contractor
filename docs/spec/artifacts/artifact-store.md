@@ -67,6 +67,7 @@ Terms are defined once in the [glossary](../glossary.md).
 | --- | --- |
 | `UserScope(user_id)` | The user's durable artifact library. |
 | `ProjectScope(project_id)` | The owner's long-lived reusable workspace for one [Project](projects.md). |
+| `AuditScope(audit_id)` | Selected immutable ordinary Run outputs retained for the owning Audit and explicit material handoff/publication. |
 | `RunScope(run_id)` | The `RunArtifactSpace` of one Workflow Run: durable Stage outputs and the data plane for concurrent Worker collaboration. |
 
 `RunArtifactSpace` is a scoped view of `ArtifactStore`, not another storage
@@ -171,8 +172,8 @@ flowchart LR
 ### Store and scopes
 
 **ART-R1.** Contractor has one physical `ArtifactStore`, not separate
-User, Project and Run artifact services; UserScope, ProjectScope and RunScope
-are scoped views of it.
+User, Project, Audit and Run artifact services; UserScope, ProjectScope,
+AuditScope and RunScope are scoped views of it.
 
 **ART-R2.** Every store operation is evaluated in one
 authenticated or trusted internal scope.
@@ -839,7 +840,8 @@ routes that use them are owned by [UI](../ui/ui.md).
 
 **ART-R72.** Only purpose-specific trusted Server operations may
 perform a controlled source-to-RunScope or successful-Run-to-ProjectScope fork,
-including Workflow input and output forks ([Projects](projects.md)) and Agent
+including selected Run-to-Audit output collection, Audit-to-child-Run inputs,
+explicit Audit-to-owning-Project material publication, Workflow input and output forks ([Projects](projects.md)) and Agent
 Skill forks ([Skills](../tools/skills.md)). There is no generic client
 operation that accepts arbitrary source and target scopes.
 
@@ -1540,3 +1542,41 @@ Artifact access owns this contract. It replaces domain read transports without
 introducing another token, lease, table or synchronization protocol. Reconsider
 its target form only when a concrete additional consumer needs a bounded access
 shape that cannot be expressed as a binding and selected operation.
+
+
+### Audit material ownership
+
+**ART-R136.** AuditScope is addressed by the trusted owning Audit ID. Its
+bindings use the ordinary store, exact metadata/read, history and purge APIs.
+The collector retains each accepted producer Run/output once, as a frozen
+binding of that output's existing immutable version/blob. Multiple logical
+aliases and repeated collection reuse that binding. Other Audit documents
+retain their own existing publication contracts until their callers migrate.
+
+**ART-R137.** Selected Audit inputs are exact descriptors admitted by the
+owning execution intent. Ordinary Run initialization verifies metadata and
+forks every selected input before scheduling. Audit forks prove Project and
+child Run membership; a matching Project alone grants no cross-Audit access.
+Allocations receive ordinary local input forks and no Audit-scope authority.
+
+**ART-R138.** An owner may explicitly publish one accepted exact Audit material
+through `POST /v1/projects/{projectId}/audit-material-publications`. The Audit
+must belong to that active owned Project. Creation is create-only; replacement
+requires the exact destination Artifact `If-Match`. Publication reuses the
+source immutable version/blob, retains independent Project bytes and records
+`audit_publish` lineage. It follows no JSON refs, URLs or implicit dependencies.
+Ordinary explicit multi-input Workflows remain supported.
+
+**ART-R139.** Publication and its Project-scoped keyed receipt commit together.
+A repeated key with the same exact request returns its original destination;
+a changed request is an idempotency conflict. The receipt survives source Audit
+purge until Project purge and creates no extra hold. Source and destination
+retain independent lifetimes. New `audit_output`, `audit_input`, `audit_publish`
+edges retain their exact historical source identity after source purge; this
+provenance grants no byte access and never resurrects deleted sources.
+
+**ART-R140.** The owner-authenticated committed Artifact read also resolves
+Audit-owned output links by their persisted scope. An unknown scope is invalid;
+reads never probe another scope as a fallback. Staged unaccepted outputs are
+not public or publishable. Artifact material publication accepts the ordinary 1 MiB JSON bound
+for request metadata; the existing payload and transaction/history limits apply.

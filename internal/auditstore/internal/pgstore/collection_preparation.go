@@ -32,6 +32,7 @@ type findingAssociationJSON struct {
 }
 
 type artifactLinkJSON struct {
+	Scope            string          `json:"artifact_scope"`
 	LogicalKey       string          `json:"logical_key"`
 	ArtifactRef      json.RawMessage `json:"artifact_ref"`
 	ArtifactDigest   string          `json:"artifact_digest"`
@@ -105,7 +106,7 @@ func prepareRetainedLinks(params auditstore.CollectParams) (json.RawMessage, int
 	for index, link := range params.Retained {
 		ref, _ := json.Marshal(link.Artifact.Ref)
 		links[index] = artifactLinkJSON{
-			LogicalKey: link.LogicalKey, ArtifactRef: ref,
+			Scope: string(link.Scope), LogicalKey: link.LogicalKey, ArtifactRef: ref,
 			ArtifactDigest: link.Artifact.Digest, MediaType: link.Artifact.MediaType,
 			SizeBytes: link.Artifact.SizeBytes, SourceProvenance: link.SourceProvenance,
 			DisplayRef: link.DisplayRef,

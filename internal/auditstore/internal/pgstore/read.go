@@ -491,11 +491,11 @@ func (s *QueryStore) GetArtifactLink(
 	var result auditstore.ArtifactLink
 	var encodedRef []byte
 	err := s.db.QueryRow(ctx, `
-SELECT logical_key, artifact_ref, artifact_digest, media_type, size_bytes,
+SELECT artifact_scope, logical_key, artifact_ref, artifact_digest, media_type, size_bytes,
        source_provenance, display_ref, created_at
   FROM audit_artifact_links
  WHERE audit_id = $1 AND logical_key = $2`, auditID, logicalKey).Scan(
-		&result.LogicalKey, &encodedRef, &result.Artifact.Digest,
+		&result.Scope, &result.LogicalKey, &encodedRef, &result.Artifact.Digest,
 		&result.Artifact.MediaType, &result.Artifact.SizeBytes,
 		&result.SourceProvenance, &result.DisplayRef, &result.CreatedAt,
 	)
@@ -504,6 +504,9 @@ SELECT logical_key, artifact_ref, artifact_digest, media_type, size_bytes,
 	}
 	if err != nil {
 		return auditstore.ArtifactLink{}, fmt.Errorf("read Audit artifact link: %w", err)
+	}
+	if result.Scope != "project" && result.Scope != "audit" {
+		return auditstore.ArtifactLink{}, invalidf("stored Audit artifact scope is invalid")
 	}
 	if json.Unmarshal(encodedRef, &result.Artifact.Ref) != nil ||
 		validateExactArtifact("stored Audit artifact link", result.Artifact, true) != nil ||

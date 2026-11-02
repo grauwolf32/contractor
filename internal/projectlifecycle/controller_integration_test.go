@@ -609,7 +609,7 @@ func seedDecidedAuditHistory(t *testing.T, ctx context.Context, pool *pgxpool.Po
 		if _, err := ownerstore.NewTx(tx).AssessProjectFinding(ctx, auditstore.ProjectFindingEdit{OwnerID: audit.OwnerID, ProjectID: audit.ProjectID, FindingID: second, ExpectedRevision: 1, Verdict: auditstore.VerdictDuplicate, DuplicateTargetID: &first, Rationale: "Same problem; preserve independent source."}); err != nil {
 			return err
 		}
-		return hookstore.NewFindingEventsTx(tx).CommitDirectFindingAssessment(ctx, auditstore.DirectFindingAssessment{ProjectID: audit.ProjectID, AuditID: audit.AuditID, ReceiptID: "receipt-decided", AssessmentID: "direct-decided", SemanticAssessment: "supported", Result: auditstore.ArtifactLink{LogicalKey: "direct/result", Artifact: result, SourceProvenance: json.RawMessage(`{}`), DisplayRef: "Exact result"}, Contract: auditstore.ArtifactLink{LogicalKey: "direct/contract", Artifact: contract, SourceProvenance: json.RawMessage(`{}`), DisplayRef: "Exact contract"}, RetainedBytes: result.SizeBytes + contract.SizeBytes})
+		return hookstore.NewFindingEventsTx(tx).CommitDirectFindingAssessment(ctx, auditstore.DirectFindingAssessment{ProjectID: audit.ProjectID, AuditID: audit.AuditID, ReceiptID: "receipt-decided", AssessmentID: "direct-decided", SemanticAssessment: "supported", Result: auditstore.ArtifactLink{Scope: "project", LogicalKey: "direct/result", Artifact: result, SourceProvenance: json.RawMessage(`{}`), DisplayRef: "Exact result"}, Contract: auditstore.ArtifactLink{Scope: "project", LogicalKey: "direct/contract", Artifact: contract, SourceProvenance: json.RawMessage(`{}`), DisplayRef: "Exact contract"}, RetainedBytes: result.SizeBytes + contract.SizeBytes})
 	})
 	if err != nil {
 		t.Fatal(err)

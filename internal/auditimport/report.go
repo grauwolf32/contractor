@@ -346,12 +346,10 @@ func (i *Importer) publishReport(
 	if err != nil {
 		return false, err
 	}
-	machineLink := auditstore.ArtifactLink{
-		LogicalKey: auditstore.ReportMachineLogicalKey, Artifact: machineArtifact,
+	machineLink := auditstore.ArtifactLink{Scope: "project", LogicalKey: auditstore.ReportMachineLogicalKey, Artifact: machineArtifact,
 		SourceProvenance: provenance, DisplayRef: "machine-readable Audit report",
 	}
-	summaryLink := auditstore.ArtifactLink{
-		LogicalKey: auditstore.ReportSummaryLogicalKey, Artifact: summaryArtifact,
+	summaryLink := auditstore.ArtifactLink{Scope: "project", LogicalKey: auditstore.ReportSummaryLogicalKey, Artifact: summaryArtifact,
 		SourceProvenance: provenance, DisplayRef: "bounded human-readable Audit summary",
 	}
 	identity, err := json.Marshal(struct {

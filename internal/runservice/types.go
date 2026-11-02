@@ -134,6 +134,7 @@ type PublicCreateParams struct {
 // immutable Workflow/Runtime/Project snapshots; raw secret bytes cannot enter
 // this boundary.
 type AuditCreateParams struct {
+	AuditInputs             map[string]bool
 	RequiredPlacementLabels []string
 	Claim                   auditstore.ControllerClaim
 	ExecutionID             string

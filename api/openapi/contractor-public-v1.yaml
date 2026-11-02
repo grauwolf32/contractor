@@ -4353,6 +4353,46 @@ paths:
         '500': {$ref: '#/components/responses/InternalError'}
         '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
+  /v1/projects/{projectId}/audit-material-publications:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    post:
+      operationId: publishAuditMaterial
+      tags: [Audits]
+      summary: Publish one exact accepted Audit material into its owning Project
+      description: Creates an independent binding of the same immutable version. Requires Idempotency-Key. Creation is create-only; replacement requires an explicit target If-Match revision. Project-scoped receipts replay after source Audit deletion. No embedded dependencies are followed.
+      x-max-request-body-bytes: 1048576
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/ArtifactIfMatch'
+        - {name: If-None-Match, in: header, required: false, schema: {type: string, const: '*'}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AuditMaterialPublicationRequest'}
+      responses:
+        '200':
+          description: Explicit CAS replacement or replay of the original publication
+          headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}, ETag: {$ref: '#/components/headers/ETag'}, Idempotency-Replayed: {$ref: '#/components/headers/IdempotencyReplayed'}, Cache-Control: {$ref: '#/components/headers/NoStore'}}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AuditMaterialPublication'}
+        '201':
+          description: Exact material published under independent Project ownership
+          headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}, ETag: {$ref: '#/components/headers/ETag'}, Cache-Control: {$ref: '#/components/headers/NoStore'}}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AuditMaterialPublication'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '412': {$ref: '#/components/responses/PreconditionFailed'}
+        '413': {$ref: '#/components/responses/PayloadTooLarge'}
+        '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/ArtifactWriteUnavailable'}
+
   /v1/audits/{auditId}/artifacts:
     parameters:
       - $ref: '#/components/parameters/AuditId'
@@ -15089,15 +15129,38 @@ components:
       properties:
         items: {type: array, maxItems: 200, items: {$ref: '#/components/schemas/ArtifactMetadata'}}
         page: {$ref: '#/components/schemas/PageInfo'}
+    AuditMaterialPublicationRequest:
+      type: object
+      additionalProperties: false
+      required: [auditId, source, target]
+      properties:
+        auditId: {$ref: '#/components/schemas/ResourceId'}
+        source: {$ref: '#/components/schemas/ExactArtifactRef'}
+        target:
+          type: object
+          additionalProperties: false
+          required: [namespace, name]
+          properties:
+            namespace: {$ref: '#/components/schemas/ArtifactName'}
+            name: {$ref: '#/components/schemas/ArtifactName'}
+    AuditMaterialPublication:
+      type: object
+      additionalProperties: false
+      required: [auditId, projectId, source, artifact]
+      properties:
+        auditId: {$ref: '#/components/schemas/ResourceId'}
+        projectId: {$ref: '#/components/schemas/ResourceId'}
+        source: {$ref: '#/components/schemas/ExactArtifactRef'}
+        artifact: {$ref: '#/components/schemas/ExactArtifactRef'}
     ArtifactLineageEdge:
       type: object
       additionalProperties: false
       required: [kind, sourceScope, source, targetScope, target, createdAt]
       properties:
-        kind: {type: string, enum: [input_fork, output_bind, project_output_publish, context_projection]}
-        sourceScope: {type: string, enum: [user, project, run]}
+        kind: {type: string, enum: [input_fork, output_bind, project_output_publish, context_projection, audit_output, audit_input, audit_publish]}
+        sourceScope: {type: string, enum: [user, project, run, audit]}
         source: {$ref: '#/components/schemas/ExactArtifactRef'}
-        targetScope: {type: string, enum: [user, project, run]}
+        targetScope: {type: string, enum: [user, project, run, audit]}
         target: {$ref: '#/components/schemas/ExactArtifactRef'}
         runId: {$ref: '#/components/schemas/ResourceId'}
         stageExecutionId: {$ref: '#/components/schemas/ResourceId'}

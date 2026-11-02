@@ -122,7 +122,10 @@ func (s *Service) Fork(ctx context.Context, fork Fork) (ForkResult, error) {
 	if err := validateScope(fork.Target); err != nil {
 		return ForkResult{}, err
 	}
-	if !forkScopesAllowed(fork.Source, fork.Target) {
+	if !forkScopesAllowed(fork.Source, fork.Target) ||
+		(fork.Source.kind == ScopeAudit || fork.Target.kind == ScopeAudit) && !(fork.Kind == LineageAuditOutput && fork.Source.kind == ScopeRun && fork.Target.kind == ScopeAudit ||
+			fork.Kind == LineageAuditInput && fork.Source.kind == ScopeAudit && fork.Target.kind == ScopeRun ||
+			fork.Kind == LineageAuditPublish && fork.Source.kind == ScopeAudit && fork.Target.kind == ScopeProject) {
 		return ForkResult{}, ErrInvalidScope
 	}
 	if fork.Source.kind == ScopeProject && fork.Source == fork.Target && !fork.Frozen {
@@ -134,6 +137,12 @@ func (s *Service) Fork(ctx context.Context, fork Fork) (ForkResult, error) {
 	if err := validateTarget(fork.TargetRef); err != nil {
 		return ForkResult{}, err
 	}
+	if fork.ExpectedRevision != nil && (fork.Source.kind != ScopeAudit || fork.Target.kind != ScopeProject || fork.Kind != LineageAuditPublish) {
+		return ForkResult{}, ErrInvalidScope
+	}
+	if fork.ExpectedRevision != nil && (validateRevision(*fork.ExpectedRevision) != nil || fork.Frozen || fork.Replay) {
+		return ForkResult{}, ErrInvalidName
+	}
 	if !fork.Frozen && auditManaged(fork.Target, fork.TargetRef) {
 		return ForkResult{}, ErrReservedNamespace
 	}
@@ -141,14 +150,17 @@ func (s *Service) Fork(ctx context.Context, fork Fork) (ForkResult, error) {
 }
 
 // forkScopesAllowed admits the forks of ART-R72 and ART-R90: a UserScope or
-// ProjectScope source into a RunScope, a RunScope source into a ProjectScope,
-// and one RunScope binding into another of the same Run.
+// ProjectScope or AuditScope source into a RunScope, a RunScope source into a
+// ProjectScope or AuditScope, an AuditScope source into its ProjectScope, and
+// one RunScope binding into another of the same Run.
 func forkScopesAllowed(source, target Scope) bool {
 	switch {
 	case target.kind == ScopeRun:
-		return source.kind == ScopeUser || source.kind == ScopeProject || source == target
+		return source.kind == ScopeUser || source.kind == ScopeProject || source.kind == ScopeAudit || source == target
 	case target.kind == ScopeProject:
-		return source.kind == ScopeRun || source == target
+		return source.kind == ScopeRun || source.kind == ScopeAudit || source == target
+	case target.kind == ScopeAudit:
+		return source.kind == ScopeRun
 	}
 	return false
 }

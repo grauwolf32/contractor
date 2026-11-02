@@ -292,7 +292,7 @@ role are retained and accepted atomically, including outputs used only as
 diagnostics.
 
 **ASC-R36.** Acceptance records the exact source Run output
-revision, the retained Project revision, digest, media type and size,
+revision, the retained AuditScope revision, digest, media type and size,
 execution and Run identity, the logical name and the actual Workflow output
 name.
 
@@ -891,8 +891,11 @@ SCN-R238 scope contract.
 
 A role may instead consume an accepted preparation or retained role output,
 whose bytes do not exist at original start. Once that exact output is resolved,
-the submission builder verifies its Project metadata and applies the same
+the submission builder verifies its AuditScope metadata and applies the same
 predicate before creating a role/check execution intent or submitting a Run.
+For a `retained-dependency` input, metadata admission uses the same accepted
+source scope as Run input initialization: dependency kind `prepare-output`
+selects AuditScope; Project-owned dependency kinds select ProjectScope.
 Permanent refusal follows the existing dispatch-contract failure path; read
 failures preserve their classification. Independently retained materials are
 not deleted by either refusal. Runtime still owns YAML/ZIP content validation.

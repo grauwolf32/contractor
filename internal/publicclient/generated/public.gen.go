@@ -327,22 +327,31 @@ func (e ArtifactArchiveEntryKind) Valid() bool {
 
 // Defines values for ArtifactLineageEdgeKind.
 const (
-	ContextProjection    ArtifactLineageEdgeKind = "context_projection"
-	InputFork            ArtifactLineageEdgeKind = "input_fork"
-	OutputBind           ArtifactLineageEdgeKind = "output_bind"
-	ProjectOutputPublish ArtifactLineageEdgeKind = "project_output_publish"
+	ArtifactLineageEdgeKindAuditInput           ArtifactLineageEdgeKind = "audit_input"
+	ArtifactLineageEdgeKindAuditOutput          ArtifactLineageEdgeKind = "audit_output"
+	ArtifactLineageEdgeKindAuditPublish         ArtifactLineageEdgeKind = "audit_publish"
+	ArtifactLineageEdgeKindContextProjection    ArtifactLineageEdgeKind = "context_projection"
+	ArtifactLineageEdgeKindInputFork            ArtifactLineageEdgeKind = "input_fork"
+	ArtifactLineageEdgeKindOutputBind           ArtifactLineageEdgeKind = "output_bind"
+	ArtifactLineageEdgeKindProjectOutputPublish ArtifactLineageEdgeKind = "project_output_publish"
 )
 
 // Valid indicates whether the value is a known member of the ArtifactLineageEdgeKind enum.
 func (e ArtifactLineageEdgeKind) Valid() bool {
 	switch e {
-	case ContextProjection:
+	case ArtifactLineageEdgeKindAuditInput:
 		return true
-	case InputFork:
+	case ArtifactLineageEdgeKindAuditOutput:
 		return true
-	case OutputBind:
+	case ArtifactLineageEdgeKindAuditPublish:
 		return true
-	case ProjectOutputPublish:
+	case ArtifactLineageEdgeKindContextProjection:
+		return true
+	case ArtifactLineageEdgeKindInputFork:
+		return true
+	case ArtifactLineageEdgeKindOutputBind:
+		return true
+	case ArtifactLineageEdgeKindProjectOutputPublish:
 		return true
 	default:
 		return false
@@ -351,6 +360,7 @@ func (e ArtifactLineageEdgeKind) Valid() bool {
 
 // Defines values for ArtifactLineageEdgeSourceScope.
 const (
+	ArtifactLineageEdgeSourceScopeAudit   ArtifactLineageEdgeSourceScope = "audit"
 	ArtifactLineageEdgeSourceScopeProject ArtifactLineageEdgeSourceScope = "project"
 	ArtifactLineageEdgeSourceScopeRun     ArtifactLineageEdgeSourceScope = "run"
 	ArtifactLineageEdgeSourceScopeUser    ArtifactLineageEdgeSourceScope = "user"
@@ -359,6 +369,8 @@ const (
 // Valid indicates whether the value is a known member of the ArtifactLineageEdgeSourceScope enum.
 func (e ArtifactLineageEdgeSourceScope) Valid() bool {
 	switch e {
+	case ArtifactLineageEdgeSourceScopeAudit:
+		return true
 	case ArtifactLineageEdgeSourceScopeProject:
 		return true
 	case ArtifactLineageEdgeSourceScopeRun:
@@ -372,6 +384,7 @@ func (e ArtifactLineageEdgeSourceScope) Valid() bool {
 
 // Defines values for ArtifactLineageEdgeTargetScope.
 const (
+	ArtifactLineageEdgeTargetScopeAudit   ArtifactLineageEdgeTargetScope = "audit"
 	ArtifactLineageEdgeTargetScopeProject ArtifactLineageEdgeTargetScope = "project"
 	ArtifactLineageEdgeTargetScopeRun     ArtifactLineageEdgeTargetScope = "run"
 	ArtifactLineageEdgeTargetScopeUser    ArtifactLineageEdgeTargetScope = "user"
@@ -380,6 +393,8 @@ const (
 // Valid indicates whether the value is a known member of the ArtifactLineageEdgeTargetScope enum.
 func (e ArtifactLineageEdgeTargetScope) Valid() bool {
 	switch e {
+	case ArtifactLineageEdgeTargetScopeAudit:
+		return true
 	case ArtifactLineageEdgeTargetScopeProject:
 		return true
 	case ArtifactLineageEdgeTargetScopeRun:
@@ -6817,6 +6832,21 @@ func (e ImportProjectGitArtifactParamsIfNoneMatch) Valid() bool {
 	}
 }
 
+// Defines values for PublishAuditMaterialParamsIfNoneMatch.
+const (
+	PublishAuditMaterialParamsIfNoneMatchAsterisk PublishAuditMaterialParamsIfNoneMatch = "*"
+)
+
+// Valid indicates whether the value is a known member of the PublishAuditMaterialParamsIfNoneMatch enum.
+func (e PublishAuditMaterialParamsIfNoneMatch) Valid() bool {
+	switch e {
+	case PublishAuditMaterialParamsIfNoneMatchAsterisk:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ListOwnerReviewsParamsState.
 const (
 	ListOwnerReviewsParamsStateDecided ListOwnerReviewsParamsState = "decided"
@@ -7668,6 +7698,24 @@ type AuditLimits struct {
 	MaxItemsTotal      int `json:"maxItemsTotal"`
 	MaxRounds          int `json:"maxRounds"`
 	MaxSubmittedRuns   int `json:"maxSubmittedRuns"`
+}
+
+// AuditMaterialPublication defines model for AuditMaterialPublication.
+type AuditMaterialPublication struct {
+	Artifact  ExactArtifactRef `json:"artifact"`
+	AuditId   ResourceId       `json:"auditId"`
+	ProjectId ResourceId       `json:"projectId"`
+	Source    ExactArtifactRef `json:"source"`
+}
+
+// AuditMaterialPublicationRequest defines model for AuditMaterialPublicationRequest.
+type AuditMaterialPublicationRequest struct {
+	AuditId ResourceId       `json:"auditId"`
+	Source  ExactArtifactRef `json:"source"`
+	Target  struct {
+		Name      ArtifactName `json:"name"`
+		Namespace ArtifactName `json:"namespace"`
+	} `json:"target"`
 }
 
 // AuditPage defines model for AuditPage.
@@ -13708,6 +13756,19 @@ type ListProjectArtifactVersionsParams struct {
 	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
 }
 
+// PublishAuditMaterialParams defines parameters for PublishAuditMaterial.
+type PublishAuditMaterialParams struct {
+	// IdempotencyKey Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+
+	// IfMatch One strong quoted Artifact revision in the `Revision` grammar. A malformed revision is 400 `invalid_request`, never a CAS conflict.
+	IfMatch     *ArtifactIfMatch                       `json:"If-Match,omitempty"`
+	IfNoneMatch *PublishAuditMaterialParamsIfNoneMatch `json:"If-None-Match,omitempty"`
+}
+
+// PublishAuditMaterialParamsIfNoneMatch defines parameters for PublishAuditMaterial.
+type PublishAuditMaterialParamsIfNoneMatch string
+
 // ListProjectAuditsParams defines parameters for ListProjectAudits.
 type ListProjectAuditsParams struct {
 	Limit   *Limit      `form:"limit,omitempty" json:"limit,omitempty"`
@@ -14113,6 +14174,9 @@ type UpdateProjectJSONRequestBody = UpdateProjectRequest
 
 // ImportProjectGitArtifactJSONRequestBody defines body for ImportProjectGitArtifact for application/json ContentType.
 type ImportProjectGitArtifactJSONRequestBody = GitImportRequest
+
+// PublishAuditMaterialJSONRequestBody defines body for PublishAuditMaterial for application/json ContentType.
+type PublishAuditMaterialJSONRequestBody = AuditMaterialPublicationRequest
 
 // CreateAuditJSONRequestBody defines body for CreateAudit for application/json ContentType.
 type CreateAuditJSONRequestBody = CreateAuditRequest
@@ -20202,6 +20266,24 @@ type ClientInterface interface {
 	// Corresponds with GET /v1/projects/{projectId}/artifacts/{namespace}/{name}/versions (the `ListProjectArtifactVersions` operationId).
 	ListProjectArtifactVersions(ctx context.Context, projectId ProjectId, namespace ArtifactNamespace, name ArtifactNameParameter, params *ListProjectArtifactVersionsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// PublishAuditMaterialWithBody Publish one exact accepted Audit material into its owning Project
+	//
+	// Creates an independent binding of the same immutable version. Requires Idempotency-Key. Creation is create-only; replacement requires an explicit target If-Match revision. Project-scoped receipts replay after source Audit deletion. No embedded dependencies are followed.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /v1/projects/{projectId}/audit-material-publications (the `PublishAuditMaterial` operationId).
+	PublishAuditMaterialWithBody(ctx context.Context, projectId ProjectId, params *PublishAuditMaterialParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PublishAuditMaterial Publish one exact accepted Audit material into its owning Project
+	//
+	// Creates an independent binding of the same immutable version. Requires Idempotency-Key. Creation is create-only; replacement requires an explicit target If-Match revision. Project-scoped receipts replay after source Audit deletion. No embedded dependencies are followed.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /v1/projects/{projectId}/audit-material-publications (the `PublishAuditMaterial` operationId).
+	PublishAuditMaterial(ctx context.Context, projectId ProjectId, params *PublishAuditMaterialParams, body PublishAuditMaterialJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListProjectAudits List Audits belonging to one owned Project
 	//
 	// Corresponds with GET /v1/projects/{projectId}/audits (the `ListProjectAudits` operationId).
@@ -22871,6 +22953,44 @@ func (c *Client) GetProjectArtifactMetadata(ctx context.Context, projectId Proje
 // Corresponds with GET /v1/projects/{projectId}/artifacts/{namespace}/{name}/versions (the `ListProjectArtifactVersions` operationId).
 func (c *Client) ListProjectArtifactVersions(ctx context.Context, projectId ProjectId, namespace ArtifactNamespace, name ArtifactNameParameter, params *ListProjectArtifactVersionsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListProjectArtifactVersionsRequest(c.Server, projectId, namespace, name, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PublishAuditMaterialWithBody Publish one exact accepted Audit material into its owning Project
+//
+// Creates an independent binding of the same immutable version. Requires Idempotency-Key. Creation is create-only; replacement requires an explicit target If-Match revision. Project-scoped receipts replay after source Audit deletion. No embedded dependencies are followed.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /v1/projects/{projectId}/audit-material-publications (the `PublishAuditMaterial` operationId).
+func (c *Client) PublishAuditMaterialWithBody(ctx context.Context, projectId ProjectId, params *PublishAuditMaterialParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPublishAuditMaterialRequestWithBody(c.Server, projectId, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PublishAuditMaterial Publish one exact accepted Audit material into its owning Project
+//
+// Creates an independent binding of the same immutable version. Requires Idempotency-Key. Creation is create-only; replacement requires an explicit target If-Match revision. Project-scoped receipts replay after source Audit deletion. No embedded dependencies are followed.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /v1/projects/{projectId}/audit-material-publications (the `PublishAuditMaterial` operationId).
+func (c *Client) PublishAuditMaterial(ctx context.Context, projectId ProjectId, params *PublishAuditMaterialParams, body PublishAuditMaterialJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPublishAuditMaterialRequest(c.Server, projectId, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -31546,6 +31666,88 @@ func NewListProjectArtifactVersionsRequest(server string, projectId ProjectId, n
 	return req, nil
 }
 
+// NewPublishAuditMaterialRequest calls the generic PublishAuditMaterial builder with application/json body
+func NewPublishAuditMaterialRequest(server string, projectId ProjectId, params *PublishAuditMaterialParams, body PublishAuditMaterialJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPublishAuditMaterialRequestWithBody(server, projectId, params, "application/json", bodyReader)
+}
+
+// NewPublishAuditMaterialRequestWithBody constructs an http.Request for the PublishAuditMaterial method, with any body, and a specified content type
+func NewPublishAuditMaterialRequestWithBody(server string, projectId ProjectId, params *PublishAuditMaterialParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "projectId", projectId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/projects/%s/audit-material-publications", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Idempotency-Key", params.IdempotencyKey, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("Idempotency-Key", headerParam0)
+
+		if params.IfMatch != nil {
+			var headerParam1 string
+
+			headerParam1, err = runtime.StyleParamWithOptions("simple", false, "If-Match", *params.IfMatch, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("If-Match", headerParam1)
+		}
+
+		if params.IfNoneMatch != nil {
+			var headerParam2 string
+
+			headerParam2, err = runtime.StyleParamWithOptions("simple", false, "If-None-Match", *params.IfNoneMatch, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("If-None-Match", headerParam2)
+		}
+
+	}
+
+	return req, nil
+}
+
 // NewListProjectAuditsRequest constructs an http.Request for the ListProjectAudits method
 func NewListProjectAuditsRequest(server string, projectId ProjectId, params *ListProjectAuditsParams) (*http.Request, error) {
 	var err error
@@ -35914,6 +36116,24 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with GET /v1/projects/{projectId}/artifacts/{namespace}/{name}/versions (the `ListProjectArtifactVersions` operationId).
 	ListProjectArtifactVersionsWithResponse(ctx context.Context, projectId ProjectId, namespace ArtifactNamespace, name ArtifactNameParameter, params *ListProjectArtifactVersionsParams, reqEditors ...RequestEditorFn) (*ListProjectArtifactVersionsResponse, error)
+
+	// PublishAuditMaterialWithBodyWithResponse Publish one exact accepted Audit material into its owning Project
+	//
+	// Creates an independent binding of the same immutable version. Requires Idempotency-Key. Creation is create-only; replacement requires an explicit target If-Match revision. Project-scoped receipts replay after source Audit deletion. No embedded dependencies are followed.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /v1/projects/{projectId}/audit-material-publications (the `PublishAuditMaterial` operationId).
+	PublishAuditMaterialWithBodyWithResponse(ctx context.Context, projectId ProjectId, params *PublishAuditMaterialParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PublishAuditMaterialResponse, error)
+
+	// PublishAuditMaterialWithResponse Publish one exact accepted Audit material into its owning Project
+	//
+	// Creates an independent binding of the same immutable version. Requires Idempotency-Key. Creation is create-only; replacement requires an explicit target If-Match revision. Project-scoped receipts replay after source Audit deletion. No embedded dependencies are followed.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /v1/projects/{projectId}/audit-material-publications (the `PublishAuditMaterial` operationId).
+	PublishAuditMaterialWithResponse(ctx context.Context, projectId ProjectId, params *PublishAuditMaterialParams, body PublishAuditMaterialJSONRequestBody, reqEditors ...RequestEditorFn) (*PublishAuditMaterialResponse, error)
 
 	// ListProjectAuditsWithResponse List Audits belonging to one owned Project
 	//
@@ -52234,6 +52454,188 @@ func (r ListProjectArtifactVersionsResponse) ContentType() string {
 	return ""
 }
 
+// PublishAuditMaterialResponse200Headers the declared response headers of an HTTP 200 response for PublishAuditMaterial
+type PublishAuditMaterialResponse200Headers struct {
+	CacheControl        string
+	ETag                string
+	IdempotencyReplayed *string
+	XRequestID          RequestId
+}
+
+// PublishAuditMaterialResponse201Headers the declared response headers of an HTTP 201 response for PublishAuditMaterial
+type PublishAuditMaterialResponse201Headers struct {
+	CacheControl string
+	ETag         string
+	XRequestID   RequestId
+}
+
+// PublishAuditMaterialResponse400Headers the declared response headers of an HTTP 400 response for PublishAuditMaterial
+type PublishAuditMaterialResponse400Headers struct {
+	XRequestID RequestId
+}
+
+// PublishAuditMaterialResponse401Headers the declared response headers of an HTTP 401 response for PublishAuditMaterial
+type PublishAuditMaterialResponse401Headers struct {
+	WWWAuthenticate       *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// PublishAuditMaterialResponse404Headers the declared response headers of an HTTP 404 response for PublishAuditMaterial
+type PublishAuditMaterialResponse404Headers struct {
+	XRequestID RequestId
+}
+
+// PublishAuditMaterialResponse409Headers the declared response headers of an HTTP 409 response for PublishAuditMaterial
+type PublishAuditMaterialResponse409Headers struct {
+	XRequestID RequestId
+}
+
+// PublishAuditMaterialResponse412Headers the declared response headers of an HTTP 412 response for PublishAuditMaterial
+type PublishAuditMaterialResponse412Headers struct {
+	XRequestID RequestId
+}
+
+// PublishAuditMaterialResponse413Headers the declared response headers of an HTTP 413 response for PublishAuditMaterial
+type PublishAuditMaterialResponse413Headers struct {
+	XRequestID RequestId
+}
+
+// PublishAuditMaterialResponse500Headers the declared response headers of an HTTP 500 response for PublishAuditMaterial
+type PublishAuditMaterialResponse500Headers struct {
+	XRequestID RequestId
+}
+
+// PublishAuditMaterialResponse503Headers the declared response headers of an HTTP 503 response for PublishAuditMaterial
+type PublishAuditMaterialResponse503Headers struct {
+	RetryAfter *int
+	XRequestID RequestId
+}
+
+type PublishAuditMaterialResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *AuditMaterialPublication
+	// JSON201 the response for an HTTP 201 `application/json` response
+	JSON201 *AuditMaterialPublication
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Conflict
+	// JSON412 the response for an HTTP 412 `application/json` response
+	JSON412 *PreconditionFailed
+	// JSON413 the response for an HTTP 413 `application/json` response
+	JSON413 *PayloadTooLarge
+	// JSON500 the response for an HTTP 500 `application/json` response
+	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *ArtifactWriteUnavailable
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *PublishAuditMaterialResponse200Headers
+	// Headers201 the parsed response headers for an HTTP 201 response
+	Headers201 *PublishAuditMaterialResponse201Headers
+	// Headers400 the parsed response headers for an HTTP 400 response
+	Headers400 *PublishAuditMaterialResponse400Headers
+	// Headers401 the parsed response headers for an HTTP 401 response
+	Headers401 *PublishAuditMaterialResponse401Headers
+	// Headers404 the parsed response headers for an HTTP 404 response
+	Headers404 *PublishAuditMaterialResponse404Headers
+	// Headers409 the parsed response headers for an HTTP 409 response
+	Headers409 *PublishAuditMaterialResponse409Headers
+	// Headers412 the parsed response headers for an HTTP 412 response
+	Headers412 *PublishAuditMaterialResponse412Headers
+	// Headers413 the parsed response headers for an HTTP 413 response
+	Headers413 *PublishAuditMaterialResponse413Headers
+	// Headers500 the parsed response headers for an HTTP 500 response
+	Headers500 *PublishAuditMaterialResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *PublishAuditMaterialResponse503Headers
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r PublishAuditMaterialResponse) GetJSON200() *AuditMaterialPublication {
+	return r.JSON200
+}
+
+// GetJSON201 returns the response for an HTTP 201 `application/json` response
+func (r PublishAuditMaterialResponse) GetJSON201() *AuditMaterialPublication {
+	return r.JSON201
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r PublishAuditMaterialResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r PublishAuditMaterialResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r PublishAuditMaterialResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r PublishAuditMaterialResponse) GetJSON409() *Conflict {
+	return r.JSON409
+}
+
+// GetJSON412 returns the response for an HTTP 412 `application/json` response
+func (r PublishAuditMaterialResponse) GetJSON412() *PreconditionFailed {
+	return r.JSON412
+}
+
+// GetJSON413 returns the response for an HTTP 413 `application/json` response
+func (r PublishAuditMaterialResponse) GetJSON413() *PayloadTooLarge {
+	return r.JSON413
+}
+
+// GetJSON500 returns the response for an HTTP 500 `application/json` response
+func (r PublishAuditMaterialResponse) GetJSON500() *InternalError {
+	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r PublishAuditMaterialResponse) GetJSON503() *ArtifactWriteUnavailable {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r PublishAuditMaterialResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PublishAuditMaterialResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PublishAuditMaterialResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PublishAuditMaterialResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 // ListProjectAuditsResponse200Headers the declared response headers of an HTTP 200 response for ListProjectAudits
 type ListProjectAuditsResponse200Headers struct {
 	CacheControl string
@@ -60296,6 +60698,36 @@ func (c *ClientWithResponses) ListProjectArtifactVersionsWithResponse(ctx contex
 		return nil, err
 	}
 	return ParseListProjectArtifactVersionsResponse(rsp)
+}
+
+// PublishAuditMaterialWithBodyWithResponse Publish one exact accepted Audit material into its owning Project
+//
+// Creates an independent binding of the same immutable version. Requires Idempotency-Key. Creation is create-only; replacement requires an explicit target If-Match revision. Project-scoped receipts replay after source Audit deletion. No embedded dependencies are followed.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /v1/projects/{projectId}/audit-material-publications (the `PublishAuditMaterial` operationId).
+func (c *ClientWithResponses) PublishAuditMaterialWithBodyWithResponse(ctx context.Context, projectId ProjectId, params *PublishAuditMaterialParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PublishAuditMaterialResponse, error) {
+	rsp, err := c.PublishAuditMaterialWithBody(ctx, projectId, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePublishAuditMaterialResponse(rsp)
+}
+
+// PublishAuditMaterialWithResponse Publish one exact accepted Audit material into its owning Project
+//
+// Creates an independent binding of the same immutable version. Requires Idempotency-Key. Creation is create-only; replacement requires an explicit target If-Match revision. Project-scoped receipts replay after source Audit deletion. No embedded dependencies are followed.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /v1/projects/{projectId}/audit-material-publications (the `PublishAuditMaterial` operationId).
+func (c *ClientWithResponses) PublishAuditMaterialWithResponse(ctx context.Context, projectId ProjectId, params *PublishAuditMaterialParams, body PublishAuditMaterialJSONRequestBody, reqEditors ...RequestEditorFn) (*PublishAuditMaterialResponse, error) {
+	rsp, err := c.PublishAuditMaterial(ctx, projectId, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePublishAuditMaterialResponse(rsp)
 }
 
 // ListProjectAuditsWithResponse List Audits belonging to one owned Project
@@ -80644,6 +81076,254 @@ func ParseListProjectArtifactVersionsResponse(rsp *http.Response) (*ListProjectA
 		response.Headers500 = &headers
 	case rsp.StatusCode == 503:
 		var headers ListProjectArtifactVersionsResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
+	}
+
+	return response, nil
+}
+
+// ParsePublishAuditMaterialResponse parses an HTTP response from a PublishAuditMaterialWithResponse call
+func ParsePublishAuditMaterialResponse(rsp *http.Response) (*PublishAuditMaterialResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PublishAuditMaterialResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AuditMaterialPublication
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest AuditMaterialPublication
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
+		var dest PreconditionFailed
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON412 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 413:
+		var dest PayloadTooLarge
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON413 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest ArtifactWriteUnavailable
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers PublishAuditMaterialResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.CacheControl = value
+		}
+		if values := rsp.Header.Values("ETag"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "ETag", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.ETag = value
+		}
+		if values := rsp.Header.Values("Idempotency-Replayed"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Idempotency-Replayed", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.IdempotencyReplayed = &value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers200 = &headers
+	case rsp.StatusCode == 201:
+		var headers PublishAuditMaterialResponse201Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.CacheControl = value
+		}
+		if values := rsp.Header.Values("ETag"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "ETag", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.ETag = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers201 = &headers
+	case rsp.StatusCode == 400:
+		var headers PublishAuditMaterialResponse400Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers400 = &headers
+	case rsp.StatusCode == 401:
+		var headers PublishAuditMaterialResponse401Headers
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers401 = &headers
+	case rsp.StatusCode == 404:
+		var headers PublishAuditMaterialResponse404Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers404 = &headers
+	case rsp.StatusCode == 409:
+		var headers PublishAuditMaterialResponse409Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers409 = &headers
+	case rsp.StatusCode == 412:
+		var headers PublishAuditMaterialResponse412Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers412 = &headers
+	case rsp.StatusCode == 413:
+		var headers PublishAuditMaterialResponse413Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers413 = &headers
+	case rsp.StatusCode == 500:
+		var headers PublishAuditMaterialResponse500Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers PublishAuditMaterialResponse503Headers
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value int
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.RetryAfter = &value
+		}
 		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
 			var value RequestId
 			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {

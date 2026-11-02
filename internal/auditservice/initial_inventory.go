@@ -102,7 +102,8 @@ func (s *Service) prepareInitialInventory(ctx context.Context, claim auditstore.
 	if err != nil {
 		return auditstore.AcceptInitialRoundParams{}, err
 	}
-	project, err := service.Project(audit.ProjectID)
+	auditScope, _ := artifacts.AuditScope(audit.AuditID)
+	project, err := service.Scoped(auditScope)
 	if err != nil {
 		return auditstore.AcceptInitialRoundParams{}, err
 	}
@@ -213,5 +214,5 @@ func (s *Service) prepareInitialInventory(ctx context.Context, claim auditstore.
 	provenance, _ := json.Marshal(map[string]any{"schema": auditbaseline.DerivedInventorySchema, "sources": sources})
 	return auditstore.AcceptInitialRoundParams{Claim: claim, ExpectedAuditRevision: audit.Revision,
 		RoundID: auditdomain.DeterministicID("round", audit.AuditID, "1"), Manifest: worklist, Items: items,
-		Inventory: auditstore.ArtifactLink{LogicalKey: auditstore.InitialInventoryLogicalKey, Artifact: metadata, SourceProvenance: provenance}}, nil
+		Inventory: auditstore.ArtifactLink{Scope: "project", LogicalKey: auditstore.InitialInventoryLogicalKey, Artifact: metadata, SourceProvenance: provenance}}, nil
 }
