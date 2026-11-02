@@ -16,7 +16,7 @@ func (p *PostgresPersistence) AdmitStage(ctx context.Context, runID, stageID str
 	var stage runstore.StageExecution
 	err := persistencepostgres.InTx(ctx, p.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		store := runstore.NewPostgresTxStore(tx)
-		state, err := store.LockRunState(ctx, runID, progressionRunStates...)
+		state, err := lockClaimedRun(ctx, store, runID, progressionRunStates...)
 		if err != nil {
 			return err
 		}
@@ -39,10 +39,10 @@ func (p *PostgresPersistence) AdmitStage(ctx context.Context, runID, stageID str
 
 // DiscardUnadmittedPlacement undoes the durable placement of a Stage whose
 // admission Queue Pause deferred. The Stage was never admitted, so no Runtime
-// prepared its allocations; deleting their rows together with the live
-// reservation lets the next claim after resume place it again instead of
-// finding pinned rows without grants (SCH-R152). Run and Stage are locked in
-// the order every commit point uses.
+// prepared its allocations. Its Stage ID makes the discard replay-safe:
+// COMMIT rollback after discard may retain rows without a live reservation,
+// which liveOrNewReservations reconciles before placement (SCH-R152). Run and
+// Stage are locked in the order every commit point uses.
 func (p *PostgresPersistence) DiscardUnadmittedPlacement(
 	ctx context.Context, runID, stageID string, discard func() error,
 ) error {
@@ -51,7 +51,7 @@ func (p *PostgresPersistence) DiscardUnadmittedPlacement(
 	}
 	return persistencepostgres.InTx(ctx, p.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		store := runstore.NewPostgresTxStore(tx)
-		if _, err := store.LockRunState(ctx, runID, runstore.RunPending); err != nil {
+		if _, err := lockClaimedRun(ctx, store, runID, runstore.RunPending); err != nil {
 			return err
 		}
 		if err := store.DiscardUnadmittedAllocations(ctx, runID, stageID); err != nil {

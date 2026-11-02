@@ -162,9 +162,7 @@ func TestPostgresEscalationCountReadsOnlyStageLineage(t *testing.T) {
 				t.Fatal(err)
 			}
 			last := insertStageHistory(t, ctx, f.pool, f.workflow.EntryStage, spec, f.stageContext, history)
-			if _, err := f.persistence.CreateStageWithContext(
-				ctx, f.attempt(t, "stage-base", history+1, &last, nil), f.pins,
-			); err != nil {
+			if _, err := f.persistence.CreateStageWithContext(fixtureClaim(t, ctx, f.persistence.pool, "run-1"), f.attempt(t, "stage-base", history+1, &last, nil), f.pins); err != nil {
 				t.Fatal(err)
 			}
 			f.endAttempt(t, ctx, "stage-base")

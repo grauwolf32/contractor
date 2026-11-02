@@ -654,6 +654,10 @@ func transitionProductionMemoryStage(
 	stageID string,
 	target StageExecutionStateForTest,
 ) error {
+	if _, err := pool.Exec(ctx, `UPDATE workflow_runs SET scheduler_claim_id='memory-fixture',scheduler_claimed_at=clock_timestamp()-interval '2 minutes',scheduler_claim_expires_at=clock_timestamp()-interval '1 minute' WHERE run_id=$1`, runID); err != nil {
+		return err
+	}
+	ctx = scheduler.WithRunClaim(ctx, runID, "memory-fixture")
 	store, err := scheduler.NewPostgresPersistence(pool)
 	if err != nil {
 		return err

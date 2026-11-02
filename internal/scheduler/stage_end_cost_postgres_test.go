@@ -153,7 +153,7 @@ func createTerminalAttempts(
 	var previous *string
 	for attempt := 1; attempt <= count; attempt++ {
 		id := historicalAttemptID(attempt)
-		if _, err := persistence.CreateStageWithContext(ctx, runstore.CreateStageExecutionParams{
+		if _, err := persistence.CreateStageWithContext(fixtureClaim(t, ctx, h.pool, "run-1"), runstore.CreateStageExecutionParams{
 			LaneClass:        resolved.LaneClassModel,
 			StageExecutionID: id, RunID: "run-1", StageName: workflow.stageName, Attempt: attempt,
 			PreviousExecutionID: previous, ExecutionConfigVariant: runstore.StageExecutionConfigBase,
@@ -176,7 +176,7 @@ func createTerminalAttempts(
 			t.Fatalf("place attempt %d = (%d, %v)", attempt, len(reservations), err)
 		}
 		allocations[id] = reservations[0].Grant.AllocationID
-		if err := persistence.EnterAbortingWithTermination(ctx, "run-1", runstore.EnterAbortingParams{
+		if err := persistence.EnterAbortingWithTermination(fixtureClaim(t, ctx, h.pool, "run-1"), "run-1", runstore.EnterAbortingParams{
 			StageExecutionID: id, ExpectedState: runstore.StagePreparing,
 			TerminationSchemaVersion: contracts.APIVersion,
 			Termination: runstore.StageTermination{

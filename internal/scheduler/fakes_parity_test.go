@@ -168,7 +168,8 @@ func TestMemoryAtomicPersistenceAbortRunStatesMatchPostgres(t *testing.T) {
 			events: &eventRecorder{},
 		}
 		persistence := &memoryAtomicPersistence{store: store, allocator: &memoryAllocator{}, events: store.events}
-		err := persistence.EnterAbortingWithTermination(ctx, "run-parity", params())
+		store.claimID = "parity-claim"
+		err := persistence.EnterAbortingWithTermination(WithRunClaim(ctx, "run-parity", "parity-claim"), "run-parity", params())
 		if err != nil && !errors.Is(err, runstore.ErrConflict) {
 			t.Errorf("memory abort in a %s Run: %v, want acceptance or ErrConflict", state, err)
 		}
@@ -190,7 +191,7 @@ func TestMemoryAtomicPersistenceAbortRunStatesMatchPostgres(t *testing.T) {
 		createParityRun(t, ctx, pool, runID, state, true)
 		abort := params()
 		abort.StageExecutionID = "stage-" + runID
-		err := persistence.EnterAbortingWithTermination(ctx, runID, abort)
+		err := persistence.EnterAbortingWithTermination(fixtureClaim(t, ctx, pool, runID), runID, abort)
 		want := memoryErrors[state]
 		if (err == nil) != (want == nil) || err != nil && !errors.Is(err, runstore.ErrConflict) {
 			t.Errorf("PostgreSQL abort in a %s Run = %v, memory = %v", state, err, want)

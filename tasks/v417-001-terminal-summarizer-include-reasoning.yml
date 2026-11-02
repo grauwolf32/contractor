@@ -16,6 +16,11 @@ goal: Authors can enable provider-supplied reasoning for the existing terminal s
   of compact@1, the ADK spike or any new context strategy. Existing terminal completion and Planner handoff
   remain intact.
 context:
+  acceptance_update: >-
+    User decision 2026-11-02: the V425-001/002 fixtures are Linux-only under
+    OPS-R1/V433-007. Their historical macOS failures no longer block this
+    task's acceptance; the standard Runtime gate reports expected skips.
+    This does not change this task's status or waive other recorded gates.
   authority: 'User request on 2026-10-25: split proposal 0046 into tasks and make terminal summarizer
     includeReasoning independently deliverable. This record plans work; it does not start implementation
     or change existing delivery priorities. User decision on 2026-10-30: start implementation now; the coordinator session runs it in lane cmp-sum together with V417-001, V417-003 and V420-002.

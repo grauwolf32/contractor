@@ -6,6 +6,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 import pytest
+from platform_markers import linux_filesystem
 
 import contractor_runtime.toolsets.code_analysis.tools as code_analysis
 from contractor_runtime.contracts import RuntimeSettings
@@ -500,6 +501,7 @@ def test_graph_results_are_bounded_relative_and_metrics_are_content_free(
     asyncio.run(scenario())
 
 
+@linux_filesystem
 def test_graph_collection_stops_at_encoded_result_ceiling_with_resumable_cursor(
     tmp_path: Path,
 ) -> None:

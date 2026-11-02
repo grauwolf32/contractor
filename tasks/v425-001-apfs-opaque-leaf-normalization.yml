@@ -5,11 +5,28 @@ milestone: hub-audit-defects-2026-10
 epic: workspaces
 kind: defect
 priority: P3
-status: pending
+status: deferred
+deferral:
+  date: "2026-11-02"
+  previous_status: pending
+  reason: >-
+    User decision: the named Linux-specific filesystem fixture must not run
+    on macOS or block feature acceptance. V433-007 applies an explicit Linux
+    marker and updates acceptance policy. This preserves the historical OS
+    concern without claiming a production fix or requiring Mac remediation
+    as part of V64-014 or another feature gate.
+  reactivate_when: >-
+    Explicit user decision to require separate macOS filename hardening;
+    first rescope its acceptance and dedicated coverage rather than treating
+    this Linux fixture as a required macOS test.
 depends_on: []
 languages: [python]
 goal: "A local workspace never opens or reads an opaque leaf, also when the volume looks names up normalization-insensitively (macOS APFS), so reading the NFC form of an NFD on-disk name fails with workspace_not_found on every supported host."
 context:
+  authority: >-
+    User decision 2026-11-02: this fixture is Linux-only and must not affect
+    macOS acceptance. Earlier macOS-specific acceptance below is historical
+    deferred scope, superseded for active gates by OPS-R1 and V433-007.
   review: "Filed by V401-007 (2026-10-30) from the macOS Runtime suite run; first seen in the 2026-10-23 merged verification run (docs/research/2026-10-23-server-runtime-review.md)"
   specification:
     - docs/spec/tools/workspace.md#WSP-R88

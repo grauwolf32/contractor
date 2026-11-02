@@ -107,3 +107,27 @@ func (s *blockedRenewalStore) RenewRunClaim(ctx context.Context, _, _ string, _ 
 	<-ctx.Done()
 	return "", ctx.Err()
 }
+
+// A refreshed Run is data, not authority for a lane's Planner journals. Keep
+// the acquired identity even when a later snapshot carries another claim.
+func TestPlannerUsesAcquiredClaimInsteadOfRefreshedRunSnapshot(t *testing.T) {
+	h := newSchedulerHarness(t)
+	ctx := memoryFixtureClaim(t.Context(), h)
+	run := h.store.run
+	run.SchedulerClaim = &runstore.SchedulerClaim{ClaimID: "replacement-snapshot"}
+	workflow, err := decodeExecutableWorkflow(run)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stage := h.persistedExecution(t, runstore.StagePreparing)
+	h.store.stages = []runstore.StageExecution{stage}
+	h.installRecordedReservation(stage.StageExecutionID)
+	deadline := h.clock.now.Add(h.scheduler.options.PlannerTimeout)
+	prepared := &preparedStageWorkers{deadline: deadline, reservations: h.allocator.cached}
+	if err := h.scheduler.invokeStagePlanner(ctx, run, workflow, stage, deadline, prepared); err != nil {
+		t.Fatal(err)
+	}
+	if h.planners.invocation.SchedulerClaimID != "fixture-claim" {
+		t.Fatalf("Planner inherited refreshed ownership: %q", h.planners.invocation.SchedulerClaimID)
+	}
+}
