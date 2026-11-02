@@ -6,7 +6,7 @@ epic: execution-core
 kind: chore
 introduced_by: V411-002
 priority: P2
-status: pending
+status: in_progress
 depends_on: [V438-001, V438-002]
 languages: [go]
 goal: "The Runtime protocol client sends validated allocation data while a product-layer engagementadapter owns Audit integration and private identity preparation."

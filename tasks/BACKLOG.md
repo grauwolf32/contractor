@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-83 open tasks: 14 in progress, 58 pending, 11 deferred. 1364 finished: 1346 completed, 18 archived.
+82 open tasks: 14 in progress, 57 pending, 11 deferred. 1365 finished: 1347 completed, 18 archived.
 
 ## In progress
 
@@ -24,7 +24,7 @@ the epics are in [epics.yml](epics.yml).
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
 | [V435-001](v435-001-server-owned-agent-labels.yml) | runtime-config | defect | P1 | Remove Runtime startup label assignments and keep agent infrastructure settings Server-owned |
 | [V437-004](v437-004-separate-artifact-registry-and-backends.yml) | projects-artifacts | chore | P2 | Separate Artifact registry and payload backend packages |
-| [V438-002](v438-002-detach-registration-capabilities.yml) | execution-core | defect | P1 | Detach every nested registration value from Registry snapshots |
+| [V438-003](v438-003-extract-engagement-adapter.yml) | execution-core | chore | P2 | Separate Audit engagement preparation from the Runtime protocol client |
 
 ## Pending
 
@@ -33,7 +33,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V425-016](v425-016-run-event-history-bound.yml) | chore | P3 | — | Bound or detect the per-Run event history and delete it in bounded batches |
-| [V438-003](v438-003-extract-engagement-adapter.yml) | chore | P2 | V438-002 | Separate Audit engagement preparation from the Runtime protocol client |
 | [V438-004](v438-004-organize-registry-capability-matching.yml) | chore | P2 | V438-003 | Organize Registry lifecycle and compile immutable capability lookups |
 
 ### Planners and the Worker model boundary (`planner-worker`)
@@ -189,7 +188,7 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 5 | 47 | 65 | 32 | 91 |
+| Run execution core (`execution-core`) | 4 | 47 | 65 | 32 | 91 |
 | Planners and the Worker model boundary (`planner-worker`) | 9 | 35 | 49 | 30 | 75 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 10 | 26 | 14 | 5 | 45 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 3 | 13 |
