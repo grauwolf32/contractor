@@ -6,9 +6,11 @@ epic: audits
 kind: chore
 introduced_by: V64-004
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V64-004
+- V64-025
+- V434-002
 languages:
 - go
 - sql
@@ -86,7 +88,7 @@ tests:
   - A1
   - A2
   - A3
-implementation_commit: null
+implementation_commit: fc2962637633c43fee9c5c48169fe4e0f91c980d
 verification_checkpoint:
   date: '2026-11-02'
   integrated_main: 9a2d6f9afe228e025c9381dff34233f5b6939083
@@ -106,3 +108,46 @@ verification_checkpoint:
   remaining: The complete task-listed Go suites, public/shared contract gates, ui-verify and lint were
     not rerun on this integration. Main landing is deferred by the user request; the integration task
     remains in_progress.
+verification:
+  date: '2026-11-02'
+  environment: Go 1.26.9, PostgreSQL 17 with the dedicated disposable test database, Node 24.20.0 and
+    locked Runtime/UI dependencies. UI verification used the supported VITEST_MAX_WORKERS=2 setting without
+    changing tests or timeouts.
+  results:
+  - command: go test -tags=integration -count=1 ./internal/artifacts/... ./internal/auditimport/... ./internal/runservice
+      ./internal/auditservice ./internal/auditstore/... ./internal/auditcontroller/... ./internal/httpapi/public/...
+      ./internal/persistence/... ./internal/findingintake/... ./internal/archtest ./internal/publicclient/...
+    outcome: 'Passed the final complete integration-tagged package command after the registry prerequisite:
+      ArtifactStore, importer, RunService, Audit service/store/controller, public API, persistence, finding
+      intake, architecture and generated public client packages. Log: /private/tmp/v434-001-final-go.log.'
+  - command: python3 scripts/test-audit-composition-e2e.py --case-set workspace
+    outcome: 'Passed on clean production-code revision 4692e30ae4f7deef749363966d32c68c13750d08: five
+      PostgreSQL and five real Server/Scheduler/Runtime process cases, zero skips. Later source changes
+      were only the importer test registry and task metadata. Evidence: /private/tmp/v434-001-landing-evidence/gate-workspace.json.'
+  - command: make verify-public-api verify-public-api-postgres test-wire-cross-language
+    outcome: Passed public operation/schema/error coverage, PostgreSQL race checks and shared fixtures.
+      Wire gate checked 373 fixtures, 394 Go and 288 Python shared test functions; the Python shared selection
+      passed 1591 tests.
+  - command: VITEST_MAX_WORKERS=2 make ui-verify
+    outcome: 'Passed generation check, lint, typecheck, all 221 test files (2641 passed and one existing
+      expected failure), server tests and production build. Log: /private/tmp/v434-001-ui-bounded.log.'
+  - command: make lint
+    outcome: 'Passed after the registry prerequisite, including generators, staticcheck, exports, release
+      graph, task/specification consistency, ERD, UI lint, Runtime Ruff and import layers. Log: /private/tmp/v434-002-lint.log.'
+  observations:
+  - The first concurrent verification hit UI timeouts; default-concurrency UI alone retained one timeout.
+    The unchanged full UI suite passed with the supported two-worker resource bound. No tests or timeouts
+    were changed.
+  - The first concurrent Go run hit SQLSTATE XX000 in stored-size CHECK catalog reflection. The unchanged
+    full persistence/postgres package passed in isolation (28.109s) and in the final complete integration
+    command (38.397s).
+  - The deterministic Finding export wire-import registry drift inherited from main is repaired separately
+    by completed V434-002. V64-025 repairs prepared retained-rulepack source selection and is included
+    in this landing.
+  delivery:
+    branch: codex/audit-artifact-workspace
+    merged_into: main
+    merge_commit: fc2962637633c43fee9c5c48169fe4e0f91c980d
+    method: git merge --no-ff
+    baseline: 9a2d6f9afe228e025c9381dff34233f5b6939083
+    boundary: No demo deployment, demo database migration or model configuration change.
