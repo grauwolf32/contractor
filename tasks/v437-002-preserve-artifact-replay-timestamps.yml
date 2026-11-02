@@ -1,0 +1,45 @@
+schema_version: "1.0"
+id: V437-002
+title: "Preserve authoritative binding timestamps on Artifact replay"
+milestone: artifact-release-cleanup-2026-11
+epic: projects-artifacts
+kind: defect
+introduced_by: V370-016
+priority: P3
+status: pending
+depends_on: [V437-001]
+languages: [go]
+goal: "Original and replayed immutable Artifact writes return the same authoritative creation timestamps."
+context:
+  authority: >-
+    User decision 2026-11-02: implement the internal/artifacts review fixes,
+    move bulk deduplication verification out of publication transactions and
+    split registry and payload backends as proposed, keeping the artifacts name.
+  specification:
+    - docs/spec/artifacts/artifact-store.md
+    - docs/spec/artifacts/blob-storage.md
+    - docs/spec/platform/persistence.md
+  finding: >-
+    trusted.go:89 substitutes revision creation time for binding creation time, and context_projection.go:50 omits BindingCreatedAt on replay.
+  siblings: >-
+    Cover CreateFrozen and CreateContextProjection replay and ordinary metadata/list scans; retain public JSON and storageTimestamps shapes.
+  boundary: >-
+    ArtifactStore owns normalized identity, revisions, history, lineage and
+    persistence. Payload backends own physical byte operations. Domain callers
+    retain authorization, deadlines and transaction boundaries. No wire or schema
+    changes, compatibility aliases, new receipts or plugin framework.
+scope:
+  in:
+    - "Internal binding-created projection and complete replay WriteResult metadata with real-store regression coverage."
+  out:
+    - "Renaming the public Artifact concept, database tables or wire fields."
+acceptance_criteria:
+  - id: A1
+    text: "A replay preserves both original creation timestamps, including a binding whose creation predates its revision."
+  - id: A2
+    text: "Single metadata, metadata pages and version pages retain existing projections and public responses."
+tests:
+  - command: "go test -count=1 -tags integration ./internal/artifacts/..."
+    covers: [A1, A2]
+  - command: "go test -count=1 ./internal/httpapi/public ./internal/httpapi/privateartifacts"
+    covers: [A1, A2]

@@ -20,4 +20,5 @@ var createContextProjectionLineageSQL = `
 INSERT INTO artifact_lineage (
  target_scope_kind,target_scope_id,target_namespace,target_name,target_revision,
  source_scope_kind,source_scope_id,source_namespace,source_name,source_revision,lineage_kind
-) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`
+) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+ON CONFLICT DO NOTHING`

@@ -13,9 +13,8 @@ package artifacts
 // encoded size of the shared blob (ART-R123).
 //
 // The target is create-only: an existing binding creates nothing. Beside the
-// source-found and target-created flags, the source revision, media type and
-// size, it returns the current revision of an existing target and the source
-// revision of that revision's lineage of kind $11, for the replay check.
+// source-found and target-created flags, it returns the source revision, media
+// type and size. Replay uses a fresh statement snapshot after any uniqueness wait.
 // Used by PostgresRepository.Fork.
 var forkSQL = `
 WITH source_selection AS MATERIALIZED (
@@ -40,20 +39,6 @@ WITH source_selection AS MATERIALIZED (
       ))
 ` + auditForkMembershipSQL + `
     FOR KEY SHARE OF source_scope
-), existing_target AS (
-    SELECT binding.current_revision, lineage.source_revision
-    FROM artifact_bindings AS binding
-    LEFT JOIN artifact_lineage AS lineage
-      ON lineage.target_scope_kind = binding.scope_kind
-     AND lineage.target_scope_id = binding.scope_id
-     AND lineage.target_namespace = binding.namespace
-     AND lineage.target_name = binding.name
-     AND lineage.target_revision = binding.current_revision
-     AND lineage.lineage_kind = $11
-     AND lineage.source_scope_kind=$1 AND lineage.source_scope_id=$2
-     AND lineage.source_namespace=$3 AND lineage.source_name=$4
-    WHERE binding.scope_kind = $6 AND binding.scope_id = $7
-      AND binding.namespace = $8 AND binding.name = $9
 ), created_binding AS (
     INSERT INTO artifact_bindings (
         scope_kind, scope_id, namespace, name, current_revision, frozen,
@@ -85,6 +70,21 @@ SELECT
     EXISTS(SELECT 1 FROM lineage),
     (SELECT revision FROM source_selection),
     (SELECT media_type FROM source_selection),
-    (SELECT size_bytes FROM source_selection),
-    (SELECT current_revision FROM existing_target),
-    (SELECT source_revision FROM existing_target)`
+    (SELECT size_bytes FROM source_selection)`
+
+// forkReplaySQL resolves the committed winner after a create-only fork lost a
+// uniqueness wait. Its exact lineage must match the entire requested source.
+var forkReplaySQL = `
+SELECT binding.current_revision
+FROM artifact_bindings AS binding
+JOIN artifact_lineage AS lineage
+  ON lineage.target_scope_kind = binding.scope_kind
+ AND lineage.target_scope_id = binding.scope_id
+ AND lineage.target_namespace = binding.namespace
+ AND lineage.target_name = binding.name
+ AND lineage.target_revision = binding.current_revision
+WHERE binding.scope_kind = $1 AND binding.scope_id = $2
+  AND binding.namespace = $3 AND binding.name = $4
+  AND lineage.source_scope_kind = $5 AND lineage.source_scope_id = $6
+  AND lineage.source_namespace = $7 AND lineage.source_name = $8
+  AND lineage.source_revision = $9 AND lineage.lineage_kind = $10`

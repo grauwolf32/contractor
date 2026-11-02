@@ -56,8 +56,23 @@ func (r *PostgresTxRepository) CreateContextProjection(ctx context.Context, sour
 	if err != nil {
 		return WriteResult{}, false, err
 	}
-	if _, err := r.tx.Exec(ctx, createContextProjectionLineageSQL, target.kind, target.id, targetRef.Namespace, targetRef.Name, result.Ref.Revision, source.kind, source.id, sourceRef.Namespace, sourceRef.Name, sourceRef.Revision, LineageContextProjection); err != nil {
+	inserted, err := r.tx.Exec(ctx, createContextProjectionLineageSQL, target.kind, target.id, targetRef.Namespace, targetRef.Name, result.Ref.Revision, source.kind, source.id, sourceRef.Namespace, sourceRef.Name, sourceRef.Revision, LineageContextProjection)
+	if err != nil {
 		return WriteResult{}, false, storeError(fmt.Sprintf("retain context projection %s/%s", targetRef.Namespace, targetRef.Name), err, nil)
+	}
+	if inserted.RowsAffected() == 0 {
+		// CreateFrozen can return a concurrent winner. Reconcile its lineage
+		// in a fresh snapshot without swallowing a different source identity.
+		var matches bool
+		if err := r.tx.QueryRow(ctx, contextProjectionReplaySQL, target.kind, target.id,
+			targetRef.Namespace, targetRef.Name, result.Ref.Revision, source.kind, source.id,
+			sourceRef.Namespace, sourceRef.Name, sourceRef.Revision, LineageContextProjection).Scan(&matches); err != nil {
+			return WriteResult{}, false, err
+		}
+		if !matches {
+			return WriteResult{}, false, contracts.ErrIdempotencyConflict
+		}
+		return result, true, nil
 	}
 	return result, false, nil
 }

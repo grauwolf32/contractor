@@ -33,13 +33,13 @@ func (r *PostgresRepository) Fork(ctx context.Context, fork Fork) (ForkResult, e
 	}
 	target := ArtifactRef{Namespace: fork.TargetRef.Namespace, Name: fork.TargetRef.Name}
 	var sourceExists, targetCreated bool
-	var sourceRevision, mediaType, existingTarget, existingSource *string
+	var sourceRevision, mediaType *string
 	var size *int64
 	err = r.db.QueryRow(ctx, forkSQL,
 		fork.Source.kind, fork.Source.id, fork.SourceRef.Namespace, fork.SourceRef.Name, fork.SourceRef.Revision,
 		fork.Target.kind, fork.Target.id, target.Namespace, target.Name, targetRevision,
 		fork.Kind, fork.SourceFrozen, memberRun, memberProject, fork.Frozen,
-	).Scan(&sourceExists, &targetCreated, &sourceRevision, &mediaType, &size, &existingTarget, &existingSource)
+	).Scan(&sourceExists, &targetCreated, &sourceRevision, &mediaType, &size)
 	if err != nil {
 		return ForkResult{}, storeError(fmt.Sprintf("fork artifact %s/%s", target.Namespace, target.Name), err,
 			&ConflictError{Ref: target})
@@ -51,10 +51,22 @@ func (r *PostgresRepository) Fork(ctx context.Context, fork Fork) (ForkResult, e
 		return ForkResult{}, ErrArtifactIntegrity
 	}
 	if !targetCreated {
-		if !fork.Replay || existingTarget == nil || existingSource == nil || *existingSource != *sourceRevision {
+		if !fork.Replay {
 			return ForkResult{}, &ConflictError{Ref: target}
 		}
-		targetRevision = *existingTarget
+		// The insertion may have waited for a concurrent winner that was not
+		// visible to forkSQL's snapshot. Resolve its exact lineage afresh.
+		err := r.db.QueryRow(ctx, forkReplaySQL,
+			fork.Target.kind, fork.Target.id, target.Namespace, target.Name,
+			fork.Source.kind, fork.Source.id, fork.SourceRef.Namespace, fork.SourceRef.Name,
+			*sourceRevision, fork.Kind,
+		).Scan(&targetRevision)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ForkResult{}, &ConflictError{Ref: target}
+		}
+		if err != nil {
+			return ForkResult{}, fmt.Errorf("resolve artifact fork replay: %w", err)
+		}
 	}
 	return ForkResult{
 		SourceRef: artifactExactRef(fork.SourceRef.Namespace, fork.SourceRef.Name, *sourceRevision),
