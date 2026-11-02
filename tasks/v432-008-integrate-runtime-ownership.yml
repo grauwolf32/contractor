@@ -7,7 +7,7 @@ kind: chore
 introduced_by: V432-006
 priority: P3
 status: in_progress
-depends_on: [V432-001, V432-002, V432-003, V432-004, V432-005, V432-006, V432-007]
+depends_on: [V432-001, V432-002, V432-003, V432-004, V432-005, V432-006, V432-007, V432-009]
 languages: [python]
 goal: Land the verified Runtime ownership package on current main while preserving its Workflow and Project Finding contracts.
 context:
@@ -57,3 +57,21 @@ tests:
     covers: [A1, A2]
   - command: git diff --check
     covers: [A1, A3]
+integration_notes:
+  - >-
+    Merge 992f41a1a combines main 8c50a3769 with the Runtime package. Current
+    Workflow-owned summarizer policy assembly moved into AllocationPreparation;
+    simplified Artifact tool constructors keep typed resources. A new main
+    fixture imports that actual helper owner, without a service forwarding shim.
+  - >-
+    Merge fbf6a6558 also preserves subsequently landed main 99cfbbbea material
+    viewer work. git diff confirms no Runtime, Server, API or config changes
+    between those integration points. Lint is repeated for the refreshed UI.
+  - >-
+    Both test histories are retained. The Runtime package uses V432 identities
+    to preserve main's V429 UI identities; generated task/dependency indexes are
+    rebuilt. Main's removed selector exports/exceptions remain removed.
+additional_prerequisite: >-
+  V432-009 fixes the pre-existing main Finding contract snapshot newline that
+  prevented the integrated Runtime gate from passing. It changes no production
+  behavior and does not take over the in-progress Finding task.

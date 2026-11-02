@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-78 open tasks: 12 in progress, 55 pending, 11 deferred. 1346 finished: 1328 completed, 18 archived.
+79 open tasks: 13 in progress, 55 pending, 11 deferred. 1346 finished: 1328 completed, 18 archived.
 
 ## In progress
 
@@ -23,6 +23,7 @@ the epics are in [epics.yml](epics.yml).
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Enable shared Planner compaction and reuse native YAML in shipped Workflows |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
 | [V432-008](v432-008-integrate-runtime-ownership.yml) | execution-core | chore | P3 | Integrate Runtime ownership refactoring with current main |
+| [V432-009](v432-009-finding-tool-golden-wrapping.yml) | findings | chore | P3 | Align the Finding reader contract snapshot with its authoritative docstring |
 
 ## Pending
 
@@ -188,10 +189,10 @@ tasks in `introduced_by`.
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
 | HTTP and Caido tools (`http-tools`) | 4 | 22 | 27 | 9 | 26 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 2 | 17 | 10 | 9 | 20 |
-| Findings tools and collections (`findings`) | 2 | 17 | 8 | 9 | 14 |
+| Findings tools and collections (`findings`) | 3 | 17 | 8 | 10 | 14 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 19 | 16 | 16 | 21 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 36 | 37 | 11 | 60 |
-| Audits (`audits`) | 18 | 67 | 89 | 37 | 133 |
+| Audits (`audits`) | 18 | 67 | 89 | 37 | 134 |
 | Evaluations (`evals`) | 6 | 21 | 39 | 15 | 49 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 4 |
 | Web UI (`ui`) | 2 | 34 | 69 | 24 | 67 |
