@@ -6,7 +6,7 @@ epic: findings
 kind: defect
 introduced_by: V43-003
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V432-001]
 languages: [python, markdown]
 goal: Preparing a full findings collection leaves the Runtime event loop available while retaining exact Artifact references and cancellation ownership.
@@ -98,3 +98,26 @@ tests:
     covers: [A3]
   - command: make lint
     covers: [A1, A2, A3]
+verification: >-
+  Required Runtime suites: 190 passed. Thirteen scheduling regressions use
+  the real ArtifactClient path with 256 and 1023 documents, an archive of
+  exactly 16 MiB, and limit-plus-one document/archive rejection before any
+  destination writes. Thread identities and barriers verify decode,
+  reconciliation, preparation projection and page construction outside the
+  event loop, repeated cancellation, no later I/O after cancellation and
+  close waiting for active page work. The actual pre-fix main reader fails
+  the scheduling regression because decode runs on the loop thread.
+  Existing golden snapshots, exact refs, denial/ambiguity and cursor/page
+  tests pass. Cross-language gate passed with real disposable PostgreSQL:
+  373 fixtures, 393 Go and 289 Python shared tests (1592 Python cases).
+  Combined make lint and all four Runtime import contracts passed. No live
+  model, deployment or Project Finding ownership change was involved.
+implementation_commit: 6d10b18c0ccdd887a427c56b738ece40a876da46
+landing: Implemented on codex/runtime-shutdown-deadline; not yet merged into main.
+integration_verification: >-
+  Combined Runtime selection with the P1 and Gateway fixes: 5871 passed,
+  133 skipped, 2 explicitly deselected in 758.45 seconds. The exclusions
+  remain the inherited V425-001 APFS and V425-002 Trailmark PATH_MAX cases,
+  as recorded by V433-005; no further exclusion or waiver was added.
+  Full output: /tmp/runtime-v433-cpu-full.log. The elapsed time is not a
+  performance claim or a comparison of variants.
