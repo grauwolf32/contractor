@@ -1,0 +1,38 @@
+schema_version: "1.0"
+id: V435-002
+title: "Wait for the asynchronous material history request in its UI test"
+milestone: ui-journey-usability
+epic: ui
+kind: chore
+introduced_by: V429-019
+priority: P3
+status: in_progress
+depends_on: []
+languages: [typescript]
+goal: "Make the existing material-history assertion deterministic without changing product behavior."
+context:
+  agent_proposal: >-
+    Validation prerequisite discovered on 2026-11-02 while verifying the Run-repeat
+    simplification. A full UI gate observed zero history reads immediately after
+    clicking Versions, before the asynchronous React Query request ran.
+  finding: >-
+    ui/src/routes/artifacts/artifact-detail.test.tsx:163 checks historyReads()
+    synchronously after user.click. Git blame identifies V429-019, commit
+    e1bbe211ebe1dc3d3cadc1b1f578ada0837fe68e, as the source of this assertion.
+scope:
+  in:
+    - "Await the observable history request with the existing waitFor helper."
+  out:
+    - "Production UI, request counts, rendering behavior and test timeouts."
+acceptance_criteria:
+  - id: A1
+    text: >-
+      The test still proves zero eager history reads and exactly one request after
+      Versions is clicked, waiting for that asynchronous observable before asserting.
+  - id: A2
+    text: "The full material-detail suite and complete UI verification pass."
+tests:
+  - command: "cd ui && corepack pnpm exec vitest run src/routes/artifacts/artifact-detail.test.tsx"
+    covers: [A1, A2]
+  - command: "VITEST_MAX_WORKERS=2 make ui-verify"
+    covers: [A1, A2]

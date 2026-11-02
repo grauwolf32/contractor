@@ -160,7 +160,7 @@ describe("Material detail", () => {
     expect(historyReads()).toHaveLength(0);
     await user.click(screen.getByRole("button", { name: "Versions" }));
     expect(revision).not.toBeVisible();
-    expect(historyReads()).toHaveLength(1);
+    await waitFor(() => expect(historyReads()).toHaveLength(1));
     await user.click(
       screen.getByText("Technical details", { selector: ".ui-tech-label" }),
     );
