@@ -16,7 +16,7 @@ func TestEngagementPlacementRequiresSelectedCapabilityWithoutChangingConfig(t *t
 	without := fixture.registerCandidate(t, ctx, "metadata-only", "1", nil)
 	with := fixture.registerCandidate(t, ctx, "controlled", "2", []runtimesettings.RuntimeAdapterRef{runtimesettings.RuntimeAdapterHTTPTarget})
 	calls := 0
-	fixture.allocator.auditAdapterRequirements = func(_ context.Context, runID, stageID string) ([]runtimesettings.RuntimeAdapterRef, error) {
+	fixture.allocator.additionalAdapterRequirements = func(_ context.Context, runID, stageID string) ([]runtimesettings.RuntimeAdapterRef, error) {
 		calls++
 		if runID != fixture.request().RunID || stageID != fixture.stageExecutionID {
 			t.Fatal("placement used foreign binding")
@@ -39,7 +39,7 @@ func TestEngagementPlacementFailsClosedOnRequirementRead(t *testing.T) {
 			pool := isolatedPlacementPool(t, ctx)
 			fixture := newPlacementFixture(t, ctx, pool, nil)
 			fixture.registerCandidate(t, ctx, "metadata-only", "1", nil)
-			fixture.allocator.auditAdapterRequirements = func(context.Context, string, string) ([]runtimesettings.RuntimeAdapterRef, error) {
+			fixture.allocator.additionalAdapterRequirements = func(context.Context, string, string) ([]runtimesettings.RuntimeAdapterRef, error) {
 				if unavailable {
 					return nil, context.DeadlineExceeded
 				}
@@ -72,7 +72,7 @@ func TestEngagementPlacementCombinesConfiguredAndAuditAdapters(t *testing.T) {
 			pool := isolatedPlacementPool(t, ctx)
 			fixture := newPlacementFixture(t, ctx, pool, []string{"debug"})
 			fixture.registerCandidate(t, ctx, "controlled-telemetry", "1", test.adapters)
-			fixture.allocator.auditAdapterRequirements = func(context.Context, string, string) ([]runtimesettings.RuntimeAdapterRef, error) {
+			fixture.allocator.additionalAdapterRequirements = func(context.Context, string, string) ([]runtimesettings.RuntimeAdapterRef, error) {
 				return []runtimesettings.RuntimeAdapterRef{runtimesettings.RuntimeAdapterHTTPTarget}, nil
 			}
 			reservations, err := fixture.allocator.ReserveAllContext(ctx, fixture.request())

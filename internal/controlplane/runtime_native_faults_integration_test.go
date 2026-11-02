@@ -234,7 +234,7 @@ func startNativeHarness(t *testing.T, mode string, configure ...func(*nativeHarn
 		stop()
 	})
 	files := mtls.Files{Certificate: cp.Certificate, PrivateKey: cp.PrivateKey, CA: ca.Certificate}
-	client, err := NewMTLSRuntimeControlClient(files, 5*time.Second)
+	client, err := NewMTLSRuntimeControlClient(files, 5*time.Second, &projectionGrantReader{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -251,6 +251,7 @@ func startNativeHarness(t *testing.T, mode string, configure ...func(*nativeHarn
 	gateway.mu.Unlock()
 	reservation := testReservation("allocation_native", "builder", endpoint, endpoint, template, time.Now().Add(time.Hour))
 	reservation.Grant.RuntimeAgentID = principal
+	client.grantReader = &projectionGrantReader{grant: reservation.Grant}
 	reservation.WorkerSessionMode = contracts.WorkerSessionShared
 	settings := runtimesettings.WorkerExecutionSettings{ModelPolicy: testWorkerPolicy(t), RuntimeSettings: testRuntimeSettings(), ResolvedRuntimeConfigProvenance: testRuntimeProvenance()}
 	settings.RuntimeSettings.LLMGatewayURL = server.URL + "/v1"

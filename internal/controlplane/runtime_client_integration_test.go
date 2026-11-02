@@ -99,7 +99,7 @@ func testCrossLanguageMTLSAllocationLifecycle(t *testing.T, terminal string) {
 
 	client, err := NewMTLSRuntimeControlClient(mtls.Files{
 		Certificate: controlPlane.Certificate, PrivateKey: controlPlane.PrivateKey, CA: ca.Certificate,
-	}, 2*time.Second)
+	}, 2*time.Second, &projectionGrantReader{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -125,6 +125,7 @@ func testCrossLanguageMTLSAllocationLifecycle(t *testing.T, terminal string) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	client.grantReader = &projectionGrantReader{grant: reservation.Grant}
 	reservation.PerformanceCollectionPolicy = reporting.PerformanceCollectionRequested
 	reservation.PerformanceMetrics = reservation.PerformanceCollectionPolicy.Request()
 	settings := runtimesettings.WorkerExecutionSettings{

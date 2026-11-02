@@ -13,7 +13,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/contracts/engagementcontract"
-	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 )
 
 // The actual Runtime HTTP reader must admit only metadata, preserve replay, and
@@ -34,10 +33,10 @@ func TestCrossLanguageMTLSEngagementMetadataPrepare(t *testing.T) {
 		Policy: policy,
 	}
 	h := startNativeHarness(t, "native_successful_release_replay", func(h *nativeHarness) {
-		grants := &projectionGrantReader{grant: h.reservation.Grant}
-		h.client.WithEngagementResolver(func(context.Context, Reservation, runtimesettings.WorkerExecutionSettings) (*engagementcontract.AllocationProjection, error) {
-			return metadata, nil
-		}, grants)
+		h.client.preparation = allocationPreparationFunc(func(_ context.Context, _ Reservation, spec control.AllocationSpec, dispatch func(control.AllocationSpec) (contracts.WorkerHandle, error)) (contracts.WorkerHandle, error) {
+			spec.Engagement = metadata
+			return dispatch(spec)
+		})
 	})
 	first := h.handle
 	before := h.snapshot()

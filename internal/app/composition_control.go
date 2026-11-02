@@ -9,12 +9,10 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/agentprincipal"
-	"github.com/grauwolf32/contractor/internal/auditservice"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
-	"github.com/grauwolf32/contractor/internal/contracts/engagementcontract"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
-	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/controlplane"
+	"github.com/grauwolf32/contractor/internal/controlplane/engagementadapter"
 	"github.com/grauwolf32/contractor/internal/mtls"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/grauwolf32/contractor/internal/telemetry"
@@ -98,30 +96,24 @@ func configureControlPlane(
 	if err != nil {
 		return controlServices{}, fmt.Errorf("configure Runtime Agent principal Operations: %w", err)
 	}
+	engagementPreparation, err := engagementadapter.New(pool, credentialSet.runtime)
+	if err != nil {
+		return controlServices{}, fmt.Errorf("configure engagement preparation: %w", err)
+	}
 	placementAllocator, err := controlplane.NewPlacementAllocator(controlplane.PlacementAllocatorOptions{
 		Pool: pool, Registry: registry, Gateways: configurationManager,
-		AuditAdapterRequirements: func(ctx context.Context, runID, stageID string) ([]runtimesettings.RuntimeAdapterRef, error) {
-			return auditservice.AllocationEngagementAdapterRequirements(ctx, pool, runID, stageID)
-		},
-		LLMCredentials: credentialSet.provider, RuntimeCredentials: credentialSet.runtime,
+		AdditionalAdapterRequirements: engagementPreparation.RequiredRuntimeAdapters,
+		LLMCredentials:                credentialSet.provider, RuntimeCredentials: credentialSet.runtime,
 		TransactionLLMCredentials: credentialSet.transactionLookup,
 		CredentialGuard:           credentialSet.lifecycle, PerformanceMetrics: cfg.PerformanceMetrics,
 	})
 	if err != nil {
 		return controlServices{}, fmt.Errorf("configure candidate Runtime placement: %w", err)
 	}
-	runtimeClient, err := controlplane.NewMTLSRuntimeControlClient(files, cfg.RuntimeRequestTimeout)
+	runtimeClient, err := controlplane.NewMTLSRuntimeControlClient(files, cfg.RuntimeRequestTimeout, registry, engagementPreparation)
 	if err != nil {
 		return controlServices{}, fmt.Errorf("configure Runtime Agent client: %w", err)
 	}
-	runtimeClient.WithEngagementResolver(func(ctx context.Context, reservation controlplane.Reservation, settings runtimesettings.WorkerExecutionSettings) (*engagementcontract.AllocationProjection, error) {
-		return auditservice.ResolveAllocationEngagement(ctx, pool, reservation.Grant.RunID, reservation.Grant.StageExecutionID, func(ctx context.Context) ([]engagementcontract.ProtectedDestination, error) {
-			return controlplane.ResolveEngagementProtectedDestinations(ctx, reservation, settings.RuntimeSettings)
-		})
-	}, registry)
-	runtimeClient.WithEngagementMaterials(func(ctx context.Context, projection *engagementcontract.AllocationProjection) (map[string]runtimesettings.HTTPIdentityMaterial, error) {
-		return auditservice.MaterializeHTTPIdentities(ctx, credentialSet.runtime, projection)
-	})
 	workers, err := controlplane.NewRuntimeBatchController(
 		runtimeClient,
 		registry,
