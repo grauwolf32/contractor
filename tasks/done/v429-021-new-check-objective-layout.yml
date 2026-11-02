@@ -6,7 +6,7 @@ epic: ui
 kind: defect
 introduced_by: V429-020
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V429-020]
 languages: [html, css, javascript]
 goal: Keep the objective aligned with the New check form and readable at desktop and phone widths.
@@ -48,3 +48,9 @@ tests:
     covers: [A2]
   - command: git diff --check
     covers: [A3]
+
+verification:
+  - Browser verifier passed all 36 scenario/theme/width combinations, objective geometry, local controls and isolation checks.
+  - Native IAB desktop and 390px phone were inspected; corrected captures and the original OpenDesign artifacts are retained separately.
+  - make lint, task/spec checks and git diff --check passed. Only the local design candidate changed; no production transfer or main merge.
+implementation_commit: 651e6e0392e1a942048f3e3211932745d68ac1b4
