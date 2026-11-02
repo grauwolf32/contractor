@@ -6,7 +6,7 @@ epic: projects-artifacts
 kind: chore
 introduced_by: V9-005
 priority: P3
-status: in_progress
+status: completed
 depends_on: [V437-004]
 languages: [go]
 goal: "Shared Artifact namespace policy and archive previews live under the ArtifactStore owner with unchanged behavior."
@@ -32,5 +32,13 @@ acceptance_criteria:
 tests:
   - command: "make lint"
     covers: [A1, A2]
-  - command: "go test -count=1 -tags integration ./internal/... ./cmd/..."
+  - command: "go test -count=1 -tags integration -p 2 ./internal/... ./cmd/..."
     covers: [A1, A2]
+implementation_commit: 5ed081dfe74150d3b9ffda2378e53fd93ac7708f
+verification: >-
+  make lint and the complete internal/... and cmd/... Go integration suites
+  passed with a disposable PostgreSQL database. Policy and preview suites and
+  architecture/source guards passed, including the relocated namespace owner.
+  Runtime shared-memory and finding-toolset tests passed (59 tests); the UI
+  Artifact contract suite passed (38 tests). Tagged process consumers compile;
+  generated dependency documentation and executable package selectors are current.
