@@ -6,8 +6,8 @@ epic: execution-core
 kind: chore
 introduced_by: V37-008
 priority: P2
-status: in_progress
-depends_on: []
+status: completed
+depends_on: [V435-002]
 languages: [go, python, typescript, sql]
 goal: >-
   Configure another Run from its stored settings and exact original input sources,
@@ -85,9 +85,20 @@ tests:
   - command: "VITEST_MAX_WORKERS=2 make ui-verify"
     covers: [A1, A2, A4]
 
+  - command: "go test -tags=integration -count=1 ./internal/publicclient/..."
+    covers: [A1, A2, A4]
+  - command: "go test -count=1 ./tests/e2e"
+    covers: [A1, A2, A4]
+  - command: "go test -tags=e2e -count=1 -timeout=6m ./tests/e2e -run '^TestProjectWorkspaceLifecycleAcrossProductionProcesses$'"
+    covers: [A1, A2, A4]
+  - command: "cd runtime && uv run pytest -W error tests/test_security_findings_toolset.py tests/test_run_artifacts_toolset.py"
+    covers: [A4]
+
 verification:
   - "Full PostgreSQL suites for changed Server packages passed; the mixed-scope RunService regression passed in a subsequent full package run."
   - "make lint, make verify-public-api and make test-wire-cross-language passed."
   - "Runtime toolset suites passed (50 tests); public client and untagged e2e matrix suites passed."
   - "TestProjectWorkspaceLifecycleAcrossProductionProcesses passed with the real Server/Runtime processes."
-  - "UI verification exposed an existing asynchronous history-read assertion race; completion waits for its separate prerequisite fix and a successful full UI gate."
+  - "V435-002 fixed the pre-existing material-history assertion race; VITEST_MAX_WORKERS=2 make ui-verify then passed completely."
+
+implementation_commit: e40ffcbfe9b7ecb9077bc2121ff9065c2e181ffa
