@@ -6,7 +6,7 @@ epic: quality
 kind: chore
 priority: P3
 status: pending
-depends_on: [V433-001, V433-002, V433-003, V433-004, V433-006]
+depends_on: [V433-001, V433-002, V433-003, V433-004, V433-006, V433-007]
 languages: [python, markdown]
 goal: The seven reported Runtime findings have verified dispositions and all four remaining corrections pass integrated Runtime checks.
 context:
@@ -48,12 +48,11 @@ context:
     The exit gate adds no architecture or product scope. Each defect owns its
     regressions, contracts and implementation commit; this task checks their
     interaction with existing shutdown, repeated cancellation and HTTP fixes.
-  existing_platform_exclusions: >-
-    The inherited macOS APFS normalization case owned by V425-001 and the
-    Trailmark PATH_MAX case owned by V425-002 are explicitly deselected below,
-    as in the completed V432-008 integration gate. They remain open and
-    unproven by this package, not waived or fixed. Do not silently add further
-    exclusions; re-evaluate the selection if those tasks land before this gate.
+  platform_acceptance: >-
+    User decision 2026-11-02 supersedes the earlier manual exclusions:
+    V433-007 marks the two V425-001/002 fixtures Linux-only. On macOS their
+    expected skips do not block acceptance; run the standard make test-runtime
+    with no --deselect. Skips remain reported as skips, not Linux coverage.
   partial_implementation_verification: >-
     P1/Gateway/findings combined Runtime selection: 5871 passed, 133 skipped,
     2 named inherited macOS cases deselected in 758.45 seconds. Focused
@@ -77,11 +76,11 @@ acceptance_criteria:
   - id: A1
     text: V433-001 through V433-004 meet every criterion with primary implementation commits and their required checks; all seven dispositions refer to actual final code and tests.
   - id: A2
-    text: The complete Runtime selection with the two named inherited macOS exclusions and make lint pass on the combined revision; skips and exclusions are explicitly reported as unproven, never as passes or automatic waivers.
+    text: The standard make test-runtime and make lint pass on the combined revision with OPS-R1 platform marks; expected macOS skips are reported and do not block acceptance, without manual deselection or claims of Linux coverage.
   - id: A3
     text: Existing ordinary Worker shutdown, repeated State/session/history cancellation and controlled header/truncation regressions remain covered, and task/backlog/spec records agree with the final implementation and landing status.
 tests:
-  - command: cd runtime && uv run pytest -W error tests --deselect=tests/test_projectfs_local_io.py::test_limits_deadline_names_and_binary_classification --deselect=tests/test_code_analysis_graph.py::test_graph_collection_stops_at_encoded_result_ceiling_with_resumable_cursor
+  - command: make test-runtime
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A1, A2, A3]

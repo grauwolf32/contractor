@@ -9,6 +9,7 @@ import unicodedata
 from pathlib import Path
 
 import pytest
+from platform_markers import linux_filesystem
 
 from contractor_runtime.projectfs.config import WorkspaceLimits
 from contractor_runtime.projectfs.errors import WorkspaceStorageError
@@ -152,6 +153,7 @@ def test_recursive_type_validation_precedes_changes(tmp_path: Path, operation: s
     assert not (root / "dst").exists()
 
 
+@linux_filesystem
 def test_limits_deadline_names_and_binary_classification(tmp_path: Path) -> None:
     root = tmp_path / "work"
     fs = disk(root, max_files=2, max_file_bytes=5, max_managed_text_bytes=5)

@@ -212,6 +212,12 @@ the trusted collection policy recorded for the allocation (`requested`,
 **OPS-R1.** The Server and the ordinary Runtime target Linux and macOS.
 The allocation-scoped Podman backend requires the Linux host capabilities in
 [Code execution](../tools/code-execution.md).
+The filesystem fixtures for byte-exact Unicode filename aliases and long
+Trailmark mirror paths are Linux-only. They report expected skips on macOS
+and do not block feature acceptance there; the ordinary Runtime gate needs no
+manual deselection for them. The remaining portable Runtime tests stay
+required on macOS; platform skips do not establish Linux execution coverage
+(see [testing](../../testing/README.md#runtime-suite-on-macos)).
 
 **OPS-R2.** Cross-compilation or a working remote browser does not
 establish a tested native Runtime, filesystem or sandbox on another operating
