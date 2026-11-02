@@ -6,7 +6,8 @@ epic: execution-core
 kind: defect
 introduced_by: MVP-014
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: "66ea890d8721ac28d172256423cd7e3fcff2c09e"
 depends_on: [MVP-014, V367-013, V407-016]
 languages: [go]
 goal: >-
