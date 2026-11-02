@@ -53,3 +53,51 @@ tests:
     covers: [A1, A2, A3]
   - command: "make lint"
     covers: [A1, A2, A3]
+verification:
+  date: "2026-11-03"
+  environment: >-
+    Go 1.26.9, Node 24.20.0, TMPDIR=/private/tmp, GOMAXPROCS=4 and
+    package parallelism 2. CONTRACTOR_TEST_DATABASE_URL selected a disposable
+    PostgreSQL database over TCP; all PostgreSQL package suites ran with it set.
+  commands:
+    - command: "go test -tags=integration -race -count=1 -p=2 ./internal/httpapi/... ./internal/projectstore/... ./internal/runservice/... ./internal/config/... ./internal/auditservice/... ./internal/evalservice/... ./internal/app/... ./internal/archtest/... ./internal/contracts/runlabels/... ./internal/helpers/strictjson/... ./internal/credentials/... ./internal/runstore/... ./internal/findingintake/..."
+      result: >-
+        Passed every package. Representative full-suite durations: public 385.288s,
+        privateartifacts 40.947s, findingintake 217.696s, auditservice 140.018s,
+        evalservice 76.754s, app 21.061s, credentials 15.032s and runstore 39.045s.
+        The earlier consolidated non-race integration run also passed all changed
+        HTTP/Project/Run/catalog/Audit/Eval/composition/architecture packages.
+    - command: "make verify-public-api"
+      result: "Passed after the implementation tasks were closed; public contract suite 10.533s."
+    - command: "make lint"
+      result: >-
+        Passed after the implementation tasks were closed, with the disposable
+        PostgreSQL URL set. All 190 scripts tests passed without a database skip;
+        Go vet, staticcheck, test-only exports, UI lint, Ansible tests, release
+        graph, specification/tasks/ERD/shared fixtures, Ruff and Runtime layers passed.
+    - command: "make docs-dependencies-check"
+      result: "Passed; the dependency graph was regenerated through its generator."
+    - command: "git diff --check 6e619b7c1 HEAD"
+      result: "Passed."
+  regressions: >-
+    The original private finding handler fails the deadline, storage budget and
+    release-before-response regressions. The original labels decoder accepts the
+    forbidden null request on real PostgreSQL. Both corrected paths pass. A
+    cached capability row from 502 Workflows measured one allocation; exact
+    output fingerprints, filtering, ordering, page isolation and snapshot-bound
+    cursors remain verified.
+  production_go_line_delta:
+    base_commit: 6e619b7c1609062e0339cd82f447b7e6cff28e6e
+    httpapi: -775
+    repository: -336
+    method: "git diff --numstat against the committed storage integration base; Go files excluding *_test.go."
+  remaining_review_scope: >-
+    The other review P2s (Eval contradictory preconditions, corrupt Audit snapshot
+    fallback, public response-serialization failure and retry-gateway null body)
+    remain outside the authorized cleanup. UI build/browser, live-model and full
+    release gates were not run. The separate V437-005 task remains owned by its
+    original branch; V439-007 covers only integration of its committed state.
+  delivery:
+    branch: codex/httpapi-review
+    merged_to_main: false
+    primary_checkout: "Unrelated user work preserved."
