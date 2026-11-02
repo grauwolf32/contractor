@@ -19,6 +19,16 @@
         "change": "Full workbench width; compact textarea; contained label and flex-aligned wrapping suggestion. Separate review-objective.css appended to candidate only.",
         "originalPreserved": true,
         "nativeReview": "Candidate desktop 1440px and phone 390px inspected in IAB; shared fonts/themes retained."
+      },
+      {
+        "task": "V429-022",
+        "date": "2026-11-02",
+        "author": "assistant",
+        "request": "Material-derived scope, custom checklist UI, no Scope for source code; Engagement under Scope.",
+        "change": "Separate scope extension over the preserved model controller: selected-content coverage, bounded inline checklist editor with stable keys/revisions, ASVS variants in Advanced options, and an honest read-only Engagement placement concept.",
+        "originalPreserved": true,
+        "previousCandidate": "preview-objective-v2.html",
+        "nativeReview": "Desktop custom editor and mobile Engagement were inspected in IAB; desktop/mobile checklist captures inspected."
       }
     ]
   },
@@ -127,7 +137,9 @@
     "layouts": "36 passed: ready/missing/unsupported × light/dark/black × 1440/1100/390/320px; no horizontal overflow and reachable primary actions.",
     "controls": "Local type/search, exact material selection, missing-material repair, authored scope identity, time-limit bounds, draft/start acknowledgments, keyboard and live iframe resizing passed.",
     "ownership": "The generated original preserves the exact submitted controller and fixtures; shared fonts/tokens and no external assets. No production source/API/schema or business data changed.",
-    "objectiveReview": "V429-021: 36 scenario/theme/width combinations passed aligned card/workbench edges, contained children and non-overlapping label/input/hint. Existing controls/isolation remain verified."
+    "objectiveReview": "V429-021: 36 scenario/theme/width combinations passed aligned card/workbench edges, contained children and non-overlapping label/input/hint. Existing controls/isolation remain verified.",
+    "scopeReview": "30 layouts across five scope/editor/Engagement examples, three themes and 1440/390px; source scope removal, six actual API operations, item authoring/removal/stable keys/version increments, dirty/empty/UTF-8 bounds and 128 items passed. No browser errors or outbound/mutating requests.",
+    "contentReview": "Existing Go owners validated six OpenAPI operations, the checklist fixture, typed Engagement and ten browser-authored checklist documents, including 128 entries."
   },
   "preview": "http://127.0.0.1:17567/?version=new&case=ready&theme=dark&width=1440",
   "limitations": [
@@ -137,7 +149,7 @@
     "Only the existing source-review/operation-trace/ASVS/checklist examples are demonstrated; live web scan configuration stays outside this design trial."
   ],
   "sha256": {
-    "README.md": "ad07dde79bbcf54f8b5b7973729e9ee22e280cd6b2c1d3d2d631e3c1faf70547",
+    "README.md": "ab7092933073186f5ac3d4642a5fa74654844b6cccdbe012c4f0827bf73f3507",
     "baseline.css.gz": "35e4d1896f2431c7dd0e38873dc71367c4e9bf1c6bfb7570cff202423dea52d1",
     "baseline.json.gz": "ca93501af865c53cc06e241e9806e4520a0e61934b366453a32d91567a1f723a",
     "brief.md": "50e9502b43c8f4dac59cc660cd03c44710228b93ab3befef3a7329656bace40d",
@@ -157,18 +169,31 @@
     "opendesign.css": "649a38d3f03f6f69624eda7a5f46ac8743e4e802a3e696373cfbbfec091b7125",
     "original.html": "0c5a46fc1586bdc9df8d1fe5e1f5be89ded9486ff9643b6fdc17c488995a200d",
     "preview-fixtures.json": "e06abcaa554bd4d0813d94bbe347f7af6cb28d62a39f24efd8c6b6ff4d814186",
-    "preview.html": "be8132cd6e7b10e5f89fe27ed178ccb5127075af1480bcc92e8dd71b1152ca9f",
+    "preview.html": "9d3a95def01a200093e5305d0cf1a824b6702e8a5052aedd16dabfcd58c26c36",
     "prompt.txt": "81cd7988536e726d7d1962b538250ce335543d1e7ab6c54225e4b3508e303042",
     "rationale.md": "0f6bd84996f750636c54929d75ecc0c1564c029983602ccac732dba956d5ef13",
     "seed-submitted.html": "cf0672346da716aa49c2b64ba9249783dc7de550bd998052cb08ee446be4ea36",
     "seed.html": "cf0672346da716aa49c2b64ba9249783dc7de550bd998052cb08ee446be4ea36",
-    "serve.mjs": "8e42bb5905b88d683b886c31ef728eee37f44321ef27a1ed2eeace7f14417f5f",
-    "verify.mjs": "b8bc02df7da331b2be8d4f1890510b3d7dee7c204b3ae90a7202b05a2bc9ef14",
+    "serve.mjs": "1478870890c417eece31be25c855364e427417c64d858428f3e81c36163db707",
+    "verify.mjs": "3ede022b0bce482cff1ece24988f27915d4560d0f1161423b53e06433684fb32",
     "review-objective.css": "6825f6f38e0403da6b05d9df1b18a9d0b47dff9740401520b2bd76e9de9834f9",
     "candidate-objective-v2-dark-1440.png": "48cdbe3f2842f37a65ceeb13f3926ca6cc01ba31a744070e3bde8b87d532731c",
-    "candidate-objective-v2-dark-390.png": "edfab730f0b6dfc4afb7750182af65b37efeed6c6e92b22017bfbe9e42ad7334"
+    "candidate-objective-v2-dark-390.png": "edfab730f0b6dfc4afb7750182af65b37efeed6c6e92b22017bfbe9e42ad7334",
+    "verify-scope.mjs": "7344b1d80277333f0d23a9f3202eef384f9406125a138bcfdf3ca2a187447360",
+    "scope-engagement-v3-dark-390.png": "aaf0e82a7cb188a37d90ef3209ffe84c09e0b67ea1f11b37386554ae8660c7e1",
+    "scope-engagement-v3-dark-1440.png": "4a114ae5b4b0d407b7030320b0e938624b5db758cd555db35f1e5b8dc517fb34",
+    "review-scope.js": "7e4d668414fbb4fa742b9eef389645381fc5d6ada8d0c92cb36d02c28564c1f1",
+    "scope-fixtures.json": "640ebdad1171c4792e274905ff56311e41dd583806834b38def64c9a9450ae43",
+    "scope-source-v3-dark-1440.png": "18808320c14ae55189e3118f6a033a10c729696f6ae57b5999a793d41e4a77e8",
+    "build-preview.mjs": "a50ebcc100738066d946159d413925e2b6e93e09996f7e509ae0fe1864fa137c",
+    "review-scope.css": "fdfe56c6ff8a67142835888fc53a26b9c9c897a1c965ac1a3e1c949fcfdf7acd",
+    "scope-api-v3-dark-1440.png": "ff03604460dbf8665092b6e1678fd68eefbaac186c3a68037cd7290a14e1ccb2",
+    "scope-editor-v3-dark-390.png": "079af18921242610a58327d41ecd6a3e6c96fcc41d314e809e17e105ef2687c9",
+    "verify-content.go": "767372cbba41c33bc736681ede07208bba6130edc46bd0d81ca1f51e7c1b1ac6",
+    "scope-editor-v3-dark-1440.png": "359b04157fdbd03079c5bfd632aa93ae17c5b1d807a4ca79758a468f70930c96",
+    "preview-objective-v2.html": "be8132cd6e7b10e5f89fe27ed178ccb5127075af1480bcc92e8dd71b1152ca9f"
   },
   "nativeReview": "Inspected the actual IAB ready desktop and missing-material 390px preview; labels, collapsed type browser, missing state and disabled launch remain readable.",
   "implementationCommit": "bebad902d73da144aa6867451de5971f92395612",
-  "delivery": "Design preview ready for review on codex/new-check-opendesign; no production transfer or main merge."
+  "delivery": "Design preview ready for review on codex/new-check-opendesign; source Scope omitted, custom checklist authoring and material-derived coverage added, Engagement placement demonstrated. No production transfer or main merge."
 }

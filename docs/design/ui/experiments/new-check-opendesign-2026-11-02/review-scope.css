@@ -1,0 +1,47 @@
+.scope[hidden], .review-coverage[hidden] { display: none; }
+.coverage-heading { display: flex; align-items: center; gap: var(--space-2); margin: 0; font-size: var(--text-md); font-weight: 600; }
+.scope-source { margin: var(--space-2) 0; font: var(--text-xs)/1.6 var(--font-mono); color: var(--muted); overflow-wrap: anywhere; }
+.scope-note { margin: var(--space-2) 0; font-size: var(--text-xs); line-height: 1.6; color: var(--muted); }
+.endpoint-list { display: grid; gap: var(--space-2); padding: 0; margin: var(--space-3) 0 0; list-style: none; }
+.endpoint-list li { display: flex; align-items: baseline; gap: var(--space-3); min-width: 0; font: var(--text-xs)/1.5 var(--font-mono); }
+.endpoint-method { flex: none; min-width: 4.5em; color: var(--accent); font-size: var(--text-2xs); font-weight: 600; }
+.endpoint-list code { min-width: 0; overflow-wrap: anywhere; }
+.review-coverage { display: grid; gap: var(--space-2); }
+.review-coverage h4 { margin: 0; font-size: var(--text-sm); }
+.review-coverage .scope-options { margin: 0; }
+.scope .scope-facts { display: grid; gap: var(--space-3); margin: var(--space-3) 0; }
+.scope-facts > div { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: var(--space-3); }
+.scope-facts dt { font-size: var(--text-xs); color: var(--muted); }
+.scope-facts dd { margin: 0; min-width: 0; font-size: var(--text-xs); overflow-wrap: anywhere; }
+.engagement-scope { margin-top: var(--space-5); padding-top: var(--space-4); border-top: 1px solid var(--line); }
+.engagement-scope summary { font-size: var(--text-sm); font-weight: 600; cursor: pointer; }
+.engagement-scope .excluded { color: var(--danger); }
+.checklist-create { justify-self: start; display: inline-flex; align-items: center; gap: var(--space-2); margin-top: var(--space-1); padding: var(--space-2) var(--space-3); background: var(--sel); color: var(--text); border: 1px solid var(--sel-line); border-radius: var(--radius-sm); font: 500 var(--text-sm)/1.4 var(--font-sans); cursor: pointer; }
+.checklist-editor { min-width: 0; padding: var(--space-4); border: 1px solid var(--sel-line); border-radius: var(--radius-md); background: var(--surface-subtle); }
+.checklist-editor-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); margin-bottom: var(--space-3); }
+.checklist-editor-head h4 { display: flex; align-items: center; gap: var(--space-2); margin: 0; font-size: var(--text-sm); }
+.checklist-editor-head button { padding: var(--space-1) 0; border: 0; background: transparent; color: var(--accent); font: var(--text-xs)/1.5 var(--font-sans); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.checklist-entries { display: grid; gap: var(--space-3); margin: 0; padding: 0; list-style: none; }
+.checklist-entry { padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); min-width: 0; }
+.checklist-entry-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); margin-bottom: var(--space-2); }
+.checklist-entry label { font-size: var(--text-xs); font-weight: 500; }
+.checklist-remove { display: grid; place-items: center; flex: none; width: var(--control-sm); height: var(--control-sm); border: 1px solid var(--line); border-radius: var(--radius-sm); background: transparent; color: var(--muted); cursor: pointer; }
+.checklist-remove:hover { border-color: var(--danger); color: var(--danger); }
+.checklist-statement { display: block; box-sizing: border-box; width: 100%; min-height: 5.25rem; padding: var(--space-2) var(--space-3); resize: vertical; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-subtle); color: var(--text); font: var(--text-sm)/1.6 var(--font-sans); }
+.checklist-editor :is(button, textarea):focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.checklist-editor :is(button):disabled { opacity: 0.5; cursor: default; }
+.checklist-editor-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-3); }
+.checklist-editor-actions button { min-height: var(--control-md); padding: var(--space-2) var(--space-3); border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); font: 500 var(--text-sm)/1.4 var(--font-sans); cursor: pointer; }
+.checklist-editor-actions #apply-checklist { margin-left: auto; background: var(--badge-bg); border-color: var(--badge-bg); color: var(--badge-ink); }
+.checklist-feedback { margin: var(--space-3) 0 0; font-size: var(--text-xs); line-height: 1.5; color: var(--muted); }
+.checklist-feedback[data-tone="ready"] { color: var(--success); }
+.checklist-feedback[data-tone="error"] { color: var(--danger); }
+.checklist-editor > details { margin-top: var(--space-3); font-size: var(--text-xs); color: var(--muted); }
+.checklist-editor > details summary { cursor: pointer; }
+@media (max-width: 720px) {
+  .checklist-editor { padding: var(--space-3); }
+  .checklist-entry { padding: var(--space-2); }
+  .checklist-editor-actions { display: grid; grid-template-columns: 1fr; }
+  .checklist-editor-actions #apply-checklist { margin-left: 0; }
+  .scope-facts > div { grid-template-columns: 1fr; gap: var(--space-1); }
+}

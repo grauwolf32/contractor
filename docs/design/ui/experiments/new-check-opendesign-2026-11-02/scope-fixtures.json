@@ -1,0 +1,266 @@
+{
+  "openapi": {
+    "artifact": {
+      "namespace": "openapi",
+      "name": "shop-openapi",
+      "revision": "api-scope-r1"
+    },
+    "mediaType": "application/yaml",
+    "document": {
+      "openapi": "3.1.0",
+      "info": {
+        "title": "Shop API · scope example",
+        "version": "1.0.0"
+      },
+      "servers": [
+        {
+          "url": "https://example.test"
+        }
+      ],
+      "paths": {
+        "/api/products": {
+          "get": {
+            "summary": "GET /api/products",
+            "responses": {
+              "200": {
+                "description": "Synthetic response"
+              }
+            }
+          }
+        },
+        "/api/products/{productId}": {
+          "get": {
+            "summary": "GET /api/products/{productId}",
+            "responses": {
+              "200": {
+                "description": "Synthetic response"
+              }
+            },
+            "parameters": [
+              {
+                "name": "productId",
+                "in": "path",
+                "required": true,
+                "schema": {
+                  "type": "string"
+                }
+              }
+            ]
+          }
+        },
+        "/api/orders": {
+          "get": {
+            "summary": "GET /api/orders",
+            "responses": {
+              "200": {
+                "description": "Synthetic response"
+              }
+            }
+          },
+          "post": {
+            "summary": "POST /api/orders",
+            "responses": {
+              "200": {
+                "description": "Synthetic response"
+              }
+            }
+          }
+        },
+        "/api/orders/{orderId}": {
+          "get": {
+            "summary": "GET /api/orders/{orderId}",
+            "responses": {
+              "200": {
+                "description": "Synthetic response"
+              }
+            },
+            "parameters": [
+              {
+                "name": "orderId",
+                "in": "path",
+                "required": true,
+                "schema": {
+                  "type": "string"
+                }
+              }
+            ]
+          },
+          "delete": {
+            "summary": "DELETE /api/orders/{orderId}",
+            "responses": {
+              "200": {
+                "description": "Synthetic response"
+              }
+            },
+            "parameters": [
+              {
+                "name": "orderId",
+                "in": "path",
+                "required": true,
+                "schema": {
+                  "type": "string"
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "checklist": {
+    "artifact": {
+      "namespace": "docs",
+      "name": "security-checklist",
+      "revision": "checklist-scope-r1"
+    },
+    "mediaType": "application/json",
+    "document": {
+      "schema": "contractor.audit.checklist.v1",
+      "items": [
+        {
+          "key": "check-0001",
+          "version": "1",
+          "statement": "Check that users can read only their own orders.",
+          "applicability": "always",
+          "allowed_methods": [
+            "static"
+          ],
+          "required_evidence": [],
+          "review_policy": "automatic"
+        },
+        {
+          "key": "check-0002",
+          "version": "1",
+          "statement": "Check that changing a product price requires an administrator role.",
+          "applicability": "always",
+          "allowed_methods": [
+            "static"
+          ],
+          "required_evidence": [],
+          "review_policy": "automatic"
+        },
+        {
+          "key": "check-0003",
+          "version": "1",
+          "statement": "Check that API tokens are never written to application logs.",
+          "applicability": "always",
+          "allowed_methods": [
+            "static"
+          ],
+          "required_evidence": [],
+          "review_policy": "automatic"
+        }
+      ]
+    }
+  },
+  "engagement": {
+    "artifact": {
+      "namespace": "scope",
+      "name": "shop-engagement",
+      "revision": "engagement-r1"
+    },
+    "mediaType": "application/vnd.contractor.engagement+json",
+    "document": {
+      "schema": "contractor.engagement.v1",
+      "accessMode": "source-assisted",
+      "target": {
+        "origins": [
+          "https://example.test"
+        ]
+      },
+      "scope": {
+        "routes": [
+          {
+            "origin": "https://example.test",
+            "pathPrefixes": [
+              "/api"
+            ],
+            "methods": [
+              "GET",
+              "POST"
+            ],
+            "addressRanges": [
+              "192.0.2.0/24",
+              "2001:db8::/32"
+            ]
+          }
+        ],
+        "exclusions": [
+          {
+            "origin": "https://example.test",
+            "pathPrefixes": [
+              "/api/admin"
+            ],
+            "methods": [
+              "GET",
+              "POST"
+            ],
+            "addressRanges": [
+              "192.0.2.0/24",
+              "2001:db8::/32"
+            ]
+          }
+        ]
+      },
+      "identities": [
+        {
+          "id": "anonymous",
+          "kind": "anonymous",
+          "origins": [
+            "https://example.test"
+          ]
+        },
+        {
+          "id": "account-a",
+          "kind": "basic",
+          "origins": [
+            "https://example.test"
+          ],
+          "credential": {
+            "credentialId": "account-a",
+            "kind": "target-basic@1"
+          },
+          "role": "reader",
+          "tenant": "a"
+        }
+      ],
+      "inputs": [
+        {
+          "id": "source",
+          "role": "source",
+          "artifact": {
+            "namespace": "source",
+            "name": "tree",
+            "revision": "rev-1"
+          },
+          "contentDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      ],
+      "budgets": {
+        "activeSeconds": 3600,
+        "rounds": 4,
+        "submittedRuns": 128,
+        "evidenceBytes": 33554432
+      },
+      "policy": {
+        "version": "1",
+        "activeChecks": "automatic",
+        "requiredCapabilities": [
+          "engagement@1"
+        ],
+        "optionalCapabilities": []
+      }
+    }
+  },
+  "limits": {
+    "maxItems": 128,
+    "maxStringBytes": 65536,
+    "maxDocumentBytes": 8388608
+  },
+  "provenance": {
+    "openapi": "Synthetic contract-valid OpenAPI 3.1 document; six operations.",
+    "checklist": "AUD-R141 and internal/auditdomain ChecklistDocument.",
+    "engagement": "Derived from api/testdata/v1alpha1/engagement-cases.json authenticated-source-assisted; adds a canonical /api/admin exclusion.",
+    "limits": "internal/auditdomain/limits.go, with the demo profile maxItemsTotal=128."
+  }
+}
