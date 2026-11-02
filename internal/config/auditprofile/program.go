@@ -16,7 +16,7 @@ func ResolveProgramWorkflows(program auditcontract.Program, lookup func(string) 
 	workflowInputs := map[string]map[string]resolved.ArtifactSlot{}
 	for alias, binding := range program.Workflows {
 		workflow, err := lookup(binding.Ref)
-		if err != nil {
+		if err != nil || workflow.Ref.Name+"@"+workflow.Ref.Version != binding.Ref {
 			return nil, apierror.New(apierror.AuditDocumentInvalid, "audit_document_invalid: Workflow selection is unavailable")
 		}
 		workflows[alias] = workflow

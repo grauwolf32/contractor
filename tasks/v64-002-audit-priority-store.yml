@@ -88,9 +88,33 @@ context:
     V64-026 is completed at 6e75823c634f71471fd916e52b175ab35a9c478f. Catalog slot validation now
     returns the exact allowed Workflow closures through the owning auditprofile module, sharing one
     rule with offline validation and the upcoming accepted-task path; complete config/configload suites passed.
-    Coordinator, task API, migrations, YAML cutover and basic E2E are not implemented yet. No database
-    acceptance or full lint result is claimed. The eight YAML have not been removed ahead of the loader
-    switch; V64-012 records the accepted removal/restoration boundary.
+    Work on 2026-11-03 adds strict pinned common programs, bounded durable Task acceptance using
+    mutation_receipts, and public task create/list/detail operations with generated Go/UI clients.
+    Exact Project inputs are retained through the ordinary frozen Project-to-Audit fork; baseline
+    input descriptors remain exact Project selections, so existing baseline holds keep their owner.
+    Accepted Tasks reference real Audit-scope material. Collected Run inputs reuse the existing
+    Run-to-Audit path and the same deterministic material name as output collection.
+    The existing execution/membership relations now reserve common Task attempts without a Round,
+    manifest or task ZIP. RunService derives Workflow, configuration, parameters and selected inputs
+    from the locked owner pin; trusted context is authored after the real Run identity/input forks.
+    The existing importer/collection receipt retains ordinary supporting outputs and normalizes
+    observation conclusions with exact Task/Run provenance and Audit-owned evidence.
+    Real PostgreSQL checks cover paused intake, equal-key concurrency, exact metadata/ownership,
+    row/byte limits, Project/claim fences, stable Run creation, paused collection, source Run purge
+    and replay before mutable source reads. A 100000-Task fixture proves sparse filtered pages in
+    custom/generic PostgreSQL plans and bounded lifecycle purge. Generic state parameters initially
+    scanned settled history; the query now uses closed validated state literals and passes both plans.
+    Full Go suites with integration tags and PostgreSQL passed for auditstore/..., runservice,
+    auditservice, auditimport, config/..., configload/..., archtest and httpapi/public, including
+    the new routes' common contract gates and dedicated Task/attempt FK/purge topology. ERD is
+    regenerated from four migrations. These are intermediate checks, not task acceptance; full
+    gates must be rerun after the remaining integration and final schema cutover.
+    Controller/initial/prepared intake integration, strict loader/start/catalog cutover, six executable
+    profile migrations, removal of the retired pipeline and basic process E2E remain unfinished.
+    The current additive migration and temporary execution-role branches are development staging,
+    not the final schema or a supported compatibility path. The eight YAML remain until the loader
+    switch; V64-012 records their accepted removal/restoration boundary. No full lint/release result
+    or V64-002 completion is claimed.
   design:
   - docs/proposals/0050-audit-common-hypothesis-model.md
   - docs/plans/2026-10-31-audit-redesign.md

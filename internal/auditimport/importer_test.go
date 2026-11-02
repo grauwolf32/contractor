@@ -1591,6 +1591,21 @@ type fakeImportStore struct {
 	collectErr func(auditstore.CollectParams) error
 }
 
+func (f *fakeImportStore) ListExecutionTasks(context.Context, string, string) ([]auditstore.Task, error) {
+	return nil, auditstore.ErrNotFound
+}
+func (f *fakeImportStore) CollectionReceipt(context.Context, string, string) (auditstore.CollectionReceipt, error) {
+	return auditstore.CollectionReceipt{}, auditstore.ErrNotFound
+}
+
+func (f *fakeImportArtifacts) DescribeRunBinding(ctx context.Context, runID string, ref contracts.ArtifactRef) (auditstore.ExactArtifact, bool, error) {
+	exact, _, frozen, err := f.ReadRunBinding(ctx, runID, ref)
+	return exact, frozen, err
+}
+func (f *fakeImportArtifacts) PutImmutableAudit(ctx context.Context, project string, ref contracts.ArtifactRef, payload artifacts.Payload) (auditstore.ExactArtifact, error) {
+	return f.PutImmutableProject(ctx, project, ref, payload)
+}
+
 // fakeReportPage is one recorded report page of the in-memory store.
 type fakeReportPage struct {
 	projectRevision uint64

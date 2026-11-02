@@ -14,6 +14,8 @@ import (
 )
 
 type ArtifactAccess interface {
+	DescribeRunBinding(context.Context, string, contracts.ArtifactRef) (auditstore.ExactArtifact, bool, error)
+	PutImmutableAudit(context.Context, string, contracts.ArtifactRef, artifacts.Payload) (auditstore.ExactArtifact, error)
 	WithClaim(auditstore.ControllerClaim) ArtifactAccess
 	ReadProjectExact(context.Context, string, auditstore.ExactArtifact) ([]byte, error)
 	ReadRunBinding(context.Context, string, contracts.ArtifactRef) (auditstore.ExactArtifact, []byte, bool, error)
@@ -21,6 +23,35 @@ type ArtifactAccess interface {
 	DescribeRunExact(context.Context, string, []contracts.ArtifactRef) ([]auditstore.ExactArtifact, error)
 	RetainRunExact(context.Context, string, string, []RunRetention) ([]auditstore.ExactArtifact, error)
 	PutImmutableProject(context.Context, string, contracts.ArtifactRef, artifacts.Payload) (auditstore.ExactArtifact, error)
+}
+
+func (a *ServiceArtifactAccess) DescribeRunBinding(ctx context.Context, runID string, ref contracts.ArtifactRef) (auditstore.ExactArtifact, bool, error) {
+	store, err := a.service.Run(runID)
+	if err != nil {
+		return auditstore.ExactArtifact{}, false, err
+	}
+	metadata, err := store.Metadata(ctx, ref)
+	if err != nil {
+		return auditstore.ExactArtifact{}, false, err
+	}
+	return metadata.Exact(), metadata.Frozen, nil
+}
+
+func (a *ServiceArtifactAccess) PutImmutableAudit(ctx context.Context, projectID string, target contracts.ArtifactRef, payload artifacts.Payload) (auditstore.ExactArtifact, error) {
+	scope, err := artifacts.AuditScope(a.claim.AuditID)
+	if err != nil {
+		return auditstore.ExactArtifact{}, err
+	}
+	var written artifacts.WriteResult
+	err = a.writes.WithArtifactWrite(ctx, a.claim, projectID, target.Namespace, func(service *artifacts.Service) error {
+		var err error
+		written, err = service.CreateFrozen(ctx, scope, target, payload)
+		return err
+	})
+	if err != nil {
+		return auditstore.ExactArtifact{}, err
+	}
+	return contracts.ExactContent(written.Ref, written.MediaType, payload.Data), nil
 }
 
 // RunRetention names an exact revision of an Audit child Run and the

@@ -1135,6 +1135,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/audits/{auditId}/tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                auditId: components["parameters"]["AuditId"];
+            };
+            cookie?: never;
+        };
+        /** List accepted work and selection or collection progress */
+        get: operations["listAuditTasks"];
+        put?: never;
+        /**
+         * Accept bounded work with exact selected materials
+         * @description Active and paused Audits accept at most 128 records / 1 MiB metadata and 128 distinct exact inputs per mutation. Acceptance retains inputs in Audit scope and submits no Run. The active coordinator dispatches through RunService. Replay returns the original task identities and revision before resolving mutable sources. Empty input mappings use pinned Audit inputs.
+         */
+        post: operations["createAuditTasks"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/audits/{auditId}/tasks/{taskId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                auditId: components["parameters"]["AuditId"];
+                taskId: components["schemas"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        /** Read accepted work and its retained result or explicit gap */
+        get: operations["getAuditTask"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/audits/{auditId}/items": {
         parameters: {
             query?: never;
@@ -4303,6 +4346,87 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             updatedAt: string;
+        };
+        AuditCommonKey: string;
+        AuditCommonText: string;
+        AuditCommonDigest: string;
+        AuditCommonResourceId: string;
+        AuditCommonExactRef: {
+            namespace: string;
+            name: string;
+            revision: string;
+        };
+        AuditTaskMaterial: {
+            /** @enum {string} */
+            scope_kind: "audit" | "project" | "run";
+            scope_id: components["schemas"]["AuditCommonResourceId"];
+            ref: components["schemas"]["AuditCommonExactRef"];
+            digest: components["schemas"]["AuditCommonDigest"];
+            media_type: string;
+            size_bytes: number;
+        };
+        AuditTaskHypothesisRef: {
+            id: components["schemas"]["AuditCommonResourceId"];
+            revision: number;
+        };
+        AuditTaskDocument: {
+            /** @constant */
+            schema: "contractor.audit.task.v1";
+            audit_id: components["schemas"]["AuditCommonResourceId"];
+            task_id: components["schemas"]["AuditCommonResourceId"];
+            workflow: components["schemas"]["AuditCommonKey"];
+            inputs: {
+                [key: string]: components["schemas"]["AuditTaskMaterial"];
+            };
+            parameters: {
+                [key: string]: string;
+            };
+            hypothesis?: components["schemas"]["AuditTaskHypothesisRef"];
+            objective: components["schemas"]["AuditCommonText"];
+        };
+        AuditTaskSelection: {
+            key: components["schemas"]["AuditCommonKey"];
+            workflow: components["schemas"]["AuditCommonKey"];
+            objective: components["schemas"]["AuditCommonText"];
+            inputs: {
+                [key: string]: components["schemas"]["AuditTaskMaterial"];
+            };
+        };
+        /** @enum {string} */
+        AuditTaskState: "ready" | "selected" | "settled";
+        AuditTaskCreationRequest: {
+            work: components["schemas"]["AuditTaskSelection"][];
+        };
+        AuditTaskAcceptance: {
+            task_ids: components["schemas"]["ResourceId"][];
+            created_count: number;
+            audit_revision: number;
+        };
+        AuditTaskSource: {
+            /** @enum {string} */
+            kind: "initial" | "manual" | "prepared";
+            key: components["schemas"]["AuditCommonKey"];
+            execution_id?: components["schemas"]["ResourceId"];
+            output?: components["schemas"]["AuditTaskMaterial"];
+        };
+        AuditTask: {
+            document: components["schemas"]["AuditTaskDocument"];
+            source: components["schemas"]["AuditTaskSource"];
+            ordinal: number;
+            iteration: number;
+            state: components["schemas"]["AuditTaskState"];
+            attempts: number;
+            last_execution_id?: components["schemas"]["ResourceId"];
+            result?: components["schemas"]["AuditTaskMaterial"];
+            gap_code?: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        AuditTaskPage: {
+            items: components["schemas"]["AuditTask"][];
+            page: components["schemas"]["PageInfo"];
         };
         /** @enum {string} */
         AuditItemState: "pending" | "awaiting_review" | "ready" | "submitted" | "collecting" | "settled";
@@ -10605,6 +10729,112 @@ export interface operations {
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             412: components["responses"]["PreconditionFailed"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
+        };
+    };
+    listAuditTasks: {
+        parameters: {
+            query?: {
+                limit?: components["parameters"]["Limit"];
+                cursor?: components["parameters"]["Cursor"];
+                state?: components["schemas"]["AuditTaskState"];
+            };
+            header?: never;
+            path: {
+                auditId: components["parameters"]["AuditId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Bounded accepted work */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditTaskPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
+        };
+    };
+    createAuditTasks: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request. */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+                "If-Match": components["parameters"]["RequiredIfMatch"];
+            };
+            path: {
+                auditId: components["parameters"]["AuditId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AuditTaskCreationRequest"];
+            };
+        };
+        responses: {
+            /** @description Original acceptance receipt */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    ETag: components["headers"]["ETag"];
+                    "Idempotency-Replayed": components["headers"]["IdempotencyReplayed"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditTaskAcceptance"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            412: components["responses"]["PreconditionFailed"];
+            413: components["responses"]["PayloadTooLarge"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
+        };
+    };
+    getAuditTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                auditId: components["parameters"]["AuditId"];
+                taskId: components["schemas"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Bounded accepted work */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditTask"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
             500: components["responses"]["InternalError"];
             503: components["responses"]["StorageTransactionConflict"];
         };

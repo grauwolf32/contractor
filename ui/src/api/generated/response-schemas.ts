@@ -223,6 +223,21 @@ export type PublicSchemaName =
   | "AuditPage"
   | "AuditRoundState"
   | "AuditRound"
+  | "AuditCommonKey"
+  | "AuditCommonText"
+  | "AuditCommonDigest"
+  | "AuditCommonResourceId"
+  | "AuditCommonExactRef"
+  | "AuditTaskMaterial"
+  | "AuditTaskHypothesisRef"
+  | "AuditTaskDocument"
+  | "AuditTaskSelection"
+  | "AuditTaskState"
+  | "AuditTaskCreationRequest"
+  | "AuditTaskAcceptance"
+  | "AuditTaskSource"
+  | "AuditTask"
+  | "AuditTaskPage"
   | "AuditItemState"
   | "AuditFinalDisposition"
   | "AuditExecutionRole"
@@ -1344,6 +1359,34 @@ export const RESPONSE_SCHEMAS = {
     "500": "Error",
     "503": "Error",
   },
+  "GET /v1/audits/{auditId}/tasks": {
+    "200": "AuditTaskPage",
+    "400": "Error",
+    "401": "Error",
+    "404": "Error",
+    "500": "Error",
+    "503": "Error",
+  },
+  "POST /v1/audits/{auditId}/tasks": {
+    "200": "AuditTaskAcceptance",
+    "400": "Error",
+    "401": "Error",
+    "403": "Error",
+    "404": "Error",
+    "409": "Error",
+    "412": "Error",
+    "413": "Error",
+    "500": "Error",
+    "503": "Error",
+  },
+  "GET /v1/audits/{auditId}/tasks/{taskId}": {
+    "200": "AuditTask",
+    "400": "Error",
+    "401": "Error",
+    "404": "Error",
+    "500": "Error",
+    "503": "Error",
+  },
   "GET /v1/audits/{auditId}/items": {
     "200": "AuditItemPage",
     "400": "Error",
@@ -2141,6 +2184,7 @@ export const PUBLIC_PAGED_OPERATIONS: readonly string[] = [
   "GET /v1/audits",
   "GET /v1/findings",
   "GET /v1/reviews",
+  "GET /v1/audits/{auditId}/tasks",
   "GET /v1/audits/{auditId}/items",
   "GET /v1/audits/{auditId}/coverage",
   "GET /v1/audits/{auditId}/finding-proposals",
@@ -2299,6 +2343,10 @@ export const REQUEST_HEADER_SCHEMAS = {
     "If-Match": "RequiredIfMatchHeader",
     Origin: "OptionalOriginHeader",
     "X-CSRF-Token": "OptionalCSRFTokenHeader",
+  },
+  "POST /v1/audits/{auditId}/tasks": {
+    "Idempotency-Key": "IdempotencyKeyHeader",
+    "If-Match": "RequiredIfMatchHeader",
   },
   "POST /v1/projects/{projectId}/audit-material-publications": {
     "Idempotency-Key": "IdempotencyKeyHeader",

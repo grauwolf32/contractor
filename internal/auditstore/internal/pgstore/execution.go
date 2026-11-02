@@ -12,6 +12,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/settingsstore"
 	"github.com/jackc/pgx/v5"
 )
@@ -154,11 +155,23 @@ func (s *ClaimStore) GetRunCreationIntent(
 	if err := validateID("executionID", executionID); err != nil {
 		return auditstore.RunCreationIntent{}, err
 	}
+	// Run creation and Project deletion share the same lock order. The
+	// production caller keeps this store and the Run writer on one transaction.
+	var ownerID, projectID string
+	if err := s.db.QueryRow(ctx, `SELECT owner_id,project_id FROM audits WHERE audit_id=$1`, claim.AuditID).Scan(&ownerID, &projectID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return auditstore.RunCreationIntent{}, auditstore.ErrNotFound
+		}
+		return auditstore.RunCreationIntent{}, err
+	}
+	if _, err := projectstore.NewPostgresStore(s.db).LockActiveAuditProject(ctx, ownerID, projectID); err != nil {
+		return auditstore.RunCreationIntent{}, err
+	}
 	var result auditstore.RunCreationIntent
 	var placement []byte
 	var metadata []byte
 	execution, err := ScanExecution(withColumns{row: s.db.QueryRow(ctx, `
-SELECT audit.state, audit.dispatch_state, audit.deadline_at, audit.owner_id, audit.project_id, audit.baseline_snapshot->'labels', audit.baseline_snapshot->'requiredPlacementLabels', `+profileRoleSQL("#>", "execution.workflow_role")+`, `+ExecutionColumns("execution")+`
+SELECT audit.state, audit.dispatch_state, audit.deadline_at, audit.owner_id, audit.project_id, audit.baseline_snapshot->'labels', audit.baseline_snapshot->'requiredPlacementLabels', audit.profile_snapshot, audit.baseline_snapshot, (audit.state='active' AND audit.dispatch_state='open' AND (audit.deadline_at IS NULL OR audit.deadline_at>clock_timestamp())), `+profileRoleSQL("#>", "execution.workflow_role")+`, `+ExecutionColumns("execution")+`
   FROM audit_executions AS execution
   JOIN audits AS audit USING (audit_id)
   JOIN audit_controller_claims AS claim USING (audit_id)
@@ -166,7 +179,7 @@ SELECT audit.state, audit.dispatch_state, audit.deadline_at, audit.owner_id, aud
    AND `+auditClaims.LiveCondition("claim", "$2", "$3")+`
  FOR UPDATE OF claim, audit, execution`,
 		claim.AuditID, claim.HolderID, claim.Epoch, executionID,
-	), before: []any{&result.AuditState, &result.DispatchState, &result.DeadlineAt, &result.OwnerID, &result.ProjectID, &metadata, &placement, &result.WorkflowBinding}})
+	), before: []any{&result.AuditState, &result.DispatchState, &result.DeadlineAt, &result.OwnerID, &result.ProjectID, &metadata, &placement, &result.ProgramSnapshot, &result.BaselineSnapshot, &result.CanDispatch, &result.WorkflowBinding}})
 	if errors.Is(err, pgx.ErrNoRows) {
 		if live, liveErr := s.claimLive(ctx, claim); liveErr != nil {
 			return auditstore.RunCreationIntent{}, liveErr
@@ -194,6 +207,17 @@ SELECT audit.state, audit.dispatch_state, audit.deadline_at, audit.owner_id, aud
 		return auditstore.RunCreationIntent{}, invalidf("stored Audit placement requirements differ from labels")
 	}
 	result.Execution = execution
+	if execution.Role == auditstore.ExecutionTask {
+		ids, err := taskExecutionIDs(ctx, s.db, execution.AuditID, execution.ExecutionID)
+		if err != nil {
+			return auditstore.RunCreationIntent{}, err
+		}
+		result.Tasks, err = loadSelectedTasks(ctx, s.db, auditstore.Audit{AuditID: execution.AuditID}, ids)
+		if err != nil {
+			return auditstore.RunCreationIntent{}, err
+		}
+		return result, nil
+	}
 	result.Items, err = s.listExecutionItems(ctx, executionID)
 	if err != nil {
 		return auditstore.RunCreationIntent{}, err

@@ -21,6 +21,7 @@ var auditColumnList = []string{
 	"retained_evidence_bytes",
 	"next_event_sequence - 1", "stop_reason_code", "stop_reason_message",
 	"created_at", "updated_at", "started_at", "finished_at", "deletion_requested_at", "paused_at", "phase",
+	"task_count", "task_iteration", "iteration_task_count", "initial_work_offset",
 }
 
 // executionColumnList is the ScanExecution order.

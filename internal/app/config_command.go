@@ -76,6 +76,10 @@ func runConfigCLI(args []string, logger *slog.Logger) error {
 			if err := contractorconfig.ValidatePreparedWork(snapshot, canonical, context); err != nil {
 				return err
 			}
+		} else if document["schema"] == auditcontract.TaskSchema {
+			if _, err := auditcontract.DecodeTask(canonical); err != nil {
+				return err
+			}
 		} else if document["schema"] == "contractor.audit.program.v1" {
 			if err := contractorconfig.ValidateAuditProgram(snapshot, canonical); err != nil {
 				return err

@@ -3,7 +3,9 @@ package auditdomain
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"strings"
 
+	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 )
 
@@ -33,4 +35,11 @@ func DeterministicID(prefix string, values ...string) string {
 // from guessing which protected bindings belong to an Audit.
 func ArtifactNamespace(auditID string) string {
 	return DeterministicID("audit", auditID)
+}
+
+// MaterialArtifactName reconciles collection and task intake of the same exact
+// source descriptor. It names ordinary retained bytes, rather than a journal.
+func MaterialArtifactName(source auditcontract.Material) (string, error) {
+	digest, err := contentdigest.CanonicalJSON(source)
+	return "material-" + strings.TrimPrefix(digest, "sha256:"), err
 }

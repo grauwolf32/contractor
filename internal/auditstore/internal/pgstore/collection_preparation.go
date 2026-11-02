@@ -66,6 +66,9 @@ func prepareCollectionWrite(params auditstore.CollectParams) collectionWrite {
 }
 
 func prepareCollectionItems(params auditstore.CollectParams) json.RawMessage {
+	if len(params.Tasks) != 0 {
+		return prepareTaskCollection(params)
+	}
 	items := make([]collectionItemJSON, len(params.Items))
 	for index, item := range params.Items {
 		var resultRef json.RawMessage

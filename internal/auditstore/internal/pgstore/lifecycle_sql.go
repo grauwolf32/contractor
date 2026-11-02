@@ -196,6 +196,7 @@ SELECT audit.project_id
        SELECT 1 FROM audit_items AS item
         WHERE item.audit_id = audit.audit_id AND item.state <> 'settled'
    )
+   AND NOT EXISTS (SELECT 1 FROM audit_tasks AS task WHERE task.audit_id=audit.audit_id AND task.state<>'settled')
    AND NOT ` + uncollectedExecutionSQL + `
    AND NOT EXISTS (SELECT 1 FROM ` + firstLiveChildRunSQL + ` AS live)
  FOR UPDATE OF audit, claim`

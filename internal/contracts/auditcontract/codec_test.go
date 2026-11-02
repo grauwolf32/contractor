@@ -67,6 +67,9 @@ func TestSharedAuditCommonByteAndMutationBounds(t *testing.T) {
 	if err := json.Unmarshal(contractstest.ReadFile(t, "api", "testdata", "audit-common", "boundaries.json"), &fixture); err != nil {
 		t.Fatal(err)
 	}
+	if fixture.MutationRecords != auditcontract.MaxMutationRecords || fixture.MutationBytes != auditcontract.MaxMutationBytes {
+		t.Fatal("shared mutation limits drifted")
+	}
 	encode := func(v any) []byte {
 		b, e := json.Marshal(v)
 		if e != nil {

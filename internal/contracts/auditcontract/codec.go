@@ -120,7 +120,7 @@ func documentLimit(kind string) int {
 	case "contractor.audit.hypothesis.v1":
 		return 32768
 	case "contractor.audit.mutation.v1":
-		return 1 << 20
+		return MaxMutationBytes
 	case "contractor.audit.program.v1":
 		return 4 << 20
 	default:

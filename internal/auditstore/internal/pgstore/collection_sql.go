@@ -15,7 +15,7 @@ WITH collection_input AS MATERIALIZED (
         execution_item_id text, disposition text, result_ref jsonb,
         result_digest text, retryable boolean, final_disposition text,
         status text, requested jsonb, completed jsonb, gaps jsonb, rationale text,
-        finding_associations jsonb
+        finding_associations jsonb, task_id text, task_result jsonb, gap_code text
     )
 ), live_claim AS MATERIALIZED (
     ` + auditClaims.LiveClaimSQL("$1", "$2", "$3") + `
@@ -35,13 +35,20 @@ WITH collection_input AS MATERIALIZED (
      FOR UPDATE OF audit, execution
 ), member_validation AS MATERIALIZED (
     SELECT count(member.execution_item_id)::integer AS stored_count,
-           count(input.execution_item_id)::integer AS matched_count
+           count(input.execution_item_id) FILTER (
+               WHERE member.task_id IS NULL OR task.task_id IS NOT NULL
+           )::integer AS matched_count
       FROM audit_execution_items AS member
       JOIN execution_gate AS execution USING (execution_id)
       LEFT JOIN collection_input AS input
         ON input.execution_item_id = member.execution_item_id
        AND input.disposition = $6
        AND member.state = 'collecting'
+       AND member.task_id IS NOT DISTINCT FROM input.task_id
+      LEFT JOIN audit_tasks AS task
+        ON task.task_id=member.task_id AND task.audit_id=member.audit_id
+       AND task.last_execution_id=member.execution_id AND task.attempts=member.item_attempt
+       AND task.state='selected'
 ), finding_input AS MATERIALIZED (
     SELECT item.execution_item_id, association.*
       FROM collection_input AS item
@@ -101,7 +108,28 @@ WITH collection_input AS MATERIALIZED (
      WHERE member.execution_id = receipt.execution_id
        AND member.execution_item_id = input.execution_item_id
        AND member.state = 'collecting'
-    RETURNING member.execution_item_id, member.item_id, member.item_attempt
+    RETURNING member.execution_item_id, member.item_id, member.item_attempt, member.task_id
+), task_settlement AS MATERIALIZED (
+    SELECT attempt.task_id, receipt.audit_id, receipt.execution_id,
+           input.task_result,input.gap_code,
+           CASE WHEN input.retryable AND attempt.item_attempt<advanced.max_item_run_attempts
+                  AND receipt.disposition='execution-failed'
+                  AND audit.state IN ('active','paused') THEN 'ready' ELSE 'settled' END AS next_state
+      FROM settled_attempts AS attempt
+      JOIN collection_input AS input USING(execution_item_id)
+      CROSS JOIN advanced_audit AS advanced
+      CROSS JOIN inserted_receipt AS receipt
+      JOIN audits AS audit ON audit.audit_id=receipt.audit_id
+     WHERE attempt.task_id IS NOT NULL
+), settled_tasks AS (
+    UPDATE audit_tasks AS task
+       SET state=input.next_state,
+           result=CASE WHEN input.next_state='ready' THEN NULL ELSE input.task_result::json END,
+           gap_code=CASE WHEN input.next_state='ready' THEN NULL ELSE input.gap_code END,
+           updated_at=clock_timestamp()
+      FROM task_settlement AS input
+     WHERE task.task_id=input.task_id AND task.audit_id=input.audit_id
+       AND task.state='selected' AND task.last_execution_id=input.execution_id
 ), settled_items AS (
     -- One update per item row: the item settles only while it is still
     -- collecting, and its coverage always records the collected attempt.

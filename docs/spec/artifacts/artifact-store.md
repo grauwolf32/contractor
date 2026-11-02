@@ -1559,6 +1559,15 @@ forks every selected input before scheduling. Audit forks prove Project and
 child Run membership; a matching Project alone grants no cross-Audit access.
 Allocations receive ordinary local input forks and no Audit-scope authority.
 
+The common accepting owner retains selected Project inputs directly in AuditScope
+through an ordinary `audit_input` fork. Its source must be exact and its target
+frozen. Source selection proves that the Audit belongs to that same active
+Project and is draft, active or paused. Cancellation/deletion closes new input
+retention; ordinary terminal output collection keeps its separate authority.
+The target reuses the existing version/blob, so pruning the original Project
+revision cannot alter an accepted task's bytes. No parallel material store or
+recursive reference import participates.
+
 **ART-R138.** An owner may explicitly publish one accepted exact Audit material
 through `POST /v1/projects/{projectId}/audit-material-publications`. The Audit
 must belong to that active owned Project. Creation is create-only; replacement

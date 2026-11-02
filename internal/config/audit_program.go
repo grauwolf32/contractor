@@ -4,7 +4,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/apierror"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
-	"github.com/grauwolf32/contractor/internal/contracts"
+
 	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
 	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 )
@@ -45,18 +45,8 @@ func ValidatePreparedWork(s *Snapshot, data, context []byte) error {
 			}
 			workflows[item.Workflow] = workflow
 		}
-		for name, slot := range workflow.Inputs {
-			if slot.Required && binding.Inputs[name].Source == "task-input" {
-				if _, selected := item.Inputs[name]; !selected {
-					return apierror.New(apierror.AuditDocumentInvalid, "audit_document_invalid: required prepared material is missing")
-				}
-			}
-		}
-		for name, selected := range item.Inputs {
-			slot, exists := workflow.Inputs[name]
-			if !exists || !contracts.AcceptsMediaType(slot.MediaTypes, selected.MediaType) {
-				return apierror.New(apierror.AuditDocumentInvalid, "audit_document_invalid: incompatible prepared material")
-			}
+		if err := auditprofile.ValidateTaskInputs(binding, workflow, item.Inputs); err != nil {
+			return err
 		}
 	}
 	return nil

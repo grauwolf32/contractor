@@ -27,9 +27,16 @@ func (s *Service) CreateAudit(ctx context.Context, params AuditCreateParams) (Cr
 	if s.auditTransaction == nil {
 		return CreateResult{}, ErrNotConfigured
 	}
-	normalized, workflowSnapshot, err := normalizeAuditCreate(params)
-	if err != nil {
-		return CreateResult{}, err
+	normalized := params
+	var workflowSnapshot json.RawMessage
+	var err error
+	if len(params.TaskIDs) == 0 {
+		normalized, workflowSnapshot, err = normalizeAuditCreate(params)
+		if err != nil {
+			return CreateResult{}, err
+		}
+	} else if !validTaskRunIdentity(params) {
+		return CreateResult{}, ErrInvalid
 	}
 	var result CreateResult
 	err = s.credentialGuard.WithRunCreation(ctx, func() error {
@@ -41,6 +48,12 @@ func (s *Service) CreateAudit(ctx context.Context, params AuditCreateParams) (Cr
 			intent, loadErr := audits.GetRunCreationIntent(ctx, normalized.Claim, normalized.ExecutionID)
 			if loadErr != nil {
 				return loadErr
+			}
+			if len(params.TaskIDs) != 0 {
+				normalized, workflowSnapshot, loadErr = normalizeTaskRunCreate(intent, params)
+				if loadErr != nil {
+					return loadErr
+				}
 			}
 			if validationErr := validateAuditIntent(intent, normalized); validationErr != nil {
 				return validationErr
@@ -123,13 +136,13 @@ func (s *Service) CreateAudit(ctx context.Context, params AuditCreateParams) (Cr
 			if scopeErr != nil {
 				return scopeErr
 			}
-			if _, metadataErr := verifyExactProjectArtifact(
-				ctx, artifactService, intent.ProjectID, normalized.ExecutionManifest,
-			); metadataErr != nil {
-				return metadataErr
-			}
-			if err := artifactService.RequireExact(ctx, projectScope, normalized.ExecutionManifest.Ref); err != nil {
-				return err
+			if intent.Execution.Role != auditstore.ExecutionTask {
+				if _, metadataErr := verifyExactProjectArtifact(ctx, artifactService, intent.ProjectID, normalized.ExecutionManifest); metadataErr != nil {
+					return metadataErr
+				}
+				if err := artifactService.RequireExact(ctx, projectScope, normalized.ExecutionManifest.Ref); err != nil {
+					return err
+				}
 			}
 			forks := make(map[string]contracts.ArtifactRef, len(normalized.Inputs))
 			for _, slot := range sortedInputSlots(normalized.Inputs) {
@@ -168,6 +181,11 @@ func (s *Service) CreateAudit(ctx context.Context, params AuditCreateParams) (Cr
 					return fmt.Errorf("%w: Audit input %q has unsupported media type", ErrInvalid, slot)
 				}
 			}
+			if intent.Execution.Role == auditstore.ExecutionTask {
+				if err := materializeTaskRunContext(ctx, artifactService, intent, normalized, runID, forks); err != nil {
+					return err
+				}
+			}
 			if completion != nil {
 				completion.Contract.Task = forks[completion.Contract.Task.Name]
 				completion.Contract.ExecutionManifest = forks[completion.Contract.ExecutionManifest.Name]
@@ -192,6 +210,15 @@ func (s *Service) CreateAudit(ctx context.Context, params AuditCreateParams) (Cr
 			} else {
 				run.SkillSnapshot = agentskills.CloneRunSkills(normalized.Skills)
 				run.StateReason = runstore.Reason{Code: runstore.SkillInitializationPendingReason}
+			}
+			if intent.Execution.Role == auditstore.ExecutionTask {
+				final, err := audits.GetRunCreationIntent(ctx, normalized.Claim, normalized.ExecutionID)
+				if err != nil {
+					return err
+				}
+				if !final.CanDispatch {
+					return auditstore.ErrPrecondition
+				}
 			}
 			result = CreateResult{Run: run, Created: true}
 			return nil
@@ -282,6 +309,9 @@ func normalizeAuditCreate(params AuditCreateParams) (AuditCreateParams, json.Raw
 }
 
 func validateAuditIntent(intent auditstore.RunCreationIntent, params AuditCreateParams) error {
+	if len(params.TaskIDs) != 0 {
+		return validateTaskRunIntent(intent, params)
+	}
 	if !slices.Equal(intent.RequiredPlacementLabels, params.RequiredPlacementLabels) {
 		return fmt.Errorf("%w: Audit placement requirements differ from the immutable baseline", auditstore.ErrConflict)
 	}
@@ -344,6 +374,9 @@ func auditRunLabels(intent auditstore.RunCreationIntent) (runstore.RunMetadataLa
 	}
 	if len(intent.Items) == 1 {
 		labels["audit.item"] = intent.Items[0].ItemID
+	}
+	if len(intent.Tasks) == 1 {
+		labels["audit.task"] = intent.Tasks[0].Document.TaskID
 	}
 	return runstore.NormalizeRunMetadataLabels(labels)
 }

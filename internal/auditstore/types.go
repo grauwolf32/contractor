@@ -119,6 +119,7 @@ func (s ItemState) Valid() bool {
 type ExecutionRole string
 
 const (
+	ExecutionTask       ExecutionRole = "task"
 	ExecutionPrepare    ExecutionRole = "prepare"
 	ExecutionDiscovery  ExecutionRole = "discovery"
 	ExecutionCheck      ExecutionRole = "check"
@@ -126,7 +127,7 @@ const (
 )
 
 func (r ExecutionRole) Valid() bool {
-	return r == ExecutionPrepare || r == ExecutionDiscovery || r == ExecutionCheck || r == ExecutionAssessment
+	return r == ExecutionTask || r == ExecutionPrepare || r == ExecutionDiscovery || r == ExecutionCheck || r == ExecutionAssessment
 }
 
 type ExecutionState string
@@ -247,24 +248,28 @@ type StopReason struct {
 }
 
 type Audit struct {
-	AuditID           string
-	OwnerID           string
-	ProjectID         string
-	Profile           ProfileIdentity
-	ProfileSnapshot   json.RawMessage
-	InputSelection    json.RawMessage
-	BaselineSnapshot  json.RawMessage
-	State             AuditState
-	Phase             auditdomain.AuditPhase
-	Revision          uint64
-	CurrentRoundID    *string
-	Dispatch          DispatchState
-	Hold              HoldState
-	DeadlineAt        *time.Time
-	PausedAt          *time.Time
-	Limits            Limits
-	ReservedRunCount  int
-	SubmittedRunCount int
+	AuditID            string
+	OwnerID            string
+	ProjectID          string
+	Profile            ProfileIdentity
+	ProfileSnapshot    json.RawMessage
+	InputSelection     json.RawMessage
+	BaselineSnapshot   json.RawMessage
+	State              AuditState
+	Phase              auditdomain.AuditPhase
+	Revision           uint64
+	CurrentRoundID     *string
+	Dispatch           DispatchState
+	Hold               HoldState
+	DeadlineAt         *time.Time
+	PausedAt           *time.Time
+	Limits             Limits
+	ReservedRunCount   int
+	SubmittedRunCount  int
+	TaskCount          int
+	TaskIteration      int
+	IterationTaskCount int
+	InitialWorkOffset  int
 	// OutstandingRunCount counts every child Run that holds a dispatch
 	// reservation; OutstandingToolRunCount is its `tool` class part
 	// (AUX-R3).
@@ -320,10 +325,11 @@ type ListItemsParams struct {
 type MutationOperation string
 
 const (
-	MutationCreate     MutationOperation = "audit.create"
-	MutationStart      MutationOperation = "audit.start"
-	MutationTransition MutationOperation = "audit.transition"
-	MutationDelete     MutationOperation = "audit.delete"
+	MutationCreate      MutationOperation = "audit.create"
+	MutationStart       MutationOperation = "audit.start"
+	MutationTransition  MutationOperation = "audit.transition"
+	MutationDelete      MutationOperation = "audit.delete"
+	MutationAcceptTasks MutationOperation = "audit.tasks.accept"
 )
 
 type TransitionParams struct {
@@ -642,6 +648,10 @@ type BindRunParams struct {
 // trusted Run Service. It contains no secret material and is never exposed by
 // the owner-facing repository or public API.
 type RunCreationIntent struct {
+	CanDispatch             bool
+	Tasks                   []Task
+	ProgramSnapshot         json.RawMessage
+	BaselineSnapshot        json.RawMessage
 	AuditState              AuditState
 	DispatchState           DispatchState
 	DeadlineAt              *time.Time
@@ -697,6 +707,7 @@ type ArtifactLink struct {
 }
 
 type CollectParams struct {
+	Tasks              []TaskCollection
 	Claim              ControllerClaim
 	ReceiptID          string
 	ExecutionID        string

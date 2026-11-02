@@ -19,6 +19,9 @@ import (
 )
 
 type AuditManagement interface {
+	CreateTasks(context.Context, auditservice.TaskCreationParams) (auditservice.TaskCreationResult, error)
+	Tasks(context.Context, auditstore.ListTasksParams) (auditstore.TaskPage, error)
+	Task(context.Context, string, string, string) (auditstore.Task, error)
 	PublishMaterial(context.Context, string, string, string, auditservice.MaterialPublicationRequest, *string) (auditservice.MaterialPublication, error)
 	ListProjectFindings(context.Context, auditservice.ProjectFindingListParams) (auditservice.ProjectFindingPage, error)
 	GetProjectFinding(context.Context, string, string, string) (auditstore.ProjectFinding, error)

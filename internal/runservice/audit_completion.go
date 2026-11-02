@@ -18,6 +18,9 @@ import (
 // Authority comes from the claim-locked Audit profile, never from caller labels
 // or a lookup of the current configuration catalog.
 func prepareAuditCompletion(ctx context.Context, service *artifacts.Service, intent auditstore.RunCreationIntent, params AuditCreateParams) (*runstore.AuditCompletionSnapshot, error) {
+	if intent.Execution.Role == auditstore.ExecutionTask {
+		return nil, nil
+	}
 	var binding auditprofile.ResolvedAuditWorkflowBinding
 	if err := json.Unmarshal(intent.WorkflowBinding, &binding); err != nil {
 		return nil, fmt.Errorf("%w: invalid owned Audit binding", ErrInvalid)

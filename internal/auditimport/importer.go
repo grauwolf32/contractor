@@ -48,6 +48,9 @@ func (i *Importer) Collect(
 	bound := *i
 	bound.artifacts = i.artifacts.WithClaim(claim)
 	i = &bound
+	if execution.Role == auditstore.ExecutionTask {
+		return i.collectTasks(ctx, claim, snapshot, execution)
+	}
 	changed, err := i.collect(ctx, claim, snapshot, execution)
 	if !errors.Is(err, ErrPermanent) {
 		return changed, err

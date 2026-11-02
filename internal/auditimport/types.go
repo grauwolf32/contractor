@@ -26,6 +26,8 @@ type Store interface {
 // Reader is what the importer reads of an Audit while it collects and
 // assembles a report. It is the read seam of the Audit store.
 type Reader interface {
+	ListExecutionTasks(context.Context, string, string) ([]auditstore.Task, error)
+	CollectionReceipt(context.Context, string, string) (auditstore.CollectionReceipt, error)
 	GetArtifactLink(context.Context, string, string) (auditstore.ArtifactLink, error)
 	ListExecutionItems(context.Context, string) ([]auditstore.ExecutionItem, error)
 	ListItemsByIDs(context.Context, string, []string) ([]auditstore.Item, error)

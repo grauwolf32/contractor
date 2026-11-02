@@ -10,6 +10,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/helpers/pagelimit"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/settingsstore"
@@ -805,6 +806,7 @@ func scanItem(row scanner) (auditstore.Item, error) {
 func ScanExecution(row scanner) (auditstore.Execution, error) {
 	var result auditstore.Execution
 	var encodedRef []byte
+	var manifestDigest *string
 	var role, state string
 	var roleAttempt *int
 	var outcome *string
@@ -813,18 +815,24 @@ func ScanExecution(row scanner) (auditstore.Execution, error) {
 	var preparation, outputs []byte
 	if err := row.Scan(
 		&result.ExecutionID, &result.AuditID, &result.RoundID, &role, &result.WorkflowRole, &roleAttempt,
-		&encodedRef, &result.Manifest.Digest, &result.SubmissionKey, &result.RequestDigest,
+		&encodedRef, &manifestDigest, &result.SubmissionKey, &result.RequestDigest,
 		&result.RunID, &state, &outcome, &result.TerminalRunGeneration,
 		&terminalSequence, &result.TerminalObservedAt, &encodedProvenance, &result.RunDeletedAt,
 		&result.CreatedAt, &result.UpdatedAt, &preparation, &outputs,
 	); err != nil {
 		return auditstore.Execution{}, err
 	}
-	if err := json.Unmarshal(encodedRef, &result.Manifest.Ref); err != nil || result.Manifest.Ref.ValidateExact() != nil {
-		return auditstore.Execution{}, errors.New("stored Audit execution manifest ref is invalid")
+	if role == string(auditstore.ExecutionTask) {
+		if encodedRef != nil || manifestDigest != nil || result.RoundID != nil || roleAttempt != nil {
+			return auditstore.Execution{}, errors.New("stored common Task execution contains retired manifest authority")
+		}
+	} else {
+		if err := strictjson.Decode(encodedRef, &result.Manifest.Ref); err != nil || result.Manifest.Ref.ValidateExact() != nil || manifestDigest == nil || validateDigest("stored execution manifest digest", *manifestDigest) != nil {
+			return auditstore.Execution{}, errors.New("stored Audit execution manifest ref is invalid")
+		}
+		result.Manifest.Digest = *manifestDigest
 	}
-	if validateDigest("stored execution manifest digest", result.Manifest.Digest) != nil ||
-		validateDigest("stored execution request digest", result.RequestDigest) != nil {
+	if validateDigest("stored execution request digest", result.RequestDigest) != nil {
 		return auditstore.Execution{}, errors.New("stored Audit execution digest is invalid")
 	}
 	result.Role, result.State, result.RoleAttempt = auditstore.ExecutionRole(role), auditstore.ExecutionState(state), roleAttempt

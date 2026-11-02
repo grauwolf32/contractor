@@ -401,6 +401,22 @@
       "path": [],
       "maxBytes": 256,
       "rule": "LIM-FND-54"
+    },
+    {
+      "schema": "AuditCommonText",
+      "path": [],
+      "maxBytes": 65536,
+      "rule": "LIM-ACT-3"
+    },
+    {
+      "schema": "AuditTaskDocument",
+      "path": [
+        "properties",
+        "parameters",
+        "additionalProperties"
+      ],
+      "maxBytes": 4096,
+      "rule": "LIM-ACT-3"
     }
   ]
 }
