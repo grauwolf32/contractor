@@ -239,18 +239,19 @@
   place-items: center;
   flex: none;
   padding: var(--space-3);
+  border: 1px solid var(--line);
   border-radius: var(--radius-md);
-  background: var(--sel);
-  color: var(--link);
+  background: var(--surface-subtle);
+  color: var(--accent);
 }
 .start-selection-copy {
   min-width: 0;
 }
 .start-selection-copy h2 {
   margin: 0;
-  font-size: var(--text-xl);
+  font-size: var(--text-lg);
   font-weight: 600;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
 }
 .start-type-description {
   margin: var(--space-2) 0 0;
@@ -572,16 +573,12 @@
 }
 .start-workbench {
   display: grid;
-  grid-template-columns: 260px minmax(0, 1fr) 280px;
+  grid-template-columns: minmax(230px, 280px) minmax(0, 1fr) 312px;
   gap: var(--space-6);
   align-items: start;
 }
 .start-type-picker {
   min-width: 0;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  overflow: clip;
-  background: var(--surface);
 }
 .start-type-picker > summary {
   padding: var(--space-3);
@@ -600,6 +597,7 @@
 }
 .start-type-picker .ui-list-pane {
   min-height: 0;
+  background: transparent;
   --ui-pad-start: 0.875rem;
   --ui-pad-end: 0.875rem;
 }
@@ -635,6 +633,10 @@
 }
 .start-setup {
   min-width: 0;
+  padding: var(--space-6);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
 }
 .start-setup-fields {
   display: grid;
@@ -774,8 +776,10 @@
 }
 .start-summary-facts {
   display: grid;
-  gap: var(--space-3);
+  gap: var(--space-2);
   margin: 0;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
 }
 .start-summary-facts div {
   display: grid;
@@ -788,6 +792,8 @@
 }
 .start-summary-facts dd {
   margin: 0;
+  text-align: right;
+  font-family: var(--font-mono);
   overflow-wrap: anywhere;
 }
 .start-readiness {
@@ -795,10 +801,12 @@
   border-top: 1px solid var(--line);
 }
 .start-readiness > span {
-  display: inline-flex;
+  display: flex;
+  min-height: var(--control-sm);
+  align-items: center;
   border: 1px solid var(--warning-line);
-  border-radius: var(--radius-full);
-  padding: var(--space-0-5) var(--space-2);
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-3);
   background: var(--warning-bg);
   color: var(--warning);
   font-size: var(--text-2xs);
@@ -998,6 +1006,73 @@
   color: var(--danger);
 }
 
+.start-type-picker .ui-list-pane-header {
+  padding: 0 0 var(--space-3);
+  border-bottom: 0;
+}
+.start-type-picker .ui-list-pane-toolbar {
+  padding: var(--space-3) 0;
+  border-bottom: 0;
+}
+.start-type-picker .ui-list-section-heading {
+  padding-inline: 0;
+}
+.start-type-picker .ui-row {
+  margin-bottom: var(--space-1);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+}
+.start-type-picker .ui-row[data-selected] {
+  border-color: var(--sel-line);
+}
+.start-type-picker .ui-row[data-selected]::before {
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+}
+.start-type-picker .ui-list-pane-footer {
+  padding-inline: 0;
+}
+.start-material-list {
+  display: grid;
+  gap: var(--space-2);
+  border-bottom: 0;
+}
+.start-material {
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-subtle);
+}
+.start-material-editor {
+  padding: 0;
+}
+.start-material-head {
+  justify-content: space-between;
+}
+.start-card-head h3 {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted-strong);
+}
+.start-time > .ui-field .ui-field-label {
+  font-size: var(--text-xs);
+}
+.start-advanced {
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  padding-top: var(--space-3);
+  background: transparent;
+}
+.start-advanced > summary {
+  padding-inline: 0;
+}
+
 @media (max-width: 1100px) {
   .start-workbench {
     grid-template-columns: 240px minmax(0, 1fr);
@@ -1018,6 +1093,17 @@
   }
   .start-summary-card {
     grid-column: 1;
+  }
+  .start-setup {
+    padding: var(--space-4);
+  }
+  .start-type-picker {
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+  }
+  .start-type-picker .ui-list-pane {
+    padding: var(--space-3);
   }
   .start-type-picker > summary {
     display: list-item;
