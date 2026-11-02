@@ -5,7 +5,7 @@ milestone: audit-check-prioritization
 epic: audits
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V64-001
 - V410-005
@@ -323,7 +323,7 @@ verification_requirements:
   Regenerate both public clients for any operation enum change; update existing Studio/config consumers.
   Preserve unrelated Server operations and private wire fields. The preparation task is not proof that
   the V64-002 coordinator, live intake, six migrated profiles or the complete Audit redesign are ready.
-implementation_commit: null
+implementation_commit: 6e75823c634f71471fd916e52b175ab35a9c478f
 
 verification:
   date: '2026-11-02'

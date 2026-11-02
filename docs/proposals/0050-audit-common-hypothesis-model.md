@@ -417,7 +417,7 @@ hypothesis ID/revision и не оставляет только ссылку на
 одно задание по выбранному target.
 
 Конкретная операция и строгий контракт output → общий приём оформлены как
-узкая prerequisite-задача [V64-026](../../tasks/v64-026-openapi-prepared-work-operation.yml).
+узкая prerequisite-задача [V64-026](../../tasks/done/v64-026-openapi-prepared-work-operation.yml).
 Её реальный producer и validator предшествуют durable-интеграции V64-002;
 новых inventory engine, DSL, collector, очереди или receipt/lease store нет.
 Это подготовка явно заказанной работы, не обязательная генерация и не
