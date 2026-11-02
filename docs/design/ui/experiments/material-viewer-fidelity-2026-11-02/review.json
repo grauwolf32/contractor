@@ -45,6 +45,20 @@
   },
   "preview": "http://127.0.0.1:17560/test-results/material-production/index.html?case=source&theme=dark&width=390",
   "comparison": "http://127.0.0.1:17560/test-results/material-production/comparison/index.html?case=openapi&width=1440",
-  "delivery": "Verified feature branch; not merged into main.",
-  "implementationCommit": "e1bbe211ebe1dc3d3cadc1b1f578ada0837fe68e"
+  "delivery": "Merged into local main on 2026-11-02 after the user approved the preview.",
+  "implementationCommit": "e1bbe211ebe1dc3d3cadc1b1f578ada0837fe68e",
+  "mainIntegration": {
+    "status": "merged",
+    "mergeCommit": "66aaa04fb20ccf13e02f1a545e7b7427e6cc1f62",
+    "baseMainCommit": "8c50a3769ce7dcd1211040f40621f9514cb02bb0",
+    "verifiedHead": "d0cdba3e03d2f0937877b3b490f14153f828e574",
+    "strategy": "--no-ff; current main integrated and checked before landing",
+    "checks": {
+      "make ui-verify": "passed: 220 files, 2632 passed and one existing expected failure; generated clients, lint, types, server tests and build passed",
+      "make lint": "passed",
+      "production browser": "30 passed with workers=2 on the isolated production build"
+    },
+    "treeProof": "The merge tree exactly matches the verified feature integration tree.",
+    "preservation": "Both original OpenDesign experiment trees remain unchanged."
+  }
 }

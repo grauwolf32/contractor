@@ -17,6 +17,7 @@ context:
     header and metadata differences. Preserve all OpenDesign data, shared fonts,
     real artifact behavior and renderer semantics; show actual desktop/phone
     preview with paired reference captures before claiming visual completion.
+    User approved the preview and requested merge into main on 2026-11-02.
   specification: docs/spec/ui/ui.md
   design: docs/design/ui/README.md
   finding: >-
@@ -108,7 +109,14 @@ verification:
   - >-
     Original OpenDesign experiment trees have no diff from main. All originals,
     generated data, conversations, prior evidence and sandbox backups remain intact.
-    No model call or business-data write was made. Branch is ready for user review;
-    main remains unchanged by this task.
+    No model call or business-data write was made. The preserved preview was approved;
+    the main integration receipt follows.
+
+  - >-
+    User-approved main integration on 2026-11-02: 66aaa04fb20ccf13e02f1a545e7b7427e6cc1f62.
+    Current main was integrated at d0cdba3e03d2f0937877b3b490f14153f828e574;
+    make ui-verify, make lint and all 30 production browser tests passed again.
+    The landing merge tree equals that verified integration tree; original
+    OpenDesign sources and saved visual evidence remain intact.
 
 implementation_commit: e1bbe211ebe1dc3d3cadc1b1f578ada0837fe68e
