@@ -1,0 +1,136 @@
+/* ============================================================
+   Contractor — checklist editor polish (v1)
+   Token-only overrides, layered after current-scope.css.
+   Scope: editor shell and header, entries, statement field,
+   footer actions, feedback, and kinship with the page summary.
+   ============================================================ */
+
+/* Shell — share the summary's card language (hairline border,
+   generous radius, inset surface) without borrowing its shadow */
+.checklist-editor {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+}
+
+/* Header band — title, Draft/Ready chip, quiet "Use existing" */
+.checklist-editor-head {
+  gap: var(--space-2) var(--space-3);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--line);
+}
+.checklist-editor-head h4 {
+  min-width: 0;
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+.checklist-editor-head button {
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+}
+.checklist-editor-head button:hover,
+.checklist-editor-head button:focus-visible {
+  background: var(--row-hover);
+  text-decoration: none;
+}
+
+/* State chip — quiet Draft, positive Ready, tracking that echoes
+   the uppercase section heads elsewhere on this page */
+.editor-state {
+  padding: var(--space-0-5) var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-full);
+  color: var(--muted-strong);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* Intro + entries — one calm list, hairline separation only */
+.checklist-intro {
+  margin: var(--space-2) 0 var(--space-1);
+}
+.checklist-entry {
+  padding: var(--space-3) 0;
+}
+.checklist-entry:first-child {
+  padding-top: var(--space-1);
+}
+.checklist-ordinal {
+  padding-top: calc(var(--space-2) + 1px);
+  font-variant-numeric: tabular-nums;
+}
+.checklist-remove {
+  align-self: start;
+  margin-top: calc(var(--space-2) + 1px);
+  border-radius: var(--radius-sm);
+}
+.checklist-remove:hover,
+.checklist-remove:focus-visible {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+/* Statement field — the only filled control inside the editor */
+.checklist-statement {
+  transition: border-color 150ms ease-out;
+}
+.checklist-statement::placeholder {
+  color: var(--muted);
+}
+.checklist-statement:hover {
+  border-color: var(--line-strong);
+}
+.checklist-statement:focus-visible {
+  border-color: var(--focus);
+}
+
+/* Footer — lightweight Add item, deliberate secondary Use checklist;
+   Start check in the summary stays the page's primary action */
+.checklist-editor-actions {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+.checklist-editor-actions #add-checklist-item {
+  padding-inline: var(--space-2);
+  border-radius: var(--radius-full);
+}
+.checklist-editor-actions #apply-checklist {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--text);
+}
+.checklist-editor-actions #apply-checklist:hover {
+  border-color: var(--line-strong);
+  background: var(--row-hover);
+}
+.checklist-editor-actions #apply-checklist:disabled {
+  background: transparent;
+  border-color: var(--line);
+  color: var(--muted);
+  opacity: 1;
+}
+.checklist-editor-actions #apply-checklist.is-applied,
+.checklist-editor-actions #apply-checklist.is-applied:hover {
+  background: var(--success-bg);
+  border-color: var(--success-line);
+  color: var(--success);
+}
+
+/* Feedback — tight under the footer, tone colors unchanged */
+.checklist-feedback {
+  margin-top: var(--space-2);
+}
+
+/* Responsive — composed at 720 / 390 / 320, normal document flow */
+@media (max-width: 720px) {
+  .checklist-editor-head h4 { font-size: var(--text-sm); }
+  .checklist-entry { padding: var(--space-2) 0; }
+}
+@media (max-width: 340px) {
+  .checklist-editor { padding: var(--space-2-5); }
+  .checklist-statement { padding: var(--space-2); }
+}
+
+/* No generated content, hidden controls, animation, or new assets. */

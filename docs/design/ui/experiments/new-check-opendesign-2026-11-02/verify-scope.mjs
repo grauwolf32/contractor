@@ -27,6 +27,7 @@ try {
   if(example==='engagement'){
    await expect(page.locator('.scope #engagement-scope')).toBeVisible();await expect(page.locator('#engagement-scope')).toContainText('/api/admin');await expect(page.locator('.materials')).not.toContainText('Engagement');await expect(page.locator('#start')).toBeDisabled();
   }
+  for(const fact of ['#summary-materials','#summary-scope','#summary-time'])await expect(page.locator(fact)).toBeVisible();
   expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
   if(example==='editor')await page.locator('#checklist-editor').scrollIntoViewIfNeeded();
   if(example==='engagement')await page.locator('#engagement-scope').scrollIntoViewIfNeeded();

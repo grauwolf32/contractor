@@ -5,6 +5,7 @@ Production UI, APIs, published profiles and launch behavior are unchanged.
 
 ```sh
 node docs/design/ui/experiments/new-check-opendesign-2026-11-02/serve.mjs 17567
+node docs/design/ui/experiments/new-check-opendesign-2026-11-02/verify-opendesign-pass.mjs
 node docs/design/ui/experiments/new-check-opendesign-2026-11-02/verify.mjs
 node docs/design/ui/experiments/new-check-opendesign-2026-11-02/verify-scope.mjs
 go run docs/design/ui/experiments/new-check-opendesign-2026-11-02/verify-content.go
@@ -97,3 +98,28 @@ material matching, readiness, exact revisions, labels/limits, error handling,
 idempotent create/start and conflict reconciliation owners. The presentation
 seed is not another readiness or launch implementation. Live web scan setup is
 outside this exploration.
+
+## Second actual OpenDesign pass (V429-023)
+
+The user asked whether the manual checklist review had been run through
+OpenDesign. It had not; this task performed a real fresh pass in the isolated
+`contractor-checklist-polish-20261102` project, retaining V4 as the exact input.
+The `checklist-opendesign-pass-2026-11-02/` directory contains that input,
+brief, exact prompt, input CSS, raw generated CSS/HTML/rationale, provenance
+and theme/phone captures. The active candidate is byte-identical to this
+second native HTML output; no manual presentation correction was applied.
+
+OpenDesign refined the header, Draft/Ready chip, item alignment, placeholder
+contrast and footer actions. Use checklist is a neutral secondary button;
+Start check keeps the primary emphasis. Both original scripts/fixtures and
+shared font families/tokens remain unchanged. The native run succeeded with
+the existing configured Contractor model in 11 of 24 allowed requests.
+
+Complete before/after state and sandbox backups passed integrity checks; all
+155 prior project files and every prior Project/Conversation/Message row are
+identical. The relay is stopped and its upstream credential removed. No
+production UI or business data changed. Choose Before this pass · V4 in the
+external toolbar to compare, or Second pass original to inspect native output.
+`verify-opendesign-pass.mjs` verifies the exact CSS-only insertion, scripts,
+tokens, native preservation and cleanup. Existing browser and Go checks verify
+the empty/editing/applied states, 128 items and retained scope behavior.

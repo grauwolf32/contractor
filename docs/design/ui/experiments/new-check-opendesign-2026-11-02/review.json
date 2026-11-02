@@ -152,7 +152,8 @@
     "objectiveReview": "V429-021: 36 scenario/theme/width combinations passed aligned card/workbench edges, contained children and non-overlapping label/input/hint. Existing controls/isolation remain verified.",
     "scopeReview": "36 final scope/editor/Engagement layouts passed, including one empty initial item with calm guidance at 1440/1100/390/320px, three themes, local editing, stable keys/versions, empty/dirty/UTF-8 bounds and 128 items. No browser errors or outbound/mutating requests.",
     "contentReview": "Existing Go owners validated six OpenAPI operations, checklist fixture, typed Engagement and sixteen final browser-authored checklist documents, including 128 entries.",
-    "finalVerification": "Final verify.mjs (36 layouts), verify-scope.mjs (36 layouts), verify-content.go, task/spec validators and diff checks passed after editor polish. make lint passed for the scope/editor implementation; production source is untouched."
+    "finalVerification": "Second-pass verify-opendesign-pass.mjs, verify.mjs (36 layouts), verify-scope.mjs (36 layouts), Go content validator (16 browser-authored documents) and task/spec/diff checks passed. Production source is untouched.",
+    "secondOpenDesignPass": "Genuine successful native run; exact CSS-only insertion and both original controllers preserved; candidate equals raw native HTML. Shared tokens, cleanup, 155 previous native files and all previous history rows verified."
   },
   "preview": "http://127.0.0.1:17567/?version=new&case=ready&theme=dark&width=1440",
   "limitations": [
@@ -162,7 +163,7 @@
     "Only the existing source-review/operation-trace/ASVS/checklist examples are demonstrated; live web scan configuration stays outside this design trial."
   ],
   "sha256": {
-    "README.md": "ac1f293f97812a4c0664bed143e4b753cfe826fc1ba246eaecfe2e08927d8204",
+    "README.md": "7bbb7b9129fd8ebd0aa77df56da77bf27ccc9c727afa44994bf83383914af66b",
     "baseline.css.gz": "35e4d1896f2431c7dd0e38873dc71367c4e9bf1c6bfb7570cff202423dea52d1",
     "baseline.json.gz": "ca93501af865c53cc06e241e9806e4520a0e61934b366453a32d91567a1f723a",
     "brief.md": "50e9502b43c8f4dac59cc660cd03c44710228b93ab3befef3a7329656bace40d",
@@ -182,23 +183,23 @@
     "opendesign.css": "649a38d3f03f6f69624eda7a5f46ac8743e4e802a3e696373cfbbfec091b7125",
     "original.html": "0c5a46fc1586bdc9df8d1fe5e1f5be89ded9486ff9643b6fdc17c488995a200d",
     "preview-fixtures.json": "e06abcaa554bd4d0813d94bbe347f7af6cb28d62a39f24efd8c6b6ff4d814186",
-    "preview.html": "23e39849a74ec0ec63d6068e14942af87cc218312cc11d05201926f9e07ae889",
+    "preview.html": "12b6c840207530cb66ba538ef1d859d218e48b61b8411c9dce31d43ef2ef0fb5",
     "prompt.txt": "81cd7988536e726d7d1962b538250ce335543d1e7ab6c54225e4b3508e303042",
     "rationale.md": "0f6bd84996f750636c54929d75ecc0c1564c029983602ccac732dba956d5ef13",
     "seed-submitted.html": "cf0672346da716aa49c2b64ba9249783dc7de550bd998052cb08ee446be4ea36",
     "seed.html": "cf0672346da716aa49c2b64ba9249783dc7de550bd998052cb08ee446be4ea36",
-    "serve.mjs": "1478870890c417eece31be25c855364e427417c64d858428f3e81c36163db707",
-    "verify.mjs": "feb282ebd4f5a9217161944e5ac6fe13545b268a9d6c134acd0f7178be3a6955",
+    "serve.mjs": "3ec079585b147f0bc3dbcdd01b2c66e99ead0cf4f395cc68c6be00e414921c14",
+    "verify.mjs": "8f0f902790b4272447b01c600eae2fb930ff3e515dbea67f3266b86f4dbfa511",
     "review-objective.css": "6825f6f38e0403da6b05d9df1b18a9d0b47dff9740401520b2bd76e9de9834f9",
     "candidate-objective-v2-dark-1440.png": "48cdbe3f2842f37a65ceeb13f3926ca6cc01ba31a744070e3bde8b87d532731c",
     "candidate-objective-v2-dark-390.png": "edfab730f0b6dfc4afb7750182af65b37efeed6c6e92b22017bfbe9e42ad7334",
-    "verify-scope.mjs": "3d2428b95601c7c619a215536d070275f441c6511ce2896759c63c654cab2dba",
+    "verify-scope.mjs": "238e2c1a9ec49862b8d2c2734329911f1585be2d5cbcfe166554a3ea2c82bd02",
     "scope-engagement-v3-dark-390.png": "aaf0e82a7cb188a37d90ef3209ffe84c09e0b67ea1f11b37386554ae8660c7e1",
     "scope-engagement-v3-dark-1440.png": "4a114ae5b4b0d407b7030320b0e938624b5db758cd555db35f1e5b8dc517fb34",
     "review-scope.js": "7b2bed69a53ca33b6172ddf04c61190608acbf7185d5deae88f2587d721b81f2",
     "scope-fixtures.json": "640ebdad1171c4792e274905ff56311e41dd583806834b38def64c9a9450ae43",
     "scope-source-v3-dark-1440.png": "18808320c14ae55189e3118f6a033a10c729696f6ae57b5999a793d41e4a77e8",
-    "build-preview.mjs": "a50ebcc100738066d946159d413925e2b6e93e09996f7e509ae0fe1864fa137c",
+    "build-preview.mjs": "fcf9a478adca80baf1103985c10372ab26db8573038bab2fef9b4dd2bbdc8c04",
     "review-scope.css": "c8b71b42f99a65b835b6905f0ccc10e799b4e434cd1263dc3d19fed169bd3eaf",
     "scope-api-v3-dark-1440.png": "ff03604460dbf8665092b6e1678fd68eefbaac186c3a68037cd7290a14e1ccb2",
     "scope-editor-v3-dark-390.png": "079af18921242610a58327d41ecd6a3e6c96fcc41d314e809e17e105ef2687c9",
@@ -209,9 +210,39 @@
     "scope-editor-v4-dark-390.png": "2a28b01bdb2236bcbdc13effa67373ad2400439ffc2e9ae398c6ee5e8f231b2e",
     "scope-editor-empty-v4-dark-390.png": "cb59ce278962378e83fd7fbd09a4470cd2077313975e32ab8e1d85a67943a59b",
     "scope-editor-empty-v4-dark-1440.png": "7838a42c0b5a20b8ea39d78b33fc8a1729873080246f846a5cf39fdddf783aa9",
-    "scope-editor-v4-dark-1440.png": "4ae4bb23ee8083ee04203ef115d84f4d4ed7c18dc9607a9f3f3959d0959af574"
+    "scope-editor-v4-dark-1440.png": "4ae4bb23ee8083ee04203ef115d84f4d4ed7c18dc9607a9f3f3959d0959af574",
+    "verify-opendesign-pass.mjs": "5f436f55e7208ab14fdf482274fb595a41752c81ff870d3e318aa8ed7b099247",
+    "checklist-opendesign-pass-2026-11-02/input-v4.html": "23e39849a74ec0ec63d6068e14942af87cc218312cc11d05201926f9e07ae889",
+    "checklist-opendesign-pass-2026-11-02/applied-dark-390.png": "5cd766422bc6211a492ca83f2193660f78e8f2f1927beb9c4084170728731331",
+    "checklist-opendesign-pass-2026-11-02/empty-dark-1440.png": "947b579c6d00e18a66a8c12599b2d51c1881d63d555d64984b8e3706110e86b7",
+    "checklist-opendesign-pass-2026-11-02/provenance.json": "cd55bd4e82de5f67a3e366c34f4ef5a4e858200fa229189cd6afc2ef51eaf7d7",
+    "checklist-opendesign-pass-2026-11-02/empty-light-390.png": "f1f8c1b43cd7f397df078845a09038580d78175c924759b7e111d674fb786544",
+    "checklist-opendesign-pass-2026-11-02/index-checklist-v1.html": "12b6c840207530cb66ba538ef1d859d218e48b61b8411c9dce31d43ef2ef0fb5",
+    "checklist-opendesign-pass-2026-11-02/prompt.txt": "adbe24dc2b6934181e4435b7ffb404a8020f6267000ae4782bb50bc4f88db05a",
+    "checklist-opendesign-pass-2026-11-02/empty-dark-390.png": "9537ec106e1954e716d9187a7cb2e375722df9e04b5c1dc9ebeef6e126eb530b",
+    "checklist-opendesign-pass-2026-11-02/empty-black-390.png": "50f11eeeeebec380f078cb321735f869cf136536aaff91ed85baf8e5b5fb895e",
+    "checklist-opendesign-pass-2026-11-02/empty-black-1440.png": "88f9c136cbfb429d30c74f59e825b45f60a6a2540feb1d0a2ccff3fd609cbe99",
+    "checklist-opendesign-pass-2026-11-02/applied-dark-1440.png": "5995ab36257e2c2769f73f95c591cdafd885fe4535e264a97d4cd7bdedbe28f9",
+    "checklist-opendesign-pass-2026-11-02/input-scope-v4.css": "c8b71b42f99a65b835b6905f0ccc10e799b4e434cd1263dc3d19fed169bd3eaf",
+    "checklist-opendesign-pass-2026-11-02/empty-light-1440.png": "a47290d205f28433b8a13382c95dd71fc1d120187f5cb596ac3fe2c1a13ab424",
+    "checklist-opendesign-pass-2026-11-02/checklist-polish-v1.css": "9c7ff096aea0b13fc09f7e2873420dbbedca0ee1385c2a97dc388dfd9c099b3d",
+    "checklist-opendesign-pass-2026-11-02/brief.md": "f214826c01db4d111ddf6d59cbcbdc005f2e3620980a689f05eebbf129ba5c72",
+    "checklist-opendesign-pass-2026-11-02/rationale-checklist-v1.md": "885e6e35b8716667c70c4b88d2637bf328e70db5a7bf8df51674577b6b90a4f5"
   },
   "nativeReview": "Inspected the actual IAB ready desktop and missing-material 390px preview; labels, collapsed type browser, missing state and disabled launch remain readable.",
   "implementationCommit": "bebad902d73da144aa6867451de5971f92395612",
-  "delivery": "Design preview ready for review on codex/new-check-opendesign; source Scope omitted, custom checklist authoring and material-derived coverage added, Engagement placement demonstrated. No production transfer or main merge."
+  "delivery": "Second genuine OpenDesign refinement ready in the local preview on codex/new-check-opendesign. Before this pass · V4 compares the prior manual version. No production transfer or main merge.",
+  "additionalOpenDesignPasses": [
+    {
+      "task": "V429-023",
+      "projectId": "contractor-checklist-polish-20261102",
+      "conversationId": "29609385-5d2d-42a3-826c-e6e65a122d9e",
+      "runId": "b9e7886e-3db6-41c8-b874-87f10c07f410",
+      "status": "succeeded",
+      "model": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+      "provenance": "checklist-opendesign-pass-2026-11-02/provenance.json",
+      "candidateEqualsNative": true,
+      "manualPresentationCorrections": false
+    }
+  ]
 }
