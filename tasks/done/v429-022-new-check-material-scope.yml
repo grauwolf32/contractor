@@ -5,7 +5,7 @@ milestone: ui-journey-usability
 epic: ui
 kind: feature
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V429-021]
 languages: [html, css, javascript, go]
 goal: Let users understand check coverage from their materials, author a custom checklist in the New check preview and inspect Engagement under Scope.
@@ -91,3 +91,11 @@ tests:
     covers: [A1, A2, A3]
   - command: git diff --check
     covers: [A4]
+
+verification:
+  - Final verify.mjs passed 36 layouts and original-controller/token/isolation checks.
+  - Final verify-scope.mjs passed 36 scope/editor/Engagement layouts, one empty initial item with quiet guidance, stable keys/versions, empty/dirty/UTF-8 limits and 128 items.
+  - verify-content.go validated six OpenAPI operations, the checklist fixture, typed Engagement and sixteen final browser-authored documents with existing Go owners.
+  - make lint passed for the scope/editor implementation; final browser/domain and task/spec checks passed after editor polish. No production source changed.
+  - Native desktop editor and mobile Engagement were inspected. V2/V3 candidates, original OpenDesign output and new V4 captures are retained. The final editor is open at 127.0.0.1:17567; no production transfer or main merge.
+implementation_commit: 74eeb84c016cefd63dedbe092d6f056be91c7f7a

@@ -39,7 +39,8 @@
         "change": "One empty item, quiet ordinal column, lighter dividers, compact add/apply actions and Draft/Ready state. No initial error; scope follows applied content. Item defaults moved to Advanced options. Existing project checklists retain all actual items.",
         "previousCandidate": "preview-material-scope-v3.html",
         "originalPreserved": true,
-        "nativeReview": "Final one-empty-item editor opened in IAB; desktop/phone/theme captures and initial Draft state verified."
+        "nativeReview": "Final one-empty-item editor opened in IAB; desktop/phone/theme captures and initial Draft state verified.",
+        "implementationCommit": "74eeb84c016cefd63dedbe092d6f056be91c7f7a"
       }
     ]
   },
