@@ -172,7 +172,7 @@ execution_policy:
 milestones:
   - id: artifact-release-cleanup-2026-11
     exit_task: V437-004
-    outcome: Exact Artifact replays converge under concurrency, timestamps remain authoritative, and explicit storage dependencies separate the PostgreSQL registry from verified payload preparation and physical backends.
+    outcome: Exact Artifact replays converge under concurrency, timestamps remain authoritative, and acyclic storage packages separate the PostgreSQL registry from verified payload preparation and physical backends.
   - id: runtime-resource-bounds-2026-11
     exit_task: V433-005
     outcome: Runtime shutdown has one cleanup deadline; Gateway and OTLP response reads bound allocation before decoding, and findings preparation keeps CPU work off the event loop with joined cancellation and verified existing contracts.

@@ -6,7 +6,7 @@ epic: projects-artifacts
 kind: chore
 introduced_by: V370-016
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V437-002]
 languages: [go]
 goal: "Publication reuses a verified physical generation without reading its full payload while authoritative locks are held."
@@ -43,3 +43,9 @@ tests:
     covers: [A1, A2]
   - command: "CONTRACTOR_TEST_ARTIFACT_BACKEND=filesystem go test -count=1 -tags integration ./internal/artifacts/... ./internal/findingintake"
     covers: [A1, A2]
+implementation_commit: 1733401ede06de01c702c24ac93f1982f35a4172
+verification: >-
+  Complete Artifact, Git import, Memory, finding intake and sitemap integration suites passed;
+  Artifact and finding intake suites also passed with filesystem payloads. Private HTTP
+  integration passed. The new prepared-publication tests prohibit payload reads inside
+  the transaction and cover a competing unverified physical generation.

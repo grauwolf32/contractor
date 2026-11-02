@@ -6,10 +6,10 @@ epic: projects-artifacts
 kind: chore
 introduced_by: V370-016
 priority: P2
-status: pending
+status: in_progress
 depends_on: [V437-003]
 languages: [go]
-goal: "Artifact operations have explicit storage dependencies and separate domain, PostgreSQL registry and physical payload implementations."
+goal: "Artifact operations have separate domain, PostgreSQL registry and physical payload implementations."
 context:
   authority: >-
     User decision 2026-11-02: implement the internal/artifacts review fixes,
@@ -19,6 +19,10 @@ context:
     - docs/spec/artifacts/artifact-store.md
     - docs/spec/artifacts/blob-storage.md
     - docs/spec/platform/persistence.md
+  scope_decision: >-
+    User decision 2026-11-02 after scope clarification: complete fixes, optimization
+    and package separation now; leave full runtime/history dependency injection
+    and related subsystem constructor changes to a separate task.
   finding: >-
     The flat package mixes the generic service with registry SQL, filesystem operations and process dependencies hidden in context; doc.go no longer describes all entry points.
   siblings: >-
@@ -30,12 +34,12 @@ context:
     changes, compatibility aliases, new receipts or plugin framework.
 scope:
   in:
-    - "Extract postgres and blob/backends packages, explicitly inject runtime/history policy, clarify Fork validation and document publication/lifecycle ownership."
+    - "Extract postgres and blob/backends packages, clarify Fork validation and document publication/lifecycle ownership."
   out:
     - "Renaming the public Artifact concept, database tables or wire fields."
 acceptance_criteria:
   - id: A1
-    text: "Registry and physical backends have acyclic packages and runtime/history configuration is explicit; context carries operation lifetime and reentrant transfer leases only."
+    text: "Registry and physical backends have acyclic packages with updated production callers; existing context propagation remains until the separate dependency migration."
   - id: A2
     text: "All migrated Go consumers compile and their package suites, layer/ownership guards, real-store backend suites and lint pass; generated ERD matches moved SQL ownership."
 tests:
