@@ -82,7 +82,7 @@ func (h *artifactHandlers) runArchiveStore(w http.ResponseWriter, r *http.Reques
 		handleError(w, err)
 		return artifacts.ScopedStore{}, false
 	}
-	return store, !h.rejectRunSystemArtifactRoute(w, r)
+	return store, true
 }
 
 func (h *artifactHandlers) serveArchive(w http.ResponseWriter, r *http.Request, resolve archiveStoreResolver, file bool) {

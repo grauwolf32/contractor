@@ -23,7 +23,7 @@ func TestPrivateArtifactPagedListHidesBindingsBeforeTheLimit(t *testing.T) {
 	}
 	for _, ref := range []artifacts.ArtifactRef{
 		{Namespace: "inputs", Name: "memory.allowed"}, {Namespace: "outputs", Name: "http.body.result"},
-		{Namespace: "skills", Name: "likec4"}, {Namespace: "contractor-system", Name: "repeat-request"},
+		{Namespace: "skills", Name: "likec4"},
 	} {
 		repository.seed("run-a", ref.Namespace, ref.Name, "r", nil)
 	}
@@ -44,7 +44,6 @@ func TestPrivateArtifactPagedListHidesBindingsBeforeTheLimit(t *testing.T) {
 	}
 	assertPagedListing(t, handler, "builder", 9, builder)
 	assertPagedListing(t, handler, "skills", 5, map[string]bool{})
-	assertPagedListing(t, handler, "contractor-system", 5, map[string]bool{})
 }
 
 // assertPagedListing follows nextCursor and requires every page but the last

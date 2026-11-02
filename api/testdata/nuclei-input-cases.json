@@ -455,8 +455,8 @@
       "arguments": {
         "url": "https://fixture.invalid/",
         "rulepack_ref": {
-          "namespace": "contractor-system",
-          "name": "repeat-request",
+          "namespace": "skills",
+          "name": "reserved-source",
           "revision": "revision-pack"
         }
       },

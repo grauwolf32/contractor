@@ -62,15 +62,6 @@ func TestWriteRejectsDistinctInvalidInputsBeforeRepository(t *testing.T) {
 			payload: Payload{MediaType: "application/json"}, want: ErrReservedNamespace,
 		},
 		{
-			name: "reserved Run system record", scope: "run",
-			ref: ArtifactRef{
-				Namespace: artifactpolicy.RunSystemNamespace,
-				Name:      artifactpolicy.RunRepeatRequestName,
-			},
-			payload: Payload{MediaType: artifactpolicy.RunRepeatRequestMediaType},
-			want:    ErrReservedNamespace,
-		},
-		{
 			// Only the trusted input forks create inputs/<slot> (ART-R16).
 			name: "created Run input", scope: "run",
 			ref:     ArtifactRef{Namespace: "inputs", Name: "invented"},

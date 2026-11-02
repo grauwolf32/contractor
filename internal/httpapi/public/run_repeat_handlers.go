@@ -13,7 +13,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/helpers/clone"
 	"github.com/grauwolf32/contractor/internal/projectstore"
-	"github.com/grauwolf32/contractor/internal/runrepeat"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
@@ -34,8 +33,7 @@ type RepeatWorkflowResolver interface {
 	) (resolved.ResolvedWorkflow, error)
 }
 
-// RepeatArtifacts reads the retained request of a Run (runrepeat.Load) and
-// its exact inputs.
+// RepeatArtifacts reads original input provenance and exact source metadata.
 type RepeatArtifacts interface {
 	Run(string) (artifacts.ScopedStore, error)
 	User(string) (artifacts.ScopedStore, error)
@@ -62,7 +60,7 @@ type runRepeatHandlers struct {
 }
 
 func (h *runRepeatHandlers) getRunRepeatDraft(w http.ResponseWriter, r *http.Request) {
-	// The draft carries retained request provenance; no response is cached.
+	// Source authorization and availability are rechecked for every draft.
 	w.Header().Set("Cache-Control", "no-store")
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
 		handleError(w, err)
@@ -131,28 +129,20 @@ func (h *runRepeatHandlers) getRunRepeatDraft(w http.ResponseWriter, r *http.Req
 		})
 	}
 
-	snapshot, snapshotErr := h.loadRunRepeatSnapshot(r.Context(), run)
-	if snapshotErr != nil {
-		var notice runRepeatDraftNotice
-		switch {
-		case errors.Is(snapshotErr, artifacts.ErrArtifactNotFound):
-			notice = runRepeatDraftNotice{
-				Code: "repeat_request_unavailable", Severity: "blocking",
-				Message: "The original Run request is unavailable. Configure a new Run from the Workflow.",
-			}
-		case errors.Is(snapshotErr, runrepeat.ErrInvalidSnapshot), errors.Is(snapshotErr, artifacts.ErrArtifactIntegrity):
-			notice = runRepeatDraftNotice{
-				Code: "repeat_request_invalid", Severity: "blocking",
-				Message: "The saved Run request could not be verified. Configure a new Run from the Workflow.",
-			}
-		default:
-			handleError(w, snapshotErr)
+	inputs, err := h.originalInputSources(r.Context(), run)
+	if err != nil {
+		if !errors.Is(err, artifacts.ErrArtifactIntegrity) {
+			handleError(w, err)
 			return
 		}
-		response.Notices = append(response.Notices, notice)
+		response.Notices = append(response.Notices, runRepeatDraftNotice{
+			Code: "input_provenance_invalid", Severity: "blocking", Field: "inputs",
+			Message: "The original Run input sources could not be verified. Configure a new Run from the Workflow.",
+		})
 		writeJSON(w, http.StatusOK, response)
 		return
 	}
+
 	draft := &runRepeatDraft{
 		Parameters:              clone.Map(run.Parameters),
 		RuntimeLabels:           append([]string{}, run.RuntimeLabels...),
@@ -160,13 +150,13 @@ func (h *runRepeatHandlers) getRunRepeatDraft(w http.ResponseWriter, r *http.Req
 		Labels:                  run.MetadataLabels.Clone(),
 	}
 	response.Draft = draft
-	draft.Inputs, err = h.repeatInputsFromSnapshot(r.Context(), run, snapshot, projectUploadsAllowed)
+	draft.Inputs, err = h.repeatInputsFromSources(r.Context(), run, inputs, projectUploadsAllowed)
 	if err != nil {
 		handleError(w, err)
 		return
 	}
 	if workflowAvailable {
-		for slot, source := range snapshot.Inputs {
+		for slot, source := range inputs {
 			expected := artifacts.ScopeUser
 			if run.ProjectID != nil && currentWorkflow.Inputs[slot].SourceScope != "user" {
 				expected = artifacts.ScopeProject
@@ -216,26 +206,20 @@ func (h *runRepeatHandlers) getRunRepeatDraft(w http.ResponseWriter, r *http.Req
 	writeJSON(w, http.StatusOK, response)
 }
 
-func (h *runRepeatHandlers) loadRunRepeatSnapshot(
-	ctx context.Context, run runstore.WorkflowRun,
-) (runrepeat.Snapshot, error) {
-	snapshot, err := runrepeat.Load(ctx, h.Artifacts, run.RunID)
+func (h *runRepeatHandlers) originalInputSources(ctx context.Context, run runstore.WorkflowRun) (map[string]artifacts.LineageEdge, error) {
+	store, err := h.Artifacts.Run(run.RunID)
 	if err != nil {
-		return runrepeat.Snapshot{}, err
+		return nil, err
 	}
-	if snapshot.Workflow.Name != run.WorkflowName || snapshot.Workflow.Version != run.WorkflowVersion ||
-		!sameOptionalString(snapshot.ProjectID, run.ProjectID) {
-		return runrepeat.Snapshot{}, fmt.Errorf("%w: snapshot does not match its Run", runrepeat.ErrInvalidSnapshot)
-	}
-	return snapshot, nil
+	return runstore.OriginalInputSources(ctx, run, store)
 }
 
-func (h *runRepeatHandlers) repeatInputsFromSnapshot(
-	ctx context.Context, run runstore.WorkflowRun, snapshot runrepeat.Snapshot, projectUploadsAllowed bool,
+func (h *runRepeatHandlers) repeatInputsFromSources(
+	ctx context.Context, run runstore.WorkflowRun, inputs map[string]artifacts.LineageEdge, projectUploadsAllowed bool,
 ) (map[string]runRepeatInputSelection, error) {
-	result := make(map[string]runRepeatInputSelection, len(snapshot.Inputs))
-	for _, slot := range sortedArtifactSlots(snapshot.Inputs) {
-		selection, err := h.resolveRepeatSource(ctx, run, snapshot.Inputs[slot], projectUploadsAllowed)
+	result := make(map[string]runRepeatInputSelection, len(inputs))
+	for _, slot := range sortedArtifactSlots(inputs) {
+		selection, err := h.resolveRepeatSource(ctx, run, inputs[slot], projectUploadsAllowed)
 		if err != nil {
 			return nil, err
 		}
@@ -245,9 +229,9 @@ func (h *runRepeatHandlers) repeatInputsFromSnapshot(
 }
 
 func (h *runRepeatHandlers) resolveRepeatSource(
-	ctx context.Context, run runstore.WorkflowRun, source runrepeat.InputSource, projectUploadsAllowed bool,
+	ctx context.Context, run runstore.WorkflowRun, source artifacts.LineageEdge, projectUploadsAllowed bool,
 ) (runRepeatInputSelection, error) {
-	ref := source.Artifact
+	ref := source.Source
 	copy := ref.Clone()
 	var (
 		store artifacts.ScopedStore

@@ -616,11 +616,11 @@ func (f *fakeArtifactRepository) Fork(ctx context.Context, fork artifacts.Fork) 
 	f.lineage = append(f.lineage, fakeLineageEdge{
 		edge: artifacts.LineageEdge{
 			Kind:        fork.Kind,
-			SourceScope: fork.Source.Kind(),
+			SourceScope: fork.Source.Kind(), SourceScopeID: fork.Source.ID(),
 			Source:      read.Ref,
-			TargetScope: fork.Target.Kind(),
-			Target:      result.TargetRef,
-			CreatedAt:   time.Unix(int64(f.next), 0).UTC(),
+			TargetScope: fork.Target.Kind(), TargetScopeID: fork.Target.ID(),
+			Target:    result.TargetRef,
+			CreatedAt: time.Unix(int64(f.next), 0).UTC(),
 		},
 		source: fork.Source, target: fork.Target,
 	})
@@ -663,7 +663,6 @@ func (f *fakeArtifactRepository) ListMetadata(
 	result := make([]artifacts.Metadata, 0)
 	for key, read := range f.current {
 		if key.scope != scope ||
-			scope.Kind() == artifacts.ScopeUser && artifactpolicy.IsRunSystemNamespace(key.namespace) ||
 			query.Namespace != nil && key.namespace != *query.Namespace ||
 			query.ExcludeNamespace != nil && key.namespace == *query.ExcludeNamespace ||
 			query.HiddenNamespace != "" && key.namespace == query.HiddenNamespace ||
@@ -721,6 +720,31 @@ func (f *fakeArtifactRepository) ListVersions(
 	})
 	if len(result) > query.Limit {
 		result = result[:query.Limit]
+	}
+	return result, nil
+}
+
+func (f *fakeArtifactRepository) DescribeForkSources(_ context.Context, scope artifacts.Scope, namespace string, names []string, kind string) ([]artifacts.LineageEdge, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.queryReads++
+	result := make([]artifacts.LineageEdge, 0, len(names))
+	for _, name := range names {
+		if _, exists := f.current[artifactKey{scope, namespace, name}]; !exists {
+			continue
+		}
+		count := 0
+		var found artifacts.LineageEdge
+		for _, recorded := range f.lineage {
+			if recorded.target == scope && recorded.edge.Target.Namespace == namespace && recorded.edge.Target.Name == name && recorded.edge.Kind == kind {
+				count++
+				found = recorded.edge
+			}
+		}
+		if count != 1 {
+			return nil, artifacts.ErrArtifactIntegrity
+		}
+		result = append(result, found)
 	}
 	return result, nil
 }

@@ -17,7 +17,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/scan"
 	"github.com/grauwolf32/contractor/internal/projectstore"
-	"github.com/grauwolf32/contractor/internal/runrepeat"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
@@ -42,7 +41,7 @@ func TestPostgresUserRulepackForksAcrossProjectsAndRejectsInvalidSourcesAtomical
 		}
 		text := string(data)
 		if strings.HasPrefix(relative, "workflows/") {
-			text = strings.Replace(text, "inputs: {}", "inputs:\n    rulepack: {required: false, sourceScope: user, mediaTypes: [application/yaml, application/vnd.contractor.nuclei-rulepack+zip]}", 1)
+			text = strings.Replace(text, "inputs: {}", "inputs:\n    source: {required: false, mediaTypes: [text/plain]}\n    rulepack: {required: false, sourceScope: user, mediaTypes: [application/yaml, application/vnd.contractor.nuclei-rulepack+zip]}", 1)
 			text = strings.Replace(text, "context: {artifacts: {}}", "context: {artifacts: {rulepack: {namespace: inputs, name: rulepack, required: false}}}", 1)
 		} else if strings.HasPrefix(relative, "agent-templates/") {
 			text = strings.Replace(text, "url: {source: parameter, name: target}", "url: {source: parameter, name: target}\n      rulepack_ref: {source: artifact, name: rulepack, optional: true}", 1)
@@ -72,6 +71,7 @@ func TestPostgresUserRulepackForksAcrossProjectsAndRejectsInvalidSourcesAtomical
 	var saved PublicCreateParams
 	for index := range 3 {
 		var projectID *string
+		var projectSource contracts.ArtifactRef
 		if index > 0 {
 			id := fmt.Sprintf("pack-project-%d", index)
 			_, _, err := projects.Create(ctx, projectstore.CreateParams{ProjectID: id, OwnerID: "pack-owner", Kind: projectstore.KindProject, Name: id, IdempotencyKey: id, RequestDigest: testDigest("1")})
@@ -81,9 +81,13 @@ func TestPostgresUserRulepackForksAcrossProjectsAndRejectsInvalidSourcesAtomical
 			projectID = &id
 			projectArtifacts, _ := artifactService.Project(id)
 			_ = writeExact(t, ctx, projectArtifacts, "rules", "pack", "application/yaml", []byte("project decoy"))
+			projectSource = writeExact(t, ctx, projectArtifacts, "sources", "project-input", "text/plain", []byte("project source")).Ref
 		}
 		id := fmt.Sprintf("pack-run-%d", index)
 		params := PublicCreateParams{OwnerID: "pack-owner", ProjectID: projectID, Workflow: "nuclei-target@1", Parameters: map[string]string{"target": "https://fixture.invalid/"}, Inputs: map[string]contracts.ArtifactRef{"rulepack": pack.Ref}, IdempotencyKey: id, NewRunID: func() (string, error) { return id, nil }}
+		if projectID != nil {
+			params.Inputs["source"] = projectSource
+		}
 		params.RequestDigest, err = PublicRequestDigest(params)
 		if err != nil {
 			t.Fatal(err)
@@ -97,14 +101,24 @@ func TestPostgresUserRulepackForksAcrossProjectsAndRejectsInvalidSourcesAtomical
 		if err != nil || string(fork.Payload.Data) != "exact owner rules" {
 			t.Fatalf("fork=%+v err=%v", fork, err)
 		}
-		retained, err := runrepeat.Load(ctx, artifactService, id)
+		sources, err := runstore.OriginalInputSources(ctx, result.Run, scope)
 		if err != nil {
 			t.Fatal(err)
 		}
-		source := retained.Inputs["rulepack"]
-		if source.SourceScope != artifacts.ScopeUser || *source.Artifact.Revision != *pack.Ref.Revision {
+		source := sources["rulepack"]
+		if source.SourceScope != artifacts.ScopeUser || !source.Source.SameExact(pack.Ref) {
 			t.Fatalf("lost source authority: %+v", source)
 		}
+
+		if projectID != nil {
+			projectInput := sources["source"]
+			if projectInput.SourceScope != artifacts.ScopeProject || projectInput.SourceScopeID != *projectID || !projectInput.Source.SameExact(projectSource) {
+				t.Fatalf("lost mixed Project source authority: %+v", projectInput)
+			}
+		} else if len(sources) != 1 {
+			t.Fatalf("absent optional input appeared: %+v", sources)
+		}
+
 		saved = params
 	}
 	// Source advancement cannot change an admitted fork or the original key replay.

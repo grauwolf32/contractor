@@ -22,11 +22,6 @@ const (
 	// AuditContextNamespace holds frozen, authorized Run-local Audit context.
 	// Models may read its exact refs; only the trusted materializer writes it.
 	AuditContextNamespace = "audit-context"
-	// RunSystemNamespace is owned by trusted Control Plane services. Its
-	// bindings are not part of the Worker or owner-facing Artifact library.
-	RunSystemNamespace        = "contractor-system"
-	RunRepeatRequestName      = "repeat-request"
-	RunRepeatRequestMediaType = "application/vnd.contractor.run-repeat-request+json"
 )
 
 func IsAuditManagedProjectNamespace(namespace string) bool {
@@ -52,7 +47,7 @@ func IsAuditStandardCatalogNamespace(namespace string) bool {
 // Runtime's contracts.artifacts.PURPOSE_RESERVED_NAMESPACES is the same list;
 // api/testdata/v1alpha1/memory-reservation-cases.json pins both.
 func PurposeReservedNamespaces() []string {
-	return []string{"inputs", "outputs", "skills", FindingProposalNamespace, RunSystemNamespace, AuditContextNamespace}
+	return []string{"inputs", "outputs", "skills", FindingProposalNamespace, AuditContextNamespace}
 }
 
 // IsPurposeReservedNamespace reports whether a Run Namespace is one of
@@ -61,14 +56,6 @@ func IsPurposeReservedNamespace(namespace string) bool {
 	return slices.Contains(PurposeReservedNamespaces(), namespace)
 }
 
-func IsRunSystemNamespace(namespace string) bool {
-	return namespace == RunSystemNamespace
-}
-
-// IsReservedMemoryBinding reports whether a RunScope binding belongs only to
-// MemoryTools (ART-R19 to ART-R22). Purpose-reserved Namespaces retain their
-// independent policy. The Runtime's is_reserved_memory_binding applies the
-// same rule.
 func IsReservedMemoryBinding(namespace, name string) bool {
 	if IsPurposeReservedNamespace(namespace) {
 		return false
@@ -76,7 +63,7 @@ func IsReservedMemoryBinding(namespace, name string) bool {
 	return strings.HasPrefix(name, MemoryArtifactPrefix)
 }
 
-// Model visibility (ART-R17, ART-R19, ART-R24, ART-R109): the generic
+// Model visibility (ART-R19, ART-R24, ART-R109): the generic
 // model-visible Artifact tools (run-artifacts@1) never disclose these
 // bindings. The private paged listing excludes them in storage before its
 // limit applies. The Runtime applies the same rule in artifact_visibility.py;
@@ -85,7 +72,7 @@ func IsReservedMemoryBinding(namespace, name string) bool {
 // ModelHiddenNamespaces returns the Run Namespaces hidden from model tools
 // entirely.
 func ModelHiddenNamespaces() []string {
-	return []string{"skills", RunSystemNamespace}
+	return []string{"skills"}
 }
 
 // ModelHiddenNamePrefixes returns the binding-name prefixes hidden from model

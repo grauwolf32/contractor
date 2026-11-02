@@ -104,7 +104,7 @@ func TestPostgresPublicArtifactStorageTimestamps(t *testing.T) {
 			assertErrorEnvelope(t, rec, 404, "not_found", false)
 		})
 	}
-	for _, path := range []string{"/v1/projects/foreign/artifacts/docs/source/metadata", "/v1/runs/foreign/artifacts/docs/source/metadata", "/v1/runs/dates-run/artifacts/contractor-system/source/metadata"} {
+	for _, path := range []string{"/v1/projects/foreign/artifacts/docs/source/metadata", "/v1/runs/foreign/artifacts/docs/source/metadata"} {
 		rec := httptest.NewRecorder()
 		fixture.handler.ServeHTTP(rec, authenticatedRequest(http.MethodGet, path, bytes.NewReader(nil)))
 		assertErrorEnvelope(t, rec, 404, "not_found", false)

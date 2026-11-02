@@ -166,7 +166,7 @@ func TestSharedPostgresRefPagesExcludeModelHiddenBindingsBeforeTheLimit(t *testi
 	t.Run("all bindings", func(t *testing.T) {
 		assertExactlyOnce(t, pageAll(t, ctx, run, RefPageQuery{Limit: 50}), all)
 	})
-	for _, namespace := range []string{"builder", "inputs", "outputs", "finding-proposals", "skills", "contractor-system", "absent"} {
+	for _, namespace := range []string{"builder", "inputs", "outputs", "finding-proposals", "skills", "absent"} {
 		t.Run("namespace "+namespace, func(t *testing.T) {
 			want := make(map[string]bool)
 			for key := range visible {

@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -291,13 +290,6 @@ func TestPostgresSitemapObservationEvidenceVisibilityAndProjectLifecycle(t *test
 	other := collectionAccess(t, ctx, service, "other")
 	if _, err := service.CollectAllocation(ctx, other, "foreign-run", batch); !errors.Is(err, artifacts.ErrArtifactNotFound) {
 		t.Fatalf("cross-Run exact ref readable: %v", err)
-	}
-	reserved := batch
-	ref := batch.Artifact.Clone()
-	ref.Namespace = artifactpolicy.RunSystemNamespace
-	reserved.Artifact = &ref
-	if _, err := service.CollectAllocation(ctx, access, "system", reserved); !errors.Is(err, artifacts.ErrReservedNamespace) {
-		t.Fatalf("hidden Run namespace readable: %v", err)
 	}
 	foreign := access
 	foreign.OwnerID = "other"

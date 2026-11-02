@@ -98,6 +98,34 @@ func TestPostgresDescribeForkRevisionsPreservesTargetsAndBoundsWork(t *testing.T
 	}
 	seedRunBindings(t, ctx, pool, "original-inputs", unrelated)
 	describe(names, names, 2)
+	// Source descriptions use the same indexed selection bound and retain both
+	// identities even after the target working copy changes.
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	counter := &countingDB{DBTX: tx}
+	selected, _ := NewService(NewPostgresRepository(counter)).Run("original-inputs")
+	sources, err := selected.DescribeForkSources(ctx, "inputs", names, LineageInputFork)
+	queries, payloads := counter.reset()
+	if err != nil || len(sources) != len(names) || queries != 1 || payloads != 0 {
+		t.Fatalf("source descriptions=%d queries=%d payloads=%d err=%v", len(sources), queries, payloads, err)
+	}
+	for i, name := range names {
+		if !sources[i].Source.SameExact(sourceRefs[name]) || !sources[i].Target.SameExact(want[name].Ref) ||
+			sources[i].SourceScope != ScopeUser || sources[i].SourceScopeID != "user-1" {
+			t.Fatalf("original source %s changed: %+v", name, sources[i])
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := run.DescribeForkSources(ctx, "inputs", []string{"absent"}, LineageInputFork); err != nil || len(got) != 0 {
+		t.Fatalf("absent source returned: %v %v", got, err)
+	}
+	if got, err := run.DescribeForkSources(ctx, "inputs", []string{"not-original"}, LineageInputFork); got != nil || !errors.Is(err, ErrArtifactIntegrity) {
+		t.Fatalf("unproven existing binding accepted: %v %v", got, err)
+	}
 	foreign, _ := service.Run("foreign-inputs")
 	if got, err := foreign.DescribeForkRevisions(ctx, "inputs", names, LineageInputFork); err != nil || len(got) != 0 {
 		t.Fatalf("foreign Run returned inputs: %v %v", got, err)
@@ -132,5 +160,8 @@ func TestPostgresDescribeForkRevisionsPreservesTargetsAndBoundsWork(t *testing.T
 	}
 	if got, err := run.DescribeForkRevisions(ctx, "inputs", names, LineageInputFork); got != nil || !errors.Is(err, ErrArtifactIntegrity) {
 		t.Fatalf("ambiguous original lineage: %v %v", got, err)
+	}
+	if got, err := run.DescribeForkSources(ctx, "inputs", names, LineageInputFork); got != nil || !errors.Is(err, ErrArtifactIntegrity) {
+		t.Fatalf("ambiguous source lineage: %v %v", got, err)
 	}
 }

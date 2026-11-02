@@ -17,7 +17,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
-	"github.com/grauwolf32/contractor/internal/runrepeat"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
@@ -164,7 +163,6 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 						return err
 					}
 				}
-				exactSources := make(map[string]runrepeat.InputSource, len(normalized.Inputs))
 				for _, slot := range sortedInputSlots(normalized.Inputs) {
 					sourceScope, scopeErr := inputSourceScope(normalized.OwnerID, normalized.ProjectID, workflow.Inputs[slot].SourceScope)
 					if scopeErr != nil {
@@ -180,17 +178,6 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 					if workflow.Inputs[slot].SourceScope == "user" && !scan.ValidNucleiRulepackMetadata(fork.MediaType, fork.Size) {
 						return fmt.Errorf("%w: rulepack input exceeds its byte limit", ErrInvalid)
 					}
-					exactSources[slot] = runrepeat.InputSource{SourceScope: sourceScope.Kind(), Artifact: fork.SourceRef}
-				}
-				repeatRequest, encodeErr := runrepeat.Encode(runrepeat.Snapshot{
-					Workflow: workflow.Ref, ProjectID: normalized.ProjectID,
-					Inputs: exactSources,
-				})
-				if encodeErr != nil {
-					return encodeErr
-				}
-				if err := runrepeat.Retain(ctx, artifactService, runID, repeatRequest); err != nil {
-					return err
 				}
 				if len(selectedSkills) == 0 {
 					stored, err = runs.TransitionRun(

@@ -162,7 +162,6 @@ var layers = []layerSpec{
 			"internal/planner/session",
 			"internal/planner/stateview",
 			"internal/planner/streamline",
-			"internal/runrepeat",
 			"internal/runstore",
 			// Test setup of the Runs other packages' tests store.
 			"internal/runstore/runstoretest",

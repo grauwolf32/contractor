@@ -1,0 +1,93 @@
+schema_version: "1.0"
+id: V435-001
+title: "Build repeat drafts from Run records and input lineage"
+milestone: run-recovery-ui-2026-10
+epic: execution-core
+kind: chore
+introduced_by: V37-008
+priority: P2
+status: in_progress
+depends_on: []
+languages: [go, python, typescript, sql]
+goal: >-
+  Configure another Run from its stored settings and exact original input sources,
+  without a duplicate repeat-request Artifact or a separate runrepeat package.
+context:
+  authority:
+    - date: "2026-11-02"
+      decision: >-
+        The user explicitly requested removing the repeat-request Artifact,
+        using existing database Run and lineage records, and updating the specification
+        as part of reducing unnecessary mechanisms during refactoring.
+  specification:
+    - docs/spec/execution/runs.md
+    - docs/spec/artifacts/artifact-store.md
+    - docs/spec/artifacts/retention-and-deletion.md
+    - docs/spec/platform/persistence.md
+  verification_note: >-
+    Updating the architecture importer list also replaces its already-stale
+    findingexport ExactArtifact entry with the ValidResourceID symbol actually used.
+  finding: >-
+    internal/runrepeat/snapshot.go:31 duplicates Workflow, Project and input-source
+    identities already recorded in workflow_runs and artifact_lineage. The repeat
+    handler requires this duplicate even with intact original input provenance.
+  boundary: >-
+    ArtifactStore owns bounded fork metadata reads. RunStore interprets original
+    input_fork sources and validates their Run ownership. The repeat projection uses
+    that reader and stored Run settings. No new request store, column, receipt or
+    reconstruction from mutable current bindings is introduced.
+  decision: >-
+    Replace the duplicate snapshot with exact creation lineage. Remove the abandoned
+    contractor-system namespace, visibility exceptions and shared fixtures end to end.
+    Existing original-input target reads remain supported by the common fork reader.
+    The alternative of an input_sources JSONB column adds another persisted copy
+    without a caller requirement and is rejected for this change.
+scope:
+  in:
+    - "Remove repeat-request writes, reads, schema and the runrepeat package."
+    - "Read exact source scopes/revisions through bounded ArtifactStore and RunStore operations."
+    - "Remove contractor-system policy, fixtures, API notices and obsolete stored records."
+    - "Update owning specifications, API descriptions and real-store regressions."
+  out:
+    - "Changes to Scheduler retry, Run continuation or automatic submission."
+    - "Changes to Audit-managed Run authority, model selection or business data outside the removed system record."
+acceptance_criteria:
+  - id: A1
+    text: >-
+      Ordinary repeat drafts preserve Workflow, Project, parameters, labels, placement
+      and exact original UserScope/ProjectScope input refs after both the source head
+      and the Run working copy change. Optional absent inputs stay absent and mixed
+      Project inputs plus UserScope rulepacks preserve their actual source scopes.
+  - id: A2
+    text: >-
+      Missing or ambiguous creation provenance, foreign scopes and unavailable source
+      revisions fail explicitly; storage failures remain errors. Reads neither mutate
+      state nor substitute current revisions. Existing Audit and owner checks remain.
+  - id: A3
+    text: >-
+      Fork metadata reads are bounded by the selected Workflow input names, use the
+      caller transaction, detect ambiguity, and remain independent of unrelated
+      artifact count. Real PostgreSQL verifies source selection and lifecycle behavior.
+  - id: A4
+    text: >-
+      runrepeat and contractor-system production paths are removed across Go, Python,
+      UI, fixtures and normative documents. A migration removes obsolete system records
+      and the obsolete listing-index predicate while retaining ordinary Run/Project data.
+tests:
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+  - command: "go test -tags=integration -count=1 ./internal/artifacts/... ./internal/runstore/... ./internal/runservice/... ./internal/httpapi/... ./internal/app ./internal/projectsitemap/... ./internal/artifactpolicy ./internal/archtest ./internal/persistence/..."
+    covers: [A1, A2, A3, A4]
+  - command: make verify-public-api
+    covers: [A1, A2, A4]
+  - command: make test-wire-cross-language
+    covers: [A3, A4]
+  - command: "VITEST_MAX_WORKERS=2 make ui-verify"
+    covers: [A1, A2, A4]
+
+verification:
+  - "Full PostgreSQL suites for changed Server packages passed; the mixed-scope RunService regression passed in a subsequent full package run."
+  - "make lint, make verify-public-api and make test-wire-cross-language passed."
+  - "Runtime toolset suites passed (50 tests); public client and untagged e2e matrix suites passed."
+  - "TestProjectWorkspaceLifecycleAcrossProductionProcesses passed with the real Server/Runtime processes."
+  - "UI verification exposed an existing asynchronous history-read assertion race; completion waits for its separate prerequisite fix and a successful full UI gate."
