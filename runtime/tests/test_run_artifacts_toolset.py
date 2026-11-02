@@ -286,7 +286,7 @@ def test_memory_artifacts_are_hidden_from_generic_list_read_write_and_known_refs
         }
         calls_before = (client.read_calls, client.write_calls)
         list_calls_before = client.list_calls
-        for hidden_namespace in ("skills", "contractor-system"):
+        for hidden_namespace in ("skills",):
             with pytest.raises(ValueError, match="purpose-specific"):
                 await tools["list_artifacts"](hidden_namespace)
         assert client.list_calls == list_calls_before

@@ -340,7 +340,6 @@ const UI_ROOT = join(__dirname, "..", "..");
  */
 const RESERVED_NAMESPACES = new Set([
   FINDING_PROPOSAL_NAMESPACE,
-  "contractor-system",
   "audit-context",
   "audit-standards",
 ]);
@@ -397,14 +396,14 @@ describe("reserved Artifact Namespaces have one UI definition", () => {
       FINDING_PROPOSAL_NAMESPACE,
     );
     expect(reservationCases.purposeReservedNamespaces).toContain(
-      "contractor-system",
+      "audit-context",
     );
   });
 
   it("reports copies, not routes, query keys or the definition", () => {
     const probe =
       'if (namespace === "finding-proposals") hidden = true;\n' +
-      "const system = `contractor-system`;\n" +
+      "const system = `audit-context`;\n" +
       'const chip = <Chip value="audit-standards" />;\n' +
       'const route = "/runs/run-1/artifacts/finding-proposals/x";\n' +
       'const path = "/v1/audit-standards/{scheme}/versions/{version}";\n' +
@@ -424,7 +423,7 @@ describe("reserved Artifact Namespaces have one UI definition", () => {
       reservedNamespaceCopies(
         NAMESPACE_DEFINITION,
         'export const FINDING_PROPOSAL_NAMESPACE = "finding-proposals";\n' +
-          'export const SYSTEM = "contractor-system";\n',
+          'export const SYSTEM = "audit-context";\n',
       ),
     ).toEqual([2]);
   });

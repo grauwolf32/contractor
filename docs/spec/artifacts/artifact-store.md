@@ -102,7 +102,6 @@ Reserved Namespaces and name prefixes:
 | `inputs` | Namespace | RunScope | Mutable working copies of declared Workflow inputs | ART-R14, ART-R37, ART-R76 |
 | `outputs` | Namespace | RunScope | Declared Workflow results, managed by Workflow Scheduler | ART-R14, ART-R90 |
 | `skills` | Namespace | RunScope | Exact read-only Agent Skill packages ([Skills](../tools/skills.md)) | ART-R14, ART-R39, ART-R108, ART-R109 |
-| `contractor-system` | Namespace, hidden | RunScope | Bounded Control Plane records coupled to a Run | ART-R17, ART-R18 |
 | `finding-proposals` | Namespace | RunScope | Finding proposals and their frozen selected HTTP exchanges that Server finding intake writes ([Findings](../findings/findings.md)) | ART-R114 |
 | `audit-context` | Namespace, model-readable | RunScope | Frozen exact pages and dependencies materialized by the owning Audit | ART-R114 |
 | `memory.` | Name prefix | Non-reserved RunScope Namespaces | Memory notes ([Memory](../tools/memory.md)) | ART-R19 to ART-R22 |
@@ -261,23 +260,8 @@ or trusted runtime-resource names, not arbitrary Worker-selected paths: only
 trusted Server operations create a binding in them, and a Worker can at most
 advance an existing `inputs` binding (ART-R37).
 
-**ART-R17.** The physical store may additionally contain the exact
-hidden `contractor-system` Namespace for bounded Control Plane records coupled
-to a Run; its `repeat-request` binding retains the non-secret request fragment
-defined by [Runs](../execution/runs.md). It is written only through a
-purpose-specific trusted service operation, is hidden from every public
-Artifact list, read, metadata, version and lineage route and from every private
-allocation Artifact operation, and is removed with the containing RunScope
-(LIFE-ART-1).
-
-**ART-R18.** `contractor-system` is not an Agent Namespace, a
-Workflow input or output, a collaboration channel or a general internal
-key/value store. Owner access is only through the validated repeat-draft
-projection owned by [Runs](../execution/runs.md), which rechecks authorization
-and source scopes.
-
 **ART-R114.** The purpose-reserved RunScope Namespaces are `inputs`,
-`outputs`, `skills`, `finding-proposals`, `contractor-system` and `audit-context`. A trusted
+`outputs`, `skills`, `finding-proposals` and `audit-context`. A trusted
 purpose-specific flow owns each one: none can be a Stage Agent Namespace or a
 MemoryTools Namespace, and no Stage result slot or Worker result binds into
 one. The Server and the Runtime apply one list and one reserved Memory binding
@@ -530,8 +514,8 @@ there is no unbounded listing.
   `cursor` (LIM-ART-5). It returns at most `limit` versionless refs of the
   model-visible bindings in namespace and name order, and a `nextCursor` when
   more follow. Storage excludes the model-hidden bindings before the limit:
-  the `contractor-system` and `skills` Namespaces, and names starting with
-  `memory.` or `http.body.` outside `inputs` and `outputs` (ART-R17, ART-R19,
+  the `skills` Namespace, and names starting with
+  `memory.` or `http.body.` outside `inputs` and `outputs` (ART-R19,
   ART-R24, ART-R109). A page is therefore never shortened by filtering: every
   page but the last holds exactly `limit` refs. The response size is bounded by
   `limit`, independent of how many bindings the Run holds.
@@ -1280,7 +1264,6 @@ Failure outcomes ([failure model](../platform/failure-model.md)):
 
 Lifecycle ([registry](../platform/lifecycle.md)):
 
-- LIFE-ART-1 — `contractor-system` bindings (ART-R17).
 - LIFE-ART-2 — RunScope `outputs` bindings (ART-R93,
   ART-R94, ART-R97).
 - Artifact versions, RunScope and ProjectScope deletion and retention are
@@ -1300,7 +1283,7 @@ The security-relevant rules of this document are:
   ART-R37, ART-R38, ART-R83, ART-R108, ART-R110;
 - write revocation at finalization: ART-R86, ART-R87;
 - reserved names hidden from model tools and generic routes:
-  ART-R17, ART-R19, ART-R24, ART-R25, ART-R26, ART-R39, ART-R109;
+  ART-R19, ART-R24, ART-R25, ART-R26, ART-R39, ART-R109;
 - delete authority: [Retention and deletion](retention-and-deletion.md).
 
 ## Invariants
@@ -1496,18 +1479,19 @@ The public UI consumes every diagnostic date behind Technical details; reopen
 this projection only if measured page cost or an explicit privacy requirement
 prevents owner-authorized metadata exposure, not by guessing or deleting facts.
 
-**ART-R133.** Trusted callers may describe the original target revisions created
-by forks of a selected lineage kind, namespace and at most LIM-ART-8 distinct
-binding names in one scope. Return exact descriptors in requested name order,
-omitting names with no matching fork; current editable bindings must not replace
-the original target revisions. Invalid selectors fail before I/O and more than
-one matching revision for a binding is the existing `ErrArtifactIntegrity`. The lookup reads
-metadata only, bounds each indexed lineage selection to detect ambiguity and is
-independent of the containing scope's artifact count. It uses the supplied
-transaction without acquiring another pool connection or starting a nested
-transaction. RunStore owns the interpretation of Run `inputs` with `input_fork`
-lineage as original Run inputs; domain consumers use that operation without
-reading artifact tables. This metadata lookup creates no hold or file authority.
+**ART-R133.** Trusted callers may describe original fork target revisions or
+exact source/target identities for a selected lineage kind, namespace and at
+most LIM-ART-8 distinct binding names in one scope. Results follow requested
+name order. Target descriptions omit names with no matching fork. Source
+selection omits absent bindings but an existing binding without exactly one
+matching fork is `ErrArtifactIntegrity`; multiple matching forks are also an
+integrity failure. Current editable revisions never replace original forks.
+These metadata-only lookups bound each indexed lineage selection to detect
+ambiguity, are independent of the containing scope's artifact count and use
+the supplied transaction without acquiring another pool connection or starting
+a nested transaction. RunStore owns the interpretation and authorization of
+original Run `inputs` and their `input_fork` sources. These reads create no hold
+or file authority.
 
 ### Public upload availability
 

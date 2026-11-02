@@ -21,6 +21,20 @@ func (s ScopedStore) DescribeForkRevisions(ctx context.Context, namespace string
 	return s.service.repository.DescribeForkRevisions(ctx, s.scope, namespace, names, kind)
 }
 
+// DescribeForkSources returns exact source and target identities for selected
+// existing bindings, in requested name order. Absent bindings are omitted; an
+// existing binding without exactly one matching fork is ErrArtifactIntegrity.
+// The request has the same metadata-only batch bound as DescribeForkRevisions.
+func (s ScopedStore) DescribeForkSources(ctx context.Context, namespace string, names []string, kind string) ([]LineageEdge, error) {
+	if err := validateForkRevisionSelection(s.scope, namespace, names, kind); err != nil {
+		return nil, err
+	}
+	if len(names) == 0 {
+		return []LineageEdge{}, nil
+	}
+	return s.service.repository.DescribeForkSources(ctx, s.scope, namespace, names, kind)
+}
+
 func validateForkRevisionSelection(scope Scope, namespace string, names []string, kind string) error {
 	if err := validateScope(scope); err != nil {
 		return err

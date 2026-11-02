@@ -11,10 +11,10 @@ import (
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/projectstore"
-	"github.com/grauwolf32/contractor/internal/runrepeat"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
@@ -131,6 +131,7 @@ func TestPostgresPublicArtifactUploadAvailability(t *testing.T) {
 
 func TestPostgresRepeatArtifactUploadAvailabilityFollowsSourceProject(t *testing.T) {
 	ctx := t.Context()
+	catalog := newHandlerFixture(t)
 	pool := isolatedPublicPool(t, ctx)
 	service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
 	projects, runs := projectstore.NewPostgresStore(pool), runstore.NewPostgresStore(pool)
@@ -144,16 +145,13 @@ func TestPostgresRepeatArtifactUploadAvailabilityFollowsSourceProject(t *testing
 		t.Fatal(err)
 	}
 	const runID = "repeat-upload-run"
-	if _, err := runstoretest.CreateRun(ctx, runs, runstore.CreateRunParams{LaneClass: resolved.LaneClassModel, RunID: runID, OwnerID: "user-1", ProjectID: &project.ProjectID, WorkflowName: "artifact-copy", WorkflowVersion: "1", WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{}`), RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot()}); err != nil {
+	if _, err := runstoretest.CreateRun(ctx, runs, runstore.CreateRunParams{LaneClass: resolved.LaneClassModel, RunID: runID, OwnerID: "user-1", ProjectID: &project.ProjectID, WorkflowName: "artifact-copy", WorkflowVersion: "1", WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: repeatTestSnapshot(t, catalog), RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot()}); err != nil {
 		t.Fatal(err)
 	}
-	retained, err := runrepeat.Encode(runrepeat.Snapshot{Workflow: resolved.WorkflowRef{Name: "artifact-copy", Version: "1"}, ProjectID: &project.ProjectID, Inputs: map[string]runrepeat.InputSource{"source": {SourceScope: artifacts.ScopeProject, Artifact: source.Ref}}})
-	if err != nil {
+	if _, err := artifactstest.ForkProjectInput(ctx, service, project.ProjectID, source.Ref, runID, "source"); err != nil {
 		t.Fatal(err)
 	}
-	if err := runrepeat.Retain(ctx, service, runID, retained); err != nil {
-		t.Fatal(err)
-	}
+
 	if _, err := runs.TransitionRun(ctx, runID, runstore.RunInitializing, runstore.RunFailed, runstore.Reason{Code: "fixture-complete"}); err != nil {
 		t.Fatal(err)
 	}

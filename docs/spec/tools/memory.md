@@ -310,7 +310,7 @@ network service or Artifact authorization mode.
 
 **MEM-R92.** An ordinary artifact named `memory.*` in a purpose-reserved
 Namespace (`inputs`, `outputs`, `skills`, `finding-proposals` or
-`contractor-system`, [ART-R114](../artifacts/artifact-store.md)) remains
+`audit-context`, [ART-R114](../artifacts/artifact-store.md)) remains
 governed by that Namespace's own contract and is not a Memory note.
 
 Filtering reserved bindings from generic lists even when the same

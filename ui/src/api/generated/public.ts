@@ -1558,7 +1558,7 @@ export interface paths {
         };
         /**
          * Project a terminal Run into a reviewed new-Run draft
-         * @description Reads immutable Run request provenance without creating or changing a Run. Original UserScope or ProjectScope revisions are returned only after owner and source-scope verification; frozen RunScope inputs are never presented as reusable sources. Audit-managed Runs return their owning Audit context without a draft. The draft requires the Run's retained request fragment, valid and matching its Workflow and Project; a missing or invalid fragment returns a blocking notice and no draft, and neither lineage nor current or effective configuration reconstructs the original request.
+         * @description Reads immutable Run request provenance without creating or changing a Run. Original UserScope or ProjectScope revisions are returned only after owner and source-scope verification; frozen RunScope inputs are never presented as reusable sources. Audit-managed Runs return their owning Audit context without a draft. Ordinary drafts use stored Run settings and exact original input_fork source scopes and revisions. Missing required inputs or missing, ambiguous or unauthorized original provenance return a blocking input_provenance_invalid notice and no draft. Current source heads and edited Run input copies are never substituted.
          */
         get: operations["getRunRepeatDraft"];
         put?: never;
@@ -5748,7 +5748,7 @@ export interface components {
                 [key: string]: components["schemas"]["RunRepeatInput"];
             };
         };
-        /** @description A retained ordinary request produces a draft. Missing or invalid request authority produces a blocking notice with no draft; Audit-managed Runs also have no ordinary draft. */
+        /** @description Stored ordinary Run settings and verified original input lineage produce a draft. Invalid input provenance produces a blocking notice with no draft; Audit-managed Runs also have no ordinary draft. */
         RunRepeatDraftResponse: {
             sourceRunId: components["schemas"]["ResourceId"];
             /** @enum {string} */

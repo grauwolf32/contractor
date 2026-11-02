@@ -1,5 +1,5 @@
 {
-  "description": "Private allocation Artifact listing rules shared by the Go Server and the Python Runtime: the page limit (LIM-ART-3), the opaque cursor grammar (LIM-ART-5) and which RunScope bindings generic model tools must not disclose (ART-R17, ART-R19, ART-R24, ART-R109). Go checks the store, handler and artifactpolicy against it; Python checks ArtifactClient, ArtifactListResult and artifact_visibility.",
+  "description": "Private allocation Artifact listing rules shared by the Go Server and the Python Runtime: the page limit (LIM-ART-3), the opaque cursor grammar (LIM-ART-5) and which RunScope bindings generic model tools must not disclose (ART-R19, ART-R24, ART-R109). Go checks the store, handler and artifactpolicy against it; Python checks ArtifactClient, ArtifactListResult and artifact_visibility.",
   "maxLimit": 256,
   "maxCursorLength": 512,
   "cursors": {
@@ -105,11 +105,6 @@
     {
       "namespace": "skills",
       "name": "memory.note",
-      "hidden": true
-    },
-    {
-      "namespace": "contractor-system",
-      "name": "repeat-request",
       "hidden": true
     },
     {

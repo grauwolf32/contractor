@@ -11425,7 +11425,7 @@ type RunRepeatDraftNotice struct {
 // RunRepeatDraftNoticeSeverity defines model for RunRepeatDraftNotice.Severity.
 type RunRepeatDraftNoticeSeverity string
 
-// RunRepeatDraftResponse A retained ordinary request produces a draft. Missing or invalid request authority produces a blocking notice with no draft; Audit-managed Runs also have no ordinary draft.
+// RunRepeatDraftResponse Stored ordinary Run settings and verified original input lineage produce a draft. Invalid input provenance produces a blocking notice with no draft; Audit-managed Runs also have no ordinary draft.
 type RunRepeatDraftResponse struct {
 	AuditId     *ResourceId                     `json:"auditId,omitempty"`
 	Authority   RunRepeatDraftResponseAuthority `json:"authority"`
@@ -20569,7 +20569,7 @@ type ClientInterface interface {
 
 	// GetRunRepeatDraft Project a terminal Run into a reviewed new-Run draft
 	//
-	// Reads immutable Run request provenance without creating or changing a Run. Original UserScope or ProjectScope revisions are returned only after owner and source-scope verification; frozen RunScope inputs are never presented as reusable sources. Audit-managed Runs return their owning Audit context without a draft. The draft requires the Run's retained request fragment, valid and matching its Workflow and Project; a missing or invalid fragment returns a blocking notice and no draft, and neither lineage nor current or effective configuration reconstructs the original request.
+	// Reads immutable Run request provenance without creating or changing a Run. Original UserScope or ProjectScope revisions are returned only after owner and source-scope verification; frozen RunScope inputs are never presented as reusable sources. Audit-managed Runs return their owning Audit context without a draft. Ordinary drafts use stored Run settings and exact original input_fork source scopes and revisions. Missing required inputs or missing, ambiguous or unauthorized original provenance return a blocking input_provenance_invalid notice and no draft. Current source heads and edited Run input copies are never substituted.
 	//
 	// Corresponds with GET /v1/runs/{runId}/repeat-draft (the `GetRunRepeatDraft` operationId).
 	GetRunRepeatDraft(ctx context.Context, runId RunId, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -23736,7 +23736,7 @@ func (c *Client) DownloadRunOutput(ctx context.Context, runId RunId, slot Artifa
 
 // GetRunRepeatDraft Project a terminal Run into a reviewed new-Run draft
 //
-// Reads immutable Run request provenance without creating or changing a Run. Original UserScope or ProjectScope revisions are returned only after owner and source-scope verification; frozen RunScope inputs are never presented as reusable sources. Audit-managed Runs return their owning Audit context without a draft. The draft requires the Run's retained request fragment, valid and matching its Workflow and Project; a missing or invalid fragment returns a blocking notice and no draft, and neither lineage nor current or effective configuration reconstructs the original request.
+// Reads immutable Run request provenance without creating or changing a Run. Original UserScope or ProjectScope revisions are returned only after owner and source-scope verification; frozen RunScope inputs are never presented as reusable sources. Audit-managed Runs return their owning Audit context without a draft. Ordinary drafts use stored Run settings and exact original input_fork source scopes and revisions. Missing required inputs or missing, ambiguous or unauthorized original provenance return a blocking input_provenance_invalid notice and no draft. Current source heads and edited Run input copies are never substituted.
 //
 // Corresponds with GET /v1/runs/{runId}/repeat-draft (the `GetRunRepeatDraft` operationId).
 func (c *Client) GetRunRepeatDraft(ctx context.Context, runId RunId, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -36474,7 +36474,7 @@ type ClientWithResponsesInterface interface {
 
 	// GetRunRepeatDraftWithResponse Project a terminal Run into a reviewed new-Run draft
 	//
-	// Reads immutable Run request provenance without creating or changing a Run. Original UserScope or ProjectScope revisions are returned only after owner and source-scope verification; frozen RunScope inputs are never presented as reusable sources. Audit-managed Runs return their owning Audit context without a draft. The draft requires the Run's retained request fragment, valid and matching its Workflow and Project; a missing or invalid fragment returns a blocking notice and no draft, and neither lineage nor current or effective configuration reconstructs the original request.
+	// Reads immutable Run request provenance without creating or changing a Run. Original UserScope or ProjectScope revisions are returned only after owner and source-scope verification; frozen RunScope inputs are never presented as reusable sources. Audit-managed Runs return their owning Audit context without a draft. Ordinary drafts use stored Run settings and exact original input_fork source scopes and revisions. Missing required inputs or missing, ambiguous or unauthorized original provenance return a blocking input_provenance_invalid notice and no draft. Current source heads and edited Run input copies are never substituted.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -61339,7 +61339,7 @@ func (c *ClientWithResponses) DownloadRunOutputWithResponse(ctx context.Context,
 
 // GetRunRepeatDraftWithResponse Project a terminal Run into a reviewed new-Run draft
 //
-// Reads immutable Run request provenance without creating or changing a Run. Original UserScope or ProjectScope revisions are returned only after owner and source-scope verification; frozen RunScope inputs are never presented as reusable sources. Audit-managed Runs return their owning Audit context without a draft. The draft requires the Run's retained request fragment, valid and matching its Workflow and Project; a missing or invalid fragment returns a blocking notice and no draft, and neither lineage nor current or effective configuration reconstructs the original request.
+// Reads immutable Run request provenance without creating or changing a Run. Original UserScope or ProjectScope revisions are returned only after owner and source-scope verification; frozen RunScope inputs are never presented as reusable sources. Audit-managed Runs return their owning Audit context without a draft. Ordinary drafts use stored Run settings and exact original input_fork source scopes and revisions. Missing required inputs or missing, ambiguous or unauthorized original provenance return a blocking input_provenance_invalid notice and no draft. Current source heads and edited Run input copies are never substituted.
 //
 // Returns a wrapper object for the known response body format(s).
 //
