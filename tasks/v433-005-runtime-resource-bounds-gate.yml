@@ -14,6 +14,11 @@ context:
     User request 2026-11-02 authorizes revalidation and creation of fix tasks.
     This shared exit task verifies the package after its defect tasks finish;
     task creation does not start their implementation or claim them completed.
+    Subsequent user decisions 2026-11-02 authorize V433-001 and the CPU
+    parsing fixes V433-002/V433-004 in codex/runtime-shutdown-deadline, with
+    a behavior explanation and process diagrams before merge. These three
+    fixes are implemented and verified in that branch. V433-003 remains
+    pending, so this package exit task is not complete or started.
   specification:
     - docs/spec/execution/runtime-agent.md#RTA-R87
     - docs/spec/execution/worker.md#WRK-R8
@@ -21,13 +26,13 @@ context:
     - docs/spec/findings/findings.md#FND-R122
   review_base: 57634940d40862fb638d4beea212e53a5107994a
   dispositions:
-    - Ordinary shutdown omission is fixed by V432-002; the common process deadline remains V433-001.
+    - Ordinary shutdown omission is fixed by V432-002; the common process deadline is implemented and verified by V433-001 in codex/runtime-shutdown-deadline.
     - Repeated cancellation of State/session/tool-history cleanup is fixed by V432-001 and retained by the extracted owners in V432-006.
     - Controlled HTTP header merging and aggregate session admission are fixed by V432-005.
     - Retained HTTP-body truncation in reads/history/private capture is fixed by V432-005.
-    - Gateway response byte admission and off-loop JSON parsing remain V433-002.
+    - Gateway response byte admission and joined off-loop JSON/ADK parsing are implemented and verified by V433-002 in the same branch.
     - OTLP pre-allocation decompression admission remains V433-003.
-    - Findings preparation and projections outside the event loop remain V433-004.
+    - Findings preparation, reconciliation verification and page projections outside the event loop are implemented and verified by V433-004 in the same branch.
   revalidation: >-
     Current main passed 23 focused regressions: ten selected CLI, real ADK
     State/session cancellation and controlled HTTP cases, plus thirteen
@@ -47,6 +52,17 @@ context:
     as in the completed V432-008 integration gate. They remain open and
     unproven by this package, not waived or fixed. Do not silently add further
     exclusions; re-evaluate the selection if those tasks land before this gate.
+  partial_implementation_verification: >-
+    P1/Gateway/findings combined Runtime selection: 5871 passed, 133 skipped,
+    2 named inherited macOS cases deselected in 758.45 seconds. Focused
+    Gateway suites: 227 passed; findings/allocation/thread suites: 190 passed.
+    Complete Go streamline package and make lint passed. The shared-fixture
+    gate passed against real disposable PostgreSQL: 373 fixtures, 393 Go and
+    289 Python shared tests. Negative probes fail on actual pre-fix code for
+    fresh shutdown budgets, oversized Gateway JSON admission and loop-thread
+    findings decoding. The scratch database was removed. No implementation
+    merge, live-model run or deployment was performed. OTLP V433-003 remains
+    the outstanding prerequisite; these results do not close this exit task.
 scope:
   in:
     - Run integrated deterministic Runtime and lint checks on the combined revision and record exact commands, results, skips and any known platform exclusions.
