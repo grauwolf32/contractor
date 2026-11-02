@@ -13,6 +13,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
@@ -456,7 +457,7 @@ func TestListItemAttemptsAnswersEveryRequestedItem(t *testing.T) {
 func writeCollectionFixtureArtifact(t *testing.T, ctx context.Context, pool *pgxpool.Pool, projectID, namespace, name string) auditstore.ExactArtifact {
 	t.Helper()
 	data := []byte("Exact fixture material " + name)
-	written, err := artifactstest.WriteAuditArtifact(ctx, artifacts.NewService(artifacts.NewPostgresRepository(pool)), projectID, contracts.ArtifactRef{Namespace: namespace, Name: name}, artifacts.Payload{MediaType: "application/zip", Data: data})
+	written, err := artifactstest.WriteAuditArtifact(ctx, artifacts.NewService(artifactpostgres.NewRepository(pool)), projectID, contracts.ArtifactRef{Namespace: namespace, Name: name}, artifacts.Payload{MediaType: "application/zip", Data: data})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -492,7 +493,7 @@ func TestPostgresNegativeRecheckRetainsHistoryWithoutChangingCanonicalFinding(t 
 			t.Fatalf("negative result changed current analyst state: %+v %v", current, err)
 		}
 	}
-	project, err := artifacts.NewService(artifacts.NewPostgresRepository(f.pool)).Project(f.project.ProjectID)
+	project, err := artifacts.NewService(artifactpostgres.NewRepository(f.pool)).Project(f.project.ProjectID)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -11,6 +11,9 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob/backends"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
@@ -41,12 +44,12 @@ func (r *summaryLostAcknowledgement) SaveSummary(ctx context.Context, runID, nam
 	}
 	if r.before && !r.lost {
 		r.lost = true
-		return contracts.ArtifactRef{}, artifacts.ErrBlobIO
+		return contracts.ArtifactRef{}, blob.ErrIO
 	}
 	ref, err := r.ArtifactResolver.SaveSummary(ctx, runID, namespace, source, summary)
 	if err == nil && !r.lost {
 		r.lost = true
-		return contracts.ArtifactRef{}, artifacts.ErrBlobIO
+		return contracts.ArtifactRef{}, blob.ErrIO
 	}
 	return ref, err
 }
@@ -182,12 +185,12 @@ func containsSummaryNote(data []byte) bool {
 }
 
 func TestPostgresSummaryContinuationReconcilesAndRetainsArtifactsAndMemory(t *testing.T) {
-	for _, backend := range []artifacts.BlobBackend{artifacts.BlobPostgres, artifacts.BlobFilesystem} {
+	for _, backend := range []blob.Backend{blob.Postgres, blob.Filesystem} {
 		for _, fault := range []string{"none", "summary-response-loss", "process-loss-before-summary", "allocation-loss-after-summary", "transition-response-loss", "transaction-conflict", "pause", "cancel", "manual-resume"} {
 			t.Run(string(backend)+"/"+fault, func(t *testing.T) {
 				ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
 				defer cancel()
-				_, blobs, err := artifacts.OpenBlobStore(ctx, backend, t.TempDir(), 0)
+				_, blobs, err := backends.Open(ctx, backend, t.TempDir(), 0)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -196,7 +199,7 @@ func TestPostgresSummaryContinuationReconcilesAndRetainsArtifactsAndMemory(t *te
 						_ = c.Close()
 					}
 				})
-				ctx = artifacts.WithBlobRuntime(ctx, artifacts.NewBlobRuntime(blobs, nil))
+				ctx = blob.WithRuntime(ctx, blob.NewRuntime(blobs, nil))
 				h := newDeferredPlacementHarness(t, ctx, nil, func(workflow *resolved.ResolvedWorkflow) {
 					configureSummaryWorkflow(t, workflow)
 					stage := workflow.Stages[workflow.EntryStage]
@@ -209,7 +212,7 @@ func TestPostgresSummaryContinuationReconcilesAndRetainsArtifactsAndMemory(t *te
 						t.Fatal(err)
 					}
 				})
-				service := artifacts.NewService(artifacts.NewPostgresRepository(h.pool))
+				service := artifacts.NewService(artifactpostgres.NewRepository(h.pool))
 				store, _ := service.Run("run-1")
 				material, err := store.Write(ctx, contracts.ArtifactRef{Namespace: "builder", Name: "material"}, artifacts.Payload{MediaType: "text/plain", Data: []byte("original")}, nil)
 				if err != nil {

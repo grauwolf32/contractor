@@ -16,6 +16,9 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob/backends/filesystem"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditimport"
 	"github.com/grauwolf32/contractor/internal/auditservice"
@@ -623,18 +626,18 @@ func TestPostgresImmutableProjectArtifactReuseLeavesNoFilesystemOrphans(t *testi
 	h := newPostgresControllerHarness(t, ctx, 1)
 	pool := h.pool
 	path := t.TempDir()
-	files, err := artifacts.OpenFilesystemBlobStore(ctx, path)
+	files, err := filesystem.Open(ctx, path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer files.Close()
-	ctx = artifacts.WithBlobRuntime(ctx, artifacts.NewBlobRuntime(files, nil))
+	ctx = blob.WithRuntime(ctx, blob.NewRuntime(files, nil))
 	project := h.started.Audit
 	claims, err := h.audits.Claim(ctx, auditstore.ClaimParams{HolderID: "immutable-writer", Lease: time.Minute, Limit: 1})
 	if err != nil || len(claims) != 1 {
 		t.Fatalf("claim: %v %v", claims, err)
 	}
-	base := artifacts.NewPostgresRepository(pool)
+	base := artifactpostgres.NewRepository(pool)
 	unbound, err := NewProjectArtifactAccess(artifacts.NewService(base), hookstore.NewClaimedArtifacts(pool))
 	if err != nil {
 		t.Fatal(err)
@@ -666,7 +669,7 @@ func TestPostgresImmutableProjectArtifactReuseLeavesNoFilesystemOrphans(t *testi
 	if err != nil || !metadata.Frozen {
 		t.Fatalf("immutable Project artifact metadata = (%+v, %v), want frozen", metadata, err)
 	}
-	report, err := artifacts.CleanupFilesystemBlobs(ctx, pool, path, false)
+	report, err := artifactpostgres.CleanupFilesystemBlobs(ctx, pool, path, false)
 	if err != nil || report.Referenced != 1 || report.Orphans != 0 || report.Missing != 0 {
 		t.Fatalf("immutable Project blob cleanup = (%+v, %v)", report, err)
 	}
@@ -1665,7 +1668,7 @@ func newPostgresControllerHarnessWithPolicy(
 		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
 	}
 	pool := isolatedControllerPool(t, ctx, databaseURL)
-	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	artifactService := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	projects := projectstore.NewPostgresStore(pool)
 	project, _, err := projects.Create(ctx, projectstore.CreateParams{
 		ProjectID: "project-audit-controller", OwnerID: "owner-audit-controller",
@@ -1756,14 +1759,14 @@ func newPostgresControllerHarnessWithPolicy(
 				}
 				return fn(
 					runstore.NewRunCreationPostgresStore(tx, lookup, credentials.NewRuntimeCredentialRepository(tx)),
-					artifacts.NewService(artifacts.NewPostgresRepository(tx)),
+					artifacts.NewService(artifactpostgres.NewRepository(tx)),
 				)
 			})
 		},
 		AuditTransaction: func(ctx context.Context, fn func(runservice.AuditRunWriter, *artifacts.Service, runservice.AuditExecutionWriter) error) error {
 			return persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 				return fn(
-					runstore.NewPostgresTxStore(tx), artifacts.NewService(artifacts.NewPostgresRepository(tx)),
+					runstore.NewPostgresTxStore(tx), artifacts.NewService(artifactpostgres.NewRepository(tx)),
 					auditstoretest.NewStore(tx).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch),
 				)
 			})

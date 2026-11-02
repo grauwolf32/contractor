@@ -7,6 +7,7 @@ import (
 	"slices"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	postgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -78,7 +79,7 @@ func (s *Service) SnapshotAllocation(ctx context.Context, access AllocationAcces
 			if err := checkProject(ctx, tx, access.OwnerID, access.ProjectID, true); err != nil {
 				return err
 			}
-			repository := artifacts.NewPostgresTxRepository(tx)
+			repository := artifactpostgres.NewTxRepository(tx)
 			store, err := artifacts.NewService(repository).Project(access.ProjectID)
 			if err != nil {
 				return err
@@ -299,7 +300,7 @@ func selectSnapshot(view Document, selection SnapshotSelection, runID string, in
 // retainSnapshotInputs forks only selected current-Run inputs through the
 // existing exact lineage path. Every clone and the context commit together;
 // a provenance mention alone never acquires a hold or reads a foreign scope.
-func retainSnapshotInputs(ctx context.Context, repository *artifacts.PostgresTxRepository, access AllocationAccess, name string, view Document, inputs []contracts.ExactArtifact) (Document, []contracts.ExactArtifact, error) {
+func retainSnapshotInputs(ctx context.Context, repository *artifactpostgres.TxRepository, access AllocationAccess, name string, view Document, inputs []contracts.ExactArtifact) (Document, []contracts.ExactArtifact, error) {
 	service := artifacts.NewService(repository)
 	scope, err := artifacts.RunScope(access.RunID)
 	if err != nil {

@@ -3,14 +3,15 @@ package app
 import (
 	"context"
 	"fmt"
-	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	"log/slog"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditcontroller"
 	"github.com/grauwolf32/contractor/internal/auditimport"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore/claimstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/querystore"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
@@ -123,7 +124,7 @@ func configureRunCreation(pool *pgxpool.Pool, configurationManager *workflowconf
 				func(tx pgx.Tx) error {
 					return fn(
 						runstore.NewPostgresTxStore(tx),
-						artifacts.NewService(artifacts.NewPostgresRepository(tx)),
+						artifacts.NewService(artifactpostgres.NewRepository(tx)),
 						claimstore.New(tx),
 					)
 				},
@@ -160,7 +161,7 @@ func (u postgresPublicUnitOfWork) do(ctx context.Context, fn func(pgx.Tx, runser
 		}
 		return fn(tx,
 			runstore.NewRunCreationPostgresStore(tx, txLookup, credentials.NewRuntimeCredentialRepository(tx)),
-			artifacts.NewService(artifacts.NewPostgresRepository(tx)),
+			artifacts.NewService(artifactpostgres.NewRepository(tx)),
 		)
 	})
 }

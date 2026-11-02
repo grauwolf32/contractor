@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -42,7 +43,7 @@ func TestPostgresAuditResultReadLockTimeoutRetainsCompletedScan(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store, err := NewServiceArtifacts(artifacts.NewService(artifacts.NewPostgresRepository(pool)))
+	store, err := NewServiceArtifacts(artifacts.NewService(artifactpostgres.NewRepository(pool)))
 	if err != nil {
 		t.Fatal(err)
 	}

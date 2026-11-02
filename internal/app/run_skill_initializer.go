@@ -7,6 +7,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -50,7 +51,7 @@ func (i *runSkillInitializer) InitializeRunSkills(
 		if err != nil || !sameSelectedSkillNames(refs, run.SkillSnapshot) {
 			return invalidPinnedSkillSnapshot()
 		}
-		service := artifacts.NewService(artifacts.NewPostgresRepository(tx))
+		service := artifacts.NewService(artifactpostgres.NewRepository(tx))
 		catalog, err := agentskills.NewCatalog(service)
 		if err != nil {
 			return err

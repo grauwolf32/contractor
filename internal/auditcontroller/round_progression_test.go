@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 )
@@ -23,10 +23,10 @@ func TestControllerClassifiesNextRoundPreparationFailures(t *testing.T) {
 		wantCode    string
 		wantMessage string
 	}{
-		{name: "transient blob read", builderErr: fmt.Errorf("read proposal: %w", artifacts.ErrBlobIO)},
-		{name: "missing blob", builderErr: fmt.Errorf("read proposal: %w", artifacts.ErrBlobMissing)},
+		{name: "transient blob read", builderErr: fmt.Errorf("read proposal: %w", blob.ErrIO)},
+		{name: "missing blob", builderErr: fmt.Errorf("read proposal: %w", blob.ErrMissing)},
 		{
-			name: "digest mismatch", builderErr: fmt.Errorf("read proposal: %w", artifacts.ErrArtifactIntegrity),
+			name: "digest mismatch", builderErr: fmt.Errorf("read proposal: %w", blob.ErrIntegrity),
 			wantCode: "next_round_invalid",
 		},
 		{

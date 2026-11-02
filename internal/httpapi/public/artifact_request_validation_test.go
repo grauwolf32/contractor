@@ -14,6 +14,7 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 )
@@ -26,7 +27,7 @@ func TestPostgresUserArtifactsReserveOnlyTheExactCatalogNamespace(t *testing.T) 
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedPublicPool(t, ctx)
-	service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	fixture := newHandlerFixtureWithAuth(t, "../../config/testdata/valid", newTestAuthentication(t),
 		mustTestOrigins(t), false, nil, func(dependencies *testServices) { dependencies.Artifacts = service })
 	user, err := artifacts.UserScope("user-1")

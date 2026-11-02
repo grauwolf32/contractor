@@ -14,6 +14,9 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob/backends/filesystem"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/helpers/clone"
@@ -60,7 +63,7 @@ func TestPostgresPlannerMemoryRequiresRunningStage(t *testing.T) {
 			if _, err := namespace.ReadMemory(ctx, "shared_note"); memoryErrorCode(err) != CodeForbidden {
 				t.Fatalf("post-transition read error = %v, want %s", err, CodeForbidden)
 			}
-			runArtifacts, _ := artifacts.NewService(artifacts.NewPostgresRepository(pool)).Run(runID)
+			runArtifacts, _ := artifacts.NewService(artifactpostgres.NewRepository(pool)).Run(runID)
 			stored, err := runArtifacts.Read(ctx, artifacts.ArtifactRef{
 				Namespace: "builder", Name: "memory.shared_note",
 			})
@@ -221,14 +224,14 @@ func TestPostgresPlannerMemoryRemovesDeduplicatedBlobCandidate(t *testing.T) {
 	defer cancel()
 	pool := isolatedMemoryPool(t, ctx)
 	path := t.TempDir()
-	files, err := artifacts.OpenFilesystemBlobStore(ctx, path)
+	files, err := filesystem.Open(ctx, path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer files.Close()
 	var logs bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelWarn}))
-	ctx = artifacts.WithBlobRuntime(ctx, artifacts.NewBlobRuntime(files, logger))
+	ctx = blob.WithRuntime(ctx, blob.NewRuntime(files, logger))
 	runID, stageID := "run-memory-dedup", "stage-memory-dedup"
 	createRunningMemoryStage(t, ctx, pool, runID, stageID)
 	store, err := NewPostgresStore(pool)
@@ -243,7 +246,7 @@ func TestPostgresPlannerMemoryRemovesDeduplicatedBlobCandidate(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	report, err := artifacts.CleanupFilesystemBlobs(ctx, pool, path, false)
+	report, err := artifactpostgres.CleanupFilesystemBlobs(ctx, pool, path, false)
 	if err != nil || report.Referenced != 1 || report.Orphans != 0 || report.Missing != 0 {
 		t.Fatalf("blob files after deduplicated Planner write = %+v, %v", report, err)
 	}
@@ -257,12 +260,12 @@ func TestPostgresPlannerMemoryRetainsTransferLeaseThroughPublish(t *testing.T) {
 	defer cancel()
 	pool := isolatedMemoryPool(t, ctx)
 	path := t.TempDir()
-	files, err := artifacts.OpenFilesystemBlobStore(ctx, path)
+	files, err := filesystem.Open(ctx, path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer files.Close()
-	ctx = artifacts.WithBlobRuntime(ctx, artifacts.NewBlobRuntime(files, nil))
+	ctx = blob.WithRuntime(ctx, blob.NewRuntime(files, nil))
 	runID, stageID := "run-memory-transfer", "stage-memory-transfer"
 	createRunningMemoryStage(t, ctx, pool, runID, stageID)
 	store, err := NewPostgresStore(pool)
@@ -279,33 +282,33 @@ func TestPostgresPlannerMemoryRetainsTransferLeaseThroughPublish(t *testing.T) {
 		}
 	}()
 	for range 4 {
-		_, release, err := artifacts.AcquireTransfer(ctx)
+		_, release, err := blob.AcquireTransfer(ctx)
 		if err != nil {
 			t.Fatal(err)
 		}
 		leases = append(leases, release)
 	}
-	if _, err := store.Write(ctx, binding, target, payload, nil); !errors.Is(err, artifacts.ErrTransferCapacity) {
+	if _, err := store.Write(ctx, binding, target, payload, nil); !errors.Is(err, blob.ErrTransferCapacity) {
 		t.Fatalf("full-budget write = %v, want transfer capacity error", err)
 	}
 	for _, release := range leases {
 		release()
 	}
 	leases = nil
-	report, err := artifacts.CleanupFilesystemBlobs(ctx, pool, path, false)
+	report, err := artifactpostgres.CleanupFilesystemBlobs(ctx, pool, path, false)
 	if err != nil || report.Orphans != 0 || report.Referenced != 0 {
 		t.Fatalf("blob files after rejected write = %+v, %v", report, err)
 	}
 
 	store.writeBoundary = &postgresWriteBoundary{beforeLock: func(held context.Context) {
-		if _, nested, err := artifacts.AcquireTransfer(held); err != nil {
+		if _, nested, err := blob.AcquireTransfer(held); err != nil {
 			t.Fatalf("prepared write lost its outer lease: %v", err)
 		} else {
 			nested()
 		}
 		for {
-			_, release, err := artifacts.AcquireTransfer(ctx)
-			if errors.Is(err, artifacts.ErrTransferCapacity) {
+			_, release, err := blob.AcquireTransfer(ctx)
+			if errors.Is(err, blob.ErrTransferCapacity) {
 				break
 			}
 			if err != nil {
@@ -324,7 +327,7 @@ func TestPostgresPlannerMemoryRetainsTransferLeaseThroughPublish(t *testing.T) {
 		release()
 	}
 	leases = nil
-	report, err = artifacts.CleanupFilesystemBlobs(ctx, pool, path, false)
+	report, err = artifactpostgres.CleanupFilesystemBlobs(ctx, pool, path, false)
 	if err != nil || report.Referenced != 1 || report.Orphans != 0 {
 		t.Fatalf("blob files after published write = %+v, %v", report, err)
 	}
@@ -355,7 +358,7 @@ func TestPostgresPlannerMemorySameBindingInterferenceNeverOverwrites(t *testing.
 			}
 			recording.writes = nil
 			externalPayload := encodedTestNote(t, "shared", "external winner", 0)
-			runArtifacts, err := artifacts.NewService(artifacts.NewPostgresRepository(pool)).Run(runID)
+			runArtifacts, err := artifacts.NewService(artifactpostgres.NewRepository(pool)).Run(runID)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -651,6 +654,10 @@ func transitionProductionMemoryStage(
 	stageID string,
 	target StageExecutionStateForTest,
 ) error {
+	if _, err := pool.Exec(ctx, `UPDATE workflow_runs SET scheduler_claim_id='memory-fixture',scheduler_claimed_at=clock_timestamp()-interval '2 minutes',scheduler_claim_expires_at=clock_timestamp()-interval '1 minute' WHERE run_id=$1`, runID); err != nil {
+		return err
+	}
+	ctx = scheduler.WithRunClaim(ctx, runID, "memory-fixture")
 	store, err := scheduler.NewPostgresPersistence(pool)
 	if err != nil {
 		return err

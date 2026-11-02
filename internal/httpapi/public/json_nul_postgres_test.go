@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingintake"
@@ -52,7 +53,7 @@ func TestPostgresPublicJSONNULEscapesBeforeSideEffects(t *testing.T) {
 	for _, kind := range []string{"project", "run", "project run", "audit"} {
 		t.Run(kind, func(t *testing.T) {
 			h := newEvalAPIHarness(t)
-			service := artifacts.NewService(artifacts.NewPostgresRepository(h.pool))
+			service := artifacts.NewService(artifactpostgres.NewRepository(h.pool))
 			user, err := service.User("user-1")
 			if err != nil {
 				t.Fatal(err)

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -37,7 +38,7 @@ FOR EACH ROW EXECUTE FUNCTION conflict_collection_receipt()`); err != nil {
 	if !postgres.IsTransactionConflict(err) || errors.Is(err, findingintake.ErrConflict) {
 		t.Fatalf("exhausted publication conflict = %v, want a transaction conflict", err)
 	}
-	user, err := artifacts.NewService(artifacts.NewPostgresRepository(pool)).User("owner")
+	user, err := artifacts.NewService(artifactpostgres.NewRepository(pool)).User("owner")
 	if err != nil {
 		t.Fatal(err)
 	}

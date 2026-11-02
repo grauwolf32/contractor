@@ -10,6 +10,8 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	inline "github.com/grauwolf32/contractor/internal/artifacts/blob/backends/postgres"
 )
 
 func TestPostgresCollectionIsolatesProposalReadFailures(t *testing.T) {
@@ -19,7 +21,7 @@ func TestPostgresCollectionIsolatesProposalReadFailures(t *testing.T) {
 		err          error
 	}{
 		{"missing", "finding-proposal-artifact-missing", artifacts.ErrArtifactNotFound},
-		{"corrupt", "finding-proposal-artifact-invalid", artifacts.ErrArtifactIntegrity},
+		{"corrupt", "finding-proposal-artifact-invalid", blob.ErrIntegrity},
 		{"transient", "", transient},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
@@ -28,10 +30,10 @@ func TestPostgresCollectionIsolatesProposalReadFailures(t *testing.T) {
 			for _, key := range []string{"valid-a", "valid-b"} {
 				insertAuditChildReceiptWithEvidence(t, f, key, []ExactArtifact{})
 			}
-			blobs := &collectionFaultBlobStore{
+			blobs := &collectionFaultBlobStore{Storage: inline.Store{},
 				digest: strings.TrimPrefix(bad.Proposal.Digest, "sha256:"), err: scenario.err,
 			}
-			f.ctx = artifacts.WithBlobRuntime(f.ctx, artifacts.NewBlobRuntime(blobs, nil))
+			f.ctx = blob.WithRuntime(f.ctx, blob.NewRuntime(blobs, nil))
 			err := collectFixtureProposals(f.ctx, f, false)
 			if scenario.reason == "" {
 				if !errors.Is(err, transient) {
@@ -66,18 +68,18 @@ SELECT count(*), coalesce(min(summary ->> 'reason'), '') FROM audit_events
 }
 
 type collectionFaultBlobStore struct {
-	artifacts.PostgresBlobStore
+	blob.Storage
 	digest string
 	err    error
 	reads  int
 }
 
-func (s *collectionFaultBlobStore) Read(ctx context.Context, object artifacts.BlobObject) ([]byte, error) {
+func (s *collectionFaultBlobStore) Read(ctx context.Context, object blob.Object) ([]byte, error) {
 	s.reads++
 	if hex.EncodeToString(object.Digest) == s.digest {
 		return nil, s.err
 	}
-	return s.PostgresBlobStore.Read(ctx, object)
+	return s.Storage.Read(ctx, object)
 }
 
 func boolCount(value bool) int {

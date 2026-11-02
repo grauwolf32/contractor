@@ -10,6 +10,9 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob/backends/filesystem"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
@@ -22,12 +25,12 @@ func TestPostgresFindingHTTPExchangePublishesAtomically(t *testing.T) {
 			ctx := t.Context()
 			pool := isolatedFindingPool(t, ctx)
 			if backend == "filesystem" {
-				files, err := artifacts.OpenFilesystemBlobStore(ctx, t.TempDir())
+				files, err := filesystem.Open(ctx, t.TempDir())
 				if err != nil {
 					t.Fatal(err)
 				}
 				defer files.Close()
-				ctx = artifacts.WithBlobRuntime(ctx, artifacts.NewBlobRuntime(files, nil))
+				ctx = blob.WithRuntime(ctx, blob.NewRuntime(files, nil))
 			}
 			const owner, project, run = "http-owner", "http-project", "http-run"
 			if _, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{
@@ -60,11 +63,11 @@ func TestPostgresFindingHTTPExchangePublishesAtomically(t *testing.T) {
 			lateRejected := testSubmission("http-invocation", "late-rejected", []contracts.ArtifactRef{})
 			lateRejected.HTTPEvidence = &capture
 			occupied := deterministicID("proposal", grant.AllocationID, lateRejected.InvocationID, lateRejected.SubmissionID)
-			collisionPayload, err := artifacts.PreparePayload(ctx, artifacts.Payload{MediaType: "application/json", Data: []byte(`{}`)})
+			collisionPayload, err := artifactpostgres.PreparePayload(ctx, pool, artifacts.Payload{MediaType: "application/json", Data: []byte(`{}`)})
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := artifacts.NewService(artifacts.NewPostgresRepository(pool)).Create(ctx, mustRunScope(run),
+			if _, err := artifacts.NewService(artifactpostgres.NewRepository(pool)).Create(ctx, mustRunScope(run),
 				contracts.ArtifactRef{Namespace: "finding-proposals", Name: occupied}, collisionPayload); err != nil {
 				t.Fatal(err)
 			}
@@ -111,7 +114,7 @@ func TestPostgresFindingHTTPExchangePublishesAtomically(t *testing.T) {
 			if replays != 1 {
 				t.Fatalf("replays = %d", replays)
 			}
-			store := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+			store := artifacts.NewService(artifactpostgres.NewRepository(pool))
 			runStore, err := store.Run(run)
 			if err != nil {
 				t.Fatal(err)

@@ -6,11 +6,12 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 )
 
 func TestBlobStorageConfigDefaultsDirectoryAndPrecedence(t *testing.T) {
 	defaults, err := ParseConfig(nil, func(string) string { return "" })
-	if err != nil || defaults.ArtifactBlobBackend != artifacts.BlobAuto ||
+	if err != nil || defaults.ArtifactBlobBackend != blob.Auto ||
 		defaults.ArtifactBlobPath != "" || defaults.ArtifactBlobInlineMaxBytes != 1048576 {
 		t.Fatalf("default blob settings: %v, %v", defaults.ArtifactBlobBackend, err)
 	}
@@ -25,7 +26,7 @@ spec:
 	env := map[string]string{"CONTRACTOR_SERVER_CONFIG": path}
 	getenv := func(key string) string { return env[key] }
 	cfg, err := ParseConfig(nil, getenv)
-	if err != nil || cfg.ArtifactBlobBackend != artifacts.BlobAuto ||
+	if err != nil || cfg.ArtifactBlobBackend != blob.Auto ||
 		cfg.ArtifactBlobPath != filepath.Join(directory, "blobs") || cfg.ArtifactBlobInlineMaxBytes != 262144 {
 		t.Fatalf("YAML blob settings: %v, %v", cfg.ArtifactBlobBackend, err)
 	}
@@ -33,7 +34,7 @@ spec:
 	env["CONTRACTOR_ARTIFACT_BLOB_PATH"] = filepath.Join(directory, "environment")
 	env["CONTRACTOR_ARTIFACT_BLOB_INLINE_MAX_BYTES"] = "65536"
 	cfg, err = ParseConfig(nil, getenv)
-	if err != nil || cfg.ArtifactBlobBackend != artifacts.BlobPostgres ||
+	if err != nil || cfg.ArtifactBlobBackend != blob.Postgres ||
 		cfg.ArtifactBlobPath != env["CONTRACTOR_ARTIFACT_BLOB_PATH"] || cfg.ArtifactBlobInlineMaxBytes != 65536 {
 		t.Fatalf("environment blob settings: %v, %v", cfg.ArtifactBlobBackend, err)
 	}
@@ -43,7 +44,7 @@ spec:
 		"--artifact-blob-backend=filesystem", "--artifact-blob-path=" + flagPath,
 		"--artifact-blob-inline-max-bytes=0",
 	}, getenv)
-	if err != nil || cfg.ArtifactBlobBackend != artifacts.BlobFilesystem ||
+	if err != nil || cfg.ArtifactBlobBackend != blob.Filesystem ||
 		cfg.ArtifactBlobPath != flagPath || cfg.ArtifactBlobInlineMaxBytes != 0 {
 		t.Fatalf("flag blob settings: %v, %v", cfg.ArtifactBlobBackend, err)
 	}

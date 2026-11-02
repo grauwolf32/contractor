@@ -15,15 +15,15 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
-
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/helpers/requestid"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 func TestPublicErrorDiagnosticsAreCorrelatedRedactedAndDoNotChangeEnvelopes(t *testing.T) {
@@ -50,7 +50,7 @@ func TestPublicErrorDiagnosticsAreCorrelatedRedactedAndDoNotChangeEnvelopes(t *t
 		{"downstream", "downstream_unavailable", "gateway_unavailable", credentials.ErrGatewayUnavailable, http.StatusBadGateway},
 		{"downstream-closed-cause", "downstream_unavailable", "gateway_unavailable", errors.Join(credentials.ErrGatewayUnavailable, pgconn.ErrConnClosed), http.StatusBadGateway},
 		{"credential-recovery", "credential_recovery_required", "credential_recovery_required", credentials.ErrRecoveryRequired, http.StatusServiceUnavailable},
-		{"transfer-capacity", "artifact_transfer_capacity", "artifact_transfer_capacity", artifacts.ErrTransferCapacity, http.StatusServiceUnavailable},
+		{"transfer-capacity", "artifact_transfer_capacity", "artifact_transfer_capacity", blob.ErrTransferCapacity, http.StatusServiceUnavailable},
 		{"history-pending", "artifact_history_maintenance_pending", "artifact_history_maintenance_pending", &artifacts.HistoryMaintenanceError{Maintained: true}, http.StatusServiceUnavailable},
 		{"cancelled", "cancelled", "internal_error", context.Canceled, http.StatusInternalServerError},
 		{"deadline", "deadline_exceeded", "internal_error", context.DeadlineExceeded, http.StatusInternalServerError},
@@ -181,13 +181,13 @@ func TestDiagnosticCauseUsesOnlyClosedCategories(t *testing.T) {
 		{net.ErrClosed, "storage_unavailable"},
 		{pgx.ErrTxClosed, "storage_transaction_failed"},
 		{errors.Join(credentials.ErrGatewayUnavailable, pgconn.ErrConnClosed), "downstream_unavailable"},
-		{errors.Join(artifacts.ErrBlobMissing, io.EOF), "artifact_content_missing"},
+		{errors.Join(blob.ErrMissing, io.EOF), "artifact_content_missing"},
 		{credentials.ErrCrypto, "credential_crypto_failed"},
 		{credentials.ErrKeyUnavailable, "credential_key_unavailable"},
 		{fmt.Errorf("lookup: %w", credentials.ErrRecoveryRequired), "credential_recovery_required"},
-		{artifacts.ErrTransferCapacity, "artifact_transfer_capacity"},
-		{fmt.Errorf("read: %w", artifacts.ErrArtifactIntegrity), "artifact_integrity_failed"},
-		{fmt.Errorf("read: %w", artifacts.ErrBlobMissing), "artifact_content_missing"},
+		{blob.ErrTransferCapacity, "artifact_transfer_capacity"},
+		{fmt.Errorf("read: %w", blob.ErrIntegrity), "artifact_integrity_failed"},
+		{fmt.Errorf("read: %w", blob.ErrMissing), "artifact_content_missing"},
 		{fmt.Errorf("write: %w", artifacts.ErrHistoryProtected), "artifact_history_protected"},
 		{&artifacts.HistoryMaintenanceError{Cause: errors.New("private storage failure")}, "artifact_history_maintenance_pending"},
 		{&net.DNSError{Err: "private network payload", Name: "private-host", IsTimeout: true}, "storage_unavailable"},

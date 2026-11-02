@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -17,7 +18,7 @@ func TestImporterRetriesEvidenceStorageFailureWithoutCollectionReceipt(t *testin
 		errors.New("temporary storage failure"),
 		context.DeadlineExceeded,
 		context.Canceled,
-		artifacts.ErrArtifactIntegrity,
+		blob.ErrIntegrity,
 	} {
 		t.Run(failure.Error(), func(t *testing.T) {
 			harness := newImportHarness(t)

@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 )
 
 func TestServerConfigFileLoadsNonSecretProcessSettingsAndResolvesPaths(t *testing.T) {
@@ -54,7 +54,7 @@ spec:
 		cfg.WorkerRequestTimeout != 121*time.Second || cfg.PlannerTimeout != 12*time.Minute {
 		t.Fatalf("timeouts = %+v", cfg)
 	}
-	if cfg.ArtifactBlobBackend != artifacts.BlobFilesystem ||
+	if cfg.ArtifactBlobBackend != blob.Filesystem ||
 		cfg.ArtifactBlobPath != filepath.Join(directory, "blobs") {
 		t.Fatalf("blob settings = %+v", cfg)
 	}

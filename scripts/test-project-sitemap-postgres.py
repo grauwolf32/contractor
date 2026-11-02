@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PREFIX = "github.com/grauwolf32/contractor/"
 PACKAGES = (
     "internal/scheduler", "internal/operations", "internal/operations/sitemapjoin",
-    "internal/projectsitemap", "internal/artifacts", "internal/projectstore",
+    "internal/projectsitemap", "internal/artifacts/postgres", "internal/projectstore",
     "internal/projectlifecycle", "internal/persistence/postgres",
     "internal/httpapi/public", "internal/cli", "internal/publicclient",
     "internal/app", "internal/artifactpolicy", "internal/archtest", "internal/httpapi/privateartifacts", "internal/controlplane", "internal/runstore",
@@ -54,7 +54,7 @@ REQUIRED_CASES = {(PREFIX + "internal/scheduler", case) for case in {
     (PREFIX + "internal/controlplane", "TestSitemapGrantPinsSelectedOperationsAndNeverAliasesPolicy"),
     (PREFIX + "internal/httpapi/privateartifacts", "TestPostgresPrivateProjectArtifactReadsUseConcreteTargetAndNoCacheHolds"),
     (PREFIX + "internal/runstore", "TestPostgresRunProjectContextUsesCallerTransaction"),
-    (PREFIX + "internal/artifacts", "TestPostgresDescribeForkRevisionsPreservesTargetsAndBoundsWork"),
+    (PREFIX + "internal/artifacts/postgres", "TestPostgresDescribeForkRevisionsPreservesTargetsAndBoundsWork"),
     (PREFIX + "internal/httpapi/public", "TestPostgresPublicArtifactUploadAvailability"),
     (PREFIX + "internal/httpapi/public", "TestPostgresRepeatArtifactUploadAvailabilityFollowsSourceProject"),
     (PREFIX + "internal/runstore", "TestPostgresDescribeOriginalInputsKeepsCreationRevisionsInCallerTransaction"),

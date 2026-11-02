@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
@@ -233,7 +234,7 @@ func (r *admissionReader) ReadFindingCheck(ctx context.Context, id string, ordin
 		if err := r.work.add(0, 0, 0, source.Retained.SizeBytes); err != nil {
 			return result, err
 		}
-		store, _ := artifacts.NewService(artifacts.NewPostgresRepository(r.db)).Project(r.project)
+		store, _ := artifacts.NewService(artifactpostgres.NewRepository(r.db)).Project(r.project)
 		read, err := store.ReadExact(ctx, source.Retained)
 		if err != nil {
 			return result, err
@@ -281,7 +282,7 @@ func (r *admissionReader) ReadPage(ctx context.Context, ordinal int) (auditstore
 	if err := r.work.add(0, 1, int(exact.SizeBytes), 0); err != nil {
 		return exact, nil, err
 	}
-	store, _ := artifacts.NewService(artifacts.NewPostgresRepository(r.db)).Project(r.project)
+	store, _ := artifacts.NewService(artifactpostgres.NewRepository(r.db)).Project(r.project)
 	read, err := store.ReadExact(ctx, exact)
 	if err != nil {
 		return exact, nil, err

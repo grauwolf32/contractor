@@ -17,6 +17,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 )
 
@@ -247,7 +248,7 @@ func TestCatalogMissingBlobReportsSeedOutcomeWithoutRewritingBinding(t *testing.
 	if _, err := catalog.Initialize(t.Context(), "owner", plan); err != nil {
 		t.Fatal(err)
 	}
-	repository.readExistingErr = artifacts.ErrBlobMissing
+	repository.readExistingErr = blob.ErrMissing
 	outcomes, err := catalog.Initialize(t.Context(), "owner", plan)
 	if err != nil || len(outcomes) != 1 || outcomes[0].Status != SeedContentMissing {
 		t.Fatalf("missing blob outcome = %v, %v", outcomes, err)
@@ -255,7 +256,7 @@ func TestCatalogMissingBlobReportsSeedOutcomeWithoutRewritingBinding(t *testing.
 	if repository.writes != 1 {
 		t.Fatalf("missing blob was rewritten: %d writes", repository.writes)
 	}
-	if _, err := catalog.Resolve(t.Context(), "owner", Reference{Scheme: "example", Version: "1"}); !errors.Is(err, artifacts.ErrBlobMissing) {
+	if _, err := catalog.Resolve(t.Context(), "owner", Reference{Scheme: "example", Version: "1"}); !errors.Is(err, blob.ErrMissing) {
 		t.Fatalf("missing standard resolution = %v", err)
 	}
 	for _, failure := range []error{context.Canceled, errors.New("storage unavailable")} {

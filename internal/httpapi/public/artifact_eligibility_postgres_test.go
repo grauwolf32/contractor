@@ -12,6 +12,7 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -23,7 +24,7 @@ import (
 func TestPostgresPublicArtifactUploadAvailability(t *testing.T) {
 	ctx := t.Context()
 	pool := isolatedPublicPool(t, ctx)
-	service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	projects, runs := projectstore.NewPostgresStore(pool), runstore.NewPostgresStore(pool)
 	project, _, err := projects.Create(ctx, projectstore.CreateParams{ProjectID: "upload-project", OwnerID: "user-1", Kind: projectstore.KindProject, Name: "Upload", IdempotencyKey: "upload-project", RequestDigest: "sha256:" + strings.Repeat("a", 64)})
 	if err != nil {
@@ -133,7 +134,7 @@ func TestPostgresRepeatArtifactUploadAvailabilityFollowsSourceProject(t *testing
 	ctx := t.Context()
 	catalog := newHandlerFixture(t)
 	pool := isolatedPublicPool(t, ctx)
-	service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	projects, runs := projectstore.NewPostgresStore(pool), runstore.NewPostgresStore(pool)
 	project, _, err := projects.Create(ctx, projectstore.CreateParams{ProjectID: "repeat-upload-project", OwnerID: "user-1", Kind: projectstore.KindProject, Name: "Repeat upload", IdempotencyKey: "repeat-upload-project", RequestDigest: "sha256:" + strings.Repeat("a", 64)})
 	if err != nil {

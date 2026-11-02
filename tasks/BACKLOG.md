@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-80 open tasks: 13 in progress, 54 pending, 13 deferred. 1365 finished: 1347 completed, 18 archived.
+81 open tasks: 13 in progress, 55 pending, 13 deferred. 1370 finished: 1352 completed, 18 archived.
 
 ## In progress
 
@@ -76,6 +76,12 @@ the epics are in [epics.yml](epics.yml).
 | [V411-015](v411-015-http-pentest-workflow-presets.yml) | feature | P1 | V64-002, V411-007, V411-019 | Demonstrate an ordinary HTTP Workflow on the lean Audit path |
 | [V412-003](v412-003-browser-pentest-profiles-and-gate.yml) | feature | P2 | V412-001, V410-009, V411-020 | Compose optional browser investigation with truthful availability and results |
 | [V425-043](v425-043-resolve-historical-run-model-policy-snapshots.yml) | defect | P2 | — | Resolve historical Run snapshots after Workflow-owned model selection |
+
+### Projects, artifacts and lifecycle controls (`projects-artifacts`)
+
+| Task | Kind | Priority | Waiting for | Title |
+| --- | --- | --- | --- | --- |
+| [V437-005](v437-005-inject-artifact-storage-dependencies.yml) | chore | P2 | — | Inject Artifact storage dependencies explicitly |
 
 ### Audits (`audits`)
 
@@ -176,7 +182,7 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 2 | 47 | 63 | 30 | 90 |
+| Run execution core (`execution-core`) | 2 | 47 | 64 | 30 | 91 |
 | Planners and the Worker model boundary (`planner-worker`) | 9 | 35 | 49 | 30 | 75 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 10 | 26 | 14 | 5 | 45 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 3 | 13 |
@@ -187,7 +193,7 @@ tasks in `introduced_by`.
 | Scanner tool Workers and scan planning (`scan-tools`) | 2 | 17 | 10 | 9 | 20 |
 | Findings tools and collections (`findings`) | 2 | 17 | 9 | 10 | 15 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 19 | 16 | 16 | 21 |
-| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 36 | 37 | 11 | 60 |
+| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 36 | 39 | 14 | 65 |
 | Audits (`audits`) | 17 | 67 | 90 | 38 | 137 |
 | Evaluations (`evals`) | 6 | 21 | 39 | 15 | 49 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 5 |

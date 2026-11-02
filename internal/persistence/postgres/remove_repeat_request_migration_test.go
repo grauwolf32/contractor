@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/persistence/migrations"
 	"github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -28,7 +29,7 @@ func TestPostgresRemoveRepeatRequestMigrationPreservesRunAndSharedArtifacts(t *t
 	}); err != nil {
 		t.Fatal(err)
 	}
-	service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	scope, _ := artifacts.RunScope("repeat-migration")
 	for _, entry := range []struct{ namespace, name, body string }{
 		{"inputs", "source", "shared bytes"},

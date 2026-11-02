@@ -30,6 +30,29 @@ func (s *Scheduler) liveOrNewReservations(
 	if err != nil {
 		return nil, false, err
 	}
+	// A discard may remove the live batch before its SQL COMMIT rolls back
+	// or loses its response. No prepare can have run before admission: finish
+	// that same discard before placing again, including while the queue is paused.
+	if len(recorded) > 0 && execution.State == runstore.StagePreparing && execution.AdmittedAt == nil && run.State == runstore.RunPending {
+		allGone := true
+		for _, allocation := range recorded {
+			_, err := s.allocator.GetGrant(allocation.AllocationID)
+			if errors.Is(err, controlplane.ErrAllocationNotFound) {
+				continue
+			}
+			if err != nil {
+				return nil, false, err
+			}
+			allGone = false
+			break
+		}
+		if allGone {
+			if err := s.discardUnadmittedPlacement(ctx, run.RunID, execution.StageExecutionID); err != nil {
+				return nil, false, err
+			}
+			recorded = nil
+		}
+	}
 	if execution.State == runstore.StageRunning && len(recorded) == 0 {
 		return nil, false, errControlPlaneStateLost
 	}
@@ -49,7 +72,7 @@ func (s *Scheduler) liveOrNewReservations(
 			}
 		}
 		if lost {
-			reservations, reserveErr := s.allocator.ReserveAllContext(
+			reservations, reserveErr := s.reserveStage(
 				ctx, stagePlacementRequest(run, workflow, execution, requirements),
 			)
 			if reserveErr != nil {
@@ -75,11 +98,11 @@ func (s *Scheduler) liveOrNewReservations(
 		}
 		return err
 	}
-	reservations, err := s.allocator.ReserveAllContext(ctx, request)
+	reservations, err := s.reserveStage(ctx, request)
 	if err != nil {
 		return nil, false, err
 	}
-	if err := verifyReservations(run, workflow, execution, recorded, reservations); err != nil {
+	if err := verifyReservations(run, workflow, execution, requirements, recorded, reservations); err != nil {
 		return nil, false, err
 	}
 	for _, reservation := range reservations {
@@ -141,20 +164,17 @@ func verifyReservations(
 	run runstore.WorkflowRun,
 	workflow executableWorkflow,
 	execution runstore.StageExecution,
+	expectedBindings []controlplane.BindingRequirement,
 	recorded []runstore.StageAllocation,
 	reservations []controlplane.Reservation,
 ) error {
-	expectedBindings, err := auditBindingRequirements(run, workflow, execution.StageContext)
-	if err != nil {
-		return err
-	}
 	expectedContracts := make(map[string]*contracts.WorkerCompletionContract, len(expectedBindings))
 	for _, binding := range expectedBindings {
 		expectedContracts[binding.LogicalAgentName] = binding.CompletionContract
 	}
-	expectedWorkspace, err := projectAllocationWorkspace(workflow.stage.Context.Workspace, execution.StageContext)
-	if err != nil {
-		return err
+	var expectedWorkspace *contracts.AllocationWorkspaceSpec
+	if len(expectedBindings) > 0 {
+		expectedWorkspace = expectedBindings[0].Workspace
 	}
 	if len(reservations) != len(workflow.stage.Agents) {
 		return fmt.Errorf("Control Plane returned an incomplete allocation set")
@@ -280,9 +300,15 @@ func (s *Scheduler) liveReservationsFor(
 			return nil
 		}
 	}
-	reservations, err := s.allocator.ReserveAllContext(ctx, stagePlacementRequest(run, workflow, execution, requirements))
-	if err != nil || verifyReservations(run, workflow, execution, recorded, reservations) != nil {
+	reservations, err := s.reserveStage(ctx, stagePlacementRequest(run, workflow, execution, requirements))
+	if err != nil || verifyReservations(run, workflow, execution, requirements, recorded, reservations) != nil {
 		return nil
 	}
 	return reservations
+}
+
+func (s *Scheduler) reserveStage(ctx context.Context, request controlplane.ReservationRequest) ([]controlplane.Reservation, error) {
+	ctx, cancel := context.WithTimeout(ctx, s.options.OperationTimeout)
+	defer cancel()
+	return s.allocator.ReserveAllContext(ctx, request)
 }

@@ -14,6 +14,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 )
@@ -26,7 +27,7 @@ func TestPostgresPrivateContentCacheIdentityAcrossForksAndPurge(t *testing.T) {
 	pool := isolatedPrivateArtifactPool(t, ctx)
 	createPrivateArtifactRun(t, ctx, pool, "run-a")
 	createPrivateArtifactRun(t, ctx, pool, "run-b")
-	service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	user, err := service.User("user-1")
 	if err != nil {
 		t.Fatal(err)
@@ -104,7 +105,7 @@ func TestPostgresPrivateContentCacheIdentityAcrossForksAndPurge(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer tx.Rollback(ctx)
-	purger, err := artifacts.NewPostgresPurger(tx)
+	purger, err := artifactpostgres.NewPurger(tx)
 	if err != nil {
 		t.Fatal(err)
 	}

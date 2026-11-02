@@ -2636,11 +2636,15 @@ func (p *memoryAtomicPersistence) checkTerminalTransition(value StageProgression
 }
 
 func (p *memoryAtomicPersistence) CreateStageWithContext(
-	_ context.Context, params runstore.CreateStageExecutionParams, _ []ContextPin,
+	ctx context.Context, params runstore.CreateStageExecutionParams, _ []ContextPin,
 ) (runstore.StageExecution, error) {
 	if !params.LaneClass.Valid() {
 		return runstore.StageExecution{}, runstore.ErrInvalid
 	}
+	if err := p.requireClaim(ctx, params.RunID); err != nil {
+		return runstore.StageExecution{}, err
+	}
+
 	if !p.runIn(params.RunID, stageCreationRunStates) {
 		return runstore.StageExecution{}, runstore.ErrConflict
 	}
@@ -2664,8 +2668,12 @@ func (p *memoryAtomicPersistence) CreateStageWithContext(
 }
 
 func (p *memoryAtomicPersistence) EnterFinalizingWithResult(
-	_ context.Context, params runstore.EnterFinalizingParams,
+	ctx context.Context, params runstore.EnterFinalizingParams,
 ) error {
+	if err := p.requireClaim(ctx, p.store.run.RunID); err != nil {
+		return err
+	}
+
 	if !p.runIn(p.store.run.RunID, finalizationRunStates) {
 		return runstore.ErrConflict
 	}
@@ -2696,6 +2704,10 @@ func (p *memoryAtomicPersistence) EnterAbortingWithTermination(
 	runID string,
 	params runstore.EnterAbortingParams,
 ) error {
+	if err := p.requireClaim(ctx, runID); err != nil {
+		return err
+	}
+
 	if !p.runIn(runID, abortRunStates) {
 		return runstore.ErrConflict
 	}
@@ -2708,11 +2720,15 @@ func (p *memoryAtomicPersistence) EnterAbortingWithTermination(
 }
 
 func (p *memoryAtomicPersistence) CommitResultProgression(
-	_ context.Context, value ResultProgression,
+	ctx context.Context, value ResultProgression,
 ) error {
 	if err := validateResultProgression(value); err != nil {
 		return err
 	}
+	if err := p.requireClaim(ctx, value.RunID); err != nil {
+		return err
+	}
+
 	if !p.runIn(value.RunID, progressionRunStates) {
 		return runstore.ErrConflict
 	}
@@ -2762,12 +2778,16 @@ func (p *memoryAtomicPersistence) CommitResultProgression(
 }
 
 func (p *memoryAtomicPersistence) CommitTerminationProgression(
-	_ context.Context,
+	ctx context.Context,
 	value TerminationProgression,
 ) error {
 	if err := validateTerminationProgression(value); err != nil {
 		return err
 	}
+	if err := p.requireClaim(ctx, value.RunID); err != nil {
+		return err
+	}
+
 	if !p.runIn(value.RunID, progressionRunStates) {
 		return runstore.ErrConflict
 	}
@@ -2828,11 +2848,15 @@ func (p *memoryAtomicPersistence) commitProgression(value StageProgression) {
 }
 
 func (p *memoryAtomicPersistence) AcceptResultDuringCancellation(
-	_ context.Context,
+	ctx context.Context,
 	runID string,
 	stageExecutionID string,
 	result stageresult.StageContentResult,
 ) error {
+	if err := p.requireClaim(ctx, runID); err != nil {
+		return err
+	}
+
 	if !p.runIn(runID, []runstore.WorkflowRunState{runstore.RunCancelling}) {
 		return runstore.ErrConflict
 	}
@@ -2853,13 +2877,17 @@ func (p *memoryAtomicPersistence) AcceptResultDuringCancellation(
 }
 
 func (p *memoryAtomicPersistence) CommitTerminationAndFinishRun(
-	_ context.Context,
+	ctx context.Context,
 	runID string,
 	stageExecutionID string,
 	expectedRunState runstore.WorkflowRunState,
 	nextRunState runstore.WorkflowRunState,
 	_ runstore.Reason,
 ) error {
+	if err := p.requireClaim(ctx, runID); err != nil {
+		return err
+	}
+
 	if runID != p.store.run.RunID || p.store.run.State != expectedRunState {
 		return runstore.ErrConflict
 	}
@@ -2882,7 +2910,7 @@ func (p *memoryAtomicPersistence) CommitTerminationAndFinishRun(
 }
 
 func (p *memoryAtomicPersistence) FailRunWithActiveStages(
-	_ context.Context,
+	ctx context.Context,
 	runID string,
 	expectedRunState runstore.WorkflowRunState,
 	nextRunState runstore.WorkflowRunState,
@@ -2890,6 +2918,10 @@ func (p *memoryAtomicPersistence) FailRunWithActiveStages(
 	termination runstore.StageTermination,
 	abortID string,
 ) error {
+	if err := p.requireClaim(ctx, runID); err != nil {
+		return err
+	}
+
 	if runID != p.store.run.RunID || p.store.run.State != expectedRunState {
 		return runstore.ErrConflict
 	}
@@ -2925,7 +2957,11 @@ func (p *memoryAtomicPersistence) FailRunWithActiveStages(
 
 // FinishCancelledRun ends a cancelling Run, as the store's compare-and-set on
 // the locked Run row does.
-func (p *memoryAtomicPersistence) FinishCancelledRun(_ context.Context, runID string) error {
+func (p *memoryAtomicPersistence) FinishCancelledRun(ctx context.Context, runID string) error {
+	if err := p.requireClaim(ctx, runID); err != nil {
+		return err
+	}
+
 	if !p.runIn(runID, []runstore.WorkflowRunState{runstore.RunCancelling}) {
 		return runstore.ErrConflict
 	}
@@ -3494,8 +3530,12 @@ func eventIndex(events []string, expected string) (int, bool) {
 }
 
 func (p *memoryAtomicPersistence) DiscardUnadmittedPlacement(
-	_ context.Context, runID, stageID string, discard func() error,
+	ctx context.Context, runID, stageID string, discard func() error,
 ) error {
+	if err := p.requireClaim(ctx, runID); err != nil {
+		return err
+	}
+
 	if p.store.run.RunID != runID || p.store.run.State != runstore.RunPending {
 		return runstore.ErrConflict
 	}
@@ -3524,7 +3564,11 @@ func (p *memoryAtomicPersistence) DiscardUnadmittedPlacement(
 	return nil
 }
 
-func (p *memoryAtomicPersistence) AdmitStage(_ context.Context, runID, stageID string) (runstore.StageExecution, error) {
+func (p *memoryAtomicPersistence) AdmitStage(ctx context.Context, runID, stageID string) (runstore.StageExecution, error) {
+	if err := p.requireClaim(ctx, runID); err != nil {
+		return runstore.StageExecution{}, err
+	}
+
 	if !p.runIn(runID, progressionRunStates) {
 		return runstore.StageExecution{}, runstore.ErrConflict
 	}
@@ -3591,4 +3635,15 @@ func TestSchedulerMaterializesAndErasesPinnedInteractshToken(t *testing.T) {
 	if workerSettings["builder"].RuntimeSettings.Interactsh.Token != nil {
 		t.Fatal("Interactsh bearer survived Worker execution settings erasure")
 	}
+}
+
+func (p *memoryAtomicPersistence) requireClaim(ctx context.Context, runID string) error {
+	claimID, err := claimIDForRun(ctx, runID)
+	if err != nil {
+		return err
+	}
+	if p.store.claimID != claimID {
+		return errors.Join(ErrClaimLost, runstore.ErrConflict)
+	}
+	return nil
 }

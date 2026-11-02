@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -276,11 +277,11 @@ func TestPostgresAuditMaterialPublicationMaintainsHistoryAfterRollback(t *testin
 		}
 		current = written.Ref.Revision
 	}
-	policy, err := artifacts.NewHistoryPolicy(20, 1<<30)
+	policy, err := artifactpostgres.NewHistoryPolicy(20, 1<<30)
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx = artifacts.WithHistoryPolicy(ctx, policy)
+	ctx = artifactpostgres.WithHistoryPolicy(ctx, policy)
 	request := auditservice.MaterialPublicationRequest{AuditID: a.AuditID, Source: output.Output.Retained.Ref, Target: target}
 	for range 2 {
 		_, err := h.service.PublishMaterial(ctx, a.OwnerID, a.ProjectID, "maintenance", request, current)

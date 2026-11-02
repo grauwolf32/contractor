@@ -13,7 +13,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob/backends"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auth"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/gitimport"
@@ -36,12 +38,12 @@ type Config struct {
 	// DatabaseURL may carry the database password, so it is held as a
 	// self-redacting SecretString (SEC-R88).
 	DatabaseURL                contracts.SecretString
-	ArtifactBlobBackend        artifacts.BlobBackend
+	ArtifactBlobBackend        blob.Backend
 	ArtifactBlobPath           string
 	ArtifactBlobInlineMaxBytes int64
 	// ArtifactHistory is the retained-history limit of every Artifact
 	// binding (LIM-ART-9).
-	ArtifactHistory             artifacts.HistoryPolicy
+	ArtifactHistory             artifactpostgres.HistoryPolicy
 	GitImport                   gitimport.Config
 	OperatorConfigRoot          string
 	ManagedConfigRoot           string
@@ -166,7 +168,7 @@ func runCLI(
 		<-watchDone
 	}()
 	ctx = activeContext
-	backend, blobStore, err := artifacts.OpenBlobStore(ctx, cfg.ArtifactBlobBackend, cfg.ArtifactBlobPath, cfg.ArtifactBlobInlineMaxBytes)
+	backend, blobStore, err := backends.Open(ctx, cfg.ArtifactBlobBackend, cfg.ArtifactBlobPath, cfg.ArtifactBlobInlineMaxBytes)
 	if err != nil {
 		return err
 	}
@@ -174,8 +176,8 @@ func runCLI(
 		defer closer.Close()
 	}
 	logger.Info("artifact blob storage initialized", "large_payload_backend", backend)
-	ctx = artifacts.WithBlobRuntime(ctx, artifacts.NewBlobRuntime(blobStore, logger))
-	ctx = artifacts.WithHistoryPolicy(ctx, cfg.ArtifactHistory)
+	ctx = blob.WithRuntime(ctx, blob.NewRuntime(blobStore, logger))
+	ctx = artifactpostgres.WithHistoryPolicy(ctx, cfg.ArtifactHistory)
 	configurationManager, bundles, err := loadServerConfiguration(cfg.OperatorConfigRoot, cfg.ManagedConfigRoot, logger)
 	if err != nil {
 		return fmt.Errorf("load configuration: %w", err)

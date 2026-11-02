@@ -38,12 +38,12 @@ stage_transition_decisions           internal/runstore                exec
 workflow_run_events                  internal/runstore                exec
 workflow_runs                        internal/runstore                exec
 
-artifact_binding_revisions           internal/artifacts               artifacts
-artifact_bindings                    internal/artifacts               artifacts
-artifact_blobs                       internal/artifacts               artifacts
-artifact_lineage                     internal/artifacts               artifacts
-artifact_scopes                      internal/artifacts               artifacts
-artifact_versions                    internal/artifacts               artifacts
+artifact_binding_revisions           internal/artifacts/postgres               artifacts
+artifact_bindings                    internal/artifacts/postgres               artifacts
+artifact_blobs                       internal/artifacts/postgres               artifacts
+artifact_lineage                     internal/artifacts/postgres               artifacts
+artifact_scopes                      internal/artifacts/postgres               artifacts
+artifact_versions                    internal/artifacts/postgres               artifacts
 workflow_run_output_publications     internal/runstore                artifacts
 
 mutation_receipts                    internal/persistence/postgres    projects
@@ -127,11 +127,11 @@ internal/findingintake artifact_bindings Collection replay checks the indexed na
 internal/agentprincipal      stage_allocations              Principal deletion refuses a Runtime Agent with unreleased
     allocations.
 
-internal/artifacts           audits                         Ordinary Audit Artifact forks prove source/destination Project and
+internal/artifacts/postgres           audits                         Ordinary Audit Artifact forks prove source/destination Project and
     child membership inside the fork statement. Accepted upward read PER-UR-6.
-internal/artifacts           audit_executions               Ordinary Audit Artifact forks prove the immutable Run/Audit
+internal/artifacts/postgres           audit_executions               Ordinary Audit Artifact forks prove the immutable Run/Audit
     association before creating input/output lineage. Accepted upward read PER-UR-6.
-internal/artifacts           workflow_runs                  Output freezing checks that the Run exists; Project input
+internal/artifacts/postgres           workflow_runs                  Output freezing checks that the Run exists; Project input
     forks, context projections, output publication and Audit import check that the Run belongs to the Project.
     Accepted upward read PER-UR-1.
 
@@ -258,9 +258,9 @@ internal/projectstore contractor_initialize_project_finding_fence write finding_
 # only the caller's relations.
 #
 # package                    function                                   access  relation                     reason
-internal/artifacts           contractor_eval_dirty                      write   eval_member_projections      Eval projection: a change of
+internal/artifacts/postgres           contractor_eval_dirty                      write   eval_member_projections      Eval projection: a change of
     an Eval member's output binding or evidence marks the member for projection in the same transaction.
-internal/artifacts           contractor_eval_dirty                      write   eval_projection_queue        Eval projection: the same change
+internal/artifacts/postgres           contractor_eval_dirty                      write   eval_projection_queue        Eval projection: the same change
     queues the member's experiment for projection.
 
 internal/auditstore/internal/pgstore contractor_artifact_hold_apply     write   artifact_binding_revisions   Audits and their items hold

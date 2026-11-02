@@ -4,6 +4,8 @@ import (
 	"context"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditbaseline"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -34,7 +36,7 @@ type GeneratedInventoryProjection struct {
 func (s *Service) generatedInventory(
 	ctx context.Context, audit auditstore.Audit, link auditstore.ArtifactLink, first auditstore.Round,
 ) (*GeneratedInventoryProjection, error) {
-	project, err := artifacts.NewService(artifacts.NewPostgresRepository(s.pool)).Project(audit.ProjectID)
+	project, err := artifacts.NewService(artifactpostgres.NewRepository(s.pool)).Project(audit.ProjectID)
 	if err != nil {
 		return nil, err
 	}
@@ -48,18 +50,18 @@ func (s *Service) generatedInventory(
 		!contentdigest.Valid(derived.Inventory.SourceContentDigest) || !contentdigest.Valid(derived.Inventory.CanonicalInventoryDigest) ||
 		derived.Inventory.Worklist.Validate() != nil || derived.Inventory.Gaps == nil ||
 		auditdomain.ValidateDispatchExecutionManifest(derived.Inventory.ExecutionManifest) != nil {
-		return nil, artifacts.ErrArtifactIntegrity
+		return nil, blob.ErrIntegrity
 	}
 	for key, exact := range derived.Sources {
 		if (key != "source" && key != "settings") || exact.Validate() != nil || !exact.HasMetadata() {
-			return nil, artifacts.ErrArtifactIntegrity
+			return nil, blob.ErrIntegrity
 		}
 	}
 	if source, ok := derived.Sources["source"]; !ok || source.Digest != derived.Inventory.SourceContentDigest {
-		return nil, artifacts.ErrArtifactIntegrity
+		return nil, blob.ErrIntegrity
 	}
 	if !first.Manifest.Ref.SameExact(derived.Inventory.Worklist.Ref) || first.Manifest.Digest != derived.Inventory.Worklist.Digest || first.ExpectedItemCount != len(derived.Inventory.ExecutionManifest.Items) {
-		return nil, artifacts.ErrArtifactIntegrity
+		return nil, blob.ErrIntegrity
 	}
 	return &GeneratedInventoryProjection{Snapshot: link.Artifact, Sources: derived.Sources,
 		SourceContentDigest: derived.Inventory.SourceContentDigest, CanonicalInventoryDigest: derived.Inventory.CanonicalInventoryDigest,

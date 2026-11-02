@@ -12,6 +12,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 )
@@ -60,7 +61,7 @@ func TestPostgresSitemapSharedMapSnapshotAndReplay(t *testing.T) {
 	if saved.Replayed || saved.Artifact.Ref.Namespace != "research" || saved.Artifact.Ref.Revision == nil {
 		t.Fatal("invalid materialized context")
 	}
-	store, _ := artifacts.NewService(artifacts.NewPostgresRepository(pool)).Run("consumer")
+	store, _ := artifacts.NewService(artifactpostgres.NewRepository(pool)).Run("consumer")
 	read, err := store.Read(ctx, saved.Artifact.Ref)
 	if err != nil {
 		t.Fatal(err)
@@ -79,8 +80,8 @@ func TestPostgresSitemapSharedMapSnapshotAndReplay(t *testing.T) {
 	if err != nil || !metadata.Frozen {
 		t.Fatalf("context is not frozen: %v", err)
 	}
-	policy, _ := artifacts.NewHistoryPolicy(2, artifacts.DefaultHistoryMaxBytes)
-	ctx = artifacts.WithHistoryPolicy(ctx, policy)
+	policy, _ := artifactpostgres.NewHistoryPolicy(2, artifactpostgres.DefaultHistoryMaxBytes)
+	ctx = artifactpostgres.WithHistoryPolicy(ctx, policy)
 	for i := range 4 {
 		if _, err := service.Mutate(ctx, traffic, fmt.Sprintf("advance-%d", i), Mutation{Operation: "observe", Observations: []Observation{observation(fmt.Sprintf("/advance/%d", i))}}); err != nil {
 			t.Fatal(err)
@@ -148,7 +149,7 @@ func TestPostgresSitemapEditorsShareMembersAndDeriveProjectAuthority(t *testing.
 	if replay, err := service.MutateAllocation(ctx, access, "remove", command); err != nil || !replay.Replayed || !replay.Ref.SameExact(removed.Ref) {
 		t.Fatalf("accepted selection replay: %+v %v", replay, err)
 	}
-	stores := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	stores := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	scope, _ := artifacts.ProjectScope("project")
 	schema, err := stores.Create(ctx, scope, contracts.ArtifactRef{Namespace: "schema", Name: "selected"}, artifacts.Payload{MediaType: "application/json", Data: []byte(`{"openapi":"3.1.0"}`)})
 	if err != nil {
@@ -186,8 +187,8 @@ func TestPostgresSitemapContextProjectionSerializesWithHistoryEviction(t *testin
 			ctx := t.Context()
 			createSitemapRun(t, ctx, pool, "consumer")
 			service := NewService(pool)
-			policy, _ := artifacts.NewHistoryPolicy(2, artifacts.DefaultHistoryMaxBytes)
-			ctx = artifacts.WithHistoryPolicy(ctx, policy)
+			policy, _ := artifactpostgres.NewHistoryPolicy(2, artifactpostgres.DefaultHistoryMaxBytes)
+			ctx = artifactpostgres.WithHistoryPolicy(ctx, policy)
 			authority := httpAuthority("producer")
 			original, err := service.Mutate(ctx, authority, "original", Mutation{Operation: "observe", Observations: []Observation{observation("/selected")}})
 			if err != nil {
@@ -241,7 +242,7 @@ func TestPostgresSitemapContextProjectionSerializesWithHistoryEviction(t *testin
 				if _, err := readSitemap(service, ctx, "project", *original.Ref.Revision); err != nil {
 					t.Fatalf("committed snapshot lost exact source: %v", err)
 				}
-				run, _ := artifacts.NewService(artifacts.NewPostgresRepository(pool)).Run("consumer")
+				run, _ := artifacts.NewService(artifactpostgres.NewRepository(pool)).Run("consumer")
 				if _, err := run.Read(ctx, saved.Artifact.Ref); err != nil {
 					t.Fatal(err)
 				}
@@ -266,7 +267,7 @@ func TestPostgresSitemapSnapshotMaterializesOnlyNeededAuthorizedExactInputs(t *t
 	ctx := t.Context()
 	createSitemapRun(t, ctx, pool, "consumer")
 	service := NewService(pool)
-	stores := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	stores := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	scope, _ := artifacts.ProjectScope("project")
 	originalBytes := []byte(`{"openapi":"3.1.0","info":{"version":"1"}}`)
 	schema, err := stores.Create(ctx, scope, contracts.ArtifactRef{Namespace: "schemas", Name: "api"}, artifacts.Payload{MediaType: "application/json", Data: originalBytes})
@@ -337,8 +338,8 @@ func TestPostgresSitemapSnapshotMaterializesOnlyNeededAuthorizedExactInputs(t *t
 	if err != nil || !bytes.Equal(input.Payload.Data, originalBytes) {
 		t.Fatalf("input clone content: %v", err)
 	}
-	limited, _ := artifacts.NewHistoryPolicy(2, artifacts.DefaultHistoryMaxBytes)
-	if _, err := run.Write(artifacts.WithHistoryPolicy(ctx, limited), contracts.ArtifactRef{Namespace: "inputs", Name: "api"}, artifacts.Payload{MediaType: "application/json", Data: []byte(`{"later":true}`)}, nextInput.Ref.Revision); err != nil {
+	limited, _ := artifactpostgres.NewHistoryPolicy(2, artifactpostgres.DefaultHistoryMaxBytes)
+	if _, err := run.Write(artifactpostgres.WithHistoryPolicy(ctx, limited), contracts.ArtifactRef{Namespace: "inputs", Name: "api"}, artifacts.Payload{MediaType: "application/json", Data: []byte(`{"later":true}`)}, nextInput.Ref.Revision); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := run.Read(ctx, nextInput.Ref); !errors.Is(err, artifacts.ErrArtifactNotFound) {

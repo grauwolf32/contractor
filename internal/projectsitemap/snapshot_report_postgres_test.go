@@ -9,6 +9,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -18,7 +19,7 @@ func TestPostgresSitemapSnapshotRebindsReportEvidenceToAuthorizedOriginalInput(t
 	pool := sitemapPool(t)
 	ctx := t.Context()
 	service := NewService(pool)
-	stores := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	stores := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	payload := []byte("opaque observation evidence\x00\xff")
 	var report contracts.ArtifactRef
 	for _, runID := range []string{"producer", "repeat-producer"} {
@@ -138,8 +139,8 @@ func TestPostgresSitemapSnapshotRebindsReportEvidenceToAuthorizedOriginalInput(t
 	if err != nil || !bytes.Equal(retained.Payload.Data, payload) {
 		t.Fatalf("snapshot lost original report bytes: %v", err)
 	}
-	limited, _ := artifacts.NewHistoryPolicy(2, artifacts.DefaultHistoryMaxBytes)
-	if _, err := run.Write(artifacts.WithHistoryPolicy(ctx, limited), contracts.ArtifactRef{Namespace: "inputs", Name: "selected-report"}, artifacts.Payload{MediaType: "application/json", Data: []byte(`{"changed":2}`)}, working.Ref.Revision); err != nil {
+	limited, _ := artifactpostgres.NewHistoryPolicy(2, artifactpostgres.DefaultHistoryMaxBytes)
+	if _, err := run.Write(artifactpostgres.WithHistoryPolicy(ctx, limited), contracts.ArtifactRef{Namespace: "inputs", Name: "selected-report"}, artifacts.Payload{MediaType: "application/json", Data: []byte(`{"changed":2}`)}, working.Ref.Revision); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := run.Read(ctx, working.Ref); !errors.Is(err, artifacts.ErrArtifactNotFound) {

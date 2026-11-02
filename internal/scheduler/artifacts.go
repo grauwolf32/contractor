@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/stageresult"
 )
@@ -38,7 +39,7 @@ func (r *ArtifactServiceResolver) Resolve(
 		return ResolvedArtifact{}, err
 	}
 	if err := result.Ref.ValidateExact(); err != nil {
-		return ResolvedArtifact{}, fmt.Errorf("%w: ArtifactStore returned an inexact ref: %v", artifacts.ErrArtifactIntegrity, err)
+		return ResolvedArtifact{}, fmt.Errorf("%w: ArtifactStore returned an inexact ref: %v", blob.ErrIntegrity, err)
 	}
 	return ResolvedArtifact{Ref: result.Ref, MediaType: result.MediaType}, nil
 }

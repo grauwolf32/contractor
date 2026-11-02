@@ -16,6 +16,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/helpers/clone"
@@ -742,7 +743,7 @@ func (f *fakeArtifactRepository) DescribeForkSources(_ context.Context, scope ar
 			}
 		}
 		if count != 1 {
-			return nil, artifacts.ErrArtifactIntegrity
+			return nil, blob.ErrIntegrity
 		}
 		result = append(result, found)
 	}

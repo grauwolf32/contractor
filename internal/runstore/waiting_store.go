@@ -92,7 +92,7 @@ type GatewayRecoveryRuns struct{}
 // LockRun locks the row of Run runID until tx ends and returns its state and
 // owner, or "" for both when there is no such Run.
 func (GatewayRecoveryRuns) LockRun(ctx context.Context, tx pgx.Tx, runID string) (string, string, error) {
-	state, ownerID, err := NewPostgresTxStore(tx).lockRunOwner(ctx, runID)
+	state, ownerID, err := NewPostgresTxStore(tx).lockRunOwner(ctx, runID, "")
 	if errors.Is(err, ErrNotFound) {
 		return "", "", nil
 	}

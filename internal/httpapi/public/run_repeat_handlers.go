@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/helpers/clone"
@@ -131,7 +132,7 @@ func (h *runRepeatHandlers) getRunRepeatDraft(w http.ResponseWriter, r *http.Req
 
 	inputs, err := h.originalInputSources(r.Context(), run)
 	if err != nil {
-		if !errors.Is(err, artifacts.ErrArtifactIntegrity) {
+		if !errors.Is(err, blob.ErrIntegrity) {
 			handleError(w, err)
 			return
 		}

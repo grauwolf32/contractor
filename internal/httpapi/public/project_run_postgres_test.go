@@ -7,6 +7,7 @@ import (
 
 	"github.com/getkin/kin-openapi/routers/gorillamux"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
@@ -20,7 +21,7 @@ func TestPostgresProjectRunForAMissingProjectAnswersNotFound(t *testing.T) {
 	runs := runstore.NewPostgresStore(pool)
 	projects := projectstore.NewPostgresStore(pool)
 	fixture := newHandlerFixtureWithAuth(t, "../../config/testdata/valid", newTestAuthentication(t), mustTestOrigins(t), false, nil, func(d *testServices) {
-		d.Runs, d.Artifacts, d.Projects = runs, artifacts.NewService(artifacts.NewPostgresRepository(pool)), projects
+		d.Runs, d.Artifacts, d.Projects = runs, artifacts.NewService(artifactpostgres.NewRepository(pool)), projects
 		d.RunQueue, d.RunLifecycle = runs, runs
 		d.RunCreator = newTestRunCreator(t, *d, runs, integrationUnitOfWork{pool: pool, credentials: d.Credentials}, true)
 	})

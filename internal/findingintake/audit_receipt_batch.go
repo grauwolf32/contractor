@@ -7,6 +7,8 @@ import (
 	"fmt"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/jackc/pgx/v5"
 )
@@ -153,11 +155,11 @@ func (s *Service) hydrateAuditReceipts(
 	for _, receipt := range receipts {
 		for _, hold := range receipt.AuditHolds {
 			if receipt.ProjectProposal == nil || receipt.ProjectID == nil || hold.ProjectID != *receipt.ProjectID || receipt.ProjectProposal.Verify(hold.Proposal) != nil || len(hold.Evidence) != len(receipt.ProjectEvidence) {
-				return nil, artifacts.ErrArtifactIntegrity
+				return nil, blob.ErrIntegrity
 			}
 			for index, evidence := range hold.Evidence {
 				if receipt.ProjectEvidence[index].Verify(evidence) != nil {
-					return nil, artifacts.ErrArtifactIntegrity
+					return nil, blob.ErrIntegrity
 				}
 			}
 		}
@@ -216,9 +218,9 @@ func scanAuditHoldsBatch(rows pgx.Rows, size int) (map[string][]AuditHold, error
 }
 
 func (s *Service) hydrateAuditReceiptBatch(ctx context.Context, receipts []Receipt) ([]Receipt, error) {
-	repository := artifacts.NewPostgresRepository(s.pool)
+	repository := artifactpostgres.NewRepository(s.pool)
 	for start := 0; start < len(receipts); {
-		requests := make([]artifacts.ExactReadRequest, 0, artifacts.MaxExactReadBatchSize)
+		requests := make([]artifactpostgres.ExactReadRequest, 0, artifacts.MaxExactReadBatchSize)
 		expected := make([]ExactArtifact, 0, artifacts.MaxExactReadBatchSize)
 		var bytes int64
 		end := start
@@ -229,10 +231,10 @@ func (s *Service) hydrateAuditReceiptBatch(ctx context.Context, receipts []Recei
 				return nil, err
 			}
 			if artifact.SizeBytes < 0 {
-				return nil, artifacts.ErrArtifactIntegrity
+				return nil, blob.ErrIntegrity
 			}
 			if artifact.SizeBytes > artifacts.MaxPayloadSize {
-				return nil, artifacts.ErrPayloadTooLarge
+				return nil, blob.ErrTooLarge
 			}
 			if len(requests) > 0 && artifact.SizeBytes > artifacts.MaxPayloadSize-bytes {
 				break
@@ -261,7 +263,7 @@ func (s *Service) hydrateAuditReceiptBatch(ctx context.Context, receipts []Recei
 
 // Both single and batch receipt reads select the same retained source and
 // enforce the same payload identity before exposing a proposal document.
-func receiptArtifact(receipt Receipt) (artifacts.ExactReadRequest, ExactArtifact, error) {
+func receiptArtifact(receipt Receipt) (artifactpostgres.ExactReadRequest, ExactArtifact, error) {
 	var scope artifacts.Scope
 	var expected ExactArtifact
 	var err error
@@ -272,21 +274,21 @@ func receiptArtifact(receipt Receipt) (artifacts.ExactReadRequest, ExactArtifact
 		scope, err = artifacts.RunScope(receipt.Origin.RunID)
 		expected = receipt.Proposal
 	} else {
-		return artifacts.ExactReadRequest{}, ExactArtifact{}, ErrNotFound
+		return artifactpostgres.ExactReadRequest{}, ExactArtifact{}, ErrNotFound
 	}
 	if err != nil {
-		return artifacts.ExactReadRequest{}, ExactArtifact{}, err
+		return artifactpostgres.ExactReadRequest{}, ExactArtifact{}, err
 	}
-	return artifacts.ExactReadRequest{Scope: scope, Ref: expected.Ref}, expected, nil
+	return artifactpostgres.ExactReadRequest{Scope: scope, Ref: expected.Ref}, expected, nil
 }
 
 func decodeReceiptDocument(read artifacts.ReadResult, expected ExactArtifact, clientKey string) (auditdomain.FindingProposal, error) {
 	if expected.Verify(read.Exact()) != nil {
-		return auditdomain.FindingProposal{}, artifacts.ErrArtifactIntegrity
+		return auditdomain.FindingProposal{}, blob.ErrIntegrity
 	}
 	document, err := auditdomain.DecodeFindingProposal(read.Payload.Data)
 	if err != nil || document.ClientKey != clientKey {
-		return auditdomain.FindingProposal{}, artifacts.ErrArtifactIntegrity
+		return auditdomain.FindingProposal{}, blob.ErrIntegrity
 	}
 	return document, nil
 }

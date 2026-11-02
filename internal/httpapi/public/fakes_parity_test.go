@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"slices"
 	"strings"
 	"testing"
@@ -14,6 +13,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/agentprincipal"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -173,7 +174,7 @@ func TestFakeArtifactRepositoryWritesMatchPostgres(t *testing.T) {
 	for _, runID := range []string{"run-frozen-outputs", "run-open-outputs"} {
 		createParityRunInState(t, ctx, pool, runID, runstore.RunRunning)
 	}
-	check("PostgreSQL", bindingWriteRefusals(t, ctx, artifacts.NewPostgresRepository(pool)))
+	check("PostgreSQL", bindingWriteRefusals(t, ctx, artifactpostgres.NewRepository(pool)))
 }
 
 // bindingWriteRefusals binds an output of run-frozen-outputs and freezes it,

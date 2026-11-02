@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/findingexport"
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
@@ -14,7 +16,7 @@ import (
 
 // readExportPublication verifies all four immutable bindings before returning
 // the original bytes. It never asks current findings or the current renderer.
-func readExportPublication(ctx context.Context, repository *artifacts.PostgresRepository, scope artifacts.Scope, auditID, id, requestDigest string) (PublishedExport, map[string]artifacts.ReadResult, bool, error) {
+func readExportPublication(ctx context.Context, repository *artifactpostgres.Repository, scope artifacts.Scope, auditID, id, requestDigest string) (PublishedExport, map[string]artifacts.ReadResult, bool, error) {
 	fail := func(err error) (PublishedExport, map[string]artifacts.ReadResult, bool, error) {
 		return PublishedExport{}, nil, false, err
 	}
@@ -43,7 +45,7 @@ func readExportPublication(ctx context.Context, repository *artifacts.PostgresRe
 		return fail(err)
 	}
 	if int64(len(read.Payload.Data)) != metadata.Size || contentdigest.Bytes(read.Payload.Data) != metadata.Digest || read.Payload.MediaType != "application/json" {
-		return fail(artifacts.ErrArtifactIntegrity)
+		return fail(blob.ErrIntegrity)
 	}
 	var receipt exportPublication
 	if strictjson.DecodeNonNull(read.Payload.Data, &receipt) != nil || receipt.Schema != exportPublicationSchema || !contentdigest.Valid(receipt.RequestDigest) {
@@ -59,7 +61,7 @@ func readExportPublication(ctx context.Context, repository *artifacts.PostgresRe
 	}
 	descriptors := []ExactArtifact{result.Snapshot, result.Artifact, result.Diagnostics}
 	parts := []string{"export-snapshot", "export", "export-diagnostics"}
-	requests := make([]artifacts.ExactReadRequest, len(descriptors))
+	requests := make([]artifactpostgres.ExactReadRequest, len(descriptors))
 	for i, exact := range descriptors {
 		maximum := int64(findingexport.MaxBytes)
 		if i == 2 {
@@ -74,9 +76,9 @@ func readExportPublication(ctx context.Context, repository *artifacts.PostgresRe
 			return fail(err)
 		}
 		if !latest.Frozen || !latest.Ref.SameExact(exact.Ref) || latest.Digest != exact.Digest || latest.MediaType != exact.MediaType || latest.Size != exact.SizeBytes {
-			return fail(artifacts.ErrArtifactIntegrity)
+			return fail(blob.ErrIntegrity)
 		}
-		requests[i] = artifacts.ExactReadRequest{Scope: scope, Ref: exact.Ref}
+		requests[i] = artifactpostgres.ExactReadRequest{Scope: scope, Ref: exact.Ref}
 	}
 	reads, err := repository.ReadExactBatch(ctx, requests)
 	if err != nil {
@@ -86,21 +88,21 @@ func readExportPublication(ctx context.Context, repository *artifacts.PostgresRe
 	for i, value := range reads {
 		exact := descriptors[i]
 		if int64(len(value.Payload.Data)) != exact.SizeBytes || value.Payload.MediaType != exact.MediaType || contentdigest.Bytes(value.Payload.Data) != exact.Digest {
-			return fail(artifacts.ErrArtifactIntegrity)
+			return fail(blob.ErrIntegrity)
 		}
 		contents[parts[i]] = value
 	}
 	snapshot, err := findingexport.DecodeSnapshot(contents["export-snapshot"].Payload.Data)
 	if err != nil || snapshot.AuditID != auditID || snapshot.RequestDigest != receipt.RequestDigest || snapshot.SnapshotAt != result.SnapshotAt || exportID(auditID, snapshot.Request.ClientKey) != id || len(snapshot.Results) != result.SelectedCount {
-		return fail(artifacts.ErrArtifactIntegrity)
+		return fail(blob.ErrIntegrity)
 	}
 	groups, err := snapshot.ResultGroups()
 	if err != nil || len(groups) != result.ResultCount {
-		return fail(artifacts.ErrArtifactIntegrity)
+		return fail(blob.ErrIntegrity)
 	}
 	diagnostics, err := findingexport.DecodeDiagnostics(contents["export-diagnostics"].Payload.Data)
 	if err != nil || diagnostics.AuditID != auditID || len(diagnostics.Items) != result.WarningCount {
-		return fail(artifacts.ErrArtifactIntegrity)
+		return fail(blob.ErrIntegrity)
 	}
 	selected := make(map[string]bool, len(snapshot.Results))
 	for _, r := range snapshot.Results {
@@ -108,7 +110,7 @@ func readExportPublication(ctx context.Context, repository *artifacts.PostgresRe
 	}
 	for _, d := range diagnostics.Items {
 		if !selected[d.FindingID] {
-			return fail(artifacts.ErrArtifactIntegrity)
+			return fail(blob.ErrIntegrity)
 		}
 	}
 	result.Replayed = true

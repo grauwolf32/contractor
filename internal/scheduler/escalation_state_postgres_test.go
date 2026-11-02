@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -95,7 +96,7 @@ func newEscalationFixture(t *testing.T, ctx context.Context, outcome string) esc
 	if err != nil {
 		t.Fatal(err)
 	}
-	runArtifacts, err := artifacts.NewService(artifacts.NewPostgresRepository(h.pool)).Run("run-1")
+	runArtifacts, err := artifacts.NewService(artifactpostgres.NewRepository(h.pool)).Run("run-1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -150,7 +151,7 @@ func (f escalationFixture) attempt(
 // outcome its escalation decides.
 func (f escalationFixture) startBase(t *testing.T, ctx context.Context) {
 	t.Helper()
-	if _, err := f.persistence.CreateStageWithContext(ctx, f.attempt(t, "stage-base", 1, nil, nil), f.pins); err != nil {
+	if _, err := f.persistence.CreateStageWithContext(fixtureClaim(t, ctx, f.persistence.pool, "run-1"), f.attempt(t, "stage-base", 1, nil, nil), f.pins); err != nil {
 		t.Fatal(err)
 	}
 	f.endAttempt(t, ctx, "stage-base")
@@ -162,7 +163,7 @@ func (f escalationFixture) startBase(t *testing.T, ctx context.Context) {
 func (f escalationFixture) endAttempt(t *testing.T, ctx context.Context, id string) {
 	t.Helper()
 	if f.outcome == "interrupted" {
-		if err := f.persistence.EnterAbortingWithTermination(ctx, "run-1", runstore.EnterAbortingParams{
+		if err := f.persistence.EnterAbortingWithTermination(fixtureClaim(t, ctx, f.persistence.pool, "run-1"), "run-1", runstore.EnterAbortingParams{
 			StageExecutionID: id, ExpectedState: runstore.StagePreparing,
 			TerminationSchemaVersion: contracts.APIVersion,
 			Termination: runstore.StageTermination{
@@ -194,7 +195,7 @@ func (f escalationFixture) endAttempt(t *testing.T, ctx context.Context, id stri
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if err := f.persistence.EnterFinalizingWithResult(ctx, runstore.EnterFinalizingParams{
+	if err := f.persistence.EnterFinalizingWithResult(fixtureClaim(t, ctx, f.persistence.pool, "run-1"), runstore.EnterFinalizingParams{
 		StageExecutionID: id, ResultSchemaVersion: contracts.APIVersion,
 		Candidate: failedStageResult("worker_failed", false), FinalizationID: "finalization-" + id,
 		Deadline: time.Now().Add(time.Minute), Reason: runstore.Reason{Code: "planner_completed"},
@@ -219,11 +220,11 @@ func (f escalationFixture) escalate(t *testing.T, ctx context.Context, ordinal i
 	}
 	var err error
 	if f.outcome == "interrupted" {
-		err = f.persistence.CommitTerminationProgression(ctx, TerminationProgression{
+		err = f.persistence.CommitTerminationProgression(fixtureClaim(t, ctx, f.persistence.pool, "run-1"), TerminationProgression{
 			RunID: "run-1", StageExecutionID: source, Progression: progression,
 		})
 	} else {
-		err = f.persistence.CommitResultProgression(ctx, ResultProgression{
+		err = f.persistence.CommitResultProgression(fixtureClaim(t, ctx, f.persistence.pool, "run-1"), ResultProgression{
 			RunID: "run-1", StageExecutionID: source, Result: failedStageResult("worker_failed", false),
 			WorkflowOutputs: f.stage.WorkflowOutputs, OutputContracts: f.workflow.Outputs,
 			Progression: progression,

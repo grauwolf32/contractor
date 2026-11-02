@@ -184,7 +184,7 @@ func TestPostgresAbortedStageReleasesWorkerProbe(t *testing.T) {
 func TestPostgresEveryStageEndRelinquishesProbe(t *testing.T) {
 	enterFinalizing := func(t *testing.T, ctx context.Context, f finalizingFixture) {
 		t.Helper()
-		if err := f.persistence.EnterFinalizingWithResult(ctx, runstore.EnterFinalizingParams{
+		if err := f.persistence.EnterFinalizingWithResult(fixtureClaim(t, ctx, f.persistence.pool, "run-1"), runstore.EnterFinalizingParams{
 			StageExecutionID: f.executionID, ResultSchemaVersion: contracts.APIVersion,
 			Candidate: f.result, FinalizationID: "finalization-probe", Deadline: time.Now().Add(time.Minute),
 			Reason: runstore.Reason{Code: "planner_completed"},
@@ -194,7 +194,7 @@ func TestPostgresEveryStageEndRelinquishesProbe(t *testing.T) {
 	}
 	enterAborting := func(t *testing.T, ctx context.Context, f finalizingFixture) {
 		t.Helper()
-		if err := f.persistence.EnterAbortingWithTermination(ctx, "run-1", runstore.EnterAbortingParams{
+		if err := f.persistence.EnterAbortingWithTermination(fixtureClaim(t, ctx, f.persistence.pool, "run-1"), "run-1", runstore.EnterAbortingParams{
 			StageExecutionID: f.executionID, ExpectedState: runstore.StageRunning,
 			TerminationSchemaVersion: contracts.APIVersion,
 			Termination: runstore.StageTermination{
@@ -222,7 +222,7 @@ func TestPostgresEveryStageEndRelinquishesProbe(t *testing.T) {
 	}{
 		{"accepted result", func(t *testing.T, ctx context.Context, f finalizingFixture) error {
 			enterFinalizing(t, ctx, f)
-			return f.persistence.CommitResultProgression(ctx, ResultProgression{
+			return f.persistence.CommitResultProgression(fixtureClaim(t, ctx, f.persistence.pool, "run-1"), ResultProgression{
 				RunID: "run-1", StageExecutionID: f.executionID, Result: f.result,
 				WorkflowOutputs: f.workflow.Stages["copy"].WorkflowOutputs, OutputContracts: f.workflow.Outputs,
 				Progression: terminalSuccessProgression("run-1", f.executionID),
@@ -231,11 +231,11 @@ func TestPostgresEveryStageEndRelinquishesProbe(t *testing.T) {
 		{"result accepted during cancellation", func(t *testing.T, ctx context.Context, f finalizingFixture) error {
 			enterFinalizing(t, ctx, f)
 			cancelRun(t, ctx, f)
-			return f.persistence.AcceptResultDuringCancellation(ctx, "run-1", f.executionID, f.result)
+			return f.persistence.AcceptResultDuringCancellation(fixtureClaim(t, ctx, f.persistence.pool, "run-1"), "run-1", f.executionID, f.result)
 		}, runstore.RunCancelled},
 		{"termination progression", func(t *testing.T, ctx context.Context, f finalizingFixture) error {
 			enterAborting(t, ctx, f)
-			return f.persistence.CommitTerminationProgression(ctx, TerminationProgression{
+			return f.persistence.CommitTerminationProgression(fixtureClaim(t, ctx, f.persistence.pool, "run-1"), TerminationProgression{
 				RunID: "run-1", StageExecutionID: f.executionID,
 				Progression: StageProgression{
 					Decision: runstore.RecordStageTransitionDecisionParams{
@@ -248,14 +248,12 @@ func TestPostgresEveryStageEndRelinquishesProbe(t *testing.T) {
 		{"termination during cancellation", func(t *testing.T, ctx context.Context, f finalizingFixture) error {
 			cancelRun(t, ctx, f)
 			enterAborting(t, ctx, f)
-			return f.persistence.CommitTerminationAndFinishRun(
-				ctx, "run-1", f.executionID, runstore.RunCancelling, runstore.RunCancelled,
+			return f.persistence.CommitTerminationAndFinishRun(fixtureClaim(t, ctx, f.persistence.pool, "run-1"), "run-1", f.executionID, runstore.RunCancelling, runstore.RunCancelled,
 				runstore.Reason{Code: runstore.CancellationUserRequested},
 			)
 		}, runstore.RunCancelled},
 		{"unprogressable waiting Run", func(_ *testing.T, ctx context.Context, f finalizingFixture) error {
-			return f.persistence.FailRunWithActiveStages(
-				ctx, "run-1", runstore.RunWaiting, runstore.RunFailed,
+			return f.persistence.FailRunWithActiveStages(fixtureClaim(t, ctx, f.persistence.pool, "run-1"), "run-1", runstore.RunWaiting, runstore.RunFailed,
 				runstore.Reason{Code: "scheduler_state_invalid"},
 				runstore.StageTermination{
 					Outcome: runstore.TerminationInterrupted, Code: "scheduler_state_invalid",

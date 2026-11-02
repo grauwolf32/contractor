@@ -12,6 +12,8 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	postgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -65,14 +67,14 @@ func TestPostgresSitemapSelectedContextUsesOrdinaryExactForkHold(t *testing.T) {
 	ctx := t.Context()
 	service := NewService(pool)
 	createSitemapRun(t, ctx, pool, "context-consumer")
-	policy, _ := artifacts.NewHistoryPolicy(2, artifacts.DefaultHistoryMaxBytes)
-	ctx = artifacts.WithHistoryPolicy(ctx, policy)
+	policy, _ := artifactpostgres.NewHistoryPolicy(2, artifactpostgres.DefaultHistoryMaxBytes)
+	ctx = artifactpostgres.WithHistoryPolicy(ctx, policy)
 	a := httpAuthority("producer")
 	first, err := service.Mutate(ctx, a, "first", Mutation{Operation: "observe", Observations: []Observation{observation("/selected")}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	artifactsService := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	artifactsService := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	fork, err := artifactstest.ForkProjectInput(ctx, artifactsService, "project", first.Ref, "context-consumer", "map")
 	if err != nil {
 		t.Fatal(err)
@@ -147,8 +149,8 @@ func TestPostgresSitemapCommitsCommonMaintenanceAfterRollback(t *testing.T) {
 	pool := sitemapPool(t, tracer)
 	ctx := t.Context()
 	service := NewService(pool)
-	policy, _ := artifacts.NewHistoryPolicy(2, artifacts.DefaultHistoryMaxBytes)
-	ctx = artifacts.WithHistoryPolicy(ctx, policy)
+	policy, _ := artifactpostgres.NewHistoryPolicy(2, artifactpostgres.DefaultHistoryMaxBytes)
+	ctx = artifactpostgres.WithHistoryPolicy(ctx, policy)
 	a := httpAuthority("producer")
 	for i := range 2 {
 		if _, err := service.Mutate(ctx, a, fmt.Sprintf("seed-%d", i), Mutation{Operation: "observe", Observations: []Observation{observation(fmt.Sprintf("/seed/%d", i))}}); err != nil {
@@ -190,11 +192,11 @@ func TestPostgresSitemapReceiptsOwnershipAndHistory(t *testing.T) {
 	pool := sitemapPool(t)
 	service := NewService(pool)
 	ctx := t.Context()
-	policy, err := artifacts.NewHistoryPolicy(2, artifacts.DefaultHistoryMaxBytes)
+	policy, err := artifactpostgres.NewHistoryPolicy(2, artifactpostgres.DefaultHistoryMaxBytes)
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx = artifacts.WithHistoryPolicy(ctx, policy)
+	ctx = artifactpostgres.WithHistoryPolicy(ctx, policy)
 	a := httpAuthority("producer")
 	command := Mutation{Operation: "observe", Observations: []Observation{observation("/first")}}
 	first, err := service.Mutate(ctx, a, "first", command)
@@ -231,7 +233,7 @@ func TestPostgresSitemapReceiptsOwnershipAndHistory(t *testing.T) {
 		t.Fatalf("history/implicit pins: %d/%d", count, holds)
 	}
 	// Both generic publication adapters refuse a direct sitemap overwrite.
-	store, _ := artifacts.NewService(artifacts.NewPostgresRepository(pool)).Project("project")
+	store, _ := artifacts.NewService(artifactpostgres.NewRepository(pool)).Project("project")
 	if _, err := store.Write(ctx, mapRef(), artifacts.Payload{MediaType: MediaType, Data: []byte(`{}`)}, nil); !errors.Is(err, artifacts.ErrReservedNamespace) {
 		t.Fatalf("generic bypass: %v", err)
 	}
@@ -308,7 +310,7 @@ func TestPostgresSitemapMalformedAndProjectFence(t *testing.T) {
 	ctx := t.Context()
 	service := NewService(pool)
 	scope, _ := artifacts.ProjectScope("project")
-	if _, err := artifacts.NewService(artifacts.NewPostgresRepository(pool)).Create(ctx, scope, mapRef(), artifacts.Payload{MediaType: MediaType, Data: []byte(`{}`)}); err != nil {
+	if _, err := artifacts.NewService(artifactpostgres.NewRepository(pool)).Create(ctx, scope, mapRef(), artifacts.Payload{MediaType: MediaType, Data: []byte(`{}`)}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := readSitemap(service, ctx, "project", ""); !errors.Is(err, ErrInvalid) {
@@ -377,11 +379,11 @@ func TestPostgresSitemapUsesSharedTransferAdmission(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	runtime := artifacts.NewBlobRuntime(nil, nil)
-	ctx = artifacts.WithBlobRuntime(ctx, runtime)
+	runtime := blob.NewRuntime(nil, nil)
+	ctx = blob.WithRuntime(ctx, runtime)
 	var releases []func()
 	for range 4 {
-		_, release, err := artifacts.AcquireTransfer(ctx)
+		_, release, err := blob.AcquireTransfer(ctx)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -392,10 +394,10 @@ func TestPostgresSitemapUsesSharedTransferAdmission(t *testing.T) {
 			release()
 		}
 	}()
-	if _, err := readSitemap(service, ctx, "project", ""); !errors.Is(err, artifacts.ErrTransferCapacity) {
+	if _, err := readSitemap(service, ctx, "project", ""); !errors.Is(err, blob.ErrTransferCapacity) {
 		t.Fatalf("read bypassed common admission: %v", err)
 	}
-	if _, err := service.Mutate(ctx, a, "second", Mutation{Operation: "observe", Observations: []Observation{observation("/another")}}); !errors.Is(err, artifacts.ErrTransferCapacity) {
+	if _, err := service.Mutate(ctx, a, "second", Mutation{Operation: "observe", Observations: []Observation{observation("/another")}}); !errors.Is(err, blob.ErrTransferCapacity) {
 		t.Fatalf("reducer bypassed common admission: %v", err)
 	}
 	replayed, err := service.Mutate(ctx, a, "first", command)

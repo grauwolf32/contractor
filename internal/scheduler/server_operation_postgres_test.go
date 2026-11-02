@@ -14,6 +14,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/configtest"
@@ -105,7 +106,7 @@ func newOperationHarness(t *testing.T, apply bool, customize ...func(*resolved.R
 	if err := resolved.ValidateWorkflowGraph(workflow); err != nil {
 		t.Fatal(err)
 	}
-	service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	domain := projectsitemap.NewService(pool)
 	store := runstore.NewPostgresStore(pool)
 	projectID := "operation-project"
@@ -288,6 +289,7 @@ func TestPostgresServerOperationClaimFenceRejectsOldOwner(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := h.scheduler(t, h.transactions, h.registry)
+	ctx = WithRunClaim(ctx, claimed.RunID, "first")
 	stage, err := s.createStageExecution(ctx, claimed, w)
 	if err != nil {
 		t.Fatal(err)
@@ -311,7 +313,7 @@ func TestPostgresServerOperationClaimFenceRejectsOldOwner(t *testing.T) {
 	if !errors.Is(err, runstore.ErrConflict) {
 		t.Fatalf("old owner passed: %v", err)
 	}
-	if _, err := h.transactions.StartStageOperation(ctx, claimed.RunID, stage.StageExecutionID, "second"); err != nil {
+	if _, err := h.transactions.StartStageOperation(WithRunClaim(ctx, claimed.RunID, "second"), claimed.RunID, stage.StageExecutionID, "second"); err != nil {
 		t.Fatal(err)
 	}
 }

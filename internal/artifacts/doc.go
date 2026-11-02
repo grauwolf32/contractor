@@ -1,24 +1,20 @@
-// Package artifacts contains the single physical ArtifactStore and its
-// authenticated UserScope, ProjectScope and RunScope views.
+// Package artifacts defines the ArtifactStore's scopes, references, validation
+// and generic Service. Repository is the storage port; scope views apply the
+// generic Namespace policy, while trusted primitives serve callers that own
+// their purpose-specific authorization and Namespace rules.
 //
-// Service is the only entry point of the store's operations and validates
-// every request once. Its scope views apply the generic Namespace policy; its
-// trusted primitives (Create, CreateFrozen, Fork, Freeze and RequireExact)
-// serve the purpose-specific flows of other packages, which own their
-// Namespaces: runservice forks inputs,
-// the Scheduler binds, freezes and publishes outputs, findingintake writes
-// proposals, agentskills and auditstandards seed and fork catalog packages,
-// and the Audit packages import and write Audit material.
+// Package artifacts/postgres implements the registry: bindings, immutable
+// revisions, lineage, retained-history admission, metadata reads and lifecycle
+// purge. Its transaction-only operations compose derived context and Git
+// provenance with ordinary Artifact publication in the caller's transaction.
 //
-// Payload integration inventory:
-//   - PostgresRepository.Write: public/private writes, Planner Memory, Skill
-//     uploads/seeding and trusted finding proposals.
-//   - PostgresRepository.CreateFrozen, through Service.CreateFrozen: every
-//     Server-generated audit-* binding (manifests, task packages, worklists,
-//     retained standards, reports and direct-verification evidence contracts).
-//   - PostgresRepository.Read: all scoped content consumers.
-//   - PostgresRepository.Fork: metadata only, sharing the immutable blob
-//     without opening payload bytes.
-//   - PostgresPurger: transactional reference checks; external physical deletion
-//     belongs after the owning Run/Project/Audit transaction commits.
+// Package artifacts/blob defines physical payload objects, verification and
+// transfer admission. The blob/backends factory selects the write policy;
+// its filesystem and postgres adapters store physical files and inline bytes.
+// PostgreSQL remains the registry for either payload backend.
+//
+// A prepared payload verifies a reusable physical generation before publication
+// locks. Publication may attach only that verified key or its complete candidate.
+// Physical deletion follows a definite registry commit; uncertain outcomes and
+// displaced generations are left for offline cleanup.
 package artifacts

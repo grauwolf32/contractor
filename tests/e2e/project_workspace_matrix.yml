@@ -46,7 +46,7 @@ cases:
     category: lineage
     requirements: [A1, A2]
     expected: Current and historical Project revisions fork exactly without changing their source binding.
-    test: {source: internal/artifacts/postgres_integration_test.go, symbol: TestPostgresIntegrationProjectInputForkPinsExactAndCurrentRevisions}
+    test: {source: internal/artifacts/postgres/integration_test.go, symbol: TestPostgresIntegrationProjectInputForkPinsExactAndCurrentRevisions}
   - id: create_only_publication_race
     category: publication_race
     requirements: [A1, A2]

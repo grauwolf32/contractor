@@ -16,6 +16,8 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	inline "github.com/grauwolf32/contractor/internal/artifacts/blob/backends/postgres"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
@@ -65,15 +67,15 @@ func newStreamlineInspector(runID string, read streamlineMetadataReader) (*plann
 }
 
 func TestStreamlineDispatchAndFinishInspectMetadataWithTransferSlotsSaturated(t *testing.T) {
-	ctx := artifacts.WithBlobRuntime(t.Context(), artifacts.NewBlobRuntime(artifacts.PostgresBlobStore{}, nil))
+	ctx := blob.WithRuntime(t.Context(), blob.NewRuntime(inline.Store{}, nil))
 	for range 4 {
-		_, release, err := artifacts.AcquireTransfer(ctx)
+		_, release, err := blob.AcquireTransfer(ctx)
 		if err != nil {
 			t.Fatal(err)
 		}
 		t.Cleanup(release)
 	}
-	if _, _, err := artifacts.AcquireTransfer(ctx); !errors.Is(err, artifacts.ErrTransferCapacity) {
+	if _, _, err := blob.AcquireTransfer(ctx); !errors.Is(err, blob.ErrTransferCapacity) {
 		t.Fatalf("transfer gate was not saturated: %v", err)
 	}
 	const revision = "report-r1"

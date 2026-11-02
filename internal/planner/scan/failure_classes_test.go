@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/planner"
@@ -77,7 +78,7 @@ func TestAuditResultReadFailureRetriesWithoutRescanning(t *testing.T) {
 
 func TestAuditResultPermanentReadRejectionsDoNotRetry(t *testing.T) {
 	for _, cause := range []error{
-		artifacts.ErrArtifactIntegrity, artifacts.ErrPayloadTooLarge, artifacts.ErrInvalidScope,
+		blob.ErrIntegrity, blob.ErrTooLarge, artifacts.ErrInvalidScope,
 		&pgconn.PgError{Code: persistencepostgres.SQLStateUndefinedColumn},
 	} {
 		t.Run(cause.Error(), func(t *testing.T) {
@@ -152,7 +153,7 @@ func TestScanStorageCodeRetryScopeAndCause(t *testing.T) {
 		{"timeout", context.DeadlineExceeded, true}, {"cancelled", context.Canceled, true},
 		{"unavailable", errors.New("blob storage unavailable"), true},
 		{"rejected", runstore.ErrInvalid, false}, {"missing", artifacts.ErrArtifactNotFound, false},
-		{"conflict", artifacts.ErrArtifactConflict, false}, {"oversized", artifacts.ErrPayloadTooLarge, false},
+		{"conflict", artifacts.ErrArtifactConflict, false}, {"oversized", blob.ErrTooLarge, false},
 		{"in-progress", planner.ErrInvocationInProgress, false}, {"no-cause", nil, false},
 		{"permanent-sql", &pgconn.PgError{Code: persistencepostgres.SQLStateInsufficientPrivilege}, false},
 	}
@@ -191,7 +192,7 @@ func TestAuditStorageFailuresKeepCauseOnRunPath(t *testing.T) {
 		for _, cause := range []error{
 			&pgconn.PgError{Code: persistencepostgres.SQLStateSerializationFailure},
 			&pgconn.PgError{Code: persistencepostgres.SQLStateConnectionFailure},
-			artifacts.ErrArtifactIntegrity,
+			blob.ErrIntegrity,
 		} {
 			h, history := newAuditFactoryHarness(t, "sqlmap")
 			switch phase.name {
@@ -224,7 +225,7 @@ func TestAuditStorageFailuresKeepCauseOnRunPath(t *testing.T) {
 			if phase.name == "report" || phase.name == "job-result" {
 				wantCalls = 1
 			}
-			if err == nil || failure.Code != phase.code || failure.Retryable == errors.Is(cause, artifacts.ErrArtifactIntegrity) || !errors.Is(err, cause) || len(h.invoker.calls) != wantCalls {
+			if err == nil || failure.Code != phase.code || failure.Retryable == errors.Is(cause, blob.ErrIntegrity) || !errors.Is(err, cause) || len(h.invoker.calls) != wantCalls {
 				t.Fatalf("%s storage failure=%+v, cause=%v, scanner calls=%d", phase.name, failure, err, len(h.invoker.calls))
 			}
 		}

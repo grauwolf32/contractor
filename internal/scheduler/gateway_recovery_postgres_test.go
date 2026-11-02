@@ -198,7 +198,7 @@ SELECT automatic_until,next_probe_at FROM gateway_recovery_routes WHERE route_ke
 			ContextPins: []ContextPin{{Name: "source", Ref: input.Ref}},
 		},
 	}
-	if err := fixture.persistence.CommitResultProgression(ctx, ResultProgression{
+	if err := fixture.persistence.CommitResultProgression(fixtureClaim(t, ctx, fixture.persistence.pool, "run-1"), ResultProgression{
 		RunID: "run-1", StageExecutionID: fixture.executionID, Result: fixture.result,
 		WorkflowOutputs: stage.WorkflowOutputs, OutputContracts: fixture.workflow.Outputs,
 		Progression: progression,
@@ -448,7 +448,7 @@ func TestGatewayWaitingRunAcceptsStageResultAndDropsWaits(t *testing.T) {
 			t.Fatalf("Run before result = (%+v, %v), want waiting", run, err)
 		}
 	})
-	if err := fixture.persistence.CommitResultProgression(ctx, ResultProgression{
+	if err := fixture.persistence.CommitResultProgression(fixtureClaim(t, ctx, fixture.persistence.pool, "run-1"), ResultProgression{
 		RunID: "run-1", StageExecutionID: fixture.executionID, Result: fixture.result,
 		WorkflowOutputs: fixture.workflow.Stages["copy"].WorkflowOutputs,
 		OutputContracts: fixture.workflow.Outputs,

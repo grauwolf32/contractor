@@ -21,6 +21,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
@@ -131,7 +132,7 @@ func newPreparedListFixture(t *testing.T, ctx context.Context, pool *pgxpool.Poo
 	if err != nil {
 		t.Fatal(err)
 	}
-	service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	inputs := map[string]auditstore.ExactArtifact{}
 	for index, projectID := range projectIDs {
 		if _, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{

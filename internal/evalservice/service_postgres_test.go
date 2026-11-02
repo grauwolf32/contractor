@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -175,7 +176,7 @@ func newHarness(t *testing.T) *serviceHarness {
 			if err != nil {
 				return err
 			}
-			return fn(runstore.NewRunCreationPostgresStore(tx, lookup, credentials.NewRuntimeCredentialRepository(tx)), artifacts.NewService(artifacts.NewPostgresRepository(tx)))
+			return fn(runstore.NewRunCreationPostgresStore(tx, lookup, credentials.NewRuntimeCredentialRepository(tx)), artifacts.NewService(artifactpostgres.NewRepository(tx)))
 		})
 	}})
 	if err != nil {
@@ -231,7 +232,7 @@ func (h *serviceHarness) get(t *testing.T, id string) evalstore.Experiment {
 func (h *serviceHarness) dataset(t *testing.T, kind string) (evaldomain.Draft, evaldomain.DatasetInput) {
 	t.Helper()
 	draft, data, _ := planInputs(t)
-	source, _ := artifacts.NewService(artifacts.NewPostgresRepository(h.pool)).User(h.scope.OwnerID)
+	source, _ := artifacts.NewService(artifactpostgres.NewRepository(h.pool)).User(h.scope.OwnerID)
 	for i := range data.Cases {
 		c := &data.Cases[i]
 		slot, media, payload := "task", "application/zip", []byte("fixture ZIP is not executed")

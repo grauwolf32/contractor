@@ -19,6 +19,7 @@ import (
 	"github.com/getkin/kin-openapi/routers"
 	"github.com/getkin/kin-openapi/routers/gorillamux"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
@@ -74,14 +75,14 @@ func newEvalAPIHarness(t *testing.T) *evalAPIHarness {
 		d.Config = catalog
 		d.Audits = audits
 		d.Projects = projectstore.NewPostgresStore(pool)
-		d.Artifacts = artifacts.NewService(artifacts.NewPostgresRepository(pool))
+		d.Artifacts = artifacts.NewService(artifactpostgres.NewRepository(pool))
 		runs, err := runservice.New(runservice.Options{Runs: runstore.NewPostgresStore(pool), Workflows: catalog, LLMCredentials: credentialLookup, CredentialGuard: credentialLookup, RuntimeCredentials: d.RuntimeCredentials, Projects: d.Projects, SkillInitializationAvailable: true, PublicTransaction: func(ctx context.Context, fn func(runservice.PublicRunWriter, *artifacts.Service) error) error {
 			return pg.InTx(ctx, pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead}, func(tx pgx.Tx) error {
 				lookup, err := runtimeconfig.BindTransactionLLMCredentialLookup(tx, transactionLLMCredentials)
 				if err != nil {
 					return err
 				}
-				return fn(runstore.NewRunCreationPostgresStore(tx, lookup, credentials.NewRuntimeCredentialRepository(tx)), artifacts.NewService(artifacts.NewPostgresRepository(tx)))
+				return fn(runstore.NewRunCreationPostgresStore(tx, lookup, credentials.NewRuntimeCredentialRepository(tx)), artifacts.NewService(artifactpostgres.NewRepository(tx)))
 			})
 		}})
 		if err != nil {
@@ -165,7 +166,7 @@ func (h *evalAPIHarness) dataset(t *testing.T, kind string) (evaldomain.Draft, e
 	var data evaldomain.DatasetInput
 	evalFixture(t, "draft", &draft)
 	evalFixture(t, "dataset", &data)
-	store, err := artifacts.NewService(artifacts.NewPostgresRepository(h.pool)).User("user-1")
+	store, err := artifacts.NewService(artifactpostgres.NewRepository(h.pool)).User("user-1")
 	if err != nil {
 		t.Fatal(err)
 	}

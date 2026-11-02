@@ -6,6 +6,8 @@ import (
 	"fmt"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
@@ -124,7 +126,7 @@ func typedAdmissionStopReason(code string) *auditstore.StopReason {
 }
 
 func typedPermanentCandidateFailure(err error) (string, bool) {
-	if errors.Is(err, artifacts.ErrHistoryMaintenancePending) || errors.Is(err, artifacts.ErrBlobIO) {
+	if errors.Is(err, artifacts.ErrHistoryMaintenancePending) || errors.Is(err, blob.ErrIO) {
 		return "", false
 	}
 	if errors.Is(err, auditstore.ErrAdmissionSliceFull) {
@@ -139,13 +141,13 @@ func typedPermanentCandidateFailure(err error) (string, bool) {
 	if errors.Is(err, auditstore.ErrDependencySourceAmbiguous) {
 		return "dependency_source_ambiguous", true
 	}
-	for _, permanent := range []error{contracts.ErrValidation, artifacts.ErrInvalidScope, artifacts.ErrInvalidName, artifacts.ErrExactRevisionRequired, artifacts.ErrArtifactConflict, artifacts.ErrArtifactFrozen, artifacts.ErrReservedNamespace, artifacts.ErrRunRevisionLimit, artifacts.ErrInvalidMediaType, artifacts.ErrPayloadTooLarge, artifacts.ErrVersionedWriteTarget} {
+	for _, permanent := range []error{contracts.ErrValidation, artifacts.ErrInvalidScope, artifacts.ErrInvalidName, artifacts.ErrExactRevisionRequired, artifacts.ErrArtifactConflict, artifacts.ErrArtifactFrozen, artifacts.ErrReservedNamespace, artifacts.ErrRunRevisionLimit, artifacts.ErrInvalidMediaType, blob.ErrTooLarge, artifacts.ErrVersionedWriteTarget} {
 		if errors.Is(err, permanent) {
 			return "dependency_or_source_invalid", true
 		}
 	}
 	var invalid *auditdomain.ValidationError
-	if errors.As(err, &invalid) || errors.Is(err, ErrInvalid) || errors.Is(err, auditstore.ErrInvalid) || errors.Is(err, auditstore.ErrNotFound) || errors.Is(err, contracts.ErrExactArtifactMismatch) || errors.Is(err, artifacts.ErrArtifactIntegrity) || artifacts.IsExactRevisionMissing(err) {
+	if errors.As(err, &invalid) || errors.Is(err, ErrInvalid) || errors.Is(err, auditstore.ErrInvalid) || errors.Is(err, auditstore.ErrNotFound) || errors.Is(err, contracts.ErrExactArtifactMismatch) || errors.Is(err, blob.ErrIntegrity) || artifactpostgres.IsExactRevisionMissing(err) {
 		return "dependency_or_source_invalid", true
 	}
 	return "", false

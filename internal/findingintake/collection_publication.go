@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -61,7 +63,7 @@ func (p *CollectionPublisher) PublishCollection(ctx context.Context, params Publ
 		if err := postgres.LockAdvisory(ctx, tx, key); err != nil {
 			return err
 		}
-		service := artifacts.NewService(artifacts.NewPostgresRepository(tx))
+		service := artifacts.NewService(artifactpostgres.NewRepository(tx))
 		user, err := service.User(params.OwnerID)
 		if err != nil {
 			return err
@@ -148,7 +150,7 @@ func readCollectionReplay(ctx context.Context, user artifacts.ScopedStore, key, 
 		return PublishedCollection{}, false, err
 	}
 	if metadata.Digest != receipt.Artifact.Digest || metadata.MediaType != receipt.Artifact.MediaType || metadata.Size != receipt.Artifact.SizeBytes {
-		return PublishedCollection{}, false, artifacts.ErrArtifactIntegrity
+		return PublishedCollection{}, false, blob.ErrIntegrity
 	}
 	zip, err := user.Read(ctx, receipt.Artifact.Ref)
 	if err != nil {
@@ -159,7 +161,7 @@ func readCollectionReplay(ctx context.Context, user artifacts.ScopedStore, key, 
 		return PublishedCollection{}, false, err
 	}
 	if pkg.Digest != receipt.Artifact.Digest {
-		return PublishedCollection{}, false, artifacts.ErrArtifactIntegrity
+		return PublishedCollection{}, false, blob.ErrIntegrity
 	}
 	return PublishedCollection{Artifact: receipt.Artifact, SnapshotAt: value.SnapshotAt, EntryCount: len(value.Entries), Replayed: true}, true, nil
 }
@@ -258,7 +260,7 @@ func (p *CollectionPublisher) captureCollection(ctx context.Context, tx pgx.Tx, 
 		return fail(err)
 	}
 	builder := collectionDocuments{
-		repository: artifacts.NewPostgresRepository(tx),
+		repository: artifactpostgres.NewRepository(tx),
 		documents:  map[string]auditdomain.FindingCollectionDocument{}, contents: map[string][]byte{}, git: map[string]*artifacts.GitSource{},
 	}
 	planned := make([]plannedCollectionEntry, 0, len(ids))
@@ -295,7 +297,7 @@ func (p *CollectionPublisher) captureCollection(ctx context.Context, tx pgx.Tx, 
 			return fail(ErrNotFound)
 		}
 		if !sameCollectionContent(proposal, receipt.Proposal) || len(evidence) != len(receipt.Evidence) {
-			return fail(artifacts.ErrArtifactIntegrity)
+			return fail(blob.ErrIntegrity)
 		}
 		entry.ProposalDocumentID, err = builder.add(scope, proposal)
 		if err != nil {
@@ -304,7 +306,7 @@ func (p *CollectionPublisher) captureCollection(ctx context.Context, tx pgx.Tx, 
 		documentIDs := make([]string, len(evidence))
 		for i, item := range evidence {
 			if !sameCollectionContent(item, receipt.Evidence[i]) {
-				return fail(artifacts.ErrArtifactIntegrity)
+				return fail(blob.ErrIntegrity)
 			}
 			if documentIDs[i], err = builder.add(scope, item); err != nil {
 				return fail(err)
@@ -320,11 +322,11 @@ func (p *CollectionPublisher) captureCollection(ctx context.Context, tx pgx.Tx, 
 		entry := plan.entry
 		decoded, err := auditdomain.DecodeFindingProposal(builder.contents[entry.ProposalDocumentID])
 		if err != nil || decoded.ClientKey != plan.clientKey || len(decoded.EvidenceIDs) != len(plan.evidenceDocumentIDs) {
-			return fail(artifacts.ErrArtifactIntegrity)
+			return fail(blob.ErrIntegrity)
 		}
 		for i, documentID := range plan.evidenceDocumentIDs {
 			if decoded.EvidenceIDs[i] != fmt.Sprintf("evidence-%d", i+1) {
-				return fail(artifacts.ErrArtifactIntegrity)
+				return fail(blob.ErrIntegrity)
 			}
 			entry.Evidence = append(entry.Evidence, auditdomain.FindingCollectionEvidence{EvidenceID: decoded.EvidenceIDs[i], DocumentID: documentID})
 		}
@@ -503,7 +505,7 @@ func collectionHoldAudits(ctx context.Context, tx pgx.Tx, ownerID string, receip
 // within the collection limits, and then reads them all in exact-read
 // batches.
 type collectionDocuments struct {
-	repository *artifacts.PostgresRepository
+	repository *artifactpostgres.Repository
 	documents  map[string]auditdomain.FindingCollectionDocument
 	contents   map[string][]byte
 	git        map[string]*artifacts.GitSource
@@ -513,7 +515,7 @@ type collectionDocuments struct {
 
 type plannedCollectionDocument struct {
 	id       string
-	request  artifacts.ExactReadRequest
+	request  artifactpostgres.ExactReadRequest
 	expected ExactArtifact
 }
 
@@ -543,7 +545,7 @@ func (b *collectionDocuments) add(scope auditdomain.FindingCollectionSource, exa
 	doc.ID = id
 	b.documents[id] = doc
 	b.planned = append(b.planned, plannedCollectionDocument{
-		id: id, request: artifacts.ExactReadRequest{Scope: artifactScope, Ref: exact.Ref}, expected: exact,
+		id: id, request: artifactpostgres.ExactReadRequest{Scope: artifactScope, Ref: exact.Ref}, expected: exact,
 	})
 	b.size += exact.SizeBytes
 	return id, nil
@@ -556,15 +558,15 @@ func (b *collectionDocuments) add(scope auditdomain.FindingCollectionSource, exa
 func (b *collectionDocuments) read(ctx context.Context) error {
 	for start := 0; start < len(b.planned); start += artifacts.MaxExactReadBatchSize {
 		batch := b.planned[start:min(start+artifacts.MaxExactReadBatchSize, len(b.planned))]
-		requests := make([]artifacts.ExactReadRequest, len(batch))
+		requests := make([]artifactpostgres.ExactReadRequest, len(batch))
 		for index, document := range batch {
 			requests[index] = document.request
 		}
 		reads, err := b.repository.ReadExactBatch(ctx, requests)
-		if errors.Is(err, artifacts.ErrPayloadTooLarge) {
+		if errors.Is(err, blob.ErrTooLarge) {
 			// The planned sizes fit one batch, so stored sizes disagree with
 			// the receipts.
-			return artifacts.ErrArtifactIntegrity
+			return blob.ErrIntegrity
 		}
 		if err != nil {
 			return err
@@ -573,7 +575,7 @@ func (b *collectionDocuments) read(ctx context.Context) error {
 			expected := batch[index].expected
 			if int64(len(read.Payload.Data)) != expected.SizeBytes || read.Payload.MediaType != expected.MediaType ||
 				auditdomain.DigestBytes(read.Payload.Data) != expected.Digest {
-				return artifacts.ErrArtifactIntegrity
+				return blob.ErrIntegrity
 			}
 			b.contents[batch[index].id] = read.Payload.Data
 			if b.git == nil {

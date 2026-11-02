@@ -16,6 +16,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/apierror"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
@@ -89,7 +90,7 @@ func seedCollectionRunReceipt(t *testing.T, ctx context.Context, pool *pgxpool.P
 
 func seedCollectionRunReceiptDocument(t *testing.T, ctx context.Context, pool *pgxpool.Pool, owner, runID, suffix string, missingEvidence, publishProblem bool, edit func(*auditdomain.FindingProposal), extra ...findingintake.ExactArtifact) {
 	t.Helper()
-	service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	run, err := service.Run(runID)
 	if err != nil {
 		t.Fatal(err)
@@ -192,7 +193,7 @@ func TestFindingCollectionPublicationRunRetentionAndReplay(t *testing.T) {
 		t.Fatalf("concurrent publication: results=%+v errors=%v", results, errs)
 	}
 	result := results[0]
-	service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	user, _ := service.User(owner)
 	read, err := user.Read(ctx, result.Artifact.Ref)
 	if err != nil {
@@ -265,7 +266,7 @@ func TestFindingCollectionPublicationRejectsPartialForeignAndInterruptedWrites(t
 	seedCollectionRun(t, ctx, pool, "owner", "run-missing")
 	seedCollectionRunReceipt(t, ctx, pool, "owner", "run-missing", "missing", true)
 	publisher := newCollectionTestPublisher(t, pool)
-	user, _ := artifacts.NewService(artifacts.NewPostgresRepository(pool)).User("owner")
+	user, _ := artifacts.NewService(artifactpostgres.NewRepository(pool)).User("owner")
 	for _, tc := range []struct{ key, run, receipt string }{
 		{"foreign-source", "run-foreign", "receipt-foreign"},
 		{"foreign-receipt", "run-good", "receipt-foreign"},
@@ -345,7 +346,7 @@ func TestFindingCollectionAuditContributionsAndPinnedReview(t *testing.T) {
 	if err != nil || result.EntryCount != 2 {
 		t.Fatalf("all contributions: %+v %v", result, err)
 	}
-	user, _ := artifacts.NewService(artifacts.NewPostgresRepository(pool)).User(owner)
+	user, _ := artifacts.NewService(artifactpostgres.NewRepository(pool)).User(owner)
 	read, err := user.Read(ctx, result.Artifact.Ref)
 	if err != nil {
 		t.Fatal(err)

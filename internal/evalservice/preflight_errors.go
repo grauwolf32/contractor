@@ -5,6 +5,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/credentials"
@@ -38,7 +39,7 @@ func preflightDependencyError(cause error) error {
 	if definiteConfigurationError(cause) {
 		return errors.Join(evaldomain.Failure("eval_not_ready"), cause)
 	}
-	if errors.Is(cause, artifacts.ErrArtifactNotFound) || errors.Is(cause, artifacts.ErrArtifactIntegrity) || errors.Is(cause, artifacts.ErrBlobMissing) {
+	if errors.Is(cause, artifacts.ErrArtifactNotFound) || errors.Is(cause, blob.ErrIntegrity) || errors.Is(cause, blob.ErrMissing) {
 		return errors.Join(evaldomain.Failure("eval_evidence_unavailable"), cause)
 	}
 	if errors.Is(cause, projectstore.ErrNotFound) {

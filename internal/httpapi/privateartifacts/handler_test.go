@@ -941,6 +941,11 @@ func (m *memoryRepository) current(runID, namespace, name string) (storedArtifac
 	return value, exists
 }
 
+// The in-memory adapter has no external physical preparation.
+func (m *memoryRepository) PreparePayload(_ context.Context, payload artifacts.Payload) (artifacts.Payload, error) {
+	return payload, nil
+}
+
 func (m *memoryRepository) Write(
 	ctx context.Context,
 	scope artifacts.Scope,

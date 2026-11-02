@@ -11,6 +11,7 @@ import (
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -22,7 +23,7 @@ import (
 func TestPostgresPublicArtifactStorageTimestamps(t *testing.T) {
 	ctx := t.Context()
 	pool := isolatedPublicPool(t, ctx)
-	service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	projects := projectstore.NewPostgresStore(pool)
 	runs := runstore.NewPostgresStore(pool)
 	if _, _, err := projects.Create(ctx, projectstore.CreateParams{ProjectID: "dates-project", OwnerID: "user-1", Kind: projectstore.KindProject, Name: "Dates", IdempotencyKey: "dates-project", RequestDigest: "sha256:" + strings.Repeat("a", 64)}); err != nil {

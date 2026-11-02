@@ -9,7 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/gitimport"
 	"go.yaml.in/yaml/v4"
 )
@@ -101,10 +102,10 @@ type serverConfigSpec struct {
 
 func defaultServerConfigValues() serverConfigValues {
 	return serverConfigValues{
-		artifactBlobBackend:         string(artifacts.BlobAuto),
-		artifactBlobInlineMaxBytes:  artifacts.DefaultBlobInlineMaxBytes,
-		artifactHistoryMaxRevisions: artifacts.DefaultHistoryMaxRevisions,
-		artifactHistoryMaxBytes:     artifacts.DefaultHistoryMaxBytes,
+		artifactBlobBackend:         string(blob.Auto),
+		artifactBlobInlineMaxBytes:  blob.DefaultInlineMaxBytes,
+		artifactHistoryMaxRevisions: artifactpostgres.DefaultHistoryMaxRevisions,
+		artifactHistoryMaxBytes:     artifactpostgres.DefaultHistoryMaxBytes,
 		developmentLLMGateway:       defaultDevelopmentLLMGateway,
 		gitImportLimits:             gitimport.DefaultLimits(),
 		operations:                  defaultOperationalSettings(),

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 )
 
 // Artifact byte reads share a few global transfer slots. Requests that are
@@ -15,10 +15,10 @@ import (
 // they neither wait for nor exhaust transfer capacity.
 func TestArtifactReadsRejectBeforeTakingATransferSlot(t *testing.T) {
 	fixture := newHandlerFixture(t)
-	runtime := artifacts.NewBlobRuntime(nil, nil)
-	ctx := artifacts.WithBlobRuntime(t.Context(), runtime)
+	runtime := blob.NewRuntime(nil, nil)
+	ctx := blob.WithRuntime(t.Context(), runtime)
 	for {
-		_, release, err := artifacts.AcquireTransfer(ctx)
+		_, release, err := blob.AcquireTransfer(ctx)
 		if err != nil {
 			break
 		}

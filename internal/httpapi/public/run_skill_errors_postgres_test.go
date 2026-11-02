@@ -17,6 +17,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
@@ -143,7 +144,7 @@ func TestPostgresRunCreationAnswersSkillFailuresWithTheirCodes(t *testing.T) {
 	selectSkills(t, filepath.Join(root, "agent-templates", "artifact_builder.yaml"),
 		"  sandboxProfile: local-workdir@1\n", selectedSkills...)
 	runs := runstore.NewPostgresStore(pool)
-	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	artifactService := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	projects := projectstore.NewPostgresStore(pool)
 	details, err := runservice.NewRunDetailReader(runservice.PostgresRunDetailTransaction(pool))
 	if err != nil {
@@ -294,7 +295,7 @@ func TestPostgresAuditStartAnswersSkillFailuresWithTheirCodes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	artifactService := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	projectArtifacts, err := artifactService.Project(project.ProjectID)
 	if err != nil {
 		t.Fatal(err)

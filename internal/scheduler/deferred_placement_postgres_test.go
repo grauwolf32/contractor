@@ -11,6 +11,9 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	inline "github.com/grauwolf32/contractor/internal/artifacts/blob/backends/postgres"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
@@ -101,20 +104,20 @@ func TestPostgresPlannerMetadataInspectionWithTransferSlotsSaturated(t *testing.
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	h := newDeferredPlacementHarness(t, ctx, nil)
-	service := artifacts.NewService(artifacts.NewPostgresRepository(h.pool))
+	service := artifacts.NewService(artifactpostgres.NewRepository(h.pool))
 	inspector, err := planner.NewArtifactServiceInspector(service)
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx = artifacts.WithBlobRuntime(ctx, artifacts.NewBlobRuntime(artifacts.PostgresBlobStore{}, nil))
+	ctx = blob.WithRuntime(ctx, blob.NewRuntime(inline.Store{}, nil))
 	for range 4 {
-		_, release, err := artifacts.AcquireTransfer(ctx)
+		_, release, err := blob.AcquireTransfer(ctx)
 		if err != nil {
 			t.Fatal(err)
 		}
 		t.Cleanup(release)
 	}
-	if _, _, err := artifacts.AcquireTransfer(ctx); !errors.Is(err, artifacts.ErrTransferCapacity) {
+	if _, _, err := blob.AcquireTransfer(ctx); !errors.Is(err, blob.ErrTransferCapacity) {
 		t.Fatalf("transfer gate was not saturated: %v", err)
 	}
 	ref := h.invoker.result.Artifacts["copied"]
@@ -139,7 +142,7 @@ func newDeferredPlacementHarness(t *testing.T, ctx context.Context, wrap func(At
 		configureWorkflow(&workflow)
 	}
 	store := runstore.NewPostgresStore(pool)
-	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	artifactService := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	runStore := createSchedulerRun(t, ctx, store, artifactService, workflow)
 	workerWrite, err := runStore.Write(ctx, contracts.ArtifactRef{Namespace: "builder", Name: "copied"},
 		artifacts.Payload{MediaType: "text/plain", Data: []byte("copied\n")}, nil)
@@ -564,7 +567,7 @@ func TestPostgresFailActiveRunTerminatesStageAndReleasesAllocations(t *testing.T
 					t.Fatal(err)
 				}
 			}
-			if err := h.scheduler.failInvalidRunState(ctx, "run-1", errors.New("invalid state")); err != nil {
+			if err := h.scheduler.failInvalidRunState(fixtureClaim(t, ctx, h.pool, "run-1"), "run-1", errors.New("invalid state")); err != nil {
 				t.Fatal(err)
 			}
 			run, err := h.store.GetRun(ctx, "run-1")
@@ -645,7 +648,7 @@ func TestPostgresFailActiveRunAcceptsFinalizingCandidateAndReleasesAllocations(t
 					t.Fatal(err)
 				}
 			}
-			if err := h.scheduler.failInvalidRunState(ctx, "run-1", errors.New("invalid state")); err != nil {
+			if err := h.scheduler.failInvalidRunState(fixtureClaim(t, ctx, h.pool, "run-1"), "run-1", errors.New("invalid state")); err != nil {
 				t.Fatal(err)
 			}
 			run, err := h.store.GetRun(ctx, "run-1")
