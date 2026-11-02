@@ -214,17 +214,19 @@ export function downloadProjectArtifact(
   api: PublicAPI,
   projectId: string,
   metadata: ArtifactMetadata,
+  signal?: AbortSignal,
 ): Promise<DownloadedArtifact> {
   const path = `${projectArtifactPath(projectId, metadata.artifact.namespace, metadata.artifact.name)}${exactRevisionQuery(metadata.artifact.revision)}`;
-  return downloadExactArtifact(api, metadata, path);
+  return downloadExactArtifact(api, metadata, path, signal);
 }
 
 export function previewProjectArtifact(
   api: PublicAPI,
   projectId: string,
   metadata: ArtifactMetadata,
+  signal?: AbortSignal,
 ): Promise<string> {
   return previewExactArtifact(metadata, () =>
-    downloadProjectArtifact(api, projectId, metadata),
+    downloadProjectArtifact(api, projectId, metadata, signal),
   );
 }

@@ -1,7 +1,8 @@
 # New check · OpenDesign exploration
 
 Non-normative V429-020 preview, approved for exploration on 2026-11-02.
-Production UI, APIs, published profiles and launch behavior are unchanged.
+The initial exploration changed no production behavior. V429-024 transfers the
+approved design into the working UI; see the production section below.
 
 ```sh
 node docs/design/ui/experiments/new-check-opendesign-2026-11-02/serve.mjs 17567
@@ -123,3 +124,30 @@ external toolbar to compare, or Second pass original to inspect native output.
 `verify-opendesign-pass.mjs` verifies the exact CSS-only insertion, scripts,
 tokens, native preservation and cleanup. Existing browser and Go checks verify
 the empty/editing/applied states, 128 items and retained scope behavior.
+
+## Production transfer (V429-024)
+
+The approved V5 composition now has a real React implementation in
+`ui/src/routes/checks/start`. The objective precedes a searchable type chooser,
+setup and summary. Phones fold the chooser and keep actions in document flow.
+Checklist authoring starts with one empty item; Apply stays local and Start/Save
+retains an ordinary exact Project Artifact through the existing Web scan
+retention/reconciliation mechanism. Scope describes the exact selected small API
+or checklist and declared typed Engagement. Source-only checks have no separate
+Scope and standard coverage variants are in Advanced options.
+
+`production-fixture.tsx` wraps the actual Application and route in a synthetic
+read-only transport; no fixture ships in the production bundle and no preview
+request creates business data. `verify-production.mjs` reproduces the local
+preview and captures. Run with the existing Vite server on 17560 (or set
+`NEW_CHECK_PREVIEW_ORIGIN`). The gate covers 60 layouts in all themes at
+1440/1100/390/320px, exact scope contents, editor states, blocked/read-error
+states, reachable mobile chooser and overflow. Full UI and domain tests also
+cover shared authoring fixtures, byte/profile bounds, exact retention after a
+lost answer, mismatched content, dirty edits and abandoned preparation.
+
+Preview after generating it:
+`http://127.0.0.1:17560/test-results/new-check-production/index.html?case=editor&theme=dark&width=1440`.
+All prior OpenDesign outputs, native history, inputs, hashes and backups above
+remain preserved. The production fixture/gate are additions, not replacements
+for the reviewed model output.

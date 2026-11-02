@@ -1,30 +1,16 @@
 import { useState } from "react";
-import type {
-  ArtifactMetadata,
-  ExactArtifactRef,
-} from "../../../api/artifacts";
+import type { ArtifactMetadata } from "../../../api/artifacts";
 import type { AuditProfile, CreateAuditRequest } from "../../../api/audits";
 import { usePublicAPI } from "../../../api/context";
 import { conformsTo } from "../../../api/contract";
 import type { components } from "../../../api/generated/public";
-import {
-  downloadProjectArtifact,
-  getProjectArtifactMetadata,
-  writeProjectArtifact,
-} from "../../../api/project-artifacts";
+import { retainAuthoredMaterial } from "./authored-material";
 import type { Project } from "../../../api/projects";
 
 import {
   NUCLEI_RULEPACK_ZIP,
   rulepackMetadataError,
 } from "./rulepack-metadata";
-
-async function digest(data: ArrayBuffer): Promise<string> {
-  const hash = await crypto.subtle.digest("SHA-256", data);
-  return [...new Uint8Array(hash)]
-    .map((value) => value.toString(16).padStart(2, "0"))
-    .join("");
-}
 
 export function useWebScanDraft(
   projectId: string,
@@ -105,52 +91,15 @@ export function useWebScanDraft(
   else if (custom && pack !== undefined)
     blocker = rulepackMetadataError(pack.mediaType, pack.size);
 
-  async function retain(
-    name: string,
-    payload: Blob,
-    ensureCurrent: () => void,
-  ): Promise<ExactArtifactRef> {
-    const bytes = await payload.arrayBuffer();
-    const hash = await digest(bytes);
-    ensureCurrent();
-    const identity = {
+  function retain(name: string, payload: Blob, ensureCurrent: () => void) {
+    return retainAuthoredMaterial(
+      api,
       projectId,
-      namespace: "scan-inputs",
-      name: `${name}.${hash}`,
-    };
-    try {
-      const result = await writeProjectArtifact(api, {
-        ...identity,
-        payload,
-        mediaType: payload.type,
-      });
-      ensureCurrent();
-      return result.artifact;
-    } catch (reason) {
-      ensureCurrent();
-      // Create-only CAS may have committed before its response was lost.
-      // Reconcile the content-addressed binding, including size and digest.
-      try {
-        const existing = await getProjectArtifactMetadata(api, identity);
-        ensureCurrent();
-        if (
-          existing.size === bytes.byteLength &&
-          existing.mediaType === payload.type
-        ) {
-          const retained = await downloadProjectArtifact(
-            api,
-            projectId,
-            existing,
-          );
-          const retainedHash = await digest(await retained.blob.arrayBuffer());
-          ensureCurrent();
-          if (retainedHash === hash) return existing.artifact;
-        }
-      } catch {
-        /* Keep the original write failure for the user. */
-      }
-      throw reason;
-    }
+      "scan-inputs",
+      name,
+      payload,
+      ensureCurrent,
+    );
   }
 
   async function prepare(ensureCurrent: () => void) {

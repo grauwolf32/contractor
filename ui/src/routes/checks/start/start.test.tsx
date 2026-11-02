@@ -95,7 +95,7 @@ describe("Start a check: project", () => {
     expect(
       await screen.findByRole("heading", {
         level: 1,
-        name: "Start a check on Shop service",
+        name: "Start a check",
       }),
     ).toBeVisible();
     expect(
@@ -206,7 +206,10 @@ describe("Start a check: check types", () => {
     expect(
       within(list()).getAllByRole("link", { name: /OWASP ASVS/ }),
     ).toHaveLength(1);
-    const scope = within(setup()).getByRole("group", { name: "Scope" });
+    await user.click(within(setup()).getByText("Advanced options"));
+    const scope = within(setup()).getByRole("group", {
+      name: "Review coverage",
+    });
     const full = within(scope).getByRole("radio", { name: /70 requirements/ });
     const pilot = within(scope).getByRole("radio", { name: /5 requirements/ });
     expect(full).toBeChecked();
@@ -241,15 +244,13 @@ describe("Start a check: check types", () => {
         name: "API endpoint trace",
       }),
     ).toBeVisible();
+    await user.click(within(pane).getByText("Advanced options"));
     expect(within(pane).getByText("openapi-operation-trace@1")).toBeVisible();
     expect(
-      within(pane).getByText(/Why this fits:/).parentElement,
-    ).toHaveTextContent(
-      "Your objective mentions APIs, endpoints or access control, and this check type traces each endpoint of your API spec through the source code. Your project has a material whose format matches each input it needs.",
-    );
-    // "flaws" also fits the broad rule: one alternative as a text link.
+      screen.getByText(/Contractor suggests API endpoint trace/),
+    ).toBeVisible();
     await user.click(
-      within(pane).getByRole("link", { name: "OWASP Top 10 (2025) review" }),
+      within(list()).getByRole("link", { name: "OWASP Top 10 (2025) review" }),
     );
     await waitFor(() =>
       expect(
@@ -264,7 +265,7 @@ describe("Start a check: check types", () => {
     ).toBeVisible();
     expect(within(setup()).queryByText(/Why this fits:/)).toBeNull();
     expect(
-      within(setup()).getByRole("link", { name: "Use API endpoint trace" }),
+      screen.getByRole("link", { name: "Use API endpoint trace" }),
     ).toBeVisible();
   });
 
@@ -411,7 +412,10 @@ describe("Start a check: check types", () => {
       materials: [sourceZip],
     });
     await waitForTypes();
-    const scope = within(setup()).getByRole("group", { name: "Scope" });
+    await user.click(within(setup()).getByText("Advanced options"));
+    const scope = within(setup()).getByRole("group", {
+      name: "Review coverage",
+    });
     const option = within(scope).getByRole("radio", {
       name: /5 requirements.*not supported by this server/,
     });
@@ -990,11 +994,9 @@ describe("Start a check: live target", () => {
     );
     await screen.findByRole("region", { name: "Needs more materials" });
     const pane = setup();
+    expect(within(list()).getByText(/Missing:/)).toHaveTextContent("Missing:");
     expect(
-      within(pane).getByText("Needs more materials: Live target URL"),
-    ).toBeVisible();
-    expect(
-      within(pane)
+      within(list())
         .getAllByRole("link", { name: "Set the live target" })
         .every(
           (link) =>

@@ -10,6 +10,7 @@ import { isWebScanProfile } from "./web-scan-contract";
  * means the format matches, never that a material is the right one
  * (docs/spec/ui/journeys.md US-03).
  */
+import type { IconName } from "../../../app/icon";
 import type { ArtifactMetadata } from "../../../api/artifacts";
 import type { AuditProfile } from "../../../api/audits";
 import { checkItemKind, itemCount, itemNoun } from "../../../app/vocabulary";
@@ -291,7 +292,7 @@ export function presentCheckType(profile: AuditProfile): CheckTypePresentation {
 // ---------- Materials ----------
 
 /** Whether a material's media type is one the input accepts ("format matches"). */
-function mediaTypeMatches(
+export function mediaTypeMatches(
   mediaType: string,
   accepted: readonly string[],
 ): boolean {
@@ -310,6 +311,7 @@ const INPUT_LABELS: Readonly<Record<string, string>> = {
   settings: "Scan settings",
   context: "Context brief",
   checklist: "Checklist",
+  engagement: "Engagement",
 };
 
 const FORMAT_NAMES: Readonly<Record<string, string>> = {
@@ -660,4 +662,17 @@ export function scopeSummary(profile: AuditProfile): ScopeSummary {
         detail: "From the materials you supply.",
       };
   }
+}
+
+/** A check's inventory determines its shared line icon, without guessing from names. */
+export function checkTypeIcon(profile: AuditProfile): IconName {
+  const icons: Record<AuditProfile["inventory"]["implementation"], IconName> = {
+    "checklist@1": "checklist",
+    "openapi-operations@1": "api",
+    "openapi-scans@1": "api",
+    "web-scans@1": "target",
+    "finding-candidates@1": "issues",
+    "standard-mappings@1": "checks",
+  };
+  return icons[profile.inventory.implementation];
 }
