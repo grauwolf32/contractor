@@ -496,8 +496,7 @@ func auditStandardLinks(pinned []auditstandards.PinnedPackage) ([]auditstore.Art
 		if err != nil {
 			return nil, err
 		}
-		result[index] = auditstore.ArtifactLink{
-			LogicalKey:       "standard/" + standard.Reference.Scheme + "/" + standard.Reference.Version,
+		result[index] = auditstore.ArtifactLink{Scope: "project", LogicalKey: "standard/" + standard.Reference.Scheme + "/" + standard.Reference.Version,
 			Artifact:         standard.Retained.Exact(),
 			SourceProvenance: provenance,
 			DisplayRef:       standard.Reference.Scheme + "@" + standard.Reference.Version,

@@ -108,7 +108,7 @@ func readEngagement(ctx context.Context, service *artifacts.Service, projectID s
 			if err != nil {
 				return nil, err
 			}
-			selected.inputs = append(selected.inputs, auditstore.ArtifactLink{LogicalKey: keys[i], Artifact: exact, SourceProvenance: provenance})
+			selected.inputs = append(selected.inputs, auditstore.ArtifactLink{Scope: "project", LogicalKey: keys[i], Artifact: exact, SourceProvenance: provenance})
 		}
 	}
 

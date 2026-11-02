@@ -208,7 +208,7 @@ func buildAcceptedDependenciesWithReader(ctx context.Context, writer auditArtifa
 						return nil, nil, 0, fmt.Errorf("%w: retained_dependency_receipt_conflict", ErrInvalid)
 					}
 				}
-				retainedLinks[key] = auditstore.ArtifactLink{LogicalKey: key, Artifact: retained, SourceProvenance: provenance}
+				retainedLinks[key] = auditstore.ArtifactLink{Scope: "project", LogicalKey: key, Artifact: retained, SourceProvenance: provenance}
 			} else if strings.HasPrefix(name, "prepare.") {
 				var found *auditstore.AcceptedPreparationOutput
 				for role, producer := range profile.Workflows {

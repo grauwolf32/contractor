@@ -1,0 +1,108 @@
+schema_version: '1.0'
+id: V434-001
+title: Integrate Audit artifact ownership with current main
+milestone: audit-check-prioritization
+epic: audits
+kind: chore
+introduced_by: V64-004
+priority: P1
+status: in_progress
+depends_on:
+- V64-004
+languages:
+- go
+- sql
+- yaml
+- typescript
+- python
+goal: Land the verified Audit material handoff and publication on current main while retaining its Project
+  Finding ownership, shared helpers and folded schema baseline.
+context:
+  authority: User requested merging codex/audit-artifact-workspace into main on 2026-11-02. This authorizes
+    routine merge reconciliation and required checks, with --no-ff landing after verification. Later in
+    the same chat on 2026-11-02 the user limited this turn to reconciling the feature branch with main
+    and stopping; main landing is no longer authorized in this turn. After completing V64-025 the user
+    requested merging into main again on 2026-11-02, revoking the earlier stop before landing and authorizing
+    completion of the remaining integration checks.
+  finding: main advanced from d946c448f557ab84aa1a52afb27a0aa10405f064 to 9a2d6f9afe228e025c9381dff34233f5b6939083
+    during V64-004. It moved shared helpers, replaced Audit-local Finding operations and folded migrations
+    into 000001_baseline.sql. The old feature migration and overlapping controller/public fixtures must
+    follow those current contracts.
+  specification:
+  - docs/spec/artifacts/artifact-store.md
+  - docs/spec/audits/execution.md
+  - docs/spec/platform/persistence.md
+  - docs/spec/artifacts/retention-and-deletion.md
+  boundaries: Keep V64-004 exact same-version forks and explicit Project publication. Preserve current
+    Project Findings and Runtime ownership. Renumber the feature migration after the folded baseline and
+    adapt only actual integration conflicts; add no compatibility reader, coordinator, receipt store or
+    deployment.
+  stop_boundary: The earlier stop after branch reconciliation is superseded by the latest explicit merge
+    request. Complete the listed integration gates and land through --no-ff after verifying main has not
+    advanced.
+scope:
+  in:
+  - Merge current main into the feature branch and reconcile actual source/specification/fixture conflicts.
+  - Align the Audit material migration and real-store migration test with the current baseline and current
+    retained-dependency schema.
+  - Regenerate public clients, ERD, task backlog and dependency graph through their owning generators.
+  - Verify the merged Go, public/shared contracts and mandatory real-process workspace cases before --no-ff
+    landing on clean main.
+  out:
+  - New Audit behavior beyond V64-004, changes to Project Finding semantics or Runtime resource ownership.
+  - Demo deployment, demo database migration or model selection changes.
+acceptance_criteria:
+- id: A1
+  text: The integrated source compiles and its new Artifact migration applies after the current baseline
+    without restoring removed Finding/schema paths; existing exact materials retain shared version/blob
+    identities.
+- id: A2
+  text: All mandatory workspace handoff/publication/replay/CAS/authority cases execute through real PostgreSQL
+    and processes with zero skips; current public and shared contracts remain consistent.
+- id: A3
+  text: Relevant complete package suites and lint pass, generated artifacts are current and the verified
+    branch is merged into main through --no-ff without changing unrelated working files.
+tests:
+- command: go test -tags=integration -count=1 ./internal/artifacts/... ./internal/auditimport/... ./internal/runservice
+    ./internal/auditservice ./internal/auditstore/... ./internal/auditcontroller/... ./internal/httpapi/public/...
+    ./internal/persistence/... ./internal/findingintake/... ./internal/archtest ./internal/publicclient/...
+  covers:
+  - A1
+  - A2
+- command: python3 scripts/test-audit-composition-e2e.py --case-set workspace
+  covers:
+  - A1
+  - A2
+- command: make verify-public-api verify-public-api-postgres test-wire-cross-language
+  covers:
+  - A1
+  - A2
+- command: make ui-verify
+  covers:
+  - A2
+  - A3
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+implementation_commit: null
+verification_checkpoint:
+  date: '2026-11-02'
+  integrated_main: 9a2d6f9afe228e025c9381dff34233f5b6939083
+  integration_commit: 91973183ba1d7e818e01c4d5ce0d8bd2957158d1
+  outcome: Main is reconciled and committed on codex/audit-artifact-workspace. All conflicts are resolved;
+    the main branch itself is unchanged. Work stops here at the explicit user boundary.
+  checks:
+  - 'The focused Go integration selection compiled all listed Artifact/Audit/Run/public/persistence/finding/architecture/client
+    packages and passed the selected workspace, concurrent publication, bounded history, migration and
+    public material tests. Packages outside that selection were compilation-only; this is not a full-suite
+    claim. Log: /private/tmp/v434-001-focused.log.'
+  - 'python3 scripts/test-audit-composition-e2e.py --case-set workspace passed on clean integration commit
+    91973183ba1d7e818e01c4d5ce0d8bd2957158d1: five real-PostgreSQL cases and five real-process cases,
+    zero skips. Evidence: /private/tmp/v434-001-workspace-evidence/gate-workspace.json.'
+  - Public clients, database ERD (two migrations, 72 tables, 94 foreign keys), task backlog and dependency
+    graph were regenerated; task and specification consistency checks passed.
+  remaining: The complete task-listed Go suites, public/shared contract gates, ui-verify and lint were
+    not rerun on this integration. Main landing is deferred by the user request; the integration task
+    remains in_progress.

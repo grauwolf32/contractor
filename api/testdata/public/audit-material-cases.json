@@ -1,0 +1,176 @@
+[
+  {
+    "name": "audit_output",
+    "schema": "ArtifactLineageEdge",
+    "valid": true,
+    "value": {
+      "kind": "audit_output",
+      "sourceScope": "run",
+      "source": {
+        "namespace": "materials",
+        "name": "selected",
+        "revision": "rev-1"
+      },
+      "targetScope": "audit",
+      "target": {
+        "namespace": "materials",
+        "name": "selected",
+        "revision": "rev-1"
+      },
+      "createdAt": "2026-11-01T00:00:00Z"
+    }
+  },
+  {
+    "name": "audit_input",
+    "schema": "ArtifactLineageEdge",
+    "valid": true,
+    "value": {
+      "kind": "audit_input",
+      "sourceScope": "audit",
+      "source": {
+        "namespace": "materials",
+        "name": "selected",
+        "revision": "rev-1"
+      },
+      "targetScope": "run",
+      "target": {
+        "namespace": "materials",
+        "name": "selected",
+        "revision": "rev-1"
+      },
+      "createdAt": "2026-11-01T00:00:00Z"
+    }
+  },
+  {
+    "name": "audit_publish",
+    "schema": "ArtifactLineageEdge",
+    "valid": true,
+    "value": {
+      "kind": "audit_publish",
+      "sourceScope": "audit",
+      "source": {
+        "namespace": "materials",
+        "name": "selected",
+        "revision": "rev-1"
+      },
+      "targetScope": "project",
+      "target": {
+        "namespace": "materials",
+        "name": "selected",
+        "revision": "rev-1"
+      },
+      "createdAt": "2026-11-01T00:00:00Z"
+    }
+  },
+  {
+    "name": "unknown-scope",
+    "schema": "ArtifactLineageEdge",
+    "valid": false,
+    "value": {
+      "kind": "audit_input",
+      "sourceScope": "research",
+      "source": {
+        "namespace": "materials",
+        "name": "selected",
+        "revision": "rev-1"
+      },
+      "targetScope": "run",
+      "target": {
+        "namespace": "materials",
+        "name": "selected",
+        "revision": "rev-1"
+      },
+      "createdAt": "2026-11-01T00:00:00Z"
+    }
+  },
+  {
+    "name": "unknown-kind",
+    "schema": "ArtifactLineageEdge",
+    "valid": false,
+    "value": {
+      "kind": "material_transfer",
+      "sourceScope": "audit",
+      "source": {
+        "namespace": "materials",
+        "name": "selected",
+        "revision": "rev-1"
+      },
+      "targetScope": "run",
+      "target": {
+        "namespace": "materials",
+        "name": "selected",
+        "revision": "rev-1"
+      },
+      "createdAt": "2026-11-01T00:00:00Z"
+    }
+  },
+  {
+    "name": "exact-publication",
+    "schema": "AuditMaterialPublicationRequest",
+    "valid": true,
+    "value": {
+      "auditId": "audit-one",
+      "source": {
+        "namespace": "materials",
+        "name": "selected",
+        "revision": "rev-1"
+      },
+      "target": {
+        "namespace": "materials",
+        "name": "selected"
+      }
+    }
+  },
+  {
+    "name": "versionless-source",
+    "schema": "AuditMaterialPublicationRequest",
+    "valid": false,
+    "value": {
+      "auditId": "audit-one",
+      "source": {
+        "namespace": "materials",
+        "name": "selected"
+      },
+      "target": {
+        "namespace": "materials",
+        "name": "selected"
+      }
+    }
+  },
+  {
+    "name": "versioned-destination",
+    "schema": "AuditMaterialPublicationRequest",
+    "valid": false,
+    "value": {
+      "auditId": "audit-one",
+      "source": {
+        "namespace": "materials",
+        "name": "selected",
+        "revision": "rev-1"
+      },
+      "target": {
+        "namespace": "materials",
+        "name": "selected",
+        "revision": "rev-1"
+      }
+    }
+  },
+  {
+    "name": "authored-destination-scope",
+    "schema": "AuditMaterialPublicationRequest",
+    "valid": false,
+    "value": {
+      "auditId": "audit-one",
+      "source": {
+        "namespace": "materials",
+        "name": "selected",
+        "revision": "rev-1"
+      },
+      "target": {
+        "namespace": "materials",
+        "name": "selected"
+      },
+      "scope": "project"
+    }
+  }
+]

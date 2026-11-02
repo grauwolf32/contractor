@@ -5,7 +5,7 @@ milestone: audit-check-prioritization
 epic: audits
 kind: feature
 priority: P1
-status: pending
+status: completed
 depends_on:
 - V64-001
 - V410-010
@@ -15,6 +15,8 @@ languages:
 - sql
 - json
 - markdown
+- typescript
+- yaml
 goal: One ordinary Run output can be retained in Audit scope, selected as an exact input of another Run,
   and explicitly published to the owning Project through the existing ArtifactStore.
 demonstration: The existing Audit role-output collection and dependent-Run submission path executes two
@@ -30,6 +32,7 @@ context:
     and kept composite behavior with a separate concrete consumer. Existing V410-025 owns the SMT snapshot
     case. This amendment starts no implementation. User concern on 2026-11-01: avoid accumulating redundant
     artifact copies during handoff/publication.'
+  execution_authority: User requested implementation in this chat on 2026-11-01; isolated branch codex/audit-artifact-workspace.
   implementation_gate: V64-001 and V410-010 are completed. A user assignment of V64-004 is sufficient
     under normal dependency/status rules; settled V64-001 decisions are not pending review. This amendment
     itself starts no code.
@@ -60,7 +63,7 @@ context:
     in this task. Reuse RunService, Scheduler, ArtifactStore, finding intake, ControllerClaims and existing
     keyed/natural receipts. No new collector, admission engine, lease store or compatibility reader.
   production_caller:
-    producer: auditimport.Importer.collectRoleSuccess -> ServiceArtifactAccess.RetainRunExact/retainRunExact
+    producer: auditimport.Importer.collectSucceededRole -> ServiceArtifactAccess.RetainRunExact/retainRunExact
       (importer.go/artifacts.go). Move declared ordinary role-output retention from protected Project
       namespace to real Audit scope, reusing its receipt and authority.
     consumer: PinnedSubmissionBuilder.resolveRoleInputs/preparationOutput (auditcontroller/builder.go)
@@ -224,8 +227,8 @@ tests:
 - command: make lint
   covers: *id001
 test_prerequisites:
-- These commands are future implementation acceptance, not results of this amendment. Add --case-set workspace
-  to the existing runner/matrix before claiming it ran.
+- The focused workspace selection executes five mandatory real-PostgreSQL cases and five real-process
+  cases. Zero-match selections and mandatory skips fail the existing composition gate.
 - Use disposable PostgreSQL with CONTRACTOR_TEST_DATABASE_URL set and actual Server/Scheduler/Runtime.
   Configured/unavailable DB, mandatory skips or zero-match cases fail; unit/config tests use testdata,
   not live configs.
@@ -241,7 +244,7 @@ verification_requirements:
   dependencies and strict reads/writes.
 - Delete the replaced vertical path and its exclusive schemas/states/tests as its callers migrate. Final
   V64-011 proves no parallel legacy pipeline remains.
-implementation_commit: null
+implementation_commit: d845b3d49bf5d651d361ddc45bf275d99bba8739
 replanning:
   date: '2026-10-31'
   previous_title: Assemble bounded exact research context for each experiment
@@ -252,3 +255,58 @@ replanning:
   - V64-003
   reason: Replaces earlier scope and acceptance with the common Audit research plan; this is not implementation
     or completion.
+verification:
+  date: '2026-11-01'
+  environment: Go 1.26.9, Node 24.20.0, locked Runtime dependencies and disposable PostgreSQL 17 database
+    contractor_test_v64004. Full Runtime acceptance ran as an ordinary user on native Linux storage through
+    Podman with Python 3.13.11.
+  results:
+  - command: make require-database
+    outcome: Passed against the dedicated disposable PostgreSQL database.
+  - command: go test -tags=integration -count=1 ./internal/artifacts/... ./internal/auditimport/... ./internal/runservice
+      ./internal/auditservice ./internal/auditstore/... ./internal/auditcontroller/... ./internal/httpapi/public/...
+      ./internal/findingintake/...
+    outcome: Passed all complete package suites, including production collection/submission, accepted-material
+      publication, concurrent source collision, bounded CAS history maintenance and source purge.
+  - command: go test -tags=integration -count=1 ./internal/auditcontroller/...
+    outcome: Passed again after the final retained-role scope validation and its regression assertion.
+  - command: go test -tags=integration -count=1 ./internal/persistence/...
+    outcome: Passed, including metadata-only material migration, preservation of existing Audit data and
+      blob/version identity, applying migrations together, trigger inventory and populated-parent purge.
+      Architecture and generated public-client package suites also passed.
+  - command: python3 scripts/test-audit-composition-e2e.py --case-set workspace
+    outcome: 'Passed on clean implementation revision d845b3d49bf5d651d361ddc45bf275d99bba8739: five integration
+      and five real Server/Scheduler/Runtime/PostgreSQL process cases, zero skips. Exact handoff reuses
+      one immutable version across all three scopes; explicit Project publication/replay survives source
+      deletion. Reports are under /private/tmp/v64004-workspace-evidence.'
+  - command: python3 scripts/test-audit-composition-e2e.py --case-set workspace --verify-only /private/tmp/v64004-workspace-evidence/process.jsonl
+      --boundary process
+    outcome: Passed the owning release report selector; integration report verification and all four composition-runner
+      regression tests also passed. Removing a required workspace case is rejected.
+  - command: make verify-public-api verify-public-api-postgres
+    outcome: Passed operation/schema/error coverage and PostgreSQL race checks. Both public clients were
+      regenerated through their owning generators.
+  - command: make test-wire-cross-language
+    outcome: 'Passed: 373 shared fixtures, 394 Go and 288 Python shared test functions; the Runtime shared
+      selection passed 1591 tests.'
+  - command: make test-runtime
+    outcome: 'Passed on Linux: 5855 passed, 89 optional scanner/live-model or separately invoked process/Podman
+      gate skips. Required Runtime report verification passed. JUnit report is /private/tmp/v64004-runtime-linux.xml.'
+  - command: make ui-verify
+    outcome: Passed generation check, lint, TypeScript, all 219 test files (2693 passed and one existing
+      expected failure) and production build. The new shared Audit material contract contributes nine
+      cases.
+  - command: make lint
+    outcome: Passed after the final scope/specification changes and regenerated dependency graph, including
+      staticcheck, export ownership, release graph, tasks/specification, ERD, generators, Runtime Ruff
+      and import layers.
+  observations:
+  - The macOS full Runtime run reported exactly the two documented unrelated defects V425-001 and V425-002
+    (5809 passed, 133 skipped). Linux acceptance above passed without changing unrelated Runtime code.
+  - The process test honors the existing retryable optimistic-read conflict when child Run deletion advances
+    the Audit revision; every other unexpected read response still fails.
+  - Temporary Linux containers, image and named volumes were removed after saving the successful reports.
+    The demo database and configured models were not changed.
+  delivery: Local branch codex/audit-artifact-workspace; not merged into main. This completes the V64-004
+    Artifact ownership/handoff/publication slice; subsequent coordinator and UI work retain their existing
+    task owners.

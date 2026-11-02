@@ -35,6 +35,24 @@ class CompositionGateTest(unittest.TestCase):
                     with self.assertRaises(ValueError):
                         gate.verify(report, required)
 
+    def test_workspace_is_mandatory_and_removing_a_case_fails(self):
+        from unittest import mock
+        focused = gate.matrix("workspace")
+        combined = gate.matrix()
+        for boundary in ("integration", "process"):
+            for package, cases in focused[boundary].items():
+                self.assertTrue(set(cases).issubset(combined[boundary][package]))
+        document = json.loads(gate.MATRIX.read_text())
+        package = next(iter(document["workspace"]["process"]))
+        document["workspace"]["process"][package].pop()
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "matrix.json"
+            path.write_text(json.dumps(document))
+            with mock.patch.object(gate, "MATRIX", path):
+                with self.assertRaises(ValueError):
+                    gate.matrix("workspace")
+
+
 class CompositionEvidenceTest(unittest.TestCase):
     def test_retry_invalidates_old_pass_on_prerequisite_matrix_and_journey_failure(self):
         import contextlib
@@ -49,7 +67,7 @@ class CompositionEvidenceTest(unittest.TestCase):
             output.mkdir()
             matrix = root / 'matrix.json'
             required = {'example/package': ['TestJourney/required']}
-            document = {'integration': required, 'process': required}
+            document = {'integration': required, 'process': required, 'workspace': {boundary: {'example/package': ['TestWorkspace/' + name for name in ('handoff', 'publication', 'replay', 'cas', 'authority')]} for boundary in ('integration', 'process')}}
             for dependency in ('runtime/.venv/bin/python', 'ui/node_modules/@playwright/test/cli.js'):
                 path = root / dependency
                 path.parent.mkdir(parents=True, exist_ok=True)

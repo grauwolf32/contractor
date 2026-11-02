@@ -86,7 +86,7 @@ func (i *Importer) commitRoleFailure(ctx context.Context, claim auditstore.Contr
 			ErrorCode      string                   `json:"errorCode"`
 			Source         auditstore.ExactArtifact `json:"source"`
 		}{"contractor.audit.preparation-attempt.v1", execution.ExecutionID, *execution.RunID, output.name, output.slot, code, output.exact})
-		links = append(links, auditstore.ArtifactLink{LogicalKey: "prepare-attempt:" + execution.ExecutionID + ":" + output.name, Artifact: retained[index], SourceProvenance: provenance})
+		links = append(links, auditstore.ArtifactLink{Scope: "project", LogicalKey: "prepare-attempt:" + execution.ExecutionID + ":" + output.name, Artifact: retained[index], SourceProvenance: provenance})
 	}
 	changed, err := i.commitCollection(ctx, claim, execution, disposition, source, links, &code, nil)
 	if errors.Is(err, auditstore.ErrEvidenceBudgetExhausted) {

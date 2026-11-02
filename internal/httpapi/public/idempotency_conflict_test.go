@@ -98,6 +98,7 @@ func keyedOperationRequests(t *testing.T) (handlerFixture, *reusedKeyAudits, map
 		"mutateProjectSitemap": {http.MethodPost, "/v1/projects/project-one/sitemap/mutations", `{"operation":"declare","expectedRevision":"absent","url":"https://example.test/users","method":"GET"}`, nil},
 		"createProject":        {http.MethodPost, "/v1/projects", `{"kind":"project","name":"Keyed"}`, nil},
 		"createRun":            {http.MethodPost, "/v1/runs", runBody, nil},
+		"publishAuditMaterial": {http.MethodPost, "/v1/projects/project-one/audit-material-publications", `{"auditId":"audit-one","source":{"namespace":"out","name":"material","revision":"r1"},"target":{"namespace":"materials","name":"selected"}}`, nil},
 		"createProjectRun":     {http.MethodPost, "/v1/projects/project-one/runs", runBody, nil},
 		"createAudit": {http.MethodPost, "/v1/projects/project-one/audits",
 			`{"profile":{"name":"checklist","version":"1"},"inputs":{},"runtimeLabels":[],"scope":{"objective":"Keyed"}}`, nil},
@@ -338,6 +339,10 @@ func (a *reusedKeyAudits) DecideActionReview(
 	context.Context, auditservice.DecideActionReviewParams,
 ) (auditservice.ActionReviewDecisionResult, error) {
 	return auditservice.ActionReviewDecisionResult{}, a.reach("DecideActionReview")
+}
+
+func (a *reusedKeyAudits) PublishMaterial(context.Context, string, string, string, auditservice.MaterialPublicationRequest, *string) (auditservice.MaterialPublication, error) {
+	return auditservice.MaterialPublication{}, a.reach("PublishMaterial")
 }
 
 func (a *reusedKeyAudits) EditProjectFinding(context.Context, auditservice.ProjectFindingEditParams) (auditservice.ProjectFindingEditResult, error) {

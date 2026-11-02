@@ -144,7 +144,7 @@ func prepareTypedCandidate(ctx context.Context, service *artifacts.Service, read
 		if err != nil {
 			return result, err
 		}
-		result.retained = append(result.retained, auditstore.ArtifactLink{LogicalKey: "admission/" + progress.Generation + "/" + generated.kind + "/" + itemID, Artifact: generated.artifact, SourceProvenance: provenance})
+		result.retained = append(result.retained, auditstore.ArtifactLink{Scope: "project", LogicalKey: "admission/" + progress.Generation + "/" + generated.kind + "/" + itemID, Artifact: generated.artifact, SourceProvenance: provenance})
 	}
 	result.admitted = true
 	return result, nil

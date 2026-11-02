@@ -9,6 +9,9 @@ import (
 )
 
 func (r *PostgresRepository) Fork(ctx context.Context, fork Fork) (ForkResult, error) {
+	if fork.ExpectedRevision != nil {
+		return r.replaceFork(ctx, fork)
+	}
 	targetRevision, err := r.newID("rev_")
 	if err != nil {
 		return ForkResult{}, err
