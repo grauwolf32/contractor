@@ -47,9 +47,11 @@ func (s *Scheduler) invokeStagePlanner(ctx context.Context, run runstore.Workflo
 		Instrumentation:  instrumentation,
 		Deadline:         stageDeadline,
 	}
-	if run.SchedulerClaim != nil {
-		invocation.SchedulerClaimID = run.SchedulerClaim.ClaimID
+	claimID, err := claimIDForRun(ctx, run.RunID)
+	if err != nil {
+		return err
 	}
+	invocation.SchedulerClaimID = claimID
 	invocationSpan := instrumentation.StartSpan(
 		telemetry.PlannerSpanInvocation,
 		telemetry.PlannerSpanAttributes{Operation: "planner.run"},

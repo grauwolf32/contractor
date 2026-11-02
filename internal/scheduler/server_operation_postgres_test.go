@@ -288,6 +288,7 @@ func TestPostgresServerOperationClaimFenceRejectsOldOwner(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := h.scheduler(t, h.transactions, h.registry)
+	ctx = WithRunClaim(ctx, claimed.RunID, "first")
 	stage, err := s.createStageExecution(ctx, claimed, w)
 	if err != nil {
 		t.Fatal(err)
@@ -311,7 +312,7 @@ func TestPostgresServerOperationClaimFenceRejectsOldOwner(t *testing.T) {
 	if !errors.Is(err, runstore.ErrConflict) {
 		t.Fatalf("old owner passed: %v", err)
 	}
-	if _, err := h.transactions.StartStageOperation(ctx, claimed.RunID, stage.StageExecutionID, "second"); err != nil {
+	if _, err := h.transactions.StartStageOperation(WithRunClaim(ctx, claimed.RunID, "second"), claimed.RunID, stage.StageExecutionID, "second"); err != nil {
 		t.Fatal(err)
 	}
 }

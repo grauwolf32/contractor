@@ -41,12 +41,12 @@ func TestFailActiveRunLogsItsCauseOnce(t *testing.T) {
 		}},
 		{"cancelling Run", func(ctx context.Context, harness *schedulerHarness) error {
 			harness.store.run.State = runstore.RunCancelling
-			return harness.scheduler.failInvalidRunState(ctx, "run-1", errReviewStateInvalid)
+			return harness.scheduler.failInvalidRunState(memoryFixtureClaim(ctx, harness), "run-1", errReviewStateInvalid)
 		}, "scheduler_state_invalid", runstore.RunCancelled, func(cause string) bool {
 			return cause == errReviewStateInvalid.Error()
 		}},
 		{"cause with a deployment secret over the bound", func(ctx context.Context, harness *schedulerHarness) error {
-			return harness.scheduler.failInvalidRunState(ctx, "run-1", long)
+			return harness.scheduler.failInvalidRunState(memoryFixtureClaim(ctx, harness), "run-1", long)
 		}, "scheduler_state_invalid", runstore.RunFailed, func(cause string) bool {
 			return strings.HasPrefix(cause, "[REDACTED]: xxx") && !strings.Contains(cause, secret) &&
 				len(cause) <= telemetry.MaxErrorMessageBytes && strings.HasSuffix(cause, "x…")
@@ -88,7 +88,7 @@ func TestFailActiveRunLogsNothingWhenItsCommitFails(t *testing.T) {
 	commitErr := errors.New("injected commit failure")
 	harness.scheduler.persistence = failingRunFailure{AtomicPersistence: harness.persistence, err: commitErr}
 
-	err := harness.scheduler.failInvalidRunState(t.Context(), "run-1", errReviewStateInvalid)
+	err := harness.scheduler.failInvalidRunState(memoryFixtureClaim(t.Context(), harness), "run-1", errReviewStateInvalid)
 
 	if !errors.Is(err, errReviewStateInvalid) || !errors.Is(err, commitErr) {
 		t.Fatalf("failed ending = %v, want the cause joined with the commit error", err)

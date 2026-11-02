@@ -704,8 +704,11 @@ and enters its write-fenced transition; the export rules are specified in
 
 ### Operation budgets
 
-The separate process budgets for HTTP requests, Scheduler store operations,
-the claim lease, stored terminal deadlines and Runtime batch preparation and
+Each individual Scheduler store call, including pool acquisition, reads,
+artifact metadata and admission, has the Scheduler store-operation budget.
+Those calls are bounded independently from the lane lifetime and the Runtime
+prepare/release batches. The separate process budgets for HTTP requests, the
+claim lease, stored terminal deadlines and Runtime batch preparation and
 cleanup are specified in
 [OPS-R15, OPS-R16](../operations/operations.md).
 
@@ -1042,8 +1045,9 @@ StageTermination with one of these codes:
 - `model_route_binding_failed` — the model recovery routes of the Stage's
   placed allocations could not be bound; retryable;
 - `control_plane_state_lost` — Control Plane no longer holds the active
-  allocation set of the Stage being prepared, such as durable allocation rows
-  left without grants (FAIL-SCH-18); retryable;
+  allocation set of the Stage being prepared, such as durable allocation
+  rows left without grants; a never-admitted pending Stage instead
+  reconciles its discard under SCH-R152; retryable;
 - `allocation_fence_failed` — the Stage's allocations could not be
   write-fenced before finalization; retryable.
 
@@ -1327,9 +1331,15 @@ reclaimed by terminal release recovery (FAIL-SCH-11).
 
 **SCH-R119.** Cancelling Planner execution does not cancel claim renewal: the
 same lane owns the Run throughout cancellation and allocation-loss cleanup.
-Losing the claim interrupts both ordinary work and cleanup. A terminal Run
-transition clears its claim atomically; renewal racing that transition treats
-it as completion (FAIL-SCH-16).
+Losing the claim interrupts both ordinary work and cleanup. Every Scheduler
+lifecycle transaction also compares the lane's exact acquired claim ID under
+its Run row lock before changing any Run or Stage state: renewal or a liveness
+probe need not notice replacement first. A missing claim scope or one for
+another Run is rejected. Cleanup retains the original scope, never a claim
+read from a later Run snapshot. Expiry alone does not revoke an unchanged
+live owner's claim (SCH-R120). A terminal Run transition clears its claim
+atomically; renewal racing that transition treats it as completion
+(FAIL-SCH-16).
 
 **SCH-R120.** The `FOR UPDATE SKIP LOCKED` claim boundary is authoritative:
 different lanes cannot claim the same Run, and a claim cannot be silently
@@ -1554,11 +1564,27 @@ no Runtime slot while paused: Scheduler reads the gate before placement, as it
 does for lack of capacity, and admission still rechecks it atomically. When a
 pause commits after placement became durable but before admission, admission
 observes the pause and Scheduler discards that never admitted, unprepared
-placement: one transaction deletes its durable allocation rows, relinquishes
-any recovery probe its admission reserved and drops its live reservation, so
-no slot stays reserved for the pause. The first claim after resume places the
-Stage again as the same attempt, consuming no retry. If the discard fails, the
-placement stays durable and live and the next claim reuses it.
+placement: under the exact Run claim and the Run-then-Stage locks, it deletes
+its durable allocation rows, relinquishes any recovery probe its admission
+reserved and drops its live reservation, so no slot stays reserved for the
+pause. A failure before the live discard keeps the placement durable and live.
+If COMMIT rolls back after the live discard, its rows can remain without
+live grants; if the success response is lost, either durable outcome is
+possible. The next claim of that preparing, never-admitted pending Stage
+reconciles the same discard before placement, including while the queue is
+still paused. The Stage ID is its existing idempotency key; no new receipt or
+attempt is created. An unavailable store defers reconciliation to the next
+claim and no Worker starts. The first claim after resume places the Stage
+again as the same attempt, consuming no retry. A partially missing live batch
+cannot be the atomic discard and retains ordinary allocation-loss handling;
+an admitted Stage retains its ordinary interruption rules.
+
+Decision: the registry and PostgreSQL cannot share a rollback. Reconcile their
+existing unadmitted state instead of treating a Worker that never started as
+lost. Deferring the live discard until a confirmed COMMIT alone would retain a
+slot after an ambiguous COMMIT whose rows were already deleted, hiding it from
+paused-Run claims. Reopen if preparation is ever allowed before admission,
+since absence of admission would then no longer prove that re-placement is safe.
 
 **SCH-R153.** Cancellation, abort, recovery of an already admitted Stage and
 allocation release continue while paused; result acceptance and output

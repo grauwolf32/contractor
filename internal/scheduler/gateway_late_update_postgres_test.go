@@ -103,7 +103,7 @@ func advanceRecoveryStage(t *testing.T, ctx context.Context, f finalizingFixture
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := f.persistence.EnterFinalizingWithResult(ctx, runstore.EnterFinalizingParams{
+	if err := f.persistence.EnterFinalizingWithResult(fixtureClaim(t, ctx, f.persistence.pool, "run-1"), runstore.EnterFinalizingParams{
 		StageExecutionID: f.executionID, ResultSchemaVersion: contracts.APIVersion,
 		Candidate: f.result, FinalizationID: "finalize-old", Deadline: time.Now().Add(time.Minute),
 		Reason: runstore.Reason{Code: "planner_completed"},
@@ -118,7 +118,7 @@ func advanceRecoveryStage(t *testing.T, ctx context.Context, f finalizingFixture
 			pins = append(pins, ContextPin{Name: name, Ref: *input.Artifact})
 		}
 	}
-	if err := f.persistence.CommitResultProgression(ctx, ResultProgression{
+	if err := f.persistence.CommitResultProgression(fixtureClaim(t, ctx, f.persistence.pool, "run-1"), ResultProgression{
 		RunID: "run-1", StageExecutionID: f.executionID, Result: f.result,
 		WorkflowOutputs: f.workflow.Stages[stageName].WorkflowOutputs, OutputContracts: f.workflow.Outputs,
 		Progression: StageProgression{

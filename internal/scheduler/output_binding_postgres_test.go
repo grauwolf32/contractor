@@ -277,7 +277,7 @@ func TestPostgresDeterministicOutputChecksAreInvalidOutputState(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			value := valid
 			test.change(&value)
-			err := fixture.persistence.CommitResultProgression(ctx, value)
+			err := fixture.persistence.CommitResultProgression(fixtureClaim(t, ctx, fixture.persistence.pool, "run-1"), value)
 			if !errors.Is(err, errInvalidRunState) || !strings.Contains(err.Error(), test.want) {
 				t.Fatalf("result commit = %v, want invalid output state: %s", err, test.want)
 			}
@@ -299,7 +299,7 @@ func TestPostgresDeterministicOutputChecksAreInvalidOutputState(t *testing.T) {
 		len(page.Refs) != 0 {
 		t.Fatalf("outputs after refused commits = (%+v, %v)", page.Refs, err)
 	}
-	if err := fixture.persistence.CommitResultProgression(ctx, valid); err != nil {
+	if err := fixture.persistence.CommitResultProgression(fixtureClaim(t, ctx, fixture.persistence.pool, "run-1"), valid); err != nil {
 		t.Fatalf("valid result commit: %v", err)
 	}
 	if run, err := fixture.store.GetRun(ctx, "run-1"); err != nil || run.State != runstore.RunSucceeded {

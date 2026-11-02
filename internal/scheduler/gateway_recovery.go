@@ -61,7 +61,10 @@ func (s *Scheduler) bindModelRoutes(ctx context.Context, run runstore.WorkflowRu
 	}
 	for _, reservation := range reservations {
 		for _, route := range reservationModelRoutes(run.OwnerID, reservation) {
-			if err := s.options.GatewayRecovery.Bind(ctx, reservation.Grant.AllocationID, run.RunID, route); err != nil {
+			bindContext, cancel := context.WithTimeout(ctx, s.options.OperationTimeout)
+			err := s.options.GatewayRecovery.Bind(bindContext, reservation.Grant.AllocationID, run.RunID, route)
+			cancel()
+			if err != nil {
 				return err
 			}
 		}

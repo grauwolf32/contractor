@@ -702,7 +702,7 @@ func TestPostgresAcceptanceRollsBackStageAndOutputWhenRunCASLoses(t *testing.T) 
 		t.Fatal(err)
 	}
 
-	err := fixture.persistence.CommitResultProgression(ctx, ResultProgression{
+	err := fixture.persistence.CommitResultProgression(fixtureClaim(t, ctx, fixture.persistence.pool, "run-1"), ResultProgression{
 		RunID: "run-1", StageExecutionID: fixture.executionID, Result: fixture.result,
 		WorkflowOutputs: fixture.workflow.Stages["copy"].WorkflowOutputs,
 		OutputContracts: fixture.workflow.Outputs,
@@ -726,9 +726,7 @@ func TestPostgresAcceptanceRollsBackStageAndOutputWhenRunCASLoses(t *testing.T) 
 	if err != nil || run.State != runstore.RunCancelling {
 		t.Fatalf("winning Run state = (%+v, %v)", run, err)
 	}
-	if err := fixture.persistence.AcceptResultDuringCancellation(
-		ctx, "run-1", fixture.executionID, fixture.result,
-	); err != nil {
+	if err := fixture.persistence.AcceptResultDuringCancellation(fixtureClaim(t, ctx, fixture.persistence.pool, "run-1"), "run-1", fixture.executionID, fixture.result); err != nil {
 		t.Fatalf("accept finalizing result for audit: %v", err)
 	}
 	execution, err = fixture.store.GetStageExecution(ctx, fixture.executionID)
@@ -754,7 +752,7 @@ func TestPostgresQueuePauseAllowsTerminalResultCommit(t *testing.T) {
 		t.Fatalf("pause owner Queue = (%+v, %v)", control, err)
 	}
 
-	err = fixture.persistence.CommitResultProgression(ctx, ResultProgression{
+	err = fixture.persistence.CommitResultProgression(fixtureClaim(t, ctx, fixture.persistence.pool, "run-1"), ResultProgression{
 		RunID: "run-1", StageExecutionID: fixture.executionID, Result: fixture.result,
 		WorkflowOutputs: fixture.workflow.Stages["copy"].WorkflowOutputs,
 		OutputContracts: fixture.workflow.Outputs,
@@ -792,7 +790,7 @@ func TestPostgresOutputCommitUsesCandidateRevisionAfterBindingAdvances(t *testin
 		t.Fatalf("binding did not advance: selected=%+v advanced=%+v", selected, advanced.Ref)
 	}
 
-	err = fixture.persistence.CommitResultProgression(ctx, ResultProgression{
+	err = fixture.persistence.CommitResultProgression(fixtureClaim(t, ctx, fixture.persistence.pool, "run-1"), ResultProgression{
 		RunID: "run-1", StageExecutionID: fixture.executionID, Result: fixture.result,
 		WorkflowOutputs: fixture.workflow.Stages["copy"].WorkflowOutputs,
 		OutputContracts: fixture.workflow.Outputs,
@@ -812,6 +810,7 @@ func TestPostgresCancelAndSuccessRaceSerializesOnRunRow(t *testing.T) {
 	defer cancel()
 	pool := isolatedSchedulerPool(t, ctx)
 	fixture := createFinalizingFixture(t, ctx, pool)
+	claimContext := fixtureClaim(t, ctx, pool, "run-1")
 
 	start := make(chan struct{})
 	var wait sync.WaitGroup
@@ -824,7 +823,7 @@ func TestPostgresCancelAndSuccessRaceSerializesOnRunRow(t *testing.T) {
 	go func() {
 		defer wait.Done()
 		<-start
-		acceptanceResult <- fixture.persistence.CommitResultProgression(ctx, ResultProgression{
+		acceptanceResult <- fixture.persistence.CommitResultProgression(claimContext, ResultProgression{
 			RunID: "run-1", StageExecutionID: fixture.executionID, Result: fixture.result,
 			WorkflowOutputs: fixture.workflow.Stages["copy"].WorkflowOutputs,
 			OutputContracts: fixture.workflow.Outputs,
@@ -870,9 +869,7 @@ func TestPostgresCancelAndSuccessRaceSerializesOnRunRow(t *testing.T) {
 		if !errors.Is(acceptErr, runstore.ErrConflict) || cancelResult.run.State != runstore.RunCancelling || len(listed) != 0 {
 			t.Fatalf("cancel won race: accept=%v cancel=%+v outputs=%v", acceptErr, cancelResult, listed)
 		}
-		if err := fixture.persistence.AcceptResultDuringCancellation(
-			ctx, "run-1", fixture.executionID, fixture.result,
-		); err != nil {
+		if err := fixture.persistence.AcceptResultDuringCancellation(fixtureClaim(t, ctx, fixture.persistence.pool, "run-1"), "run-1", fixture.executionID, fixture.result); err != nil {
 			t.Fatalf("finish cancellation winner: %v", err)
 		}
 		finished, err := fixture.store.GetRun(ctx, "run-1")
@@ -912,7 +909,7 @@ func TestPostgresRetryProgressionAtomicallyCreatesFreshAttempt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = persistence.CreateStageWithContext(ctx, runstore.CreateStageExecutionParams{
+	_, err = persistence.CreateStageWithContext(fixtureClaim(t, ctx, pool, "run-1"), runstore.CreateStageExecutionParams{
 		LaneClass:        resolved.LaneClassModel,
 		StageExecutionID: sourceID, RunID: "run-1", StageName: workflow.EntryStage, Attempt: 1,
 		StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: stageJSON,
@@ -936,7 +933,7 @@ func TestPostgresRetryProgressionAtomicallyCreatesFreshAttempt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = persistence.CreateStageWithContext(ctx, runstore.CreateStageExecutionParams{
+	_, err = persistence.CreateStageWithContext(fixtureClaim(t, ctx, pool, "run-1"), runstore.CreateStageExecutionParams{
 		LaneClass:        resolved.LaneClassModel,
 		StageExecutionID: sourceID, RunID: "run-1", StageName: workflow.EntryStage, Attempt: 1,
 		StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: stageJSON,
@@ -1007,7 +1004,7 @@ func TestPostgresRetryProgressionAtomicallyCreatesFreshAttempt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = persistence.CommitTerminationProgression(ctx, progression)
+	err = persistence.CommitTerminationProgression(fixtureClaim(t, ctx, pool, "run-1"), progression)
 	if !errors.Is(err, runstore.ErrQueuePaused) {
 		t.Fatalf("retry admission while Queue paused = %v", err)
 	}
@@ -1024,7 +1021,7 @@ func TestPostgresRetryProgressionAtomicallyCreatesFreshAttempt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = persistence.CommitTerminationProgression(ctx, progression)
+	err = persistence.CommitTerminationProgression(fixtureClaim(t, ctx, pool, "run-1"), progression)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1075,7 +1072,7 @@ func TestPostgresEscalationProgressionIsAtomicAndOrdinalIsUnique(t *testing.T) {
 		t.Fatal(err)
 	}
 	sourceID := "stage-escalation-1"
-	_, err = persistence.CreateStageWithContext(ctx, runstore.CreateStageExecutionParams{
+	_, err = persistence.CreateStageWithContext(fixtureClaim(t, ctx, pool, "run-1"), runstore.CreateStageExecutionParams{
 		LaneClass:        resolved.LaneClassModel,
 		StageExecutionID: sourceID, RunID: "run-1", StageName: workflow.EntryStage, Attempt: 1,
 		ExecutionConfigVariant: runstore.StageExecutionConfigBase,
@@ -1135,10 +1132,10 @@ func TestPostgresEscalationProgressionIsAtomicAndOrdinalIsUnique(t *testing.T) {
 			},
 		},
 	}
-	if err := persistence.CommitTerminationProgression(ctx, progression); err != nil {
+	if err := persistence.CommitTerminationProgression(fixtureClaim(t, ctx, pool, "run-1"), progression); err != nil {
 		t.Fatal(err)
 	}
-	if err := persistence.CommitTerminationProgression(ctx, progression); !errors.Is(err, runstore.ErrConflict) {
+	if err := persistence.CommitTerminationProgression(fixtureClaim(t, ctx, pool, "run-1"), progression); !errors.Is(err, runstore.ErrConflict) {
 		t.Fatalf("replayed escalation commit error = %v, want conflict", err)
 	}
 	executions, err := store.ListStageExecutions(ctx, "run-1")
@@ -1218,7 +1215,7 @@ func createFinalizingFixtureWith(
 	if beforeResult != nil {
 		beforeResult()
 	}
-	if err := fixture.persistence.EnterFinalizingWithResult(ctx, runstore.EnterFinalizingParams{
+	if err := fixture.persistence.EnterFinalizingWithResult(fixtureClaim(t, ctx, fixture.persistence.pool, "run-1"), runstore.EnterFinalizingParams{
 		StageExecutionID: fixture.executionID, ResultSchemaVersion: contracts.APIVersion,
 		Candidate: fixture.result, FinalizationID: "finalization-1", Deadline: time.Now().Add(time.Minute),
 		Reason: runstore.Reason{Code: "planner_completed"},
@@ -1253,7 +1250,7 @@ func createRunningStageFixture(t *testing.T, ctx context.Context, pool *pgxpool.
 	stage := workflow.Stages["copy"]
 	stageJSON, _ := json.Marshal(stage)
 	executionID := "stage-finalizing"
-	_, err = persistence.CreateStageWithContext(ctx, runstore.CreateStageExecutionParams{
+	_, err = persistence.CreateStageWithContext(fixtureClaim(t, ctx, pool, "run-1"), runstore.CreateStageExecutionParams{
 		LaneClass:        resolved.LaneClassModel,
 		StageExecutionID: executionID, RunID: "run-1", StageName: "copy", Attempt: 1,
 		StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: stageJSON,

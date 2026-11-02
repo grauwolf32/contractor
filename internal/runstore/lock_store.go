@@ -18,7 +18,21 @@ import (
 func (s *PostgresTxStore) LockRunState(
 	ctx context.Context, runID string, expected ...WorkflowRunState,
 ) (WorkflowRunState, error) {
-	state, _, err := s.lockRunOwner(ctx, runID, expected...)
+	state, _, err := s.lockRunOwner(ctx, runID, "", expected...)
+	return state, err
+}
+
+// LockClaimedRunState locks the Run and checks the exact Scheduler claim in
+// the same read. Expiry alone does not revoke an unchanged live owner's claim
+// (SCH-R120); replacement or release does. The caller retains this lock until
+// every lifecycle mutation commits or rolls back.
+func (s *PostgresTxStore) LockClaimedRunState(
+	ctx context.Context, runID, claimID string, expected ...WorkflowRunState,
+) (WorkflowRunState, error) {
+	if err := validateOpaque("claimID", claimID); err != nil {
+		return "", err
+	}
+	state, _, err := s.lockRunOwner(ctx, runID, claimID, expected...)
 	return state, err
 }
 
@@ -26,15 +40,16 @@ func (s *PostgresTxStore) LockRunState(
 // same locking read, so a caller that authorizes the owner under the Run row
 // lock does not read the row again.
 func (s *PostgresTxStore) lockRunOwner(
-	ctx context.Context, runID string, expected ...WorkflowRunState,
+	ctx context.Context, runID, claimID string, expected ...WorkflowRunState,
 ) (WorkflowRunState, string, error) {
 	if err := validateOpaque("runID", runID); err != nil {
 		return "", "", err
 	}
 	var state WorkflowRunState
 	var ownerID string
-	err := s.tx.QueryRow(ctx, `SELECT state, owner_id FROM workflow_runs WHERE run_id = $1 FOR UPDATE`, runID).
-		Scan(&state, &ownerID)
+	var actualClaimID *string
+	err := s.tx.QueryRow(ctx, `SELECT state, owner_id, scheduler_claim_id FROM workflow_runs WHERE run_id = $1 FOR UPDATE`, runID).
+		Scan(&state, &ownerID, &actualClaimID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", "", fmt.Errorf("lock WorkflowRun %q: %w", runID, ErrNotFound)
 	}
@@ -46,6 +61,9 @@ func (s *PostgresTxStore) lockRunOwner(
 	}
 	if len(expected) > 0 && !slices.Contains(expected, state) {
 		return "", "", &StateConflictError{Resource: "WorkflowRun", ID: runID, Expected: fmt.Sprint(expected)}
+	}
+	if claimID != "" && (actualClaimID == nil || *actualClaimID != claimID) {
+		return "", "", &StateConflictError{Resource: "WorkflowRun claim", ID: runID, Expected: claimID}
 	}
 	return state, ownerID, nil
 }

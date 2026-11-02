@@ -71,7 +71,8 @@ func New(
 		return nil, err
 	}
 	return &Scheduler{
-		store: store, persistence: persistence, artifacts: artifactResolver,
+		store: operationStore{base: store, timeout: options.OperationTimeout}, persistence: persistence,
+		artifacts: operationArtifacts{base: artifactResolver, timeout: options.OperationTimeout},
 		allocator: allocator, workers: workers, planners: planners, options: options,
 		wake: make(chan struct{}, 1), active: make(map[string]activeRunClaim),
 		releasing: make(map[string]struct{}),
