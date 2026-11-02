@@ -152,7 +152,7 @@
     "objectiveReview": "V429-021: 36 scenario/theme/width combinations passed aligned card/workbench edges, contained children and non-overlapping label/input/hint. Existing controls/isolation remain verified.",
     "scopeReview": "36 final scope/editor/Engagement layouts passed, including one empty initial item with calm guidance at 1440/1100/390/320px, three themes, local editing, stable keys/versions, empty/dirty/UTF-8 bounds and 128 items. No browser errors or outbound/mutating requests.",
     "contentReview": "Existing Go owners validated six OpenAPI operations, checklist fixture, typed Engagement and sixteen final browser-authored checklist documents, including 128 entries.",
-    "finalVerification": "Second-pass verify-opendesign-pass.mjs, verify.mjs (36 layouts), verify-scope.mjs (36 layouts), Go content validator (16 browser-authored documents) and task/spec/diff checks passed. Production source is untouched.",
+    "finalVerification": "Second-pass verify-opendesign-pass.mjs, verify.mjs (36 layouts), verify-scope.mjs (36 layouts), Go content validator (16 browser-authored documents) and task/spec/diff checks passed. Production source is untouched. make lint passed.",
     "secondOpenDesignPass": "Genuine successful native run; exact CSS-only insertion and both original controllers preserved; candidate equals raw native HTML. Shared tokens, cleanup, 155 previous native files and all previous history rows verified."
   },
   "preview": "http://127.0.0.1:17567/?version=new&case=ready&theme=dark&width=1440",
@@ -242,7 +242,8 @@
       "model": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
       "provenance": "checklist-opendesign-pass-2026-11-02/provenance.json",
       "candidateEqualsNative": true,
-      "manualPresentationCorrections": false
+      "manualPresentationCorrections": false,
+      "implementationCommit": "babfaf1a666e17bce4a360042af7be883741ce40"
     }
   ]
 }
