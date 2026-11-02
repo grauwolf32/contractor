@@ -113,7 +113,7 @@ verification: >-
   Combined make lint and all four Runtime import contracts passed. No live
   model, deployment or Project Finding ownership change was involved.
 implementation_commit: 6d10b18c0ccdd887a427c56b738ece40a876da46
-landing: Implemented on codex/runtime-shutdown-deadline; not yet merged into main.
+landing: Implemented on codex/runtime-shutdown-deadline; V433-006 records current-main integration, verification and the merge revision.
 integration_verification: >-
   Combined Runtime selection with the P1 and Gateway fixes: 5871 passed,
   133 skipped, 2 explicitly deselected in 758.45 seconds. The exclusions

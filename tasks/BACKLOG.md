@@ -161,7 +161,7 @@ the epics are in [epics.yml](epics.yml).
 | [V417-009](v417-009-context-compaction-release-gate.yml) | chore | P1 | V417-003, V417-004, V417-005, V417-006, V417-007 | Verify context compaction across real processes and close the deterministic milestone |
 | [V420-005](v420-005-planner-compaction-release-gate.yml) | chore | P1 | V420-006, V420-003, V420-004 | Accept Planner compaction through real-process and integrated release gates |
 | [V425-014](v425-014-runtime-tests-fail-on-macos.yml) | chore | P3 | — | Make the Runtime process-liveness assertions able to fail on macOS |
-| [V433-005](v433-005-runtime-resource-bounds-gate.yml) | chore | P3 | V433-003 | Verify the Runtime resource-bound fixes and reconcile the review dispositions |
+| [V433-005](v433-005-runtime-resource-bounds-gate.yml) | chore | P3 | V433-003, V433-006 | Verify the Runtime resource-bound fixes and reconcile the review dispositions |
 
 ## Deferred
 

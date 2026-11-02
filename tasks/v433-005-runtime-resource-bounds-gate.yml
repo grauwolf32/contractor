@@ -6,7 +6,7 @@ epic: quality
 kind: chore
 priority: P3
 status: pending
-depends_on: [V433-001, V433-002, V433-003, V433-004]
+depends_on: [V433-001, V433-002, V433-003, V433-004, V433-006]
 languages: [python, markdown]
 goal: The seven reported Runtime findings have verified dispositions and all four remaining corrections pass integrated Runtime checks.
 context:
@@ -19,6 +19,8 @@ context:
     a behavior explanation and process diagrams before merge. These three
     fixes are implemented and verified in that branch. V433-003 remains
     pending, so this package exit task is not complete or started.
+    The subsequent user merge request is implemented by V433-006, preserving
+    newer main's Audit materials and Server-owned registration labels.
   specification:
     - docs/spec/execution/runtime-agent.md#RTA-R87
     - docs/spec/execution/worker.md#WRK-R8
@@ -60,9 +62,10 @@ context:
     gate passed against real disposable PostgreSQL: 373 fixtures, 393 Go and
     289 Python shared tests. Negative probes fail on actual pre-fix code for
     fresh shutdown budgets, oversized Gateway JSON admission and loop-thread
-    findings decoding. The scratch database was removed. No implementation
-    merge, live-model run or deployment was performed. OTLP V433-003 remains
-    the outstanding prerequisite; these results do not close this exit task.
+    findings decoding. The scratch database was removed. These are pre-landing
+    results; V433-006 records subsequent current-main integration, verification
+    and merge. No live-model run or deployment was performed. OTLP V433-003
+    remains the outstanding prerequisite; these results do not close this exit task.
 scope:
   in:
     - Run integrated deterministic Runtime and lint checks on the combined revision and record exact commands, results, skips and any known platform exclusions.

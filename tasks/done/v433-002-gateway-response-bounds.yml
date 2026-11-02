@@ -113,7 +113,7 @@ verification: >-
   Combined make lint passed with cached pinned toolchains, including all
   four Runtime layer contracts. No live Gateway or deployment was used.
 implementation_commit: edb7d022fdacdd7b2b89adfd62ee8ba479e03033
-landing: Implemented on codex/runtime-shutdown-deadline; not yet merged into main.
+landing: Implemented on codex/runtime-shutdown-deadline; V433-006 records current-main integration, verification and the merge revision.
 integration_verification: >-
   Combined Runtime selection on the P1/Gateway/findings branch: 5871 passed,
   133 skipped, 2 deselected in 758.45 seconds. The two inherited macOS
