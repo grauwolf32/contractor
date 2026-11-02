@@ -7,7 +7,7 @@ kind: chore
 introduced_by: V370-011
 priority: P2
 status: in_progress
-depends_on: [V438-003]
+depends_on: [V438-003, V438-005]
 languages: [go]
 goal: "Registry responsibilities and state invariants are locally readable and repeated matching avoids rebuilding immutable tool capability maps."
 context:

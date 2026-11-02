@@ -305,6 +305,7 @@ func startNativeHarness(t *testing.T, mode string, configure ...func(*nativeHarn
 			t.Fatalf("failed prepare Worker State read = %v", stateErr)
 		}
 		reservation.Grant.AllocationID = "allocation_after_failed_prepare"
+		client.grantReader = &projectionGrantReader{grant: reservation.Grant}
 		h.reservation = reservation
 		h.toolsets = 2
 	}
@@ -643,7 +644,11 @@ func testNativeADKProcessFault(t *testing.T, mode string) {
 		h.wait("release_failed")
 		other := h.reservation
 		other.Grant.AllocationID = "allocation_too_early"
+		// Authorize this exact competing request in the Server fixture so the
+		// assertion below reaches the Runtime's independent cleanup fence.
+		h.client.grantReader = &projectionGrantReader{grant: other.Grant}
 		_, err = h.client.Prepare(h.ctx, other, h.settings)
+		h.client.grantReader = &projectionGrantReader{grant: h.reservation.Grant}
 		api = nil
 		if !errors.As(err, &api) || api.StatusCode != http.StatusConflict || api.Code != "allocation_conflict" || api.Retryable {
 			t.Fatalf("failed cleanup did not reject another allocation deterministically: %v", err)
