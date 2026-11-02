@@ -5,6 +5,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 )
 
 // ValidateAuditProgram validates a common Audit program against this exact
@@ -32,6 +33,9 @@ func ValidateAuditProgram(s *Snapshot, data []byte) error {
 			slot, ok := workflow.Inputs[name]
 			if !ok {
 				return apierror.New(apierror.AuditDocumentInvalid, "audit_document_invalid: unknown Workflow input")
+			}
+			if source.Source == "task-input" {
+				continue
 			}
 			if source.Source != "audit-input" {
 				if !contracts.AcceptsMediaType(slot.MediaTypes, "application/json") {
@@ -63,12 +67,59 @@ func ValidateAuditProgram(s *Snapshot, data []byte) error {
 		}
 	}
 	for _, task := range program.InitialWork {
+		for name, slot := range workflowInputs[task.Workflow] {
+			if slot.Required && program.Workflows[task.Workflow].Inputs[name].Source == "task-input" && task.Inputs[name] == "" {
+				return apierror.New(apierror.AuditDocumentInvalid, "audit_document_invalid: required initial task material is missing")
+			}
+		}
 		for name, selected := range task.Inputs {
 			// Decode already checked binding and material membership. The
 			// loaded Workflow owns requiredness of the effective input slot.
 			input := inputs[selected]
 			if err := validateAuditMaterialInput(workflowInputs[task.Workflow][name], input); err != nil {
 				return err
+			}
+		}
+	}
+	return nil
+}
+
+// ValidatePreparedWork applies the shared source-set contract and the actual
+// catalog's slot rules. It neither accepts tasks nor grants Artifact access.
+func ValidatePreparedWork(s *Snapshot, data, context []byte) error {
+	work, trusted, err := auditcontract.DecodePreparedWork(data, context)
+	if err != nil {
+		return err
+	}
+	program, err := strictjson.Canonical(trusted.Program)
+	if err != nil {
+		return err
+	}
+	if err := ValidateAuditProgram(s, program); err != nil {
+		return err
+	}
+	workflows := map[string]resolved.ResolvedWorkflow{}
+	for _, item := range work.Work {
+		binding := trusted.Program.Workflows[item.Workflow]
+		workflow, found := workflows[item.Workflow]
+		if !found {
+			workflow, err = s.Workflow(binding.Ref)
+			if err != nil {
+				return apierror.New(apierror.AuditDocumentInvalid, "audit_document_invalid: Workflow selection is unavailable")
+			}
+			workflows[item.Workflow] = workflow
+		}
+		for name, slot := range workflow.Inputs {
+			if slot.Required && binding.Inputs[name].Source == "task-input" {
+				if _, selected := item.Inputs[name]; !selected {
+					return apierror.New(apierror.AuditDocumentInvalid, "audit_document_invalid: required prepared material is missing")
+				}
+			}
+		}
+		for name, selected := range item.Inputs {
+			slot, exists := workflow.Inputs[name]
+			if !exists || !contracts.AcceptsMediaType(slot.MediaTypes, selected.MediaType) {
+				return apierror.New(apierror.AuditDocumentInvalid, "audit_document_invalid: incompatible prepared material")
 			}
 		}
 	}

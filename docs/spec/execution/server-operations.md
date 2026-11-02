@@ -98,3 +98,24 @@ no map or report copy is created. Declared outputs may be mapped to ordinary
 Workflow outputs or selected by subsequent Stage context. The concrete operation
 contracts are [SMT-R26](../artifacts/project-sitemap.md) through
 [SMT-R30](../artifacts/project-sitemap.md).
+
+**SOP-R10.** `openapi-prepare-work@1` reads the declared exact `openapi` input
+and, for `scan-requests` selection, JSON `settings`. Its bound string arguments
+are `workflow` (checking alias), `selection` (`operations` or `scan-requests`),
+and canonical positive decimal `max_items` within LIM-ACT-5. Operation selection
+uses the existing OpenAPI domain parser/resolver; scan-request selection uses
+its existing settings/request preparation. Source archives retain their owning
+source-format validation. Conditions, independent operation keys/order and gaps
+are preserved; this Stage performs no target activity or Audit mutation.
+
+The required JSON `work` output follows [ACT-R13](../audits/common-contract.md).
+Per-operation JSON material and needed original inputs are selected by exact
+descriptors. No task ZIP, Round, execution manifest, model, Runtime allocation
+or second inventory/admission mechanism is constructed. Domain computation runs
+outside database row locks. Each ordinary content-named material publication
+checks Project/Run/Stage/claim ownership in its transaction; the declared list is
+published only after its complete content passes validation. Identical ordinary
+bindings reconcile their original exact versions; collisions fail permanently.
+Interrupted intermediate material remains owner-local and normally purgeable.
+The existing Stage deadline/cancellation owns all work; no new journal, receipt
+or cleanup controller is introduced (FAIL-ACT-2, LIFE-ACT-2).

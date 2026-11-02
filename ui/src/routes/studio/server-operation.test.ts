@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import cases from "../../../../api/testdata/server-operation-stage-cases.json";
+import prepared from "../../../../api/testdata/server-operation-openapi-work.json";
 import { patchDraft, readDraft } from "./document";
 import { buildGraph } from "./graph";
 import { validateDraft } from "./validation";
@@ -11,6 +12,15 @@ const source = readFileSync(
 );
 
 describe("shared server operation stage contract", () => {
+  it("accepts and displays passive OpenAPI preparation without Workers", () => {
+    const draft = readDraft(prepared.workflow);
+    expect(
+      validateDraft(draft).filter((problem) => problem.severity === "error"),
+    ).toEqual([]);
+    expect(
+      buildGraph(draft).nodes.find((node) => node.type === "stage")?.subtitle,
+    ).toContain("openapi-prepare-work@1");
+  });
   it.each(cases.cases)("validates $name", ({ path, value, valid }) => {
     const draft = patchDraft(
       readDraft(source),

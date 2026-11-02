@@ -16,7 +16,8 @@ specification. Its manually curated nodes and sourced relationships live in
 Stage views are extracted from the default `configs/` catalog, including
 Workflow escalation variants, exact template bindings, Skills, standard
 packages, completion contracts, toolsets, instructions and execution-selection
-references. Examples and process-only catalogs are outside this snapshot.
+references. Server-operation Stages point to their registered operation and create no
+synthetic Planner or Worker nodes. Examples and process-only catalogs are outside this snapshot.
 
 An arrow in the catalog points from the consumer to its dependency. Purple
 data edges follow that direction too: the consuming Workflow points to its

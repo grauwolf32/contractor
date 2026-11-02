@@ -21,7 +21,7 @@ type fixtureCase struct {
 }
 
 func TestSharedAuditCommonDocuments(t *testing.T) {
-	for _, file := range []string{"programs.json", "results.json", "controls.json", "proposals.json", "tasks.json"} {
+	for _, file := range []string{"programs.json", "results.json", "controls.json", "proposals.json", "tasks.json", "prepared-work.json"} {
 		var fixtures struct {
 			Cases []fixtureCase `json:"cases"`
 		}

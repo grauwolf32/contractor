@@ -11433,7 +11433,11 @@
       "properties": {
         "ref": {
           "type": "string",
-          "enum": ["sitemap-openapi-join@1", "sitemap-apply-openapi@1"]
+          "enum": [
+            "sitemap-openapi-join@1",
+            "sitemap-apply-openapi@1",
+            "openapi-prepare-work@1"
+          ]
         },
         "arguments": {
           "type": "object",

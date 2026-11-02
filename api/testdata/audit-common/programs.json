@@ -231,6 +231,16 @@
       "name": "required-override-to-incompatible",
       "document": "{\"schema\":\"contractor.audit.program.v1\",\"inputs\":{\"source\":{\"required\":true,\"media_types\":[\"text/plain\"]},\"replacement\":{\"required\":true,\"media_types\":[\"application/json\"]}},\"workflows\":{\"inspect\":{\"ref\":\"audit-contract-check@1\",\"inputs\":{\"source\":{\"source\":\"audit-input\",\"name\":\"source\"},\"context\":{\"source\":\"task-context\"}},\"parameters\":{},\"outputs\":{\"result\":\"result\"}}},\"hypotheses\":{\"claim\":{\"statement\":\"Reader A can read B document under the selected conditions\",\"scope\":{\"actor\":\"reader A\"},\"grounds\":\"Observed object identifier\"}},\"initial_work\":[{\"key\":\"inspect-1\",\"workflow\":\"inspect\",\"objective\":\"Inspect selected source\",\"hypothesis\":\"claim\",\"inputs\":{\"source\":\"replacement\"}}],\"limits\":{\"max_tasks\":100000,\"max_iterations\":32,\"max_tasks_per_iteration\":10000,\"batch_size\":64,\"max_submitted_runs\":1000000,\"max_attempts\":10,\"deadline_seconds\":31536000,\"max_evidence_bytes\":1073741824,\"max_hypotheses\":10000,\"max_hypothesis_revisions\":50000,\"max_hypothesis_bytes\":268435456},\"policy\":{\"active_operations\":\"prohibited\"}}",
       "valid": false
+    },
+    {
+      "name": "required-task-input-missing",
+      "document": "{\"schema\":\"contractor.audit.program.v1\",\"inputs\":{\"source\":{\"required\":true,\"media_types\":[\"text/plain\"]}},\"workflows\":{\"inspect\":{\"ref\":\"artifact-copy@1\",\"inputs\":{\"source\":{\"source\":\"task-input\"}},\"parameters\":{},\"outputs\":{\"material\":\"result\"}}},\"hypotheses\":{},\"initial_work\":[{\"key\":\"inspect-1\",\"workflow\":\"inspect\",\"objective\":\"Inspect selected source\"}],\"limits\":{\"max_tasks\":100000,\"max_iterations\":32,\"max_tasks_per_iteration\":10000,\"batch_size\":64,\"max_submitted_runs\":1000000,\"max_attempts\":10,\"deadline_seconds\":31536000,\"max_evidence_bytes\":1073741824,\"max_hypotheses\":10000,\"max_hypothesis_revisions\":50000,\"max_hypothesis_bytes\":268435456},\"policy\":{\"active_operations\":\"prohibited\"}}",
+      "valid": false
+    },
+    {
+      "name": "required-task-input-selected",
+      "document": "{\"schema\":\"contractor.audit.program.v1\",\"inputs\":{\"source\":{\"required\":true,\"media_types\":[\"text/plain\"]}},\"workflows\":{\"inspect\":{\"ref\":\"artifact-copy@1\",\"inputs\":{\"source\":{\"source\":\"task-input\"}},\"parameters\":{},\"outputs\":{\"material\":\"result\"}}},\"hypotheses\":{},\"initial_work\":[{\"key\":\"inspect-1\",\"workflow\":\"inspect\",\"objective\":\"Inspect selected source\",\"inputs\":{\"source\":\"source\"}}],\"limits\":{\"max_tasks\":100000,\"max_iterations\":32,\"max_tasks_per_iteration\":10000,\"batch_size\":64,\"max_submitted_runs\":1000000,\"max_attempts\":10,\"deadline_seconds\":31536000,\"max_evidence_bytes\":1073741824,\"max_hypotheses\":10000,\"max_hypothesis_revisions\":50000,\"max_hypothesis_bytes\":268435456},\"policy\":{\"active_operations\":\"prohibited\"}}",
+      "valid": true
     }
   ]
 }

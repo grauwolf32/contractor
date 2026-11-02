@@ -7,6 +7,7 @@
     "exact-integer-cases.json": {"readers": ["go", "python"]},
     "v1alpha1/valid/shared-config.json": {"readers": ["go", "python", "ui"]},
     "workflow-context-management-cases.json": {"readers": ["go", "ui"]},
+    "server-operation-openapi-work.json": {"readers": ["go", "ui"], "reason": "Server configuration and Studio share the registered passive preparation Stage; Runtime receives no operation stages."},
     "server-operation-stage-cases.json": {"readers": ["go", "ui"], "reason": "Server Workflow execution selection is shared with the Studio; Runtime receives no operation stages."},
     "public/tool-diagnostic-values.json": {"readers": ["go", "ui"]},
     "public/runtime-diagnostic-decimals.json": {"readers": ["go", "ui"]},

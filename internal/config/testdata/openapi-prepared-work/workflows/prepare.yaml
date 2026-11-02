@@ -1,0 +1,35 @@
+apiVersion: contractor/v1alpha1
+kind: Workflow
+metadata: {name: openapi-prepare-work, version: "1"}
+spec:
+  parameters:
+    checking_workflow: {required: true}
+    selection: {required: true}
+    max_items: {required: true}
+  inputs:
+    openapi: {required: true, mediaTypes: [application/json, application/yaml, application/zip]}
+    settings: {required: false, mediaTypes: [application/json]}
+  outputs:
+    work: {required: true, primary: true, mediaTypes: [application/json]}
+  entryStage: prepare
+  stages:
+    prepare:
+      objective: Prepare bounded independently selectable OpenAPI operation work
+      operation:
+        ref: openapi-prepare-work@1
+        arguments:
+          workflow: {source: parameter, name: checking_workflow}
+          selection: {source: parameter, name: selection}
+          max_items: {source: parameter, name: max_items}
+      context:
+        artifacts:
+          openapi: {namespace: inputs, name: openapi, required: true}
+          settings: {namespace: inputs, name: settings, required: false}
+      result:
+        artifacts:
+          work: {required: true, mediaTypes: [application/json], from: {namespace: prepared-work, name: work}}
+      workflowOutputs: {work: work}
+      on:
+        succeeded: {succeed: {}}
+        failed: {fail: {}}
+        interrupted: {fail: {}}

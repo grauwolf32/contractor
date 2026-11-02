@@ -31,6 +31,12 @@
     },
     {
       "$ref": "#/$defs/proposal_context"
+    },
+    {
+      "$ref": "#/$defs/prepared_work"
+    },
+    {
+      "$ref": "#/$defs/prepared_context"
     }
   ],
   "$defs": {
@@ -188,7 +194,8 @@
             "source": {
               "enum": [
                 "task-context",
-                "prior-results"
+                "prior-results",
+                "task-input"
               ]
             }
           },
@@ -1164,6 +1171,97 @@
             "$ref": "#/$defs/artifact"
           },
           "maxProperties": 32
+        }
+      }
+    },
+    "prepared_selection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "workflow",
+        "objective",
+        "inputs"
+      ],
+      "properties": {
+        "key": {
+          "$ref": "#/$defs/key"
+        },
+        "workflow": {
+          "$ref": "#/$defs/key"
+        },
+        "objective": {
+          "$ref": "#/$defs/text"
+        },
+        "inputs": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/key"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/artifact"
+          },
+          "minProperties": 1,
+          "maxProperties": 32
+        }
+      }
+    },
+    "prepared_work": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "work",
+        "gaps"
+      ],
+      "properties": {
+        "schema": {
+          "const": "contractor.audit.prepared-work.v1"
+        },
+        "work": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/prepared_selection"
+          },
+          "maxItems": 256
+        },
+        "gaps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/text"
+          },
+          "maxItems": 4096,
+          "uniqueItems": true
+        }
+      },
+      "x-maxEncodedBytes": 1048576
+    },
+    "prepared_context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "program",
+        "producer_run_id",
+        "materials"
+      ],
+      "properties": {
+        "schema": {
+          "const": "contractor.audit.prepared-work-context.v1"
+        },
+        "program": {
+          "$ref": "#/$defs/program"
+        },
+        "producer_run_id": {
+          "$ref": "#/$defs/resource_id"
+        },
+        "materials": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/artifact"
+          },
+          "maxItems": 258,
+          "uniqueItems": true
         }
       }
     }

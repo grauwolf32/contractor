@@ -42,6 +42,8 @@ that ID and no second Project hypothesis registry.
 | `context` | Trusted Audit/Run, exact Workflow identity/digest, bounded item-key/task membership and objective, optional exact readable hypothesis snapshot and admitted evidence descriptors |
 | `proposal-context` | Server-local pinned program and exact selected material handles used to validate producer choices; not a model-authored program or second execution state |
 | `proposals` | Bounded model-proposed named seeds/work using allowed bindings; no persisted IDs, scope permission or automatic admission |
+| `prepared-work` | Deterministic work selections and exact ordinary inputs; no assigned Task identity or permission |
+| `prepared-work-context` | Server-local pinned program, trusted producer Run and admitted exact material descriptors |
 | `conclusions` | Model-authored per-item content, conditions, evidence and limitations; no provenance fields |
 | `result` | Ordinary output with system-derived origin on each item; no Run status or mandatory finding |
 | `control` | Offline-valid control transition; no live state change or authorization |
@@ -60,10 +62,18 @@ outputs and compatible canonical media types. The same catalog checks apply to
 each effective initial-task input after selected-material overrides: a required
 Workflow slot must select a required Audit input; optional Workflow slots may
 select optional inputs. An input mapping selects an
-explicit Audit material, trusted task context or prior-results JSON; no arbitrary
+explicit Audit material, an explicitly selected `task-input`, trusted task context
+or prior-results JSON; no arbitrary
 object paths, per-provider parsing, second Workflow graph or automatic
 cross-Workflow dependencies are interpreted by this validator. Workflow closures
 are pinned by the accepted task owner, not by model output.
+
+A `task-input` mapping has no `name` or future dependency. It declares a slot
+whose already available material must be selected explicitly at task acceptance.
+An unused checking binding therefore needs no fabricated initial Audit input.
+Initial work must select an available Audit input for each required `task-input`;
+the real Workflow owns requiredness and media compatibility. These selections
+cannot overwrite system-owned task-context or prior-results inputs.
 
 A hypothesis-bound initial or proposed task must select a Workflow binding with
 a JSON `task-context` input and required JSON `result` output. The trusted
@@ -140,7 +150,7 @@ scope, allowed/prohibited operations and access checks remain. Historical
 consent cannot become an active permission; no compatibility reader, special
 policy-wait state or old-policy Resume is defined.
 
-**ACT-R10.** Numeric limits are LIM-ACT-1 through LIM-ACT-4. Existing tighter
+**ACT-R10.** Numeric limits are LIM-ACT-1 through LIM-ACT-5. Existing tighter
 owner bounds still apply. Each initial or generated hypothesis seed must fit
 32 KiB in its complete RFC 8785 canonical UTF-8 encoding, including statement,
 scope, grounds, member names, punctuation and JSON escaping. The check also
@@ -164,12 +174,43 @@ necessary evidence and readable hypothesis snapshots; it does not create a secon
 live registry. Reading alone creates no hold.
 
 **ACT-R12.** The CLI accepts `config validate --audit-document <JSON>` after
-loading the real catalog. Conclusions/results and proposals additionally require the exact
+loading the real catalog. Conclusions/results, proposals and prepared-work selections additionally require the exact
 `--audit-context <JSON>` supplied by the trusted caller (per-item context for results; a server-local pinned program and selected-material
 context for proposals). Local context files are
 validation inputs, not proof of live authority. There are no database writes,
 credentials, target calls, grants or implicit execution effects. Other JSON
 Artifacts and external archive/export contracts keep their own formats.
+
+**ACT-R13.** A `contractor.audit.prepared-work.v1` document is an ordinary
+immutable preparation output with `work` and `gaps`. Each selection has a unique
+producer-local `key`, allowed Workflow alias, objective and explicit input-slot
+to scoped exact Artifact descriptors. It contains no Audit/task/hypothesis IDs,
+Run state, approvals or dependency expressions. An empty list is valid; its
+actual domain gaps remain visible and no work is invented.
+
+The concrete OpenAPI producer is the ordinary operation in
+[SOP-R10](../execution/server-operations.md). A `prepared-work-context` retains
+the pinned program, trusted producer Run ID and an admitted exact source set.
+All descriptors belong to that producer Run; duplicate references, changed
+metadata, foreign selections, unknown aliases/slots and system-context overrides
+are rejected. The catalog additionally checks actual required slots and media
+types. Source-set comparisons are indexed rather than an item-by-material search.
+Producer encoding may validate shape without that context; the CLI and typed
+admission decoder require it. Offline validation grants no live access.
+
+The common accepting owner derives provenance from the accepted producer Run
+and exact output, assigns Task identities and applies current control/scope and
+budget fences. Local keys are not global identities. Slices retain the same
+producer, exact list and entry identities through the existing receipt owner;
+response loss cannot create fresh logical work. Paused intake may accept without
+submitting Runs. Cancellation/deletion may collect the output without accepting
+more work. Live Audit acceptance remains the owner's execution responsibility;
+this document's validation creates no task rows or controller.
+
+Bounds are LIM-ACT-5, with tighter ordinary Artifact/source/domain bounds still
+applying. Every selected material is explicitly retained before source deletion
+when an accepting consumer needs it. Publishing the list alone protects only its
+own bytes; no generic recursive dependency import or retention is implied.
 
 ## Interfaces
 
@@ -181,7 +222,7 @@ advertise a Runtime completion capability.
 
 ## Limits, failures and errors
 
-See LIM-ACT-1 through LIM-ACT-4, FAIL-ACT-1 and LIFE-ACT-1 in the platform
+See LIM-ACT-1 through LIM-ACT-5, FAIL-ACT-1 / FAIL-ACT-2 and LIFE-ACT-1 / LIFE-ACT-2 in the platform
 registries. Existing stable API error/transaction conflict rules remain with their
 owners. Offline validation introduces no public HTTP operation or response field.
 

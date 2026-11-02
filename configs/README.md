@@ -23,6 +23,12 @@ not valid `ServerConfig` fields.
 
 The current user-facing Workflow set is:
 
+- `openapi-prepare-work@1` for passive deterministic Server preparation of an exact
+  OpenAPI document into separately selectable operation work. Supply
+  `checking_workflow`, `selection` (`operations` or `scan-requests`) and
+  `max_items`; scan-request selection also requires the exact `settings` input.
+  The Workflow creates ordinary JSON materials, without a model or Runtime.
+
 - `audit-web-nuclei-scan@1` for the `web-scan@1` AuditProfile: one explicit
   target with installed or exact custom rules; see [scanner setup](../runtime/README.md#cli-scanners);
 - `openapi-from-workspace@7` and `likec4-from-workspace@7` for four-Stage local

@@ -66,7 +66,10 @@ def _decode(data: str):
         len(jcs.canonicalize(seed)) > 32768 for seed in value["hypotheses"].values()
     ):
         raise ValueError("hypothesis seed bytes")
-    if value["schema"] == "contractor.audit.proposal-context.v1":
+    if value["schema"] in {
+        "contractor.audit.proposal-context.v1",
+        "contractor.audit.prepared-work-context.v1",
+    }:
         _decode(jcs.canonicalize(value["program"]).decode())
     if value["schema"] == "contractor.audit.context.v1" and any(
         len(jcs.canonicalize(member["hypothesis"])) > 32768
@@ -88,11 +91,46 @@ def _decode(data: str):
         raise ValueError("mutation bytes")
     if value["schema"] == "contractor.audit.program.v1" and len(data.encode()) > 4 << 20:
         raise ValueError("program bytes")
+    if value["schema"] == "contractor.audit.prepared-work.v1" and len(data.encode()) > 1 << 20:
+        raise ValueError("prepared work bytes")
     return value
 
 
 def _validate_case(case):
     value = _decode(case["document"])
+    if value["schema"] == "contractor.audit.prepared-work-context.v1":
+        _validate_case({"document": json.dumps(value["program"])})
+        keys = [json.dumps(material["ref"], sort_keys=True) for material in value["materials"]]
+        if len(keys) != len(set(keys)) or any(
+            material["scope_kind"] != "run" or material["scope_id"] != value["producer_run_id"]
+            for material in value["materials"]
+        ):
+            raise ValueError("prepared source set")
+        return
+    if value["schema"] == "contractor.audit.prepared-work.v1":
+        keys = [item["key"] for item in value["work"]]
+        if len(keys) != len(set(keys)):
+            raise ValueError("duplicate prepared work")
+        if "context" not in case:
+            return
+        trusted = _decode(case["context"])
+        if trusted["schema"] != "contractor.audit.prepared-work-context.v1":
+            raise ValueError("prepared context required")
+        _validate_case({"document": case["context"]})
+        admitted = {jcs.canonicalize(material) for material in trusted["materials"]}
+        for item in value["work"]:
+            binding = trusted["program"]["workflows"].get(item["workflow"])
+            if binding is None:
+                raise ValueError("prepared workflow")
+            for slot, material in item["inputs"].items():
+                mapping = binding["inputs"].get(slot)
+                if (
+                    mapping is None
+                    or mapping["source"] not in {"audit-input", "task-input"}
+                    or jcs.canonicalize(material) not in admitted
+                ):
+                    raise ValueError("prepared material selection")
+        return
     if value["schema"] == "contractor.audit.program.v1":
         bindings, limits = value["workflows"], value["limits"]
         keys = [task["key"] for task in value["initial_work"]]
@@ -103,7 +141,7 @@ def _validate_case(case):
                 binding = bindings[task["workflow"]]
                 if (
                     slot not in binding["inputs"]
-                    or binding["inputs"][slot]["source"] != "audit-input"
+                    or binding["inputs"][slot]["source"] not in {"audit-input", "task-input"}
                     or name not in value["inputs"]
                 ):
                     raise ValueError("initial material selection")
@@ -164,10 +202,12 @@ def _validate_case(case):
             for slot, name in task.get("inputs", {}).items():
                 if (
                     slot not in binding["inputs"]
-                    or binding["inputs"][slot]["source"] != "audit-input"
+                    or binding["inputs"][slot]["source"] not in {"audit-input", "task-input"}
                     or name not in trusted["materials"]
                 ):
                     raise ValueError("proposal material selection")
+                if binding["inputs"][slot]["source"] == "task-input":
+                    continue
                 declaration = program["inputs"][binding["inputs"][slot]["name"]]
                 if (
                     "*/*" not in declaration["media_types"]
@@ -219,7 +259,14 @@ def _validate_case(case):
 
 
 def test_shared_audit_common_documents():
-    for name in ("programs.json", "results.json", "controls.json", "proposals.json", "tasks.json"):
+    for name in (
+        "programs.json",
+        "results.json",
+        "controls.json",
+        "proposals.json",
+        "tasks.json",
+        "prepared-work.json",
+    ):
         fixtures = json.loads((ROOT / "api/testdata/audit-common" / name).read_text())
         assert fixtures["cases"]
         for case in fixtures["cases"]:
@@ -228,6 +275,30 @@ def test_shared_audit_common_documents():
             else:
                 with pytest.raises((ValueError, jsonschema.ValidationError)):
                     _validate_case(case)
+
+
+def test_shared_prepared_work_bounds():
+    fixture = json.loads((ROOT / "api/testdata/audit-common/prepared-work.json").read_text())
+    bounds = fixture["limits"]
+    assert SCHEMA["$defs"]["prepared_work"]["properties"]["work"]["maxItems"] == bounds["work"]
+    assert (
+        SCHEMA["$defs"]["prepared_context"]["properties"]["materials"]["maxItems"]
+        == bounds["materials"]
+    )
+    assert SCHEMA["$defs"]["prepared_work"]["x-maxEncodedBytes"] == bounds["metadata_bytes"]
+    case = fixture["cases"][0]
+    value = json.loads(case["document"])
+    original = value["work"][0]
+    value["work"] = [dict(original, key=f"operation-{i}") for i in range(bounds["work"])]
+    _validate_case(dict(case, document=json.dumps(value)))
+    value["work"].append(dict(original, key="overflow"))
+    with pytest.raises(jsonschema.ValidationError):
+        _validate_case(dict(case, document=json.dumps(value)))
+    data = case["document"]
+    padded = data + " " * (bounds["metadata_bytes"] - len(data.encode()))
+    _decode(padded)
+    with pytest.raises(ValueError):
+        _decode(padded + " ")
 
 
 def test_shared_audit_common_boundaries():

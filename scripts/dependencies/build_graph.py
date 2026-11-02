@@ -22,6 +22,7 @@ CATALOG = {
     "llm-gateways": "LLMGatewayConfig",
 }
 BUILTINS = {
+    "ServerOperation": "internal/contracts/server_operation.go",
     "Planner": "internal/config/resolved/descriptors.go",
     "WorkerRuntime": "internal/config/resolved/descriptors.go",
     "Toolset": "internal/config/resolved/descriptors.go",
@@ -286,6 +287,17 @@ def workflow_edges(graph, label, spec, source):
         stage_id = f"Stage:{label}/{name}"
         field = f"spec.stages.{name}"
         for consumer, view in [(origin, "catalog"), (stage_id, "stages")]:
+            if "operation" in stage:
+                graph.reference(
+                    consumer,
+                    "ServerOperation",
+                    stage["operation"]["ref"],
+                    source,
+                    f"{field}.operation.ref",
+                    "operation",
+                    view=view,
+                )
+                continue
             graph.reference(
                 consumer,
                 "Planner",

@@ -37,14 +37,22 @@ func (s ScanTask) CoverageRequirement() string {
 // settings. Missing concrete data remain non-runnable items with gaps; a missing
 // operation or malformed settings reject the entire inventory atomically.
 func BuildOpenAPIScanInventory(source []byte, sourceMediaType string, settingsData []byte, settingsInput ExactInput, options InventoryOptions) (Inventory, error) {
+	basis, subjects, err := openAPIScanSubjects(source, sourceMediaType, settingsData, settingsInput, options, MaximumItems)
+	if err != nil {
+		return Inventory{}, err
+	}
+	return finishInventory(source, sourceMediaType, basis, subjects, options)
+}
+
+func openAPIScanSubjects(source []byte, sourceMediaType string, settingsData []byte, settingsInput ExactInput, options InventoryOptions, maxItems int) (inventoryBasis, []inventorySubject, error) {
 	if (options.ApprovalRequirement != ApprovalActiveCheck && options.ApprovalRequirement != ApprovalNone) || settingsInput.Name == options.SourceInputName ||
 		validateIdentifier(settingsInput.Name, "settings.name") != nil || settingsInput.Ref.ValidateExact() != nil ||
 		settingsInput.Digest != DigestBytes(settingsData) {
-		return Inventory{}, invalid(CodeInventoryInvalid, "scan.settings")
+		return inventoryBasis{}, nil, invalid(CodeInventoryInvalid, "scan.settings")
 	}
 	settings, err := scanplan.DecodeAuditScanSettings(settingsData)
 	if err != nil {
-		return Inventory{}, invalid(CodeInventoryInvalid, "scan.settings")
+		return inventoryBasis{}, nil, invalid(CodeInventoryInvalid, "scan.settings")
 	}
 	basis := inventoryBasis{Schema: InventoryBasisSchema, Kind: "openapi-scans", Subjects: []map[string]any{}, Gaps: []string{}}
 	subjects := []inventorySubject{}
@@ -53,9 +61,12 @@ func BuildOpenAPIScanInventory(source []byte, sourceMediaType string, settingsDa
 		if err != nil {
 			var failure *scanplan.PreparationError
 			if errors.As(err, &failure) {
-				return Inventory{}, invalid(CodeInventoryInvalid, "scan."+failure.Code)
+				return inventoryBasis{}, nil, invalid(CodeInventoryInvalid, "scan."+failure.Code)
 			}
-			return Inventory{}, invalid(CodeInventoryInvalid, "scan.preparation")
+			return inventoryBasis{}, nil, invalid(CodeInventoryInvalid, "scan.preparation")
+		}
+		if len(subjects) >= maxItems {
+			return inventoryBasis{}, nil, invalid(CodeLimitExceeded, "scan.operations")
 		}
 		task := openAPIScanTask(settings, settingsInput, prepared)
 		subjects = append(subjects, inventorySubject{kind: "openapi-scan", scan: &task,
@@ -64,14 +75,14 @@ func BuildOpenAPIScanInventory(source []byte, sourceMediaType string, settingsDa
 	}
 	canonical, err := canonicalJSON(basis)
 	if err != nil {
-		return Inventory{}, invalid(CodeInventoryInvalid, "scan.inventory")
+		return inventoryBasis{}, nil, invalid(CodeInventoryInvalid, "scan.inventory")
 	}
 	canonicalDigest := DigestBytes(canonical)
 	for index := range subjects {
 		subjects[index].itemKey = openAPIScanKey(canonicalDigest, subjects[index].scan.Operation)
 		subjects[index].subjectKey = subjects[index].itemKey
 	}
-	return finishInventory(source, sourceMediaType, basis, subjects, options)
+	return basis, subjects, nil
 }
 
 func openAPIScanTask(settings scanplan.AuditScanSettings, input ExactInput, prepared scanplan.PreparedAuditOperation) ScanTask {

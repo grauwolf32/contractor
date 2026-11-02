@@ -5685,6 +5685,7 @@ func (e ServerOperationConfigArguments3Source) Valid() bool {
 
 // Defines values for ServerOperationConfigRef.
 const (
+	OpenapiPrepareWork1  ServerOperationConfigRef = "openapi-prepare-work@1"
 	SitemapApplyOpenapi1 ServerOperationConfigRef = "sitemap-apply-openapi@1"
 	SitemapOpenapiJoin1  ServerOperationConfigRef = "sitemap-openapi-join@1"
 )
@@ -5692,6 +5693,8 @@ const (
 // Valid indicates whether the value is a known member of the ServerOperationConfigRef enum.
 func (e ServerOperationConfigRef) Valid() bool {
 	switch e {
+	case OpenapiPrepareWork1:
+		return true
 	case SitemapApplyOpenapi1:
 		return true
 	case SitemapOpenapiJoin1:
