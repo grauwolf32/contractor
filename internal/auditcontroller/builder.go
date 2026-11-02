@@ -129,10 +129,10 @@ func (b *PinnedSubmissionBuilder) PrepareRole(
 	if err != nil {
 		return PreparedSubmission{}, err
 	}
-	if err := b.validateRulepackInputs(ctx, audit, binding, runInputs); err != nil {
+	auditInputs := auditInputSlots(binding, nil)
+	if err := b.validateRulepackInputs(ctx, audit, binding.Workflow, runInputs, auditInputs); err != nil {
 		return PreparedSubmission{}, err
 	}
-	auditInputs := auditInputSlots(binding, nil)
 	parameters, err := resolveRoleParameters(binding, baseline.Scope)
 	if err != nil {
 		return PreparedSubmission{}, err
@@ -291,8 +291,7 @@ func (b *PinnedSubmissionBuilder) preparationOutput(ctx context.Context, auditID
 // Prepared and retained outputs do not exist at original Audit admission.
 // Check their exact metadata once resolved, before an execution intent or Run
 // can be submitted. The same boundary covers every Audit role and source kind.
-func (b *PinnedSubmissionBuilder) validateRulepackInputs(ctx context.Context, audit auditstore.Audit, binding auditprofile.ResolvedAuditWorkflowBinding, inputs map[string]auditstore.ExactArtifact) error {
-	workflow := binding.Workflow
+func (b *PinnedSubmissionBuilder) validateRulepackInputs(ctx context.Context, audit auditstore.Audit, workflow resolved.ResolvedWorkflow, inputs map[string]auditstore.ExactArtifact, auditInputs map[string]bool) error {
 	for _, slot := range resolved.NucleiRulepackInputs(workflow) {
 		expected, exists := inputs[slot]
 		if !exists {
@@ -300,8 +299,7 @@ func (b *PinnedSubmissionBuilder) validateRulepackInputs(ctx context.Context, au
 		}
 		var metadata auditstore.ExactArtifact
 		var err error
-		mapping := binding.Inputs[slot]
-		if mapping.Source == auditprofile.AuditInputFromPreparation || mapping.Source == auditprofile.AuditInputFromRetainedOutput {
+		if auditInputs[slot] {
 			metadata, err = b.artifacts.ResolveAuditExact(ctx, audit.AuditID, expected)
 		} else {
 			metadata, err = b.artifacts.ResolveProjectExact(ctx, audit.ProjectID, expected)
@@ -520,7 +518,8 @@ func (b *PinnedSubmissionBuilder) PrepareBatch(
 			Task: tasks[index], Inputs: memberInputs,
 		}
 	}
-	if err := b.validateRulepackInputs(ctx, audit, binding, runInputs); err != nil {
+	auditInputs := auditInputSlots(binding, selected[0].Item.Dependencies)
+	if err := b.validateRulepackInputs(ctx, audit, binding.Workflow, runInputs, auditInputs); err != nil {
 		return PreparedSubmission{}, err
 	}
 	skills, err := selectSkills(binding.Workflow, baseline.Skills)
@@ -571,7 +570,7 @@ func (b *PinnedSubmissionBuilder) PrepareBatch(
 		Members: members,
 	}
 	run := runservice.AuditCreateParams{
-		AuditInputs:             auditInputSlots(binding, selected[0].Item.Dependencies),
+		AuditInputs:             auditInputs,
 		RequiredPlacementLabels: append([]string{}, baseline.RequiredPlacementLabels...),
 		ExecutionID:             executionID, Workflow: binding.Workflow,
 		RuntimeConfig: baseline.RuntimeConfig, Skills: skills,

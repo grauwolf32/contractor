@@ -5,6 +5,7 @@ package auditcontroller
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -14,24 +15,83 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/scan"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
 func TestPostgresRetainedDependenciesUseAcceptedPrepareAndItemAfterProducerDeletion(t *testing.T) {
+	testRetainedRulepackDependencies(t, artifacts.Payload{MediaType: "application/yaml", Data: []byte("id: retained-exact-rule\ninfo:\n  name: Retained rule\n  author: fixture\n  severity: info\nhttp:\n  - method: GET\n    path: ['{{BaseURL}}/']\n")}, false)
+}
+
+func TestPostgresRetainedRulepackRefusedBeforeRunCreation(t *testing.T) {
+	for _, test := range []struct {
+		name  string
+		rules artifacts.Payload
+	}{
+		{"oversized", artifacts.Payload{MediaType: "application/yaml", Data: []byte(strings.Repeat("x", scan.MaxNucleiRulepackFileBytes+1))}},
+		{"unsupported-media", artifacts.Payload{MediaType: "text/plain", Data: []byte("unrecognized rulepack")}},
+	} {
+		t.Run(test.name, func(t *testing.T) { testRetainedRulepackDependencies(t, test.rules, true) })
+	}
+}
+
+func testRetainedRulepackDependencies(t *testing.T, rules artifacts.Payload, refused bool) {
+	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), 120*time.Second)
 	defer cancel()
 	catalog := preparationControllerConfig(t, false, func(files map[string]string) {
 		profile := files["audit-profiles/checklist.yaml"]
 		profile = strings.Replace(profile, "maxRounds: 1", "maxRounds: 3", 1)
-		profile = strings.Replace(profile, "        task: {source: item-package}", "        task: {source: item-package}\n        prepared: {source: prepare-output, role: z-seed, name: list}\n        previous_result: {source: retained-dependency, name: source-result}\n        previous_prepared: {source: retained-dependency, name: prepare.z-seed.list}", 1)
+		profile = strings.Replace(profile, "maxEvidenceBytes: 1048576", "maxEvidenceBytes: 67108864", 1)
+		profile = strings.Replace(profile, "activeChecks: prohibited", "activeChecks: automatic", 1)
+		profile = strings.Replace(profile, "        task: {source: item-package}", "        task: {source: item-package}\n        prepared: {source: prepare-output, role: z-seed, name: list}\n        previous_result: {source: retained-dependency, name: source-result}\n        previous_prepared: {source: retained-dependency, name: prepare.z-seed.list}\n        retained_rules: {source: retained-dependency, name: prepare.z-seed.diagnostics}", 1)
 
 		profile = strings.Replace(profile, "  inventory:\n", "    spare: {required: false, mediaTypes: [application/json]}\n  inventory:\n", 1)
 		profile = strings.Replace(profile, "        source: {source: audit-input, name: checklist}", "        source: {source: audit-input, name: checklist}\n        spare: {source: audit-input, name: spare}", 1)
 		files["workflows/prepare.yaml"] = strings.Replace(files["workflows/prepare.yaml"], "    previous: {required: false, mediaTypes: [application/json]}", "    previous: {required: false, mediaTypes: [application/json]}\n    spare: {required: false, mediaTypes: [application/json]}", 1)
 		files["audit-profiles/checklist.yaml"] = profile
 		files["workflows/check.yaml"] = strings.Replace(files["workflows/check.yaml"], "    task: {required: true, mediaTypes: [application/zip]}", "    task: {required: true, mediaTypes: [application/zip]}\n    prepared: {required: true, mediaTypes: [application/json]}\n    previous_result: {required: false, mediaTypes: [application/zip]}\n    previous_prepared: {required: false, mediaTypes: [application/json]}", 1)
+		files["workflows/check.yaml"] = strings.Replace(files["workflows/check.yaml"], "  outputs:", "    retained_rules: {required: false, mediaTypes: [application/yaml, text/plain]}\n  outputs:", 1)
+		files["workflows/check.yaml"] = strings.Replace(files["workflows/check.yaml"], "        succeeded: {succeed: {}}", "        succeeded: {next: rules}", 1)
+		files["workflows/check.yaml"] = strings.Replace(files["workflows/check.yaml"], "  executionConfig:", `    rules:
+      objective: Check using the selected retained rulepack
+      instructions: {ref: instructions/planner.md}
+      planner: passthrough@1
+      agents:
+        scanner: {template: retained-rulepack@1}
+      context:
+        artifacts:
+          rules_alias: {namespace: inputs, name: retained_rules, required: false}
+      result:
+        artifacts:
+          report: {required: true, mediaTypes: [application/json], from: {namespace: scanner, name: report}}
+      on:
+        succeeded: {succeed: {}}
+        failed: {fail: {}}
+        interrupted: {fail: {}}
+  executionConfig:`, 1)
+		files["workflows/check.yaml"] = strings.Replace(files["workflows/check.yaml"], "    workers:\n      modelPolicy: worker@1", "    stages:\n      check:\n        agents:\n          worker: {modelPolicy: worker@1}", 1)
+		files["agent-templates/retained-rulepack.yaml"] = `apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+metadata: {name: retained-rulepack, version: "1"}
+spec:
+  description: Check with an explicitly retained rules package.
+  runtime: tool@1
+  sandboxProfile: local-workdir@1
+  toolsets:
+    - ref: scan@1
+      tools: [scan_nuclei]
+  execution:
+    tool: scan_nuclei
+    arguments:
+      url: {source: literal, value: "https://target.test/"}
+      rulepack_ref: {source: artifact, name: rules_alias, optional: true}
+    resultArtifact: report
+    timeoutSeconds: 30
+`
+		files["workflows/prepare.yaml"] = strings.ReplaceAll(files["workflows/prepare.yaml"], "diagnostics: {required: true, mediaTypes: [application/json]", "diagnostics: {required: true, mediaTypes: ["+rules.MediaType+"]")
 		files["agent-templates/worker.yaml"] = strings.Replace(files["agent-templates/worker.yaml"], "  sandboxProfile:", "    - ref: security-findings@1\n      tools: [finding]\n  sandboxProfile:", 1)
 	})
 	h := newPostgresControllerHarnessWithConfig(t, ctx, 0, 3, catalog)
@@ -41,7 +101,7 @@ func TestPostgresRetainedDependenciesUseAcceptedPrepareAndItemAfterProducerDelet
 	}
 	c := h.controllerWithCollector(t, intake)
 	c.initialRoundBuilder = h.service
-	readyGeneratedInventory(t, ctx, h, c)
+	readyGeneratedInventory(t, ctx, h, c, map[string]artifacts.Payload{"diagnostics": rules})
 	preparationStep(t, ctx, c)
 	preparationStep(t, ctx, c)
 	var producer auditstore.Execution
@@ -107,7 +167,7 @@ func TestPostgresRetainedDependenciesUseAcceptedPrepareAndItemAfterProducerDelet
 		t.Fatalf("production receipt adapter: items=%d reason=%+v error=%v", len(params.Items), reason, err)
 	}
 	deps := params.Items[0].Dependencies
-	if deps == nil || len(deps.Dependencies) != 4 {
+	if deps == nil || len(deps.Dependencies) != 5 {
 		t.Fatalf("accepted closure: %+v", deps)
 	}
 
@@ -152,7 +212,25 @@ func TestPostgresRetainedDependenciesUseAcceptedPrepareAndItemAfterProducerDelet
 		t.Fatalf("later item: %+v %v", items, err)
 	}
 	builder, payloadProbe := payloadCountingBuilder(t, h, claim)
+	acceptedRules, err := h.audits.GetPreparationOutput(ctx, snapshot.Audit.AuditID, "z-seed", "diagnostics")
+	if err != nil {
+		t.Fatal(err)
+	}
+	projectArtifacts, _ := h.artifacts.Project(snapshot.Audit.ProjectID)
+	if _, err := projectArtifacts.Metadata(ctx, acceptedRules.Output.Retained.Ref); !errors.Is(err, artifacts.ErrArtifactNotFound) {
+		t.Fatalf("prepared rulepack must exist only in Audit scope: %v", err)
+	}
 	built, err := builder.PrepareBatch(ctx, snapshot, []CheckExecutionMember{{Item: items[0], Attempt: 1}})
+	if refused {
+		if !errors.Is(err, ErrInvalidSubmission) {
+			t.Fatalf("invalid retained rulepack was not refused before intent creation: %v", err)
+		}
+		executions, readErr := h.audits.ListExecutions(ctx, snapshot.Audit.AuditID)
+		if readErr != nil || len(executions) != 4 {
+			t.Fatalf("invalid rulepack changed the preparation and three existing executions: count=%d %v", len(executions), readErr)
+		}
+		return
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -174,6 +252,20 @@ func TestPostgresRetainedDependenciesUseAcceptedPrepareAndItemAfterProducerDelet
 		t.Fatalf("consumer initialization did not complete: %s", child.Run.State)
 	}
 	local, _ := h.artifacts.Run(child.Run.RunID)
+	ruleInput, err := local.Read(ctx, contracts.ArtifactRef{Namespace: "inputs", Name: "retained_rules"})
+	if err != nil || string(ruleInput.Payload.Data) != string(rules.Data) || ruleInput.Payload.MediaType != rules.MediaType {
+		t.Fatalf("checking Run lost exact retained rulepack: %+v %v", ruleInput, err)
+	}
+	metadata, err := local.Metadata(ctx, ruleInput.Ref)
+	if err != nil || metadata.Exact().Digest != acceptedRules.Output.Retained.Digest || !built.Run.Inputs["retained_rules"].Ref.SameExact(acceptedRules.Output.Retained.Ref) {
+		t.Fatalf("checking Run did not select accepted rulepack revision: %+v %v", metadata, err)
+	}
+	sourceScope, _ := artifacts.AuditScope(snapshot.Audit.AuditID)
+	sourceArtifacts, _ := h.artifacts.Scoped(sourceScope)
+	sourceMetadata, err := sourceArtifacts.Metadata(ctx, acceptedRules.Output.Retained.Ref)
+	if err != nil || sourceMetadata.ContentCacheKey != metadata.ContentCacheKey {
+		t.Fatalf("checking Run did not reuse the accepted immutable version: %v", err)
+	}
 	contextRead, err := local.Read(ctx, contracts.ArtifactRef{Namespace: "audit-context", Name: "retained-dependencies"})
 	if err != nil {
 		t.Fatalf("consumer mapping is absent: %v", err)
@@ -186,7 +278,7 @@ func TestPostgresRetainedDependenciesUseAcceptedPrepareAndItemAfterProducerDelet
 			Source, Retained, Consumer auditstore.ExactArtifact
 		} `json:"mappings"`
 	}
-	if json.Unmarshal(contextRead.Payload.Data, &mappings) != nil || len(mappings.Mappings) != 4 {
+	if json.Unmarshal(contextRead.Payload.Data, &mappings) != nil || len(mappings.Mappings) != 5 {
 		t.Fatalf("consumer mapping: %s", contextRead.Payload.Data)
 	}
 	project, _ := h.artifacts.Project(snapshot.Audit.ProjectID)

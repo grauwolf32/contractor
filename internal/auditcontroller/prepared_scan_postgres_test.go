@@ -181,9 +181,69 @@ func TestPostgresPreparedRulepackRefusedBeforeScanDispatch(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			err = builder.validateRulepackInputs(ctx, h.started.Audit, binding, inputs)
+			err = builder.validateRulepackInputs(ctx, h.started.Audit, binding.Workflow, inputs, auditInputSlots(binding, nil))
 			if test.refused && !errors.Is(err, ErrInvalidSubmission) || !test.refused && err != nil {
 				t.Fatalf("retained role admission: %v", err)
+			}
+			projectScope, _ := artifacts.ProjectScope(h.started.Audit.ProjectID)
+			projectRules, err := h.artifacts.CreateFrozen(ctx, projectScope,
+				contracts.ArtifactRef{Namespace: auditdomain.ArtifactNamespace(h.started.Audit.AuditID), Name: "project-rules"},
+				artifacts.Payload{MediaType: "application/yaml", Data: bytes.Repeat([]byte("x"), test.size)})
+			if err != nil {
+				t.Fatal(err)
+			}
+			projectInputs, _ := h.artifacts.Project(h.started.Audit.ProjectID)
+			projectMetadata, err := projectInputs.Metadata(ctx, projectRules.Ref)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, source := range []struct {
+				name       string
+				mapping    auditprofile.AuditWorkflowInputMapping
+				dependency string
+				expected   auditstore.ExactArtifact
+			}{
+				{"prepare-output", auditprofile.AuditWorkflowInputMapping{Source: auditprofile.AuditInputFromPreparation}, "", output.Output.Retained},
+				{"retained-output", auditprofile.AuditWorkflowInputMapping{Source: auditprofile.AuditInputFromRetainedOutput}, "", output.Output.Retained},
+				{"prepared-dependency", auditprofile.AuditWorkflowInputMapping{Source: auditprofile.AuditInputFromRetainedDependency, Name: "rules"}, "prepare-output", output.Output.Retained},
+				{"project-dependency", auditprofile.AuditWorkflowInputMapping{Source: auditprofile.AuditInputFromRetainedDependency, Name: "rules"}, "baseline", projectMetadata.Exact()},
+			} {
+				t.Run(source.name, func(t *testing.T) {
+					selected := binding
+					selected.Inputs = map[string]auditprofile.AuditWorkflowInputMapping{"rulepack": source.mapping}
+					dependencies := &auditdomain.RetainedDependencyManifest{Dependencies: []auditdomain.RetainedDependency{{Name: "rules", Kind: source.dependency}}}
+					err := builder.validateRulepackInputs(ctx, h.started.Audit, selected.Workflow,
+						map[string]auditstore.ExactArtifact{"rulepack": source.expected}, auditInputSlots(selected, dependencies))
+					if test.refused && !errors.Is(err, ErrInvalidSubmission) || !test.refused && err != nil {
+						t.Fatalf("rulepack source admission: %v", err)
+					}
+				})
+			}
+			if !test.refused {
+				for _, mutation := range []string{"missing-revision", "digest", "media", "size", "wrong-scope"} {
+					t.Run(mutation, func(t *testing.T) {
+						expected := output.Output.Retained.Clone()
+						want := ErrInvalidSubmission
+						switch mutation {
+						case "missing-revision":
+							revision := "missing-revision"
+							expected.Ref.Revision, want = &revision, artifacts.ErrArtifactNotFound
+						case "digest":
+							expected.Digest = postgresDigest("different-rules")
+						case "media":
+							expected.MediaType = "application/json"
+						case "size":
+							expected.SizeBytes++
+						case "wrong-scope":
+							expected, want = projectMetadata.Exact(), artifacts.ErrArtifactNotFound
+						}
+						err := builder.validateRulepackInputs(ctx, h.started.Audit, binding.Workflow,
+							map[string]auditstore.ExactArtifact{"rulepack": expected}, auditInputSlots(binding, nil))
+						if !errors.Is(err, want) {
+							t.Fatalf("invalid rulepack metadata: %v, want %v", err, want)
+						}
+					})
+				}
 			}
 			c.initialRoundBuilder = h.service
 			preparationStep(t, ctx, c) // accept initial inventory
