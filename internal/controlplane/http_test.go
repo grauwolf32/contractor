@@ -22,7 +22,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/grauwolf32/contractor/internal/mtls"
-	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
 
 func TestPrivateHTTPRequiresVerifiedMTLSAndStrictBody(t *testing.T) {
@@ -104,38 +103,28 @@ func TestPrivateHTTPRequiresVerifiedMTLSAndStrictBody(t *testing.T) {
 	}
 }
 
-func TestPrivateRegistrationRejectsNonApplicableLabelsWithoutRetry(t *testing.T) {
-	for _, test := range []struct {
-		name string
-		err  error
-	}{
-		{"bare", runtimeconfig.ErrAgentLabelNotApplicable},
-		{"wrapped", fmt.Errorf("register principal: %w", runtimeconfig.ErrAgentLabelNotApplicable)},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			registry := newTestRegistry(t, newTestClock())
-			handler, err := NewHTTPHandler(registry, HTTPOptions{
-				Principals: failingPrincipalRegistrar{err: test.err},
-			})
-			if err != nil {
-				t.Fatal(err)
-			}
-			registration := testRegistration("agent-http")
-			registration.InitialLabels = []string{"planner-only"}
-			body, err := json.Marshal(registration)
-			if err != nil {
-				t.Fatal(err)
-			}
-			response := httptest.NewRecorder()
-			handler.ServeHTTP(response, verifiedRequest(http.MethodPost, "/private/v1/agents/register", body))
-			var envelope privateErrorResponse
-			if err := json.Unmarshal(response.Body.Bytes(), &envelope); err != nil {
-				t.Fatal(err)
-			}
-			if response.Code != http.StatusBadRequest || envelope.Code != "invalid_runtime_labels" || envelope.Retryable {
-				t.Fatalf("registration = %d %+v", response.Code, envelope)
-			}
-		})
+func TestPrivateRegistrationRejectsRemovedInitialLabelsWithoutMutation(t *testing.T) {
+	registry := newTestRegistry(t, newTestClock())
+	handler, err := NewHTTPHandler(registry, HTTPOptions{Principals: testPrincipalRegistrar{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := json.Marshal(testRegistration("agent-http"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	body = append(bytes.TrimSuffix(body, []byte("}")), []byte(`,"initialLabels":["debug"]}`)...)
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, verifiedRequest(http.MethodPost, "/private/v1/agents/register", body))
+	var envelope privateErrorResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &envelope); err != nil {
+		t.Fatal(err)
+	}
+	if response.Code != http.StatusBadRequest || envelope.Code != "invalid_request" || envelope.Retryable {
+		t.Fatalf("registration = %d %+v", response.Code, envelope)
+	}
+	if _, err := registry.GetAgent("agent-http"); !errors.Is(err, ErrAgentNotFound) {
+		t.Fatalf("removed field registration mutated registry: %v", err)
 	}
 }
 
@@ -227,16 +216,16 @@ type testPrincipalRegistrar struct{}
 
 type failingPrincipalRegistrar struct{ err error }
 
-func (f failingPrincipalRegistrar) Register(context.Context, string, []string) (agentprincipal.Principal, error) {
+func (f failingPrincipalRegistrar) Register(context.Context, string) (agentprincipal.Principal, error) {
 	return agentprincipal.Principal{}, f.err
 }
 
 func (testPrincipalRegistrar) Register(
-	_ context.Context, runtimeAgentID string, labels []string,
+	_ context.Context, runtimeAgentID string,
 ) (agentprincipal.Principal, error) {
 	now := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
 	return agentprincipal.Principal{
-		RuntimeAgentID: runtimeAgentID, Labels: append([]string{}, labels...),
+		RuntimeAgentID: runtimeAgentID, Labels: []string{},
 		LabelRevision: 1, CreatedBy: "test", CreatedAt: now, UpdatedBy: "test", UpdatedAt: now,
 	}, nil
 }
@@ -292,7 +281,6 @@ func TestPrivateRegistrationRejectionsCarryTheRetryVerdict(t *testing.T) {
 		retryable bool
 	}{
 		{"strict validation", fmt.Errorf("%w: invalid registration", ErrInvalidRequest), http.StatusBadRequest, "invalid_request", false},
-		{"labels", runtimeconfig.ErrAgentLabelNotApplicable, http.StatusBadRequest, "invalid_runtime_labels", false},
 		{"state conflict", ErrRegistrationConflict, http.StatusConflict, "conflict", true},
 		{"internal failure", errors.New("database unavailable"), http.StatusInternalServerError, "internal_error", true},
 	} {

@@ -227,9 +227,12 @@ describes its normalized, digest-bearing resolved value inside the Go Server.
 Escalation execution settings are inline in the owning Workflow and may reuse
 standard YAML anchors within that document.
 
-Registration requires `initialLabels` and `supportedRuntimeAdapters`, including
-empty arrays when nothing is selected. The response carries the durable
-`runtimeAgentId`, authoritative `labels` and `labelRevision` alongside lease timing.
+Registration requires `supportedRuntimeAdapters`, including an empty array when
+none are available, and carries no RuntimeConfig label assignment. A new
+certificate principal starts with empty labels at revision 1; assignments use
+the public Operations API. The response contains only `apiVersion`,
+`heartbeatIntervalSeconds` and `confirmedLeaseSeconds`. Durable `runtimeAgentId`,
+labels and their revision remain Server-owned and are exposed through Operations.
 Every allocation requires `resolvedRuntimeConfigProvenance`; endpoint and credential
 material belongs only to the separate `runtimeSettings` value. Optional settings
 select telemetry, HTTP proxy, HTTP origin authentication and Caido adapters.

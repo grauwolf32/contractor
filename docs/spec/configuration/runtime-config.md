@@ -34,7 +34,7 @@ It leaves to other documents:
   metadata `labels` and public Run and StageAttempt detail:
   [Runs](../execution/runs.md);
 - Runtime Agent principals and their certificate-derived `runtime_agent_id`,
-  registration and `initialLabels`, adapter capability discovery, placement,
+  registration, adapter capability discovery, placement,
   allocation pinning and lock order: [Control
   plane](../execution/control-plane.md);
 - allocation adapter construction, proxy injection, traffic bypass and adapter
@@ -1150,8 +1150,9 @@ creation.
 
 **RCF-R138.** The model has one label set on each subject. It has no
 `declaredLabels`, `managedLabels`, `effectiveLabels` or per-label `source`
-fields. Startup labels only seed a previously unseen Runtime Agent principal;
-after that first registration the Control Plane database is authoritative. The
+fields. New Runtime Agent principals have an empty label set; only Operations
+assigns or replaces their labels. Runtime startup and registration never carry
+label assignments, and the Control Plane database is always authoritative. The
 registration contract is owned by [Control
 plane](../execution/control-plane.md).
 
@@ -1163,7 +1164,7 @@ only a later allocation. The active Worker retains its immutable
 RuntimeSettings snapshot. The Runtime Agent does not receive a mutable
 label-update command and does not restart or re-probe its environment.
 
-**RCF-R141.** First creation and every replacement of an Agent label set
+**RCF-R141.** Every assignment or replacement of an Agent label set
 validate binding existence plus all same-layer merge conflicts. A malformed or
 conflicting Agent label set is rejected by the label-assignment mutation
 (FAIL-RCF-7).
@@ -1377,9 +1378,10 @@ settings resolved for future allocations, including allocations of an existing
 Run. Already prepared allocations keep their pinned settings.
 
 **RCF-R171.** Runtime Agent detail permits replacing the complete authoritative
-label set. Because startup labels seed only an unseen certificate-derived
-principal, the UI has one set to explain rather than separate declared, managed
-and effective views. A busy agent retains its active allocation snapshot, and
+label set. A new certificate-derived principal starts unlabeled; assignments
+are made through Operations, independently of Runtime startup. The UI has one
+set to explain rather than separate declared, managed and effective views.
+A busy agent retains its active allocation snapshot, and
 the page makes clear that changed labels apply to a future allocation.
 
 **RCF-R172.** UI previews endpoints and non-secret policy only on the

@@ -15,7 +15,7 @@ from types import MappingProxyType
 
 from google.adk.tools import ToolContext
 
-import contractor_runtime.allocation.service as allocation_service
+import contractor_runtime.allocation.cleanup as allocation_cleanup
 from contractor_runtime.lease import LeaseWatchdog
 from contractor_runtime.threads import to_thread_until_done
 from contractor_runtime.worker.runtime import INVOCATION_CLEANUP_TIMEOUT_SECONDS
@@ -196,7 +196,7 @@ class NativeFaults:
         service.abort = observed_abort
         service.release = observed_release
         if self.mode == "native_cleanup_failure_fences_until_release":
-            original = allocation_service.release_adk_tool_caches
+            original = allocation_cleanup.release_adk_tool_caches
             attempts = 0
 
             def release_once_failing():
@@ -206,7 +206,7 @@ class NativeFaults:
                     raise RuntimeError("controlled process cache cleanup failure")
                 original()
 
-            allocation_service.release_adk_tool_caches = release_once_failing
+            allocation_cleanup.release_adk_tool_caches = release_once_failing
         if self.mode == "native_lease_expiry_joins_active_adk":
 
             async def expired():

@@ -24,15 +24,14 @@ func TestSharedPrivateRegistrationNormalizationFingerprintAndProjection(t *testi
 	if err != nil {
 		t.Fatal(err)
 	}
-	changedSeed := registration
-	changedSeed.InitialLabels = []string{"other"}
-	changedSeed.ObservedState = AgentFenced
-	second, err := AgentRegistrationFingerprint(changedSeed)
+	changedObservation := registration
+	changedObservation.ObservedState = AgentFenced
+	second, err := AgentRegistrationFingerprint(changedObservation)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if first != second {
-		t.Fatal("startup label seed or observation changed the immutable registration fingerprint")
+		t.Fatal("observation changed the immutable registration fingerprint")
 	}
 	changedCapability := registration
 	changedCapability.SupportedRuntimeAdapters = []runtimesettings.RuntimeAdapterRef{runtimesettings.RuntimeAdapterOTLPHTTP}

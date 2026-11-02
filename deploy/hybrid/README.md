@@ -194,8 +194,8 @@ remote changes; add the explicit field to a manifest that lacks it.
 
 The wrapper reads those source declarations on every invocation, including
 `--inventory-only` and `--syntax-check`; do not edit `runtime-inventory.yml`.
-They become `--placement-label` arguments independently of `--labels cloud-llm`,
-which selects Runtime configuration. Changing a declaration requires an ordinary
+They become `--placement-label` arguments independently of the Server-managed
+`cloud-llm` RuntimeConfig assignment. Changing a declaration requires an ordinary
 Runtime restart/new incarnation. With `--defer-restarts`, ready processes still
 have their previous labels until restarted; Operations shows their actual
 registered declarations. Drain affected slots and rerun without that flag to
@@ -235,11 +235,12 @@ a host declaration such as `cloud/aws/site-a`. The `cloud-llm` RuntimeConfig
 label alone provides no scheduling affinity. Local Runtime Agents without a
 Podman capability cannot receive a Podman Workflow.
 
-New cloud principals register with the initial `cloud-llm` label. Create it
-before starting the workers: registration rejects an unknown label, so a new
-worker cannot accidentally receive the local loopback gateway configuration.
-For an already registered principal, labels are authoritative Server state;
-changing startup arguments does not replace them. Use `assign` to reconcile it.
+New cloud principals register with an empty configuration-label set. After
+registration, use `assign` to apply `cloud-llm` through Operations before
+submitting work to those agents. Keep affected work paused during provisioning:
+registration alone does not establish the cloud Gateway route. For an already
+registered principal, `assign` reconciles the Server-owned labels; changing
+Runtime startup arguments never assigns or replaces them.
 
 `configure` provisions a managed inference credential through Contractor with a
 $5 budget, 30 RPM and at most two parallel requests. It reads the exact Worker,

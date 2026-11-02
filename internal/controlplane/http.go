@@ -15,7 +15,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/helpers/requestid"
 	"github.com/grauwolf32/contractor/internal/mtls"
-	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
 
 const maxPrivateJSONBody = 1 << 20
@@ -42,7 +41,7 @@ type Registry interface {
 }
 
 type PrincipalRegistrar interface {
-	Register(context.Context, string, []string) (agentprincipal.Principal, error)
+	Register(context.Context, string) (agentprincipal.Principal, error)
 }
 
 func NewHTTPHandler(registry Registry, supplied ...HTTPOptions) (http.Handler, error) {
@@ -127,7 +126,7 @@ func (h *privateHTTPHandler) register(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, errors.New("authenticated Runtime Agent principal is unavailable"))
 		return
 	}
-	principal, err := h.principals.Register(r.Context(), runtimeAgentID, registration.InitialLabels)
+	principal, err := h.principals.Register(r.Context(), runtimeAgentID)
 	if err != nil {
 		h.handleError(w, err)
 		return
@@ -175,10 +174,6 @@ func (h *privateHTTPHandler) handleError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, ErrInvalidRequest), errors.Is(err, contracts.ErrValidation):
 		writePrivateError(w, http.StatusBadRequest, "invalid_request", "request does not satisfy the private API contract", false)
-	case errors.Is(err, runtimeconfig.ErrInvalid), errors.Is(err, runtimeconfig.ErrNotFound),
-		errors.Is(err, runtimeconfig.ErrConflict), errors.Is(err, runtimeconfig.ErrPrecondition),
-		errors.Is(err, runtimeconfig.ErrAgentLabelNotApplicable):
-		writePrivateError(w, http.StatusBadRequest, "invalid_runtime_labels", "Runtime Agent labels cannot be registered", false)
 	case errors.Is(err, ErrRegistrationConflict), errors.Is(err, ErrHeartbeatOutOfOrder):
 		writePrivateError(w, http.StatusConflict, "conflict", "request conflicts with current Runtime Agent state", true)
 	default:

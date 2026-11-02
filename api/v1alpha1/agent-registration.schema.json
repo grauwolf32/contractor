@@ -182,14 +182,6 @@
       ],
       "default": null
     },
-    "initialLabels": {
-      "items": {
-        "type": "string"
-      },
-      "maxItems": 32,
-      "title": "Initiallabels",
-      "type": "array"
-    },
     "supportedRuntimeAdapters": {
       "items": {
         "type": "string"
@@ -239,7 +231,6 @@
     "supportedToolsets",
     "supportedSandboxProfiles",
     "observedState",
-    "initialLabels",
     "supportedRuntimeAdapters"
   ],
   "title": "AgentRegistration",

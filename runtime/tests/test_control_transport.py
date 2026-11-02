@@ -71,7 +71,7 @@ def test_transport_keeps_a_complete_response_connection_and_preserves_http_statu
 
 
 _ENVELOPE = (
-    b'{"code":"invalid_runtime_labels","message":"server-message-must-not-escape",'
+    b'{"code":"invalid_request","message":"server-message-must-not-escape",'
     b'"retryable":false,"requestId":"request_1"}'
 )
 
@@ -79,7 +79,7 @@ _ENVELOPE = (
 @pytest.mark.parametrize(
     ("body", "envelope"),
     [
-        (_ENVELOPE, ("invalid_runtime_labels", False, "request_1")),
+        (_ENVELOPE, ("invalid_request", False, "request_1")),
         (
             b'{"code":"conflict","message":"m","retryable":true,"requestId":"request-2"}',
             ("conflict", True, "request-2"),
@@ -87,7 +87,7 @@ _ENVELOPE = (
         # Anything but the exact strict envelope is classified by status alone.
         (_ENVELOPE.replace(b'{"code"', b'{"code":"conflict","code"'), None),
         (_ENVELOPE.replace(b"false", b'"false"'), None),
-        (_ENVELOPE.replace(b"invalid_runtime_labels", b"Invalid Labels"), None),
+        (_ENVELOPE.replace(b"invalid_request", b"Invalid Labels"), None),
         (_ENVELOPE.replace(b"}", b',"extra":1}'), None),
         (_ENVELOPE.replace(b"server-message-must-not-escape", b" "), None),
         (_ENVELOPE.replace(b"request_1", b"request 1"), None),

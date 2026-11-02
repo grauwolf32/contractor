@@ -86,7 +86,6 @@ def inventory(args, state, doc):
                 "contractor_runtime_podman_scope_limits": args.full_capabilities,
                 "contractor_runtime_restart": not args.defer_restarts,
                 "contractor_runtime_verify": True,
-                "contractor_runtime_labels": args.labels,
             },
             "hosts": hosts,
         }
@@ -152,7 +151,6 @@ def main():
     )
     parser.add_argument("--full-capabilities", action="store_true")
     parser.add_argument("--defer-restarts", action="store_true")
-    parser.add_argument("--labels", nargs="+", default=["cloud-llm"])
     parser.add_argument("--inventory-only", action="store_true")
     parser.add_argument("--syntax-check", action="store_true")
     args = parser.parse_args()

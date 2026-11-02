@@ -676,7 +676,6 @@ func (f *placementFixture) candidateRegistration(
 	labels []string,
 ) control.AgentRegistration {
 	return control.AgentRegistration{
-		InitialLabels:     append([]string{}, labels...),
 		SupportedRuntimes: []string{f.template.Runtime.RuntimeID + "@" + f.template.Runtime.Version},
 		SupportedToolsets: []control.ToolsetCapability{{
 			Ref:   f.template.Toolsets[0].Ref.ToolsetID + "@" + f.template.Toolsets[0].Ref.Version,
