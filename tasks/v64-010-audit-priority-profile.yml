@@ -39,7 +39,11 @@ context:
     decision on 2026-11-02 moves the shipped YAML rewrite to its execution owners: V64-002 owns six
     observation/tracing/scan programs and V64-012 owns eight checklist/standard assertion programs. This
     task verifies the integrated catalog, aligns remaining consumers and removes obsolete machinery;
-    it does not postpone or duplicate the earlier YAML rewrite. This is a planning amendment only.'
+    it does not postpone or duplicate the earlier YAML rewrite. User decision on 2026-11-02 places
+    deterministic OpenAPI preparation in the V64-026 Server-operation prerequisite and its common
+    task-acceptance integration in V64-002. Preserve those domain algorithms/callers while removing
+    their replaced inventory/Round/ZIP wrappers; do not recreate a generic inventory engine here.
+    This is a planning amendment only.'
   implementation_gate: V64-001 decisions are settled. Keep pending until implementation is assigned and
     dependencies are complete; this task amendment starts no code, migrations, live Runs or deployment.
   design:

@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-77 open tasks: 11 in progress, 53 pending, 13 deferred. 1401 finished: 1383 completed, 18 archived.
+78 open tasks: 11 in progress, 54 pending, 13 deferred. 1401 finished: 1383 completed, 18 archived.
 
 ## In progress
 
@@ -79,7 +79,7 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V64-002](v64-002-audit-priority-store.yml) | feature | P1 | V64-014 | Coordinate durable Audit tasks through ordinary Runs |
+| [V64-002](v64-002-audit-priority-store.yml) | feature | P1 | V64-014, V64-026 | Coordinate durable Audit tasks through ordinary Runs |
 | [V64-005](v64-005-independent-priority-verdicts.yml) | feature | P2 | V64-012, V64-013 | Optionally rank the common Audit ready-task shortlist |
 | [V64-008](v64-008-audit-priority-api-coverage.yml) | feature | P1 | V64-012, V64-013, V411-010 | Expose Audit tasks check results findings and selected materials |
 | [V64-010](v64-010-audit-priority-profile.yml) | feature | P1 | V64-012, V64-013, V411-010 | Verify shipped Audit programs and retire the remaining old pipeline |
@@ -90,6 +90,7 @@ the epics are in [epics.yml](epics.yml).
 | [V64-016](v64-016-audit-research-ranking-evaluation.yml) | chore | P2 | V64-005, V64-011 | Evaluate optional Audit ranking against the deterministic baseline |
 | [V64-017](v64-017-audit-attack-tree-projection.yml) | feature | P2 | V64-011 | Project optional attack trees over retained research conclusions |
 | [V64-018](v64-018-audit-research-pentest-integration.yml) | feature | P2 | V64-011, V411-020 | Compose optional hypothesis generation with ordinary HTTP Audit tasks |
+| [V64-026](v64-026-openapi-prepared-work-operation.yml) | feature | P1 | — | Prepare bounded OpenAPI work through an ordinary Server operation |
 | [V411-010](v411-010-pentest-program-availability.yml) | feature | P1 | V64-002, V64-014 | Remove the remaining item and report approvals from Audit |
 | [V411-016](v411-016-pentest-proof-report.yml) | feature | P1 | V411-015, V411-014, V64-008 | Show HTTP engagement context and gaps in ordinary retained Audit reports |
 | [V417-005](v417-005-audit-worker-context-compaction.yml) | feature | P1 | V417-003, V417-004, V64-012 | Admit compaction without bypassing trusted Audit completion |
@@ -180,7 +181,7 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 2 | 17 | 10 | 10 | 15 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 19 | 16 | 16 | 21 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 36 | 39 | 16 | 66 |
-| Audits (`audits`) | 17 | 67 | 90 | 38 | 140 |
+| Audits (`audits`) | 18 | 68 | 90 | 38 | 140 |
 | Evaluations (`evals`) | 6 | 21 | 39 | 16 | 49 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 5 |
 | Web UI (`ui`) | 2 | 41 | 70 | 26 | 71 |

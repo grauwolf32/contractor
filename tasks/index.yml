@@ -9,6 +9,14 @@ project:
 
 execution_policy:
   current_delivery_focus: >-
+    User decision 2026-11-02 resolves OpenAPI operation granularity during V64-002 investigation:
+    V64-026 is the narrow prerequisite for an ordinary Server-operation preparation Workflow and a
+    bounded exact work-list/admission-validation contract. Existing domain builders own interpretation;
+    Audit service accepts separate operation tasks through the common path, and the coordinator uses
+    RunService. No new inventory engine, DSL, collector, receipt/lease store or generator loop is added.
+    Web-scan remains one task per target. V64-002 keeps its implementation assignment and the explicit
+    permission to start from merged V64-014 code while that task remains in_progress, but resumes its
+    dependent implementation after V64-026 completes. V64-026 task formation is not implementation.
     User decision 2026-11-02 splits the actual shipped Audit YAML rewrite between the tasks delivering
     its behavior: V64-002 owns six observation/tracing/scan programs and V64-012 owns eight checklist/standard
     assertion programs, including required Workflow/template/instruction bindings and real callers.

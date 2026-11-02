@@ -11,6 +11,7 @@ depends_on:
 - V64-004
 - V64-014
 - V64-021
+- V64-026
 languages:
 - go
 - python
@@ -42,7 +43,14 @@ context:
     programs. Rewrite the configurations with their actual consumers rather than retaining the old format
     or introducing an unsupported-profile compatibility mode. V64-010 verifies the combined catalog and
     removes remaining obsolete callers; it no longer owns the initial YAML rewrite. This is a planning
-    amendment, not assignment of dependent implementation.'
+    amendment, not assignment of dependent implementation. User decision on 2026-11-02 resolves
+    OpenAPI task granularity: an ordinary preparation Workflow uses an existing Server-operation
+    Stage to produce a bounded work-list output; common Audit acceptance creates separate tasks
+    per operation and the coordinator submits ordinary checking Runs. The domain owns parsing,
+    selection, conditions and gaps; the operations module adapts declared Workflow inputs/outputs;
+    Audit service owns IDs, validation, bounded acceptance and idempotency. Compatible tasks can
+    batch. V64-026 owns the narrow operation/output/admission-validation prerequisite. Web-scan
+    remains one task per selected target. This is deterministic preparation, not V64-013 generation.'
   execution_authority: >-
     User assigned implementation on 2026-11-02 and explicitly permitted starting on current main
     despite V64-014 remaining in_progress. Its merged implementation is the integration baseline;
@@ -50,7 +58,9 @@ context:
     Work is isolated on codex/audit-task-coordinator. No demo deployment is authorized.
   implementation_gate: >-
     Implementation is assigned. V64-001, V64-004 and V64-021 are completed; the user explicitly
-    waived waiting for formal V64-014 completion for this task on 2026-11-02.
+    waived waiting for formal V64-014 completion for this task on 2026-11-02. The newly discovered
+    V64-026 prerequisite must complete before resuming dependent implementation; the existing
+    assignment remains valid and does not need to be repeated.
   explicit_task_handoff: >-
     User decision 2026-11-02: after collection of Run A output, accept task B through the common
     authenticated task-creation API with an explicitly selected exact input. The controller creates
@@ -64,17 +74,13 @@ context:
     scenarios in the common format with actual assertion behavior. Do not keep an old reader,
     executor or unsupported-profile mode. Original YAML remains available in Git at main
     9b4ba9c8b1901c5c7eeb301015ad7e61cd94066d, without duplicate archived catalog files.
-  decision_needed: >-
-    Implementation investigation 2026-11-02 found an unresolved executable boundary for the six
-    migrated profiles: current auditdomain.BuildOpenAPIInventory and BuildOpenAPIScanInventory
-    construct separate per-operation tasks from selected exact source/settings, whereas the common
-    program's closed initial_work contract contains only explicit tasks and input selections.
-    Decide whether to preserve separate Audit tasks using the existing deterministic domain builder
-    through common acceptance (agent recommendation; any necessary contract extension needs its own
-    prerequisite task), or execute operation selection/fanout inside an ordinary Workflow/Run and
-    accept changed task/progress/retry granularity. Do not silently restore inventory/phase machinery
-    or weaken current observation/scan behavior. User question is pending; return this task to pending
-    under AGENTS.md 4.1 until this consequential ownership/behavior choice is settled.
+  openapi_preparation_boundary: >-
+    User settled the former decision_needed on 2026-11-02. Reuse the existing OpenAPI/scan domain
+    builders through an ordinary Server-operation preparation Workflow, with the concrete bounded
+    output-to-task contract supplied by V64-026. This task accepts that exact work through its one
+    task-creation operation in bounded slices, preserving producer/list/entry identity and partial
+    intake/replay. It supplies the actual owner persistence/control/RunService integration; the operation
+    itself writes no Audit task and introduces no inventory phase, admission engine or generator loop.
   implementation_progress: >-
     Preparatory commit 8947ae49bf91122340322a3779c7312f9553aabf adds shared typed Program decoding
     through the existing strict common validator and migrates the real catalog validation caller to it.
@@ -137,6 +143,10 @@ scope:
     initial ordinary work, operation policy and bounded budgets. Adapt their actual catalog/execution
     bindings and equivalent testdata in the same change; preserve useful observation/scan behavior and
     evidence without old Round/approval/ZIP authoring. Do not postpone this rewrite to V64-010.
+  - Integrate V64-026 preparation outputs with the same common task acceptance used by explicit API
+    handoff. Derive producer provenance from accepted Run/output records, validate pinned allowed
+    Workflows and exact materials, reconcile bounded intake slices through existing receipts, and
+    retain separate OpenAPI operation tasks with compatible batching. Web-scan keeps one target task.
   out:
   - A new Scheduler, admission service, collector service, research controller, report approval or universal
     program DSL.
@@ -173,6 +183,12 @@ requirements:
     while prohibiting new Run submissions and automatic completion. Resume dispatches the accepted
     remaining work through the same controller and RunService path. The two-Workflow demonstration
     uses this Pause/drain handoff; automatic continuation and generation remain V64-013.
+- id: R8
+  text: V64-026 preparation outputs enter the same common task-acceptance operation as explicit API
+    work. The owner validates exact source/list/material identity and pinned checking bindings,
+    assigns task identities in bounded slices and reconciles original producer/list/entry receipts.
+    Preserve separate operation tasks, compatible batching and partial-intake progress. Paused intake
+    may accept without dispatch; cancellation/deletion collects outputs without admitting more work.
 failure_outcomes:
 - operation: Reconcile one bounded Audit task slice
   permanent: Reject invalid/foreign/unsupported content and exact-revision or collision conflicts through
@@ -225,7 +241,15 @@ acceptance_criteria:
   when: their rewritten programs resolve and their real task/Run callers execute
   then: the owned observation/scan scenarios use the common path with selected exact materials, original
     scope/budgets and ordinary retained outputs; none executes the retired profile pipeline or requires
-    a fabricated hypothesis/generator; validation-only YAML changes do not satisfy this criterion
+    a fabricated hypothesis/generator; OpenAPI preparation uses the ordinary registered operation
+    and produces separate operation tasks, while web-scan keeps one target task; validation-only
+    YAML changes do not satisfy this criterion
+- id: A6
+  given: a 256-operation preparation output with exact selected materials and a large containing Audit
+  when: intake spans bounded slices, loses acknowledgements, restarts and races with pause/cancellation
+  then: original producer/list/entry identities reconcile exactly once without unrelated history scans;
+    accepted tasks keep their exact selections, paused intake cannot dispatch or auto-complete the
+    Audit, and cancellation retains a truthful collected/partially accepted outcome without new work
 tests:
 - command: make require-database
 - command: go test -tags=integration -count=1 ./internal/auditdomain ./internal/auditstore/... ./internal/auditservice
@@ -235,6 +259,7 @@ tests:
   - A2
   - A3
   - A4
+  - A6
 - command: make test-audit-basic-e2e
   covers:
   - A1
@@ -242,6 +267,7 @@ tests:
   - A3
   - A4
   - A5
+  - A6
 - command: go test -count=1 ./internal/config/... ./internal/configload/...
   covers:
   - A5
@@ -251,6 +277,7 @@ tests:
   - A2
   - A3
   - A4
+  - A6
 - command: make lint
 test_prerequisites:
 - Commands below are future implementation acceptance, not results of this planning update.

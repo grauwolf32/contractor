@@ -1,0 +1,317 @@
+schema_version: '1.0'
+id: V64-026
+title: Prepare bounded OpenAPI work through an ordinary Server operation
+milestone: audit-check-prioritization
+epic: audits
+kind: feature
+priority: P1
+status: pending
+depends_on:
+- V64-001
+- V410-005
+languages: [go, python, json, yaml, markdown, typescript]
+goal: >-
+  An ordinary preparation Workflow deterministically turns selected exact OpenAPI and optional scan
+  settings into a bounded work-list output. Its entries describe independently attributable operation
+  checks that the common Audit task-acceptance path can validate and accept without an inventory engine,
+  model, Runtime Worker or second coordinator.
+demonstration: >-
+  A real ordinary Project Run executes an operation Stage with no registered Runtime or model Gateway.
+  The public API exposes its exact work-list output and selected per-operation JSON materials. The
+  existing common-document/catalog validation caller checks that list against a pinned allowed checking
+  Workflow. A 256-operation fixture supplies two or more bounded acceptance slices without flattening
+  the work into one check. Durable acceptance and subsequent child Runs are demonstrated by V64-002.
+context:
+  authority: >-
+    User decision 2026-11-02, while implementing V64-002: use the existing Server-operation Stage path
+    for exact OpenAPI/settings -> ordinary preparation Workflow -> bounded work-list output -> common
+    Audit acceptance -> separate operation tasks -> ordinary checking Runs. Keep parsing/selection,
+    conditions and gaps in the existing OpenAPI domain builder; the module under internal/operations
+    adapts declared Workflow inputs/outputs. Audit service owns validation, bounded acceptance, IDs
+    and idempotency; the coordinator uses RunService. Compatible tasks may batch. Define the output-to-task
+    contract explicitly in a narrow prerequisite task, without a new inventory engine or DSL. Web-scan
+    remains one task for the selected target and is not expanded by this operation. The original V64-002
+    implementation assignment and its explicit V64-014 dependency exception remain valid after this
+    prerequisite completes; this task formation does not implement or complete either task.
+  discovered_during: V64-002
+  contract_details_authority: >-
+    The user fixed the execution/ownership path and separate operation-task semantics. The concrete
+    schema/operation names, task-input mapping, trusted-context shape and numeric list bounds below
+    are agent proposals making the narrow task reviewable; they are not attributed to the user or
+    declared implemented. The implementation must reconcile them with actual common validation and
+    consumer requirements, updating the owning spec/fixtures together without adding a DSL or engine.
+  specification:
+  - docs/spec/execution/server-operations.md#SOP-R1
+  - docs/spec/execution/server-operations.md#SOP-R4
+  - docs/spec/execution/server-operations.md#SOP-R5
+  - docs/spec/execution/server-operations.md#SOP-R7
+  - docs/spec/audits/common-contract.md#ACT-R2
+  - docs/spec/audits/common-contract.md#ACT-R7
+  - docs/spec/audits/common-contract.md#ACT-R10
+  - docs/spec/audits/common-contract.md#ACT-R11
+  - docs/spec/artifacts/artifact-store.md
+  - docs/spec/platform/failure-model.md
+  - docs/spec/platform/persistence.md
+  design:
+  - docs/proposals/0050-audit-common-hypothesis-model.md
+  - docs/plans/2026-10-31-audit-redesign.md
+  production_callers:
+    execution: >-
+      Register openapi-prepare-work@1 in the existing operation registry/composition and provide one
+      ordinary shipped preparation Workflow. Scheduler invokes the same operation Stage path used by
+      sitemap operations; no Scheduler branch, Planner session or allocation is added.
+    validation: >-
+      Extend the existing strict common-document and real catalog validation caller to validate the
+      prepared-work document and its selected Workflow/input bindings. Shared Go/Python fixtures prove
+      the output/admission boundary. This is a real producer and validation caller, not a helper waiting
+      for its first caller in V64-002.
+    integration_owner: >-
+      V64-002 supplies live task persistence, bounded intake of accepted preparation outputs, their
+      consume-once cursor/receipts and checking-Run dispatch. This prerequisite fixes that interface
+      and its validation without depending back on V64-002 or creating another task store/service.
+  boundary_decision: >-
+    Preserve separate operation tasks and batching. A domain builder interprets OpenAPI/settings;
+    the operation publishes ordinary artifacts only. A work-list entry is an unaccepted selection,
+    not a persisted Task or permission to create a Run. The Audit owner derives producer provenance
+    from the accepted Run/exact output, checks the pinned program/closures and current owner fence,
+    and assigns identities through the existing common acceptance operation. An operation never
+    writes Audit task rows. Alternative rejected by the user: collapse operation work into one
+    Workflow/Run and thereby change task/progress/retry granularity. Reopen only for an explicit
+    change to those user-visible guarantees.
+  operation_contract:
+    ref: openapi-prepare-work@1
+    inputs: >-
+      Declared exact openapi input and settings for scan-request selection. Observation/tracing uses
+      operation selection without scanner settings. Retain the currently supported source media types
+      and tighter source/settings limits; external source archives keep their owning parser contract.
+    arguments: >-
+      Literal/parameter-bound checking Workflow alias, selection (operations or scan-requests), and a
+      finite max_items bounded by the concrete list ceiling. These are domain selection/budget values,
+      not module paths, arbitrary expressions, Workflow graphs or permission claims.
+    output: >-
+      Exactly one required ordinary JSON work-list binding. Its explicit input selections identify
+      ordinary per-operation JSON materials in the same producer Run. Internal material bindings use
+      deterministic content identity and ordinary Artifact create-only reconciliation; they are not
+      another manifest/catalog, job queue or public resource. No target scan is executed here.
+  output_contract:
+    schema: contractor.audit.prepared-work.v1
+    shape: >-
+      A closed ordinary JSON document with schema, work and gaps. Each work entry has a unique local
+      key, allowed Workflow alias, objective and explicit input-slot -> scoped exact Artifact descriptor
+      selections. It has no Audit/task/hypothesis IDs, execution states, dependency expressions,
+      approval fields or permission claims. System IDs and Workflow closure pins are assigned by the
+      accepting owner. Empty work is valid and retains the domain's actual gaps; it launches nothing.
+    materials: >-
+      Each operation has an ordinary immutable JSON material preserving the existing selected operation
+      or prepared scan request, exact source/settings identity, conditions and gaps. Entries select
+      that exact material and the needed original inputs explicitly. No ZIP task/result wrapper or
+      recursive ref resolver is introduced. Parsing and normalized field interpretation remain in the
+      owning domain module. The registered list contract identifies its explicit selections; arbitrary
+      refs embedded inside unrelated JSON gain no authority or retention.
+    binding: >-
+      Reuse the common exact-input descriptor and actual resolved Workflow slot rules. Add the closed
+      input mapping source task-input, without a name: its value must be selected explicitly when a
+      task is accepted, rather than supplied as a required initial Audit material. It has no
+      future-output/dependency lookup or implicit latest.
+      Initial work using such a required slot must explicitly select an available input. Later work
+      resolves it from the exact accepted source set. Context/prior-results slots remain system-owned.
+      No fabricated required baseline material is used to make an unused future checking binding load.
+    trusted_context: >-
+      A server-local prepared-work context contains the pinned common program, trusted producer Run
+      identity and the exact admitted material descriptors obtained through ordinary Artifact access.
+      It is not authored by the producer or transported as another execution state. The concrete list
+      uses one per-operation material plus openapi and optional settings, at most 258 distinct selected
+      descriptors for 256 operations. Offline context validation grants no live authority. Actual
+      requiredness/media compatibility comes from the resolved checking Workflow; descriptor membership
+      and full exact metadata must match the trusted source set, not only matching digests or Project IDs.
+    ownership_and_replay: >-
+      A producer-local key is not a global task identity. Admission reconciles the original accepted
+      producer Run, exact work-list ref/digest and local entry key/slice using existing keyed/natural
+      receipts. The common owner checks every exact input's membership, metadata, media type and
+      authorization before acceptance and forks selected inputs through ArtifactStore. A changed
+      source or Workflow closure cannot replace accepted inputs. No model or operation authors IDs.
+  selected_bounds: >-
+    Agent-selected implementation bounds for this concrete caller: at most 256 work entries and 1 MiB
+    raw/canonical work-list metadata, preserving the current 256-operation observation profiles and
+    tighter scan/settings bounds. Per-operation parsed JSON keeps the existing 8 MiB ceiling; all
+    prepared operation materials together keep the existing 64 MiB generated-content ceiling. Publish
+    these once in the owning limits registry/shared fixtures. Larger use cases require an explicit
+    bounded-format revision, not truncation or a generic pagination/admission engine.
+scope:
+  in:
+  - >-
+    Factor reusable operation/scan preparation out of the existing OpenAPI builders without duplicating
+    parsers or constructing retired task ZIP/worklist/Round envelopes on the new path. Preserve source
+    selection, operation identity/order, request preparation, unsupported cases and truthful gaps.
+  - >-
+    Implement and register the concrete operation module, strict operation argument/input/output
+    validation, ordinary Artifact publication and one actually executable preparation Workflow.
+  - >-
+    Define the closed prepared-work document and its trusted validation context in the existing common
+    contract. Validate local-key uniqueness, allowed Workflow and input membership, required slots,
+    media types, exact metadata, bounds and absence of authored identities through shared codecs and
+    the real catalog validation caller.
+  - >-
+    Specify the exact output-to-common-acceptance boundary consumed by V64-002: bounded slices,
+    stable producer/list/entry identity, replay, partial acceptance, owner/control fences and retention.
+    Deterministic preparation is explicitly requested ordinary work, not a continuation/generator loop.
+  - >-
+    Test the registered operation through real Server/Scheduler/PostgreSQL processes with no Runtime,
+    and prove replay/collision/lifecycle behavior through real ArtifactStore and Run claim ownership.
+    Register the process case in the existing release graph and update public operation enums and
+    generated clients/UI validation wherever that enum is consumed.
+  out:
+  - >-
+    Live Audit task persistence or dispatch (V64-002), the six Audit-profile YAML cutover (V64-002),
+    hypotheses/checklist behavior (V64-012), automatic semantic proposals/generation (V64-013),
+    browser/HTTP execution, web-target expansion or new scanner providers.
+  - >-
+    A new inventory engine, program DSL, task dependency graph, collector, coordinator, receipt/lease
+    store, operation journal, Runtime round trip, model call or compatibility reader.
+requirements:
+- id: R1
+  text: >-
+    Existing domain code owns source parsing, deterministic selection and operation/request material;
+    the operation binds ordinary exact inputs/outputs and performs no target activity or Audit mutation.
+- id: R2
+  text: >-
+    The work-list contract is strict on write/read and is independently validated in Go/Python shared
+    fixtures. It carries unaccepted work and selected materials only; actual IDs, authority and closure
+    pins come from common Audit acceptance. Invalid/foreign/over-bound content accepts no task.
+- id: R3
+  text: >-
+    Freeze exact output/material identity before admission. A lost acknowledgement reconciles the
+    original Artifact publication or accepted list slice; it never regenerates target work, substitutes
+    latest, assigns a fresh logical task or requires a new receipt mechanism.
+- id: R4
+  text: >-
+    Keep separate operation tasks and allow compatible batching. Mutation slices admit at most 128
+    primary records / 1 MiB metadata and obey tighter owning budgets. Partial intake is explicit and
+    resumes from the same exact list; it never rescans unrelated Audit/Project history.
+- id: R5
+  text: >-
+    Paused Audit intake may accept already available work but submits no Run. Cancellation/deletion
+    still permit collection of the preparation output without admitting or dispatching additional work.
+    No waiting state, research phase or generation loop is created for preparation.
+failure_outcomes:
+- operation: Prepare and publish one exact OpenAPI work list
+  permanent: >-
+    Unknown or mismatched inputs/slots, invalid settings, invalid references, size/count overflow and
+    binding collisions produce the owning non-retryable validation/conflict code. Preserve explicit
+    domain gaps for valid unsupported operations; do not truncate or invent a successful check.
+  retryable: >-
+    Preserve classified storage_transaction_conflict and transient storage failure under the existing
+    Stage deadline/retry policy. Do not classify deterministic ErrInvalid as retryable.
+  ambiguous: >-
+    Compare/replay the original exact ordinary Artifact bindings and bytes under the original Stage
+    inputs/arguments. Existing identical content reconciles once; different content is a conflict.
+  cancelled: >-
+    Join pure computation and owner-fenced writes before returning. Lost claim, cancellation or parent
+    deletion blocks later publication; any already written ordinary material remains owned and purgeable.
+  timeout: >-
+    The ordinary admitted Stage deadline owns preparation/publication. No separate operation clock,
+    post-deadline target activity or new recovery journal is introduced.
+- operation: Validate a prepared selection for common task acceptance
+  permanent: >-
+    Reject forged system identity, foreign/missing material, unsupported alias, incompatible/required
+    input, duplicate key and metadata mismatch before the slice mutates. No partial authoritative slice.
+  retryable: >-
+    Actual owner mutations retain their existing storage classification and bounded same-operation retry.
+  ambiguous: >-
+    V64-002 reconciles the original accepted producer/list/slice/entry identity through existing receipts;
+    this prerequisite introduces no independent mutation or acknowledgement store.
+  cancelled: >-
+    The existing Audit/Run/Project owner fence controls acceptance and cleanup. An offline-valid list is
+    never evidence of authorization; cancellation/deletion does not launch its checks.
+  timeout: >-
+    Validation is bounded by the document and selected catalog closure; mutation and Run deadlines
+    remain owned by their existing operations, independently of preparation's Stage deadline.
+cardinality:
+- collection: One prepared OpenAPI work list and its ordinary selected materials
+  expected: Two selected operations, plus one valid unsupported operation with explicit gaps.
+  maximum: >-
+    256 entries / 1 MiB work-list metadata; existing 8 MiB parsed operation and 64 MiB total generated
+    material bounds; scan/settings/profile limits may be tighter.
+  bound: >-
+    Admission mutates at most 128 primary records / 1 MiB per slice. Preparation reads only declared
+    exact inputs and bounded domain content. Publication uses bounded ordinary Artifact writes under
+    the current Stage/Run fence, without holding a database row lock over parsing or the whole list.
+  scale_fixture: >-
+    256 operations cross the mutation-slice boundary; byte-at/over-ceiling cases reject before an
+    authoritative work-list output is published. V64-002 verifies intake against a large containing Audit.
+lifecycle:
+- entity: Ordinary preparation output and per-operation materials
+  delete: >-
+    Run/Audit/Project owner deletion uses existing drain/purge. No preparation-specific entity or
+    cleanup controller is added; interrupted unpublished materials remain ordinary owner-local artifacts.
+  cascade: >-
+    Acceptance explicitly forks the selected exact inputs into their normal Audit/task ownership.
+    Deleting the source producer cannot remove an accepted selection; failed/unaccepted work creates
+    no cross-owner hold that ordinary cleanup cannot release.
+  retention: >-
+    Work-list and selected bytes use ordinary exact Artifact versions, lineage and retention. Collection
+    pins what intake still needs before producer deletion. Reading alone creates no hold, and no live
+    producer record is retained merely to read accepted material history.
+acceptance_criteria:
+- id: A1
+  given: Exact OpenAPI/settings and the ordinary preparation Workflow on a real Server/PostgreSQL.
+  when: The registered operation Stage runs without a Runtime or model Gateway.
+  then: >-
+    Its ordinary public output contains bounded independently selectable operation work and exact
+    JSON materials, preserving selected conditions/gaps and creating no Audit rows or target activity.
+- id: A2
+  given: The exact list, a pinned allowed checking Workflow and a trusted selected-material context.
+  when: The real common-document/catalog validation caller checks valid and forged selections.
+  then: >-
+    Valid entries resolve to common task inputs without fake baseline material; foreign/unknown/duplicate,
+    incompatible, missing-required and authored-identity cases are rejected through shared strict fixtures.
+- id: A3
+  given: Publication response loss, a conflicting binding, cancelled/lost Run claims and Project deletion.
+  when: The operation replays or attempts to publish through real PostgreSQL/ArtifactStore.
+  then: >-
+    Original content/refs reconcile without extra versions; collisions and closed authority cannot
+    overwrite or publish. Interrupted materials remain normally purgeable, with no extra receipt/lease owner.
+- id: A4
+  given: A 256-operation fixture, malformed settings and count/metadata/material byte boundaries.
+  when: Preparation, strict validation and acceptance-slice selection are exercised.
+  then: >-
+    All valid operations remain separately addressable with deterministic order/keys and at most the
+    declared work/bytes. Invalid/overflow content yields no authoritative partial list; slices keep the
+    same source identity and never require whole-Audit/Project hydration or a new admission engine.
+tests:
+- command: make require-database
+- command: >-
+    go test -tags=integration -count=1 ./internal/auditdomain/... ./internal/contracts/auditcontract
+    ./internal/config/... ./internal/configload/... ./internal/operations/... ./internal/scheduler ./internal/app
+  covers: [A1, A2, A3, A4]
+- command: >-
+    go test -tags=e2e -count=1 ./tests/e2e -run '^TestOpenAPIPreparedWorkServerOperation$'
+  covers: [A1, A3, A4]
+- command: make test-wire-cross-language
+  covers: [A2, A4]
+- command: cd runtime && uv run pytest -W error tests/test_audit_common_contract.py
+  covers: [A2, A4]
+- command: make verify-public-api verify-public-api-postgres
+  covers: [A1, A2]
+- command: make test-config
+  covers: [A1, A2]
+- command: make ui-verify
+  covers: [A1, A2]
+- command: make lint verify-architecture
+  covers: [A1, A2, A3, A4]
+test_prerequisites:
+- >-
+  These are future implementation checks, not evidence from task formation. Create/register the named
+  process case before claiming it ran. Missing/zero-match/mandatory skipped selections fail.
+- >-
+  Use disposable PostgreSQL and isolated testdata catalogs/pseudo-Skills. Once configured, an unavailable
+  database fails. Run whole touched-package suites; use deterministic work counters, not elapsed-time claims.
+verification_requirements:
+- >-
+  Update owning requirements, limit/failure/lifecycle registries and shared fixtures in the same code
+  changes. Register the concrete module's layer and actual caller; no new store, migration or universal resolver.
+- >-
+  Regenerate both public clients for any operation enum change; update existing Studio/config consumers.
+  Preserve unrelated Server operations and private wire fields. The preparation task is not proof that
+  the V64-002 coordinator, live intake, six migrated profiles or the complete Audit redesign are ready.
+implementation_commit: null

@@ -141,7 +141,9 @@ paths:
   action: replace
   owner: V64-010
   facts: Keep reusable inventory/parser/evidence algorithms; remove exclusive ZIP/task/result wrappers
-    only after migrated callers.
+    only after migrated callers. V64-026 reuses the OpenAPI operation/scan algorithms in an ordinary
+    Server-operation preparation Workflow; V64-002 accepts its bounded exact work list through the
+    common task path. Do not retain a parallel inventory/phase controller to preserve those algorithms.
 - prefix: internal/config/auditprofile/
   action: replace
   owner: V64-002
