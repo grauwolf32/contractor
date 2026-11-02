@@ -6,7 +6,7 @@ epic: projects-artifacts
 kind: chore
 introduced_by: V436-001
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages: [go]
 goal: >-
@@ -58,3 +58,8 @@ tests:
     covers: [A1, A2, A3]
   - command: "make verify-public-api"
     covers: [A1, A2, A3]
+implementation_commit: 24ffa43a945995fffbca581b133f3a9e3765df70
+verification:
+  date: "2026-11-03"
+  result: >-
+    Full ProjectStore, RunService, HTTP, app and architecture suites passed against disposable TCP PostgreSQL, including -race. Credentials tests also passed after dependency inversion. Existing CAS, ownership, credential lifecycle, repeat lineage and infrastructure-error cases remain exercised on their real paths. make verify-public-api and make lint passed.
