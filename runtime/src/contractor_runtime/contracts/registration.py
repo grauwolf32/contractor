@@ -12,7 +12,6 @@ from pydantic import (
 
 from contractor_runtime.contracts.base import (
     MAX_RUNTIME_CAPABILITY_REFS,
-    MAX_RUNTIME_LABELS,
     MAX_TOOLSET_CAPABILITY_TOOLS,
     NAME_PATTERN,
     VERSION_PATTERN,
@@ -24,7 +23,6 @@ from contractor_runtime.contracts.base import (
     _require_aware_datetime,
     _require_capability_ref,
     _require_resource_id,
-    _require_runtime_labels,
     _require_sorted_unique,
     _require_text,
     _require_url,
@@ -137,7 +135,6 @@ class AgentRegistration(VersionedWireModel):
     observed_state: AgentObservedState
     allocation_id: str | None = None
     capabilities: RuntimeCompletionCapabilities | None = None
-    initial_labels: list[str] = Field(max_length=MAX_RUNTIME_LABELS)
     placement_labels: list[str] = Field(
         default_factory=list, max_length=32, exclude_if=lambda value: not value
     )
@@ -164,7 +161,6 @@ class AgentRegistration(VersionedWireModel):
     @model_validator(mode="after")
     def validate_runtime_capabilities(self) -> Self:
         validate_placement_labels(self.placement_labels)
-        _require_runtime_labels("initialLabels", self.initial_labels)
         _require_sorted_unique(
             "supportedRuntimeAdapters", self.supported_runtime_adapters, maximum=64
         )

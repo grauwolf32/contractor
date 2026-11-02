@@ -122,7 +122,7 @@ its own acceptance evidence, and unimplemented capabilities remain unavailable.
 | [001](../../../tasks/done/v64-001-audit-priority-contracts.yml) | Profile, context/verdict/selection contracts; lifecycle and current-schema validation | 000, V62-001, V25-011 |
 | [002](../../../tasks/v64-002-audit-priority-store.yml) | Full inventory, cycles, evaluation journal, reservations and retention | 001, V62-002 |
 | [003](../../../tasks/done/v64-003-planner-only-priority-execution.yml) | Explicit zero-Worker Planner shape through Scheduler/model accounting | 001 |
-| [004](../../../tasks/v64-004-audit-priority-context.yml) | Consistent bounded context snapshots and item inputs | 002 |
+| [004](../../../tasks/done/v64-004-audit-priority-context.yml) | Consistent bounded context snapshots and item inputs | 002 |
 | [005](../../../tasks/v64-005-independent-priority-verdicts.yml) | Independent model calls, validation, durable verdicts and recovery | 003, 004 |
 | [006](../../../tasks/done/v64-006-audit-priority-selection.yml) | Accepted verdict integration and immutable atomic Round admission | 000, 002 |
 | [007](../../../tasks/done/v64-007-audit-priority-controller.yml) | Initial/later pass coordination, budgets and no-Round controls | 005, 006, V62-003 |

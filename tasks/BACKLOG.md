@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-80 open tasks: 12 in progress, 57 pending, 11 deferred. 1351 finished: 1333 completed, 18 archived.
+80 open tasks: 13 in progress, 56 pending, 11 deferred. 1356 finished: 1338 completed, 18 archived.
 
 ## In progress
 
@@ -23,6 +23,7 @@ the epics are in [epics.yml](epics.yml).
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Enable shared Planner compaction and reuse native YAML in shipped Workflows |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
 | [V433-006](v433-006-integrate-runtime-fixes.yml) | execution-core | chore | P3 | Integrate the Runtime shutdown and CPU fixes with current main |
+| [V435-001](v435-001-server-owned-agent-labels.yml) | runtime-config | defect | P1 | Remove Runtime startup label assignments and keep agent infrastructure settings Server-owned |
 
 ## Pending
 
@@ -75,7 +76,7 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V411-007](v411-007-trusted-http-capture.yml) | feature | P1 | V64-002 | Retain actual HTTP exchanges in ordinary check results and findings |
-| [V411-011](v411-011-project-findings-reader.yml) | feature | P1 | V64-002, V64-004, V64-014 | Read selected Project findings in ordinary investigation Workflows |
+| [V411-011](v411-011-project-findings-reader.yml) | feature | P1 | V64-002, V64-014 | Read selected Project findings in ordinary investigation Workflows |
 
 ### Workflow catalog and document workflows (`workflows`)
 
@@ -92,14 +93,13 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V64-002](v64-002-audit-priority-store.yml) | feature | P1 | V64-004, V64-014 | Coordinate durable Audit tasks through ordinary Runs |
-| [V64-004](v64-004-audit-priority-context.yml) | feature | P1 | — | Add Audit artifact ownership and exact Project publication |
+| [V64-002](v64-002-audit-priority-store.yml) | feature | P1 | V64-014 | Coordinate durable Audit tasks through ordinary Runs |
 | [V64-005](v64-005-independent-priority-verdicts.yml) | feature | P2 | V64-012, V64-013 | Optionally rank the common Audit ready-task shortlist |
 | [V64-008](v64-008-audit-priority-api-coverage.yml) | feature | P1 | V64-012, V64-013, V411-010 | Expose Audit tasks check results findings and selected materials |
 | [V64-010](v64-010-audit-priority-profile.yml) | feature | P1 | V64-012, V64-013, V411-010 | Migrate shipped Audit programs and retire the old pipeline |
 | [V64-011](v64-011-audit-priority-release.yml) | feature | P1 | V64-009, V64-010, V411-015, V425-017 | Gate the basic Audit research scenario and complexity reduction |
 | [V64-012](v64-012-audit-hypothesis-registry.yml) | feature | P1 | V64-002, V64-014 | Verify fixed and manual hypotheses through Audit tasks |
-| [V64-013](v64-013-audit-hypothesis-generation.yml) | feature | P1 | V64-012, V64-004, V411-011 | Generate scoped hypotheses from selected materials and check results |
+| [V64-013](v64-013-audit-hypothesis-generation.yml) | feature | P1 | V64-012, V411-011 | Generate scoped hypotheses from selected materials and check results |
 | [V64-015](v64-015-audit-research-frontier.yml) | feature | P2 | V64-011 | Measure whether a larger Audit frontier needs incremental indexing |
 | [V64-016](v64-016-audit-research-ranking-evaluation.yml) | chore | P2 | V64-005, V64-011 | Evaluate optional Audit ranking against the deterministic baseline |
 | [V64-017](v64-017-audit-attack-tree-projection.yml) | feature | P2 | V64-011 | Project optional attack trees over retained research conclusions |
@@ -186,9 +186,9 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 3 | 47 | 63 | 27 | 88 |
+| Run execution core (`execution-core`) | 3 | 47 | 63 | 28 | 89 |
 | Planners and the Worker model boundary (`planner-worker`) | 9 | 35 | 49 | 30 | 75 |
-| Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 13 | 5 | 44 |
+| Runtime labels, configuration and credentials (`runtime-config`) | 10 | 26 | 14 | 5 | 45 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 3 | 13 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
 | Run workspaces and project filesystem (`workspaces`) | 1 | 16 | 15 | 5 | 16 |
@@ -198,11 +198,11 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 2 | 17 | 9 | 10 | 15 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 19 | 16 | 16 | 21 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 36 | 37 | 11 | 60 |
-| Audits (`audits`) | 18 | 67 | 89 | 37 | 134 |
+| Audits (`audits`) | 17 | 67 | 90 | 38 | 137 |
 | Evaluations (`evals`) | 6 | 21 | 39 | 15 | 49 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 5 |
 | Web UI (`ui`) | 2 | 34 | 69 | 24 | 67 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 18 | 46 | 9 | 22 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 38 | 25 | 16 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 27 | 47 | 17 |
-| Quality, CI and process (`quality`) | 11 | 1 | 29 | 119 | 27 |
+| Quality, CI and process (`quality`) | 11 | 1 | 29 | 120 | 27 |

@@ -17,7 +17,6 @@ import (
 func cloneRegistration(source control.AgentRegistration) control.AgentRegistration {
 	result := source
 	result.AllocationID = clone.Pointer(source.AllocationID)
-	result.InitialLabels = append([]string{}, source.InitialLabels...)
 	result.PlacementLabels = append([]string{}, source.PlacementLabels...)
 	result.SupportedRuntimes = append([]string{}, source.SupportedRuntimes...)
 	result.SupportedSandboxProfiles = append([]string{}, source.SupportedSandboxProfiles...)

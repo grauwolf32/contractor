@@ -37,6 +37,7 @@ EXPECTED_PROCESS_TESTS = {
     "TestAuditProgramCatalogReplacementRestartsServer",
     "TestAuditProgramsAcrossProductionProcesses",
     "TestAuditIterativeCompositionAcrossProductionProcesses",
+    "TestAuditWorkspaceAcrossProductionProcesses",
     "TestAuditRoundResultsAcrossProductionProcesses",
     "TestAuditTypedCheckRoutingAcrossProductionProcesses",
     "TestCodeAnalysisAcrossHeterogeneousRuntimeProcesses",
@@ -513,7 +514,9 @@ def script_go_tests(relative: str, command: str = "") -> list[GoTest]:
     if relative == "scripts/test-openapi-audit-scan-e2e.py":
         return [GoTest(relative, frozenset({"e2e"}), ("./tests/e2e",), f"^{module.TEST}$")]
     if relative == "scripts/test-audit-composition-e2e.py":
-        selected = module.matrix()
+        if "--verify-only" in command:
+            return []
+        selected = module.matrix("workspace" if "--case-set workspace" in command else "all")
         return [GoTest(relative, frozenset({tag}), tuple("./" + package.removeprefix(MODULE) for package in selected[boundary]), module.pattern(case for cases in selected[boundary].values() for case in cases)) for boundary, tag in (("integration", "integration"), ("process", "e2e"))]
     if relative == "scripts/test-audit-completion-e2e.py":
         packages = tuple("./" + name.removeprefix(MODULE) for name in module.matrix()["go"])

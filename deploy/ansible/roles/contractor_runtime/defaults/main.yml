@@ -68,9 +68,6 @@ contractor_runtime_advertise_host: ""
 # advertise host plus localhost, 127.0.0.1 and ::1.
 contractor_runtime_cert_dns: []
 contractor_runtime_cert_ips: []
-# Startup labels seed a previously unseen principal only. Each must already be
-# bound on the Server, or registration fails with invalid_runtime_labels.
-contractor_runtime_labels: []
 # Location declaration for this process incarnation; no Server binding needed.
 # Example: [cloud/hetzner] or [local/lab]. Instance placement_labels overrides it.
 contractor_runtime_placement_labels: []

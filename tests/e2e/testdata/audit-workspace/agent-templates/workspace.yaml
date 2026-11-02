@@ -1,0 +1,11 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+metadata: {name: workspace-fixture, version: "1"}
+spec:
+  description: Copies one selected exact JSON material
+  runtime: adk@1
+  instructions: {ref: instructions/workspace-fixture.md}
+  toolsets:
+    - ref: run-artifacts@1
+      tools: [read_artifact, write_artifact]
+  sandboxProfile: local-workdir@1

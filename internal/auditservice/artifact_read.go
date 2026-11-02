@@ -25,7 +25,14 @@ func (s *Service) ReadArtifact(ctx context.Context, ownerID, auditID, key, revis
 	if link.Artifact.Ref.Revision == nil || *link.Artifact.Ref.Revision != revision {
 		return artifacts.ReadResult{}, auditstore.ErrNotFound
 	}
-	project, err := artifacts.NewService(artifacts.NewPostgresRepository(s.pool)).Project(audit.ProjectID)
+	scope, err := artifacts.ProjectScope(audit.ProjectID)
+	if link.Scope == artifacts.ScopeAudit {
+		scope, err = artifacts.AuditScope(auditID)
+	}
+	if err != nil {
+		return artifacts.ReadResult{}, err
+	}
+	project, err := artifacts.NewService(artifacts.NewPostgresRepository(s.pool)).Scoped(scope)
 	if err != nil {
 		return artifacts.ReadResult{}, err
 	}

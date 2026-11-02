@@ -450,16 +450,13 @@
       "schema": "agent-registration.schema.json",
       "reason": "version"
     },
-    "registration-missing-labels.json": {
+    "registration-removed-initial-labels.json": {
       "type": "AgentRegistration",
       "schema": "agent-registration.schema.json",
-      "strict": true
+      "strict": true,
+      "reason": "schema"
     },
     "registration-unsorted-adapters.json": {
-      "type": "AgentRegistration",
-      "reason": "invariant"
-    },
-    "registration-unsorted-labels.json": {
       "type": "AgentRegistration",
       "reason": "invariant"
     },

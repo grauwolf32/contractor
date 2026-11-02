@@ -55,10 +55,9 @@ func (i *Importer) retainScanRecovery(
 	if err != nil {
 		return false, err
 	}
-	links := []auditstore.ArtifactLink{{LogicalKey: "result/" + member.member.ExecutionItemID, Artifact: retained, SourceProvenance: provenance}}
+	links := []auditstore.ArtifactLink{{Scope: "project", LogicalKey: "result/" + member.member.ExecutionItemID, Artifact: retained, SourceProvenance: provenance}}
 	for _, item := range pkg.Evidence.Evidence {
-		links = append(links, auditstore.ArtifactLink{
-			LogicalKey: "evidence/" + execution.ExecutionID + "/" + item.ID, Artifact: retained,
+		links = append(links, auditstore.ArtifactLink{Scope: "project", LogicalKey: "evidence/" + execution.ExecutionID + "/" + item.ID, Artifact: retained,
 			SourceProvenance: provenance, DisplayRef: "member:" + item.ContentMemberID,
 		})
 	}

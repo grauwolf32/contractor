@@ -16,9 +16,10 @@ const (
 	ScopeUser    ScopeKind = "user"
 	ScopeProject ScopeKind = "project"
 	ScopeRun     ScopeKind = "run"
+	ScopeAudit   ScopeKind = "audit"
 )
 
-// Scope is created only through UserScope, ProjectScope or RunScope;
+// Scope is created only through UserScope, ProjectScope, AuditScope or RunScope;
 // ArtifactRef never carries these fields.
 type Scope struct {
 	kind ScopeKind
@@ -31,8 +32,10 @@ func ProjectScope(projectID string) (Scope, error) { return newScope(ScopeProjec
 
 func RunScope(runID string) (Scope, error) { return newScope(ScopeRun, runID) }
 
+func AuditScope(auditID string) (Scope, error) { return newScope(ScopeAudit, auditID) }
+
 func newScope(kind ScopeKind, id string) (Scope, error) {
-	if kind != ScopeUser && kind != ScopeProject && kind != ScopeRun ||
+	if kind != ScopeUser && kind != ScopeProject && kind != ScopeRun && kind != ScopeAudit ||
 		strings.TrimSpace(id) == "" || strings.ContainsRune(id, 0) {
 		return Scope{}, ErrInvalidScope
 	}
@@ -179,6 +182,9 @@ const (
 	LineageProjectOutputPublish = "project_output_publish"
 	LineageAuditImport          = "audit_import"
 	LineageContextProjection    = "context_projection"
+	LineageAuditOutput          = "audit_output"
+	LineageAuditInput           = "audit_input"
+	LineageAuditPublish         = "audit_publish"
 )
 
 // Fork describes one trusted fork: a new target binding whose first revision
@@ -188,6 +194,10 @@ const (
 // and authorization (ART-R72); Service.Fork enforces only the rules every fork
 // shares.
 type Fork struct {
+	// ExpectedRevision explicitly replaces an unfrozen destination by CAS.
+	// Supported for the actual Audit-to-Project publication caller. A nil
+	// precondition retains create-only semantics.
+	ExpectedRevision *string
 	// Kind is one of the Lineage kinds.
 	Kind string
 	// Source is the scope SourceRef is resolved in. A fork reads a UserScope

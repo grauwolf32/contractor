@@ -740,13 +740,11 @@ func TestAuthenticatedPrincipalOwnsOnlyOneLiveProcessAndEveryHeartbeat(t *testin
 		RuntimeAgentID: strings.Repeat("a", 64), Labels: []string{"debug"}, LabelRevision: 3,
 	}
 	first := testRegistration("agent-principal-first")
-	first.InitialLabels = []string{"startup-value"}
 	if _, err := registry.RegisterAuthenticated(principal, first); err != nil {
 		t.Fatal(err)
 	}
 
 	retry := first
-	retry.InitialLabels = []string{}
 	snapshot, err := registry.RegisterAuthenticated(principal, retry)
 	if err != nil || snapshot.Principal.LabelRevision != 3 ||
 		!equalTestStrings(snapshot.Principal.Labels, []string{"debug"}) {
@@ -1331,7 +1329,6 @@ func testBinding(
 
 func testRegistration(instanceID string) control.AgentRegistration {
 	return control.AgentRegistration{
-		InitialLabels:            []string{},
 		SupportedRuntimeAdapters: []runtimesettings.RuntimeAdapterRef{},
 		APIVersion:               contracts.APIVersion, InstanceID: instanceID, SoftwareVersion: "0.1.0",
 		StartedAt:         time.Date(2026, 8, 29, 12, 0, 0, 0, time.UTC),

@@ -495,7 +495,7 @@ func assertDuplicatePrincipalRegistrationRejected(
 	registration := control.AgentRegistration{
 		APIVersion: contracts.APIVersion, InstanceID: "duplicate-runtime-" + randomHex(t, 8), SoftwareVersion: "0.1.0",
 		StartedAt: time.Now().UTC(), ControlURL: "https://127.0.0.1:1", A2AURL: "https://127.0.0.1:1",
-		InitialLabels: []string{}, SupportedRuntimes: append([]string(nil), principal.Live.SupportedRuntimes...),
+		SupportedRuntimes:        append([]string(nil), principal.Live.SupportedRuntimes...),
 		SupportedToolsets:        toolsets,
 		SupportedSandboxProfiles: append([]string(nil), principal.Live.SupportedSandboxProfiles...),
 		SupportedRuntimeAdapters: adapters, ObservedState: control.AgentIdle,

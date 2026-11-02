@@ -50,7 +50,7 @@ def test_registration_commits_idle_and_uses_server_timing(
         assert transport.requests[0][1]["instanceId"] == "runtime-register"
         assert transport.requests[0][1]["softwareVersion"] == "0.1.0"
         assert transport.requests[0][1]["apiVersion"] == "contractor/v1alpha1"
-        assert transport.requests[0][1]["initialLabels"] == []
+        assert "initialLabels" not in transport.requests[0][1]
         assert "workspaceCapabilities" not in transport.requests[0][1]
         assert "runtimeAgentId" not in transport.requests[0][1]
 
@@ -404,8 +404,8 @@ def private_error(code: str, *, retryable: bool) -> bytes:
         (400, private_error("invalid_request", retryable=False), "HTTP 400 invalid_request"),
         (
             400,
-            private_error("invalid_runtime_labels", retryable=False),
-            "HTTP 400 invalid_runtime_labels",
+            private_error("invalid_request", retryable=False),
+            "HTTP 400 invalid_request",
         ),
         # The Server's flag decides over the status class.
         (503, private_error("internal_error", retryable=False), "HTTP 503 internal_error"),

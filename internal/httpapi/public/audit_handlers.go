@@ -18,6 +18,7 @@ import (
 )
 
 type AuditManagement interface {
+	PublishMaterial(context.Context, string, string, string, auditservice.MaterialPublicationRequest, *string) (auditservice.MaterialPublication, error)
 	ListProjectFindings(context.Context, auditservice.ProjectFindingListParams) (auditservice.ProjectFindingPage, error)
 	GetProjectFinding(context.Context, string, string, string) (auditstore.ProjectFinding, error)
 	GetAuditProjectFinding(context.Context, string, string, string) (auditstore.ProjectFinding, error)

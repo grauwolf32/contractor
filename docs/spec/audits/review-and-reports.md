@@ -849,15 +849,17 @@ DEL-R33. An end-to-end example is in
 **REV-R143.** `AuditArtifactLink` retains exact immutable content
 independently of source Run lifetime (LIFE-REV-2).
 
-**REV-R144.** Trusted import forks accepted packages into protected,
-create-only ProjectScope bindings under an Audit-specific logical namespace
-and records a receipt.
+**REV-R144.** Trusted import forks accepted ordinary role outputs into
+create-only AuditScope bindings and records a receipt (ART-R136). Existing
+check-result packages and their explicit evidence retain their owning protected
+ProjectScope contract.
 
 **REV-R145.** Binding keys include the Audit identity and version; a
 collision never overwrites another result.
 
-**REV-R146.** Every Audit-managed binding is created frozen in the
-Server-derived, reserved `audit-*` Project namespace: imported results and
+**REV-R146.** Accepted ordinary role outputs are frozen AuditScope bindings.
+Other Audit-managed bindings are created frozen in the
+Server-derived, reserved `audit-*` Project namespace: imported check results and
 external evidence through the trusted import, and Server-generated material
 (task packages, worklists, execution manifests and task sets, inventories,
 retained standards, direct-verification contracts and reports) through the
@@ -950,7 +952,8 @@ phases in order (FAIL-REV-11, LIFE-REV-5):
 1. close dispatch and release future-dispatch credential holds;
 2. cancel, drain and collect owned Runs;
 3. release evidence and accepted-proposal holds;
-4. only then purge Audit-managed Project bindings and domain rows.
+4. only then purge AuditScope artifacts, Audit-managed Project bindings and
+   domain rows (DEL-R68).
 
 Immutable history and item rows that reference a hold are removed in bounded
 steps while releasing that hold; its material stays available until all such

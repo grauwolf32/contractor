@@ -444,7 +444,7 @@ audited surfaces:
   capabilities and authoritative labels;
 - replace one principal's complete label set with compare-and-set;
 - remove an offline principal record only after its label set is empty and no
-  live instance or allocation refers to it; a later registration seeds it anew
+  live instance or allocation refers to it; a later registration recreates it with empty labels at revision 1
   ([LIFE-CTL-4](../platform/lifecycle.md));
 - select zero or more labels on the Run creation form;
 - inspect a Run's pinned labels and a StageExecution's safe resolved config

@@ -13,9 +13,9 @@ import (
 
 // purgeBatchSize bounds the binding revisions one purge batch removes and the
 // candidate versions or blobs one purge statement locks or deletes
-// (LIM-DEL-2). A Run or Audit purge stays one transaction whose total work the
-// Run revision limit (LIM-ART-6) bounds its work; ProjectScope and Audit
-// namespace purges commit one batch per transaction.
+// (LIM-DEL-2). A Run purge stays one transaction whose total work the Run
+// revision limit (LIM-ART-6) bounds; Project and Audit scope or namespace
+// purges commit one batch per transaction.
 var purgeBatchSize = persistencepostgres.CleanupBatchRows
 
 // PostgresPurger performs the exceptional physical cleanup used by lifecycle
@@ -23,6 +23,30 @@ var purgeBatchSize = persistencepostgres.CleanupBatchRows
 // and removal of the owning resource cannot commit independently.
 type PostgresPurger struct {
 	tx pgx.Tx
+}
+
+// PurgeAudit removes one bounded batch of the drained owner's ordinary scope.
+// Independently owned inputs/publications and their historical lineage survive.
+func (p *PostgresPurger) PurgeAudit(ctx context.Context, auditID string) (bool, error) {
+	scope, err := AuditScope(auditID)
+	if err != nil {
+		return false, err
+	}
+	if err := p.lockScope(ctx, scope); err != nil {
+		return false, err
+	}
+	if _, err := p.tx.Exec(ctx, `SELECT set_config('contractor.lifecycle_purge', 'audit', true)`); err != nil {
+		return false, err
+	}
+	batch, err := p.purgeRevisionBatch(ctx, scope, "", revisionKey{})
+	if err != nil {
+		return false, err
+	}
+	if len(batch.versionIDs) > 0 {
+		return false, collectUnreferencedVersions(ctx, p.tx, batch.versionIDs)
+	}
+	_, err = p.tx.Exec(ctx, `DELETE FROM artifact_scopes WHERE scope_kind='audit' AND scope_id=$1`, auditID)
+	return err == nil, err
 }
 
 // PurgeAuditNamespace removes one Server-reserved Audit namespace without

@@ -397,12 +397,10 @@ func commitDirectVerification(
 		ProjectID: input.ProjectID,
 		AuditID:   input.AuditID, ReceiptID: input.ReceiptID, AssessmentID: assessmentID,
 		SemanticAssessment: verification.Assessment,
-		Result: auditstore.ArtifactLink{
-			LogicalKey: "finding/" + input.ReceiptID + "/direct-result", Artifact: result,
+		Result: auditstore.ArtifactLink{Scope: "project", LogicalKey: "finding/" + input.ReceiptID + "/direct-result", Artifact: result,
 			SourceProvenance: resultProvenance, DisplayRef: "direct verification result",
 		},
-		Contract: auditstore.ArtifactLink{
-			LogicalKey: "finding/" + input.ReceiptID + "/direct-contract", Artifact: contract,
+		Contract: auditstore.ArtifactLink{Scope: "project", LogicalKey: "finding/" + input.ReceiptID + "/direct-contract", Artifact: contract,
 			SourceProvenance: contractProvenance, DisplayRef: "direct verification contract",
 		},
 		RetainedBytes: retainedBytes,

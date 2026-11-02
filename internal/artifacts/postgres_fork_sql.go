@@ -38,6 +38,7 @@ WITH source_selection AS MATERIALIZED (
           SELECT 1 FROM workflow_runs AS run
           WHERE run.run_id = $13 AND run.project_id = $14::text
       ))
+` + auditForkMembershipSQL + `
     FOR KEY SHARE OF source_scope
 ), existing_target AS (
     SELECT binding.current_revision, lineage.source_revision
@@ -49,6 +50,8 @@ WITH source_selection AS MATERIALIZED (
      AND lineage.target_name = binding.name
      AND lineage.target_revision = binding.current_revision
      AND lineage.lineage_kind = $11
+     AND lineage.source_scope_kind=$1 AND lineage.source_scope_id=$2
+     AND lineage.source_namespace=$3 AND lineage.source_name=$4
     WHERE binding.scope_kind = $6 AND binding.scope_id = $7
       AND binding.namespace = $8 AND binding.name = $9
 ), created_binding AS (

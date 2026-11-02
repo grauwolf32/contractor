@@ -112,8 +112,8 @@ func (f agentLabelFixture) publish(t *testing.T, ctx context.Context, name strin
 
 func principalID(index int) string { return fmt.Sprintf("%064x", 0xa0+index) }
 
-// Registration, label replacement and the adapter projection of a principal
-// with the full 32-label set read the bindings once and the versions once;
+// Label replacement and the adapter projection of a principal with the full
+// 32-label set read the bindings once and the versions once;
 // the replacement locks the union of the old and new sets with one statement
 // first. The per-label loops took 32 binding and 32 version statements for
 // each of these, and 40 binding statements for the replacement's lock.
@@ -129,15 +129,17 @@ func TestPostgresAgentLabelValidationReadsEachCatalogOnce(t *testing.T) {
 	}
 	id := principalID(0)
 	f.trace.take()
-	registered, err := service.Register(ctx, id, f.labels[:32])
-	if err != nil || !slices.Equal(registered.Labels, f.labels[:32]) {
-		t.Fatalf("register 32 labels = (%+v, %v)", registered, err)
+	registered, err := service.Register(ctx, id)
+	if err != nil || registered.Labels == nil || len(registered.Labels) != 0 {
+		t.Fatalf("register unlabeled principal = (%+v, %v)", registered, err)
 	}
-	if got := f.trace.take(); got.bindings != 1 || got.versions != 1 {
-		t.Fatalf("registration with 32 labels = %+v, want 1 binding and 1 version statement", got)
+	if got := f.trace.take(); got.bindings != 0 || got.versions != 0 {
+		t.Fatalf("registration read configuration catalogs: %+v", got)
 	}
+	registerPrincipalWithLabels(t, ctx, service, id, f.labels[:32])
+	f.trace.take()
 
-	replaced, err := service.ReplaceLabelsIdempotent(ctx, id, 1, f.labels[8:], "replace-labels", "operator", f.now)
+	replaced, err := service.ReplaceLabelsIdempotent(ctx, id, 2, f.labels[8:], "replace-labels", "operator", f.now)
 	if err != nil || replaced.Principal == nil || !slices.Equal(replaced.Principal.Labels, f.labels[8:]) {
 		t.Fatalf("replace 32 labels = (%+v, %v)", replaced, err)
 	}
@@ -161,11 +163,7 @@ func TestPostgresAgentLabelValidationReadsEachCatalogOnce(t *testing.T) {
 	if !errors.Is(err, runtimeconfig.ErrNotFound) || errors.Is(err, runtimeconfig.ErrUnknownLabel) {
 		t.Fatalf("adapter projection of an unbound label = %v, want ErrNotFound", err)
 	}
-	_, err = service.Register(ctx, principalID(1), f.labels[:2])
-	if !errors.Is(err, runtimeconfig.ErrNotFound) {
-		t.Fatalf("registration with an unbound label = %v, want ErrNotFound", err)
-	}
-	_, err = service.ReplaceLabelsIdempotent(ctx, id, 2, f.labels[:2], "replace-unbound", "operator", f.now)
+	_, err = service.ReplaceLabelsIdempotent(ctx, id, 3, f.labels[:2], "replace-unbound", "operator", f.now)
 	if !errors.Is(err, runtimeconfig.ErrUnknownLabel) {
 		t.Fatalf("replacement with an unbound label = %v, want ErrUnknownLabel", err)
 	}
@@ -195,9 +193,7 @@ func TestPostgresRebindValidatesHoldersWithConstantReads(t *testing.T) {
 	// Every principal holds agent-00 and agent-01; the four sets overlap.
 	for index := range 4 {
 		labels := slices.Concat(f.labels[:2], f.labels[2+index*2:32+index*2])
-		if _, err := service.Register(ctx, principalID(index), labels); err != nil {
-			t.Fatal(err)
-		}
+		registerPrincipalWithLabels(t, ctx, service, principalID(index), labels)
 	}
 	rebind := func(label string, key string) catalogStatementCounts {
 		t.Helper()
