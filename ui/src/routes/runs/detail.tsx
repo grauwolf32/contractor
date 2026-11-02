@@ -1,3 +1,5 @@
+import { readRunListOrigin } from "./source-context";
+import { RunSourceWorkspace } from "./source-pane";
 import "./runs.css";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -155,17 +157,10 @@ function RunHeader({
   );
 }
 
-/** "router-analysis@1" with the version quieter. */
+/** The Workflow name; its exact version remains in the copyable facts. */
 function RunTitle({ workflow }: { workflow: string }) {
   const identity = parseWorkflowIdentity(workflow);
-  return identity === undefined ? (
-    workflow
-  ) : (
-    <>
-      {identity.name}
-      <span className="runs-run-version">@{identity.version}</span>
-    </>
-  );
+  return identity?.name ?? workflow;
 }
 
 function RunFacts({ run }: { run: RunStatus }) {
@@ -200,8 +195,6 @@ function RunFacts({ run }: { run: RunStatus }) {
             ),
         },
         { term: "Created", value: time(run.createdAt) },
-        { term: "Started", value: time(run.startedAt) },
-        { term: "Updated", value: time(run.updatedAt) },
         { term: "Finished", value: time(run.finishedAt) },
         {
           term: "Duration",
@@ -488,7 +481,7 @@ function RunPage({ runId }: { runId: string }) {
     />
   );
   return (
-    <div className="runs-page">
+    <div className="runs-page runs-detail-page">
       <article className="runs-surface runs-run" aria-labelledby="run-title">
         {run === undefined ? (
           <RunHeader
@@ -536,16 +529,25 @@ function RunPage({ runId }: { runId: string }) {
 
 export function RunDetailRoute() {
   const { runId = "" } = useParams();
+  const { state } = useLocation();
+  const origin = readRunListOrigin(state);
   if (!RUN_ID_PATTERN.test(runId)) {
     return <InvalidRunRoute />;
   }
-  return <RunPage key={runId} runId={runId} />;
+  const page = <RunPage key={runId} runId={runId} />;
+  return origin === undefined ? (
+    page
+  ) : (
+    <RunSourceWorkspace origin={origin} runId={runId}>
+      {page}
+    </RunSourceWorkspace>
+  );
 }
 
 function InvalidRunRoute() {
   useDocumentTitle("Run");
   return (
-    <div className="runs-page">
+    <div className="runs-page runs-detail-page">
       <section className="runs-surface runs-run-empty">
         <ErrorNotice error={new Error("Run route is invalid")} />
         <Link to="/runs">Return to Runs</Link>

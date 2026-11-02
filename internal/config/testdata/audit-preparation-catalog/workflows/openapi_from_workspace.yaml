@@ -32,6 +32,7 @@ spec:
 
   executionConfig:
     workers:
+      modelPolicy: test-worker@1
       llmGateway: local-litellm@1
       credential: development-worker
 

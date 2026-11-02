@@ -22,8 +22,6 @@ SELECT concat_ws(E'\n',
      FROM audit_review_requests WHERE audit_id = $1),
   (SELECT string_agg(concat_ws(' ', decision_id, request_id), E'\n' ORDER BY decision_id)
      FROM audit_review_decisions WHERE audit_id = $1),
-  (SELECT string_agg(concat_ws(' ', finding_id, state, revision, current_decision_id, updated_at), E'\n' ORDER BY finding_id)
-     FROM audit_findings WHERE audit_id = $1),
   (SELECT string_agg(concat_ws(' ', item_id, state, updated_at), E'\n' ORDER BY item_id)
      FROM audit_items WHERE audit_id = $1))`, auditID).Scan(&state); err != nil {
 		t.Fatal(err)
@@ -47,21 +45,6 @@ func TestReviewDecisionsCommitWithTheirEffectsOrNotAtAll(t *testing.T) {
 		t.Fatalf("item review = (%+v, %v)", reviews, err)
 	}
 	itemReview := reviews[0]
-	findingID := seedAuditFinding(t, ctx, pool, audit.ProjectID, audit.OwnerID, audit.AuditID, "decision-effects")
-	findingReview, err := service.CreateFindingReview(ctx, CreateFindingReviewParams{
-		OwnerID: audit.OwnerID, AuditID: audit.AuditID, FindingID: findingID, ExpectedRevision: 1,
-		RequestID: "review-decision-effects", IdempotencyKey: "review-decision-effects",
-		RequestDigest: serviceTestDigest("review-decision-effects"),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	findingDecision := DecideFindingParams{
-		OwnerID: audit.OwnerID, AuditID: audit.AuditID, RequestID: findingReview.Request.RequestID,
-		ExpectedRequestRevision: findingReview.Request.Revision, DecisionID: "decision-effects-finding",
-		Verdict: auditstore.VerdictFalsePositive, Rationale: "The candidate is not reachable.",
-		IdempotencyKey: "decision-effects-finding", RequestDigest: serviceTestDigest("decision-effects-finding"),
-	}
 	itemDecision := DecideActionReviewParams{
 		OwnerID: audit.OwnerID, AuditID: audit.AuditID, RequestID: itemReview.RequestID,
 		ExpectedRequestRevision: itemReview.Revision, DecisionID: "decision-effects-item",
@@ -84,10 +67,6 @@ CREATE TRIGGER fail_review_decided_event BEFORE INSERT ON audit_events
 		t.Fatal(err)
 	}
 	before := reviewDecisionState(t, ctx, pool, audit.AuditID)
-	if _, err := service.DecideFinding(ctx, findingDecision); err == nil ||
-		!strings.Contains(err.Error(), "injected review.decided failure") {
-		t.Fatalf("finding decision with a failing event = %v", err)
-	}
 	if _, err := service.DecideActionReview(ctx, itemDecision); err == nil ||
 		!strings.Contains(err.Error(), "injected review.decided failure") {
 		t.Fatalf("item decision with a failing event = %v", err)
@@ -99,13 +78,6 @@ CREATE TRIGGER fail_review_decided_event BEFORE INSERT ON audit_events
 		t.Fatal(err)
 	}
 
-	finding, err := service.DecideFinding(ctx, findingDecision)
-	if err != nil || finding.Replayed || finding.Request.State != auditstore.ReviewDecided ||
-		finding.Request.Revision != findingReview.Request.Revision+1 ||
-		finding.Decision.DecisionID != findingDecision.DecisionID ||
-		finding.Finding.State != auditstore.FindingRejected {
-		t.Fatalf("finding decision = (%+v, %v)", finding, err)
-	}
 	item, err := service.DecideActionReview(ctx, itemDecision)
 	if err != nil || item.Replayed || item.Request.State != auditstore.ReviewDecided ||
 		item.Request.Revision != itemReview.Revision+1 || item.Decision.DecisionID != itemDecision.DecisionID {
@@ -123,10 +95,6 @@ SELECT item.state FROM audit_items AS item
 
 	// A replay returns the stored decisions and writes nothing more.
 	settled := reviewDecisionState(t, ctx, pool, audit.AuditID)
-	if replay, err := service.DecideFinding(ctx, findingDecision); err != nil || !replay.Replayed ||
-		replay.Decision.DecisionID != findingDecision.DecisionID {
-		t.Fatalf("finding decision replay = (%+v, %v)", replay, err)
-	}
 	if replay, err := service.DecideActionReview(ctx, itemDecision); err != nil || !replay.Replayed ||
 		replay.Decision.DecisionID != itemDecision.DecisionID {
 		t.Fatalf("item decision replay = (%+v, %v)", replay, err)
@@ -137,7 +105,6 @@ SELECT item.state FROM audit_items AS item
 
 	// Each request has exactly one decision and one review.decided event.
 	for _, decision := range []struct{ requestID, decisionID string }{
-		{findingDecision.RequestID, findingDecision.DecisionID},
 		{itemDecision.RequestID, itemDecision.DecisionID},
 	} {
 		var decisions, events int

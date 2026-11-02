@@ -15,7 +15,7 @@ const SkillInitializationPendingReason = "skill_initialization_pending"
 
 // LockRunSkillInitialization serializes concurrent Scheduler attempts to
 // initialize the same durable pending Run, including across Server replicas.
-func (s *PostgresStore) LockRunSkillInitialization(
+func (s *PostgresTxStore) LockRunSkillInitialization(
 	ctx context.Context,
 	runID string,
 ) (WorkflowRun, error) {

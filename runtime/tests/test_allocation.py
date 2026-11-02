@@ -66,6 +66,7 @@ from contractor_runtime.digests import (
     _agent_template_digest,
     _model_policy_digest,
     sha256_digest,
+    verify_template_digests,
 )
 from contractor_runtime.factories import (
     FactoryRegistry,
@@ -125,7 +126,8 @@ def test_prepare_uses_pinned_summary_model_without_changing_template(
         spec = allocation_spec(summarizer=True)
         assert spec.agent_template.summarizer is not None
         original = spec.agent_template.model_dump_json(by_alias=True, exclude_none=True)
-        policy = spec.agent_template.summarizer.model_policy.model_copy(deep=True)
+        assert spec.summarizer_model_policy is not None
+        policy = spec.summarizer_model_policy.model_copy(deep=True)
         policy.ref.policy_id = "selected_summary"
         policy.model = "fixture/selected-summary-model"
         policy.context_window_tokens = 65536
@@ -1064,7 +1066,6 @@ def make_spec(
             digest=sha256_digest(instructions_text.encode()),
             text=instructions_text,
         ),
-        modelPolicy=policy,
         toolsets=[
             ToolsetSelection(
                 ref=ToolsetRef(toolsetId="run-artifacts", version="1"),
@@ -1110,16 +1111,16 @@ def resign_template(template: ResolvedAgentTemplate) -> None:
         ("max_total_tokens", 32769),
     ],
 )
-def test_each_worker_budget_changes_policy_and_template_digest(field: str, value: int) -> None:
-    baseline = make_spec().agent_template
+def test_each_worker_budget_changes_policy_without_changing_template_digest(
+    field: str, value: int
+) -> None:
+    baseline = make_spec()
     variant = baseline.model_copy(deep=True)
-    original_policy_digest = baseline.model_policy.ref.digest
-    original_template_digest = baseline.ref.digest
     setattr(variant.model_policy, field, value)
     variant.model_policy.ref.digest = _model_policy_digest(variant.model_policy)
-    resign_template(variant)
-    assert variant.model_policy.ref.digest != original_policy_digest
-    assert variant.ref.digest != original_template_digest
+    assert variant.model_policy.ref.digest != baseline.model_policy.ref.digest
+    assert variant.agent_template == baseline.agent_template
+    verify_template_digests(variant.agent_template)
 
 
 class FailingToolsetFactory(RunArtifactsToolsetFactory):

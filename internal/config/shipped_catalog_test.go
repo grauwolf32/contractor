@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/config/resolved"
-	"github.com/grauwolf32/contractor/internal/contentdigest"
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 )
 
 // TestManagedPublicationNeverRebindsShippedIdentity pins the runtime half of
@@ -109,7 +109,7 @@ func TestShippedCatalogInPlaceChangeIsVisibleInRunSnapshots(t *testing.T) {
 				t.Fatalf("dependency identities changed: %+v/%+v -> %+v/%+v",
 					oldTemplate.Ref, oldPolicy, newTemplate.Ref, newPolicy)
 			}
-			if (newTemplate.Ref.Digest != oldTemplate.Ref.Digest) != test.dependencyChanged ||
+			if newTemplate.Ref.Digest != oldTemplate.Ref.Digest ||
 				(newPolicy.Digest != oldPolicy.Digest) != test.dependencyChanged {
 				t.Fatalf("dependency digests: template %s -> %s, policy %s -> %s",
 					oldTemplate.Ref.Digest, newTemplate.Ref.Digest, oldPolicy.Digest, newPolicy.Digest)
@@ -135,7 +135,7 @@ func TestShippedCatalogInPlaceChangeIsVisibleInRunSnapshots(t *testing.T) {
 func resolveShippedRun(t *testing.T, manager *Manager) resolved.ResolvedWorkflow {
 	t.Helper()
 	workflow, err := manager.ResolveRunWorkflow(
-		t.Context(), "artifact-copy@1", resolved.ExecutionConfigPatch{},
+		t.Context(), "artifact-copy@1",
 		developmentCredentialLookup(t, manager.Snapshot()),
 	)
 	if err != nil {

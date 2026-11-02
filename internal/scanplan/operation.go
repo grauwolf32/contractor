@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/contracts/scan"
-	"github.com/grauwolf32/contractor/internal/strictjson"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 )
 
 var variablePattern = regexp.MustCompile(`\{([^{}]+)\}`)

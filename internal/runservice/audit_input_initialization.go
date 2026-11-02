@@ -12,8 +12,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	"github.com/grauwolf32/contractor/internal/runstore"
-	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 func validateRoundResultsAuthority(ctx context.Context, writer AuditExecutionWriter, intent auditstore.RunCreationIntent, params AuditCreateParams) error {
@@ -47,7 +47,7 @@ func completeAuditInputSlice(ctx context.Context, writer AuditRunWriter, service
 		intent.DeadlineAt != nil && !now.Before(*intent.DeadlineAt) {
 		return runstore.WorkflowRun{}, auditstore.ErrPrecondition
 	}
-	previous, err := writer.GetAuditInputMaterialization(ctx, run.RunID)
+	previous, err := writer.LockAuditInputMaterialization(ctx, run.RunID)
 	if err != nil {
 		return runstore.WorkflowRun{}, err
 	}

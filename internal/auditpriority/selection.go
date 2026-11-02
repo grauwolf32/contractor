@@ -4,8 +4,8 @@ import (
 	"reflect"
 	"sort"
 
-	"github.com/grauwolf32/contractor/internal/contentdigest"
-	"github.com/grauwolf32/contractor/internal/strictjson"
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 )
 
 // BindVerdict validates the assigned item and evidence whitelist then detaches
@@ -157,7 +157,7 @@ func MarshalSelection(selection Selection) ([]byte, error) {
 	return data, nil
 }
 
-func SelectionDigest(selection Selection) (string, error) {
+func selectionDigest(selection Selection) (string, error) {
 	data, err := MarshalSelection(selection)
 	if err != nil {
 		return "", err

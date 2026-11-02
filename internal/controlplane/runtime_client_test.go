@@ -28,10 +28,10 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
+	"github.com/grauwolf32/contractor/internal/helpers/requestid"
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/grauwolf32/contractor/internal/mtls"
 	"github.com/grauwolf32/contractor/internal/mtlstest"
-	"github.com/grauwolf32/contractor/internal/requestid"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
 
@@ -112,26 +112,27 @@ func runtimePrincipalFromCertificate(t *testing.T, path string) string {
 func TestRuntimeControlClientPrepareSendsExactResolvedAllocation(t *testing.T) {
 	template := testTemplate(t)
 	template.Skills = []contracts.ArtifactRef{{Namespace: contracts.AgentSkillNamespace, Name: "review"}}
-	template.ModelPolicy.ContextWindowTokens = 131_072
-	cumulativeBudget := template.ModelPolicy.MaxTotalTokens - 1
-	template.Summarizer = &contracts.WorkerSummarizerConfig{
-		ModelPolicy: contracts.ResolvedModelPolicy{
-			Ref: contracts.ModelPolicyRef{
-				PolicyID: "terminal-summarizer", Version: "1",
-				Digest: "sha256:" + strings.Repeat("f", 64),
-			},
-			Model: "worker-summarizer-model", ContextWindowTokens: 131_072,
-			MaxOutputTokens: 1024, MaxModelCalls: 1,
+	workerPolicy := testWorkerPolicy(t)
+	workerPolicy.ContextWindowTokens = 131_072
+	cumulativeBudget := workerPolicy.MaxTotalTokens - 1
+	summaryPolicy := contracts.ResolvedModelPolicy{
+		Ref: contracts.ModelPolicyRef{
+			PolicyID: "terminal-summarizer", Version: "1",
+			Digest: "sha256:" + strings.Repeat("f", 64),
 		},
+		Model: "worker-summarizer-model", ContextWindowTokens: 131_072,
+		MaxOutputTokens: 1024, MaxModelCalls: 1,
+	}
+	template.Summarizer = &contracts.WorkerSummarizerConfig{
 		ContextWindowRatio: 0.9, CumulativeBudget: &cumulativeBudget,
 	}
-	effectivePolicy := template.ModelPolicy
+	effectivePolicy := workerPolicy
 	effectivePolicy.Ref = contracts.ModelPolicyRef{
 		PolicyID: "worker-strong", Version: "2", Digest: "sha256:" + strings.Repeat("d", 64),
 	}
 	effectivePolicy.Model = "worker-strong-model"
 	effectivePolicy.MaxModelCalls++
-	summaryPolicy := template.Summarizer.ModelPolicy.Clone()
+	summaryPolicy = summaryPolicy.Clone()
 	summaryPolicy.Model = "selected-summary-model"
 	summaryPolicy.Ref.PolicyID = "selected_summary"
 	settings := testRuntimeSettings()
@@ -210,9 +211,9 @@ func TestRuntimeControlClientPrepareSendsExactResolvedAllocation(t *testing.T) {
 	if received.Spec.AgentTemplate.Ref != template.Ref ||
 		received.Spec.WorkerSessionMode != contracts.WorkerSessionIsolated ||
 		!reflect.DeepEqual(received.Spec.RunMetadataLabels, reservation.RunMetadataLabels) ||
-		received.Spec.AgentTemplate.ModelPolicy.Ref != template.ModelPolicy.Ref ||
+		received.Spec.ModelPolicy.Ref != effectivePolicy.Ref ||
 		received.Spec.AgentTemplate.Summarizer == nil ||
-		received.Spec.AgentTemplate.Summarizer.ModelPolicy.Ref != template.Summarizer.ModelPolicy.Ref ||
+		received.Spec.SummarizerModelPolicy.Ref != summaryPolicy.Ref ||
 		received.Spec.AgentTemplate.Summarizer.CumulativeBudget == nil ||
 		*received.Spec.AgentTemplate.Summarizer.CumulativeBudget != cumulativeBudget ||
 		received.Spec.AgentTemplate.Summarizer.ContextWindowRatio != 0.9 ||
@@ -257,7 +258,7 @@ func TestRuntimeControlClientPrepareRejectsSecretBearingHandle(t *testing.T) {
 	reservation := testReservation("allocation_1", "builder", server.URL, server.URL, template, lease)
 
 	_, err := client.Prepare(context.Background(), reservation, runtimesettings.WorkerExecutionSettings{
-		ModelPolicy: template.ModelPolicy, RuntimeSettings: settings,
+		ModelPolicy: testWorkerPolicy(t), RuntimeSettings: settings,
 		ResolvedRuntimeConfigProvenance: testRuntimeProvenance(),
 	})
 	if err == nil || bytes.Contains([]byte(err.Error()), []byte(settings.LLMGatewayToken.Reveal())) {
@@ -935,14 +936,14 @@ func testRuntimeSettings() runtimesettings.RuntimeSettings {
 }
 
 func testWorkerExecutionSettings(
-	template contracts.ResolvedAgentTemplate,
+	t *testing.T,
 	runtime runtimesettings.RuntimeSettings,
 	logicalNames ...string,
 ) map[string]runtimesettings.WorkerExecutionSettings {
 	result := make(map[string]runtimesettings.WorkerExecutionSettings, len(logicalNames))
 	for _, name := range logicalNames {
 		result[name] = runtimesettings.WorkerExecutionSettings{
-			ModelPolicy: template.ModelPolicy, RuntimeSettings: runtime,
+			ModelPolicy: testWorkerPolicy(t), RuntimeSettings: runtime,
 			ResolvedRuntimeConfigProvenance: testRuntimeProvenance(),
 		}
 	}

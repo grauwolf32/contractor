@@ -146,7 +146,7 @@ func TestPostgresFindingFingerprintIntakeReplayAndRetention(t *testing.T) {
 	}
 	for _, id := range []string{"fingerprint-audit-a", "fingerprint-audit-b"} {
 		retained, err := service.GetAuditReceipt(ctx, owner, id, first.ReceiptID)
-		if err != nil || retained.Fingerprint.Value != first.Fingerprint.Value || retained.Retention != RetentionAuditHeld {
+		if err != nil || retained.Fingerprint.Value != first.Fingerprint.Value || retained.Retention != RetentionProjectHeld {
 			t.Fatalf("retained projection=%+v %v", retained, err)
 		}
 		if _, err := service.GetAuditReceipt(ctx, "foreign-owner", id, first.ReceiptID); !errors.Is(err, ErrNotFound) {
@@ -168,9 +168,9 @@ func TestPostgresFindingFingerprintIntakeReplayAndRetention(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	requireReceiptReportProjection(t, ctx, pool, first.ReceiptID, "{}")
+
 	discarded, err := readReceiptByID(ctx, pool, first.ReceiptID)
-	if err != nil || discarded.Fingerprint.Reason != "discarded" || discarded.Fingerprint.Value != "" {
+	if err != nil || discarded.Retention != RetentionProjectHeld || discarded.Fingerprint.Value != first.Fingerprint.Value {
 		t.Fatalf("discarded sensitive projection=%+v %v", discarded.Fingerprint, err)
 	}
 	unimported, err := readReceiptByID(ctx, pool, second.ReceiptID)

@@ -1,0 +1,92 @@
+schema_version: "1.0"
+id: V425-037
+title: Remove redundant Server copies while preserving ownership boundaries
+milestone: hub-audit-structure-2026-10
+epic: quality
+kind: chore
+priority: P3
+status: completed
+depends_on: []
+languages: [go]
+goal: Reduce handwritten copying and repeated allocations without changing persisted or public behavior.
+context:
+  authority: "User decision 2026-10-31: implement the clone-analysis findings together rather than split the cleanup into successive tasks."
+  review: >-
+    Read-only clone analysis of main 5ec4d44bc05943e7b1cac9569d493f24e7ce4b6f,
+    saved under .local/server-refactoring/clone-analysis in the primary checkout.
+  finding: >-
+    DecodeBaseline immediately deep-copies fresh JSON (auditservice/model.go:62);
+    engagement allocation copies the decoded graph again. Registry reservation copies
+    already-detached normalized bindings. Planner session clones ephemeral projections
+    around serialization, and HTTP Operations copies and sorts Registry snapshots again.
+    Historical implementations include c7632c222 and 2fbac4ddc from uncatalogued early
+    work; no single introducing task is established for this cross-package cleanup.
+  boundary: >-
+    A freshly decoded local graph can transfer ownership to its result. A normalizer-owned
+    binding can transfer into the Registry, whose outgoing snapshots remain detached.
+    Synchronous encoding borrows nested fields without mutating or retaining them.
+    OperationsReader supplies detached, sorted snapshots; implementations and fakes obey
+    that contract. Retain shared cache/catalog/controller copies and completion validation,
+    bounds, digests, receipts, transaction and replay semantics. Preserve accepted nil/empty
+    representations with narrow normalization only where existing behavior requires it.
+  selection: >-
+    Remove proven redundant copying across Audit, Registry, Planner session and Operations
+    in this task; consolidate remaining duplicate type copying only when it reduces code.
+    Optional catalog identifier projections and telemetry factory ownership redesign are
+    outside this cleanup because they add or change APIs rather than remove proven work.
+scope:
+  in:
+    - Audit baseline decode and engagement allocation ownership transfer, plus obsolete clone helper tests.
+    - Registry intermediate reservation copies and transient fingerprint-only copying.
+    - Planner session read and synchronous encoding copies; retain completion validation and byte bounds.
+    - Operations snapshot ownership contract and removal of duplicate HTTP copying/sorting.
+    - Remove newly uncalled RunSnapshot.Clone and HTTPLimits.Clone, retaining test-only fixture copies locally.
+    - Regression coverage through actual PostgreSQL reads and retained in-memory isolation boundaries.
+  out:
+    - Shared workflow cache/catalog copy guarantees, authorization policy, SQL/schema, limits or public wire changes.
+    - New dependencies, generated deep copies, catalog projection API and telemetry factory contract redesign.
+acceptance_criteria:
+  - id: A1
+    text: Redundant copies and their unused helpers are removed with a net reduction in production Go lines and no new dependency.
+  - id: A2
+    text: Decoded Audit and Planner results are independently owned; editing an allocation projection or read result cannot change stored data or a second read.
+  - id: A3
+    text: Registry input/output isolation and Operations ordering remain intact; accepted JSON shapes, digests, error classes, completion limits and replay behavior remain equivalent.
+  - id: A4
+    text: Full suites of touched owner packages pass with PostgreSQL configured, relevant in-memory paths pass under the race detector, and make lint passes.
+tests:
+  - command: CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -tags=integration -count=1 -p=2 ./internal/auditservice ./internal/controlplane ./internal/planner/session ./internal/httpapi/public ./internal/runtimeconfig ./internal/contracts/engagementcontract
+    covers: [A1, A2, A3, A4]
+  - command: go test -race -count=1 ./internal/controlplane ./internal/planner/session ./internal/httpapi/public
+    covers: [A2, A3, A4]
+  - command: make lint
+    covers: [A1, A3, A4]
+implementation_notes:
+  - >-
+    Audit decoding and allocation projection transfer their fresh graphs; obsolete baseline,
+    engagement, route and package-ref copy helpers are deleted. RunSnapshot.Clone and
+    HTTPLimits.Clone lost their last production callers and are removed too.
+  - >-
+    Registry stores already-detached normalized bindings and retains outgoing deep copies.
+    RuntimeSelection is borrowed only for synchronous fingerprinting. Runtime snapshot and
+    Planner projection normalization preserve existing empty collection encodings without
+    copying populated collections. Write-side completion validation and byte bounds remain.
+  - >-
+    OperationsReader and the Registry promise detached, ordered snapshots; OPS-R24 records
+    that boundary. HTTP no longer copies or sorts the same snapshot. The fake implements
+    the source contract, retaining the cursor revision excluded from its JSON reader.
+  - >-
+    Production Go shrinks by 168 lines, and all Go including replacement regressions shrinks
+    by 83 lines. Tests exercise actual stored Audit/engagement/Planner reads, HTTP ordering,
+    stable nil/empty reservation fingerprints and retained Registry isolation.
+implementation_commit: 8540037bdcbaf54a08cdcf3de9f90c57bb466c1c
+verification: >-
+  All six complete integration-tagged owner suites passed with the dedicated disposable
+  PostgreSQL 17.11 database configured: auditservice, controlplane, planner/session,
+  httpapi/public, runtimeconfig and contracts/engagementcontract. The full controlplane,
+  planner/session and httpapi/public suites passed with the race detector; database
+  tests were unset in that separate race pass. The focused stored-baseline regression
+  passed, make lint passed, and task metadata/backlog checks passed after closure.
+  No benchmark or full release gate is claimed. Implemented on codex/server-copy-cleanup
+  and merged into main with --no-ff by user request on 2026-10-31. Main still matched the
+  tested base at integration, so no code conflict or additional implementation occurred.

@@ -3,15 +3,16 @@ package config
 import (
 	"bytes"
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/config/resolved"
-	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 )
 
 func TestSharedWorkerSummarizerGoldenDigestMatchesGoCanonicalization(t *testing.T) {
@@ -33,7 +34,7 @@ func TestSharedWorkerSummarizerGoldenDigestMatchesGoCanonicalization(t *testing.
 		t.Fatalf("instruction digest = %s, want %s", got, template.Instructions.Digest)
 	}
 	for _, policy := range []contracts.ResolvedModelPolicy{
-		template.ModelPolicy, template.Summarizer.ModelPolicy,
+		allocation.ModelPolicy, *allocation.SummarizerModelPolicy,
 	} {
 		got, err := modelPolicyDigest(
 			resolved.Selector{ID: policy.Ref.PolicyID, Version: policy.Ref.Version}, policy,
@@ -71,23 +72,20 @@ func TestWorkerSummarizerResolvesPinsAndPublishesSafeConfiguration(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if template.Summarizer == nil || template.Summarizer.ModelPolicy.Ref != policy.Ref ||
-		template.Summarizer.ModelPolicy.Model != "worker-summarizer-model" ||
+	if template.Summarizer == nil ||
 		template.Summarizer.CumulativeBudget == nil || *template.Summarizer.CumulativeBudget != 20_000 ||
-		template.Summarizer.ContextWindowRatio != 0.9 ||
-		template.ModelPolicy.ContextWindowTokens != 131_072 ||
-		template.Summarizer.ModelPolicy.ContextWindowTokens != 131_072 {
+		template.Summarizer.ContextWindowRatio != 0.9 {
 		t.Fatalf("resolved summarizer = %+v", template.Summarizer)
 	}
 
 	workflow, err := snapshot.ResolveRunWorkflow(
-		t.Context(), "artifact-copy@1", resolved.ExecutionConfigPatch{}, developmentCredentialLookup(t, snapshot),
+		t.Context(), "artifact-copy@1", developmentCredentialLookup(t, snapshot),
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	pinned := workflow.Stages["copy"].Agents["builder"].Template.Summarizer
-	if pinned == nil || pinned.ModelPolicy.Ref != policy.Ref ||
+	if pinned == nil || workflow.Stages["copy"].ExecutionConfig.Agents["builder"].SummarizerModelPolicy.Ref != policy.Ref ||
 		pinned.CumulativeBudget == nil || *pinned.CumulativeBudget != 20_000 {
 		t.Fatalf("Run-resolved summarizer = %+v", pinned)
 	}
@@ -98,7 +96,7 @@ func TestWorkerSummarizerResolvesPinsAndPublishesSafeConfiguration(t *testing.T)
 	}
 	body := resource.Body.(map[string]any)
 	safe := body["summarizer"].(map[string]any)
-	if safe["modelPolicy"] != policy.Ref || safe["cumulativeBudget"] != 20_000 ||
+	if safe["modelPolicy"] != nil || body["modelPolicy"] != nil || safe["cumulativeBudget"] != 20_000 ||
 		safe["contextWindowRatio"] != 0.9 {
 		t.Fatalf("safe AgentTemplate resource summarizer = %#v", safe)
 	}
@@ -150,8 +148,8 @@ func TestWorkerSummarizerDigestCoversExactPolicyAndThresholds(t *testing.T) {
 	policySummary, _ := policyVariant.ModelPolicy("terminal_summarizer@1")
 	policyWorker, _ := policyVariant.ModelPolicy("test-worker@1")
 	if policySummary.Ref.Digest == baselineSummary.Ref.Digest ||
-		policyTemplate.Ref.Digest == baselineTemplate.Ref.Digest {
-		t.Fatal("resolved summarizer policy change did not alter both policy and template digests")
+		policyTemplate.Ref.Digest != baselineTemplate.Ref.Digest {
+		t.Fatal("policy must change its own digest and leave the template digest unchanged")
 	}
 	if policyWorker.Ref.Digest != baselineWorker.Ref.Digest {
 		t.Fatal("summarizer policy change unexpectedly altered normal Worker policy digest")
@@ -199,12 +197,10 @@ func TestWorkerSummarizerSnapshotIsDeepAndRemainsPinnedAcrossReload(t *testing.T
 	oldDigest := template.Ref.Digest
 	*template.Summarizer.CumulativeBudget = 1
 	template.Summarizer.ContextWindowRatio = 0.5
-	*template.Summarizer.ModelPolicy.Temperature = 99
 
 	again, _ := first.agentTemplateForTest("artifact_builder@1")
 	if again.Summarizer == nil || *again.Summarizer.CumulativeBudget != 20_000 ||
-		again.Summarizer.ContextWindowRatio != 0.9 ||
-		again.Summarizer.ModelPolicy.Temperature == nil || *again.Summarizer.ModelPolicy.Temperature != 0.1 {
+		again.Summarizer.ContextWindowRatio != 0.9 {
 		t.Fatalf("summarizer mutation leaked into Snapshot: %+v", again.Summarizer)
 	}
 
@@ -213,12 +209,15 @@ func TestWorkerSummarizerSnapshotIsDeepAndRemainsPinnedAcrossReload(t *testing.T
 		"model: worker-summarizer-model", "model: worker-summarizer-model-v2",
 	)
 	second := mustLoad(t, root)
+	oldWorkflow, _ := first.Workflow("artifact-copy@1")
+	newWorkflow, _ := second.Workflow("artifact-copy@1")
+	if oldWorkflow.Stages["copy"].ExecutionConfig.Agents["builder"].SummarizerModelPolicy.Model != "worker-summarizer-model" || newWorkflow.Stages["copy"].ExecutionConfig.Agents["builder"].SummarizerModelPolicy.Model != "worker-summarizer-model-v2" {
+		t.Fatal("effective summary policies did not remain pinned")
+	}
 	pinnedAgain, _ := first.agentTemplateForTest("artifact_builder@1")
 	newTemplate, _ := second.agentTemplateForTest("artifact_builder@1")
 	if pinnedAgain.Ref.Digest != oldDigest ||
-		pinnedAgain.Summarizer.ModelPolicy.Model != "worker-summarizer-model" ||
-		newTemplate.Ref.Digest == oldDigest ||
-		newTemplate.Summarizer.ModelPolicy.Model != "worker-summarizer-model-v2" {
+		newTemplate.Ref.Digest != oldDigest {
 		t.Fatalf("old/new snapshot pinning failed: old=%+v new=%+v", pinnedAgain, newTemplate)
 	}
 }
@@ -231,9 +230,7 @@ func TestWorkerSummarizerRejectsInvalidAuthoring(t *testing.T) {
 		mutate func(*testing.T, string)
 		want   string
 	}{
-		{"empty block", func(t *testing.T, root string) {
-			replaceFile(t, templatePath(root), workerSummarizerBlock, "  summarizer: {}\n")
-		}, "spec.summarizer"},
+
 		{"unknown field", func(t *testing.T, root string) {
 			replaceFile(t, templatePath(root), "    contextWindowRatio: 0.9", "    contextWindowRatio: 0.9\n    unknown: true")
 		}, "unknown"},
@@ -256,7 +253,7 @@ func TestWorkerSummarizerRejectsInvalidAuthoring(t *testing.T) {
 			replaceFile(t, templatePath(root), "cumulativeBudget: 20000", "cumulativeBudget: 32768")
 		}, "below Worker maxTotalTokens"},
 		{"unknown policy", func(t *testing.T, root string) {
-			replaceFile(t, templatePath(root), "terminal_summarizer@1", "missing@1")
+			replaceFile(t, filepath.Join(root, "workflows/artifact_copy.yaml"), "terminal_summarizer@1", "missing@1")
 		}, "unknown ModelPolicy"},
 		{"missing output budget", func(t *testing.T, root string) {
 			replaceFile(t, summaryPolicyPath(root), "  maxOutputTokens: 2048\n", "")
@@ -295,19 +292,16 @@ func TestWorkerSummarizerRejectsInvalidAuthoring(t *testing.T) {
 	}
 }
 
-func TestWorkerSummarizerRejectsEffectiveRunPolicyBelowSoftThreshold(t *testing.T) {
+func TestWorkerSummarizerRejectsEffectiveWorkflowPolicyBelowSoftThreshold(t *testing.T) {
 	t.Parallel()
 
 	root := copyCoreFixture(t)
 	installWorkerSummarizer(t, root)
 	writeFile(t, filepath.Join(root, "model-policies/test-low-worker.yaml"), []byte(lowWorkerPolicyYAML))
-	snapshot := mustLoad(t, root)
-	patch := decodeExecutionConfigPatch(t, `{"workers":{"modelPolicy":"test-low-worker@1"}}`)
-	workflow, err := snapshot.ResolveRunWorkflow(
-		t.Context(), "artifact-copy@1", patch, developmentCredentialLookup(t, snapshot),
-	)
+	writeWorkflowExecutionConfig(t, root, "artifact_copy.yaml", `{"workers":{"modelPolicy":"test-low-worker@1","summarizerModelPolicy":"terminal_summarizer@1"}}`)
+	workflow, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
 	if err == nil || !strings.Contains(err.Error(), "below Worker maxTotalTokens") {
-		t.Fatalf("ResolveRunWorkflow() = (%+v, %v), want summarizer threshold error", workflow, err)
+		t.Fatalf("Load() = (%+v, %v), want summarizer threshold error", workflow, err)
 	}
 }
 
@@ -318,8 +312,9 @@ func TestExecutionConfigCannotOverrideWorkerSummarizer(t *testing.T) {
 		`{"workers":{"summarizer":"terminal_summarizer@1"}}`,
 		`{"stages":{"copy":{"agents":{"builder":{"summarizer":null}}}}}`,
 	} {
-		var patch resolved.ExecutionConfigPatch
-		if err := json.Unmarshal([]byte(raw), &patch); err == nil {
+		root := copyCoreFixture(t)
+		writeWorkflowExecutionConfig(t, root, "artifact_copy.yaml", raw)
+		if _, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed")); err == nil {
 			t.Fatalf("executionConfig accepted summarizer override: %s", raw)
 		}
 	}
@@ -335,9 +330,25 @@ func installWorkerSummarizer(t *testing.T, root string) {
 	)
 	replaceFile(
 		t, templatePath(root),
-		"  modelPolicy: test-worker@1\n  toolsets:",
-		"  modelPolicy: test-worker@1\n"+workerSummarizerBlock+"  toolsets:",
+		"  toolsets:",
+		workerSummarizerBlock+"  toolsets:",
 	)
+	err := filepath.WalkDir(filepath.Join(root, "workflows"), func(path string, entry os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !entry.IsDir() && strings.HasSuffix(path, ".yaml") {
+			data := string(readFile(t, path))
+			if strings.Contains(data, "template: artifact_builder@1") {
+				data = strings.Replace(data, "    workers:\n", "    workers:\n      summarizerModelPolicy: terminal_summarizer@1\n", 1)
+				writeFile(t, path, []byte(data))
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 func writeWorkerSummarizerPolicy(t *testing.T, root string) {
@@ -358,7 +369,6 @@ func workerPolicyPath(root string) string {
 }
 
 const workerSummarizerBlock = `  summarizer:
-    modelPolicy: terminal_summarizer@1
     contextWindowRatio: 0.9
     cumulativeBudget: 20000
 `
@@ -429,7 +439,7 @@ func TestWorkerSummarizerIncludeReasoningResolvesPinsAndDigests(t *testing.T) {
 	}
 
 	workflow, err := enabledSnapshot.ResolveRunWorkflow(
-		t.Context(), "artifact-copy@1", resolved.ExecutionConfigPatch{}, developmentCredentialLookup(t, enabledSnapshot),
+		t.Context(), "artifact-copy@1", developmentCredentialLookup(t, enabledSnapshot),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -500,7 +510,7 @@ func TestWorkerSummarizerResolvedIncludeReasoningRequiresExplicitBoolean(t *test
 	installWorkerSummarizer(t, root)
 	snapshot := mustLoad(t, root)
 	workflow, err := snapshot.ResolveRunWorkflow(
-		t.Context(), "artifact-copy@1", resolved.ExecutionConfigPatch{}, developmentCredentialLookup(t, snapshot),
+		t.Context(), "artifact-copy@1", developmentCredentialLookup(t, snapshot),
 	)
 	if err != nil {
 		t.Fatal(err)

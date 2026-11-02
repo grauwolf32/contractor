@@ -353,7 +353,7 @@ the first cancellation reason or changes a successful terminal Run.
 Using a real LiteLLM/provider is deliberately opt-in. Publish its non-secret
 endpoint as an exact `LLMGatewayConfig`, publish model aliases and bounds as
 exact `ModelPolicy` documents, then select them independently for Planner and
-Workers through `executionConfig`. For local bootstrap, the Worker and Planner
+Workers through Workflow `spec.executionConfig`. For local bootstrap, the Worker and Planner
 may use the separately named `development-worker` and `development-planner`
 credentials described in the [local-stack guide](local-stack.md). CI and `make test-e2e` use a temporary authored
 Gateway manifest and a deterministic fake model rather than an external

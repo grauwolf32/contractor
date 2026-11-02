@@ -246,8 +246,13 @@ func TestAuditInputPostgresCanonicalByteBoundaryAndImmutability(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	runs := runstore.NewPostgresStore(pool)
-	state, err := runs.GetAuditInputMaterialization(ctx, created.Run.RunID)
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(context.WithoutCancel(ctx))
+	runs := runstore.NewPostgresTxStore(tx)
+	state, err := runs.LockAuditInputMaterialization(ctx, created.Run.RunID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -262,7 +267,7 @@ func TestAuditInputPostgresCanonicalByteBoundaryAndImmutability(t *testing.T) {
 		diagnostic := pool.QueryRow(ctx, `SELECT octet_length($1::json::text), contractor_valid_audit_input_materialization($1::json)`, data).Scan(&length, &valid)
 		t.Fatalf("exact byte boundary rejected: %v len=%d valid=%v diagnostic=%v", err, length, valid, diagnostic)
 	}
-	readback, err := runs.GetAuditInputMaterialization(ctx, created.Run.RunID)
+	readback, err := runs.LockAuditInputMaterialization(ctx, created.Run.RunID)
 	if err != nil {
 		t.Fatal("stored boundary unreadable", err)
 	}
@@ -275,10 +280,13 @@ func TestAuditInputPostgresCanonicalByteBoundaryAndImmutability(t *testing.T) {
 	if err := runs.SetAuditInputMaterialization(ctx, created.Run.RunID, 2, *readback); !errors.Is(err, runstore.ErrInvalid) {
 		t.Fatal("oversize state accepted", err)
 	}
-	if _, err := pool.Exec(ctx, `UPDATE workflow_runs SET audit_input_materialization=jsonb_set(audit_input_materialization::jsonb,'{identity}',to_jsonb($2::text))::json WHERE run_id=$1`, created.Run.RunID, testDigest("a")); persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation {
-		t.Fatal("authority rewrite accepted", err)
-	}
 	if err := runs.SetAuditInputMaterialization(ctx, created.Run.RunID, 1, *state); !errors.Is(err, runstore.ErrConflict) {
 		t.Fatal("stale CAS accepted", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE workflow_runs SET audit_input_materialization=jsonb_set(audit_input_materialization::jsonb,'{identity}',to_jsonb($2::text))::json WHERE run_id=$1`, created.Run.RunID, testDigest("a")); persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation {
+		t.Fatal("authority rewrite accepted", err)
 	}
 }

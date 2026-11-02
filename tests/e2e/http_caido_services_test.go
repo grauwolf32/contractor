@@ -489,6 +489,7 @@ spec:
     workers:
       llmGateway: local-litellm@1
       credential: development-worker
+      modelPolicy: worker@1
   entryStage: analyze
   stages:
     analyze:

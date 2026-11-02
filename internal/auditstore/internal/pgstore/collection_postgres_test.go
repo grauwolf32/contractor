@@ -5,15 +5,21 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"reflect"
 	"strconv"
-	"strings"
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifactpolicy"
+	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
+	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
-	"github.com/grauwolf32/contractor/internal/pagelimit"
+	"github.com/grauwolf32/contractor/internal/contracts"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -61,80 +67,9 @@ func TestPostgresCollectionReportsEvidenceBudgetExhaustion(t *testing.T) {
 	}
 }
 
-func TestPostgresCollectionExpiresStaleFindingTriageRequests(t *testing.T) {
-	f := newCollectingAuditFixture(t, "triage", 1<<20)
-	proposal := testExact("audit-findings", "candidate-triage", "proposal-r1")
-	proposal.MediaType = "application/json"
-	proposal.SizeBytes = 128
-	findingID := insertAuditChildFinding(t, f, "receipt-triage", proposal)
-	if _, err := f.pool.Exec(f.ctx, `
-INSERT INTO audit_review_requests (
-    request_id, audit_id, finding_id, subject_kind, subject_id, kind,
-    subject_revision, subject_digest, requested_actions, idempotency_key, request_digest
-) VALUES ('review-triage', $1, $2, 'finding', $2, 'finding-triage', 1, $3,
-          '["true_positive","false_positive"]'::jsonb, 'review-triage', $3)`,
-		f.audit.AuditID, findingID, testDigest("8")); err != nil {
-		t.Fatal(err)
-	}
-	result := testExact("audit-triage", "result", "result-r1")
-	if _, inserted, err := f.store.Collect(f.ctx, auditstore.CollectParams{
-		Claim: f.claim, ReceiptID: "receipt-collection-triage", ExecutionID: f.execution.ExecutionID,
-		Disposition: auditstore.CollectionAccepted, SourceOutput: &result, RequestDigest: testDigest("9"),
-		Retained: []auditstore.ArtifactLink{{
-			LogicalKey: "result/" + f.memberID, Artifact: result,
-			SourceProvenance: json.RawMessage(`{"runId":"run-triage"}`),
-		}},
-		Items: []auditstore.CollectionItem{{
-			ExecutionItemID: f.memberID, Disposition: auditstore.CollectionAccepted,
-			FinalDisposition: auditstore.FinalAccepted, Result: &result,
-			Coverage: auditstore.Coverage{Status: auditstore.CoverageSatisfied, Requested: []string{}, Completed: []string{}, Gaps: []string{}},
-			FindingAssociations: []auditstore.FindingAssociation{{
-				AssessmentID: "assessment-triage", ReceiptID: "receipt-triage",
-				Proposal: proposal, SemanticAssessment: "supported",
-			}},
-		}},
-	}); err != nil || !inserted {
-		t.Fatalf("accepted collection = (%t, %v)", inserted, err)
-	}
-	var requestState string
-	var requestRevision, findingRevision int
-	if err := f.pool.QueryRow(f.ctx, `
-SELECT request.state, request.revision, finding.revision
-  FROM audit_review_requests AS request
-  JOIN audit_findings AS finding USING (finding_id)
- WHERE request.request_id = 'review-triage'`).Scan(
-		&requestState, &requestRevision, &findingRevision,
-	); err != nil {
-		t.Fatal(err)
-	}
-	if requestState != "expired" || requestRevision != 2 || findingRevision != 2 {
-		t.Fatalf("stale triage request = %s revision %d, finding revision %d",
-			requestState, requestRevision, findingRevision)
-	}
-	audit, err := f.store.Get(f.ctx, f.audit.OwnerID, f.audit.AuditID)
-	if err != nil || audit.Revision != audit.EventSequence {
-		t.Fatalf("Audit revision/event sequence = (%+v, %v)", audit, err)
-	}
-	events, err := f.store.ListEvents(f.ctx, f.audit.AuditID, 0, pagelimit.MaxRows)
-	if err != nil || len(events) < 2 {
-		t.Fatalf("Audit events = (%+v, %v)", events, err)
-	}
-	for index, event := range events {
-		if event.Sequence != uint64(index+1) {
-			t.Fatalf("Audit event %d has sequence %d", index, event.Sequence)
-		}
-	}
-	collected, expired := events[len(events)-2], events[len(events)-1]
-	if collected.Kind != "execution.collected" || expired.Kind != "review.expired" ||
-		expired.EntityID != "review-triage" ||
-		!strings.Contains(string(expired.Summary), `"findingId": "`+findingID+`"`) {
-		t.Fatalf("collection events = %+v, %+v (%s)", collected, expired, expired.Summary)
-	}
-}
-
 // A later Round expands one proposal into one item per proposed check, and a
 // batch may carry several of them. Each member keeps its own assessment; the
-// highest batch ordinal supplies the finding's current assessment.
+// accepted results never supply a current Finding assessment.
 func TestPostgresCollectionAcceptsBatchedChecksOfOneFindingProposal(t *testing.T) {
 	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
 	if databaseURL == "" {
@@ -197,7 +132,7 @@ func TestPostgresCollectionAcceptsBatchedChecksOfOneFindingProposal(t *testing.T
 		items[ordinal] = auditstore.MaterializedItem{
 			ItemID: "item-check-" + suffix, ItemKey: "verify-check-" + suffix, Ordinal: ordinal,
 			Kind: "finding-verification", SubjectKey: "subject-two-checks",
-			Task:   testExact("audits", "task-check-"+suffix, "r1"),
+			Task:   writeCollectionFixtureArtifact(t, ctx, pool, project.ProjectID, "audits", "task-check-"+suffix),
 			Origin: testOrigin("verify-check-" + suffix), WorkflowRole: "verify",
 			InitialState: auditstore.ItemReady, Coverage: emptyCoverage(),
 			ProposalSources: []auditstore.ProposalItemSource{{
@@ -244,7 +179,7 @@ func TestPostgresCollectionAcceptsBatchedChecksOfOneFindingProposal(t *testing.T
 		t.Fatal(err)
 	}
 
-	result := testExact("audit-batched-checks", "result", "result-r1")
+	result := writeCollectionFixtureArtifact(t, ctx, pool, project.ProjectID, "audit-batched-checks", "result")
 	collected := make([]auditstore.CollectionItem, len(members))
 	for index, member := range members {
 		collected[index] = auditstore.CollectionItem{
@@ -268,23 +203,15 @@ func TestPostgresCollectionAcceptsBatchedChecksOfOneFindingProposal(t *testing.T
 	}); err != nil || !inserted {
 		t.Fatalf("collect batched checks of one proposal = (%t, %v)", inserted, err)
 	}
-	var currentAssessment, semantic string
-	var findingRevision, assessments int
-	if err := pool.QueryRow(ctx, `
-SELECT finding.current_assessment_id, current.semantic_assessment, finding.revision,
-       (SELECT count(*) FROM audit_finding_assessments AS assessment
-         WHERE assessment.finding_id = finding.finding_id)
-  FROM audit_findings AS finding
-  JOIN audit_finding_assessments AS current
-    ON current.assessment_id = finding.current_assessment_id
- WHERE finding.audit_id = $1 AND finding.first_receipt_id = $2`,
-		audit.AuditID, receiptID).Scan(&currentAssessment, &semantic, &findingRevision, &assessments); err != nil {
+	var findings, histories int
+	if err := pool.QueryRow(ctx, "SELECT count(*) FROM project_findings WHERE project_id=$1", project.ProjectID).Scan(&findings); err != nil {
 		t.Fatal(err)
 	}
-	if assessments != 2 || currentAssessment != "assessment-member-check-1" || semantic != "supported" ||
-		findingRevision != 2 {
-		t.Fatalf("batched finding assessments = %d, current %q (%s), revision %d",
-			assessments, currentAssessment, semantic, findingRevision)
+	if err := pool.QueryRow(ctx, "SELECT count(*) FROM artifact_bindings WHERE scope_kind='project' AND scope_id=$1 AND namespace='finding-history' AND name LIKE $2", project.ProjectID, auditdomain.FindingSourceHistoryPrefix(receiptID)+"check-result.%").Scan(&histories); err != nil {
+		t.Fatal(err)
+	}
+	if findings != 0 || histories != 2 {
+		t.Fatalf("ordinary checks created a Finding or lost independent history: findings=%d histories=%d", findings, histories)
 	}
 	settled, err := store.ListItems(ctx, audit.AuditID)
 	if err != nil || len(settled) != 2 {
@@ -332,19 +259,19 @@ INSERT INTO finding_proposal_receipts (
     workflow_name, workflow_version, workflow_schema_version,
     workflow_configuration_ref, workflow_closure_digest,
     proposal_ref, proposal_digest, proposal_media_type,
-    proposal_size_bytes, evidence, report_projection
-) VALUES (
+    proposal_size_bytes, evidence, publication_requested, project_proposal, project_evidence, retention_state, report_projection
+, checks_projection) VALUES (
     $1, $1 || '-proposal', $1 || '-allocation', 'runtime-agent', 'runtime-instance',
     'stage-execution', 'worker', 'invocation', $1 || '-submission', 'candidate', $2,
     $3, $4, $5, $6, $7, 'check',
     'audit-check', '1', 'contractor/v1alpha1',
     '{"name":"audit-check","version":"1"}'::jsonb, $8,
-    $9::jsonb, $10, 'application/json', $11, '[]'::jsonb,
+    $9::jsonb, $10, 'application/json', $11, '[]'::jsonb, true, $12::jsonb, jsonb_build_array($12::jsonb), 'project-held',
     '{"description":"Test finding.","limitations":[],"preconditions":[],"severity_suggestion":"","standard_refs":[],"subject":null,"title":"Test finding."}'
-)`,
+, json_build_object('schema','contractor.audit.finding-checks-projection.v1','proposal_digest',($10)::text,'size_bytes',($11)::bigint,'discarded',false,'subject',NULL,'limitations',NULL,'checks','[]'::json))`,
 		receiptID, testDigest("d"), *f.execution.RunID, f.audit.OwnerID, f.project.ProjectID,
 		f.execution.ExecutionID, f.audit.AuditID, testDigest("e"),
-		proposalRefJSON, proposal.Digest, proposal.SizeBytes,
+		proposalRefJSON, proposal.Digest, proposal.SizeBytes, proposalJSON,
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -356,11 +283,14 @@ INSERT INTO finding_proposal_audit_holds (
 		t.Fatal(err)
 	}
 	var findingID string
-	if err := f.pool.QueryRow(f.ctx, `
-SELECT finding_id FROM audit_findings WHERE audit_id = $1 AND first_receipt_id = $2`,
-		f.audit.AuditID, receiptID).Scan(&findingID); err != nil {
+	if err := persistencepostgres.InTx(f.ctx, f.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		var err error
+		findingID, err = NewFindingEventsTx(tx).AdmitProjectFinding(f.ctx, f.project.ProjectID, receiptID, "finding-"+receiptID)
+		return err
+	}); err != nil {
 		t.Fatal(err)
 	}
+
 	return findingID
 }
 
@@ -433,7 +363,7 @@ func newCollectingAuditFixture(t *testing.T, name string, maxEvidenceBytes int64
 		t.Fatal(err)
 	}
 	roundID := "round-" + name
-	task := testExact("audits", name+"-task", "task-r1")
+	task := writeCollectionFixtureArtifact(t, ctx, pool, project.ProjectID, "audits", name+"-task")
 	item := auditstore.MaterializedItem{
 		ItemID: "item-" + name, ItemKey: "check-" + name, Ordinal: 0, Kind: "checklist",
 		SubjectKey: "subject-" + name, Task: task, Origin: testOrigin("check-" + name),
@@ -519,5 +449,71 @@ func TestListItemAttemptsAnswersEveryRequestedItem(t *testing.T) {
 	if len(attempts) != 2 || len(attempts[f.itemID]) != 1 || attempts[f.itemID][0].ExecutionItemID != f.memberID ||
 		attempts[waiting] == nil || len(attempts[waiting]) != 0 {
 		t.Fatalf("attempts = %#v", attempts)
+	}
+}
+
+// Accepted result retention exercises actual immutable versions and blobs;
+// metadata-only descriptors cannot demonstrate a readable retained result.
+func writeCollectionFixtureArtifact(t *testing.T, ctx context.Context, pool *pgxpool.Pool, projectID, namespace, name string) auditstore.ExactArtifact {
+	t.Helper()
+	data := []byte("Exact fixture material " + name)
+	written, err := artifactstest.WriteAuditArtifact(ctx, artifacts.NewService(artifacts.NewPostgresRepository(pool)), projectID, contracts.ArtifactRef{Namespace: namespace, Name: name}, artifacts.Payload{MediaType: "application/zip", Data: data})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return auditstore.ExactArtifact{Ref: written.Ref, Digest: auditdomain.DigestBytes(data), MediaType: written.MediaType, SizeBytes: written.Size}
+}
+
+// A real accepted negative recheck retains its exact independent result while
+// leaving the sole explicit analyst assessment unchanged, including on replay.
+func TestPostgresNegativeRecheckRetainsHistoryWithoutChangingCanonicalFinding(t *testing.T) {
+	f := newCollectingAuditFixture(t, "negative-recheck", 1<<20)
+	proposal := writeCollectionFixtureArtifact(t, f.ctx, f.pool, f.project.ProjectID, artifactpolicy.FindingMaterialsNamespace, "negative-source")
+	receiptID := "negative-source-receipt"
+	findingID := insertAuditChildFinding(t, f, receiptID, proposal)
+	var before auditstore.ProjectFinding
+	err := persistencepostgres.InTx(f.ctx, f.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		high := auditstore.SeverityHigh
+		var err error
+		before, err = NewOwnerTxStore(tx).AssessProjectFinding(f.ctx, auditstore.ProjectFindingEdit{OwnerID: f.audit.OwnerID, ProjectID: f.project.ProjectID, FindingID: findingID, ExpectedRevision: 1, Verdict: auditstore.VerdictTruePositive, Severity: &high, Rationale: "Explicit human assessment before recheck"})
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result := writeCollectionFixtureArtifact(t, f.ctx, f.pool, f.project.ProjectID, auditdomain.ArtifactNamespace(f.audit.AuditID), "negative-result")
+	params := auditstore.CollectParams{Claim: f.claim, ReceiptID: "negative-check-collection", ExecutionID: f.execution.ExecutionID, Disposition: auditstore.CollectionAccepted, SourceOutput: &result, RequestDigest: testDigest("6"), Retained: []auditstore.ArtifactLink{{LogicalKey: "negative-result", Artifact: result, SourceProvenance: json.RawMessage(`{}`)}}, Items: []auditstore.CollectionItem{{ExecutionItemID: f.memberID, Disposition: auditstore.CollectionAccepted, FinalDisposition: auditstore.FinalAccepted, Result: &result, Coverage: auditstore.Coverage{Status: auditstore.CoverageInconclusive, Requested: []string{}, Completed: []string{}, Gaps: []string{}}, FindingAssociations: []auditstore.FindingAssociation{{AssessmentID: "negative-check-result", ReceiptID: receiptID, Proposal: proposal, SemanticAssessment: "refuted"}}}}}
+	for attempt := 0; attempt < 2; attempt++ {
+		_, inserted, err := f.store.Collect(f.ctx, params)
+		if err != nil || inserted != (attempt == 0) {
+			t.Fatalf("negative collection replay=%t err=%v", inserted, err)
+		}
+		current, err := NewQueryStore(f.pool).GetAuditProjectFinding(f.ctx, f.audit.OwnerID, f.audit.AuditID, findingID)
+		if err != nil || !reflect.DeepEqual(before, current) {
+			t.Fatalf("negative result changed current analyst state: %+v %v", current, err)
+		}
+	}
+	project, err := artifacts.NewService(artifacts.NewPostgresRepository(f.pool)).Project(f.project.ProjectID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ref := contracts.ArtifactRef{Namespace: artifactpolicy.FindingHistoryNamespace, Name: auditdomain.FindingSourceHistoryName(receiptID, "check-result", "negative-check-result")}
+	record, err := project.Read(f.ctx, ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fact struct {
+		Original struct {
+			Semantic string `json:"semanticAssessment"`
+		} `json:"original"`
+		Materials struct {
+			Result contracts.ExactArtifact `json:"result"`
+		} `json:"materials"`
+	}
+	if err := json.Unmarshal(record.Payload.Data, &fact); err != nil || fact.Original.Semantic != "refuted" || fact.Materials.Result.Ref.Namespace != artifactpolicy.FindingMaterialsNamespace {
+		t.Fatalf("negative history lost its independent result: %+v %v", fact, err)
+	}
+	if _, err := project.ReadExact(f.ctx, fact.Materials.Result); err != nil {
+		t.Fatal(err)
 	}
 }

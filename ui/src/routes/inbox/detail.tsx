@@ -14,8 +14,8 @@ function referencePage(ref: InboxRef): { to: string; label: string } {
   switch (ref.kind) {
     case "issue":
       return {
-        to: issuePath(ref.auditId, ref.findingId),
-        label: "Open full review",
+        to: issuePath(ref.projectId, ref.findingId),
+        label: "Open possible issue",
       };
     case "report":
       return { to: reportPath(ref.auditId), label: "Open report" };

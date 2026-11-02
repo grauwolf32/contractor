@@ -52,11 +52,11 @@ func (s *PostgresStore) UpdateOwnerQueueControl(
 	return control, nil
 }
 
-// LockRunQueueAdmission must be called on a transaction-bound PostgresStore.
-// A shared owner lock orders admission with pause/resume without creating a
+// LockRunQueueAdmission takes a shared owner lock that orders admission with
+// pause/resume without creating a
 // public Queue control revision. The caller keeps the transaction open until
 // the new StageExecution is durably committed.
-func (s *PostgresStore) LockRunQueueAdmission(ctx context.Context, runID string) error {
+func (s *PostgresTxStore) LockRunQueueAdmission(ctx context.Context, runID string) error {
 	if err := validateOpaque("runID", runID); err != nil {
 		return err
 	}

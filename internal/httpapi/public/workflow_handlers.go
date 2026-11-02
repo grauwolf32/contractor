@@ -9,7 +9,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/grauwolf32/contractor/internal/pagelimit"
+	"github.com/grauwolf32/contractor/internal/helpers/pagelimit"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
@@ -201,7 +201,6 @@ func workflowTransitionReadModel(action resolved.TransitionAction) workflowTrans
 		}
 		result.DeadlineSeconds = action.Escalate.DeadlineSeconds
 		result.ExecutionConfig = &workflowEscalationConfigResponse{
-			Ref: action.Escalate.ExecutionConfig.Ref,
 			Effective: resolvedStageExecutionConfigReadModel(
 				action.Escalate.ExecutionConfig.Effective,
 			),

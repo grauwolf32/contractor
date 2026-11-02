@@ -44,7 +44,7 @@ const (
 func TestPostgresMaximumCollectionDescribesEvidenceAndRetainsInBoundedTransactions(t *testing.T) {
 	pool := completionPool(t)
 	f := newCompletionFixtureWithOptions(t, pool, completionOptions{
-		acceptance: "automatic", findingConfirmation: "disabled", items: maximumCollectionItems,
+		acceptance: "automatic", items: maximumCollectionItems,
 	})
 	revisions := f.writeEvidenceResult(t)
 	execution, snapshot := f.terminal(t, runstore.RunSucceeded)
@@ -75,7 +75,7 @@ func TestPostgresMaximumCollectionDescribesEvidenceAndRetainsInBoundedTransactio
 func TestPostgresMaximumCollectionResumesAfterInterruptedRetention(t *testing.T) {
 	pool := completionPool(t)
 	f := newCompletionFixtureWithOptions(t, pool, completionOptions{
-		acceptance: "automatic", findingConfirmation: "disabled", items: maximumCollectionItems,
+		acceptance: "automatic", items: maximumCollectionItems,
 	})
 	revisions := f.writeEvidenceResult(t)
 	execution, snapshot := f.terminal(t, runstore.RunSucceeded)
@@ -141,7 +141,7 @@ func TestPostgresMaximumCollectionResumesAfterInterruptedRetention(t *testing.T)
 func TestPostgresMaximumCollectionStopsAtTransientFailureAndClaimLoss(t *testing.T) {
 	pool := completionPool(t)
 	f := newCompletionFixtureWithOptions(t, pool, completionOptions{
-		acceptance: "automatic", findingConfirmation: "disabled", items: maximumCollectionItems,
+		acceptance: "automatic", items: maximumCollectionItems,
 	})
 	revisions := f.writeEvidenceResult(t)
 	execution, snapshot := f.terminal(t, runstore.RunSucceeded)

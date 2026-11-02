@@ -30,7 +30,7 @@ export type InboxSectionId = "decide" | "unblock" | "ready" | "running";
 
 /** The selected item, as `?item=` holds it. */
 export type InboxRef =
-  | { kind: "issue"; auditId: string; findingId: string }
+  | { kind: "issue"; projectId: string; findingId: string }
   | { kind: "review"; auditId: string; requestId: string }
   | { kind: "run"; runId: string }
   | { kind: "check"; auditId: string }
@@ -139,7 +139,7 @@ export const COUNTED_CHECK_STATES: ReadonlySet<AuditState> = new Set(
 function idsOf(ref: InboxRef): string[] {
   switch (ref.kind) {
     case "issue":
-      return [ref.auditId, ref.findingId];
+      return [ref.projectId, ref.findingId];
     case "review":
       return [ref.auditId, ref.requestId];
     case "run":
@@ -178,7 +178,7 @@ export function parseRefKey(
   switch (kind) {
     case "issue":
       return ids.length === 2 && second !== undefined
-        ? { kind, auditId: first, findingId: second }
+        ? { kind, projectId: first, findingId: second }
         : undefined;
     case "review":
       return ids.length === 2 && second !== undefined
@@ -330,7 +330,7 @@ export function buildInbox(input: InboxInput): InboxModel {
     ...input.issues.map((issue): InboxRow => {
       const ref: InboxRef = {
         kind: "issue",
-        auditId: issue.audit.auditId,
+        projectId: issue.finding.projectId,
         findingId: issue.finding.findingId,
       };
       return { key: refKey(ref), ref, section: "decide", type: "issue", issue };

@@ -20,7 +20,6 @@ type Snapshot struct {
 	templates        map[string]contracts.ResolvedAgentTemplate
 	policies         map[string]contracts.ResolvedModelPolicy
 	gateways         map[string]llmgateway.ResolvedLLMGatewayConfig
-	executionConfigs map[string]resolved.ResolvedExecutionConfigProfile
 	auditProfiles    map[string]auditprofile.ResolvedAuditProfile
 	instructions     map[string]contracts.ResolvedInstructions
 	sources          map[string]ConfigurationSource
@@ -36,20 +35,18 @@ func newSnapshot(
 	templates map[string]contracts.ResolvedAgentTemplate,
 	policies map[string]contracts.ResolvedModelPolicy,
 	gateways map[string]llmgateway.ResolvedLLMGatewayConfig,
-	executionConfigs map[string]resolved.ResolvedExecutionConfigProfile,
 	auditProfiles map[string]auditprofile.ResolvedAuditProfile,
 	instructions map[string]contracts.ResolvedInstructions,
 	sources map[string]ConfigurationSource,
 ) *Snapshot {
 	result := &Snapshot{
-		workflows:        make(map[string]resolved.ResolvedWorkflow, len(workflows)),
-		templates:        make(map[string]contracts.ResolvedAgentTemplate, len(templates)),
-		policies:         make(map[string]contracts.ResolvedModelPolicy, len(policies)),
-		gateways:         make(map[string]llmgateway.ResolvedLLMGatewayConfig, len(gateways)),
-		executionConfigs: make(map[string]resolved.ResolvedExecutionConfigProfile, len(executionConfigs)),
-		auditProfiles:    make(map[string]auditprofile.ResolvedAuditProfile, len(auditProfiles)),
-		instructions:     make(map[string]contracts.ResolvedInstructions, len(instructions)),
-		sources:          make(map[string]ConfigurationSource, len(sources)),
+		workflows:     make(map[string]resolved.ResolvedWorkflow, len(workflows)),
+		templates:     make(map[string]contracts.ResolvedAgentTemplate, len(templates)),
+		policies:      make(map[string]contracts.ResolvedModelPolicy, len(policies)),
+		gateways:      make(map[string]llmgateway.ResolvedLLMGatewayConfig, len(gateways)),
+		auditProfiles: make(map[string]auditprofile.ResolvedAuditProfile, len(auditProfiles)),
+		instructions:  make(map[string]contracts.ResolvedInstructions, len(instructions)),
+		sources:       make(map[string]ConfigurationSource, len(sources)),
 	}
 	for key, workflow := range workflows {
 		result.workflows[key] = workflow.Clone()
@@ -62,9 +59,6 @@ func newSnapshot(
 	}
 	for key, gateway := range gateways {
 		result.gateways[key] = gateway.Clone()
-	}
-	for key, profile := range executionConfigs {
-		result.executionConfigs[key] = profile.Clone()
 	}
 	for key, profile := range auditProfiles {
 		result.auditProfiles[key] = profile.Clone()
@@ -83,9 +77,8 @@ func (s *Snapshot) Counts() Counts {
 	return Counts{
 		Workflows: len(s.workflows), AgentTemplates: len(s.templates),
 		ModelPolicies: len(s.policies), LLMGateways: len(s.gateways),
-		ExecutionConfigs: len(s.executionConfigs),
-		AuditProfiles:    len(s.auditProfiles),
-		Instructions:     len(s.instructions),
+		AuditProfiles: len(s.auditProfiles),
+		Instructions:  len(s.instructions),
 	}
 }
 

@@ -9,7 +9,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/pagelimit"
+	"github.com/grauwolf32/contractor/internal/helpers/pagelimit"
 )
 
 // reportBudget bounds one Finalize attempt (LIM-REV-9). A page reads at most
@@ -42,9 +42,10 @@ type reportPosition struct {
 // reportBuild is the progress of one Audit revision's report build, replayed
 // from its recorded pages.
 type reportBuild struct {
-	positions []reportPosition
-	index     int
-	ordinal   int
+	projectRevision uint64
+	positions       []reportPosition
+	index           int
+	ordinal         int
 	// afterItem and afterFinding are the cursor inside positions[index].
 	afterItem    int
 	afterFinding *auditstore.ReportFindingCursor
@@ -114,7 +115,12 @@ func (i *Importer) resumeReport(
 	ctx context.Context, audit auditstore.Audit, rounds []auditstore.Round,
 ) (reportBuild, error) {
 	build := newReportBuild(rounds)
-	pages, err := i.reads.ListReportPages(ctx, audit.AuditID, audit.Revision)
+	var err error
+	build.projectRevision, err = i.reads.ReportProjectRevision(ctx, audit.AuditID)
+	if err != nil {
+		return reportBuild{}, err
+	}
+	pages, err := i.reads.ListReportPages(ctx, audit.AuditID, audit.Revision, build.projectRevision)
 	if err != nil {
 		return reportBuild{}, err
 	}
@@ -149,7 +155,7 @@ func (i *Importer) recordNextPage(
 	}
 	page.ContentBytes = len(content)
 	if err := i.store.RecordReportPage(ctx, auditstore.RecordReportPageParams{
-		Claim: claim, ExpectedAuditRevision: audit.Revision, Page: page, Content: content,
+		Claim: claim, ExpectedAuditRevision: audit.Revision, ExpectedProjectRevision: build.projectRevision, Page: page, Content: content,
 	}); err != nil {
 		return err
 	}
@@ -197,13 +203,14 @@ func (i *Importer) itemsPage(
 func (i *Importer) findingsPage(
 	ctx context.Context, audit auditstore.Audit, build *reportBuild, page *auditstore.ReportPage,
 ) ([]byte, error) {
-	rows, more, err := i.reads.ListReportFindings(ctx, auditstore.ReportFindingPageParams{
+	window, err := i.reads.ListReportFindings(ctx, auditstore.ReportFindingPageParams{
 		AuditID: audit.AuditID, Section: page.Section, After: build.afterFinding,
 		Limit: i.budget.pageRows, ProjectionBytes: i.budget.pageBytes,
 	})
 	if err != nil {
 		return nil, err
 	}
+	rows := window.Items
 	if build.findings+len(rows) > auditstore.MaxReportFindings {
 		return nil, fmt.Errorf("%w: report findings exceed their bound", ErrPermanent)
 	}
@@ -215,8 +222,9 @@ func (i *Importer) findingsPage(
 		}
 		content = appendReportEntry(content, entry)
 	}
-	page.Exhausted, page.EntryCount = !more, len(rows)
-	if len(rows) != 0 {
+	page.Exhausted, page.EntryCount = window.ContinueAfter == nil, len(rows)
+	page.LastFinding = window.ContinueAfter
+	if page.LastFinding == nil && len(rows) != 0 {
 		last := rows[len(rows)-1]
 		page.LastFinding = &auditstore.ReportFindingCursor{CreatedAt: last.CreatedAt, FindingID: last.FindingID}
 	}
@@ -243,24 +251,12 @@ func newReportFinding(row auditstore.ReportFinding) reportFinding {
 		Limitations:        append([]string{}, projection.Limitations...),
 		DuplicateTargetID:  row.DuplicateTargetID,
 	}
-	if row.Assessment != nil {
-		value.Assessment = &reportFindingAssessment{
-			AssessmentID:       row.Assessment.AssessmentID,
-			SemanticAssessment: row.Assessment.SemanticAssessment,
-			Result:             row.Assessment.Result,
-			DirectVerification: row.Assessment.DirectVerification,
-			Contract:           row.Assessment.Contract,
-			AcceptedAt:         row.Assessment.AcceptedAt,
-		}
-	}
-	if row.Decision != nil {
-		value.AnalystDecision = &reportFindingDecision{
-			DecisionID: row.Decision.DecisionID, ActorID: row.Decision.ActorID,
-			Verdict: row.Decision.Verdict, Severity: row.Decision.Severity,
-			Rationale: row.Decision.Rationale, SubjectRevision: row.Decision.SubjectRevision,
-			SubjectDigest: row.Decision.SubjectDigest, CreatedAt: row.Decision.CreatedAt,
-		}
-	}
+	value.ProjectID = row.ProjectID
+	value.AnalystVerdict = row.AnalystVerdict
+	value.AnalystSeverity = row.AnalystSeverity
+	value.Rationale = row.Rationale
+	value.ActorID = row.ActorID
+	value.AssessedAt = row.AssessedAt
 	return value
 }
 
@@ -269,7 +265,7 @@ func newReportFinding(row auditstore.ReportFinding) reportFinding {
 func (i *Importer) readReportSections(
 	ctx context.Context, audit auditstore.Audit, build reportBuild,
 ) (json.RawMessage, reportFindingSections, reportFindingCounts, error) {
-	sections, err := i.reads.ReadReportSections(ctx, audit.AuditID, audit.Revision)
+	sections, err := i.reads.ReadReportSections(ctx, audit.AuditID, audit.Revision, build.projectRevision)
 	if err != nil {
 		return nil, reportFindingSections{}, reportFindingCounts{}, err
 	}

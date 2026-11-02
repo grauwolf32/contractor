@@ -18,15 +18,13 @@ func (s *FindingEvents) RecordRejectedFindingProposal(
 	).Scan(&sequence)
 }
 
-// directFindingAssessmentEvent is the finding.assessed event of a direct
-// verification at the finding revision the assessment produced, with the
-// evidence bytes it charges to the Audit.
+// directFindingAssessmentEvent records an immutable direct verification result
+// and the evidence bytes charged to its Audit. It has no current Finding state.
 type directFindingAssessmentEvent struct {
-	AuditID         string
-	FindingID       string
-	FindingRevision int64
-	AssessmentID    string
-	RetainedBytes   int64
+	AuditID       string
+	ReceiptID     string
+	AssessmentID  string
+	RetainedBytes int64
 }
 
 // recordDirectFindingAssessment charges the Audit evidence quota and records
@@ -38,7 +36,20 @@ func (s *FindingEvents) recordDirectFindingAssessment(
 ) error {
 	var sequence int64
 	return s.db.QueryRow(ctx, recordDirectFindingAssessmentSQL,
-		event.AuditID, event.RetainedBytes, event.FindingID,
-		event.FindingRevision, event.AssessmentID,
+		event.AuditID, event.RetainedBytes, event.ReceiptID, event.AssessmentID,
 	).Scan(&sequence)
+}
+
+// RecordFindingSourceAdded invalidates the Audit view for one new source
+// association. The receipt has no Audit-owned Finding identity or state.
+func (s *FindingEventsTx) RecordFindingSourceAdded(ctx context.Context, auditID, receiptID, runID string) error {
+	if err := s.linkFindingSourceAudit(ctx, receiptID, auditID); err != nil {
+		return err
+	}
+	var sequence int64
+	if err := s.db.QueryRow(ctx, recordFindingSourceAddedSQL, auditID, receiptID, runID).Scan(&sequence); err != nil {
+		return err
+	}
+	_, err := s.db.Exec(ctx, "SELECT contractor_advance_finding_correlation(ARRAY[(SELECT project_id FROM audits WHERE audit_id=$1)])", auditID)
+	return err
 }

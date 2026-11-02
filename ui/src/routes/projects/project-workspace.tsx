@@ -5,7 +5,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { Link, Outlet } from "react-router";
+import { Link, Outlet, useLocation } from "react-router";
 
 import { useDocumentTitle } from "../../app/document-title";
 import { ErrorNotice } from "../../app/error-notice";
@@ -16,6 +16,7 @@ import {
   ProjectActions,
   ProjectDeletionProgress,
 } from "./deletion";
+import { projectSectionOf } from "./project-sections";
 import { ProjectNavigation } from "./navigation";
 import { ProjectSectionActionsContext } from "./section-actions-context";
 import { useWorkspaceProject } from "./use-project-deletion";
@@ -32,6 +33,8 @@ import "../primary-actions.css";
  * then returns to /projects.
  */
 export function ProjectWorkspace({ projectId }: { projectId: string }) {
+  const { pathname } = useLocation();
+  const section = projectSectionOf(pathname, projectId);
   const workspace = useWorkspaceProject(projectId, "project");
   const { project, activeProject, requestDeletion } = workspace;
   const [sectionActions, setSectionActions] = useState<HTMLDivElement | null>(
@@ -129,7 +132,11 @@ export function ProjectWorkspace({ projectId }: { projectId: string }) {
 
   return (
     <ProjectSectionActionsContext value={sectionActions}>
-      <div className="projects-workspace" ref={frame}>
+      <div
+        className="projects-workspace"
+        data-section={section === "" ? "overview" : section}
+        ref={frame}
+      >
         <DetailPane
           header={
             <>

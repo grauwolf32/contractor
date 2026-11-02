@@ -14,7 +14,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
-	"github.com/grauwolf32/contractor/internal/contentdigest"
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 	"github.com/grauwolf32/contractor/internal/settingsstore"
 )
 
@@ -65,8 +65,8 @@ func modelSelectionFixture(t *testing.T) (string, []ModelChoice) {
 	t.Helper()
 	root := copyCoreFixture(t)
 	installWorkerSummarizer(t, root)
-	replaceFile(t, templatePath(root), "test-worker@1", "worker@1")
-	replaceFile(t, templatePath(root), "terminal_summarizer@1", "summarizer@1")
+	replaceFile(t, filepath.Join(root, "workflows/artifact_copy.yaml"), "test-worker@1", "worker@1")
+	replaceFile(t, filepath.Join(root, "workflows/artifact_copy.yaml"), "terminal_summarizer@1", "summarizer@1")
 	replaceFile(t, summaryPolicyPath(root), "name: terminal_summarizer", "name: summarizer")
 	replaceFile(t, filepath.Join(root, "model-policies/worker.yaml"), "  model: worker-model\n", "  model: worker-model\n  contextWindowTokens: 131072\n")
 	models := []ModelChoice{}
@@ -136,9 +136,9 @@ func TestDeploymentModelSelectionPinsMainSummaryPlannerAndExplicitVariants(t *te
 	store := &memoryModelSettings{}
 	manager := configuredModelManager(t, root, store)
 	credentials := developmentCredentialLookup(t, manager.Snapshot())
-	resolve := func(patch resolved.ExecutionConfigPatch) resolved.ResolvedWorkflow {
+	resolve := func() resolved.ResolvedWorkflow {
 		t.Helper()
-		workflow, err := manager.ResolveRunWorkflow(t.Context(), "artifact-modeled@1", patch, credentials)
+		workflow, err := manager.ResolveRunWorkflow(t.Context(), "artifact-modeled@1", credentials)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -146,7 +146,7 @@ func TestDeploymentModelSelectionPinsMainSummaryPlannerAndExplicitVariants(t *te
 	}
 	// The deployed passthrough workflow starts a modeled Planner only after
 	// a terminal summary; it must receive the same captured Planner choice.
-	before := resolve(resolved.ExecutionConfigPatch{})
+	before := resolve()
 	original, _ := json.Marshal(before)
 	stage := before.Stages["copy"]
 	if stage.ExecutionConfig.Planner.ModelPolicy.Model != "fixture/fixture-a@"+strings.Repeat("a", 16)+"/planner" {
@@ -164,14 +164,14 @@ func TestDeploymentModelSelectionPinsMainSummaryPlannerAndExplicitVariants(t *te
 	if err != nil {
 		t.Fatal(err)
 	}
-	continuation, err := manager.ResolveRunWorkflow(t.Context(), "artifact-copy@1", resolved.ExecutionConfigPatch{}, credentials)
+	continuation, err := manager.ResolveRunWorkflow(t.Context(), "artifact-copy@1", credentials)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if continuation.Stages["copy"].On.Summarized.Escalate.ExecutionConfig.Effective.Planner.ModelPolicy.ContextWindowTokens != 65536 {
 		t.Fatal("summary continuation ignored the selected Planner model")
 	}
-	after := resolve(resolved.ExecutionConfigPatch{})
+	after := resolve()
 	selected := after.Stages["copy"].ExecutionConfig.Agents["builder"]
 	if changed.Revision != "2" || selected.ModelPolicy.ContextWindowTokens != 65536 || selected.ModelPolicy.MaxTotalTokens != 32768 || selected.SummarizerModelPolicy.Model != main.SummarizerModelPolicy.Model {
 		t.Fatal("model change changed spend or lost summary override")
@@ -189,10 +189,15 @@ func TestDeploymentModelSelectionPinsMainSummaryPlannerAndExplicitVariants(t *te
 	if data, _ := json.Marshal(pinned); string(data) != string(original) {
 		t.Fatal("prepared Eval was reinterpreted through current defaults")
 	}
-	override := decodeExecutionConfigPatch(t, `{"workers":{"modelPolicy":"`+models[0].Policies["worker"]+`","summarizerModelPolicy":"`+models[1].Policies["summarizer"]+`"}}`)
-	explicit := resolve(override).Stages["copy"].ExecutionConfig.Agents["builder"]
+	writeWorkflowExecutionConfig(t, root, "artifact_modeled.yaml", `{"planner":{"modelPolicy":"planner@1","llmGateway":"local-litellm@1"},"workers":{"modelPolicy":"`+models[0].Policies["worker"]+`","summarizerModelPolicy":"`+models[1].Policies["summarizer"]+`","llmGateway":"local-litellm@1","credential":"development-worker"}}`)
+	explicitManager := configuredModelManager(t, root, store)
+	explicitWorkflow, err := explicitManager.ResolveRunWorkflow(t.Context(), "artifact-modeled@1", credentials)
+	if err != nil {
+		t.Fatal(err)
+	}
+	explicit := explicitWorkflow.Stages["copy"].ExecutionConfig.Agents["builder"]
 	if explicit.ModelPolicy.Ref.PolicyID != strings.TrimSuffix(models[0].Policies["worker"], "@1") || explicit.SummarizerModelPolicy.ContextWindowTokens != 65536 {
-		t.Fatal("explicit Eval choices did not win")
+		t.Fatal("explicit Workflow choices did not win")
 	}
 	restarted := configuredModelManager(t, root, store)
 	saved, err := restarted.GetModelSelection(t.Context())
@@ -287,7 +292,6 @@ spec:
     incompleteRound: assess-with-gaps
   interaction:
     activeChecks: prohibited
-    findingConfirmation: disabled
     notApplicable: profile-rule
     reportAcceptance: automatic
 `)
@@ -379,5 +383,65 @@ func TestDeploymentModelSelectionPinsAuditProfileDigest(t *testing.T) {
 	restarted := configuredModelManager(t, root, &memoryModelSettings{})
 	if _, err := restarted.ResolvePinnedAuditProfile(t.Context(), before); !errors.Is(err, contentdigest.ErrPinnedSelectionChanged) {
 		t.Fatalf("changed catalog dependency accepted: %v", err)
+	}
+}
+
+func TestWorkflowConsumersReuseTemplateWithIndependentMainAndSummaryPolicies(t *testing.T) {
+	root, models := modelSelectionFixture(t)
+	original := string(readFile(t, filepath.Join(root, "workflows/artifact_copy.yaml")))
+	for i, name := range []string{"small", "strong"} {
+		body := strings.Replace(original, "name: artifact-copy", "name: artifact-"+name, 1)
+		filename := "artifact_" + name + ".yaml"
+		writeFile(t, filepath.Join(root, "workflows", filename), []byte(body))
+		writeWorkflowExecutionConfig(t, root, filename, `{"workers":{"modelPolicy":"`+models[i].Policies["worker"]+`","summarizerModelPolicy":"`+models[1-i].Policies["summarizer"]+`"}}`)
+	}
+	snapshot := mustLoad(t, root)
+	small, err := snapshot.Workflow("artifact-small@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	strong, err := snapshot.Workflow("artifact-strong@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	left, right := small.Stages["copy"], strong.Stages["copy"]
+	if !reflect.DeepEqual(left.Agents["builder"].Template, right.Agents["builder"].Template) {
+		t.Fatal("model selection changed the reusable template")
+	}
+	a, b := left.ExecutionConfig.Agents["builder"], right.ExecutionConfig.Agents["builder"]
+	if a.ModelPolicy.Ref == b.ModelPolicy.Ref || a.SummarizerModelPolicy.Ref == b.SummarizerModelPolicy.Ref || a.ModelPolicy.ContextWindowTokens != 131072 || b.ModelPolicy.ContextWindowTokens != 65536 {
+		t.Fatalf("independent selections: %+v / %+v", a, b)
+	}
+	encoded, err := resolved.EncodeResolvedWorkflowSnapshot(small)
+	if err != nil {
+		t.Fatal(err)
+	}
+	replaceFile(t, filepath.Join(root, "model-policies/"+strings.TrimSuffix(models[0].Policies["worker"], "@1")+".yaml"), `"maxModelCalls":8`, `"maxModelCalls":9`)
+	pinned, err := resolved.DecodeResolvedWorkflowSnapshot(encoded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(pinned.Stages["copy"].ExecutionConfig, left.ExecutionConfig) {
+		t.Fatal("stored snapshot did not keep exact Workflow policies")
+	}
+}
+
+func TestWorkflowModelPoliciesAreRequiredAndTemplateModelFieldsAreRejected(t *testing.T) {
+	for _, tc := range []struct{ name, old, replacement, file string }{
+		{"missing main", "      modelPolicy: test-worker@1\n", "", "workflows/artifact_copy.yaml"},
+		{"missing summary", "      summarizerModelPolicy: terminal_summarizer@1\n", "", "workflows/artifact_copy.yaml"},
+		{"template policy", "  runtime: adk@1", "  runtime: adk@1\n  modelPolicy: worker@1", "agent-templates/artifact_builder.yaml"},
+		{"null template policy", "  runtime: adk@1", "  runtime: adk@1\n  modelPolicy: null", "agent-templates/artifact_builder.yaml"},
+		{"template summary policy", "  summarizer:\n", "  summarizer:\n    modelPolicy: summarizer@1\n", "agent-templates/artifact_builder.yaml"},
+		{"null template summary policy", "  summarizer:\n", "  summarizer:\n    modelPolicy: null\n", "agent-templates/artifact_builder.yaml"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := copyCoreFixture(t)
+			installWorkerSummarizer(t, root)
+			replaceFile(t, filepath.Join(root, tc.file), tc.old, tc.replacement)
+			if _, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed")); err == nil {
+				t.Fatal("invalid model selection accepted")
+			}
+		})
 	}
 }

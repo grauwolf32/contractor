@@ -44,11 +44,8 @@ for (const width of [1440, 390, 320]) {
     await mockAPI(
       page,
       async (route, _request, url) => {
-        // Owner lists and Audit pages are empty; findings and reviews pages
-        // also carry the Audit revision they were read at.
-        let value: unknown = /^\/v1\/audits\/[^/]+\/(findings|reviews)$/.test(
-          url.pathname,
-        )
+        // Owner lists and Audit pages are empty; review pages carry their count.
+        let value: unknown = /^\/v1\/audits\/[^/]+\/reviews$/.test(url.pathname)
           ? {
               items: [],
               page: { hasMore: false },
@@ -57,6 +54,14 @@ for (const width of [1440, 390, 320]) {
               asOf: date,
             }
           : { items: [], page: { hasMore: false } };
+        if (url.pathname === "/v1/audits/audit_history/findings")
+          value = {
+            items: [],
+            page: { hasMore: false },
+            auditRevision: 51,
+            projectRevision: 1,
+            asOf: date,
+          };
         if (url.pathname === "/v1/projects/project_history")
           value = project("project_history", { name: "History project" });
         else if (url.pathname === "/v1/audits/audit_history") value = audit;

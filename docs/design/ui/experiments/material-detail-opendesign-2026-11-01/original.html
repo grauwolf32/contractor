@@ -1,0 +1,515 @@
+<!doctype html><html data-theme="light"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Contractor · Material viewer</title><style>
+/*
+ * Colour, type and scale tokens for the light, dark and black themes
+ * (docs/design/ui/themes.md). Every colour in the UI comes from these tokens,
+ * and spacing, radii, font sizes and control heights come from the scale
+ * (src/ui/README.md, "Style scale").
+ *
+ * Light is the base. src/app/theme.ts always sets data-theme="light|dark|
+ * black": an explicit choice, or the system preference resolved to light or
+ * dark and followed while it changes.
+ */
+:root {
+  color-scheme: light;
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* Spacing: a 4 px grid, --space-N = N x 0.25rem, with half steps. */
+  --space-0-5: 0.125rem;
+  --space-1: 0.25rem;
+  --space-1-5: 0.375rem;
+  --space-2: 0.5rem;
+  --space-2-5: 0.625rem;
+  --space-3: 0.75rem;
+  --space-3-5: 0.875rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-12: 3rem;
+
+  /* Radii: chips and inputs, controls, cards, panes, pills. */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+  --radius-2xl: 14px;
+  --radius-full: 999px;
+
+  /* Font sizes: 11, 12, 13, 14, 16, 20 and 24 px. */
+  --text-2xs: 0.6875rem;
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-md: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.5rem;
+
+  /* Control heights: xs, sm and md buttons; lg is the touch target. */
+  --control-xs: 1.75rem;
+  --control-sm: 2rem;
+  --control-md: 2.375rem;
+  --control-lg: 2.75rem;
+
+  --background: #eceff3;
+  --surface: #ffffff;
+  --surface-subtle: #f4f6f9;
+  --surface-raised: #f1f4f8;
+  --surface-hover: #e9eef4;
+  --sunken: #f7f9fb;
+  --row-hover: #f3f6f9;
+  --line: #dde2e9;
+  --line-strong: #c3cbd6;
+  --text: #10151d;
+  --muted: #4a5466;
+  --muted-strong: #2c3542;
+
+  --primary: #1f2630;
+  --primary-hover: #353f4d;
+  --on-primary: #ffffff;
+  --accent: #2f5d8a;
+  --accent-dark: #e6eef7;
+  --accent-line: #b3c6dc;
+  --link: #2f5d8a;
+  --focus: #2f5d8a;
+  --focus-ring: rgb(47 93 138 / 24%);
+
+  --success: #17703a;
+  --success-bg: #e2f2e7;
+  --success-line: #a7d3b6;
+  --warning: #8a4a00;
+  --warning-bg: #fbeed6;
+  --warning-line: #e4c38a;
+  --danger: #b3261e;
+  --danger-bg: #fbe5e2;
+  --danger-bg-strong: #f6d0cb;
+  --danger-line: #eab1ab;
+  --danger-ink: #8f1d17;
+  --danger-strong: #951f18;
+  --on-danger: #ffffff;
+  --info: #1d4fbf;
+  --info-bg: #e3eafb;
+  --info-line: #b2c4ef;
+
+  --code-ink: #24415f;
+  --scrim: rgb(16 21 29 / 42%);
+  --shadow-lg:
+    0 24px 64px -20px rgb(16 21 29 / 35%), 0 2px 6px rgb(16 21 29 / 8%);
+  --brand-bg: #050505;
+
+  /*
+   * V3B parts (src/ui): chrome for method chips and rail states, faint
+   * secondary text, the selected-row tint with its bar and outline, code
+   * blocks and highlighted lines, the rail count badge, and progress
+   * segments (m-*). The selection tokens alias the accent family, so the
+   * dark and black blocks only redefine the rest.
+   */
+  --chrome: #e3e8ee;
+  --chrome-2: #d6dde6;
+  --faint: #56606f;
+  --sel: var(--accent-dark);
+  --sel-bar: var(--accent);
+  --sel-line: var(--accent-line);
+  --code-bg: #f6f8fa;
+  --code-hl: #e6eef7;
+  --badge-bg: #10151d;
+  --badge-ink: #ffffff;
+  --m-idle: #cfd6e0;
+  --m-partial: #c08600;
+  --m-progress: #3f6fe0;
+  --m-blocked: #a3221a;
+  --m-done: #1f8a4c;
+
+  --diff-add-bg: #e6f4ea;
+  --diff-add-ink: #14532b;
+  --diff-add-num-bg: #cfe9d7;
+  --diff-add-num-ink: #17703a;
+  --diff-del-bg: #fbe9e7;
+  --diff-del-ink: #7f1a14;
+  --diff-del-num-bg: #f5d0cc;
+  --diff-del-num-ink: #a3221a;
+  --diff-hunk-bg: #e8eefa;
+  --diff-hunk-ink: #1d4fbf;
+  --diff-hunk-num-bg: #d6e1f6;
+  --diff-file-bg: #eef1f5;
+  --diff-file-ink: #10151d;
+  --diff-num-ink: #5f6a7a;
+  --diff-num-line: #e3e7ed;
+  --diff-add-count: #17703a;
+  --diff-del-count: #b3261e;
+
+  /* Evals: variant A is always blue, B always orange (S30:593-596). */
+  --eval-a: #1f6fd1;
+  --eval-b: #c25a00;
+  --eval-b-stripe: #8a3f00;
+  --chart-axis: #9aa5b4;
+  /* GPU series: Okabe-Ito based; every series also has a named legend entry. */
+  --gpu-1: #0072b2;
+  --gpu-2: #b86e00;
+  --gpu-3: #00805e;
+  --gpu-4: #7d7200;
+  --gpu-5: #b4447f;
+  --gpu-6: #c24e00;
+  --gpu-7: #5b4bc4;
+  --gpu-8: #4b5566;
+  --gpu-9: #004f7c;
+  --gpu-10: #8a5200;
+  --gpu-11: #005a42;
+  --gpu-12: #5a5200;
+  --gpu-13: #8a2e5f;
+  --gpu-14: #933a00;
+  --gpu-15: #3f3196;
+  --gpu-16: #2f3744;
+}
+
+/*
+ * First paint for a dark system preference, before src/app/theme.ts sets
+ * data-theme (it resolves "system" to light or dark and follows changes).
+ * The values repeat the dark block below; theme.test.ts keeps them equal.
+ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    color-scheme: dark;
+    --background: #0b0e13;
+    --text: #e9edf3;
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --background: #0b0e13;
+  --surface: #121720;
+  --surface-subtle: #0e131a;
+  --surface-raised: #1a202b;
+  --surface-hover: #1e2633;
+  --sunken: #090d12;
+  --row-hover: #161d28;
+  --line: #222b38;
+  --line-strong: #344155;
+  --text: #e9edf3;
+  --muted: #a8b3c3;
+  --muted-strong: #c9d2de;
+  --primary: #d3dbe6;
+  --primary-hover: #e6ebf2;
+  --on-primary: #0b1017;
+  --accent: #9fbde0;
+  --accent-dark: #172334;
+  --accent-line: #3a5677;
+  --link: #9fbde0;
+  --focus: #9fbde0;
+  --focus-ring: rgb(159 189 224 / 28%);
+  --success: #72d895;
+  --success-bg: #10261a;
+  --success-line: #2c6343;
+  --warning: #f3b54a;
+  --warning-bg: #2a2010;
+  --warning-line: #6b5424;
+  --danger: #ff8e85;
+  --danger-bg: #311614;
+  --danger-bg-strong: #45201d;
+  --danger-line: #6e3431;
+  --danger-ink: #ffc2bc;
+  --danger-strong: #ffa49c;
+  --on-danger: #2a0b09;
+  --info: #8fb3ff;
+  --info-bg: #14213b;
+  --info-line: #2f4878;
+  --code-ink: #cdd9e8;
+  --scrim: rgb(4 6 9 / 72%);
+  --shadow-lg:
+    0 24px 64px -16px rgb(0 0 0 / 75%), 0 0 0 1px rgb(255 255 255 / 4%);
+  --chrome: #1b2331;
+  --chrome-2: #243044;
+  --faint: #99a5b7;
+  --code-bg: #0e131a;
+  --code-hl: #172334;
+  --badge-bg: #d3dbe6;
+  --badge-ink: #0b1017;
+  --m-idle: #2b3546;
+  --m-partial: #f6c35c;
+  --m-progress: #6f9bff;
+  --m-blocked: #e0483f;
+  --m-done: #5cc983;
+  --diff-add-bg: #10291b;
+  --diff-add-ink: #b9f6ca;
+  --diff-add-num-bg: #174127;
+  --diff-add-num-ink: #91dca9;
+  --diff-del-bg: #30171a;
+  --diff-del-ink: #ffd0d4;
+  --diff-del-num-bg: #512027;
+  --diff-del-num-ink: #f3a1a8;
+  --diff-hunk-bg: #10233a;
+  --diff-hunk-ink: #9dcaff;
+  --diff-hunk-num-bg: #142c49;
+  --diff-file-bg: #171d26;
+  --diff-file-ink: #d7e5f8;
+  --diff-num-ink: #7d8a9c;
+  --diff-num-line: rgb(255 255 255 / 6%);
+  --diff-add-count: #75d89a;
+  --diff-del-count: #ff938a;
+  --eval-a: #78b9ff;
+  --eval-b: #ffb56e;
+  --eval-b-stripe: #925621;
+  --chart-axis: #4d5968;
+  --gpu-1: #56b4e9;
+  --gpu-2: #e69f00;
+  --gpu-3: #2fc79a;
+  --gpu-4: #f0e442;
+  --gpu-5: #cc79a7;
+  --gpu-6: #ff7a45;
+  --gpu-7: #a99cff;
+  --gpu-8: #c9d2de;
+  --gpu-9: #9fd3f5;
+  --gpu-10: #f5c45c;
+  --gpu-11: #7ee0bf;
+  --gpu-12: #f7ef8a;
+  --gpu-13: #e3a6c8;
+  --gpu-14: #ffa883;
+  --gpu-15: #cbc3ff;
+  --gpu-16: #e6ebf2;
+}
+
+:root[data-theme="black"] {
+  color-scheme: dark;
+  --background: #000000;
+  --surface: #0a0a0b;
+  --surface-subtle: #050506;
+  --surface-raised: #141518;
+  --surface-hover: #1a1c20;
+  --sunken: #000000;
+  --row-hover: #101113;
+  --line: #1e2024;
+  --line-strong: #2d3036;
+  --text: #ececec;
+  --muted: #a3a7ad;
+  --muted-strong: #c9ccd1;
+  --primary: #e6e8eb;
+  --primary-hover: #f4f5f7;
+  --on-primary: #000000;
+  --accent: #a9c3e0;
+  --accent-dark: #0f1722;
+  --accent-line: #2c3e55;
+  --link: #a9c3e0;
+  --focus: #a9c3e0;
+  --focus-ring: rgb(169 195 224 / 28%);
+  --success: #72d895;
+  --success-bg: #0a1a10;
+  --success-line: #24503a;
+  --warning: #f3b54a;
+  --warning-bg: #1c1508;
+  --warning-line: #4f3e1c;
+  --danger: #ff8e85;
+  --danger-bg: #200c0b;
+  --danger-bg-strong: #331412;
+  --danger-line: #57302d;
+  --danger-ink: #ffc2bc;
+  --danger-strong: #ffa49c;
+  --on-danger: #1a0605;
+  --info: #8fb3ff;
+  --info-bg: #0c1529;
+  --info-line: #24385c;
+  --code-ink: #d6dde6;
+  --scrim: rgb(0 0 0 / 80%);
+  --shadow-lg: 0 0 0 1px #2d3036, 0 24px 64px -16px rgb(0 0 0 / 90%);
+  --chrome: #141518;
+  --chrome-2: #1c1e22;
+  --faint: #94989f;
+  --code-bg: #050506;
+  --code-hl: #0f1722;
+  --badge-bg: #e6e8eb;
+  --badge-ink: #000000;
+  --m-idle: #26292e;
+  --m-partial: #f6c35c;
+  --m-progress: #6f9bff;
+  --m-blocked: #e0483f;
+  --m-done: #5cc983;
+  --diff-add-bg: #0b1f14;
+  --diff-add-ink: #b9f6ca;
+  --diff-add-num-bg: #12331f;
+  --diff-add-num-ink: #91dca9;
+  --diff-del-bg: #22100f;
+  --diff-del-ink: #ffd0d4;
+  --diff-del-num-bg: #3d181d;
+  --diff-del-num-ink: #f3a1a8;
+  --diff-hunk-bg: #0b1a2c;
+  --diff-hunk-ink: #9dcaff;
+  --diff-hunk-num-bg: #10223a;
+  --diff-file-bg: #111214;
+  --diff-file-ink: #d7e5f8;
+  --diff-num-ink: #7f848c;
+  --diff-num-line: rgb(255 255 255 / 6%);
+  --diff-add-count: #75d89a;
+  --diff-del-count: #ff938a;
+  --eval-a: #78b9ff;
+  --eval-b: #ffb56e;
+  --eval-b-stripe: #925621;
+  --chart-axis: #3a3e45;
+  --gpu-1: #56b4e9;
+  --gpu-2: #e69f00;
+  --gpu-3: #2fc79a;
+  --gpu-4: #f0e442;
+  --gpu-5: #cc79a7;
+  --gpu-6: #ff7a45;
+  --gpu-7: #a99cff;
+  --gpu-8: #c9d2de;
+  --gpu-9: #9fd3f5;
+  --gpu-10: #f5c45c;
+  --gpu-11: #7ee0bf;
+  --gpu-12: #f7ef8a;
+  --gpu-13: #e3a6c8;
+  --gpu-14: #ffa883;
+  --gpu-15: #cbc3ff;
+  --gpu-16: #e6ebf2;
+}
+
+*{box-sizing:border-box}body{margin:0;background:var(--background);color:var(--text);font:var(--text-md)/1.5 var(--font-sans)}button,input{font:inherit}button,a{color:inherit}button{cursor:pointer}button:disabled{cursor:default;opacity:.5}a{text-underline-offset:3px}button:focus-visible,a:focus-visible,summary:focus-visible,pre:focus-visible,input:focus-visible{outline:2px solid var(--focus);outline-offset:3px}button{border:1px solid var(--line);border-radius:var(--radius-sm);padding:8px 12px;background:var(--surface)}code,pre{font-family:var(--font-mono)}svg{vertical-align:middle;flex:none}.hidden,[hidden]{display:none!important}.visually-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}summary{cursor:pointer}.shell{display:grid;grid-template-columns:76px minmax(0,1fr);min-height:100dvh}.rail{padding:16px 8px;border-right:1px solid var(--line);background:var(--surface);display:flex;flex-direction:column;gap:16px}.rail a{display:grid;justify-items:center;gap:4px;text-decoration:none;font-size:11px}.rail a[aria-current]{color:var(--sel-bar)}.brand{font-size:20px;text-align:center}.mobile-bar{display:none}.main{min-width:0;padding:24px 32px}.header{margin-bottom:24px}.back{font-size:12px;color:var(--muted)}.title-row{display:flex;flex-wrap:wrap;justify-content:space-between;gap:16px;align-items:center;margin-top:16px}.identity{min-width:0}.kind{display:inline-flex;gap:6px;align-items:center;font-size:11px;color:var(--muted);letter-spacing:.06em}h1{font-size:24px;line-height:1.25;margin:8px 0;font-weight:650;overflow-wrap:anywhere}.badges,.actions,.tabs,.reader-controls{display:flex;flex-wrap:wrap;align-items:center;gap:8px}.badges{font-size:12px;color:var(--muted)}.badge{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line);border-radius:99px;padding:2px 8px;background:var(--surface)}.badge[data-tone=success]{color:var(--success-ink);background:var(--success-bg);border-color:var(--success-line)}.badge[data-tone=warning]{color:var(--warning);background:var(--warning-bg);border-color:var(--warning-line)}.icon-button{width:34px;height:34px;padding:0;display:grid;place-items:center}.layout{display:grid;grid-template-columns:minmax(0,1fr) 248px;gap:28px;min-width:0}.reader{min-width:0;border:1px solid var(--line);border-radius:var(--radius-md);background:var(--surface);overflow:hidden}.reader-bar{padding:12px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center}.tabs button{border:0;background:transparent;border-radius:0;padding:6px 8px;color:var(--muted);border-bottom:2px solid transparent}.tabs button[aria-selected=true]{color:var(--text);border-color:var(--sel-bar)}.reader-controls button{font-size:12px;padding:5px 8px}.view-content{padding:20px;min-width:0}pre{font-size:12px;line-height:1.75;overflow:auto;margin:0;max-height:70dvh;white-space:pre-wrap;overflow-wrap:anywhere;background:var(--code-bg);color:var(--code-ink);padding:16px;border:1px solid var(--line);border-radius:var(--radius-sm)}pre[data-wrap=false]{white-space:pre;overflow-wrap:normal}.source-lines{margin:0;padding:0 0 0 36px;list-style:decimal;overflow:auto;max-height:70dvh;background:var(--code-bg);color:var(--code-ink);font:12px/1.75 var(--font-mono);border-radius:var(--radius-sm)}.source-lines li{padding-left:12px;white-space:pre-wrap;overflow-wrap:anywhere}.source-lines li::marker{color:var(--faint)}.doc{max-width:72ch;font-size:15px;line-height:1.7}.doc h2{font-size:22px;font-weight:600;margin:0 0 20px}.doc h3{font-size:16px;font-weight:600;margin:24px 0 8px}.doc p{margin:10px 0}.doc blockquote{margin:16px 0;border-left:2px solid var(--line-strong);padding-left:16px;color:var(--muted)}.side{min-width:0;font-size:12px;color:var(--muted)}.side-section{padding-bottom:20px;margin-bottom:20px;border-bottom:1px solid var(--line)}.side h2,.side h3{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:0 0 10px;font-weight:500}.side dl{margin:0;display:grid;gap:10px}.side dt{font-size:11px;color:var(--muted)}.side dd{margin:0;color:var(--text);overflow-wrap:anywhere}.version-list{display:grid;gap:4px;margin:12px 0}.version-list button{display:flex;align-items:center;justify-content:space-between;text-align:left;gap:8px;font-size:12px;overflow-wrap:anywhere}.version-list button[aria-current]{border-color:var(--sel-bar);background:var(--sel)}.exact{font:11px/1.6 var(--font-mono);overflow-wrap:anywhere}.http-summary{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px;font:12px var(--font-mono);overflow-wrap:anywhere}.method{font-weight:600;color:var(--info);background:var(--info-bg);padding:3px 6px;border-radius:var(--radius-sm)}.http-headers{display:grid;gap:8px;margin:0 0 20px}.header-line{display:grid;grid-template-columns:minmax(80px,.6fr) minmax(0,1fr);gap:12px;border-bottom:1px solid var(--line);padding-bottom:8px;font-size:12px}.header-line dt{color:var(--muted);font-family:var(--font-mono);overflow-wrap:anywhere}.header-line dd{margin:0;overflow-wrap:anywhere}.reveal{font-size:11px;padding:2px 6px;margin-left:8px}.viewer-label{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:20px 0 8px}.empty{padding:44px 12px;text-align:center;color:var(--muted)}.empty h2{font-size:18px;font-weight:600;color:var(--text);margin:12px 0 8px}.empty p{max-width:45ch;margin:8px auto 20px}.state-note{color:var(--muted);font-size:12px;margin:12px 0}.status{font-size:12px;color:var(--muted);min-height:18px;margin-top:16px}.new-version input{max-width:100%;margin:12px 0;font-size:12px}.source-hint{font-size:11px;color:var(--muted);margin:8px 0 0}
+@media(max-width:1100px){.layout{grid-template-columns:minmax(0,1fr) 220px;gap:20px}.main{padding:20px}.actions{gap:6px}}
+@media(max-width:820px){.shell{display:block}.rail{display:none}.mobile-bar{display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--surface)}.mobile-bar .brand{font-size:16px}.rail[data-open=true]{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border-bottom:1px solid var(--line);padding:12px}.main{padding:16px}.layout{display:flex;flex-direction:column;gap:24px}.header{margin-bottom:16px}.title-row{gap:12px;margin-top:10px}.actions{width:100%}.side{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.side-section{margin:0;padding-bottom:16px}.side-section:last-child{grid-column:1/-1}.view-content{padding:16px}h1{font-size:20px}.reader-bar{padding:8px 12px}.doc{font-size:14px}.status{font-size:11px}}
+@media(max-width:480px){.main{padding:12px}.title-row{gap:10px}.side{display:block}.side-section{margin-bottom:16px}.kind{font-size:10px}h1{font-size:18px}.badges{gap:6px}.actions .icon-button{width:32px;height:32px}.view-content{padding:12px}.reader-bar{gap:8px}.tabs{gap:4px}.tabs button{font-size:12px;padding:6px}.http-summary{font-size:11px;gap:7px}.header-line{grid-template-columns:minmax(76px,.5fr) minmax(0,1fr);gap:8px}.doc h2{font-size:19px}.source-lines{font-size:11px;padding-left:28px}.rail a{font-size:10px}}
+</style><style>
+/* ============================================================
+   material-polish-v2.css — composition-only overrides (v2 pass)
+   Layered after the seed base styles. Existing tokens and fonts
+   only: no new colors, no new fonts, no assets, no JS, no
+   behavior changes.
+   ============================================================ */
+
+/* --- Compact header, elegant actions --- */
+.main{padding:28px 40px 40px}
+.header{margin-bottom:20px}
+.back{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);text-decoration:none}
+.back:hover{color:var(--text)}
+.title-row{margin-top:12px;gap:16px}
+.kind{font-size:11px;font-weight:600;letter-spacing:.09em;text-transform:uppercase}
+.kind svg{color:var(--accent)}
+h1{font-size:22px;line-height:1.3;letter-spacing:-.01em;margin:6px 0 10px}
+
+/* Calmer secondary metadata: quiet outline chips */
+.badges{gap:6px;font-size:11px}
+.badge{padding:3px 9px;background:transparent;white-space:nowrap}
+.badge svg{color:var(--muted)}
+.badge[data-tone=success] svg{color:var(--success-ink)}
+.badge[data-tone=warning] svg{color:var(--warning)}
+
+/* Ghost header actions: quiet until hover, honest disabled state */
+.actions{gap:8px}
+.actions button{background:transparent;border-color:transparent;padding:7px 10px;font-size:12px}
+.actions button:hover{background:var(--surface);border-color:var(--line)}
+.icon-button{width:34px;height:34px;padding:0}
+
+/* --- Reader: the content region owns the page --- */
+.layout{grid-template-columns:minmax(0,1fr) 236px;gap:32px;align-items:start}
+.reader-bar{padding:10px 16px 0;align-items:flex-end}
+.reader-controls{padding-bottom:10px}
+.tabs{gap:2px}
+.tabs button{font-size:13px;padding:6px 10px 10px}
+.tabs button:hover{color:var(--text)}
+.view-content{padding:24px}
+
+/* Code: border-free inset on the panel, comfortable measure, slim themed scrollbars */
+pre,.source-lines{font-size:13px;line-height:1.7;max-height:72dvh;tab-size:4}
+pre{border:0}
+.source-lines{padding:12px 12px 12px 40px}
+.source-lines li{padding-left:14px}
+pre,.source-lines{scrollbar-width:thin;scrollbar-color:var(--line) transparent}
+pre::-webkit-scrollbar,.source-lines::-webkit-scrollbar{width:10px;height:10px}
+pre::-webkit-scrollbar-thumb,.source-lines::-webkit-scrollbar-thumb{background:var(--line);border-radius:99px;border:2px solid var(--code-bg)}
+
+/* Document: calm reading measure, styled inline code */
+.doc{max-width:70ch;font-size:15px;line-height:1.75}
+.doc h2{font-size:21px;margin:0 0 16px}
+.doc h3{margin:28px 0 10px}
+.doc p{margin:12px 0}
+.doc code{background:var(--code-bg);color:var(--code-ink);padding:2px 5px;border-radius:var(--radius-sm);font-size:.88em}
+
+/* HTTP: one quiet summary block, aligned header rows */
+.http-summary{margin:0 0 16px;padding:10px 12px;background:var(--code-bg);border-radius:var(--radius-sm)}
+.method{padding:2px 7px}
+.http-headers{gap:0;margin:0 0 18px}
+.header-line{align-items:baseline;padding:8px 0}
+.header-line:last-child{border-bottom:0}
+.viewer-label{margin:24px 0 10px}
+
+/* Supporting column: quiet on purpose */
+.side{line-height:1.55}
+.side-section{padding-bottom:18px;margin-bottom:18px}
+.side h2,.side h3{font-weight:600;margin:0 0 12px}
+.side dl{gap:12px}
+.side dt{font-size:10px;letter-spacing:.07em;text-transform:uppercase}
+
+/* Versions and inputs */
+.version-list{gap:6px;margin:14px 0}
+.version-list button[aria-current]{font-weight:600}
+.new-version input{border:1px solid var(--line);border-radius:var(--radius-sm);padding:8px 10px;background:var(--surface);color:var(--text)}
+
+/* Status and empty states */
+.status{margin-top:20px}
+.empty{padding:56px 16px}
+
+/* Rail: labelled links with a soft current pill */
+.rail a{padding:8px 2px;border-radius:var(--radius-sm)}
+.rail a:hover{background:var(--sel)}
+.rail a[aria-current]{background:var(--sel)}
+
+/* --- ≤1100px: tighten the frame --- */
+@media(max-width:1100px){
+.main{padding:24px 28px 32px}
+.layout{grid-template-columns:minmax(0,1fr) 216px;gap:24px}
+.view-content{padding:20px}
+}
+
+/* --- ≤820px: single column, controls wrap below the title --- */
+@media(max-width:820px){
+.main{padding:18px 16px 28px}
+.header{margin-bottom:14px}
+.title-row{align-items:flex-start;margin-top:10px;gap:12px}
+h1{font-size:20px}
+.doc{font-size:14px}
+.layout{gap:26px}
+.side{gap:18px 16px}
+.side-section{margin:0;padding-bottom:16px}
+.view-content{padding:16px 14px}
+.reader-bar{padding:8px 12px 0}
+.reader-controls{padding-bottom:8px}
+.tabs button{font-size:12px;padding:6px 8px 9px}
+pre,.source-lines{max-height:60dvh}
+}
+
+/* --- ≤480px: 390/320 phones — everything wraps, no sideways overflow --- */
+@media(max-width:480px){
+.main{padding:14px 12px 24px}
+h1{font-size:19px;margin:6px 0 8px}
+.kind{font-size:10px}
+.badge{padding:2px 8px}
+.actions{gap:6px}
+.actions button{padding:7px 9px}
+.actions .icon-button{width:36px;height:36px}
+.side-section{margin-bottom:16px}
+.view-content{padding:12px}
+.reader-bar{padding:6px 10px 0}
+.reader-controls{padding-bottom:6px}
+.tabs button{padding:6px 7px 8px}
+pre{font-size:12px}
+.source-lines{padding-left:30px}
+.http-summary{padding:8px 10px}
+.doc h2{font-size:19px}
+.status{margin-top:14px}
+.empty{padding:40px 8px}
+}
+</style>
+</head><body><div class="shell"><nav class="rail" id="rail" aria-label="Primary navigation"><div class="brand" aria-label="Contractor">C</div><a href="#inbox">⌂<span>Inbox</span></a><a href="#projects" aria-current="page">▱<span>Projects</span></a><a href="#checks">◇<span>Checks</span></a><a href="#issues">⚑<span>Issues</span></a><a href="#reports">▤<span>Reports</span></a><a href="#runs">▷<span>Runs</span></a><a href="#library">▥<span>Library</span></a></nav><div><div class="mobile-bar"><span class="brand">Contractor</span><button id="menu" aria-expanded="false">Menu</button></div><main class="main"><header class="header"><a class="back" id="back" href="#source-issue">← Back to order lookup issue</a><div class="title-row"><div class="identity"><span class="kind" id="kind"></span><h1 id="materialTitle"></h1><div class="badges" id="badges"></div></div><div class="actions"><button id="copy" class="icon-button" aria-label="Copy material identifier" title="Copy material identifier"></button><button id="download" class="icon-button" aria-label="Download this revision" title="Download this revision"></button><button id="showVersions">Versions</button></div></div><p class="state-note" id="stateNote" hidden></p></header><div class="layout"><section class="reader" aria-label="Saved content"><div class="reader-bar"><div class="tabs" id="modes" role="tablist" aria-label="Content view"></div><div class="reader-controls"><button id="wrap" aria-pressed="true">Wrap lines</button></div></div><div id="viewer" class="view-content"></div></section><aside class="side" aria-label="Material context"><section class="side-section"><h2>Saved in</h2><dl><div><dt>Project</dt><dd>Shop API</dd></div><div><dt>Source</dt><dd id="origin">Source checklist</dd></div><div><dt>Created</dt><dd id="created"></dd></div><div><dt>Format · Size</dt><dd id="formatSize"></dd></div></dl></section><section class="side-section"><details id="versions"><summary>Versions</summary><div class="version-list" id="versionList"></div></details></section><section class="side-section"><details id="technical"><summary>Technical details</summary><dl><div><dt>Exact saved identity</dt><dd class="exact" id="exact"></dd></div><div><dt>Media type</dt><dd class="exact" id="media"></dd></div><div><dt>Source location</dt><dd class="exact">src/routes/orders.ts:41–49</dd></div><div><dt>Run</dt><dd class="exact" id="run"></dd></div></dl></details></section><section class="side-section new-version" id="newVersion" hidden><details><summary>Upload a new version</summary><p>Earlier revisions stay in history. Checks keep the version they read.</p><input id="uploadFile" type="file" aria-label="New version file"><button id="upload" disabled>Upload version</button></details></section></aside></div><p id="status" class="status" role="status" aria-live="polite"></p></main></div></div>
+<script id="materialExamples" type="application/json">{"synthetic": true, "examples": [{"id": "source", "name": "order-handler", "namespace": "evidence", "kind": "Source code", "mediaType": "text/plain", "source": "async function getOrder(req, res) {\n  const order = await db.orders.findById(req.params.id);\n  return res.json(order);\n}\n", "sizeBytes": 121, "scope": {"kind": "project", "id": "project_shop", "name": "Shop API"}, "createdAt": "2026-11-01T10:00:00Z", "versions": [{"revision": "order-handler-r2", "current": true, "frozen": true, "createdAt": "2026-11-01T10:00:00Z", "canUploadNewVersion": false}, {"revision": "order-handler-r1", "current": false, "frozen": true, "createdAt": "2026-10-31T09:00:00Z", "canUploadNewVersion": false}], "origin": {"label": "Order lookup issue", "sourcePath": "src/routes/orders.ts:41\u201349", "runId": "run_demo_source_review", "check": "Source checklist"}}, {"id": "http", "name": "order-exchange", "namespace": "evidence", "kind": "HTTP exchange", "mediaType": "application/vnd.contractor.http-exchange+json", "source": "{\n  \"schema\": \"contractor.http.exchange.v1\",\n  \"capture\": {\n    \"source\": \"http\",\n    \"request_id\": \"42\",\n    \"request_tag\": \"demo-order-lookup\",\n    \"attempts\": [\n      {\n        \"request\": {\n          \"method\": \"GET\",\n          \"url\": \"https://shop.example.test/orders/42\",\n          \"message\": {\n            \"kind\": \"structured\",\n            \"headers\": [\n              {\n                \"name\": \"Accept\",\n                \"value\": \"application/json\"\n              },\n              {\n                \"name\": \"Authorization\",\n                \"value\": \"Bearer demo_only_not_a_real_credential\"\n              }\n            ],\n            \"body_base64\": \"\"\n          }\n        },\n        \"response\": {\n          \"status\": 200,\n          \"complete\": true,\n          \"message\": {\n            \"kind\": \"structured\",\n            \"headers\": [\n              {\n                \"name\": \"Content-Type\",\n                \"value\": \"application/json\"\n              },\n              {\n                \"name\": \"Set-Cookie\",\n                \"value\": \"demo_session=not_a_real_cookie\"\n              }\n            ],\n            \"body_base64\": \"eyJvcmRlcklkIjo0MiwiY3VzdG9tZXJJZCI6ImRlbW8tY3VzdG9tZXIiLCJ0b3RhbCI6MTI5LjAwfQ==\"\n          }\n        }\n      }\n    ]\n  },\n  \"finding\": {\n    \"proposal_id\": \"demo-proposal-order\",\n    \"receipt_id\": \"demo-receipt-order\"\n  }\n}\n", "sizeBytes": 1346, "scope": {"kind": "project", "id": "project_shop", "name": "Shop API"}, "createdAt": "2026-11-01T10:00:00Z", "versions": [{"revision": "order-exchange-r2", "current": true, "frozen": true, "createdAt": "2026-11-01T10:00:00Z", "canUploadNewVersion": false}, {"revision": "order-exchange-r1", "current": false, "frozen": true, "createdAt": "2026-10-31T09:00:00Z", "canUploadNewVersion": false}], "origin": {"label": "Order lookup issue", "sourcePath": "src/routes/orders.ts:41\u201349", "runId": "run_demo_source_review", "check": "Source checklist"}}, {"id": "report", "name": "order-review", "namespace": "outputs", "kind": "Report", "mediaType": "text/markdown", "source": "# Order access review\n\n## Scope\nThe review covers the saved handler and the selected HTTP exchange in the synthetic Shop API project.\n\n## Observation\nThe handler reads an order using the supplied identifier. Whether middleware or database policies enforce ownership remains to be checked.\n\n## Evidence\n- `src/routes/orders.ts:41\u201349`\n- Saved request: `GET /orders/42`\n\n## Next checks\n1. Inspect authentication middleware.\n2. Compare access using two separate test accounts.\n\n> This saved report records an observation; it does not contain an analyst decision.\n", "sizeBytes": 561, "scope": {"kind": "project", "id": "project_shop", "name": "Shop API"}, "createdAt": "2026-11-01T10:00:00Z", "versions": [{"revision": "order-review-r2", "current": true, "frozen": false, "createdAt": "2026-11-01T10:00:00Z", "canUploadNewVersion": true}, {"revision": "order-review-r1", "current": false, "frozen": true, "createdAt": "2026-10-31T09:00:00Z", "canUploadNewVersion": false}], "origin": {"label": "Order lookup issue", "sourcePath": "src/routes/orders.ts:41\u201349", "runId": "run_demo_source_review", "check": "Source checklist"}}, {"id": "json", "name": "order-response", "namespace": "evidence", "kind": "JSON", "mediaType": "application/json", "source": "{\n  \"orderId\": 42,\n  \"customerId\": \"demo-customer\",\n  \"items\": [\n    {\n      \"sku\": \"DEMO-12\",\n      \"quantity\": 1\n    }\n  ],\n  \"total\": 129.0\n}\n", "sizeBytes": 145, "scope": {"kind": "project", "id": "project_shop", "name": "Shop API"}, "createdAt": "2026-11-01T10:00:00Z", "versions": [{"revision": "order-response-r2", "current": true, "frozen": true, "createdAt": "2026-11-01T10:00:00Z", "canUploadNewVersion": false}, {"revision": "order-response-r1", "current": false, "frozen": true, "createdAt": "2026-10-31T09:00:00Z", "canUploadNewVersion": false}], "origin": {"label": "Order lookup issue", "sourcePath": "src/routes/orders.ts:41\u201349", "runId": "run_demo_source_review", "check": "Source checklist"}}], "states": ["normal", "historical", "no-response", "incomplete", "unavailable", "oversize"], "previewLimits": {"textBytes": 1048576, "httpBodyCharacters": 8192, "headersPerPage": 50}, "binaryExample": {"name": "capture.bin", "mediaType": "application/octet-stream", "sizeBytes": 4194304, "content": "Local synthetic zero bytes created on explicit download only; no inline preview."}}</script><script>
+'use strict';
+const data=JSON.parse(document.getElementById('materialExamples').textContent),params=new URLSearchParams(location.search);const $=id=>document.getElementById(id);let active=data.examples.find(e=>e.id===params.get('case'))||data.examples[0];let state=data.states.includes(params.get('state'))?params.get('state'):'normal';let historical=state==='historical',mode=active.id==='report'?'Rendered':active.id==='http'?'Request':'Source',wrap=true;const reveals=new Set();
+const paths={copy:'M9 9h11v11H9z M4 15H2V2h13v2',download:'M12 3v12 M7 10l5 5 5-5 M4 19h16',file:'M7 3h7l4 4v14H7z M14 3v5h5'};function icon(name){return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="'+paths[name]+'"></path></svg>'}function text(tag,content,cls){const n=document.createElement(tag);n.textContent=content;if(cls)n.className=cls;return n}function say(message){$('status').textContent=message}function currentFile(){return state==='oversize'?{...active,id:'binary',name:'capture.bin',namespace:'evidence',kind:'Binary file',mediaType:'application/octet-stream',sizeBytes:data.binaryExample.sizeBytes}:active}function version(){const file=currentFile();const v=active.versions[historical?1:0];return {...v,revision:file.id==='binary'?'capture-'+(historical?'r1':'r2'):v.revision}}function identity(){const f=currentFile();return f.namespace+'/'+f.name+'@'+version().revision}function httpDocument(){const doc=JSON.parse(active.source),attempt=doc.capture.attempts[0];if(state==='no-response')delete attempt.response;if(state==='incomplete'&&attempt.response)attempt.response.complete=false;return doc}function source(){return active.id==='http'?JSON.stringify(httpDocument(),null,2)+'\n':active.source}function formatSize(n){return n>=1048576?(n/1048576).toFixed(0)+' MiB':n>=1024?(n/1024).toFixed(1)+' KiB':n+' B'}function badge(label,tone){const n=text('span',label,'badge');if(tone)n.dataset.tone=tone;return n}function resetMode(){mode=active.id==='report'?'Rendered':active.id==='http'?'Request':'Source';reveals.clear()}
+$('copy').innerHTML=icon('copy');$('download').innerHTML=icon('download');document.documentElement.dataset.theme=['light','dark','black'].includes(params.get('theme'))?params.get('theme'):'light';
+function renderHeader(){const f=currentFile(),v=version(),missing=state==='unavailable';$('materialTitle').textContent=f.name;$('kind').innerHTML=icon('file');$('kind').append(document.createTextNode(active.id==='source'&&f.id!=='binary'?'FILE':f.kind.toUpperCase()));$('badges').replaceChildren();if(missing){$('badges').append(badge('Unavailable','warning'))}else{$('badges').append(badge(v.current?'Current revision':'Historical revision',v.current?'success':undefined),badge(v.revision));if(v.frozen)$('badges').append(badge('Locked'))}$('download').disabled=missing;$('showVersions').disabled=missing;$('exact').textContent=identity();$('media').textContent=missing?'Unavailable':f.mediaType;$('created').textContent=missing?'Unavailable':v.createdAt.replace('T',' ').replace('Z',' UTC');$('formatSize').textContent=missing?'Unavailable':f.kind+' · '+formatSize(f.id==='binary'?f.sizeBytes:new TextEncoder().encode(source()).length);$('origin').textContent=active.origin.check;$('run').textContent=active.origin.runId;$('newVersion').hidden=missing||f.id==='binary'||historical||!v.canUploadNewVersion;$('stateNote').hidden=!historical;$('stateNote').replaceChildren(document.createTextNode('Historical revision. '));if(historical){const b=text('button','Open current revision');b.onclick=()=>{historical=false;state='normal';resetMode();render()};$('stateNote').append(b)}$('versionList').replaceChildren();for(const item of active.versions){const isCurrent=item.current===!historical,b=text('button','');b.append(text('code',f.id==='binary'?'capture-'+(item.current?'r2':'r1'):item.revision),text('span',item.current?'Current':'Historical'));if(isCurrent)b.setAttribute('aria-current','true');b.onclick=()=>{historical=!item.current;resetMode();render();say('Showing '+identity())};$('versionList').append(b)}}
+function pre(value){const n=text('pre',value);n.tabIndex=0;n.dataset.wrap=String(wrap);return n}function sourceLines(value){const ol=document.createElement('ol');ol.className='source-lines';ol.tabIndex=0;for(const line of value.replace(/\n$/,'').split('\n')){const li=document.createElement('li');li.append(text('code',line||' '));ol.append(li)}return ol}function inline(parent,value){for(const part of value.split(/(`[^`]+`)/)){parent.append(part.startsWith('`')&&part.endsWith('`')?text('code',part.slice(1,-1)):document.createTextNode(part))}}function markdown(value){const doc=document.createElement('article');doc.className='doc';let list;for(const line of value.split('\n')){if(!line){list=undefined;continue}let tag='p',content=line;if(line.startsWith('# ')){tag='h2';content=line.slice(2)}else if(line.startsWith('## ')){tag='h3';content=line.slice(3)}else if(line.startsWith('> ')){tag='blockquote';content=line.slice(2)}else if(/^(?:- |\d+\. )/.test(line)){const ordered=/^\d/.test(line);if(!list){list=document.createElement(ordered?'ol':'ul');doc.append(list)}const li=document.createElement('li');inline(li,line.replace(/^(?:- |\d+\. )/,''));list.append(li);continue}else list=undefined;const n=document.createElement(tag);inline(n,content);doc.append(n)}return doc}function credential(name){return /authorization|cookie|token|secret|password|api.?key|session/i.test(name)}function decode(value){return new TextDecoder().decode(Uint8Array.from(atob(value),c=>c.charCodeAt(0)))}
+function renderHTTP(){const doc=httpDocument(),attempt=doc.capture.attempts[0],box=document.createElement('div'),summary=document.createElement('div');summary.className='http-summary';summary.append(text('span',attempt.request.method,'method'),text('code',attempt.request.url));if(attempt.response)summary.append(badge('HTTP '+attempt.response.status+(attempt.response.complete?'':' · Incomplete'),attempt.response.complete?'success':'warning'));else summary.append(badge('No response','warning'));box.append(summary);if(mode==='Source'){const redacted=structuredClone(doc);for(const a of redacted.capture.attempts)for(const message of [a.request.message,a.response?.message])if(message?.headers)for(const h of message.headers)if(credential(h.name))h.value='[hidden]';box.append(text('p','Sensitive header values are hidden in this source view. Download preserves the saved bytes.','source-hint'),pre(JSON.stringify(redacted,null,2)));return box}const response=mode==='Response',message=response?attempt.response?.message:attempt.request.message;if(!message){box.append(text('p','No response captured.','state-note'));return box}if(response&&!attempt.response.complete)box.append(text('p','Incomplete response. The saved body may be partial.','state-note'));box.append(text('h3','Headers','viewer-label'));const dl=document.createElement('dl');dl.className='http-headers';message.headers.slice(0,data.previewLimits.headersPerPage).forEach((h,i)=>{const row=document.createElement('div');row.className='header-line';const dd=document.createElement('dd'),key=(response?'response':'request')+i,hidden=credential(h.name)&&!reveals.has(key);dd.append(text('code',hidden?'••••••••':h.value));if(credential(h.name)){const b=text('button',hidden?'Show':'Hide','reveal');b.setAttribute('aria-label',(hidden?'Show ':'Hide ')+h.name+' value');b.onclick=()=>{hidden?reveals.add(key):reveals.delete(key);renderViewer()};dd.append(b)}row.append(text('dt',h.name),dd);dl.append(row)});box.append(dl,text('h3',response?'Response body':'Request body','viewer-label'));const body=decode(message.body_base64);if(!body)box.append(text('p',response?'Empty response body.':'Empty request body.','state-note'));else{let shown=body;try{shown=JSON.stringify(JSON.parse(body),null,2)}catch{}const chars=Array.from(shown);if(chars.length>data.previewLimits.httpBodyCharacters){shown=chars.slice(0,data.previewLimits.httpBodyCharacters).join('');box.append(text('p','Body shortened. Download the saved revision for all bytes.','state-note'))}box.append(pre(shown))}return box}
+function renderModes(){const options=active.id==='http'?['Request','Response','Source']:active.id==='report'?['Rendered','Source']:['Source'];$('modes').replaceChildren();for(const label of options){const b=text('button',label);b.setAttribute('role','tab');b.setAttribute('aria-selected',String(mode===label));b.tabIndex=mode===label?0:-1;b.onclick=()=>{mode=label;renderViewer();$('modes').querySelector('[aria-selected=true]').focus()};b.onkeydown=e=>{if(['ArrowLeft','ArrowRight','Home','End'].includes(e.key)){e.preventDefault();const i=options.indexOf(mode);mode=e.key==='Home'?options[0]:e.key==='End'?options.at(-1):options[(i+(e.key==='ArrowLeft'?-1:1)+options.length)%options.length];renderViewer();$('modes').querySelector('[aria-selected=true]').focus()}};$('modes').append(b)}$('wrap').setAttribute('aria-pressed',String(wrap));$('wrap').hidden=mode==='Rendered'||active.id==='http'&&mode!=='Source'||['unavailable','oversize'].includes(state)}
+function renderViewer(){renderModes();const viewer=$('viewer');viewer.replaceChildren();if(state==='unavailable'||state==='oversize'){const missing=state==='unavailable',box=document.createElement('div');box.className='empty';box.innerHTML=icon('file');box.append(text('h2',missing?'Material unavailable':'Inline preview unavailable'),text('p',missing?'The selected saved revision could not be read.':'Binary file · 4 MiB. Download this revision to inspect its saved bytes.'));if(missing){const retry=text('button','Retry');retry.onclick=()=>{state='normal';resetMode();render();say('Local fixture restored. No network request was sent.')};box.append(retry)}viewer.append(box);return}viewer.append(active.id==='source'?sourceLines(source()):active.id==='http'?renderHTTP():active.id==='report'&&mode==='Rendered'?markdown(source()):pre(source()))}
+function render(){renderHeader();renderViewer()}$('wrap').onclick=()=>{wrap=!wrap;renderViewer()};$('showVersions').onclick=()=>{$('versions').open=true;$('versions').scrollIntoView({block:'nearest'});$('versions').querySelector('summary').focus()};$('copy').onclick=async()=>{try{await navigator.clipboard.writeText(identity());say('Copied identifier')}catch{say('Copy is unavailable. Select the exact identity in Technical details.');$('technical').open=true}};$('download').onclick=()=>{if(state==='unavailable')return;const f=currentFile(),payload=f.id==='binary'?new Uint8Array(f.sizeBytes):source(),blob=new Blob([payload],{type:f.mediaType}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=version().revision+(f.id==='binary'?'.bin':active.id==='report'?'.md':active.id==='http'?'.http.json':active.id==='json'?'.json':'.txt');document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);say('Download started for '+identity())};$('menu').onclick=()=>{const opened=$('rail').dataset.open!=='true';$('rail').dataset.open=String(opened);$('menu').setAttribute('aria-expanded',String(opened))};$('back').onclick=e=>{e.preventDefault();say('Return context: Order lookup issue · Shop API · Source checklist')};$('uploadFile').onchange=()=>{$('upload').disabled=!$('uploadFile').files.length;say($('uploadFile').files.length?'File selected locally; no upload sent.':'')};$('upload').onclick=()=>say('Design preview only — no upload was sent.');render();
+</script></body></html>

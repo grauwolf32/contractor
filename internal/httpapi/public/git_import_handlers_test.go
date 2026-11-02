@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/grauwolf32/contractor/internal/sourcezip"
+	"github.com/grauwolf32/contractor/internal/helpers/sourcezip"
 	"io"
 	"net/http"
 	"net/http/httptest"

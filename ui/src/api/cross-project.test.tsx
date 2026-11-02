@@ -5,9 +5,9 @@ import { describe, expect, it, vi } from "vitest";
 
 import type {
   Audit,
-  AuditFinding,
-  AuditFindingSeverity,
-  AuditFindingState,
+  ProjectFinding,
+  FindingSeverity,
+  FindingState,
   AuditReport,
   AuditReviewRequest,
   AuditState,
@@ -15,7 +15,6 @@ import type {
 import { TestPublicAPI as PublicAPI } from "../test/shared-config";
 import { PublicAPIProvider } from "./context";
 import {
-  INBOX_CHECK_STATES,
   invalidateCrossProject,
   useAllChecks,
   useAllPossibleIssues,
@@ -54,26 +53,26 @@ function finding(
   auditId: string,
   findingId: string,
   options: {
-    state?: AuditFindingState;
+    state?: FindingState;
     createdAt?: string;
     verdict?: "true_positive" | "false_positive";
-    severity?: AuditFindingSeverity;
+    severity?: FindingSeverity;
   } = {},
-): AuditFinding {
+): ProjectFinding {
   const createdAt = options.createdAt ?? "2026-10-02T10:00:00Z";
   const value = build.finding(
     auditId,
     findingId,
     {
-      state: options.state ?? "proposed",
-      analystVerdict: options.verdict,
-      analystSeverity: options.severity,
+      state: options.state ?? null,
+      analystVerdict: options.verdict ?? null,
+      analystSeverity: options.severity ?? null,
       createdAt,
       updatedAt: createdAt,
     },
     { title: `Finding ${findingId}` },
   );
-  return { ...value, firstProposal: { ...value.firstProposal, createdAt } };
+  return value;
 }
 
 function review(
@@ -83,7 +82,6 @@ function review(
   createdAt = "2026-10-03T10:00:00Z",
 ): AuditReviewRequest {
   return build.review(auditId, requestId, kind, {
-    ...(kind === "finding-triage" ? { findingId: "finding_1" } : {}),
     createdAt,
     updatedAt: createdAt,
   });
@@ -95,7 +93,7 @@ const report = (status: AuditReport["status"]): AuditReport =>
 interface ServerState {
   projects: Project[];
   audits: Record<string, Audit[]>;
-  findings?: Record<string, AuditFinding[]>;
+  findings?: Record<string, ProjectFinding[]>;
   reviews?: Record<string, AuditReviewRequest[]>;
   reports?: Record<string, AuditReport>;
   failures?: Record<string, boolean>;
@@ -148,12 +146,13 @@ function setup(state: ServerState) {
         .flat()
         .filter(
           (f) =>
-            inScope(f.auditId) &&
-            wanted("state", f.state) &&
+            state.projects.some((p) => p.projectId === f.projectId) &&
+            wanted("state", f.state ?? "") &&
             wanted("verdict", f.analystVerdict ?? "unreviewed") &&
             (!url.searchParams.has("severity") ||
               wanted("severity", f.analystSeverity ?? "")),
-        );
+        )
+        .map(build.findingSummary);
     else if (url.pathname === "/v1/reviews")
       items = Object.values(state.reviews ?? {})
         .flat()
@@ -355,16 +354,13 @@ describe("owner-wide lists", () => {
     const state = base();
     state.findings = {
       audit_a: Array.from({ length: 201 }, (_, i) =>
-        finding("audit_a", `finding_${i}`),
+        finding("project_a", `finding_${i}`),
       ),
     };
     const server = setup(state);
     const { result } = renderHook(
       () => ({
-        issues: useAllPossibleIssues({
-          checkStates: INBOX_CHECK_STATES,
-          states: ["proposed"],
-        }),
+        issues: useAllPossibleIssues({ needsReview: true }),
         summary: useInboxSummary(),
       }),
       { wrapper: server.wrapper },
@@ -375,19 +371,19 @@ describe("owner-wide lists", () => {
     expect(
       result.current.summary.partial || result.current.summary.truncated,
     ).toBe(false);
-    expect(server.count("/v1/findings")).toBe(2);
+    expect(server.count("/v1/findings")).toBe(3);
   });
   it("applies finding verdict and analyst severity filters", async () => {
     const state = base();
     state.findings = {
       audit_a: [
-        finding("audit_a", "unreviewed"),
-        finding("audit_a", "high", {
+        finding("project_a", "unreviewed"),
+        finding("project_a", "high", {
           state: "confirmed",
           verdict: "true_positive",
           severity: "high",
         }),
-        finding("audit_a", "low", {
+        finding("project_a", "low", {
           state: "confirmed",
           verdict: "true_positive",
           severity: "low",
@@ -434,7 +430,7 @@ describe("owner-wide lists", () => {
         review(
           "audit_a",
           `review_${i}`,
-          i % 2 ? "active-check-approval" : "finding-triage",
+          i % 2 ? "active-check-approval" : "report-acceptance",
         ),
       ),
     };
@@ -455,14 +451,11 @@ describe("owner-wide lists", () => {
     expect(result.current.approvals.decisions).toHaveLength(100);
     expect(server.count("/v1/reviews")).toBe(2);
   });
-  it("does not count triage requests twice in the Inbox", async () => {
+  it("counts canonical unassessed Findings and independent item approvals in the Inbox", async () => {
     const state = base();
-    state.findings = { audit_a: [finding("audit_a", "one")] };
+    state.findings = { audit_a: [finding("project_a", "one")] };
     state.reviews = {
-      audit_a: [
-        review("audit_a", "triage", "finding-triage"),
-        review("audit_a", "approval", "active-check-approval"),
-      ],
+      audit_a: [review("audit_a", "approval", "active-check-approval")],
     };
     const { result } = renderHook(() => useInboxSummary(), {
       wrapper: setup(state).wrapper,
@@ -473,7 +466,7 @@ describe("owner-wide lists", () => {
   it("refreshes owner lists after decisions without reloading unchanged report payloads", async () => {
     const state = base();
     state.reports = { audit_b: report("ready") };
-    state.findings = { audit_a: [finding("audit_a", "one")] };
+    state.findings = { audit_a: [finding("project_a", "one")] };
     const server = setup(state);
     const { result } = renderHook(
       () => ({ reports: useAllReports(), issues: useAllPossibleIssues() }),

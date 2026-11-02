@@ -370,7 +370,10 @@ successful or bypass bounded abort or release.
 
 **OPS-R24.** The REST snapshot is mutex-consistent with the
 in-process Control Plane registry and carries a random process generation and
-an unsigned decimal revision.
+an unsigned decimal revision. Its producer returns a detached, caller-owned
+snapshot ordered by Runtime Agent instance ID and allocation ID, with sorted
+capability lists and tool names. HTTP consumers validate and use that snapshot
+without copying and sorting it again.
 
 **OPS-R25.** Every observable registration, heartbeat,
 reservation, lifecycle, report or release change advances the revision. A

@@ -1,9 +1,9 @@
 /**
  * Project sections (contract §3 vocabulary). The URL segments stay as they
  * were (S06:1374-1375), only the names follow V3B. Runs and Workflows stay
- * one click away under "Advanced".
+ * one click away after the main sections.
  */
-export const MAIN_SECTIONS = [
+const MAIN_SECTIONS = [
   ["", "Overview"],
   ["artifacts", "Materials"],
   ["audits", "Checks"],
@@ -11,7 +11,7 @@ export const MAIN_SECTIONS = [
   ["settings", "Settings"],
 ] as const;
 
-export const ADVANCED_SECTIONS = [
+const ADVANCED_SECTIONS = [
   ["runs", "Runs"],
   ["workflows", "Workflows"],
 ] as const;

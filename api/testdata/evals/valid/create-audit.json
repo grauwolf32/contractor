@@ -14,14 +14,12 @@
       {
         "id": "a",
         "kind": "audit",
-        "selector": "audit-a@3",
-        "executionConfig": {}
+        "selector": "audit-a@3"
       },
       {
         "id": "b",
         "kind": "audit",
-        "selector": "audit-b@3",
-        "executionConfig": {}
+        "selector": "audit-b@3"
       }
     ],
     "repetitions": 2,

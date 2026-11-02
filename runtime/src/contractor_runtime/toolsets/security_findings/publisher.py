@@ -70,6 +70,7 @@ class FindingPublisher:
         proposed_checks: list[ProposedCheck] | None = None,
         request_id: int | None = None,
         caido_request_id: str | None = None,
+        publish_problem: bool = False,
     ) -> dict[str, Any]:
         with RecordedToolCall(
             self.metrics, "finding", {}, secrets=self.secrets, bound_error=_bounded_finding_error
@@ -107,6 +108,7 @@ class FindingPublisher:
                 evidence_refs=refs,
                 standard_refs=standards,
                 proposed_checks=checks,
+                publish_problem=publish_problem,
             )
             proposal = request["proposal"]
             if normalized:
@@ -138,6 +140,10 @@ class FindingPublisher:
                 "receipt_id": str(receipt["receiptId"]),
                 "client_key": proposal["client_key"],
             }
+            if "findingId" in receipt:
+                result["finding_id"] = receipt["findingId"]
+            if "publicationError" in receipt:
+                result["publication_error"] = receipt["publicationError"]
             if exchange is not None:
                 result["evidence_refs"] = [item["ref"] for item in receipt["evidence"]]
             call.succeed(result, arguments={"location_count": len(normalized)})

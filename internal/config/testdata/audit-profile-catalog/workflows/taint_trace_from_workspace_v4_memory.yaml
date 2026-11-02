@@ -36,6 +36,12 @@ spec:
       llmGateway: local-litellm@1
       credential: development-worker
 
+      modelPolicy: worker@2
+    stages:
+      trace:
+        agents:
+          analyst:
+            summarizerModelPolicy: summarizer@1
   entryStage: trace
   stages:
     trace:

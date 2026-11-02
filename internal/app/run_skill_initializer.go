@@ -31,7 +31,7 @@ func (i *runSkillInitializer) InitializeRunSkills(
 	}
 	var result runstore.WorkflowRun
 	err := persistencepostgres.InTx(ctx, i.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		store := runstore.NewPostgresStore(tx)
+		store := runstore.NewPostgresTxStore(tx)
 		run, err := store.LockRunSkillInitialization(ctx, runID)
 		if err != nil {
 			return err
@@ -96,7 +96,7 @@ func (i *runSkillInitializer) failPermanent(
 ) (runstore.WorkflowRun, error) {
 	var result runstore.WorkflowRun
 	err := persistencepostgres.InTx(ctx, i.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		store := runstore.NewPostgresStore(tx)
+		store := runstore.NewPostgresTxStore(tx)
 		current, err := store.LockRunSkillInitialization(ctx, runID)
 		if err != nil {
 			return err

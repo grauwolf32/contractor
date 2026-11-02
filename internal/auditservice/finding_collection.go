@@ -23,11 +23,11 @@ func (s *Service) SelectCollectionFindings(ctx context.Context, tx pgx.Tx, owner
 	return ids, collectionError(err)
 }
 
-// ReadCollectionReviews captures only existing owner-authorized observations.
+// ReadCollectionFindings captures only existing owner-authorized observations.
 // It deliberately preserves missing decision IDs and does not create findings
 // for unadmitted receipts or convert receipt retention into a review state.
-func (s *Service) ReadCollectionReviews(ctx context.Context, tx pgx.Tx, ownerID string, receiptIDs []string) (map[string][]auditdomain.FindingCollectionReview, error) {
-	reviews, err := querystore.New(tx).CollectionReviews(ctx, ownerID, receiptIDs)
+func (s *Service) ReadCollectionFindings(ctx context.Context, tx pgx.Tx, ownerID string, receiptIDs []string) (map[string]*auditdomain.FindingCollectionFinding, error) {
+	reviews, err := querystore.New(tx).CollectionFindings(ctx, ownerID, receiptIDs)
 	return reviews, collectionError(err)
 }
 

@@ -532,7 +532,7 @@ accessible in a disclosure.
 ### Run setup
 
 The capabilities the Workflow user surface offers (Workflow and version
-listing, parameter and input rendering, uploads, execution overrides, Runtime
+listing, parameter and input rendering, uploads, Runtime
 label selection through `runtimeLabels` such as `debug` or `caido`, metadata
 labels, creating, cancelling, continuing and
 repeating Runs, Stage and Planner progress, artifact previews and bounded
@@ -606,6 +606,22 @@ request uses that same identity (FAIL-UI-4).
 
 **UI-R89.** A configured Scheduler retry is shown as an attempt within the
 existing Run, while a terminal failure has no implied retry.
+
+**UI-R216.** Run detail leads with a Workflow-name heading, copyable exact
+Run/Workflow identity, Created and available Finished timestamps and duration.
+Started and Updated timestamps and a Timestamps disclosure do not appear in
+the header. Successful Runs proceed directly to outputs: their header status
+is sufficient, without a repeated success summary, next-step guidance or result
+shortcuts. Other states show authoritative outcome and guidance in a responsive
+surface before outputs and Technical details; causes, recovery controls and
+focused-attempt links preserve their behavior. Declared primary outputs receive
+visual emphasis for display order only. Preview remains explicit; opening the
+page fetches no output payloads.
+
+The heading omits the version already shown in Workflow. Run/Workflow copy and
+output download controls show only their icon, retaining accessible names and
+hover tooltips. The exact artifact-details link sits below the preview/download
+controls on a separate line at every width.
 
 **UI-R90.** Known placement and Gateway states link only to diagnostics the
 current user is authorized to read; unknown causes recommend inspecting the
@@ -715,8 +731,8 @@ Audits, Findings and Settings at independent URLs under `/projects/:projectId`.
 **UI-R109.** Add artifact is a contextual Artifacts action; Workflow cards open
 exact Run setup.
 
-**UI-R110.** The compact Project actions menu contains metadata refresh and the
-existing confirmed deletion action
+**UI-R110.** The Project header exposes metadata refresh and the existing
+confirmed deletion action directly
 ([Retention and deletion](../artifacts/retention-and-deletion.md)).
 
 **UI-R189.** The Project header carries no duplicate Audits or Run analysis
@@ -750,6 +766,30 @@ from the same per-Audit reads, so the list and the Overview agree.
 Workflow output roles; missing or unavailable primary outputs are not replaced
 with guessed results.
 
+**UI-R217.** Project Overview uses the reviewed canvas/card contrast: compact
+composer, small section labels outside individual result/history surfaces,
+review attention rows, and a row-based At a glance card before Materials in
+the supporting column. Timeline is a collapsed disclosure by default; its
+native checkboxes select any combination of four event kinds and retain the
+bounded selection in the URL, with explicit All/none behavior. Expanding it
+keeps the shared connector, status icons and time column. Filtered direct URLs
+open the disclosure. Existing per-check reads supply at most three possible-issue
+attention links, without a new read or a guessed aggregate count.
+Project Overview leads with the objective composer, then decisions
+waiting for review, recent results, recent Runs and the existing Timeline with
+its connectors, status icons and filters. Materials and qualified summary counts
+form supporting context. The composer uses one input/action surface and opens
+ordinary check setup, preserving the objective, format-match suggestions and
+keyboard submission; it does not start execution. Result cards lead with the
+actual output name, known role and declared format hints. Preview and icon-only
+download sit at the top right; the exact output reference remains visible and
+`details →` follows the divider and producing Run identity/time on its own line.
+Metadata and bounded content previews load only after explicit action, through
+the same exact-revision mechanism as Run results. Recent Runs retain Server
+order, a copyable full identity behind the shortened ID, reported state and
+accessible full timestamps. Empty, partial and failed reads retain their truthful
+outcomes. This hierarchy works at 320/390 px and in light, dark and black themes.
+
 **UI-R190.** Result links retain their RunScope and exact revision.
 
 **UI-R116.** The Overview does not load the complete input or Workflow
@@ -757,7 +797,9 @@ inventories.
 
 **UI-R117.** Artifacts, Workflows, Runs, Audits, Findings and Settings mount
 only when selected. They share the Project header, actions and section
-navigation; mobile navigation uses a labelled select.
+navigation. All seven destinations remain on one horizontally scrollable row,
+with the selected destination revealed on section changes and resize. Section
+actions remain outside that scroll area.
 
 **UI-R118.** Project Settings contains metadata and application access.
 
@@ -895,6 +937,14 @@ Findings / Checks / Reviews / Runs / Report.
 
 **UI-R140.** Audit pages display technical Run outcome separately from semantic
 assessment, and proposed findings separately from confirmed findings.
+
+**UI-R215.** A selected Audit item visually separates its written conclusion
+and labelled limitations from supporting evidence and activity. Evidence stays
+expanded. Proposed and needs-evidence findings offer an explicit **Review**
+link to their existing issue route with return context; confirmed and set-aside
+findings retain their state and title links without a pending-review action.
+This presentation preserves item navigation, coverage facts and the existing
+check-level primary action.
 
 **UI-R141.** The generic Runs and Queue UI remains authoritative for execution
 and links back to the Audit; an Audit does not create a second Runtime queue.
@@ -1046,7 +1096,7 @@ states across Catalog, Runs, Operations, Projects and Audits.
 
 **UI-R191.** Local Project and Audit navigation remains sticky.
 
-**UI-R172.** Project overflow actions support Escape and outside dismissal.
+**UI-R172.** Workspace overflow menus support Escape and outside dismissal.
 
 **UI-R173.** Run removal, Project HTTP target configuration and Skill upload
 use the shared modal focus containment, inert background and return-focus
@@ -1229,12 +1279,12 @@ authoritative REST snapshot (UI-R29). Shared rules are in
 
 1. The UI can request domain operations but cannot manufacture execution state
    (UI-R2, UI-R26).
-2. Run overrides contain exact published refs only; no inline model, budget,
-   URL, token or provider parameter is accepted
+2. Run forms select authored Workflows; their execution policies contain exact
+   published refs
    ([AgentTemplates](../configuration/agent-templates.md),
    [Runs](../execution/runs.md)).
 3. Immutable base and escalation-variant ResolvedExecutionConfigs are
-   authoritative after Run creation; an ExecutionConfig ref is never resolved
+   authoritative after Run creation; no execution selection is resolved
    during an attempt. The default, Run and Agent infrastructure layers may
    complete or override only a Worker's physical connection settings under
    their separately pinned provenance
@@ -1426,3 +1476,91 @@ uses the received derived count that leaves space for child Run provenance.
 Reusable pure validators receive policy explicitly; they do not consult global
 mutable settings or compiled numeric defaults. Runtime placement labels retain
 their separate grammar and bounds.
+
+**UI-R218.** The common UI font tokens use the system sans-serif and monospace
+stacks actually rendered by the reviewed standalone OpenDesign prototypes.
+They apply globally, including Run, Project, shell, controls and code; routes
+must not introduce their own font family or load a competing bundled face.
+Run detail uses the same canvas and independent-card composition, with compact
+header/facts, a single vertical outcome/next-step surface for non-success states,
+and result actions at the top right beside their title. Shared icons represent
+check type selection, forward actions, output documents, copy/download and
+navigation; existing state/action eligibility and explicit exact previews remain.
+
+**UI-R219.** A Run opened from a supported Run list retains that source list in
+an adjacent shared list/detail pane. Queue/Completed filters, metadata labels,
+Project context, cursor and Overview sample bounds belong to the source and
+survive sibling Run selection and return. The pane has no separate view
+switches and reads only the same bounded page through existing APIs/query keys,
+with the source polling policy and explicit read-error/empty/absent-selection
+states. Navigation carries a validated read descriptor, never a browser-storage
+snapshot of business records. Direct or unsupported origins show ordinary Run
+detail without an invented list. Mobile uses the existing back-to-source and
+focus behavior, retaining router return state.
+
+**UI-R220.** Available Run outputs use a concise visible `details` link while
+retaining their exact Artifact destination and an accessible name identifying
+the output revision. On narrow cards Preview and download form a separate row
+below metadata badges; desktop actions remain beside the output title.
+
+
+### Issue review workspace
+
+**UI-R221.** The Issues list/detail workspace shares the global font/theme tokens.
+The detail header keeps title, subject, human state, a link to independent verification results and the separate
+AI suggestion or analyst severity above Summary/Evidence/History. File subjects
+use a compact FILE badge and file icon before the path. The Summary
+presents the original proposal and retained evidence in the main column, with
+Impact before Verification and Limitations in the supporting column when width
+allows. A recorded-decision surface uses only the actual analyst decision and
+keeps its actor, recorded time and rationale readable. The shared FindingDecision
+owner retains eligibility, required inputs, stale checks, receipts and focus rules;
+Mark as duplicate is an explicit action. The compact composer expands after a
+verdict is selected. Why sits above a full-width rationale field, with Record
+decision on its own row (full width on phones) and the existing required-input
+help. At phone widths the header and full composer scroll with the content; the
+four review verdicts use two columns, and the redundant Next item footer action
+is omitted. Previous/count/Next share one header row and View in Project (or an explicitly selected check context)
+occupies the next; J/K navigation remains.
+
+**UI-R222.** Issues offers severity, newest, oldest, state and title sorting plus
+text search over loaded title/subject previews and Project. Severity sorting uses an
+analyst rating when set, otherwise the separate AI suggestion, with unset last;
+ties are deterministic by creation time and identity. State and analyst severity
+filters read the canonical Project state; an absent assessment is shown explicitly. Coloured severity pills in the source list
+retain explicit analyst/AI labels and never imply an analyst rating from a
+suggestion. Sort/search are URL-backed projections of
+the existing bounded loaded list, preserve the selected finding and its draft, and
+supply the same order to neighbour/keyboard navigation. Incomplete and failed
+reads remain explicit; the UI never claims to sort unloaded rows.
+
+**UI-R223.** Issue evidence offers explicit Preview, copy, download and concise
+`details →` below the evidence divider, at the selected source's exact retained Project revision. Neither metadata
+nor payload is read automatically except for the bounded saved source snippets:
+at most the first two evidence files may display text/plain snippets, each up to
+64 KiB after authoritative metadata admission. Larger or structured/HTTP evidence
+remains explicit. Preview reuses the shared Artifact size/format bounds; failure
+is visible and retryable, without another-scope fallback. Absent
+scope has no fabricated action or bytes; source locations do not imply readable
+source snippets. Captured HTTP credential values keep independent show/hide
+controls. Sorting and presentation introduce no new business persistence or
+verification/analyst state.
+
+### Material reader
+
+**UI-R224.** Material/file detail in User, Project, Run and Eval contexts uses
+one content-first composition: a compact exact identity and selected revision,
+authoritative current/historical and locked chips, icon-only copy/download with
+accessible labels, and Versions/Refresh above the main reader. Facts, Git source,
+eligible new-version upload, storage details and paged history/lineage form a
+quiet supporting column; on phones they follow the content in ordinary flow.
+Copy/download retain the exact selected identity/bytes, return state survives
+version selection, and existing upload eligibility/conflict owners remain.
+Preview/archive reads stay explicit and retain their scope and size policies.
+The existing Markdown, diff, HTTP, Scalar OpenAPI and LikeC4 engines remain the
+rendering owners, styled with the shared font/theme tokens. Source wrapping is
+a local control without a per-line DOM expansion. After explicit archive Browse,
+a readable SKILL.md is selected first, otherwise a readable root README.md;
+other archives ask for a selection. The archive tree can collapse on phones and
+selecting a file returns the reading space to its content. No file is executed,
+no API request is sent by a renderer and no synthetic preview data ships in UI.

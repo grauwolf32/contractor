@@ -8,7 +8,7 @@ from datetime import UTC, datetime, timedelta
 
 import httpx
 import pytest
-from fakes.spec import allocation_spec
+from fakes.spec import summarizer_config
 from fakes.worker_state import WorkerState
 from google.adk.runners import Runner
 from test_adk_runtime import build_context, stage_request
@@ -228,7 +228,7 @@ def test_one_shot_sdk_limit_keeps_owned_outcomes_and_one_http_dispatch(
                     subtask_id="0", result_text="Done", invocation_id="worker-invocation"
                 )
             else:
-                config = allocation_spec(summarizer=True).agent_template.summarizer
+                config = summarizer_config()
                 consumer = TerminalSummarizer(
                     model=model, policy=config.model_policy, include_reasoning=False
                 )

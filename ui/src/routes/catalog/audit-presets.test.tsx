@@ -282,7 +282,7 @@ describe("Library check types", () => {
     const facts = screen.getByText("Time limit").closest("dl")!;
     expect(within(facts).getByText("10 minutes")).toBeVisible();
     expect(within(facts).getByText("Never run")).toBeVisible();
-    expect(within(facts).getByText("You confirm each one")).toBeVisible();
+    expect(within(facts).queryByText("You confirm each one")).toBeNull();
     expect(within(facts).getByText("Accepted automatically")).toBeVisible();
     await act(async () => {
       await router.navigate("/catalog/audit-presets");

@@ -96,7 +96,7 @@ func tryInsertInboxReceipt(t *testing.T, f deletionImportFixture, owner, runID, 
 	receiptID := clientKey + "-receipt"
 	return persistencepostgres.InTx(f.ctx, f.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		return insertReceipt(f.ctx, tx, receiptID, clientKey+"-proposal", canonical, fingerprint, proposal,
-			[]ExactArtifact{}, origin, owner, &project, grant)
+			[]ExactArtifact{}, origin, owner, &project, grant, nil, nil, "")
 	})
 }
 
@@ -261,7 +261,7 @@ SELECT coalesce(array_agg(receipt_id ORDER BY created_at, receipt_id), '{}')
 		}
 	}
 	gone, err := f.intake.GetAuditReceipt(f.ctx, owner, auditID, "gone-held-receipt")
-	if err != nil || !gone.Origin.RunDeleted || gone.Retention != RetentionAuditHeld || len(gone.AuditHolds) != 1 {
+	if err != nil || !gone.Origin.RunDeleted || gone.Retention != RetentionProjectHeld || len(gone.AuditHolds) != 1 {
 		t.Fatalf("held receipt of the deleted Run = %+v, %v", gone, err)
 	}
 }

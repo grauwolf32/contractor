@@ -212,7 +212,6 @@ def http_caido_spec() -> Any:
     policy = spec.model_policy.model_copy(update={"max_model_calls": 9}, deep=True)
     policy.ref.digest = _model_policy_digest(policy)
     spec.model_policy = policy
-    spec.agent_template.model_policy = policy.model_copy(deep=True)
     spec.agent_template.ref.digest = _agent_template_digest(spec.agent_template)
     spec.runtime_settings = RuntimeSettings(
         llmGatewayUrl="https://gateway.example/v1",

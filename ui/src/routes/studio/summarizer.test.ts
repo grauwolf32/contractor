@@ -12,7 +12,6 @@ describe("terminal summarizer reasoning option", () => {
   ])("validates includeReasoning $value", ({ value, valid }) => {
     let draft = starter("AgentTemplate");
     draft = patchDraft(draft, ["spec", "summarizer"], {
-      modelPolicy: "terminal_summarizer@1",
       includeReasoning: value,
     });
     const path = ["spec", "summarizer", "includeReasoning"];
@@ -23,4 +22,25 @@ describe("terminal summarizer reasoning option", () => {
     );
     expect(errors.length === 0).toBe(valid);
   });
+});
+
+describe("Workflow-owned model selection", () => {
+  it.each([null, "worker@1"])(
+    "rejects removed template model fields: %s",
+    (value) => {
+      for (const path of [
+        ["spec", "modelPolicy"],
+        ["spec", "summarizer", "modelPolicy"],
+      ]) {
+        const draft = patchDraft(starter("AgentTemplate"), path, value);
+        expect(
+          validateDraft(draft).some(
+            (problem) =>
+              problem.severity === "error" &&
+              problem.path.join(".") === path.join("."),
+          ),
+        ).toBe(true);
+      }
+    },
+  );
 });

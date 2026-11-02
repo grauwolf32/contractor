@@ -11,7 +11,7 @@ import (
 
 func TestReservationRoutesUseEffectiveSummaryModel(t *testing.T) {
 	reservation := controlplane.Reservation{
-		AgentTemplate: contracts.ResolvedAgentTemplate{Summarizer: &contracts.WorkerSummarizerConfig{ModelPolicy: contracts.ResolvedModelPolicy{Model: "original-summary"}}},
+		AgentTemplate: contracts.ResolvedAgentTemplate{Summarizer: &contracts.WorkerSummarizerConfig{ContextWindowRatio: 0.9}},
 		ResolvedRuntimeConfig: &runtimeconfig.ResolvedRuntimeConfig{
 			ModelPolicy:           contracts.ResolvedModelPolicy{Model: "selected-worker"},
 			SummarizerModelPolicy: &contracts.ResolvedModelPolicy{Model: "selected-summary"},

@@ -701,11 +701,15 @@ func newProductionGrantHandler(
 	if err != nil {
 		t.Fatal(err)
 	}
+	workerPolicy, err := snapshot.ModelPolicy("worker@1")
+	if err != nil {
+		t.Fatal(err)
+	}
 	binding := controlplane.BindingRequirement{
 		LogicalAgentName: "builder", Namespace: "builder", AgentTemplate: template,
 		WorkerSessionMode: contracts.WorkerSessionIsolated, ContextManagement: contracts.WorkerContextManagement{Strategy: contracts.ContextStrategyNone},
 		ExecutionConfig: controlplane.AllocationExecutionConfig{
-			ModelPolicy: template.ModelPolicy.Ref, LLMGateway: gateway.Ref,
+			ModelPolicy: workerPolicy.Ref, LLMGateway: gateway.Ref,
 		},
 	}
 	reservations, err := controlplanetest.Reserve(registry, controlplane.ReservationRequest{

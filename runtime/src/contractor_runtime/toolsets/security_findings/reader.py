@@ -159,7 +159,7 @@ class ListFindingsTool:
 
     Returns bounded previews and exact current-Run artifact references. Use
     read_artifact with proposal.ref or evidence[].ref for full content. Source
-    refs are provenance only. Captured reviews describe the collection snapshot;
+    refs are provenance only. Captured Project Finding metadata describes the collection snapshot;
     listing does not confirm, deduplicate or change a finding.
 
     Args:
@@ -172,7 +172,8 @@ class ListFindingsTool:
 
     Returns:
         items with receipt identity, subject, title and description previews,
-        hypothesis presence, proposal and evidence refs, and captured reviews;
+        hypothesis presence, proposal and evidence refs, and the captured
+        Project Finding when published;
         next_cursor is null when no matching entries remain. No matches returns
         an empty items list. Invalid filters or cursors and oversized individual
         items fail explicitly without dropping entries.

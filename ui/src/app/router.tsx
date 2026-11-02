@@ -72,7 +72,7 @@ export function applicationRoutes(): RouteObject[] {
             // keeps the list mounted.
             { path: "/issues", lazy: lazyRoute(issues, "IssuesRoute") },
             {
-              path: "/issues/:auditId/:findingId",
+              path: "/issues/:projectId/:findingId",
               lazy: lazyRoute(issues, "IssuesRoute"),
             },
             { path: "/reports", lazy: lazyRoute(reports, "ReportsRoute") },

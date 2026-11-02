@@ -987,19 +987,6 @@
   gap: var(--space-3) var(--space-4);
 }
 
-.eval-code {
-  max-height: 20rem;
-  margin: 0;
-  padding: var(--space-3);
-  overflow: auto;
-  border-radius: var(--radius-lg);
-  background: var(--code-bg);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
 /* ---------- Facts, tables ---------- */
 
 .eval-facts {

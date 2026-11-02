@@ -1,0 +1,116 @@
+schema_version: "1.0"
+id: V429-017
+title: Explore OpenAPI diagrams and archives in the material viewer
+milestone: ui-journey-usability
+epic: ui
+kind: feature
+priority: P2
+status: completed
+depends_on: [V429-016]
+languages: [html, css, javascript]
+goal: Extend the reviewed material viewer with three distinct readable layouts for an API specification, a LikeC4 diagram and an archive, while retaining consistent typography, revision context and phone behavior.
+demonstration: Open the seven synthetic examples in a local OpenDesign-reviewed candidate, inspect an API operation, change a diagram view and zoom, select an archive file, and compare desktop and phone presentations without external requests or business writes.
+context:
+  authority: >-
+    User decision 2026-11-01: approved adding OpenAPI, LikeC4 and ZIP/Skill-style
+    archive examples to the material/evidence design preview. Preserve earlier
+    OpenDesign output and data, shared project fonts/themes and the configured
+    Contractor model/gateway. Production transfer remains a subsequent step.
+  specification: docs/spec/ui/ui.md
+  design: docs/design/ui/README.md
+  decision: >-
+    This task owns presentation exploration with exact synthetic sources.
+    Existing OpenAPI/LikeC4 parsers and archive contracts own interpretation.
+    A diagram may use a layout derived from the real LikeC4 engine and a bounded
+    local SVG interaction layer; the prototype does not replace production
+    renderers, execute requests, extract arbitrary archives or add a store.
+scope:
+  in:
+    - Preserved previous candidate plus three new synthetic examples and working local interactions.
+    - Actual OpenDesign composition pass through the existing isolated model gateway, with raw output and provenance.
+    - Read-only API operation/schema details, diagram views/zoom and archive tree/text/binary selections.
+    - Shared fonts/themes and 1440/1100/390/320px checks, exact downloads and truthful failure/historical states.
+    - Recoverable pre/post OpenDesign backups, relay cleanup and a reviewable local preview.
+  out:
+    - Production UI/API/schema changes, new renderers/dependencies or model selection.
+    - External assets/network, real API calls, archive extraction, live data mutations or merge.
+requirements:
+  - id: R1
+    text: Saved API methods, schema properties, diagram nodes/relations and archive file bytes come from the selected synthetic source; the preview never claims a request ran or a file executed.
+  - id: R2
+    text: Specialized content dominates its reading area; navigation collapses deliberately on phone, and revision/current/locked/return context stays available with shared fonts and theme tokens.
+  - id: R3
+    text: Existing four examples remain usable; preserve all earlier source/output and write each generated version under a new name.
+failure_outcomes:
+  - operation: Bounded OpenDesign generation
+    permanent: Preserve the exact attempt and partial files; do not claim a deliverable or change the model.
+    retryable: Retry only a bounded focused design pass with existing gateway/time budget.
+    ambiguous: Reconcile submitted client/run identity and actual artifacts before another request.
+    cancelled: Stop owned temporary relay and retain all prior artifacts.
+    timeout: Keep the model and use its independent gateway deadline.
+  - operation: Local format interactions
+    permanent: Unsupported/binary/missing content has an explicit state; no invented response or preview.
+    retryable: Retry restores only a seeded local fixture.
+    ambiguous: No business writes or persistence exist.
+    cancelled: Revision changes reset local selection/reveals and preserve return context.
+    timeout: No live API, polling or background controller exists.
+cardinality:
+  - collection: Synthetic material examples
+    expected: Seven examples, two revisions each
+    maximum: Seven examples, three revisions each
+    bound: Render only the selected file; text fits the existing one MiB limit, at most eight operations, twelve diagram nodes, twenty archive entries and two views in the demo.
+  - collection: Temporary model requests
+    expected: One focused CSS/design pass
+    maximum: Twenty-four requests per expiring relay trial
+    bound: One active request, bounded body/response and only the configured Contractor model/gateway.
+lifecycle:
+  - entity: Design project/conversation and output versions
+    delete: None; earlier candidates remain intact.
+    cascade: No application entity or persistence is added.
+    retention: Git and private host provenance plus verified complete OpenDesign backups; stop relay and remove its upstream credential after generation.
+acceptance_criteria:
+  - id: A1
+    given: OpenAPI, LikeC4 and archive fixtures
+    when: The candidate is opened and its local controls used
+    then: API operation/schema content, diagram views/zoom and archive tree/file previews match saved sources and download exact bytes.
+  - id: A2
+    given: Seven formats, all themes and desktop/phone widths
+    when: Reading, switching content or changing revision
+    then: Shared fonts, no document overflow, deliberate mobile navigation and truthful historical/binary/error states pass verification.
+  - id: A3
+    given: Earlier and new OpenDesign data
+    when: Delivering the reviewed candidate
+    then: Generated originals and provenance survive, old data is unchanged, backups recover, relay is stopped and the preview is visibly open.
+tests:
+  - command: node docs/design/ui/experiments/material-formats-opendesign-2026-11-01/verify.mjs
+    covers: [A1, A2, A3]
+  - command: python3 scripts/check_tasks.py
+    covers: [A3]
+  - command: python3 scripts/check_spec.py
+    covers: [A1, A2, A3]
+  - command: git diff --check
+    covers: [A3]
+
+verification:
+  - >-
+    Standalone verify.mjs passed 135 format/state/layout cases: seven formats,
+    light/dark/black and 1440/1100/390/320px, exact source/ZIP bytes, production
+    HTTP/OpenAPI parsing, LikeC4 source/layout provenance, operation/schema
+    selection, diagram view/zoom/Fit/reset, archive text/Markdown/binary and
+    escaped HTML, responsive navigation/bootstrap, copy denial/success and
+    truthful historical/error states. No external requests or browser errors.
+  - >-
+    Task/specification/diff checks passed. Actual React baseline snapshots and
+    native IAB desktop OpenAPI/diagram and 390px archive were inspected. Preview
+    remains open at port 17565; the previous candidate at 17564 remains intact.
+    Sources, generated original, bounded review corrections, fixtures, captures
+    and provenance are retained. No production UI/API/schema change or merge.
+  - >-
+    OpenDesign run 80bcb1b1-0712-4028-9808-942176d7a0d0 delivered a CSS composition
+    pass and assembled HTML with the unchanged configured Contractor model.
+    Temporary relay stopped and upstream credential removed. Final complete
+    backup 20261101T120252Z recovered with SQLite integrity ok: five projects,
+    ten conversations, 52 messages and 140 project files. All 131 earlier project
+    files are byte-identical, including a reference restored after a preparation
+    filename collision. New fixtures use a distinct reference filename.
+implementation_commit: c971caeb24f4ea61bf28746d06f516eb9d58e058

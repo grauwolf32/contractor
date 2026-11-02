@@ -1,0 +1,106 @@
+schema_version: "1.0"
+id: V429-018
+title: Apply the reviewed material viewer to the production UI
+milestone: ui-journey-usability
+epic: ui
+kind: feature
+priority: P2
+status: completed
+depends_on: [V429-016, V429-017]
+languages: [typescript, css]
+goal: Make the actual material/evidence detail screen follow the reviewed OpenDesign composition, with content first, a compact identity/action header and quiet metadata/history, consistently across Project, User, Run and Eval scopes.
+demonstration: Open the actual React detail with synthetic code, HTTP, Markdown, JSON, OpenAPI, LikeC4 and ZIP examples, load the exact saved preview, change modes/revisions and inspect narrow layouts in every theme, then merge the verified branch into local main.
+context:
+  authority: >-
+    User decision 2026-11-01: approved the expanded material viewer preview and
+    asked to land it. Implement the reviewed design in the real UI and merge
+    after verification. Earlier decisions preserve all OpenDesign data, exact
+    revision/scope behavior, shared fonts/themes and configured model choice.
+  specification: docs/spec/ui/ui.md
+  design: docs/design/ui/README.md
+  decision: >-
+    The shared ArtifactDetailView owns composition, with existing scope/query,
+    upload/download/conflict and lazy history owners. Existing Scalar OpenAPI,
+    LikeC4 engine, Markdown/diff/HTTP and archive components retain parsing,
+    rendering, limits and failure semantics. Adapt their presentation without
+    shipping the prototype's synthetic state machine or simplified SVG/parser.
+    Explicit content loading remains; design samples are preserved separately.
+    New interpretation, API operations, persistence and renderer replacement
+    are outside this transfer. Reopen renderer ownership only on concrete
+    unsupported behavior, not to reproduce a seeded demonstration shortcut.
+scope:
+  in:
+    - Content-first shared detail layout, exact revision/current/locked chips and icon copy/download actions with accessible names.
+    - Quiet supporting facts, technical history and eligible Upload; historical and stale/error behavior remains truthful.
+    - Consistent reader/HTTP/Markdown/OpenAPI/LikeC4/archive surfaces and compact responsive navigation in existing components.
+    - Shared theme/font tokens, UI patch release, real-route regression/browser checks and verified no-ff merge into local main.
+    - Preserve every prior OpenDesign project, conversation, source and output version.
+  out:
+    - Server/API/schema changes, new model calls or business-data mutations/deployment.
+    - New parsers/renderers, synthetic production content, automatic execution or changed scope/size/authorization policy.
+requirements:
+  - id: R1
+    text: The header keeps exact namespace/name, selected revision, authoritative current/historical and locked state, context return, icon copy/download and accessible Versions/Refresh; copied/downloaded values remain exact and truthful.
+  - id: R2
+    text: The main reading region precedes secondary metadata/history and upload on phone and dominates desktop width, sharing the global sans/mono stacks and light/dark/black tokens.
+  - id: R3
+    text: Existing explicit preview reads, exact scopes, historical/upload eligibility, revision reset, stale conflicts, bounded/paged history and archive contents, renderer limits and no-network policy survive the visual transfer.
+failure_outcomes:
+  - operation: Existing metadata, preview, download, history and upload operations
+    permanent: Keep owning classified errors and visible read/unsupported states; do not invent bytes or successful actions.
+    retryable: Existing explicit refresh/retry and query backoff, without a new polling path.
+    ambiguous: Existing upload If-Match/reconcile and mutation receipt owner; no blind append or new write path.
+    cancelled: Query signals and guarded navigation retain their existing owners; changing revision remounts local reader state.
+    timeout: Existing API/renderer deadlines and limits remain unchanged.
+cardinality:
+  - collection: Material content and archive/history pages
+    expected: One selected revision and one preview at a time
+    maximum: Existing one MiB text preview, OpenAPI automatic limit, archive bounds and 50-item history pages
+    bound: Retain existing APIs, cursor controls, HTTP body/header bounds and explicit preview load; no new whole-collection fetch.
+lifecycle:
+  - entity: Existing Artifact binding and local reader state
+    delete: No deletion behavior changes.
+    cascade: No new business entity or persistence; revision navigation remounts reader state.
+    retention: Existing Artifact owners retain data; all standalone OpenDesign artifacts and backups remain unchanged.
+acceptance_criteria:
+  - id: A1
+    given: User, Project, Run or Eval material details and seven supported sample formats
+    when: Loading and using the actual UI
+    then: The reviewed header/reading/support hierarchy and shared typography are present, and exact actions/context/history retain their contracts.
+  - id: A2
+    given: Historical/current/locked, error/unsupported/large content and upload conflict states
+    when: Reading, retrying or navigating versions
+    then: Existing eligibility, bounds, cancellation/reconcile and truthful action outcomes pass regression tests.
+  - id: A3
+    given: Light/dark/black and 1440/1100/390/320px
+    when: The actual routes and renderer controls are inspected
+    then: There is no horizontal document overflow, phone navigation is compact, all gates pass and the branch is merged into local main with preserved design artifacts.
+tests:
+  - command: make ui-verify
+    covers: [A1, A2, A3]
+  - command: make ui-gates
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+  - command: cd ui && corepack pnpm playwright test e2e/material-detail-design.spec.ts e2e/artifact-preview.spec.ts e2e/archive-preview.spec.ts --workers=2
+    covers: [A1, A2, A3]
+
+verification:
+  - >-
+    make ui-verify passed: generated clients, ESLint/Prettier, both TypeScript
+    projects, 219 test files / 2626 tests passed and one existing expected
+    failure, static-server tests and production build. make lint passed,
+    including ui-gates, Go vet/staticcheck/layers and Runtime lint/import rules.
+  - >-
+    All 28 production-build browser tests passed: seven material formats across
+    light/dark/black and 1440/1100/390/320px, exact source/ZIP downloads and
+    identifier copies, archive navigation, size limits, safe previews and
+    historical/reader-reset paths in User/Project/Run/Eval scopes. Existing
+    large Markdown/OpenAPI and captured HTTP/storage-date checks passed.
+  - >-
+    Preserved real renderer/Artifact owners and every prior OpenDesign file.
+    Actual React preview and screenshots/handoff sources are retained under
+    the private production-transfer-0.11.1 archive and the experiment's new
+    production-transfer directory. UI release 0.11.1 is integrated into local
+    main with a verified no-ff merge; no Server/API/schema or business data changed.
+implementation_commit: 44a767f89985ebada3f28d5e48771ec505a2216b

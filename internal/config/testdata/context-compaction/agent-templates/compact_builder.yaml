@@ -10,9 +10,7 @@ spec:
   runtime: adk@1
   instructions:
     ref: instructions/artifact-builder.md
-  modelPolicy: test-compact-worker@1
   summarizer:
-    modelPolicy: test-summarizer@1
     contextWindowRatio: 0.9
   toolsets:
     - ref: run-artifacts@1

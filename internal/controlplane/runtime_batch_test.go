@@ -50,7 +50,7 @@ func TestPrepareAllRefreshesLeaseAfterDeferredAdmission(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := controller.PrepareAll(context.Background(), replayed,
-		testWorkerExecutionSettings(template, testRuntimeSettings(), "builder")); err != nil {
+		testWorkerExecutionSettings(t, testRuntimeSettings(), "builder")); err != nil {
 		t.Fatal(err)
 	}
 	agent, err := registry.GetAgent("agent-1")
@@ -90,7 +90,7 @@ func TestPrepareAllCleansEveryReservationAfterPartialFailure(t *testing.T) {
 
 	handles, err := controller.PrepareAll(
 		context.Background(), reservations,
-		testWorkerExecutionSettings(template, testRuntimeSettings(), "first", "second"),
+		testWorkerExecutionSettings(t, testRuntimeSettings(), "first", "second"),
 	)
 	if err == nil || handles != nil {
 		t.Fatalf("PrepareAll = (%+v, %v), want nil/error", handles, err)
@@ -113,8 +113,8 @@ func TestPrepareAllRejectsMismatchedSettingsBeforePreparing(t *testing.T) {
 		testReservation("allocation_2", "second", "https://second.example", "https://second.example", template, lease),
 	}
 	for name, settings := range map[string]map[string]runtimesettings.WorkerExecutionSettings{
-		"unknown": testWorkerExecutionSettings(template, testRuntimeSettings(), "first", "second", "third"),
-		"missing": testWorkerExecutionSettings(template, testRuntimeSettings(), "first"),
+		"unknown": testWorkerExecutionSettings(t, testRuntimeSettings(), "first", "second", "third"),
+		"missing": testWorkerExecutionSettings(t, testRuntimeSettings(), "first"),
 	} {
 		t.Run(name, func(t *testing.T) {
 			runtime := &recordingRuntime{}
@@ -271,7 +271,7 @@ func TestFailedPrepareCleanupReleasesExpiredGrantAfterRuntimeFailure(t *testing.
 		t.Fatal(err)
 	}
 	if _, err := controller.PrepareAll(context.Background(), reservations,
-		testWorkerExecutionSettings(template, testRuntimeSettings(), "builder")); !errors.Is(err, ErrAllocationLost) {
+		testWorkerExecutionSettings(t, testRuntimeSettings(), "builder")); !errors.Is(err, ErrAllocationLost) {
 		t.Fatalf("expired prepare error = %v", err)
 	}
 	if _, err := registry.GetGrant(allocationID); !errors.Is(err, ErrAllocationNotFound) {

@@ -24,27 +24,6 @@ export function setSelectionField(
   } else document.setIn([...path, field], value);
 }
 
-export function setEscalationMode(
-  document: Document,
-  path: Path,
-  mode: string,
-) {
-  if (mode === "reference") {
-    document.deleteIn([...path, "planner"]);
-    document.deleteIn([...path, "agents"]);
-    document.setIn([...path, "ref"], "");
-  } else {
-    document.deleteIn([...path, "ref"]);
-    if (
-      !document.hasIn([...path, "planner"]) &&
-      !document.hasIn([...path, "agents"])
-    )
-      document.setIn(
-        [...path, "planner"],
-        document.createNode({ modelPolicy: "" }),
-      );
-  }
-}
 export function setArgumentSource(
   document: Document,
   path: Path,

@@ -90,7 +90,7 @@ func TestPostgresCollectionPublicationReadsDoNotGrowPerEntry(t *testing.T) {
 	}
 	for _, entry := range collection.Entries {
 		if len(entry.Evidence) != 1 || entry.Evidence[0].EvidenceID != "evidence-1" ||
-			!slices.Equal(entry.AuditHolds, []string{f.request.AuditID}) || entry.Retention != "audit-held" {
+			!slices.Equal(entry.AuditHolds, []string{f.request.AuditID}) || entry.Retention != "project-held" {
 			t.Fatalf("published entry = %+v", entry)
 		}
 	}

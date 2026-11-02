@@ -89,7 +89,7 @@ cases:
     category: configuration
     acceptance: [A1, A2]
     faults: [F14]
-    expected: Exact summary policy and normalized thresholds participate in immutable AgentTemplate resolution and digesting.
+    expected: Normalized summary behavior determines the AgentTemplate digest; exact Workflow policies are pinned independently without changing the reusable template.
     test: {source: internal/config/summarizer_test.go, symbol: TestWorkerSummarizerDigestCoversExactPolicyAndThresholds}
   - id: strict_allocation_wire
     category: configuration

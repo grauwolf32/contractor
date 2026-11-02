@@ -32,6 +32,13 @@ spec:
       llmGateway: local-litellm@1
       credential: development-worker
 
+    stages:
+      observe:
+        agents:
+          builder:
+            modelPolicy: worker@1
+          reviewer:
+            modelPolicy: reviewer_worker@1
   entryStage: observe
   stages:
     observe:

@@ -90,6 +90,11 @@ func TestPostgresWorkflowSubtaskLimitSurvivesPublicationAndRecovery(t *testing.T
 	if err != nil || len(plans["stage-planner"].Subtasks) != limit.Effective() {
 		t.Fatalf("reloaded plans: %v", err)
 	}
+	plans["stage-planner"].Subtasks[0].Objective = "caller-changed"
+	again, err := restarted.LoadPlans(ctx, []planner.SessionIdentity{started.Identity})
+	if err != nil || again["stage-planner"].Subtasks[0].Objective != "Inspect" {
+		t.Fatalf("mutating a loaded projection changed stored plan: %v", err)
+	}
 	if _, err := restarted.Begin(ctx, "stage-planner"); !errors.Is(err, planner.ErrInvocationInProgress) {
 		t.Fatalf("running recovery: %v", err)
 	}

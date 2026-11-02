@@ -5,7 +5,8 @@ import type { ArtifactMetadata } from "../../api/artifacts";
 import type { AuditProfile } from "../../api/audits";
 import type { Project } from "../../api/projects";
 import { artifactAccepts } from "../../run-drafts/validation";
-import { Button, Kbd, modKeyLabel, StatusGlyph } from "../../ui";
+import { Icon } from "../../app/icon";
+import { Button, StatusGlyph } from "../../ui";
 import { useAuditPresets } from "../catalog/audit-preset-data";
 import { auditPresetLabel } from "./audits/labels";
 import { useUnsavedDraft } from "./project-drafts";
@@ -70,54 +71,46 @@ function CheckTypeSuggestions({
   const presets = useAuditPresets();
   const heading = useId();
   // Suggestions are a shortcut: while they load, or when the catalog cannot
-  // be read, the composer and "All check types" still start a check.
+  // be read, the composer and "Choose check type" still open setup.
   const suggestions =
     presets.data === undefined
       ? []
       : formatMatches(presets.data, materials, project).slice(0, 3);
+  if (suggestions.length === 0) return null;
   return (
     <div className="projects-suggestions">
-      <div className="projects-suggestions-heading">
-        <span id={heading}>
-          {suggestions.length === 0
-            ? "Or choose a check type"
-            : "Or pick a check type whose input formats match your materials"}
-        </span>
-        <Link to={startCheckPath(project.projectId, objective)}>
-          All check types
-        </Link>
-      </div>
-      {suggestions.length === 0 ? null : (
-        <ul
-          role="list"
-          className="projects-suggestion-list"
-          aria-labelledby={heading}
-        >
-          {suggestions.map((profile) => (
-            <li key={profile.ref.name}>
-              <Link
-                className="projects-suggestion"
-                to={startCheckPath(
-                  project.projectId,
-                  objective,
-                  profile.ref.name,
-                )}
-              >
-                <span className="projects-suggestion-title">
-                  {auditPresetLabel(profile.ref.name)}
-                </span>
-                <span className="projects-suggestion-fit">
-                  <StatusGlyph tone="success" size={14} />
-                  Format matches
-                </span>
-                <span className="projects-suggestion-ref">
-                  {profile.ref.name}@{profile.ref.version}
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
+      <span className="projects-suggestions-heading" id={heading}>
+        Check types whose input formats match your materials
+      </span>
+      <ul
+        role="list"
+        className="projects-suggestion-list"
+        aria-labelledby={heading}
+      >
+        {suggestions.map((profile) => (
+          <li key={profile.ref.name}>
+            <Link
+              className="projects-suggestion"
+              to={startCheckPath(
+                project.projectId,
+                objective,
+                profile.ref.name,
+              )}
+            >
+              <span className="projects-suggestion-title">
+                {auditPresetLabel(profile.ref.name)}
+              </span>
+              <span className="projects-suggestion-fit">
+                <StatusGlyph tone="success" size={14} />
+                Format matches
+              </span>
+              <span className="projects-suggestion-ref">
+                {profile.ref.name}@{profile.ref.version}
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -153,7 +146,7 @@ export function CheckComposer({
       <label className="projects-composer-title" id={label} htmlFor={field}>
         What do you want to check?
       </label>
-      <div className="projects-composer-row">
+      <div className="projects-composer-field">
         <textarea
           id={field}
           rows={2}
@@ -169,16 +162,14 @@ export function CheckComposer({
             }
           }}
         />
-        <Button type="submit" variant="primary">
-          Start a check
-          <span
-            className="ui-kbd-hint projects-composer-keys"
-            aria-hidden="true"
-          >
-            <Kbd>{modKeyLabel()}</Kbd>
-            <Kbd>Enter</Kbd>
-          </span>
-        </Button>
+        <div className="projects-composer-footer">
+          <Link to={startCheckPath(project.projectId, objective)}>
+            <Icon name="catalog" size={14} /> Choose check type
+          </Link>
+          <Button type="submit" variant="primary" size="sm">
+            Start a check <Icon name="arrow-right" size={15} />
+          </Button>
+        </div>
       </div>
       <CheckTypeSuggestions
         project={project}

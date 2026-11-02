@@ -7,7 +7,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/contentdigest"
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 )
 
 // CounterSum adds nonnegative counter contributions without depending on their

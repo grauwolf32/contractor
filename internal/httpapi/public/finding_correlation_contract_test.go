@@ -15,7 +15,7 @@ import (
 type correlationContractService struct{ *fakeAuditManagement }
 
 func correlationContractFence(audits ...string) auditstore.FindingCorrelationFence {
-	value := auditstore.FindingCorrelationFence{ProjectID: "project-one", Audits: []auditstore.FindingComparisonAudit{}}
+	value := auditstore.FindingCorrelationFence{ProjectID: "project-one", ProjectRevision: 3, Audits: []auditstore.FindingComparisonAudit{}}
 	for _, id := range audits {
 		value.Audits = append(value.Audits, auditstore.FindingComparisonAudit{AuditID: id, Revision: 1, State: auditstore.AuditDraft, Profile: auditstore.FindingComparisonProfile{Name: "profile", Version: "1", Digest: auditHandlerDigest("profile")}, BaselineDigestEncoding: "postgres-jsonb-text/v1", Coverage: "not-compared"})
 	}
@@ -29,18 +29,13 @@ func (*correlationContractService) FindingCandidates(context.Context, auditservi
 func (*correlationContractService) CompareFindings(context.Context, auditservice.FindingComparisonParams) (auditservice.FindingComparisonPage, error) {
 	return auditservice.FindingComparisonPage{PolicyVersion: auditdomain.FindingCorrelationPolicy, Scope: auditservice.FindingCorrelationScope{Kind: "audit-pair", ProjectID: "project-one", AuditIDs: []string{"audit-one", "audit-two"}}, Fence: correlationContractFence("audit-one", "audit-two"), LeftAuditID: "audit-one", RightAuditID: "audit-two", Limitations: []string{"absence-is-not-remediation"}, Items: []auditservice.FindingComparisonRow{}}, nil
 }
-func (*correlationContractService) FindingGroupMembers(context.Context, auditservice.FindingMembersParams) (auditservice.FindingMembersPage, error) {
-	fence := correlationContractFence()
-	fence.ProjectRevision = 3
-	return auditservice.FindingMembersPage{PolicyVersion: auditdomain.FindingCorrelationPolicy, Scope: auditservice.FindingCorrelationScope{Kind: "project", ProjectID: "project-one", AuditIDs: []string{}}, Fence: fence, GroupKey: strings.Repeat("a", 64), Representative: auditdomain.FindingCorrelationReference{AuditID: "audit-one", FindingID: "finding-one"}, Items: []auditstore.FindingComparisonPreview{}}, nil
-}
+
 func conformFindingCorrelationOperations(t *testing.T, router routers.Router) {
 	t.Helper()
 	fixture := newHandlerFixtureWithAuth(t, "../../config/testdata/valid", newTestAuthentication(t), mustTestOrigins(t), false, nil, func(services *testServices) { services.Audits = &correlationContractService{&fakeAuditManagement{}} })
 	for _, path := range []string{
 		"/v1/audits/audit-one/findings/finding-one/duplicate-candidates",
 		"/v1/projects/project-one/finding-comparisons?leftAuditId=audit-one&rightAuditId=audit-two",
-		"/v1/projects/project-one/finding-correlations/" + strings.Repeat("a", 64) + "/members",
 	} {
 		contractCall(t, router, fixture.handler, jsonContractRequest(http.MethodGet, path, ""), http.StatusOK)
 	}

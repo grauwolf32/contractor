@@ -13,7 +13,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configtest"
 	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/grauwolf32/contractor/internal/securefile"
+	"github.com/grauwolf32/contractor/internal/helpers/securefile"
 )
 
 // coreFixtureRoot is the frozen catalog that behavioral tests load or copy. On
@@ -43,9 +43,7 @@ func TestLoadResolvesAndPinsCatalogReferences(t *testing.T) {
 	}
 	assertDigest(t, template.Ref.Digest)
 	assertDigest(t, template.Instructions.Digest)
-	if template.ModelPolicy.Ref.Digest != policy.Ref.Digest {
-		t.Fatalf("template policy digest = %q, want %q", template.ModelPolicy.Ref.Digest, policy.Ref.Digest)
-	}
+
 	if len(template.Toolsets) != 1 || template.Toolsets[0].Ref != (contracts.ToolsetRef{ToolsetID: "run-artifacts", Version: "1"}) ||
 		!equalStrings(template.Toolsets[0].Tools, []string{"list_artifacts", "read_artifact", "write_artifact"}) {
 		t.Fatalf("selected tools = %+v", template.Toolsets)
@@ -54,6 +52,9 @@ func TestLoadResolvesAndPinsCatalogReferences(t *testing.T) {
 	workflow, err := snapshot.Workflow("artifact-copy@1")
 	if err != nil {
 		t.Fatalf("resolve Workflow: %v", err)
+	}
+	if workflow.Stages["copy"].ExecutionConfig.Agents["builder"].ModelPolicy.Ref.Digest != policy.Ref.Digest {
+		t.Fatalf("Workflow policy digest = %q, want %q", workflow.Stages["copy"].ExecutionConfig.Agents["builder"].ModelPolicy.Ref.Digest, policy.Ref.Digest)
 	}
 	stage := workflow.Stages[workflow.EntryStage]
 	if stage.Planner != (resolved.PlannerRef{PlannerID: "passthrough", Version: "1"}) {
@@ -165,7 +166,6 @@ spec:
   runtime: adk@1
   instructions:
     ref: instructions/artifact-builder.md
-  modelPolicy: test-worker@1
   toolsets:
     - ref: code-analysis@1
       tools:
@@ -234,7 +234,7 @@ func TestStoredFixtures(t *testing.T) {
 	valid := mustLoad(t, "testdata/valid")
 	if got, want := valid.Counts(), (Counts{
 		Workflows: 1, AgentTemplates: 1, ModelPolicies: 1, LLMGateways: 1,
-		ExecutionConfigs: 1, AuditProfiles: 0, Instructions: 2,
+		AuditProfiles: 0, Instructions: 2,
 	}); got != want {
 		t.Fatalf("valid fixture Counts() = %+v, want %+v", got, want)
 	}
@@ -789,7 +789,7 @@ spec:
   outputs:
     result: {required: true, mediaTypes: [text/plain]}
   executionConfig:
-    workers: {llmGateway: local-litellm@1}
+    workers: {modelPolicy: test-worker@1, llmGateway: local-litellm@1}
   entryStage: build
   stages:
     build:

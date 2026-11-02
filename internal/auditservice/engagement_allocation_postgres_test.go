@@ -184,6 +184,26 @@ func testEngagementStartToPrivateAllocationPins(t *testing.T, accessMode string,
 	if string(firstBytes) != string(secondBytes) {
 		t.Fatal("private metadata reread mutable Project or engagement")
 	}
+	*first.Engagement.Revision = "changed"
+	first.Policy.RequiredCapabilities[0] = "changed"
+	if controlled {
+		first.HTTP.Routes[0].PathPrefixes[0] = "/changed"
+		first.HTTP.Identities[0].Origins[0] = "http://changed.invalid"
+		if first.HTTP.Limits != nil {
+			*first.HTTP.Limits.TargetRequests = 99
+		}
+		if accessMode == "source-assisted" {
+			first.HTTP.Identities[1].Credential.CredentialID = "changed"
+		}
+	}
+	third, err := ResolveAllocationEngagement(f.ctx, f.pool, runID, stage.StageExecutionID, protected)
+	if err != nil {
+		t.Fatal(err)
+	}
+	thirdBytes, err := json.Marshal(third)
+	if err != nil || string(thirdBytes) != string(secondBytes) {
+		t.Fatalf("mutating an allocation projection changed its retained authority: %v", err)
+	}
 	if _, err = ResolveAllocationEngagement(f.ctx, f.pool, "foreign-run", stage.StageExecutionID, nil); !errors.Is(err, runstore.ErrNotFound) {
 		t.Fatalf("foreign Run reached baseline: %v", err)
 	}

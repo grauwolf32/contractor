@@ -486,7 +486,6 @@ spec:
   description: Exercises portable structural workspace analysis
   runtime: adk@1
   instructions: {ref: instructions/code-analysis-e2e-worker.md}
-  modelPolicy: worker@2
   toolsets:
     - {ref: code-analysis@1, tools: [list_symbols, search_def]}
     - {ref: text-artifacts@1, tools: [write_text_artifact]}
@@ -499,7 +498,6 @@ spec:
   description: Exercises the complete local graph surface and overlay invalidation
   runtime: adk@1
   instructions: {ref: instructions/code-analysis-e2e-worker.md}
-  modelPolicy: worker@2
   toolsets:
     - ref: code-analysis@1
       tools: [attack_surface, complexity_hotspots, entrypoint_paths_to, find_callees, find_callers, find_symbol, functions_that_raise, graph_summary, list_symbols, paths_between, search_def]
@@ -533,7 +531,7 @@ spec:
   outputs:
     report: {required: true, mediaTypes: [text/markdown]}
   executionConfig:
-    workers: {llmGateway: local-litellm@1, credential: development-worker}
+    workers: {modelPolicy: worker@2, llmGateway: local-litellm@1, credential: development-worker}
   entryStage: analyze
   stages:
     analyze:

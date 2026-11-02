@@ -73,8 +73,6 @@ const COMPATIBILITY_REASONS: Readonly<Record<CompatibilityReason, string>> = {
     "This type runs active tests without asking, which this server does not allow.",
   active_check_approval_unsupported:
     "This server cannot ask you to approve active tests.",
-  finding_confirmation_unsupported:
-    "Its workflows can propose possible issues, but this type does not let you confirm them.",
   manual_applicability_unsupported:
     "This server cannot ask you whether a requirement applies.",
   report_acceptance_unsupported:

@@ -250,10 +250,6 @@ func snapshotJSONReads() []snapshotJSONRead {
 			path: member(prepare, "workflow", "outputs", "result", "mediaTypes", "*"), want: "application/json",
 			sql: []string{"binding #> ARRAY['workflow', 'outputs', output->>'workflowOutput', 'mediaTypes']"},
 		},
-		{
-			name: "finding confirmation policy", document: auditProfileDocument,
-			path: textArrayPath(auditprofile.AuditProfileFindingConfirmationPath), want: string(auditprofile.AuditFindingHumanRequired),
-		},
 
 		// Audit triggers over the retained baseline snapshot.
 		{
@@ -379,7 +375,7 @@ func auditProfileDocument(*testing.T) any {
 				},
 			},
 		},
-		Interaction: auditprofile.AuditInteractionPolicy{FindingConfirmation: auditprofile.AuditFindingHumanRequired},
+		Interaction: auditprofile.AuditInteractionPolicy{},
 	}
 }
 

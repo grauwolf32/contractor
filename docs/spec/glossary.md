@@ -62,7 +62,7 @@ Terms used across the specification. Each entry names the document that owns the
 
 **Analyst severity** — The owner-assigned severity of a true_positive finding, distinct from the Worker's severity_suggestion. Owner: [Review and reports](audits/review-and-reports.md).
 
-**Analyst verdict** — An owner's true_positive or false_positive decision on a finding, recorded through the finding-triage review flow. Owner: [Review and reports](audits/review-and-reports.md).
+**Analyst verdict** — An owner's true_positive or false_positive decision on a finding, recorded through the canonical Project Finding owner command. Owner: [Review and reports](audits/review-and-reports.md).
 
 **Annotation block** — The contiguous canonical taint annotations immediately adjacent to a declaration, to which new annotation lines append. Owner: [Code analysis](tools/code-analysis.md).
 
@@ -372,9 +372,7 @@ Terms used across the specification. Each entry names the document that owns the
 
 **Execution-selection leaf** — An object with the optional fields `modelPolicy`, `llmGateway` and `credential`, at least one of which must be present. Owner: [Agent templates](configuration/agent-templates.md).
 
-**ExecutionConfig / `executionConfig`** — (1) **ExecutionConfig**: The configuration kind of an immutable, Stage-local escalation override profile with optional `planner` and `agents` selections. (2) **`executionConfig`**: Reference-only selections of ModelPolicy, LLMGatewayConfig and credential for Planner and Worker consumers, given as Workflow defaults, a Run override or an escalation override. Owner: [Agent templates](configuration/agent-templates.md).
-
-**ExecutionConfigRef** — The exact `(name, version)` of an ExecutionConfig plus the SHA-256 digest of its normalized RFC 8785 JCS manifest. Owner: [Agent templates](configuration/agent-templates.md).
+**executionConfig** — Reference-only selections of ModelPolicy, LLMGatewayConfig and credential for Planner and Worker consumers, given as Workflow defaults, an inline escalation override. Inline blocks may reuse YAML anchors within their Workflow; there is no standalone configuration kind. Owner: [Agent templates](configuration/agent-templates.md).
 
 **ExecutionRef** — The common opaque reference `{provider, connection_id, kind, id}` to one provider execution. Owner: [Portable evaluation format](evals/format.md).
 
@@ -885,7 +883,7 @@ Terms used across the specification. Each entry names the document that owns the
 
 **Retryable classification** — Whether another attempt may succeed after the failure a code reports: for Memory codes a retry without changing the input, for a Worker or Stage failure a fresh StageExecution. Owner: [Error and stop codes](platform/errors.md).
 
-**Review kind** — The purpose of a review request: active-check-approval, requirement-applicability, finding-triage or report-acceptance. Owner: [Review and reports](audits/review-and-reports.md).
+**Review kind** — The purpose of a review request: active-check-approval, requirement-applicability or report-acceptance. Owner: [Review and reports](audits/review-and-reports.md).
 
 **Review observation** — The captured Audit review state of one finding at one revision, recorded in a collection entry as provenance rather than as a dereference capability. Owner: [Findings](findings/findings.md).
 
@@ -1177,7 +1175,7 @@ Terms used across the specification. Each entry names the document that owns the
 
 **Worker runtime factory** — An in-process factory, known by an exact WorkerRuntime ref such as adk@1, that creates the Worker instance of an allocation. Owner: [Runtime Agent](execution/runtime-agent.md).
 
-**Worker summarizer** — The optional one-shot terminal summarization policy of an `adk@1` AgentTemplate, with fixed `terminal@1` semantics and its own ModelPolicy. Owner: [Agent templates](configuration/agent-templates.md).
+**Worker summarizer** — The optional one-shot terminal summarization policy of an `adk@1` AgentTemplate, with fixed `terminal@1` semantics and a separate ModelPolicy selected by Workflow. Owner: [Agent templates](configuration/agent-templates.md).
 
 **WorkerCompletion / `workerCompletion`** — (1) **WorkerCompletion**: The versioned private A2A union that carries exactly one WorkerResult or WorkerFailure plus invocation and state-revision control metadata. Owner: [Worker](execution/worker.md). (2) **`workerCompletion`**: The field of an AuditProfile check-workflow binding that selects the contract kind and, through stage and agent, the one logical Worker it applies to. Owner: [Audit Worker completion](audits/worker-completion.md).
 

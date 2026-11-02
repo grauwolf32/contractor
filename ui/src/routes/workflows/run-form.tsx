@@ -32,11 +32,7 @@ import { AlertDialog, Button, StatusChip } from "../../ui";
 import { InputFields, ParameterFields } from "./run-form-fields";
 import { useRunFormInventories } from "./run-form-inventories";
 import { runDraftReadiness } from "./run-form-readiness";
-import {
-  ExecutionOverrides,
-  RunMetadata,
-  RuntimePlacement,
-} from "./run-form-settings";
+import { RunMetadata, RuntimePlacement } from "./run-form-settings";
 import { useRunDraftState } from "./run-form-state";
 import "./run-drafts.css";
 
@@ -281,20 +277,10 @@ function WorkflowRunFormBody({
   const [metadataOptionsOpen, setMetadataOptionsOpen] = useState(
     () => draft.metadataLabels.length > 0,
   );
-  const [executionOptionsOpen, setExecutionOptionsOpen] = useState(
-    () =>
-      Object.values(draft.overrides.planner).some((value) => value !== "") ||
-      Object.values(draft.overrides.workers).some((value) => value !== "") ||
-      Object.keys(draft.overrides.stages ?? {}).length > 0 ||
-      draft.repeat?.notices.some(
-        (notice) => notice.field === "executionConfig",
-      ) === true,
-  );
   const inventories = useRunFormInventories({
     projectId,
     inputs: workflow.inputs,
     knownArtifacts: draft.knownArtifacts,
-    executionOptionsOpen,
     runtimeOptionsOpen,
   });
   const { artifactsPending } = inventories;
@@ -311,7 +297,6 @@ function WorkflowRunFormBody({
         parameters: draft.parameters,
         artifacts: draft.artifactSelections,
         artifactReviews: draft.artifactReviews,
-        overrides: draft.overrides,
       },
       (slot) => inventories.inputs[slot]?.artifactMap,
       limits,
@@ -469,8 +454,8 @@ function WorkflowRunFormBody({
           onConfirm={onDiscardDraft}
         >
           <p>
-            Parameters, input selections, labels, overrides and any ambiguous
-            submission identity in this tab will be removed.
+            Parameters, input selections, labels and any ambiguous submission
+            identity in this tab will be removed.
           </p>
         </AlertDialog>
       ) : null}
@@ -587,23 +572,6 @@ function WorkflowRunFormBody({
         editor={state.metadataLabels}
         open={metadataOptionsOpen}
         onOpenChange={setMetadataOptionsOpen}
-      />
-      <ExecutionOverrides
-        overrides={draft.overrides}
-        plannerSupported={Object.values(workflow.stages).some(
-          (stage) => stage.executionConfig.planner !== undefined,
-        )}
-        inventories={inventories}
-        open={executionOptionsOpen}
-        onOpenChange={setExecutionOptionsOpen}
-        onOverride={state.updateOverride}
-        onRemoveStageOverrides={() =>
-          change("overrides", (current) => {
-            const next = { ...current };
-            delete next.stages;
-            return next;
-          })
-        }
       />
 
       {mutation.error === null ? null : <ErrorNotice error={mutation.error} />}

@@ -16,7 +16,7 @@ func TestImporterPostgresSettlesPermanentInputFailureOnce(t *testing.T) {
 	pool := completionPool(t)
 	for _, child := range []bool{false, true} {
 		t.Run(map[bool]string{false: "first slice rejected", true: "bound child failed"}[child], func(t *testing.T) {
-			f := newCompletionFixtureWithOptions(t, pool, completionOptions{acceptance: "automatic", findingConfirmation: "disabled", skipInitialRun: !child})
+			f := newCompletionFixtureWithOptions(t, pool, completionOptions{acceptance: "automatic", skipInitialRun: !child})
 			var execution auditstore.Execution
 			wantCode := "collection-contract-invalid"
 			if child {

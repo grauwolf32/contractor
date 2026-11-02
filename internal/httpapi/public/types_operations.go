@@ -207,7 +207,6 @@ type workflowTransitionResponse struct {
 }
 
 type workflowEscalationConfigResponse struct {
-	Ref       *resolved.ExecutionConfigRef         `json:"ref,omitempty"`
 	Effective resolvedStageExecutionConfigResponse `json:"effective"`
 }
 

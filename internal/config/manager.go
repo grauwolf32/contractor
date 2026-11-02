@@ -15,12 +15,12 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
-	"github.com/grauwolf32/contractor/internal/randomid"
+	"github.com/grauwolf32/contractor/internal/helpers/clone"
+	"github.com/grauwolf32/contractor/internal/helpers/randomid"
 	"go.yaml.in/yaml/v4"
 	"golang.org/x/sys/unix"
 )
@@ -35,7 +35,6 @@ var configurationSubtrees = []string{
 	"agent-templates",
 	"model-policies",
 	"llm-gateways",
-	"execution-configs",
 	"audit-profiles",
 	"instructions",
 }
@@ -298,14 +297,13 @@ func (m *Manager) ModelPolicy(raw string) (contracts.ResolvedModelPolicy, error)
 func (m *Manager) ResolveRunWorkflow(
 	ctx context.Context,
 	raw string,
-	patch resolved.ExecutionConfigPatch,
 	credentials resolved.CredentialLookup,
 ) (resolved.ResolvedWorkflow, error) {
 	defaults, err := m.modelDefaults(ctx)
 	if err != nil {
 		return resolved.ResolvedWorkflow{}, err
 	}
-	return m.Snapshot().resolveRunWorkflow(ctx, raw, patch, credentials, defaults)
+	return m.Snapshot().resolveRunWorkflow(ctx, raw, credentials, defaults)
 }
 
 func (m *Manager) ConfigurationDiscovery(kind ConfigurationKind) (ConfigurationDiscovery, error) {
@@ -558,7 +556,7 @@ func preparePublication(request PublicationRequest) (publicationCandidate, error
 			requestDigest: gateway.Ref.Digest, subtree: "llm-gateways",
 		}, nil
 
-	case ConfigurationAgentTemplates, ConfigurationExecutionConfigs:
+	case ConfigurationAgentTemplates:
 		return publicationCandidate{}, fmt.Errorf("%w: %s is read-only", ErrInvalidPublication, request.Kind)
 	default:
 		return publicationCandidate{}, ErrInvalidConfigurationKind
@@ -586,7 +584,7 @@ func (s *Snapshot) withPublication(candidate publicationCandidate) *Snapshot {
 	sources := clone.Map(s.sources)
 	sources[configurationSourceKey(candidate.resource.Ref.Kind, candidate.selector.String())] = ConfigurationSourceManaged
 	return newSnapshot(
-		s.workflows, s.templates, policies, gateways, s.executionConfigs, s.auditProfiles,
+		s.workflows, s.templates, policies, gateways, s.auditProfiles,
 		s.instructions, sources,
 	)
 }

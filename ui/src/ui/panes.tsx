@@ -2,6 +2,7 @@ import { useEffect, useRef, type ReactNode, type Ref } from "react";
 import { Link, type To } from "react-router";
 
 interface PaneLayoutProps {
+  className?: string | undefined;
   /** The list pane content, usually a ListPane. */
   list: ReactNode;
   /** The detail pane content, usually a DetailPane or an EmptyState. */
@@ -9,7 +10,7 @@ interface PaneLayoutProps {
   /** On one-pane screens (≤ 820 px) show the detail instead of the list. */
   showDetail: boolean;
   /** One-pane screens show this link above the detail, e.g. "Back to checks". */
-  backLink?: { to: To; label: string } | undefined;
+  backLink?: { to: To; label: string; state?: unknown } | undefined;
   /** Accessible name of the list `<section>`. */
   listLabel: string;
   /** Accessible name of the detail `<section>`. */
@@ -28,6 +29,7 @@ const SELECTED_ROW = '[aria-current="true"]';
  * which scrolls it into view, even when Back clears the selection.
  */
 export function PaneLayout({
+  className,
   list,
   detail,
   showDetail,
@@ -87,7 +89,10 @@ export function PaneLayout({
   });
 
   return (
-    <div className="ui-panes" data-show={showDetail ? "detail" : "list"}>
+    <div
+      className={className === undefined ? "ui-panes" : `ui-panes ${className}`}
+      data-show={showDetail ? "detail" : "list"}
+    >
       <section
         ref={listPane}
         className="ui-panes-list"
@@ -111,7 +116,11 @@ export function PaneLayout({
         tabIndex={-1}
       >
         {backLink === undefined ? null : (
-          <Link className="ui-panes-back" to={backLink.to}>
+          <Link
+            className="ui-panes-back"
+            to={backLink.to}
+            state={backLink.state}
+          >
             <span aria-hidden="true">←</span>
             {backLink.label}
           </Link>

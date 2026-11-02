@@ -170,7 +170,7 @@ own the rules of particular state are indexed in the next section.
 | --- | --- |
 | `internal/agentprincipal` | `runtime_agent_principals` |
 | `internal/artifacts` | `artifact_binding_revisions`, `artifact_bindings`, `artifact_blobs`, `artifact_lineage`, `artifact_scopes`, `artifact_versions` |
-| `internal/auditstore/internal/pgstore` | `audit_artifact_links`, `audit_controller_claims`, `audit_events`, `audit_execution_items`, `audit_executions`, `audit_finding_assessments`, `audit_finding_contributions`, `audit_findings`, `audit_items`, `audit_live_item_reviews` (view), `audit_report_pages`, `audit_review_decisions`, `audit_review_requests`, `audit_round_result_pages`, `audit_rounds`, `audits`, `finding_correlation_fences` |
+| `internal/auditstore/internal/pgstore` | `audit_artifact_links`, `audit_controller_claims`, `audit_events`, `audit_execution_items`, `audit_executions`, `audit_items`, `audit_live_item_reviews` (view), `audit_report_pages`, `audit_review_decisions`, `audit_review_requests`, `audit_round_result_pages`, `audit_rounds`, `audits`, `finding_correlation_fences`, `project_findings`, `project_finding_sources`, `project_finding_audits` |
 | `internal/credentials` | `credential_operations`, `git_ssh_keys`, `llm_credentials`, `runtime_credentials` |
 | `internal/evalstore` | `eval_collections`, `eval_commands`, `eval_controller_claims`, `eval_dataset_revisions`, `eval_evidence_refs`, `eval_execution_tombstones`, `eval_experiments`, `eval_frozen_plans`, `eval_member_projections`, `eval_members`, `eval_plan_resources`, `eval_progress_observations`, `eval_projection_queue`, `eval_records`, `eval_selections`, `eval_submissions`, `eval_suboperations`, `eval_view_charts`, `eval_view_pairs` |
 | `internal/findingintake` | `finding_proposal_audit_holds`, `finding_proposal_receipts` |
@@ -639,13 +639,16 @@ or deleted. A later migration that redefines a function with `CREATE OR
 REPLACE` is a successive schema version, not a duplicate to remove: the
 installed schema holds one current definition.
 
-The user-authorized pre-production fold on 2026-10-31 replaces the previous
-baseline and versions 000002–000065 with one current baseline. Its installed
-catalog and initial rows equal those of the complete retired chain. Existing
-ledgers are not rewritten or accepted: they fail the same drift check and the
-operator must recreate such a database. There is no compatibility reader or
-upgrade path for the retired chain. This one-time fold does not relax
-immutability for subsequent migrations.
+The user-authorized pre-production fold on 2026-11-02 replaces the previous
+baseline and versions 000002–000003 with one current baseline. Its installed
+catalog and initial rows equal those of the repaired retired chain. The stopped
+demo first completes the one-time Project Finding cutover against a verified
+backup, then its ledger alone is rebound offline after installed-schema equality
+and unchanged business-data signatures are proven. The release manifest records
+the backup, old/new ledgers and exact checksums. This is an explicit operational
+transition for that demo, with no runtime ledger repair or old-schema reader.
+Every other stale ledger fails the same strict drift check. This fold does not
+relax immutability for subsequent migrations.
 
 **PER-R31.** The migration budget is the operation budget (PER-R19) of the
 migrator's transaction. The operator chooses it for each run, with

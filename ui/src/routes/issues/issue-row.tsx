@@ -1,13 +1,11 @@
 import { Fragment, type ReactNode } from "react";
 import type { To } from "react-router";
 
-import type { AuditFinding } from "../../api/audits";
+import type { ProjectFindingSummary } from "../../api/audits";
 import { formatShortDateTime, formatTimestamp } from "../../app/format";
 import { findingStateLabel, severityLabel } from "../../app/vocabulary";
-import { ListRow, MethodChip, StatusGlyph } from "../../ui";
-import { httpOperation, weaknessReferences } from "../decisions/text";
-
-import { CorrelationMark } from "./correlation-mark";
+import { ListRow, MethodChip, StatusGlyph, StatusChip } from "../../ui";
+import { httpOperation } from "../decisions/text";
 
 import "./issues.css";
 
@@ -45,17 +43,42 @@ function BreakablePath({ path }: { path: string }) {
  * The analyst's rating, and apart from it the AI's suggestion while the
  * analyst has not rated: the two are never mixed (S19:1791-1793).
  */
-function severityParts(finding: AuditFinding): ReactNode[] {
-  const suggestion = finding.firstProposal.document.severity_suggestion;
+function severityParts(
+  finding: ProjectFindingSummary,
+  badges: boolean,
+): ReactNode[] {
+  function rating(
+    text: string,
+    value: NonNullable<ProjectFindingSummary["analystSeverity"]>,
+  ) {
+    if (!badges) return text;
+    const tone =
+      value === "critical" || value === "high"
+        ? "blocked"
+        : value === "medium"
+          ? "warning"
+          : value === "low"
+            ? "info"
+            : "neutral";
+    return (
+      <StatusChip tone={tone} glyph={false} size="sm">
+        {text}
+      </StatusChip>
+    );
+  }
+  const suggestion = finding.severitySuggestion;
   return [
     <span className="issues-row-severity">
-      {finding.analystSeverity === undefined
+      {finding.analystSeverity === null
         ? "Severity not set"
-        : `Severity: ${severityLabel(finding.analystSeverity)}`}
+        : rating(
+            `Severity: ${severityLabel(finding.analystSeverity)}`,
+            finding.analystSeverity,
+          )}
     </span>,
-    finding.analystSeverity !== undefined || suggestion === "" ? null : (
+    finding.analystSeverity !== null || suggestion === "" ? null : (
       <span className="issues-row-suggestion">
-        AI suggestion: {severityLabel(suggestion)}
+        {rating(`AI suggestion: ${severityLabel(suggestion)}`, suggestion)}
       </span>
     ),
   ];
@@ -78,7 +101,7 @@ function separated(parts: readonly ReactNode[]): ReactNode {
 }
 
 interface IssueRowProps {
-  finding: AuditFinding;
+  finding: ProjectFindingSummary;
   to: To;
   selected?: boolean | undefined;
   /** First part of the context line: the project or the check. */
@@ -86,6 +109,8 @@ interface IssueRowProps {
   id?: string | undefined;
   onSelect?: (() => void) | undefined;
   trailing?: ReactNode;
+  showCreated?: boolean | undefined;
+  severityBadges?: boolean | undefined;
 }
 
 /**
@@ -101,12 +126,13 @@ export function IssueRow({
   id,
   onSelect,
   trailing,
+  showCreated = true,
+  severityBadges = false,
 }: IssueRowProps) {
-  const document = finding.firstProposal.document;
+  const document = finding;
   const state = findingStateLabel(finding.state);
   const operation =
-    document.subject === null ? undefined : httpOperation(document.subject.key);
-  const weakness = weaknessReferences(document)[0]?.requirement_id;
+    document.subjectKey === "" ? undefined : httpOperation(document.subjectKey);
   return (
     <ListRow
       to={to}
@@ -129,15 +155,13 @@ export function IssueRow({
               context === undefined || context === null ? null : (
                 <span className="issues-row-context">{context}</span>
               ),
-              weakness,
-              <FoundTime value={finding.createdAt} />,
+              showCreated ? <FoundTime value={finding.createdAt} /> : null,
             ])}
           </span>
           <span className="issues-row-line">
             {separated([
               <span className="issues-row-state">{state.label}</span>,
-              <CorrelationMark finding={finding} />,
-              ...severityParts(finding),
+              ...severityParts(finding, severityBadges),
             ])}
           </span>
         </span>

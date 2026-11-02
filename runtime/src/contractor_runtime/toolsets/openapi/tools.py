@@ -165,39 +165,27 @@ class OpenAPIToolsetFactory:
             project_workspace=project_workspace,
         )
         secrets = runtime_secrets(runtime_settings)
-        builders: dict[str, Callable[[], Any]] = {
-            "load_openapi": lambda: LoadOpenAPITool(session, client, metrics, secrets),
-            "initialize_openapi": lambda: InitializeOpenAPITool(session, client, metrics, secrets),
-            "get_openapi_info": lambda: GetOpenAPIInfoTool(session, client, metrics, secrets),
-            "set_openapi_info": lambda: SetOpenAPIInfoTool(session, client, metrics, secrets),
-            "list_openapi_servers": lambda: ListOpenAPIServersTool(
-                session, client, metrics, secrets
-            ),
-            "set_openapi_servers": lambda: SetOpenAPIServersTool(session, client, metrics, secrets),
-            "list_openapi_tags": lambda: ListOpenAPITagsTool(session, client, metrics, secrets),
-            "set_openapi_tags": lambda: SetOpenAPITagsTool(session, client, metrics, secrets),
-            "list_openapi_paths": lambda: ListOpenAPIPathsTool(session, client, metrics, secrets),
-            "get_openapi_path": lambda: GetOpenAPIPathTool(session, client, metrics, secrets),
-            "upsert_openapi_path": lambda: UpsertOpenAPIPathTool(session, client, metrics, secrets),
-            "remove_openapi_path": lambda: RemoveOpenAPIPathTool(session, client, metrics, secrets),
-            "list_openapi_components": lambda: ListOpenAPIComponentsTool(
-                session, client, metrics, secrets
-            ),
-            "get_openapi_component": lambda: GetOpenAPIComponentTool(
-                session, client, metrics, secrets
-            ),
-            "upsert_openapi_component": lambda: UpsertOpenAPIComponentTool(
-                session, client, metrics, secrets
-            ),
-            "remove_openapi_component": lambda: RemoveOpenAPIComponentTool(
-                session, client, metrics, secrets
-            ),
-            "read_openapi_document": lambda: ReadOpenAPIDocumentTool(
-                session, client, metrics, secrets
-            ),
-            "validate_openapi": lambda: ValidateOpenAPITool(session, client, metrics, secrets),
+        constructors = {
+            "load_openapi": LoadOpenAPITool,
+            "initialize_openapi": InitializeOpenAPITool,
+            "get_openapi_info": GetOpenAPIInfoTool,
+            "set_openapi_info": SetOpenAPIInfoTool,
+            "list_openapi_servers": ListOpenAPIServersTool,
+            "set_openapi_servers": SetOpenAPIServersTool,
+            "list_openapi_tags": ListOpenAPITagsTool,
+            "set_openapi_tags": SetOpenAPITagsTool,
+            "list_openapi_paths": ListOpenAPIPathsTool,
+            "get_openapi_path": GetOpenAPIPathTool,
+            "upsert_openapi_path": UpsertOpenAPIPathTool,
+            "remove_openapi_path": RemoveOpenAPIPathTool,
+            "list_openapi_components": ListOpenAPIComponentsTool,
+            "get_openapi_component": GetOpenAPIComponentTool,
+            "upsert_openapi_component": UpsertOpenAPIComponentTool,
+            "remove_openapi_component": RemoveOpenAPIComponentTool,
+            "read_openapi_document": ReadOpenAPIDocumentTool,
+            "validate_openapi": ValidateOpenAPITool,
         }
-        return {name: builders[name]() for name in selected}
+        return {name: constructors[name](session, client, metrics, secrets) for name in selected}
 
 
 class _OpenAPISession(DocumentSession[dict[str, Any]]):

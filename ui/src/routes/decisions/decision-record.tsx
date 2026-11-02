@@ -1,5 +1,5 @@
 import { RecordedTime } from "../../app/recorded-time";
-import { IdChip, StatusChip } from "../../ui";
+import { StatusChip } from "../../ui";
 import { DecisionMarkdown } from "./markdown";
 import { decisionOutcome, type AuditReviewDecision } from "./model";
 
@@ -28,15 +28,6 @@ export function DecisionRecord({
           <RecordedTime value={decision.createdAt} />
         </span>
       </p>
-      {decision.duplicateTargetId === undefined ? null : (
-        <p className="decisions-record-line">
-          Duplicate of{" "}
-          <IdChip
-            value={decision.duplicateTargetId}
-            label="ID of the original possible issue"
-          />
-        </p>
-      )}
       <div className="decisions-record-reason">
         <span className="decisions-record-label">Why</span>
         <DecisionMarkdown source={decision.rationale} />

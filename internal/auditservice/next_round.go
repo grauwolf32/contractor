@@ -11,7 +11,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/grauwolf32/contractor/internal/pagelimit"
+	"github.com/grauwolf32/contractor/internal/helpers/pagelimit"
 )
 
 const (
@@ -37,9 +37,6 @@ func (s *Service) PrepareNextRound(
 	if err != nil || profile.Ref.Name != snapshot.Audit.Profile.Name ||
 		profile.Ref.Version != snapshot.Audit.Profile.Version || profile.Ref.Digest != snapshot.Audit.Profile.Digest {
 		return auditstore.AcceptRoundParams{}, nil, inconsistentRound("the pinned AuditProfile snapshot is invalid", err)
-	}
-	if profile.Interaction.FindingConfirmation == auditprofile.AuditFindingDisabled {
-		return auditstore.AcceptRoundParams{}, nil, nil
 	}
 	baseline, err := DecodeBaseline(snapshot.Audit.BaselineSnapshot)
 	if err != nil {

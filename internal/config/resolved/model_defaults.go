@@ -2,7 +2,6 @@ package resolved
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
@@ -10,11 +9,11 @@ import (
 // ApplyStageModelDefaults materializes the captured deployment choices for
 // canonical role policies. It also runs after a transition override so a
 // Passthrough-to-Streamline continuation gets the pinned Planner choice.
-// Explicit model-specific policies and explicit Run selections are preserved.
+// Explicit model-specific policies are preserved.
 func ApplyStageModelDefaults(stage *ResolvedStage) {
 	replace := func(selection *ResolvedConsumerExecutionConfig, role string) {
 		policy, ok := stage.ModelDefaults[role]
-		if !ok || strings.HasPrefix(selection.Origins.ModelPolicy, "run.") {
+		if !ok {
 			return
 		}
 		if selection.ModelPolicy.Ref.PolicyID == role && selection.ModelPolicy.Ref.Version == policy.Ref.Version {
@@ -32,8 +31,8 @@ func ApplyStageModelDefaults(stage *ResolvedStage) {
 		selection := stage.ExecutionConfig.Agents[name]
 		replace(&selection, "worker")
 		replace(&selection, "audit_completion_worker")
-		if binding.Template.Summarizer != nil && !binding.ContextManagement.IsCompact() && selection.SummarizerModelPolicy == nil {
-			source := binding.Template.Summarizer.ModelPolicy.Ref
+		if selection.SummarizerModelPolicy != nil {
+			source := selection.SummarizerModelPolicy.Ref
 			if policy, ok := stage.ModelDefaults["summarizer"]; ok && source.PolicyID == "summarizer" && source.Version == policy.Ref.Version {
 				copy := policy.Clone()
 				selection.SummarizerModelPolicy = &copy

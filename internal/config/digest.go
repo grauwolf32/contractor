@@ -2,9 +2,9 @@ package config
 
 import (
 	"github.com/grauwolf32/contractor/internal/config/resolved"
-	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 )
 
 func modelPolicyDigest(selector resolved.Selector, policy contracts.ResolvedModelPolicy) (string, error) {
@@ -53,17 +53,6 @@ func llmGatewayConfigDigest(
 	})
 }
 
-func executionConfigDigest(selector resolved.Selector, patch resolved.StageExecutionConfigPatch) (string, error) {
-	return contentdigest.CanonicalJSON(map[string]any{
-		"apiVersion": contracts.APIVersion,
-		"kind":       executionConfigKind,
-		"metadata": map[string]any{
-			"name": selector.ID, "version": selector.Version,
-		},
-		"spec": patch.CanonicalValue(),
-	})
-}
-
 func agentTemplateDigest(selector resolved.Selector, template contracts.ResolvedAgentTemplate) (string, error) {
 	toolsets := make([]any, 0, len(template.Toolsets))
 	for _, selection := range template.Toolsets {
@@ -89,8 +78,7 @@ func agentTemplateDigest(selector resolved.Selector, template contracts.Resolved
 			"ref":    template.Instructions.Ref,
 			"digest": template.Instructions.Digest,
 		},
-		"modelPolicy": resolvedModelPolicyCanonicalValue(template.ModelPolicy),
-		"toolsets":    toolsets,
+		"toolsets": toolsets,
 		"sandboxProfile": map[string]any{
 			"sandboxProfileId": template.SandboxProfile.SandboxProfileID,
 			"version":          template.SandboxProfile.Version,
@@ -98,7 +86,6 @@ func agentTemplateDigest(selector resolved.Selector, template contracts.Resolved
 	}
 	if template.IsToolWorker() {
 		delete(spec, "instructions")
-		delete(spec, "modelPolicy")
 		spec["execution"] = template.Execution
 	}
 	if template.Sitemap != nil {
@@ -112,9 +99,7 @@ func agentTemplateDigest(selector resolved.Selector, template contracts.Resolved
 		spec["skills"] = skills
 	}
 	if template.Summarizer != nil {
-		summarizer := map[string]any{
-			"modelPolicy": resolvedModelPolicyCanonicalValue(template.Summarizer.ModelPolicy),
-		}
+		summarizer := map[string]any{}
 		if template.Summarizer.CumulativeBudget != nil {
 			summarizer["cumulativeBudget"] = *template.Summarizer.CumulativeBudget
 		}
@@ -138,22 +123,6 @@ func agentTemplateDigest(selector resolved.Selector, template contracts.Resolved
 		"spec": spec,
 	}
 	return contentdigest.CanonicalJSON(manifest)
-}
-
-func resolvedModelPolicyCanonicalValue(policy contracts.ResolvedModelPolicy) map[string]any {
-	result := map[string]any{
-		"ref": map[string]any{
-			"policyId": policy.Ref.PolicyID,
-			"version":  policy.Ref.Version,
-			"digest":   policy.Ref.Digest,
-		},
-		"model": policy.Model,
-	}
-	addModelPolicyLimits(result, policy)
-	if policy.Temperature != nil {
-		result["temperature"] = *policy.Temperature
-	}
-	return result
 }
 
 func addModelPolicyLimits(target map[string]any, policy contracts.ResolvedModelPolicy) {

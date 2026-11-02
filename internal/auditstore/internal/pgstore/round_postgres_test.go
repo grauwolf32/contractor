@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -199,6 +200,24 @@ func insertAuditProposalHoldForRoundTest(
 	if len(sourceRun) > 0 {
 		runID = sourceRun[0]
 	}
+	index, err := auditdomain.EncodeFindingChecksProjection(auditdomain.FindingChecksProjection{
+		Schema: auditdomain.FindingChecksProjectionSchema, ProposalDigest: proposal.Digest,
+		SizeBytes: proposal.SizeBytes, Checks: []auditdomain.FindingCheckProjection{},
+		// Metadata-only Round fixtures never hydrate this opaque proposal.
+		Subject:     &auditdomain.FindingFragment{Offset: 0, Length: 1, Digest: auditdomain.DigestBytes([]byte("0"))},
+		Limitations: &auditdomain.FindingFragment{Offset: 1, Length: 1, Digest: auditdomain.DigestBytes([]byte("1"))},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	insertAuditProposalHoldWithIndexForRoundTest(t, ctx, db, audit, proposal, receiptID, runID, index)
+}
+
+func insertAuditProposalHoldWithIndexForRoundTest(
+	t *testing.T, ctx context.Context, db *pgxpool.Pool, audit auditstore.Audit,
+	proposal auditstore.ExactArtifact, receiptID, runID string, index []byte,
+) {
+	t.Helper()
 	proposalRef, err := json.Marshal(proposal.Ref)
 	if err != nil {
 		t.Fatal(err)
@@ -216,17 +235,17 @@ INSERT INTO finding_proposal_receipts (
     workflow_name, workflow_version, workflow_schema_version,
     workflow_configuration_ref, workflow_closure_digest,
     proposal_ref, proposal_digest, proposal_media_type,
-    proposal_size_bytes, evidence, report_projection
-) VALUES (
+    proposal_size_bytes, evidence, project_proposal, project_evidence, retention_state, report_projection
+, checks_projection) VALUES (
     $1, 'proposal-'||$1, 'allocation-'||$1, 'runtime-one', 'instance-one',
     'stage-one', 'worker', 'invocation-'||$1, 'submission-'||$1, 'candidate-'||$1, $2,
     $9, $3, $4,
     'source-workflow', '1', 'contractor/v1alpha1',
     '{"name":"source-workflow","version":"1"}'::jsonb, $5,
-    $6::jsonb, $7, 'application/json', $8, '[]'::jsonb,
+    $6::jsonb, $7, 'application/json', $8, '[]'::jsonb, $10::jsonb, '[]'::jsonb, 'project-held',
     '{"description":"Test finding.","limitations":[],"preconditions":[],"severity_suggestion":"","standard_refs":[],"subject":null,"title":"Test finding."}'
-)`, receiptID, testDigest("5"), audit.OwnerID, audit.ProjectID,
-		testDigest("6"), proposalRef, proposal.Digest, proposal.SizeBytes, runID); err != nil {
+, $11::text::json)`, receiptID, testDigest("5"), audit.OwnerID, audit.ProjectID,
+		testDigest("6"), proposalRef, proposal.Digest, proposal.SizeBytes, runID, proposalDescriptor, string(index)); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := db.Exec(ctx, `

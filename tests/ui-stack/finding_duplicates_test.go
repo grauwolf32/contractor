@@ -96,7 +96,7 @@ func correlationProducerStage() gatewayStage {
 			if !found {
 				return nil, fmt.Errorf("selected source input missing")
 			}
-			return map[string]any{"title": "Embedded private key", "description": "A private key literal is embedded in source.", "file": "key.py", "line": 1, "cwe": "CWE-321", "evidence_refs": []any{source}}, nil
+			return map[string]any{"title": "Embedded private key", "description": "A private key literal is embedded in source.", "file": "key.py", "line": 1, "cwe": "CWE-321", "publish_problem": true, "evidence_refs": []any{source}}, nil
 		}),
 		toolGatewayStep("write_text_artifact", fixedArguments(map[string]any{"name": "report", "media_type": "text/markdown", "text": "Synthetic key literal recorded with exact source evidence."})),
 		{summary: "Source observation recorded", artifacts: map[string]artifactBinding{"report": {namespace: "source-findings", name: "report"}}},

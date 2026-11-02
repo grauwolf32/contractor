@@ -17,7 +17,7 @@ import (
 func TestAgentTemplateSkillsNormalizeAndPreserveEmptyDigest(t *testing.T) {
 	baseline := mustLoad(t, agentSkillsFixtureRoot)
 	baselineTemplate, _ := baseline.agentTemplateForTest("artifact_builder@1")
-	const fixtureWithoutSkillsDigest = "sha256:76879d45aef4c7b7900341ed7ff0b9de5ea9d7a41c6921d304a1c80a2bd2e9d0"
+	const fixtureWithoutSkillsDigest = "sha256:36429deb543a71ace7468af892a2a3151caf3b1f04b96dc15ad6407c4b7fd5ce"
 	if baselineTemplate.Ref.Digest != fixtureWithoutSkillsDigest {
 		t.Fatalf("test fixture AgentTemplate digest changed: %s", baselineTemplate.Ref.Digest)
 	}
@@ -62,7 +62,7 @@ func TestSharedAgentTemplateSkillDigestMatchesSharedPythonFixture(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	const expected = "sha256:f088d3a6c4b2ecd9e430da5f503db36d023cdb8791efec29468f91d7120293d6"
+	const expected = "sha256:81e6f6d74688a5222a264e8399f53cb4b42a729f179a35ba43fd58c939054203"
 	if digest != expected {
 		t.Fatalf("shared non-empty Skill AgentTemplate digest = %s, want %s", digest, expected)
 	}
@@ -117,7 +117,7 @@ func TestAgentTemplateSkillsReserveNativeToolsAndRequireToolBudget(t *testing.T)
 	})
 
 	t.Run("Skill-only Worker", func(t *testing.T) {
-		root := copyAgentSkillsFixture(t)
+		root := copyCoreFixture(t)
 		writeFile(t, filepath.Join(root, "model-policies/test-skill-worker.yaml"), []byte(`apiVersion: contractor/v1alpha1
 kind: ModelPolicy
 metadata: {name: test-skill-worker, version: "1"}
@@ -128,7 +128,7 @@ spec:
   maxTotalTokens: 32768
 `))
 		path := filepath.Join(root, "agent-templates/artifact_builder.yaml")
-		replaceFile(t, path, "  modelPolicy: test-worker@1", "  modelPolicy: test-skill-worker@1")
+		replaceFile(t, filepath.Join(root, "workflows/artifact_copy.yaml"), "modelPolicy: test-worker@1", "modelPolicy: test-skill-worker@1")
 		replaceFile(t, path, `  toolsets:
     - ref: run-artifacts@1
       tools:

@@ -15,7 +15,7 @@ func TestPostgresStageCollectionPreservesEmptySliceShapes(t *testing.T) {
 			return store.ListStageExecutionsWithUnreleasedAllocations(ctx, "missing-run")
 		}},
 		{"terminal recovery", false, func() ([]StageExecution, error) {
-			return store.ListTerminalStageExecutionsWithAllocations(ctx)
+			return store.ListTerminalStageExecutionsWithAllocations(ctx, nil)
 		}},
 	} {
 		t.Run(test.name, func(t *testing.T) {

@@ -1,9 +1,11 @@
 package public
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"strings"
 	"testing"
@@ -77,10 +79,26 @@ func TestPublicConfigurationProjectionContracts(t *testing.T) {
 		}
 	})
 
+	t.Run("removed escalation profile kind", func(t *testing.T) {
+		for _, path := range []string{
+			"/v1/configurations/execution-configs",
+			"/v1/configurations/execution-configs/strong-routing/versions/1",
+		} {
+			response := httptest.NewRecorder()
+			fixture.handler.ServeHTTP(response, authenticatedRequest(http.MethodGet, path, bytes.NewReader(nil)))
+			if response.Code != http.StatusBadRequest {
+				t.Fatalf("removed kind %s = %d: %s", path, response.Code, response.Body.String())
+			}
+		}
+		if err := document.Components.Schemas["ConfigurationKind"].Value.VisitJSON("execution-configs"); err == nil {
+			t.Fatal("OpenAPI still accepts the removed configuration kind")
+		}
+	})
+
 	t.Run("repository catalog", func(t *testing.T) {
 		summarizers, instructions := 0, 0
 		for _, kind := range []config.ConfigurationKind{
-			config.ConfigurationAgentTemplates, config.ConfigurationExecutionConfigs,
+			config.ConfigurationAgentTemplates,
 			config.ConfigurationLLMGateways, config.ConfigurationModelPolicies,
 		} {
 			t.Run(string(kind), func(t *testing.T) {

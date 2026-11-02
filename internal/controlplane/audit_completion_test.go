@@ -111,7 +111,7 @@ func TestAuditCompletionPrepareSendsPinnedContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = client.Prepare(context.Background(), reservation, runtimesettings.WorkerExecutionSettings{ModelPolicy: binding.AgentTemplate.ModelPolicy, RuntimeSettings: testRuntimeSettings(), ResolvedRuntimeConfigProvenance: testRuntimeProvenance()})
+	_, err = client.Prepare(context.Background(), reservation, runtimesettings.WorkerExecutionSettings{ModelPolicy: testWorkerPolicy(t), RuntimeSettings: testRuntimeSettings(), ResolvedRuntimeConfigProvenance: testRuntimeProvenance()})
 	if err != nil {
 		t.Fatal(err)
 	}

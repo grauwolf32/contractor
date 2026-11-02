@@ -1,7 +1,11 @@
 import { useId, type ReactNode } from "react";
 import { Link, type To } from "react-router";
 
-import type { Audit, AuditFinding, AuditItem } from "../../../api/audits";
+import type {
+  Audit,
+  ProjectFindingSummary,
+  AuditItem,
+} from "../../../api/audits";
 import { ContextLink } from "../../../app/context-navigation";
 import {
   capitalize,
@@ -18,7 +22,6 @@ import {
   StatusChip,
   StatusGlyph,
 } from "../../../ui";
-import { weaknessReferences } from "../../decisions/text";
 import { itemActivity } from "./activity-model";
 import { statusDescription } from "./assessments";
 import { formatSpan } from "./check-format";
@@ -54,15 +57,21 @@ function readable(value: string): string {
 function Section({
   title,
   aside,
+  kind,
   children,
 }: {
   title: string;
   aside?: ReactNode;
+  kind?: "conclusion";
   children: ReactNode;
 }) {
   const heading = useId();
   return (
-    <section className="checks-item-section" aria-labelledby={heading}>
+    <section
+      className="checks-item-section"
+      data-kind={kind}
+      aria-labelledby={heading}
+    >
       <div className="checks-item-section-heading">
         <h3 id={heading}>{title}</h3>
         {aside === undefined ? null : (
@@ -90,34 +99,49 @@ function gapsHeading(entry: CheckEntry): string {
   }
 }
 
-function IssueRow({ audit, finding }: { audit: Audit; finding: AuditFinding }) {
-  const document = finding.firstProposal.document;
+function IssueRow({
+  finding,
+}: {
+  audit: Audit;
+  finding: ProjectFindingSummary;
+}) {
+  const document = finding;
   const state = findingStateLabel(finding.state);
-  const weaknesses = weaknessReferences(document);
+  const needsReview =
+    finding.state === null ||
+    finding.state === "proposed" ||
+    finding.state === "needs-evidence";
+  const to = `/issues/${encodeURIComponent(finding.projectId)}/${encodeURIComponent(finding.findingId)}`;
   return (
-    <li className="checks-issue">
+    <li
+      className="checks-issue"
+      data-needs-review={needsReview ? "" : undefined}
+    >
       <StatusGlyph tone={state.tone} />
       <div className="checks-issue-main">
-        <Link
-          to={`/issues/${encodeURIComponent(audit.auditId)}/${encodeURIComponent(finding.findingId)}`}
-        >
-          {document.title}
-        </Link>
+        <Link to={to}>{document.title}</Link>
         <p className="checks-issue-meta">
-          {weaknesses.length === 0 ? null : (
-            <span>
-              {weaknesses.map((weakness) => weakness.requirement_id).join(", ")}
-            </span>
-          )}
           <span>
             Severity {severityLabel(finding.analystSeverity).toLowerCase()}
           </span>
           <span>Found {formatShortDateTime(finding.createdAt)}</span>
         </p>
       </div>
-      <StatusChip tone={state.tone} size="sm">
-        {state.label}
-      </StatusChip>
+      <div className="checks-issue-actions">
+        <StatusChip tone={state.tone} size="sm">
+          {state.label}
+        </StatusChip>
+        {needsReview ? (
+          <ButtonLink
+            to={to}
+            returnLabel="Check"
+            size="sm"
+            aria-label={`Review ${document.title}`}
+          >
+            Review
+          </ButtonLink>
+        ) : null}
+      </div>
     </li>
   );
 }
@@ -333,7 +357,7 @@ export function CheckItemView({
         ) : null}
       </header>
       <ScanInputs audit={audit} entry={entry} />
-      <Section title="Conclusion">
+      <Section title="Conclusion" kind="conclusion">
         {conclusion ? (
           <AuditMarkdown source={conclusion} />
         ) : (
@@ -351,7 +375,10 @@ export function CheckItemView({
         ) : null}
         {row.coverage.gaps.length === 0 ? null : (
           <div className="checks-gaps">
-            <strong>{gapsHeading(entry)}</strong>
+            <div className="checks-gaps-heading">
+              <StatusGlyph tone={entry.status.tone} />
+              <strong>{gapsHeading(entry)}</strong>
+            </div>
             <ul>
               {row.coverage.gaps.map((gap, index) => (
                 <li key={index}>{gap}</li>

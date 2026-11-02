@@ -134,7 +134,7 @@ A Runtime must advertise local workspace and graph capabilities to run this prof
 
 `openapi-operation-trace@1` selects `audit_openapi_operation_tracer@1`, adding
 `security-findings-code@1.finding` and `text-artifacts@1.write_text_artifact` with
-`findingConfirmation: human-required`. It preserves the operation inventory and
+explicit Project problem publication. It preserves the operation inventory and
 prohibits active checks. Findings do not turn `operation-resolution` into full
 trace coverage. `findings-review@2` independently reads a pinned collection with
 `list_findings` and publishes an analysis report; it does not confirm findings.
@@ -383,20 +383,18 @@ explicitly when the immutable Gateway digest changes.
 Workflow `spec.executionConfig` contains reference-only defaults. A modeled
 consumer resolves an exact `modelPolicy`, `llmGateway`, and optional non-secret
 credential ID; per-Stage and per-Agent leaves override Workflow-wide defaults.
-`POST /v1/runs` accepts the same shape as an override, with
-`credential: null` as the only explicit clear operation. The resolved bodies,
+Run and Eval callers select an authored Workflow. Inline escalation alone
+accepts `credential: null` to clear an inherited credential. The resolved bodies,
 digests, origins, and credential IDs are pinned in the Run snapshot, while
 token bytes are resolved only when constructing a Planner client or Worker
 allocation.
 
-`execution-configs/` is the catalog location for immutable Stage-local
-escalation patches; the default catalog currently ships none. A runnable
-example is under [`e2e/execution-configs/`](e2e/execution-configs/). A
-Workflow `failed` or `interrupted` action may select one exact profile ref, or
-declare the same `planner`/`agents` patch inline. The loader resolves and
-validates every possible variant, and Run creation reapplies it over that
-Run's base overrides before pinning the complete effective configuration.
-Credential `null` is an explicit clear in this patch shape.
+Escalation execution settings are inline in the owning Workflow. Standard YAML
+anchors and aliases reuse a block within that document, for example
+`executionConfig: &strong_execution` at its first use and
+`executionConfig: *strong_execution` at another compatible transition. There is
+no standalone ExecutionConfig manifest or cross-file profile lookup. The process
+example is [`e2e/workflows/escalating_copy.yaml`](e2e/workflows/escalating_copy.yaml).
 
 For local development only, `CONTRACTOR_LLM_GATEWAY_TOKEN` and
 `CONTRACTOR_PLANNER_LLM_GATEWAY_TOKEN` bootstrap the fixed credential IDs
@@ -405,9 +403,8 @@ The shipped `workflows/` manifests select these IDs explicitly and separately
 for Workers and modeled Planners. They do not override the Gateway URL or model
 selected by configuration. If the corresponding token is absent, Run creation
 fails while resolving the selected credential, before a Stage or allocation is
-started. Deployments using different credentials must override these
-reference-only selections in the Run `executionConfig` or publish their own
-Workflow versions.
+started. Deployments using different credentials select those identities in their own
+Workflow definitions.
 
 `examples/` contains Memory-enabled Router and Streamline examples, plus
 copyable multi-Stage, bounded-retry, single-Worker
@@ -425,10 +422,23 @@ selection. Removing a selected model makes startup fail until a valid deployment
 and saved selection agree. The UI does not install provider credentials or
 provision remote routes.
 
-Run and Eval execution overrides can select exact model-specific policies,
+Workflow definitions can select exact model-specific policies for Run and Eval experiments,
 including `workers.summarizerModelPolicy` for a summary-enabled Worker. An Audit
 pins defaults at draft creation; a prepared Eval retains its binding through
 submission. Run history shows requested aliases and exact policy digests per
 consumer; provider weight revisions remain unknown unless observed. Context
 capacity comes from the profile, role spending/output budgets from `roles.yaml`,
 and the terminal-summary trigger and instructions from the AgentTemplate.
+
+Worker model selection belongs to Workflow `spec.executionConfig`. AgentTemplate
+contains instructions, tools, Skills and optional summarizer behavior. Every
+modeled binding needs an effective `modelPolicy`; terminal summarization also
+needs `summarizerModelPolicy`. Use Workflow-wide defaults for shared selections
+and Stage/agent selections for exceptions, for example a small model for a
+bounded secret review Worker and a stronger model for a deeper source review.
+YAML anchors can reuse these selections within the same Workflow document.
+
+Planner compaction follows the same split: select its `compactorModelPolicy`
+in Workflow `executionConfig.planner` or the Stage's Planner execution selection.
+`plannerContextManagement` contains the strategy, instructions and thresholds.
+It contains no model selection; summary continuations use the same grammar.

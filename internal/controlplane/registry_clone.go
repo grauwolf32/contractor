@@ -6,12 +6,11 @@ package controlplane
 // value while the lock is not held.
 
 import (
-	"github.com/grauwolf32/contractor/internal/clone"
-	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
+	"github.com/grauwolf32/contractor/internal/helpers/clone"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
 
@@ -89,37 +88,21 @@ func cloneAllocationGrant(source AllocationGrant) AllocationGrant {
 	return result
 }
 
-func cloneRuntimeSelection(
-	source *resolved.ResolvedConsumerExecutionConfig,
-) *resolved.ResolvedConsumerExecutionConfig {
+// reservationRuntimeSnapshot borrows populated slices for synchronous fingerprint
+// encoding, preserving the empty-array representation without deep copying them.
+func reservationRuntimeSnapshot(source *runtimeconfig.RunSnapshot) *runtimeconfig.RunSnapshot {
 	if source == nil {
 		return nil
 	}
 	result := *source
-	result.ModelPolicy = source.ModelPolicy.Clone()
-	if source.SummarizerModelPolicy != nil {
-		policy := source.SummarizerModelPolicy.Clone()
-		result.SummarizerModelPolicy = &policy
+	if result.Labels == nil {
+		result.Labels = []runtimeconfig.PinnedLabel{}
 	}
-	if source.LLMGateway != nil {
-		gateway := *source.LLMGateway
-		if source.LLMGateway.CredentialManager != nil {
-			manager := *source.LLMGateway.CredentialManager
-			gateway.CredentialManager = &manager
-		}
-		result.LLMGateway = &gateway
+	if result.LLMCredentialIDs == nil {
+		result.LLMCredentialIDs = []string{}
 	}
-	if source.Credential != nil {
-		credential := *source.Credential
-		result.Credential = &credential
+	if result.RuntimeCredentialIDs == nil {
+		result.RuntimeCredentialIDs = []string{}
 	}
-	return &result
-}
-
-func cloneRunSnapshot(source *runtimeconfig.RunSnapshot) *runtimeconfig.RunSnapshot {
-	if source == nil {
-		return nil
-	}
-	result := source.Clone()
 	return &result
 }

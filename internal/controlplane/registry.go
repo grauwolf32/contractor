@@ -9,15 +9,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
-	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
-	"github.com/grauwolf32/contractor/internal/randomid"
+	"github.com/grauwolf32/contractor/internal/helpers/clone"
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
+	"github.com/grauwolf32/contractor/internal/helpers/randomid"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
 
@@ -530,17 +530,19 @@ func (r *InMemoryRegistry) reserveAll(
 			}
 		}
 		grant.ProjectArtifactReads = projectArtifactReadTargets(grant)
+		// normalizeReservationRequest detached these binding fields; the Registry
+		// takes ownership, then cloneReservation detaches the returned value.
 		reservation := Reservation{
 			PlacementLabels:        append([]string{}, entry.registration.PlacementLabels...),
-			CompletionContract:     contracts.CloneWorkerCompletionContract(binding.CompletionContract),
+			CompletionContract:     binding.CompletionContract,
 			CompletionCapabilities: control.NormalizeAgentRegistration(entry.registration).Capabilities,
 			Grant:                  grant, ControlURL: entry.registration.ControlURL, A2AURL: entry.registration.A2AURL,
-			AgentTemplate:             binding.AgentTemplate.Clone(),
+			AgentTemplate:             binding.AgentTemplate,
 			WorkerSessionMode:         binding.WorkerSessionMode,
-			ContextManagement:         binding.ContextManagement.Clone(),
-			ResolvedSkills:            contracts.CloneResolvedSkills(binding.ResolvedSkills),
-			ExecutionConfig:           cloneAllocationExecutionConfig(binding.ExecutionConfig),
-			Workspace:                 contracts.CloneAllocationWorkspaceSpec(binding.Workspace),
+			ContextManagement:         binding.ContextManagement,
+			ResolvedSkills:            binding.ResolvedSkills,
+			ExecutionConfig:           binding.ExecutionConfig,
+			Workspace:                 binding.Workspace,
 			RunMetadataLabels:         runMetadataLabels.Clone(),
 			RuntimeAgentLabelRevision: entry.principal.LabelRevision,
 			LeaseExpiresAt:            entry.confirmedLeaseExpiresAt,
@@ -1210,7 +1212,6 @@ func validateBindingContextManagement(binding BindingRequirement) error {
 		Template:           binding.AgentTemplate,
 		SessionMode:        binding.WorkerSessionMode,
 		CompletionContract: binding.CompletionContract,
-		WorkerPolicy:       binding.AgentTemplate.ModelPolicy,
 	}
 	if binding.RuntimeSelection != nil {
 		context.WorkerPolicy = binding.RuntimeSelection.ModelPolicy
@@ -1362,7 +1363,7 @@ func normalizeReservationRequest(request ReservationRequest) (string, []BindingR
 			AgentTemplate:     binding.AgentTemplate.Clone(),
 			ResolvedSkills:    contracts.CloneResolvedSkills(resolvedSkills),
 			ExecutionConfig:   cloneAllocationExecutionConfig(binding.ExecutionConfig),
-			RuntimeSelection:  cloneRuntimeSelection(binding.RuntimeSelection),
+			RuntimeSelection:  binding.RuntimeSelection, // Borrowed only for the synchronous fingerprint.
 			Workspace:         contracts.CloneAllocationWorkspaceSpec(binding.Workspace),
 		}
 	}
@@ -1380,7 +1381,7 @@ func normalizeReservationRequest(request ReservationRequest) (string, []BindingR
 		StageExecutionID:        request.StageExecutionID,
 		RunMetadataLabels:       metadataLabels,
 		Bindings:                bindings,
-		RuntimeConfig:           cloneRunSnapshot(request.RuntimeConfig),
+		RuntimeConfig:           reservationRuntimeSnapshot(request.RuntimeConfig),
 	})
 	if err != nil {
 		return "", nil, fmt.Errorf("encode reservation request: %w", err)

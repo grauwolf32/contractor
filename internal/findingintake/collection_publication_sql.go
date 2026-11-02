@@ -29,9 +29,9 @@ SELECT receipt.receipt_id
     OR ($3 = 'audit' AND (receipt.audit_id = $4
         OR EXISTS (SELECT 1 FROM finding_proposal_audit_holds AS hold
                     WHERE hold.receipt_id = receipt.receipt_id AND hold.audit_id = $4)
-        OR EXISTS (SELECT 1 FROM audit_finding_contributions AS contribution
-                    WHERE contribution.receipt_id = receipt.receipt_id
-                      AND contribution.audit_id = $4))))`
+        OR EXISTS(SELECT 1 FROM project_finding_sources AS source
+         JOIN project_finding_audits AS membership USING(project_id,finding_id)
+         WHERE source.receipt_id=receipt.receipt_id AND membership.audit_id=$4))))`
 
 // readCollectionReceiptsSQL reads owner $2's proposal receipts among $1.
 // Used by readCollectionReceipts.

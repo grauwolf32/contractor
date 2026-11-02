@@ -8,17 +8,16 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/auditbaseline"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
-	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
-	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 func encodeDraftSelection(value DraftSelection) (json.RawMessage, error) {
@@ -59,7 +58,26 @@ func DecodeBaseline(data []byte) (BaselineSnapshot, error) {
 	if err := strictjson.Decode(data, &result); err != nil || ValidateBaseline(result) != nil {
 		return BaselineSnapshot{}, fmt.Errorf("%w: stored Audit baseline is invalid", ErrInvalid)
 	}
-	return cloneBaseline(result), nil
+	// The decoder owns this graph. Keep the empty-collection normalization
+	// formerly supplied by the copy without duplicating populated collections.
+	if result.RuntimeConfig.Labels == nil {
+		result.RuntimeConfig.Labels = []runtimeconfig.PinnedLabel{}
+	}
+	if result.RuntimeConfig.LLMCredentialIDs == nil {
+		result.RuntimeConfig.LLMCredentialIDs = []string{}
+	}
+	if result.RuntimeConfig.RuntimeCredentialIDs == nil {
+		result.RuntimeConfig.RuntimeCredentialIDs = []string{}
+	}
+	if result.Inventory != nil {
+		for index := range result.Inventory.ExecutionManifest.Items {
+			item := &result.Inventory.ExecutionManifest.Items[index]
+			if len(item.Inputs) == 0 {
+				item.Inputs = nil
+			}
+		}
+	}
+	return result, nil
 }
 
 func validateDraftSelection(value DraftSelection) error {
@@ -223,47 +241,6 @@ func mergeIDs(sets ...[]string) []string {
 	return result
 }
 
-func cloneBaseline(source BaselineSnapshot) BaselineSnapshot {
-	result := source
-	result.Engagement = cloneEngagement(source.Engagement)
-	result.Labels = source.Labels.Clone()
-	result.RequiredPlacementLabels = slices.Clone(source.RequiredPlacementLabels)
-	result.Inputs = contracts.CloneExactArtifacts(source.Inputs)
-	result.RuntimeLabels = slices.Clone(source.RuntimeLabels)
-	result.RuntimeConfig = source.RuntimeConfig.Clone()
-	result.Skills = agentskills.CloneRunSkills(source.Skills)
-	result.LLMCredentialIDs = slices.Clone(source.LLMCredentialIDs)
-	result.RuntimeCredentialIDs = slices.Clone(source.RuntimeCredentialIDs)
-	result.Standards = slices.Clone(source.Standards)
-	for index := range result.Standards {
-		cloneExactPackageRef(&result.Standards[index].Catalog)
-		cloneExactPackageRef(&result.Standards[index].Retained)
-	}
-	result.ProjectHTTPTarget = source.ProjectHTTPTarget.Clone()
-	if source.Inventory == nil {
-		return result
-	}
-	inventory := *source.Inventory
-	result.Inventory = &inventory
-	result.Inventory.Gaps = slices.Clone(source.Inventory.Gaps)
-	result.Inventory.StandardSelection = cloneAuditStandardSelection(source.Inventory.StandardSelection)
-	result.Inventory.ExecutionManifest.Items = slices.Clone(source.Inventory.ExecutionManifest.Items)
-	for index := range result.Inventory.ExecutionManifest.Items {
-		item := &result.Inventory.ExecutionManifest.Items[index]
-		if item.TaskRef != nil {
-			item.TaskRef = exactRefPointer(*item.TaskRef)
-		}
-		item.Inputs = append([]auditdomain.ExactInput(nil), item.Inputs...)
-		for inputIndex := range item.Inputs {
-			if item.Inputs[inputIndex].Ref.Revision != nil {
-				revision := *item.Inputs[inputIndex].Ref.Revision
-				item.Inputs[inputIndex].Ref.Revision = &revision
-			}
-		}
-	}
-	return result
-}
-
 func validateAuditLabels(labels runlabels.RunMetadataLabels, required []string) error {
 	if labels == nil {
 		return fmt.Errorf("%w: Audit labels must be an object", ErrInvalid)
@@ -288,11 +265,4 @@ func cloneAuditStandardSelection(
 	result.Levels = append([]string(nil), source.Levels...)
 	result.EntryIDs = append([]string(nil), source.EntryIDs...)
 	return &result
-}
-
-func cloneExactPackageRef(value *auditstandards.ExactPackage) {
-	if value != nil && value.Artifact.Revision != nil {
-		revision := *value.Artifact.Revision
-		value.Artifact.Revision = &revision
-	}
 }

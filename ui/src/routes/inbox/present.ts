@@ -113,7 +113,10 @@ export const SUCCEEDED_RUNS_PATH = "/runs?view=completed&state=succeeded";
 export function rowPage(row: InboxRow): string {
   switch (row.type) {
     case "issue":
-      return issuePath(row.issue.audit.auditId, row.issue.finding.findingId);
+      return issuePath(
+        row.issue.finding.projectId,
+        row.issue.finding.findingId,
+      );
     case "review":
       return row.decision.review.kind === "report-acceptance"
         ? reportPath(row.decision.audit.auditId)

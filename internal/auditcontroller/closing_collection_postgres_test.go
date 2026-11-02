@@ -132,12 +132,12 @@ func TestPostgresClosingAuditRetainsLateChildFindingProposal(t *testing.T) {
 			var holds, findings int
 			if err := harness.pool.QueryRow(ctx, `
 SELECT (SELECT count(*) FROM finding_proposal_audit_holds WHERE audit_id = $1),
-       (SELECT count(*) FROM audit_findings WHERE audit_id = $1 AND state = 'proposed')`,
+       (SELECT count(*) FROM project_finding_audits WHERE audit_id=$1)`,
 				settled.AuditID).Scan(&holds, &findings); err != nil {
 				t.Fatal(err)
 			}
-			if holds != 1 || findings != 1 {
-				t.Fatalf("retained holds = %d, proposed findings = %d", holds, findings)
+			if holds != 1 || findings != 0 {
+				t.Fatalf("retained holds = %d, unexpected implicitly published Findings = %d", holds, findings)
 			}
 			if target == auditstore.AuditCompleted {
 				service, err := auditservice.New(auditservice.Options{
@@ -160,7 +160,7 @@ SELECT (SELECT count(*) FROM finding_proposal_audit_holds WHERE audit_id = $1),
 					} `json:"findings"`
 				}
 				if err := json.Unmarshal(report.Machine, &machine); err != nil ||
-					len(machine.Findings.Proposed) != 1 || machine.Findings.Proposed[0].Title != "Late candidate" {
+					len(machine.Findings.Proposed) != 0 {
 					t.Fatalf("report proposed findings = (%+v, %v)", machine.Findings, err)
 				}
 			}

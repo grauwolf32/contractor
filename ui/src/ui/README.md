@@ -28,10 +28,11 @@ Optional props also accept `undefined`, so values can be passed through under
 
 ```ts
 PaneLayout(props: {
+  className?: string;
   list: ReactNode;
   detail: ReactNode;
   showDetail: boolean;
-  backLink?: { to: To; label: string };
+  backLink?: { to: To; label: string; state?: unknown };
   listLabel: string;
   detailLabel: string;
 })
@@ -54,6 +55,8 @@ hairline.
   list pane, scrolled to its top.
 
 Selection belongs in the URL. `showDetail` is usually "an item is selected".
+`backLink.state` retains the source page's router context when returning.
+`className` scopes route-owned pane styling without another layout wrapper.
 
 ```tsx
 <PaneLayout
@@ -520,6 +523,7 @@ EmptyState(props: { title: ReactNode; children?: ReactNode; action?: ReactNode }
 DecisionBar(props: {
   options: readonly { id: string; label: string; shortcut?: string; tone?: "primary" | "secondary" | "danger"; icon?: ReactNode }[];
   selected?: string;
+  deferDraft?: boolean;      // compact mode: reveal rationale/extra after choosing a verdict
   onSelect: (id: string) => void;
   severity?: {
     options: readonly { value: string; label: string }[];
@@ -545,6 +549,9 @@ DecisionBar(props: {
 A `<section aria-label="Your decision">` laid out like the mockup's sticky
 bar. Put it in `DetailPane`'s `footer` to pin it.
 
+- **`deferDraft`:** optional compact presentation. Rationale, severity and extra
+  controls mount after a verdict is selected; the new rationale receives focus in
+  the same commit. Validation and pending locks are unchanged.
 - **Severity:** a `role="radiogroup"` of native radios, so arrow keys work.
   It has `aria-required` when required.
 - **Verdicts:** `aria-pressed` buttons with `aria-keyshortcuts` and a Kbd hint.

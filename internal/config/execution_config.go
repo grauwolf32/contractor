@@ -13,9 +13,7 @@ import (
 )
 
 const (
-	originAgentTemplate  = "agentTemplate.modelPolicy"
 	originWorkflowPrefix = "workflow.executionConfig"
-	originRunPrefix      = "run.executionConfig"
 )
 
 func (l *loader) resolveWorkflowExecutionConfig(
@@ -27,20 +25,12 @@ func (l *loader) resolveWorkflowExecutionConfig(
 		return err
 	}
 	for stageName, stage := range workflow.Stages {
-		// resolveStage pins only a compact@1 Stage's compactor policy here.
+		// Every modeled consumer starts with no policy; Workflow selections own it.
 		base := resolved.ResolvedStageExecutionConfig{
-			Planner: stage.ExecutionConfig.Planner,
-			Agents:  make(map[string]resolved.ResolvedConsumerExecutionConfig, len(stage.Agents)),
+			Agents: make(map[string]resolved.ResolvedConsumerExecutionConfig, len(stage.Agents)),
 		}
-		for logicalName, binding := range stage.Agents {
-			if binding.Template.IsToolWorker() {
-				base.Agents[logicalName] = resolved.ResolvedConsumerExecutionConfig{}
-				continue
-			}
-			base.Agents[logicalName] = resolved.ResolvedConsumerExecutionConfig{
-				ModelPolicy: binding.Template.ModelPolicy.Clone(),
-				Origins:     resolved.ExecutionConfigOrigins{ModelPolicy: originAgentTemplate},
-			}
+		for logicalName := range stage.Agents {
+			base.Agents[logicalName] = resolved.ResolvedConsumerExecutionConfig{}
 		}
 		stage.ExecutionConfig = base
 		workflow.Stages[stageName] = stage
@@ -54,29 +44,24 @@ func (l *loader) resolveWorkflowExecutionConfig(
 	return resolved.ResolveEscalationVariants(workflow)
 }
 
-// ResolveRunWorkflow applies the two Run override layers to a caller-owned
-// clone and rechecks every selected credential against current active metadata.
+// ResolveRunWorkflow captures deployment choices in a caller-owned clone and
+// checks every selected credential against current active metadata.
 // A credential lookup that cannot confirm presence or absence returns an error
 // classified as ErrCredentialLookup; every other error is a validation failure.
 func (s *Snapshot) ResolveRunWorkflow(
 	ctx context.Context,
 	raw string,
-	patch resolved.ExecutionConfigPatch,
 	credentials resolved.CredentialLookup,
 ) (resolved.ResolvedWorkflow, error) {
-	return s.resolveRunWorkflow(ctx, raw, patch, credentials, nil)
+	return s.resolveRunWorkflow(ctx, raw, credentials, nil)
 }
 
-func (s *Snapshot) resolveRunWorkflow(ctx context.Context, raw string, patch resolved.ExecutionConfigPatch, credentials resolved.CredentialLookup, defaults map[string]contracts.ResolvedModelPolicy) (resolved.ResolvedWorkflow, error) {
+func (s *Snapshot) resolveRunWorkflow(ctx context.Context, raw string, credentials resolved.CredentialLookup, defaults map[string]contracts.ResolvedModelPolicy) (resolved.ResolvedWorkflow, error) {
 	workflow, err := s.Workflow(raw)
 	if err != nil {
 		return resolved.ResolvedWorkflow{}, err
 	}
 	applyModelDefaults(&workflow, defaults)
-	resolver := loader{policies: s.policies, gateways: s.gateways}
-	if err := resolver.applyExecutionConfigPatch(&workflow, patch, originRunPrefix); err != nil {
-		return resolved.ResolvedWorkflow{}, err
-	}
 	if err := resolved.ValidateWorkflowExecutionConfigs(workflow); err != nil {
 		return resolved.ResolvedWorkflow{}, err
 	}
@@ -86,7 +71,7 @@ func (s *Snapshot) resolveRunWorkflow(ctx context.Context, raw string, patch res
 	if err := resolved.ValidateWorkflowGraph(workflow); err != nil {
 		return resolved.ResolvedWorkflow{}, err
 	}
-	// Run overrides can enlarge the catalog's snapshot past its bound; the
+	// Deployment model defaults can enlarge the catalog's snapshot; the
 	// check precedes every credential lookup (CAT-R76).
 	if _, err := resolved.EncodeResolvedWorkflowSnapshot(workflow); err != nil {
 		return resolved.ResolvedWorkflow{}, err
@@ -99,18 +84,18 @@ func (s *Snapshot) resolveRunWorkflow(ctx context.Context, raw string, patch res
 
 func (l *loader) applyExecutionConfigPatch(
 	workflow *resolved.ResolvedWorkflow,
-	patch resolved.ExecutionConfigPatch,
+	patch executionConfigPatch,
 	originPrefix string,
 ) error {
 	plannerApplied, compactorApplied := false, false
 	for _, stageName := range slices.Sorted(maps.Keys(workflow.Stages)) {
 		stage := workflow.Stages[stageName]
 		if patch.Planner != nil && !resolved.IsModelFreeStage(stage) {
-			// A Workflow- or Run-wide compactor selection applies to every
+			// A Workflow-wide compactor selection applies to every
 			// compact@1 Stage and is no selection for the others (PLN-R125).
 			selection := *patch.Planner
 			if !resolved.PlannerCompactsContext(stage) {
-				selection.CompactorModelPolicy = resolved.OptionalString{}
+				selection.CompactorModelPolicy = optionalSelectionString{}
 			}
 			if selection.HasAny() {
 				if err := l.applyPlannerSelection(
@@ -181,7 +166,7 @@ func (l *loader) applyExecutionConfigPatch(
 
 func (l *loader) applyPlannerSelection(
 	stage *resolved.ResolvedStage,
-	patch resolved.ExecutionSelectionPatch,
+	patch executionSelectionPatch,
 	origin string,
 ) error {
 	ref := stage.Planner.Selector()
@@ -199,7 +184,7 @@ func (l *loader) applyPlannerSelection(
 
 func (l *loader) applySelection(
 	selection *resolved.ResolvedConsumerExecutionConfig,
-	patch resolved.ExecutionSelectionPatch,
+	patch executionSelectionPatch,
 	origin string,
 	planner bool,
 ) error {
@@ -269,49 +254,49 @@ func (l *loader) applySelection(
 	return nil
 }
 
-func executionConfigPatchFromYAML(source *workflowExecutionConfigSource) (resolved.ExecutionConfigPatch, error) {
+func executionConfigPatchFromYAML(source *workflowExecutionConfigSource) (executionConfigPatch, error) {
 	if source == nil {
-		return resolved.ExecutionConfigPatch{}, nil
+		return executionConfigPatch{}, nil
 	}
-	result := resolved.ExecutionConfigPatch{Stages: make(map[string]resolved.StageExecutionConfigPatch, len(source.Stages))}
+	result := executionConfigPatch{Stages: make(map[string]stageExecutionConfigPatch, len(source.Stages))}
 	var err error
 	if source.Planner != nil {
 		value, parseErr := executionSelectionFromYAML(*source.Planner, false, "planner")
 		if parseErr != nil {
-			return resolved.ExecutionConfigPatch{}, parseErr
+			return executionConfigPatch{}, parseErr
 		}
 		result.Planner = &value
 	}
 	if source.Workers != nil {
 		value, parseErr := executionSelectionFromYAML(*source.Workers, false, "workers")
 		if parseErr != nil {
-			return resolved.ExecutionConfigPatch{}, parseErr
+			return executionConfigPatch{}, parseErr
 		}
 		result.Workers = &value
 	}
 	for stageName, sourceStage := range source.Stages {
 		if err = resolved.ValidateWorkflowName("executionConfig Stage name", stageName); err != nil {
-			return resolved.ExecutionConfigPatch{}, err
+			return executionConfigPatch{}, err
 		}
-		stage := resolved.StageExecutionConfigPatch{Agents: make(map[string]resolved.ExecutionSelectionPatch, len(sourceStage.Agents))}
+		stage := stageExecutionConfigPatch{Agents: make(map[string]executionSelectionPatch, len(sourceStage.Agents))}
 		if sourceStage.Planner != nil {
 			value, parseErr := executionSelectionFromYAML(
 				*sourceStage.Planner, false, "stages."+stageName+".planner",
 			)
 			if parseErr != nil {
-				return resolved.ExecutionConfigPatch{}, parseErr
+				return executionConfigPatch{}, parseErr
 			}
 			stage.Planner = &value
 		}
 		for logicalName, sourceSelection := range sourceStage.Agents {
 			if err = resolved.ValidateWorkflowName("executionConfig logical Agent name", logicalName); err != nil {
-				return resolved.ExecutionConfigPatch{}, err
+				return executionConfigPatch{}, err
 			}
 			value, parseErr := executionSelectionFromYAML(
 				sourceSelection, false, "stages."+stageName+".agents."+logicalName,
 			)
 			if parseErr != nil {
-				return resolved.ExecutionConfigPatch{}, parseErr
+				return executionConfigPatch{}, parseErr
 			}
 			stage.Agents[logicalName] = value
 		}
@@ -324,33 +309,33 @@ func executionSelectionFromYAML(
 	source executionSelectionSource,
 	allowCredentialNull bool,
 	field string,
-) (resolved.ExecutionSelectionPatch, error) {
+) (executionSelectionPatch, error) {
 	modelPolicy, err := optionalStringFromYAML(source.ModelPolicy, false, field+".modelPolicy")
 	if err != nil {
-		return resolved.ExecutionSelectionPatch{}, err
+		return executionSelectionPatch{}, err
 	}
 	summaryPolicy, err := optionalStringFromYAML(source.SummarizerModelPolicy, false, field+".summarizerModelPolicy")
 	if err != nil {
-		return resolved.ExecutionSelectionPatch{}, err
+		return executionSelectionPatch{}, err
 	}
 	compactorPolicy, err := optionalStringFromYAML(source.CompactorModelPolicy, false, field+".compactorModelPolicy")
 	if err != nil {
-		return resolved.ExecutionSelectionPatch{}, err
+		return executionSelectionPatch{}, err
 	}
 	llmGateway, err := optionalStringFromYAML(source.LLMGateway, false, field+".llmGateway")
 	if err != nil {
-		return resolved.ExecutionSelectionPatch{}, err
+		return executionSelectionPatch{}, err
 	}
 	credential, err := optionalStringFromYAML(source.Credential, allowCredentialNull, field+".credential")
 	if err != nil {
-		return resolved.ExecutionSelectionPatch{}, err
+		return executionSelectionPatch{}, err
 	}
-	result := resolved.ExecutionSelectionPatch{
+	result := executionSelectionPatch{
 		ModelPolicy: modelPolicy, SummarizerModelPolicy: summaryPolicy, CompactorModelPolicy: compactorPolicy,
 		LLMGateway: llmGateway, Credential: credential,
 	}
 	if !result.HasAny() {
-		return resolved.ExecutionSelectionPatch{}, fmt.Errorf("%s must select at least one field", field)
+		return executionSelectionPatch{}, fmt.Errorf("%s must select at least one field", field)
 	}
 	return result, nil
 }
@@ -359,23 +344,23 @@ func optionalStringFromYAML(
 	node yaml.Node,
 	allowNull bool,
 	field string,
-) (resolved.OptionalString, error) {
+) (optionalSelectionString, error) {
 	if node.IsZero() {
-		return resolved.OptionalString{}, nil
+		return optionalSelectionString{}, nil
 	}
 	if node.Kind != yaml.ScalarNode {
-		return resolved.OptionalString{}, fmt.Errorf("%s must be a string", field)
+		return optionalSelectionString{}, fmt.Errorf("%s must be a string", field)
 	}
 	if node.ShortTag() == "!!null" {
 		if !allowNull {
-			return resolved.OptionalString{}, fmt.Errorf("%s must not be null", field)
+			return optionalSelectionString{}, fmt.Errorf("%s must not be null", field)
 		}
-		return resolved.OptionalString{Present: true, Null: true}, nil
+		return optionalSelectionString{Present: true, Null: true}, nil
 	}
 	if node.ShortTag() != "!!str" {
-		return resolved.OptionalString{}, fmt.Errorf("%s must be a string", field)
+		return optionalSelectionString{}, fmt.Errorf("%s must be a string", field)
 	}
-	return resolved.OptionalString{Present: true, Value: node.Value}, nil
+	return optionalSelectionString{Present: true, Value: node.Value}, nil
 }
 
 // compactorPolicy resolves the exact compactor ModelPolicy a compact@1 Stage

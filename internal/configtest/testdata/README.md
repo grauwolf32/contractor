@@ -10,7 +10,7 @@ They are not part of the operator catalog in `configs/` or the e2e catalog.
 
 `configtest.CopyWithPolicies` copies the supplied catalog into `t.TempDir()` and
 overlays these policies, the test artifact builder, its artifact-copy Workflow
-and instructions, and the test escalation profile. The artifact-copy pair is
+and instructions. The artifact-copy pair is
 isolated behavioral test data, independent of the retired default catalog
 versions. The other workflows, templates and instructions remain copied from the
 supplied catalog. This preserves realistic wiring while keeping the budgets and

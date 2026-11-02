@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/controlplane"
-	"github.com/grauwolf32/contractor/internal/randomid"
+	"github.com/grauwolf32/contractor/internal/helpers/randomid"
 )
 
 type Scheduler struct {

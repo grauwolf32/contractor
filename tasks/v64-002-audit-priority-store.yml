@@ -10,6 +10,7 @@ depends_on:
 - V64-001
 - V64-004
 - V64-014
+- V64-021
 languages:
 - go
 - python
@@ -33,11 +34,11 @@ context:
     allow future Project ownership. Remove almost all formal approvals and keep complexity controlled.
     Generation can use selected materials, findings and ordinary results including refutations and gaps.
     The user accepted the common execution skeleton and requested concrete tasks; implementation is a
-    subsequent step, not part of this task-formation request.'
-  implementation_gate: Task formation only, requested on 2026-10-31 after acceptance of the common execution
-    skeleton. Keep pending until implementation is requested and dependencies are complete. Do not start
-    code, migrations, live Runs or deployment in this planning turn. Resolve the explicitly labelled remaining
-    contract proposals in V64-001 before dependent implementation.
+    subsequent step, not part of this task-formation request. User decision on 2026-11-01 rejects parallel
+    Audit/Project Finding models: V64-014 supplies one Project identity/current state and its existing
+    read/edit callers; this task reuses that owner rather than adding another Finding lifecycle.'
+  implementation_gate: V64-001 decisions are settled. Keep pending until implementation is assigned and
+    dependencies are complete; this task amendment starts no code, migrations, live Runs or deployment.
   design:
   - docs/proposals/0050-audit-common-hypothesis-model.md
   - docs/plans/2026-10-31-audit-redesign.md
@@ -57,6 +58,9 @@ context:
     keyed/natural receipts. No new collector, admission engine, lease store or compatibility reader.
   planned_gate: Create test-audit-basic-e2e with real Server/Runtime/PostgreSQL and fail-on-missing cases;
     V64-011 later registers the integrated core exit.
+  contract_review_followup: User-requested implementation review on 2026-11-01 found a V64-001 contract
+    defect. V64-021 supplies this consumer's corrected boundary before implementation; the accepted Audit
+    skeleton and this task's remaining scope are unchanged.
 scope:
   in:
   - Reuse and simplify the existing Audit controller/service/store and ordinary RunService submission

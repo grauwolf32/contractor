@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
-	"github.com/grauwolf32/contractor/internal/strictjson"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 )
 
 const MaxSummaryContinuationDeadlineSeconds = 24 * 60 * 60

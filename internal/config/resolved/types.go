@@ -131,13 +131,6 @@ type ResolvedStageExecutionConfig struct {
 	Agents  map[string]ResolvedConsumerExecutionConfig `json:"agents"`
 }
 
-// ExecutionConfigRef identifies one immutable Stage-local escalation profile.
-type ExecutionConfigRef struct {
-	ConfigID string `json:"configId"`
-	Version  string `json:"version"`
-	Digest   string `json:"digest"`
-}
-
 // ResolvedCredentialOverride preserves the escalation patch's selected/clear
 // distinction. A nil *ResolvedCredentialOverride means inherit the lower
 // layer; Clear and Ref are mutually exclusive.
@@ -161,18 +154,9 @@ type ResolvedStageExecutionConfigOverride struct {
 	Agents  map[string]ResolvedExecutionSelectionOverride `json:"agents,omitempty"`
 }
 
-// ResolvedExecutionConfigProfile is the safe immutable catalog value. It
-// contains exact dependency bodies but never credential token bytes.
-type ResolvedExecutionConfigProfile struct {
-	Ref      ExecutionConfigRef                   `json:"ref"`
-	Override ResolvedStageExecutionConfigOverride `json:"override"`
-}
-
-// ResolvedEscalationExecutionConfig pins both the declared patch and its fully
-// effective result for one consuming Stage. Ref is present only for a named
-// profile; inline declarations use the same Override representation.
+// ResolvedEscalationExecutionConfig pins the inline patch and its fully
+// effective result for one consuming Stage.
 type ResolvedEscalationExecutionConfig struct {
-	Ref       *ExecutionConfigRef                  `json:"ref,omitempty"`
 	Override  ResolvedStageExecutionConfigOverride `json:"override"`
 	Effective ResolvedStageExecutionConfig         `json:"effective"`
 }

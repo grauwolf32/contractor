@@ -20,7 +20,6 @@ CATALOG = {
     "agent-templates": "AgentTemplate",
     "model-policies": "ModelPolicy",
     "llm-gateways": "LLMGatewayConfig",
-    "execution-configs": "ExecutionConfig",
 }
 BUILTINS = {
     "Planner": "internal/config/resolved/descriptors.go",
@@ -138,9 +137,9 @@ class Graph:
             location = f"{field}.{name}"
             kinds = {
                 "modelPolicy": "ModelPolicy",
+                "compactorModelPolicy": "ModelPolicy",
                 "llmGateway": "LLMGatewayConfig",
                 "credential": "Credential",
-                "ref": "ExecutionConfig",
             }
             if name in kinds and isinstance(value, str):
                 self.reference(origin, kinds[name], value, source, location, view=view)
@@ -196,7 +195,6 @@ def load_catalog(graph):
 def template_edges(graph, origin, spec, source):
     for field, kind in [
         ("runtime", "WorkerRuntime"),
-        ("modelPolicy", "ModelPolicy"),
         ("sandboxProfile", "SandboxProfile"),
     ]:
         if field in spec:
@@ -222,14 +220,6 @@ def template_edges(graph, origin, spec, source):
         )
     summarizer = spec.get("summarizer")
     if summarizer:
-        graph.reference(
-            origin,
-            "ModelPolicy",
-            summarizer["modelPolicy"],
-            source,
-            "spec.summarizer.modelPolicy",
-            "summarizer",
-        )
         graph.instructions(
             origin, summarizer.get("instructions"), source, "spec.summarizer.instructions"
         )
@@ -390,8 +380,6 @@ def build():
             workflow_edges(graph, label, spec, source)
         elif kind == "AuditProfile":
             profile_edges(graph, label, spec, source)
-        elif kind == "ExecutionConfig":
-            graph.execution(f"{kind}:{label}", spec, source, "spec")
     architecture = json.loads(graph.read(HERE / "architecture.json"))
     for node in architecture["nodes"]:
         for source in node["sources"]:

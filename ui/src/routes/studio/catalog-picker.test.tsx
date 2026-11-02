@@ -18,7 +18,6 @@ function agent(name: string, version: string) {
       description: `Published ${name}`,
       runtime: "llm@1",
       instructions: { ref: "instructions/agent.md", digest: DIGEST },
-      modelPolicy: { policyId: "worker", version: "1", digest: DIGEST },
       sandboxProfile: "default@1",
       toolsets: [],
     },
@@ -57,12 +56,6 @@ const published = {
     configuration("llm-gateways", {
       protocol: "openai-compatible@1",
       url: "http://gateway.test/v1",
-    }),
-  "execution-configs": () =>
-    configuration("execution-configs", {
-      planner: {
-        modelPolicy: { policyId: "worker", version: "1", digest: DIGEST },
-      },
     }),
 };
 
@@ -207,27 +200,25 @@ describe("Studio catalog selectors", () => {
       ).toBeVisible();
     },
   );
-  it.each([
-    "workflows",
-    "model-policies",
-    "llm-gateways",
-    "execution-configs",
-  ] as const)("reads published %s through its own endpoint", async (kind) => {
-    const { change, requests, user } = mount(
-      () => json(page([published[kind]()])),
-      kind,
-    );
-    await user.click(
-      screen.getByRole("button", { name: "Choose template from catalog" }),
-    );
-    const dialog = await screen.findByRole("dialog");
-    const selector = kind === "workflows" ? "workflow@5" : "policy@3";
-    await user.click(
-      await within(dialog).findByRole("button", { name: `Use ${selector}` }),
-    );
-    expect(change).toHaveBeenCalledExactlyOnceWith(selector);
-    expect(new URL(requests[0]!.url).pathname).toBe(
-      kind === "workflows" ? "/v1/workflows" : `/v1/configurations/${kind}`,
-    );
-  });
+  it.each(["workflows", "model-policies", "llm-gateways"] as const)(
+    "reads published %s through its own endpoint",
+    async (kind) => {
+      const { change, requests, user } = mount(
+        () => json(page([published[kind]()])),
+        kind,
+      );
+      await user.click(
+        screen.getByRole("button", { name: "Choose template from catalog" }),
+      );
+      const dialog = await screen.findByRole("dialog");
+      const selector = kind === "workflows" ? "workflow@5" : "policy@3";
+      await user.click(
+        await within(dialog).findByRole("button", { name: `Use ${selector}` }),
+      );
+      expect(change).toHaveBeenCalledExactlyOnceWith(selector);
+      expect(new URL(requests[0]!.url).pathname).toBe(
+        kind === "workflows" ? "/v1/workflows" : `/v1/configurations/${kind}`,
+      );
+    },
+  );
 });

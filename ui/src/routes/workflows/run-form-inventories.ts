@@ -7,11 +7,7 @@ import type { components } from "../../api/generated/public";
 import { listRuntimeLabels } from "../../api/operations";
 import { listProjectArtifacts } from "../../api/project-artifacts";
 import { queryKeys } from "../../api/query-keys";
-import {
-  listConfigurations,
-  listCredentials,
-  type WorkflowResource,
-} from "../../api/workflows";
+import type { WorkflowResource } from "../../api/workflows";
 import { nextPageCursor } from "../../app/pagination";
 import { artifactOptionKey } from "../../run-drafts/validation";
 
@@ -47,20 +43,17 @@ function usePickerPages<T>(
 /**
  * The choices of a Run form: each input uses the library or the
  * Project's materials (with the revisions this draft already knows), and,
- * once their disclosure opens, the published model policies, Gateways,
- * credentials and Runtime labels.
+ * once their disclosure opens, Runtime labels.
  */
 export function useRunFormInventories({
   projectId,
   inputs,
   knownArtifacts,
-  executionOptionsOpen,
   runtimeOptionsOpen,
 }: {
   projectId: string | undefined;
   inputs: WorkflowResource["inputs"];
   knownArtifacts: Readonly<Record<string, readonly ArtifactMetadata[]>>;
-  executionOptionsOpen: boolean;
   runtimeOptionsOpen: boolean;
 }) {
   const api = usePublicAPI();
@@ -84,21 +77,6 @@ export function useRunFormInventories({
         ? listArtifacts(api, request)
         : listProjectArtifacts(api, { projectId, ...request }),
     hasProjectInputs,
-  );
-  const modelPolicies = usePickerPages(
-    queryKeys.configurations.infinitePicker("model-policies"),
-    (request) => listConfigurations(api, "model-policies", request),
-    executionOptionsOpen,
-  );
-  const gateways = usePickerPages(
-    queryKeys.configurations.infinitePicker("llm-gateways"),
-    (request) => listConfigurations(api, "llm-gateways", request),
-    executionOptionsOpen,
-  );
-  const credentials = usePickerPages(
-    queryKeys.credentials.picker,
-    (request) => listCredentials(api, request),
-    executionOptionsOpen,
   );
   const runtimeLabels = usePickerPages(
     queryKeys.operations.runtimeLabels.picker,
@@ -182,12 +160,6 @@ export function useRunFormInventories({
     artifactsPending:
       (hasProjectInputs && projectArtifacts.query.isPending) ||
       (hasUserInputs && userArtifacts.query.isPending),
-    modelPolicyInventory: modelPolicies.query,
-    modelPolicies: modelPolicies.items,
-    gatewayInventory: gateways.query,
-    gateways: gateways.items,
-    credentialInventory: credentials.query,
-    credentials: credentials.items,
     runtimeLabelInventory: runtimeLabels.query,
     runtimeLabels: explicitRuntimeLabels,
     defaultRuntimeConfig,

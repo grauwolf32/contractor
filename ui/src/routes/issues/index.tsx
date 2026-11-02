@@ -1,4 +1,11 @@
-import { useCallback, useId, useLayoutEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   Link,
   useLocation,
@@ -13,6 +20,14 @@ import {
   type CrossProjectError,
   type CrossProjectIssue,
 } from "../../api/cross-project";
+import { Icon } from "../../app/icon";
+import {
+  ISSUE_SORTS,
+  readIssueListView,
+  visibleIssues,
+  withIssueListView,
+  type IssueListView,
+} from "./list-view";
 import { useDocumentTitle } from "../../app/document-title";
 import {
   useGuardedNavigate,
@@ -35,7 +50,7 @@ import {
   useListNavigation,
   type FilterChipOption,
 } from "../../ui";
-import type { AuditFindingDecisionResult } from "../decisions";
+import type { ProjectFindingEditResult } from "../decisions";
 import { useAnnouncement } from "../decisions/announcement";
 import {
   FINDING_STATES,
@@ -62,7 +77,9 @@ import "./issues.css";
  * (every read succeeded, nothing truncated) without a severity filter.
  */
 const EMPTY_TITLES: Readonly<Record<StateFilter, string>> = {
-  proposed: "That is everything that needs review.",
+  proposed: "No reopened issues.",
+  "needs-review": "That is everything that needs review.",
+  unassessed: "No unassessed issues.",
   confirmed: "No confirmed issues.",
   rejected: "Nothing is marked as not an issue.",
   duplicate: "No duplicates.",
@@ -70,19 +87,24 @@ const EMPTY_TITLES: Readonly<Record<StateFilter, string>> = {
   all: "No possible issues yet.",
 };
 
-function keyOf(issue: Pick<CrossProjectIssue, "finding">): string {
-  return `${issue.finding.auditId}/${issue.finding.findingId}`;
+function keyOf(issue: {
+  finding: { projectId: string; findingId: string };
+}): string {
+  return `${issue.finding.projectId}/${issue.finding.findingId}`;
 }
 
 function checkName(check: CrossProjectCheck): string {
   return `${auditProfileLabel(check.audit)} on ${check.project.name}`;
 }
 
-function outcomeOf(result: AuditFindingDecisionResult): string {
-  const verdict = verdictLabel(result.decision.verdict).label;
-  return result.decision.severity === undefined
+function outcomeOf(result: ProjectFindingEditResult): string {
+  const verdict =
+    result.finding.analystVerdict === null
+      ? "Not assessed"
+      : verdictLabel(result.finding.analystVerdict).label;
+  return result.finding.analystSeverity === null
     ? verdict
-    : `${verdict} · ${severityLabel(result.decision.severity)}`;
+    : `${verdict} · ${severityLabel(result.finding.analystSeverity!)}`;
 }
 
 function failureText(
@@ -130,7 +152,7 @@ function emptyText(
     return {
       title: "No possible issues match these filters",
       note:
-        filters.state === "proposed"
+        filters.state === "needs-review"
           ? "Severity is the analyst's rating, given when an issue is confirmed, so possible issues that need review are usually not rated yet."
           : undefined,
     };
@@ -151,11 +173,11 @@ interface FocusRequest {
 
 /**
  * Issues: possible issues of every project, newest first, with the
- * selected one in the detail pane (`/issues/:auditId/:findingId`). Filters
+ * selected one in the detail pane (`/issues/:projectId/:findingId`). Filters
  * live in the query string; J / K move, C / R / E decide.
  */
 export function IssuesRoute() {
-  const { auditId, findingId } = useParams();
+  const { projectId, findingId } = useParams();
   const [params] = useSearchParams();
   const navigate = useNavigate();
   // A recorded decision answers late: it moves on only while the user is
@@ -165,15 +187,20 @@ export function IssuesRoute() {
   const location = useLocation();
   const projectSelect = useId();
   const severitySelect = useId();
+  const stateSelect = useId();
   const filters = readIssueFilters(params);
-  const search = issueSearch(filters);
+  const view = readIssueListView(params);
+  const search = withIssueListView(issueSearch(filters), view);
   const list = useIssueList(filters);
   const index = useProjectsIndex();
   const selectedKey =
-    auditId === undefined || findingId === undefined
+    projectId === undefined || findingId === undefined
       ? undefined
-      : `${auditId}/${findingId}`;
-  const issues = list.issues;
+      : `${projectId}/${findingId}`;
+  const issues = useMemo(
+    () => visibleIssues(list.issues, { sort: view.sort, q: view.q }),
+    [list.issues, view.sort, view.q],
+  );
   const selectedIndex =
     selectedKey === undefined
       ? -1
@@ -205,7 +232,7 @@ export function IssuesRoute() {
   useDocumentTitle(
     selectedKey === undefined
       ? "Possible issues"
-      : (selected?.finding.firstProposal.document.title ?? "Possible issue"),
+      : (selected?.finding.title ?? "Possible issue"),
   );
 
   useLayoutEffect(() => {
@@ -232,7 +259,7 @@ export function IssuesRoute() {
 
   const issueTo = useCallback(
     (issue: CrossProjectIssue) => ({
-      pathname: issuePath(issue.finding.auditId, issue.finding.findingId),
+      pathname: issuePath(issue.finding.projectId, issue.finding.findingId),
       search,
     }),
     [search],
@@ -255,8 +282,20 @@ export function IssuesRoute() {
     void navigate(
       {
         pathname: location.pathname,
-        search: issueSearch({ ...filters, ...change }),
+        search: withIssueListView(issueSearch({ ...filters, ...change }), view),
       },
+      { replace: true },
+    );
+  }
+
+  function setView(change: Partial<IssueListView>) {
+    const nextParams = new URLSearchParams(params);
+    const nextView = { ...view, ...change };
+    nextParams.delete("sort");
+    nextParams.delete("q");
+    const nextSearch = withIssueListView(nextParams.toString(), nextView);
+    void navigate(
+      { pathname: location.pathname, search: nextSearch },
       { replace: true },
     );
   }
@@ -274,7 +313,7 @@ export function IssuesRoute() {
     },
   });
 
-  function onDecided(result: AuditFindingDecisionResult) {
+  function onDecided(result: ProjectFindingEditResult) {
     // The user moved on while the decision was recorded: stay where they are.
     if (pageNow() === undefined) return;
     const decided = keyOf(result);
@@ -295,20 +334,10 @@ export function IssuesRoute() {
       return;
     }
     announce(
-      `Decision recorded: ${outcome}. Showing the next possible issue: ${target.finding.firstProposal.document.title}.`,
+      `Decision recorded: ${outcome}. Showing the next possible issue: ${target.finding.title}.`,
     );
     requestFocus(target);
     void navigateLate(issueTo(target), { replace: true });
-  }
-
-  function dropReview() {
-    const nextParams = new URLSearchParams(params);
-    nextParams.delete("review");
-    const text = nextParams.toString();
-    void navigate(
-      { pathname: location.pathname, search: text === "" ? "" : `?${text}` },
-      { replace: true },
-    );
   }
 
   const projectName = (projectId: string) =>
@@ -316,11 +345,21 @@ export function IssuesRoute() {
       ?.name ?? projectId;
 
   const chips: FilterChipOption<StateFilter>[] = [
+    {
+      value: "needs-review",
+      label: "Needs review",
+      count: list.counts["needs-review"],
+    },
     ...FINDING_STATES.map((state) => ({
       value: state,
       label: FINDING_STATE_LABELS[state].label,
       count: list.counts[state],
     })),
+    {
+      value: "unassessed",
+      label: "Not assessed",
+      count: list.counts.unassessed,
+    },
     { value: "all", label: "All", count: list.counts.all },
   ];
   const projectOptions = [...index.projects].sort((left, right) =>
@@ -342,73 +381,135 @@ export function IssuesRoute() {
       subtitle={
         <span className="issues-list-subtitle">
           {filters.project === undefined
-            ? "Across all projects, newest first"
-            : `In ${project?.name ?? filters.project}, newest first`}
-        </span>
-      }
-      actions={
-        <span className="issues-select-field">
-          <label htmlFor={projectSelect} className="ui-visually-hidden">
-            Project
-          </label>
-          <select
-            id={projectSelect}
-            className="issues-select"
-            value={filters.project ?? ""}
-            onChange={(event) =>
-              setFilters({
-                project:
-                  event.target.value === "" ? undefined : event.target.value,
-              })
-            }
-          >
-            <option value="">All projects</option>
-            {unknownProject ? (
-              <option value={filters.project}>{filters.project}</option>
-            ) : null}
-            {projectOptions.map((candidate) => (
-              <option key={candidate.projectId} value={candidate.projectId}>
-                {candidate.name}
-              </option>
-            ))}
-          </select>
+            ? `Across all projects${view.sort === "newest" ? ", newest first" : ""}`
+            : `In ${project?.name ?? filters.project}${view.sort === "newest" ? ", newest first" : ""}`}
         </span>
       }
       toolbar={
         <div className="issues-toolbar">
           <FilterChips
             label="Filter by state"
-            options={chips}
+            options={chips.filter(
+              (chip) =>
+                chip.value === "unassessed" ||
+                chip.value === "needs-review" ||
+                chip.value === "all" ||
+                chip.value === filters.state,
+            )}
             value={filters.state}
             onChange={(state) => setFilters({ state })}
           />
-          <span className="issues-select-field">
-            <label htmlFor={severitySelect} className="issues-field-label">
-              Severity
-            </label>
+          <label className="issues-workspace-search">
+            <Icon name="search" size={14} />
+            <span className="ui-visually-hidden">Search issues</span>
+            <input
+              type="search"
+              value={view.q}
+              placeholder="Search issues"
+              onChange={(event) => setView({ q: event.target.value })}
+            />
+          </label>
+          <label className="issues-sort-field">
+            <span>Sort</span>
             <select
-              id={severitySelect}
               className="issues-select"
-              aria-describedby={`${severitySelect}-hint`}
-              value={filters.severity ?? ""}
+              aria-label="Sort issues"
+              value={view.sort}
               onChange={(event) =>
-                setFilters({
-                  severity: isFindingSeverity(event.target.value)
-                    ? event.target.value
-                    : undefined,
+                setView({
+                  sort: readIssueListView(
+                    new URLSearchParams({ sort: event.target.value }),
+                  ).sort,
                 })
               }
+              title="Severity uses the analyst rating where available, otherwise the AI suggestion; unset severity sorts last."
             >
-              {SEVERITY_OPTIONS.map((option) => (
+              {ISSUE_SORTS.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
               ))}
             </select>
-            <span id={`${severitySelect}-hint`} className="ui-caption">
-              The analyst&apos;s rating; AI suggestions are not filtered.
+          </label>
+          <details className="issues-extra-filters">
+            <summary>More filters</summary>
+            <span className="issues-select-field">
+              <label htmlFor={projectSelect} className="issues-field-label">
+                Project
+              </label>
+              <select
+                id={projectSelect}
+                className="issues-select"
+                value={filters.project ?? ""}
+                onChange={(event) =>
+                  setFilters({
+                    project:
+                      event.target.value === ""
+                        ? undefined
+                        : event.target.value,
+                  })
+                }
+              >
+                <option value="">All projects</option>
+                {unknownProject ? (
+                  <option value={filters.project}>{filters.project}</option>
+                ) : null}
+                {projectOptions.map((candidate) => (
+                  <option key={candidate.projectId} value={candidate.projectId}>
+                    {candidate.name}
+                  </option>
+                ))}
+              </select>
             </span>
-          </span>
+
+            <span className="issues-select-field">
+              <label htmlFor={stateSelect} className="issues-field-label">
+                State
+              </label>
+              <select
+                id={stateSelect}
+                className="issues-select"
+                value={filters.state}
+                onChange={(event) =>
+                  setFilters({ state: event.target.value as StateFilter })
+                }
+              >
+                {chips.map((chip) => (
+                  <option key={chip.value} value={chip.value}>
+                    {chip.label}
+                    {chip.count === undefined ? "" : ` (${chip.count})`}
+                  </option>
+                ))}
+              </select>
+            </span>
+            <span className="issues-select-field">
+              <label htmlFor={severitySelect} className="issues-field-label">
+                Severity
+              </label>
+              <select
+                id={severitySelect}
+                className="issues-select"
+                aria-describedby={`${severitySelect}-hint`}
+                value={filters.severity ?? ""}
+                onChange={(event) =>
+                  setFilters({
+                    severity: isFindingSeverity(event.target.value)
+                      ? event.target.value
+                      : undefined,
+                  })
+                }
+              >
+                {SEVERITY_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <span id={`${severitySelect}-hint`} className="ui-caption">
+                The analyst&apos;s rating; AI suggestions are not filtered.
+              </span>
+            </span>
+          </details>
         </div>
       }
       footer={
@@ -478,7 +579,11 @@ export function IssuesRoute() {
         {issues.length === 0 ? (
           list.pending || list.error !== null ? null : (
             <EmptyState
-              title={empty.title}
+              title={
+                view.q.trim() === ""
+                  ? empty.title
+                  : "No possible issues match this search"
+              }
               action={
                 filters.project !== undefined ||
                 filters.severity !== undefined ? (
@@ -501,17 +606,19 @@ export function IssuesRoute() {
             {issues.map((issue) => (
               <IssueRow
                 key={keyOf(issue)}
-                id={`issue-${issue.finding.auditId}-${issue.finding.findingId}`}
+                id={`issue-${issue.finding.projectId}-${issue.finding.findingId}`}
                 finding={issue.finding}
                 to={{
                   pathname: issuePath(
-                    issue.finding.auditId,
+                    issue.finding.projectId,
                     issue.finding.findingId,
                   ),
                   search,
                 }}
                 selected={keyOf(issue) === selectedKey}
                 context={issue.project.name}
+                showCreated={view.sort === "newest" || view.sort === "oldest"}
+                severityBadges
               />
             ))}
           </ListSection>
@@ -519,7 +626,8 @@ export function IssuesRoute() {
       </div>
       {issues.length > 0 &&
       complete &&
-      filters.state === "proposed" &&
+      filters.state === "needs-review" &&
+      view.q.trim() === "" &&
       filters.severity === undefined ? (
         <p className="issues-end-note">
           <StatusGlyph tone="done" size={15} />
@@ -533,12 +641,12 @@ export function IssuesRoute() {
   );
 
   const detail =
-    auditId === undefined || findingId === undefined ? (
+    projectId === undefined || findingId === undefined ? (
       <div className="issues-detail-empty">
         <EmptyState title="Choose a possible issue">
           <p>
             Pick one from the list, or press <Kbd>J</Kbd> to start with the
-            newest.
+            first listed issue.
           </p>
         </EmptyState>
       </div>
@@ -549,7 +657,7 @@ export function IssuesRoute() {
         </p>
         <IssueDetail
           key={selectedKey}
-          auditId={auditId}
+          projectId={projectId}
           findingId={findingId}
           listed={selected}
           projects={index.projects}
@@ -561,8 +669,6 @@ export function IssuesRoute() {
           listPending={list.pending}
           onPrevious={previous === undefined ? undefined : () => open(previous)}
           onNext={next === undefined ? undefined : () => open(next)}
-          reviewId={params.get("review")}
-          onDropReview={dropReview}
           onDecided={onDecided}
           focusRequest={
             focusRequest !== null && focusRequest.key === selectedKey
@@ -576,6 +682,7 @@ export function IssuesRoute() {
   return (
     <>
       <PaneLayout
+        className="issues-workspace"
         listLabel="Possible issues"
         detailLabel="Review"
         showDetail={selectedKey !== undefined}

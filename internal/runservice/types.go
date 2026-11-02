@@ -39,7 +39,7 @@ type PublicRunWriter interface {
 }
 
 type AuditRunWriter interface {
-	GetAuditInputMaterialization(context.Context, string) (*runstore.AuditInputMaterialization, error)
+	LockAuditInputMaterialization(context.Context, string) (*runstore.AuditInputMaterialization, error)
 	SetAuditInputMaterialization(context.Context, string, uint32, runstore.AuditInputMaterialization) error
 	SetAuditCompletion(context.Context, string, runstore.AuditCompletionSnapshot) error
 	CreateAuditRun(context.Context, runstore.CreateAuditRunParams) (runstore.WorkflowRun, error)
@@ -59,7 +59,7 @@ type AuditTransaction func(context.Context, func(AuditRunWriter, *artifacts.Serv
 
 type WorkflowResolver interface {
 	ResolvePinnedRunWorkflow(context.Context, resolved.ResolvedWorkflow, resolved.CredentialLookup) (resolved.ResolvedWorkflow, error)
-	ResolveRunWorkflow(context.Context, string, resolved.ExecutionConfigPatch, resolved.CredentialLookup) (resolved.ResolvedWorkflow, error)
+	ResolveRunWorkflow(context.Context, string, resolved.CredentialLookup) (resolved.ResolvedWorkflow, error)
 }
 
 type CredentialGuard interface {
@@ -115,7 +115,6 @@ type PublicCreateParams struct {
 	OwnerID                string
 	ProjectID              *string
 	Workflow               string
-	ExecutionConfig        resolved.ExecutionConfigPatch
 	RuntimeLabels          []string
 	MetadataLabels         runstore.RunMetadataLabels
 	Parameters             map[string]string

@@ -10,8 +10,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
-	"github.com/grauwolf32/contractor/internal/strictjson"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -490,7 +490,7 @@ func readRoundResultsRelated(ctx context.Context, tx pgx.Tx, auditID, _ string, 
 		read = 0
 		for rows.Next() {
 			var finding auditdomain.RoundResultFinding
-			if err := rows.Scan(&finding.FindingID, &finding.Revision, &finding.State, &finding.AssessmentID, &finding.SemanticAssessment, &finding.DecisionID, &finding.Verdict); err != nil {
+			if err := rows.Scan(&finding.FindingID, &finding.ProjectID); err != nil {
 				rows.Close()
 				return nil, err
 			}

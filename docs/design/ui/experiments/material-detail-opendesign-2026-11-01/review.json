@@ -1,0 +1,176 @@
+{
+  "date": "2026-11-01",
+  "task": "V429-016",
+  "kind": "standalone non-normative design preview; no production transfer",
+  "projectId": "contractor-material-detail-20261101",
+  "conversationId": "1d3407c7-d3ce-465b-b187-a5987585d4ed",
+  "model": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+  "gateway": "Existing Contractor gateway through a single-model expiring bounded relay; model unchanged",
+  "runs": [
+    {
+      "initial": "7092b4b9-156e-4bcf-956f-4d96caa33cdd",
+      "physicalContinuation": "66655b79-cdfe-416e-8ac2-9495a32d025b",
+      "outcome": "No artifact; reasoning exhausted output budget. Preserved receipt and run history."
+    },
+    {
+      "initial": "f1de39de-f75b-4982-9b61-83ff02a672df",
+      "outcome": "No artifact; reasoning exhausted output budget. Preserved receipt and run history."
+    },
+    {
+      "initial": "0d4cf93c-86f5-4098-9eb5-ee25060e1b15",
+      "outcome": "terminal; deliverableValid true; generated material-polish-v2.css, index-material-v2.html and rationale-material-v2.md"
+    }
+  ],
+  "contributions": {
+    "assistant": "Contract/capability brief; exact synthetic fixtures; actual React baseline capture; working local behavior/HTML seed; safe preview/comparison server and browser verification.",
+    "OpenDesign": "Actual generated composition-only CSS and assembled HTML using the working seed, after unsuccessful full-file generations; original.html is its unmodified file.",
+    "reviewCorrections": [
+      "Use existing success color token instead of undefined success-ink.",
+      "Use labelled real SVG rail icons instead of seed Unicode glyphs.",
+      "Make source Wrap lines control change white-space, with independent code scrolling.",
+      "Add contract-required response_unavailable error to the no-response synthetic exchange.",
+      "Stretch the reading pane at mobile widths; the CSS-only pass inherited start alignment and made short JSON content shrink."
+    ]
+  },
+  "sha256": {
+    "seed": "3797492f7d606ad5a6fa43be80e0021640d37be0f03c50fcc74fc575b82bb253",
+    "original": "9e673117108de0c0b803963fe0b04a795a2af9d87f58654f7b2f9752bc97ddeb",
+    "preview": "eca94d91e7ce8f87ed3f6bad88f3f76959b4635ab19d837d7948472c0ea551df"
+  },
+  "reference": {
+    "baseline": "Actual current React ArtifactDetailView captured after explicit Load preview with identical fixtures; inert #root snapshot and extracted app CSS.",
+    "cases": [
+      "source",
+      "http",
+      "report",
+      "json"
+    ],
+    "revisionStates": [
+      "normal",
+      "historical"
+    ],
+    "sourceCaptures": "/Users/ruslan/src/third-party/open-design-sandbox/contractor-material-trial/20261101/reference/captures",
+    "themes": "Shared Contractor theme.css tokens and unchanged system sans/mono stacks"
+  },
+  "preservation": {
+    "preBackup": {
+      "path": "/Users/ruslan/src/third-party/open-design-backups/20261101T110754Z",
+      "sqliteIntegrity": "ok",
+      "databaseCounts": {
+        "projects": 4,
+        "conversations": 8,
+        "messages": 43
+      },
+      "projectFiles": 111,
+      "archives": [
+        {
+          "name": "open-design-state.tar",
+          "bytes": 50345984,
+          "sha256": "dfd29b01c4967fdeeda864257f9ab31bc405629b108fef05141ba45b7bdb1f0b"
+        },
+        {
+          "name": "open-design-sandbox.tar.gz",
+          "bytes": 248042434,
+          "sha256": "4a34d60c76b07d4de2886e036d07f0554151ea21161a5962cf574b1e1857c815"
+        }
+      ]
+    },
+    "postBackup": {
+      "path": "/Users/ruslan/src/third-party/open-design-backups/20261101T112917Z",
+      "sqliteIntegrity": "ok",
+      "databaseCounts": {
+        "projects": 5,
+        "conversations": 9,
+        "messages": 50
+      },
+      "projectFiles": 131,
+      "archives": [
+        {
+          "name": "open-design-state.tar",
+          "bytes": 54677504,
+          "sha256": "2e4bf3f415c99b9edc81d414a2856040dca797f0e14d5ed0e074b9fdf5209162"
+        },
+        {
+          "name": "open-design-sandbox.tar.gz",
+          "bytes": 248841595,
+          "sha256": "a8905f8e740428a48c47e9e26b09270839081f555820bfadc5823d8faaf0d5ff"
+        }
+      ]
+    },
+    "earlierProjectFilesPreservedExactly": 111,
+    "earlierProjectFileChanges": 0,
+    "trialArchive": "/Users/ruslan/src/third-party/open-design-sandbox/contractor-material-trial/20261101",
+    "finalBackup": {
+      "backup": "/Users/ruslan/src/third-party/open-design-backups/20261101T113245Z",
+      "sqliteIntegrity": "ok",
+      "databaseCounts": {
+        "projects": 5,
+        "conversations": 9,
+        "messages": 50
+      },
+      "projectFiles": 131,
+      "archives": [
+        {
+          "name": "open-design-state.tar",
+          "bytes": 54679552,
+          "sha256": "873f948138462435b4a8212cf21a2a6d491980e919c222d1a445e19c15c70b41"
+        },
+        {
+          "name": "open-design-sandbox.tar.gz",
+          "bytes": 252813245,
+          "sha256": "146054b62b76b00922942fbf9834ea74bad738de6c9a36d3e857447b4a7bc69a"
+        }
+      ],
+      "application": "resumed and healthy",
+      "includes": "Complete model state plus host candidate-review sources and candidate-captures"
+    }
+  },
+  "relay": {
+    "stopped": true,
+    "upstreamCredentialRemoved": true,
+    "requestsUsed": 20
+  },
+  "limitations": [
+    "Four local examples; one selected HTTP exchange. No production route changed.",
+    "History is seeded; Back and Upload announce local intent and never write.",
+    "Production transfer must reuse actual preview components, explicit preview-load policy, parser, scope, paging, authorization and limits."
+  ],
+  "verification": {
+    "command": "node docs/design/ui/experiments/material-detail-opendesign-2026-11-01/verify.mjs",
+    "status": "passed",
+    "layouts": 63,
+    "formats": 4,
+    "themes": [
+      "light",
+      "dark",
+      "black"
+    ],
+    "widths": [
+      1440,
+      1100,
+      390,
+      320
+    ],
+    "functionalChecks": [
+      "Modes and saved revision identity",
+      "Current/historical/locked and Upload eligibility",
+      "Masked HTTP headers and reset on revision change",
+      "No-response and incomplete capture truth",
+      "Unavailable retry and disabled actions",
+      "Exact selected text/binary download bytes",
+      "Clipboard success and permission denial",
+      "Local-only Upload and return context",
+      "Opaque sandbox, no external requests, no browser errors"
+    ],
+    "manualReview": [
+      "Actual IAB desktop selected HTTP response",
+      "Actual IAB black theme390px HTTP request"
+    ],
+    "otherGates": [
+      "python3 scripts/check_tasks.py",
+      "python3 scripts/check_spec.py",
+      "git diff --check"
+    ],
+    "productionUIChanged": false
+  }
+}

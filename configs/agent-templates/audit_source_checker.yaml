@@ -10,7 +10,6 @@ spec:
   runtime: adk@1
   instructions:
     ref: instructions/audit-source-checker-worker.md
-  modelPolicy: audit_completion_worker@1
   toolsets:
     - ref: memory-tools@1
       tools:

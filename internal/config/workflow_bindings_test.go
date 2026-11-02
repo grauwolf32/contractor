@@ -53,7 +53,7 @@ func TestWorkflowBindingIndexMatchesCatalogFingerprintAndDetachesPages(t *testin
 		templates[key] = template
 	}
 	templates["artifact_builder@1"] = changed
-	next := newSnapshot(snapshot.workflows, templates, snapshot.policies, snapshot.gateways, snapshot.executionConfigs, snapshot.auditProfiles, snapshot.instructions, snapshot.sources)
+	next := newSnapshot(snapshot.workflows, templates, snapshot.policies, snapshot.gateways, snapshot.auditProfiles, snapshot.instructions, snapshot.sources)
 	updated, err := next.AgentTemplateWorkflowBindings("artifact_builder@1")
 	if err != nil {
 		t.Fatal(err)

@@ -12,20 +12,24 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
+	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findinganalysis"
 	"github.com/grauwolf32/contractor/internal/findingexport"
 	"github.com/grauwolf32/contractor/internal/findingintake"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runstore"
-	"github.com/grauwolf32/contractor/internal/strictjson"
+	"github.com/jackc/pgx/v5"
 )
 
-func TestFindingExportFreezesDuplicateOptionAndIndependentAuditReviews(t *testing.T) {
+func TestFindingExportFreezesDuplicateOptionAndCanonicalProjectAssessment(t *testing.T) {
 	ctx, pool := collectionTestPool(t)
 	const owner, project, audit = "owner", "project", "audit-one"
 	createCorrelationAudit(t, ctx, pool, owner, project, audit)
@@ -37,12 +41,14 @@ func TestFindingExportFreezesDuplicateOptionAndIndependentAuditReviews(t *testin
 	service := &Service{pool: pool, findings: intake, now: time.Now}
 	fingerprint := correlationFingerprint(t)
 	first := seedAuditFindingDocument(t, ctx, pool, project, owner, audit, "first", auditFindingDocument("first"), fingerprint)
-	second := seedAuditFindingDocument(t, ctx, pool, project, owner, audit, "second", auditFindingDocument("second"), fingerprint)
+	second := seedAuditFinding(t, ctx, pool, project, owner, audit, "second")
 	third := seedAuditFinding(t, ctx, pool, project, owner, audit, "third")
 	peer := seedAuditFindingDocument(t, ctx, pool, project, owner, "audit-two", "peer", auditFindingDocument("peer"), fingerprint)
 	confirmed := decideFindingForTest(t, ctx, service, owner, audit, first, 1, "confirmed", auditstore.VerdictTruePositive, reviewStringPointer("high"), nil)
 	duplicate := decideFindingForTest(t, ctx, service, owner, audit, third, 1, "duplicate", auditstore.VerdictDuplicate, nil, &first)
-	rejected := decideFindingForTest(t, ctx, service, owner, "audit-two", peer, 1, "rejected", auditstore.VerdictFalsePositive, nil, nil)
+	if peer != first {
+		t.Fatal("qualified source created a second Finding")
+	}
 	publisher := newCollectionTestPublisher(t, pool)
 	request := findingexport.Request{ClientKey: "frozen", Format: "sarif", Profile: "generic", Findings: []findingexport.Selection{{FindingID: first, Revision: confirmed.Revision}, {FindingID: second, Revision: 1}, {FindingID: third, Revision: duplicate.Revision}}}
 	var results [2]findingintake.PublishedExport
@@ -56,7 +62,7 @@ func TestFindingExportFreezesDuplicateOptionAndIndependentAuditReviews(t *testin
 		t.Fatalf("atomic replay: %+v %v", results, failures)
 	}
 	published := results[0]
-	if published.SelectedCount != 3 || published.ResultCount != 1 {
+	if published.SelectedCount != 3 || published.ResultCount != 2 {
 		t.Fatalf("duplicate count: %+v", published)
 	}
 	download, err := publisher.ReadFindingExport(ctx, owner, audit, published.ExportID, "export-snapshot")
@@ -71,7 +77,7 @@ func TestFindingExportFreezesDuplicateOptionAndIndependentAuditReviews(t *testin
 		t.Fatal("snapshot discarded selection or option")
 	}
 	for _, r := range snapshot.Results {
-		if r.FindingID == first && (r.Review.Severity != "high" || r.Review.DecisionID == "" || r.Review.State != "confirmed") {
+		if r.FindingID == first && (r.Review.Severity != "high" || r.Review.ActorID == "" || !r.Review.IsState("confirmed")) {
 			t.Fatalf("lost own review: %+v", r)
 		}
 	}
@@ -84,7 +90,7 @@ func TestFindingExportFreezesDuplicateOptionAndIndependentAuditReviews(t *testin
 			Results []json.RawMessage `json:"results"`
 		} `json:"runs"`
 	}
-	if err := json.Unmarshal(original.Read.Payload.Data, &sarif); err != nil || len(sarif.Runs) != 1 || len(sarif.Runs[0].Results) != 1 {
+	if err := json.Unmarshal(original.Read.Payload.Data, &sarif); err != nil || len(sarif.Runs) != 1 || len(sarif.Runs[0].Results) != 2 {
 		t.Fatalf("rendered count: %+v %v", sarif, err)
 	}
 	changed := request
@@ -97,9 +103,8 @@ func TestFindingExportFreezesDuplicateOptionAndIndependentAuditReviews(t *testin
 	if err != nil || expanded.ResultCount != 3 {
 		t.Fatalf("include duplicate: %+v %v", expanded, err)
 	}
-	if _, err := pool.Exec(ctx, `UPDATE audit_findings SET state='needs-evidence',revision=revision+1,current_decision_id=NULL WHERE finding_id=$1`, first); err != nil {
-		t.Fatal(err)
-	}
+	reassessed := decideFindingForTest(t, ctx, service, owner, "audit-two", peer, confirmed.Revision, "negative", auditstore.VerdictNeedsEvidence, nil, nil)
+
 	replay, err := publisher.PublishFindingExport(ctx, owner, audit, request)
 	if err != nil || !replay.Replayed || replay.Artifact.Digest != published.Artifact.Digest {
 		t.Fatalf("triage refreshed snapshot: %+v %v", replay, err)
@@ -108,7 +113,7 @@ func TestFindingExportFreezesDuplicateOptionAndIndependentAuditReviews(t *testin
 	if err != nil || !bytes.Equal(original.Read.Payload.Data, after.Read.Payload.Data) {
 		t.Fatalf("download changed: %v", err)
 	}
-	peerExport, err := publisher.PublishFindingExport(ctx, owner, "audit-two", findingexport.Request{ClientKey: "frozen", Format: "sarif", Profile: "generic", Findings: []findingexport.Selection{{FindingID: peer, Revision: rejected.Revision}}})
+	peerExport, err := publisher.PublishFindingExport(ctx, owner, "audit-two", findingexport.Request{ClientKey: "frozen", Format: "sarif", Profile: "generic", Findings: []findingexport.Selection{{FindingID: peer, Revision: reassessed.Revision}}})
 	if err != nil || peerExport.ResultCount != 1 || peerExport.ExportID == published.ExportID {
 		t.Fatalf("independent Audit export: %+v %v", peerExport, err)
 	}
@@ -254,7 +259,7 @@ func TestFindingExportRetainsResolvedCodeAndSafeHTTPAfterSourceDeletion(t *testi
 		t.Fatal(err)
 	}
 	native := write("native-analysis", findinganalysis.MediaType, encoded)
-	seedCollectionRunReceiptDocument(t, ctx, pool, "owner", "source-run", "native", false, func(proposal *auditdomain.FindingProposal) {
+	seedCollectionRunReceiptDocument(t, ctx, pool, "owner", "source-run", "native", false, true, func(proposal *auditdomain.FindingProposal) {
 		proposal.StandardRefs = []auditdomain.StandardReference{{Scheme: "CWE", Version: "4.20", RequirementID: "CWE-89"}}
 	}, source, capture, native)
 	intake, err := findingintake.New(pool)
@@ -268,18 +273,30 @@ func TestFindingExportRetainsResolvedCodeAndSafeHTTPAfterSourceDeletion(t *testi
 	if _, _, err := intake.ImportIntoAudit(ctx, findingintake.ImportRequest{OwnerID: "owner", AuditID: "audit", RunID: "source-run", Proposal: proposal.Ref}); err != nil {
 		t.Fatal(err)
 	}
+	// The fixture's raw receipt stands in for explicit Submit. Complete the
+	// same owner's admission after its exact Project retention is available.
+	if err := persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		hooks := hookstore.NewFindingEventsTx(tx)
+		if _, err := hooks.AdmitProjectFinding(ctx, "project", "receipt-native", "finding-native"); err != nil {
+			return err
+		}
+		return hooks.RecordFindingSourceAdded(ctx, "audit", "receipt-native", "source-run")
+	}); err != nil {
+		t.Fatal(err)
+	}
+
 	createCorrelationAudit(t, ctx, pool, "owner", "project", "another-audit")
 	if _, _, err := intake.ImportIntoAudit(ctx, findingintake.ImportRequest{OwnerID: "owner", AuditID: "another-audit", RunID: "source-run", Proposal: proposal.Ref}); err != nil {
 		t.Fatal(err)
 	}
 	var peerFinding string
-	if err := pool.QueryRow(ctx, `SELECT finding_id FROM audit_findings WHERE audit_id='another-audit' AND first_receipt_id='receipt-native'`).Scan(&peerFinding); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT finding_id FROM project_findings WHERE project_id='project' AND first_receipt_id='receipt-native'`).Scan(&peerFinding); err != nil {
 		t.Fatal(err)
 	}
 	reviews := &Service{pool: pool, findings: intake, now: time.Now}
 	decideFindingForTest(t, ctx, reviews, "owner", "another-audit", peerFinding, 1, "other-native", auditstore.VerdictFalsePositive, nil, nil)
 	var finding string
-	if err := pool.QueryRow(ctx, `SELECT finding_id FROM audit_findings WHERE audit_id='audit' AND first_receipt_id='receipt-native'`).Scan(&finding); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT finding_id FROM project_findings WHERE project_id='project' AND first_receipt_id='receipt-native'`).Scan(&finding); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := runstore.NewPostgresStore(pool).TransitionRun(ctx, "source-run", runstore.RunInitializing, runstore.RunFailed, runstore.Reason{Code: "test_done"}); err != nil {
@@ -289,7 +306,7 @@ func TestFindingExportRetainsResolvedCodeAndSafeHTTPAfterSourceDeletion(t *testi
 		t.Fatal(err)
 	}
 	publisher := newCollectionTestPublisher(t, pool)
-	result, err := publisher.PublishFindingExport(ctx, "owner", "audit", findingexport.Request{ClientKey: "native", Format: "sarif", Profile: "generic", Findings: []findingexport.Selection{{FindingID: finding, Revision: 1}}})
+	result, err := publisher.PublishFindingExport(ctx, "owner", "audit", findingexport.Request{ClientKey: "native", Format: "sarif", Profile: "generic", Findings: []findingexport.Selection{{FindingID: finding, Revision: 2}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -301,8 +318,8 @@ func TestFindingExportRetainsResolvedCodeAndSafeHTTPAfterSourceDeletion(t *testi
 	if err != nil {
 		t.Fatal(err)
 	}
-	if snapshot.Results[0].Review.State != "proposed" || snapshot.Results[0].Review.DecisionID != "" {
-		t.Fatal("borrowed another Audits decision for the same receipt")
+	if !snapshot.Results[0].Review.IsState("rejected") || snapshot.Results[0].Review.ActorID != "owner" {
+		t.Fatal("export did not read the same canonical Project assessment")
 	}
 	r := snapshot.Receipts[0]
 	if r.Analysis == nil || r.Analysis.Analysis.PrimaryLocationID != "sink" || r.Analysis.Sources[0].Document.Scope.Kind != "run" || r.HTTP == nil || r.HTTP.URI != "https://example.test/check" || r.HTTP.ContentType != "application/json" {
@@ -336,7 +353,7 @@ func TestFindingExportRetainsResolvedCodeAndSafeHTTPAfterSourceDeletion(t *testi
 		t.Fatal("result classification became a shared rule claim")
 	}
 	for _, e := range r.Evidence {
-		if e.Original.Scope.Kind != "run" || e.Retained.Scope.Kind != "project" || e.Retained.Ref.Namespace != auditdomain.ArtifactNamespace("audit") {
+		if e.Original.Scope.Kind != "run" || e.Retained.Scope.Kind != "project" || e.Retained.Ref.Namespace != artifactpolicy.FindingMaterialsNamespace {
 			t.Fatal("exact original/retained evidence authority lost")
 		}
 	}

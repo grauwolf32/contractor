@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -49,10 +50,13 @@ func (s *Service) ListAuditCollection(
 		return nil, err
 	}
 	ids := make([]string, len(receipts))
+	historyNames := make([]string, len(receipts))
 	for i := range receipts {
 		ids[i] = receipts[i].ReceiptID
+		historyNames[i] = auditdomain.FindingSourceHistoryName(receipts[i].ReceiptID, "direct-verification",
+			deterministicID("direct-assessment", auditID, receipts[i].ReceiptID))
 	}
-	rows, err := s.pool.Query(ctx, listAuditCollectionSQL, ids, auditID, ownerID, runID)
+	rows, err := s.pool.Query(ctx, listAuditCollectionSQL, ids, auditID, ownerID, runID, historyNames)
 	if err != nil {
 		return nil, fmt.Errorf("read Audit collection proposal state: %w", err)
 	}

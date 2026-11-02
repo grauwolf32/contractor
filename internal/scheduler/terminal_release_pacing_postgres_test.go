@@ -256,7 +256,7 @@ type pacedReleaseStore struct {
 	listed  chan struct{}
 }
 
-func (s *pacedReleaseStore) ListTerminalStageExecutionsWithAllocations(ctx context.Context) ([]runstore.StageExecution, error) {
+func (s *pacedReleaseStore) ListTerminalStageExecutionsWithAllocations(ctx context.Context, excluded []string) ([]runstore.StageExecution, error) {
 	s.mu.Lock()
 	s.lists++
 	err := s.listErr
@@ -266,7 +266,7 @@ func (s *pacedReleaseStore) ListTerminalStageExecutionsWithAllocations(ctx conte
 	if err != nil {
 		return nil, err
 	}
-	return s.Store.ListTerminalStageExecutionsWithAllocations(ctx)
+	return s.Store.ListTerminalStageExecutionsWithAllocations(ctx, excluded)
 }
 
 func (s *pacedReleaseStore) ListStageAllocations(ctx context.Context, stageExecutionID string) ([]runstore.StageAllocation, error) {

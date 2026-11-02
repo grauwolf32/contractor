@@ -10,9 +10,9 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/grauwolf32/contractor/internal/pagelimit"
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
+	"github.com/grauwolf32/contractor/internal/helpers/pagelimit"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 )
 
@@ -965,6 +965,9 @@ func validateReportDecision(params auditstore.ReportDecisionParams) error {
 }
 
 func validateCommitReport(params auditstore.CommitReportParams) error {
+	if params.ExpectedProjectRevision < 1 || params.ExpectedProjectRevision > contracts.MaxExactInteger {
+		return auditstore.ErrInvalid
+	}
 	if err := validateClaimIdentity(params.Claim); err != nil {
 		return err
 	}

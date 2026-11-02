@@ -17,7 +17,7 @@ func builtInRunSnapshot() RunSnapshot {
 	}
 }
 
-func TestRunSnapshotCloneAndValidationKeepSafeExactPins(t *testing.T) {
+func TestRunSnapshotValidationKeepsSafeExactPins(t *testing.T) {
 	snapshot := builtInRunSnapshot()
 	snapshot.Labels = []PinnedLabel{{
 		Label: "debug", Explicit: true, BindingRevision: 3,
@@ -28,13 +28,7 @@ func TestRunSnapshotCloneAndValidationKeepSafeExactPins(t *testing.T) {
 	if err := snapshot.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	clone := snapshot.Clone()
-	clone.Labels[0].Label = "changed"
-	clone.LLMCredentialIDs[0] = "changed-route"
-	if snapshot.Labels[0].Label != "debug" || snapshot.LLMCredentialIDs[0] != "worker-route" {
-		t.Fatal("Run RuntimeConfig snapshot clone aliases source slices")
-	}
-	invalid := snapshot.Clone()
+	invalid := snapshot
 	invalid.Labels = append(invalid.Labels, invalid.Labels[0])
 	if err := invalid.Validate(); err == nil {
 		t.Fatal("duplicate pinned Runtime label accepted")

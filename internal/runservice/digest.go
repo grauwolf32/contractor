@@ -1,15 +1,15 @@
 package runservice
 
 import (
-	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
 
 // PublicRequestDigest is the canonical digest of a public Run creation
 // request that its Idempotency-Key binds (RUN-R18): the Workflow selector,
-// parameters, input refs and executionConfig, with the sorted Runtime labels
+// parameters and input refs, with the sorted Runtime labels
 // and the normalized metadata labels, each omitted when empty. A Project Run
 // also binds its Project, so one body sent to two Projects, or to a Project
 // and to /v1/runs, is two different requests.
@@ -28,7 +28,6 @@ func PublicRequestDigest(params PublicCreateParams) (string, error) {
 	}
 	canonical := map[string]any{
 		"workflow": params.Workflow, "parameters": parameters, "artifacts": inputs,
-		"executionConfig": params.ExecutionConfig.CanonicalValue(),
 	}
 	if len(labels) != 0 {
 		canonical["runtimeLabels"] = labels

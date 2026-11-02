@@ -32,8 +32,7 @@ func TestAuditProfileLoadsResolvedWorkflowAndReturnsDeepCopies(t *testing.T) {
 	assertDigest(t, profile.Ref.Digest)
 	if profile.Mode != auditprofile.AuditModeCustomChecklist || profile.Inventory.Implementation != "checklist@1" ||
 		profile.Inventory.ItemWorkflowRole != "check" ||
-		profile.Execution.BatchSize != 1 || profile.Interaction.ActiveChecks != auditprofile.AuditActiveChecksProhibited ||
-		profile.Interaction.FindingConfirmation != auditprofile.AuditFindingDisabled {
+		profile.Execution.BatchSize != 1 || profile.Interaction.ActiveChecks != auditprofile.AuditActiveChecksProhibited {
 		t.Fatalf("unexpected resolved AuditProfile: %+v", profile)
 	}
 	binding := profile.Workflows["check"]
@@ -104,7 +103,6 @@ func TestAuditProfileCatalogAcceptsBoundedFuturePoliciesWithoutClaimingCompatibi
 	manifest := strings.NewReplacer(
 		"batchSize: 1", "batchSize: 2",
 		"activeChecks: prohibited", "activeChecks: approval-required",
-		"findingConfirmation: disabled", "findingConfirmation: human-required",
 		"notApplicable: profile-rule", "notApplicable: human-required",
 		"reportAcceptance: automatic", "reportAcceptance: human-required",
 	).Replace(validAuditProfileYAML(t, "future-review"))
@@ -116,7 +114,6 @@ func TestAuditProfileCatalogAcceptsBoundedFuturePoliciesWithoutClaimingCompatibi
 	}
 	if profile.Execution.BatchSize != 2 ||
 		profile.Interaction.ActiveChecks != auditprofile.AuditActiveChecksApprovalRequired ||
-		profile.Interaction.FindingConfirmation != auditprofile.AuditFindingHumanRequired ||
 		profile.Interaction.NotApplicable != auditprofile.AuditNotApplicableHumanRequired ||
 		profile.Interaction.ReportAcceptance != auditprofile.AuditReportHumanRequired {
 		t.Fatalf("future bounded policy was not retained: %+v", profile)
@@ -304,7 +301,6 @@ spec:
   interaction:
     reportAcceptance: automatic
     notApplicable: profile-rule
-    findingConfirmation: disabled
     activeChecks: prohibited
   execution:
     maxEvidenceBytes: 67108864
@@ -376,7 +372,6 @@ spec:
     incompleteRound: assess-with-gaps
   interaction:
     activeChecks: approval-required
-    findingConfirmation: human-required
     notApplicable: human-required
     reportAcceptance: human-required
 `

@@ -77,10 +77,8 @@ func stageProductionMemoryConfiguration(t *testing.T, repositoryRoot, target str
 	var selected struct {
 		Spec struct {
 			Instructions struct{ Ref string }
-			ModelPolicy  string `yaml:"modelPolicy"`
 			Summarizer   *struct {
 				Instructions struct{ Ref string }
-				ModelPolicy  string `yaml:"modelPolicy"`
 			}
 		}
 	}
@@ -103,9 +101,24 @@ func stageProductionMemoryConfiguration(t *testing.T, repositoryRoot, target str
 	}
 	copyFile("configs/" + selected.Spec.Instructions.Ref)
 	copyFile("configs/instructions/copy-planner.md")
-	policies := map[string]bool{selected.Spec.ModelPolicy: true}
+	source, _, err := configload.LoadUnionReadOnly(filepath.Join(repositoryRoot, "configs"), filepath.Join(t.TempDir(), "managed"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sourceWorkflow, err := source.Workflow(workflow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	selection := sourceWorkflow.Stages["copy"].ExecutionConfig.Agents["builder"]
+	mainPolicy := selection.ModelPolicy.Ref.PolicyID + "@" + selection.ModelPolicy.Ref.Version
+	policies := map[string]bool{mainPolicy: true}
+	summaryPolicy := ""
 	if selected.Spec.Summarizer != nil {
-		policies[selected.Spec.Summarizer.ModelPolicy] = true
+		if selection.SummarizerModelPolicy == nil {
+			t.Fatal("production Workflow has no summary policy")
+		}
+		summaryPolicy = selection.SummarizerModelPolicy.Ref.PolicyID + "@" + selection.SummarizerModelPolicy.Ref.Version
+		policies[summaryPolicy] = true
 		if ref := selected.Spec.Summarizer.Instructions.Ref; ref != "" {
 			copyFile("configs/" + ref)
 		}
@@ -156,6 +169,20 @@ func stageProductionMemoryConfiguration(t *testing.T, repositoryRoot, target str
 		}
 		text := strings.ReplaceAll(string(data), "shared_memory_worker@1", template)
 		text = strings.ReplaceAll(text, "shared_memory_reviewer@1", template)
+		var authored map[string]any
+		if err := yaml.Unmarshal([]byte(text), &authored); err != nil {
+			t.Fatal(err)
+		}
+		workers := authored["spec"].(map[string]any)["executionConfig"].(map[string]any)["workers"].(map[string]any)
+		workers["modelPolicy"] = mainPolicy
+		if summaryPolicy != "" {
+			workers["summarizerModelPolicy"] = summaryPolicy
+		}
+		encoded, err := yaml.Marshal(authored)
+		if err != nil {
+			t.Fatal(err)
+		}
+		text = string(encoded)
 		if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
 			t.Fatal(err)
 		}

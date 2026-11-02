@@ -53,11 +53,11 @@ SELECT item.item_id, item.approval_kind, item.approval_subject_digest,
 // Used by renewExpiredItemReviews.
 var insertRenewedItemReviewsSQL = `
 INSERT INTO audit_review_requests (
-    request_id,audit_id,finding_id,subject_kind,subject_id,kind,
+    request_id,audit_id,subject_kind,subject_id,kind,
     subject_revision,subject_digest,requested_actions,state,expires_at,
     idempotency_key,request_digest
 )
-SELECT renewal.request_id,$1,NULL,'audit-item-action',renewal.item_id,renewal.kind,
+SELECT renewal.request_id,$1,'audit-item-action',renewal.item_id,renewal.kind,
        1,renewal.digest,renewal.actions::jsonb,'pending',$2,
        renewal.request_id,renewal.digest
   FROM unnest($3::text[],$4::text[],$5::text[],$6::text[],$7::text[])

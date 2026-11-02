@@ -140,8 +140,8 @@ Wording that must not change in meaning:
   ignore events from inputs, textareas, selects and contenteditable, ignore
   key repeats with other modifiers, and stay off while a modal dialog is open.
   Declare keys with `aria-keyshortcuts` and show them with `Kbd`.
-- **Visual language** (match the V3B mockups): Manrope for text,
-  JetBrains Mono for endpoints, file:line, code and IDs. Flat surfaces with
+- **Visual language** (match the V3B mockups): the shared system sans-serif stack for text,
+  and the shared system monospace stack for endpoints, file:line, code and IDs. Flat surfaces with
   1 px hairlines (`--line`), 12–14 px radii for panels, 8–10 px for controls.
   Primary action: `--primary` fill. Selection: `--accent-dark` fill with a
   3 px `--accent` bar on the left. Status: `StatusGlyph`/`StatusChip` tones.

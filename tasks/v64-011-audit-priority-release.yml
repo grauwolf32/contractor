@@ -11,6 +11,7 @@ depends_on:
 - V64-010
 - V411-015
 - V425-017
+- V64-023
 languages:
 - go
 - python
@@ -57,6 +58,10 @@ context:
     keyed/natural receipts. No new collector, admission engine, lease store or compatibility reader.
   introduced_by_note: This task replaces the former research-only exit; V64-000 and completed V62 remain
     historical implementation, not mandatory future architecture.
+  review_followup: >-
+    Agent scheduling decision on 2026-11-02: include the reviewed P1 cutover defect V64-023 as a base
+    gate prerequisite. The user requested its task description; the selected retirement procedure is
+    still a proposal recorded in that task. No implementation or data deletion starts here.
 scope:
   in:
   - Extend the test-audit-basic-e2e gate and single required-case inventory created by V64-002; integrate

@@ -11,12 +11,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/configload/configloadtest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 )
 
 func TestConfirmedLeaseRequiresEchoOfIssuedAck(t *testing.T) {
@@ -848,7 +850,7 @@ func TestPrepareReservationRejectsActuallyExpiredOwningAgent(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err = controller.PrepareAll(context.Background(), reservations,
-		testWorkerExecutionSettings(testTemplate(t), testRuntimeSettings(), "builder"))
+		testWorkerExecutionSettings(t, testRuntimeSettings(), "builder"))
 	if !errors.Is(err, ErrAllocationLost) || len(runtime.prepared) != 0 {
 		t.Fatalf("lost allocation reached Runtime prepare: error=%v prepared=%v", err, runtime.prepared)
 	}
@@ -1321,7 +1323,7 @@ func testBinding(
 			contracts.WorkerContextManagement{Strategy: contracts.ContextStrategyTemplate}, template),
 		AgentTemplate: template,
 		ExecutionConfig: AllocationExecutionConfig{
-			ModelPolicy: template.ModelPolicy.Ref,
+			ModelPolicy: testWorkerPolicy(t).Ref,
 			LLMGateway:  gateway.Ref,
 		},
 	}
@@ -1464,4 +1466,44 @@ func TestAuthenticatedPrincipalValidationSurvivesResponseProjection(t *testing.T
 			}
 		})
 	}
+}
+
+func TestReservationFingerprintPreservesEmptyRuntimeSnapshotShape(t *testing.T) {
+	snapshot := runtimeconfigtest.BuiltInRunSnapshot()
+	snapshot.Labels, snapshot.LLMCredentialIDs, snapshot.RuntimeCredentialIDs = nil, nil, nil
+	binding := testBinding(t, "builder", "builder", testTemplate(t))
+	binding.RuntimeSelection = &resolved.ResolvedConsumerExecutionConfig{
+		ModelPolicy: testWorkerPolicy(t),
+		Origins:     resolved.ExecutionConfigOrigins{ModelPolicy: "workflow.executionConfig.workers"},
+	}
+	request := ReservationRequest{
+		RunID: "run-fingerprint-shape", StageExecutionID: "stage-fingerprint-shape",
+		Bindings: []BindingRequirement{binding}, RuntimeConfig: &snapshot,
+	}
+	fingerprint, _, err := normalizeReservationRequest(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snapshot.Labels != nil || snapshot.LLMCredentialIDs != nil || snapshot.RuntimeCredentialIDs != nil {
+		t.Fatal("fingerprint normalization changed the caller's snapshot")
+	}
+	canonical := runtimeconfigtest.BuiltInRunSnapshot()
+	request.RuntimeConfig = &canonical
+	other, _, err := normalizeReservationRequest(request)
+	if err != nil || other != fingerprint {
+		t.Fatalf("nil and empty collections have different replay fingerprints: %v", err)
+	}
+}
+
+func testWorkerPolicy(t *testing.T) contracts.ResolvedModelPolicy {
+	t.Helper()
+	snapshot, _, err := configload.LoadUnionReadOnly("../config/testdata/valid", filepath.Join(t.TempDir(), "managed"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	policy, err := snapshot.ModelPolicy("worker@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return policy
 }

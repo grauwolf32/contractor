@@ -1,7 +1,11 @@
-import { type ReactNode, useId } from "react";
+import { type ReactNode } from "react";
 
 import type { ArtifactMetadata } from "../../api/artifacts";
-import type { Audit, AuditFinding, AuditState } from "../../api/audits";
+import type {
+  Audit,
+  ProjectFindingSummary,
+  AuditState,
+} from "../../api/audits";
 import type { Project } from "../../api/projects";
 import type { RunSummary } from "../../api/runs";
 import { ContextLink } from "../../app/context-navigation";
@@ -15,15 +19,18 @@ import {
   type ActivityEntry,
   ActivityLog,
   EmptyState,
-  FilterChips,
+  TechnicalDetails,
   StatusChip,
 } from "../../ui";
 import { artifactDetailPath } from "../artifacts/paths";
 import { auditProfileLabel } from "./audits/labels";
-import type { CheckIssues } from "./overview-data";
 import { RunPrimaryResult } from "./overview-runs";
 import { projectPath } from "./project-sections";
-import { TIMELINE_FILTERS, type TimelineFilter } from "./timeline-filter";
+import {
+  TIMELINE_FILTERS,
+  type TimelineFilter,
+  type TimelineKind,
+} from "./timeline-filter";
 import { formatDay, plural } from "../../app/format";
 import { materialKindLabel } from "../artifacts/kinds";
 
@@ -32,7 +39,7 @@ const TIMELINE_LENGTH = 12;
 
 interface TimelineEvent {
   id: string;
-  kind: Exclude<TimelineFilter, "all"> | "project";
+  kind: TimelineKind | "project";
   /** ISO timestamp. */
   time: string;
   tone: StatusTone;
@@ -52,9 +59,6 @@ const CHECK_PHRASES: Readonly<Record<AuditState, string>> = {
   failed: "failed",
   deleting: "is being deleted",
 };
-
-const HTTP_OPERATION =
-  /^(get|put|post|delete|options|head|patch|trace)\s+(\/\S*)$/i;
 
 function stopReason(audit: Audit): string | undefined {
   const reason = audit.stopReason;
@@ -92,44 +96,36 @@ function checkEvent(
       <>
         {phrase}
         {reason === undefined ? "" : `: ${reason}`}.
-        {toReview > 0
-          ? ` ${plural(toReview, "possible issue needs", "possible issues need")} review.`
-          : null}
+        {toReview > 0 ? (
+          <>
+            {" "}
+            <StatusChip tone="review" size="sm" glyph={false}>
+              {plural(toReview, "possible issue needs", "possible issues need")}{" "}
+              review
+            </StatusChip>
+          </>
+        ) : null}
       </>
     ),
   };
 }
 
-function issueEvent(finding: AuditFinding): TimelineEvent {
-  const document = finding.firstProposal.document;
-  const operation =
-    document.subject === null
-      ? null
-      : HTTP_OPERATION.exec(document.subject.key.trim());
+function issueEvent(finding: ProjectFindingSummary): TimelineEvent {
   return {
-    id: `issue:${finding.auditId}/${finding.findingId}`,
+    id: `issue:${finding.projectId}/${finding.findingId}`,
     kind: "issues",
     time: finding.createdAt,
     tone: "review",
     title: "Possible issue found",
     text: (
       <>
-        {operation === null ? null : (
-          <>
-            on{" "}
-            <span className="ui-mono">
-              {operation[1]!.toUpperCase()} {operation[2]}
-            </span>
-            {": "}
-          </>
-        )}
         <ContextLink
           returnLabel="Project Overview"
-          to={`/issues/${encodeURIComponent(finding.auditId)}/${encodeURIComponent(finding.findingId)}`}
+          to={`/issues/${encodeURIComponent(finding.projectId)}/${encodeURIComponent(finding.findingId)}`}
         >
-          {document.title}
+          {finding.title}
         </ContextLink>{" "}
-        <StatusChip tone="review" size="sm">
+        <StatusChip tone="review" size="sm" glyph={false}>
           Needs review
         </StatusChip>
       </>
@@ -207,7 +203,7 @@ function dayLabel(time: string, now: Date): string {
 interface ProjectTimelineProps {
   project: Project;
   checks: readonly Audit[];
-  issues: readonly CheckIssues[];
+  issues: readonly ProjectFindingSummary[];
   runs: readonly RunSummary[];
   materials: readonly ArtifactMetadata[];
   filter: TimelineFilter;
@@ -229,16 +225,10 @@ export function ProjectTimeline({
   filter,
   onFilter,
 }: ProjectTimelineProps) {
-  const heading = useId();
   const projectId = project.projectId;
-  const toReview = new Map(
-    issues.map((check) => [check.audit.auditId, check.total]),
-  );
   const events: TimelineEvent[] = [
-    ...checks.map((audit) =>
-      checkEvent(audit, projectId, toReview.get(audit.auditId) ?? 0),
-    ),
-    ...issues.flatMap((check) => check.items.map(issueEvent)),
+    ...checks.map((audit) => checkEvent(audit, projectId, 0)),
+    ...issues.map(issueEvent),
     // A check's own Runs are told by the check.
     ...runs
       .filter((run) => !("audit.id" in run.labels))
@@ -253,7 +243,11 @@ export function ProjectTimeline({
     },
   ];
   const shown = events
-    .filter((event) => filter === "all" || event.kind === filter)
+    .filter(
+      (event) =>
+        filter === "all" ||
+        (event.kind !== "project" && filter.includes(event.kind)),
+    )
     .sort(
       (left, right) =>
         timestamp(right.time) - timestamp(left.time) ||
@@ -277,42 +271,72 @@ export function ProjectTimeline({
       text: event.text,
     });
   }
-  const filterLabel =
-    filter === "all"
-      ? "events"
-      : TIMELINE_FILTERS.find(
-          (option) => option.value === filter,
-        )?.label.toLowerCase();
-
+  function toggle(kind: TimelineKind) {
+    const selected = new Set(
+      filter === "all" ? TIMELINE_FILTERS.map(({ value }) => value) : filter,
+    );
+    if (selected.has(kind)) selected.delete(kind);
+    else selected.add(kind);
+    onFilter(
+      selected.size === TIMELINE_FILTERS.length
+        ? "all"
+        : TIMELINE_FILTERS.filter(({ value }) => selected.has(value)).map(
+            ({ value }) => value,
+          ),
+    );
+  }
   return (
-    <section className="projects-timeline" aria-labelledby={heading}>
-      <div className="projects-section-heading">
-        <h3 id={heading}>Timeline</h3>
-        <FilterChips
-          label="Show in timeline"
-          options={TIMELINE_FILTERS}
-          value={filter}
-          onChange={onFilter}
-        />
-      </div>
-      {days.length === 0 ? (
-        <EmptyState title={`No recent ${filterLabel ?? "events"}`}>
-          The timeline shows the most recent checks, possible issues, Runs and
-          materials of this project.
-        </EmptyState>
-      ) : (
-        <ol role="list" className="projects-timeline-days">
-          {days.map((day) => (
-            <li key={day.label} className="projects-timeline-day">
-              <h4 className="projects-timeline-date">{day.label}</h4>
-              <ActivityLog
-                aria-label={`Timeline, ${day.label}`}
-                entries={day.entries}
+    <section className="projects-timeline" aria-label="Timeline">
+      <TechnicalDetails
+        className="projects-timeline-disclosure"
+        summary="Timeline"
+        description={`${shown.length} recent entries`}
+        defaultOpen={filter !== "all"}
+      >
+        <div
+          className="projects-timeline-filters"
+          role="group"
+          aria-label="Show in timeline"
+        >
+          <span>Show in timeline</span>
+          <label>
+            <input
+              type="checkbox"
+              checked={filter === "all"}
+              onChange={() => onFilter(filter === "all" ? [] : "all")}
+            />
+            All
+          </label>
+          {TIMELINE_FILTERS.map(({ value, label }) => (
+            <label key={value}>
+              <input
+                type="checkbox"
+                checked={filter === "all" || filter.includes(value)}
+                onChange={() => toggle(value)}
               />
-            </li>
+              {label}
+            </label>
           ))}
-        </ol>
-      )}
+        </div>
+        {days.length === 0 ? (
+          <EmptyState title="No recent events for these filters">
+            The timeline shows the most recent checks, possible issues, Runs and
+            materials of this project.
+          </EmptyState>
+        ) : (
+          <ol role="list" className="projects-timeline-days">
+            {days.map((day) => (
+              <li key={day.label} className="projects-timeline-day">
+                <h4 className="projects-timeline-date">{day.label}</h4>
+                <ActivityLog
+                  aria-label={`Timeline, ${day.label}`}
+                  entries={day.entries}
+                />
+              </li>
+            ))}
+          </ol>
+        )}
+      </TechnicalDetails>
     </section>
   );
 }

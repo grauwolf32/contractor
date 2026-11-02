@@ -30,7 +30,7 @@ func TestPublicFindingCorrelationReadsUseOwnedRetainedObservations(t *testing.T)
 		t.Fatal(err)
 	}
 	for _, id := range []string{"public-correlation-a", "public-correlation-b"} {
-		if _, _, err := auditstoretest.NewStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{AuditID: id, OwnerID: owner, ProjectID: project, Profile: auditstore.ProfileIdentity{Name: "correlation", Version: "1", Digest: auditHandlerDigest("profile")}, ProfileSnapshot: json.RawMessage(`{"interaction":{"findingConfirmation":"human-required"}}`), InputSelection: json.RawMessage(`{}`), Limits: auditstore.Limits{MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: 2, MaxItemsTotal: 2, MaxSubmittedRuns: 2, MaxItemRunAttempts: 1, MaxEvidenceBytes: 1 << 20}, IdempotencyKey: id, RequestDigest: auditHandlerDigest(id)}); err != nil {
+		if _, _, err := auditstoretest.NewStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{AuditID: id, OwnerID: owner, ProjectID: project, Profile: auditstore.ProfileIdentity{Name: "correlation", Version: "1", Digest: auditHandlerDigest("profile")}, ProfileSnapshot: json.RawMessage(`{"interaction":{}}`), InputSelection: json.RawMessage(`{}`), Limits: auditstore.Limits{MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: 2, MaxItemsTotal: 2, MaxSubmittedRuns: 2, MaxItemRunAttempts: 1, MaxEvidenceBytes: 1 << 20}, IdempotencyKey: id, RequestDigest: auditHandlerDigest(id)}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -55,32 +55,20 @@ func TestPublicFindingCorrelationReadsUseOwnedRetainedObservations(t *testing.T)
 	comparePath := "/v1/projects/" + project + "/finding-comparisons?leftAuditId=public-correlation-a&rightAuditId=public-correlation-b&limit=1"
 	response := contractCall(t, router, fixture.handler, jsonContractRequest(http.MethodGet, comparePath, ""), http.StatusOK)
 	var compared auditservice.FindingComparisonPage
-	if err := json.Unmarshal(response.Body.Bytes(), &compared); err != nil || len(compared.Items) != 1 || compared.Items[0].Kind != "both" || compared.Items[0].PreviewsShareReceipt {
+	if err := json.Unmarshal(response.Body.Bytes(), &compared); err != nil || len(compared.Items) != 1 || compared.Items[0].Kind != "both" {
 		t.Fatalf("independent comparison=%+v %v", compared, err)
 	}
-	group := compared.Items[0].GroupKey
+
+	if first != second || !compared.Items[0].PreviewsShareReceipt {
+		t.Fatal("qualified sources must reference one canonical Finding")
+	}
 	candidatePath := "/v1/audits/public-correlation-a/findings/" + first + "/duplicate-candidates"
 	response = contractCall(t, router, fixture.handler, jsonContractRequest(http.MethodGet, candidatePath, ""), http.StatusOK)
 	var candidates auditservice.FindingCandidatesPage
-	if err := json.Unmarshal(response.Body.Bytes(), &candidates); err != nil || len(candidates.Items) != 1 || candidates.Items[0].Finding.FindingID != second || !candidates.Items[0].AutomaticallyCorrelated {
-		t.Fatalf("candidates=%+v %v", candidates, err)
+	if err := json.Unmarshal(response.Body.Bytes(), &candidates); err != nil || len(candidates.Items) != 0 {
+		t.Fatalf("canonical identity was returned as its own duplicate: %+v %v", candidates, err)
 	}
-	memberPath := "/v1/projects/" + project + "/finding-correlations/" + group + "/members?limit=1"
-	response = contractCall(t, router, fixture.handler, jsonContractRequest(http.MethodGet, memberPath, ""), http.StatusOK)
-	var members auditservice.FindingMembersPage
-	if err := json.Unmarshal(response.Body.Bytes(), &members); err != nil || len(members.Items) != 1 || members.Page.NextCursor == nil {
-		t.Fatalf("member continuation=%+v %v", members, err)
-	}
-	// The cursor binds its selection and limit, and result changes stale it.
-	contractCall(t, router, fixture.handler, jsonContractRequest(http.MethodGet, memberPath+"&cursor="+*members.Page.NextCursor+"&auditId=public-correlation-a", ""), http.StatusBadRequest)
-	if _, err := pool.Exec(ctx, `UPDATE audit_findings SET updated_at=updated_at+interval '1 microsecond' WHERE finding_id=$1`, second); err != nil {
-		t.Fatal(err)
-	}
-	stale := contractCall(t, router, fixture.handler, jsonContractRequest(http.MethodGet, memberPath+"&cursor="+*members.Page.NextCursor, ""), http.StatusConflict)
-	var problem errorResponse
-	if err := json.Unmarshal(stale.Body.Bytes(), &problem); err != nil || problem.Code != "finding_correlation_stale" {
-		t.Fatalf("stale error=%+v %v", problem, err)
-	}
-	contractCall(t, router, fixture.handler, jsonContractRequest(http.MethodGet, candidatePath+"?sourceReceiptId=receipt-public-correlation-second", ""), http.StatusNotFound)
+	contractCall(t, router, fixture.handler, jsonContractRequest(http.MethodGet, candidatePath+"?sourceReceiptId=receipt-public-correlation-second", ""), http.StatusOK)
+	contractCall(t, router, fixture.handler, jsonContractRequest(http.MethodGet, candidatePath+"?sourceReceiptId=receipt-foreign", ""), http.StatusNotFound)
 	contractCall(t, router, fixture.handler, jsonContractRequest(http.MethodGet, candidatePath+"?limit=101", ""), http.StatusBadRequest)
 }

@@ -13,6 +13,14 @@
     {
       "name": "scalar-app",
       "source": "rendered by @scalar/api-reference-react"
+    },
+    {
+      "name": "light-mode",
+      "source": "rendered by @scalar/api-reference-react; scoped theme variables in artifacts/previews/openapi.css"
+    },
+    {
+      "name": "dark-mode",
+      "source": "rendered by @scalar/api-reference-react; scoped theme variables in artifacts/previews/openapi.css"
     }
   ]
 }

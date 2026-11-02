@@ -10,11 +10,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
-func TestSnapshotRoundTripPreservesExactInputsAndExecutionPatch(t *testing.T) {
-	var patch resolved.ExecutionConfigPatch
-	if err := patch.UnmarshalJSON([]byte(`{"workers":{"credential":null,"modelPolicy":"strong@1"}}`)); err != nil {
-		t.Fatal(err)
-	}
+func TestSnapshotRoundTripPreservesExactInputs(t *testing.T) {
 	revision := "revision-1"
 	projectID := "project-1"
 	encoded, err := Encode(Snapshot{
@@ -22,7 +18,6 @@ func TestSnapshotRoundTripPreservesExactInputsAndExecutionPatch(t *testing.T) {
 		Inputs: map[string]InputSource{
 			"source": {SourceScope: artifacts.ScopeProject, Artifact: contracts.ArtifactRef{Namespace: "sources", Name: "service", Revision: &revision}},
 		},
-		ExecutionConfig: patch,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -55,7 +50,7 @@ func TestSnapshotRejectsVersionlessAndUnknownData(t *testing.T) {
 	}
 }
 
-func TestSnapshotRequiresExplicitExecutionConfig(t *testing.T) {
+func TestSnapshotRejectsRemovedExecutionConfig(t *testing.T) {
 	for _, value := range []json.RawMessage{nil, []byte("null"), []byte("[]"), []byte(`"invalid"`), []byte(`{"unknown":true}`), []byte("{}")} {
 		document := map[string]any{
 			"schemaVersion": SchemaVersion, "workflow": map[string]string{"name": "review", "version": "1"},
@@ -69,9 +64,9 @@ func TestSnapshotRequiresExplicitExecutionConfig(t *testing.T) {
 			t.Fatal(err)
 		}
 		_, err = Decode(encoded)
-		if string(value) == "{}" {
+		if value == nil {
 			if err != nil {
-				t.Fatalf("explicit empty patch rejected: %v", err)
+				t.Fatalf("snapshot without overrides rejected: %v", err)
 			}
 		} else if !errors.Is(err, ErrInvalidSnapshot) {
 			t.Fatalf("patch %s accepted: %v", value, err)

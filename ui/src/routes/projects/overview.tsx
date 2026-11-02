@@ -10,7 +10,7 @@ import { Icon } from "../../app/icon";
 import { RecordedTime } from "../../app/recorded-time";
 import { RefreshButton } from "../../app/refresh-button";
 import { checkStateLabel } from "../../app/vocabulary";
-import { ButtonLink, StatusGlyph } from "../../ui";
+import { ButtonLink, StatusChip, StatusGlyph } from "../../ui";
 import { artifactDetailPath } from "../artifacts/paths";
 import { auditProfileLabel } from "./audits/labels";
 import { CheckComposer } from "./check-composer";
@@ -32,7 +32,11 @@ import {
   targetSheetState,
 } from "./project-sections";
 import { ProjectTimeline } from "./timeline";
-import { parseTimelineFilter, type TimelineFilter } from "./timeline-filter";
+import {
+  parseTimelineFilter,
+  serializeTimelineFilter,
+  type TimelineFilter,
+} from "./timeline-filter";
 import { plural } from "../../app/format";
 import {
   MATERIAL_KIND_LABELS,
@@ -41,7 +45,6 @@ import {
   materialKindLabel,
   materialKindOf,
 } from "../artifacts/kinds";
-import { MaterialKindIcon } from "../artifacts/icons";
 import { LIVE_AUDIT_STATES } from "../../api/states";
 
 const NO_CHECKS: Audit[] = [];
@@ -66,7 +69,7 @@ function hostOf(url: string): string {
   }
 }
 
-/** Source code, API spec, … and the live target, with "Add material". */
+/** Exact sampled materials and the optional live target. */
 function MaterialChips({
   project,
   materials,
@@ -81,95 +84,51 @@ function MaterialChips({
   const target = project.httpTarget;
   const settings = `${projectPath(projectId, "settings")}#${LIVE_TARGET_ANCHOR}`;
   return (
-    <div className="projects-materials">
-      <ul role="list" aria-label="Materials" className="projects-chips">
+    <section className="projects-materials" aria-label="Project materials">
+      <div className="projects-section-heading">
+        <h3>Materials</h3>
+        <Link to={`${projectPath(projectId, "artifacts")}?add=artifact`}>
+          <Icon name="plus" size={13} />
+          Add material
+        </Link>
+      </div>
+      <ul role="list" aria-label="Materials" className="projects-material-list">
         {materials.isPending ? (
-          <li>
-            <span className="projects-chip" data-variant="quiet" role="status">
-              Loading materials…
-            </span>
+          <li className="ui-caption" role="status">
+            Loading materials…
           </li>
         ) : null}
         {shown.map((item) => {
-          const kind = materialKindOf(item);
-          const { namespace, name } = item.artifact;
+          const exact = `${item.artifact.namespace}/${item.artifact.name}@${item.artifact.revision}`;
           return (
-            <li key={`${namespace}/${name}`}>
+            <li key={exact}>
               <ContextLink
-                className="projects-chip"
+                className="projects-material-item"
                 returnLabel="Project Overview"
+                title={exact}
                 to={artifactDetailPath(
                   { kind: "project", id: projectId },
-                  {
-                    namespace,
-                    name,
-                  },
+                  item.artifact,
                 )}
-                title={`${namespace}/${name}`}
               >
-                <span className="projects-chip-icon">
-                  <MaterialKindIcon kind={kind} />
-                </span>
-                <span className="projects-chip-label">
-                  {materialKindLabel(item)}
-                </span>
-                <span className="projects-chip-detail">
-                  {name} · {materialFormat(item)}
-                </span>
+                <strong>
+                  {materialKindLabel(item)} · {item.artifact.name} ·{" "}
+                  {materialFormat(item)}
+                </strong>
+                <code>{exact}</code>
               </ContextLink>
             </li>
           );
         })}
         {hidden > 0 || materials.more ? (
           <li>
-            <Link
-              className="projects-chip"
-              data-variant="quiet"
-              to={projectPath(projectId, "artifacts")}
-            >
+            <Link to={projectPath(projectId, "artifacts")}>
               {hidden > 0 && !materials.more
                 ? `${hidden} more`
                 : "All materials"}
             </Link>
           </li>
         ) : null}
-        <li>
-          {target === undefined ? (
-            <span className="projects-chip" data-variant="missing">
-              <span className="projects-chip-icon">
-                <Icon name="target" size={16} />
-              </span>
-              <span className="projects-chip-label">Live target</span>
-              <span className="projects-chip-detail">not configured</span>
-              {/* Opens Settings at the Live target with its sheet open. */}
-              <Link
-                to={settings}
-                state={targetSheetState(location.state)}
-                aria-label="Add a live target"
-              >
-                Add
-              </Link>
-            </span>
-          ) : (
-            <Link className="projects-chip" to={settings} title={target.url}>
-              <span className="projects-chip-icon">
-                <Icon name="target" size={16} />
-              </span>
-              <span className="projects-chip-label">Live target</span>
-              <span className="projects-chip-detail">{hostOf(target.url)}</span>
-            </Link>
-          )}
-        </li>
-        <li>
-          <Link
-            className="projects-chip"
-            data-variant="add"
-            to={`${projectPath(projectId, "artifacts")}?add=artifact`}
-          >
-            <Icon name="plus" />
-            Add material
-          </Link>
-        </li>
       </ul>
       {materials.error === null ? null : (
         <ErrorNotice
@@ -179,7 +138,31 @@ function MaterialChips({
           retryPending={materials.isFetching}
         />
       )}
-    </div>
+      <div className="projects-material-context">
+        {target === undefined ? (
+          <>
+            <span>
+              Live target not configured ·{" "}
+              <Link
+                to={settings}
+                state={targetSheetState(location.state)}
+                aria-label="Add a live target"
+              >
+                Add live target
+              </Link>
+            </span>
+            <span>
+              Source and API-based checks remain available without a live
+              target.
+            </span>
+          </>
+        ) : (
+          <Link to={settings} title={target.url}>
+            <Icon name="target" size={14} /> Live target · {hostOf(target.url)}
+          </Link>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -236,7 +219,7 @@ function lastActivity(
   );
 }
 
-/** The four-cell "at a glance" strip. */
+/** Qualified summary counts from the existing bounded reads. */
 function GlanceStrip({
   project,
   checks,
@@ -280,7 +263,7 @@ function GlanceStrip({
   } else if (issues.total > 0) {
     issuesValue = (
       <Link
-        to={`/issues?${new URLSearchParams({ state: "proposed", project: projectId }).toString()}`}
+        to={`/issues?${new URLSearchParams({ project: projectId }).toString()}`}
       >
         <StatusGlyph tone="review" />
         {issues.partial ? "At least " : ""}
@@ -292,7 +275,7 @@ function GlanceStrip({
   }
   if (checksState === "ready") {
     issuesCaption = issues.partial
-      ? "Some checks could not be read"
+      ? "Some possible issues could not be read"
       : checksTruncated
         ? newest
         : undefined;
@@ -343,9 +326,9 @@ function GlanceStrip({
 
   return (
     <section className="projects-glance" aria-labelledby={heading}>
-      <h3 className="ui-visually-hidden" id={heading}>
-        At a glance
-      </h3>
+      <div className="projects-section-heading">
+        <h3 id={heading}>At a glance</h3>
+      </div>
       <dl>
         <Cell
           label="Possible issues"
@@ -371,53 +354,54 @@ function GlanceStrip({
           caption={last.what}
         />
       </dl>
+      <p className="projects-glance-note">
+        Recent checks and sampled materials; limitations are shown with each
+        count.
+      </p>
     </section>
   );
 }
 
-/** Checks waiting for the user's decision. */
+/** Review needs from the same bounded reads used by the summary counts. */
 function Attention({
   projectId,
   waiting,
+  issues,
 }: {
   projectId: string;
   waiting: ReturnType<typeof useWaitingChecks>;
+  issues: PossibleIssuesToReview;
 }) {
   const heading = useId();
-  if (waiting.error !== null && waiting.data === undefined) {
-    return (
-      <ErrorNotice
-        error={waiting.error}
-        context="Could not check for decisions"
-        onRetry={() => void waiting.refetch()}
-        retryPending={waiting.isFetching}
-      />
-    );
-  }
   const items = waiting.data?.items ?? [];
-  if (items.length === 0) return null;
+  const proposed = issues.items.slice(0, 3);
+  const failed = waiting.error !== null && waiting.data === undefined;
+  if (items.length === 0 && proposed.length === 0 && !failed) return null;
   return (
-    <section
-      className="projects-panel projects-attention"
-      aria-labelledby={heading}
-    >
+    <section className="projects-attention" aria-labelledby={heading}>
       <div className="projects-section-heading">
-        <h3 id={heading}>
-          <StatusGlyph tone="review" />
-          Needs your attention
-        </h3>
+        <h3 id={heading}>Needs your attention</h3>
         {waiting.data?.page.hasMore ? (
           <Link to={projectPath(projectId, "audits")}>All checks</Link>
         ) : null}
       </div>
-      <ul role="list" className="projects-rows">
+      {failed ? (
+        <ErrorNotice
+          error={waiting.error}
+          context="Could not check for decisions"
+          onRetry={() => void waiting.refetch()}
+          retryPending={waiting.isFetching}
+        />
+      ) : null}
+      <ul role="list" className="projects-attention-list">
         {items.map((audit) => (
-          <li className="projects-row" key={audit.auditId}>
-            <StatusGlyph tone="review" />
+          <li className="projects-attention-check" key={audit.auditId}>
             <div className="projects-row-main">
               <strong>{auditProfileLabel(audit)}</strong>
               <span className="projects-row-meta">
-                <span>Waiting for you</span>
+                <StatusChip tone="review" size="sm">
+                  Waiting for you
+                </StatusChip>
                 <span>
                   updated <RecordedTime value={audit.updatedAt} />
                 </span>
@@ -432,15 +416,28 @@ function Attention({
             </ButtonLink>
           </li>
         ))}
+        {proposed.map((finding) => (
+          <li className="projects-attention-issue" key={finding.findingId}>
+            <StatusChip tone="review" size="sm" glyph={false}>
+              Possible issue
+            </StatusChip>
+            <ContextLink
+              returnLabel="Project Overview"
+              to={`/issues/${encodeURIComponent(projectId)}/${encodeURIComponent(finding.findingId)}`}
+            >
+              {finding.title}
+            </ContextLink>
+            <span>Needs review</span>
+          </li>
+        ))}
       </ul>
     </section>
   );
 }
 
 /**
- * The project Overview (V3B): materials, the "at a glance" strip, checks
- * waiting for a decision, the check composer, the timeline, recent results
- * and recent Runs. Every read is bounded (S06 "Project section navigation");
+ * Objective and review needs lead; results, Runs and Timeline follow with
+ * materials and qualified counts as supporting context. Every read is bounded;
  * counts say when they cover only the newest checks.
  */
 export function ProjectOverview({ project }: { project: Project }) {
@@ -451,7 +448,7 @@ export function ProjectOverview({ project }: { project: Project }) {
   const checks = useProjectChecks(projectId);
   const checkItems = checks.data?.items ?? NO_CHECKS;
   const waiting = useWaitingChecks(projectId);
-  const issues = usePossibleIssuesToReview(checkItems);
+  const issues = usePossibleIssuesToReview(projectId);
   const runs = useRecentRuns(projectId);
   const results = useSuccessfulRuns(projectId);
   const materials = useMaterialsSample(projectId);
@@ -465,7 +462,7 @@ export function ProjectOverview({ project }: { project: Project }) {
   function setTimelineFilter(filter: TimelineFilter) {
     const next = new URLSearchParams(searchParams);
     if (filter === "all") next.delete("timeline");
-    else next.set("timeline", filter);
+    else next.set("timeline", serializeTimelineFilter(filter));
     setSearchParams(next, {
       replace: true,
       preventScrollReset: true,
@@ -487,6 +484,7 @@ export function ProjectOverview({ project }: { project: Project }) {
           size="sm"
           isFetching={fetching}
           onRefresh={() => {
+            void issues.refetch();
             void checks.refetch();
             void waiting.refetch();
             void runs.refetch();
@@ -495,18 +493,8 @@ export function ProjectOverview({ project }: { project: Project }) {
           }}
         />
       </ProjectSectionActions>
-      <MaterialChips project={project} materials={materials} />
-      <GlanceStrip
-        project={project}
-        checks={checkItems}
-        checksTruncated={checks.data?.page.hasMore === true}
-        checksState={checksState}
-        issues={issues}
-        runs={runs.data?.items ?? []}
-        materials={materials}
-      />
-      <Attention projectId={projectId} waiting={waiting} />
       <CheckComposer project={project} materials={materials.items} />
+      <Attention projectId={projectId} waiting={waiting} issues={issues} />
       {checks.error !== null && checks.data === undefined ? (
         <ErrorNotice
           error={checks.error}
@@ -515,24 +503,41 @@ export function ProjectOverview({ project }: { project: Project }) {
           retryPending={checks.isFetching}
         />
       ) : null}
-      {checksState === "pending" ? (
-        <p className="loading-copy" role="status">
-          Loading the timeline…
-        </p>
-      ) : (
-        <ProjectTimeline
-          project={project}
-          checks={checkItems}
-          issues={issues.checks}
-          runs={runs.data?.items ?? []}
-          materials={materials.items}
-          filter={timelineFilter}
-          onFilter={setTimelineFilter}
-        />
-      )}
       <div className="projects-overview-columns">
-        <RecentResults projectId={projectId} results={results} />
-        <RecentRuns projectId={projectId} runs={runs} />
+        <div className="projects-overview-main">
+          <RecentResults projectId={projectId} results={results} />
+          <RecentRuns projectId={projectId} runs={runs} />
+          {checksState === "pending" ? (
+            <p className="loading-copy" role="status">
+              Loading the timeline…
+            </p>
+          ) : (
+            <ProjectTimeline
+              project={project}
+              checks={checkItems}
+              issues={issues.items}
+              runs={runs.data?.items ?? []}
+              materials={materials.items}
+              filter={timelineFilter}
+              onFilter={setTimelineFilter}
+            />
+          )}
+        </div>
+        <aside
+          className="projects-overview-support"
+          aria-label="Project context"
+        >
+          <GlanceStrip
+            project={project}
+            checks={checkItems}
+            checksTruncated={checks.data?.page.hasMore === true}
+            checksState={checksState}
+            issues={issues}
+            runs={runs.data?.items ?? []}
+            materials={materials}
+          />
+          <MaterialChips project={project} materials={materials} />
+        </aside>
       </div>
     </div>
   );

@@ -40,7 +40,7 @@ func TestSharedPublicRequestAndHistoryContracts(t *testing.T) {
 		}
 		for _, tc := range cases {
 			t.Run(tc.Name, func(t *testing.T) {
-				for _, name := range []string{"DecideAuditFindingRequest", "DecideAuditReviewRequest"} {
+				for _, name := range []string{"EditProjectFindingRequest"} {
 					err := document.Components.Schemas[name].Value.VisitJSON(tc.Request, openapi3.EnableJSONSchema2020())
 					if (err == nil) != tc.Valid {
 						t.Fatalf("%s validity = %v, want %v: %v", name, err == nil, tc.Valid, err)

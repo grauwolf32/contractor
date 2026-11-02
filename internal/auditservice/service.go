@@ -16,12 +16,12 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
-	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/engagementcontract"
 	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/findingintake"
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/jackc/pgx/v5"
@@ -214,7 +214,22 @@ func (s *Service) Get(
 func (s *Service) ListItems(
 	ctx context.Context, params auditstore.ListItemsParams,
 ) ([]auditstore.Item, error) {
-	return s.reads().ListItemsPage(ctx, params)
+	rows, err := s.reads().ListItemsPage(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]string, len(rows))
+	for index := range rows {
+		ids[index] = rows[index].ItemID
+	}
+	related, err := s.reads().ItemFindingIDs(ctx, params.OwnerID, params.AuditID, ids)
+	if err != nil {
+		return nil, err
+	}
+	for index := range rows {
+		rows[index].FindingIDs = related[rows[index].ItemID]
+	}
+	return rows, nil
 }
 
 func (s *Service) ListItemAttempts(
@@ -259,6 +274,17 @@ func (s *Service) ListCoverage(
 	rows, err := s.reads().ListCoverage(ctx, auditID, roundID, afterOrdinal, limit)
 	if err != nil {
 		return CoveragePage{}, err
+	}
+	ids := make([]string, len(rows))
+	for index := range rows {
+		ids[index] = rows[index].ItemID
+	}
+	related, err := s.reads().ItemFindingIDs(ctx, ownerID, auditID, ids)
+	if err != nil {
+		return CoveragePage{}, err
+	}
+	for index := range rows {
+		rows[index].FindingIDs = related[rows[index].ItemID]
 	}
 	if audit.State != auditstore.AuditDeleting {
 		if rows, err = s.describeCoverage(ctx, audit.ProjectID, rows); err != nil {

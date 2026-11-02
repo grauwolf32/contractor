@@ -6,22 +6,8 @@
       "ref": "instructions/worker-summarizer.md",
       "text": "Use the selected tools to complete the requested task."
     },
-    "modelPolicy": {
-      "contextWindowTokens": 131072,
-      "maxModelCalls": 8,
-      "maxOutputTokens": 4096,
-      "maxToolCalls": 16,
-      "maxTotalTokens": 32768,
-      "model": "worker-model",
-      "ref": {
-        "digest": "sha256:78460f8520d0ab876b164e4876fe2cfb9a2b8b54326ede4572c00614de6faf5c",
-        "policyId": "worker",
-        "version": "1"
-      },
-      "temperature": 0.1
-    },
     "ref": {
-      "digest": "sha256:48a3217a6514e971c1e7b2d5915ec6fff43318b6c1abcd0ed43dff2d5bca9f48",
+      "digest": "sha256:7bb973723f1195bcda38da2d25b6e2b380bfa0cd8eada21950b8b93b2f4c30f9",
       "templateId": "summarizer_enabled_worker",
       "version": "1"
     },

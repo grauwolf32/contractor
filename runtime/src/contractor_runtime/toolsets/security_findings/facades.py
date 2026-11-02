@@ -65,6 +65,8 @@ class GeneralFindingTool(_FindingFacade):
             cite every assigned entry ID.
         proposed_checks: Optional follow-up questions, each with objective and
             method. At most 512; these suggestions grant no execution authority.
+        publish_problem: Explicitly publish the described problem to the Project.
+            Requires selected exact evidence. False keeps an ordinary proposal.
     """
 
     async def __call__(
@@ -79,6 +81,7 @@ class GeneralFindingTool(_FindingFacade):
         evidence_refs: list[ExactEvidenceRef] | None = None,
         standard_refs: list[StandardReference] | None = None,
         proposed_checks: list[ProposedCheck] | None = None,
+        publish_problem: bool = False,
     ) -> dict[str, Any]:
         return await self._publisher.submit(
             title=title,
@@ -89,6 +92,7 @@ class GeneralFindingTool(_FindingFacade):
             evidence_refs=evidence_refs,
             standard_refs=standard_refs,
             proposed_checks=proposed_checks,
+            publish_problem=publish_problem,
             request_id=request_id,
             caido_request_id=caido_request_id,
         )
@@ -116,6 +120,8 @@ class CodeFindingTool(_FindingFacade):
             cite every assigned entry ID.
         proposed_checks: Optional follow-up questions, each with objective and
             method. At most 512; these suggestions grant no execution authority.
+        publish_problem: Explicitly publish the described problem to the Project.
+            Requires selected exact evidence. False keeps an ordinary proposal.
     """
 
     async def __call__(
@@ -130,6 +136,7 @@ class CodeFindingTool(_FindingFacade):
         evidence_refs: list[ExactEvidenceRef] | None = None,
         standard_refs: list[StandardReference] | None = None,
         proposed_checks: list[ProposedCheck] | None = None,
+        publish_problem: bool = False,
     ) -> dict[str, Any]:
         location: dict[str, Any] = {"file": file}
         if line is not None:
@@ -145,6 +152,7 @@ class CodeFindingTool(_FindingFacade):
             evidence_refs=evidence_refs,
             standard_refs=standard_refs,
             proposed_checks=proposed_checks,
+            publish_problem=publish_problem,
         )
 
 
@@ -174,6 +182,8 @@ class HTTPFindingTool(_FindingFacade):
             cite every assigned entry ID.
         proposed_checks: Optional follow-up questions, each with objective and
             method. At most 512; these suggestions grant no execution authority.
+        publish_problem: Explicitly publish the described problem to the Project.
+            Requires selected exact evidence. False keeps an ordinary proposal.
     """
 
     async def __call__(
@@ -189,6 +199,7 @@ class HTTPFindingTool(_FindingFacade):
         evidence_refs: list[ExactEvidenceRef] | None = None,
         standard_refs: list[StandardReference] | None = None,
         proposed_checks: list[ProposedCheck] | None = None,
+        publish_problem: bool = False,
     ) -> dict[str, Any]:
         return await self._publisher.submit(
             title=title,
@@ -199,6 +210,7 @@ class HTTPFindingTool(_FindingFacade):
             evidence_refs=evidence_refs,
             standard_refs=standard_refs,
             proposed_checks=proposed_checks,
+            publish_problem=publish_problem,
             request_id=request_id,
             caido_request_id=caido_request_id,
         )

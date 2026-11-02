@@ -4,7 +4,7 @@ import { useRef, useState, type ReactNode } from "react";
 import {
   decideAuditAction,
   getAuditReport,
-  type AuditActionDecisionResult,
+  type AuditReviewDecisionResult,
   type AuditReport,
   type AuditReviewAction,
   type AuditReviewRequest,
@@ -38,7 +38,7 @@ function isAction(value: string): value is AuditReviewAction {
 interface RequestDecisionProps {
   auditId: string;
   review: AuditReviewRequest;
-  onDecided?: ((result: AuditActionDecisionResult) => void) | undefined;
+  onDecided?: ((result: AuditReviewDecisionResult) => void) | undefined;
   onRecording?: ((recording: boolean) => void) | undefined;
   /** What the actions do, shown under them. */
   intro?: ReactNode;
@@ -265,7 +265,7 @@ interface ActionDecisionProps {
   /** An active test approval or requirement applicability request. */
   review: AuditReviewRequest;
   /** Called once the Server recorded the decision and the reads refetched. */
-  onDecided?: ((result: AuditActionDecisionResult) => void) | undefined;
+  onDecided?: ((result: AuditReviewDecisionResult) => void) | undefined;
   /**
    * True once a decision is sent, false once its refetched request arrived
    * (or it was refused and the reads refreshed). Keep the decision mounted
@@ -321,7 +321,7 @@ interface ReportDecisionProps {
    */
   report?: AuditReport | undefined;
   /** Called once the Server recorded the decision and the reads refetched. */
-  onDecided?: ((result: AuditActionDecisionResult) => void) | undefined;
+  onDecided?: ((result: AuditReviewDecisionResult) => void) | undefined;
   /**
    * True once a decision is sent, false once its refetched request arrived
    * (or it was refused and the reads refreshed). Meanwhile the decision

@@ -251,7 +251,8 @@ allocation semantics.
 execution bounds and model alias can use different endpoints or tokens and the
 same endpoint can serve several policies. Neither AgentTemplate nor ModelPolicy
 carries the LLM Gateway URL, token, provider routing or credential;
-AgentTemplate selects only its default exact ModelPolicy.
+Workflow executionConfig selects exact main and summary ModelPolicies;
+AgentTemplate contains reusable behavior without model selections.
 
 **RCF-R12.** In an LLMGatewayConfig, `protocol` and `url` are mandatory, and
 the only accepted protocol is `openai-compatible@1`.
@@ -339,8 +340,7 @@ LLMGatewayConfig contains no credential selector.
 bound to that Gateway. A credential is valid only with the exact Gateway to
 which it is bound.
 
-**RCF-R30.** Run initialization resolves the Workflow defaults plus the
-request's reference-only `executionConfig` overrides, under the layering owned
+**RCF-R30.** Run initialization resolves the authored Workflow selections and captured deployment defaults, under the layering owned
 by [Agent templates](agent-templates.md). It pins the non-secret credential ID
 selected beside the exact LLMGatewayConfig. The immutable Run snapshot stores
 those non-secret refs but never the token.
@@ -375,7 +375,7 @@ through the fenced deletion of RCF-R48 and RCF-R49 (LIFE-RCF-1).
 
 **RCF-R35.** A credential is immutable: its token is never replaced in place.
 Replacing a key means creating another credential ID and selecting that ID in a
-new Workflow default or Run executionConfig. The UI may create and delete
+new Workflow default. The UI may create and delete
 credentials but cannot update or rotate one in place.
 
 **RCF-R36.** LiteLLM may still reject a call because its spend or rate limit is
@@ -712,7 +712,7 @@ PostgreSQL; they do not add another YAML configuration subtree.
 **RCF-R180.** Operations manages database-backed immutable RuntimeConfig
 versions, revisioned label bindings, write-only encrypted adapter credentials
 and durable Runtime Agent label assignments. These resources are not part of
-the six YAML configuration subtrees and have no disabled state.
+the fixed configuration subtrees and have no disabled state.
 
 **RCF-R80.** Every section of a RuntimeConfig is optional. A user-published
 RuntimeConfig must contain at least one setting or explicit-null patch
@@ -1114,7 +1114,7 @@ snapshots and future Agent-label allocation boundaries (RCF-R140).
 ### Run-selected labels
 
 **RCF-R132.** `POST /v1/runs` accepts an optional sorted `runtimeLabels` set in
-addition to parameters, inputs and executionConfig; the request field itself is
+addition to parameters and inputs; the request field itself is
 owned by [Runs](../execution/runs.md). A Workflow does not declare Runtime
 labels, and a caller chooses `runtimeLabels` for one concrete Run.
 
@@ -1199,17 +1199,15 @@ it supplies:
 1. the exact `default` RuntimeConfig pinned by the Run;
 2. the Workflow's resolved Worker executionConfig defaults;
 3. all exact RuntimeConfigs pinned by the Run's explicit `runtimeLabels`;
-4. the Run-request executionConfig override;
-5. the already pinned escalation executionConfig patch for an escalated
+4. the already pinned escalation executionConfig patch for an escalated
    attempt, when present;
-6. all exact RuntimeConfigs currently assigned to the candidate Runtime Agent
+5. all exact RuntimeConfigs currently assigned to the candidate Runtime Agent
    principal;
-7. completeness and capability validation, non-secret provenance persistence
+6. completeness and capability validation, non-secret provenance persistence
    and just-in-time secret resolution into one allocation RuntimeSettings
    snapshot.
 
-The Server retains the normalized Workflow baseline, Run override and
-escalation patch of a Worker's physical `llmGateway` and `credential` leaves
+The Server retains the normalized Workflow baseline and inline escalation origins of a Worker's physical `llmGateway` and `credential` leaves
 separately for this merge ([Agent templates](agent-templates.md)).
 
 **RCF-R147.** Agent-label configuration is intentionally the highest

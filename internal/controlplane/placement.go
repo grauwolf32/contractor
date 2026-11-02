@@ -605,7 +605,7 @@ func (a *PlacementAllocator) resolveCandidateWithCache(
 		}
 		agentConfigs = append(agentConfigs, loaded)
 	}
-	workflowPatch, runPatch, escalationPatch, err := runtimeRoutePatches(*binding.RuntimeSelection)
+	workflowPatch, escalationPatch, err := runtimeRoutePatches(*binding.RuntimeSelection)
 	if err != nil {
 		return runtimeconfig.ResolvedRuntimeConfig{}, err
 	}
@@ -629,11 +629,6 @@ func (a *PlacementAllocator) resolveCandidateWithCache(
 		return runtimeconfig.ResolvedRuntimeConfig{}, err
 	}
 	var summarizerModelPolicy *contracts.ResolvedModelPolicy
-	// Only the terminal branch has a summarizer consumer (WRK-R184).
-	if binding.ContextManagement.Strategy == contracts.ContextStrategyTerminal {
-		policy := binding.AgentTemplate.Summarizer.ModelPolicy
-		summarizerModelPolicy = &policy
-	}
 	if binding.RuntimeSelection.SummarizerModelPolicy != nil {
 		policy := binding.RuntimeSelection.SummarizerModelPolicy.Clone()
 		summarizerModelPolicy = &policy
@@ -648,7 +643,7 @@ func (a *PlacementAllocator) resolveCandidateWithCache(
 		ModelPolicy: binding.RuntimeSelection.ModelPolicy, SummarizerModelPolicy: summarizerModelPolicy,
 		CompactorModelPolicy: compactorModelPolicy,
 		Default:              defaultConfig,
-		Workflow:             workflowPatch, RunLabels: runConfigs, RunOverride: runPatch,
+		Workflow:             workflowPatch, RunLabels: runConfigs,
 		Escalation: escalationPatch, AgentLabels: agentConfigs,
 		Gateways: gateways, LLMCredentials: llmCredentials, RuntimeCredentials: runtimeCredentials,
 	})
@@ -866,13 +861,11 @@ func collectSpecCredentialIDs(
 
 func runtimeRoutePatches(
 	selection resolved.ResolvedConsumerExecutionConfig,
-) (runtimeconfig.WorkerRoutePatch, runtimeconfig.WorkerRoutePatch, runtimeconfig.WorkerRoutePatch, error) {
-	var workflow, run, escalation runtimeconfig.WorkerRoutePatch
+) (runtimeconfig.WorkerRoutePatch, runtimeconfig.WorkerRoutePatch, error) {
+	var workflow, escalation runtimeconfig.WorkerRoutePatch
 	patchFor := func(origin string) (*runtimeconfig.WorkerRoutePatch, error) {
 		switch {
-		case strings.HasPrefix(origin, "run.executionConfig"):
-			return &run, nil
-		case strings.HasPrefix(origin, "executionConfig."), strings.Contains(origin, ".escalate.executionConfig"):
+		case strings.Contains(origin, ".escalate.executionConfig"):
 			return &escalation, nil
 		case strings.HasPrefix(origin, "workflow.executionConfig"):
 			return &workflow, nil
@@ -882,11 +875,11 @@ func runtimeRoutePatches(
 	}
 	if selection.Origins.LLMGateway != "" {
 		if selection.LLMGateway == nil {
-			return workflow, run, escalation, runtimeconfig.ErrInvalid
+			return workflow, escalation, runtimeconfig.ErrInvalid
 		}
 		patch, err := patchFor(selection.Origins.LLMGateway)
 		if err != nil {
-			return workflow, run, escalation, err
+			return workflow, escalation, err
 		}
 		patch.Gateway = runtimeconfig.Field[llmgateway.LLMGatewayConfigRef]{
 			Present: true, Value: selection.LLMGateway.Ref,
@@ -895,7 +888,7 @@ func runtimeRoutePatches(
 	if selection.Origins.Credential != "" {
 		patch, err := patchFor(selection.Origins.Credential)
 		if err != nil {
-			return workflow, run, escalation, err
+			return workflow, escalation, err
 		}
 		patch.Credential.Present = true
 		if selection.Credential == nil {
@@ -904,7 +897,7 @@ func runtimeRoutePatches(
 			patch.Credential.Value = selection.Credential.CredentialID
 		}
 	}
-	return workflow, run, escalation, nil
+	return workflow, escalation, nil
 }
 
 func placementCatalogError(err error) error {

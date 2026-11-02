@@ -441,8 +441,8 @@ func TestBrowserTestDoublesAnswerRegisteredCodes(t *testing.T) {
 		}
 	}
 	envelopeCode := regexp.MustCompile(`\bcode:\s*"([^"]*)"`)
-	requestID := regexp.MustCompile(`\brequestId\s*[:,}]`)
-	retryable := regexp.MustCompile(`\bretryable\s*[:,}]`)
+	requestID := regexp.MustCompile(`\brequestId\s*[:}]`)
+	retryable := regexp.MustCompile(`\bretryable\s*[:}]`)
 	envelopeStatus := regexp.MustCompile(`^\s*(?:\}\s*)?\)?\s*,\s*(?:\{\s*status:\s*)?(\d{3})\b`)
 	failureCall := regexp.MustCompile(`\bfailure\(`)
 	failureArguments := regexp.MustCompile(`^\s*(\d{3})\s*(?:,\s*(?:"([^"]*)"|(\w+)))?`)

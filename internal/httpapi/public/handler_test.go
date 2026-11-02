@@ -1187,6 +1187,8 @@ func TestArtifactUploadIsBoundedBeforeRepository(t *testing.T) {
 func TestCreateRunStrictValidationOccursBeforeTransaction(t *testing.T) {
 	fixture := newHandlerFixture(t)
 	requests := []string{
+		`{"workflow":"artifact-copy@1","executionConfig":{}}`,
+		`{"workflow":"artifact-copy@1","executionConfig":{"workers":{"modelPolicy":"test-worker@1"}}}`,
 		`{"workflow":"artifact-copy@1","runtimeLabels":null,"parameters":{},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`,
 		`{"workflow":"artifact-copy@1","labels":[],"parameters":{},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`,
 		`{"workflow":"artifact-copy@1","parameters":{"objective":42},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`,
@@ -1487,17 +1489,17 @@ func TestCreateRunReplayDoesNotResolveDeletedManagedCredential(t *testing.T) {
 		t.Fatal(err)
 	}
 	workflow, err := fixture.configs.ResolveRunWorkflow(
-		t.Context(), "artifact-copy@1", resolved.ExecutionConfigPatch{}, fixture.credentials,
+		t.Context(), "artifact-copy@1", fixture.credentials,
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	gateway := workflow.Stages[workflow.EntryStage].ExecutionConfig.Agents["builder"].LLMGateway.Ref
-	fixture.credentials.records["ephemeral-worker"] = credentials.Record{
-		CredentialID: "ephemeral-worker", LLMGateway: gateway,
+	fixture.credentials.records["development-worker"] = credentials.Record{
+		CredentialID: "development-worker", LLMGateway: gateway,
 		CreatedAt: time.Date(2026, 8, 30, 12, 0, 0, 0, time.UTC),
 	}
-	body := []byte(`{"workflow":"artifact-copy@1","parameters":{"objective":"copy"},"artifacts":{"source":{"namespace":"projects","name":"source"}},"executionConfig":{"workers":{"credential":"ephemeral-worker"}}}`)
+	body := []byte(`{"workflow":"artifact-copy@1","parameters":{"objective":"copy"},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`)
 
 	first := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(body))
 	first.Header.Set(idempotencyKeyHeader, "credential-replay")
@@ -1507,7 +1509,7 @@ func TestCreateRunReplayDoesNotResolveDeletedManagedCredential(t *testing.T) {
 		t.Fatalf("first create = %d %s", firstResponse.Code, firstResponse.Body.String())
 	}
 	fixture.credentials.mu.Lock()
-	delete(fixture.credentials.records, "ephemeral-worker")
+	delete(fixture.credentials.records, "development-worker")
 	fixture.credentials.mu.Unlock()
 
 	retry := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(body))
@@ -1534,11 +1536,11 @@ func TestCreateRunPinsExecutionConfigAndDetectsSelectorIdempotencyConflict(t *te
 	); err != nil {
 		t.Fatal(err)
 	}
-	requestBody := func(policy string) []byte {
-		return []byte(`{"workflow":"artifact-copy@1","parameters":{},"artifacts":{"source":{"namespace":"projects","name":"source"}},"executionConfig":{"workers":{"modelPolicy":"` + policy + `"}}}`)
+	requestBody := func(workflow string) []byte {
+		return []byte(`{"workflow":"` + workflow + `","parameters":{},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`)
 	}
 
-	first := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(requestBody("test-worker@1")))
+	first := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(requestBody("artifact-copy@1")))
 	firstResponse := httptest.NewRecorder()
 	fixture.handler.ServeHTTP(firstResponse, first)
 	if firstResponse.Code != http.StatusAccepted {
@@ -1551,12 +1553,12 @@ func TestCreateRunPinsExecutionConfigAndDetectsSelectorIdempotencyConflict(t *te
 	}
 	selection := workflow.Stages["copy"].ExecutionConfig.Agents["builder"]
 	if selection.ModelPolicy.Ref.PolicyID != "test-worker" ||
-		selection.Origins.ModelPolicy != "run.executionConfig.workers" {
+		selection.Origins.ModelPolicy != "workflow.executionConfig.workers" {
 		t.Fatalf("stored resolved executionConfig = %+v", selection)
 	}
 
 	conflict := authenticatedRequest(
-		http.MethodPost, "/v1/runs", bytes.NewReader(requestBody("test-domain-worker@1")),
+		http.MethodPost, "/v1/runs", bytes.NewReader(requestBody("other-workflow@1")),
 	)
 	conflictResponse := httptest.NewRecorder()
 	fixture.handler.ServeHTTP(conflictResponse, conflict)
@@ -1592,8 +1594,7 @@ func TestCreateRunPinsNamedEscalationVariant(t *testing.T) {
 		t.Fatal(err)
 	}
 	variant := workflow.Stages["openapi_validate"].On.Failed.Escalate.ExecutionConfig
-	if variant.Ref == nil || variant.Ref.ConfigID != "strong-oas-review" ||
-		variant.Effective.Agents["validator"].ModelPolicy.Ref.PolicyID != "test-strong-worker" {
+	if variant.Effective.Agents["validator"].ModelPolicy.Ref.PolicyID != "test-strong-worker" {
 		t.Fatalf("stored escalation variant = %+v", variant)
 	}
 }
@@ -1904,8 +1905,8 @@ func TestRunStatusExposesEscalationLineageAndSafeEffectiveRefs(t *testing.T) {
 	}
 	stage := workflow.Stages["openapi_validate"]
 	action := stage.On.Failed
-	if action.Escalate == nil || action.Escalate.ExecutionConfig.Ref == nil {
-		t.Fatal("repository Workflow has no named failed escalation")
+	if action.Escalate == nil {
+		t.Fatal("repository Workflow has no failed escalation")
 	}
 	baseSnapshot, err := json.Marshal(stage)
 	if err != nil {
@@ -1961,8 +1962,6 @@ func TestRunStatusExposesEscalationLineageAndSafeEffectiveRefs(t *testing.T) {
 	}
 	if len(result.Attempts) != 2 || len(result.Transitions) != 2 ||
 		result.Attempts[1].PreviousExecutionID == nil || *result.Attempts[1].PreviousExecutionID != "stage-base" ||
-		result.Attempts[1].ExecutionConfig.Ref == nil ||
-		result.Attempts[1].ExecutionConfig.Ref.ConfigID != "strong-oas-review" ||
 		result.Attempts[1].ExecutionConfig.Agents["validator"].ModelPolicy.PolicyID != "test-strong-worker" ||
 		result.Attempts[1].ExecutionConfig.Agents["validator"].Credential == nil ||
 		result.Attempts[1].ExecutionConfig.Agents["validator"].Credential.CredentialID != "development-worker" ||
@@ -2107,4 +2106,23 @@ func (f *fakeMetricsReader) GetStageMetricsBatch(
 		}
 	}
 	return records, nil
+}
+
+func TestRunEndpointsRejectRemovedExecutionConfigBeforeTransaction(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	fixture.projects.projects["project-override"] = projectstore.Project{ProjectID: "project-override", OwnerID: "user-1", Kind: projectstore.KindProject, Lifecycle: projectstore.LifecycleActive, Name: "Fixture", Revision: 1}
+	for _, path := range []string{"/v1/runs", "/v1/projects/project-override/runs"} {
+		for _, patch := range []string{`{}`, `null`, `{"workers":{"modelPolicy":"test-worker@1"}}`} {
+			request := authenticatedRequest(http.MethodPost, path, bytes.NewReader([]byte(`{"workflow":"artifact-copy@1","executionConfig":`+patch+`}`)))
+			response := httptest.NewRecorder()
+			fixture.handler.ServeHTTP(response, request)
+			if response.Code != http.StatusBadRequest {
+				t.Fatalf("%s patch %s: %d %s", path, patch, response.Code, response.Body.String())
+			}
+			assertErrorCode(t, response, "invalid_request")
+		}
+	}
+	if fixture.unit.calls != 0 || len(fixture.runs.runs) != 0 || fixture.notifier.calls != 0 {
+		t.Fatal("removed override reached durable effects")
+	}
 }

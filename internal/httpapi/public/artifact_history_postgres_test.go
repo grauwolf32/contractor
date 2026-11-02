@@ -17,7 +17,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/gitimport"
-	"github.com/grauwolf32/contractor/internal/sourcezip"
+	"github.com/grauwolf32/contractor/internal/helpers/sourcezip"
 )
 
 // The public Artifact API answers retained-history admission with the shared

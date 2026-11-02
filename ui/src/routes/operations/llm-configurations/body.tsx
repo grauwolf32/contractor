@@ -1,15 +1,12 @@
 import type {
   AgentTemplateBody,
   ConfigurationResource,
-  ExecutionConfigBody,
   LLMGatewayBody,
   ModelPolicyBody,
 } from "../../../api/operations";
 import { Link } from "react-router";
 import { formatNumber } from "../../../app/format";
 import { Facts } from "../../../ui";
-import { ConfigurationRefLink } from "../common";
-import { exactConfigurationRef } from "../references";
 import { artifactDetailPath } from "../../artifacts/paths";
 
 function present(value: number | undefined): string {
@@ -110,14 +107,6 @@ function AgentTemplateView({ body }: { body: AgentTemplateBody }) {
           ),
         },
         {
-          term: "Default ModelPolicy",
-          value: body.modelPolicy && (
-            <ConfigurationRefLink
-              value={exactConfigurationRef(body.modelPolicy)}
-            />
-          ),
-        },
-        {
           term: "Tool execution",
           value: body.execution && (
             <>
@@ -171,66 +160,6 @@ function AgentTemplateView({ body }: { body: AgentTemplateBody }) {
   );
 }
 
-function ExecutionSelection({
-  selection,
-}: {
-  selection: NonNullable<ExecutionConfigBody["planner"]>;
-}) {
-  return (
-    <ul className="ops-value-list">
-      {selection.modelPolicy === undefined ? null : (
-        <li>
-          ModelPolicy:{" "}
-          <ConfigurationRefLink
-            value={exactConfigurationRef(selection.modelPolicy)}
-          />
-        </li>
-      )}
-      {selection.llmGateway === undefined ? null : (
-        <li>
-          Gateway:{" "}
-          <ConfigurationRefLink
-            value={exactConfigurationRef(selection.llmGateway)}
-          />
-        </li>
-      )}
-      {"credential" in selection ? (
-        <li>
-          Credential:{" "}
-          <code>{selection.credential?.credentialId ?? "explicitly none"}</code>
-        </li>
-      ) : null}
-    </ul>
-  );
-}
-
-function ExecutionConfigView({ body }: { body: ExecutionConfigBody }) {
-  return (
-    <Facts
-      layout="rows"
-      className="configuration-body"
-      items={[
-        {
-          term: "Planner overrides",
-          value:
-            body.planner === undefined ? (
-              <span className="ops-muted">None</span>
-            ) : (
-              <ExecutionSelection selection={body.planner} />
-            ),
-        },
-        ...Object.entries(body.agents ?? {})
-          .sort(([left], [right]) => left.localeCompare(right))
-          .map(([name, selection]) => ({
-            key: `agent-${name}`,
-            term: `Agent ${name}`,
-            value: <ExecutionSelection selection={selection} />,
-          })),
-      ]}
-    />
-  );
-}
-
 function ConfigurationBody({ resource }: { resource: ConfigurationResource }) {
   switch (resource.ref.kind) {
     case "model-policies":
@@ -239,10 +168,6 @@ function ConfigurationBody({ resource }: { resource: ConfigurationResource }) {
       return <GatewayView body={resource.body as LLMGatewayBody} />;
     case "agent-templates":
       return <AgentTemplateView body={resource.body as AgentTemplateBody} />;
-    case "execution-configs":
-      return (
-        <ExecutionConfigView body={resource.body as ExecutionConfigBody} />
-      );
   }
 }
 

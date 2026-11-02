@@ -1,0 +1,643 @@
+schema_version: '1.0'
+boundary: V64-001 validates contracts offline. Dependent tasks switch executable callers. No compatibility
+  mode and no second execution pipeline.
+relations:
+- name: audits
+  action: preserve
+  owner: V64-002
+  facts: Goal, pinned baseline/scope/program, control intent and report refs; drop phase/review authority
+    and duplicate execution state.
+- name: audit_controller_claims
+  action: preserve
+  owner: V64-002
+  facts: Reuse ControllerClaims; no extra claim or lease owner.
+- name: audit_events
+  action: preserve
+  owner: V64-002
+  facts: Retain historical event facts; obsolete approval event values confer no authority.
+- name: audit_artifact_links
+  action: replace
+  owner: V64-004
+  facts: Transfer exact refs, lineage and retention to ordinary Audit/Project Artifact ownership before
+    releasing old holds.
+- name: audit_items
+  action: replace
+  owner: V64-002
+  facts: Accepted task identity, immutable selected inputs and remaining work; do not invent historical
+    hypotheses or verdicts.
+- name: audit_execution_items
+  action: replace
+  owner: V64-002
+  facts: Preserve exact task/Run-attempt membership and collected outcome references, including batches.
+- name: audit_executions
+  action: replace
+  owner: V64-002
+  facts: Keep original Run identity, submission key, pinned inputs, collection receipt and exact outputs;
+    technical execution state comes from Run.
+- name: audit_rounds
+  action: replace
+  owner: V64-002
+  facts: Preserve selected membership/order as iteration boundary; remove admission/staging/seal and progression
+    state.
+- name: audit_round_result_pages
+  action: replace
+  owner: V64-013
+  facts: Retain exact accepted results and any independent input snapshot; remove round-specific page
+    chain after consumers migrate.
+- name: audit_report_pages
+  action: replace
+  owner: V64-010
+  facts: Keep every existing report byte and exact descriptor in ArtifactStore; no report candidate/acceptance
+    lifecycle.
+- name: audit_findings
+  action: replace
+  owner: V64-014
+  facts: Project owns the sole runtime Finding identity and current-state command. The pre-release cutover
+    discards old operational Finding/intake rows and starts empty; old Audit snapshots, results and facts
+    survive as opaque immutable Project artifacts. New independent sources use current receipts/results/history,
+    with no old row promotion, compatibility reader or mutable Audit Finding wrapper.
+- name: audit_finding_contributions
+  action: replace
+  owner: V64-014
+  facts: Retain every distinct source Audit/task/Run, exact evidence, time/conditions, original receipts
+    and optional existing check association. Preserve source-specific historical ratings and duplicate
+    annotations without a mutable source Finding status, review workflow or synchronization mechanism.
+- name: audit_finding_assessments
+  action: replace
+  owner: V64-014
+  facts: Preserve original semantic facts and exact evidence as ordinary outputs; no hypothesis fabricated
+    from old free text and no new assessment ledger.
+- name: audit_review_requests
+  action: delete
+  owner: V411-010
+  facts: V64-014 removes Finding-specific requests/config/callers when moving the single Finding model.
+    V411-010 deletes remaining item/report requests and expiry/renewal after their callers migrate.
+    Shared tables are removed only after the remaining consumers are gone; report snapshots stay exact.
+- name: audit_review_decisions
+  action: replace
+  owner: V411-010
+  facts: Transfer useful analyst finding annotations with actor/time/history; discard control approvals.
+    V64-014 retains Finding annotations as historical facts and supplies the sole Project Finding commands.
+    V411-010 removes remaining obsolete control records. Historical decisions neither set current Project
+    assessment automatically nor grant future execution authority.
+- name: audit_live_item_reviews
+  action: delete
+  owner: V411-010
+  facts: Delete the approval projection/view with its callers; no replacement waiting-for-policy state.
+- name: finding_correlation_fences
+  action: preserve
+  owner: V64-014
+  facts: Keep qualified Project-scoped deduplication fence; reuse owner mechanism, do not create another
+    lock domain.
+- name: finding_proposal_audit_holds
+  action: replace
+  owner: V64-014
+  facts: Transfer required exact proposal/evidence holds to Project contribution or retained ordinary
+    result ownership before releasing source Audit holds.
+- name: finding_proposal_receipts
+  action: preserve
+  owner: V64-014
+  facts: Reuse existing finding intake and receipt identity. Replays add no independent source.
+- name: mutation_receipts
+  action: preserve
+  owner: V64-002
+  facts: Reuse keyed mutation receipts and natural submission/publication/intake keys. Do not add a parallel
+    receipt store.
+- name: workflow_runs
+  action: preserve
+  owner: V64-002
+  facts: Reuse RunService/Scheduler attempts, cancellation, terminal observation and cleanup authority.
+- name: project_findings
+  action: preserve
+  owner: V64-014
+  facts: Single Project problem identity and optional current analyst assessment. New model starts empty; old Audit facts survive as opaque immutable Project artifacts.
+- name: project_finding_sources
+  action: preserve
+  owner: V64-014
+  facts: Immutable receipt links to the canonical Finding; independent evidence and result history have no current problem state or mutation commands.
+- name: project_finding_audits
+  action: preserve
+  owner: V64-014
+  facts: Indexed execution membership for bounded Audit views over the same Project identity, state and revision; no source state synchronization.
+paths:
+- prefix: internal/app/data_migrate_command.go
+  action: delete
+  owner: V64-014
+  facts: Remove the finding-check index backfill CLI and its exclusive intake writer/tests. New receipts
+    contain an immutable non-NULL index at creation; no migration-pending admission state survives cutover.
+- prefix: internal/auditcontroller/
+  action: replace
+  owner: V64-002
+  facts: One bounded coordinator over ordinary tasks/Runs; remove separate phase/round progression.
+- prefix: internal/auditservice/
+  action: replace
+  owner: V64-002
+  facts: One task acceptance/control owner; shared idempotency and authorization.
+- prefix: internal/auditstore/
+  action: replace
+  owner: V64-002
+  facts: Apply relation-specific dispositions; preserve real-store invariants and bounded purge.
+- prefix: internal/auditdomain/
+  action: replace
+  owner: V64-010
+  facts: Keep reusable inventory/parser/evidence algorithms; remove exclusive ZIP/task/result wrappers
+    only after migrated callers.
+- prefix: internal/config/auditprofile/
+  action: replace
+  owner: V64-010
+  facts: Replace staged role/inventory/review authoring with the common program; no lenient reader.
+- prefix: runtime/src/contractor_runtime/toolsets/audit_results/
+  action: replace
+  owner: V64-012
+  facts: Rework existing Runtime assembly for trusted per-item conclusions and ordinary JSON outputs;
+    remove obsolete ZIP assembly, no new collector.
+- prefix: ui/src/routes/projects/audits/
+  action: replace
+  owner: V64-009
+  facts: Keep goal/work/material/result/finding views and controls; remove approvals inbox and candidate
+    acceptance.
+- prefix: ui/src/routes/catalog/audit-preset
+  action: replace
+  owner: V64-009
+  facts: Show common program inputs and selected Workflows.
+- prefix: internal/evalstore/
+  action: replace
+  owner: V64-010
+  facts: Adapt existing Audit readers and retained execution tombstones; keep independent Eval lifecycle.
+- prefix: internal/findingintake/
+  action: replace
+  owner: V64-014
+  facts: Keep normalized provider-independent intake and receipts; remove report-approval fence; preserve
+    Project sources.
+- prefix: internal/contracts/audit_completion.go
+  action: replace
+  owner: V64-012
+  facts: Replace the old ZIP completion envelope only with the actual Runtime/Scheduler caller.
+- prefix: internal/config/audit_profile.go
+  action: replace
+  owner: V64-010
+  facts: Switch catalog authoring strictly after executable consumers migrate.
+- prefix: internal/httpapi/public/
+  action: replace
+  owner: V64-008
+  facts: Migrate only Audit-dependent handlers/contracts; preserve unrelated API.
+- prefix: internal/publicclient/
+  action: replace
+  owner: V64-008
+  facts: Regenerate client and migrate Audit CLI consumers in the same API change.
+- prefix: ui/src/api/generated/public.ts
+  action: replace
+  owner: V64-008
+  facts: Regenerate; never edit by hand.
+- prefix: api/v1alpha1/
+  action: replace
+  owner: V64-012
+  facts: Migrate only workerCompletion, completion capabilities and Audit allocation context with actual
+    Runtime caller; preserve other wire fields.
+- prefix: api/audit-check-plans/
+  action: replace
+  owner: V64-010
+  facts: Retain exact facts needed by findings/results; drop exclusive acceptance-package schemas after
+    migration.
+- prefix: api/audit-dependencies/
+  action: replace
+  owner: V64-010
+  facts: Retire the old item dependency format after its actual consumers migrate. V64-004 supplies
+    per-artifact exact forks only; the concrete SMT snapshot/original-input case remains domain-owned
+    in V410-025, without a replacement universal dependency manifest.
+- prefix: api/audit-priority/
+  action: preserve
+  owner: V64-010
+  facts: Optional ranking contract is outside core execution and has no scheduling authority.
+- prefix: api/testdata/
+  action: replace
+  owner: V64-010
+  facts: Migrate only Audit consumer fixtures/gates with each owner; independent exports and source archives
+    retain their contracts.
+- prefix: internal/auditbaseline/
+  owner: V64-002
+  action: replace
+  facts: Preserve exact baseline/scope pinning; replace obsolete approval policy fields with ordinary
+    operation restrictions.
+- prefix: internal/auditimport/
+  owner: V64-012
+  action: replace
+  facts: Consume exact ordinary JSON task results; retain reusable evidence validation and remove exclusive
+    ZIP/import wrappers with their callers.
+- prefix: internal/auditscan/
+  owner: V64-010
+  action: preserve
+  facts: Keep deterministic scan planning and selection algorithms; adapt their caller to ordinary accepted
+    tasks.
+- prefix: internal/auditstandards/
+  owner: V64-010
+  action: replace
+  facts: Preserve immutable standard content/version and fixed source denominator; remove execution approval
+    requirements from target bindings.
+- prefix: internal/auditpriority/
+  owner: V64-005
+  action: preserve
+  facts: Optional ranking remains outside deterministic core execution; no new scheduler authority.
+- prefix: internal/artifacts/
+  owner: V64-004
+  action: replace
+  facts: Extend ordinary ownership/grants/publication/retention for Audit materials; preserve all unrelated
+    Artifact contracts.
+- prefix: internal/runservice/
+  owner: V64-004
+  action: replace
+  facts: Reuse ordinary Run creation and exact input forks; adapt Audit-selected input materialization
+    without an additional execution service.
+- prefix: internal/runstore/
+  owner: V64-002
+  action: replace
+  facts: Keep authoritative ordinary Run state, attempts and receipts; migrate Audit association readers,
+    never duplicate execution state.
+- prefix: internal/scheduler/
+  owner: V64-012
+  action: replace
+  facts: Preserve capacity, placement, retry and cleanup ownership; switch Audit completion context only
+    with its real Runtime caller.
+- prefix: internal/httpapi/privateartifacts/
+  owner: V64-004
+  action: replace
+  facts: Adapt only ordinary selected Artifact grants/ownership; no Audit-specific collector or permission
+    API.
+- prefix: runtime/src/contractor_runtime/contracts/
+  owner: V64-012
+  action: replace
+  facts: Migrate Audit allocation/completion/capability fields together; preserve other private wire contracts.
+- prefix: runtime/src/contractor_runtime/worker/
+  owner: V64-012
+  action: replace
+  facts: Rework existing Audit completion assembly under its invocation owner; preserve ordinary Worker
+    outcomes and configured model.
+- prefix: runtime/src/contractor_runtime/finding_proposals.py
+  owner: V64-014
+  action: replace
+  facts: Retain normalized finding submissions and receipts; bind exact per-item origin from trusted context.
+- prefix: runtime/src/contractor_runtime/toolsets/security_findings/
+  owner: V64-014
+  action: replace
+  facts: Keep AppSec problem/evidence tooling; adapt source contributions without deriving a historical
+    hypothesis identity from free text.
+- prefix: configs/workflows/
+  owner: V64-010
+  action: replace
+  facts: Migrate Audit-dependent bindings and exclusive task/result schemas; keep ordinary standalone
+    Workflows and independent source/export archives.
+- prefix: configs/agent-templates/
+  owner: V64-010
+  action: replace
+  facts: Migrate Audit-specific prompt/tool instructions with their real caller; preserve shared ordinary
+    Worker templates.
+- prefix: ui/src/routes/projects/
+  owner: V411-010
+  action: replace
+  facts: Remove old approval-required Project settings while preserving ordinary scope, credentials and
+    operation restrictions.
+- prefix: internal/contracts/engagementcontract/
+  owner: V411-010
+  action: replace
+  facts: Align only active-operation policy with removal of formal approvals; keep independent HTTP scope,
+    credentials and network authorization guarantees.
+profiles:
+- path: configs/audit-profiles/openapi_nuclei_scan.yaml
+  action: replace
+  owner: V64-010
+  facts: Preserve purpose, selected source/settings/rules, Workflow closure and tighter budgets; express
+    initial/supporting/check work through the common program. Remove approval/stage-role/ZIP authoring.
+- path: configs/audit-profiles/openapi_operation_observe.yaml
+  action: replace
+  owner: V64-010
+  facts: Preserve purpose, selected source/settings/rules, Workflow closure and tighter budgets; express
+    initial/supporting/check work through the common program. Remove approval/stage-role/ZIP authoring.
+- path: configs/audit-profiles/openapi_operation_trace.yaml
+  action: replace
+  owner: V64-010
+  facts: Preserve purpose, selected source/settings/rules, Workflow closure and tighter budgets; express
+    initial/supporting/check work through the common program. Remove approval/stage-role/ZIP authoring.
+- path: configs/audit-profiles/openapi_sqlmap_scan.yaml
+  action: replace
+  owner: V64-010
+  facts: Preserve purpose, selected source/settings/rules, Workflow closure and tighter budgets; express
+    initial/supporting/check work through the common program. Remove approval/stage-role/ZIP authoring.
+- path: configs/audit-profiles/owasp_asvs_5_0_l1_source_pilot.yaml
+  action: replace
+  owner: V64-010
+  facts: Preserve purpose, selected source/settings/rules, Workflow closure and tighter budgets; express
+    initial/supporting/check work through the common program. Remove approval/stage-role/ZIP authoring.
+- path: configs/audit-profiles/owasp_asvs_5_0_l1_source_review.yaml
+  action: replace
+  owner: V64-010
+  facts: Preserve purpose, selected source/settings/rules, Workflow closure and tighter budgets; express
+    initial/supporting/check work through the common program. Remove approval/stage-role/ZIP authoring.
+- path: configs/audit-profiles/owasp_top10_2025_source_risk.yaml
+  action: replace
+  owner: V64-010
+  facts: Preserve purpose, selected source/settings/rules, Workflow closure and tighter budgets; express
+    initial/supporting/check work through the common program. Remove approval/stage-role/ZIP authoring.
+- path: configs/audit-profiles/owasp_wstg_4_2_active_http.yaml
+  action: replace
+  owner: V64-010
+  facts: Preserve purpose, selected source/settings/rules, Workflow closure and tighter budgets; express
+    initial/supporting/check work through the common program. Remove approval/stage-role/ZIP authoring.
+- path: configs/audit-profiles/owasp_wstg_4_2_fast_active_http.yaml
+  action: replace
+  owner: V64-010
+  facts: Preserve purpose, selected source/settings/rules, Workflow closure and tighter budgets; express
+    initial/supporting/check work through the common program. Remove approval/stage-role/ZIP authoring.
+- path: configs/audit-profiles/owasp_wstg_4_2_fast_source_review.yaml
+  action: replace
+  owner: V64-010
+  facts: Preserve purpose, selected source/settings/rules, Workflow closure and tighter budgets; express
+    initial/supporting/check work through the common program. Remove approval/stage-role/ZIP authoring.
+- path: configs/audit-profiles/owasp_wstg_4_2_source_review.yaml
+  action: replace
+  owner: V64-010
+  facts: Preserve purpose, selected source/settings/rules, Workflow closure and tighter budgets; express
+    initial/supporting/check work through the common program. Remove approval/stage-role/ZIP authoring.
+- path: configs/audit-profiles/source_checklist.yaml
+  action: replace
+  owner: V64-010
+  facts: Preserve purpose, selected source/settings/rules, Workflow closure and tighter budgets; express
+    initial/supporting/check work through the common program. Remove approval/stage-role/ZIP authoring.
+- path: configs/audit-profiles/source_openapi_sqlmap_scan.yaml
+  action: replace
+  owner: V64-010
+  facts: Preserve purpose, selected source/settings/rules, Workflow closure and tighter budgets; express
+    initial/supporting/check work through the common program. Remove approval/stage-role/ZIP authoring.
+- path: configs/audit-profiles/web_scan.yaml
+  action: replace
+  owner: V64-010
+  facts: Preserve purpose, selected source/settings/rules, Workflow closure and tighter budgets; express
+    initial/supporting/check work through the common program. Remove approval/stage-role/ZIP authoring.
+operations:
+- path: /v1/audits/{auditId}/findings/exports
+  method: post
+  operation_id: publishAuditFindingExport
+  action: replace
+  owner: V64-014
+  facts: Preserve user purpose, owner authorization and exact data; adapt task/result/Project finding
+    projections. Independent SARIF/export bytes and routes keep their own contracts.
+- path: /v1/audits/{auditId}/findings/exports/{exportId}/content
+  method: get
+  operation_id: downloadAuditFindingExport
+  action: replace
+  owner: V64-014
+  facts: Preserve user purpose, owner authorization and exact data; adapt task/result/Project finding
+    projections. Independent SARIF/export bytes and routes keep their own contracts.
+- path: /v1/audits/{auditId}/findings/exports/{exportId}/snapshot
+  method: get
+  operation_id: downloadAuditFindingExportSnapshot
+  action: replace
+  owner: V64-014
+  facts: Preserve user purpose, owner authorization and exact data; adapt task/result/Project finding
+    projections. Independent SARIF/export bytes and routes keep their own contracts.
+- path: /v1/audits/{auditId}/findings/exports/{exportId}/diagnostics
+  method: get
+  operation_id: downloadAuditFindingExportDiagnostics
+  action: replace
+  owner: V64-014
+  facts: Preserve user purpose, owner authorization and exact data; adapt task/result/Project finding
+    projections. Independent SARIF/export bytes and routes keep their own contracts.
+- path: /v1/audit-profiles
+  method: get
+  operation_id: listAuditProfiles
+  action: replace
+  owner: V64-008
+  facts: Preserve user purpose, owner authorization and exact data; adapt task/result/Project finding
+    projections. Independent SARIF/export bytes and routes keep their own contracts.
+- path: /v1/audit-profiles/{name}/versions/{version}
+  method: get
+  operation_id: getAuditProfile
+  action: replace
+  owner: V64-008
+  facts: Preserve user purpose, owner authorization and exact data; adapt task/result/Project finding
+    projections. Independent SARIF/export bytes and routes keep their own contracts.
+- path: /v1/audit-standards
+  method: get
+  operation_id: listAuditStandards
+  action: replace
+  owner: V64-008
+  facts: Preserve user purpose, owner authorization and exact data; adapt task/result/Project finding
+    projections. Independent SARIF/export bytes and routes keep their own contracts.
+- path: /v1/audit-standards/{scheme}/versions/{version}
+  method: get
+  operation_id: getAuditStandard
+  action: replace
+  owner: V64-008
+  facts: Preserve user purpose, owner authorization and exact data; adapt task/result/Project finding
+    projections. Independent SARIF/export bytes and routes keep their own contracts.
+- path: /v1/projects/{projectId}/audits
+  method: post
+  operation_id: createAudit
+  action: replace
+  owner: V64-008
+  facts: Preserve user purpose, owner authorization and exact data; adapt task/result/Project finding
+    projections. Independent SARIF/export bytes and routes keep their own contracts.
+- path: /v1/projects/{projectId}/audits
+  method: get
+  operation_id: listProjectAudits
+  action: replace
+  owner: V64-008
+  facts: Preserve user purpose, owner authorization and exact data; adapt task/result/Project finding
+    projections. Independent SARIF/export bytes and routes keep their own contracts.
+- path: /v1/audits
+  method: get
+  operation_id: listOwnerAudits
+  action: replace
+  owner: V64-008
+  facts: Preserve user purpose, owner authorization and exact data; adapt task/result/Project finding
+    projections. Independent SARIF/export bytes and routes keep their own contracts.
+- path: /v1/audits/{auditId}
+  method: get
+  operation_id: getAudit
+  action: replace
+  owner: V64-008
+  facts: Preserve user purpose, owner authorization and exact data; adapt task/result/Project finding
+    projections. Independent SARIF/export bytes and routes keep their own contracts.
+- path: /v1/audits/{auditId}
+  method: delete
+  operation_id: deleteAudit
+  action: replace
+  owner: V64-008
+  facts: Preserve user purpose, owner authorization and exact data; adapt task/result/Project finding
+    projections. Independent SARIF/export bytes and routes keep their own contracts.
+- path: /v1/audits/{auditId}/start
+  method: post
+  operation_id: startAudit
+  action: replace
+  owner: V64-008
+  facts: Preserve user purpose, owner authorization and exact data; adapt task/result/Project finding
+    projections. Independent SARIF/export bytes and routes keep their own contracts.
+- path: /v1/audits/{auditId}/pause
+  method: post
+  operation_id: pauseAudit
+  action: replace
+  owner: V64-008
+  facts: Preserve user purpose, owner authorization and exact data; adapt task/result/Project finding
+    projections. Independent SARIF/export bytes and routes keep their own contracts.
+- path: /v1/audits/{auditId}/resume
+  method: post
+  operation_id: resumeAudit
+  action: replace
+  owner: V64-008
+  facts: Preserve user purpose, owner authorization and exact data; adapt task/result/Project finding
+    projections. Independent SARIF/export bytes and routes keep their own contracts.
+- path: /v1/audits/{auditId}/cancel
+  method: post
+  operation_id: cancelAudit
+  action: replace
+  owner: V64-008
+  facts: Preserve user purpose, owner authorization and exact data; adapt task/result/Project finding
+    projections. Independent SARIF/export bytes and routes keep their own contracts.
+- path: /v1/audits/{auditId}/items
+  method: get
+  operation_id: listAuditItems
+  action: replace
+  owner: V64-008
+  facts: Preserve user purpose, owner authorization and exact data; adapt task/result/Project finding
+    projections. Independent SARIF/export bytes and routes keep their own contracts.
+- path: /v1/audits/{auditId}/coverage
+  method: get
+  operation_id: listAuditCoverage
+  action: replace
+  owner: V64-008
+  facts: Preserve user purpose, owner authorization and exact data; adapt task/result/Project finding
+    projections. Independent SARIF/export bytes and routes keep their own contracts.
+- path: /v1/audits/{auditId}/artifacts
+  method: get
+  operation_id: getAuditArtifact
+  action: replace
+  owner: V64-008
+  facts: Preserve user purpose, owner authorization and exact data; adapt task/result/Project finding
+    projections. Independent SARIF/export bytes and routes keep their own contracts.
+- path: /v1/audits/{auditId}/report
+  method: get
+  operation_id: getAuditReport
+  action: replace
+  owner: V64-008
+  facts: Preserve user purpose, owner authorization and exact data; adapt task/result/Project finding
+    projections. Independent SARIF/export bytes and routes keep their own contracts.
+- path: /v1/audits/{auditId}/finding-proposals
+  method: get
+  operation_id: listAuditFindingProposals
+  action: replace
+  owner: V64-008
+  facts: Preserve user purpose, owner authorization and exact data; adapt task/result/Project finding
+    projections. Independent SARIF/export bytes and routes keep their own contracts.
+- path: /v1/audits/{auditId}/finding-proposal-imports
+  method: post
+  operation_id: importAuditFindingProposal
+  action: replace
+  owner: V64-008
+  facts: Preserve user purpose, owner authorization and exact data; adapt task/result/Project finding
+    projections. Independent SARIF/export bytes and routes keep their own contracts.
+- path: /v1/audits/{auditId}/events
+  method: get
+  operation_id: listAuditEvents
+  action: replace
+  owner: V64-008
+  facts: Preserve user purpose, owner authorization and exact data; adapt task/result/Project finding
+    projections. Independent SARIF/export bytes and routes keep their own contracts.
+- path: /v1/audits/{auditId}/workspace
+  method: get
+  operation_id: getAuditWorkspace
+  action: replace
+  owner: V64-008
+  facts: Preserve user purpose, owner authorization and exact data; adapt task/result/Project finding
+    projections. Independent SARIF/export bytes and routes keep their own contracts.
+- path: /v1/audits/{auditId}/reviews/{requestId}
+  method: get
+  operation_id: getAuditReview
+  action: delete
+  owner: V411-010
+  facts: Remove formal review resource; useful direct finding annotation gets an ordinary CAS mutation.
+- path: /v1/audits/{auditId}/findings
+  method: get
+  operation_id: listAuditFindings
+  action: replace
+  owner: V64-014
+  facts: Preserve user purpose, owner authorization and exact data; adapt task/result/Project finding
+    projections. Independent SARIF/export bytes and routes keep their own contracts.
+- path: /v1/audits/{auditId}/findings/{findingId}
+  method: get
+  operation_id: getAuditFinding
+  action: replace
+  owner: V64-014
+  facts: Preserve user purpose, owner authorization and exact data; adapt task/result/Project finding
+    projections. Independent SARIF/export bytes and routes keep their own contracts.
+- path: /v1/audits/{auditId}/findings/{findingId}/provenance
+  method: get
+  operation_id: listAuditFindingProvenance
+  action: delete
+  owner: V64-014
+  facts: Replaced by canonical Project source pages, exact receipt detail and ordinary immutable Artifact history. No old provenance DTO reader remains.
+- path: /v1/audits/{auditId}/findings/{findingId}/reviews
+  method: post
+  operation_id: createAuditFindingReview
+  action: delete
+  owner: V64-014
+  facts: Remove formal review resource; useful direct finding annotation gets an ordinary CAS mutation.
+- path: /v1/audits/{auditId}/reviews
+  method: get
+  operation_id: listAuditReviews
+  action: delete
+  owner: V411-010
+  facts: Remove formal review resource; useful direct finding annotation gets an ordinary CAS mutation.
+- path: /v1/audits/{auditId}/reviews/{requestId}/decisions
+  method: post
+  operation_id: decideAuditReview
+  action: delete
+  owner: V411-010
+  facts: Remove formal review resource; useful direct finding annotation gets an ordinary CAS mutation.
+- path: /v1/audits/{auditId}/findings/{findingId}/duplicate-candidates
+  method: get
+  operation_id: listFindingDuplicateCandidates
+  action: replace
+  owner: V64-014
+  facts: Preserve user purpose, owner authorization and exact data; adapt task/result/Project finding
+    projections. Independent SARIF/export bytes and routes keep their own contracts.
+wire:
+- path: api/v1alpha1/worker-completion-contract.schema.json
+  action: replace
+  owner: V64-012
+  facts: Remove old completion shape with the actual consumers; preserve independent wire primitives.
+- path: api/v1alpha1/allocation.schema.json
+  action: replace
+  owner: V64-012
+  facts: Remove old completion shape with the actual consumers; preserve independent wire primitives.
+- path: api/v1alpha1/agent-registration.schema.json
+  action: replace
+  owner: V64-012
+  facts: Remove old completion shape with the actual consumers; preserve independent wire primitives.
+states:
+- family: Audit
+  preserve:
+  - draft
+  - active
+  - paused
+  - cancelling
+  - cancelled
+  - finalizing
+  - completed
+  - failed
+  - deleting
+  remove:
+  - waiting_review
+  owner: V64-002
+- family: approval
+  remove:
+  - pending
+  - approved
+  - rejected
+  - expired
+  - renewed
+  - awaiting_review
+  owner: V411-010
+  facts: These are approval states only; identically named ordinary task states are not deleted by spelling.
+- family: execution
+  owner: V64-002
+  facts: Run retains technical status; task keeps selected work, attempts, exact outputs and settlement
+    facts without a duplicate running/failed/succeeded lifecycle.

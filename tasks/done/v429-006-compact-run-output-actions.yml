@@ -1,0 +1,77 @@
+schema_version: "1.0"
+id: V429-006
+title: Compact Run output links and wrap narrow preview actions
+milestone: ui-journey-usability
+epic: ui
+kind: defect
+introduced_by: V429-007
+priority: P2
+status: completed
+depends_on: []
+languages: [typescript, css]
+goal: Run output cards use a concise details link and keep Preview on a separate line at narrow widths.
+context:
+  authority: On 2026-11-01 the user requested replacing Open ... details with details and moving Preview to a new line at 390 px in the reviewed Run preview.
+  severity: low
+  finding: >-
+    ui/src/routes/runs/outputs.tsx:126 repeats the full Artifact identity in its
+    details link. ui/src/routes/runs/outputs.tsx:87 groups metadata badges and
+    buttons in one wrapping row, leaving Preview squeezed beside badges on
+    narrow screens despite the stacked card header in runs.css:1909.
+  siblings: >-
+    All available primary and secondary Run outputs share RunOutputPreview and
+    receive this change. Missing outputs have no actions. Project Recent results
+    already uses a concise accessible details link and is unchanged.
+  specification: docs/spec/ui/ui.md
+  design: docs/design/ui/README.md
+scope:
+  in:
+    - Concise Run output links, accessible output identity and narrow action grouping.
+    - Existing desktop placement, all themes and 390/320 px browser regression coverage.
+    - UI patch release and the current read-only preview.
+  out:
+    - Artifact identity, links, download/preview read semantics and OpenDesign source data changes.
+acceptance_criteria:
+  - id: A1
+    text: Every available Run output shows details, with its exact Artifact destination and a distinct accessible name.
+  - id: A2
+    text: At 390/320 px Preview and download occupy a row below metadata badges without horizontal overflow; desktop actions remain at the upper right.
+  - id: A3
+    text: The actual browser regression fails against the prior compact-card layout and passes in light, dark and black themes.
+tests:
+  - command: VITEST_MAX_WORKERS=2 make ui-verify
+    covers: [A1, A2, A3]
+  - command: make ui-gates
+    covers: [A1, A2, A3]
+  - command: node /tmp/contractor-run-output-browser.mjs
+    covers: [A1, A2, A3]
+  - command: python3 scripts/check_tasks.py
+    covers: [A1, A2, A3]
+
+verification:
+  - >-
+    RunOutputPreview now shows only details while preserving the exact Artifact
+    revision URL and full accessible output identity. Primary and secondary
+    outputs share the same button group; missing outputs still have no action.
+    Preview/download move together below metadata under the existing narrow-card
+    breakpoint; no new API read, state claim or mutation was introduced.
+  - >-
+    The actual production-build regression failed before the fix because Preview
+    occupied the metadata line at 390 px. The corrected build passed 57 cases
+    across seven browser specs and a final nine-case 1440/390/320 by
+    light/dark/black matrix, with no skips/retries. Tests check non-empty badges,
+    actual button/badge coordinates, exact revision links, concise copy, font
+    inheritance, desktop actions, bounded reads and no horizontal overflow.
+  - >-
+    VITEST_MAX_WORKERS=2 make ui-verify passed in full: 218 files, 2681 passing
+    tests and one existing expected failure, 17 static-server tests, generated
+    client checks, lint/format, both typechecks and production build. make
+    ui-gates, spec/task and diff whitespace checks passed. Existing renderer
+    chunk-size warnings remain. No database or model execution was required.
+  - >-
+    Native preview at 390 px in black was refreshed and visually verified.
+    Before/after regression images, final matrices and preview sources are
+    retained in production-compact-actions-20261101 alongside the untouched
+    OpenDesign prototype and earlier evidence. Original projects, conversations,
+    generated files and the verified recoverable backup remain intact.
+implementation_commit: b8b1aedde442c92b3c516d904ae6810eafc64b51

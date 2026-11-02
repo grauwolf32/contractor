@@ -442,7 +442,6 @@ export const queryKeys = {
     all: ["evals"] as const,
     projects: ["evals", "projects"] as const,
     capabilities: ["evals", "capabilities"] as const,
-    executionChoices: ["evals", "execution-choices"] as const,
     datasets: (projectId: string) => ["evals", "datasets", projectId] as const,
     cases: (projectId: string, datasetId: string, revision: string) =>
       ["evals", "cases", projectId, datasetId, revision] as const,
@@ -502,20 +501,11 @@ export const queryKeys = {
     ownerAudits: (states: string) =>
       ["cross-project", "audits", "owner", states] as const,
     ownerFindings: (
-      auditStates: string,
       state: string | null,
       verdict: string | null,
       severity: string | null,
     ) =>
-      [
-        "cross-project",
-        "findings",
-        "owner",
-        auditStates,
-        state,
-        verdict,
-        severity,
-      ] as const,
+      ["cross-project", "findings", "owner", state, verdict, severity] as const,
     ownerReviews: (auditStates: string) =>
       ["cross-project", "pending-reviews", "owner", auditStates] as const,
     audits: (projectId: string, state: string | null) =>

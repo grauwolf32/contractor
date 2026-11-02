@@ -15,11 +15,11 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
+	"github.com/grauwolf32/contractor/internal/helpers/sourcezip"
 	"github.com/grauwolf32/contractor/internal/operations"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/settingsstore"
-	"github.com/grauwolf32/contractor/internal/sourcezip"
 	"github.com/grauwolf32/contractor/internal/stageresult"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 )
@@ -83,7 +83,7 @@ type Store interface {
 	// completed, not the rest of its Stage history (SCH-R179).
 	ListStageExecutionsWithUnreleasedAllocations(context.Context, string) ([]runstore.StageExecution, error)
 	HasSummaryEscalation(context.Context, string, string) (bool, error)
-	ListTerminalStageExecutionsWithAllocations(context.Context) ([]runstore.StageExecution, error)
+	ListTerminalStageExecutionsWithAllocations(context.Context, []string) ([]runstore.StageExecution, error)
 	GetStageExecution(context.Context, string) (runstore.StageExecution, error)
 	ListStageAllocations(context.Context, string) ([]runstore.StageAllocation, error)
 	// ListStageAllocationsBatch reads the allocations of several existing

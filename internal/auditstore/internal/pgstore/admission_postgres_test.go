@@ -49,14 +49,11 @@ func admissionProposal(t *testing.T, f collectingAuditFixture) (auditstore.Exact
 }
 func indexAdmissionReceipt(t *testing.T, f collectingAuditFixture, exact auditstore.ExactArtifact, projection auditdomain.FindingChecksProjection, id string) {
 	t.Helper()
-	insertAuditProposalHoldForRoundTest(t, f.ctx, f.pool, f.audit, exact, id, *f.execution.RunID)
 	encoded, err := auditdomain.EncodeFindingChecksProjection(projection)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = f.pool.Exec(f.ctx, `UPDATE finding_proposal_receipts SET checks_projection=$2::text::json WHERE receipt_id=$1`, id, string(encoded)); err != nil {
-		t.Fatal(err)
-	}
+	insertAuditProposalHoldWithIndexForRoundTest(t, f.ctx, f.pool, f.audit, exact, id, *f.execution.RunID, encoded)
 }
 func TestPostgresAdmissionAnchorsDBCutoffAndDoesNotResetDeadline(t *testing.T) {
 	f, store, p := admissionFixture(t, "admission-clock")

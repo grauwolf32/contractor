@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
-	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 func TestSharedFindingCorrelationContracts(t *testing.T) {
@@ -32,17 +31,5 @@ func TestSharedFindingCorrelationContracts(t *testing.T) {
 		if err != nil || key != v.GroupKey {
 			t.Fatalf("group key=%s want=%s %v", key, v.GroupKey, err)
 		}
-	}
-	for _, c := range fixture.Projections {
-		t.Run(c.Name, func(t *testing.T) {
-			var value FindingCorrelation
-			err := strictjson.DecodeNonNull(c.Document, &value)
-			if err == nil {
-				err = ValidateFindingCorrelation(value, c.AuditID, c.FindingID)
-			}
-			if (err == nil) != c.Valid {
-				t.Fatalf("valid=%v want=%v err=%v", err == nil, c.Valid, err)
-			}
-		})
 	}
 }

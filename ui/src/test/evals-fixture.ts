@@ -237,7 +237,6 @@ export function createEvalFixture(
           },
           interaction: {
             activeChecks: "prohibited",
-            findingConfirmation: "disabled",
             notApplicable: "profile-rule",
             reportAcceptance: "automatic",
           },

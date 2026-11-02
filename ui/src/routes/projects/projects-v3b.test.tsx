@@ -1,19 +1,23 @@
-import { ARTIFACT_STORAGE_TIMESTAMPS } from "../../test/builders";
+import {
+  ARTIFACT_STORAGE_TIMESTAMPS,
+  findingSummary,
+} from "../../test/builders";
 import { deferred } from "../../test/deferred";
 import { ownerListResponse } from "../../test/owner-lists";
 import { act, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import type { ArtifactMetadata } from "../../api/artifacts";
-import type { Audit, AuditFinding, AuditProfile } from "../../api/audits";
+import type { Audit, ProjectFinding, AuditProfile } from "../../api/audits";
 import type { Project } from "../../api/projects";
+import { queryKeys } from "../../api/query-keys";
 import type { RunSummary } from "../../api/runs";
 import type { WorkflowSummary } from "../../api/workflows";
 import { createApplicationQueryClient } from "../../app/query-client";
 import { renderApplication } from "../../test/application";
 import { stageContract } from "../../test/builders-execution";
 import { fakeServer } from "../../test/fake-server";
-import { failure, json, page } from "../../test/responses";
+import { bytes, failure, json, page } from "../../test/responses";
 import { testAPI, testSession } from "../../test/render";
 import { auditFixture, projectFixture } from "../../test/shell-harness";
 import { makeFinding } from "../decisions/test-support";
@@ -37,9 +41,9 @@ function check(
   };
 }
 
-function finding(auditId: string, findingId: string, title: string) {
+function finding(projectId: string, findingId: string, title: string) {
   return makeFinding(
-    { auditId, findingId, createdAt: RECENT },
+    { projectId, findingId, createdAt: RECENT },
     { title, subject: { kind: "operation", key: "GET /orders/{id}" } },
   );
 }
@@ -101,7 +105,6 @@ const profileBase: Omit<AuditProfile, "ref" | "inputs"> = {
   },
   interaction: {
     activeChecks: "prohibited",
-    findingConfirmation: "human-required",
     notApplicable: "human-required",
     reportAcceptance: "automatic",
   },
@@ -129,11 +132,13 @@ interface FakeServer {
   audits?: Record<string, Audit[]>;
   /** Checks of a project have a further page. */
   moreAudits?: boolean;
-  findings?: Record<string, AuditFinding[]>;
+  findings?: Record<string, ProjectFinding[]>;
   runs?: RunSummary[];
   outputs?: Record<string, Record<string, unknown>>;
   artifacts?: ArtifactMetadata[];
   profiles?: AuditProfile[];
+  outputRead?: (request: Request, url: URL) => Response;
+  workflowUnavailable?: boolean;
   capabilities?: Parameters<typeof testSession>[0];
   /** Answers POST /v1/projects. */
   createProject?: (request: Request) => Response | Promise<Response>;
@@ -153,6 +158,12 @@ function serve(server: FakeServer) {
     fakeServer({}, async (request, url) => {
       requests.push(request.clone());
       const path = url.pathname;
+      if (
+        path.startsWith("/v1/runs/") &&
+        path.includes("/artifacts/") &&
+        server.outputRead
+      )
+        return server.outputRead(request, url);
       if (path === "/v1/audits" && server.holdAudits?.())
         await new Promise(() => {});
       if (path === "/v1/findings")
@@ -219,6 +230,22 @@ function serve(server: FakeServer) {
           ? failure(404, "not_found", "not found")
           : json(found, 200, { ETag: `"${found.revision}"` });
       }
+      match = /^\/v1\/projects\/([^/]+)\/findings$/.exec(path);
+      if (match !== null) {
+        await Promise.all(
+          Object.keys(server.findings ?? {}).map((id) =>
+            server.holdFindings?.(id),
+          ),
+        );
+        const items = Object.values(server.findings ?? {})
+          .flat()
+          .filter((f) => f.projectId === match![1]);
+        return json({
+          items: items.map(findingSummary),
+          projectRevision: 1,
+          page: { hasMore: false },
+        });
+      }
       match = /^\/v1\/audits\/([^/]+)\/(findings|reviews)$/.exec(path);
       if (match !== null) {
         if (match[2] === "findings") await server.holdFindings?.(match[1]!);
@@ -227,8 +254,8 @@ function serve(server: FakeServer) {
             ? (server.findings?.[match[1]!] ?? [])
             : [];
         return json({
-          ...page(items),
-          total: items.length,
+          ...page(items.map((f) => findingSummary(f))),
+          projectRevision: 1,
           auditRevision: 1,
           asOf: RECENT,
         });
@@ -269,7 +296,9 @@ function serve(server: FakeServer) {
       }
       if (path === "/v1/workflows") return json(page([workflow]));
       if (path === "/v1/workflows/openapi-from-source/versions/1")
-        return json({ ...workflow, stages: { analyze: stageContract() } });
+        return server.workflowUnavailable
+          ? failure(404, "not_found", "Workflow unavailable")
+          : json({ ...workflow, stages: { analyze: stageContract() } });
       match = /^\/v1\/projects\/([^/]+)\/artifacts$/.exec(path);
       if (match !== null) {
         const namespace = query.get("namespace");
@@ -365,13 +394,13 @@ describe("Projects list pane", () => {
         },
         findings: {
           audit_running: [
-            finding("audit_running", "finding_1", "First"),
-            finding("audit_running", "finding_2", "Second"),
+            finding("project_a", "finding_1", "First"),
+            finding("project_a", "finding_2", "Second"),
           ],
           // Finished checks' possible issues count too, as on the overview.
-          audit_done: [finding("audit_done", "finding_3", "Third")],
-          audit_waiting: [finding("audit_waiting", "finding_4", "Fourth")],
-          audit_old: [finding("audit_old", "finding_5", "Fifth")],
+          audit_done: [finding("project_a", "finding_3", "Third")],
+          audit_waiting: [finding("project_c", "finding_4", "Fourth")],
+          audit_old: [finding("project_g", "finding_5", "Fifth")],
         },
       },
       "/projects",
@@ -423,10 +452,10 @@ describe("Projects list pane", () => {
           ],
         },
         findings: {
-          audit_running: [finding("audit_running", "finding_1", "First")],
+          audit_running: [finding("project_a", "finding_1", "First")],
           audit_done: [
-            finding("audit_done", "finding_2", "Second"),
-            finding("audit_done", "finding_3", "Third"),
+            finding("project_a", "finding_2", "Second"),
+            finding("project_a", "finding_3", "Third"),
           ],
         },
       },
@@ -499,11 +528,19 @@ describe("Projects list pane", () => {
       name: "What do you want to check?",
     });
     await user.type(objective, "Can one customer read another's orders?");
-    await user.click(screen.getByRole("heading", { name: "Timeline" }));
+    await user.click(
+      within(screen.getByRole("region", { name: "Timeline" })).getByText(
+        "Timeline",
+      ),
+    );
     await user.keyboard("j");
     expect(router.state.location.pathname).toBe("/projects/project_a");
     await user.clear(objective);
-    await user.click(screen.getByRole("heading", { name: "Timeline" }));
+    await user.click(
+      within(screen.getByRole("region", { name: "Timeline" })).getByText(
+        "Timeline",
+      ),
+    );
     await user.keyboard("j");
     await waitFor(() =>
       expect(router.state.location.pathname).toBe("/projects/project_b"),
@@ -741,12 +778,10 @@ describe("Project sections", () => {
         "page",
       ),
     );
-    expect(
-      screen.getByRole("combobox", { name: "Project section" }),
-    ).toHaveValue(segment);
+    expect(within(nav).getAllByRole("link")).toHaveLength(7);
   });
 
-  it("names the sections in V3B words and keeps Runs and Workflows under Advanced", async () => {
+  it("keeps all seven labelled destinations in one navigation", async () => {
     const { router, user } = renderAt(
       { projects: [projectA] },
       "/projects/project_a",
@@ -767,16 +802,8 @@ describe("Project sections", () => {
       "Runs",
       "Workflows",
     ]);
-    const advanced = within(nav).getByRole("group", { name: "Advanced" });
-    expect(
-      within(advanced)
-        .getAllByRole("link")
-        .map((link) => link.getAttribute("href")),
-    ).toEqual(["/projects/project_a/runs", "/projects/project_a/workflows"]);
-    await user.selectOptions(
-      screen.getByRole("combobox", { name: "Project section" }),
-      "findings",
-    );
+    expect(within(nav).queryByText("Advanced")).toBeNull();
+    await user.click(within(nav).getByRole("link", { name: "Issues" }));
     await waitFor(() =>
       expect(router.state.location.pathname).toBe(
         "/projects/project_a/findings",
@@ -808,10 +835,10 @@ describe("Project overview", () => {
       ],
     },
     findings: {
-      audit_running: [finding("audit_running", "finding_1", "Order IDOR")],
+      audit_running: [finding("project_a", "finding_1", "Order IDOR")],
       audit_done: [
-        finding("audit_done", "finding_2", "SQL in search"),
-        finding("audit_done", "finding_3", "Hard-coded key"),
+        finding("project_a", "finding_2", "SQL in search"),
+        finding("project_a", "finding_3", "Hard-coded key"),
       ],
     },
     runs: [
@@ -860,7 +887,7 @@ describe("Project overview", () => {
     const glance = await screen.findByRole("region", { name: "At a glance" });
     expect(
       await within(glance).findByRole("link", { name: "3 to review" }),
-    ).toHaveAttribute("href", "/issues?state=proposed&project=project_a");
+    ).toHaveAttribute("href", "/issues?project=project_a");
     expect(
       within(glance).getByRole("link", { name: "1 running" }),
     ).toHaveAttribute("href", "/projects/project_a/audits");
@@ -880,7 +907,10 @@ describe("Project overview", () => {
   });
 
   it("starts a check with the objective and offers check types whose formats match", async () => {
-    const { router, user } = renderAt(overviewServer, "/projects/project_a");
+    const { router, user, requests } = renderAt(
+      overviewServer,
+      "/projects/project_a",
+    );
     const composer = await screen.findByRole("form", {
       name: "What do you want to check?",
     });
@@ -898,7 +928,7 @@ describe("Project overview", () => {
       within(composer).queryByRole("link", { name: /docs review/ }),
     ).toBeNull();
     expect(
-      within(composer).getByRole("link", { name: "All check types" }),
+      within(composer).getByRole("link", { name: "Choose check type" }),
     ).toHaveAttribute("href", "/checks/new?project=project_a");
     await user.type(
       screen.getByRole("textbox", { name: "What do you want to check?" }),
@@ -918,6 +948,7 @@ describe("Project overview", () => {
     expect(params.get("objective")).toBe(
       "Can one customer read another's orders?",
     );
+    expect(requests.every((request) => request.method === "GET")).toBe(true);
   });
 
   it("lists checks waiting for a decision with a way to review them", async () => {
@@ -937,10 +968,11 @@ describe("Project overview", () => {
   it("mixes checks, possible issues, Runs and materials in the timeline and filters it in the URL", async () => {
     const { router, user } = renderAt(overviewServer, "/projects/project_a");
     const timeline = await screen.findByRole("region", { name: "Timeline" });
+    await user.click(within(timeline).getByText("Timeline"));
     await within(timeline).findByRole("link", { name: "Order IDOR" });
     expect(
       within(timeline).getByRole("link", { name: "Order IDOR" }),
-    ).toHaveAttribute("href", "/issues/audit_running/finding_1");
+    ).toHaveAttribute("href", "/issues/project_a/finding_1");
     expect(
       within(timeline).getByRole("link", { name: "OpenAPI · Operation trace" }),
     ).toHaveAttribute("href", "/projects/project_a/audits/audit_running");
@@ -960,8 +992,11 @@ describe("Project overview", () => {
     );
     expect(within(timeline).getAllByText(/Primary result/)).toHaveLength(1);
     expect(within(timeline).getByText("Project created")).toBeVisible();
+    await user.click(within(timeline).getByRole("checkbox", { name: "All" }));
     await user.click(
-      within(timeline).getByRole("button", { name: "Possible issues" }),
+      within(timeline).getByRole("checkbox", {
+        name: "Possible issues",
+      }),
     );
     expect(router.state.location.search).toBe("?timeline=issues");
     expect(within(timeline).getAllByText("Possible issue found")).toHaveLength(
@@ -982,7 +1017,7 @@ describe("Project overview", () => {
     });
     expect(
       await within(results).findByRole("link", {
-        name: /openapi.*Primary result/,
+        name: "openapi details",
       }),
     ).toHaveAttribute(
       "href",
@@ -998,15 +1033,168 @@ describe("Project overview", () => {
     ).toHaveAttribute("href", "/projects/project_a/runs");
   });
 
+  it.each([
+    ["Recent Runs", "Recent Runs", { limit: 5 }],
+    ["Recent results", "Successful Runs", { limit: 3, state: "succeeded" }],
+  ])(
+    "keeps the %s source when opening its producing Run",
+    async (region, label, options) => {
+      const { user, router } = renderAt(overviewServer, "/projects/project_a");
+      const source = await screen.findByRole("region", {
+        name: region as string,
+      });
+      const link = await waitFor(() => {
+        const found = within(source)
+          .getAllByRole("link")
+          .find((node) => node.getAttribute("href") === "/runs/run_ok");
+        expect(found).toBeDefined();
+        return found!;
+      });
+      await user.click(link);
+      await waitFor(() =>
+        expect(router.state.location.pathname).toBe("/runs/run_ok"),
+      );
+      expect(router.state.location.state).toMatchObject({
+        returnTo: "/projects/project_a",
+        returnLabel: "Project Overview",
+        runSource: { kind: "project", label, projectId: "project_a", options },
+      });
+      expect(
+        await screen.findByRole("region", { name: "Source Runs" }),
+      ).toBeVisible();
+    },
+  );
+
+  it("previews only the selected exact output and requires a new action after its revision changes", async () => {
+    const source = "note: selected exact output";
+    const outputs = {
+      run_ok: {
+        openapi: { namespace: "outputs", name: "openapi", revision: "r1" },
+      },
+    };
+    const { user, requests, queryClient } = renderAt(
+      {
+        ...overviewServer,
+        outputs,
+        outputRead: (_request, url) => {
+          expect(url.searchParams.get("revision")).toBe(
+            outputs.run_ok.openapi.revision,
+          );
+          if (url.pathname.endsWith("/metadata"))
+            return json({
+              ...material("outputs", "openapi", "application/yaml"),
+              artifact: outputs.run_ok.openapi,
+              size: source.length,
+            });
+          return bytes(source, "application/yaml");
+        },
+      },
+      "/projects/project_a",
+    );
+    const results = await screen.findByRole("region", {
+      name: "Recent results",
+    });
+    const card = await within(results).findByRole("article", {
+      name: "openapi",
+    });
+    expect(within(card).getByText("outputs/openapi@r1")).toBeVisible();
+    const artifactReads = () =>
+      requests.filter(
+        (request) =>
+          new URL(request.url).pathname.includes("/runs/") &&
+          new URL(request.url).pathname.includes("/artifacts/"),
+      );
+    expect(artifactReads()).toHaveLength(0);
+    await user.click(within(card).getByRole("button", { name: "Preview" }));
+    await within(card).findByText(source.trim());
+    expect(
+      artifactReads().map((request) => new URL(request.url).pathname),
+    ).toEqual([
+      "/v1/runs/run_ok/artifacts/outputs/openapi/metadata",
+      "/v1/runs/run_ok/artifacts/outputs/openapi",
+    ]);
+    outputs.run_ok.openapi = { ...outputs.run_ok.openapi, revision: "r2" };
+    await act(async () => {
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.runs.detail("run_ok"),
+      });
+    });
+    const updated = await within(results).findByText("outputs/openapi@r2");
+    expect(updated).toBeVisible();
+    expect(artifactReads()).toHaveLength(2);
+    const nextCard = within(results).getByRole("article", { name: "openapi" });
+    expect(
+      within(nextCard).getByRole("button", { name: "Preview" }),
+    ).toBeVisible();
+    await user.click(within(nextCard).getByRole("button", { name: "Preview" }));
+    await within(nextCard).findByText(source.trim());
+    expect(artifactReads()).toHaveLength(4);
+  });
+
+  it("keeps outputs unclassified when roles fail and allows exact metadata retry", async () => {
+    let failed = true;
+    const source = "paths: {}";
+    const { user, requests } = renderAt(
+      {
+        ...overviewServer,
+        workflowUnavailable: true,
+        outputRead: (_request, url) => {
+          if (url.pathname.endsWith("/metadata"))
+            return failed
+              ? failure(403, "forbidden", "Output access denied")
+              : json({
+                  ...material("outputs", "openapi", "application/yaml"),
+                  artifact: {
+                    namespace: "outputs",
+                    name: "openapi",
+                    revision: "r1",
+                  },
+                  size: source.length,
+                });
+          return bytes(source, "application/yaml");
+        },
+      },
+      "/projects/project_a",
+    );
+    const results = await screen.findByRole("region", {
+      name: "Recent results",
+    });
+    const card = await within(results).findByRole("article", {
+      name: "openapi",
+    });
+    await within(results).findAllByText(/Output roles unavailable/);
+    expect(within(card).getByText("Run output")).toBeVisible();
+    expect(within(card).queryByText("Primary result")).toBeNull();
+    await user.click(within(card).getByRole("button", { name: "Preview" }));
+    await within(card).findByText("Output access denied");
+    expect(reads(requests, "/v1/runs/run_ok/artifacts/outputs/openapi")).toBe(
+      0,
+    );
+    failed = false;
+    await user.click(within(card).getByRole("button", { name: "Try again" }));
+    await within(card).findByText(source);
+    expect(reads(requests, "/v1/runs/run_ok/artifacts/outputs/openapi")).toBe(
+      1,
+    );
+  });
+
   it("offers the materials and the live target as chips", async () => {
     renderAt(overviewServer, "/projects/project_a");
-    const chips = await screen.findByRole("list", { name: "Materials" });
+    const chips = await screen.findByRole("region", {
+      name: "Project materials",
+    });
     expect(
       await within(chips).findByRole("link", { name: /Source code/ }),
-    ).toHaveAttribute("href", "/projects/project_a/artifacts/sources/shop");
+    ).toHaveAttribute(
+      "href",
+      "/projects/project_a/artifacts/sources/shop?revision=shop-r1",
+    );
     expect(
       within(chips).getByRole("link", { name: /API spec/ }),
-    ).toHaveAttribute("href", "/projects/project_a/artifacts/openapi/shop-api");
+    ).toHaveAttribute(
+      "href",
+      "/projects/project_a/artifacts/openapi/shop-api?revision=shop-api-r1",
+    );
     expect(
       within(chips).getByRole("link", { name: "Add a live target" }),
     ).toHaveAttribute("href", "/projects/project_a/settings#live-target");
@@ -1030,14 +1218,13 @@ describe("Project overview", () => {
       revision: 2,
     };
     server.findings!.audit_running = [
-      finding("audit_running", "finding_1", "Order IDOR"),
-      finding("audit_running", "finding_9", "Price tampering"),
+      finding("project_a", "finding_1", "Order IDOR"),
+      finding("project_a", "finding_9", "Price tampering"),
     ];
     const held = deferred();
     server.holdFindings = (auditId) =>
       auditId === "audit_running" ? held.promise : undefined;
-    const issueReads = () =>
-      reads(requests, "/v1/audits/audit_running/findings");
+    const issueReads = () => reads(requests, "/v1/projects/project_a/findings");
     const before = issueReads();
     await user.click(screen.getByRole("button", { name: "Refresh" }));
     await waitFor(() => expect(issueReads()).toBe(before + 1));
@@ -1158,7 +1345,7 @@ describe("Project overview", () => {
     expect(within(after).queryByRole("link", { name: "1 running" })).toBeNull();
     // Its possible issue ("Order IDOR") is no longer counted either.
     expect(
-      await within(after).findByRole("link", { name: "2 to review" }),
+      await within(after).findByRole("link", { name: "3 to review" }),
     ).toBeVisible();
     expect(
       within(screen.getByRole("region", { name: "Timeline" })).queryByRole(
@@ -1240,7 +1427,9 @@ describe("Project settings", () => {
       { projects: [projectA] },
       "/projects/project_a",
     );
-    const chips = await screen.findByRole("list", { name: "Materials" });
+    const chips = await screen.findByRole("region", {
+      name: "Project materials",
+    });
     await user.click(
       within(chips).getByRole("link", { name: "Add a live target" }),
     );
@@ -1285,7 +1474,7 @@ describe("Project settings", () => {
 
 describe("Project Runs", () => {
   it("keeps view, state and cursor in the URL and links a check's Runs to the check", async () => {
-    const { requests } = renderAt(
+    const { requests, user, router } = renderAt(
       {
         projects: [projectA],
         runs: [run("run_item", "succeeded", { "audit.id": "audit_running" })],
@@ -1313,6 +1502,24 @@ describe("Project Runs", () => {
     expect(read?.searchParams.get("state")).toBe("succeeded");
     expect(read?.searchParams.get("limit")).toBe("25");
     expect(screen.getByText("Identity & labels (1)")).toBeVisible();
+    await user.click(
+      screen.getByRole("link", { name: "openapi-from-source@1" }),
+    );
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe("/runs/run_item"),
+    );
+    expect(router.state.location.state).toMatchObject({
+      returnTo: "/projects/project_a/runs?view=completed&state=succeeded",
+      runSource: {
+        kind: "project",
+        label: "Project Runs",
+        projectId: "project_a",
+        options: { limit: 25, lifecycle: "terminal", state: "succeeded" },
+      },
+    });
+    expect(
+      await screen.findByRole("region", { name: "Source Runs" }),
+    ).toBeVisible();
   });
 });
 

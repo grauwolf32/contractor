@@ -1763,7 +1763,7 @@ func newPostgresControllerHarnessWithPolicy(
 		AuditTransaction: func(ctx context.Context, fn func(runservice.AuditRunWriter, *artifacts.Service, runservice.AuditExecutionWriter) error) error {
 			return persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 				return fn(
-					runstore.NewPostgresStore(tx), artifacts.NewService(artifacts.NewPostgresRepository(tx)),
+					runstore.NewPostgresTxStore(tx), artifacts.NewService(artifacts.NewPostgresRepository(tx)),
 					auditstoretest.NewStore(tx).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch),
 				)
 			})
@@ -1925,12 +1925,11 @@ func loadControllerConfigWithItemLimit(t *testing.T, maxItems int, batchSizes ..
 // findings and requires human confirmation for them.
 func loadControllerConfigWithFindings(t *testing.T, batchSize, maxItems int, findings bool, customize ...func(map[string]string)) *config.Snapshot {
 	t.Helper()
-	findingTools, findingConfirmation := "", "disabled"
+	findingTools := ""
 	if findings {
 		findingTools = `
     - ref: security-findings@1
       tools: [finding]`
-		findingConfirmation = "human-required"
 	}
 	root := t.TempDir()
 	files := map[string]string{
@@ -1954,7 +1953,6 @@ spec:
   description: Produces one deterministic test result
   runtime: adk@1
   instructions: {ref: instructions/worker.md}
-  modelPolicy: worker@1
   toolsets:
     - ref: run-artifacts@1
       tools: [read_artifact, write_artifact]` + findingTools + `
@@ -1988,6 +1986,9 @@ spec:
         succeeded: {succeed: {}}
         failed: {fail: {}}
         interrupted: {fail: {}}
+  executionConfig:
+    workers:
+      modelPolicy: worker@1
 `,
 		"audit-profiles/checklist.yaml": fmt.Sprintf(`apiVersion: contractor/v1alpha1
 kind: AuditProfile
@@ -2022,16 +2023,15 @@ spec:
     incompleteRound: assess-with-gaps
   interaction:
     activeChecks: prohibited
-    findingConfirmation: %s
     notApplicable: profile-rule
     reportAcceptance: automatic
-`, batchSize, maxItems, maxItems, 2*maxItems, findingConfirmation),
+`, batchSize, maxItems, maxItems, 2*maxItems),
 	}
 	for _, apply := range customize {
 		apply(files)
 	}
 	for _, directory := range []string{
-		"instructions", "llm-gateways", "model-policies", "execution-configs",
+		"instructions", "llm-gateways", "model-policies",
 		"agent-templates", "workflows", "audit-profiles", "skills",
 	} {
 		if err := os.MkdirAll(filepath.Join(root, directory), 0o755); err != nil {

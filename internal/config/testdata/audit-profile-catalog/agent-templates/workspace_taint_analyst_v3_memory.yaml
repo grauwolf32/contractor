@@ -10,11 +10,9 @@ spec:
   runtime: adk@1
   instructions:
     ref: instructions/workspace-taint-analyst-worker-memory.md
-  modelPolicy: worker@2
   summarizer:
     instructions:
       ref: instructions/terminal-summarizer.md
-    modelPolicy: summarizer@1
     contextWindowRatio: 0.8
   toolsets:
     - ref: memory-tools@1

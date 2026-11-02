@@ -9,7 +9,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/strictjson"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -60,7 +60,7 @@ func (r *admissionReader) ReadCandidates(ctx context.Context, cursor auditstore.
 			rows.Close()
 			return result, err
 		}
-		if strictjson.Decode(proposal, &h.proposal) != nil || h.proposal.Validate() != nil {
+		if h.bytes == nil || h.count == nil || *h.bytes < 1 || *h.count < 0 || *h.count > 512 || strictjson.Decode(proposal, &h.proposal) != nil || h.proposal.Validate() != nil {
 			rows.Close()
 			return result, auditstore.ErrInvalid
 		}
@@ -89,12 +89,12 @@ func (r *admissionReader) ReadCandidates(ctx context.Context, cursor auditstore.
 		if h.id == cursor.ReceiptID {
 			start = cursor.Ordinal + 1
 		}
-		if h.count != nil && *h.count > 0 && start >= *h.count && !h.late {
+		if *h.count > 0 && start >= *h.count && !h.late {
 			continue
 		}
-		if h.late || h.count == nil || *h.count == 0 {
+		if h.late || *h.count == 0 {
 			candidate := auditstore.AdmissionCandidate{ReceiptID: h.id, Proposal: h.proposal, CreatedAt: h.at.CreatedAt, Ordinal: -1,
-				LateSource: h.late, MigrationPending: h.count == nil, NoChecks: h.count != nil && *h.count == 0,
+				LateSource: h.late, NoChecks: *h.count == 0,
 				Cursor: auditstore.AdmissionCursor{CreatedAt: h.at.CreatedAt, ReceiptID: h.id, Ordinal: 512}}
 			if err := r.work.add(1, 0, 256, 0); err != nil {
 				return result, err
@@ -173,7 +173,7 @@ func (r *admissionReader) FindingSource(ctx context.Context, id string) (auditst
 		return auditstore.AdmissionFindingSource{}, admissionReadError(err)
 	}
 	if projectionCost == nil {
-		return auditstore.AdmissionFindingSource{}, auditstore.ErrChecksProjectionPending
+		return auditstore.AdmissionFindingSource{}, auditstore.ErrInvalid
 	}
 	if err := r.work.add(0, related, cost, 0); err != nil {
 		return auditstore.AdmissionFindingSource{}, err
@@ -196,7 +196,7 @@ func (r *admissionReader) FindingSource(ctx context.Context, id string) (auditst
 		return value, err
 	}
 	if projectionBytes == nil {
-		return value, auditstore.ErrChecksProjectionPending
+		return value, auditstore.ErrInvalid
 	}
 	if strictjson.Decode(original, &value.Original.Ref) != nil || strictjson.Decode(retained, &value.Retained) != nil || value.Original.Validate() != nil || value.Retained.Validate() != nil ||
 		value.Original.Digest != value.Retained.Digest || value.Original.MediaType != value.Retained.MediaType || value.Original.SizeBytes != value.Retained.SizeBytes {

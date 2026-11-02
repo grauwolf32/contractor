@@ -308,7 +308,7 @@ func TestSharedIdempotencyKeyCasesGateEveryKeyedOperation(t *testing.T) {
 			assertIdempotencyConflict(t, send("well-formed"))
 		})
 	}
-	if !audits.reached["DecideFinding"] || !audits.reached["CreateDraft"] {
+	if !audits.reached["EditProjectFinding"] || !audits.reached["CreateDraft"] {
 		t.Fatalf("Audit mutations were not reached with a well formed key: %v", audits.reached)
 	}
 }

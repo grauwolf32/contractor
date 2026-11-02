@@ -3,11 +3,10 @@ package auditservice
 import (
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
 
@@ -18,8 +17,7 @@ import (
 func TestRequestDigestsArePinned(t *testing.T) {
 	t.Parallel()
 
-	expires := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
-	severity, target, revision := auditstore.SeverityLow, "finding-2", "rev-1"
+	revision := "rev-1"
 	for _, tc := range []struct {
 		name string
 		got  func() (string, error)
@@ -49,27 +47,6 @@ func TestRequestDigestsArePinned(t *testing.T) {
 		{"review encoding", func() (string, error) {
 			return reviewRequestDigest("create", "audit-1", "finding-1", uint64(2), map[string]string{"note": "x"})
 		}, "sha256:292e2a42c275f051ceac32c485c3b09bafb12458adfb4379f97b2a5d075e14a4"},
-		{"review request", func() (string, error) {
-			return CreateFindingReviewRequestDigest(CreateFindingReviewParams{
-				AuditID: "audit-1", FindingID: "finding-1", ExpectedRevision: 2, OwnerID: "user-1", RequestID: "review-1",
-			})
-		}, "sha256:a52efe57f6c73b8218aa75d67e84b10d92dd252aafb96ba84833c7d4fc75e4fb"},
-		{"review request expiry", func() (string, error) {
-			return CreateFindingReviewRequestDigest(CreateFindingReviewParams{
-				AuditID: "audit-1", FindingID: "finding-1", ExpectedRevision: 2, ExpiresAt: &expires,
-			})
-		}, "sha256:b4f7804d6c23e6c6dcd20a824dfd01b3a53d38340dbd02813bef5cef05cd126d"},
-		{"finding decision", func() (string, error) {
-			return DecideFindingRequestDigest(DecideFindingParams{
-				AuditID: "audit-1", RequestID: "review-1", ExpectedRequestRevision: 4, DecisionID: "decision-1",
-				Verdict: auditstore.VerdictDuplicate, Severity: &severity, Rationale: "same", DuplicateTargetID: &target,
-			})
-		}, "sha256:42d42897de8b08175246d6bb9706239110fc9b3ea2ca7158bf85f8c633ecbcac"},
-		{"finding decision verdict only", func() (string, error) {
-			return DecideFindingRequestDigest(DecideFindingParams{
-				AuditID: "audit-1", RequestID: "review-1", ExpectedRequestRevision: 4, Verdict: auditstore.VerdictDuplicate,
-			})
-		}, "sha256:1c8cccd8a63c14cb76188c64f8972edbc4eaab61c0e4bcc0ba0daafe670cf3fc"},
 		{"action decision", func() (string, error) {
 			return DecideActionReviewRequestDigest(DecideActionReviewParams{
 				AuditID: "audit-1", RequestID: "review-1", ExpectedRequestRevision: 4, DecisionID: "decision-1",

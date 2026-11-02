@@ -33,9 +33,11 @@ SELECT audit.audit_id, audit.revision, statement_timestamp(), audit.current_roun
        ) AS coverage
  CROSS JOIN LATERAL (
        SELECT count(*) AS total,
-              count(*) FILTER (WHERE finding.current_decision_id IS NULL) AS unreviewed
-         FROM audit_findings AS finding
-        WHERE finding.audit_id = audit.audit_id
+              count(*) FILTER (WHERE finding.analyst_verdict IS NULL) AS unreviewed
+         FROM project_finding_audits AS membership
+         JOIN LATERAL (SELECT analyst_verdict FROM project_findings AS current
+              WHERE current.project_id=membership.project_id AND current.finding_id=membership.finding_id OFFSET 0) AS finding ON true
+        WHERE membership.audit_id = audit.audit_id
        ) AS findings
  WHERE audit.owner_id = $1 AND audit.audit_id = $2`
 

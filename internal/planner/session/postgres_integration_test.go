@@ -96,6 +96,12 @@ func TestPostgresSessionPersistsCompletionForRecovery(t *testing.T) {
 		!reflect.DeepEqual(*recovered.Completion.Result, result) {
 		t.Fatalf("recovery = (%+v, %v)", recovered, err)
 	}
+	*recovered.Completion.Result.Artifacts["report"].Revision = "caller-changed"
+	recovered.Completion.Result.Artifacts["extra"] = contracts.ArtifactRef{}
+	again, err := service.Begin(ctx, "stage-planner")
+	if err != nil || !reflect.DeepEqual(*again.Completion.Result, result) {
+		t.Fatalf("completion recovery retained caller aliases: %v", err)
+	}
 	// Run events 1 to 5 record the Run's initializing, pending and running
 	// states and its Stage's preparing and running states.
 	const lifecycleEvents = 5
@@ -204,7 +210,8 @@ func TestPostgresTypedPlanEventsAreOrderedAndCompareAppendIsAtomic(t *testing.T)
 	}
 	candidates := make([]planner.PlannerPlanProjection, 2)
 	for index, objective := range []string{"Race left", "Race right"} {
-		candidates[index] = clonePlanProjection(base)
+		candidates[index] = base
+		candidates[index].Subtasks = append([]planner.PlannerSubtask(nil), base.Subtasks...)
 		candidates[index].Revision++
 		candidates[index].Subtasks = append(candidates[index].Subtasks, planner.PlannerSubtask{
 			ID: "2", Objective: objective, Instructions: "Only one append may commit",

@@ -3,10 +3,10 @@ package runstore
 import (
 	"context"
 	"errors"
-	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"

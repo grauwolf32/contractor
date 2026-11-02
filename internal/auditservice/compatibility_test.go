@@ -73,10 +73,9 @@ func TestProfileCompatibilityAcceptsImplementedAdvancedPoliciesAndBatching(t *te
 	profile.Execution.MaxRounds = 2
 	profile.Execution.BatchSize = 2
 	profile.Interaction = auditprofile.AuditInteractionPolicy{
-		ActiveChecks:        auditprofile.AuditActiveChecksApprovalRequired,
-		FindingConfirmation: auditprofile.AuditFindingHumanRequired,
-		NotApplicable:       auditprofile.AuditNotApplicableHumanRequired,
-		ReportAcceptance:    auditprofile.AuditReportHumanRequired,
+		ActiveChecks:     auditprofile.AuditActiveChecksApprovalRequired,
+		NotApplicable:    auditprofile.AuditNotApplicableHumanRequired,
+		ReportAcceptance: auditprofile.AuditReportHumanRequired,
 	}
 	binding := profile.Workflows["check"]
 	binding.Kind = auditprofile.AuditWorkflowDiscovery
@@ -138,10 +137,8 @@ func TestProfileCompatibilityUsesExplicitToolAndOutputClassifications(t *testing
 	binding = profile.Workflows["check"]
 	binding.Outputs["proposals"] = "result"
 	profile.Workflows["check"] = binding
-	if got := ProfileCompatibility(profile).Reasons; !reflect.DeepEqual(got, []CompatibilityReason{
-		ReasonFindingConfirmationUnsupported,
-	}) {
-		t.Fatalf("finding-confirmation compatibility reasons = %v", got)
+	if got := ProfileCompatibility(profile).Reasons; !reflect.DeepEqual(got, []CompatibilityReason{}) {
+		t.Fatalf("proposal-output compatibility reasons = %v", got)
 	}
 }
 

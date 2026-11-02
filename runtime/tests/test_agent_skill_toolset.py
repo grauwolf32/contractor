@@ -913,15 +913,6 @@ def build_context(
             digest="sha256:" + "1" * 64,
             text="Use the selected guidance and return a strict result.",
         ),
-        modelPolicy=ResolvedModelPolicy(
-            ref=ModelPolicyRef(policyId="worker", version="1", digest="sha256:" + "2" * 64),
-            model="worker-model",
-            maxOutputTokens=4096,
-            maxModelCalls=8,
-            maxToolCalls=8,
-            maxTotalTokens=32768,
-            temperature=0.1,
-        ),
         toolsets=[],
         skills=[ArtifactRef(namespace="skills", name="demo")],
         sandboxProfile=SandboxProfileRef(sandboxProfileId="local-workdir", version="1"),
@@ -936,7 +927,7 @@ def build_context(
         description=template.description,
         instruction=template.instructions.text,
         card_version=template.ref.version,
-        model_policy=template.model_policy.model_copy(deep=True),
+        model_policy=worker_policy(),
         workspace=allocation_workspace(tmp_path),
         tools={},
         state=state,
@@ -971,4 +962,16 @@ def stage_request() -> StageContentRequest:
         instructions="Complete the task.",
         parameters={},
         artifacts={},
+    )
+
+
+def worker_policy() -> ResolvedModelPolicy:
+    return ResolvedModelPolicy(
+        ref=ModelPolicyRef(policyId="worker", version="1", digest="sha256:" + "2" * 64),
+        model="worker-model",
+        maxOutputTokens=4096,
+        maxModelCalls=8,
+        maxToolCalls=8,
+        maxTotalTokens=32768,
+        temperature=0.1,
     )

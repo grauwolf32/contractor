@@ -25,8 +25,8 @@ from contractor_runtime.contracts import (
     WorkerContextManagement,
     WorkerRuntimeRef,
     WorkerSessionMode,
-    WorkerSummarizerConfig,
 )
+from contractor_runtime.contracts.settings import WorkerSummarizerSettings
 from contractor_runtime.digests import (
     _agent_template_digest,
     _model_policy_digest,
@@ -56,7 +56,8 @@ def allocation_spec(
         temperature=0.1,
     )
     policy.ref.digest = _model_policy_digest(policy)
-    summarizer_config: WorkerSummarizerConfig | None = None
+    summarizer_config: WorkerSummarizerSettings | None = None
+    summarizer_policy = None
     if summarizer:
         summarizer_policy = ResolvedModelPolicy(
             ref=ModelPolicyRef(
@@ -71,8 +72,7 @@ def allocation_spec(
             temperature=0.1,
         )
         summarizer_policy.ref.digest = _model_policy_digest(summarizer_policy)
-        summarizer_config = WorkerSummarizerConfig(
-            modelPolicy=summarizer_policy,
+        summarizer_config = WorkerSummarizerSettings(
             contextWindowRatio=0.9,
             cumulativeBudget=20_000,
             includeReasoning=False,
@@ -88,7 +88,6 @@ def allocation_spec(
             digest=sha256_digest(instructions.encode()),
             text=instructions,
         ),
-        modelPolicy=policy,
         **({"summarizer": summarizer_config} if summarizer_config is not None else {}),
         toolsets=[
             ToolsetSelection(
@@ -119,6 +118,7 @@ def allocation_spec(
         agentTemplate=template,
         resolvedSkills=skills,
         modelPolicy=policy.model_copy(deep=True),
+        **({"summarizerModelPolicy": summarizer_policy} if summarizer_policy else {}),
         runtimeSettings=RuntimeSettings(
             llmGatewayUrl="https://llm.example/v1",
             llmGatewayToken=secret,
@@ -139,3 +139,12 @@ _EMPTY_PROVENANCE = (
 
 def runtime_provenance() -> ResolvedRuntimeConfigProvenance:
     return ResolvedRuntimeConfigProvenance.model_validate_json(_EMPTY_PROVENANCE)
+
+
+def summarizer_config():
+    from contractor_runtime.allocation.preparation import _effective_summarizer
+
+    result = _effective_summarizer(allocation_spec(summarizer=True))
+    if result is None:
+        raise RuntimeError("test allocation has no effective summarizer")
+    return result

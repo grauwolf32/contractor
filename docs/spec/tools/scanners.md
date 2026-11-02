@@ -1079,7 +1079,7 @@ YAML (`application/json`, `application/yaml`, `application/x-yaml`,
 string member names and no duplicate member names, YAML anchors, aliases or
 merge keys, tags other than the core tags, nonfinite numbers or numbers outside
 the exact integer range of IEEE 754 doubles (LIM-SCN-67). YAML reads under one
-scalar and key rule, which `internal/documentyaml` implements for preparation
+scalar and key rule, which `internal/helpers/documentyaml` implements for preparation
 and for the `openapi-operations@1` inventory
 ([audits](../audits/audits.md), AUD-R143) and which the OpenAPI authoring
 Toolset `openapi@1` ports (SCN-R257). An untagged plain scalar resolves as

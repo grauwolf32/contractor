@@ -136,21 +136,8 @@
         "ref": "instructions/artifact-builder.md",
         "text": "Read the declared input and write the requested result."
       },
-      "modelPolicy": {
-        "maxModelCalls": 8,
-        "maxOutputTokens": 4096,
-        "maxToolCalls": 16,
-        "maxTotalTokens": 32768,
-        "model": "worker-model",
-        "ref": {
-          "digest": "sha256:98aeee4bea132b3320d0f7e75443e9ed4b9aab0f0e12db4cd17b6d067bc25101",
-          "policyId": "worker",
-          "version": "1"
-        },
-        "temperature": 0.1
-      },
       "ref": {
-        "digest": "sha256:36fc9a1cdfca1956ac013bcb67407dbf97f941c1a356fc0dd0d23c3971610329",
+        "digest": "sha256:7681bbb78dcac0b1f84dfa781de00cd385932573c3073a32c1d30c5a8c585673",
         "templateId": "artifact_builder",
         "version": "1"
       },
@@ -224,21 +211,8 @@
         "ref": "instructions/artifact-reviewer.md",
         "text": "Review the declared input using the selected skills."
       },
-      "modelPolicy": {
-        "maxModelCalls": 8,
-        "maxOutputTokens": 4096,
-        "maxToolCalls": 16,
-        "maxTotalTokens": 32768,
-        "model": "worker-model",
-        "ref": {
-          "digest": "sha256:98aeee4bea132b3320d0f7e75443e9ed4b9aab0f0e12db4cd17b6d067bc25101",
-          "policyId": "worker",
-          "version": "1"
-        },
-        "temperature": 0.1
-      },
       "ref": {
-        "digest": "sha256:6f7b08c80fb4ded966fb48fa591ce6b1683814016e44398f59d95dc61f7581ef",
+        "digest": "sha256:3d829026338e0e4ae56bb19c62af003f3d64f4e8fc429a13bd9353af68e8932f",
         "templateId": "artifact_reviewer",
         "version": "1"
       },
@@ -269,22 +243,8 @@
         "ref": "instructions/worker-summarizer.md",
         "text": "Use the selected tools to complete the requested task."
       },
-      "modelPolicy": {
-        "contextWindowTokens": 131072,
-        "maxModelCalls": 8,
-        "maxOutputTokens": 4096,
-        "maxToolCalls": 16,
-        "maxTotalTokens": 32768,
-        "model": "worker-model",
-        "ref": {
-          "digest": "sha256:78460f8520d0ab876b164e4876fe2cfb9a2b8b54326ede4572c00614de6faf5c",
-          "policyId": "worker",
-          "version": "1"
-        },
-        "temperature": 0.1
-      },
       "ref": {
-        "digest": "sha256:e587b6825c433cf4a9def33d514a238f6a27892b910b84daec038a8c816bf4ac",
+        "digest": "sha256:20bd00bf184c7203b6201e704a7e6532066c423175a44b9eff5476d991902773",
         "templateId": "summarizer_enabled_worker",
         "version": "1"
       },
@@ -303,18 +263,6 @@
           "digest": "sha256:a0dc969a70d9d7bf7fb44af48ff1fdc5993d148c0554ecffe345baf0187bc0cb",
           "ref": "instructions/terminal-summary.md",
           "text": "Составь итог {subtaskId}. Return only the structured result.\n"
-        },
-        "modelPolicy": {
-          "contextWindowTokens": 131072,
-          "maxModelCalls": 1,
-          "maxOutputTokens": 2048,
-          "model": "worker-summarizer-model",
-          "ref": {
-            "digest": "sha256:55788bce43cad4ff515823b933910cd347a66efdb42641db7b7f09f1eb855970",
-            "policyId": "terminal_summarizer",
-            "version": "1"
-          },
-          "temperature": 0.1
         },
         "includeReasoning": false
       },
@@ -337,24 +285,10 @@
         "ref": "instructions/worker-summarizer.md",
         "text": "Use the selected tools to complete the requested task."
       },
-      "modelPolicy": {
-        "contextWindowTokens": 131072,
-        "maxModelCalls": 8,
-        "maxOutputTokens": 4096,
-        "maxToolCalls": 16,
-        "maxTotalTokens": 32768,
-        "model": "worker-model",
-        "ref": {
-          "digest": "sha256:aff3d8450d114b8a9a45f3c6223f151be511f82299df70fdcb4def61c7349b68",
-          "policyId": "unicode_worker_policy",
-          "version": "1"
-        },
-        "temperature": 0.7
-      },
       "ref": {
         "templateId": "unicode_worker",
         "version": "1",
-        "digest": "sha256:717d76f6c4d5f759826c8282250f9d7e81634f8edc08e061508d263291a73f27"
+        "digest": "sha256:fdcd80786394937f50cde499bb5a95b1df0ccaa2a5ded35a403e60854745b1d5"
       },
       "runtime": {
         "runtimeId": "adk",
@@ -371,18 +305,6 @@
           "digest": "sha256:a0dc969a70d9d7bf7fb44af48ff1fdc5993d148c0554ecffe345baf0187bc0cb",
           "ref": "instructions/terminal-summary.md",
           "text": "Составь итог {subtaskId}. Return only the structured result.\n"
-        },
-        "modelPolicy": {
-          "contextWindowTokens": 131072,
-          "maxModelCalls": 1,
-          "maxOutputTokens": 2048,
-          "model": "worker-summarizer-model",
-          "ref": {
-            "digest": "sha256:55788bce43cad4ff515823b933910cd347a66efdb42641db7b7f09f1eb855970",
-            "policyId": "terminal_summarizer",
-            "version": "1"
-          },
-          "temperature": 0.1
         },
         "includeReasoning": false
       },
@@ -417,22 +339,8 @@
         "ref": "instructions/worker-summarizer.md",
         "text": "Use the selected tools to complete the requested task."
       },
-      "modelPolicy": {
-        "contextWindowTokens": 131072,
-        "maxModelCalls": 8,
-        "maxOutputTokens": 4096,
-        "maxToolCalls": 16,
-        "maxTotalTokens": 32768,
-        "model": "worker-model",
-        "ref": {
-          "digest": "sha256:78460f8520d0ab876b164e4876fe2cfb9a2b8b54326ede4572c00614de6faf5c",
-          "policyId": "worker",
-          "version": "1"
-        },
-        "temperature": 0.1
-      },
       "ref": {
-        "digest": "sha256:2a958c652c80f07a1e6d1d94897e5a49ef9d4febb277d9ced270cb8f102594b4",
+        "digest": "sha256:ed6f79522dd6ffd1389c4ab2800f96db6234c992227c02de93b0973159bac80d",
         "templateId": "reasoning_summarizer_worker",
         "version": "1"
       },
@@ -452,18 +360,6 @@
           "digest": "sha256:a0dc969a70d9d7bf7fb44af48ff1fdc5993d148c0554ecffe345baf0187bc0cb",
           "ref": "instructions/terminal-summary.md",
           "text": "Составь итог {subtaskId}. Return only the structured result.\n"
-        },
-        "modelPolicy": {
-          "contextWindowTokens": 131072,
-          "maxModelCalls": 1,
-          "maxOutputTokens": 2048,
-          "model": "worker-summarizer-model",
-          "ref": {
-            "digest": "sha256:55788bce43cad4ff515823b933910cd347a66efdb42641db7b7f09f1eb855970",
-            "policyId": "terminal_summarizer",
-            "version": "1"
-          },
-          "temperature": 0.1
         }
       },
       "toolsets": [

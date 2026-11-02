@@ -14,14 +14,12 @@
       {
         "id": "a",
         "kind": "workflow",
-        "selector": "trace-a@1",
-        "executionConfig": {}
+        "selector": "trace-a@1"
       },
       {
         "id": "b",
         "kind": "audit",
-        "selector": "trace-b@1",
-        "executionConfig": {}
+        "selector": "trace-b@1"
       }
     ],
     "repetitions": 2,

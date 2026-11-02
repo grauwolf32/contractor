@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"github.com/grauwolf32/contractor/internal/apierror"
-	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/helpers/clone"
 )
 
 // The public API answers these errors with the Kind each one reports

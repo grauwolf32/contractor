@@ -12,7 +12,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
-	"github.com/grauwolf32/contractor/internal/pagelimit"
+	"github.com/grauwolf32/contractor/internal/helpers/pagelimit"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -286,8 +286,7 @@ func (h *runHandlers) createRunFromProject(
 	credentialUser := runtimeCredentialUser(r.Context())
 	params := runservice.PublicCreateParams{
 		OwnerID: credentialUser.UserID, OperationsPrincipal: credentialUser.Operations,
-		ProjectID: projectID, Workflow: request.Workflow,
-		ExecutionConfig: request.ExecutionConfig, RuntimeLabels: normalizedLabels,
+		ProjectID: projectID, Workflow: request.Workflow, RuntimeLabels: normalizedLabels,
 		MetadataLabels: metadataLabels, Parameters: request.Parameters, Inputs: request.Artifacts,
 		IdempotencyKey: idempotencyKey,
 		NewRunID:       func() (string, error) { return h.NewID("run_") },
@@ -644,27 +643,15 @@ func stageExecutionConfigReadModel(
 	case runstore.StageExecutionConfigBase:
 	case runstore.StageExecutionConfigFailedEscalation:
 		if stage.On.Failed.Escalate == nil {
-			return stageExecutionConfigResponse{}, fmt.Errorf("failed escalation Stage spec has no profile")
-		}
-		if stage.On.Failed.Escalate.ExecutionConfig.Ref != nil {
-			ref := *stage.On.Failed.Escalate.ExecutionConfig.Ref
-			result.Ref = &ref
+			return stageExecutionConfigResponse{}, fmt.Errorf("failed escalation Stage spec has no escalation")
 		}
 	case runstore.StageExecutionConfigInterruptedEscalation:
 		if stage.On.Interrupted.Escalate == nil {
-			return stageExecutionConfigResponse{}, fmt.Errorf("interrupted escalation Stage spec has no profile")
-		}
-		if stage.On.Interrupted.Escalate.ExecutionConfig.Ref != nil {
-			ref := *stage.On.Interrupted.Escalate.ExecutionConfig.Ref
-			result.Ref = &ref
+			return stageExecutionConfigResponse{}, fmt.Errorf("interrupted escalation Stage spec has no escalation")
 		}
 	case runstore.StageExecutionConfigSummaryEscalation:
 		if stage.On.Summarized == nil || stage.On.Summarized.Escalate == nil || execution.StageContext.Continuation == nil {
 			return stageExecutionConfigResponse{}, fmt.Errorf("summary escalation Stage spec has no saved policy/context")
-		}
-		if stage.On.Summarized.Escalate.ExecutionConfig.Ref != nil {
-			ref := *stage.On.Summarized.Escalate.ExecutionConfig.Ref
-			result.Ref = &ref
 		}
 	default:
 		return stageExecutionConfigResponse{}, fmt.Errorf("unknown Stage executionConfig variant %q", variant)

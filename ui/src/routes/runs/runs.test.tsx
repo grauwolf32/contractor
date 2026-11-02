@@ -9,6 +9,7 @@ import type {
   StageAttempt,
 } from "../../api/runs";
 import { createApplicationQueryClient } from "../../app/query-client";
+import { formatTimestamp } from "../../app/format";
 import { conforming, DIGEST } from "../../test/builders";
 import { deferred } from "../../test/deferred";
 import {
@@ -32,15 +33,14 @@ import { FakeEventSocket, renderApplication } from "../../test/application";
 const executionConfig: StageAttempt["executionConfig"] = {
   variant: "failed_escalation",
   escalationOrdinal: 1,
-  ref: { configId: "strong-review", version: "2", digest: DIGEST },
   planner: {
     modelPolicy: { policyId: "planner-strong", version: "2", digest: DIGEST },
     llmGateway: { gatewayId: "local", version: "1", digest: DIGEST },
     credential: { credentialId: "planner-budget" },
     origins: {
-      modelPolicy: "executionConfig:strong-review@2",
+      modelPolicy: "workflow.stages.review.on.failed.escalate.executionConfig",
       llmGateway: "workflow:router-analysis@1",
-      credential: "run override",
+      credential: "workflow.executionConfig.workers",
     },
   },
   agents: {
@@ -49,9 +49,10 @@ const executionConfig: StageAttempt["executionConfig"] = {
       llmGateway: { gatewayId: "local", version: "1", digest: DIGEST },
       credential: { credentialId: "worker-budget" },
       origins: {
-        modelPolicy: "executionConfig:strong-review@2",
+        modelPolicy:
+          "workflow.stages.review.on.failed.escalate.executionConfig",
         llmGateway: "workflow:router-analysis@1",
-        credential: "run override",
+        credential: "workflow.executionConfig.workers",
       },
     },
   },
@@ -1498,7 +1499,6 @@ describe("Run routes", () => {
               parameters: { objective: "Review the original project" },
               runtimeLabels: [],
               labels: {},
-              executionConfig: { status: "available", value: {} },
               inputs: {},
             },
           }),
@@ -1654,7 +1654,6 @@ describe("Run routes", () => {
           parameters: { objective: "Review the original project" },
           runtimeLabels: [],
           labels: {},
-          executionConfig: { status: "available", value: {} },
           inputs: {},
         },
       },
@@ -1822,8 +1821,8 @@ describe("Run routes", () => {
                     layer: "agent_labels",
                     configs: [{ name: "debug", version: "1", digest: DIGEST }],
                   },
-                  llmGateway: { layer: "run_execution_config" },
-                  caido: { layer: "run_execution_config" },
+                  llmGateway: { layer: "workflow_execution_config" },
+                  caido: { layer: "workflow_execution_config" },
                 },
                 status: "released",
               },
@@ -1873,7 +1872,6 @@ describe("Run routes", () => {
       screen.getByRole("heading", { name: "Summary", level: 2 }),
     ).toBeInTheDocument();
     expect(view.container.querySelector(".result-summary")).not.toBeNull();
-    expect(screen.getByText("strong-review@2")).toBeInTheDocument();
     expect(screen.getByText("Model calls")).toBeInTheDocument();
     expect(screen.getByText("1600")).toBeInTheDocument();
     expect(
@@ -1949,9 +1947,7 @@ describe("Run routes", () => {
     await waitFor(() =>
       expect(library?.querySelector("summary")).toHaveTextContent("1 Artifact"),
     );
-    await view.user.click(
-      screen.getByRole("button", { name: "Preview result" }),
-    );
+    await view.user.click(screen.getByRole("button", { name: "Preview" }));
     expect(
       await screen.findByText("safe report", { selector: "pre" }),
     ).toBeInTheDocument();
@@ -2162,7 +2158,7 @@ describe("Run routes", () => {
         renderRun(run);
         const heading = await screen.findByRole("heading", {
           level: 1,
-          name: "router-analysis@1",
+          name: "router-analysis",
         });
         const header = heading.closest("header")!;
         await waitFor(() =>
@@ -2240,6 +2236,84 @@ describe("Run routes", () => {
       ).toBeInTheDocument();
     });
 
+    it("shows Created and Finished while keeping exact identity visible", async () => {
+      const run = runFixture({
+        state: "succeeded",
+        eventCursor: undefined,
+        activeStageExecutionId: undefined,
+        createdAt: "2026-08-31T11:59:00Z",
+        startedAt: "2026-08-31T12:00:00Z",
+        updatedAt: "2026-08-31T12:04:00Z",
+        finishedAt: "2026-08-31T12:05:00Z",
+      });
+      const view = renderRun(run);
+      const title = await screen.findByRole("heading", {
+        level: 1,
+        name: "router-analysis",
+      });
+      const header = title.closest("header")!;
+      expect(
+        within(header).getByRole("button", { name: "Copy Run ID" }),
+      ).toBeVisible();
+      expect(
+        within(header).getByRole("button", { name: "Copy workflow version" }),
+      ).toBeVisible();
+      expect(within(header).getByText("router-analysis@1")).toBeVisible();
+      for (const [term, value] of [
+        ["Created", run.createdAt],
+        ["Finished", run.finishedAt!],
+      ]) {
+        const label = within(header).getByText(term!, { selector: "dt" });
+        expect(label).toBeVisible();
+        expect(label.nextElementSibling).toHaveTextContent(
+          formatTimestamp(value!),
+        );
+      }
+      expect(
+        within(header).queryByText("Started", { selector: "dt" }),
+      ).toBeNull();
+      expect(
+        within(header).queryByText("Updated", { selector: "dt" }),
+      ).toBeNull();
+      expect(within(header).queryByText("Timestamps")).toBeNull();
+      expect(view.writes()).toHaveLength(0);
+      expect(view.container.querySelector(".run-triage")).toBeNull();
+      expect(screen.queryByRole("link", { name: "Read results" })).toBeNull();
+      expect(
+        screen.queryByRole("link", { name: "Preview outputs" }),
+      ).toBeNull();
+      expect(
+        screen.queryByRole("link", { name: "Inspect focused attempt" }),
+      ).toBeNull();
+    });
+
+    it("shows creation time without inventing a finish for a queued Run", async () => {
+      const view = renderRun(
+        runFixture({
+          state: "pending",
+          startedAt: undefined,
+          attempts: [],
+          eventCursor: undefined,
+          activeStageExecutionId: undefined,
+        }),
+      );
+      const title = await screen.findByRole("heading", {
+        level: 1,
+        name: "router-analysis",
+      });
+      const header = title.closest("header")!;
+      expect(
+        within(header).getAllByText("Created", { selector: "dt" })[0],
+      ).toBeVisible();
+      expect(
+        within(header).queryByText("Started", { selector: "dt" }),
+      ).toBeNull();
+      expect(
+        within(header).queryByText("Finished", { selector: "dt" }),
+      ).toBeNull();
+      expect(view.writes()).toHaveLength(0);
+    });
+
     it("shows the identifiers, live status and every technical section", async () => {
       const cancelled = runFixture({
         state: "cancelled",
@@ -2259,7 +2333,7 @@ describe("Run routes", () => {
       expect(
         await screen.findByRole("heading", {
           level: 1,
-          name: "router-analysis@1",
+          name: "router-analysis",
         }),
       ).toBeInTheDocument();
       expect(
@@ -2334,13 +2408,13 @@ describe("Run routes", () => {
       ).not.toBeNull();
     });
 
-    it("opens the focused attempt before following the triage shortcut", async () => {
+    it("opens the focused failed attempt before following the triage shortcut", async () => {
       const view = renderRun(
         runFixture({
-          state: "succeeded",
+          state: "failed",
           eventCursor: undefined,
           activeStageExecutionId: undefined,
-          attempts: [{ ...RUNNING_ATTEMPT, state: "succeeded" }],
+          attempts: [{ ...RUNNING_ATTEMPT, state: "failed" }],
         }),
       );
       const shortcut = await screen.findByRole("link", {
@@ -2351,7 +2425,10 @@ describe("Run routes", () => {
       const attempt = view.container.querySelector<HTMLDetailsElement>(
         "#attempt-stage-router-1",
       )!;
-      // The focused attempt is expanded inside its collapsed section.
+      // A failed Run opens diagnostics; the shortcut also restores a section
+      // that the user has collapsed.
+      expect(attempts.open).toBe(true);
+      await view.user.click(attempts.querySelector("summary")!);
       expect(attempts.open).toBe(false);
       expect(attempt.open).toBe(true);
       // A finished Run without an event stream shows no live status line.

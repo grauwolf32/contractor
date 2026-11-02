@@ -289,7 +289,7 @@ func (l *loader) resolveStage(
 	if err != nil {
 		return resolved.ResolvedStage{}, err
 	}
-	contextManagement, compactor, err := l.resolvePlannerContextManagement(
+	contextManagement, err := l.resolvePlannerContextManagement(
 		source.PlannerContextManagement, source.Operation != nil,
 	)
 	if err != nil {
@@ -313,16 +313,7 @@ func (l *loader) resolveStage(
 		WorkflowOutputs:          mappings,
 		On:                       transitions,
 	}
-	if compactor != nil {
-		// The Stage's compactor is the lowest-precedence compactor selection;
-		// executionConfig layers may replace it (PLN-R125, TPL-R79).
-		stage.ExecutionConfig.Planner = &resolved.ResolvedConsumerExecutionConfig{
-			CompactorModelPolicy: compactor,
-			Origins: resolved.ExecutionConfigOrigins{
-				CompactorModelPolicy: "workflow.stages." + stageName + ".plannerContextManagement",
-			},
-		}
-	}
+
 	if source.Operation != nil && source.Planner != "" {
 		return resolved.ResolvedStage{}, fmt.Errorf("Stage must select exactly one of planner or operation")
 	}
@@ -689,7 +680,7 @@ func (l *loader) resolveTransitionAction(
 		if plannerRef == nil && source.Escalate.PlannerContextManagement.Kind != 0 {
 			return resolved.TransitionAction{}, fmt.Errorf("%s: plannerContextManagement requires on.summarized Planner continuation", field)
 		}
-		plannerContext, _, err := l.resolvePlannerContextPolicy(source.Escalate.PlannerContextManagement, false, false)
+		plannerContext, err := l.resolvePlannerContextManagement(source.Escalate.PlannerContextManagement, false)
 		if err != nil {
 			return resolved.TransitionAction{}, fmt.Errorf("%s.escalate.plannerContextManagement: %w", field, err)
 		}
@@ -738,34 +729,6 @@ func (l *loader) resolveEscalationExecutionConfig(
 	if source == nil {
 		return resolved.ResolvedEscalationExecutionConfig{}, fmt.Errorf("%s is required", field)
 	}
-	refPresent := source.refPresent
-	inlinePresent := source.plannerPresent || source.agentsPresent
-	if refPresent == inlinePresent {
-		return resolved.ResolvedEscalationExecutionConfig{}, fmt.Errorf(
-			"%s must contain exactly ref or inline planner/agents", field,
-		)
-	}
-	if refPresent {
-		value, err := optionalStringFromYAML(source.Ref, false, field+".ref")
-		if err != nil {
-			return resolved.ResolvedEscalationExecutionConfig{}, err
-		}
-		selector, err := resolved.ParseSelector(value.Value)
-		if err != nil {
-			return resolved.ResolvedEscalationExecutionConfig{}, fmt.Errorf("%s.ref: %w", field, err)
-		}
-		profile, ok := l.executionConfigs[selector.String()]
-		if !ok {
-			return resolved.ResolvedEscalationExecutionConfig{}, fmt.Errorf(
-				"%s.ref selects unknown ExecutionConfig %q", field, selector,
-			)
-		}
-		ref := profile.Ref
-		return resolved.ResolvedEscalationExecutionConfig{
-			Ref: &ref, Override: profile.Override.Clone(),
-		}, nil
-	}
-
 	patch, err := stageExecutionConfigPatchFromEscalationSource(source, field)
 	if err != nil {
 		return resolved.ResolvedEscalationExecutionConfig{}, err

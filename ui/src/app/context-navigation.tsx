@@ -4,13 +4,19 @@ import { catalogReturnState, locationDestination } from "./navigation";
 export function ContextLink({
   returnLabel,
   returnHash,
+  contextState,
   ...props
-}: Omit<LinkProps, "state"> & { returnLabel: string; returnHash?: string }) {
+}: Omit<LinkProps, "state"> & {
+  returnLabel: string;
+  returnHash?: string;
+  contextState?: Readonly<Record<string, unknown>> | undefined;
+}) {
   const location = useLocation();
   return (
     <Link
       {...props}
       state={{
+        ...contextState,
         returnTo:
           returnHash === undefined
             ? locationDestination(location)

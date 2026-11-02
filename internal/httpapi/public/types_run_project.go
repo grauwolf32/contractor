@@ -24,12 +24,11 @@ import (
 )
 
 type createRunRequest struct {
-	Workflow        string                           `json:"workflow"`
-	RuntimeLabels   runRuntimeLabels                 `json:"runtimeLabels,omitempty"`
-	Labels          runMetadataLabels                `json:"labels,omitempty"`
-	Parameters      map[string]string                `json:"parameters"`
-	Artifacts       map[string]contracts.ArtifactRef `json:"artifacts"`
-	ExecutionConfig resolved.ExecutionConfigPatch    `json:"executionConfig"`
+	Workflow      string                           `json:"workflow"`
+	RuntimeLabels runRuntimeLabels                 `json:"runtimeLabels,omitempty"`
+	Labels        runMetadataLabels                `json:"labels,omitempty"`
+	Parameters    map[string]string                `json:"parameters"`
+	Artifacts     map[string]contracts.ArtifactRef `json:"artifacts"`
 }
 
 type runRuntimeLabels []string
@@ -283,13 +282,7 @@ type runRepeatDraft struct {
 	Parameters              map[string]string                  `json:"parameters"`
 	RuntimeLabels           []string                           `json:"runtimeLabels"`
 	Labels                  runstore.RunMetadataLabels         `json:"labels"`
-	ExecutionConfig         runRepeatExecutionConfig           `json:"executionConfig"`
 	Inputs                  map[string]runRepeatInputSelection `json:"inputs"`
-}
-
-type runRepeatExecutionConfig struct {
-	Status string                        `json:"status"`
-	Value  resolved.ExecutionConfigPatch `json:"value"`
 }
 
 type runRepeatInputSelection struct {
@@ -425,7 +418,6 @@ type updateOwnerQueueControlRequest struct {
 type stageExecutionConfigResponse struct {
 	Variant           runstore.StageExecutionConfigVariant           `json:"variant"`
 	EscalationOrdinal *int                                           `json:"escalationOrdinal,omitempty"`
-	Ref               *resolved.ExecutionConfigRef                   `json:"ref,omitempty"`
 	Planner           *consumerExecutionConfigRefsResponse           `json:"planner,omitempty"`
 	Agents            map[string]consumerExecutionConfigRefsResponse `json:"agents"`
 }

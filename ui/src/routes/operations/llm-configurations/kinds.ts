@@ -7,10 +7,6 @@ export const KIND_LABELS: Readonly<
   "model-policies": { singular: "Model policy", plural: "Model policies" },
   "llm-gateways": { singular: "LLM gateway", plural: "LLM gateways" },
   "agent-templates": { singular: "Agent template", plural: "Agent templates" },
-  "execution-configs": {
-    singular: "Execution config",
-    plural: "Execution configs",
-  },
 };
 
 /** Writable kinds first; the read-only ones follow. */
@@ -18,7 +14,6 @@ export const KIND_ORDER: readonly ConfigurationKind[] = [
   "model-policies",
   "llm-gateways",
   "agent-templates",
-  "execution-configs",
 ];
 
 /** The page of one published configuration version. */

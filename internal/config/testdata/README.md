@@ -3,8 +3,7 @@
 `valid/` is a complete, dependency-resolved configuration root. Files in
 `invalid/` are focused replacements for the valid ModelPolicy manifest; tests
 install one replacement at a time so every failure remains attributable to one
-contract violation. The valid root also carries an unconsumed ExecutionConfig
-profile so every required immutable manifest subtree is represented.
+contract violation.
 
 Shared policy-override and escalation fixtures live in
 [`../../configtest/testdata/`](../../configtest/testdata/README.md). They use
@@ -41,3 +40,8 @@ install under a name of their own beside `audit-profile-catalog/`. The tests of
 `scan-catalog/` is a standalone, model-free root with the Nuclei, Naabu and
 SQLMap tool AgentTemplates, their single-tool Workflows and the scan-plan
 Workflows that bind them.
+
+`audit-common-catalog/` adds one test-only ordinary Workflow with a required JSON
+task-context input and JSON result output, used by the common Audit program
+validation tests. It shares the frozen valid catalog and registers no Runtime
+completion capability.

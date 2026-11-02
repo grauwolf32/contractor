@@ -582,7 +582,7 @@ def test_shared_worker_budget_wire_fields_are_required_and_bounded(
     field: str, invalid: int
 ) -> None:
     raw = json.loads((FIXTURES / "valid" / "allocation-spec.json").read_text())
-    for policy_path in (("agentTemplate", "modelPolicy"), ("modelPolicy",)):
+    for policy_path in (("modelPolicy",),):
         missing = json.loads(json.dumps(raw))
         policy: dict[str, Any] = missing
         for component in policy_path:
@@ -648,10 +648,7 @@ def test_shared_nonempty_agent_template_skill_digest_matches_go() -> None:
     allocation = AllocationSpec.model_validate_json(
         (FIXTURES / "valid" / "allocation-spec-skills.json").read_text()
     )
-    assert (
-        _agent_template_digest(allocation.agent_template)
-        == "sha256:f088d3a6c4b2ecd9e430da5f503db36d023cdb8791efec29468f91d7120293d6"
-    )
+    assert _agent_template_digest(allocation.agent_template) == allocation.agent_template.ref.digest
 
 
 def test_shared_agent_template_skills_reserve_native_names_and_require_tool_budget() -> None:
@@ -665,12 +662,11 @@ def test_shared_agent_template_skills_reserve_native_names_and_require_tool_budg
     with pytest.raises(ValidationError, match="reserved by Agent Skills"):
         ResolvedAgentTemplate.model_validate(collision)
 
-    unbudgeted = json.loads(json.dumps(raw))
-    unbudgeted["skills"] = skill
-    unbudgeted["toolsets"] = []
+    unbudgeted = json.loads((FIXTURES / "valid" / "allocation-spec-skills.json").read_text())
+    unbudgeted["agentTemplate"]["toolsets"] = []
     del unbudgeted["modelPolicy"]["maxToolCalls"]
     with pytest.raises(ValidationError, match="incompatible with adk@1 Worker"):
-        ResolvedAgentTemplate.model_validate(unbudgeted)
+        AllocationSpec.model_validate_json(json.dumps(unbudgeted))
 
 
 CA_BUNDLE_CASES = json.loads((FIXTURES / "ca-bundle-cases.json").read_text(encoding="utf-8"))
@@ -869,10 +865,7 @@ def test_shared_config_identity_cases_match_runtime_and_schemas() -> None:
     wire_versions.append(gateway_ref["version"])
     manifests = [
         schemas[name]["properties"]["metadata"]["properties"]
-        for name in (
-            "execution-config-manifest.schema.json",
-            "llm-gateway-config-manifest.schema.json",
-        )
+        for name in ("llm-gateway-config-manifest.schema.json",)
     ]
 
     def wire_accepts(identifier: str, version: str) -> bool:

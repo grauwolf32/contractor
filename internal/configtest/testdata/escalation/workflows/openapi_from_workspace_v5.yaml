@@ -19,6 +19,7 @@ spec:
     workers:
       llmGateway: local-litellm@1
       credential: development-worker
+      modelPolicy: test-worker@1
   entryStage: openapi_validate
   stages:
     openapi_validate:
@@ -47,7 +48,9 @@ spec:
           escalate:
             maxAttempts: 1
             executionConfig:
-              ref: strong-oas-review@1
+              agents:
+                validator:
+                  modelPolicy: test-strong-worker@1
             then:
               fail: {}
         interrupted: {fail: {}}

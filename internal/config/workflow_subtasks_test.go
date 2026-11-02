@@ -116,7 +116,7 @@ func TestSummaryContinuationRetainsWorkflowSubtaskLimit(t *testing.T) {
 	root, path := summaryWorkflowFixture(t)
 	replaceFile(t, path, "spec:\n", "spec:\n  maxSubtasks: 64\n")
 	snapshot := mustLoad(t, root)
-	workflow, err := snapshot.ResolveRunWorkflow(t.Context(), "artifact-copy@1", resolved.ExecutionConfigPatch{}, developmentCredentialLookup(t, snapshot))
+	workflow, err := snapshot.ResolveRunWorkflow(t.Context(), "artifact-copy@1", developmentCredentialLookup(t, snapshot))
 	if err != nil {
 		t.Fatal(err)
 	}

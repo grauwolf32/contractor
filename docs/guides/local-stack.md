@@ -67,7 +67,7 @@ The two LLM token variables are a development bootstrap only. A non-empty
 `CONTRACTOR_LLM_GATEWAY_TOKEN` creates the in-memory credential ID
 `development-worker`; `CONTRACTOR_PLANNER_LLM_GATEWAY_TOKEN` creates
 `development-planner` and defaults to the Worker token. The shipped local
-Workflow manifests select those IDs by role; custom Workflow or Run
+Workflow manifests select those IDs by role; custom Workflow
 `executionConfig` must do the same explicitly when it uses the bootstrapped
 credentials. URL, model and limits never come from these environment variables
 and cannot override an immutable Run snapshot. Omit the credential selector

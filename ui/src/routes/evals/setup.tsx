@@ -252,7 +252,6 @@ export function EvalSetupForm({
                             ...v,
                             kind: e.target.value as typeof kind,
                             selector: "",
-                            executionConfig: {},
                           })),
                         })
                       }

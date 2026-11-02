@@ -83,26 +83,30 @@ func newFindingScaleFixture(t *testing.T) findingScaleFixture {
 			"proposal_id":   `'` + copy.prefix + `-proposal-' || n`,
 			"submission_id": `'` + copy.prefix + `-submission-' || n`,
 		})
-		cloneRows(t, f.ctx, setup, "audit_findings", "finding_id", findingID, copy.findings, map[string]string{
-			"finding_id": `'` + copy.prefix + `-finding-' || lpad(n::text, 6, '0')`, "audit_id": audit,
-			"first_receipt_id": `'` + copy.prefix + `-receipt-' || n`, "state": `'proposed'`,
-			"rejection_reason": `NULL`, "duplicate_target_id": `NULL`,
-			"current_assessment_id": `NULL`, "current_decision_id": `NULL`,
+		cloneRows(t, f.ctx, setup, "project_findings", "finding_id", findingID, copy.findings, map[string]string{
+			"finding_id":       `'` + copy.prefix + `-finding-' || lpad(n::text, 6, '0')`,
+			"first_receipt_id": `'` + copy.prefix + `-receipt-' || n`, "state": `NULL`,
 			"created_at": `src.created_at + n * interval '1 millisecond'`,
 		})
-		// Odd copies' reviews expired an hour ago, even ones expire in an
-		// hour.
-		if _, err := setup.Exec(f.ctx, `
-INSERT INTO audit_review_requests (request_id, audit_id, finding_id, subject_kind, subject_id, kind,
-       subject_revision, subject_digest, requested_actions, state, expires_at, idempotency_key, request_digest)
-SELECT 'review-' || finding_id, audit_id, finding_id, 'finding', finding_id, 'finding-triage',
-       1, $2, '["true_positive","false_positive"]'::jsonb, 'pending',
-       clock_timestamp() + CASE WHEN right(finding_id, 1)::integer % 2 = 1
-                                THEN interval '-1 hour' ELSE interval '1 hour' END,
-       'review-' || finding_id, $2
-  FROM audit_findings WHERE audit_id = $1 AND finding_id <> $3`, copy.audit, testDigest("d"), findingID); err != nil {
+		if _, err := setup.Exec(f.ctx, `INSERT INTO project_finding_audits(audit_id,finding_id,project_id,finding_created_at,correlation_group_key)
+ SELECT $1,finding_id,project_id,created_at,correlation_group_key FROM project_findings WHERE finding_id LIKE $2`, copy.audit, copy.prefix+"-finding-%"); err != nil {
 			t.Fatal(err)
 		}
+		if copy.audit == f.audit.AuditID {
+			cloneRows(t, f.ctx, setup, "audit_items", "item_id", f.itemID, copy.findings, map[string]string{
+				"item_id": `'` + copy.prefix + `-finding-' || lpad(n::text,6,'0')`, "item_key": `'scale-review-item-'||n`, "origin": `jsonb_set(src.origin,'{entryKey}',to_jsonb('scale-review-item-'||n))`, "ordinal": `n`,
+				"state": `'ready'`, "final_disposition": `NULL`, "accepted_result_ref": `NULL`, "accepted_result_digest": `NULL`, "last_execution_item_id": `NULL`, "coverage_status": `'not-tested'`, "coverage_result_ref": `NULL`, "coverage_result_digest": `NULL`,
+			})
+		}
+
+		// Item approvals remain independent of canonical Finding assessment.
+		if _, err := setup.Exec(f.ctx, `INSERT INTO audit_review_requests(request_id,audit_id,subject_kind,subject_id,kind,subject_revision,subject_digest,requested_actions,state,expires_at,idempotency_key,request_digest)
+ SELECT 'review-'||finding_id,$1,'audit-item-action',finding_id,'active-check-approval',1,$2,'["approve","reject"]'::jsonb,'pending',
+ clock_timestamp()+CASE WHEN right(finding_id,1)::integer%2=1 THEN interval '-1 hour' ELSE interval '1 hour' END,
+ 'review-'||finding_id,$2 FROM project_findings WHERE finding_id LIKE $3`, copy.audit, testDigest("d"), copy.prefix+"-finding-%"); err != nil {
+			t.Fatal(err)
+		}
+
 		cloneRows(t, f.ctx, setup, "audit_executions", "execution_id", f.execution.ExecutionID, copy.executions, map[string]string{
 			"execution_id": `'` + copy.prefix + `-execution-' || n`, "audit_id": audit,
 			"round_id": `NULL`, "role": `'discovery'`, "role_attempt": `n`,
@@ -121,7 +125,7 @@ SELECT 'review-' || finding_id, audit_id, finding_id, 'finding', finding_id, 'fi
 	if err := setup.Commit(f.ctx); err != nil {
 		t.Fatal(err)
 	}
-	for _, table := range []string{"audit_findings", "audit_review_requests", "audit_executions", "audits", "finding_proposal_receipts"} {
+	for _, table := range []string{"project_findings", "project_finding_audits", "audit_review_requests", "audit_executions", "audits", "finding_proposal_receipts"} {
 		if _, err := f.pool.Exec(f.ctx, `VACUUM (INDEX_CLEANUP ON, ANALYZE) `+pgx.Identifier{table}.Sanitize()); err != nil {
 			t.Fatal(err)
 		}

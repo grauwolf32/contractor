@@ -13,6 +13,7 @@ import (
 	"github.com/getkin/kin-openapi/routers/gorillamux"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/configtest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/credentials"
@@ -93,7 +94,7 @@ func newWorkflowCredentialLookupFixture(t *testing.T) (handlerFixture, *scripted
 	t.Helper()
 	lookup := &scriptedLLMCredentialLookup{}
 	fixture := newHandlerFixtureWithAuth(
-		t, "../../config/testdata/valid", newTestAuthentication(t), mustTestOrigins(t), false, nil,
+		t, configtest.CopyWithPolicies(t, "../../config/testdata/valid"), newTestAuthentication(t), mustTestOrigins(t), false, nil,
 		func(dependencies *testServices) { dependencies.Credentials = lookup },
 	)
 	gateway, err := fixture.configs.Snapshot().LLMGateway("local-litellm@1")
@@ -117,8 +118,7 @@ func newWorkflowCredentialLookupFixture(t *testing.T) (handlerFixture, *scripted
 }
 
 const workflowCredentialRunBody = `{"workflow":"artifact-copy@1","parameters":{},` +
-	`"artifacts":{"source":{"namespace":"projects","name":"source"}},` +
-	`"executionConfig":{"workers":{"credential":"development-worker"}}}`
+	`"artifacts":{"source":{"namespace":"projects","name":"source"}}}`
 
 func TestRunCreateKeepsWorkflowCredentialLookupClass(t *testing.T) {
 	router, err := gorillamux.NewRouter(loadPublicOpenAPI(t))

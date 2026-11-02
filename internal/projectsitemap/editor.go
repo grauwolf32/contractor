@@ -1,6 +1,6 @@
 package projectsitemap
 
-import "github.com/grauwolf32/contractor/internal/strictjson"
+import "github.com/grauwolf32/contractor/internal/helpers/strictjson"
 
 // EditorMutation is an untrusted manual command. Producer and source identity
 // belong to the authenticated owner/allocation, never to this wire document.

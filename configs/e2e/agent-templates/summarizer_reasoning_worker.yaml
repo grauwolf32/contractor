@@ -10,9 +10,7 @@ spec:
   runtime: adk@1
   instructions:
     ref: instructions/worker-summarizer.md
-  modelPolicy: worker@1
   summarizer:
-    modelPolicy: terminal_summarizer@1
     contextWindowRatio: 0.9
     cumulativeBudget: 20000
     includeReasoning: true

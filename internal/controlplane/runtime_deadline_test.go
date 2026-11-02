@@ -142,7 +142,7 @@ func TestRuntimeBatchesShareOneDeadlineFromTheirOwnBudget(t *testing.T) {
 	}
 	before := time.Now()
 	if _, err := controller.PrepareAll(context.Background(), reservations,
-		testWorkerExecutionSettings(template, testRuntimeSettings(), "first", "second")); err != nil {
+		testWorkerExecutionSettings(t, testRuntimeSettings(), "first", "second")); err != nil {
 		t.Fatal(err)
 	}
 	if err := controller.ReleaseAll(context.Background(), reservations); err != nil {

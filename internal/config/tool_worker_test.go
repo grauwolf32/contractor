@@ -18,7 +18,7 @@ func TestToolWorkersResolveWithoutModelCatalogs(t *testing.T) {
 		t.Fatal("scan fixtures must have no model policies")
 	}
 	for _, name := range []string{"nuclei-target@1", "naabu-host@1", "sqlmap-request@1"} {
-		workflow, err := snapshot.ResolveRunWorkflow(context.Background(), name, resolved.ExecutionConfigPatch{}, nil)
+		workflow, err := snapshot.ResolveRunWorkflow(context.Background(), name, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -55,7 +55,7 @@ func TestToolWorkersResolveWithoutModelCatalogs(t *testing.T) {
 
 func TestSQLMapWorkerBindsPreparedRequestArtifact(t *testing.T) {
 	snapshot := mustLoad(t, scanFixtureRoot)
-	workflow, err := snapshot.ResolveRunWorkflow(context.Background(), "sqlmap-request@1", resolved.ExecutionConfigPatch{}, nil)
+	workflow, err := snapshot.ResolveRunWorkflow(context.Background(), "sqlmap-request@1", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,7 +97,6 @@ func TestToolWorkerRejectsModelAndInvalidBindings(t *testing.T) {
 	for _, change := range []func(*contracts.ResolvedAgentTemplate){
 		func(t *contracts.ResolvedAgentTemplate) { t.Execution = nil },
 		func(t *contracts.ResolvedAgentTemplate) { t.Instructions.Text = "unused" },
-		func(t *contracts.ResolvedAgentTemplate) { t.ModelPolicy.Model = "unused" },
 		func(t *contracts.ResolvedAgentTemplate) { t.Execution.Tool = "scan_naabu" },
 		func(t *contracts.ResolvedAgentTemplate) {
 			t.Execution.Arguments["url"] = contracts.ToolArgumentBinding{Source: "parameter"}

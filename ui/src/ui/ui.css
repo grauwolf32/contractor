@@ -1826,3 +1826,8 @@
   font-size: 13px;
   color: var(--muted);
 }
+
+/* Compact review keeps the existing decision controls and focus ownership. */
+.ui-decision[data-defer-draft] .ui-decision-actions {
+  order: -1;
+}

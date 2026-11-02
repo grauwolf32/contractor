@@ -160,7 +160,7 @@ func auditSubmissionGrant(
 		AuditID: runID + "-audit", OwnerID: ownerID, ProjectID: projectID,
 		Profile: auditstore.ProfileIdentity{Name: "profile", Version: "1", Digest: digest("profile")},
 		ProfileSnapshot: json.RawMessage(
-			`{"interaction":{"findingConfirmation":"human-required"},"workflows":{"check":{"kind":"check"}}}`,
+			`{"interaction":{},"workflows":{"check":{"kind":"check"}}}`,
 		),
 		InputSelection: json.RawMessage(`{}`),
 		Limits: auditstore.Limits{MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: 1, MaxItemsTotal: 1,

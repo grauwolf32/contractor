@@ -103,6 +103,9 @@ func (m Metadata) Exact() contracts.ExactArtifact {
 }
 
 type BindingPageQuery struct {
+	// NamePrefix selects a literal prefix in one Project namespace. It is
+	// keyset-paged before metadata hydration, without a whole-scope filter.
+	NamePrefix       string
 	Namespace        *string
 	ExcludeNamespace *string
 	// HiddenNamespace is one exact Namespace a trusted presentation layer

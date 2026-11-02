@@ -548,7 +548,9 @@ describe("Artifact routes", () => {
 
       // The page and the new-version form moved to the new current revision.
       expect(
-        await screen.findByText("revision-2", { selector: "code" }),
+        await screen.findByText("revision-2", {
+          selector: ".materials-detail-chip",
+        }),
       ).toBeInTheDocument();
       expect(
         screen.getByText("Current revision", { selector: ".lede" }),
@@ -573,7 +575,9 @@ describe("Artifact routes", () => {
         expect(router.state.location.search).toBe("?revision=revision-3"),
       );
       expect(
-        await screen.findByText("revision-3", { selector: "code" }),
+        await screen.findByText("revision-3", {
+          selector: ".materials-detail-chip",
+        }),
       ).toBeInTheDocument();
       expect(screen.queryByRole("alert")).not.toBeInTheDocument();
       expect(writes().map((write) => write.headers.get("If-Match"))).toEqual([

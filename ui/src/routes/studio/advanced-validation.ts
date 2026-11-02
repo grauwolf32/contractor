@@ -159,28 +159,19 @@ export function validateAdvanced(draft: Draft): Problem[] {
           [...p, "executionConfig"],
           "Put stage overrides under spec.executionConfig.stages.<stage>.",
         );
-      for (const outcome of ["failed", "interrupted"]) {
+      for (const outcome of ["failed", "interrupted", "summarized"]) {
         const action = record(record(record(stage.on)[outcome]).escalate);
         if (!Object.hasOwn(action, "executionConfig")) continue;
         const path = [...p, "on", outcome, "escalate", "executionConfig"],
           config = record(action.executionConfig);
         if (!map(action.executionConfig, path)) continue;
-        const ref = Object.hasOwn(config, "ref"),
-          inline =
-            Object.hasOwn(config, "planner") || Object.hasOwn(config, "agents");
-        if (ref === inline)
-          error(
-            path,
-            "Choose exactly a published ref or inline planner/agents.",
-          );
-        if (
-          ref &&
-          (typeof config.ref !== "string" || !isConfigSelector(config.ref))
-        )
-          error(
-            [...path, "ref"],
-            "Use a versioned execution configuration selector.",
-          );
+        for (const key of Object.keys(config))
+          if (!["planner", "agents"].includes(key) && !key.startsWith("x-"))
+            error([...path, key], "Unknown escalation configuration field.");
+        const inline =
+          Object.hasOwn(config, "planner") || Object.hasOwn(config, "agents");
+        if (!inline)
+          error(path, "Provide inline planner and/or agents selections.");
         if (inline) stageSelections(config, path, record(stage.agents), true);
       }
       if (

@@ -25,7 +25,7 @@ interface DecisionSeverityOption {
   label: string;
 }
 
-export interface DecisionSeverity {
+interface DecisionSeverity {
   options: readonly DecisionSeverityOption[];
   value?: string | undefined;
   onChange: (value: string) => void;
@@ -56,6 +56,8 @@ interface DecisionNext {
 }
 
 interface DecisionBarProps {
+  /** Keep the draft closed until a verdict is chosen, for the Issue review workspace. */
+  deferDraft?: boolean | undefined;
   /** The verdicts, in display order. */
   options: readonly DecisionOption[];
   /** Id of the chosen option. */
@@ -78,6 +80,8 @@ interface DecisionBarProps {
   error?: ReactNode;
   /** Why the user cannot decide here; disables deciding but not Next. */
   disabledReason?: string | undefined;
+  /** Incomplete/invalid draft: only recording locks, so the user can fix it. */
+  validationProblem?: string | undefined;
   /** Slot after the verdicts, e.g. a More menu with Duplicate and Reopen. */
   more?: ReactNode;
   /** Moves on to the next item. */
@@ -111,6 +115,7 @@ function isShown(node: ReactNode): boolean {
  * control in `more` or `extra` can still have focus when Record is clicked.
  */
 export function DecisionBar({
+  deferDraft = false,
   options,
   selected,
   onSelect,
@@ -121,6 +126,7 @@ export function DecisionBar({
   pending = false,
   error,
   disabledReason,
+  validationProblem,
   more,
   next,
   extra,
@@ -131,6 +137,7 @@ export function DecisionBar({
   const reasonField = useRef<HTMLTextAreaElement>(null);
   const recordButton = useRef<HTMLButtonElement>(null);
   const locked = pending || disabledReason !== undefined;
+  const draftVisible = !deferDraft || selected !== undefined || pending;
   const chosen = options.find((option) => option.id === selected);
   const severityLabel = severity?.label ?? "Severity";
   const severityMissing =
@@ -139,7 +146,11 @@ export function DecisionBar({
     (severity.value === undefined || severity.value === "");
   const reasonMissing = rationale.value.trim() === "";
   const canSubmit =
-    !locked && chosen !== undefined && !severityMissing && !reasonMissing;
+    !locked &&
+    chosen !== undefined &&
+    !severityMissing &&
+    !reasonMissing &&
+    validationProblem === undefined;
   const hint =
     disabledReason ??
     (pending
@@ -150,8 +161,12 @@ export function DecisionBar({
           ? `Choose ${severityLabel.toLowerCase()}.`
           : reasonMissing
             ? "Write a short reason."
-            : undefined);
+            : validationProblem);
   const hintId = hint === undefined ? undefined : `${id}-hint`;
+
+  useLayoutEffect(() => {
+    if (deferDraft && selected !== undefined) reasonField.current?.focus();
+  }, [deferDraft, selected]);
 
   function choose(optionId: string) {
     onSelect(optionId);
@@ -210,10 +225,11 @@ export function DecisionBar({
     <section
       ref={bar}
       className="ui-decision"
+      data-defer-draft={deferDraft || undefined}
       aria-label={ariaLabel}
       aria-busy={pending || undefined}
     >
-      {severity === undefined ? null : (
+      {severity === undefined || !draftVisible ? null : (
         <div className="ui-decision-severity">
           <span id={`${id}-severity`} className="ui-decision-label">
             {severityLabel}
@@ -302,59 +318,64 @@ export function DecisionBar({
           </button>
         )}
       </div>
-      {isShown(extra) ? (
+      {isShown(extra) && draftVisible ? (
         <div className="ui-decision-extra" inert={pending}>
           {extra}
         </div>
       ) : null}
-      {isShown(rationale.hint) ? (
+      {isShown(rationale.hint) && draftVisible ? (
         <p id={`${id}-reason-hint`} className="ui-decision-note">
           {rationale.hint}
         </p>
       ) : null}
-      <div className="ui-decision-compose">
-        <label htmlFor={`${id}-reason`} className="ui-decision-label">
-          {rationale.label ?? "Why"}
-        </label>
-        <textarea
-          ref={reasonField}
-          id={`${id}-reason`}
-          className="ui-decision-field"
-          rows={2}
-          value={rationale.value}
-          placeholder={rationale.placeholder}
-          maxLength={rationale.maxLength}
-          aria-required="true"
-          aria-describedby={
-            [isShown(rationale.hint) ? `${id}-reason-hint` : undefined, hintId]
-              .filter((part) => part !== undefined)
-              .join(" ") || undefined
-          }
-          aria-keyshortcuts="Control+Enter Meta+Enter"
-          readOnly={pending}
-          disabled={disabledReason !== undefined}
-          onChange={(event) => rationale.onChange(event.target.value)}
-          onKeyDown={onReasonKeyDown}
-        />
-        <button
-          ref={recordButton}
-          type="button"
-          className="ui-btn"
-          data-variant="primary"
-          // Recording, it keeps focus: aria-disabled, and submit() refuses.
-          disabled={!canSubmit && !pending}
-          aria-disabled={pending || undefined}
-          aria-busy={pending || undefined}
-          aria-describedby={hintId}
-          onClick={submit}
-        >
-          <span>{submitLabel}</span>
-          <span className="ui-kbd-hint" aria-hidden="true">
-            <Kbd>{modKeyLabel()}</Kbd>
-            <Kbd>Enter</Kbd>
-          </span>
-        </button>
-      </div>
+      {draftVisible ? (
+        <div className="ui-decision-compose">
+          <label htmlFor={`${id}-reason`} className="ui-decision-label">
+            {rationale.label ?? "Why"}
+          </label>
+          <textarea
+            ref={reasonField}
+            id={`${id}-reason`}
+            className="ui-decision-field"
+            rows={2}
+            value={rationale.value}
+            placeholder={rationale.placeholder}
+            maxLength={rationale.maxLength}
+            aria-required="true"
+            aria-describedby={
+              [
+                isShown(rationale.hint) ? `${id}-reason-hint` : undefined,
+                hintId,
+              ]
+                .filter((part) => part !== undefined)
+                .join(" ") || undefined
+            }
+            aria-keyshortcuts="Control+Enter Meta+Enter"
+            readOnly={pending}
+            disabled={disabledReason !== undefined}
+            onChange={(event) => rationale.onChange(event.target.value)}
+            onKeyDown={onReasonKeyDown}
+          />
+          <button
+            ref={recordButton}
+            type="button"
+            className="ui-btn"
+            data-variant="primary"
+            // Recording, it keeps focus: aria-disabled, and submit() refuses.
+            disabled={!canSubmit && !pending}
+            aria-disabled={pending || undefined}
+            aria-busy={pending || undefined}
+            aria-describedby={hintId}
+            onClick={submit}
+          >
+            <span>{submitLabel}</span>
+            <span className="ui-kbd-hint" aria-hidden="true">
+              <Kbd>{modKeyLabel()}</Kbd>
+              <Kbd>Enter</Kbd>
+            </span>
+          </button>
+        </div>
+      ) : null}
       <p id={`${id}-hint`} className="ui-decision-hint">
         {hint}
       </p>

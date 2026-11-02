@@ -66,12 +66,13 @@ func TestSharedAuditPreparationAuthoringFixtures(t *testing.T) {
 // TestAuditProfilesWithoutPreparationKeepDigests pins frozen fixture digests:
 // a profile without a prepare role keeps its digest when preparation fields
 // join the algorithm. The pins changed once when every resolved Agent binding
-// gained its explicit contextManagement selection (WFL-R91).
+// gained its explicit contextManagement selection (WFL-R91), and again
+// when the active Finding confirmation policy was removed (FND-R215).
 func TestAuditProfilesWithoutPreparationKeepDigests(t *testing.T) {
 	snapshot := mustLoad(t, copyCoreFixture(t, "audit-scan-catalog"))
 	for ref, digest := range map[string]string{
-		"openapi-sqlmap-scan@1": "sha256:55fe03d44261668c520462c01fd709a75582938e6b4645047168f844357e76f1",
-		"openapi-nuclei-scan@1": "sha256:feb5b5bd00b057e1e25f9b862dcf305477d8686f533db274c500d9e61ecc3bdc",
+		"openapi-sqlmap-scan@1": "sha256:89678cf01042060cb57f2829bfa6814f049e6d26dffd15295c32afe11e06dedc",
+		"openapi-nuclei-scan@1": "sha256:51f6e62884a24c846f4ce3bc74b92c96bbbb0b284d588455ef1d64bf0701aeb0",
 	} {
 		profile, err := snapshot.AuditProfile(ref)
 		if err != nil {

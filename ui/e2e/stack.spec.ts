@@ -727,9 +727,7 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   const streamlineOutput = page
     .locator(".run-result-card")
     .filter({ hasText: "outputs/result@" });
-  await streamlineOutput
-    .getByRole("button", { name: "Preview result" })
-    .click();
+  await streamlineOutput.getByRole("button", { name: "Preview" }).click();
   await expect(
     streamlineOutput.locator(".run-output-preview-body"),
   ).toContainText("browser-driven streamline input");

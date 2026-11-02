@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
@@ -57,11 +57,7 @@ func (s *Service) BeginScan(ctx context.Context, stageID, claimID string) (plann
 			if state.Scan == nil || state.Completion == nil {
 				return planner.ScanSessionStart{}, fmt.Errorf("completed session is not a scan session")
 			}
-			completion, cloneErr := cloneCompletion(*state.Completion)
-			if cloneErr != nil {
-				return planner.ScanSessionStart{}, cloneErr
-			}
-			return planner.ScanSessionStart{Identity: identity, State: cloneScanState(state.Scan.State), Completion: &completion}, nil
+			return planner.ScanSessionStart{Identity: identity, State: cloneScanState(state.Scan.State), Completion: state.Completion}, nil
 		}
 		if state.Scan != nil && state.Scan.OwnerClaimID == claimID {
 			return planner.ScanSessionStart{}, planner.ErrInvocationInProgress

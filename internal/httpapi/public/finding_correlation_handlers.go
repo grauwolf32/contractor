@@ -10,7 +10,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/grauwolf32/contractor/internal/strictjson"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 )
 
 type findingCorrelationCursor struct {
@@ -133,52 +133,6 @@ func (h *auditHandlers) listProjectFindingComparisons(w http.ResponseWriter, r *
 		return
 	}
 	result, err := h.Audits.CompareFindings(r.Context(), p)
-	if err != nil {
-		handleError(w, err)
-		return
-	}
-	result.Page.NextCursor, err = h.cursors.encodeFindingCorrelation(kind, result.Next)
-	if err != nil {
-		handleError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, result)
-}
-func (h *auditHandlers) listFindingCorrelationMembers(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Cache-Control", "no-store")
-	query, limit, cursor, err := findingCorrelationQuery(r, "auditId", "leftAuditId", "rightAuditId")
-	if err != nil {
-		handleError(w, err)
-		return
-	}
-	for _, key := range []string{"auditId", "leftAuditId", "rightAuditId"} {
-		if !correlationQueryID(query, key, false) {
-			handleError(w, errInvalidRequest)
-			return
-		}
-	}
-	ids := []string{}
-	if id, ok := query["auditId"]; ok {
-		if query.Has("leftAuditId") || query.Has("rightAuditId") {
-			handleError(w, errInvalidRequest)
-			return
-		}
-		ids = append(ids, id[0])
-	} else if query.Has("leftAuditId") || query.Has("rightAuditId") {
-		if !query.Has("leftAuditId") || !query.Has("rightAuditId") {
-			handleError(w, errInvalidRequest)
-			return
-		}
-		ids = append(ids, query.Get("leftAuditId"), query.Get("rightAuditId"))
-	}
-	p := auditservice.FindingMembersParams{OwnerID: principalUserID(r.Context()), ProjectID: r.PathValue("projectId"), GroupKey: r.PathValue("groupKey"), AuditIDs: ids, Limit: limit}
-	kind := findingCorrelationKind("members", p.OwnerID, p.ProjectID, p.GroupKey, p.AuditIDs, p.Limit)
-	p.Cursor, err = h.cursors.decodeFindingCorrelation(cursor, kind)
-	if err != nil {
-		handleError(w, err)
-		return
-	}
-	result, err := h.Audits.FindingGroupMembers(r.Context(), p)
 	if err != nil {
 		handleError(w, err)
 		return

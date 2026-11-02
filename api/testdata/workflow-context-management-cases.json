@@ -2,7 +2,7 @@
   "description": "Workflow agent binding contextManagement authoring cases (WFL-R91..WFL-R93). Each case sets path, relative to the compact-copy Workflow spec, to value; catalogOnly cases need catalog resolution that the Studio editor does not perform.",
   "cases": [
     {"name": "compact defaults", "path": ["stages", "copy", "agents", "builder", "contextManagement", "keepRecentGroups"], "value": 4, "valid": true},
-    {"name": "template strategy", "path": ["stages", "copy", "agents", "builder", "contextManagement"], "value": {"strategy": "template@1"}, "valid": true},
+    {"name": "template strategy", "executionConfig": {"workers": {"modelPolicy": "test-compact-worker@1", "summarizerModelPolicy": "test-summarizer@1"}}, "path": ["stages", "copy", "agents", "builder", "contextManagement"], "value": {"strategy": "template@1"}, "valid": true},
     {"name": "unknown strategy", "path": ["stages", "copy", "agents", "builder", "contextManagement", "strategy"], "value": "reset@1", "valid": false},
     {"name": "template with compaction member", "path": ["stages", "copy", "agents", "builder", "contextManagement"], "value": {"strategy": "template@1", "keepRecentGroups": 4}, "valid": false},
     {"name": "missing includeReasoning", "path": ["stages", "copy", "agents", "builder", "contextManagement", "includeReasoning"], "value": null, "valid": false},
@@ -25,7 +25,7 @@
     {"name": "summarized outcome", "path": ["stages", "copy", "on", "summarized"], "value": {"fail": {}}, "valid": false},
     {"name": "unknown compactor policy", "path": ["stages", "copy", "agents", "builder", "contextManagement", "modelPolicy"], "value": "missing@1", "valid": false, "catalogOnly": true},
     {"name": "compactor with tool budget", "path": ["stages", "copy", "agents", "builder", "contextManagement", "modelPolicy"], "value": "test-compact-worker@1", "valid": false, "catalogOnly": true},
-    {"name": "Worker policy without context window", "path": ["stages", "copy", "agents", "builder", "template"], "value": "artifact_builder@1", "valid": false, "catalogOnly": true},
+    {"name": "Worker policy without context window", "path": ["executionConfig", "workers", "modelPolicy"], "value": "test-worker@1", "valid": false, "catalogOnly": true},
     {"name": "Audit completion Worker", "path": ["stages", "copy", "agents", "builder", "template"], "value": "audit_checker@1", "valid": false, "catalogOnly": true},
     {"name": "summarizer-only override", "path": ["executionConfig", "workers", "summarizerModelPolicy"], "value": "test-summarizer@1", "valid": false, "catalogOnly": true}
   ]

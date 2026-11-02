@@ -3,9 +3,10 @@ package auditservice
 import (
 	"context"
 	"fmt"
+	"slices"
+
 	"github.com/grauwolf32/contractor/internal/auditbaseline"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
-	"slices"
 
 	"github.com/grauwolf32/contractor/internal/auditstore/querystore"
 	"github.com/grauwolf32/contractor/internal/contracts/engagementcontract"
@@ -69,9 +70,10 @@ func ResolveAllocationEngagement(ctx context.Context, pool *pgxpool.Pool, runID,
 	if err != nil || pin == nil {
 		return nil, err
 	}
+	// pin is freshly decoded for this call; transfer its fields to the result.
 	result := &engagementcontract.AllocationProjection{
 		Schema: "contractor.engagement.allocation.v1", AuditID: auditID,
-		Engagement: pin.Artifact.Ref.Clone(), EngagementDigest: pin.Artifact.Digest, PolicyDigest: pin.PolicyDigest,
+		Engagement: pin.Artifact.Ref, EngagementDigest: pin.Artifact.Digest, PolicyDigest: pin.PolicyDigest,
 		AuthorizedBy: pin.AuthorizedBy, AuthorizedAt: pin.AuthorizedAt,
 		AccessMode: pin.Document.AccessMode, Policy: pin.Document.Policy,
 	}
@@ -85,12 +87,12 @@ func ResolveAllocationEngagement(ctx context.Context, pool *pgxpool.Pool, runID,
 		}
 		assignment := &engagementcontract.HTTPAssignment{
 			Adapter:               runtimesettings.RuntimeAdapterHTTPTarget,
-			Routes:                cloneEngagementRoutes(pin.Document.Scope.Routes),
-			Exclusions:            cloneEngagementRoutes(pin.Document.Scope.Exclusions),
+			Routes:                pin.Document.Scope.Routes,
+			Exclusions:            pin.Document.Scope.Exclusions,
 			ProtectedDestinations: destinations,
-			Identities:            cloneEngagement(pin).Document.Identities,
+			Identities:            pin.Document.Identities,
 		}
-		limits := pin.Document.Budgets.HTTPLimits.Clone()
+		limits := pin.Document.Budgets.HTTPLimits
 		if limits != (engagementcontract.HTTPLimits{}) {
 			assignment.Limits = &limits
 		}

@@ -19,7 +19,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/grauwolf32/contractor/internal/strictjson"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 )
 
 const (
@@ -50,6 +50,7 @@ var (
 var identityPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`)
 
 type Submission struct {
+	PublishProblem bool                              `json:"publishProblem,omitempty"`
 	DerivedAnchors json.RawMessage                   `json:"derived_anchors,omitempty"`
 	APIVersion     string                            `json:"apiVersion"`
 	InvocationID   string                            `json:"invocationId"`
@@ -67,12 +68,13 @@ func (input *Submission) UnmarshalJSON(data []byte) error {
 	// A missing selection is omitted, never an explicitly unknown capture.
 	// Decode only its raw token; all fields were strictly checked above.
 	var fields struct {
-		HTTPEvidence json.RawMessage `json:"httpEvidence"`
+		HTTPEvidence   json.RawMessage `json:"httpEvidence"`
+		PublishProblem json.RawMessage `json:"publishProblem"`
 	}
 	if err := json.Unmarshal(data, &fields); err != nil {
 		return err
 	}
-	if string(fields.HTTPEvidence) == "null" {
+	if string(fields.HTTPEvidence) == "null" || string(fields.PublishProblem) == "null" {
 		return ErrInvalid
 	}
 	return nil
@@ -115,13 +117,13 @@ type Origin struct {
 type RetentionState string
 
 const (
-	RetentionSourceHeld RetentionState = "source-held"
-	RetentionAuditHeld  RetentionState = "audit-held"
-	RetentionDiscarded  RetentionState = "discarded"
+	RetentionSourceHeld  RetentionState = "source-held"
+	RetentionProjectHeld RetentionState = "project-held"
+	RetentionDiscarded   RetentionState = "discarded"
 )
 
 func (r RetentionState) valid() bool {
-	return r == RetentionSourceHeld || r == RetentionAuditHeld || r == RetentionDiscarded
+	return r == RetentionSourceHeld || r == RetentionProjectHeld || r == RetentionDiscarded
 }
 
 type AuditHold struct {
@@ -133,28 +135,36 @@ type AuditHold struct {
 }
 
 type Receipt struct {
-	Anchors       auditdomain.FindingAnchorProjection `json:"-"`
-	Fingerprint   auditdomain.FindingFingerprint      `json:"-"`
-	ReceiptID     string                              `json:"receiptId"`
-	ProposalID    string                              `json:"proposalId"`
-	RequestDigest string                              `json:"requestDigest"`
-	ClientKey     string                              `json:"clientKey"`
-	Proposal      ExactArtifact                       `json:"proposal"`
-	Document      auditdomain.FindingProposal         `json:"document"`
-	Evidence      []ExactArtifact                     `json:"evidence"`
-	Origin        Origin                              `json:"origin"`
-	Retention     RetentionState                      `json:"retention"`
-	AuditHolds    []AuditHold                         `json:"auditHolds"`
-	CreatedAt     time.Time                           `json:"createdAt"`
+	ProjectID            *string                             `json:"projectId,omitempty"`
+	PublicationRequested bool                                `json:"publicationRequested"`
+	PublicationError     string                              `json:"publicationError,omitempty"`
+	FindingID            *string                             `json:"findingId,omitempty"`
+	ProjectProposal      *ExactArtifact                      `json:"projectProposal,omitempty"`
+	ProjectEvidence      []ExactArtifact                     `json:"projectEvidence,omitempty"`
+	Anchors              auditdomain.FindingAnchorProjection `json:"-"`
+	Fingerprint          auditdomain.FindingFingerprint      `json:"-"`
+	ReceiptID            string                              `json:"receiptId"`
+	ProposalID           string                              `json:"proposalId"`
+	RequestDigest        string                              `json:"requestDigest"`
+	ClientKey            string                              `json:"clientKey"`
+	Proposal             ExactArtifact                       `json:"proposal"`
+	Document             auditdomain.FindingProposal         `json:"document"`
+	Evidence             []ExactArtifact                     `json:"evidence"`
+	Origin               Origin                              `json:"origin"`
+	Retention            RetentionState                      `json:"retention"`
+	AuditHolds           []AuditHold                         `json:"auditHolds"`
+	CreatedAt            time.Time                           `json:"createdAt"`
 }
 
 type SubmissionResponse struct {
-	APIVersion string          `json:"apiVersion"`
-	ProposalID string          `json:"proposalId"`
-	ReceiptID  string          `json:"receiptId"`
-	Proposal   ExactArtifact   `json:"proposal"`
-	Evidence   []ExactArtifact `json:"evidence"`
-	Replayed   bool            `json:"replayed"`
+	FindingID        *string         `json:"findingId,omitempty"`
+	PublicationError string          `json:"publicationError,omitempty"`
+	APIVersion       string          `json:"apiVersion"`
+	ProposalID       string          `json:"proposalId"`
+	ReceiptID        string          `json:"receiptId"`
+	Proposal         ExactArtifact   `json:"proposal"`
+	Evidence         []ExactArtifact `json:"evidence"`
+	Replayed         bool            `json:"replayed"`
 }
 
 type ListQuery struct {
@@ -271,11 +281,12 @@ func canonicalize(input Submission) (canonicalSubmission, error) {
 		}
 	}
 	digestValue := struct {
+		PublishProblem bool                              `json:"publishProblem,omitempty"`
 		DerivedAnchors json.RawMessage                   `json:"derived_anchors,omitempty"`
 		Proposal       json.RawMessage                   `json:"proposal"`
 		EvidenceRefs   []contracts.ArtifactRef           `json:"evidenceRefs"`
 		HTTPEvidence   *auditdomain.CapturedHTTPExchange `json:"httpEvidence,omitempty"`
-	}{DerivedAnchors: input.DerivedAnchors, Proposal: proposalBytes, EvidenceRefs: refs, HTTPEvidence: input.HTTPEvidence}
+	}{PublishProblem: input.PublishProblem, DerivedAnchors: input.DerivedAnchors, Proposal: proposalBytes, EvidenceRefs: refs, HTTPEvidence: input.HTTPEvidence}
 	encoded, err := json.Marshal(digestValue)
 	if err != nil {
 		return canonicalSubmission{}, fmt.Errorf("canonicalize finding submission: %w", err)

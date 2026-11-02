@@ -10,8 +10,8 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/grauwolf32/contractor/internal/cabundle"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/helpers/cabundle"
 )
 
 func validateRuntimeEndpoint(field, value string) error {

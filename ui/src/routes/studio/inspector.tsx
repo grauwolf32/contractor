@@ -608,7 +608,6 @@ export function Inspector({
             <>
               {Object.entries({
                 activeChecks: ["prohibited", "automatic", "approval-required"],
-                findingConfirmation: ["human-required", "disabled"],
                 notApplicable: ["human-required", "profile-rule"],
                 reportAcceptance: ["automatic", "human-required"],
               }).map(([key, options]) => (
@@ -624,20 +623,12 @@ export function Inspector({
               {field("Runtime", ["spec", "runtime"])}
             </>
           ) : null}
-          {node.type === "modelPolicy"
-            ? catalogField(node.title, p, "model-policies")
-            : null}
           {node.type === "sandboxProfile" ? field(node.title, p) : null}
           {node.type === "instructions"
             ? field("Instructions file", [...p, "ref"])
             : null}
           {node.type === "summarizer" ? (
             <>
-              {catalogField(
-                "Model policy",
-                [...p, "modelPolicy"],
-                "model-policies",
-              )}
               {field("Instructions file", [...p, "instructions", "ref"])}
               {field(
                 "Context window ratio",

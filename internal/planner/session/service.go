@@ -14,15 +14,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
-	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/helpers/clone"
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
+	"github.com/grauwolf32/contractor/internal/helpers/randomid"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	"github.com/grauwolf32/contractor/internal/planner"
-	"github.com/grauwolf32/contractor/internal/randomid"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/stageresult"
-	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 const (
@@ -38,7 +38,7 @@ type Store interface {
 	GetStageExecution(context.Context, string) (runstore.StageExecution, error)
 	StartPlanner(context.Context, runstore.StartPlannerParams) error
 	GetPlannerSession(context.Context, string) (runstore.PlannerSession, error)
-	GetPlannerSessions(context.Context, []string) (map[string]runstore.PlannerSession, error)
+	ReadPlannerSessions(context.Context, []string, func(runstore.PlannerSession) error) error
 	AppendPlannerEvent(context.Context, runstore.AppendPlannerEventParams) error
 }
 
@@ -243,7 +243,7 @@ func (s *Service) RecordPlan(
 		if state.Status != statusRunning {
 			return fmt.Errorf("Planner session is not running")
 		}
-		projection := clonePlanProjection(transition.Plan)
+		projection := canonicalPlanProjection(transition.Plan)
 		payload, err := encodeBounded(planProjectionEvent{
 			Kind: string(transition.Kind), ExpectedRevision: transition.ExpectedRevision, Plan: projection,
 		})
@@ -290,7 +290,7 @@ func (s *Service) RecordPlan(
 	}
 	_, recovered, err := s.load(ctx, identity)
 	if err == nil && recovered.Plan != nil && reflect.DeepEqual(*recovered.Plan, transition.Plan) {
-		projection := clonePlanProjection(transition.Plan)
+		projection := canonicalPlanProjection(transition.Plan)
 		payload, encodeErr := encodeBounded(planProjectionEvent{
 			Kind: string(transition.Kind), ExpectedRevision: transition.ExpectedRevision, Plan: projection,
 		})
@@ -396,11 +396,8 @@ func (s *Service) existing(
 		if state.Completion == nil {
 			return planner.SessionStart{}, fmt.Errorf("completed Planner session has no completion")
 		}
-		completion, err := cloneCompletion(*state.Completion)
-		if err != nil {
-			return planner.SessionStart{}, err
-		}
-		return planner.SessionStart{Identity: identity, Completion: &completion}, nil
+		// load decoded and validated a fresh graph; transfer it to the caller.
+		return planner.SessionStart{Identity: identity, Completion: state.Completion}, nil
 	default:
 		return planner.SessionStart{}, fmt.Errorf("unknown Planner session status %q", state.Status)
 	}
@@ -749,14 +746,13 @@ func validPlannerFactKey(value string) bool {
 	return true
 }
 
-func clonePlanProjection(value planner.PlannerPlanProjection) planner.PlannerPlanProjection {
-	result := value
-	result.Subtasks = append([]planner.PlannerSubtask(nil), value.Subtasks...)
-	if value.ActiveDispatch != nil {
-		active := *value.ActiveDispatch
-		result.ActiveDispatch = &active
+// canonicalPlanProjection preserves the empty-list representation without copying.
+// Callers own the plan or borrow it only for synchronous encoding.
+func canonicalPlanProjection(value planner.PlannerPlanProjection) planner.PlannerPlanProjection {
+	if len(value.Subtasks) == 0 {
+		value.Subtasks = nil
 	}
-	return result
+	return value
 }
 
 func planTransitionRunFields(
@@ -764,7 +760,7 @@ func planTransitionRunFields(
 	next planner.PlannerPlanProjection,
 	kind planner.PlannerEventKind,
 ) plannerRunEventData {
-	projection := clonePlanProjection(next)
+	projection := canonicalPlanProjection(next)
 	result := plannerRunEventData{Plan: &projection}
 	switch kind {
 	case planner.PlannerEventDispatchStarted:
@@ -800,13 +796,17 @@ func encodePlannerRunEvent(
 	if fields != nil {
 		data = *fields
 		if fields.Plan != nil {
-			plan := clonePlanProjection(*fields.Plan)
+			plan := canonicalPlanProjection(*fields.Plan)
 			data.Plan = &plan
 		}
 		if fields.Activity != nil {
 			activity := *fields.Activity
-			activity.FunctionCalls = append([]string(nil), fields.Activity.FunctionCalls...)
-			activity.FunctionResults = append([]string(nil), fields.Activity.FunctionResults...)
+			if len(activity.FunctionCalls) == 0 {
+				activity.FunctionCalls = nil
+			}
+			if len(activity.FunctionResults) == 0 {
+				activity.FunctionResults = nil
+			}
 			data.Activity = &activity
 		}
 	}

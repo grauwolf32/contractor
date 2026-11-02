@@ -290,7 +290,6 @@ spec:
     incompleteRound: assess-with-gaps
   interaction:
     activeChecks: prohibited
-    findingConfirmation: disabled
     notApplicable: profile-rule
     reportAcceptance: automatic
 `)

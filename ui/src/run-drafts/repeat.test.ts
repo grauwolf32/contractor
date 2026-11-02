@@ -21,22 +21,6 @@ const response: RunRepeatDraftResponse = {
     parameters: { objective: "Inspect exact source" },
     runtimeLabels: ["debug"],
     labels: { "eval.id": "sample-1", purpose: "eval" },
-    executionConfig: {
-      status: "available",
-      value: {
-        planner: { modelPolicy: "planner@2", credential: null },
-        workers: {
-          llmGateway: "local@1",
-          credential: "worker-budget",
-          summarizerModelPolicy: "summary-fixture@1",
-        },
-        stages: {
-          inspect: {
-            agents: { reviewer: { modelPolicy: "reviewer@3" } },
-          },
-        },
-      },
-    },
     inputs: {
       source: {
         status: "available",
@@ -95,27 +79,11 @@ describe("repeat Run drafts", () => {
     });
     expect(prepared?.state.artifactReviews).toEqual({});
     expect(prepared?.state.runtimeLabels).toEqual(["debug"]);
-    expect(prepared?.state.overrides).toMatchObject({
-      planner: {
-        modelPolicy: "planner@2",
-        credential: "__none__",
-      },
-      workers: {
-        summarizerModelPolicy: "summary-fixture@1",
-        llmGateway: "local@1",
-        credential: "worker-budget",
-      },
-      stages: response.draft?.executionConfig.value?.stages,
-    });
     expect(prepared?.state.repeat).toMatchObject({
       sourceRunId: "run-source",
       reviewed: false,
     });
-    expect(
-      prepared?.state.repeat?.notices.some(
-        (notice) => notice.code === "stage_execution_overrides_retained",
-      ),
-    ).toBe(true);
+    expect(prepared?.state.repeat?.notices).toEqual(response.notices);
   });
 
   it("routes Audit-managed Runs to their owning Audit without a draft", () => {
