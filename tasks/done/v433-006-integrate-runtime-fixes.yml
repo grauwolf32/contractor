@@ -5,7 +5,7 @@ milestone: runtime-resource-bounds-2026-11
 epic: execution-core
 kind: chore
 priority: P3
-status: in_progress
+status: completed
 depends_on: [V433-001, V433-002, V433-004]
 languages: [python, go, markdown]
 goal: Land the verified shutdown and CPU fixes on main while preserving its current Audit and Server-owned agent-label contracts.
@@ -68,3 +68,12 @@ verification: >-
   on the implementation tasks and was not silently relabeled as this run.
   Logs: /tmp/runtime-v433-006-runtime.log, /tmp/runtime-v433-006-lint.log and
   /tmp/runtime-v433-006-wire.log. No live model, deployment or demo migration.
+implementation_commit: 6c898154f1f1dfe1dea87054ada4c19551c7c677
+landing: >-
+  Main contains the Runtime branch through --no-ff merge
+  6c898154f1f1dfe1dea87054ada4c19551c7c677, with previous main
+  62603ca1728a4872059ec7a0c1acd5ed242a6cc4 and source
+  9b349798978cb85a802bb63a12853793c49dacb4 as parents.
+  The primary main checkout was clean before and after the merge. The
+  disposable PostgreSQL database was removed after the shared-fixture gate.
+  V433-003/V433-005 remain pending; V435-001 remains in_progress.
