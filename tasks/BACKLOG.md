@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-83 open tasks: 15 in progress, 55 pending, 13 deferred. 1372 finished: 1354 completed, 18 archived.
+83 open tasks: 16 in progress, 54 pending, 13 deferred. 1372 finished: 1354 completed, 18 archived.
 
 ## In progress
 
@@ -26,6 +26,7 @@ the epics are in [epics.yml](epics.yml).
 | [V437-005](v437-005-inject-artifact-storage-dependencies.yml) | projects-artifacts | chore | P2 | Inject Artifact storage dependencies explicitly |
 | [V437-006](v437-006-group-artifact-policy-and-preview.yml) | projects-artifacts | chore | P3 | Group shared Artifact policy and previews under artifacts |
 | [V437-007](v437-007-name-scheduler-fixture-sqlstate.yml) | execution-core | chore | P3 | Name the Scheduler discard fixture SQL condition |
+| [V439-006](v439-006-verify-httpapi-review.yml) | api-contracts | chore | P2 | Verify the HTTP API review cleanup |
 
 ## Pending
 
@@ -133,7 +134,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V411-017](v411-017-pentest-api-cli.yml) | feature | P1 | V411-015, V411-016, V64-008 | Expose HTTP engagement setup and results through existing API and CLI |
-| [V439-006](v439-006-verify-httpapi-review.yml) | chore | P2 | — | Verify the HTTP API review cleanup |
 
 ### PostgreSQL persistence and schema (`persistence`)
 

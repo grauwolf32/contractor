@@ -6,7 +6,7 @@ epic: api-contracts
 kind: chore
 introduced_by: V370-009
 priority: P2
-status: pending
+status: in_progress
 depends_on: [V439-001, V439-002, V439-003, V439-004, V439-005, V439-007]
 languages: [go]
 goal: >-
