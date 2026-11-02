@@ -5,7 +5,7 @@ milestone: audit-check-prioritization
 epic: audits
 kind: feature
 priority: P1
-status: pending
+status: in_progress
 depends_on:
 - V64-001
 - V64-004
@@ -43,8 +43,27 @@ context:
     or introducing an unsupported-profile compatibility mode. V64-010 verifies the combined catalog and
     removes remaining obsolete callers; it no longer owns the initial YAML rewrite. This is a planning
     amendment, not assignment of dependent implementation.'
-  implementation_gate: V64-001 decisions are settled. Keep pending until implementation is assigned and
-    dependencies are complete; this task amendment starts no code, migrations, live Runs or deployment.
+  execution_authority: >-
+    User assigned implementation on 2026-11-02 and explicitly permitted starting on current main
+    despite V64-014 remaining in_progress. Its merged implementation is the integration baseline;
+    this exception neither completes V64-014 nor treats its outstanding verification as passing.
+    Work is isolated on codex/audit-task-coordinator. No demo deployment is authorized.
+  implementation_gate: >-
+    Implementation is assigned. V64-001, V64-004 and V64-021 are completed; the user explicitly
+    waived waiting for formal V64-014 completion for this task on 2026-11-02.
+  explicit_task_handoff: >-
+    User decision 2026-11-02: after collection of Run A output, accept task B through the common
+    authenticated task-creation API with an explicitly selected exact input. The controller creates
+    its ordinary Run through RunService. The first demonstration pauses after A is admitted, drains
+    and collects A while paused, accepts B, then resumes. Pause closes Run submission, not task
+    acceptance, and an empty paused Audit does not automatically complete. No additional waiting
+    state or continuation mechanism is introduced; automatic proposals and generation remain V64-013.
+  catalog_cutover: >-
+    User decision 2026-11-02: temporarily remove the eight checklist/assertion YAML owned by
+    V64-012 from the shipped catalog when switching the loader/executor. V64-012 restores their
+    scenarios in the common format with actual assertion behavior. Do not keep an old reader,
+    executor or unsupported-profile mode. Original YAML remains available in Git at main
+    9b4ba9c8b1901c5c7eeb301015ad7e61cd94066d, without duplicate archived catalog files.
   design:
   - docs/proposals/0050-audit-common-hypothesis-model.md
   - docs/plans/2026-10-31-audit-redesign.md
@@ -131,6 +150,11 @@ requirements:
     Preserve source/settings/rules selection, exact evidence, Workflow closures and applicable tighter
     budgets. A prior kind=check label does not require an invented hypothesis for exploratory scanning
     or observation. Retain actual assertion semantics with V64-012 rather than silently weakening them.
+- id: R7
+  text: Paused Audits permit owner-authorized task acceptance from already available exact materials,
+    while prohibiting new Run submissions and automatic completion. Resume dispatches the accepted
+    remaining work through the same controller and RunService path. The two-Workflow demonstration
+    uses this Pause/drain handoff; automatic continuation and generation remain V64-013.
 failure_outcomes:
 - operation: Reconcile one bounded Audit task slice
   permanent: Reject invalid/foreign/unsupported content and exact-revision or collision conflicts through

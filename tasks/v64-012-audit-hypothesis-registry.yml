@@ -66,6 +66,11 @@ context:
     defect. V64-022 supplies this consumer's corrected boundary before implementation; the accepted Audit
     skeleton and this task's remaining scope are unchanged.
   shipped_yaml:
+    restoration_authority: >-
+      User decision 2026-11-02 during V64-002 implementation permits temporarily removing these
+      eight old-format profiles when the shared loader/executor switches. Restore the scenarios
+      in the common format together with this task's hypothesis/result behavior, not an old reader.
+      Original YAML is retained in Git at 9b4ba9c8b1901c5c7eeb301015ad7e61cd94066d.
     boundary: Rewrite fixed checklist/standard assertions as common hypothesis-bound work without a
       model-generated seed step. Update the related Workflow, template, instruction, completion/context
       bindings and fixtures needed by the real callers. Preserve source standards, applicability,
