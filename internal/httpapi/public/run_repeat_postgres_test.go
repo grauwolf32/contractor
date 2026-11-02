@@ -3,6 +3,7 @@ package public
 import (
 	"bytes"
 	"encoding/json"
+	"github.com/grauwolf32/contractor/internal/runservice"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -34,10 +35,10 @@ func TestPostgresRunRepeatUsesExactCreationLineageWithoutMutation(t *testing.T) 
 	service := artifacts.NewService(repository)
 	runs := runstore.NewPostgresStore(pool)
 	projects := projectstore.NewPostgresStore(pool)
-	h := &runRepeatHandlers{RunRepeatDependencies: RunRepeatDependencies{
+	h := &runRepeatHandlers{RunRepeatDependencies: RunRepeatDependencies{RepeatDrafts: runservice.NewRepeatReader(runservice.RepeatOptions{
 		Runs: runs, Artifacts: service, Projects: projects,
 		Config: fixture.configs, Credentials: fixture.credentials, RuntimeConfigs: fixture.runtimeConfigs,
-	}}
+	})}}
 	// Include payload bytes, revisions, clocks, pins, lineage and Run events so
 	// repeated projections cannot quietly repair history or create another Run.
 	storedState := func() map[string]string {
@@ -227,7 +228,7 @@ func TestPostgresRepeatRefusesChangedInputSourceScope(t *testing.T) {
 	if _, err := runs.TransitionRun(ctx, runID, runstore.RunInitializing, runstore.RunFailed, runstore.Reason{Code: "fixture-complete"}); err != nil {
 		t.Fatal(err)
 	}
-	h := &runRepeatHandlers{RunRepeatDependencies: RunRepeatDependencies{Runs: runs, Projects: projects, Artifacts: service, Config: fixture.configs, Credentials: fixture.credentials, RuntimeConfigs: fixture.runtimeConfigs}}
+	h := &runRepeatHandlers{RunRepeatDependencies: RunRepeatDependencies{RepeatDrafts: runservice.NewRepeatReader(runservice.RepeatOptions{Runs: runs, Projects: projects, Artifacts: service, Config: fixture.configs, Credentials: fixture.credentials, RuntimeConfigs: fixture.runtimeConfigs})}}
 	request := httptest.NewRequest(http.MethodGet, "/v1/runs/"+runID+"/repeat-draft", nil).WithContext(auth.WithPrincipal(ctx, auth.Principal{UserID: "user-1"}))
 	request.SetPathValue("runId", runID)
 	response := httptest.NewRecorder()

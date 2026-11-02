@@ -280,7 +280,11 @@ The retained repeat draft copies the ordinary `labels` and the derived
 requirement; the new launch uses its editable labels. Actual allocation
 placement labels are exposed as `placementLabels` in each Stage
 runtime-configuration allocation, including released allocations. Parent purge
-removes these fields with the owning rows (LIFE-DEL-1).
+removes these fields with the owning rows (LIFE-DEL-1). RunService owns repeat projection, including
+current configuration/source availability and notices, through the retained Run
+and original input-lineage readers. The HTTP adapter checks wire metadata and
+renders the projection, including Artifact upload presentation. This introduces
+no repeat-specific persistence or additional publication authority.
 
 ### Workflow parameters
 

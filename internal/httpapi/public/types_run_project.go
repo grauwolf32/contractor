@@ -15,6 +15,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/projectstore"
+	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/grauwolf32/contractor/internal/stageresult"
@@ -262,12 +263,7 @@ type runRepeatInputSelection struct {
 	Message     string                    `json:"message,omitempty"`
 }
 
-type runRepeatDraftNotice struct {
-	Code     string `json:"code"`
-	Severity string `json:"severity"`
-	Field    string `json:"field,omitempty"`
-	Message  string `json:"message"`
-}
+type runRepeatDraftNotice = runservice.RepeatNotice
 
 type outputPublicationResponse struct {
 	Output       string                           `json:"output"`

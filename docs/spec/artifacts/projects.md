@@ -555,7 +555,11 @@ the Operations capability, which already administers every RuntimeCredential.
 
 **PRJ-R75.** A credential the principal may not use is
 reported exactly like a missing one (`404 not_found`), so its existence is not
-disclosed (FAIL-PRJ-1).
+disclosed (FAIL-PRJ-1). The Project editor owns merging an explicit
+patch with the current Project and holding the shared credential-reference
+barrier through target validation and the ordinary revision CAS. HTTP adapters
+only decode the patch and pass the authenticated actor; they never implement a
+second credential/patch mutation path.
 
 **PRJ-R76.** Project Run creation and Audit start re-check the same rule
 for the requesting owner before pinning the target.

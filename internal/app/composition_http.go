@@ -90,7 +90,7 @@ func configureHTTP(
 			OperationsInvalidator: control.registry,
 		},
 		Projects: publicapi.ProjectDependencies{
-			Projects: projects, RuntimeCredentials: credentialSet.runtime,
+			Projects: projects, Editor: projectstore.NewEditor(projects, credentialSet.runtime),
 			Sitemap:                 projectsitemap.NewService(pool),
 			ProjectDeletionNotifier: workflows.projectDeletion, NewID: randomid.New,
 		},
@@ -101,11 +101,11 @@ func configureHTTP(
 			RunNotifier: workflows.scheduler, GatewayRecovery: workflows.gatewayRecovery,
 			Projects: projects, NewID: randomid.New, Now: time.Now,
 		},
-		RunRepeat: publicapi.RunRepeatDependencies{
+		RunRepeat: publicapi.RunRepeatDependencies{RepeatDrafts: runservice.NewRepeatReader(runservice.RepeatOptions{
 			Runs: runStore, Projects: projects, Config: configurationManager,
 			Credentials: credentialSet.provider, Artifacts: catalogs.artifacts,
 			RuntimeConfigs: control.runtimeConfigurations,
-		},
+		})},
 		Queue: publicapi.QueueDependencies{RunQueue: runStore, RunNotifier: workflows.scheduler},
 		Artifacts: publicapi.ArtifactDependencies{
 			Artifacts: catalogs.artifacts, Projects: projects, Runs: runStore, GitImports: gitImporter,

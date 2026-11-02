@@ -3,6 +3,7 @@ package public
 import (
 	"context"
 	"errors"
+	"github.com/grauwolf32/contractor/internal/runservice"
 	"log/slog"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	"github.com/grauwolf32/contractor/internal/gitimport"
 	publicevents "github.com/grauwolf32/contractor/internal/httpapi/public/events"
+	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 )
 
@@ -28,7 +30,7 @@ import (
 type testCatalog interface {
 	ResolvePinnedRunWorkflow(context.Context, resolved.ResolvedWorkflow, resolved.CredentialLookup) (resolved.ResolvedWorkflow, error)
 	CatalogReader
-	RepeatWorkflowResolver
+	runservice.RepeatWorkflowResolver
 	WorkflowLister
 }
 
@@ -41,9 +43,14 @@ type testManagedCredentials interface {
 
 // testRuntimeCredentials serves the Runtime credential routes and the
 // credential checks of Project targets and Run creation.
+type testProjects interface {
+	ProjectManagement
+	projectstore.EditStore
+}
+
 type testRuntimeCredentials interface {
 	RuntimeCredentialManagement
-	ProjectCredentialValidator
+	projectstore.EditCredentialGuard
 }
 
 // testServices is the flat set of services a test handler is built from.
@@ -70,7 +77,7 @@ type testServices struct {
 	RuntimeCredentials     testRuntimeCredentials
 	RuntimeAgentPrincipals RuntimeAgentPrincipalManagement
 
-	Projects                ProjectManagement
+	Projects                testProjects
 	Sitemap                 ProjectSitemap
 	ProjectDeletionNotifier Waker
 	Runs                    RunReader
@@ -127,7 +134,7 @@ func (s testServices) dependencies() Dependencies {
 			OperationsInvalidator: s.OperationsInvalidator,
 		},
 		Projects: ProjectDependencies{
-			Projects: s.Projects, RuntimeCredentials: s.RuntimeCredentials,
+			Projects: s.Projects, Editor: projectstore.NewEditor(s.Projects, s.RuntimeCredentials),
 			Sitemap:                 s.Sitemap,
 			ProjectDeletionNotifier: s.ProjectDeletionNotifier, NewID: s.NewID,
 		},
@@ -137,10 +144,10 @@ func (s testServices) dependencies() Dependencies {
 			RunDeletion: s.RunDeletion, RunCreator: s.RunCreator, RunNotifier: s.RunNotifier,
 			GatewayRecovery: s.GatewayRecovery, Projects: s.Projects, NewID: s.NewID, Now: s.Now,
 		},
-		RunRepeat: RunRepeatDependencies{
+		RunRepeat: RunRepeatDependencies{RepeatDrafts: runservice.NewRepeatReader(runservice.RepeatOptions{
 			Runs: s.Runs, Projects: s.Projects, Config: s.Config, Credentials: s.Credentials,
 			Artifacts: s.Artifacts, RuntimeConfigs: s.RuntimeConfigs,
-		},
+		})},
 		Queue: QueueDependencies{RunQueue: s.RunQueue, RunNotifier: s.RunNotifier},
 		Artifacts: ArtifactDependencies{
 			Artifacts: s.Artifacts, Projects: s.Projects, Runs: s.Runs, GitImports: s.GitImports,

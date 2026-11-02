@@ -44,13 +44,13 @@ func (b *trackedBody) Read(p []byte) (int, error) {
 
 // countingProjects counts the Project reads that reach the Project store.
 type countingProjects struct {
-	ProjectManagement
+	testProjects
 	gets *atomic.Int64
 }
 
 func (p countingProjects) Get(ctx context.Context, ownerID, projectID string) (projectstore.Project, error) {
 	p.gets.Add(1)
-	return p.ProjectManagement.Get(ctx, ownerID, projectID)
+	return p.testProjects.Get(ctx, ownerID, projectID)
 }
 
 // countingAudits counts the Audit lifecycle calls that reach the Audit
@@ -101,7 +101,7 @@ func newPrecedenceFixture(t *testing.T) precedenceFixture {
 	reads, auditCalls := new(atomic.Int64), new(atomic.Int64)
 	fixture := newHandlerFixtureWithAuth(t, "../../config/testdata/valid", newTestAuthentication(t), mustTestOrigins(t), false, nil,
 		func(services *testServices) {
-			services.Projects = countingProjects{ProjectManagement: services.Projects, gets: reads}
+			services.Projects = countingProjects{testProjects: services.Projects, gets: reads}
 			services.Audits = countingAudits{AuditManagement: services.Audits, calls: auditCalls}
 		})
 	now := time.Date(2026, 10, 23, 0, 0, 0, 0, time.UTC)
