@@ -6,7 +6,7 @@ epic: execution-core
 kind: defect
 introduced_by: V31-004
 priority: P1
-status: in_progress
+status: completed
 depends_on: [V432-001, V432-002]
 languages: [python, markdown]
 goal: Graceful Runtime shutdown stops owned work and resources within one process cleanup budget for every sandbox profile.
@@ -101,3 +101,8 @@ verification: >-
   including all four Runtime import contracts. Ruff, generated dependency
   graph and git diff --check pass. No live Gateway, deployment or database
   migration was run. Source log: /tmp/runtime-v433-001-lint.log.
+implementation_commit: 629665e8a8a02921cc727b59b0bdac7372159d1a
+landing: >-
+  Implemented and verified on codex/runtime-shutdown-deadline. Not yet merged
+  into main: the requested behavior explanation and process diagrams are
+  presented before implementation landing.

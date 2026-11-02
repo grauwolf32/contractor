@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-82 open tasks: 12 in progress, 59 pending, 11 deferred. 1348 finished: 1330 completed, 18 archived.
+81 open tasks: 11 in progress, 59 pending, 11 deferred. 1349 finished: 1331 completed, 18 archived.
 
 ## In progress
 
@@ -22,7 +22,6 @@ the epics are in [epics.yml](epics.yml).
 | [V420-002](v420-002-planner-compaction-vertical-slice.yml) | planner-worker | feature | P1 | Implement opt-in bounded compaction for Streamline and Router Planners |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Enable shared Planner compaction and reuse native YAML in shipped Workflows |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
-| [V433-001](v433-001-runtime-shutdown-deadline.yml) | execution-core | defect | P1 | Bound every Runtime shutdown phase by one cleanup deadline |
 
 ## Pending
 
@@ -163,7 +162,7 @@ the epics are in [epics.yml](epics.yml).
 | [V417-009](v417-009-context-compaction-release-gate.yml) | chore | P1 | V417-003, V417-004, V417-005, V417-006, V417-007 | Verify context compaction across real processes and close the deterministic milestone |
 | [V420-005](v420-005-planner-compaction-release-gate.yml) | chore | P1 | V420-006, V420-003, V420-004 | Accept Planner compaction through real-process and integrated release gates |
 | [V425-014](v425-014-runtime-tests-fail-on-macos.yml) | chore | P3 | — | Make the Runtime process-liveness assertions able to fail on macOS |
-| [V433-005](v433-005-runtime-resource-bounds-gate.yml) | chore | P3 | V433-001, V433-002, V433-003, V433-004 | Verify the Runtime resource-bound fixes and reconcile the review dispositions |
+| [V433-005](v433-005-runtime-resource-bounds-gate.yml) | chore | P3 | V433-002, V433-003, V433-004 | Verify the Runtime resource-bound fixes and reconcile the review dispositions |
 
 ## Deferred
 
@@ -188,7 +187,7 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 3 | 47 | 63 | 26 | 88 |
+| Run execution core (`execution-core`) | 2 | 47 | 63 | 26 | 88 |
 | Planners and the Worker model boundary (`planner-worker`) | 10 | 35 | 49 | 30 | 75 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 13 | 5 | 44 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 3 | 13 |
