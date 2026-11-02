@@ -6,7 +6,7 @@ epic: audits
 kind: defect
 introduced_by: V64-004
 priority: P2
-status: in_progress
+status: completed
 depends_on:
 - V64-004
 languages:
@@ -68,4 +68,29 @@ tests:
   - A2
   - A3
   - A4
-implementation_commit: null
+implementation_commit: 1d507bfb08c413d95ef5af58eaa9cf0662e7bb35
+verification:
+  date: '2026-11-02'
+  environment: Go 1.26.9 and disposable PostgreSQL 17, with CONTRACTOR_TEST_DATABASE_URL configured; fixture
+    schemas are isolated.
+  results:
+  - command: go test -tags=integration -count=1 ./internal/auditcontroller -run '^TestPostgresRetainedDependenciesUseAcceptedPrepareAndItemAfterProducerDeletion$'
+    outcome: The extended production-path regression failed on the unfixed builder with artifact not found
+      (/private/tmp/v64-025-before.log). After the fix it passed; the Audit-only accepted prepared rulepack
+      reaches ordinary checking Run creation, reusing the selected immutable version and exact bytes.
+  - command: go test -tags=integration -count=1 ./internal/auditcontroller -run '^(TestPostgresPreparedRulepackRefusedBeforeScanDispatch|TestPostgresRetainedDependenciesUseAcceptedPrepareAndItemAfterProducerDeletion|TestPostgresRetainedRulepackRefusedBeforeRunCreation)$'
+    outcome: Passed real-store scope cases for direct prepared output, retained output, prepared dependency
+      and Project-owned dependency; absent revision, digest/media/size mismatches and wrong scope are
+      rejected. Oversized and unsupported-media accepted dependencies fail PrepareBatch before an additional
+      checking execution is created.
+  - command: go test -tags=integration -count=1 ./internal/auditcontroller/... ./internal/runservice
+    outcome: 'Passed both complete package suites with PostgreSQL: auditcontroller 90.656s, runservice
+      8.096s. No database skip was used.'
+  - command: make lint
+    outcome: Passed, including Go vet/staticcheck, export ownership, release selectors, specification/tasks,
+      generated artifacts, Runtime lint/import layers and UI lint.
+  boundary: Both PrepareRole and PrepareBatch use the existing auditInputSlots map for metadata admission
+    and pass that same selection into Run initialization. Existing validateItemDependencies and RunService
+    materialization remain unchanged. No fallback, material copying or contract field was added.
+  delivery: Committed on codex/audit-artifact-workspace; main is unchanged. The separate V434-001 integration
+    task remains unfinished.
