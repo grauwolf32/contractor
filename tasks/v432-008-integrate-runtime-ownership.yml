@@ -75,3 +75,15 @@ additional_prerequisite: >-
   V432-009 fixes the pre-existing main Finding contract snapshot newline that
   prevented the integrated Runtime gate from passing. It changes no production
   behavior and does not take over the in-progress Finding task.
+prelanding_verification: >-
+  Integrated complete Runtime gate: 5822 passed, 133 skipped, 2 explicitly
+  deselected in 351.32 seconds. The exclusions remain the known macOS
+  V425-001 APFS normalization and V425-002 Trailmark PATH_MAX cases.
+  Focused integration selection: 414 passed before the moved summarizer
+  fixture import was corrected; the remaining eight cases then passed and
+  all were included in the final complete run. V432-009 reader/contract
+  prerequisite: 72 passed. make lint passed on the latest incorporated
+  main/UI tree, including all four Runtime import contracts. Cached pinned
+  uv tools used offline mode after the previously observed PyPI timeout.
+  Task/dependency indexes and git diff --check pass. No database migration,
+  remote push or live deployment was performed.
