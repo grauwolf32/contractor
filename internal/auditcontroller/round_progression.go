@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -13,12 +13,12 @@ import (
 func nextRoundValidationError(err error) bool {
 	// Failed storage I/O proves nothing about stored bytes and may succeed on
 	// retry, so it is never a deterministic validation failure.
-	if errors.Is(err, artifacts.ErrBlobIO) {
+	if errors.Is(err, blob.ErrIO) {
 		return false
 	}
 	var validation *auditdomain.ValidationError
 	return errors.As(err, &validation) || errors.Is(err, auditstore.ErrInvalid) ||
-		errors.Is(err, artifacts.ErrArtifactIntegrity)
+		errors.Is(err, blob.ErrIntegrity)
 }
 
 func (c *Controller) closeInvalidNextRound(

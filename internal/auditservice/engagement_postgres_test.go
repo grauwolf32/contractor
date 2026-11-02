@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
@@ -107,7 +108,7 @@ func newEngagementFixtureWithEdits(t *testing.T, editWorker func(string) string,
 	if err != nil {
 		t.Fatal(err)
 	}
-	store, err := artifacts.NewService(artifacts.NewPostgresRepository(pool)).Project(project.ProjectID)
+	store, err := artifacts.NewService(artifactpostgres.NewRepository(pool)).Project(project.ProjectID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -587,7 +588,7 @@ func TestEngagementMetadataAdmissionPrecedesPayloadReads(t *testing.T) {
 		t.Fatal(err)
 	}
 	selection := DraftSelection{Inputs: map[string]contracts.ExactArtifact{"engagement": meta.Exact(), "checklist": f.checklist}}
-	probe := &rulepackReadProbe{Repository: artifacts.NewPostgresRepository(f.pool), readErr: errors.New("unexpected engagement payload read")}
+	probe := &rulepackReadProbe{Repository: artifactpostgres.NewRepository(f.pool), readErr: errors.New("unexpected engagement payload read")}
 	if _, err = readAndVerifyInputs(f.ctx, artifacts.NewService(probe), f.project.ProjectID, profile, selection); !errors.Is(err, ErrInvalid) || probe.reads != 0 {
 		t.Fatalf("oversized engagement materialized: reads=%d err=%v", probe.reads, err)
 	}

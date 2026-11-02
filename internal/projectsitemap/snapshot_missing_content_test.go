@@ -9,6 +9,9 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob/backends/filesystem"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -17,13 +20,13 @@ func TestPostgresSitemapSnapshotMissingContentReportsStorageFailure(t *testing.T
 	ctx := t.Context()
 	createSitemapRun(t, ctx, pool, "consumer")
 	path := t.TempDir()
-	files, err := artifacts.OpenFilesystemBlobStore(ctx, path)
+	files, err := filesystem.Open(ctx, path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer files.Close()
-	ctx = artifacts.WithBlobRuntime(ctx, artifacts.NewBlobRuntime(files, nil))
-	stores := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	ctx = blob.WithRuntime(ctx, blob.NewRuntime(files, nil))
+	stores := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	project, _ := artifacts.ProjectScope("project")
 	payload := artifacts.Payload{MediaType: "application/json", Data: []byte(`{"openapi":"3.1.0"}`)}
 	source, err := stores.Create(ctx, project, contracts.ArtifactRef{Namespace: "schemas", Name: "api"}, payload)
@@ -58,11 +61,11 @@ func TestPostgresSitemapSnapshotMissingContentReportsStorageFailure(t *testing.T
 		t.Fatalf("missing source bytes hid map knowledge: %v", err)
 	}
 	selection := SnapshotSelection{Revision: view.Revision, Groups: []string{view.Document.Groups[0].ID}, RequireReferencedInputs: true}
-	if _, err := service.SnapshotAllocation(ctx, access, "required", selection); !errors.Is(err, artifacts.ErrBlobMissing) {
+	if _, err := service.SnapshotAllocation(ctx, access, "required", selection); !errors.Is(err, blob.ErrMissing) {
 		t.Fatalf("required missing source: %v", err)
 	}
 	selection.RequireReferencedInputs = false
-	if _, err := service.SnapshotAllocation(ctx, access, "optional", selection); !errors.Is(err, artifacts.ErrBlobMissing) {
+	if _, err := service.SnapshotAllocation(ctx, access, "optional", selection); !errors.Is(err, blob.ErrMissing) {
 		t.Fatalf("optional selection concealed storage loss: %v", err)
 	}
 	var artifactsCreated int

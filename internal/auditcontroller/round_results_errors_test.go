@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -15,12 +16,12 @@ import (
 
 func TestControllerClassifiesExactInputInitializationFailures(t *testing.T) {
 	permanent := []error{artifacts.ErrInvalidScope, artifacts.ErrInvalidName, artifacts.ErrExactRevisionRequired,
-		artifacts.ErrArtifactNotFound, artifacts.ErrArtifactIntegrity, artifacts.ErrArtifactConflict, artifacts.ErrArtifactFrozen,
+		artifacts.ErrArtifactNotFound, blob.ErrIntegrity, artifacts.ErrArtifactConflict, artifacts.ErrArtifactFrozen,
 		artifacts.ErrHistoryProtected, artifacts.ErrReservedNamespace, artifacts.ErrRunRevisionLimit, artifacts.ErrInvalidMediaType,
-		artifacts.ErrPayloadTooLarge, artifacts.ErrVersionedWriteTarget, contracts.ErrValidation, contracts.ErrExactArtifactMismatch,
+		blob.ErrTooLarge, artifacts.ErrVersionedWriteTarget, contracts.ErrValidation, contracts.ErrExactArtifactMismatch,
 		&auditdomain.ValidationError{Code: auditdomain.CodeLimitExceeded},
 		&pgconn.PgError{Code: persistencepostgres.SQLStateForeignKeyViolation, ConstraintName: "artifact_exact_hold"}}
-	transient := []error{context.Canceled, context.DeadlineExceeded, errors.New("temporary storage outage"), artifacts.ErrBlobIO,
+	transient := []error{context.Canceled, context.DeadlineExceeded, errors.New("temporary storage outage"), blob.ErrIO,
 		artifacts.ErrHistoryMaintenancePending, &pgconn.PgError{Code: persistencepostgres.SQLStateSerializationFailure},
 		&pgconn.PgError{Code: persistencepostgres.SQLStateForeignKeyViolation, ConstraintName: "unrelated_foreign_key"}}
 	for _, failure := range permanent {

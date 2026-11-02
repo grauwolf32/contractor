@@ -9,6 +9,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	postgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
@@ -41,7 +42,7 @@ func TestPostgresSitemapReadsDoNotResolveSnapshotInputs(t *testing.T) {
 	pool := sitemapPool(t, counter)
 	ctx := t.Context()
 	createSitemapRun(t, ctx, pool, "consumer")
-	stores := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	stores := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	scope, _ := artifacts.ProjectScope("project")
 	want := make(map[string]contracts.ArtifactRef)
 	policy := readerPolicy()

@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auth"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/localpki"
@@ -610,7 +611,7 @@ func readLiveRunArtifact(
 	stack *liveStack,
 	runID, namespace, name string,
 ) ([]byte, error) {
-	service := artifacts.NewService(artifacts.NewPostgresRepository(stack.pool))
+	service := artifacts.NewService(artifactpostgres.NewRepository(stack.pool))
 	store, err := service.Run(runID)
 	if err != nil {
 		return nil, err

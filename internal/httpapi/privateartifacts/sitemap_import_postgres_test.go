@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/projectsitemap"
@@ -22,7 +23,7 @@ func TestPostgresPrivateSitemapImportAuthorityAndExactSources(t *testing.T) {
 	pool := isolatedPrivateArtifactPool(t, ctx)
 	createPrivateSitemapProjectRun(t, ctx, pool, "project-import", "run-import")
 	createPrivateSitemapProjectRun(t, ctx, pool, "project-foreign", "run-foreign")
-	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	artifactService := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	payload := []byte("opaque evidence from an arbitrary source")
 	create := func(runID, namespace string) contracts.ArtifactRef {
 		t.Helper()

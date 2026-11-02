@@ -17,6 +17,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -53,7 +54,7 @@ func seedPublicInboxReceipt(t *testing.T, ctx context.Context, pool *pgxpool.Poo
 	if err != nil {
 		t.Fatal(err)
 	}
-	written, err := artifactstest.WriteFindingProposal(ctx, artifacts.NewService(artifacts.NewPostgresRepository(pool)),
+	written, err := artifactstest.WriteFindingProposal(ctx, artifacts.NewService(artifactpostgres.NewRepository(pool)),
 		runID, key, artifacts.Payload{MediaType: "application/json", Data: body})
 	if err != nil {
 		t.Fatal(err)
@@ -98,7 +99,7 @@ func TestPostgresPublicAuditInboxPagesThroughCursors(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	projectArtifacts, err := artifacts.NewService(artifacts.NewPostgresRepository(pool)).Project(projectID)
+	projectArtifacts, err := artifacts.NewService(artifactpostgres.NewRepository(pool)).Project(projectID)
 	if err != nil {
 		t.Fatal(err)
 	}

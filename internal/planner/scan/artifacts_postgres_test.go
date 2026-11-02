@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	contractscan "github.com/grauwolf32/contractor/internal/contracts/scan"
@@ -26,7 +28,7 @@ func TestPostgresScanArtifactReadsUseTheCallerInputBudget(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	scope, err := service.User("owner")
 	if err != nil {
 		t.Fatal(err)
@@ -57,13 +59,13 @@ func TestPostgresScanArtifactReadsUseTheCallerInputBudget(t *testing.T) {
 			if err != nil || got.MediaType != test.media || !bytes.Equal(got.Data, test.data) {
 				t.Fatalf("permitted input read: %v", err)
 			}
-			if _, err := adapter.Read(ctx, "run-rulepack", fork.TargetRef, len(test.data)-1); !errors.Is(err, artifacts.ErrPayloadTooLarge) {
+			if _, err := adapter.Read(ctx, "run-rulepack", fork.TargetRef, len(test.data)-1); !errors.Is(err, blob.ErrTooLarge) {
 				t.Fatalf("narrower caller bound ignored: %v", err)
 			}
 			if _, err := adapter.Read(ctx, "run-rulepack", fork.TargetRef, contractscan.MaxNucleiRulepackZIPBytes+1); !errors.Is(err, contracts.ErrValidation) {
 				t.Fatalf("unsupported read bound accepted: %v", err)
 			}
-			if _, err := adapter.Create(ctx, "run-rulepack", contracts.ArtifactRef{Namespace: "plans", Name: test.name}, artifacts.Payload{MediaType: "application/json", Data: bytes.Repeat([]byte("x"), planner.MaxScanArtifactBytes+1)}); !errors.Is(err, artifacts.ErrPayloadTooLarge) {
+			if _, err := adapter.Create(ctx, "run-rulepack", contracts.ArtifactRef{Namespace: "plans", Name: test.name}, artifacts.Payload{MediaType: "application/json", Data: bytes.Repeat([]byte("x"), planner.MaxScanArtifactBytes+1)}); !errors.Is(err, blob.ErrTooLarge) {
 				t.Fatalf("creation ceiling widened: %v", err)
 			}
 		})

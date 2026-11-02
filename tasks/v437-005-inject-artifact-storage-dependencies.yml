@@ -1,0 +1,53 @@
+schema_version: "1.0"
+id: V437-005
+title: "Inject Artifact storage dependencies explicitly"
+milestone: artifact-release-cleanup-2026-11
+epic: projects-artifacts
+kind: chore
+introduced_by: V370-016
+priority: P2
+status: pending
+depends_on: [V437-004]
+languages: [go]
+goal: "Storage runtime and retention policy are explicit process dependencies that survive transaction binding without context configuration."
+context:
+  authority: >-
+    User decision 2026-11-02: implement the internal/artifacts review fixes,
+    move bulk deduplication verification out of publication transactions and
+    split registry and payload backends as proposed, keeping the artifacts name.
+  specification:
+    - docs/spec/artifacts/artifact-store.md
+    - docs/spec/artifacts/blob-storage.md
+    - docs/spec/platform/persistence.md
+  planning_boundary: >-
+    Follow-up only. Review constructor impact before implementation, using the
+    existing store owners and one process runtime. No global registry, second
+    store, feature-specific service locator or implicit optional dependency.
+  scope_decision: >-
+    User decision 2026-11-02 after scope clarification: complete fixes, optimization
+    and package separation now; leave full runtime/history dependency injection
+    and related subsystem constructor changes to a separate task.
+  finding: >-
+    blob/runtime.go WithRuntime and postgres/history_policy.go WithHistoryPolicy keep process dependencies in context; a fresh operation context can lose transfer admission, backend selection and configured retention limits.
+  siblings: >-
+    Migrate every constructor, transaction-bound repository, purger, transport transfer caller and tests; update layer classification, ownership registry, ERD, release selectors and source guards.
+  boundary: >-
+    ArtifactStore owns normalized identity, revisions, history, lineage and
+    persistence. Payload backends own physical byte operations. Domain callers
+    retain authorization, deadlines and transaction boundaries. No wire or schema
+    changes, compatibility aliases, new receipts or plugin framework.
+scope:
+  in:
+    - "Inject the shared blob runtime and history policy through affected constructors and composition; remove their context keys and migrate every transaction-bound caller."
+  out:
+    - "Renaming the public Artifact concept, database tables or wire fields."
+acceptance_criteria:
+  - id: A1
+    text: "Blob runtime and history policy have no context keys or silent fallbacks; shared transfer admission and policy survive transaction binding."
+  - id: A2
+    text: "Fresh operation contexts retain the configured backend, shared transfer capacity and history policy through the injected store; real-store read, write, rollback and purge tests and all affected consumer suites pass."
+tests:
+  - command: "make lint"
+    covers: [A1, A2]
+  - command: "go test -count=1 -tags integration ./internal/... ./cmd/..."
+    covers: [A1, A2]

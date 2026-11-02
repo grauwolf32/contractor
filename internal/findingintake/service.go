@@ -11,6 +11,8 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
@@ -80,7 +82,7 @@ func (s *Service) Submit(
 		return Receipt{}, false, err
 	}
 	// Retain the slot while both the candidate blob and receipt are published.
-	ctx, releaseTransfer, err := artifacts.AcquireTransfer(ctx)
+	ctx, releaseTransfer, err := blob.AcquireTransfer(ctx)
 	if err != nil {
 		return Receipt{}, false, err
 	}
@@ -117,13 +119,13 @@ func (s *Service) Submit(
 		if encodeErr != nil || len(data) > artifacts.MaxPayloadSize {
 			return Receipt{}, false, fmt.Errorf("%w: HTTP evidence payload", ErrInvalid)
 		}
-		prepared, prepareErr := artifacts.PreparePayload(ctx, s.pool, artifacts.Payload{MediaType: auditdomain.HTTPExchangeMediaType, Data: data})
+		prepared, prepareErr := artifactpostgres.PreparePayload(ctx, s.pool, artifacts.Payload{MediaType: auditdomain.HTTPExchangeMediaType, Data: data})
 		if prepareErr != nil {
 			return Receipt{}, false, prepareErr
 		}
 		httpPayload = &prepared
 	}
-	preparedPayload, err := artifacts.PreparePayload(ctx, s.pool, artifacts.Payload{MediaType: proposalMediaType, Data: canonical.proposalBytes})
+	preparedPayload, err := artifactpostgres.PreparePayload(ctx, s.pool, artifacts.Payload{MediaType: proposalMediaType, Data: canonical.proposalBytes})
 	if err != nil {
 		return Receipt{}, false, err
 	}
@@ -181,7 +183,7 @@ SELECT count(*) FROM finding_proposal_receipts WHERE run_id = $1`, grant.RunID).
 			return fmt.Errorf("%w: Run proposal quota exceeded", ErrInvalid)
 		}
 
-		artifactService := artifacts.NewService(artifacts.NewPostgresRepository(tx))
+		artifactService := artifacts.NewService(artifactpostgres.NewRepository(tx))
 		runArtifacts, err := artifactService.Run(grant.RunID)
 		if err != nil {
 			return err
@@ -481,7 +483,7 @@ func insertReceipt(
 		// The receipt holds its proposal and evidence strictly: a revision
 		// that history retention removed after this transaction proved it is
 		// the same outcome as evidence that was never there (FAIL-DEL-7).
-		if artifacts.IsExactRevisionMissing(err) {
+		if artifactpostgres.IsExactRevisionMissing(err) {
 			return ErrAccessDenied
 		}
 		return fmt.Errorf("insert finding proposal receipt: %w", err)

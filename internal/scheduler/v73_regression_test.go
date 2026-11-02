@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	inline "github.com/grauwolf32/contractor/internal/artifacts/blob/backends/postgres"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -24,7 +26,7 @@ type metadataOnlyRepository struct {
 
 func (r *metadataOnlyRepository) Read(context.Context, artifacts.Scope, contracts.ArtifactRef) (artifacts.ReadResult, error) {
 	r.readCalls++
-	return artifacts.ReadResult{}, artifacts.ErrTransferCapacity
+	return artifacts.ReadResult{}, blob.ErrTransferCapacity
 }
 
 func (r *metadataOnlyRepository) Metadata(_ context.Context, scope artifacts.Scope, ref contracts.ArtifactRef) (artifacts.Metadata, error) {
@@ -35,15 +37,15 @@ func (r *metadataOnlyRepository) Metadata(_ context.Context, scope artifacts.Sco
 }
 
 func TestArtifactResolverUsesMetadataWithAllTransferSlotsOccupied(t *testing.T) {
-	ctx := artifacts.WithBlobRuntime(t.Context(), artifacts.NewBlobRuntime(artifacts.PostgresBlobStore{}, nil))
+	ctx := blob.WithRuntime(t.Context(), blob.NewRuntime(inline.Store{}, nil))
 	for range 4 {
-		_, release, err := artifacts.AcquireTransfer(ctx)
+		_, release, err := blob.AcquireTransfer(ctx)
 		if err != nil {
 			t.Fatal(err)
 		}
 		t.Cleanup(release)
 	}
-	if _, _, err := artifacts.AcquireTransfer(ctx); !errors.Is(err, artifacts.ErrTransferCapacity) {
+	if _, _, err := blob.AcquireTransfer(ctx); !errors.Is(err, blob.ErrTransferCapacity) {
 		t.Fatalf("transfer budget was not exhausted: %v", err)
 	}
 	repo := &metadataOnlyRepository{ref: exactRef("builder", "copied", "result-r1")}
@@ -79,14 +81,14 @@ func TestCandidateArtifactLookupErrorsKeepTheirMeaning(t *testing.T) {
 		code      string
 		retryable bool
 	}{
-		{"transfer capacity", artifacts.ErrTransferCapacity, "result_verification_unavailable", true},
+		{"transfer capacity", blob.ErrTransferCapacity, "result_verification_unavailable", true},
 		{"database unavailable", errors.New("temporary database failure"), "result_verification_unavailable", true},
 		{"lock timeout", fmt.Errorf("read artifact metadata: %w",
 			&pgconn.PgError{Code: persistencepostgres.SQLStateLockNotAvailable}), "result_verification_unavailable", true},
 		{"expired lookup", context.DeadlineExceeded, "result_verification_unavailable", true},
 		{"missing artifact", artifacts.ErrArtifactNotFound, "result_contract_violation", false},
 		{"invalid name", artifacts.ErrInvalidName, "result_contract_violation", false},
-		{"inexact answer", fmt.Errorf("%w: ArtifactStore returned an inexact ref", artifacts.ErrArtifactIntegrity),
+		{"inexact answer", fmt.Errorf("%w: ArtifactStore returned an inexact ref", blob.ErrIntegrity),
 			"result_contract_violation", false},
 	} {
 		t.Run(test.name, func(t *testing.T) {

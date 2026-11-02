@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -55,7 +56,7 @@ func inspectExact(
 	}
 	if !result.Ref.SameExact(ref) {
 		return artifacts.Metadata{}, fmt.Errorf(
-			"%w: ArtifactStore resolved a different artifact revision", artifacts.ErrArtifactIntegrity,
+			"%w: ArtifactStore resolved a different artifact revision", blob.ErrIntegrity,
 		)
 	}
 	return result, nil

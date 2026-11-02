@@ -14,6 +14,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 )
@@ -174,7 +175,7 @@ func (c *Catalog) Initialize(ctx context.Context, ownerID string, plan *SeedPlan
 			}
 			current, readErr = store.Read(ctx, ref)
 		}
-		if errors.Is(readErr, artifacts.ErrBlobMissing) {
+		if errors.Is(readErr, blob.ErrMissing) {
 			outcomes = append(outcomes, SeedOutcome{
 				Reference: bundled.metadata.Reference, Status: SeedContentMissing, Digest: bundled.metadata.Digest,
 			})

@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	"github.com/grauwolf32/contractor/internal/httpapi/artifacttransfer"
@@ -191,7 +192,7 @@ func requireOptionalJSONMediaType(r *http.Request) error {
 // the read cause and does not special-case negative lengths.
 func readArtifactBody(r *http.Request, transfer *artifacttransfer.Transfer) ([]byte, error) {
 	data, err := transfer.ReadBody(r, artifacts.MaxPayloadSize)
-	if err != nil && !errors.Is(err, artifacts.ErrPayloadTooLarge) {
+	if err != nil && !errors.Is(err, blob.ErrTooLarge) {
 		return nil, fmt.Errorf("read artifact body: %w", err)
 	}
 	return data, err

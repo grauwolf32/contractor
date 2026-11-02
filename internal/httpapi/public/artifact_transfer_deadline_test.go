@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/httpapi/artifacttransfer"
 )
@@ -208,10 +209,10 @@ func TestPublicArchivePreviewStalledReadersLeaveTransferCapacity(t *testing.T) {
 		_ = conn.SetReadDeadline(time.Time{})
 	}
 	// Every listing is now being written to a reader that stopped reading.
-	ctx := artifacts.WithBlobRuntime(t.Context(), runtime)
+	ctx := blob.WithRuntime(t.Context(), runtime)
 	releases := make([]func(), 0, 4)
 	for range 4 {
-		_, release, err := artifacts.AcquireTransfer(ctx)
+		_, release, err := blob.AcquireTransfer(ctx)
 		if err != nil {
 			t.Fatalf("stalled archive previews hold transfer capacity: %v", err)
 		}
@@ -257,30 +258,30 @@ func largeListingArchive(t *testing.T) []byte {
 	return data.Bytes()
 }
 
-func publicTransferServer(t *testing.T) (*httptest.Server, *artifacts.BlobRuntime) {
+func publicTransferServer(t *testing.T) (*httptest.Server, *blob.Runtime) {
 	t.Helper()
 	return publicTransferServerForHandler(t, newHandlerFixture(t).handler)
 }
 
-func publicTransferServerForHandler(t *testing.T, handler http.Handler) (*httptest.Server, *artifacts.BlobRuntime) {
+func publicTransferServerForHandler(t *testing.T, handler http.Handler) (*httptest.Server, *blob.Runtime) {
 	t.Helper()
-	runtime := artifacts.NewBlobRuntime(nil, nil)
+	runtime := blob.NewRuntime(nil, nil)
 	server := httptest.NewUnstartedServer(handler)
 	server.Config.BaseContext = func(net.Listener) context.Context {
-		return artifacts.WithBlobRuntime(context.Background(), runtime)
+		return blob.WithRuntime(context.Background(), runtime)
 	}
 	server.Start()
 	t.Cleanup(server.Close)
 	return server, runtime
 }
 
-func waitForPublicTransferSaturation(t *testing.T, runtime *artifacts.BlobRuntime) {
+func waitForPublicTransferSaturation(t *testing.T, runtime *blob.Runtime) {
 	t.Helper()
-	ctx := artifacts.WithBlobRuntime(t.Context(), runtime)
+	ctx := blob.WithRuntime(t.Context(), runtime)
 	until := time.Now().Add(2 * time.Second)
 	for {
-		_, release, err := artifacts.AcquireTransfer(ctx)
-		if errors.Is(err, artifacts.ErrTransferCapacity) {
+		_, release, err := blob.AcquireTransfer(ctx)
+		if errors.Is(err, blob.ErrTransferCapacity) {
 			return
 		}
 		if err != nil {
@@ -294,17 +295,17 @@ func waitForPublicTransferSaturation(t *testing.T, runtime *artifacts.BlobRuntim
 	}
 }
 
-func waitForPublicTransferAvailability(t *testing.T, runtime *artifacts.BlobRuntime, timeout time.Duration) {
+func waitForPublicTransferAvailability(t *testing.T, runtime *blob.Runtime, timeout time.Duration) {
 	t.Helper()
-	ctx := artifacts.WithBlobRuntime(t.Context(), runtime)
+	ctx := blob.WithRuntime(t.Context(), runtime)
 	until := time.Now().Add(timeout)
 	for {
-		_, release, err := artifacts.AcquireTransfer(ctx)
+		_, release, err := blob.AcquireTransfer(ctx)
 		if err == nil {
 			release()
 			return
 		}
-		if !errors.Is(err, artifacts.ErrTransferCapacity) {
+		if !errors.Is(err, blob.ErrTransferCapacity) {
 			t.Fatal(err)
 		}
 		if time.Now().After(until) {

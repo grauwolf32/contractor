@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
@@ -143,10 +145,10 @@ func permanentAuditInputFailure(err error) bool {
 	return errors.As(err, &validation) || errors.Is(err, auditstore.ErrInvalid) ||
 		errors.Is(err, ErrInvalid) || errors.Is(err, runstore.ErrInvalid) ||
 		errors.Is(err, contracts.ErrValidation) || errors.Is(err, contracts.ErrExactArtifactMismatch) || errors.Is(err, artifacts.ErrArtifactNotFound) ||
-		errors.Is(err, artifacts.ErrInvalidScope) || errors.Is(err, artifacts.ErrArtifactIntegrity) ||
+		errors.Is(err, artifacts.ErrInvalidScope) || errors.Is(err, blob.ErrIntegrity) ||
 		errors.Is(err, artifacts.ErrInvalidName) || errors.Is(err, artifacts.ErrExactRevisionRequired) ||
 		errors.Is(err, artifacts.ErrArtifactConflict) || errors.Is(err, artifacts.ErrHistoryProtected) ||
-		errors.Is(err, artifacts.ErrRunRevisionLimit) || artifacts.IsExactRevisionMissing(err)
+		errors.Is(err, artifacts.ErrRunRevisionLimit) || artifactpostgres.IsExactRevisionMissing(err)
 }
 
 func failAuditInputInitialization(ctx context.Context, writer AuditRunWriter, run runstore.WorkflowRun) (runstore.WorkflowRun, error) {

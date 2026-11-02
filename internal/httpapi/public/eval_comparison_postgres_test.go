@@ -10,6 +10,7 @@ import (
 
 	"github.com/getkin/kin-openapi/openapi3filter"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalservice"
@@ -220,7 +221,7 @@ func TestSharedEvalPostgresDeletedEvidenceInvalidatesSelectedAssessment(t *testi
 	base := "/v1/eval-experiments/" + e.ID
 	memberPath := base + "/members/" + member.Member.ID
 	review := ownerEvalReview(t, h, memberPath+"/review")
-	store, err := artifacts.NewService(artifacts.NewPostgresRepository(h.pool)).Run(member.Execution.Ref.ID)
+	store, err := artifacts.NewService(artifactpostgres.NewRepository(h.pool)).Run(member.Execution.Ref.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -254,7 +255,7 @@ func TestSharedEvalPostgresDeletedEvidenceInvalidatesSelectedAssessment(t *testi
 	h.tick(t)
 	before := h.get(t, e.ID)
 	err = pg.InTx(t.Context(), h.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		purger, err := artifacts.NewPostgresPurger(tx)
+		purger, err := artifactpostgres.NewPurger(tx)
 		if err != nil {
 			return err
 		}

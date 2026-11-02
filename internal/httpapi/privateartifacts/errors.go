@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/findingintake"
@@ -50,13 +52,13 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 		h.writeError(w, http.StatusConflict, "allocation_write_fenced", "allocation no longer permits artifact writes", false)
 	case errors.Is(err, errArtifactAccessDenied), errors.Is(err, artifacts.ErrReservedNamespace):
 		h.writeError(w, http.StatusForbidden, "artifact_access_denied", "allocation does not permit this artifact operation", false)
-	case errors.Is(err, artifacts.ErrPayloadTooLarge):
+	case errors.Is(err, blob.ErrTooLarge):
 		h.writeError(w, http.StatusRequestEntityTooLarge, "artifact_too_large", "artifact exceeds the configured payload limit", false)
-	case errors.Is(err, artifacts.ErrTransferCapacity):
+	case errors.Is(err, blob.ErrTransferCapacity):
 		h.writeError(w, http.StatusServiceUnavailable, "artifact_transfer_capacity", "artifact transfer capacity is exhausted", true)
-	case errors.Is(err, artifacts.ErrArtifactIntegrity):
+	case errors.Is(err, blob.ErrIntegrity):
 		h.writeError(w, http.StatusServiceUnavailable, "artifact_content_corrupt", "artifact content failed integrity verification", false)
-	case errors.Is(err, artifacts.ErrBlobMissing):
+	case errors.Is(err, blob.ErrMissing):
 		h.writeError(w, http.StatusServiceUnavailable, "artifact_content_missing", "artifact content is unavailable", false)
 	case errors.Is(err, artifacts.ErrArtifactFrozen):
 		// A frozen binding never advances, so no re-read can make a retry succeed.
@@ -69,7 +71,7 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 		h.writeError(w, http.StatusConflict, "artifact_history_protected",
 			"artifact history is protected and cannot fit its retention limit", false)
 	case errors.Is(err, artifacts.ErrHistoryMaintenancePending):
-		w.Header().Set("Retry-After", strconv.Itoa(int(artifacts.HistoryRetryAfter/time.Second)))
+		w.Header().Set("Retry-After", strconv.Itoa(int(artifactpostgres.HistoryRetryAfter/time.Second)))
 		h.writeError(w, http.StatusServiceUnavailable, "artifact_history_maintenance_pending",
 			"artifact history maintenance is pending; retry shortly", true)
 	case errors.Is(err, artifacts.ErrRunRevisionLimit):

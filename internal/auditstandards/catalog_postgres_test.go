@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/persistence/postgrestest"
@@ -30,7 +31,7 @@ func TestCatalogPostgresConcurrentSeedAndExactRetention(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	catalog, _ := NewCatalog(service)
 
 	var wait sync.WaitGroup
@@ -114,7 +115,7 @@ func TestCatalogPostgresListRejectsAnOverfullCatalogWithABoundedRead(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	catalog, _ := NewCatalog(artifacts.NewService(artifacts.NewPostgresRepository(pool)))
+	catalog, _ := NewCatalog(artifacts.NewService(artifactpostgres.NewRepository(pool)))
 	if _, err := catalog.Initialize(ctx, "catalog-owner", plan); err != nil {
 		t.Fatal(err)
 	}

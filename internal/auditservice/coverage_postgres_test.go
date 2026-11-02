@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -29,7 +31,7 @@ func TestCoverageReadsRetainedTasksAndSharedResult(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store, err := artifacts.NewService(artifacts.NewPostgresRepository(pool)).Project(project.ProjectID)
+	store, err := artifacts.NewService(artifactpostgres.NewRepository(pool)).Project(project.ProjectID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +88,7 @@ func TestCoverageReadsRetainedTasksAndSharedResult(t *testing.T) {
 		}
 	}
 	rows[0].Task.Digest = serviceTestDigest("wrong-task")
-	if _, err := service.describeCoverage(ctx, project.ProjectID, rows); !errors.Is(err, artifacts.ErrArtifactIntegrity) {
+	if _, err := service.describeCoverage(ctx, project.ProjectID, rows); !errors.Is(err, blob.ErrIntegrity) {
 		t.Fatalf("accepted a mismatched task digest: %v", err)
 	}
 }

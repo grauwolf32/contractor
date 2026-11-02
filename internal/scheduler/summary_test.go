@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/configtest"
@@ -227,14 +228,14 @@ func TestSchedulerSummaryDeadlineStartsAtAdmissionForEveryAttempt(t *testing.T) 
 }
 
 func TestSummaryPublicationRetriesOnlyKnownTransientFailures(t *testing.T) {
-	for _, err := range []error{context.Canceled, context.DeadlineExceeded, artifacts.ErrBlobIO, pgconn.ErrConnClosed, &pgconn.PgError{Code: persistencepostgres.SQLStateSerializationFailure}, &pgconn.PgError{Code: persistencepostgres.SQLStateConnectionFailure}} {
+	for _, err := range []error{context.Canceled, context.DeadlineExceeded, blob.ErrIO, pgconn.ErrConnClosed, &pgconn.PgError{Code: persistencepostgres.SQLStateSerializationFailure}, &pgconn.PgError{Code: persistencepostgres.SQLStateConnectionFailure}} {
 		if !summaryPublicationRetryable(err) {
 			t.Fatalf("transient error rejected: %v", err)
 		}
 	}
 	for _, err := range []error{errors.New("unclassified"), artifacts.ErrInvalidScope, artifacts.ErrInvalidName, artifacts.ErrInvalidMediaType,
-		artifacts.ErrVersionedWriteTarget, artifacts.ErrArtifactIntegrity, artifacts.ErrScopeDeleting, artifacts.ErrBlobBackend,
-		artifacts.ErrBlobMissing, artifacts.ErrRunRevisionLimit, errSummaryArtifactConflict} {
+		artifacts.ErrVersionedWriteTarget, blob.ErrIntegrity, artifacts.ErrScopeDeleting, blob.ErrBackend,
+		blob.ErrMissing, artifacts.ErrRunRevisionLimit, errSummaryArtifactConflict} {
 		if summaryPublicationRetryable(err) {
 			t.Fatalf("permanent error retried: %v", err)
 		}

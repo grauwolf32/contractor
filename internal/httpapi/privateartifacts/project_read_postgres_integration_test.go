@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -56,13 +57,13 @@ func TestPostgresPrivateProjectArtifactReadsUseConcreteTargetAndNoCacheHolds(t *
 	createPrivateSitemapProjectRun(t, ctx, pool, "project-a", "run-a")
 	createPrivateSitemapProjectRun(t, ctx, pool, "project-b", "run-b")
 	createPrivateArtifactRun(t, ctx, pool, "projectless")
-	service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	project, _ := service.Project("project-a")
 	foreign, _ := service.Project("project-b")
 	run, _ := service.Run("run-a")
 	ref := contracts.ArtifactRef{Namespace: "notes", Name: "context"}
-	history, _ := artifacts.NewHistoryPolicy(2, artifacts.DefaultHistoryMaxBytes)
-	writeCtx := artifacts.WithHistoryPolicy(ctx, history)
+	history, _ := artifactpostgres.NewHistoryPolicy(2, artifactpostgres.DefaultHistoryMaxBytes)
+	writeCtx := artifactpostgres.WithHistoryPolicy(ctx, history)
 	original, err := project.Write(writeCtx, ref, artifacts.Payload{MediaType: "text/plain", Data: []byte("original Project")}, nil)
 	if err != nil {
 		t.Fatal(err)

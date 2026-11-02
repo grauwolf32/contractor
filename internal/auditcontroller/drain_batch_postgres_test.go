@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditimport"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -114,7 +115,7 @@ func (h *postgresControllerHarness) collectingController(
 	audits := auditstoretest.NewStore(pool).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch)
 	runs := runstore.NewPostgresStore(pool)
 	access, err := auditimport.NewArtifactAccess(
-		artifacts.NewService(artifacts.NewPostgresRepository(pool)), hookstore.NewClaimedArtifacts(pool),
+		artifacts.NewService(artifactpostgres.NewRepository(pool)), hookstore.NewClaimedArtifacts(pool),
 	)
 	if err != nil {
 		t.Fatal(err)

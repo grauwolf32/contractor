@@ -10,7 +10,7 @@ import (
 	"fmt"
 
 	"github.com/grauwolf32/contractor/internal/apierror"
-	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -108,7 +108,7 @@ func deleteReleasedTerminalRun(ctx context.Context, tx pgx.Tx, ownerID, runID st
 	if err := runs.DeleteLockedRunOutputPublications(ctx, runID); err != nil {
 		return err
 	}
-	purger, err := artifacts.NewPostgresPurger(tx)
+	purger, err := artifactpostgres.NewPurger(tx)
 	if err != nil {
 		return fmt.Errorf("prepare WorkflowRun %q Artifact purge: %w", runID, err)
 	}

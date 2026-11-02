@@ -15,7 +15,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/agentskills"
-	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
@@ -631,7 +631,7 @@ func TestControllerHandlesDeterministicAndRetryableNextRoundErrors(t *testing.T)
 	}{
 		{"invalid proposal", &auditdomain.ValidationError{Code: auditdomain.CodeInvalid, Field: "finding.limitations"}, nil, nil, true, true},
 		{"invalid builder parameters", fmt.Errorf("build: %w", auditstore.ErrInvalid), nil, nil, true, true},
-		{"invalid retained proposal", fmt.Errorf("read: %w", artifacts.ErrArtifactIntegrity), nil, nil, true, true},
+		{"invalid retained proposal", fmt.Errorf("read: %w", blob.ErrIntegrity), nil, nil, true, true},
 		{"invalid store coverage", nil, fmt.Errorf("coverage: %w", auditstore.ErrInvalid), nil, true, true},
 		{"retryable builder", transient, nil, transient, false, false},
 		{"retryable store", nil, transient, transient, false, false},

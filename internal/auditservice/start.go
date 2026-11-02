@@ -11,6 +11,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditbaseline"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
@@ -166,7 +167,7 @@ func stageStartInTransaction(ctx context.Context, tx pgx.Tx, params StartParams)
 		return startPlan{}, err
 	}
 
-	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(tx))
+	artifactService := artifacts.NewService(artifactpostgres.NewRepository(tx))
 	namespace := auditdomain.ArtifactNamespace(audit.AuditID)
 	standardCatalog, err := auditstandards.NewCatalog(artifactService)
 	if err != nil {
@@ -303,7 +304,7 @@ func (s *Service) startInTransaction(
 	if err := contentdigest.CheckPinnedSelection(params.ExpectedRuntimeSHA256, runtimeSnapshot); err != nil {
 		return StartedAudit{}, err
 	}
-	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(tx))
+	artifactService := artifacts.NewService(artifactpostgres.NewRepository(tx))
 	engagement, err := readEngagement(ctx, artifactService, audit.ProjectID, profile, selection)
 	if err != nil {
 		return StartedAudit{}, err

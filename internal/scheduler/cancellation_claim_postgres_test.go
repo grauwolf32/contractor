@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"io"
 	"log/slog"
 	"sync/atomic"
@@ -13,6 +12,8 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
@@ -190,7 +191,7 @@ func TestPostgresFailActiveRunEndsCancellingRunAsCancelled(t *testing.T) {
 	defer cancel()
 	pool := isolatedSchedulerPool(t, ctx)
 	store := runstore.NewPostgresStore(pool)
-	createSchedulerRun(t, ctx, store, artifacts.NewService(artifacts.NewPostgresRepository(pool)), loadSchedulerWorkflow(t))
+	createSchedulerRun(t, ctx, store, artifacts.NewService(artifactpostgres.NewRepository(pool)), loadSchedulerWorkflow(t))
 	if _, err := store.RequestRunCancellation(ctx, "run-1", runstore.WorkflowRunCancellation{
 		Code: runstore.CancellationUserRequested, RequestedAt: time.Now(),
 	}); err != nil {

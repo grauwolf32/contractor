@@ -14,6 +14,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
@@ -93,7 +95,7 @@ func TestPostgresSameReceiptImportsIntoIndependentAudits(t *testing.T) {
 	if err != nil || receipt.Retention != RetentionProjectHeld || len(receipt.AuditHolds) != 1 || receipt.AuditHolds[0].AuditID != secondAudit {
 		t.Fatalf("surviving Audit lost its receipt after other purge: %+v %v", receipt, err)
 	}
-	projectArtifacts, err := artifacts.NewService(artifacts.NewPostgresRepository(f.pool)).Project("delete-project")
+	projectArtifacts, err := artifacts.NewService(artifactpostgres.NewRepository(f.pool)).Project("delete-project")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -182,7 +184,7 @@ func TestPostgresCollectionPublicationReadsRequestingAuditHoldAfterRunDeletion(t
 	if err != nil || published.EntryCount != 1 {
 		t.Fatalf("publish retained receipt = (%+v, %v)", published, err)
 	}
-	user, err := artifacts.NewService(artifacts.NewPostgresRepository(f.pool)).User(f.request.OwnerID)
+	user, err := artifacts.NewService(artifactpostgres.NewRepository(f.pool)).User(f.request.OwnerID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -260,7 +262,7 @@ UPDATE finding_proposal_audit_holds
 		!inbox[0].AuditHolds[0].Proposal.Ref.SameExact(own.Proposal.Ref) {
 		t.Fatalf("Audit inbox after source deletion = (%+v, %v)", inbox, err)
 	}
-	if _, err := f.intake.ListAuditInbox(f.ctx, f.request.OwnerID, firstAudit, ListQuery{Limit: 10}); !errors.Is(err, artifacts.ErrArtifactIntegrity) {
+	if _, err := f.intake.ListAuditInbox(f.ctx, f.request.OwnerID, firstAudit, ListQuery{Limit: 10}); !errors.Is(err, blob.ErrIntegrity) {
 		t.Fatalf("first destination inbox over its unverifiable copy = %v", err)
 	}
 }
@@ -417,7 +419,7 @@ func recordAuditChildReceipt(
 		}
 	}
 	written, err := artifactstest.WriteFindingProposal(
-		f.ctx, artifacts.NewService(artifacts.NewPostgresRepository(f.pool)), f.request.RunID, clientKey+"-proposal",
+		f.ctx, artifacts.NewService(artifactpostgres.NewRepository(f.pool)), f.request.RunID, clientKey+"-proposal",
 		artifacts.Payload{MediaType: proposalMediaType, Data: canonical.proposalBytes},
 	)
 	if err != nil {
@@ -498,7 +500,7 @@ func TestPostgresDirectAssessmentReplayRequiresAuditScopedIdentity(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	store := artifacts.NewService(artifacts.NewPostgresRepository(f.pool))
+	store := artifacts.NewService(artifactpostgres.NewRepository(f.pool))
 	scope, err := artifacts.ProjectScope(input.ProjectID)
 	if err != nil {
 		t.Fatal(err)

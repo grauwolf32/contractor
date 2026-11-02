@@ -8,6 +8,8 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configload"
@@ -30,7 +32,7 @@ func configureCatalogs(
 	ownerID string,
 	logger *slog.Logger,
 ) (catalogServices, error) {
-	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	artifactService := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	findingService, err := findingintake.New(pool)
 	if err != nil {
 		return catalogServices{}, fmt.Errorf("configure finding intake: %w", err)
@@ -83,7 +85,7 @@ func validateCatalogStandards(ctx context.Context, configurationManager *workflo
 			resolved, err := standardCatalog.Resolve(ctx, ownerID, auditstandards.Reference{
 				Scheme: standard.Scheme, Version: standard.Version,
 			})
-			if errors.Is(err, artifacts.ErrBlobMissing) {
+			if errors.Is(err, blob.ErrMissing) {
 				logger.Warn("AuditProfile standard content missing",
 					"profile", profile.Ref.Name, "version", profile.Ref.Version,
 					"scheme", standard.Scheme, "standard_version", standard.Version,

@@ -6,13 +6,13 @@ import (
 	"io/fs"
 	"net/http"
 
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
-
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/helpers/requestid"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // This wrapper is inside authentication so it observes the same Request that
@@ -43,11 +43,11 @@ func diagnosticCause(err error) string {
 		return "credential_crypto_failed"
 	case errors.Is(err, credentials.ErrRecoveryRequired):
 		return "credential_recovery_required"
-	case errors.Is(err, artifacts.ErrTransferCapacity):
+	case errors.Is(err, blob.ErrTransferCapacity):
 		return "artifact_transfer_capacity"
-	case errors.Is(err, artifacts.ErrArtifactIntegrity):
+	case errors.Is(err, blob.ErrIntegrity):
 		return "artifact_integrity_failed"
-	case errors.Is(err, artifacts.ErrBlobMissing):
+	case errors.Is(err, blob.ErrMissing):
 		return "artifact_content_missing"
 	case errors.Is(err, artifacts.ErrHistoryProtected):
 		return "artifact_history_protected"

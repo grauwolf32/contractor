@@ -57,7 +57,7 @@ test-config:
 	go run ./cmd/contractor-server config validate --root ./configs
 
 test-postgres: require-database
-	go test -count=1 ./internal/persistence/postgres ./internal/credentials ./internal/agentprincipal ./internal/runtimeconfig ./internal/runstore ./internal/artifacts ./internal/httpapi/public ./internal/planner/session ./internal/scheduler ./internal/telemetry
+	go test -count=1 ./internal/persistence/postgres ./internal/credentials ./internal/agentprincipal ./internal/runtimeconfig ./internal/runstore ./internal/artifacts/... ./internal/httpapi/public ./internal/planner/session ./internal/scheduler ./internal/telemetry
 
 test-runtime-config-postgres: require-database
 	go test -count=1 ./internal/runtimeconfig ./internal/persistence/postgres
@@ -95,7 +95,7 @@ test-streamline: require-database
 
 test-faults: require-database
 	go test -race -count=1 ./tests/faults ./tests/integration/lease ./internal/helpers/requestid ./internal/controlplane ./internal/httpapi/privateartifacts ./internal/mtls ./internal/config/... ./internal/planner/...
-	CONTRACTOR_TEST_DATABASE_URL="$$CONTRACTOR_TEST_DATABASE_URL" go test -race -count=1 ./internal/artifacts ./internal/httpapi/public ./internal/runstore ./internal/scheduler ./internal/telemetry
+	CONTRACTOR_TEST_DATABASE_URL="$$CONTRACTOR_TEST_DATABASE_URL" go test -race -count=1 ./internal/artifacts/... ./internal/httpapi/public ./internal/runstore ./internal/scheduler ./internal/telemetry
 	cd runtime && uv run pytest -W error tests
 
 # The same process pass as release-verify's process stage.

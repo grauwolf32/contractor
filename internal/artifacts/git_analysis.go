@@ -1,6 +1,9 @@
 package artifacts
 
-import "github.com/grauwolf32/contractor/internal/helpers/strictjson"
+import (
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
+)
 
 // GitAnalysis is the immutable coverage summary of an explicitly filtered import.
 // The ZIP member contains the complete per-path report, including its policy.
@@ -14,7 +17,7 @@ type GitAnalysis struct {
 const GitAnalysisPolicy = "source-analysis-v1"
 const GitAnalysisReportPath = ".contractor-import-report.json"
 
-func (a GitAnalysis) valid() bool {
+func (a GitAnalysis) Valid() bool {
 	return a.Policy == GitAnalysisPolicy && a.ReportPath == GitAnalysisReportPath && a.IncludedFiles >= 1 && a.IncludedFiles < 50000 && a.ExcludedEntries >= 0 && a.ExcludedEntries <= 50000
 }
 
@@ -25,8 +28,8 @@ func (a *GitAnalysis) UnmarshalJSON(data []byte) error {
 	if err := strictjson.Decode(data, &value); err != nil {
 		return err
 	}
-	if !GitAnalysis(value).valid() {
-		return ErrArtifactIntegrity
+	if !GitAnalysis(value).Valid() {
+		return blob.ErrIntegrity
 	}
 	*a = GitAnalysis(value)
 	return nil

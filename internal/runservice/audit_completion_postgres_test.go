@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
@@ -44,7 +45,7 @@ func TestAuditCompletionPostgresAtomicCreationRestartAndAllocation(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	artifactService := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	store, err := artifactService.Project(project.ProjectID)
 	if err != nil {
 		t.Fatal(err)
@@ -316,7 +317,7 @@ func TestAuditCompletionPostgresTaskSetMembership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	store, _ := service.Project("project")
 	source := writeExact(t, ctx, store, "sources", "source", "application/zip", []byte("source"))
 	checklist := `{"schema":"contractor.audit.checklist.v1","items":[{"key":"first","version":"1","statement":"First check","applicability":"always","allowed_methods":["static"],"required_evidence":[],"review_policy":"automatic"},{"key":"second","version":"1","statement":"Second check","applicability":"always","allowed_methods":["static"],"required_evidence":[],"review_policy":"automatic"}]}`

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 )
 
 // A Planner Memory note write runs in a transaction Memory owns, so history
@@ -47,11 +47,11 @@ WHERE binding.scope_kind = 'run' AND binding.scope_id = 'history-run'
 	if retained, inserted := counters(); retained != 130 || inserted != 130 {
 		t.Fatalf("before retention: %d retained, %d inserted", retained, inserted)
 	}
-	policy, err := artifacts.NewHistoryPolicy(2, artifacts.DefaultHistoryMaxBytes)
+	policy, err := artifactpostgres.NewHistoryPolicy(2, artifactpostgres.DefaultHistoryMaxBytes)
 	if err != nil {
 		t.Fatal(err)
 	}
-	limited := artifacts.WithHistoryPolicy(ctx, policy)
+	limited := artifactpostgres.WithHistoryPolicy(ctx, policy)
 	// 130 retained revisions need 129 removals for a limit of 2: two pending
 	// answers, each after a committed pass of 64, then the write.
 	for pass, want := range []int64{130 - 64, 130 - 128} {

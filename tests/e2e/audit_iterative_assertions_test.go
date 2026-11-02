@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
@@ -23,7 +24,7 @@ func assertIterativeAttribution(t *testing.T, h *scanProcessHarness, j *iterativ
 	if len(j.snapshots) != 2 || j.typedTask.AcceptedPlan == nil || j.typedTask.Dependencies == nil {
 		t.Fatal("the production chain did not consume both snapshots and the accepted typed task")
 	}
-	project, err := artifacts.NewService(artifacts.NewPostgresRepository(h.pool)).Project(projectID)
+	project, err := artifacts.NewService(artifactpostgres.NewRepository(h.pool)).Project(projectID)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -24,7 +25,7 @@ func TestPostgresDescribeOriginalInputsKeepsCreationRevisionsInCallerTransaction
 	const runID = "original-inputs"
 	createTestRun(t, ctx, NewPostgresStore(pool), runID)
 	original := storeTestRunInput(t, ctx, pool, runID, "source")
-	artifactStore, _ := artifacts.NewService(artifacts.NewPostgresRepository(pool)).Run(runID)
+	artifactStore, _ := artifacts.NewService(artifactpostgres.NewRepository(pool)).Run(runID)
 	want, err := artifactStore.Metadata(ctx, original)
 	if err != nil {
 		t.Fatal(err)

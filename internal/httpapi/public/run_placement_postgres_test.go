@@ -9,6 +9,7 @@ import (
 
 	"github.com/getkin/kin-openapi/routers/gorillamux"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runservice"
@@ -19,7 +20,7 @@ func TestPostgresPublicRunPlacementPinsAndReplaysSelection(t *testing.T) {
 	ctx := t.Context()
 	pool := isolatedPublicPool(t, ctx)
 	runs := runstore.NewPostgresStore(pool)
-	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	artifactService := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	details, err := runservice.NewRunDetailReader(runservice.PostgresRunDetailTransaction(pool))
 	if err != nil {
 		t.Fatal(err)

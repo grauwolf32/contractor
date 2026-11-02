@@ -12,13 +12,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
-
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
+	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
@@ -213,7 +213,7 @@ func TestImporterReportRetryRejectsChangedFinalizationTimestamp(t *testing.T) {
 	mustCompletion(t, err)
 	importer, err = New(f.audits, f.audits, f.runs, access)
 	mustCompletion(t, err)
-	if worked, err := importer.Finalize(f.ctx, f.claim, fresh); worked || !errors.Is(err, artifacts.ErrArtifactIntegrity) {
+	if worked, err := importer.Finalize(f.ctx, f.claim, fresh); worked || !errors.Is(err, blob.ErrIntegrity) {
 		t.Fatalf("timestamp mutation must not overwrite immutable report: worked=%t error=%v", worked, err)
 	}
 	assertNoAcceptedReport(t, f)

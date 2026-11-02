@@ -12,6 +12,8 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
@@ -39,7 +41,7 @@ func auditInputFixture(t *testing.T, ctx context.Context) (Options, AuditCreateP
 	if err != nil {
 		t.Fatal(err)
 	}
-	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	artifactService := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	store, err := artifactService.Project(project.ProjectID)
 	if err != nil {
 		t.Fatal(err)
@@ -137,7 +139,7 @@ func TestAuditInputPostgresResumesOneChildAndClassifiesFailures(t *testing.T) {
 				}
 				if state.Revision != 0 {
 					if outcome == "permanent" {
-						return state, artifacts.ErrArtifactIntegrity
+						return state, blob.ErrIntegrity
 					}
 					if outcome == "transient" && calls == 2 {
 						return state, transient

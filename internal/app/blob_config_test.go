@@ -1,8 +1,9 @@
 package app
 
 import (
-	"github.com/grauwolf32/contractor/internal/artifacts"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 )
 
 func TestBlobConfigFlagsOverrideEnvironment(t *testing.T) {
@@ -19,7 +20,7 @@ func TestBlobConfigFlagsOverrideEnvironment(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.ArtifactBlobBackend != artifacts.BlobPostgres || cfg.ArtifactBlobPath != "" {
+	if cfg.ArtifactBlobBackend != blob.Postgres || cfg.ArtifactBlobPath != "" {
 		t.Fatal("flags did not win")
 	}
 	if _, err := ParseConfig(nil, env); err == nil {

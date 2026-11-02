@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 )
 
 // PostgresRepository rejects every write to a frozen binding, and the private
@@ -21,7 +22,7 @@ func TestPostgresPrivateFrozenArtifactWriteIsPermanent(t *testing.T) {
 	defer cancel()
 	pool := isolatedPrivateArtifactPool(t, ctx)
 	createPrivateArtifactRun(t, ctx, pool, "run-a")
-	service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	store, err := service.Run("run-a")
 	if err != nil {
 		t.Fatal(err)

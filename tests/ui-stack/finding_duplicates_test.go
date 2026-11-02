@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
@@ -43,12 +44,12 @@ func (s *uiStack) prepareCorrelationSource(ctx context.Context, projectID string
 	if err = writer.Close(); err != nil {
 		return out, err
 	}
-	prepared, err := artifacts.PreparePayload(ctx, artifacts.Payload{MediaType: "application/zip", Data: archive.Bytes()})
+	prepared, err := artifactpostgres.PreparePayload(ctx, s.pool, artifacts.Payload{MediaType: "application/zip", Data: archive.Bytes()})
 	if err != nil {
 		return out, err
 	}
 	err = persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		repo := artifacts.NewPostgresTxRepository(tx)
+		repo := artifactpostgres.NewTxRepository(tx)
 		store, err := artifacts.NewService(repo).Project(projectID)
 		if err != nil {
 			return err

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -81,7 +82,7 @@ func (d *executionOperations) failDefinite(ctx context.Context, e evalstore.Expe
 	if definiteConfigurationError(err) {
 		return resolveOperation(ctx, d, e, m, c, op, operationRejected{Reason: "eval_not_ready"}, true, "")
 	}
-	if artifacts.IsExactReferenceRejection(err) || errors.Is(err, artifacts.ErrBlobMissing) || errors.Is(err, contracts.ErrExactArtifactMismatch) {
+	if artifacts.IsExactReferenceRejection(err) || errors.Is(err, blob.ErrMissing) || errors.Is(err, contracts.ErrExactArtifactMismatch) {
 		return resolveOperation(ctx, d, e, m, c, op, operationRejected{Reason: "eval_evidence_unavailable"}, true, "")
 	}
 	for _, definite := range []error{

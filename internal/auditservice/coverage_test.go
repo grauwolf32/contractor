@@ -6,7 +6,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -43,7 +43,7 @@ func TestCoverageDescribesArbitraryRetainedTask(t *testing.T) {
 		t.Fatalf("exact task projection differs: %+v, %v", document, err)
 	}
 	row.SubjectKey = "different-check"
-	if err := describeCoverageTask(task.Package, &row); !errors.Is(err, artifacts.ErrArtifactIntegrity) {
+	if err := describeCoverageTask(task.Package, &row); !errors.Is(err, blob.ErrIntegrity) {
 		t.Fatalf("accepted unrelated task: %v", err)
 	}
 }
@@ -67,7 +67,7 @@ func TestCoverageResultKeepsBatchMembersAndEvidenceSeparate(t *testing.T) {
 		t.Fatalf("result or evidence crossed check boundaries: %+v", row)
 	}
 	row.ItemKey = "missing"
-	if err := describeCoverageResult(pkg, &row); !errors.Is(err, artifacts.ErrArtifactIntegrity) {
+	if err := describeCoverageResult(pkg, &row); !errors.Is(err, blob.ErrIntegrity) {
 		t.Fatalf("accepted unrelated result: %v", err)
 	}
 }

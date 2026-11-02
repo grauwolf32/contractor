@@ -58,13 +58,13 @@ cases:
     acceptance: [A1]
     faults: [F08]
     expected: A caller transaction rollback restores every Run row and a retry purges the same Run exactly once.
-    test: {source: internal/artifacts/postgres_integration_test.go, kind: go_test, name: TestPostgresIntegrationRunDeletionParticipatesInCallerTransaction}
+    test: {source: internal/artifacts/postgres/integration_test.go, kind: go_test, name: TestPostgresIntegrationRunDeletionParticipatesInCallerTransaction}
   - id: run_purge_retains_shared_content
     category: retention
     acceptance: [A1, A3]
     faults: [F09, F10]
     expected: Purge removes complete Run provenance and unreferenced blobs while retaining shared source and Project output revisions.
-    test: {source: internal/artifacts/postgres_integration_test.go, kind: go_test, name: TestPostgresIntegrationDeletesReleasedTerminalRunWithoutSharedArtifacts}
+    test: {source: internal/artifacts/postgres/integration_test.go, kind: go_test, name: TestPostgresIntegrationDeletesReleasedTerminalRunWithoutSharedArtifacts}
   - id: project_delete_is_durable_cas
     category: project_deletion
     acceptance: [A1, A3]

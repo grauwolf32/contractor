@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	postgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/jackc/pgx/v5"
@@ -88,13 +90,13 @@ func (s *PostgresStore) Write(
 		return artifacts.WriteResult{}, ErrAccessForbidden
 	}
 	// Preparation and transactional publication share one transfer slot.
-	ctx, releaseTransfer, err := artifacts.AcquireTransfer(ctx)
+	ctx, releaseTransfer, err := blob.AcquireTransfer(ctx)
 	if err != nil {
 		return artifacts.WriteResult{}, err
 	}
 	defer releaseTransfer()
 	var prepareErr error
-	payload, prepareErr = artifacts.PreparePayload(ctx, s.pool, payload)
+	payload, prepareErr = artifactpostgres.PreparePayload(ctx, s.pool, payload)
 	if prepareErr != nil {
 		return artifacts.WriteResult{}, prepareErr
 	}
@@ -108,13 +110,13 @@ func (s *PostgresStore) Write(
 	if errors.Is(err, artifacts.ErrHistoryMaintenancePending) {
 		// The note's transaction has rolled back and stored nothing; commit the
 		// one maintenance pass its binding needs before answering (ART-R127).
-		err = artifacts.NewPostgresRepository(s.pool).MaintainHistory(ctx, err)
+		err = artifactpostgres.NewRepository(s.pool).MaintainHistory(ctx, err)
 	}
 	return result, err
 }
 
 func runArtifactStore(tx pgx.Tx, runID string) (artifacts.ScopedStore, error) {
-	service := artifacts.NewService(artifacts.NewPostgresRepository(tx))
+	service := artifacts.NewService(artifactpostgres.NewRepository(tx))
 	return service.Run(runID)
 }
 

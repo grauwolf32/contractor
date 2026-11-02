@@ -7,6 +7,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/persistence/explaintest"
 	pg "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -80,7 +81,7 @@ WHERE experiment_id = $1 AND member_id = $2`, experiment.ID, member.MemberID).Sc
 		defer func() { _ = tx.Rollback(ctx) }()
 		expectDirty(step, tx, dirty, func() error { return action(tx) })
 	}
-	service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	run, _ := service.Run(runID)
 	var written artifacts.WriteResult
 	expectDirty("intermediate write", pool, false, func() error {
@@ -106,7 +107,7 @@ WHERE scope_kind = 'run' AND scope_id = $1 AND namespace = 'outputs'`, runID)
 	expectDirty("output freeze", pool, true, func() error { return artifactstest.FreezeOutputs(ctx, service, runID) })
 	expectDirty("repeated freeze", pool, false, func() error { return artifactstest.FreezeOutputs(ctx, service, runID) })
 	inRolledBackTx("Run purge", true, func(tx pgx.Tx) error {
-		purger, err := artifacts.NewPostgresPurger(tx)
+		purger, err := artifactpostgres.NewPurger(tx)
 		if err != nil {
 			return err
 		}

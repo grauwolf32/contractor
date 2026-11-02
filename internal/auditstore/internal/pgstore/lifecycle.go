@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -198,7 +198,7 @@ func purgeClaimedAudit(
 	}
 	// References from decided history are gone before releasing holds; held
 	// material remains available until every hold has been released.
-	purger, err := artifacts.NewPostgresPurger(tx)
+	purger, err := artifactpostgres.NewPurger(tx)
 	if err != nil {
 		return err
 	}

@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 )
 
 func TestCatalogCreateOnlyInitializationAndDrift(t *testing.T) {
@@ -136,7 +137,7 @@ func TestCatalogMissingBlobReportsSeedOutcomeWithoutRewritingBinding(t *testing.
 	if _, err := catalog.Initialize(t.Context(), "owner", plan); err != nil {
 		t.Fatal(err)
 	}
-	repository.readExistingErr = artifacts.ErrBlobMissing
+	repository.readExistingErr = blob.ErrMissing
 	outcomes, err := catalog.Initialize(t.Context(), "owner", plan)
 	if err != nil || !reflect.DeepEqual(outcomeStatuses(outcomes), []string{"alpha:content_missing", "beta:content_missing"}) {
 		t.Fatalf("missing blob outcomes = %v, %v", outcomes, err)
@@ -145,7 +146,7 @@ func TestCatalogMissingBlobReportsSeedOutcomeWithoutRewritingBinding(t *testing.
 		t.Fatalf("missing blob was rewritten: writes=%d revisions=%d", repository.successfulWrites, repository.revisions)
 	}
 	owner, _ := service.User("owner")
-	if _, err := owner.Read(t.Context(), artifacts.ArtifactRef{Namespace: SkillNamespace, Name: "alpha"}); !errors.Is(err, artifacts.ErrBlobMissing) {
+	if _, err := owner.Read(t.Context(), artifacts.ArtifactRef{Namespace: SkillNamespace, Name: "alpha"}); !errors.Is(err, blob.ErrMissing) {
 		t.Fatalf("missing seeded Skill read = %v", err)
 	}
 	for _, failure := range []error{context.Canceled, errors.New("storage unavailable")} {

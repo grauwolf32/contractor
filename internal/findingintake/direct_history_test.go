@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -34,7 +35,7 @@ func readDirectHistoryForTest(t *testing.T, ctx context.Context, pool *pgxpool.P
 	if err != nil {
 		t.Fatal(err)
 	}
-	store, err := artifacts.NewService(artifacts.NewPostgresRepository(pool)).Project(project)
+	store, err := artifacts.NewService(artifactpostgres.NewRepository(pool)).Project(project)
 	if err != nil {
 		t.Fatal(err)
 	}

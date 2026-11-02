@@ -6,8 +6,9 @@ import (
 	"fmt"
 
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
-
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -41,7 +42,7 @@ func (s *ClaimStore) retainFindingCheckResults(ctx context.Context, params audit
 	if _, err := s.db.Exec(ctx, "SELECT contractor_lock_finding_correlation_fence($1)", projectID); err != nil {
 		return err
 	}
-	service := artifacts.NewService(artifacts.NewPostgresRepository(s.db))
+	service := artifacts.NewService(artifactpostgres.NewRepository(s.db))
 	scope, err := artifacts.ProjectScope(projectID)
 	if err != nil {
 		return err
@@ -55,7 +56,7 @@ func (s *ClaimStore) retainFindingCheckResults(ctx context.Context, params audit
 	addMaterial := func(value auditstore.ExactArtifact) error {
 		if previous, found := expected[value.Ref.Key()]; found {
 			if previous.Verify(value) != nil {
-				return artifacts.ErrArtifactIntegrity
+				return blob.ErrIntegrity
 			}
 			return nil
 		}
@@ -81,14 +82,14 @@ func (s *ClaimStore) retainFindingCheckResults(ctx context.Context, params audit
 	}
 	for _, value := range materialMetadata {
 		if expected[value.Ref.Key()].Verify(value) != nil {
-			return artifacts.ErrArtifactIntegrity
+			return blob.ErrIntegrity
 		}
 	}
 	retained := make(map[string]auditstore.ExactArtifact)
 	retain := func(source auditstore.ExactArtifact) (auditstore.ExactArtifact, error) {
 		if previous, exists := retained[source.Ref.Key()]; exists {
 			if source.Verify(contracts.ExactArtifact{Ref: source.Ref, Digest: previous.Digest, MediaType: previous.MediaType, SizeBytes: previous.SizeBytes}) != nil {
-				return auditstore.ExactArtifact{}, artifacts.ErrArtifactIntegrity
+				return auditstore.ExactArtifact{}, blob.ErrIntegrity
 			}
 			return previous, nil
 		}
@@ -100,7 +101,7 @@ func (s *ClaimStore) retainFindingCheckResults(ctx context.Context, params audit
 			return auditstore.ExactArtifact{}, err
 		}
 		if fork.MediaType != source.MediaType || fork.Size != source.SizeBytes {
-			return auditstore.ExactArtifact{}, artifacts.ErrArtifactIntegrity
+			return auditstore.ExactArtifact{}, blob.ErrIntegrity
 		}
 		value := source
 		value.Ref = fork.TargetRef
@@ -125,7 +126,7 @@ func (s *ClaimStore) retainFindingCheckResults(ctx context.Context, params audit
 		}
 		if strictjson.Decode(ref, &value.task.Ref) != nil || value.task.Ref.ValidateExact() != nil {
 			rows.Close()
-			return artifacts.ErrArtifactIntegrity
+			return blob.ErrIntegrity
 		}
 		tasks[id] = value
 		taskKeys = append(taskKeys, id)
@@ -145,7 +146,7 @@ func (s *ClaimStore) retainFindingCheckResults(ctx context.Context, params audit
 	for index, descriptor := range descriptors {
 		value := tasks[taskKeys[index]]
 		if descriptor.Digest != value.task.Digest {
-			return artifacts.ErrArtifactIntegrity
+			return blob.ErrIntegrity
 		}
 		value.task, err = retain(descriptor)
 		if err != nil {

@@ -16,6 +16,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -90,7 +91,7 @@ func TestPostgresPagedListThroughPythonClientAndTool(t *testing.T) {
 	pool := isolatedPrivateArtifactPool(t, ctx)
 	createPrivateArtifactRun(t, ctx, pool, "run-a")
 	createPrivateArtifactRun(t, ctx, pool, "run-b")
-	service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
 	user, err := service.User("user-1")
 	if err != nil {
 		t.Fatal(err)
@@ -149,7 +150,7 @@ WHERE scope_kind = 'run' AND scope_id = 'run-a' AND (namespace = 'skills' OR nam
 	}
 
 	recorder := &listRecorder{}
-	harness := newCrossLanguageHarness(t, artifacts.NewPostgresRepository(pool), recorder.wrap)
+	harness := newCrossLanguageHarness(t, artifactpostgres.NewRepository(pool), recorder.wrap)
 	result := harness.probe("--mode", "page", "--limit", strconv.Itoa(artifacts.MaxBindingListLimit))
 	for _, view := range []string{"client", "tool"} {
 		listed, _ := result[view].([]any)

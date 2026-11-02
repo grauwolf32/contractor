@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	"github.com/grauwolf32/contractor/internal/httpapi/artifacttransfer"
 )
 
@@ -156,7 +156,7 @@ func TestPrivateArtifactSlowStorageOutlivesTheClientDeadline(t *testing.T) {
 	}
 }
 
-func privateTransferServer(t *testing.T, repository *memoryRepository) (*httptest.Server, *artifacts.BlobRuntime) {
+func privateTransferServer(t *testing.T, repository *memoryRepository) (*httptest.Server, *blob.Runtime) {
 	t.Helper()
 	inner := newTestHandler(t, &fakeRegistry{grant: testGrant("run-a")}, repository)
 	trusted := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -168,23 +168,23 @@ func privateTransferServer(t *testing.T, repository *memoryRepository) (*httptes
 		r.Header.Set(RuntimeInstanceHeader, "runtime-1")
 		inner.ServeHTTP(w, r)
 	})
-	runtime := artifacts.NewBlobRuntime(nil, nil)
+	runtime := blob.NewRuntime(nil, nil)
 	server := httptest.NewUnstartedServer(trusted)
 	server.Config.BaseContext = func(net.Listener) context.Context {
-		return artifacts.WithBlobRuntime(context.Background(), runtime)
+		return blob.WithRuntime(context.Background(), runtime)
 	}
 	server.Start()
 	t.Cleanup(server.Close)
 	return server, runtime
 }
 
-func waitForPrivateTransferSaturation(t *testing.T, runtime *artifacts.BlobRuntime) {
+func waitForPrivateTransferSaturation(t *testing.T, runtime *blob.Runtime) {
 	t.Helper()
-	ctx := artifacts.WithBlobRuntime(t.Context(), runtime)
+	ctx := blob.WithRuntime(t.Context(), runtime)
 	until := time.Now().Add(2 * time.Second)
 	for {
-		_, release, err := artifacts.AcquireTransfer(ctx)
-		if errors.Is(err, artifacts.ErrTransferCapacity) {
+		_, release, err := blob.AcquireTransfer(ctx)
+		if errors.Is(err, blob.ErrTransferCapacity) {
 			return
 		}
 		if err != nil {
@@ -198,17 +198,17 @@ func waitForPrivateTransferSaturation(t *testing.T, runtime *artifacts.BlobRunti
 	}
 }
 
-func waitForPrivateTransferAvailability(t *testing.T, runtime *artifacts.BlobRuntime, timeout time.Duration) {
+func waitForPrivateTransferAvailability(t *testing.T, runtime *blob.Runtime, timeout time.Duration) {
 	t.Helper()
-	ctx := artifacts.WithBlobRuntime(t.Context(), runtime)
+	ctx := blob.WithRuntime(t.Context(), runtime)
 	until := time.Now().Add(timeout)
 	for {
-		_, release, err := artifacts.AcquireTransfer(ctx)
+		_, release, err := blob.AcquireTransfer(ctx)
 		if err == nil {
 			release()
 			return
 		}
-		if !errors.Is(err, artifacts.ErrTransferCapacity) {
+		if !errors.Is(err, blob.ErrTransferCapacity) {
 			t.Fatal(err)
 		}
 		if time.Now().After(until) {
