@@ -6,7 +6,8 @@ epic: execution-core
 kind: chore
 introduced_by: V432-006
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 8025296489dba8fb0c2c4aac9c350d1bf908be16
 depends_on: [V432-006]
 languages: [python]
 goal: >-
@@ -29,6 +30,10 @@ context:
     Agent-proposed minimal test-only verification prerequisite for the user-authorized
     2026-11-02 removal of Runtime startup label assignments. No cleanup production
     behavior changes or supporting subsystem work is included.
+  verification: >-
+    The complete Control Plane integration suite passed in 42.928s after the
+    fault-owner correction and again in 61.451s in the final combined integration
+    run. Both Ruff check and format checks passed for the changed fault fixture.
 scope:
   in:
     - Patch the existing fault scenario's cache cleanup symbol in allocation.cleanup.
