@@ -102,6 +102,7 @@ var layers = []layerSpec{
 			"internal/artifacts/preview",
 			"internal/artifacts",
 			"internal/artifacts/postgres",
+			"internal/artifacts/postgres/artifactpgtest",
 			"internal/artifacts/blob",
 			"internal/artifacts/blob/backends",
 			"internal/artifacts/blob/backends/filesystem",

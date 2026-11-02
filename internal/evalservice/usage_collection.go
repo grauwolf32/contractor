@@ -10,6 +10,7 @@ import (
 	"sort"
 	"time"
 
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
@@ -147,7 +148,7 @@ func attemptMetrics(run, stage string, raw []byte, expectedWorkers int) (evaldom
 	sort.Strings(out.IncompleteMetrics)
 	return out, nil
 }
-func observedUsage(ctx context.Context, db pg.DBTX, owner, member string, execution ExecutionView, inventory evalstore.Inventory) (evaldomain.Usage, error) {
+func observedUsage(ctx context.Context, db pg.DBTX, owner, member string, execution ExecutionView, inventory evalstore.Inventory, storage *artifactpostgres.Storage) (evaldomain.Usage, error) {
 	if execution.Ref == nil {
 		return evaldomain.Usage{}, evaldomain.Failure("eval_not_ready")
 	}
@@ -187,7 +188,7 @@ func observedUsage(ctx context.Context, db pg.DBTX, owner, member string, execut
 		}
 	}
 
-	snapshots, err := evalstore.NewPostgresStore(db).MetricSnapshots(ctx, owner, runs)
+	snapshots, err := evalstore.NewPostgresStore(db, storage).MetricSnapshots(ctx, owner, runs)
 	if err != nil {
 		return evaldomain.Usage{}, err
 	}

@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/planner"
 	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
@@ -97,7 +99,7 @@ func postgresCompactionFactory(
 func compactionPostgresStore(t *testing.T, ctx context.Context) (*pgxpool.Pool, *runstore.PostgresStore, *markerProbeSessions) {
 	t.Helper()
 	pool := isolatedStreamlinePool(t, ctx)
-	store := runstore.NewPostgresStore(pool)
+	store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	createPreparingStreamlineStage(t, ctx, store)
 	service, err := plannersession.New(store, plannersession.Options{})
 	if err != nil {

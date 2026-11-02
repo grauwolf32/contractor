@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
@@ -36,7 +38,7 @@ func TestPrivateProjectArtifactAuthorityDoesNotReadOrRequireContent(t *testing.T
 	runReads, projectReads := 0, 0
 	projectErr, runErr := error(nil), error(nil)
 	lifecycle := projectstore.LifecycleActive
-	handler, err := NewHandler(Dependencies{
+	handler, err := NewHandler(Dependencies{Transfers: artifactpgtest.NewStorage(),
 		Registry: registry, Artifacts: artifacts.NewService(repository),
 		RunProjects: readRunProject(func(_ context.Context, run string) (runstore.ProjectContext, error) {
 			runReads++
@@ -140,7 +142,7 @@ func TestSharedArtifactReadTargets(t *testing.T) {
 		for _, value := range group.values {
 			registry := &fakeRegistry{grant: testGrant("run-a")}
 			registry.grant.ProjectArtifactReads = []controlplane.ProjectArtifactReadTarget{{Namespace: "notes", Name: "context", Operations: []string{value["operation"]}}}
-			server, err := NewHandler(Dependencies{Registry: registry, Artifacts: artifacts.NewService(newMemoryRepository()),
+			server, err := NewHandler(Dependencies{Transfers: artifactpgtest.NewStorage(), Registry: registry, Artifacts: artifacts.NewService(newMemoryRepository()),
 				RunProjects: readRunProject(func(context.Context, string) (runstore.ProjectContext, error) {
 					return runstore.ProjectContext{OwnerID: "owner", ProjectID: "project"}, nil
 				}),

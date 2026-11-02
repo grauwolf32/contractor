@@ -10,6 +10,8 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
@@ -22,10 +24,14 @@ func readerPolicy() contracts.ProjectSitemapPolicy {
 }
 
 func TestPostgresSitemapSharedMapSnapshotAndReplay(t *testing.T) {
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
 	pool := sitemapPool(t)
 	ctx := t.Context()
 	createSitemapRun(t, ctx, pool, "consumer")
-	service := NewService(pool)
+	service := NewService(pool, artifactStorage)
 	traffic := httpAuthority("traffic")
 	first, err := service.Mutate(ctx, traffic, "visible", Mutation{Operation: "observe", Observations: []Observation{observation("/visible")}})
 	if err != nil {
@@ -61,7 +67,7 @@ func TestPostgresSitemapSharedMapSnapshotAndReplay(t *testing.T) {
 	if saved.Replayed || saved.Artifact.Ref.Namespace != "research" || saved.Artifact.Ref.Revision == nil {
 		t.Fatal("invalid materialized context")
 	}
-	store, _ := artifacts.NewService(artifactpostgres.NewRepository(pool)).Run("consumer")
+	store, _ := artifacts.NewService(artifactStorage.Repository(pool)).Run("consumer")
 	read, err := store.Read(ctx, saved.Artifact.Ref)
 	if err != nil {
 		t.Fatal(err)
@@ -81,7 +87,9 @@ func TestPostgresSitemapSharedMapSnapshotAndReplay(t *testing.T) {
 		t.Fatalf("context is not frozen: %v", err)
 	}
 	policy, _ := artifactpostgres.NewHistoryPolicy(2, artifactpostgres.DefaultHistoryMaxBytes)
-	ctx = artifactpostgres.WithHistoryPolicy(ctx, policy)
+	artifactHistory = policy
+	artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+	service = NewService(pool, artifactStorage)
 	for i := range 4 {
 		if _, err := service.Mutate(ctx, traffic, fmt.Sprintf("advance-%d", i), Mutation{Operation: "observe", Observations: []Observation{observation(fmt.Sprintf("/advance/%d", i))}}); err != nil {
 			t.Fatal(err)
@@ -108,7 +116,7 @@ func TestPostgresSitemapEditorsShareMembersAndDeriveProjectAuthority(t *testing.
 	pool := sitemapPool(t)
 	ctx := t.Context()
 	createSitemapRun(t, ctx, pool, "consumer")
-	service := NewService(pool)
+	service := NewService(pool, artifactpgtest.NewStorage())
 	access, err := service.AllocationAccess(ctx, "consumer", "research", readerPolicy())
 	if err != nil {
 		t.Fatal(err)
@@ -149,7 +157,7 @@ func TestPostgresSitemapEditorsShareMembersAndDeriveProjectAuthority(t *testing.
 	if replay, err := service.MutateAllocation(ctx, access, "remove", command); err != nil || !replay.Replayed || !replay.Ref.SameExact(removed.Ref) {
 		t.Fatalf("accepted selection replay: %+v %v", replay, err)
 	}
-	stores := artifacts.NewService(artifactpostgres.NewRepository(pool))
+	stores := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
 	scope, _ := artifacts.ProjectScope("project")
 	schema, err := stores.Create(ctx, scope, contracts.ArtifactRef{Namespace: "schema", Name: "selected"}, artifacts.Payload{MediaType: "application/json", Data: []byte(`{"openapi":"3.1.0"}`)})
 	if err != nil {
@@ -181,14 +189,20 @@ func TestPostgresSitemapEditorsShareMembersAndDeriveProjectAuthority(t *testing.
 }
 
 func TestPostgresSitemapContextProjectionSerializesWithHistoryEviction(t *testing.T) {
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
 	for iteration := range 6 {
 		t.Run(fmt.Sprint(iteration), func(t *testing.T) {
 			pool := sitemapPool(t)
 			ctx := t.Context()
 			createSitemapRun(t, ctx, pool, "consumer")
-			service := NewService(pool)
+			service := NewService(pool, artifactStorage)
 			policy, _ := artifactpostgres.NewHistoryPolicy(2, artifactpostgres.DefaultHistoryMaxBytes)
-			ctx = artifactpostgres.WithHistoryPolicy(ctx, policy)
+			artifactHistory = policy
+			artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+			service = NewService(pool, artifactStorage)
 			authority := httpAuthority("producer")
 			original, err := service.Mutate(ctx, authority, "original", Mutation{Operation: "observe", Observations: []Observation{observation("/selected")}})
 			if err != nil {
@@ -242,7 +256,7 @@ func TestPostgresSitemapContextProjectionSerializesWithHistoryEviction(t *testin
 				if _, err := readSitemap(service, ctx, "project", *original.Ref.Revision); err != nil {
 					t.Fatalf("committed snapshot lost exact source: %v", err)
 				}
-				run, _ := artifacts.NewService(artifactpostgres.NewRepository(pool)).Run("consumer")
+				run, _ := artifacts.NewService(artifactStorage.Repository(pool)).Run("consumer")
 				if _, err := run.Read(ctx, saved.Artifact.Ref); err != nil {
 					t.Fatal(err)
 				}
@@ -266,8 +280,8 @@ func TestPostgresSitemapSnapshotMaterializesOnlyNeededAuthorizedExactInputs(t *t
 	pool := sitemapPool(t)
 	ctx := t.Context()
 	createSitemapRun(t, ctx, pool, "consumer")
-	service := NewService(pool)
-	stores := artifacts.NewService(artifactpostgres.NewRepository(pool))
+	service := NewService(pool, artifactpgtest.NewStorage())
+	stores := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
 	scope, _ := artifacts.ProjectScope("project")
 	originalBytes := []byte(`{"openapi":"3.1.0","info":{"version":"1"}}`)
 	schema, err := stores.Create(ctx, scope, contracts.ArtifactRef{Namespace: "schemas", Name: "api"}, artifacts.Payload{MediaType: "application/json", Data: originalBytes})
@@ -339,7 +353,8 @@ func TestPostgresSitemapSnapshotMaterializesOnlyNeededAuthorizedExactInputs(t *t
 		t.Fatalf("input clone content: %v", err)
 	}
 	limited, _ := artifactpostgres.NewHistoryPolicy(2, artifactpostgres.DefaultHistoryMaxBytes)
-	if _, err := run.Write(artifactpostgres.WithHistoryPolicy(ctx, limited), contracts.ArtifactRef{Namespace: "inputs", Name: "api"}, artifacts.Payload{MediaType: "application/json", Data: []byte(`{"later":true}`)}, nextInput.Ref.Revision); err != nil {
+	limitedRun, _ := artifacts.NewService(artifactpgtest.NewConfigured(artifactpgtest.NewRuntime(), limited).Repository(pool)).Run(access.RunID)
+	if _, err := limitedRun.Write(ctx, contracts.ArtifactRef{Namespace: "inputs", Name: "api"}, artifacts.Payload{MediaType: "application/json", Data: []byte(`{"later":true}`)}, nextInput.Ref.Revision); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := run.Read(ctx, nextInput.Ref); !errors.Is(err, artifacts.ErrArtifactNotFound) {

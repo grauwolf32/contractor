@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
@@ -58,13 +59,14 @@ func configureExecutors(
 	artifactService *artifacts.Service,
 	runtimeClient *controlplane.RuntimeControlClient,
 	cfg Config,
+	storage *artifactpostgres.Storage,
 ) (executorServices, error) {
 	files := mtls.Files{Certificate: cfg.CertificateFile, PrivateKey: cfg.PrivateKeyFile, CA: cfg.CAFile}
 	artifactInspector, err := planner.NewArtifactServiceInspector(artifactService)
 	if err != nil {
 		return executorServices{}, err
 	}
-	plannerMemoryStore, err := plannermemory.NewPostgresStore(pool)
+	plannerMemoryStore, err := plannermemory.NewPostgresStore(pool, storage)
 	if err != nil {
 		return executorServices{}, fmt.Errorf("configure Planner Memory store: %w", err)
 	}
@@ -72,7 +74,7 @@ func configureExecutors(
 		planner.DefaultCompletionWriteTimeout,
 		cfg.Operations.Database.AcquireTimeout+cfg.Operations.Database.LockTimeout+time.Second,
 	)
-	plannerSessions, err := plannersession.New(runstore.NewPostgresStore(pool), plannersession.Options{
+	plannerSessions, err := plannersession.New(runstore.NewPostgresStore(pool, storage), plannersession.Options{
 		CompletionWriteTimeout: completionWriteTimeout,
 	})
 	if err != nil {
@@ -104,7 +106,7 @@ func configureExecutors(
 	if err != nil {
 		return executorServices{}, err
 	}
-	operationRegistry, err := operations.NewRegistry(sitemapjoin.NewJoin(projectsitemap.NewService(pool)), sitemapjoin.NewApply(projectsitemap.NewService(pool)))
+	operationRegistry, err := operations.NewRegistry(sitemapjoin.NewJoin(projectsitemap.NewService(pool, storage)), sitemapjoin.NewApply(projectsitemap.NewService(pool, storage)))
 	if err != nil {
 		return executorServices{}, err
 	}
@@ -187,6 +189,7 @@ func configureWorkflows(
 	credentialSet credentialServices,
 	plannerTelemetryRegistry *telemetry.PlannerAdapterRegistry,
 	logger *slog.Logger,
+	storage *artifactpostgres.Storage,
 ) (workflowServices, error) {
 	// Workers bound each model request by workerRequestTimeout and modeled
 	// planners by plannerTimeout; a recovery probe lease outlasts its holder's.
@@ -197,7 +200,7 @@ func configureWorkflows(
 	if err != nil {
 		return workflowServices{}, err
 	}
-	planners, err := configureExecutors(pool, catalogs.artifacts, control.runtimeClient, cfg)
+	planners, err := configureExecutors(pool, catalogs.artifacts, control.runtimeClient, cfg, storage)
 	if err != nil {
 		return workflowServices{}, err
 	}
@@ -205,7 +208,7 @@ func configureWorkflows(
 	if err != nil {
 		return workflowServices{}, err
 	}
-	transactions, err := scheduler.NewPostgresPersistence(pool)
+	transactions, err := scheduler.NewPostgresPersistence(pool, storage)
 	if err != nil {
 		return workflowServices{}, err
 	}
@@ -218,7 +221,7 @@ func configureWorkflows(
 	schedulerSettings := settingsstore.NewPostgresStore(pool)
 	telemetryReports := telemetry.NewRepository(pool)
 	workflowScheduler, err := scheduler.New(
-		runstore.NewPostgresStore(pool),
+		runstore.NewPostgresStore(pool, storage),
 		transactions,
 		artifactResolver,
 		control.allocator,
@@ -240,7 +243,7 @@ func configureWorkflows(
 			RuntimeCredentials:  credentialSet.runtime,
 			PlannerTelemetry:    plannerTelemetryRegistry,
 			Reports:             telemetryReports,
-			RunSkills:           &runSkillInitializer{pool: pool},
+			RunSkills:           &runSkillInitializer{storage: storage, pool: pool},
 			Settings:            schedulerSettings,
 			TelemetrySecrets: []string{
 				cfg.DatabaseURL.Reveal(), cfg.PublicBearerToken.Reveal(),
@@ -262,10 +265,10 @@ func configureWorkflows(
 	}
 	projectDeletionController, err := projectlifecycle.New(
 		pool,
-		runstore.NewPostgresStore(pool),
-		rundeletion.New(pool),
+		runstore.NewPostgresStore(pool, storage),
+		rundeletion.New(pool, storage),
 		workflowScheduler,
-		projectlifecycle.Options{
+		projectlifecycle.Options{Storage: storage,
 			OperationTimeout: cfg.Operations.ProjectLifecycle.OperationTimeout,
 			PurgeTimeout:     cfg.Operations.ProjectLifecycle.PurgeTimeout,
 			ClaimDuration:    cfg.Operations.ProjectLifecycle.ClaimDuration, Logger: logger,

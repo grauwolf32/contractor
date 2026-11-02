@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -27,7 +29,7 @@ func TestPostgresRunDeletionGatesMatchDeletion(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedDeletionPool(t, ctx)
-	runs := runstore.NewPostgresStore(pool)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	createDeletionRun(t, ctx, pool, "user-1", "run-active", runstore.RunRunning)
 	createDeletionRun(t, ctx, pool, "user-1", "run-release-pending", runstore.RunFailed)
 	createDeletionRun(t, ctx, pool, "user-1", "run-released", runstore.RunSucceeded)
@@ -51,7 +53,7 @@ INSERT INTO stage_allocations (
 		t.Fatal(err)
 	}
 
-	deletions := New(pool)
+	deletions := New(pool, artifactpgtest.NewStorage())
 	want := map[string]*Reason{
 		"run-active":          reasonOf(RunNotTerminal),
 		"run-release-pending": reasonOf(AllocationReleasePending),
@@ -149,7 +151,7 @@ func createDeletionRun(
 	}); err != nil {
 		t.Fatal(err)
 	}
-	runs := runstore.NewPostgresStore(pool)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	if _, err := runstoretest.CreateRun(ctx, runs, runstore.CreateRunParams{
 		LaneClass: resolved.LaneClassModel,
 		RunID:     runID, OwnerID: ownerID, ProjectID: &projectID,

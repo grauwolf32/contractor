@@ -5,6 +5,8 @@ package auditimport
 import (
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
@@ -41,7 +43,7 @@ func TestImporterPostgresSettlesPermanentInputFailureOnce(t *testing.T) {
 			}
 			snapshot, err := f.audits.GetReconcileSnapshot(f.ctx, f.claim)
 			mustCompletion(t, err)
-			access, err := NewArtifactAccess(f.artifacts, hookstore.NewClaimedArtifacts(pool))
+			access, err := NewArtifactAccess(f.artifacts, hookstore.NewClaimedArtifacts(pool, artifactpgtest.NewStorage()))
 			mustCompletion(t, err)
 			importer, err := New(f.audits, f.audits, f.runs, access)
 			mustCompletion(t, err)

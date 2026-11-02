@@ -3,6 +3,8 @@ package pgstore
 import (
 	"context"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
@@ -22,9 +24,9 @@ type testStore struct {
 
 func newTestStore(db persistencepostgres.DBTX) *testStore {
 	return &testStore{
-		ClaimStore: NewClaimStore(db).WithPurgeDependencies(purgeTestAuditHolds), OwnerStore: NewOwnerStore(db), ReviewStore: NewReviewStore(db),
-		QueryStore: NewQueryStore(db), FindingEvents: NewFindingEvents(db), RunDeletion: NewRunDeletion(db),
-		ProjectDeletion: NewProjectDeletion(db), CredentialHolds: NewCredentialHolds(db),
+		ClaimStore: NewClaimStore(db, artifactpgtest.NewStorage()).WithPurgeDependencies(purgeTestAuditHolds), OwnerStore: NewOwnerStore(db, artifactpgtest.NewStorage()), ReviewStore: NewReviewStore(db, artifactpgtest.NewStorage()),
+		QueryStore: NewQueryStore(db, artifactpgtest.NewStorage()), FindingEvents: NewFindingEvents(db, artifactpgtest.NewStorage()), RunDeletion: NewRunDeletion(db, artifactpgtest.NewStorage()),
+		ProjectDeletion: NewProjectDeletion(db, artifactpgtest.NewStorage()), CredentialHolds: NewCredentialHolds(db, artifactpgtest.NewStorage()),
 	}
 }
 
@@ -43,9 +45,9 @@ type testTxStore struct {
 
 func newTestTxStore(tx pgx.Tx) *testTxStore {
 	return &testTxStore{
-		ClaimStore: NewClaimStore(tx).WithPurgeDependencies(purgeTestAuditHolds), OwnerTxStore: NewOwnerTxStore(tx), ReviewTxStore: NewReviewTxStore(tx),
-		QueryStore: NewQueryStore(tx), FindingEventsTx: NewFindingEventsTx(tx), RunDeletionTx: NewRunDeletionTx(tx),
-		ProjectDeletion: NewProjectDeletion(tx), CredentialHolds: NewCredentialHolds(tx),
+		ClaimStore: NewClaimStore(tx, artifactpgtest.NewStorage()).WithPurgeDependencies(purgeTestAuditHolds), OwnerTxStore: NewOwnerTxStore(tx, artifactpgtest.NewStorage()), ReviewTxStore: NewReviewTxStore(tx, artifactpgtest.NewStorage()),
+		QueryStore: NewQueryStore(tx, artifactpgtest.NewStorage()), FindingEventsTx: NewFindingEventsTx(tx, artifactpgtest.NewStorage()), RunDeletionTx: NewRunDeletionTx(tx, artifactpgtest.NewStorage()),
+		ProjectDeletion: NewProjectDeletion(tx, artifactpgtest.NewStorage()), CredentialHolds: NewCredentialHolds(tx, artifactpgtest.NewStorage()),
 	}
 }
 

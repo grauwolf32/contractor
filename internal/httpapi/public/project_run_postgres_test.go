@@ -5,9 +5,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/getkin/kin-openapi/routers/gorillamux"
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
@@ -18,10 +19,10 @@ import (
 func TestPostgresProjectRunForAMissingProjectAnswersNotFound(t *testing.T) {
 	ctx := t.Context()
 	pool := isolatedPublicPool(t, ctx)
-	runs := runstore.NewPostgresStore(pool)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	projects := projectstore.NewPostgresStore(pool)
 	fixture := newHandlerFixtureWithAuth(t, "../../config/testdata/valid", newTestAuthentication(t), mustTestOrigins(t), false, nil, func(d *testServices) {
-		d.Runs, d.Artifacts, d.Projects = runs, artifacts.NewService(artifactpostgres.NewRepository(pool)), projects
+		d.Runs, d.Artifacts, d.Projects = runs, artifacts.NewService(artifactpgtest.NewStorage().Repository(pool)), projects
 		d.RunQueue, d.RunLifecycle = runs, runs
 		d.RunCreator = newTestRunCreator(t, *d, runs, integrationUnitOfWork{pool: pool, credentials: d.Credentials}, true)
 	})

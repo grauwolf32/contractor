@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
@@ -17,11 +17,13 @@ import (
 func TestPostgresNullRunLabelCannotCreateOrSelectPlacement(t *testing.T) {
 	ctx := t.Context()
 	pool := isolatedPublicPool(t, ctx)
-	runs := runstore.NewPostgresStore(pool)
+	storage := artifactpgtest.NewStorage()
+	runs := runstore.NewPostgresStore(pool, storage)
 	projects := projectstore.NewPostgresStore(pool)
-	artifactService := artifacts.NewService(artifactpostgres.NewRepository(pool))
+	artifactService := artifacts.NewService(storage.Repository(pool))
 	fixture := newHandlerFixtureWithAuth(t, "../../config/testdata/valid", newTestAuthentication(t), mustTestOrigins(t), false, nil, func(d *testServices) {
 		d.Runs, d.Artifacts, d.Projects = runs, artifactService, projects
+		d.Transfers = storage
 		d.RunQueue, d.RunLifecycle = runs, runs
 		d.RunCreator = newTestRunCreator(t, *d, runs, integrationUnitOfWork{pool: pool, credentials: d.Credentials}, true)
 	})

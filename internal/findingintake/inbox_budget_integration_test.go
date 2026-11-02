@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
@@ -143,7 +145,7 @@ func createInboxProject(t *testing.T, ctx context.Context, pool *pgxpool.Pool, o
 
 func createInboxAudit(t *testing.T, ctx context.Context, pool *pgxpool.Pool, owner, projectID, auditID string) {
 	t.Helper()
-	if _, _, err := auditstoretest.NewStore(pool).WithPurgeDependencies(DeleteAuditHoldsBatch).CreateDraft(ctx, auditstore.CreateDraftParams{
+	if _, _, err := auditstoretest.NewStore(pool, artifactpgtest.NewStorage()).WithPurgeDependencies(DeleteAuditHoldsBatch).CreateDraft(ctx, auditstore.CreateDraftParams{
 		AuditID: auditID, OwnerID: owner, ProjectID: projectID,
 		Profile:         auditstore.ProfileIdentity{Name: "profile", Version: "1", Digest: auditdomain.DigestBytes([]byte("profile"))},
 		ProfileSnapshot: json.RawMessage(`{"interaction":{}}`),

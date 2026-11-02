@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
@@ -148,7 +150,7 @@ func newScanCollection(t *testing.T, plan, report *artifacts.Payload) *scanColle
 	t.Cleanup(cancel)
 	settings := artifacts.Payload{MediaType: "application/json", Data: []byte(`{"schema":"contractor.audit.openapi-scan-settings.v1","scanner":"sqlmap","server":"http://127.0.0.1:8080","testParameters":["q"],"operations":{"#/paths/~1a/get":{"parameters":{"query:q":"one"}}}}`)}
 	h := newPostgresControllerHarnessWithPolicy(t, ctx, 0, 1, preparedOpenAPIScanCatalog(t), contracts.ActiveChecksAutomatic, map[string]artifacts.Payload{"settings": settings})
-	access, err := auditimport.NewArtifactAccess(h.artifacts, hookstore.NewClaimedArtifacts(h.pool))
+	access, err := auditimport.NewArtifactAccess(h.artifacts, hookstore.NewClaimedArtifacts(h.pool, artifactpgtest.NewStorage()))
 	if err != nil {
 		t.Fatal(err)
 	}

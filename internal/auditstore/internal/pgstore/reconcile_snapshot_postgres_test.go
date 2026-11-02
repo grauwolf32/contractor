@@ -6,6 +6,8 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/settingsstore"
 	"github.com/jackc/pgx/v5"
@@ -117,9 +119,9 @@ func TestPostgresReconcileSnapshotReadsOneCommitOnAPoolAndInACallerTransaction(t
 	t.Run("pool", func(t *testing.T) {
 		before := window(t)
 		trace.arm(changeWindow)
-		snapshot, err := NewClaimStore(traced).GetReconcileSnapshot(f.ctx, f.claim)
+		snapshot, err := NewClaimStore(traced, artifactpgtest.NewStorage()).GetReconcileSnapshot(f.ctx, f.claim)
 		requireOneCommit(t, before, snapshot, err)
-		fresh, err := NewClaimStore(traced).GetReconcileSnapshot(f.ctx, f.claim)
+		fresh, err := NewClaimStore(traced, artifactpgtest.NewStorage()).GetReconcileSnapshot(f.ctx, f.claim)
 		if err != nil || fresh.MaxConcurrentRuns != before+1 {
 			t.Fatalf("next snapshot = (window %d, %v), want the committed window %d", fresh.MaxConcurrentRuns, err, before+1)
 		}
@@ -133,7 +135,7 @@ func TestPostgresReconcileSnapshotReadsOneCommitOnAPoolAndInACallerTransaction(t
 		}
 		defer func() { _ = tx.Rollback(context.WithoutCancel(f.ctx)) }()
 		trace.arm(changeWindow)
-		snapshot, err := NewClaimStore(tx).GetReconcileSnapshot(f.ctx, f.claim)
+		snapshot, err := NewClaimStore(tx, artifactpgtest.NewStorage()).GetReconcileSnapshot(f.ctx, f.claim)
 		requireOneCommit(t, before, snapshot, err)
 		// The snapshot ran inside the caller's transaction, which stays usable
 		// and keeps its own snapshot.

@@ -14,10 +14,13 @@ import (
 
 // ClaimedArtifacts is the narrow cross-context port for material published
 // under an explicit controller claim. It grants no transition or dispatch.
-type ClaimedArtifacts struct{ db persistencepostgres.DBTX }
+type ClaimedArtifacts struct {
+	storage *artifactpostgres.Storage
+	db      persistencepostgres.DBTX
+}
 
-func NewClaimedArtifacts(db persistencepostgres.DBTX) *ClaimedArtifacts {
-	return &ClaimedArtifacts{db: db}
+func NewClaimedArtifacts(db persistencepostgres.DBTX, storage *artifactpostgres.Storage) *ClaimedArtifacts {
+	return &ClaimedArtifacts{db: db, storage: storage}
 }
 
 // WithArtifactWrite holds the live claim and Audit until the same transaction
@@ -49,7 +52,7 @@ FOR UPDATE`, claim.AuditID, projectID).Scan(&id)
 		if err != nil {
 			return persistencepostgres.WrapError("lock Audit for artifact publication", err)
 		}
-		if err := write(artifacts.NewService(artifactpostgres.NewRepository(tx))); err != nil {
+		if err := write(artifacts.NewService(s.storage.Repository(tx))); err != nil {
 			return err
 		}
 		live, err := auditClaims.Live(ctx, tx, claim.AuditID, claim.HolderID, int64(claim.Epoch))

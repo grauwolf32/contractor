@@ -7,6 +7,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	"github.com/grauwolf32/contractor/internal/findingintake"
@@ -38,9 +40,9 @@ func TestPostgresProjectFenceConflictKeepsExecutionCollecting(t *testing.T) {
 		"first": {{InvocationID: f.proposalInvocation(), ClientKey: "candidate"}},
 	})
 	execution, snapshot := f.terminal(t, runstore.RunSucceeded)
-	access, err := NewArtifactAccess(f.artifacts, hookstore.NewClaimedArtifacts(f.pool))
+	access, err := NewArtifactAccess(f.artifacts, hookstore.NewClaimedArtifacts(f.pool, artifactpgtest.NewStorage()))
 	mustCompletion(t, err)
-	intake, err := findingintake.New(f.pool)
+	intake, err := findingintake.New(f.pool, artifactpgtest.NewStorage())
 	mustCompletion(t, err)
 	importer, err := New(f.audits, f.audits, f.runs, access, intake)
 	mustCompletion(t, err)

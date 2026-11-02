@@ -9,8 +9,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
@@ -120,11 +121,11 @@ func createTerminalAttempts(
 	ended func(attempt int, id string, reservations []controlplane.Reservation),
 ) map[string]string {
 	t.Helper()
-	persistence, err := NewPostgresPersistence(h.pool)
+	persistence, err := NewPostgresPersistence(h.pool, artifactpgtest.NewStorage())
 	if err != nil {
 		t.Fatal(err)
 	}
-	runArtifacts, err := artifacts.NewService(artifactpostgres.NewRepository(h.pool)).Run("run-1")
+	runArtifacts, err := artifacts.NewService(artifactpgtest.NewStorage().Repository(h.pool)).Run("run-1")
 	if err != nil {
 		t.Fatal(err)
 	}

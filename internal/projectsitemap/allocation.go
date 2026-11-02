@@ -31,7 +31,7 @@ func (s *Service) AllocationAccess(ctx context.Context, runID, namespace string,
 	defer cancel()
 	access := AllocationAccess{RunID: runID, Namespace: namespace, Policy: *policy.Clone()}
 	err := postgres.InTx(ctx, s.pool, pgx.TxOptions{AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
-		owning, err := runstore.NewPostgresStore(tx).ProjectContext(ctx, runID)
+		owning, err := runstore.NewPostgresStore(tx, s.storage).ProjectContext(ctx, runID)
 		if errors.Is(err, runstore.ErrNotFound) {
 			return artifacts.ErrArtifactNotFound
 		}

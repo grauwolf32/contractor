@@ -14,10 +14,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	artifactpolicy "github.com/grauwolf32/contractor/internal/artifacts/policy"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
@@ -58,7 +59,7 @@ func TestAuditDraftStartReplayAndAtomicUnsupportedRollback(t *testing.T) {
 	}
 	credentials := &switchableCredentialLookup{available: true, gateway: gateway.Ref}
 	guard := &countingCredentialGuard{}
-	service, err := New(Options{
+	service, err := New(Options{Storage: artifactpgtest.NewStorage(),
 		Pool: pool, Profiles: profiles,
 		TransactionLLMCredentials: runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(
 			func(pgx.Tx) (resolved.CredentialLookup, error) { return credentials, nil },
@@ -79,7 +80,7 @@ func TestAuditDraftStartReplayAndAtomicUnsupportedRollback(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	projectArtifacts, err := artifacts.NewService(artifactpostgres.NewRepository(pool)).Project(project.ProjectID)
+	projectArtifacts, err := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool)).Project(project.ProjectID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -205,7 +206,7 @@ func TestAuditDraftStartReplayAndAtomicUnsupportedRollback(t *testing.T) {
 			}
 		})
 	}
-	holds, err := auditstoretest.NewStore(pool).ListHeldAuditIDsByLLMCredential(ctx, "development-worker", 10)
+	holds, err := auditstoretest.NewStore(pool, artifactpgtest.NewStorage()).ListHeldAuditIDsByLLMCredential(ctx, "development-worker", 10)
 	if err != nil || len(holds) != 1 || holds[0] != draft.AuditID {
 		t.Fatalf("credential holds = (%v, %v)", holds, err)
 	}
@@ -405,7 +406,7 @@ func TestAuditDraftStartReplayAndAtomicUnsupportedRollback(t *testing.T) {
 	if err != nil || len(approvedItems) != 1 || approvedItems[0].State != auditstore.ItemReady {
 		t.Fatalf("approved manual item state = (%+v, %v)", approvedItems, err)
 	}
-	claims, err := auditstoretest.NewStore(pool).Claim(ctx, auditstore.ClaimParams{
+	claims, err := auditstoretest.NewStore(pool, artifactpgtest.NewStorage()).Claim(ctx, auditstore.ClaimParams{
 		HolderID: "controller-manual-approval", Lease: 20 * time.Second, Limit: 10,
 	})
 	if err != nil {
@@ -416,19 +417,19 @@ func TestAuditDraftStartReplayAndAtomicUnsupportedRollback(t *testing.T) {
 		if claim.AuditID == manualDraft.AuditID {
 			manualClaim = claim
 		} else {
-			_ = auditstoretest.NewStore(pool).ReleaseClaim(ctx, claim)
+			_ = auditstoretest.NewStore(pool, artifactpgtest.NewStorage()).ReleaseClaim(ctx, claim)
 		}
 	}
 	if manualClaim.AuditID == "" {
 		t.Fatal("manual Audit was not claimable after approval")
 	}
-	if _, err := auditstoretest.NewStore(pool).TransitionRound(ctx, auditstore.RoundTransitionParams{
+	if _, err := auditstoretest.NewStore(pool, artifactpgtest.NewStorage()).TransitionRound(ctx, auditstore.RoundTransitionParams{
 		Claim: manualClaim, RoundID: manualStarted.Round.RoundID,
 		ExpectedRevision: manualStarted.Round.Revision,
 		ExpectedState:    auditstore.RoundAccepted, TargetState: auditstore.RoundExecuting,
 	}); err != nil {
-		currentAudit, auditErr := auditstoretest.NewStore(pool).Get(ctx, project.OwnerID, manualDraft.AuditID)
-		currentRound, roundErr := auditstoretest.NewStore(pool).GetRound(
+		currentAudit, auditErr := auditstoretest.NewStore(pool, artifactpgtest.NewStorage()).Get(ctx, project.OwnerID, manualDraft.AuditID)
+		currentRound, roundErr := auditstoretest.NewStore(pool, artifactpgtest.NewStorage()).GetRound(
 			ctx, manualDraft.AuditID, manualStarted.Round.RoundID,
 		)
 		t.Fatalf("transition approved manual Round: %v; audit=(state=%s revision=%d deadline=%v, %v); round=(state=%s revision=%d, %v)",
@@ -441,7 +442,7 @@ UPDATE audit_review_requests SET expires_at = clock_timestamp() - interval '1 se
 		t.Fatal(err)
 	}
 	roundID := manualStarted.Round.RoundID
-	_, inserted, err := auditstoretest.NewStore(pool).CreateExecutionIntent(ctx,
+	_, inserted, err := auditstoretest.NewStore(pool, artifactpgtest.NewStorage()).CreateExecutionIntent(ctx,
 		auditstore.CreateExecutionIntentParams{
 			Claim: manualClaim, ExecutionID: "execution-expired-approval",
 			RoundID: &roundID, Role: auditstore.ExecutionCheck, WorkflowRole: "check", LaneClass: resolved.LaneClassModel,
@@ -456,7 +457,7 @@ UPDATE audit_review_requests SET expires_at = clock_timestamp() - interval '1 se
 	if !errors.Is(err, auditstore.ErrPrecondition) || inserted {
 		t.Fatalf("expired exact approval execution = (%t, %v)", inserted, err)
 	}
-	_ = auditstoretest.NewStore(pool).ReleaseClaim(ctx, manualClaim)
+	_ = auditstoretest.NewStore(pool, artifactpgtest.NewStorage()).ReleaseClaim(ctx, manualClaim)
 
 	rejectedDraft, _, err := service.CreateDraft(ctx, CreateDraftParams{
 		AuditID: "audit-api-manual-rejected", OwnerID: project.OwnerID, ProjectID: project.ProjectID,
@@ -665,7 +666,7 @@ func TestAuditStartUsesOwningTransactionWithSaturatedPool(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer limited.Close()
-	service, err := New(Options{
+	service, err := New(Options{Storage: artifactpgtest.NewStorage(),
 		Pool: limited, Profiles: profiles,
 		TransactionLLMCredentials: transactionCredentials,
 		CredentialGuard:           &countingCredentialGuard{},
@@ -682,7 +683,7 @@ func TestAuditStartUsesOwningTransactionWithSaturatedPool(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	projectArtifacts, err := artifacts.NewService(artifactpostgres.NewRepository(pool)).Project(project.ProjectID)
+	projectArtifacts, err := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool)).Project(project.ProjectID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -734,7 +735,7 @@ func TestAuditStartRechecksProjectHTTPTargetCredentialUse(t *testing.T) {
 		t.Fatal(err)
 	}
 	lookup := &switchableCredentialLookup{available: true, gateway: gateway.Ref}
-	service, err := New(Options{
+	service, err := New(Options{Storage: artifactpgtest.NewStorage(),
 		Pool: pool, Profiles: profiles,
 		TransactionLLMCredentials: runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(
 			func(pgx.Tx) (resolved.CredentialLookup, error) { return lookup, nil },
@@ -751,7 +752,7 @@ func TestAuditStartRechecksProjectHTTPTargetCredentialUse(t *testing.T) {
 	runtimeCredentials, err := managedcredentials.NewRuntimeCredentialService(managedcredentials.RuntimeCredentialServiceOptions{
 		Pool: pool, Lease: leasetest.Hold(t, pool).Lease, Cipher: cipher,
 		Usage:    managedcredentials.NewRuntimeCredentialRepository(pool),
-		Projects: projectstore.NewPostgresStore(pool), Audits: hookstore.NewCredentialHolds(pool), Barrier: managedcredentials.NewLifecycleBarrier(),
+		Projects: projectstore.NewPostgresStore(pool), Audits: hookstore.NewCredentialHolds(pool, artifactpgtest.NewStorage()), Barrier: managedcredentials.NewLifecycleBarrier(),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -789,7 +790,7 @@ func TestAuditStartRechecksProjectHTTPTargetCredentialUse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	projectArtifacts, err := artifacts.NewService(artifactpostgres.NewRepository(pool)).Project(project.ProjectID)
+	projectArtifacts, err := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool)).Project(project.ProjectID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -836,7 +837,7 @@ func TestAuditReportAcceptanceUsesFrozenCandidate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store := auditstoretest.NewStore(pool)
+	store := auditstoretest.NewStore(pool, artifactpgtest.NewStorage())
 	audit, _, err := store.CreateDraft(ctx, auditstore.CreateDraftParams{
 		AuditID: "audit-report-review", OwnerID: project.OwnerID, ProjectID: project.ProjectID,
 		Profile:         auditstore.ProfileIdentity{Name: "report-review", Version: "1", Digest: serviceTestDigest("profile")},
@@ -852,11 +853,11 @@ func TestAuditReportAcceptanceUsesFrozenCandidate(t *testing.T) {
 	findingID := seedAuditFinding(
 		t, ctx, pool, project.ProjectID, project.OwnerID, audit.AuditID, "report-freeze",
 	)
-	intake, err := findingintake.New(pool)
+	intake, err := findingintake.New(pool, artifactpgtest.NewStorage())
 	if err != nil {
 		t.Fatal(err)
 	}
-	reviewService := &Service{pool: pool, findings: intake, now: time.Now}
+	reviewService := &Service{storage: artifactpgtest.NewStorage(), pool: pool, findings: intake, now: time.Now}
 	audit, err = store.Get(ctx, project.OwnerID, audit.AuditID)
 	if err != nil {
 		t.Fatal(err)
@@ -914,7 +915,7 @@ func TestAuditReportAcceptanceUsesFrozenCandidate(t *testing.T) {
 	}
 	artifact := func(name, media, content string) auditstore.ExactArtifact {
 		written, err := artifactstest.WriteAuditArtifact(
-			ctx, artifacts.NewService(artifactpostgres.NewRepository(pool)), project.ProjectID,
+			ctx, artifacts.NewService(artifactpgtest.NewStorage().Repository(pool)), project.ProjectID,
 			contracts.ArtifactRef{Namespace: "audit-report-review", Name: name},
 			artifacts.Payload{MediaType: media, Data: []byte(content)},
 		)
@@ -971,14 +972,14 @@ UPDATE audit_review_requests
 		_ = expiryTx.Rollback(ctx)
 		t.Fatal(err)
 	}
-	changed, err := auditstoretest.NewStore(expiryTx).ExpireReportReview(
+	changed, err := auditstoretest.NewStore(expiryTx, artifactpgtest.NewStorage()).ExpireReportReview(
 		ctx, claim, waiting.Revision,
 	)
 	if err != nil || !changed {
 		_ = expiryTx.Rollback(ctx)
 		t.Fatalf("expire exact report review = (%t, %v)", changed, err)
 	}
-	expiredAudit, err := auditstoretest.NewStore(expiryTx).Get(
+	expiredAudit, err := auditstoretest.NewStore(expiryTx, artifactpgtest.NewStorage()).Get(
 		ctx, project.OwnerID, audit.AuditID,
 	)
 	if err != nil || expiredAudit.State != auditstore.AuditFailed ||
@@ -994,20 +995,20 @@ UPDATE audit_review_requests
 		t.Fatal(err)
 	}
 	if err := validateAndApplyReportDecision(
-		ctx, reviewstore.NewTx(rejectTx), audit.AuditID, waiting.Revision, candidate.RequestID, audit.AuditID,
+		ctx, reviewstore.NewTx(rejectTx, artifactpgtest.NewStorage()), audit.AuditID, waiting.Revision, candidate.RequestID, audit.AuditID,
 		int64(candidate.SubjectRevision), candidate.SubjectDigest, auditstore.ReviewReject,
 	); err != nil {
 		_ = rejectTx.Rollback(ctx)
 		t.Fatalf("reject exact report candidate: %v", err)
 	}
-	rejected, err := auditstoretest.NewStore(rejectTx).Get(ctx, project.OwnerID, audit.AuditID)
+	rejected, err := auditstoretest.NewStore(rejectTx, artifactpgtest.NewStorage()).Get(ctx, project.OwnerID, audit.AuditID)
 	if err != nil || rejected.State != auditstore.AuditFailed || rejected.StopReason == nil ||
 		rejected.StopReason.Code != "report_rejected" || rejected.Revision != waiting.Revision+1 ||
 		rejected.Revision != rejected.EventSequence {
 		_ = rejectTx.Rollback(ctx)
 		t.Fatalf("rejected report transaction = (%+v, %v)", rejected, err)
 	}
-	rejectEvents, err := auditstoretest.NewStore(rejectTx).EventsAfter(
+	rejectEvents, err := auditstoretest.NewStore(rejectTx, artifactpgtest.NewStorage()).EventsAfter(
 		ctx, project.OwnerID, audit.AuditID, rejected.EventSequence-1, 1,
 	)
 	if err != nil || len(rejectEvents) != 1 || rejectEvents[0].Kind != "audit.state_changed" ||
@@ -1118,7 +1119,7 @@ func seedAuditFindingProjected(
 	retainedEvidence := make([]findingintake.ExactArtifact, 0, len(document.EvidenceIDs))
 	for _, id := range document.EvidenceIDs {
 		body := []byte("Retained evidence " + suffix + " " + id)
-		file, err := artifactstest.WriteAuditArtifact(ctx, artifacts.NewService(artifactpostgres.NewRepository(pool)), projectID, contracts.ArtifactRef{Namespace: artifactpolicy.FindingMaterialsNamespace, Name: suffix + "-" + id}, artifacts.Payload{MediaType: "text/plain", Data: body})
+		file, err := artifactstest.WriteAuditArtifact(ctx, artifacts.NewService(artifactpgtest.NewStorage().Repository(pool)), projectID, contracts.ArtifactRef{Namespace: artifactpolicy.FindingMaterialsNamespace, Name: suffix + "-" + id}, artifacts.Payload{MediaType: "text/plain", Data: body})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1134,7 +1135,7 @@ func seedAuditFindingProjected(
 		t.Fatal(err)
 	}
 	namespace := artifactpolicy.FindingMaterialsNamespace
-	written, err := artifactstest.WriteAuditArtifact(ctx, artifacts.NewService(artifactpostgres.NewRepository(pool)), projectID,
+	written, err := artifactstest.WriteAuditArtifact(ctx, artifacts.NewService(artifactpgtest.NewStorage().Repository(pool)), projectID,
 		contracts.ArtifactRef{Namespace: namespace, Name: "candidate-" + suffix},
 		artifacts.Payload{MediaType: "application/json", Data: payload})
 	if err != nil {
@@ -1183,7 +1184,7 @@ INSERT INTO finding_proposal_receipts (
 	}
 	var findingID string
 	err = persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		events := hookstore.NewFindingEventsTx(tx)
+		events := hookstore.NewFindingEventsTx(tx, artifactpgtest.NewStorage())
 		var err error
 		findingID, err = events.AdmitProjectFinding(ctx, projectID, receiptID, "finding-"+suffix)
 		if err != nil {

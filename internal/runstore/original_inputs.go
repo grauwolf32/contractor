@@ -8,7 +8,6 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
@@ -18,7 +17,7 @@ import (
 // replace the creation revisions. The shared artifact reader bounds the request
 // and uses this store's DB/transaction for metadata-only reads.
 func (s *PostgresStore) DescribeOriginalInputs(ctx context.Context, runID string, names []string) ([]contracts.ExactArtifact, error) {
-	store, err := artifacts.NewService(artifactpostgres.NewRepository(s.db)).Run(runID)
+	store, err := artifacts.NewService(s.storage.Repository(s.db)).Run(runID)
 	if err != nil {
 		return nil, err
 	}

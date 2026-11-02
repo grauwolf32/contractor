@@ -14,6 +14,9 @@ import (
 	"testing"
 	"time"
 
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
+	artifactpgtest "github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	inline "github.com/grauwolf32/contractor/internal/artifacts/blob/backends/postgres"
@@ -58,16 +61,22 @@ func newScanInspector(runID string, read scanMetadataReader) (*planner.ArtifactS
 }
 
 func TestFactoryValidatesExactMetadataWithTransferSlotsSaturated(t *testing.T) {
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
 	h := newFactoryHarness(t, 2)
-	ctx := blob.WithRuntime(t.Context(), blob.NewRuntime(inline.Store{}, nil))
+	ctx := t.Context()
+	artifactRuntime = blob.NewRuntime(inline.Store{}, nil)
+	artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
 	for range 4 {
-		_, release, err := blob.AcquireTransfer(ctx)
+		_, release, err := artifactStorage.AcquireTransfer(ctx)
 		if err != nil {
 			t.Fatal(err)
 		}
 		t.Cleanup(release)
 	}
-	if _, _, err := blob.AcquireTransfer(ctx); !errors.Is(err, blob.ErrTransferCapacity) {
+	if _, _, err := artifactStorage.AcquireTransfer(ctx); !errors.Is(err, blob.ErrTransferCapacity) {
 		t.Fatalf("transfer gate was not saturated: %v", err)
 	}
 	queries := 0

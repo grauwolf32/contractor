@@ -6,9 +6,7 @@ import (
 	"errors"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	artifactpolicy "github.com/grauwolf32/contractor/internal/artifacts/policy"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
@@ -69,7 +67,7 @@ func (s *Service) joinStage(ctx context.Context, request StageJoin, apply bool) 
 	}
 	var result StageJoinResult
 	err = s.mutationTransaction(ctx, apply, func(ctx context.Context, tx pgx.Tx) error {
-		store := runstore.NewPostgresTxStore(tx)
+		store := runstore.NewPostgresTxStore(tx, s.storage)
 		owner, err := store.ProjectContext(ctx, request.RunID)
 		if err != nil {
 			return err
@@ -92,13 +90,13 @@ func (s *Service) joinStage(ctx context.Context, request StageJoin, apply bool) 
 		}
 		key := postgres.ProjectReceiptKey(owner.OwnerID, owner.ProjectID, owner.ProjectID, "sitemap.join", request.StageID)
 		receipt, replayed, err := postgres.KeyedMutation(ctx, tx, key, digest, func() (postgres.Receipt, error) {
-			admitted, release, err := blob.AcquireTransfer(ctx)
+			admitted, release, err := s.storage.AcquireTransfer(ctx)
 			if err != nil {
 				return postgres.Receipt{}, err
 			}
 			defer release()
 			ctx = admitted
-			service := artifacts.NewService(artifactpostgres.NewTxRepository(tx))
+			service := artifacts.NewService(s.storage.TxRepository(tx))
 			consumer, err := service.Run(request.RunID)
 			if err != nil {
 				return postgres.Receipt{}, err

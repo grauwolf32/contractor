@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingintake"
@@ -29,7 +30,7 @@ func TestFindingSubmissionDecoderDistinguishesNULEscapeFromLiteralText(t *testin
 				t.Fatal(err)
 			}
 			request := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
-			request, transfer, err := artifacttransfer.Acquire(httptest.NewRecorder(), request)
+			request, transfer, err := artifacttransfer.Acquire(httptest.NewRecorder(), request, artifactpgtest.NewStorage())
 			if err != nil {
 				t.Fatal(err)
 			}

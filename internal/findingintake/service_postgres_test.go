@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob"
@@ -48,6 +50,10 @@ func TestPostgresFindingReceiptReplayRetentionAndRunDeletion(t *testing.T) {
 }
 
 func testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *testing.T) {
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	pool := isolatedFindingPool(t, ctx)
@@ -59,7 +65,8 @@ func testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *te
 			t.Fatal(err)
 		}
 		defer files.Close()
-		ctx = blob.WithRuntime(ctx, blob.NewRuntime(files, nil))
+		artifactRuntime = blob.NewRuntime(files, nil)
+		artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
 	}
 
 	const (
@@ -111,7 +118,7 @@ func testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *te
 		t.Fatal(err)
 	}
 
-	runs := runstore.NewPostgresStore(pool)
+	runs := runstore.NewPostgresStore(pool, artifactStorage)
 	projectRef := projectID
 	if _, err := runstoretest.CreateRun(ctx, runs, runstore.CreateRunParams{
 		LaneClass: resolved.LaneClassModel,
@@ -163,7 +170,7 @@ func testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *te
 		LogicalAgentName: "builder", Namespace: binding.Namespace,
 	}
 
-	artifactService := artifacts.NewService(artifactpostgres.NewRepository(pool))
+	artifactService := artifacts.NewService(artifactStorage.Repository(pool))
 	runArtifacts, err := artifactService.Run(runID)
 	if err != nil {
 		t.Fatal(err)
@@ -175,7 +182,7 @@ func testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *te
 		t.Fatal(err)
 	}
 
-	service, err := New(pool)
+	service, err := New(pool, artifactStorage)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -188,7 +195,7 @@ func testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *te
 			}
 		}()
 		for range 4 {
-			_, release, err := blob.AcquireTransfer(ctx)
+			_, release, err := artifactStorage.AcquireTransfer(ctx)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -279,13 +286,13 @@ func testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *te
 	}()
 	if blobPath != "" {
 		service.afterPrepare = func(held context.Context) {
-			if _, nested, err := blob.AcquireTransfer(held); err != nil {
+			if _, nested, err := artifactStorage.AcquireTransfer(held); err != nil {
 				t.Fatalf("prepared proposal lost its outer lease: %v", err)
 			} else {
 				nested()
 			}
 			for {
-				_, release, err := blob.AcquireTransfer(ctx)
+				_, release, err := artifactStorage.AcquireTransfer(ctx)
 				if errors.Is(err, blob.ErrTransferCapacity) {
 					break
 				}
@@ -338,7 +345,7 @@ func testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *te
 	}
 
 	const auditID = "finding-audit"
-	if _, _, err := auditstoretest.NewStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{
+	if _, _, err := auditstoretest.NewStore(pool, artifactStorage).CreateDraft(ctx, auditstore.CreateDraftParams{
 		AuditID: auditID, OwnerID: ownerID, ProjectID: projectID,
 		Profile:         auditstore.ProfileIdentity{Name: "finding-review", Version: "1", Digest: auditdomain.DigestBytes([]byte("profile"))},
 		ProfileSnapshot: json.RawMessage(`{"interaction":{}}`),
@@ -366,7 +373,7 @@ func testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *te
 	if err != nil || !replayed || !replayHold.Proposal.Ref.SameExact(hold.Proposal.Ref) {
 		t.Fatalf("replayed Audit import = (%+v, replay=%v, %v)", replayHold, replayed, err)
 	}
-	if records := readDirectHistoryForTest(t, ctx, pool, ownerID, projectID, firstReceipt.ReceiptID, auditID); len(records) != 0 {
+	if records := readDirectHistoryForTest(t, ctx, pool, ownerID, projectID, firstReceipt.ReceiptID, auditID, artifactStorage); len(records) != 0 {
 		t.Fatalf("premature direct verification: %+v", records)
 	}
 	projectArtifacts, err := artifactService.Project(projectID)
@@ -396,7 +403,7 @@ func testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *te
 		t.Fatal(err)
 	}
 	defer actorPool.Close()
-	actor, err := New(actorPool)
+	actor, err := New(actorPool, artifactStorage)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -422,7 +429,7 @@ func testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *te
 	}
 	var resultRefJSON, contractRefJSON []byte
 	var directAssessmentID, directResultDigest, directContractDigest string
-	facts := readDirectHistoryForTest(t, ctx, pool, ownerID, projectID, firstReceipt.ReceiptID, auditID)
+	facts := readDirectHistoryForTest(t, ctx, pool, ownerID, projectID, firstReceipt.ReceiptID, auditID, artifactStorage)
 	if len(facts) != 1 {
 		t.Fatalf("direct histories=%+v", facts)
 	}
@@ -439,7 +446,7 @@ func testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *te
 		t.Fatalf("direct verification refs = (%s, %+v, %s, %+v, %s)",
 			directAssessmentID, directResultRef, directResultDigest, directContractRef, directContractDigest)
 	}
-	audits := auditstoretest.NewStore(pool)
+	audits := auditstoretest.NewStore(pool, artifactStorage)
 	beforeReplay, err := audits.Get(ctx, ownerID, auditID)
 	if err != nil {
 		t.Fatal(err)
@@ -458,7 +465,7 @@ func testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *te
 	if assessments != 1 || beforeReplay.Revision != beforeReplay.EventSequence {
 		t.Fatalf("direct assessment event count=%d Audit=%+v", assessments, beforeReplay)
 	}
-	if facts := readDirectHistoryForTest(t, ctx, pool, ownerID, projectID, claimOnlyReceipt.ReceiptID, auditID); len(facts) != 0 {
+	if facts := readDirectHistoryForTest(t, ctx, pool, ownerID, projectID, claimOnlyReceipt.ReceiptID, auditID, artifactStorage); len(facts) != 0 {
 		t.Fatalf("claim without exact verification created history: %+v", facts)
 	}
 	var retainedBefore int64
@@ -494,7 +501,7 @@ SELECT count(*) FROM audit_artifact_links
 	// Import the same exact successful source into another compatible Audit.
 	// Its assessment and retained bytes must be independent of the first Audit.
 	const otherAuditID = "finding-audit-other"
-	if _, _, err := auditstoretest.NewStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{
+	if _, _, err := auditstoretest.NewStore(pool, artifactStorage).CreateDraft(ctx, auditstore.CreateDraftParams{
 		AuditID: otherAuditID, OwnerID: ownerID, ProjectID: projectID,
 		Profile:         auditstore.ProfileIdentity{Name: "finding-review", Version: "1", Digest: auditdomain.DigestBytes([]byte("profile"))},
 		ProfileSnapshot: json.RawMessage(`{"interaction":{}}`),
@@ -512,7 +519,7 @@ SELECT count(*) FROM audit_artifact_links
 	}
 	var otherAssessmentID string
 	var otherResultJSON, otherContractJSON []byte
-	otherFacts := readDirectHistoryForTest(t, ctx, pool, ownerID, projectID, firstReceipt.ReceiptID, otherAuditID)
+	otherFacts := readDirectHistoryForTest(t, ctx, pool, ownerID, projectID, firstReceipt.ReceiptID, otherAuditID, artifactStorage)
 	if len(otherFacts) != 1 {
 		t.Fatalf("other direct history=%+v", otherFacts)
 	}
@@ -541,7 +548,7 @@ SELECT count(*) FROM audit_artifact_links
 	if err := pool.QueryRow(ctx, `SELECT retained_evidence_bytes FROM audits WHERE audit_id=$1`, otherAuditID).Scan(&otherRetainedAfter); err != nil {
 		t.Fatal(err)
 	}
-	assessmentCount = len(readDirectHistoryForTest(t, ctx, pool, ownerID, projectID, firstReceipt.ReceiptID, ""))
+	assessmentCount = len(readDirectHistoryForTest(t, ctx, pool, ownerID, projectID, firstReceipt.ReceiptID, "", artifactStorage))
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM audit_artifact_links WHERE audit_id=$1 AND logical_key LIKE 'finding/%/direct-%'`, otherAuditID).Scan(&otherLinks); err != nil {
 		t.Fatal(err)
 	}

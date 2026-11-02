@@ -7,13 +7,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"os"
 	"slices"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 
 	"github.com/grauwolf32/contractor/internal/agentprincipal"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -402,7 +404,7 @@ func TestRuntimeCredentialDeleteSerializesWithRuntimeConfigBindings(t *testing.T
 		if providerErr != nil {
 			return providerErr
 		}
-		store := runstore.NewRunCreationPostgresStore(tx, lookup, NewRuntimeCredentialRepository(tx))
+		store := runstore.NewRunCreationPostgresStore(tx, lookup, NewRuntimeCredentialRepository(tx), artifactpgtest.NewStorage())
 		pinned, pinErr := store.PinRuntimeLabels(ctx, []string{"run-debug"})
 		if pinErr != nil {
 			return pinErr
@@ -432,7 +434,7 @@ func TestRuntimeCredentialDeleteSerializesWithRuntimeConfigBindings(t *testing.T
 			t.Fatalf("Run credential usage = %+v", inUse)
 		}
 	}
-	store := runstore.NewPostgresStore(pool)
+	store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	if _, err := store.TransitionRun(
 		ctx, "run-runtime-credential", runstore.RunInitializing, runstore.RunFailed,
 		runstore.Reason{Code: "test_complete"},
@@ -445,7 +447,7 @@ func TestRuntimeCredentialDeleteSerializesWithRuntimeConfigBindings(t *testing.T
 
 	createCredential("allocation-debug")
 	allocationRef := publishConfig("allocation-debug", "allocation-debug")
-	allocationStore := runstore.NewPostgresStore(pool)
+	allocationStore := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	allocationRun, err := runstoretest.CreateRun(ctx, allocationStore, runstore.CreateRunParams{
 		LaneClass: resolved.LaneClassModel,
 		RunID:     "run-allocation-credential", OwnerID: "user", WorkflowName: "workflow", WorkflowVersion: "1",

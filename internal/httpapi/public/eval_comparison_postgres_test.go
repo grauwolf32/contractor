@@ -8,9 +8,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/getkin/kin-openapi/openapi3filter"
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalservice"
@@ -104,7 +105,7 @@ func TestSharedEvalPostgresReviewSelectionReplayAndObservedResultAuthority(t *te
 	}](t, second).SHA
 	selection.Selections[0].AssessmentSHA256 = &nextDigest
 	h.request(t, "POST", base+"/selections", selection, "select-stale", etag, 412)
-	stored, err := evalstore.NewPostgresStore(h.pool).Record(t.Context(), "user-1", e.ID, member.Member.ID, "assessment", nextDigest)
+	stored, err := evalstore.NewPostgresStore(h.pool, artifactpgtest.NewStorage()).Record(t.Context(), "user-1", e.ID, member.Member.ID, "assessment", nextDigest)
 	if err != nil || stored.ActorID != "user-1" {
 		t.Fatal("CAS conflict lost attributed review", err)
 	}
@@ -221,7 +222,7 @@ func TestSharedEvalPostgresDeletedEvidenceInvalidatesSelectedAssessment(t *testi
 	base := "/v1/eval-experiments/" + e.ID
 	memberPath := base + "/members/" + member.Member.ID
 	review := ownerEvalReview(t, h, memberPath+"/review")
-	store, err := artifacts.NewService(artifactpostgres.NewRepository(h.pool)).Run(member.Execution.Ref.ID)
+	store, err := artifacts.NewService(artifactpgtest.NewStorage().Repository(h.pool)).Run(member.Execution.Ref.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -255,7 +256,7 @@ func TestSharedEvalPostgresDeletedEvidenceInvalidatesSelectedAssessment(t *testi
 	h.tick(t)
 	before := h.get(t, e.ID)
 	err = pg.InTx(t.Context(), h.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		purger, err := artifactpostgres.NewPurger(tx)
+		purger, err := artifactpgtest.NewStorage().Purger(tx)
 		if err != nil {
 			return err
 		}
@@ -282,7 +283,7 @@ func TestSharedEvalPostgresDeletedEvidenceInvalidatesSelectedAssessment(t *testi
 	if len(afterReview.Gaps) == 0 {
 		t.Fatal("deleted proof missing from owner context")
 	}
-	if _, err = evalstore.NewPostgresStore(h.pool).Record(t.Context(), "user-1", e.ID, member.Member.ID, "assessment", assessmentSHA); err != nil {
+	if _, err = evalstore.NewPostgresStore(h.pool, artifactpgtest.NewStorage()).Record(t.Context(), "user-1", e.ID, member.Member.ID, "assessment", assessmentSHA); err != nil {
 		t.Fatal("prior assessment was erased", err)
 	}
 }

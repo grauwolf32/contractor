@@ -92,7 +92,7 @@ type GatewayRecoveryRuns struct{}
 // LockRun locks the row of Run runID until tx ends and returns its state and
 // owner, or "" for both when there is no such Run.
 func (GatewayRecoveryRuns) LockRun(ctx context.Context, tx pgx.Tx, runID string) (string, string, error) {
-	state, ownerID, err := NewPostgresTxStore(tx).lockRunOwner(ctx, runID, "")
+	state, ownerID, err := (&PostgresTxStore{tx: tx}).lockRunOwner(ctx, runID, "")
 	if errors.Is(err, ErrNotFound) {
 		return "", "", nil
 	}
@@ -101,15 +101,15 @@ func (GatewayRecoveryRuns) LockRun(ctx context.Context, tx pgx.Tx, runID string)
 
 // EnterWaiting is PostgresTxStore.EnterWaiting in tx.
 func (GatewayRecoveryRuns) EnterWaiting(ctx context.Context, tx pgx.Tx, runID, reasonCode string) error {
-	return NewPostgresTxStore(tx).EnterWaiting(ctx, runID, reasonCode)
+	return (&PostgresTxStore{tx: tx}).EnterWaiting(ctx, runID, reasonCode)
 }
 
 // LeaveWaiting is PostgresTxStore.LeaveWaiting in tx.
 func (GatewayRecoveryRuns) LeaveWaiting(ctx context.Context, tx pgx.Tx, runID string) error {
-	return NewPostgresTxStore(tx).LeaveWaiting(ctx, runID)
+	return (&PostgresTxStore{tx: tx}).LeaveWaiting(ctx, runID)
 }
 
 // RecordAdmissionWait is PostgresTxStore.RecordAdmissionWait in tx.
 func (GatewayRecoveryRuns) RecordAdmissionWait(ctx context.Context, tx pgx.Tx, runID, reasonCode string) error {
-	return NewPostgresTxStore(tx).RecordAdmissionWait(ctx, runID, reasonCode)
+	return (&PostgresTxStore{tx: tx}).RecordAdmissionWait(ctx, runID, reasonCode)
 }

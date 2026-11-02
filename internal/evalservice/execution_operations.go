@@ -7,6 +7,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -22,13 +23,15 @@ import (
 )
 
 type executionOperations struct {
+	storage *artifactpostgres.Storage
+
 	pool *pgxpool.Pool
 	// now stamps the intents whose request records the time they were made.
 	now func() time.Time
 }
 
 func (d *executionOperations) tx(ctx context.Context, fn func(*evalstore.Store, pgx.Tx) error) error {
-	return postgres.InTx(ctx, d.pool, pgx.TxOptions{}, func(tx pgx.Tx) error { return fn(evalstore.NewTxStore(tx), tx) })
+	return postgres.InTx(ctx, d.pool, pgx.TxOptions{}, func(tx pgx.Tx) error { return fn(evalstore.NewTxStore(tx, d.storage), tx) })
 }
 
 func notFound(err error) bool {
@@ -37,7 +40,7 @@ func notFound(err error) bool {
 }
 
 func prepareOperation[T any](ctx context.Context, d *executionOperations, e evalstore.Experiment, m evalstore.Member, c evalstore.Claim, kind string, build func() (T, error)) (evalstore.Suboperation, error) {
-	store := evalstore.NewPostgresStore(d.pool)
+	store := evalstore.NewPostgresStore(d.pool, d.storage)
 	op, err := store.Suboperation(ctx, e.OwnerID, e.ID, m.MemberID, kind)
 	if err == nil {
 		return op, nil

@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
@@ -45,7 +47,7 @@ func inventoryScaleFixture(t *testing.T) (context.Context, *pgxpool.Pool, string
 	}); err != nil {
 		t.Fatal(err)
 	}
-	audits := auditstoretest.NewStore(pool)
+	audits := auditstoretest.NewStore(pool, artifactpgtest.NewStorage())
 	digest := evaldomain.Digest([]byte("inventory scale"))
 	auditIDs := []string{"audit-inventory-scale"}
 	for index := range inventoryScaleBackground {

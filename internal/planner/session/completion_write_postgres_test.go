@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/planner"
@@ -24,7 +26,7 @@ func TestPostgresUnwrittenFailedCandidateKeepsItsRetryability(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
 	defer cancel()
 	pool := isolatedPlannerPool(t, ctx)
-	store := runstore.NewPostgresStore(pool)
+	store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	createPlannerStage(t, ctx, store)
 	if _, err := pool.Exec(ctx, `
 CREATE FUNCTION reject_planner_completion() RETURNS trigger LANGUAGE plpgsql AS $$

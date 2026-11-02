@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob"
@@ -16,6 +18,10 @@ import (
 )
 
 func TestPostgresSitemapSnapshotMissingContentReportsStorageFailure(t *testing.T) {
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
 	pool := sitemapPool(t)
 	ctx := t.Context()
 	createSitemapRun(t, ctx, pool, "consumer")
@@ -25,8 +31,9 @@ func TestPostgresSitemapSnapshotMissingContentReportsStorageFailure(t *testing.T
 		t.Fatal(err)
 	}
 	defer files.Close()
-	ctx = blob.WithRuntime(ctx, blob.NewRuntime(files, nil))
-	stores := artifacts.NewService(artifactpostgres.NewRepository(pool))
+	artifactRuntime = blob.NewRuntime(files, nil)
+	artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+	stores := artifacts.NewService(artifactStorage.Repository(pool))
 	project, _ := artifacts.ProjectScope("project")
 	payload := artifacts.Payload{MediaType: "application/json", Data: []byte(`{"openapi":"3.1.0"}`)}
 	source, err := stores.Create(ctx, project, contracts.ArtifactRef{Namespace: "schemas", Name: "api"}, payload)
@@ -36,7 +43,7 @@ func TestPostgresSitemapSnapshotMissingContentReportsStorageFailure(t *testing.T
 	if _, err := artifactstest.ForkProjectInput(ctx, stores, "project", source.Ref, "consumer", "api"); err != nil {
 		t.Fatal(err)
 	}
-	service := NewService(pool)
+	service := NewService(pool, artifactStorage)
 	exact := contracts.ExactContent(source.Ref, payload.MediaType, payload.Data)
 	_, err = service.Mutate(ctx, Authority{OwnerID: "owner", ProjectID: "project", SourceID: "schema", Kind: "openapi"}, "import", Mutation{Operation: "replace-source", Source: &SourceUpdate{SourceID: "schema", Artifact: &exact, Rules: []Rule{{SourceID: "schema", Origin: "https://example.test", Method: "GET", Path: "/declared"}}}})
 	if err != nil {

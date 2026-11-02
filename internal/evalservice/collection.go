@@ -43,7 +43,7 @@ func (s *Service) CollectView(ctx context.Context, e evalstore.Experiment, claim
 	if e.Expected == 0 || e.DeletionRequestedAt != nil {
 		return nil
 	}
-	reader := evalstore.NewPostgresStore(s.pool)
+	reader := evalstore.NewPostgresStore(s.pool, s.storage)
 	dirty, err := reader.DirtyMembers(ctx, e.OwnerID, e.ID, evaldomain.CollectionBatchSize)
 	if err != nil {
 		return err
@@ -62,7 +62,7 @@ func (s *Service) CollectView(ctx context.Context, e evalstore.Experiment, claim
 		return errors.Join(faults...)
 	}
 	return pg.InTxWithRetry(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		st := evalstore.NewTxStore(tx)
+		st := evalstore.NewTxStore(tx, s.storage)
 		plan, err := st.FrozenPlan(ctx, e.OwnerID, e.ID)
 		if err != nil {
 			return err
@@ -85,7 +85,7 @@ func (s *Service) CollectView(ctx context.Context, e evalstore.Experiment, claim
 }
 func (s *Service) collectMember(ctx context.Context, e evalstore.Experiment, member string, claim evalstore.Claim) error {
 	return pg.InTxWithRetry(ctx, s.pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead}, func(tx pgx.Tx) error {
-		st := evalstore.NewTxStore(tx)
+		st := evalstore.NewTxStore(tx, s.storage)
 		locked, err := st.LockCollection(ctx, scope(e), e.ID, claim)
 		if err != nil {
 			return err
@@ -114,11 +114,11 @@ func (s *Service) collectMember(ctx context.Context, e evalstore.Experiment, mem
 		}
 		var observation *evaldomain.ResultInput
 		if view.Execution.Ref != nil {
-			usage, err := observedUsage(ctx, tx, e.OwnerID, member, *view.Execution, inventory)
+			usage, err := observedUsage(ctx, tx, e.OwnerID, member, *view.Execution, inventory, s.storage)
 			if err != nil {
 				return err
 			}
-			outputs, err := collectOutputs(ctx, tx, e.OwnerID, m, *view.Execution, inventory)
+			outputs, err := collectOutputs(ctx, tx, e.OwnerID, m, *view.Execution, inventory, s.storage)
 			if err != nil {
 				return err
 			}

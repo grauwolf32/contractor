@@ -5,8 +5,9 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
@@ -28,7 +29,7 @@ func TestDeploymentModelSelectionAuditDraftStartsWithCapturedProfile(t *testing.
 	modelAuditProfileFixture(t, root)
 	manager := configuredModelManager(t, root, &memoryModelSettings{})
 	credentialLookup := developmentCredentialLookup(t, manager.Snapshot())
-	service, err := auditservice.New(auditservice.Options{
+	service, err := auditservice.New(auditservice.Options{Storage: artifactpgtest.NewStorage(),
 		Pool: pool, Profiles: manager,
 		TransactionLLMCredentials: runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(
 			func(pgx.Tx) (resolved.CredentialLookup, error) { return credentialLookup, nil },
@@ -46,7 +47,7 @@ func TestDeploymentModelSelectionAuditDraftStartsWithCapturedProfile(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	store, err := artifacts.NewService(artifactpostgres.NewRepository(pool)).Project(project.ProjectID)
+	store, err := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool)).Project(project.ProjectID)
 	if err != nil {
 		t.Fatal(err)
 	}

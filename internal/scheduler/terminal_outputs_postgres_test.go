@@ -8,8 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -122,7 +123,7 @@ func newEarlierOutputHarness(
 		t.Fatalf("StageExecutions after build = (%v, %v), want build succeeded and review preparing",
 			stageExecutionStates(executions), err)
 	}
-	runArtifacts, err := artifacts.NewService(artifactpostgres.NewRepository(h.pool)).Run("run-1")
+	runArtifacts, err := artifacts.NewService(artifactpgtest.NewStorage().Repository(h.pool)).Run("run-1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -229,9 +230,9 @@ func TestPostgresEveryFailedOrCancelledCommitFreezesOutputs(t *testing.T) {
 			case runstore.StageRunning:
 				fixture = createRunningStageFixture(t, ctx, pool)
 			default:
-				fixture.store = runstore.NewPostgresStore(pool)
-				fixture.artifacts = artifacts.NewService(artifactpostgres.NewRepository(pool))
-				fixture.persistence, _ = NewPostgresPersistence(pool)
+				fixture.store = runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
+				fixture.artifacts = artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
+				fixture.persistence, _ = NewPostgresPersistence(pool, artifactpgtest.NewStorage())
 				createSchedulerRun(t, ctx, fixture.store, fixture.artifacts, loadSchedulerWorkflow(t))
 			}
 			runArtifacts, err := fixture.artifacts.Run("run-1")

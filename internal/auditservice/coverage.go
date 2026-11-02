@@ -18,7 +18,7 @@ func (s *Service) describeCoverage(ctx context.Context, projectID string, rows [
 	if err != nil {
 		return nil, err
 	}
-	repository := artifactpostgres.NewRepository(s.pool)
+	repository := s.storage.Repository(s.pool)
 	// Deduplicate shared batch results and decode each result archive once. Reads
 	// retain the repository's combined byte limit and exact-revision checks.
 	tasks, results := make(map[string][]int), make(map[string][]int)

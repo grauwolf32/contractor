@@ -103,7 +103,7 @@ func (h *handler) listArtifacts(w http.ResponseWriter, r *http.Request) {
 // grant are accepted, and holds it while the payload is read and written.
 func (h *handler) getArtifact(w http.ResponseWriter, r *http.Request) {
 	err := h.withReadTarget(r, false, func(ctx context.Context, store artifacts.ScopedStore, ref contracts.ArtifactRef) error {
-		admitted, transfer, err := artifacttransfer.Acquire(w, r.WithContext(ctx))
+		admitted, transfer, err := artifacttransfer.Acquire(w, r.WithContext(ctx), h.dependencies.Transfers)
 		if err != nil {
 			return err
 		}
@@ -192,7 +192,7 @@ func (h *handler) putArtifact(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, errArtifactAccessDenied)
 		return
 	}
-	r, transfer, err := artifacttransfer.Acquire(w, r)
+	r, transfer, err := artifacttransfer.Acquire(w, r, h.dependencies.Transfers)
 	if err != nil {
 		h.handleError(w, err)
 		return

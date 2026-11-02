@@ -5,6 +5,8 @@ package auditimport
 import (
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
@@ -105,7 +107,7 @@ func cancelInputFailureAudit(t *testing.T, f *completionFixture) {
 
 func drainImporter(t *testing.T, f *completionFixture) *Importer {
 	t.Helper()
-	access, err := NewArtifactAccess(f.artifacts, hookstore.NewClaimedArtifacts(f.pool))
+	access, err := NewArtifactAccess(f.artifacts, hookstore.NewClaimedArtifacts(f.pool, artifactpgtest.NewStorage()))
 	mustCompletion(t, err)
 	importer, err := New(f.audits, f.audits, f.runs, access)
 	mustCompletion(t, err)

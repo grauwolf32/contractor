@@ -1,7 +1,6 @@
 package postgres
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"time"
@@ -81,21 +80,3 @@ func (p HistoryPolicy) MaxRevisions() int64 { return p.maxRevisions }
 
 // MaxBytes returns the retained full encoded bytes one binding may hold.
 func (p HistoryPolicy) MaxBytes() int64 { return p.maxBytes }
-
-type historyPolicyKey struct{}
-
-// WithHistoryPolicy installs the Server's configured policy in ctx. Server
-// composition installs it once, beside the blob runtime, so every
-// transaction-scoped repository applies the same policy.
-func WithHistoryPolicy(ctx context.Context, policy HistoryPolicy) context.Context {
-	return context.WithValue(ctx, historyPolicyKey{}, policy)
-}
-
-// historyPolicy returns the installed policy, or the defaults when none is
-// installed, which is the policy of a Server without configured limits.
-func historyPolicy(ctx context.Context) HistoryPolicy {
-	if policy, ok := ctx.Value(historyPolicyKey{}).(HistoryPolicy); ok && policy.maxRevisions > 0 {
-		return policy
-	}
-	return DefaultHistoryPolicy()
-}

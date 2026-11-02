@@ -8,7 +8,6 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	artifactpolicy "github.com/grauwolf32/contractor/internal/artifacts/policy"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -87,7 +86,7 @@ func (s *FindingEventsTx) CommitDirectFindingAssessment(ctx context.Context, ass
 	if err != nil {
 		return err
 	}
-	service := artifacts.NewService(artifactpostgres.NewRepository(s.tx))
+	service := artifacts.NewService(s.storage.Repository(s.tx))
 	if _, err := service.CreateFrozen(ctx, scope, contracts.ArtifactRef{Namespace: artifactpolicy.FindingHistoryNamespace,
 		Name: auditdomain.FindingSourceHistoryName(assessment.ReceiptID, "direct-verification", assessment.AssessmentID)},
 		artifacts.Payload{MediaType: "application/json", Data: body}); err != nil {

@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/contracts"
 
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
@@ -113,7 +115,7 @@ func TestPlacementManagedCredentialsDoNotBorrowAnotherConnection(t *testing.T) {
 				*result[0].ResolvedRuntimeConfig.LLMCredential != *selection.Credential {
 				t.Fatalf("placement lost the managed credential selection: %+v", result)
 			}
-			allocations, err := runstore.NewPostgresStore(limited).ListStageAllocations(attemptCtx, fixture.stageExecutionID)
+			allocations, err := runstore.NewPostgresStore(limited, artifactpgtest.NewStorage()).ListStageAllocations(attemptCtx, fixture.stageExecutionID)
 			if err != nil || len(allocations) != 1 || allocations[0].AllocationID != result[0].Grant.AllocationID {
 				t.Fatalf("placement did not retain its durable allocation: %+v, %v", allocations, err)
 			}

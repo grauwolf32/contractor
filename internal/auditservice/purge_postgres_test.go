@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
@@ -37,7 +39,7 @@ func TestAuditPurgeRemovesDecidedReviews(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			store := auditstoretest.NewStore(pool).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch)
+			store := auditstoretest.NewStore(pool, artifactpgtest.NewStorage()).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch)
 			audit, _, err := store.CreateDraft(ctx, auditstore.CreateDraftParams{
 				AuditID: "audit-purge-" + subject, OwnerID: project.OwnerID, ProjectID: project.ProjectID,
 				Profile: auditstore.ProfileIdentity{
@@ -54,11 +56,11 @@ func TestAuditPurgeRemovesDecidedReviews(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			intake, err := findingintake.New(pool)
+			intake, err := findingintake.New(pool, artifactpgtest.NewStorage())
 			if err != nil {
 				t.Fatal(err)
 			}
-			service := &Service{pool: pool, findings: intake, now: time.Now}
+			service := &Service{storage: artifactpgtest.NewStorage(), pool: pool, findings: intake, now: time.Now}
 			switch subject {
 			case "action":
 				rejectItemActionForPurge(t, ctx, store, service, audit)

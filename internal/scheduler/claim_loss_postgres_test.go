@@ -3,10 +3,12 @@ package scheduler
 import (
 	"context"
 	"errors"
-	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/telemetry"
@@ -174,7 +176,7 @@ SET scheduler_claimed_at = clock_timestamp() - interval '2 minutes',
 WHERE run_id = $1`, runID); err != nil {
 		t.Fatal(err)
 	}
-	claimed, err := runstore.NewPostgresStore(tx).ClaimRunnableRun(ctx, "competing-lane", time.Minute, nil, resolved.LaneClassModel)
+	claimed, err := runstore.NewPostgresStore(tx, artifactpgtest.NewStorage()).ClaimRunnableRun(ctx, "competing-lane", time.Minute, nil, resolved.LaneClassModel)
 	if err != nil || claimed.RunID != runID {
 		t.Fatalf("replacement claim = %+v, %v", claimed, err)
 	}

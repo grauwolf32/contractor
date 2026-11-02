@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalstore"
 )
@@ -55,7 +57,7 @@ func TestSharedPostgresEvalSettlingEnforcesBudgetUntilAcceptedWorkDrains(t *test
 				if budget == "deadline" {
 					h.service.now = func() time.Time { return experiment.DeadlineAt.Add(time.Second) }
 				} else {
-					store := evalstore.NewPostgresStore(h.pool)
+					store := evalstore.NewPostgresStore(h.pool, artifactpgtest.NewStorage())
 					claims, err := store.Claim(t.Context(), "budget-observer", time.Minute, 1)
 					if err != nil || len(claims) != 1 {
 						t.Fatalf("claim: %v %v", claims, err)

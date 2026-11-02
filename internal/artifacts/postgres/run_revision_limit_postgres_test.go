@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	. "github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
@@ -55,7 +57,7 @@ func TestPostgresRunRevisionLimitAndBoundedPurge(t *testing.T) {
 	}
 	defer second.Rollback(context.Background())
 	write := func(db postgres.DBTX, name string) (WriteResult, error) {
-		run, _ := NewService(artifactpostgres.NewRepository(db)).Run("limit-run")
+		run, _ := NewService(artifactpgtest.NewStorage().Repository(db)).Run("limit-run")
 		return run.Write(ctx, ArtifactRef{Namespace: "scratch", Name: name}, Payload{MediaType: "text/plain", Data: []byte(name)}, nil)
 	}
 	last, err := write(first, "last")
@@ -93,23 +95,23 @@ SELECT (SELECT count(*) FROM artifact_binding_revisions WHERE scope_kind = 'run'
 	}
 	// The limit is per Run: another Run still writes.
 	createArtifactRun(t, ctx, pool, "other-run", true)
-	other, _ := NewService(artifactpostgres.NewRepository(pool)).Run("other-run")
+	other, _ := NewService(artifactpgtest.NewStorage().Repository(pool)).Run("other-run")
 	if _, err := other.Write(ctx, ArtifactRef{Namespace: "scratch", Name: "free"}, Payload{MediaType: "text/plain", Data: []byte("free")}, nil); err != nil {
 		t.Fatalf("write to another Run: %v", err)
 	}
 	// The Scheduler still binds outputs of an exhausted Run.
-	if _, err := artifactstest.BindOutput(ctx, NewService(artifactpostgres.NewRepository(pool)), "limit-run", "result", last.Ref); err != nil {
+	if _, err := artifactstest.BindOutput(ctx, NewService(artifactpgtest.NewStorage().Repository(pool)), "limit-run", "result", last.Ref); err != nil {
 		t.Fatalf("bind output of an exhausted Run: %v", err)
 	}
 	purged, bindings := revisions+1, bindings+1 // with the outputs revision and binding
 
-	if _, err := runstore.NewPostgresStore(pool).TransitionRun(ctx, "limit-run", runstore.RunRunning, runstore.RunSucceeded, runstore.Reason{Code: "done"}); err != nil {
+	if _, err := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()).TransitionRun(ctx, "limit-run", runstore.RunRunning, runstore.RunSucceeded, runstore.Reason{Code: "done"}); err != nil {
 		t.Fatal(err)
 	}
 	var recorded statementRecord
 	if err := postgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		recorder := &recordingTx{Tx: tx, record: &recorded}
-		if err := rundeletion.New(recorder).DeleteReleasedTerminalRun(ctx, "user-1", "limit-run"); err != nil {
+		if err := rundeletion.New(recorder, artifactpgtest.NewStorage()).DeleteReleasedTerminalRun(ctx, "user-1", "limit-run"); err != nil {
 			return err
 		}
 		// Rows this transaction read from the revision and binding tables,
@@ -165,13 +167,18 @@ SELECT (SELECT count(*) FROM artifact_scopes WHERE scope_id = 'limit-run')
 // two revisions, and that refused write removes nothing. UserScope writes
 // made alongside never charge the Run, and outputs keep their exception.
 func TestPostgresRunRevisionLimitIsNotRefundedByHistoryRetention(t *testing.T) {
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
-	ctx = artifactpostgres.WithHistoryPolicy(ctx, artifactpostgres.NewTestHistoryPolicy(2, 1<<30))
+	artifactHistory = artifactpostgres.NewTestHistoryPolicy(2, 1<<30)
+	artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
 	createArtifactRun(t, ctx, pool, "limit-run", true)
 	seedRunRevisions(t, ctx, pool, "limit-run", runRevisionLimit-3)
-	service := NewService(artifactpostgres.NewRepository(pool))
+	service := NewService(artifactStorage.Repository(pool))
 	run, _ := service.Run("limit-run")
 	user, _ := service.User("user-1")
 	journal := historyBinding{"run", "limit-run", "notes", "journal"}

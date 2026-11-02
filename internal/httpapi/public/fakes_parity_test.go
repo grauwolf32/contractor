@@ -10,10 +10,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/agentprincipal"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
@@ -72,7 +73,7 @@ func TestFakeRunStoreTransitionsMatchPostgres(t *testing.T) {
 	}
 
 	pool := isolatedPublicPool(t, ctx)
-	store := runstore.NewPostgresStore(pool)
+	store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	for _, from := range parityRunStates {
 		for _, to := range parityRunStates {
 			runID := fmt.Sprintf("run-parity-%s-%s", from, to)
@@ -92,7 +93,7 @@ func createParityRunInState(
 	t *testing.T, ctx context.Context, pool *pgxpool.Pool, runID string, state runstore.WorkflowRunState,
 ) {
 	t.Helper()
-	store := runstore.NewPostgresStore(pool)
+	store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	if _, err := runstoretest.CreateRun(ctx, store, runstore.CreateRunParams{
 		LaneClass: resolved.LaneClassModel,
 		RunID:     runID, OwnerID: "user-parity", WorkflowName: "artifact-copy", WorkflowVersion: "1",
@@ -127,7 +128,7 @@ func createParityRunInState(
 			// Only the waiting operation moves a Run into waiting, under the
 			// Run row lock that model-availability recovery holds.
 			err = persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-				return runstore.NewPostgresTxStore(tx).EnterWaiting(ctx, runID, "parity")
+				return runstore.NewPostgresTxStore(tx, artifactpgtest.NewStorage()).EnterWaiting(ctx, runID, "parity")
 			})
 		} else {
 			_, err = store.TransitionRun(ctx, runID, current, next, runstore.Reason{Code: "parity"})
@@ -174,7 +175,7 @@ func TestFakeArtifactRepositoryWritesMatchPostgres(t *testing.T) {
 	for _, runID := range []string{"run-frozen-outputs", "run-open-outputs"} {
 		createParityRunInState(t, ctx, pool, runID, runstore.RunRunning)
 	}
-	check("PostgreSQL", bindingWriteRefusals(t, ctx, artifactpostgres.NewRepository(pool)))
+	check("PostgreSQL", bindingWriteRefusals(t, ctx, artifactpgtest.NewStorage().Repository(pool)))
 }
 
 // bindingWriteRefusals binds an output of run-frozen-outputs and freezes it,

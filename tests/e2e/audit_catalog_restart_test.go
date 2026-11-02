@@ -12,8 +12,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -73,7 +74,7 @@ func TestAuditProgramCatalogReplacementRestartsServer(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(pool.Close)
-	catalog, err := auditstandards.NewCatalog(artifacts.NewService(artifactpostgres.NewRepository(pool)))
+	catalog, err := auditstandards.NewCatalog(artifacts.NewService(artifactpgtest.NewStorage().Repository(pool)))
 	if err != nil {
 		t.Fatal(err)
 	}

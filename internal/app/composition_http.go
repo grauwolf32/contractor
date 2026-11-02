@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auth"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/controlplane"
@@ -46,12 +47,13 @@ func configureHTTP(
 	audits auditServices,
 	evals evalServices,
 	logger *slog.Logger,
+	storage *artifactpostgres.Storage,
 ) (serverHandlers, error) {
 	gitClient, err := gitimport.NewClient(cfg.GitImport, logger)
 	if err != nil {
 		return serverHandlers{}, fmt.Errorf("configure Git reader: %w", err)
 	}
-	gitImporter, err := gitimport.NewImporter(pool, gitClient, credentialSet.gitKeys, cfg.GitImport.EffectiveLimits().Timeout)
+	gitImporter, err := gitimport.NewImporter(pool, gitClient, credentialSet.gitKeys, cfg.GitImport.EffectiveLimits().Timeout, storage)
 	if err != nil {
 		return serverHandlers{}, fmt.Errorf("configure Git importer: %w", err)
 	}
@@ -67,12 +69,12 @@ func configureHTTP(
 		cfg.PerformanceMetrics, performanceCollector, performanceDiagnostics,
 		performance.NewHistoryRepository(pool, time.Now), time.Now,
 	)
-	collectionPublisher, err := findingintake.NewCollectionPublisher(pool, audits.service)
+	collectionPublisher, err := findingintake.NewCollectionPublisher(pool, audits.service, storage)
 	if err != nil {
 		return serverHandlers{}, fmt.Errorf("configure finding collection publisher: %w", err)
 	}
-	runStore := runstore.NewPostgresStore(pool)
-	runDetails, err := runservice.NewRunDetailReader(runservice.PostgresRunDetailTransaction(pool))
+	runStore := runstore.NewPostgresStore(pool, storage)
+	runDetails, err := runservice.NewRunDetailReader(runservice.PostgresRunDetailTransaction(pool, storage))
 	if err != nil {
 		return serverHandlers{}, fmt.Errorf("configure Run detail reader: %w", err)
 	}
@@ -91,13 +93,13 @@ func configureHTTP(
 		},
 		Projects: publicapi.ProjectDependencies{
 			Projects: projects, Editor: projectstore.NewEditor(projects, credentialSet.runtime),
-			Sitemap:                 projectsitemap.NewService(pool),
+			Sitemap:                 projectsitemap.NewService(pool, storage),
 			ProjectDeletionNotifier: workflows.projectDeletion, NewID: randomid.New,
 		},
 		Runs: publicapi.RunDependencies{
 			Diagnostics: telemetry.NewRepository(pool),
 			Runs:        runStore, RunDetails: runDetails, RunLifecycle: runStore,
-			RunDeletion: rundeletion.New(pool), RunCreator: audits.runs,
+			RunDeletion: rundeletion.New(pool, storage), RunCreator: audits.runs,
 			RunNotifier: workflows.scheduler, GatewayRecovery: workflows.gatewayRecovery,
 			Projects: projects, NewID: randomid.New, Now: time.Now,
 		},
@@ -107,11 +109,11 @@ func configureHTTP(
 			RuntimeConfigs: control.runtimeConfigurations,
 		})},
 		Queue: publicapi.QueueDependencies{RunQueue: runStore, RunNotifier: workflows.scheduler},
-		Artifacts: publicapi.ArtifactDependencies{
+		Artifacts: publicapi.ArtifactDependencies{Transfers: storage,
 			Artifacts: catalogs.artifacts, Projects: projects, Runs: runStore, GitImports: gitImporter,
 		},
-		Audits: publicapi.AuditDependencies{Audits: audits.service, Projects: projects, NewID: randomid.New},
-		Findings: publicapi.FindingDependencies{
+		Audits: publicapi.AuditDependencies{Transfers: storage, Audits: audits.service, Projects: projects, NewID: randomid.New},
+		Findings: publicapi.FindingDependencies{Transfers: storage,
 			FindingProposals: catalogs.findings, FindingCollections: collectionPublisher, FindingExports: collectionPublisher,
 			Audits: audits.service, Runs: runStore,
 		},
@@ -145,9 +147,9 @@ func configureHTTP(
 	if err != nil {
 		return serverHandlers{}, fmt.Errorf("configure private Control Plane API: %w", err)
 	}
-	artifactHandler, err := privateartifacts.NewHandler(privateartifacts.Dependencies{
+	artifactHandler, err := privateartifacts.NewHandler(privateartifacts.Dependencies{Transfers: storage,
 		Registry: control.registry, Artifacts: catalogs.artifacts, Findings: catalogs.findings, GatewayRecovery: workflows.gatewayRecovery, Logger: logger,
-		Sitemap:     projectsitemap.NewService(pool),
+		Sitemap:     projectsitemap.NewService(pool, storage),
 		RunProjects: runStore,
 		Projects:    projects,
 	})

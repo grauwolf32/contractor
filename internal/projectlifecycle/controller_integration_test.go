@@ -8,10 +8,13 @@ import (
 	"testing"
 	"time"
 
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
+
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	artifactpolicy "github.com/grauwolf32/contractor/internal/artifacts/policy"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
@@ -44,9 +47,9 @@ func TestProducerRunDeletionPreservesProjectSitemapAndReceipt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	runs := runstore.NewPostgresStore(pool)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	producer := createProjectRun(t, ctx, runs, "surface-producer", project.ProjectID)
-	service := projectsitemap.NewService(pool)
+	service := projectsitemap.NewService(pool, artifactpgtest.NewStorage())
 	authority := projectsitemap.Authority{
 		OwnerID: project.OwnerID, ProjectID: project.ProjectID, RunID: producer.RunID,
 		SourceID: "http-transport", Kind: "http", CanObserve: true,
@@ -61,13 +64,13 @@ func TestProducerRunDeletionPreservesProjectSitemapAndReceipt(t *testing.T) {
 	if _, err := runs.TransitionRun(ctx, producer.RunID, runstore.RunInitializing, runstore.RunFailed, runstore.Reason{Code: "fixture_failed"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := rundeletion.New(pool).DeleteReleasedTerminalRun(ctx, project.OwnerID, producer.RunID); err != nil {
+	if err := rundeletion.New(pool, artifactpgtest.NewStorage()).DeleteReleasedTerminalRun(ctx, project.OwnerID, producer.RunID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := runs.GetRun(ctx, producer.RunID); !errors.Is(err, runstore.ErrNotFound) {
 		t.Fatalf("producer still exists: %v", err)
 	}
-	projectArtifacts, err := artifacts.NewService(artifactpostgres.NewRepository(pool)).Project(project.ProjectID)
+	projectArtifacts, err := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool)).Project(project.ProjectID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,8 +97,8 @@ func TestProjectDeletionCancelsDrainsPurgesAndRetainsSharedResources(t *testing.
 	defer cancel()
 	pool := isolatedPool(t, ctx)
 	projects := projectstore.NewPostgresStore(pool)
-	runs := runstore.NewPostgresStore(pool)
-	artifactService := artifacts.NewService(artifactpostgres.NewRepository(pool))
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
+	artifactService := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
 
 	project, _, err := projects.Create(ctx, projectstore.CreateParams{
 		ProjectID: "project-delete", OwnerID: "user-1", Kind: projectstore.KindProject,
@@ -198,7 +201,7 @@ INSERT INTO stage_allocations (
 	}
 
 	completed := createProjectRun(t, ctx, runs, "run-completed", projectID)
-	if _, err := projectsitemap.NewService(pool).Mutate(ctx, projectsitemap.Authority{
+	if _, err := projectsitemap.NewService(pool, artifactpgtest.NewStorage()).Mutate(ctx, projectsitemap.Authority{
 		OwnerID: project.OwnerID, ProjectID: projectID, RunID: active.RunID, SourceID: "http-transport", Kind: "http", CanObserve: true,
 	}, "collect-surface", projectsitemap.Mutation{Operation: "observe", Observations: []projectsitemap.Observation{{URL: "https://example.test/surface", Method: "GET", Outcome: "response", Status: 200, At: "2026-10-26T00:00:00Z"}}}); err != nil {
 		t.Fatal(err)
@@ -218,7 +221,7 @@ INSERT INTO stage_allocations (
 	}); err != nil {
 		t.Fatal(err)
 	}
-	audits := auditstoretest.NewStore(pool).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch)
+	audits := auditstoretest.NewStore(pool, artifactpgtest.NewStorage()).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch)
 	audit, _, err := audits.CreateDraft(ctx, auditstore.CreateDraftParams{
 		AuditID: "audit-project-delete", OwnerID: project.OwnerID, ProjectID: project.ProjectID,
 		Profile: auditstore.ProfileIdentity{
@@ -409,7 +412,7 @@ func TestProjectDeletionWaitsForLockedAuditBeforeDraining(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			audits := auditstoretest.NewStore(pool).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch)
+			audits := auditstoretest.NewStore(pool, artifactpgtest.NewStorage()).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch)
 			audit, _, err := audits.CreateDraft(ctx, auditstore.CreateDraftParams{
 				AuditID: "locked-audit", OwnerID: project.OwnerID, ProjectID: project.ProjectID,
 				Profile: auditstore.ProfileIdentity{
@@ -431,7 +434,7 @@ func TestProjectDeletionWaitsForLockedAuditBeforeDraining(t *testing.T) {
 			}); err != nil {
 				t.Fatal(err)
 			}
-			runs := runstore.NewPostgresStore(pool)
+			runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 			controller := newTestController(t, pool, runs, &recordingNotifier{}, "locked")
 			if phase == projectstore.DeletionDraining {
 				// Reproduce the durable state left by an older controller that
@@ -515,7 +518,7 @@ func TestProjectDeletionPurgesRetainedProjectFindingHistory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	audits := auditstoretest.NewStore(pool).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch)
+	audits := auditstoretest.NewStore(pool, artifactpgtest.NewStorage()).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch)
 	audit, _, err := audits.CreateDraft(ctx, auditstore.CreateDraftParams{
 		AuditID: "decided-audit", OwnerID: project.OwnerID, ProjectID: project.ProjectID,
 		Profile: auditstore.ProfileIdentity{
@@ -545,7 +548,7 @@ func TestProjectDeletionPurgesRetainedProjectFindingHistory(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	controller := newTestController(t, pool, runstore.NewPostgresStore(pool), &recordingNotifier{}, "decided")
+	controller := newTestController(t, pool, runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()), &recordingNotifier{}, "decided")
 	if worked, err := controller.RunOnce(ctx); err != nil || !worked {
 		t.Fatalf("request Project-owned Audit deletion = (%t, %v)", worked, err)
 	}
@@ -592,7 +595,7 @@ func seedDecidedAuditHistory(t *testing.T, ctx context.Context, pool *pgxpool.Po
 	first := seedProjectFindingForDeletion(t, ctx, pool, audit.ProjectID, audit.OwnerID, audit.AuditID, "decided", doc, fp, anchors)
 	doc.ClientKey = "candidate-duplicate"
 	second := seedProjectFindingForDeletion(t, ctx, pool, audit.ProjectID, audit.OwnerID, audit.AuditID, "duplicate", doc, fp, anchors)
-	store := artifacts.NewService(artifactpostgres.NewRepository(pool))
+	store := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
 	write := func(name string) auditstore.ExactArtifact {
 		payload := []byte(name)
 		file, err := artifactstest.WriteAuditArtifact(ctx, store, audit.ProjectID, contracts.ArtifactRef{Namespace: artifactpolicy.FindingMaterialsNamespace, Name: name}, artifacts.Payload{MediaType: "text/plain", Data: payload})
@@ -604,13 +607,13 @@ func seedDecidedAuditHistory(t *testing.T, ctx context.Context, pool *pgxpool.Po
 	result, contract := write("retained-result"), write("retained-contract")
 	err := persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		high := auditstore.SeverityHigh
-		if _, err := ownerstore.NewTx(tx).AssessProjectFinding(ctx, auditstore.ProjectFindingEdit{OwnerID: audit.OwnerID, ProjectID: audit.ProjectID, FindingID: first, ExpectedRevision: 1, Verdict: auditstore.VerdictTruePositive, Severity: &high, Rationale: "Confirmed before deletion."}); err != nil {
+		if _, err := ownerstore.NewTx(tx, artifactpgtest.NewStorage()).AssessProjectFinding(ctx, auditstore.ProjectFindingEdit{OwnerID: audit.OwnerID, ProjectID: audit.ProjectID, FindingID: first, ExpectedRevision: 1, Verdict: auditstore.VerdictTruePositive, Severity: &high, Rationale: "Confirmed before deletion."}); err != nil {
 			return err
 		}
-		if _, err := ownerstore.NewTx(tx).AssessProjectFinding(ctx, auditstore.ProjectFindingEdit{OwnerID: audit.OwnerID, ProjectID: audit.ProjectID, FindingID: second, ExpectedRevision: 1, Verdict: auditstore.VerdictDuplicate, DuplicateTargetID: &first, Rationale: "Same problem; preserve independent source."}); err != nil {
+		if _, err := ownerstore.NewTx(tx, artifactpgtest.NewStorage()).AssessProjectFinding(ctx, auditstore.ProjectFindingEdit{OwnerID: audit.OwnerID, ProjectID: audit.ProjectID, FindingID: second, ExpectedRevision: 1, Verdict: auditstore.VerdictDuplicate, DuplicateTargetID: &first, Rationale: "Same problem; preserve independent source."}); err != nil {
 			return err
 		}
-		return hookstore.NewFindingEventsTx(tx).CommitDirectFindingAssessment(ctx, auditstore.DirectFindingAssessment{ProjectID: audit.ProjectID, AuditID: audit.AuditID, ReceiptID: "receipt-decided", AssessmentID: "direct-decided", SemanticAssessment: "supported", Result: auditstore.ArtifactLink{Scope: "project", LogicalKey: "direct/result", Artifact: result, SourceProvenance: json.RawMessage(`{}`), DisplayRef: "Exact result"}, Contract: auditstore.ArtifactLink{Scope: "project", LogicalKey: "direct/contract", Artifact: contract, SourceProvenance: json.RawMessage(`{}`), DisplayRef: "Exact contract"}, RetainedBytes: result.SizeBytes + contract.SizeBytes})
+		return hookstore.NewFindingEventsTx(tx, artifactpgtest.NewStorage()).CommitDirectFindingAssessment(ctx, auditstore.DirectFindingAssessment{ProjectID: audit.ProjectID, AuditID: audit.AuditID, ReceiptID: "receipt-decided", AssessmentID: "direct-decided", SemanticAssessment: "supported", Result: auditstore.ArtifactLink{Scope: "project", LogicalKey: "direct/result", Artifact: result, SourceProvenance: json.RawMessage(`{}`), DisplayRef: "Exact result"}, Contract: auditstore.ArtifactLink{Scope: "project", LogicalKey: "direct/contract", Artifact: contract, SourceProvenance: json.RawMessage(`{}`), DisplayRef: "Exact contract"}, RetainedBytes: result.SizeBytes + contract.SizeBytes})
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -628,7 +631,7 @@ func seedProjectFindingForDeletion(
 	retainedEvidence := make([]findingintake.ExactArtifact, 0, len(document.EvidenceIDs))
 	for _, id := range document.EvidenceIDs {
 		body := []byte("Retained evidence " + suffix + " " + id)
-		file, err := artifactstest.WriteAuditArtifact(ctx, artifacts.NewService(artifactpostgres.NewRepository(pool)), projectID, contracts.ArtifactRef{Namespace: artifactpolicy.FindingMaterialsNamespace, Name: suffix + "-" + id}, artifacts.Payload{MediaType: "text/plain", Data: body})
+		file, err := artifactstest.WriteAuditArtifact(ctx, artifacts.NewService(artifactpgtest.NewStorage().Repository(pool)), projectID, contracts.ArtifactRef{Namespace: artifactpolicy.FindingMaterialsNamespace, Name: suffix + "-" + id}, artifacts.Payload{MediaType: "text/plain", Data: body})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -644,7 +647,7 @@ func seedProjectFindingForDeletion(
 		t.Fatal(err)
 	}
 	namespace := artifactpolicy.FindingMaterialsNamespace
-	written, err := artifactstest.WriteAuditArtifact(ctx, artifacts.NewService(artifactpostgres.NewRepository(pool)), projectID,
+	written, err := artifactstest.WriteAuditArtifact(ctx, artifacts.NewService(artifactpgtest.NewStorage().Repository(pool)), projectID,
 		contracts.ArtifactRef{Namespace: namespace, Name: "candidate-" + suffix},
 		artifacts.Payload{MediaType: "application/json", Data: payload})
 	if err != nil {
@@ -693,7 +696,7 @@ INSERT INTO finding_proposal_receipts (
 	}
 	var findingID string
 	err = persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		events := hookstore.NewFindingEventsTx(tx)
+		events := hookstore.NewFindingEventsTx(tx, artifactpgtest.NewStorage())
 		var err error
 		findingID, err = events.AdmitProjectFinding(ctx, projectID, receiptID, "finding-"+suffix)
 		if err != nil {
@@ -768,7 +771,7 @@ func projectAwaitingRunPurge(t *testing.T, ctx context.Context) (*pgxpool.Pool, 
 	t.Helper()
 	pool := isolatedPool(t, ctx)
 	projects := projectstore.NewPostgresStore(pool)
-	runs := runstore.NewPostgresStore(pool)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	project, _, err := projects.Create(ctx, projectstore.CreateParams{
 		ProjectID: "project-purge-budget", OwnerID: "user-1", Kind: projectstore.KindProject,
 		Name: "Purge budget", IdempotencyKey: "create-project",
@@ -807,14 +810,14 @@ func TestProjectRunPurgeHasItsOwnBudgetAndClaimLease(t *testing.T) {
 	pool, runs, projectID := projectAwaitingRunPurge(t, ctx)
 	operationTimeout, purgeTimeout, claimDuration := 500*time.Millisecond, 10*time.Second, time.Minute
 	var lease time.Duration
-	slow := &delayedPurgeRuns{Deleter: rundeletion.New(pool), delay: 3 * operationTimeout, onDelete: func(ctx context.Context) {
+	slow := &delayedPurgeRuns{Deleter: rundeletion.New(pool, artifactpgtest.NewStorage()), delay: 3 * operationTimeout, onDelete: func(ctx context.Context) {
 		if err := pool.QueryRow(ctx, `
 SELECT deletion_claim_expires_at - deletion_claimed_at FROM projects WHERE project_id = $1`,
 			projectID).Scan(&lease); err != nil {
 			t.Error(err)
 		}
 	}}
-	controller, err := New(pool, runs, slow, &recordingNotifier{}, Options{
+	controller, err := New(pool, runs, slow, &recordingNotifier{}, Options{Storage: artifactpgtest.NewStorage(),
 		PollInterval: time.Millisecond, ClaimDuration: claimDuration,
 		OperationTimeout: operationTimeout, PurgeTimeout: purgeTimeout,
 	})
@@ -838,8 +841,8 @@ func TestProjectDeletionDefersClaimAfterPhaseBudgetExpires(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	pool, runs, projectID := projectAwaitingRunPurge(t, ctx)
-	blocked := &delayedPurgeRuns{Deleter: rundeletion.New(pool), delay: -1}
-	controller, err := New(pool, runs, blocked, &recordingNotifier{}, Options{
+	blocked := &delayedPurgeRuns{Deleter: rundeletion.New(pool, artifactpgtest.NewStorage()), delay: -1}
+	controller, err := New(pool, runs, blocked, &recordingNotifier{}, Options{Storage: artifactpgtest.NewStorage(),
 		PollInterval: time.Second, ClaimDuration: time.Hour,
 		OperationTimeout: time.Second, PurgeTimeout: 300 * time.Millisecond,
 	})
@@ -896,10 +899,15 @@ func newTestController(
 	runs *runstore.PostgresStore,
 	notifier *recordingNotifier,
 	id string,
+	storageOptions ...*artifactpostgres.Storage,
 ) *Controller {
 	t.Helper()
+	storage := artifactpgtest.NewStorage()
+	if len(storageOptions) > 0 {
+		storage = storageOptions[0]
+	}
 	sequence := 0
-	controller, err := New(pool, runs, rundeletion.New(pool), notifier, Options{
+	controller, err := New(pool, runs, rundeletion.New(pool, storage), notifier, Options{Storage: storage,
 		PollInterval: time.Millisecond, ClaimDuration: time.Minute,
 		OperationTimeout: 5 * time.Second,
 		NewID: func(prefix string) (string, error) {

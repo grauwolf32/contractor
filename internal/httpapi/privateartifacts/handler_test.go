@@ -18,6 +18,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/httpapi/artifacttransfer"
+
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	artifactpolicy "github.com/grauwolf32/contractor/internal/artifacts/policy"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
@@ -290,7 +294,7 @@ func TestFindingReceiptReplaySurvivesFenceButNewSubmissionDoesNot(t *testing.T) 
 	repository := newMemoryRepository()
 	registry := &fakeRegistry{grant: testGrant("run-a")}
 	findings := &fakeFindingIntake{}
-	handler, err := NewHandler(Dependencies{
+	handler, err := NewHandler(Dependencies{Transfers: artifactpgtest.NewStorage(),
 		Registry: registry, Artifacts: artifacts.NewService(repository), Findings: findings,
 		NewRequestID: func() (string, error) { return "artifact-request-fixed", nil },
 	})
@@ -542,9 +546,13 @@ func (r *countingReader) Read(target []byte) (int, error) {
 	return n, nil
 }
 
-func newTestHandler(t *testing.T, registry *fakeRegistry, repository *memoryRepository) http.Handler {
+func newTestHandler(t *testing.T, registry *fakeRegistry, repository *memoryRepository, transfers ...artifacttransfer.Admission) http.Handler {
 	t.Helper()
-	handler, err := NewHandler(Dependencies{
+	admission := artifacttransfer.Admission(artifactpgtest.NewRuntime())
+	if len(transfers) > 0 {
+		admission = transfers[0]
+	}
+	handler, err := NewHandler(Dependencies{Transfers: admission,
 		Registry: registry, Artifacts: artifacts.NewService(repository),
 		NewRequestID: func() (string, error) { return "artifact-request-fixed", nil },
 	})
@@ -691,7 +699,7 @@ func newProductionGrantHandler(
 	if err != nil || len(reservations) != 1 {
 		t.Fatalf("production reservation = (%+v, %v)", reservations, err)
 	}
-	handler, err := NewHandler(Dependencies{
+	handler, err := NewHandler(Dependencies{Transfers: artifactpgtest.NewStorage(),
 		Registry: registry, Artifacts: artifacts.NewService(repository),
 		NewRequestID: func() (string, error) { return "artifact-request-fixed", nil },
 	})

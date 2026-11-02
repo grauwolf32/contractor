@@ -42,7 +42,7 @@ func reviewRubric(ctx context.Context, st *evalstore.Store, e evalstore.Experime
 func (s *Service) Review(ctx context.Context, owner, id, member, resultDigest string) (ReviewContext, error) {
 	out := ReviewContext{MemberID: member, Checks: []evaldomain.PrivateCheck{}, Evidence: []evaldomain.Evidence{}, Gaps: []string{}}
 	err := pg.InTx(ctx, s.pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
-		st := evalstore.NewTxStore(tx)
+		st := evalstore.NewTxStore(tx, s.storage)
 		e, err := st.Get(ctx, owner, id)
 		if err != nil {
 			return err

@@ -9,7 +9,6 @@ import (
 	"io"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
@@ -53,7 +52,7 @@ func (s *Service) prepareAnchors(ctx context.Context, grant controlplane.Allocat
 	if !pinned {
 		return absent("asset_unavailable"), nil
 	}
-	store, err := artifacts.NewService(artifactpostgres.NewRepository(s.pool)).Run(grant.RunID)
+	store, err := artifacts.NewService(s.storage.Repository(s.pool)).Run(grant.RunID)
 	if err != nil {
 		return absent("asset_unavailable"), err
 	}

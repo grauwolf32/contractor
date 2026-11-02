@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -27,7 +29,7 @@ func TestPostgresRejectedSessionWritesAreNotRetryable(t *testing.T) {
 		ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
 		defer cancel()
 		pool := isolatedPlannerPool(t, ctx)
-		store := runstore.NewPostgresStore(pool)
+		store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 		createPlannerStage(t, ctx, store)
 		service := newRejectionService(t, store)
 		if err := lowerPlannerStateBound(ctx, pool, 2); err != nil {
@@ -49,7 +51,7 @@ func TestPostgresRejectedSessionWritesAreNotRetryable(t *testing.T) {
 		ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
 		defer cancel()
 		pool := isolatedPlannerPool(t, ctx)
-		store := runstore.NewPostgresStore(pool)
+		store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 		createPlannerStage(t, ctx, store)
 		service := newRejectionService(t, store)
 		start, err := planner.StartSession(ctx, service, &recordingSpans{}, "stage-planner")
@@ -84,7 +86,7 @@ func TestPostgresRejectedSessionWritesAreNotRetryable(t *testing.T) {
 		ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
 		defer cancel()
 		pool := isolatedPlannerPool(t, ctx)
-		store := runstore.NewPostgresStore(pool)
+		store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 		createPlannerStage(t, ctx, store)
 		service := newRejectionService(t, store)
 		// The Worker runs after the request is recorded; it lowers the bound

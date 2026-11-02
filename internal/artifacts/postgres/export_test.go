@@ -1,6 +1,10 @@
 package postgres
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+)
 
 // ListProjectMetadataSQL lets external tests explain the generic Project
 // listing query.
@@ -25,3 +29,6 @@ func SetPurgeBatchSize(t testing.TB, size int) {
 func NewTestHistoryPolicy(maxRevisions, maxBytes int64) HistoryPolicy {
 	return HistoryPolicy{maxRevisions: maxRevisions, maxBytes: maxBytes}
 }
+
+// RuntimeForTest lets external registry tests recompose a process policy with the same physical adapter.
+func RuntimeForTest(s *Storage) *blob.Runtime { return s.runtime }

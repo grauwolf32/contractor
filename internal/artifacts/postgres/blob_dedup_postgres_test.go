@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	. "github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob/backends/filesystem"
@@ -21,6 +23,10 @@ import (
 )
 
 func TestFilesystemDedupRepairsMissingContent(t *testing.T) {
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
@@ -30,8 +36,9 @@ func TestFilesystemDedupRepairsMissingContent(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer files.Close()
-	ctx = blob.WithRuntime(ctx, blob.NewRuntime(files, nil))
-	store, _ := NewService(artifactpostgres.NewRepository(pool)).User("user-1")
+	artifactRuntime = blob.NewRuntime(files, nil)
+	artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+	store, _ := NewService(artifactStorage.Repository(pool)).User("user-1")
 	payload := Payload{MediaType: "text/plain", Data: []byte("deduplicated payload")}
 	first, err := store.Write(ctx, ArtifactRef{Namespace: "docs", Name: "first"}, payload, nil)
 	if err != nil {
@@ -72,6 +79,7 @@ func TestFilesystemDedupRepairsMissingContent(t *testing.T) {
 }
 
 type dedupFixture struct {
+	storage *artifactpostgres.Storage
 	ctx     context.Context
 	pool    *pgxpool.Pool
 	path    string
@@ -83,6 +91,10 @@ type dedupFixture struct {
 }
 
 func newDedupFixture(t *testing.T) dedupFixture {
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	t.Cleanup(cancel)
@@ -93,8 +105,9 @@ func newDedupFixture(t *testing.T) dedupFixture {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = files.Close() })
-	ctx = blob.WithRuntime(ctx, blob.NewRuntime(files, nil))
-	store, _ := NewService(artifactpostgres.NewRepository(pool)).User("user-1")
+	artifactRuntime = blob.NewRuntime(files, nil)
+	artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+	store, _ := NewService(artifactStorage.Repository(pool)).User("user-1")
 	payload := Payload{MediaType: "text/plain", Data: []byte("deduplicated payload")}
 	first, err := store.Write(ctx, ArtifactRef{Namespace: "docs", Name: "first"}, payload, nil)
 	if err != nil {
@@ -104,7 +117,7 @@ func newDedupFixture(t *testing.T) dedupFixture {
 	if err := pool.QueryRow(ctx, `SELECT object_key FROM artifact_blobs`).Scan(&key); err != nil {
 		t.Fatal(err)
 	}
-	return dedupFixture{ctx, pool, path, files, store, payload, first, key}
+	return dedupFixture{artifactStorage, ctx, pool, path, files, store, payload, first, key}
 }
 
 func TestFilesystemDedupHealthyKeyIsReused(t *testing.T) {
@@ -158,12 +171,12 @@ func TestFilesystemDedupAuditWriteRepairsMissingContent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	written, err := artifactpostgres.NewRepository(f.pool).CreateFrozen(f.ctx, mustProjectScope(t, "dedup-audit"),
+	written, err := f.storage.Repository(f.pool).CreateFrozen(f.ctx, mustProjectScope(t, "dedup-audit"),
 		ArtifactRef{Namespace: "audit-test", Name: "repaired"}, f.payload)
 	if err != nil {
 		t.Fatal(err)
 	}
-	project, _ := NewService(artifactpostgres.NewRepository(f.pool)).Project("dedup-audit")
+	project, _ := NewService(f.storage.Repository(f.pool)).Project("dedup-audit")
 	if read, err := project.Read(f.ctx, written.Ref); err != nil || string(read.Payload.Data) != string(f.payload.Data) {
 		t.Fatalf("Audit repair: %v", err)
 	}
@@ -179,7 +192,7 @@ func TestFilesystemDedupRepairRollsBackWithCallerTransaction(t *testing.T) {
 	}
 	rollback := errors.New("rollback repair")
 	err := postgres.InTx(f.ctx, f.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		store, _ := NewService(artifactpostgres.NewRepository(tx)).User("user-1")
+		store, _ := NewService(f.storage.Repository(tx)).User("user-1")
 		written, err := store.Write(f.ctx, ArtifactRef{Namespace: "docs", Name: "rolled-back"}, f.payload, nil)
 		if err != nil {
 			return err
@@ -224,7 +237,7 @@ func TestFilesystemDedupCorruptionDoesNotPublishOrOverwrite(t *testing.T) {
 func TestFilesystemDedupMissingPreparedCandidateIsNotPublished(t *testing.T) {
 	f := newDedupFixture(t)
 	payload := Payload{MediaType: "text/plain", Data: []byte("prepared candidate")}
-	prepared, err := artifactpostgres.PreparePayload(f.ctx, f.pool, payload)
+	prepared, err := f.storage.PreparePayload(f.ctx, f.pool, payload)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -265,21 +278,27 @@ func (s *recordingBlobRead) Read(ctx context.Context, object blob.Object) ([]byt
 }
 
 func TestFilesystemDedupReadsOnlyTheExistingObject(t *testing.T) {
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
 	f := newDedupFixture(t)
 	recording := &recordingBlobRead{Storage: f.files}
-	ctx := blob.WithRuntime(f.ctx, blob.NewRuntime(recording, nil))
+	ctx := f.ctx
+	artifactRuntime = blob.NewRuntime(recording, nil)
+	artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
 	unique := Payload{MediaType: "text/plain", Data: []byte("unique payload")}
-	if _, err := f.store.Write(ctx, ArtifactRef{Namespace: "docs", Name: "unique"}, unique, nil); err != nil {
+	if _, err := routingUser(t, artifactStorage, f.pool, "user-1").Write(ctx, ArtifactRef{Namespace: "docs", Name: "unique"}, unique, nil); err != nil {
 		t.Fatal(err)
 	}
 	if len(recording.reads) != 0 {
 		t.Fatalf("write without a deduplication match read %v", recording.reads)
 	}
-	prepared, err := artifactpostgres.PreparePayload(ctx, f.pool, f.payload)
+	prepared, err := artifactStorage.PreparePayload(ctx, f.pool, f.payload)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.store.Write(ctx, ArtifactRef{Namespace: "docs", Name: "second"}, prepared, nil); err != nil {
+	if _, err := routingUser(t, artifactStorage, f.pool, "user-1").Write(ctx, ArtifactRef{Namespace: "docs", Name: "second"}, prepared, nil); err != nil {
 		t.Fatal(err)
 	}
 	if len(recording.reads) != 1 || recording.reads[0] != f.key {
@@ -289,7 +308,7 @@ func TestFilesystemDedupReadsOnlyTheExistingObject(t *testing.T) {
 
 func TestFilesystemDedupRejectsTruncatedPreparedCandidate(t *testing.T) {
 	f := newDedupFixture(t)
-	prepared, err := artifactpostgres.PreparePayload(f.ctx, f.pool, Payload{MediaType: "text/plain", Data: []byte("prepared candidate")})
+	prepared, err := f.storage.PreparePayload(f.ctx, f.pool, Payload{MediaType: "text/plain", Data: []byte("prepared candidate")})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -329,12 +348,18 @@ func (s pausedBlobRead) Read(ctx context.Context, object blob.Object) ([]byte, e
 }
 
 func TestFilesystemDedupChangedKeyCannotBeReusedWithoutVerification(t *testing.T) {
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
 	f := newDedupFixture(t)
 	paused := pausedBlobRead{Storage: f.files, key: f.key, entered: make(chan struct{}, 1), resume: make(chan struct{})}
-	ctx := blob.WithRuntime(f.ctx, blob.NewRuntime(paused, nil))
+	ctx := f.ctx
+	artifactRuntime = blob.NewRuntime(paused, nil)
+	artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
 	finished := make(chan error, 1)
 	go func() {
-		_, err := f.store.Write(ctx, ArtifactRef{Namespace: "docs", Name: "delayed"}, f.payload, nil)
+		_, err := routingUser(t, artifactStorage, f.pool, "user-1").Write(ctx, ArtifactRef{Namespace: "docs", Name: "delayed"}, f.payload, nil)
 		finished <- err
 	}()
 	defer func() {
@@ -377,12 +402,18 @@ func TestFilesystemDedupChangedKeyCannotBeReusedWithoutVerification(t *testing.T
 }
 
 func TestFilesystemDedupConcurrentMissingContentRepairsRemainReadable(t *testing.T) {
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
 	f := newDedupFixture(t)
 	if err := os.Remove(filepath.Join(f.path, f.key)); err != nil {
 		t.Fatal(err)
 	}
 	paused := pausedBlobRead{Storage: f.files, key: f.key, entered: make(chan struct{}, 2), resume: make(chan struct{})}
-	ctx := blob.WithRuntime(f.ctx, blob.NewRuntime(paused, nil))
+	ctx := f.ctx
+	artifactRuntime = blob.NewRuntime(paused, nil)
+	artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
 	var release sync.Once
 	var writers sync.WaitGroup
 	finished := make(chan error, 2)
@@ -391,7 +422,7 @@ func TestFilesystemDedupConcurrentMissingContentRepairsRemainReadable(t *testing
 		writers.Add(1)
 		go func() {
 			defer writers.Done()
-			_, err := f.store.Write(ctx, ArtifactRef{Namespace: "docs", Name: name}, f.payload, nil)
+			_, err := routingUser(t, artifactStorage, f.pool, "user-1").Write(ctx, ArtifactRef{Namespace: "docs", Name: name}, f.payload, nil)
 			finished <- err
 		}()
 	}
@@ -435,7 +466,7 @@ func TestFilesystemDedupLostRepairAcknowledgementKeepsCommittedCandidate(t *test
 	if err := os.Remove(filepath.Join(f.path, f.key)); err != nil {
 		t.Fatal(err)
 	}
-	store, _ := NewService(artifactpostgres.NewRepository(lostRepairAcknowledgementDB{DBTX: f.pool})).User("user-1")
+	store, _ := NewService(f.storage.Repository(lostRepairAcknowledgementDB{DBTX: f.pool})).User("user-1")
 	target := ArtifactRef{Namespace: "docs", Name: "committed-repair"}
 	if _, err := store.Write(f.ctx, target, f.payload, nil); !errors.Is(err, errLostAcknowledgement) {
 		t.Fatalf("lost repair ack: %v", err)

@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/credentials"
@@ -93,7 +95,7 @@ func TestSharedPostgresEvalRuntimeCredentialDatabaseFailureRetries(t *testing.T)
 		t.Fatal(err)
 	}
 	e = h.get(t, e.ID)
-	pending, err := evalstore.NewPostgresStore(h.pool).PendingCommands(ctx, e.OwnerID, e.ID)
+	pending, err := evalstore.NewPostgresStore(h.pool, artifactpgtest.NewStorage()).PendingCommands(ctx, e.OwnerID, e.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,7 +174,7 @@ func TestSharedPostgresEvalPinnedLLMCredentialFailureClassification(t *testing.T
 				t.Fatalf("lost lookup failure: %v", err)
 			}
 			e = h.get(t, e.ID)
-			pending, err := evalstore.NewPostgresStore(h.pool).PendingCommands(ctx, e.OwnerID, e.ID)
+			pending, err := evalstore.NewPostgresStore(h.pool, artifactpgtest.NewStorage()).PendingCommands(ctx, e.OwnerID, e.ID)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -235,7 +237,7 @@ func TestSharedPostgresEvalWorkflowCredentialLookupFailureClassification(t *test
 					t.Fatalf("lost lookup failure: %v", err)
 				}
 				e = h.get(t, e.ID)
-				pending, err := evalstore.NewPostgresStore(h.pool).PendingCommands(ctx, e.OwnerID, e.ID)
+				pending, err := evalstore.NewPostgresStore(h.pool, artifactpgtest.NewStorage()).PendingCommands(ctx, e.OwnerID, e.ID)
 				if err != nil {
 					t.Fatal(err)
 				}

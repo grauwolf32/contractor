@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -28,7 +30,7 @@ func TestAuditEventPagesReadOnlyTheirEvents(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedAuditServicePool(t, ctx, databaseURL)
-	store := auditstoretest.NewStore(pool)
+	store := auditstoretest.NewStore(pool, artifactpgtest.NewStorage())
 	if _, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{
 		ProjectID: "project-events", OwnerID: "owner-events", Kind: projectstore.KindProject,
 		Name: "Events", IdempotencyKey: "project-events", RequestDigest: serviceTestDigest("project-events"),
@@ -65,7 +67,7 @@ func TestAuditEventPagesReadOnlyTheirEvents(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer traced.Close()
-	service := &Service{pool: traced, now: time.Now}
+	service := &Service{storage: artifactpgtest.NewStorage(), pool: traced, now: time.Now}
 
 	params := auditstore.EventListParams{OwnerID: "owner-events", AuditID: "audit-events", Limit: 101}
 	read := 0

@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -261,10 +263,10 @@ func seedDecidedPurgeReviews(t *testing.T, f collectingAuditFixture, confirmedID
 			}
 		}
 		severity := auditstore.SeverityHigh
-		if _, err := NewOwnerTxStore(tx).AssessProjectFinding(f.ctx, auditstore.ProjectFindingEdit{OwnerID: f.audit.OwnerID, ProjectID: f.project.ProjectID, FindingID: confirmedID, ExpectedRevision: 1, Verdict: auditstore.VerdictTruePositive, Severity: &severity, Rationale: "Confirmed before Audit deletion."}); err != nil {
+		if _, err := NewOwnerTxStore(tx, artifactpgtest.NewStorage()).AssessProjectFinding(f.ctx, auditstore.ProjectFindingEdit{OwnerID: f.audit.OwnerID, ProjectID: f.project.ProjectID, FindingID: confirmedID, ExpectedRevision: 1, Verdict: auditstore.VerdictTruePositive, Severity: &severity, Rationale: "Confirmed before Audit deletion."}); err != nil {
 			return err
 		}
-		_, err := NewOwnerTxStore(tx).AssessProjectFinding(f.ctx, auditstore.ProjectFindingEdit{OwnerID: f.audit.OwnerID, ProjectID: f.project.ProjectID, FindingID: duplicateID, ExpectedRevision: 1, Verdict: auditstore.VerdictDuplicate, DuplicateTargetID: &confirmedID, Rationale: "Linked before Audit deletion."})
+		_, err := NewOwnerTxStore(tx, artifactpgtest.NewStorage()).AssessProjectFinding(f.ctx, auditstore.ProjectFindingEdit{OwnerID: f.audit.OwnerID, ProjectID: f.project.ProjectID, FindingID: duplicateID, ExpectedRevision: 1, Verdict: auditstore.VerdictDuplicate, DuplicateTargetID: &confirmedID, Rationale: "Linked before Audit deletion."})
 		return err
 	})
 	if err != nil {
@@ -360,7 +362,7 @@ func TestProjectFindingPurgeBoundsLargeAnalystMetadata(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := persistencepostgres.InTx(f.ctx, f.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		_, err := NewOwnerTxStore(tx).PurgeProjectFindings(f.ctx, f.project.ProjectID)
+		_, err := NewOwnerTxStore(tx, artifactpgtest.NewStorage()).PurgeProjectFindings(f.ctx, f.project.ProjectID)
 		return err
 	}); err != nil {
 		t.Fatal(err)

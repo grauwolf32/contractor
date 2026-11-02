@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/getkin/kin-openapi/routers/gorillamux"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -29,18 +31,18 @@ func TestPublicProjectFindingPagesAndDirectCanonicalEdit(t *testing.T) {
 	if _, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{ProjectID: projectID, OwnerID: owner, Kind: projectstore.KindProject, Name: "Canonical pages", IdempotencyKey: "project", RequestDigest: auditHandlerDigest("project")}); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := auditstoretest.NewStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{AuditID: auditID, OwnerID: owner, ProjectID: projectID, Profile: auditstore.ProfileIdentity{Name: "page-profile", Version: "1", Digest: auditHandlerDigest("profile")}, ProfileSnapshot: json.RawMessage(`{}`), InputSelection: json.RawMessage(`{}`), Limits: auditstore.Limits{MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: 100, MaxItemsTotal: 100, MaxSubmittedRuns: 100, MaxItemRunAttempts: 1, MaxEvidenceBytes: 1 << 20}, IdempotencyKey: "audit", RequestDigest: auditHandlerDigest("audit")}); err != nil {
+	if _, _, err := auditstoretest.NewStore(pool, artifactpgtest.NewStorage()).CreateDraft(ctx, auditstore.CreateDraftParams{AuditID: auditID, OwnerID: owner, ProjectID: projectID, Profile: auditstore.ProfileIdentity{Name: "page-profile", Version: "1", Digest: auditHandlerDigest("profile")}, ProfileSnapshot: json.RawMessage(`{}`), InputSelection: json.RawMessage(`{}`), Limits: auditstore.Limits{MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: 100, MaxItemsTotal: 100, MaxSubmittedRuns: 100, MaxItemRunAttempts: 1, MaxEvidenceBytes: 1 << 20}, IdempotencyKey: "audit", RequestDigest: auditHandlerDigest("audit")}); err != nil {
 		t.Fatal(err)
 	}
 	var service *auditservice.Service
 	fixture := newHandlerFixtureWithAuth(t, "../../config/testdata/valid", newTestAuthentication(t), mustTestOrigins(t), false, nil, func(dependencies *testServices) {
 		credentials := newFakeManagedCredentials()
 		var err error
-		service, err = auditservice.New(auditservice.Options{Pool: pool, Profiles: dependencies.Config.(*config.Manager), CredentialGuard: credentials, TransactionLLMCredentials: runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (resolved.CredentialLookup, error) { return credentials, nil })})
+		service, err = auditservice.New(auditservice.Options{Storage: artifactpgtest.NewStorage(), Pool: pool, Profiles: dependencies.Config.(*config.Manager), CredentialGuard: credentials, TransactionLLMCredentials: runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (resolved.CredentialLookup, error) { return credentials, nil })})
 		if err != nil {
 			t.Fatal(err)
 		}
-		intake, err := findingintake.New(pool)
+		intake, err := findingintake.New(pool, artifactpgtest.NewStorage())
 		if err != nil {
 			t.Fatal(err)
 		}

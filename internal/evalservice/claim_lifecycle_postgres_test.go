@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/evalcoordinator"
 	"github.com/grauwolf32/contractor/internal/evalstore"
@@ -118,7 +120,7 @@ func TestSharedPostgresCoordinatorReleasesTheClaimOfACancelledTick(t *testing.T)
 	e := h.claimableExperiment(t)
 	events := &eventLog{}
 	ticks := &heldTicks{untilCancelled: true, entered: make(chan struct{}), proceed: make(chan struct{}), events: events}
-	releases := &recordedReleases{Store: evalstore.NewPostgresStore(h.pool), events: events}
+	releases := &recordedReleases{Store: evalstore.NewPostgresStore(h.pool, artifactpgtest.NewStorage()), events: events}
 	// Only the cancellation may end the tick, never its own budget.
 	coordinator := h.heldCoordinator(t, ticks, releases, 4*time.Minute)
 	ctx, cancel := context.WithCancel(t.Context())
@@ -146,7 +148,7 @@ func TestSharedPostgresCoordinatorReleasesTheClaimOfACancelledTick(t *testing.T)
 	if holder != nil {
 		t.Fatalf("claim still held by %s after the cancelled pass", *holder)
 	}
-	next, err := evalstore.NewPostgresStore(h.pool).Claim(t.Context(), "next-coordinator", time.Minute, 1)
+	next, err := evalstore.NewPostgresStore(h.pool, artifactpgtest.NewStorage()).Claim(t.Context(), "next-coordinator", time.Minute, 1)
 	if err != nil || len(next) != 1 || next[0].ExperimentID != e.ID || next[0].Epoch != epoch+1 {
 		t.Fatalf("next lease = %+v, %v, want experiment %s at epoch %d", next, err, e.ID, epoch+1)
 	}
@@ -161,7 +163,7 @@ func TestSharedPostgresCoordinatorPassToleratesAClaimTakenOverDuringItsTick(t *t
 	e := h.claimableExperiment(t)
 	events := &eventLog{}
 	ticks := &heldTicks{entered: make(chan struct{}), proceed: make(chan struct{}), events: events}
-	releases := &recordedReleases{Store: evalstore.NewPostgresStore(h.pool), events: events}
+	releases := &recordedReleases{Store: evalstore.NewPostgresStore(h.pool, artifactpgtest.NewStorage()), events: events}
 	coordinator := h.heldCoordinator(t, ticks, releases, time.Minute)
 	done := make(chan error, 1)
 	go func() {
@@ -173,7 +175,7 @@ func TestSharedPostgresCoordinatorPassToleratesAClaimTakenOverDuringItsTick(t *t
 UPDATE eval_controller_claims SET expires_at = clock_timestamp() WHERE experiment_id = $1`, e.ID); err != nil {
 		t.Fatal(err)
 	}
-	rival, err := evalstore.NewPostgresStore(h.pool).Claim(t.Context(), "rival-coordinator", time.Minute, 1)
+	rival, err := evalstore.NewPostgresStore(h.pool, artifactpgtest.NewStorage()).Claim(t.Context(), "rival-coordinator", time.Minute, 1)
 	if err != nil || len(rival) != 1 || rival[0].ExperimentID != e.ID {
 		t.Fatalf("rival lease = %+v, %v", rival, err)
 	}
@@ -320,7 +322,7 @@ SELECT count(*) FROM eval_submissions WHERE experiment_id = $1 AND state = 'acce
 		if _, err = lock.Exec(t.Context(), `SELECT 1 FROM workflow_runs WHERE run_id = $1 FOR UPDATE`, runID); err != nil {
 			t.Fatal(err)
 		}
-		interrupted, err := evalcoordinator.New(evalstore.NewPostgresStore(h.pool), h.service, evalcoordinator.Options{
+		interrupted, err := evalcoordinator.New(evalstore.NewPostgresStore(h.pool, artifactpgtest.NewStorage()), h.service, evalcoordinator.Options{
 			HolderID: "interrupted", Lease: 5 * time.Second, OperationTimeout: time.Second,
 		})
 		if err != nil {
@@ -339,7 +341,7 @@ SELECT count(*) FROM eval_submissions WHERE experiment_id = $1 AND state = 'acce
 			state, _, _ := h.suboperation(t, e.ID, "cancel")
 			return state == "succeeded"
 		})
-		run, err := runstore.NewPostgresStore(h.pool).GetRun(t.Context(), runID)
+		run, err := runstore.NewPostgresStore(h.pool, artifactpgtest.NewStorage()).GetRun(t.Context(), runID)
 		if err != nil {
 			t.Fatal(err)
 		}

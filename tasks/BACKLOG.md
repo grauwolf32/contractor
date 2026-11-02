@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-87 open tasks: 18 in progress, 56 pending, 13 deferred. 1367 finished: 1349 completed, 18 archived.
+88 open tasks: 20 in progress, 55 pending, 13 deferred. 1367 finished: 1349 completed, 18 archived.
 
 ## In progress
 
@@ -23,7 +23,9 @@ the epics are in [epics.yml](epics.yml).
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Enable shared Planner compaction and reuse native YAML in shipped Workflows |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
 | [V435-001](v435-001-server-owned-agent-labels.yml) | runtime-config | defect | P1 | Remove Runtime startup label assignments and keep agent infrastructure settings Server-owned |
+| [V437-005](v437-005-inject-artifact-storage-dependencies.yml) | projects-artifacts | chore | P2 | Inject Artifact storage dependencies explicitly |
 | [V437-006](v437-006-group-artifact-policy-and-preview.yml) | projects-artifacts | chore | P3 | Group shared Artifact policy and previews under artifacts |
+| [V437-007](v437-007-name-scheduler-fixture-sqlstate.yml) | execution-core | chore | P3 | Name the Scheduler discard fixture SQL condition |
 | [V439-002](v439-002-simplify-http-adapters.yml) | api-contracts | chore | P2 | Simplify HTTP error handling and route options |
 | [V439-003](v439-003-simplify-label-json-reader.yml) | api-contracts | defect | P2 | Reuse strict JSON validation for public metadata labels |
 | [V439-004](v439-004-move-project-and-repeat-orchestration.yml) | projects-artifacts | chore | P2 | Move Project editing and Run repeat orchestration to their owners |
@@ -81,12 +83,6 @@ the epics are in [epics.yml](epics.yml).
 | [V411-015](v411-015-http-pentest-workflow-presets.yml) | feature | P1 | V64-002, V411-007, V411-019 | Demonstrate an ordinary HTTP Workflow on the lean Audit path |
 | [V412-003](v412-003-browser-pentest-profiles-and-gate.yml) | feature | P2 | V412-001, V410-009, V411-020 | Compose optional browser investigation with truthful availability and results |
 | [V425-043](v425-043-resolve-historical-run-model-policy-snapshots.yml) | defect | P2 | — | Resolve historical Run snapshots after Workflow-owned model selection |
-
-### Projects, artifacts and lifecycle controls (`projects-artifacts`)
-
-| Task | Kind | Priority | Waiting for | Title |
-| --- | --- | --- | --- | --- |
-| [V437-005](v437-005-inject-artifact-storage-dependencies.yml) | chore | P2 | — | Inject Artifact storage dependencies explicitly |
 
 ### Audits (`audits`)
 
@@ -188,7 +184,7 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 2 | 47 | 64 | 30 | 93 |
+| Run execution core (`execution-core`) | 3 | 47 | 64 | 31 | 94 |
 | Planners and the Worker model boundary (`planner-worker`) | 9 | 35 | 49 | 30 | 75 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 10 | 26 | 14 | 5 | 45 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 3 | 14 |

@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/controlplane"
@@ -22,7 +24,7 @@ func TestPostgresSchedulerSupervisorRunsSeparatePools(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedSchedulerPool(t, ctx)
-	postgresStore := runstore.NewPostgresStore(pool)
+	postgresStore := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	snapshot, _, err := configload.LoadUnionReadOnly("../../testdata/configs-scan", filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatal(err)

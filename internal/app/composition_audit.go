@@ -41,8 +41,9 @@ func configureAudits(
 	catalogs catalogServices,
 	workflows workflowServices,
 	logger *slog.Logger,
+	storage *artifactpostgres.Storage,
 ) (auditServices, error) {
-	auditService, err := auditservice.New(auditservice.Options{
+	auditService, err := auditservice.New(auditservice.Options{Storage: storage,
 		Pool: pool, Profiles: configurationManager,
 		TransactionLLMCredentials: credentialSet.transactionLookup,
 		CredentialGuard:           credentialSet.lifecycle,
@@ -53,17 +54,17 @@ func configureAudits(
 	runCreationService, err := configureRunCreation(pool, configurationManager, runCreationCredentials{
 		provider: credentialSet.provider, guard: credentialSet.lifecycle,
 		runtime: credentialSet.runtime, transactionLookup: credentialSet.transactionLookup,
-	})
+	}, storage)
 	if err != nil {
 		return auditServices{}, err
 	}
-	auditArtifactAccess, err := auditcontroller.NewProjectArtifactAccess(catalogs.artifacts, hookstore.NewClaimedArtifacts(pool))
+	auditArtifactAccess, err := auditcontroller.NewProjectArtifactAccess(catalogs.artifacts, hookstore.NewClaimedArtifacts(pool, storage))
 	if err != nil {
 		return auditServices{}, fmt.Errorf("configure Audit Controller artifacts: %w", err)
 	}
 	// The Controller side holds the claim-bound commands and the reads of the
 	// Audit store; the owner-facing service holds neither seam's handle.
-	auditClaims, auditReads := claimstore.New(pool).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch), querystore.New(pool)
+	auditClaims, auditReads := claimstore.New(pool, storage).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch), querystore.New(pool, storage)
 	auditSubmissionBuilder, err := auditcontroller.NewPinnedSubmissionBuilder(
 		auditArtifactAccess, auditReads,
 	)
@@ -71,19 +72,19 @@ func configureAudits(
 		return auditServices{}, fmt.Errorf("configure Audit Controller submissions: %w", err)
 	}
 	auditSubmissionBuilder = auditSubmissionBuilder.WithRoundResultsStore(auditClaims)
-	auditImportArtifacts, err := auditimport.NewArtifactAccess(catalogs.artifacts, hookstore.NewClaimedArtifacts(pool))
+	auditImportArtifacts, err := auditimport.NewArtifactAccess(catalogs.artifacts, hookstore.NewClaimedArtifacts(pool, storage))
 	if err != nil {
 		return auditServices{}, fmt.Errorf("configure Audit import artifacts: %w", err)
 	}
 	auditImporter, err := auditimport.New(
-		auditClaims, auditReads, runstore.NewPostgresStore(pool), auditImportArtifacts,
+		auditClaims, auditReads, runstore.NewPostgresStore(pool, storage), auditImportArtifacts,
 		catalogs.findings,
 	)
 	if err != nil {
 		return auditServices{}, fmt.Errorf("configure Audit importer: %w", err)
 	}
 	auditController, err := auditcontroller.New(
-		auditClaims, auditReads, runstore.NewPostgresStore(pool), rundeletion.New(pool),
+		auditClaims, auditReads, runstore.NewPostgresStore(pool, storage), rundeletion.New(pool, storage),
 		runCreationService, auditSubmissionBuilder, workflows.scheduler,
 		auditcontroller.Options{
 			PollInterval:     cfg.Operations.AuditController.PollInterval,
@@ -106,13 +107,13 @@ type runCreationCredentials struct {
 	transactionLookup runtimeconfig.TransactionLLMCredentialLookupFactory
 }
 
-func configureRunCreation(pool *pgxpool.Pool, configurationManager *workflowconfig.Manager, credentialSet runCreationCredentials) (*runservice.Service, error) {
+func configureRunCreation(pool *pgxpool.Pool, configurationManager *workflowconfig.Manager, credentialSet runCreationCredentials, storage *artifactpostgres.Storage) (*runservice.Service, error) {
 	runCreationService, err := runservice.New(runservice.Options{
-		Runs: runstore.NewPostgresStore(pool), Workflows: configurationManager,
+		Runs: runstore.NewPostgresStore(pool, storage), Workflows: configurationManager,
 		LLMCredentials: credentialSet.provider, CredentialGuard: credentialSet.guard,
 		RuntimeCredentials: credentialSet.runtime, Projects: projectstore.NewPostgresStore(pool),
 		SkillInitializationAvailable: true,
-		PublicTransaction: postgresPublicUnitOfWork{
+		PublicTransaction: postgresPublicUnitOfWork{storage: storage,
 			pool: pool, transactionLLMCredentials: credentialSet.transactionLookup,
 		}.Do,
 		AuditTransaction: func(
@@ -123,9 +124,9 @@ func configureRunCreation(pool *pgxpool.Pool, configurationManager *workflowconf
 				transactionContext, pool, pgx.TxOptions{},
 				func(tx pgx.Tx) error {
 					return fn(
-						runstore.NewPostgresTxStore(tx),
-						artifacts.NewService(artifactpostgres.NewRepository(tx)),
-						claimstore.New(tx),
+						runstore.NewPostgresTxStore(tx, storage),
+						artifacts.NewService(storage.Repository(tx)),
+						claimstore.New(tx, storage),
 					)
 				},
 			)
@@ -138,6 +139,8 @@ func configureRunCreation(pool *pgxpool.Pool, configurationManager *workflowconf
 }
 
 type postgresPublicUnitOfWork struct {
+	storage *artifactpostgres.Storage
+
 	pool                      *pgxpool.Pool
 	transactionLLMCredentials runtimeconfig.TransactionLLMCredentialLookupFactory
 }
@@ -160,8 +163,8 @@ func (u postgresPublicUnitOfWork) do(ctx context.Context, fn func(pgx.Tx, runser
 			return err
 		}
 		return fn(tx,
-			runstore.NewRunCreationPostgresStore(tx, txLookup, credentials.NewRuntimeCredentialRepository(tx)),
-			artifacts.NewService(artifactpostgres.NewRepository(tx)),
+			runstore.NewRunCreationPostgresStore(tx, txLookup, credentials.NewRuntimeCredentialRepository(tx), u.storage),
+			artifacts.NewService(u.storage.Repository(tx)),
 		)
 	})
 }

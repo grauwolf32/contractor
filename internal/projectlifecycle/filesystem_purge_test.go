@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob"
@@ -30,6 +32,10 @@ import (
 // no purge leaves an orphan file or a missing reference behind. The test
 // always claims the filesystem backend, so every database pass runs it.
 func TestProjectAndAuditPurgesUnlinkOnlyUnreferencedFilesystemBlobs(t *testing.T) {
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedPool(t, ctx)
@@ -39,12 +45,13 @@ func TestProjectAndAuditPurgesUnlinkOnlyUnreferencedFilesystemBlobs(t *testing.T
 		t.Fatal(err)
 	}
 	defer files.Close()
-	ctx = blob.WithRuntime(ctx, blob.NewRuntime(files, nil))
+	artifactRuntime = blob.NewRuntime(files, nil)
+	artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
 
 	projects := projectstore.NewPostgresStore(pool)
-	runs := runstore.NewPostgresStore(pool)
-	audits := auditstoretest.NewStore(pool).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch)
-	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
+	runs := runstore.NewPostgresStore(pool, artifactStorage)
+	audits := auditstoretest.NewStore(pool, artifactStorage).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch)
+	service := artifacts.NewService(artifactStorage.Repository(pool))
 	project, _, err := projects.Create(ctx, projectstore.CreateParams{
 		ProjectID: "project-files", OwnerID: "user-1", Kind: projectstore.KindProject,
 		Name: "Filesystem purge", IdempotencyKey: "create-project-files",
@@ -143,7 +150,7 @@ SELECT object_key FROM artifact_blobs WHERE backend = 'filesystem' AND sha256 = 
 	if err != nil || !accepted || deleting.Lifecycle != projectstore.LifecycleDeleting {
 		t.Fatalf("begin deletion = (%+v, %t, %v)", deleting, accepted, err)
 	}
-	controller := newTestController(t, pool, runs, &recordingNotifier{}, "files")
+	controller := newTestController(t, pool, runs, &recordingNotifier{}, "files", artifactStorage)
 	// The controller asks the Audit to delete itself, then waits for its purge.
 	for iteration := 0; ; iteration++ {
 		worked, err := controller.RunOnce(ctx)

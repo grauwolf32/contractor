@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/rundeletion"
@@ -80,7 +82,7 @@ func (h *postgresControllerHarness) tracedController(
 	t.Cleanup(pool.Close)
 	var ids int
 	controller, err := New(
-		auditstoretest.NewStore(pool), auditstoretest.NewStore(pool), runstore.NewPostgresStore(pool), rundeletion.New(pool),
+		auditstoretest.NewStore(pool, artifactpgtest.NewStorage()), auditstoretest.NewStore(pool, artifactpgtest.NewStorage()), runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()), rundeletion.New(pool, artifactpgtest.NewStorage()),
 		h.runService, h.builder(t), &postgresNotifier{},
 		Options{
 			HolderID: holderID, ClaimLease: 5 * time.Second,

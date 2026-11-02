@@ -18,7 +18,7 @@ func (h *auditHandlers) getAuditArtifact(w http.ResponseWriter, r *http.Request)
 	if _, err := h.Audits.Get(r.Context(), principalUserID(r.Context()), r.PathValue("auditId")); err != nil {
 		return err
 	}
-	r, transfer, err := artifacttransfer.Acquire(w, r)
+	r, transfer, err := artifacttransfer.Acquire(w, r, h.Transfers)
 	if err != nil {
 		return err
 	}

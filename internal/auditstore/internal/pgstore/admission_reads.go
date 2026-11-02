@@ -29,8 +29,8 @@ type admissionReader struct {
 	cursors        map[auditstore.AdmissionCursor]bool
 }
 
-func newAdmissionReader(tx pgx.Tx, state auditstore.AdmissionProgress, owner, project string) *admissionReader {
-	return &admissionReader{QueryStore: NewQueryStore(tx), db: tx, state: state, owner: owner, project: project,
+func newAdmissionReader(tx pgx.Tx, state auditstore.AdmissionProgress, owner, project string, storage *artifactpostgres.Storage) *admissionReader {
+	return &admissionReader{QueryStore: NewQueryStore(tx, storage), db: tx, state: state, owner: owner, project: project,
 		work: &admissionWork{}, indexes: map[string]auditdomain.FindingChecksProjection{}, sources: map[string]auditstore.AdmissionFindingSource{},
 		payloads: map[string][]byte{}, contexts: map[string]auditdomain.FindingCheckContext{}, pageCache: map[int]admissionCachedPage{}, cursors: map[auditstore.AdmissionCursor]bool{state.Cursor: true}}
 }
@@ -234,7 +234,7 @@ func (r *admissionReader) ReadFindingCheck(ctx context.Context, id string, ordin
 		if err := r.work.add(0, 0, 0, source.Retained.SizeBytes); err != nil {
 			return result, err
 		}
-		store, _ := artifacts.NewService(artifactpostgres.NewRepository(r.db)).Project(r.project)
+		store, _ := artifacts.NewService(r.storage.Repository(r.db)).Project(r.project)
 		read, err := store.ReadExact(ctx, source.Retained)
 		if err != nil {
 			return result, err
@@ -282,7 +282,7 @@ func (r *admissionReader) ReadPage(ctx context.Context, ordinal int) (auditstore
 	if err := r.work.add(0, 1, int(exact.SizeBytes), 0); err != nil {
 		return exact, nil, err
 	}
-	store, _ := artifacts.NewService(artifactpostgres.NewRepository(r.db)).Project(r.project)
+	store, _ := artifacts.NewService(r.storage.Repository(r.db)).Project(r.project)
 	read, err := store.ReadExact(ctx, exact)
 	if err != nil {
 		return exact, nil, err

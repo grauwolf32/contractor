@@ -9,8 +9,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -46,11 +47,11 @@ func newProjectFindingFixture(t *testing.T) projectFindingFixture {
 		t.Fatal("qualified sources in different Audits did not use one Finding identity")
 	}
 	f.target = seedAuditFinding(t, ctx, pool, f.project, f.owner, f.first, "manual-target")
-	intake, err := findingintake.New(pool)
+	intake, err := findingintake.New(pool, artifactpgtest.NewStorage())
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.service = &Service{pool: pool, findings: intake, now: time.Now}
+	f.service = &Service{storage: artifactpgtest.NewStorage(), pool: pool, findings: intake, now: time.Now}
 	return f
 }
 func (f projectFindingFixture) edit(t *testing.T, revision uint64, key string, verdict auditstore.AnalystVerdict) ProjectFindingEditParams {
@@ -151,7 +152,7 @@ func TestProjectFindingEditsAreSharedAcrossAuditsAndReplayOriginalSnapshots(t *t
 		if err != nil || source.ProjectProposal == nil || len(source.ProjectEvidence) != 1 {
 			t.Fatalf("independent retained source: %+v %v", source, err)
 		}
-		project, _ := artifacts.NewService(artifactpostgres.NewRepository(f.pool)).Project(f.project)
+		project, _ := artifacts.NewService(artifactpgtest.NewStorage().Repository(f.pool)).Project(f.project)
 		if _, err = project.Read(f.ctx, source.ProjectEvidence[0].Ref); err != nil {
 			t.Fatal(err)
 		}
@@ -204,7 +205,7 @@ func TestProjectFindingEditUsesExistingFenceAndRejectsConcurrentStaleWrites(t *t
 		t.Fatal(err)
 	}
 	defer contender.Rollback(f.ctx)
-	if err = hookstore.NewFindingEventsTx(contender).LockFindingCorrelationFence(f.ctx, f.project); err != nil {
+	if err = hookstore.NewFindingEventsTx(contender, artifactpgtest.NewStorage()).LockFindingCorrelationFence(f.ctx, f.project); err != nil {
 		t.Fatal(err)
 	}
 	p := f.edit(t, 1, "contention", auditstore.VerdictTruePositive)

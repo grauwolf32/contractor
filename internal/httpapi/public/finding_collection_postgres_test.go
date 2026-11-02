@@ -12,9 +12,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/getkin/kin-openapi/routers/gorillamux"
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
@@ -45,9 +46,9 @@ func TestFindingCollectionHTTPPublicationAndOrdinaryRunInput(t *testing.T) {
 	if err := os.WriteFile(workflowPath, workflowBytes, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	artifactService := artifacts.NewService(artifactpostgres.NewRepository(pool))
-	runs := runstore.NewPostgresStore(pool)
-	publisher, err := findingintake.NewCollectionPublisher(pool, &auditservice.Service{})
+	artifactService := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
+	publisher, err := findingintake.NewCollectionPublisher(pool, &auditservice.Service{}, artifactpgtest.NewStorage())
 	if err != nil {
 		t.Fatal(err)
 	}

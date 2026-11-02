@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	. "github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob/backends/filesystem"
@@ -16,6 +18,10 @@ import (
 )
 
 func TestReadExactBatchPreservesScopeRevisionAndBlobIntegrity(t *testing.T) {
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
 	for _, backend := range []blob.Backend{blob.Postgres, blob.Filesystem} {
 		t.Run(string(backend), func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -29,9 +35,10 @@ func TestReadExactBatchPreservesScopeRevisionAndBlobIntegrity(t *testing.T) {
 					t.Fatal(err)
 				}
 				defer files.Close()
-				ctx = blob.WithRuntime(ctx, blob.NewRuntime(files, nil))
+				artifactRuntime = blob.NewRuntime(files, nil)
+				artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
 			}
-			repository := artifactpostgres.NewRepository(pool)
+			repository := artifactStorage.Repository(pool)
 			scope, _ := UserScope("batch-owner")
 			foreignScope, _ := UserScope("another-owner")
 			logical := ArtifactRef{Namespace: "documents", Name: "proposal"}

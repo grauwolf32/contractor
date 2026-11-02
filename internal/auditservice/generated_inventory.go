@@ -5,7 +5,6 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditbaseline"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -36,7 +35,7 @@ type GeneratedInventoryProjection struct {
 func (s *Service) generatedInventory(
 	ctx context.Context, audit auditstore.Audit, link auditstore.ArtifactLink, first auditstore.Round,
 ) (*GeneratedInventoryProjection, error) {
-	project, err := artifacts.NewService(artifactpostgres.NewRepository(s.pool)).Project(audit.ProjectID)
+	project, err := artifacts.NewService(s.storage.Repository(s.pool)).Project(audit.ProjectID)
 	if err != nil {
 		return nil, err
 	}

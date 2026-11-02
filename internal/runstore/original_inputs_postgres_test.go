@@ -5,8 +5,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -23,9 +24,9 @@ func TestPostgresDescribeOriginalInputsKeepsCreationRevisionsInCallerTransaction
 	}
 	defer pool.Close()
 	const runID = "original-inputs"
-	createTestRun(t, ctx, NewPostgresStore(pool), runID)
+	createTestRun(t, ctx, NewPostgresStore(pool, artifactpgtest.NewStorage()), runID)
 	original := storeTestRunInput(t, ctx, pool, runID, "source")
-	artifactStore, _ := artifacts.NewService(artifactpostgres.NewRepository(pool)).Run(runID)
+	artifactStore, _ := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool)).Run(runID)
 	want, err := artifactStore.Metadata(ctx, original)
 	if err != nil {
 		t.Fatal(err)
@@ -44,7 +45,7 @@ func TestPostgresDescribeOriginalInputsKeepsCreationRevisionsInCallerTransaction
 		t.Fatal(err)
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck // transaction may already be committed
-	got, err := NewPostgresStore(tx).DescribeOriginalInputs(ctx, runID, []string{"missing", "source"})
+	got, err := NewPostgresStore(tx, artifactpgtest.NewStorage()).DescribeOriginalInputs(ctx, runID, []string{"missing", "source"})
 	if err != nil || len(got) != 1 || !got[0].Ref.SameExact(original) || want.Exact().Verify(got[0]) != nil {
 		t.Fatalf("original input changed: %+v %v", got, err)
 	}

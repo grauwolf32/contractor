@@ -10,8 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -86,7 +87,7 @@ func beginSnapshotAssessment(t *testing.T, f collectingAuditFixture) {
 func publishSnapshotForTest(t *testing.T, f collectingAuditFixture, state auditstore.RoundResultsBuild) auditstore.ExactArtifact {
 	t.Helper()
 	p := snapshotStep(f)
-	service := artifacts.NewService(artifactpostgres.NewRepository(f.pool))
+	service := artifacts.NewService(artifactpgtest.NewStorage().Repository(f.pool))
 	scope, _ := artifacts.ProjectScope(f.audit.ProjectID)
 	manifest := auditdomain.RoundResultsManifest{Schema: auditdomain.RoundResultsSchema, AuditID: state.AuditID, RoundID: state.RoundID,
 		SourceGeneration: state.Generation, ItemCount: state.ItemCount, MetadataBytes: state.MetadataBytes, Pages: []auditdomain.RoundResultsPageRef{}}

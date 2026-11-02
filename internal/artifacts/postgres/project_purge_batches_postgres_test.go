@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	. "github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob/backends/filesystem"
@@ -30,7 +32,7 @@ func TestPostgresIntegrationProjectScopePurgeCommitsBoundedBatches(t *testing.T)
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
-	ctx, objects := purgeBlobContext(t, ctx, pool)
+	artifactStorage, objects := purgeBlobStorage(t, ctx, pool)
 	const batch = 4
 	artifactpostgres.SetPurgeBatchSize(t, batch)
 	const projectID = "purge-batches"
@@ -41,7 +43,7 @@ func TestPostgresIntegrationProjectScopePurgeCommitsBoundedBatches(t *testing.T)
 	}); err != nil {
 		t.Fatal(err)
 	}
-	service := NewService(artifactpostgres.NewRepository(pool))
+	service := NewService(artifactStorage.Repository(pool))
 	user, _ := service.User("user-1")
 	project, _ := service.Project(projectID)
 	shared := Payload{MediaType: "text/plain", Data: []byte("shared bytes")}
@@ -101,7 +103,7 @@ SELECT count(*) FROM artifact_binding_revisions WHERE scope_kind = 'project' AND
 		}
 		before := revisionsLeft()
 		if err := postgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-			purger, err := artifactpostgres.NewPurger(tx)
+			purger, err := artifactStorage.Purger(tx)
 			if err != nil {
 				return err
 			}
@@ -149,10 +151,10 @@ SELECT (SELECT count(*) FROM artifact_scopes WHERE scope_kind = 'project')
 
 // purgeBlobContext installs the filesystem backend when the test run selects
 // it and returns the directory of its objects, or "" for PostgreSQL payloads.
-func purgeBlobContext(t *testing.T, ctx context.Context, pool *pgxpool.Pool) (context.Context, string) {
+func purgeBlobStorage(t *testing.T, ctx context.Context, pool *pgxpool.Pool) (*artifactpostgres.Storage, string) {
 	t.Helper()
 	if os.Getenv("CONTRACTOR_TEST_ARTIFACT_BACKEND") != "filesystem" {
-		return ctx, ""
+		return artifactpgtest.NewStorage(), ""
 	}
 	path := t.TempDir()
 	files, err := filesystem.Open(ctx, path)
@@ -160,7 +162,7 @@ func purgeBlobContext(t *testing.T, ctx context.Context, pool *pgxpool.Pool) (co
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = files.Close() })
-	return blob.WithRuntime(ctx, blob.NewRuntime(files, nil)), path
+	return artifactpgtest.NewConfigured(blob.NewRuntime(files, nil), artifactpostgres.DefaultHistoryPolicy()), path
 }
 
 func blobObjectKeys(t *testing.T, ctx context.Context, pool *pgxpool.Pool, sql string) []string {

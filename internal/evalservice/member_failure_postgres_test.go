@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/evalcoordinator"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalstore"
@@ -67,7 +69,7 @@ func terminalSubmissions(t *testing.T, h *serviceHarness, id string) int {
 // publishedTerminal returns the terminal members of the current published view.
 func publishedTerminal(t *testing.T, h *serviceHarness, e evalstore.Experiment) int {
 	t.Helper()
-	view, err := evalstore.NewPostgresStore(h.pool).LatestView(t.Context(), e.OwnerID, e.ID)
+	view, err := evalstore.NewPostgresStore(h.pool, artifactpgtest.NewStorage()).LatestView(t.Context(), e.OwnerID, e.ID)
 	if err != nil {
 		t.Fatal(err)
 	}

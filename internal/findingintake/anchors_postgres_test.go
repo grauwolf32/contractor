@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
@@ -63,7 +65,7 @@ func TestPostgresFindingAnchorRuntimeIntakeReplayAndRetention(t *testing.T) {
 		return map[string]runstore.PinnedContextArtifact{"source": {Artifact: &refs[0]}}
 	})
 	fixture.Derived.SourceRef = &refs[0]
-	service, err := New(pool)
+	service, err := New(pool, artifactpgtest.NewStorage())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,12 +145,12 @@ func TestPostgresFindingAnchorRuntimeIntakeReplayAndRetention(t *testing.T) {
 	}
 	// Evidence and a qualified structural key do not publish a problem.
 	for _, auditID := range []string{"anchor-audit-a", "anchor-audit-b"} {
-		rows, err := querystore.New(pool).ListFindings(ctx, auditstore.FindingListParams{OwnerID: owner, AuditID: auditID, Limit: 10})
+		rows, err := querystore.New(pool, artifactpgtest.NewStorage()).ListFindings(ctx, auditstore.FindingListParams{OwnerID: owner, AuditID: auditID, Limit: 10})
 		if err != nil || len(rows) != 0 {
 			t.Fatalf("observation invented a Finding: %+v %v", rows, err)
 		}
 	}
-	runs := runstore.NewPostgresStore(pool)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	if err := runs.MarkStageAllocationReleased(ctx, grant.AllocationID); err != nil {
 		t.Fatal(err)
 	}
@@ -168,7 +170,7 @@ func TestPostgresFindingAnchorRuntimeIntakeReplayAndRetention(t *testing.T) {
 			t.Fatalf("hold=%+v %v", retained.Anchors, err)
 		}
 
-		audits := auditstoretest.NewStore(pool).WithPurgeDependencies(DeleteAuditHoldsBatch)
+		audits := auditstoretest.NewStore(pool, artifactpgtest.NewStorage()).WithPurgeDependencies(DeleteAuditHoldsBatch)
 		audit, err := audits.Get(ctx, owner, auditID)
 		if err != nil {
 			t.Fatal(err)

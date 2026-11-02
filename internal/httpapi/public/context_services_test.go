@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/httpapi/artifacttransfer"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auth"
 	"github.com/grauwolf32/contractor/internal/config"
@@ -57,6 +59,7 @@ type testRuntimeCredentials interface {
 // dependencies groups them by context the way the Server's composition does,
 // so a test replaces one service for every context that uses it.
 type testServices struct {
+	Transfers    artifacttransfer.Admission
 	BearerToken  contracts.SecretString
 	NewRequestID func() (string, error)
 	Logger       *slog.Logger
@@ -149,11 +152,11 @@ func (s testServices) dependencies() Dependencies {
 			Artifacts: s.Artifacts, RuntimeConfigs: s.RuntimeConfigs,
 		})},
 		Queue: QueueDependencies{RunQueue: s.RunQueue, RunNotifier: s.RunNotifier},
-		Artifacts: ArtifactDependencies{
+		Artifacts: ArtifactDependencies{Transfers: s.Transfers,
 			Artifacts: s.Artifacts, Projects: s.Projects, Runs: s.Runs, GitImports: s.GitImports,
 		},
-		Audits: AuditDependencies{Audits: s.Audits, Projects: s.Projects, NewID: s.NewID},
-		Findings: FindingDependencies{
+		Audits: AuditDependencies{Transfers: s.Transfers, Audits: s.Audits, Projects: s.Projects, NewID: s.NewID},
+		Findings: FindingDependencies{Transfers: s.Transfers,
 			FindingProposals: s.FindingProposals, FindingCollections: s.FindingCollections, FindingExports: s.FindingExports,
 			Audits: s.Audits, Runs: s.Runs,
 		},

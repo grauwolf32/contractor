@@ -17,11 +17,11 @@ import (
 // and avoids a check-then-unconditionally-reuse race with publication/purge.
 // A displaced generation is left for offline cleanup, not unlinked here:
 // readers may already have resolved it before the competing row update.
-func reusableBlobKey(ctx context.Context, db postgres.DBTX, candidate blob.Object) (*string, error) {
+func (s *Storage) reusableBlobKey(ctx context.Context, db postgres.DBTX, candidate blob.Object) (*string, error) {
 	if candidate.Backend != blob.Filesystem && candidate.Backend != blob.Postgres {
 		return nil, blob.ErrIntegrity
 	}
-	store := activeBlobStore(ctx)
+	store := s.runtime.Store
 	// A preprepared payload may have lost its file before reaching publication.
 	// Never replace a missing reference with another unreadable candidate.
 	// Store derived the candidate's digest from the bytes it wrote, so only its

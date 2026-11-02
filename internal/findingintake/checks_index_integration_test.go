@@ -6,6 +6,8 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob/backends/filesystem"
@@ -16,6 +18,10 @@ import (
 )
 
 func TestPostgresFindingChecksIndexIntakeImmutabilityAndRetention(t *testing.T) {
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
 	for _, backend := range []string{"postgresql", "filesystem"} {
 		t.Run(backend, func(t *testing.T) {
 			ctx := t.Context()
@@ -26,7 +32,8 @@ func TestPostgresFindingChecksIndexIntakeImmutabilityAndRetention(t *testing.T) 
 					t.Fatal(err)
 				}
 				defer files.Close()
-				ctx = blob.WithRuntime(ctx, blob.NewRuntime(files, nil))
+				artifactRuntime = blob.NewRuntime(files, nil)
+				artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
 			}
 			const owner, project, run = "owner", "delete-project", "run"
 			if _, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{ProjectID: project,
@@ -35,7 +42,7 @@ func TestPostgresFindingChecksIndexIntakeImmutabilityAndRetention(t *testing.T) 
 				t.Fatal(err)
 			}
 			grant := quotaSubmissionGrant(t, ctx, pool, owner, project, run)
-			service, _ := New(pool)
+			service, _ := New(pool, artifactStorage)
 			input := testSubmission("checks", "checks", nil)
 			input.Proposal.ProposedChecks = []auditdomain.ProposedCheck{
 				{Objective: "Verify UTF-8 世界, braces }{ and a quoted \"proposed_checks\" key.", Method: "static-trace"},
@@ -58,7 +65,7 @@ func TestPostgresFindingChecksIndexIntakeImmutabilityAndRetention(t *testing.T) 
 			if err != nil || len(projection.Checks) != 2 || projection.Checks[0].Status != "registered" || projection.Checks[1].Status != "unsupported" {
 				t.Fatalf("trusted index: %+v %v", projection, err)
 			}
-			store, _ := artifacts.NewService(artifactpostgres.NewRepository(pool)).Run(run)
+			store, _ := artifacts.NewService(artifactStorage.Repository(pool)).Run(run)
 			source, err := store.ReadExact(ctx, receipt.Proposal)
 			if err != nil {
 				t.Fatal(err)
@@ -89,7 +96,7 @@ func TestPostgresFindingChecksIndexIntakeImmutabilityAndRetention(t *testing.T) 
 			if _, _, err := service.ImportIntoAudit(ctx, request); err != nil {
 				t.Fatal(err)
 			}
-			runs := runstore.NewPostgresStore(pool)
+			runs := runstore.NewPostgresStore(pool, artifactStorage)
 			if err := runs.MarkStageAllocationReleased(ctx, grant.AllocationID); err != nil {
 				t.Fatal(err)
 			}

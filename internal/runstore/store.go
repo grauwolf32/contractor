@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
@@ -63,11 +64,13 @@ func (s *PostgresStore) ListNonTerminalRunIDsByCredential(
 // PostgresTxStore (see internal/rundeletion). Runtime label pinning
 // additionally requires NewRunCreationPostgresStore.
 type PostgresStore struct {
+	storage *artifactpostgres.Storage
+
 	db persistencepostgres.DBTX
 }
 
-func NewPostgresStore(db persistencepostgres.DBTX) *PostgresStore {
-	return &PostgresStore{db: db}
+func NewPostgresStore(db persistencepostgres.DBTX, storage *artifactpostgres.Storage) *PostgresStore {
+	return &PostgresStore{storage: storage, db: db}
 }
 
 // PostgresTxStore is a PostgresStore bound to the caller's transaction. Its
@@ -81,8 +84,8 @@ type PostgresTxStore struct {
 }
 
 // NewPostgresTxStore binds a PostgresStore to the caller's transaction tx.
-func NewPostgresTxStore(tx pgx.Tx) *PostgresTxStore {
-	return &PostgresTxStore{PostgresStore: NewPostgresStore(tx), tx: tx}
+func NewPostgresTxStore(tx pgx.Tx, storage *artifactpostgres.Storage) *PostgresTxStore {
+	return &PostgresTxStore{PostgresStore: NewPostgresStore(tx, storage), tx: tx}
 }
 
 // NewRunCreationPostgresStore is the only constructor which enables Runtime
@@ -94,8 +97,9 @@ func NewRunCreationPostgresStore(
 	tx pgx.Tx,
 	llmCredentials runtimeconfig.TransactionLLMCredentialLookup,
 	runtimeCredentials runtimeconfig.RuntimeCredentialValidator,
+	storage *artifactpostgres.Storage,
 ) *PostgresTxStore {
-	store := NewPostgresTxStore(tx)
+	store := NewPostgresTxStore(tx, storage)
 	store.runLLMCredentials = llmCredentials
 	store.runRuntimeCredentials = runtimeCredentials
 	return store

@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/agentprincipal"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
@@ -40,6 +41,7 @@ type PlacementRuntimeCredentialLookup interface {
 }
 
 type PlacementAllocatorOptions struct {
+	Storage                   *artifactpostgres.Storage
 	AuditAdapterRequirements  func(context.Context, string, string) ([]runtimesettings.RuntimeAdapterRef, error)
 	Pool                      *pgxpool.Pool
 	Registry                  *InMemoryRegistry
@@ -55,6 +57,7 @@ type PlacementAllocatorOptions struct {
 // liveness Registry. Every potentially blocking lookup happens outside the
 // Registry mutex; only compact compatibility edges cross that boundary.
 type PlacementAllocator struct {
+	storage                   *artifactpostgres.Storage
 	auditAdapterRequirements  func(context.Context, string, string) ([]runtimesettings.RuntimeAdapterRef, error)
 	pool                      *pgxpool.Pool
 	registry                  *InMemoryRegistry
@@ -126,12 +129,12 @@ func (cache *placementAttemptCache) discardMutable() {
 }
 
 func NewPlacementAllocator(options PlacementAllocatorOptions) (*PlacementAllocator, error) {
-	if options.Pool == nil || options.Registry == nil || options.Gateways == nil ||
+	if options.Storage == nil || options.Pool == nil || options.Registry == nil || options.Gateways == nil ||
 		options.LLMCredentials == nil || options.TransactionLLMCredentials == nil ||
 		options.RuntimeCredentials == nil || options.CredentialGuard == nil {
 		return nil, errors.New("candidate placement dependencies are incomplete")
 	}
-	return &PlacementAllocator{
+	return &PlacementAllocator{storage: options.Storage,
 		auditAdapterRequirements: options.AuditAdapterRequirements,
 		pool:                     options.Pool, registry: options.Registry, gateways: options.Gateways,
 		llmCredentials: options.LLMCredentials, runtimeCredentials: options.RuntimeCredentials,
@@ -476,7 +479,7 @@ func (a *PlacementAllocator) pinReservations(
 		policies[reservation.Grant.AllocationID] = a.collectionPolicy(candidate.Registration)
 	}
 
-	store := runstore.NewPostgresTxStore(tx)
+	store := runstore.NewPostgresTxStore(tx, a.storage)
 	if _, err := store.LockStageState(
 		ctx, request.RunID, request.StageExecutionID, runstore.StagePreparing,
 	); err != nil {

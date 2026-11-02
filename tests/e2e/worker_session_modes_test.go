@@ -15,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/localpki"
@@ -139,7 +141,7 @@ func TestWorkerSessionModesAcrossProductionProcesses(t *testing.T) {
 		t.Fatalf("open assertion database: %v", err)
 	}
 	t.Cleanup(pool.Close)
-	store := runstore.NewPostgresStore(pool)
+	store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	telemetryReports := telemetry.NewRepository(pool)
 
 	streamlineRunID := createEmptyWorkflowRun(

@@ -8,7 +8,6 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditbaseline"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
@@ -95,7 +94,7 @@ func (s *Service) prepareInitialInventory(ctx context.Context, claim auditstore.
 	}
 	selection := DraftSelection{Labels: baseline.Labels.Clone(), Inputs: baseline.Inputs, Scope: baseline.Scope, RuntimeLabels: baseline.RuntimeLabels,
 		RequiredPlacementLabels: append([]string{}, baseline.RequiredPlacementLabels...)}
-	service := artifacts.NewService(artifactpostgres.NewRepository(s.pool))
+	service := artifacts.NewService(s.storage.Repository(s.pool))
 	original, err := readAndVerifyInputs(ctx, service, audit.ProjectID, profile, selection)
 	if err != nil {
 		return auditstore.AcceptInitialRoundParams{}, err
@@ -183,7 +182,7 @@ func (s *Service) prepareInitialInventory(ctx context.Context, claim auditstore.
 	}
 	namespace := auditdomain.ArtifactNamespace(audit.AuditID)
 	writer := auditArtifactWriter{service: service, projectID: audit.ProjectID,
-		claim: &claim, writes: hookstore.NewClaimedArtifacts(s.pool)}
+		claim: &claim, writes: hookstore.NewClaimedArtifacts(s.pool, s.storage)}
 	tasks, manifest, err := writeTaskPackages(ctx, writer, namespace, profile, selection, inventory, prepared)
 	if err != nil {
 		return auditstore.AcceptInitialRoundParams{}, err

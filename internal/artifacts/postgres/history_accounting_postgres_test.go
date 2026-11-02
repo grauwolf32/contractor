@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 )
 
 // Every inserted revision charges its binding one retained revision and its
@@ -17,8 +16,8 @@ func TestPostgresHistoryAccountingChargesEveryRetainedRevision(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
-	ctx = testBlobContext(t, ctx, pool)
-	user, err := artifacts.NewService(artifactpostgres.NewRepository(pool)).User("history-owner")
+	artifactStorage := testBlobStorage(t, ctx, pool)
+	user, err := artifacts.NewService(artifactStorage.Repository(pool)).User("history-owner")
 	if err != nil {
 		t.Fatal(err)
 	}

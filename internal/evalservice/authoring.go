@@ -13,7 +13,7 @@ func (s *Service) Create(ctx context.Context, scope evalstore.Scope, document ev
 	if err := evaldomain.DecodeInto("CreateExperiment", document.Bytes(), &input); err != nil {
 		return evalstore.Receipt{}, err
 	}
-	replay, err := evalstore.NewPostgresStore(s.pool).Replay(ctx, scope, "experiments", "experiment-create", mutation)
+	replay, err := evalstore.NewPostgresStore(s.pool, s.storage).Replay(ctx, scope, "experiments", "experiment-create", mutation)
 	if err != nil {
 		return evalstore.Receipt{}, err
 	}

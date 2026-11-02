@@ -8,8 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
@@ -36,7 +37,7 @@ func TestAuditManagedRunSkipsGenericProjectOutputPublication(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store := auditstoretest.NewStore(pool)
+	store := auditstoretest.NewStore(pool, artifactpgtest.NewStorage())
 	audit, _, err := store.CreateDraft(ctx, auditstore.CreateDraftParams{
 		AuditID: "audit-publication", OwnerID: project.OwnerID, ProjectID: project.ProjectID,
 		Profile:         auditstore.ProfileIdentity{Name: "test", Version: "1", Digest: schedulerAuditDigest("2")},
@@ -101,7 +102,7 @@ func TestAuditManagedRunSkipsGenericProjectOutputPublication(t *testing.T) {
 	}
 	runID := "run-audit-publication"
 	if err := persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		runs := runstore.NewPostgresStore(tx)
+		runs := runstore.NewPostgresStore(tx, artifactpgtest.NewStorage())
 		if _, err := runs.CreateAuditRun(ctx, runstore.CreateAuditRunParams{
 			CreateRunParams: runstore.CreateRunParams{
 				LaneClass: resolved.LaneClassModel,
@@ -115,7 +116,7 @@ func TestAuditManagedRunSkipsGenericProjectOutputPublication(t *testing.T) {
 		}); err != nil {
 			return err
 		}
-		if _, err := auditstoretest.NewStore(tx).BindRun(ctx, auditstore.BindRunParams{
+		if _, err := auditstoretest.NewStore(tx, artifactpgtest.NewStorage()).BindRun(ctx, auditstore.BindRunParams{
 			Claim: claim, ExecutionID: execution.ExecutionID, RunID: runID,
 		}); err != nil {
 			return err
@@ -132,7 +133,7 @@ func TestAuditManagedRunSkipsGenericProjectOutputPublication(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	artifactService := artifacts.NewService(artifactpostgres.NewRepository(pool))
+	artifactService := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
 	runArtifacts, err := artifactService.Run(runID)
 	if err != nil {
 		t.Fatal(err)
@@ -153,7 +154,7 @@ func TestAuditManagedRunSkipsGenericProjectOutputPublication(t *testing.T) {
 	if err := persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		return publishProjectOutputs(ctx, tx, runID, map[string]resolved.ArtifactSlot{
 			"result": {Required: true, MediaTypes: []string{"text/plain"}},
-		}, 0)
+		}, 0, artifactpgtest.NewStorage())
 	}); err != nil {
 		t.Fatalf("skip Audit-managed output publication: %v", err)
 	}
@@ -164,7 +165,7 @@ func TestAuditManagedRunSkipsGenericProjectOutputPublication(t *testing.T) {
 	if _, err := projectArtifacts.Metadata(ctx, contracts.ArtifactRef{Namespace: "outputs", Name: "result"}); !errors.Is(err, artifacts.ErrArtifactNotFound) {
 		t.Fatalf("Audit-managed Run published generic Project output: %v", err)
 	}
-	publications, err := runstore.NewPostgresStore(pool).ListRunOutputPublications(ctx, runID)
+	publications, err := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()).ListRunOutputPublications(ctx, runID)
 	if err != nil || len(publications) != 0 {
 		t.Fatalf("Audit-managed publication receipts = (%+v, %v)", publications, err)
 	}

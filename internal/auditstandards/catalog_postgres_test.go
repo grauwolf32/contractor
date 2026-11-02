@@ -8,8 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/persistence/postgrestest"
@@ -31,12 +32,13 @@ func TestCatalogPostgresConcurrentSeedAndExactRetention(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
+	service := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
 	catalog, _ := NewCatalog(service)
 
 	var wait sync.WaitGroup
-	errorsFound := make(chan error, 8)
-	for range 8 {
+	// Keep the race inside one process's four transfer slots.
+	errorsFound := make(chan error, 4)
+	for range 4 {
 		wait.Add(1)
 		go func() {
 			defer wait.Done()
@@ -115,7 +117,7 @@ func TestCatalogPostgresListRejectsAnOverfullCatalogWithABoundedRead(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	catalog, _ := NewCatalog(artifacts.NewService(artifactpostgres.NewRepository(pool)))
+	catalog, _ := NewCatalog(artifacts.NewService(artifactpgtest.NewStorage().Repository(pool)))
 	if _, err := catalog.Initialize(ctx, "catalog-owner", plan); err != nil {
 		t.Fatal(err)
 	}

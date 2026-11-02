@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
@@ -33,7 +35,7 @@ func TestSharedPostgresEvalKeepsMemberStageMetricsPastTelemetryRetention(t *test
 	e := h.prepared(t, "workflow")
 	h.command(t, e, "start")
 	c := h.coordinator(t, "metrics-retention")
-	store := evalstore.NewPostgresStore(h.pool)
+	store := evalstore.NewPostgresStore(h.pool, artifactpgtest.NewStorage())
 	stages := map[string]string{}
 	for n := 0; n < 80; n++ {
 		tick(t, c)
@@ -75,7 +77,7 @@ func TestSharedPostgresEvalKeepsMemberStageMetricsPastTelemetryRetention(t *test
 	}
 
 	// A Run outside the experiment whose metrics expired after the members'.
-	runs := runstore.NewPostgresStore(h.pool)
+	runs := runstore.NewPostgresStore(h.pool, artifactpgtest.NewStorage())
 	if _, err := runstoretest.CreateRun(t.Context(), runs, runstore.CreateRunParams{
 		LaneClass: resolved.LaneClassModel, RunID: "run-outside-eval", OwnerID: e.OwnerID,
 		WorkflowName: "fixture", WorkflowVersion: "1", WorkflowSchemaVersion: contracts.APIVersion,
@@ -144,7 +146,7 @@ FROM stage_metrics WHERE stage_execution_id = ANY($1)`, memberStages).Scan(&kept
 		if err != nil {
 			t.Fatal(err)
 		}
-		current, err := observedUsage(t.Context(), h.pool, e.OwnerID, member, executionView(row), inventory)
+		current, err := observedUsage(t.Context(), h.pool, e.OwnerID, member, executionView(row), inventory, artifactpgtest.NewStorage())
 		if err != nil || !reflect.DeepEqual(current, usage) {
 			t.Fatalf("member %s usage after cleanup = (%+v, %v), collected %+v", member, current, err, usage)
 		}
@@ -192,7 +194,7 @@ func TestSharedPostgresEvalKeepsAuditChildStageMetricsPastTelemetryRetention(t *
 	}
 	runID := "run-" + execution.ExecutionID
 	if err := pg.InTx(t.Context(), h.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		if _, err := runstore.NewPostgresStore(tx).CreateAuditRun(t.Context(), runstore.CreateAuditRunParams{
+		if _, err := runstore.NewPostgresStore(tx, artifactpgtest.NewStorage()).CreateAuditRun(t.Context(), runstore.CreateAuditRunParams{
 			CreateRunParams: runstore.CreateRunParams{
 				LaneClass: resolved.LaneClassModel, RunID: runID, OwnerID: audit.OwnerID, ProjectID: &audit.ProjectID,
 				WorkflowName: "fixture", WorkflowVersion: "1", WorkflowSchemaVersion: contracts.APIVersion,
@@ -203,14 +205,14 @@ func TestSharedPostgresEvalKeepsAuditChildStageMetricsPastTelemetryRetention(t *
 		}); err != nil {
 			return err
 		}
-		_, err := auditstoretest.NewStore(tx).BindRun(t.Context(), auditstore.BindRunParams{
+		_, err := auditstoretest.NewStore(tx, artifactpgtest.NewStorage()).BindRun(t.Context(), auditstore.BindRunParams{
 			Claim: claim, ExecutionID: execution.ExecutionID, RunID: runID,
 		})
 		return err
 	}); err != nil {
 		t.Fatal(err)
 	}
-	runs := runstore.NewPostgresStore(h.pool)
+	runs := runstore.NewPostgresStore(h.pool, artifactpgtest.NewStorage())
 	for _, transition := range [][2]runstore.WorkflowRunState{
 		{runstore.RunInitializing, runstore.RunPending}, {runstore.RunPending, runstore.RunRunning},
 	} {
@@ -249,7 +251,7 @@ func finishRunsWithStageMetrics(t *testing.T, h *serviceHarness, stages map[stri
 	if err != nil {
 		t.Fatal(err)
 	}
-	runs := runstore.NewPostgresStore(h.pool)
+	runs := runstore.NewPostgresStore(h.pool, artifactpgtest.NewStorage())
 	for _, run := range states {
 		if runstore.WorkflowRunState(run[1]) == runstore.RunPending {
 			if _, err := runs.TransitionRun(t.Context(), run[0], runstore.RunPending, runstore.RunRunning, runstore.Reason{Code: "fixture_admitted"}); err != nil {

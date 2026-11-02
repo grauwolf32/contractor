@@ -12,9 +12,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 )
 
 // Only the trusted Workflow input fork creates inputs/<slot> (ART-R76). A
@@ -25,7 +26,7 @@ func TestPostgresPrivateWorkerAdvancesButNeverCreatesInputs(t *testing.T) {
 	defer cancel()
 	pool := isolatedPrivateArtifactPool(t, ctx)
 	createPrivateArtifactRun(t, ctx, pool, "run-a")
-	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
+	service := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
 	user, err := service.User("user-1")
 	if err != nil {
 		t.Fatal(err)
@@ -39,7 +40,7 @@ func TestPostgresPrivateWorkerAdvancesButNeverCreatesInputs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	handler, err := NewHandler(Dependencies{
+	handler, err := NewHandler(Dependencies{Transfers: artifactpgtest.NewStorage(),
 		Registry: &fakeRegistry{grant: testGrant("run-a")}, Artifacts: service,
 		NewRequestID: func() (string, error) { return "artifact-inputs", nil },
 	})

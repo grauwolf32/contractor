@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/stageresult"
@@ -23,7 +25,7 @@ import (
 // inRunStoreTx runs fn with a store bound to a fresh transaction on pool.
 func inRunStoreTx(ctx context.Context, pool *pgxpool.Pool, fn func(*PostgresTxStore) error) error {
 	return persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		return fn(NewPostgresTxStore(tx))
+		return fn(NewPostgresTxStore(tx, artifactpgtest.NewStorage()))
 	})
 }
 
@@ -98,7 +100,7 @@ func TestPostgresRunAndStageLocksCheckTheirStates(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedRunStorePool(t, ctx)
-	store := NewPostgresStore(pool)
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
 	createTestRun(t, ctx, store, "run-locked")
 	if _, err := admitTestRun(ctx, store, "run-locked"); err != nil {
 		t.Fatal(err)
@@ -156,7 +158,7 @@ func TestPostgresRunAndStageLocksCheckTheirStates(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = tx.Rollback(context.Background()) }()
-	locks := NewPostgresTxStore(tx)
+	locks := NewPostgresTxStore(tx, artifactpgtest.NewStorage())
 	if _, err := locks.LockRunState(ctx, "run-locked"); err != nil {
 		t.Fatal(err)
 	}
@@ -190,7 +192,7 @@ func TestPostgresWaitingOperationsMoveOnlyAdmittedRuns(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedRunStorePool(t, ctx)
-	store := NewPostgresStore(pool)
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
 	createTestRun(t, ctx, store, "run-admitted")
 	if _, err := admitTestRun(ctx, store, "run-admitted"); err != nil {
 		t.Fatal(err)
@@ -317,7 +319,7 @@ func TestPostgresFailRunWithActiveStagesEndsEveryActiveStage(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedRunStorePool(t, ctx)
-	store := NewPostgresStore(pool)
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
 	createTestRun(t, ctx, store, "run-failing")
 	if _, err := admitTestRun(ctx, store, "run-failing"); err != nil {
 		t.Fatal(err)
@@ -416,7 +418,7 @@ func TestPostgresStageAdmissionMarksOnceAndDiscardsOnlyUnadmittedPlacements(t *t
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedRunStorePool(t, ctx)
-	store := NewPostgresStore(pool)
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
 	createTestRun(t, ctx, store, "run-admission")
 	if _, err := store.TransitionRun(ctx, "run-admission", RunInitializing, RunPending, Reason{Code: "initialized"}); err != nil {
 		t.Fatal(err)

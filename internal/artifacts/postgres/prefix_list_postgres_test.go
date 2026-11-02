@@ -8,15 +8,14 @@ import (
 	"time"
 
 	. "github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 )
 
 func TestPostgresPrefixListIsLiteralBoundedAndIsolated(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
-	ctx = testBlobContext(t, ctx, pool)
-	service := NewService(artifactpostgres.NewRepository(pool))
+	artifactStorage := testBlobStorage(t, ctx, pool)
+	service := NewService(artifactStorage.Repository(pool))
 	owner, _ := service.User("prefix-owner")
 	foreign, _ := service.User("prefix-foreign")
 	for _, item := range []struct {

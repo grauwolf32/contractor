@@ -34,7 +34,7 @@ func (h *findingHandlers) publishAuditFindingExport(w http.ResponseWriter, r *ht
 	if _, err := h.Audits.Get(r.Context(), principalUserID(r.Context()), auditID); err != nil {
 		return err
 	}
-	r, transfer, err := artifacttransfer.Acquire(w, r)
+	r, transfer, err := artifacttransfer.Acquire(w, r, h.Transfers)
 	if err != nil {
 		return err
 	}
@@ -74,7 +74,7 @@ func (h *findingHandlers) downloadFindingExportPart(w http.ResponseWriter, r *ht
 	if _, err := h.Audits.Get(r.Context(), principalUserID(r.Context()), auditID); err != nil {
 		return err
 	}
-	r, transfer, err := artifacttransfer.Acquire(w, r)
+	r, transfer, err := artifacttransfer.Acquire(w, r, h.Transfers)
 	if err != nil {
 		return err
 	}

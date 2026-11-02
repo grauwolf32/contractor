@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -20,7 +22,7 @@ func TestToolDiagnosticsPostgresRetainedPagesPrivacyAndBoundaries(t *testing.T) 
 	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
 	defer cancel()
 	pool := isolatedTelemetryPool(t, ctx)
-	runs := runstore.NewPostgresStore(pool)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	repo := telemetry.NewRepository(pool)
 	createTelemetryRun(t, ctx, runs)
 	stage := createTelemetryStage(t, ctx, runs, "tool-stage", "tool-allocation", "tool-session")
@@ -154,7 +156,7 @@ func TestToolDiagnosticsPostgresRetainedPagesPrivacyAndBoundaries(t *testing.T) 
 func TestToolDiagnosticsPostgresRejectsArrayWorkerContainerWithNumericName(t *testing.T) {
 	ctx := t.Context()
 	pool := isolatedTelemetryPool(t, ctx)
-	runs := runstore.NewPostgresStore(pool)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	repo := telemetry.NewRepository(pool)
 	createTelemetryRun(t, ctx, runs)
 	stage := createTelemetryStage(t, ctx, runs, "array-tool-stage", "array-allocation", "array-session")
@@ -191,7 +193,7 @@ func TestToolDiagnosticsPostgresAdmittedNearMiBSourceStringsRemainBounded(t *tes
 		t.Run(field, func(t *testing.T) {
 			ctx := t.Context()
 			pool := isolatedTelemetryPool(t, ctx)
-			runs := runstore.NewPostgresStore(pool)
+			runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 			repo := telemetry.NewRepository(pool)
 			createTelemetryRun(t, ctx, runs)
 			stage := createTelemetryStage(t, ctx, runs, "large-tool-stage", "large-allocation", "large-session")
@@ -225,7 +227,7 @@ func TestToolDiagnosticsPostgresAdmittedNearMiBSourceStringsRemainBounded(t *tes
 func TestToolDiagnosticsPostgresEmptyTruncatedReportAndActualExpiryAreDistinct(t *testing.T) {
 	ctx := t.Context()
 	pool := isolatedTelemetryPool(t, ctx)
-	runs := runstore.NewPostgresStore(pool)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	repo := telemetry.NewRepository(pool)
 	createTelemetryRun(t, ctx, runs)
 	stage := createTelemetryStage(t, ctx, runs, "lifecycle-tool-stage", "lifecycle-allocation", "lifecycle-session")

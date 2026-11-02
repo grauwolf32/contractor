@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/persistence/leasetest"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -39,7 +41,7 @@ func TestCredentialDeleteIntentOfAPreviousLeaseOwnerEndsBeforeTheNewOwnerRecover
 	newOwner, recovered := f.recoverAfterHandover(t, ctx)
 	recoveredEarly, recoveryErr := f.awaitRecoveryOrHandover(t, ctx, recovered, int32(held.pid.Load()))
 	// The new owner admits a Run of the credential as soon as it is ready.
-	runs := runstore.NewPostgresStore(f.pool)
+	runs := runstore.NewPostgresStore(f.pool, artifactpgtest.NewStorage())
 	admitRun := func(runID string) error {
 		return newOwner.service.WithRunCreation(ctx, func() error {
 			if err := lookupManagedCredential(ctx, f.pool, f.deleting.CredentialID); err != nil {
@@ -364,7 +366,7 @@ SELECT EXISTS (
 // credential.
 func (f deleteFenceFixture) assertGuardsOf(t *testing.T, ctx context.Context, service *Service, runID string) {
 	t.Helper()
-	runs := runstore.NewPostgresStore(f.pool)
+	runs := runstore.NewPostgresStore(f.pool, artifactpgtest.NewStorage())
 	if err := service.WithRunCreation(ctx, func() error {
 		if err := lookupManagedCredential(ctx, f.pool, f.unrelated.CredentialID); err != nil {
 			return err

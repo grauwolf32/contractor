@@ -29,7 +29,7 @@ func (h *handler) postFindingProposal(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	r, transfer, err := artifacttransfer.Acquire(w, r)
+	r, transfer, err := artifacttransfer.Acquire(w, r, h.dependencies.Transfers)
 	if err != nil {
 		h.handleError(w, err)
 		return

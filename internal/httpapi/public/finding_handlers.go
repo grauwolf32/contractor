@@ -9,6 +9,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/helpers/pagelimit"
+	"github.com/grauwolf32/contractor/internal/httpapi/artifacttransfer"
 )
 
 type FindingProposalManagement interface {
@@ -28,6 +29,7 @@ type AuditReader interface {
 // FindingDependencies serve the finding proposals of Runs and Audits, their
 // import into an Audit and finding collection publication.
 type FindingDependencies struct {
+	Transfers          artifacttransfer.Admission
 	FindingProposals   FindingProposalManagement
 	FindingCollections FindingCollectionManagement
 	FindingExports     FindingExportManagement

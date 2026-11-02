@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 )
@@ -33,7 +35,7 @@ func TestPostgresResolveAuditProposalsUsesBoundedSetReads(t *testing.T) {
 	keys := retainAuditChildProposals(t, f, proposals)
 	counter := &collectionQueryCounter{}
 	actor, _ := deletionActorPool(t, f, counter)
-	resolver, err := New(actor)
+	resolver, err := New(actor, artifactpgtest.NewStorage())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,7 +79,7 @@ func TestPostgresResolveAuditProposalsPreservesSelectionOutcomes(t *testing.T) {
 	ambiguous := insertAmbiguousAuditChildReceipt(t, f, keys[2].ClientKey)
 	counter := &collectionQueryCounter{}
 	actor, _ := deletionActorPool(t, f, counter)
-	resolver, err := New(actor)
+	resolver, err := New(actor, artifactpgtest.NewStorage())
 	if err != nil {
 		t.Fatal(err)
 	}

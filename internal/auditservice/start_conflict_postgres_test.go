@@ -6,8 +6,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -35,7 +36,7 @@ func TestAuditStartReplaysTheWinnerAfterADeadlockAbort(t *testing.T) {
 	}
 	credentials := &switchableCredentialLookup{available: true, gateway: gateway.Ref}
 	newService := func(lookup func(pgx.Tx) (resolved.CredentialLookup, error)) *Service {
-		service, err := New(Options{
+		service, err := New(Options{Storage: artifactpgtest.NewStorage(),
 			Pool: pool, Profiles: &switchableProfileCatalog{snapshot: profileSnapshot, available: true},
 			TransactionLLMCredentials: runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(lookup),
 			CredentialGuard:           &countingCredentialGuard{}, Now: time.Now,
@@ -54,7 +55,7 @@ func TestAuditStartReplaysTheWinnerAfterADeadlockAbort(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	projectArtifacts, err := artifacts.NewService(artifactpostgres.NewRepository(pool)).Project(project.ProjectID)
+	projectArtifacts, err := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool)).Project(project.ProjectID)
 	if err != nil {
 		t.Fatal(err)
 	}

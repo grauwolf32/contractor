@@ -9,8 +9,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 )
 
@@ -43,7 +44,7 @@ func TestPostgresCollectionPublicationReadsDoNotGrowPerEntry(t *testing.T) {
 	slices.Sort(receiptIDs)
 	trace := &collectionQueryCounter{}
 	actor, _ := deletionActorPool(t, f, trace)
-	publisher, err := NewCollectionPublisher(actor, emptyCollectionReviews{})
+	publisher, err := NewCollectionPublisher(actor, emptyCollectionReviews{}, artifactpgtest.NewStorage())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,7 +62,7 @@ func TestPostgresCollectionPublicationReadsDoNotGrowPerEntry(t *testing.T) {
 		if err != nil || published.EntryCount != len(ids) || published.Replayed {
 			t.Fatalf("publish %d entries = (%+v, %v)", len(ids), published, err)
 		}
-		user, err := artifacts.NewService(artifactpostgres.NewRepository(f.pool)).User(f.request.OwnerID)
+		user, err := artifacts.NewService(artifactpgtest.NewStorage().Repository(f.pool)).User(f.request.OwnerID)
 		if err != nil {
 			t.Fatal(err)
 		}

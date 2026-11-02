@@ -5,6 +5,8 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/helpers/pagelimit"
 	"github.com/grauwolf32/contractor/internal/persistence/explaintest"
@@ -105,7 +107,7 @@ func TestPostgresItemPagesBoundCandidatesPerRound(t *testing.T) {
 				if _, err := conn.Exec(f.ctx, "SET plan_cache_mode = "+string(mode)); err != nil {
 					t.Fatal(err)
 				}
-				page, err := NewQueryStore(conn).ListItemsPage(f.ctx, params)
+				page, err := NewQueryStore(conn, artifactpgtest.NewStorage()).ListItemsPage(f.ctx, params)
 				if err != nil {
 					t.Fatal(err)
 				}

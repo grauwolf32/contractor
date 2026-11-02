@@ -20,6 +20,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 )
@@ -27,7 +28,7 @@ import (
 // The production HTTP server, not a recorder, must apply deadlines before
 // touching the body and release admission before writing either answer.
 func TestFindingTransferBoundsSocketAndStorageAndReleasesBeforeResponse(t *testing.T) {
-	runtime := blob.NewRuntime(nil, nil)
+	runtime := artifactpgtest.NewRuntime()
 	base := &fakeFindingIntake{}
 	var reads, writes, storage atomic.Int32
 	intake := &findingBudgetIntake{FindingIntake: base, check: func(ctx context.Context) {
@@ -39,7 +40,7 @@ func TestFindingTransferBoundsSocketAndStorageAndReleasesBeforeResponse(t *testi
 		}
 		storage.Add(1)
 	}}
-	inner, err := NewHandler(Dependencies{Registry: &fakeRegistry{grant: testGrant("run-a")}, Artifacts: artifacts.NewService(newMemoryRepository()), Findings: intake})
+	inner, err := NewHandler(Dependencies{Transfers: runtime, Registry: &fakeRegistry{grant: testGrant("run-a")}, Artifacts: artifacts.NewService(newMemoryRepository()), Findings: intake})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,7 +48,7 @@ func TestFindingTransferBoundsSocketAndStorageAndReleasesBeforeResponse(t *testi
 		certificate := &x509.Certificate{RawSubjectPublicKeyInfo: []byte("artifact-test-key")}
 		r.TLS = &tls.ConnectionState{PeerCertificates: []*x509.Certificate{certificate}, VerifiedChains: [][]*x509.Certificate{{certificate}}}
 		r.Header.Set(RuntimeInstanceHeader, "runtime-1")
-		r = r.WithContext(blob.WithRuntime(r.Context(), runtime))
+		r = r.WithContext(r.Context())
 		inner.ServeHTTP(&findingBudgetWriter{ResponseWriter: w, runtime: runtime, t: t, reads: &reads, writes: &writes}, r)
 	}))
 	t.Cleanup(server.Close)
@@ -125,10 +126,10 @@ func (w *findingBudgetWriter) SetWriteDeadline(deadline time.Time) error {
 	return http.NewResponseController(w.ResponseWriter).SetWriteDeadline(deadline)
 }
 func (w *findingBudgetWriter) WriteHeader(status int) {
-	ctx := blob.WithRuntime(context.Background(), w.runtime)
+	ctx := context.Background()
 	releases := []func(){}
 	for range 4 {
-		_, release, err := blob.AcquireTransfer(ctx)
+		_, release, err := w.runtime.AcquireTransfer(ctx)
 		if err != nil {
 			w.t.Errorf("finding response retains transfer admission: %v", err)
 			break
@@ -154,8 +155,8 @@ func (i *findingBudgetIntake) FindReplay(ctx context.Context, g controlplane.All
 // Trigger timeout from the body itself after observing the armed deadline,
 // without waiting for elapsed wall time or starting storage work.
 func TestFindingTransferTimeoutReleasesAllSlots(t *testing.T) {
-	runtime := blob.NewRuntime(nil, nil)
-	h := handler{dependencies: Dependencies{Registry: &fakeRegistry{grant: testGrant("run-a")}, Artifacts: artifacts.NewService(newMemoryRepository()), Findings: &fakeFindingIntake{}}}
+	runtime := artifactpgtest.NewRuntime()
+	h := handler{dependencies: Dependencies{Transfers: runtime, Registry: &fakeRegistry{grant: testGrant("run-a")}, Artifacts: artifacts.NewService(newMemoryRepository()), Findings: &fakeFindingIntake{}}}
 	for range 4 {
 		writer := &findingTimeoutWriter{ResponseRecorder: httptest.NewRecorder()}
 		r := httptest.NewRequest(http.MethodPost, "/", nil)
@@ -163,13 +164,13 @@ func TestFindingTransferTimeoutReleasesAllSlots(t *testing.T) {
 		r.SetPathValue("allocationID", "allocation-1")
 		r.Body = io.NopCloser(findingTimeoutReader{t: t, writer: writer})
 		r.ContentLength = -1
-		ctx := context.WithValue(blob.WithRuntime(t.Context(), runtime), authenticatedRuntimeContextKey{}, authenticatedRuntime{principalID: testGrant("run-a").RuntimeAgentID, instanceID: "runtime-1"})
+		ctx := context.WithValue(t.Context(), authenticatedRuntimeContextKey{}, authenticatedRuntime{principalID: testGrant("run-a").RuntimeAgentID, instanceID: "runtime-1"})
 		h.postFindingProposal(writer, r.WithContext(ctx))
 		if writer.Code != 400 || !strings.Contains(writer.Body.String(), "invalid_finding_request") {
 			t.Fatalf("timeout response = %d %s", writer.Code, writer.Body.String())
 		}
 	}
-	ctx := blob.WithRuntime(t.Context(), runtime)
+	ctx := t.Context()
 	releases := []func(){}
 	defer func() {
 		for _, release := range releases {
@@ -177,13 +178,13 @@ func TestFindingTransferTimeoutReleasesAllSlots(t *testing.T) {
 		}
 	}()
 	for range 4 {
-		_, release, err := blob.AcquireTransfer(ctx)
+		_, release, err := runtime.AcquireTransfer(ctx)
 		if err != nil {
 			t.Fatal(err)
 		}
 		releases = append(releases, release)
 	}
-	_, _, err := blob.AcquireTransfer(ctx)
+	_, _, err := runtime.AcquireTransfer(ctx)
 	if !errors.Is(err, blob.ErrTransferCapacity) {
 		t.Fatalf("capacity after four acquisitions: %v", err)
 	}

@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -45,7 +47,7 @@ func TestFindingCandidateSourceDeletionBetweenSourceAndFenceIsStale(t *testing.T
 		t.Fatal(err)
 	}
 	defer reader.Close()
-	service := &Service{pool: reader, now: time.Now}
+	service := &Service{storage: artifactpgtest.NewStorage(), pool: reader, now: time.Now}
 	if _, err := service.FindingCandidates(ctx, FindingCandidatesParams{OwnerID: owner, AuditID: audit, FindingID: first, Scope: "project", Limit: 20}); !errors.Is(err, auditstore.ErrCorrelationStale) {
 		t.Fatalf("deleted source escaped fence: %v", err)
 	}
@@ -131,7 +133,7 @@ func TestSharedFindingCandidateStructuralSitesRemainPossibleAcrossSnapshots(t *t
 			t.Fatal("no structural fixture")
 		}
 	}
-	service := &Service{pool: pool, now: time.Now}
+	service := &Service{storage: artifactpgtest.NewStorage(), pool: pool, now: time.Now}
 	page, err := service.FindingCandidates(ctx, FindingCandidatesParams{OwnerID: owner, AuditID: "structural-search-a", FindingID: sourceID, Scope: "project", Limit: 20})
 	if err != nil || len(page.Items) != 1 || page.Items[0].Tier != 3 || page.Items[0].AutomaticallyCorrelated || page.Items[0].Finding.FindingID != targetID || len(page.Items[0].Reasons[0].Limitations) == 0 {
 		t.Fatalf("structural sites became exact issues: %+v %v", page, err)
@@ -166,7 +168,7 @@ func TestFindingCandidateByteBoundKeepsEveryOmittedRowReachable(t *testing.T) {
 		id := seedAuditFindingDocument(t, ctx, pool, project, owner, audit, suffix, document)
 		expected[id] = true
 	}
-	service := &Service{pool: pool, now: time.Now}
+	service := &Service{storage: artifactpgtest.NewStorage(), pool: pool, now: time.Now}
 	p := FindingCandidatesParams{OwnerID: owner, AuditID: audit, FindingID: source, Scope: "project", Limit: 100}
 	seen := map[string]bool{}
 	pages := 0

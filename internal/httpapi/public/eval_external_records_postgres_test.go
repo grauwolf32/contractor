@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalservice"
 	"github.com/grauwolf32/contractor/internal/evalstore"
@@ -70,7 +72,7 @@ func TestSharedEvalPostgresExternalResultsRevisionsAndExplicitSelection(t *testi
 		SHA string `json:"recordSha256"`
 	}](t,
 		h.request(t, "POST", memberBase+"/assessments", decision, "assessment-1", "", 201)).SHA
-	if selected, err := evalstore.NewPostgresStore(h.pool).Selected(t.Context(), "user-1", e.ID, memberID); err != nil || selected != nil {
+	if selected, err := evalstore.NewPostgresStore(h.pool, artifactpgtest.NewStorage()).Selected(t.Context(), "user-1", e.ID, memberID); err != nil || selected != nil {
 		t.Fatal("external records auto-selected", selected, err)
 	}
 	current := h.get(t, e.ID)
@@ -98,11 +100,11 @@ func TestSharedEvalPostgresExternalResultsRevisionsAndExplicitSelection(t *testi
 		h.request(t, "POST", memberBase+"/assessments", decision, "assessment-2", "", 201)).SHA
 	selectInput.Selections[0].AssessmentSHA256 = &next
 	h.request(t, "POST", base+"/selections", selectInput, "stale-selection", fmt.Sprintf("\"%d\"", current.Revision), 412)
-	stored, err := evalstore.NewPostgresStore(h.pool).Record(t.Context(), "user-1", e.ID, memberID, evaldomain.RecordKindAssessment, next)
+	stored, err := evalstore.NewPostgresStore(h.pool, artifactpgtest.NewStorage()).Record(t.Context(), "user-1", e.ID, memberID, evaldomain.RecordKindAssessment, next)
 	if err != nil || stored.Predecessor == nil || *stored.Predecessor != first || stored.ActorID != "user-1" {
 		t.Fatal("conflict lost attributed assessment revision", stored, err)
 	}
-	selected, err := evalstore.NewPostgresStore(h.pool).Selected(t.Context(), "user-1", e.ID, memberID)
+	selected, err := evalstore.NewPostgresStore(h.pool, artifactpgtest.NewStorage()).Selected(t.Context(), "user-1", e.ID, memberID)
 	if err != nil || selected == nil || selected.AssessmentSHA256 == nil || *selected.AssessmentSHA256 != first {
 		t.Fatal("new external revision replaced selected authority", selected, err)
 	}

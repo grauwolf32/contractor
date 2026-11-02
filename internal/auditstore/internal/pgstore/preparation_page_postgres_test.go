@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
@@ -85,7 +87,7 @@ func TestListPreparedPageRejectsUnboundedSelections(t *testing.T) {
 		"oversized fetch":    {OwnerID: "owner", Limit: pagelimit.MaxFetchRows + 1},
 	} {
 		t.Run(name, func(t *testing.T) {
-			if _, _, err := NewQueryStore(nil).ListPreparedPage(t.Context(), params); !errors.Is(err, auditstore.ErrInvalid) {
+			if _, _, err := NewQueryStore(nil, artifactpgtest.NewStorage()).ListPreparedPage(t.Context(), params); !errors.Is(err, auditstore.ErrInvalid) {
 				t.Fatalf("page error = %v", err)
 			}
 		})
@@ -220,7 +222,7 @@ func TestSharedPostgresListPreparedPageReadsAFullFetchInTwoStatements(t *testing
 		}
 		defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
 		counted := &pageStatementTx{Tx: tx, failOn: failOn, failure: failure}
-		audits, roles, err := NewQueryStore(counted).ListPreparedPage(ctx, params)
+		audits, roles, err := NewQueryStore(counted, artifactpgtest.NewStorage()).ListPreparedPage(ctx, params)
 		return audits, roles, counted.statements, err
 	}
 	audits, roles, statements, err := read(t, params, "", nil)
@@ -233,7 +235,7 @@ func TestSharedPostgresListPreparedPageReadsAFullFetchInTwoStatements(t *testing
 	statuses := map[string]auditdomain.PreparationStatus{}
 	for _, audit := range audits {
 		// Every listed Audit has the roles its detail reads (ASC-R150).
-		detail, err := NewQueryStore(pool).GetPreparedDetail(ctx, owner, audit.AuditID, false)
+		detail, err := NewQueryStore(pool, artifactpgtest.NewStorage()).GetPreparedDetail(ctx, owner, audit.AuditID, false)
 		if err != nil || detail.Audit.Revision != audit.Revision {
 			t.Fatalf("%s detail = revision %d, %v", audit.AuditID, detail.Audit.Revision, err)
 		}
@@ -270,7 +272,7 @@ func TestSharedPostgresListPreparedPageReadsAFullFetchInTwoStatements(t *testing
 	}
 
 	// A pool-backed store reads the same page in its own snapshot.
-	pooled, pooledRoles, err := NewQueryStore(pool).ListPreparedPage(ctx, params)
+	pooled, pooledRoles, err := NewQueryStore(pool, artifactpgtest.NewStorage()).ListPreparedPage(ctx, params)
 	if err != nil || !reflect.DeepEqual(pooled, audits) || !reflect.DeepEqual(pooledRoles, roles) {
 		t.Fatalf("pool-backed page differs: %v", err)
 	}
@@ -304,7 +306,7 @@ func TestSharedPostgresListPreparedPageReadsAFullFetchInTwoStatements(t *testing
 		}
 		defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
 		counted := &pageStatementTx{Tx: tx, failOn: failOn, failure: failure}
-		read, err := NewQueryStore(counted).GetPreparedDetail(ctx, ownerID, auditID, true)
+		read, err := NewQueryStore(counted, artifactpgtest.NewStorage()).GetPreparedDetail(ctx, ownerID, auditID, true)
 		return read, counted.statements, err
 	}
 	// A preparing Audit takes the Audit and the list's preparation statement

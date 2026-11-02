@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
@@ -65,7 +67,7 @@ func TestPostgresTypedRoutingUsesActualAdmissionAfterPauseRestartAndProducerDele
 	ctx, cancel := context.WithTimeout(t.Context(), 180*time.Second)
 	defer cancel()
 	h := newPostgresControllerHarnessWithConfig(t, ctx, 0, 1, typedRoutingControllerConfig(t))
-	intake, err := findingintake.New(h.pool)
+	intake, err := findingintake.New(h.pool, artifactpgtest.NewStorage())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +124,7 @@ func TestPostgresTypedRoutingUsesActualAdmissionAfterPauseRestartAndProducerDele
 	if err := h.runs.MarkStageAllocationReleased(ctx, *producer.RunID+"-allocation"); err != nil {
 		t.Fatal(err)
 	}
-	if err := rundeletion.New(h.pool).DeleteReleasedTerminalRun(ctx, paused.Audit.OwnerID, *producer.RunID); err != nil {
+	if err := rundeletion.New(h.pool, artifactpgtest.NewStorage()).DeleteReleasedTerminalRun(ctx, paused.Audit.OwnerID, *producer.RunID); err != nil {
 		t.Fatal(err)
 	}
 	current, err = h.audits.Get(ctx, current.OwnerID, current.AuditID)

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
@@ -34,6 +35,7 @@ func configureCredentials(
 	lease persistencepostgres.ServerLease,
 	configurationManager *workflowconfig.Manager,
 	cfg Config,
+	storage *artifactpostgres.Storage,
 ) (credentialServices, error) {
 	snapshot := configurationManager.Snapshot()
 	credentialRepository := credentials.NewRepository(pool)
@@ -120,7 +122,7 @@ func configureCredentials(
 	credentialBarrier := credentials.NewLifecycleBarrier()
 	credentialLifecycle, err := credentials.NewService(credentials.ServiceOptions{
 		Pool: pool, Lease: lease, Gateways: configurationManager, Managers: credentialManagers,
-		Runs: runstore.NewPostgresStore(pool), Audits: hookstore.NewCredentialHolds(pool),
+		Runs: runstore.NewPostgresStore(pool, storage), Audits: hookstore.NewCredentialHolds(pool, storage),
 		Cipher: tokenCipher, Barrier: credentialBarrier,
 	})
 	if err != nil {
@@ -132,7 +134,7 @@ func configureCredentials(
 	runtimeCredentialLifecycle, err := credentials.NewRuntimeCredentialService(
 		credentials.RuntimeCredentialServiceOptions{
 			Pool: pool, Lease: lease, Cipher: tokenCipher, Usage: runtimeCredentialRepository,
-			Projects: projectstore.NewPostgresStore(pool), Audits: hookstore.NewCredentialHolds(pool),
+			Projects: projectstore.NewPostgresStore(pool), Audits: hookstore.NewCredentialHolds(pool, storage),
 			Barrier: credentialBarrier,
 		},
 	)

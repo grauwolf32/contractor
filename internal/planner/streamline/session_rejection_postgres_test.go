@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/planner"
@@ -49,7 +51,7 @@ func TestPostgresStreamlineRejectedSessionWritesAreNotRetryable(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
 			defer cancel()
 			pool := isolatedStreamlinePool(t, ctx)
-			store := runstore.NewPostgresStore(pool)
+			store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 			createPreparingStreamlineStage(t, ctx, store)
 			sessions, err := plannersession.New(store, plannersession.Options{})
 			if err != nil {

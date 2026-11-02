@@ -22,15 +22,17 @@ import (
 )
 
 type CollectionPublisher struct {
+	storage *artifactpostgres.Storage
+
 	pool    *pgxpool.Pool
 	reviews CollectionFindings
 }
 
-func NewCollectionPublisher(pool *pgxpool.Pool, reviews CollectionFindings) (*CollectionPublisher, error) {
-	if pool == nil || reviews == nil {
+func NewCollectionPublisher(pool *pgxpool.Pool, reviews CollectionFindings, storage *artifactpostgres.Storage) (*CollectionPublisher, error) {
+	if storage == nil || pool == nil || reviews == nil {
 		return nil, errors.New("finding collection dependencies are incomplete")
 	}
-	return &CollectionPublisher{pool: pool, reviews: reviews}, nil
+	return &CollectionPublisher{storage: storage, pool: pool, reviews: reviews}, nil
 }
 
 // collectionObserver consumes one receipt after exact-byte and optional analysis
@@ -63,7 +65,7 @@ func (p *CollectionPublisher) PublishCollection(ctx context.Context, params Publ
 		if err := postgres.LockAdvisory(ctx, tx, key); err != nil {
 			return err
 		}
-		service := artifacts.NewService(artifactpostgres.NewRepository(tx))
+		service := artifacts.NewService(p.storage.Repository(tx))
 		user, err := service.User(params.OwnerID)
 		if err != nil {
 			return err
@@ -260,7 +262,7 @@ func (p *CollectionPublisher) captureCollection(ctx context.Context, tx pgx.Tx, 
 		return fail(err)
 	}
 	builder := collectionDocuments{
-		repository: artifactpostgres.NewRepository(tx),
+		repository: p.storage.Repository(tx),
 		documents:  map[string]auditdomain.FindingCollectionDocument{}, contents: map[string][]byte{}, git: map[string]*artifacts.GitSource{},
 	}
 	planned := make([]plannedCollectionEntry, 0, len(ids))

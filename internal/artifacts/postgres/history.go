@@ -65,7 +65,7 @@ var errHistoryRaceLost = errors.New("artifact history victim acquired a hold bef
 func (r *Repository) advanceWithHistory(
 	ctx context.Context, scope artifacts.Scope, target artifacts.ArtifactRef, expectedRevision string, write writeStatement,
 ) (writeRow, error) {
-	policy := historyPolicy(ctx)
+	policy := r.history
 	var stored writeRow
 	err := persistencepostgres.Within(ctx, r.db, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		stored = writeRow{}
@@ -118,7 +118,7 @@ func (r *Repository) advanceWithHistory(
 		if err != nil {
 			return err
 		}
-		if err := removeHistoryVictims(ctx, tx, scope, target, victims); err != nil {
+		if err := r.removeHistoryVictims(ctx, tx, scope, target, victims); err != nil {
 			return err
 		}
 		work.removed += len(victims)
@@ -172,7 +172,7 @@ func (r *Repository) maintain(ctx context.Context, pending *artifacts.HistoryMai
 func (r *Repository) maintainHistory(
 	ctx context.Context, scope artifacts.Scope, target artifacts.ArtifactRef, size int64,
 ) (int, error) {
-	policy := historyPolicy(ctx)
+	policy := r.history
 	removed := 0
 	err := persistencepostgres.Within(ctx, r.db, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		removed = 0
@@ -196,7 +196,7 @@ func (r *Repository) maintainHistory(
 		for _, victim := range victims {
 			bytes += victim.size
 		}
-		if err := removeHistoryVictims(ctx, tx, scope, target, victims); err != nil {
+		if err := r.removeHistoryVictims(ctx, tx, scope, target, victims); err != nil {
 			return err
 		}
 		if _, err := tx.Exec(ctx, releaseHistoryCountersSQL,
@@ -358,7 +358,7 @@ func lockHistoryVictims(
 // removeHistoryVictims deletes the locked victims under the retention
 // exception and collects the versions and blobs they leave unreferenced.
 // Lineage is never cut: a revision at either end of an edge is held.
-func removeHistoryVictims(
+func (s *Storage) removeHistoryVictims(
 	ctx context.Context, tx pgx.Tx, scope artifacts.Scope, target artifacts.ArtifactRef, victims []historyVictim,
 ) error {
 	if len(victims) == 0 {
@@ -382,7 +382,7 @@ func removeHistoryVictims(
 	if len(versionIDs) != len(victims) {
 		return fmt.Errorf("%w: removed %d of %d locked revisions", errHistoryRaceLost, len(versionIDs), len(victims))
 	}
-	if err := collectUnreferencedVersions(ctx, tx, versionIDs); err != nil {
+	if err := s.collectUnreferencedVersions(ctx, tx, versionIDs); err != nil {
 		return err
 	}
 	if _, err := tx.Exec(ctx, `SELECT set_config($1, '', true)`, historyRetentionSetting); err != nil {

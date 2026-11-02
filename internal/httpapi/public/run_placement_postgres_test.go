@@ -7,9 +7,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/getkin/kin-openapi/routers/gorillamux"
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runservice"
@@ -19,9 +20,9 @@ import (
 func TestPostgresPublicRunPlacementPinsAndReplaysSelection(t *testing.T) {
 	ctx := t.Context()
 	pool := isolatedPublicPool(t, ctx)
-	runs := runstore.NewPostgresStore(pool)
-	artifactService := artifacts.NewService(artifactpostgres.NewRepository(pool))
-	details, err := runservice.NewRunDetailReader(runservice.PostgresRunDetailTransaction(pool))
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
+	artifactService := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
+	details, err := runservice.NewRunDetailReader(runservice.PostgresRunDetailTransaction(pool, artifactpgtest.NewStorage()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,7 +86,7 @@ func TestPostgresPublicRunPlacementPinsAndReplaysSelection(t *testing.T) {
 		body["labels"] = invalid
 		post(http.StatusBadRequest, false)
 	}
-	stored, err := runstore.NewPostgresStore(pool).GetRun(ctx, created.RunID)
+	stored, err := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()).GetRun(ctx, created.RunID)
 	if err != nil || !slices.Equal(stored.RequiredPlacementLabels, []string{"cloud/aws"}) {
 		t.Fatalf("stored immutable selection = %+v, %v", stored, err)
 	}

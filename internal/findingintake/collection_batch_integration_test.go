@@ -15,9 +15,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -54,7 +55,7 @@ func TestPostgresRunProposalPagesUseBatchedReadsAndSkipRetainedDocuments(t *test
 	}
 	trace := &collectionQueryCounter{}
 	actor, _ := deletionActorPool(t, f, trace)
-	reader, err := New(actor)
+	reader, err := New(actor, artifactpgtest.NewStorage())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,7 +119,7 @@ func newLargeDirectCollectionFixture(t *testing.T) deletionImportFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	artifactService := artifacts.NewService(artifactpostgres.NewRepository(f.pool))
+	artifactService := artifacts.NewService(artifactpgtest.NewStorage().Repository(f.pool))
 	runArtifacts, err := artifactService.Run(f.request.RunID)
 	if err != nil {
 		t.Fatal(err)
@@ -135,7 +136,7 @@ func newLargeDirectCollectionFixture(t *testing.T) deletionImportFixture {
 	if err := artifactstest.FreezeOutputs(ctx, artifactService, f.request.RunID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := runstore.NewPostgresStore(f.pool).TransitionRun(ctx, f.request.RunID,
+	if _, err := runstore.NewPostgresStore(f.pool, artifactpgtest.NewStorage()).TransitionRun(ctx, f.request.RunID,
 		runstore.RunRunning, runstore.RunSucceeded, runstore.Reason{Code: "collection_fixture_succeeded"}); err != nil {
 		t.Fatal(err)
 	}
@@ -151,7 +152,7 @@ func TestPostgresLargeDirectCollectionFinishesAcrossShortAttempts(t *testing.T) 
 	trace := &collectionQueryCounter{}
 	transactions := &collectionTransactionTracer{}
 	actorPool, _ := deletionActorPool(t, f, multiQueryTracer{trace, transactions})
-	actor, err := New(actorPool)
+	actor, err := New(actorPool, artifactpgtest.NewStorage())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,7 +181,7 @@ func TestPostgresLargeDirectCollectionFinishesAfterTimedOutAttempt(t *testing.T)
 	defer firstCancel()
 	interrupted := &collectionTransactionTracer{interrupt: firstCancel}
 	actorPool, _ := deletionActorPool(t, f, interrupted)
-	actor, err := New(actorPool)
+	actor, err := New(actorPool, artifactpgtest.NewStorage())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -198,7 +199,7 @@ func TestPostgresLargeDirectCollectionFinishesAfterTimedOutAttempt(t *testing.T)
 	}
 	retried := &collectionTransactionTracer{}
 	retryPool, _ := deletionActorPool(t, f, retried)
-	retryActor, err := New(retryPool)
+	retryActor, err := New(retryPool, artifactpgtest.NewStorage())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -209,7 +210,7 @@ func TestPostgresLargeDirectCollectionFinishesAfterTimedOutAttempt(t *testing.T)
 	retried.assertBounded(t)
 	trace := &collectionQueryCounter{}
 	actorPool, _ = deletionActorPool(t, f, trace)
-	actor, err = New(actorPool)
+	actor, err = New(actorPool, artifactpgtest.NewStorage())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -242,7 +243,7 @@ func TestPostgresEvidenceHeavyCollectionPageCommitsBoundedTransactions(t *testin
 	defer firstCancel()
 	transactions := &collectionTransactionTracer{interrupt: firstCancel}
 	actorPool, _ := deletionActorPool(t, f, transactions)
-	actor, err := New(actorPool)
+	actor, err := New(actorPool, artifactpgtest.NewStorage())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -325,7 +326,7 @@ func assertFixtureHolds(t *testing.T, f deletionImportFixture, want int) {
 // fixture's source Run, in canonical reference order.
 func writeFixtureEvidence(t *testing.T, f deletionImportFixture, count int) []ExactArtifact {
 	t.Helper()
-	runArtifacts, err := artifacts.NewService(artifactpostgres.NewRepository(f.pool)).Run(f.request.RunID)
+	runArtifacts, err := artifacts.NewService(artifactpgtest.NewStorage().Repository(f.pool)).Run(f.request.RunID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -351,7 +352,7 @@ func writeFixtureEvidence(t *testing.T, f deletionImportFixture, count int) []Ex
 // advances once, so the cited revision is not the current one.
 func writeLostFixtureEvidence(t *testing.T, f deletionImportFixture) ExactArtifact {
 	t.Helper()
-	runArtifacts, err := artifacts.NewService(artifactpostgres.NewRepository(f.pool)).Run(f.request.RunID)
+	runArtifacts, err := artifacts.NewService(artifactpgtest.NewStorage().Repository(f.pool)).Run(f.request.RunID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -591,14 +592,14 @@ SELECT entity_id, summary ->> 'reason' FROM audit_events
 		}
 	}
 	// A replay over the settled page changes nothing.
-	audit, err := auditstoretest.NewStore(f.pool).Get(f.ctx, f.request.OwnerID, f.request.AuditID)
+	audit, err := auditstoretest.NewStore(f.pool, artifactpgtest.NewStorage()).Get(f.ctx, f.request.OwnerID, f.request.AuditID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := collectFixtureProposals(f.ctx, f, false); err != nil {
 		t.Fatal(err)
 	}
-	replayed, err := auditstoretest.NewStore(f.pool).Get(f.ctx, f.request.OwnerID, f.request.AuditID)
+	replayed, err := auditstoretest.NewStore(f.pool, artifactpgtest.NewStorage()).Get(f.ctx, f.request.OwnerID, f.request.AuditID)
 	if err != nil || replayed.Revision != audit.Revision {
 		t.Fatalf("collection replay changed the Audit: %+v, %v", replayed, err)
 	}
@@ -635,7 +636,7 @@ func TestPostgresCollectionRejectionKeepsEarlierDirectAssessments(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	artifactService := artifacts.NewService(artifactpostgres.NewRepository(f.pool))
+	artifactService := artifacts.NewService(artifactpgtest.NewStorage().Repository(f.pool))
 	runArtifacts, err := artifactService.Run(f.request.RunID)
 	if err != nil {
 		t.Fatal(err)
@@ -652,7 +653,7 @@ func TestPostgresCollectionRejectionKeepsEarlierDirectAssessments(t *testing.T) 
 	if err := artifactstest.FreezeOutputs(f.ctx, artifactService, f.request.RunID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := runstore.NewPostgresStore(f.pool).TransitionRun(f.ctx, f.request.RunID,
+	if _, err := runstore.NewPostgresStore(f.pool, artifactpgtest.NewStorage()).TransitionRun(f.ctx, f.request.RunID,
 		runstore.RunRunning, runstore.RunSucceeded, runstore.Reason{Code: "collection_fixture_succeeded"}); err != nil {
 		t.Fatal(err)
 	}
@@ -666,11 +667,11 @@ func TestPostgresCollectionRejectionKeepsEarlierDirectAssessments(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	prepared, err := prepareDirectVerification(f.ctx, tx, artifacts.NewService(artifactpostgres.NewRepository(tx)),
+	prepared, err := prepareDirectVerification(f.ctx, tx, artifacts.NewService(artifactpgtest.NewStorage().Repository(tx)),
 		directVerificationInput{
 			AuditID: f.request.AuditID, ProjectID: "delete-project", RunID: f.request.RunID,
 			WorkflowClosureDigest: base.Origin.Workflow.ClosureDigest,
-		})
+		}, artifactpgtest.NewStorage())
 	if rollbackErr := tx.Rollback(f.ctx); err != nil || rollbackErr != nil || prepared == nil {
 		t.Fatalf("prepare direct verification = (%+v, %v, %v)", prepared, err, rollbackErr)
 	}
@@ -693,7 +694,7 @@ func TestPostgresCollectionRejectionKeepsEarlierDirectAssessments(t *testing.T) 
 		if receipt.ProjectProposal == nil {
 			continue
 		}
-		if len(readDirectHistoryForTest(t, f.ctx, f.pool, f.request.OwnerID, "delete-project", receipt.ReceiptID, f.request.AuditID)) != 0 {
+		if len(readDirectHistoryForTest(t, f.ctx, f.pool, f.request.OwnerID, "delete-project", receipt.ReceiptID, f.request.AuditID, f.intake.storage)) != 0 {
 			assessed = append(assessed, receipt.ClientKey)
 		}
 	}

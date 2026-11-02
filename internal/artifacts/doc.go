@@ -16,6 +16,11 @@
 // its filesystem and postgres adapters store physical files and inline bytes.
 // PostgreSQL remains the registry for either payload backend.
 //
+// Server composition injects one postgres.Storage into consumers. It binds
+// repositories and purgers to their caller-owned database transactions without
+// losing the process payload runtime or retained-history limits. Context carries
+// only operation state and an active transfer lease.
+//
 // A prepared payload verifies a reusable physical generation before publication
 // locks. Publication may attach only that verified key or its complete candidate.
 // Physical deletion follows a definite registry commit; uncertain outcomes and

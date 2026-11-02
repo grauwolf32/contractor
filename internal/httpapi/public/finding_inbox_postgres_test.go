@@ -15,9 +15,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -54,7 +55,7 @@ func seedPublicInboxReceipt(t *testing.T, ctx context.Context, pool *pgxpool.Poo
 	if err != nil {
 		t.Fatal(err)
 	}
-	written, err := artifactstest.WriteFindingProposal(ctx, artifacts.NewService(artifactpostgres.NewRepository(pool)),
+	written, err := artifactstest.WriteFindingProposal(ctx, artifacts.NewService(artifactpgtest.NewStorage().Repository(pool)),
 		runID, key, artifacts.Payload{MediaType: "application/json", Data: body})
 	if err != nil {
 		t.Fatal(err)
@@ -99,7 +100,7 @@ func TestPostgresPublicAuditInboxPagesThroughCursors(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	projectArtifacts, err := artifacts.NewService(artifactpostgres.NewRepository(pool)).Project(projectID)
+	projectArtifacts, err := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool)).Project(projectID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,7 +118,7 @@ func TestPostgresPublicAuditInboxPagesThroughCursors(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, id := range []string{auditID, siblingID} {
-		if _, _, err := auditstoretest.NewStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{
+		if _, _, err := auditstoretest.NewStore(pool, artifactpgtest.NewStorage()).CreateDraft(ctx, auditstore.CreateDraftParams{
 			AuditID: id, OwnerID: owner, ProjectID: projectID,
 			Profile:         auditstore.ProfileIdentity{Name: "profile", Version: "1", Digest: auditHandlerDigest("profile")},
 			ProfileSnapshot: json.RawMessage(`{"interaction":{}}`), InputSelection: selection,
@@ -139,7 +140,7 @@ func TestPostgresPublicAuditInboxPagesThroughCursors(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	runs := runstore.NewPostgresStore(pool)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	project := projectID
 	for _, runID := range []string{goneRun, liveRun} {
 		if _, err := runstoretest.CreateRun(ctx, runs, runstore.CreateRunParams{
@@ -173,7 +174,7 @@ func TestPostgresPublicAuditInboxPagesThroughCursors(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	intake, err := findingintake.New(pool)
+	intake, err := findingintake.New(pool, artifactpgtest.NewStorage())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -198,7 +199,7 @@ SELECT receipt_id, $1, 'inbox-other-project', proposal_ref, '[]'::jsonb
   FROM finding_proposal_receipts WHERE receipt_id = 'receipt-siblingonly'`, auditID); err != nil {
 		t.Fatal(err)
 	}
-	if err := rundeletion.New(pool).DeleteReleasedTerminalRun(ctx, owner, goneRun); err != nil {
+	if err := rundeletion.New(pool, artifactpgtest.NewStorage()).DeleteReleasedTerminalRun(ctx, owner, goneRun); err != nil {
 		t.Fatal(err)
 	}
 	expected := []string{"receipt-imported", "receipt-goneheld", "receipt-nativea", "receipt-nativeb",
@@ -211,7 +212,7 @@ SELECT array_agg(receipt_id ORDER BY created_at, receipt_id)
 	}
 	fixture := newHandlerFixtureWithAuth(t, "../../config/testdata/valid", newTestAuthentication(t), mustTestOrigins(t), false, nil, func(deps *testServices) {
 		credentials := newFakeManagedCredentials()
-		audits, err := auditservice.New(auditservice.Options{
+		audits, err := auditservice.New(auditservice.Options{Storage: artifactpgtest.NewStorage(),
 			Pool: pool, Profiles: deps.Config.(*config.Manager), CredentialGuard: credentials,
 			TransactionLLMCredentials: runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (resolved.CredentialLookup, error) { return credentials, nil }),
 		})

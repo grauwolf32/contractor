@@ -26,7 +26,7 @@ var (
 // write in a transaction the store owns commits one maintenance pass before
 // it returns the error. A write in a caller's transaction cannot: the caller
 // rolls its transaction back and passes the error to
-// PostgresRepository.MaintainHistory, which commits that pass.
+// postgres.Repository.MaintainHistory, which commits that pass.
 type HistoryMaintenanceError struct {
 	Scope Scope
 	Ref   ArtifactRef

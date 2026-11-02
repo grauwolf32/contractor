@@ -323,7 +323,7 @@ WHERE experiment_id=$1
 func (s *Store) auditCreatedInWorkspace(
 	ctx context.Context, owner, id, member, auditID, key, digest string,
 ) (bool, error) {
-	audit, found, err := hookstore.NewAuditCreations(s.db).LookupCreation(ctx, owner, key, digest)
+	audit, found, err := hookstore.NewAuditCreations(s.db, s.storage).LookupCreation(ctx, owner, key, digest)
 	switch {
 	case errors.Is(err, auditstore.ErrInvalid), errors.Is(err, contracts.ErrIdempotencyConflict),
 		errors.Is(err, auditstore.ErrNotFound):

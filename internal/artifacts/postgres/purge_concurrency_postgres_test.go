@@ -8,9 +8,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	. "github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -31,13 +32,13 @@ func TestPostgresConcurrentPurgeSharedBlob(t *testing.T) {
 			refs := make([]ArtifactRef, 2)
 			for i, id := range []string{"purge-a", "purge-b"} {
 				createArtifactRun(t, ctx, pool, id, true)
-				run, _ := NewService(artifactpostgres.NewRepository(pool)).Run(id)
+				run, _ := NewService(artifactpgtest.NewStorage().Repository(pool)).Run(id)
 				written, err := run.Write(ctx, ArtifactRef{Namespace: "scratch", Name: "same"}, Payload{MediaType: "text/plain", Data: []byte("shared")}, nil)
 				if err != nil {
 					t.Fatal(err)
 				}
 				refs[i] = written.Ref
-				if _, err := runstore.NewPostgresStore(pool).TransitionRun(ctx, id, runstore.RunRunning, runstore.RunSucceeded, runstore.Reason{Code: "done"}); err != nil {
+				if _, err := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()).TransitionRun(ctx, id, runstore.RunRunning, runstore.RunSucceeded, runstore.Reason{Code: "done"}); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -46,7 +47,7 @@ func TestPostgresConcurrentPurgeSharedBlob(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer first.Rollback(context.Background())
-			if err := rundeletion.New(first).DeleteReleasedTerminalRun(ctx, "user-1", "purge-a"); err != nil {
+			if err := rundeletion.New(first, artifactpgtest.NewStorage()).DeleteReleasedTerminalRun(ctx, "user-1", "purge-a"); err != nil {
 				t.Fatal(err)
 			}
 			second, err := pool.Begin(ctx)
@@ -56,7 +57,7 @@ func TestPostgresConcurrentPurgeSharedBlob(t *testing.T) {
 			defer second.Rollback(context.Background())
 			done := make(chan error, 1)
 			go func() {
-				err := rundeletion.New(second).DeleteReleasedTerminalRun(ctx, "user-1", "purge-b")
+				err := rundeletion.New(second, artifactpgtest.NewStorage()).DeleteReleasedTerminalRun(ctx, "user-1", "purge-b")
 				if err == nil {
 					err = second.Commit(ctx)
 				}
@@ -86,7 +87,7 @@ func TestPostgresConcurrentPurgeSharedBlob(t *testing.T) {
 				t.Fatalf("runs/versions/blobs = %d/%d/%d, want %d each", runs, versions, blobs, want)
 			}
 			if rollback {
-				run, _ := NewService(artifactpostgres.NewRepository(pool)).Run("purge-a")
+				run, _ := NewService(artifactpgtest.NewStorage().Repository(pool)).Run("purge-a")
 				if content, err := run.Read(ctx, refs[0]); err != nil || string(content.Payload.Data) != "shared" {
 					t.Fatalf("retained content: %v %v", content, err)
 				}
@@ -100,7 +101,7 @@ func TestPostgresPurgeConcurrentIdenticalWrite(t *testing.T) {
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
 	createArtifactRun(t, ctx, pool, "purge-write", true)
-	run, _ := NewService(artifactpostgres.NewRepository(pool)).Run("purge-write")
+	run, _ := NewService(artifactpgtest.NewStorage().Repository(pool)).Run("purge-write")
 	payload := Payload{MediaType: "text/plain", Data: []byte("shared")}
 	if _, err := run.Write(ctx, ArtifactRef{Namespace: "scratch", Name: "same"}, payload, nil); err != nil {
 		t.Fatal(err)
@@ -110,7 +111,7 @@ func TestPostgresPurgeConcurrentIdenticalWrite(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer writer.Rollback(context.Background())
-	user, _ := NewService(artifactpostgres.NewRepository(writer)).User("survivor")
+	user, _ := NewService(artifactpgtest.NewStorage().Repository(writer)).User("survivor")
 	ref, err := user.Write(ctx, ArtifactRef{Namespace: "keep", Name: "same"}, payload, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -122,7 +123,7 @@ func TestPostgresPurgeConcurrentIdenticalWrite(t *testing.T) {
 	defer purge.Rollback(context.Background())
 	done := make(chan error, 1)
 	go func() {
-		p, _ := artifactpostgres.NewPurger(purge)
+		p, _ := artifactpgtest.NewStorage().Purger(purge)
 		err := p.PurgeRun(ctx, "purge-write")
 		if err == nil {
 			err = purge.Commit(ctx)
@@ -136,7 +137,7 @@ func TestPostgresPurgeConcurrentIdenticalWrite(t *testing.T) {
 	if err := <-done; err != nil {
 		t.Fatal(err)
 	}
-	reader, _ := NewService(artifactpostgres.NewRepository(pool)).User("survivor")
+	reader, _ := NewService(artifactpgtest.NewStorage().Repository(pool)).User("survivor")
 	if got, err := reader.Read(ctx, ref.Ref); err != nil || string(got.Payload.Data) != "shared" {
 		t.Fatalf("surviving write: %v %v", got, err)
 	}
@@ -157,7 +158,7 @@ func TestPostgresPurgeWaitsForRetainingPublication(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	runs := runstore.NewPostgresStore(pool)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	if _, err := runstoretest.CreateRun(ctx, runs, runstore.CreateRunParams{
 		LaneClass: resolved.LaneClassModel,
 		RunID:     "publish-run", OwnerID: "user-1", ProjectID: &projectID, WorkflowName: "copy", WorkflowVersion: "1",
@@ -165,7 +166,7 @@ func TestPostgresPurgeWaitsForRetainingPublication(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	service := NewService(artifactpostgres.NewRepository(pool))
+	service := NewService(artifactpgtest.NewStorage().Repository(pool))
 	run, _ := service.Run("publish-run")
 	written, err := run.Write(ctx, ArtifactRef{Namespace: "scratch", Name: "source"}, Payload{MediaType: "text/plain", Data: []byte("retained")}, nil)
 	if err != nil {
@@ -183,7 +184,7 @@ func TestPostgresPurgeWaitsForRetainingPublication(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer fork.Rollback(context.Background())
-	publication, err := publishOutput(ctx, NewService(artifactpostgres.NewRepository(fork)), "publish-run", projectID, "result", bound.TargetRef)
+	publication, err := publishOutput(ctx, NewService(artifactpgtest.NewStorage().Repository(fork)), "publish-run", projectID, "result", bound.TargetRef)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -194,7 +195,7 @@ func TestPostgresPurgeWaitsForRetainingPublication(t *testing.T) {
 	defer purge.Rollback(context.Background())
 	done := make(chan error, 1)
 	go func() {
-		p, _ := artifactpostgres.NewPurger(purge)
+		p, _ := artifactpgtest.NewStorage().Purger(purge)
 		err := p.PurgeRun(ctx, "publish-run")
 		if err == nil {
 			err = purge.Commit(ctx)
@@ -222,7 +223,7 @@ func TestPostgresPurgeRequiresFreshStatementSnapshots(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer tx.Rollback(ctx)
-	p, _ := artifactpostgres.NewPurger(tx)
+	p, _ := artifactpgtest.NewStorage().Purger(tx)
 	if err := p.PurgeRun(ctx, "run-test"); err == nil {
 		t.Fatal("repeatable-read purge accepted")
 	}

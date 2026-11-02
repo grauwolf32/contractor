@@ -16,10 +16,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/getkin/kin-openapi/routers"
 	"github.com/getkin/kin-openapi/routers/gorillamux"
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
@@ -65,31 +66,31 @@ func newEvalAPIHarness(t *testing.T) *evalAPIHarness {
 		credentialLookup.lookups[id] = resolved.CredentialMetadata{Ref: llmgateway.LLMCredentialRef{CredentialID: id}, LLMGateway: gateway.Ref, Unrestricted: true}
 	}
 	transactionLLMCredentials := runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (resolved.CredentialLookup, error) { return credentialLookup, nil })
-	audits, err := auditservice.New(auditservice.Options{Pool: pool, Profiles: catalog, TransactionLLMCredentials: transactionLLMCredentials, CredentialGuard: credentialLookup})
+	audits, err := auditservice.New(auditservice.Options{Storage: artifactpgtest.NewStorage(), Pool: pool, Profiles: catalog, TransactionLLMCredentials: transactionLLMCredentials, CredentialGuard: credentialLookup})
 	if err != nil {
 		t.Fatal(err)
 	}
-	resolver := &evalservice.Resolver{Pool: pool, Catalog: catalog, Credentials: transactionLLMCredentials, Barrier: credentialLookup}
+	resolver := &evalservice.Resolver{Storage: artifactpgtest.NewStorage(), Pool: pool, Catalog: catalog, Credentials: transactionLLMCredentials, Barrier: credentialLookup}
 	h := &evalAPIHarness{pool: pool, resolver: resolver}
 	fixture := newHandlerFixtureWithAuth(t, publicCatalogFixture, newTestAuthentication(t), mustTestOrigins(t), false, nil, func(d *testServices) {
 		d.Config = catalog
 		d.Audits = audits
 		d.Projects = projectstore.NewPostgresStore(pool)
-		d.Artifacts = artifacts.NewService(artifactpostgres.NewRepository(pool))
-		runs, err := runservice.New(runservice.Options{Runs: runstore.NewPostgresStore(pool), Workflows: catalog, LLMCredentials: credentialLookup, CredentialGuard: credentialLookup, RuntimeCredentials: d.RuntimeCredentials, Projects: d.Projects, SkillInitializationAvailable: true, PublicTransaction: func(ctx context.Context, fn func(runservice.PublicRunWriter, *artifacts.Service) error) error {
+		d.Artifacts = artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
+		runs, err := runservice.New(runservice.Options{Runs: runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()), Workflows: catalog, LLMCredentials: credentialLookup, CredentialGuard: credentialLookup, RuntimeCredentials: d.RuntimeCredentials, Projects: d.Projects, SkillInitializationAvailable: true, PublicTransaction: func(ctx context.Context, fn func(runservice.PublicRunWriter, *artifacts.Service) error) error {
 			return pg.InTx(ctx, pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead}, func(tx pgx.Tx) error {
 				lookup, err := runtimeconfig.BindTransactionLLMCredentialLookup(tx, transactionLLMCredentials)
 				if err != nil {
 					return err
 				}
-				return fn(runstore.NewRunCreationPostgresStore(tx, lookup, credentials.NewRuntimeCredentialRepository(tx)), artifacts.NewService(artifactpostgres.NewRepository(tx)))
+				return fn(runstore.NewRunCreationPostgresStore(tx, lookup, credentials.NewRuntimeCredentialRepository(tx), artifactpgtest.NewStorage()), artifacts.NewService(artifactpgtest.NewStorage().Repository(tx)))
 			})
 		}})
 		if err != nil {
 			t.Fatal(err)
 		}
 		d.RunCreator = runs
-		service, err := evalservice.New(evalservice.Options{Pool: pool, Resolver: resolver, Driver: &evalservice.Driver{Pool: pool, Runs: runs, Audits: audits}})
+		service, err := evalservice.New(evalservice.Options{Storage: artifactpgtest.NewStorage(), Pool: pool, Resolver: resolver, Driver: &evalservice.Driver{Storage: artifactpgtest.NewStorage(), Pool: pool, Runs: runs, Audits: audits}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -97,7 +98,7 @@ func newEvalAPIHarness(t *testing.T) *evalAPIHarness {
 		d.Evals = service
 	})
 	h.handler = fixture.handler
-	h.coordinator, err = evalcoordinator.New(evalstore.NewPostgresStore(pool), h.service, evalcoordinator.Options{})
+	h.coordinator, err = evalcoordinator.New(evalstore.NewPostgresStore(pool, artifactpgtest.NewStorage()), h.service, evalcoordinator.Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -166,7 +167,7 @@ func (h *evalAPIHarness) dataset(t *testing.T, kind string) (evaldomain.Draft, e
 	var data evaldomain.DatasetInput
 	evalFixture(t, "draft", &draft)
 	evalFixture(t, "dataset", &data)
-	store, err := artifacts.NewService(artifactpostgres.NewRepository(h.pool)).User("user-1")
+	store, err := artifacts.NewService(artifactpgtest.NewStorage().Repository(h.pool)).User("user-1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -249,7 +250,7 @@ func (h *evalAPIHarness) finish(t *testing.T, kind string) {
 			t.Fatal(rows.Err())
 		}
 		for _, id := range ids {
-			runs := runstore.NewPostgresStore(h.pool)
+			runs := runstore.NewPostgresStore(h.pool, artifactpgtest.NewStorage())
 			current, err := runs.GetRun(t.Context(), id)
 			if err != nil {
 				t.Fatal(err)
@@ -259,12 +260,12 @@ func (h *evalAPIHarness) finish(t *testing.T, kind string) {
 					t.Fatal(err)
 				}
 			}
-			if _, err = runstore.NewPostgresStore(h.pool).TransitionRun(t.Context(), id, runstore.RunRunning, runstore.RunSucceeded, runstore.Reason{Code: "fixture"}); err != nil {
+			if _, err = runstore.NewPostgresStore(h.pool, artifactpgtest.NewStorage()).TransitionRun(t.Context(), id, runstore.RunRunning, runstore.RunSucceeded, runstore.Reason{Code: "fixture"}); err != nil {
 				t.Fatal(err)
 			}
 		}
 	} else {
-		store := auditstoretest.NewStore(h.pool)
+		store := auditstoretest.NewStore(h.pool, artifactpgtest.NewStorage())
 		claims, err := store.Claim(t.Context(), auditstore.ClaimParams{HolderID: "api-fixture", Lease: time.Minute, Limit: 100})
 		if err != nil {
 			t.Fatal(err)

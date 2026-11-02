@@ -8,8 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
@@ -38,7 +39,7 @@ func TestAuditPostgresStartKeepsWorkflowCredentialLookupClass(t *testing.T) {
 			LLMGateway: gateway.Ref, Unrestricted: true,
 		},
 	}}
-	audits, err := auditservice.New(auditservice.Options{
+	audits, err := auditservice.New(auditservice.Options{Storage: artifactpgtest.NewStorage(),
 		Pool: pool, Profiles: configuration,
 		TransactionLLMCredentials: runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(
 			func(pgx.Tx) (resolved.CredentialLookup, error) { return lookup, nil },
@@ -58,7 +59,7 @@ func TestAuditPostgresStartKeepsWorkflowCredentialLookupClass(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	projectArtifacts, err := artifacts.NewService(artifactpostgres.NewRepository(pool)).Project(project.ProjectID)
+	projectArtifacts, err := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool)).Project(project.ProjectID)
 	if err != nil {
 		t.Fatal(err)
 	}

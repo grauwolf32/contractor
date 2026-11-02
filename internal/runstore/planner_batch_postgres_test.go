@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/persistence/postgrestest"
 	"github.com/jackc/pgx/v5"
@@ -53,7 +55,7 @@ FROM stage_executions ORDER BY stage_execution_id LIMIT $1`, sessions); err != n
 	if err != nil {
 		t.Fatal(err)
 	}
-	store := NewPostgresStore(pool)
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
 	trace.reads.Store(0)
 	seen := make(map[string]bool, sessions)
 	if err := store.ReadPlannerSessions(ctx, append(ids, "missing-session"), func(session PlannerSession) error {

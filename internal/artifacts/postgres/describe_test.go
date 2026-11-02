@@ -9,9 +9,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	. "github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
@@ -68,7 +69,7 @@ func TestDescribeExactReadsBoundedMetadataBatchesWithoutPayloads(t *testing.T) {
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
 	counter := &countingDB{DBTX: pool}
-	service := NewService(artifactpostgres.NewRepository(counter))
+	service := NewService(artifactpgtest.NewStorage().Repository(counter))
 	scope, _ := UserScope("describe-owner")
 	store, err := service.Scoped(scope)
 	if err != nil {
@@ -157,7 +158,7 @@ func TestDescribeExactReadsBoundedMetadataBatchesWithoutPayloads(t *testing.T) {
 	if statements, _ := counter.reset(); statements != 0 {
 		t.Fatalf("invalid references sent %d statements, want none", statements)
 	}
-	if _, err := artifactpostgres.NewRepository(pool).DescribeExact(ctx, scope, make([]ArtifactRef, MaxExactReadBatchSize+1)); !errors.Is(err, blob.ErrTooLarge) {
+	if _, err := artifactpgtest.NewStorage().Repository(pool).DescribeExact(ctx, scope, make([]ArtifactRef, MaxExactReadBatchSize+1)); !errors.Is(err, blob.ErrTooLarge) {
 		t.Fatalf("oversized repository batch = %v, want ErrPayloadTooLarge", err)
 	}
 	cancelled, cancelNow := context.WithCancel(ctx)

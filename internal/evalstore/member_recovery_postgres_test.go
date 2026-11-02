@@ -8,6 +8,8 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	pg "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
@@ -174,15 +176,15 @@ func TestSharedPostgresEvalComposedRecoveryTakesItsAuthorityOnce(t *testing.T) {
 		}
 		return r.Settle(ctx)
 	})
-	submission, err := NewPostgresStore(f.pool).Submission(ctx, f.scope.OwnerID, f.experiment.ID, f.member)
+	submission, err := NewPostgresStore(f.pool, artifactpgtest.NewStorage()).Submission(ctx, f.scope.OwnerID, f.experiment.ID, f.member)
 	if err != nil || submission.State != SubmissionTerminal || submission.ExecutionID == nil || *submission.ExecutionID != runID {
 		t.Fatalf("settled submission %+v: %v", submission, err)
 	}
-	operation, err := NewPostgresStore(f.pool).Suboperation(ctx, f.scope.OwnerID, f.experiment.ID, f.member, f.operation.Kind)
+	operation, err := NewPostgresStore(f.pool, artifactpgtest.NewStorage()).Suboperation(ctx, f.scope.OwnerID, f.experiment.ID, f.member, f.operation.Kind)
 	if err != nil || operation.State != "succeeded" {
 		t.Fatalf("acknowledged operation %+v: %v", operation, err)
 	}
-	settled, err := NewPostgresStore(f.pool).Get(ctx, f.scope.OwnerID, f.experiment.ID)
+	settled, err := NewPostgresStore(f.pool, artifactpgtest.NewStorage()).Get(ctx, f.scope.OwnerID, f.experiment.ID)
 	if err != nil || settled.Outstanding != 0 || settled.ObservedTokens != 7 {
 		t.Fatalf("settled experiment %+v: %v", settled, err)
 	}
@@ -205,7 +207,7 @@ func TestSharedPostgresEvalComposedRecoveryRechecksItsFences(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer func() { _ = tx.Rollback(ctx) }()
-		recovery := NewTxStore(tx).RecoverMember(f.scope, f.experiment.ID, f.member, f.claim)
+		recovery := NewTxStore(tx, artifactpgtest.NewStorage()).RecoverMember(f.scope, f.experiment.ID, f.member, f.claim)
 		if err = recovery.ObserveTokens(ctx, 1); err != nil {
 			t.Fatalf("%s: first step: %v", name, err)
 		}
@@ -298,10 +300,10 @@ func TestSharedPostgresEvalComposedRecoveryRechecksItsFences(t *testing.T) {
 	if err := committed.Settle(ctx); !errors.Is(err, pgx.ErrTxClosed) {
 		t.Fatalf("a recovery step outlived its transaction: %v", err)
 	}
-	if err := f.recover(NewPostgresStore(f.pool)).ObserveTokens(ctx, 3); !errors.Is(err, ErrTransaction) {
+	if err := f.recover(NewPostgresStore(f.pool, artifactpgtest.NewStorage())).ObserveTokens(ctx, 3); !errors.Is(err, ErrTransaction) {
 		t.Fatalf("a recovery step ran without a transaction: %v", err)
 	}
-	observed, err := NewPostgresStore(f.pool).Get(ctx, f.scope.OwnerID, f.experiment.ID)
+	observed, err := NewPostgresStore(f.pool, artifactpgtest.NewStorage()).Get(ctx, f.scope.OwnerID, f.experiment.ID)
 	if err != nil || observed.ObservedTokens != 2 || observed.State == evaldomain.StateCancelling || observed.DeletionRequestedAt != nil {
 		t.Fatalf("rolled back fences or late steps left a trace: %+v, %v", observed, err)
 	}

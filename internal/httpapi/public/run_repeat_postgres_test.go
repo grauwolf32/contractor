@@ -12,9 +12,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auth"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
@@ -31,9 +32,9 @@ func TestPostgresRunRepeatUsesExactCreationLineageWithoutMutation(t *testing.T) 
 	ctx := t.Context()
 	pool := isolatedPublicPool(t, ctx)
 	fixture := newHandlerFixture(t)
-	repository := artifactpostgres.NewRepository(pool)
+	repository := artifactpgtest.NewStorage().Repository(pool)
 	service := artifacts.NewService(repository)
-	runs := runstore.NewPostgresStore(pool)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	projects := projectstore.NewPostgresStore(pool)
 	h := &runRepeatHandlers{RunRepeatDependencies: RunRepeatDependencies{RepeatDrafts: runservice.NewRepeatReader(runservice.RepeatOptions{
 		Runs: runs, Artifacts: service, Projects: projects,
@@ -205,8 +206,8 @@ func TestPostgresRepeatRefusesChangedInputSourceScope(t *testing.T) {
 	ctx := t.Context()
 	pool := isolatedPublicPool(t, ctx)
 	fixture := newHandlerFixture(t)
-	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
-	runs := runstore.NewPostgresStore(pool)
+	service := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	projects := projectstore.NewPostgresStore(pool)
 	project, _, err := projects.Create(ctx, projectstore.CreateParams{ProjectID: "scope-drift-project", OwnerID: "user-1", Kind: projectstore.KindProject, Name: "Scope drift", IdempotencyKey: "scope-drift-project", RequestDigest: "sha256:" + strings.Repeat("a", 64)})
 	if err != nil {

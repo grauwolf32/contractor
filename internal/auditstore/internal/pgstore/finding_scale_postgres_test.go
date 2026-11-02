@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/helpers/pagelimit"
 	"github.com/grauwolf32/contractor/internal/persistence/explaintest"
@@ -50,7 +52,7 @@ SELECT (SELECT count(*) FROM project_finding_audits WHERE audit_id = $1),
 		t.Fatal(err)
 	}
 	defer conn.Release()
-	store := NewQueryStore(conn)
+	store := NewQueryStore(conn, artifactpgtest.NewStorage())
 	fetch := pagelimit.FetchRows(pagelimit.MaxRows)
 	// inModes runs read under each plan cache mode on the store's
 	// connection, so its prepared statements run as custom and as generic

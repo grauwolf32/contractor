@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	postgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -19,6 +18,8 @@ import (
 // PostgresStore binds every Planner Memory operation to one still-running Run
 // and StageExecution before accessing its ordinary RunScope ArtifactStore.
 type PostgresStore struct {
+	storage *artifactpostgres.Storage
+
 	pool          *pgxpool.Pool
 	writeBoundary *postgresWriteBoundary
 }
@@ -32,11 +33,11 @@ type postgresWriteBoundary struct {
 	commit       func(context.Context, pgx.Tx) error
 }
 
-func NewPostgresStore(pool *pgxpool.Pool) (*PostgresStore, error) {
-	if pool == nil {
+func NewPostgresStore(pool *pgxpool.Pool, storage *artifactpostgres.Storage) (*PostgresStore, error) {
+	if storage == nil || pool == nil {
 		return nil, fmt.Errorf("PostgreSQL pool is required for Planner Memory")
 	}
-	return &PostgresStore{pool: pool}, nil
+	return &PostgresStore{storage: storage, pool: pool}, nil
 }
 
 func (s *PostgresStore) LoadAll(
@@ -47,12 +48,12 @@ func (s *PostgresStore) LoadAll(
 		return nil, ErrAccessForbidden
 	}
 	return withActiveStage(ctx, s.pool, false, binding, nil, func(tx pgx.Tx) ([]artifacts.ReadResult, error) {
-		store, err := runArtifactStore(tx, binding.RunID)
+		store, err := runArtifactStore(tx, binding.RunID, s.storage)
 		if err != nil {
 			return nil, err
 		}
 		return store.ReadPrefixBatch(ctx, binding.Namespace, ArtifactNamePrefix, MaximumNotes+1)
-	})
+	}, s.storage)
 }
 
 func (s *PostgresStore) Read(
@@ -67,12 +68,12 @@ func (s *PostgresStore) Read(
 		return artifacts.ReadResult{}, ErrAccessForbidden
 	}
 	return withActiveStage(ctx, s.pool, false, binding, nil, func(tx pgx.Tx) (artifacts.ReadResult, error) {
-		store, err := runArtifactStore(tx, binding.RunID)
+		store, err := runArtifactStore(tx, binding.RunID, s.storage)
 		if err != nil {
 			return artifacts.ReadResult{}, err
 		}
 		return store.Read(ctx, ref)
-	})
+	}, s.storage)
 }
 
 func (s *PostgresStore) Write(
@@ -90,33 +91,33 @@ func (s *PostgresStore) Write(
 		return artifacts.WriteResult{}, ErrAccessForbidden
 	}
 	// Preparation and transactional publication share one transfer slot.
-	ctx, releaseTransfer, err := blob.AcquireTransfer(ctx)
+	ctx, releaseTransfer, err := s.storage.AcquireTransfer(ctx)
 	if err != nil {
 		return artifacts.WriteResult{}, err
 	}
 	defer releaseTransfer()
 	var prepareErr error
-	payload, prepareErr = artifactpostgres.PreparePayload(ctx, s.pool, payload)
+	payload, prepareErr = s.storage.PreparePayload(ctx, s.pool, payload)
 	if prepareErr != nil {
 		return artifacts.WriteResult{}, prepareErr
 	}
 	result, err := withActiveStage(ctx, s.pool, true, binding, s.writeBoundary, func(tx pgx.Tx) (artifacts.WriteResult, error) {
-		store, err := runArtifactStore(tx, binding.RunID)
+		store, err := runArtifactStore(tx, binding.RunID, s.storage)
 		if err != nil {
 			return artifacts.WriteResult{}, err
 		}
 		return store.Write(ctx, target, payload, expectedRevision)
-	})
+	}, s.storage)
 	if errors.Is(err, artifacts.ErrHistoryMaintenancePending) {
 		// The note's transaction has rolled back and stored nothing; commit the
 		// one maintenance pass its binding needs before answering (ART-R127).
-		err = artifactpostgres.NewRepository(s.pool).MaintainHistory(ctx, err)
+		err = s.storage.Repository(s.pool).MaintainHistory(ctx, err)
 	}
 	return result, err
 }
 
-func runArtifactStore(tx pgx.Tx, runID string) (artifacts.ScopedStore, error) {
-	service := artifacts.NewService(artifactpostgres.NewRepository(tx))
+func runArtifactStore(tx pgx.Tx, runID string, storage *artifactpostgres.Storage) (artifacts.ScopedStore, error) {
+	service := artifacts.NewService(storage.Repository(tx))
 	return service.Run(runID)
 }
 
@@ -127,6 +128,7 @@ func withActiveStage[T any](
 	binding Binding,
 	boundary *postgresWriteBoundary,
 	operation func(pgx.Tx) (T, error),
+	storage *artifactpostgres.Storage,
 ) (result T, err error) {
 	if ctx == nil || ctx.Err() != nil {
 		return result, ErrAccessForbidden
@@ -161,7 +163,7 @@ func withActiveStage[T any](
 	if mutation {
 		check = lockActiveStage
 	}
-	if err := check(ctx, tx, binding); err != nil {
+	if err := check(ctx, tx, binding, storage); err != nil {
 		return result, err
 	}
 	result, err = operation(tx)
@@ -200,11 +202,11 @@ func withActiveStage[T any](
 // StageExecution must be running.
 var plannerRunStates = []runstore.WorkflowRunState{runstore.RunRunning, runstore.RunWaiting}
 
-func lockActiveStage(ctx context.Context, tx pgx.Tx, binding Binding) error {
+func lockActiveStage(ctx context.Context, tx pgx.Tx, binding Binding, storage *artifactpostgres.Storage) error {
 	// Match Scheduler's lifecycle transaction lock order. Holding both rows
 	// through the Artifact call is the durable Planner write fence; the Run
 	// store takes and checks both locks.
-	store := runstore.NewPostgresTxStore(tx)
+	store := runstore.NewPostgresTxStore(tx, storage)
 	if _, err := store.LockRunState(ctx, binding.RunID, plannerRunStates...); err != nil {
 		return fenceError(ctx, "lock Planner Memory WorkflowRun", err)
 	}
@@ -224,7 +226,7 @@ func fenceError(ctx context.Context, operation string, err error) error {
 	return fmt.Errorf("%s: %w", operation, err)
 }
 
-func readActiveStage(ctx context.Context, tx pgx.Tx, binding Binding) error {
+func readActiveStage(ctx context.Context, tx pgx.Tx, binding Binding, storage *artifactpostgres.Storage) error {
 	var runState runstore.WorkflowRunState
 	var stageState runstore.StageExecutionState
 	err := tx.QueryRow(ctx, `

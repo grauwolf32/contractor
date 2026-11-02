@@ -12,9 +12,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
@@ -38,7 +39,7 @@ func TestPostgresFindingImportSerializesWithRunDeletion(t *testing.T) {
 		defer gate.release()
 		importPool, importPID := deletionActorPool(t, f, gate)
 		deletePool, deletePID := deletionActorPool(t, f, nil)
-		intake, err := New(importPool)
+		intake, err := New(importPool, artifactpgtest.NewStorage())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -67,7 +68,7 @@ func TestPostgresFindingImportSerializesWithRunDeletion(t *testing.T) {
 			len(receipt.AuditHolds) != 1 || receipt.Document.ClientKey != "candidate" || !receipt.Proposal.Ref.SameExact(f.request.Proposal) {
 			t.Fatalf("retained import after deletion = %+v, %v", receipt, err)
 		}
-		audit, err := auditstoretest.NewStore(f.pool).WithPurgeDependencies(DeleteAuditHoldsBatch).Get(f.ctx, f.request.OwnerID, f.request.AuditID)
+		audit, err := auditstoretest.NewStore(f.pool, artifactpgtest.NewStorage()).WithPurgeDependencies(DeleteAuditHoldsBatch).Get(f.ctx, f.request.OwnerID, f.request.AuditID)
 		if err != nil || audit.Revision != 3 {
 			t.Fatalf("draft + import + deletion revision = %d, %v", audit.Revision, err)
 		}
@@ -85,7 +86,7 @@ func TestPostgresFindingImportSerializesWithRunDeletion(t *testing.T) {
 				t.Fatal(err)
 			}
 			importPool, importPID := deletionActorPool(t, f, nil)
-			intake, err := New(importPool)
+			intake, err := New(importPool, artifactpgtest.NewStorage())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -114,7 +115,7 @@ func TestPostgresFindingImportSerializesWithRunDeletion(t *testing.T) {
 				if err := f.pool.QueryRow(f.ctx, `SELECT count(*) FROM finding_proposal_audit_holds`).Scan(&holds); err != nil || holds != 0 {
 					t.Fatalf("late import created %d holds: %v", holds, err)
 				}
-				audit, err := auditstoretest.NewStore(f.pool).WithPurgeDependencies(DeleteAuditHoldsBatch).Get(f.ctx, f.request.OwnerID, f.request.AuditID)
+				audit, err := auditstoretest.NewStore(f.pool, artifactpgtest.NewStorage()).WithPurgeDependencies(DeleteAuditHoldsBatch).Get(f.ctx, f.request.OwnerID, f.request.AuditID)
 				if err != nil || audit.Revision != 1 {
 					t.Fatalf("unaffected Audit revision = %d, %v", audit.Revision, err)
 				}
@@ -134,7 +135,7 @@ func TestPostgresFindingImportSerializesWithRunDeletion(t *testing.T) {
 			if err != nil || receipt.Origin.RunDeleted || receipt.Retention != RetentionProjectHeld || len(receipt.AuditHolds) != 1 {
 				t.Fatalf("import after rollback = %+v, %v", receipt, err)
 			}
-			audit, err := auditstoretest.NewStore(f.pool).WithPurgeDependencies(DeleteAuditHoldsBatch).Get(f.ctx, f.request.OwnerID, f.request.AuditID)
+			audit, err := auditstoretest.NewStore(f.pool, artifactpgtest.NewStorage()).WithPurgeDependencies(DeleteAuditHoldsBatch).Get(f.ctx, f.request.OwnerID, f.request.AuditID)
 			if err != nil || audit.Revision != 2 {
 				t.Fatalf("rollback retained a deletion revision: %d, %v", audit.Revision, err)
 			}
@@ -149,7 +150,7 @@ func TestPostgresFindingRunDeletionSerializesWithAuditPurge(t *testing.T) {
 			if _, _, err := f.intake.ImportIntoAudit(f.ctx, f.request); err != nil {
 				t.Fatal(err)
 			}
-			audits := auditstoretest.NewStore(f.pool).WithPurgeDependencies(DeleteAuditHoldsBatch)
+			audits := auditstoretest.NewStore(f.pool, artifactpgtest.NewStorage()).WithPurgeDependencies(DeleteAuditHoldsBatch)
 			if _, _, err := audits.RequestDelete(f.ctx, auditstore.DeleteParams{
 				OwnerID: f.request.OwnerID, AuditID: f.request.AuditID, ExpectedRevision: 2,
 				IdempotencyKey: "delete-audit", RequestDigest: auditdomain.DigestBytes([]byte("delete-audit")),
@@ -174,10 +175,10 @@ func TestPostgresFindingRunDeletionSerializesWithAuditPurge(t *testing.T) {
 					t.Fatal(err)
 				}
 				go func() {
-					finished <- auditstoretest.NewStore(actorPool).WithPurgeDependencies(DeleteAuditHoldsBatch).PurgeClaimed(f.ctx, claim, namespace)
+					finished <- auditstoretest.NewStore(actorPool, artifactpgtest.NewStorage()).WithPurgeDependencies(DeleteAuditHoldsBatch).PurgeClaimed(f.ctx, claim, namespace)
 				}()
 			} else {
-				if err := auditstoretest.NewStore(tx).WithPurgeDependencies(DeleteAuditHoldsBatch).PurgeClaimed(f.ctx, claim, namespace); err != nil {
+				if err := auditstoretest.NewStore(tx, artifactpgtest.NewStorage()).WithPurgeDependencies(DeleteAuditHoldsBatch).PurgeClaimed(f.ctx, claim, namespace); err != nil {
 					t.Fatal(err)
 				}
 				go func() {
@@ -201,7 +202,7 @@ func TestPostgresFindingRunDeletionSerializesWithAuditPurge(t *testing.T) {
 			if _, err := audits.Get(f.ctx, f.request.OwnerID, f.request.AuditID); !errors.Is(err, auditstore.ErrNotFound) {
 				t.Fatalf("Audit survived purge: %v", err)
 			}
-			if _, err := runstore.NewPostgresStore(f.pool).GetRun(f.ctx, f.request.RunID); !errors.Is(err, runstore.ErrNotFound) {
+			if _, err := runstore.NewPostgresStore(f.pool, artifactpgtest.NewStorage()).GetRun(f.ctx, f.request.RunID); !errors.Is(err, runstore.ErrNotFound) {
 				t.Fatalf("source Run survived deletion: %v", err)
 			}
 			receipt, err := readReceiptByID(f.ctx, f.pool, f.receiptID)
@@ -240,7 +241,7 @@ func newFindingImportFixture(t *testing.T, direct bool) deletionImportFixture {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := auditstoretest.NewStore(pool).WithPurgeDependencies(DeleteAuditHoldsBatch).CreateDraft(ctx, auditstore.CreateDraftParams{
+	if _, _, err := auditstoretest.NewStore(pool, artifactpgtest.NewStorage()).WithPurgeDependencies(DeleteAuditHoldsBatch).CreateDraft(ctx, auditstore.CreateDraftParams{
 		AuditID: auditID, OwnerID: owner, ProjectID: projectID,
 		Profile:         auditstore.ProfileIdentity{Name: "profile", Version: "1", Digest: auditdomain.DigestBytes([]byte("profile"))},
 		ProfileSnapshot: json.RawMessage(`{"interaction":{}}`), InputSelection: json.RawMessage(`{}`),
@@ -276,7 +277,7 @@ func newFindingImportFixture(t *testing.T, direct bool) deletionImportFixture {
 		t.Fatal(err)
 	}
 	project := projectID
-	runs := runstore.NewPostgresStore(pool)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	if _, err := runstoretest.CreateRun(ctx, runs, runstore.CreateRunParams{
 		LaneClass: resolved.LaneClassModel,
 		RunID:     runID, OwnerID: owner, ProjectID: &project, WorkflowName: workflow.Ref.Name, WorkflowVersion: workflow.Ref.Version,
@@ -292,7 +293,7 @@ func newFindingImportFixture(t *testing.T, direct bool) deletionImportFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store := artifacts.NewService(artifactpostgres.NewRepository(pool))
+	store := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
 	written, err := artifactstest.WriteFindingProposal(ctx, store, runID, "proposal",
 		artifacts.Payload{MediaType: proposalMediaType, Data: canonical.proposalBytes})
 	if err != nil {
@@ -324,7 +325,7 @@ func newFindingImportFixture(t *testing.T, direct bool) deletionImportFixture {
 	if _, err := runs.TransitionRun(ctx, runID, from, terminal, runstore.Reason{Code: "fixture_done"}); err != nil {
 		t.Fatal(err)
 	}
-	intake, err := New(pool)
+	intake, err := New(pool, artifactpgtest.NewStorage())
 	if err != nil {
 		t.Fatal(err)
 	}

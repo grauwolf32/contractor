@@ -218,7 +218,7 @@ func scanAuditHoldsBatch(rows pgx.Rows, size int) (map[string][]AuditHold, error
 }
 
 func (s *Service) hydrateAuditReceiptBatch(ctx context.Context, receipts []Receipt) ([]Receipt, error) {
-	repository := artifactpostgres.NewRepository(s.pool)
+	repository := s.storage.Repository(s.pool)
 	for start := 0; start < len(receipts); {
 		requests := make([]artifactpostgres.ExactReadRequest, 0, artifacts.MaxExactReadBatchSize)
 		expected := make([]ExactArtifact, 0, artifacts.MaxExactReadBatchSize)

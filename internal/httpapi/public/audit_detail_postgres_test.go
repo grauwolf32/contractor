@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -42,7 +44,7 @@ func TestSharedPostgresAuditDetailReadsOneCommitWhileTheAuditChanges(t *testing.
 	f.start(projectID, auditID)
 	f.claim(1)
 	credentials := newFakeManagedCredentials()
-	service, err := auditservice.New(auditservice.Options{Pool: traced, Profiles: f.catalog, CredentialGuard: credentials,
+	service, err := auditservice.New(auditservice.Options{Storage: artifactpgtest.NewStorage(), Pool: traced, Profiles: f.catalog, CredentialGuard: credentials,
 		TransactionLLMCredentials: runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(
 			func(pgx.Tx) (resolved.CredentialLookup, error) { return credentials, nil }),
 	})

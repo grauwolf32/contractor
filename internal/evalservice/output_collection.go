@@ -5,6 +5,7 @@ import (
 	"slices"
 	"sort"
 
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalstore"
@@ -39,6 +40,7 @@ func collectOutputs(
 	member evalstore.Member,
 	execution ExecutionView,
 	inventory evalstore.Inventory,
+	storage *artifactpostgres.Storage,
 ) (OutputObservation, error) {
 	observation := OutputObservation{
 		Outputs:    map[string]evaldomain.Artifact{},
@@ -54,7 +56,7 @@ func collectOutputs(
 	}
 	observation.Collection.Gaps = append(observation.Collection.Gaps, inventory.Gaps...)
 
-	store := evalstore.NewPostgresStore(db)
+	store := evalstore.NewPostgresStore(db, storage)
 	for _, role := range outputRoles(member.Recipe.Case.Outputs) {
 		contract := member.Recipe.Case.Outputs[role]
 		slot := mappedOutput(member.Recipe.Variant, role)

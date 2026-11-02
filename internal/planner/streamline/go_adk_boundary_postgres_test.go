@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/planner"
 	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
@@ -273,7 +275,7 @@ type migrationBoundaryStore struct {
 
 func newMigrationBoundaryStore(t *testing.T, ctx context.Context, pool *pgxpool.Pool) *migrationBoundaryStore {
 	t.Helper()
-	store := runstore.NewPostgresStore(pool)
+	store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	createPreparingStreamlineStage(t, ctx, store)
 	return &migrationBoundaryStore{PostgresStore: store}
 }

@@ -14,8 +14,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -123,8 +124,8 @@ func testPostgresSchedulerPublication(t *testing.T, scenario schedulerPublicatio
 		stage.On.Failed = resolved.TransitionAction{Kind: resolved.TransitionFail}
 		workflow.Stages[workflow.EntryStage] = stage
 	}
-	store := runstore.NewPostgresStore(pool)
-	artifactService := artifacts.NewService(artifactpostgres.NewRepository(pool))
+	store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
+	artifactService := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
 	projectID := "project-scheduler"
 	_, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{
 		ProjectID: projectID, OwnerID: "user-1", Kind: projectstore.KindProject,
@@ -175,7 +176,7 @@ func testPostgresSchedulerPublication(t *testing.T, scenario schedulerPublicatio
 	}
 	workers := &memoryWorkers{allocator: allocator, workflow: workflow, clock: clock, events: events}
 	resolver, _ := NewArtifactServiceResolver(artifactService)
-	transactions, _ := NewPostgresPersistence(pool)
+	transactions, _ := NewPostgresPersistence(pool, artifactpgtest.NewStorage())
 	workerSelection := workflow.Stages[workflow.EntryStage].ExecutionConfig.Agents["builder"]
 	if workerSelection.Credential == nil || workerSelection.LLMGateway == nil {
 		t.Fatal("test Worker has no complete credential route")
@@ -393,7 +394,7 @@ func TestPostgresProjectOutputPublicationRaceKeepsBothRunsSucceeded(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
+	service := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
 	for _, runID := range []string{"run-publication-a", "run-publication-b"} {
 		createBoundProjectRunOutput(t, ctx, pool, service, runID, projectID, "result", runID+"\n")
 	}
@@ -411,15 +412,15 @@ func TestPostgresProjectOutputPublicationRaceKeepsBothRunsSucceeded(t *testing.T
 			defer wait.Done()
 			<-start
 			errorsFound <- persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-				if _, err := runstore.NewPostgresTxStore(tx).LockRunState(ctx, runID, runstore.RunRunning); err != nil {
+				if _, err := runstore.NewPostgresTxStore(tx, artifactpgtest.NewStorage()).LockRunState(ctx, runID, runstore.RunRunning); err != nil {
 					return err
 				}
 				return commitTerminalRun(
-					ctx, tx, runstore.NewPostgresStore(tx), runID, contractsByName,
+					ctx, tx, runstore.NewPostgresStore(tx, artifactpgtest.NewStorage()), runID, contractsByName,
 					StageProgression{
 						TerminalRunState: runstore.RunSucceeded,
 						RunReason:        runstore.Reason{Code: "workflow_succeeded"},
-					}, 0,
+					}, 0, artifactpgtest.NewStorage(),
 				)
 			})
 		}(runID)
@@ -433,7 +434,7 @@ func TestPostgresProjectOutputPublicationRaceKeepsBothRunsSucceeded(t *testing.T
 		}
 	}
 
-	store := runstore.NewPostgresStore(pool)
+	store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	statusCounts := map[runstore.OutputPublicationStatus]int{}
 	for _, runID := range []string{"run-publication-a", "run-publication-b"} {
 		run, err := store.GetRun(ctx, runID)
@@ -473,7 +474,7 @@ func TestPostgresProjectOutputPublicationRollsBackWithTerminalTransactionAndRetr
 	if err != nil {
 		t.Fatal(err)
 	}
-	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
+	service := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
 	runID := "run-publication-retry"
 	createBoundProjectRunOutput(t, ctx, pool, service, runID, projectID, "result", "retry\n")
 	contractsByName := map[string]resolved.ArtifactSlot{
@@ -485,11 +486,11 @@ func TestPostgresProjectOutputPublicationRollsBackWithTerminalTransactionAndRetr
 	}
 	simulatedCrash := errors.New("simulated crash before terminal commit acknowledgement")
 	err = persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		if _, err := runstore.NewPostgresTxStore(tx).LockRunState(ctx, runID, runstore.RunRunning); err != nil {
+		if _, err := runstore.NewPostgresTxStore(tx, artifactpgtest.NewStorage()).LockRunState(ctx, runID, runstore.RunRunning); err != nil {
 			return err
 		}
 		if err := commitTerminalRun(
-			ctx, tx, runstore.NewPostgresStore(tx), runID, contractsByName, progression, 0,
+			ctx, tx, runstore.NewPostgresStore(tx, artifactpgtest.NewStorage()), runID, contractsByName, progression, 0, artifactpgtest.NewStorage(),
 		); err != nil {
 			return err
 		}
@@ -498,7 +499,7 @@ func TestPostgresProjectOutputPublicationRollsBackWithTerminalTransactionAndRetr
 	if !errors.Is(err, simulatedCrash) {
 		t.Fatalf("simulated terminal transaction failure = %v", err)
 	}
-	store := runstore.NewPostgresStore(pool)
+	store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	if run, err := store.GetRun(ctx, runID); err != nil || run.State != runstore.RunRunning {
 		t.Fatalf("rolled-back Run = (%+v, %v)", run, err)
 	}
@@ -511,11 +512,11 @@ func TestPostgresProjectOutputPublicationRollsBackWithTerminalTransactionAndRetr
 	}
 
 	err = persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		if _, err := runstore.NewPostgresTxStore(tx).LockRunState(ctx, runID, runstore.RunRunning); err != nil {
+		if _, err := runstore.NewPostgresTxStore(tx, artifactpgtest.NewStorage()).LockRunState(ctx, runID, runstore.RunRunning); err != nil {
 			return err
 		}
 		return commitTerminalRun(
-			ctx, tx, runstore.NewPostgresStore(tx), runID, contractsByName, progression, 0,
+			ctx, tx, runstore.NewPostgresStore(tx, artifactpgtest.NewStorage()), runID, contractsByName, progression, 0, artifactpgtest.NewStorage(),
 		)
 	})
 	if err != nil {
@@ -550,7 +551,7 @@ func TestPostgresProjectOutputPublicationFailureDoesNotChangeRunSuccess(t *testi
 	if err != nil {
 		t.Fatal(err)
 	}
-	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
+	service := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
 	runID := "run-publication-failure"
 	createBoundProjectRunOutput(t, ctx, pool, service, runID, projectID, "result", "failure\n")
 	if _, err := pool.Exec(ctx, `
@@ -572,21 +573,21 @@ FOR EACH ROW EXECUTE FUNCTION reject_test_project_output_publication()`); err !=
 		"result": {Required: true, MediaTypes: []string{"text/plain"}},
 	}
 	err = persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		if _, err := runstore.NewPostgresTxStore(tx).LockRunState(ctx, runID, runstore.RunRunning); err != nil {
+		if _, err := runstore.NewPostgresTxStore(tx, artifactpgtest.NewStorage()).LockRunState(ctx, runID, runstore.RunRunning); err != nil {
 			return err
 		}
 		return commitTerminalRun(
-			ctx, tx, runstore.NewPostgresStore(tx), runID, contractsByName,
+			ctx, tx, runstore.NewPostgresStore(tx, artifactpgtest.NewStorage()), runID, contractsByName,
 			StageProgression{
 				TerminalRunState: runstore.RunSucceeded,
 				RunReason:        runstore.Reason{Code: "workflow_succeeded"},
-			}, 0,
+			}, 0, artifactpgtest.NewStorage(),
 		)
 	})
 	if err != nil {
 		t.Fatalf("terminal success with failed publication: %v", err)
 	}
-	store := runstore.NewPostgresStore(pool)
+	store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	if run, err := store.GetRun(ctx, runID); err != nil || run.State != runstore.RunSucceeded {
 		t.Fatalf("Run after publication failure = (%+v, %v)", run, err)
 	}
@@ -608,8 +609,8 @@ func TestPostgresProjectOutputPublicationRecordsPermanentFailureOnce(t *testing.
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedSchedulerPool(t, ctx)
-	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
-	store := runstore.NewPostgresStore(pool)
+	service := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
+	store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	contractsByName := map[string]resolved.ArtifactSlot{
 		"result": {Required: true, MediaTypes: []string{"text/plain"}},
 	}
@@ -651,15 +652,15 @@ func TestPostgresProjectOutputPublicationRecordsPermanentFailureOnce(t *testing.
 		t.Fatal(err)
 	}
 	err := persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		if _, err := runstore.NewPostgresTxStore(tx).LockRunState(ctx, "run-publication-deleting", runstore.RunRunning); err != nil {
+		if _, err := runstore.NewPostgresTxStore(tx, artifactpgtest.NewStorage()).LockRunState(ctx, "run-publication-deleting", runstore.RunRunning); err != nil {
 			return err
 		}
 		return commitTerminalRun(
-			ctx, tx, runstore.NewPostgresStore(tx), "run-publication-deleting", contractsByName,
+			ctx, tx, runstore.NewPostgresStore(tx, artifactpgtest.NewStorage()), "run-publication-deleting", contractsByName,
 			StageProgression{
 				TerminalRunState: runstore.RunSucceeded,
 				RunReason:        runstore.Reason{Code: "workflow_succeeded"},
-			}, 0,
+			}, 0, artifactpgtest.NewStorage(),
 		)
 	})
 	if err != nil {
@@ -679,7 +680,7 @@ func TestPostgresProjectOutputPublicationRecordsPermanentFailureOnce(t *testing.
 	for attempt := 0; attempt < 2; attempt++ {
 		if err := persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 			return publishOneProjectOutput(
-				ctx, tx, "run-publication-missing", "project-publication-missing", "result", source,
+				ctx, tx, "run-publication-missing", "project-publication-missing", "result", source, artifactpgtest.NewStorage(),
 			)
 		}); err != nil {
 			t.Fatalf("publication attempt %d with missing source: %v", attempt+1, err)
@@ -887,10 +888,10 @@ func TestPostgresRetryProgressionAtomicallyCreatesFreshAttempt(t *testing.T) {
 	defer cancel()
 	pool := isolatedSchedulerPool(t, ctx)
 	workflow := loadSchedulerWorkflow(t)
-	store := runstore.NewPostgresStore(pool)
-	artifactService := artifacts.NewService(artifactpostgres.NewRepository(pool))
+	store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
+	artifactService := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
 	runArtifacts := createSchedulerRun(t, ctx, store, artifactService, workflow)
-	persistence, err := NewPostgresPersistence(pool)
+	persistence, err := NewPostgresPersistence(pool, artifactpgtest.NewStorage())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1057,10 +1058,10 @@ func TestPostgresEscalationProgressionIsAtomicAndOrdinalIsUnique(t *testing.T) {
 	defer cancel()
 	pool := isolatedSchedulerPool(t, ctx)
 	workflow := loadSchedulerWorkflow(t)
-	store := runstore.NewPostgresStore(pool)
-	artifactService := artifacts.NewService(artifactpostgres.NewRepository(pool))
+	store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
+	artifactService := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
 	runArtifacts := createSchedulerRun(t, ctx, store, artifactService, workflow)
-	persistence, err := NewPostgresPersistence(pool)
+	persistence, err := NewPostgresPersistence(pool, artifactpgtest.NewStorage())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1231,8 +1232,8 @@ func createFinalizingFixtureWith(
 func createRunningStageFixture(t *testing.T, ctx context.Context, pool *pgxpool.Pool) finalizingFixture {
 	t.Helper()
 	workflow := loadSchedulerWorkflow(t)
-	store := runstore.NewPostgresStore(pool)
-	artifactService := artifacts.NewService(artifactpostgres.NewRepository(pool))
+	store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
+	artifactService := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
 	runArtifacts := createSchedulerRun(t, ctx, store, artifactService, workflow)
 	input, err := runArtifacts.Read(ctx, contracts.ArtifactRef{Namespace: "inputs", Name: "source"})
 	if err != nil {
@@ -1247,7 +1248,7 @@ func createRunningStageFixture(t *testing.T, ctx context.Context, pool *pgxpool.
 	if err != nil {
 		t.Fatal(err)
 	}
-	persistence, _ := NewPostgresPersistence(pool)
+	persistence, _ := NewPostgresPersistence(pool, artifactpgtest.NewStorage())
 	stage := workflow.Stages["copy"]
 	stageJSON, _ := json.Marshal(stage)
 	executionID := "stage-finalizing"
@@ -1398,7 +1399,7 @@ func createBoundProjectRunOutput(
 	if err != nil {
 		t.Fatal(err)
 	}
-	store := runstore.NewPostgresStore(pool)
+	store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	if _, err := runstoretest.CreateRun(ctx, store, runstore.CreateRunParams{
 		LaneClass: resolved.LaneClassModel,
 		RunID:     runID, OwnerID: "user-1", ProjectID: &projectID,

@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts/engagementcontract"
@@ -16,7 +18,7 @@ import (
 
 func TestPostgresAllocationBaselineChecksImmutableOwnership(t *testing.T) {
 	f := newCollectingAuditFixture(t, "allocation-baseline", 1024)
-	store := NewQueryStore(f.pool)
+	store := NewQueryStore(f.pool, artifactpgtest.NewStorage())
 	owner, project, execution, run := f.audit.OwnerID, f.audit.ProjectID, f.execution.ExecutionID, *f.execution.RunID
 	id, baseline, err := store.ReadAllocationBaseline(f.ctx, owner, project, execution, run)
 	if err != nil || id != f.audit.AuditID || len(baseline) == 0 {

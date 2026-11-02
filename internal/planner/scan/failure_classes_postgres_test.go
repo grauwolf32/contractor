@@ -7,8 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -34,7 +35,7 @@ func TestPostgresAuditResultReadLockTimeoutRetainsCompletedScan(t *testing.T) {
 	if _, err := instance.Run(ctx); err != nil {
 		t.Fatal(err)
 	}
-	_, err := runstoretest.CreateRun(ctx, runstore.NewPostgresStore(pool), runstore.CreateRunParams{
+	_, err := runstoretest.CreateRun(ctx, runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()), runstore.CreateRunParams{
 		LaneClass: resolved.LaneClassTool, RunID: h.invocation.RunID, OwnerID: "user",
 		WorkflowName: "scan", WorkflowVersion: "1", WorkflowSchemaVersion: contracts.APIVersion,
 		WorkflowSnapshot: json.RawMessage(`{"name":"scan"}`), Parameters: map[string]string{},
@@ -43,7 +44,7 @@ func TestPostgresAuditResultReadLockTimeoutRetainsCompletedScan(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store, err := NewServiceArtifacts(artifacts.NewService(artifactpostgres.NewRepository(pool)))
+	store, err := NewServiceArtifacts(artifacts.NewService(artifactpgtest.NewStorage().Repository(pool)))
 	if err != nil {
 		t.Fatal(err)
 	}

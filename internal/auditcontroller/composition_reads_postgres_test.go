@@ -9,6 +9,8 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -78,7 +80,7 @@ func TestPostgresCompositionReadsOnlyCommittedInventoryAndRetainedOutputs(t *tes
 			t.Fatalf("unauthorized or mutable lookup: %v", err)
 		}
 	}
-	if err := rundeletion.New(h.pool).DeleteReleasedTerminalRun(ctx, owner, *prepared.RunID); err != nil {
+	if err := rundeletion.New(h.pool, artifactpgtest.NewStorage()).DeleteReleasedTerminalRun(ctx, owner, *prepared.RunID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := h.service.ReadArtifact(ctx, owner, id, key, revision); err != nil {
@@ -165,7 +167,7 @@ func TestPostgresAuditDetailReadsGeneratedInventoryFromOneCommit(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer traced.Close()
-	service, err := auditservice.New(auditservice.Options{
+	service, err := auditservice.New(auditservice.Options{Storage: artifactpgtest.NewStorage(),
 		Pool: traced, Profiles: h.snapshot, TransactionLLMCredentials: controllerTransactionCredentialLookup(),
 		CredentialGuard: controllerCredentialGuard{},
 	})

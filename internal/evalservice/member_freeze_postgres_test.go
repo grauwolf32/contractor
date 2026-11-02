@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalstore"
 	"github.com/jackc/pgx/v5"
@@ -123,7 +125,7 @@ type frozenMemberRow struct {
 func assertFrozenMembers(t *testing.T, pool *pgxpool.Pool, e evalstore.Experiment, cases map[string]evaldomain.Case) {
 	t.Helper()
 	ctx := t.Context()
-	plan, err := evalstore.NewPostgresStore(pool).FrozenPlan(ctx, e.OwnerID, e.ID)
+	plan, err := evalstore.NewPostgresStore(pool, artifactpgtest.NewStorage()).FrozenPlan(ctx, e.OwnerID, e.ID)
 	if err != nil {
 		t.Fatal(err)
 	}

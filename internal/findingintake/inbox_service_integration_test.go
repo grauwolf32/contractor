@@ -8,9 +8,10 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -26,7 +27,7 @@ import (
 // Project with the fixture Run's Workflow.
 func createFixtureRun(t *testing.T, f deletionImportFixture, runID string) {
 	t.Helper()
-	runs := runstore.NewPostgresStore(f.pool)
+	runs := runstore.NewPostgresStore(f.pool, artifactpgtest.NewStorage())
 	source, err := runs.GetRun(f.ctx, f.request.RunID)
 	if err != nil {
 		t.Fatal(err)
@@ -74,7 +75,7 @@ func tryInsertInboxReceipt(t *testing.T, f deletionImportFixture, owner, runID, 
 		t.Fatal(err)
 	}
 	written, err := artifactstest.WriteFindingProposal(
-		f.ctx, artifacts.NewService(artifactpostgres.NewRepository(f.pool)), runID, clientKey+"-proposal",
+		f.ctx, artifacts.NewService(artifactpgtest.NewStorage().Repository(f.pool)), runID, clientKey+"-proposal",
 		artifacts.Payload{MediaType: proposalMediaType, Data: canonical.proposalBytes},
 	)
 	if err != nil {

@@ -12,9 +12,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	artifactpolicy "github.com/grauwolf32/contractor/internal/artifacts/policy"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
@@ -35,11 +36,11 @@ func TestFindingExportFreezesDuplicateOptionAndCanonicalProjectAssessment(t *tes
 	const owner, project, audit = "owner", "project", "audit-one"
 	createCorrelationAudit(t, ctx, pool, owner, project, audit)
 	createCorrelationAudit(t, ctx, pool, owner, project, "audit-two")
-	intake, err := findingintake.New(pool)
+	intake, err := findingintake.New(pool, artifactpgtest.NewStorage())
 	if err != nil {
 		t.Fatal(err)
 	}
-	service := &Service{pool: pool, findings: intake, now: time.Now}
+	service := &Service{storage: artifactpgtest.NewStorage(), pool: pool, findings: intake, now: time.Now}
 	fingerprint := correlationFingerprint(t)
 	first := seedAuditFindingDocument(t, ctx, pool, project, owner, audit, "first", auditFindingDocument("first"), fingerprint)
 	second := seedAuditFinding(t, ctx, pool, project, owner, audit, "second")
@@ -172,7 +173,7 @@ func TestFindingExportInvalidInputsAndAtomicRollback(t *testing.T) {
 		}
 	}
 	scope, _ := artifacts.ProjectScope("project")
-	metadata, err := artifactpostgres.NewRepository(pool).Metadata(ctx, scope, result.Artifact.Ref)
+	metadata, err := artifactpgtest.NewStorage().Repository(pool).Metadata(ctx, scope, result.Artifact.Ref)
 	if err != nil || !metadata.Frozen {
 		t.Fatalf("not frozen: %+v %v", metadata, err)
 	}
@@ -197,12 +198,12 @@ func TestFindingExportMaximumSelectionAndAuditPurge(t *testing.T) {
 	if _, err := publisher.PublishFindingExport(ctx, "owner", "audit", tooMany); err == nil {
 		t.Fatal("accepted 257 selectors")
 	}
-	intake, err := findingintake.New(pool)
+	intake, err := findingintake.New(pool, artifactpgtest.NewStorage())
 	if err != nil {
 		t.Fatal(err)
 	}
-	service := &Service{pool: pool, findings: intake, now: time.Now}
-	store := auditstoretest.NewStore(pool).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch)
+	service := &Service{storage: artifactpgtest.NewStorage(), pool: pool, findings: intake, now: time.Now}
+	store := auditstoretest.NewStore(pool, artifactpgtest.NewStorage()).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch)
 	audit, err := store.Get(ctx, "owner", "audit")
 	if err != nil {
 		t.Fatal(err)
@@ -239,7 +240,7 @@ func TestFindingExportRetainsResolvedCodeAndSafeHTTPAfterSourceDeletion(t *testi
 	ctx, pool := collectionTestPool(t)
 	createCorrelationAudit(t, ctx, pool, "owner", "project", "audit")
 	seedCollectionRun(t, ctx, pool, "owner", "source-run", "project")
-	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
+	service := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
 	run, err := service.Run("source-run")
 	if err != nil {
 		t.Fatal(err)
@@ -263,7 +264,7 @@ func TestFindingExportRetainsResolvedCodeAndSafeHTTPAfterSourceDeletion(t *testi
 	seedCollectionRunReceiptDocument(t, ctx, pool, "owner", "source-run", "native", false, true, func(proposal *auditdomain.FindingProposal) {
 		proposal.StandardRefs = []auditdomain.StandardReference{{Scheme: "CWE", Version: "4.20", RequirementID: "CWE-89"}}
 	}, source, capture, native)
-	intake, err := findingintake.New(pool)
+	intake, err := findingintake.New(pool, artifactpgtest.NewStorage())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -277,7 +278,7 @@ func TestFindingExportRetainsResolvedCodeAndSafeHTTPAfterSourceDeletion(t *testi
 	// The fixture's raw receipt stands in for explicit Submit. Complete the
 	// same owner's admission after its exact Project retention is available.
 	if err := persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		hooks := hookstore.NewFindingEventsTx(tx)
+		hooks := hookstore.NewFindingEventsTx(tx, artifactpgtest.NewStorage())
 		if _, err := hooks.AdmitProjectFinding(ctx, "project", "receipt-native", "finding-native"); err != nil {
 			return err
 		}
@@ -294,16 +295,16 @@ func TestFindingExportRetainsResolvedCodeAndSafeHTTPAfterSourceDeletion(t *testi
 	if err := pool.QueryRow(ctx, `SELECT finding_id FROM project_findings WHERE project_id='project' AND first_receipt_id='receipt-native'`).Scan(&peerFinding); err != nil {
 		t.Fatal(err)
 	}
-	reviews := &Service{pool: pool, findings: intake, now: time.Now}
+	reviews := &Service{storage: artifactpgtest.NewStorage(), pool: pool, findings: intake, now: time.Now}
 	decideFindingForTest(t, ctx, reviews, "owner", "another-audit", peerFinding, 1, "other-native", auditstore.VerdictFalsePositive, nil, nil)
 	var finding string
 	if err := pool.QueryRow(ctx, `SELECT finding_id FROM project_findings WHERE project_id='project' AND first_receipt_id='receipt-native'`).Scan(&finding); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := runstore.NewPostgresStore(pool).TransitionRun(ctx, "source-run", runstore.RunInitializing, runstore.RunFailed, runstore.Reason{Code: "test_done"}); err != nil {
+	if _, err := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()).TransitionRun(ctx, "source-run", runstore.RunInitializing, runstore.RunFailed, runstore.Reason{Code: "test_done"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := rundeletion.New(pool).DeleteReleasedTerminalRun(ctx, "owner", "source-run"); err != nil {
+	if err := rundeletion.New(pool, artifactpgtest.NewStorage()).DeleteReleasedTerminalRun(ctx, "owner", "source-run"); err != nil {
 		t.Fatal(err)
 	}
 	publisher := newCollectionTestPublisher(t, pool)

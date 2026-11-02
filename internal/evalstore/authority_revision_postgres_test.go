@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 )
 
@@ -22,7 +24,7 @@ func TestSharedPostgresEvalCoordinatorObservationsKeepAuthorityRevision(t *testi
 			Mutation: mutation(t, "prepare", experiment.Revision, prepareDoc)})
 		return err
 	})
-	beforePreparation, err := NewPostgresStore(pool).Get(ctx, scope.OwnerID, experiment.ID)
+	beforePreparation, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).Get(ctx, scope.OwnerID, experiment.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +45,7 @@ func TestSharedPostgresEvalCoordinatorObservationsKeepAuthorityRevision(t *testi
 	mustTx(t, pool, func(s *Store) error {
 		return s.FreezePrepared(ctx, scope, experiment.ID, claim, plan, setup, cases)
 	})
-	prepared, err := NewPostgresStore(pool).Get(ctx, scope.OwnerID, experiment.ID)
+	prepared, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).Get(ctx, scope.OwnerID, experiment.ID)
 	if err != nil || prepared.Revision != beforePreparation.Revision {
 		t.Fatalf("preparation changed authority revision: before=%+v after=%+v err=%v", beforePreparation, prepared, err)
 	}
@@ -55,7 +57,7 @@ func TestSharedPostgresEvalCoordinatorObservationsKeepAuthorityRevision(t *testi
 			Mutation: mutation(t, "start", prepared.Revision, startDoc)})
 		return err
 	})
-	running, err := NewPostgresStore(pool).Get(ctx, scope.OwnerID, experiment.ID)
+	running, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).Get(ctx, scope.OwnerID, experiment.ID)
 	if err != nil || running.Revision != prepared.Revision+1 {
 		t.Fatalf("start authority revision = %+v (%v)", running, err)
 	}
@@ -92,7 +94,7 @@ WHERE experiment_id=$1 AND member_id=$2`, experiment.ID, result.MemberID).Scan(&
 	mustTx(t, pool, func(s *Store) error {
 		return s.RecoverMember(scope, experiment.ID, result.MemberID, claim).Settle(ctx)
 	})
-	observed, err := NewPostgresStore(pool).Get(ctx, scope.OwnerID, experiment.ID)
+	observed, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).Get(ctx, scope.OwnerID, experiment.ID)
 	if err != nil || observed.Revision != running.Revision || observed.Outstanding != 0 || observed.ObservedTokens != 7 {
 		t.Fatalf("coordinator observations consumed authority CAS: %+v (%v)", observed, err)
 	}
@@ -112,7 +114,7 @@ WHERE experiment_id=$1`, experiment.ID); err == nil {
 	mustTx(t, pool, func(s *Store) error {
 		return s.Transition(ctx, scope, experiment.ID, claim, evaldomain.StatePausing, evaldomain.StatePaused, 7, nil)
 	})
-	paused, err := NewPostgresStore(pool).Get(ctx, scope.OwnerID, experiment.ID)
+	paused, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).Get(ctx, scope.OwnerID, experiment.ID)
 	if err != nil || paused.Revision != running.Revision+1 || paused.State != evaldomain.StatePaused {
 		t.Fatalf("pause/transition authority revision = %+v (%v)", paused, err)
 	}
@@ -133,7 +135,7 @@ WHERE experiment_id=$1`, experiment.ID); err == nil {
 			Mutation: mutation(t, "cancel", paused.Revision, cancelDoc)})
 		return err
 	})
-	cancelled, err := NewPostgresStore(pool).Get(ctx, scope.OwnerID, experiment.ID)
+	cancelled, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).Get(ctx, scope.OwnerID, experiment.ID)
 	if err != nil || cancelled.Revision != paused.Revision+1 || cancelled.State != evaldomain.StateCancelling {
 		t.Fatalf("cancel with authority revision = %+v (%v)", cancelled, err)
 	}
@@ -151,7 +153,7 @@ func TestSharedPostgresEvalExecutionTombstoneKeepsAuthorityRevision(t *testing.T
 			Document: createDoc, Mutation: mutation(t, "create", 0, createDoc)})
 		return err
 	})
-	experiment, err := NewPostgresStore(pool).Get(ctx, scope.OwnerID, "exp")
+	experiment, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).Get(ctx, scope.OwnerID, "exp")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -178,18 +180,18 @@ VALUES ('run-to-delete',$1,$2,'trace','1','1','{}','{}',$3,'model','failed','tes
 	if err != nil {
 		t.Fatal(err)
 	}
-	before, err := NewPostgresStore(pool).Get(ctx, scope.OwnerID, experiment.ID)
+	before, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).Get(ctx, scope.OwnerID, experiment.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `DELETE FROM workflow_runs WHERE run_id='run-to-delete'`); err != nil {
 		t.Fatal(err)
 	}
-	after, err := NewPostgresStore(pool).Get(ctx, scope.OwnerID, experiment.ID)
+	after, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).Get(ctx, scope.OwnerID, experiment.ID)
 	if err != nil || after.Revision != before.Revision || after.ViewGeneration != before.ViewGeneration+1 || !after.UpdatedAt.After(before.UpdatedAt) {
 		t.Fatalf("execution tombstone changed authority CAS: before=%+v after=%+v err=%v", before, after, err)
 	}
-	if _, err := NewPostgresStore(pool).Tombstone(ctx, scope.OwnerID, experiment.ID, member.MemberID); err != nil {
+	if _, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).Tombstone(ctx, scope.OwnerID, experiment.ID, member.MemberID); err != nil {
 		t.Fatal(err)
 	}
 }

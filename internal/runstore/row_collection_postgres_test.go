@@ -1,10 +1,14 @@
 package runstore
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+)
 
 func TestPostgresStageCollectionPreservesEmptySliceShapes(t *testing.T) {
 	ctx := t.Context()
-	store := NewPostgresStore(isolatedRunStorePool(t, ctx))
+	store := NewPostgresStore(isolatedRunStorePool(t, ctx), artifactpgtest.NewStorage())
 	for _, test := range []struct {
 		name    string
 		wantNil bool

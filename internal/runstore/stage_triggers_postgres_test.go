@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/persistence/explaintest"
@@ -30,8 +32,8 @@ func TestPostgresStageExecutionUpdatesFireOnlyTheTriggersTheyConcern(t *testing.
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	pool := isolatedRunStorePool(t, ctx)
-	run := createTestRun(t, ctx, NewPostgresStore(pool), "run-stage-triggers")
-	if _, err := admitTestRun(ctx, NewPostgresStore(pool), run.RunID); err != nil {
+	run := createTestRun(t, ctx, NewPostgresStore(pool, artifactpgtest.NewStorage()), "run-stage-triggers")
+	if _, err := admitTestRun(ctx, NewPostgresStore(pool, artifactpgtest.NewStorage()), run.RunID); err != nil {
 		t.Fatal(err)
 	}
 	copied := storeTestRunArtifact(t, ctx, pool, run.RunID, "builder", "result")
@@ -44,7 +46,7 @@ func TestPostgresStageExecutionUpdatesFireOnlyTheTriggersTheyConcern(t *testing.
 		t.Fatal(err)
 	}
 	probe := explaintest.NewProbe(t, tx)
-	store := NewPostgresStore(probe)
+	store := NewPostgresStore(probe, artifactpgtest.NewStorage())
 	const (
 		capture      = "stage_executions_capture_lifecycle_event"
 		captureState = "stage_executions_capture_lifecycle_event_on_update"
@@ -175,7 +177,7 @@ FROM stage_executions WHERE stage_execution_id = $1`, aborted); err == nil ||
 		t.Errorf("manual continuation with another Stage spec = %v, want rejected", err)
 	}
 
-	events, err := NewPostgresStore(tx).ListRunEvents(ctx, run.RunID, 0, 100)
+	events, err := NewPostgresStore(tx, artifactpgtest.NewStorage()).ListRunEvents(ctx, run.RunID, 0, 100)
 	if err != nil {
 		t.Fatal(err)
 	}

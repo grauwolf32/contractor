@@ -15,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/apierror"
 	"github.com/grauwolf32/contractor/internal/persistence/leasetest"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -440,7 +442,7 @@ func (f deleteFenceFixture) assertGuardsFenced(t *testing.T, ctx context.Context
 // unrelated credential: a Run pinning it commits and an allocation resolves it.
 func (f deleteFenceFixture) assertGuardsAdmit(t *testing.T, ctx context.Context, runID string) {
 	t.Helper()
-	runs := runstore.NewPostgresStore(f.pool)
+	runs := runstore.NewPostgresStore(f.pool, artifactpgtest.NewStorage())
 	if err := f.service.WithRunCreation(ctx, func() error {
 		if err := lookupManagedCredential(ctx, f.pool, f.unrelated.CredentialID); err != nil {
 			return err

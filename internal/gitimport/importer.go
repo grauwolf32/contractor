@@ -8,7 +8,6 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/apierror"
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	artifactpolicy "github.com/grauwolf32/contractor/internal/artifacts/policy"
 	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/credentials"
@@ -51,6 +50,8 @@ type ImportResult struct {
 	GitSource artifacts.GitSource   `json:"gitSource"`
 }
 type Importer struct {
+	storage *artifactpostgres.Storage
+
 	pool    *pgxpool.Pool
 	client  SnapshotClient
 	keys    KeyProvider
@@ -58,11 +59,11 @@ type Importer struct {
 	timeout time.Duration
 }
 
-func NewImporter(pool *pgxpool.Pool, client SnapshotClient, keys KeyProvider, timeout time.Duration) (*Importer, error) {
-	if pool == nil || client == nil || keys == nil || timeout <= 0 || timeout > 30*time.Minute {
+func NewImporter(pool *pgxpool.Pool, client SnapshotClient, keys KeyProvider, timeout time.Duration, storage *artifactpostgres.Storage) (*Importer, error) {
+	if storage == nil || pool == nil || client == nil || keys == nil || timeout <= 0 || timeout > 30*time.Minute {
 		return nil, ErrConfiguration
 	}
-	return &Importer{pool: pool, client: client, keys: keys, slots: make(chan struct{}, 1), timeout: timeout}, nil
+	return &Importer{storage: storage, pool: pool, client: client, keys: keys, slots: make(chan struct{}, 1), timeout: timeout}, nil
 }
 
 func (i *Importer) Timeout() time.Duration { return i.timeout }
@@ -82,7 +83,7 @@ func (i *Importer) DoImport(ctx context.Context, request ImportRequest, respond 
 	}
 	ctx, cancel := context.WithTimeout(ctx, i.timeout)
 	defer cancel()
-	ctx, release, err := blob.AcquireTransfer(ctx)
+	ctx, release, err := i.storage.AcquireTransfer(ctx)
 	if err != nil {
 		return err
 	}
@@ -99,7 +100,7 @@ func (i *Importer) DoImport(ctx context.Context, request ImportRequest, respond 
 	if (request.ProjectID == "" && artifactpolicy.IsAuditStandardCatalogNamespace(request.Target.Namespace)) || (request.ProjectID != "" && artifactpolicy.IsAuditManagedProjectNamespace(request.Target.Namespace)) {
 		return artifacts.ErrReservedNamespace
 	}
-	service := artifacts.NewService(artifactpostgres.NewRepository(i.pool))
+	service := artifacts.NewService(i.storage.Repository(i.pool))
 	store, scope, err := importScope(service, request)
 	if err != nil {
 		return err
@@ -141,7 +142,7 @@ func (i *Importer) DoImport(ctx context.Context, request ImportRequest, respond 
 	if (request.Mode == ModeAnalysis) != (snapshot.Analysis != nil) {
 		return ErrContent
 	}
-	payload, err := artifactpostgres.PreparePayload(ctx, i.pool, artifacts.Payload{MediaType: "application/zip", Data: snapshot.Data})
+	payload, err := i.storage.PreparePayload(ctx, i.pool, artifacts.Payload{MediaType: "application/zip", Data: snapshot.Data})
 	if err != nil {
 		return err
 	}
@@ -161,7 +162,7 @@ func (i *Importer) DoImport(ctx context.Context, request ImportRequest, respond 
 				return projectstore.ErrDeleting
 			}
 		}
-		repository := artifactpostgres.NewTxRepository(tx)
+		repository := i.storage.TxRepository(tx)
 		store, _, err := importScope(artifacts.NewService(repository), request)
 		if err != nil {
 			return err
@@ -175,7 +176,7 @@ func (i *Importer) DoImport(ctx context.Context, request ImportRequest, respond 
 	if errors.Is(err, artifacts.ErrHistoryMaintenancePending) {
 		// The import's transaction rolled back and stored nothing; commit the
 		// one maintenance pass its binding needs before answering (ART-R127).
-		err = artifactpostgres.NewRepository(i.pool).MaintainHistory(ctx, err)
+		err = i.storage.Repository(i.pool).MaintainHistory(ctx, err)
 	}
 	if err != nil {
 		return err

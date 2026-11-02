@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
@@ -32,7 +34,7 @@ func TestMetricsPostgresIdempotencyRedactionAggregationAndRetention(t *testing.T
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedTelemetryPool(t, ctx)
-	runs := runstore.NewPostgresStore(pool)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	reports := telemetry.NewRepository(pool)
 	createTelemetryRun(t, ctx, runs)
 
@@ -174,7 +176,7 @@ func TestMetricsPostgresReplayComparesNumbersAsStored(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedTelemetryPool(t, ctx)
-	runs := runstore.NewPostgresStore(pool)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	reports := telemetry.NewRepository(pool)
 	createTelemetryRun(t, ctx, runs)
 	receivedAt := time.Now().UTC()
@@ -264,7 +266,7 @@ func TestMetricsPostgresReadsReportsTrimmedToTheByteBound(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	pool := isolatedTelemetryPool(t, ctx)
-	runs := runstore.NewPostgresStore(pool)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	reports := telemetry.NewRepository(pool)
 	createTelemetryRun(t, ctx, runs)
 	receivedAt := time.Now().UTC()
@@ -361,7 +363,7 @@ func TestAllocationResourceHistoryUsesTerminalIdentityAndPinnedPolicy(t *testing
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedTelemetryPool(t, ctx)
-	runs := runstore.NewPostgresStore(pool)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	reports := telemetry.NewRepository(pool)
 	createTelemetryRun(t, ctx, runs)
 

@@ -23,6 +23,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/auth"
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	"github.com/grauwolf32/contractor/internal/localpki"
@@ -431,7 +433,7 @@ func assertDurableExecution(
 	output artifactRef,
 ) string {
 	t.Helper()
-	store := runstore.NewPostgresStore(pool)
+	store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	executions, err := store.ListStageExecutions(ctx, runID)
 	if err != nil || len(executions) != 1 {
 		t.Fatalf("StageExecutions = (%+v, %v), want one", executions, err)
@@ -555,7 +557,7 @@ func assertBudgetExecution(
 	runID string,
 ) string {
 	t.Helper()
-	store := runstore.NewPostgresStore(pool)
+	store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	executions, err := store.ListStageExecutions(ctx, runID)
 	if err != nil || len(executions) != 1 {
 		t.Fatalf("bounded StageExecutions = (%+v, %v), want one", executions, err)
