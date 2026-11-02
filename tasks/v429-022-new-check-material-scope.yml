@@ -14,7 +14,8 @@ context:
   authority: >-
     User decisions 2026-11-02: derive scope from artifact type where appropriate;
     support custom checklist authoring in the UI; omit Scope for source code;
-    consider placing Engagement under Scope. This continues the local design
+    consider placing Engagement under Scope. Later review asks for a cleaner, more
+    polished editor that starts with one empty item rather than three examples. This continues the local design
     exploration, with original OpenDesign data retained and no production transfer.
   specification: docs/spec/audits/audits.md#AUD-R141
   design: docs/design/ui/README.md
@@ -67,6 +68,8 @@ lifecycle:
     cascade: No Contractor business entity is created.
     retention: Preserve model originals and prior preview versions; archive reviewed prototype and captures.
 acceptance_criteria:
+  - id: A5
+    text: The checklist editor opens with one empty item, calm initial guidance and a lighter layout with clear add/apply actions; existing project checklists retain their actual items.
   - id: A1
     text: API coverage is derived from a real synthetic OpenAPI document; source-only reviews omit Scope; ASVS pilot/full identities remain selectable.
   - id: A2
@@ -79,7 +82,7 @@ tests:
   - command: node docs/design/ui/experiments/new-check-opendesign-2026-11-02/verify.mjs
     covers: [A1, A4]
   - command: node docs/design/ui/experiments/new-check-opendesign-2026-11-02/verify-scope.mjs
-    covers: [A1, A2, A3, A4]
+    covers: [A1, A2, A3, A4, A5]
   - command: go run docs/design/ui/experiments/new-check-opendesign-2026-11-02/verify-content.go
     covers: [A1, A2, A3]
   - command: python3 scripts/check_tasks.py

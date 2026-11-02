@@ -2,8 +2,11 @@
 (() => {
   const clone=value=>JSON.parse(JSON.stringify(value)), bytes=value=>new TextEncoder().encode(value).length;
   paths.trash='<path d="M3 6h18M9 6V4h6v2M5 6l1 14h12l1-14M10 10v6M14 10v6"/>';
+  paths.plus='<path d="M12 5v14M5 12h14"/>';
   const contents=new Map(), scopeCard=$('scope-copy').closest('.scope');
-  const ui={mode:'material',dirty:false,draft:clone(SCOPE_FIXTURES.checklist.document.items),applied:clone(SCOPE_FIXTURES.checklist.document.items),revision:0,nextKey:4};
+  const newEntry=key=>({key,version:'1',statement:'',applicability:'always',allowed_methods:['static'],required_evidence:[],review_policy:'automatic'});
+  const ui={mode:'material',dirty:false,draft:[newEntry('check-0001')],applied:[],revision:0,nextKey:2};
+  const itemCount=count=>`${count} ${count===1?'item':'items'}`;
   for(const [name,kind] of [['openapi','application/yaml'],['checklist','application/json']]) {
     const fixture=SCOPE_FIXTURES[name], original=FIXTURES.materials.find(material=>material.mediaType===kind);
     Object.assign(original,{artifact:clone(fixture.artifact),size:bytes(JSON.stringify(fixture.document))});
@@ -13,6 +16,7 @@
   const scopeBody=document.createElement('div');scopeBody.id='material-scope';scopeCard.append(scopeBody);
   const variants=document.createElement('section');variants.className='review-coverage';variants.id='review-coverage';
   variants.append(text('h4','Review coverage'),$('scope-options'));$('advanced').querySelector('.advanced-content').prepend(variants);
+  const checklistDefaults=document.createElement('section');checklistDefaults.className='review-coverage';checklistDefaults.id='checklist-defaults';checklistDefaults.append(text('h4','Checklist defaults'),text('p','Static code review · always applicable · automatic review policy · no required evidence types. Each item keeps its own key and version.'));$('advanced').querySelector('.advanced-content').append(checklistDefaults);
   const listDocument=()=>({schema:'contractor.audit.checklist.v1',items:clone(ui.draft)});
   function error(){
     if(!ui.draft.length)return 'Add at least one item to define the check.';
@@ -28,13 +32,13 @@
   function operations(document){return Object.entries(document?.paths??{}).flatMap(([path,item])=>['get','put','post','delete','options','head','patch','trace'].filter(method=>item[method]).map(method=>({path,method:method.toUpperCase()})))}
   function facts(entries){const dl=document.createElement('dl');dl.className='scope-facts';for(const [label,value] of entries){const row=document.createElement('div');row.append(text('dt',label),text('dd',value));dl.append(row)}return dl}
   function renderScope(){
-    const shown=isAPI()||isChecklist();scopeCard.hidden=!shown;variants.hidden=!type().id.includes('asvs');scopeBody.replaceChildren();
+    const shown=isAPI()||isChecklist();scopeCard.hidden=!shown||isChecklist()&&ui.mode==='write'&&ui.dirty;variants.hidden=!type().id.includes('asvs');checklistDefaults.hidden=!isChecklist()||ui.mode!=='write';scopeBody.replaceChildren();
     if(!shown){if(!type().id.includes('asvs'))$('summary-scope').textContent='Whole source archive';return}
-    const doc=currentDocument(),editing=isChecklist()&&ui.mode==='write',count=isAPI()?operations(doc).length:editing?ui.draft.length:doc?.items?.length;
+    const doc=currentDocument(),editing=isChecklist()&&ui.mode==='write',count=isAPI()?operations(doc).length:editing?ui.draft.filter(item=>item.statement.trim()).length:doc?.items?.length;
     const label=isAPI()?'API spec':'Checklist';
-    $('scope-copy').textContent=isAPI()?(doc?`All ${count} endpoints in the selected API spec.`:'Choose an API spec to define the scope.'):(editing&&ui.dirty?`${count} draft items. Apply the checklist to set the scope.`:doc?`All ${count} items in the selected checklist.`:'Choose or write a checklist to define the scope.');
+    $('scope-copy').textContent=isAPI()?(doc?`All ${count} endpoints in the selected API spec.`:'Choose an API spec to define the scope.'):(editing&&ui.dirty?(count?`${itemCount(count)} drafted. Apply the checklist to set the scope.`:'Add your first item to define the scope.'):doc?`All ${itemCount(count)} in the selected checklist.`:'Choose or write a checklist to define the scope.');
     $('scope-copy').className='coverage-heading';
-    $('summary-scope').textContent=doc&&(!editing||!ui.dirty)?`All ${count} ${isAPI()?'endpoints':'items'}`:editing?`${count} draft items`:'Not selected';
+    $('summary-scope').textContent=doc&&(!editing||!ui.dirty)?`All ${isAPI()?count+' endpoints':itemCount(count)}`:editing?(count?`${itemCount(count)} drafted`:'Checklist draft'):'Not selected';
     const ref=state.selected[isAPI()?'openapi':'checklist'];
     if(ref){const source=text('p',`From ${label==='API spec'?label:'checklist'} · ${ref}`);source.className='scope-source';scopeBody.append(source)}
     if(isAPI()&&doc){
@@ -63,26 +67,32 @@
   }
   function updateEditorStatus(){
     const feedback=$('checklist-feedback');if(!feedback)return;
-    const invalid=error();feedback.dataset.tone=invalid?'error':ui.dirty?'draft':'ready';
-    feedback.textContent=invalid|| (ui.dirty?`${ui.draft.length} items · unapplied changes`:`${ui.draft.length} items · checklist ready`);
-    $('apply-checklist').disabled=!!invalid||!ui.dirty;$('add-checklist-item').disabled=ui.draft.length>=SCOPE_FIXTURES.limits.maxItems;
+    const invalid=error(),empty=ui.draft.every(item=>!item.statement.trim()),applied=!invalid&&!ui.dirty;
+    feedback.dataset.tone=empty||invalid.includes('needs a statement')?'draft':invalid?'error':ui.dirty?'draft':'ready';
+    feedback.textContent=empty?'Add at least one item to define your checklist.':invalid||(ui.dirty?`${itemCount(ui.draft.length)} · unapplied changes`:`${itemCount(ui.draft.length)} · ready to use`);
+    const apply=$('apply-checklist');apply.disabled=!!invalid||!ui.dirty;apply.classList.toggle('is-applied',applied);apply.textContent=applied?'Checklist ready':'Use checklist';
+    $('editor-state').textContent=applied?'Ready':'Draft';$('editor-state').dataset.tone=applied?'ready':'draft';
+    $('add-checklist-item').disabled=ui.draft.length>=SCOPE_FIXTURES.limits.maxItems;
   }
   function dirty(){ui.dirty=true;state.selected.checklist='';updateEditorStatus();renderReadiness()}
   function renderEditor(row){
     row.replaceChildren();row.className='checklist-editor';row.id='checklist-editor';
-    const head=document.createElement('header');head.className='checklist-editor-head';const title=text('h4','Write your checklist');title.insertAdjacentHTML('afterbegin',icon('file'));
-    const existing=text('button','Use a project material');existing.type='button';existing.onclick=()=>{ui.mode='material';const material=FIXTURES.materials.find(m=>m.artifact.name==='security-checklist');state.selected.checklist=key(material);render()};head.append(title,existing);row.append(head);
+    const head=document.createElement('header');head.className='checklist-editor-head';const title=text('h4','Your checklist');title.insertAdjacentHTML('afterbegin',icon('file'));
+    const editorState=text('span','Draft');editorState.id='editor-state';editorState.className='editor-state';title.append(editorState);
+    const existing=text('button','Use existing');existing.setAttribute('aria-label','Use a project material');existing.type='button';existing.onclick=()=>{ui.mode='material';const material=FIXTURES.materials.find(m=>m.artifact.name==='security-checklist');state.selected.checklist=key(material);render()};head.append(title,existing);row.append(head);
+    const intro=text('p','One clear check per item.');intro.className='checklist-intro';row.append(intro);
     const list=document.createElement('ol');list.className='checklist-entries';row.append(list);
     for(const [index,item] of ui.draft.entries()){
       const li=document.createElement('li');li.className='checklist-entry';li.dataset.key=item.key;
-      const bar=document.createElement('div');bar.className='checklist-entry-head';const label=text('label',`Item ${index+1}`);label.htmlFor='statement-'+item.key;
-      const remove=document.createElement('button');remove.type='button';remove.className='checklist-remove';remove.setAttribute('aria-label',`Remove item ${index+1}`);remove.innerHTML=icon('trash');remove.onclick=()=>{ui.draft.splice(index,1);dirty();renderMaterials();const next=$('checklist-editor').querySelectorAll('textarea')[Math.min(index,ui.draft.length-1)];(next||$('add-checklist-item')).focus()};bar.append(label,remove);
-      const input=document.createElement('textarea');input.id=label.htmlFor;input.className='checklist-statement';input.rows=3;input.maxLength=SCOPE_FIXTURES.limits.maxStringBytes;input.value=item.statement;input.placeholder='Describe what to verify…';input.oninput=()=>{item.statement=input.value;dirty()};li.append(bar,input);list.append(li);
+      const ordinal=text('span',String(index+1).padStart(2,'0'));ordinal.className='checklist-ordinal';ordinal.setAttribute('aria-hidden','true');
+      const body=document.createElement('div');body.className='checklist-entry-body';const label=text('label',`Item ${index+1}`);label.htmlFor='statement-'+item.key;label.className='checklist-entry-label';
+      const remove=document.createElement('button');remove.type='button';remove.className='checklist-remove';remove.setAttribute('aria-label',`Remove item ${index+1}`);remove.innerHTML=icon('trash');remove.onclick=()=>{ui.draft.splice(index,1);dirty();renderMaterials();const next=$('checklist-editor').querySelectorAll('textarea')[Math.min(index,ui.draft.length-1)];(next||$('add-checklist-item')).focus()};
+      const input=document.createElement('textarea');input.id=label.htmlFor;input.className='checklist-statement';input.rows=2;input.maxLength=SCOPE_FIXTURES.limits.maxStringBytes;input.value=item.statement;input.placeholder='Describe what should be verified…';input.oninput=()=>{item.statement=input.value;dirty()};body.append(label,input);li.append(ordinal,body,remove);list.append(li);
     }
     const controls=document.createElement('div');controls.className='checklist-editor-actions';
-    const add=text('button','Add item');add.type='button';add.id='add-checklist-item';add.onclick=()=>{
+    const add=text('button','Add item');add.insertAdjacentHTML('afterbegin',icon('plus'));add.type='button';add.id='add-checklist-item';add.onclick=()=>{
       if(ui.draft.length>=SCOPE_FIXTURES.limits.maxItems)return;
-      ui.draft.push({key:'check-'+String(ui.nextKey++).padStart(4,'0'),version:'1',statement:'',applicability:'always',allowed_methods:['static'],required_evidence:[],review_policy:'automatic'});dirty();renderMaterials();$('checklist-editor').querySelector('li:last-child textarea').focus();
+      ui.draft.push(newEntry('check-'+String(ui.nextKey++).padStart(4,'0')));dirty();renderMaterials();$('checklist-editor').querySelector('li:last-child textarea').focus();
     };
     const apply=text('button','Use checklist');apply.type='button';apply.id='apply-checklist';apply.onclick=()=>{
       if(error()||!ui.dirty)return;
@@ -95,7 +105,7 @@
     };
     controls.append(add,apply);row.append(controls);
     const feedback=document.createElement('p');feedback.id='checklist-feedback';feedback.className='checklist-feedback';feedback.setAttribute('role','status');row.append(feedback);
-    const settings=document.createElement('details');settings.append(text('summary','Item defaults'),text('p','Static code review · always applicable · automatic review policy · no required evidence types. Each item keeps its own key and version.'));row.append(settings);updateEditorStatus();
+    updateEditorStatus();
   }
   const originalMaterials=renderMaterials;
   renderMaterials=function(){
@@ -108,7 +118,8 @@
   renderReadiness=function(){
     originalReadiness();renderScope();
     if(isChecklist()&&ui.mode==='write'&&(ui.dirty||error())){
-      $('start').disabled=true;$('save').disabled=true;$('readiness').dataset.tone='missing';$('readiness').textContent='Checklist needs review';$('readiness-copy').textContent=error()||'Apply your checklist changes before starting.';
+      const empty=ui.draft.every(item=>!item.statement.trim()),incomplete=ui.draft.some(item=>!item.statement.trim());
+      $('start').disabled=true;$('save').disabled=true;$('readiness').dataset.tone='missing';$('readiness').textContent=empty||incomplete?'Checklist draft':error()?'Check the checklist':'Unapplied changes';$('readiness-copy').textContent=empty?'Add your first item, then apply the checklist.':incomplete?'Complete each item, then apply the checklist.':error()||'Apply your checklist changes before starting.';
     }
     if(isAPI()&&new URLSearchParams(location.search).get('case')==='engagement'){
       $('start').disabled=true;$('save').disabled=true;$('readiness').dataset.tone='missing';$('readiness').textContent='Engagement preview';$('readiness-copy').textContent='Placement example. This engagement is not attached; compatibility has not been checked.';

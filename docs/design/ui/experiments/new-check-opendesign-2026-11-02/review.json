@@ -29,6 +29,17 @@
         "originalPreserved": true,
         "previousCandidate": "preview-objective-v2.html",
         "nativeReview": "Desktop custom editor and mobile Engagement were inspected in IAB; desktop/mobile checklist captures inspected."
+      },
+      {
+        "task": "V429-022",
+        "stage": "checklist-polish",
+        "date": "2026-11-02",
+        "author": "assistant",
+        "request": "Cleaner and more polished design; do not insert three items by default.",
+        "change": "One empty item, quiet ordinal column, lighter dividers, compact add/apply actions and Draft/Ready state. No initial error; scope follows applied content. Item defaults moved to Advanced options. Existing project checklists retain all actual items.",
+        "previousCandidate": "preview-material-scope-v3.html",
+        "originalPreserved": true,
+        "nativeReview": "Final one-empty-item editor opened in IAB; desktop/phone/theme captures and initial Draft state verified."
       }
     ]
   },
@@ -138,8 +149,9 @@
     "controls": "Local type/search, exact material selection, missing-material repair, authored scope identity, time-limit bounds, draft/start acknowledgments, keyboard and live iframe resizing passed.",
     "ownership": "The generated original preserves the exact submitted controller and fixtures; shared fonts/tokens and no external assets. No production source/API/schema or business data changed.",
     "objectiveReview": "V429-021: 36 scenario/theme/width combinations passed aligned card/workbench edges, contained children and non-overlapping label/input/hint. Existing controls/isolation remain verified.",
-    "scopeReview": "30 layouts across five scope/editor/Engagement examples, three themes and 1440/390px; source scope removal, six actual API operations, item authoring/removal/stable keys/version increments, dirty/empty/UTF-8 bounds and 128 items passed. No browser errors or outbound/mutating requests.",
-    "contentReview": "Existing Go owners validated six OpenAPI operations, the checklist fixture, typed Engagement and ten browser-authored checklist documents, including 128 entries."
+    "scopeReview": "36 final scope/editor/Engagement layouts passed, including one empty initial item with calm guidance at 1440/1100/390/320px, three themes, local editing, stable keys/versions, empty/dirty/UTF-8 bounds and 128 items. No browser errors or outbound/mutating requests.",
+    "contentReview": "Existing Go owners validated six OpenAPI operations, checklist fixture, typed Engagement and sixteen final browser-authored checklist documents, including 128 entries.",
+    "finalVerification": "Final verify.mjs (36 layouts), verify-scope.mjs (36 layouts), verify-content.go, task/spec validators and diff checks passed after editor polish. make lint passed for the scope/editor implementation; production source is untouched."
   },
   "preview": "http://127.0.0.1:17567/?version=new&case=ready&theme=dark&width=1440",
   "limitations": [
@@ -149,7 +161,7 @@
     "Only the existing source-review/operation-trace/ASVS/checklist examples are demonstrated; live web scan configuration stays outside this design trial."
   ],
   "sha256": {
-    "README.md": "ab7092933073186f5ac3d4642a5fa74654844b6cccdbe012c4f0827bf73f3507",
+    "README.md": "ac1f293f97812a4c0664bed143e4b753cfe826fc1ba246eaecfe2e08927d8204",
     "baseline.css.gz": "35e4d1896f2431c7dd0e38873dc71367c4e9bf1c6bfb7570cff202423dea52d1",
     "baseline.json.gz": "ca93501af865c53cc06e241e9806e4520a0e61934b366453a32d91567a1f723a",
     "brief.md": "50e9502b43c8f4dac59cc660cd03c44710228b93ab3befef3a7329656bace40d",
@@ -169,29 +181,34 @@
     "opendesign.css": "649a38d3f03f6f69624eda7a5f46ac8743e4e802a3e696373cfbbfec091b7125",
     "original.html": "0c5a46fc1586bdc9df8d1fe5e1f5be89ded9486ff9643b6fdc17c488995a200d",
     "preview-fixtures.json": "e06abcaa554bd4d0813d94bbe347f7af6cb28d62a39f24efd8c6b6ff4d814186",
-    "preview.html": "9d3a95def01a200093e5305d0cf1a824b6702e8a5052aedd16dabfcd58c26c36",
+    "preview.html": "23e39849a74ec0ec63d6068e14942af87cc218312cc11d05201926f9e07ae889",
     "prompt.txt": "81cd7988536e726d7d1962b538250ce335543d1e7ab6c54225e4b3508e303042",
     "rationale.md": "0f6bd84996f750636c54929d75ecc0c1564c029983602ccac732dba956d5ef13",
     "seed-submitted.html": "cf0672346da716aa49c2b64ba9249783dc7de550bd998052cb08ee446be4ea36",
     "seed.html": "cf0672346da716aa49c2b64ba9249783dc7de550bd998052cb08ee446be4ea36",
     "serve.mjs": "1478870890c417eece31be25c855364e427417c64d858428f3e81c36163db707",
-    "verify.mjs": "3ede022b0bce482cff1ece24988f27915d4560d0f1161423b53e06433684fb32",
+    "verify.mjs": "feb282ebd4f5a9217161944e5ac6fe13545b268a9d6c134acd0f7178be3a6955",
     "review-objective.css": "6825f6f38e0403da6b05d9df1b18a9d0b47dff9740401520b2bd76e9de9834f9",
     "candidate-objective-v2-dark-1440.png": "48cdbe3f2842f37a65ceeb13f3926ca6cc01ba31a744070e3bde8b87d532731c",
     "candidate-objective-v2-dark-390.png": "edfab730f0b6dfc4afb7750182af65b37efeed6c6e92b22017bfbe9e42ad7334",
-    "verify-scope.mjs": "7344b1d80277333f0d23a9f3202eef384f9406125a138bcfdf3ca2a187447360",
+    "verify-scope.mjs": "3d2428b95601c7c619a215536d070275f441c6511ce2896759c63c654cab2dba",
     "scope-engagement-v3-dark-390.png": "aaf0e82a7cb188a37d90ef3209ffe84c09e0b67ea1f11b37386554ae8660c7e1",
     "scope-engagement-v3-dark-1440.png": "4a114ae5b4b0d407b7030320b0e938624b5db758cd555db35f1e5b8dc517fb34",
-    "review-scope.js": "7e4d668414fbb4fa742b9eef389645381fc5d6ada8d0c92cb36d02c28564c1f1",
+    "review-scope.js": "7b2bed69a53ca33b6172ddf04c61190608acbf7185d5deae88f2587d721b81f2",
     "scope-fixtures.json": "640ebdad1171c4792e274905ff56311e41dd583806834b38def64c9a9450ae43",
     "scope-source-v3-dark-1440.png": "18808320c14ae55189e3118f6a033a10c729696f6ae57b5999a793d41e4a77e8",
     "build-preview.mjs": "a50ebcc100738066d946159d413925e2b6e93e09996f7e509ae0fe1864fa137c",
-    "review-scope.css": "fdfe56c6ff8a67142835888fc53a26b9c9c897a1c965ac1a3e1c949fcfdf7acd",
+    "review-scope.css": "c8b71b42f99a65b835b6905f0ccc10e799b4e434cd1263dc3d19fed169bd3eaf",
     "scope-api-v3-dark-1440.png": "ff03604460dbf8665092b6e1678fd68eefbaac186c3a68037cd7290a14e1ccb2",
     "scope-editor-v3-dark-390.png": "079af18921242610a58327d41ecd6a3e6c96fcc41d314e809e17e105ef2687c9",
     "verify-content.go": "767372cbba41c33bc736681ede07208bba6130edc46bd0d81ca1f51e7c1b1ac6",
     "scope-editor-v3-dark-1440.png": "359b04157fdbd03079c5bfd632aa93ae17c5b1d807a4ca79758a468f70930c96",
-    "preview-objective-v2.html": "be8132cd6e7b10e5f89fe27ed178ccb5127075af1480bcc92e8dd71b1152ca9f"
+    "preview-objective-v2.html": "be8132cd6e7b10e5f89fe27ed178ccb5127075af1480bcc92e8dd71b1152ca9f",
+    "preview-material-scope-v3.html": "9d3a95def01a200093e5305d0cf1a824b6702e8a5052aedd16dabfcd58c26c36",
+    "scope-editor-v4-dark-390.png": "2a28b01bdb2236bcbdc13effa67373ad2400439ffc2e9ae398c6ee5e8f231b2e",
+    "scope-editor-empty-v4-dark-390.png": "cb59ce278962378e83fd7fbd09a4470cd2077313975e32ab8e1d85a67943a59b",
+    "scope-editor-empty-v4-dark-1440.png": "7838a42c0b5a20b8ea39d78b33fc8a1729873080246f846a5cf39fdddf783aa9",
+    "scope-editor-v4-dark-1440.png": "4ae4bb23ee8083ee04203ef115d84f4d4ed7c18dc9607a9f3f3959d0959af574"
   },
   "nativeReview": "Inspected the actual IAB ready desktop and missing-material 390px preview; labels, collapsed type browser, missing state and disabled launch remain readable.",
   "implementationCommit": "bebad902d73da144aa6867451de5971f92395612",

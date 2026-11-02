@@ -10,15 +10,18 @@ async function open({width=1440,theme='dark',type='openapi-operation-trace',scen
 }
 try {
  let layouts=0;
- for(const theme of ['light','dark','black'])for(const width of [1440,390])for(const example of ['api','source','checklist','editor','engagement']){
+ for(const theme of ['light','dark','black'])for(const width of [1440,1100,390,320])for(const example of ['api','source','checklist','editor','engagement']){
+  if([1100,320].includes(width)&&example!=='editor')continue;
   const type=example==='source'?'owasp-top10-2025-source-risk':['checklist','editor'].includes(example)?'source-checklist':'openapi-operation-trace';
   const page=await open({width,theme,type,scenario:example==='engagement'?'engagement':'ready'});
   if(example==='source'){await expect(page.locator('.scope')).toBeHidden();await expect(page.locator('#summary-scope')).toHaveText('Whole source archive')}
   if(example==='api'){await expect(page.locator('#scope-copy')).toHaveText('All 6 endpoints in the selected API spec.');await page.getByText('View endpoints',{exact:true}).click();await expect(page.locator('.endpoint-list li')).toHaveCount(6)}
   if(example==='checklist')await expect(page.locator('#summary-scope')).toHaveText('All 3 items');
   if(example==='editor'){
-   await page.locator('#write-checklist').click();await expect(page.locator('#checklist-editor textarea')).toHaveCount(3);await expect(page.locator('#start')).toBeDisabled();
-   await page.locator('#apply-checklist').click();await expect(page.locator('#start')).toBeEnabled();await expect(page.locator('#summary-scope')).toHaveText('All 3 items');
+   await page.locator('#write-checklist').click();await expect(page.locator('#checklist-editor textarea')).toHaveCount(1);await expect(page.locator('#checklist-editor textarea')).toHaveValue('');await expect(page.locator('#checklist-feedback')).toHaveAttribute('data-tone','draft');await expect(page.locator('#readiness')).toHaveText('Checklist draft');await expect(page.locator('.scope')).toBeHidden();await expect(page.locator('#start')).toBeDisabled();
+   await page.locator('#checklist-editor').scrollIntoViewIfNeeded();await page.screenshot({path:new URL(`editor-empty-${theme}-${width}.png`,capture).pathname});
+   await page.getByRole('textbox',{name:'Item 1',exact:true}).fill('Verify users can read only their own orders.');
+   await page.locator('#apply-checklist').click();await expect(page.locator('#start')).toBeEnabled();await expect(page.locator('#summary-scope')).toHaveText('All 1 item');
    documents.push(await page.evaluate(()=>window.__scopeReview.document()));
   }
   if(example==='engagement'){
@@ -30,11 +33,13 @@ try {
   await page.screenshot({path:new URL(`${example}-${theme}-${width}.png`,capture).pathname});await page.close();layouts++;
  }
  const page=await open({type:'source-checklist'});await page.locator('#write-checklist').click();
+ await page.getByRole('textbox',{name:'Item 1',exact:true}).fill('Check that users can read only their own orders.');
+ for(const statement of ['Check that changing a product price requires an administrator role.','Check that API tokens are never written to application logs.']){await page.locator('#add-checklist-item').click();await page.locator('#checklist-editor textarea').last().fill(statement)}
  const initial=await page.evaluate(()=>window.__scopeReview.draft());await page.locator('#apply-checklist').click();
  await page.getByRole('textbox',{name:'Item 1',exact:true}).fill('Verify that every order read is restricted to its owner.');await expect(page.locator('#start')).toBeDisabled();
  await page.locator('#apply-checklist').click();const edited=await page.evaluate(()=>window.__scopeReview.document());documents.push(edited);
  expect(edited.items[0].key).toBe(initial.items[0].key);expect(edited.items[0].version).toBe('2');expect(edited.items[1].version).toBe('1');
- await page.getByRole('button',{name:'Remove item 2',exact:true}).click();await expect(page.locator('#summary-scope')).toHaveText('2 draft items');await expect(page.locator('#start')).toBeDisabled();await page.locator('#apply-checklist').click();
+ await page.getByRole('button',{name:'Remove item 2',exact:true}).click();await expect(page.locator('#summary-scope')).toHaveText('2 items drafted');await expect(page.locator('#start')).toBeDisabled();await page.locator('#apply-checklist').click();
  const removed=await page.evaluate(()=>window.__scopeReview.document());documents.push(removed);expect(removed.items.map(item=>item.key)).toEqual([initial.items[0].key,initial.items[2].key]);
  await page.locator('#add-checklist-item').focus();await page.keyboard.press('Enter');await expect(page.getByRole('textbox',{name:'Item 3',exact:true})).toBeFocused();await expect(page.locator('#apply-checklist')).toBeDisabled();
  await page.getByRole('textbox',{name:'Item 3',exact:true}).fill('Verify logout invalidates the session.');await page.locator('#apply-checklist').click();documents.push(await page.evaluate(()=>window.__scopeReview.document()));
@@ -50,8 +55,8 @@ try {
  await expect(page.locator('#add-checklist-item')).toBeDisabled();await expect(page.locator('#checklist-editor textarea')).toHaveCount(128);await page.locator('#apply-checklist').click();await expect(page.locator('#summary-scope')).toHaveText('All 128 items');documents.push(await page.evaluate(()=>window.__scopeReview.document()));
  await page.close();
  const empty=await open({width:390,type:'source-checklist'});await empty.locator('#write-checklist').click();
- for(let i=0;i<3;i++)await empty.getByRole('button',{name:'Remove item 1',exact:true}).click();
+ for(let i=0;i<1;i++)await empty.getByRole('button',{name:'Remove item 1',exact:true}).click();
  await expect(empty.locator('#checklist-feedback')).toContainText('at least one item');await expect(empty.locator('#apply-checklist')).toBeDisabled();await expect(empty.locator('#start')).toBeDisabled();await empty.close();
  expect(errors).toEqual([]);expect(requests).toEqual([]);await writeFile(new URL('scope-generated.json',root),JSON.stringify(documents,null,2)+'\n');
- console.log(`Passed ${layouts} scope/editor/Engagement layouts across themes and desktop/phone, local editing, stable identities/versions, empty/dirty/UTF-8 limits, 128 items and no mutations/outbound requests.`);
+ console.log(`Passed ${layouts} scope/editor/Engagement layouts across themes and desktop/phone, one empty initial item, calm initial guidance, local editing, stable identities/versions, empty/dirty/UTF-8 limits, 128 items and no mutations/outbound requests.`);
 } finally {await browser.close()}

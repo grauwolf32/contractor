@@ -26,7 +26,9 @@ controller or its fixtures. `original.html`, `opendesign.css`, `rationale.md`,
 for the user-requested V429-021 objective alignment correction. V429-022 adds
 `review-scope.css` and a separate `review-scope.js` extension; these are assistant
 review contributions, not new model output. `build-preview.mjs` assembles them
-deterministically. `preview-objective-v2.html` retains the preceding candidate. The objective
+deterministically. `preview-objective-v2.html` retains the objective correction candidate;
+`preview-material-scope-v3.html` retains the initial three-item editor before
+the user-requested lighter, one-empty-item revision. The objective
 now spans the workbench width with a compact textarea and wrapping label/hint.
 `original.html` and all generation files remain unchanged. Shared fonts and
 theme tokens remain.
@@ -65,11 +67,13 @@ the demonstrated API profile inventories every operation. Source-only reviews
 omit the Scope section; authored ASVS full/pilot choices remain in Advanced
 options under Review coverage and retain their original profile identities.
 
-Choose Custom checklist, then Write checklist. Add/edit/remove items and Use
+Choose Custom checklist, then Write checklist. The composer starts with one
+empty item and quiet guidance. No demo items are inserted into a new checklist.
+Project materials retain their actual contents. Add/edit/remove items and Use
 checklist to apply one local revision. Scope and the summary track the entries.
 Dirty, empty and invalid content blocks Start. Keys survive edits/removals;
 changed statements increment their item versions. Defaults are explicit under
-Item defaults: static methods, always applicable, automatic review policy and
+Advanced options → Checklist defaults: static methods, always applicable, automatic review policy and
 no required evidence types. Nothing changes human issue assessment. The editor
 bounds itself to the demo profile's 128 items and the existing domain's UTF-8
 string/document limits. Go validation feeds browser-authored output to the

@@ -658,33 +658,49 @@
 .engagement-scope summary { font-size: var(--text-sm); font-weight: 600; cursor: pointer; }
 .engagement-scope .excluded { color: var(--danger); }
 .checklist-create { justify-self: start; display: inline-flex; align-items: center; gap: var(--space-2); margin-top: var(--space-1); padding: var(--space-2) var(--space-3); background: var(--sel); color: var(--text); border: 1px solid var(--sel-line); border-radius: var(--radius-sm); font: 500 var(--text-sm)/1.4 var(--font-sans); cursor: pointer; }
-.checklist-editor { min-width: 0; padding: var(--space-4); border: 1px solid var(--sel-line); border-radius: var(--radius-md); background: var(--surface-subtle); }
-.checklist-editor-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); margin-bottom: var(--space-3); }
+.checklist-editor { min-width: 0; padding: var(--space-4); border: 1px solid var(--line-strong); border-radius: var(--radius-md); background: var(--surface-subtle); }
+.checklist-editor-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); }
 .checklist-editor-head h4 { display: flex; align-items: center; gap: var(--space-2); margin: 0; font-size: var(--text-sm); }
-.checklist-editor-head button { padding: var(--space-1) 0; border: 0; background: transparent; color: var(--accent); font: var(--text-xs)/1.5 var(--font-sans); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
-.checklist-entries { display: grid; gap: var(--space-3); margin: 0; padding: 0; list-style: none; }
-.checklist-entry { padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); min-width: 0; }
-.checklist-entry-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); margin-bottom: var(--space-2); }
-.checklist-entry label { font-size: var(--text-xs); font-weight: 500; }
-.checklist-remove { display: grid; place-items: center; flex: none; width: var(--control-sm); height: var(--control-sm); border: 1px solid var(--line); border-radius: var(--radius-sm); background: transparent; color: var(--muted); cursor: pointer; }
-.checklist-remove:hover { border-color: var(--danger); color: var(--danger); }
-.checklist-statement { display: block; box-sizing: border-box; width: 100%; min-height: 5.25rem; padding: var(--space-2) var(--space-3); resize: vertical; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-subtle); color: var(--text); font: var(--text-sm)/1.6 var(--font-sans); }
+.checklist-editor-head button { padding: var(--space-1) 0; border: 0; background: transparent; color: var(--muted); font: var(--text-xs)/1.5 var(--font-sans); cursor: pointer; }
+.checklist-editor-head button:hover { color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
+.editor-state { padding: var(--space-0-5) var(--space-2); border: 1px solid var(--line); border-radius: var(--radius-full); color: var(--muted); font-size: var(--text-2xs); font-weight: 400; }
+.editor-state[data-tone="ready"] { background: var(--success-bg); border-color: var(--success-line); color: var(--success); }
+.checklist-intro { margin: var(--space-1) 0 var(--space-4); color: var(--muted); font-size: var(--text-xs); }
+.checklist-entries { display: grid; margin: 0; padding: 0; list-style: none; }
+.checklist-entry { display: grid; grid-template-columns: 24px minmax(0, 1fr) 28px; gap: var(--space-2); padding: var(--space-3) 0; min-width: 0; }
+.checklist-entry + .checklist-entry { border-top: 1px solid var(--line); }
+.checklist-ordinal { padding-top: var(--space-2); color: var(--faint); font: var(--text-xs)/1.6 var(--font-mono); }
+.checklist-entry-body { min-width: 0; }
+.checklist-entry-label { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.checklist-remove { display: grid; place-items: center; width: 28px; height: 28px; padding: var(--space-1); border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--faint); cursor: pointer; }
+.checklist-remove:hover { background: var(--danger-bg); color: var(--danger); }
+.checklist-statement { display: block; box-sizing: border-box; width: 100%; min-height: 5rem; padding: var(--space-2) var(--space-3); resize: vertical; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); font: var(--text-sm)/1.6 var(--font-sans); }
+.checklist-statement::placeholder { color: var(--faint); }
+.checklist-statement:hover { border-color: var(--line-strong); }
 .checklist-editor :is(button, textarea):focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .checklist-editor :is(button):disabled { opacity: 0.5; cursor: default; }
-.checklist-editor-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-3); }
-.checklist-editor-actions button { min-height: var(--control-md); padding: var(--space-2) var(--space-3); border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); font: 500 var(--text-sm)/1.4 var(--font-sans); cursor: pointer; }
+.checklist-editor-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--line); }
+.checklist-editor-actions button { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: var(--control-md); padding: var(--space-2) var(--space-3); border: 1px solid transparent; border-radius: var(--radius-sm); background: transparent; color: var(--text); font: 500 var(--text-sm)/1.4 var(--font-sans); cursor: pointer; }
+.checklist-editor-actions #add-checklist-item { padding-left: var(--space-1); color: var(--accent); }
+.checklist-editor-actions #add-checklist-item:hover { background: var(--row-hover); }
 .checklist-editor-actions #apply-checklist { margin-left: auto; background: var(--badge-bg); border-color: var(--badge-bg); color: var(--badge-ink); }
+.checklist-editor-actions #apply-checklist.is-applied { border-color: var(--success-line); background: var(--success-bg); color: var(--success); opacity: 1; }
 .checklist-feedback { margin: var(--space-3) 0 0; font-size: var(--text-xs); line-height: 1.5; color: var(--muted); }
 .checklist-feedback[data-tone="ready"] { color: var(--success); }
 .checklist-feedback[data-tone="error"] { color: var(--danger); }
-.checklist-editor > details { margin-top: var(--space-3); font-size: var(--text-xs); color: var(--muted); }
-.checklist-editor > details summary { cursor: pointer; }
 @media (max-width: 720px) {
   .checklist-editor { padding: var(--space-3); }
-  .checklist-entry { padding: var(--space-2); }
+  .checklist-entry { grid-template-columns: 20px minmax(0, 1fr) 24px; gap: var(--space-1); }
+  .checklist-remove { width: 24px; height: 28px; }
+  .checklist-editor-actions button { font-size: var(--text-xs); }
+  .scope-facts > div { grid-template-columns: 1fr; gap: var(--space-1); }
+}
+@media (max-width: 340px) {
+  .checklist-editor-head { align-items: flex-start; }
+  .checklist-editor-head h4 { flex-wrap: wrap; }
   .checklist-editor-actions { display: grid; grid-template-columns: 1fr; }
   .checklist-editor-actions #apply-checklist { margin-left: 0; }
-  .scope-facts > div { grid-template-columns: 1fr; gap: var(--space-1); }
+  .checklist-statement { padding-inline: var(--space-2); }
 }
 </style>
 </head><body><div class="shell"><aside class="rail" id="rail" aria-label="Primary navigation"><div class="brand">C</div><a href="#" data-icon="inbox">Inbox</a><a href="#" data-icon="folder">Projects</a><a href="#" data-icon="shield" aria-current="page">Checks</a><a href="#" data-icon="alert">Issues</a><a href="#" data-icon="file">Reports</a><a href="#" data-icon="play">Runs</a><a href="#" data-icon="library">Library</a></aside><div><header class="mobile-bar"><span>Contractor</span><button id="menu" aria-expanded="false" aria-controls="rail">Menu</button></header><main class="main"><nav class="breadcrumb" aria-label="Breadcrumb"><a href="#" id="back">Shop API</a><span aria-hidden="true">/</span><span>New check</span></nav><header class="page-head"><div><h1>Start a check</h1><p class="intro">Choose a check and the materials it will read.</p></div><span class="badge">Shop API</span></header><section class="objective" aria-labelledby="objective-label"><label id="objective-label" for="objective">Your objective, in your own words</label><textarea id="objective" rows="2" maxlength="65536"></textarea><p class="suggestion" id="suggestion"></p></section><div class="workbench"><aside class="types"><details class="type-browser" id="types-browser" open><summary id="types-summary">Choose a check type</summary><label for="type-search" class="type-search-label">Find a check type</label><input id="type-search" type="search" placeholder="Search check types"><div id="type-list"></div></details></aside><section class="setup" aria-labelledby="selection-title"><header class="selection-head"><div id="selection-icon" class="selection-icon"></div><div class="selection-copy"><h2 id="selection-title"></h2><p class="description" id="selection-description"></p></div></header><div class="unsupported" id="unsupported" hidden></div><section class="materials" aria-labelledby="materials-title"><header class="section-head"><h3 id="materials-title">Materials</h3><span id="material-count"></span></header><div id="material-slots"></div><p class="format-note" id="format-note"></p></section><section class="scope" aria-labelledby="scope-title"><header class="section-head"><h3 id="scope-title">Scope</h3></header><p id="scope-copy"></p><div class="scope-options" id="scope-options" hidden><label class="scope-option"><input type="radio" name="scope" value="pilot">Pilot · 5 requirements</label><label class="scope-option"><input type="radio" name="scope" value="full" checked>Full review · 70 requirements</label></div></section><section class="time-limit" aria-labelledby="time-title"><header class="section-head"><h3 id="time-title">Time limit</h3></header><div class="time-choices" id="time-choices"><button data-hours="24" aria-pressed="true">24 hours</button><button data-hours="168" aria-pressed="false">7 days</button><button data-hours="0" aria-pressed="false">No time limit</button><button data-hours="custom" aria-pressed="false">Custom</button></div><label id="custom-hours-label" for="custom-hours" hidden>Time limit in hours<input id="custom-hours" type="number" min="0.01" max="8760" step="0.01" value="48"></label><p class="description">Queue time counts. When the limit is reached, no new work starts; work already running can finish.</p></section><details class="advanced" id="advanced"><summary>Advanced options</summary><div class="advanced-content"><label for="check-version">Check type version<input id="check-version" readonly></label><label for="label-value">Team label (optional)<input id="label-value" placeholder="For example: application-security"></label><label for="advanced-target">Target (optional)<input id="advanced-target" maxlength="65536" placeholder="Target context for the selected check"></label><label for="authorization-scope">Authorization scope (optional)<textarea id="authorization-scope" rows="2" maxlength="65536"></textarea></label><label for="runtime-labels">Runtime labels (optional)<input id="runtime-labels" placeholder="For example: cloud, local"></label><div><span>Exact check type</span><br><code id="exact-type"></code></div></div></details></section><aside class="summary" aria-labelledby="summary-title"><h3 class="summary-title" id="summary-title">Your check</h3><p class="summary-name" id="summary-name"></p><dl><div><dt>Project</dt><dd>Shop API</dd></div><div><dt>Materials</dt><dd id="summary-materials"></dd></div><div><dt>Scope</dt><dd id="summary-scope"></dd></div><div><dt>Time limit</dt><dd id="summary-time"></dd></div></dl><div class="readiness"><span class="badge" id="readiness"></span><p id="readiness-copy"></p></div><div class="summary-actions"><button class="primary" id="start">Start check</button><button class="secondary" id="save">Save as draft</button></div><p class="demo-note">Design preview · actions do not create or start a check.</p><p class="status" id="action-status" role="status"></p></aside></div></main></div></div><div class="live-region" id="notice" role="status" aria-live="polite"></div><script>
@@ -711,8 +727,11 @@ const SCOPE_FIXTURES={"openapi":{"artifact":{"namespace":"openapi","name":"shop-
 (() => {
   const clone=value=>JSON.parse(JSON.stringify(value)), bytes=value=>new TextEncoder().encode(value).length;
   paths.trash='<path d="M3 6h18M9 6V4h6v2M5 6l1 14h12l1-14M10 10v6M14 10v6"/>';
+  paths.plus='<path d="M12 5v14M5 12h14"/>';
   const contents=new Map(), scopeCard=$('scope-copy').closest('.scope');
-  const ui={mode:'material',dirty:false,draft:clone(SCOPE_FIXTURES.checklist.document.items),applied:clone(SCOPE_FIXTURES.checklist.document.items),revision:0,nextKey:4};
+  const newEntry=key=>({key,version:'1',statement:'',applicability:'always',allowed_methods:['static'],required_evidence:[],review_policy:'automatic'});
+  const ui={mode:'material',dirty:false,draft:[newEntry('check-0001')],applied:[],revision:0,nextKey:2};
+  const itemCount=count=>`${count} ${count===1?'item':'items'}`;
   for(const [name,kind] of [['openapi','application/yaml'],['checklist','application/json']]) {
     const fixture=SCOPE_FIXTURES[name], original=FIXTURES.materials.find(material=>material.mediaType===kind);
     Object.assign(original,{artifact:clone(fixture.artifact),size:bytes(JSON.stringify(fixture.document))});
@@ -722,6 +741,7 @@ const SCOPE_FIXTURES={"openapi":{"artifact":{"namespace":"openapi","name":"shop-
   const scopeBody=document.createElement('div');scopeBody.id='material-scope';scopeCard.append(scopeBody);
   const variants=document.createElement('section');variants.className='review-coverage';variants.id='review-coverage';
   variants.append(text('h4','Review coverage'),$('scope-options'));$('advanced').querySelector('.advanced-content').prepend(variants);
+  const checklistDefaults=document.createElement('section');checklistDefaults.className='review-coverage';checklistDefaults.id='checklist-defaults';checklistDefaults.append(text('h4','Checklist defaults'),text('p','Static code review · always applicable · automatic review policy · no required evidence types. Each item keeps its own key and version.'));$('advanced').querySelector('.advanced-content').append(checklistDefaults);
   const listDocument=()=>({schema:'contractor.audit.checklist.v1',items:clone(ui.draft)});
   function error(){
     if(!ui.draft.length)return 'Add at least one item to define the check.';
@@ -737,13 +757,13 @@ const SCOPE_FIXTURES={"openapi":{"artifact":{"namespace":"openapi","name":"shop-
   function operations(document){return Object.entries(document?.paths??{}).flatMap(([path,item])=>['get','put','post','delete','options','head','patch','trace'].filter(method=>item[method]).map(method=>({path,method:method.toUpperCase()})))}
   function facts(entries){const dl=document.createElement('dl');dl.className='scope-facts';for(const [label,value] of entries){const row=document.createElement('div');row.append(text('dt',label),text('dd',value));dl.append(row)}return dl}
   function renderScope(){
-    const shown=isAPI()||isChecklist();scopeCard.hidden=!shown;variants.hidden=!type().id.includes('asvs');scopeBody.replaceChildren();
+    const shown=isAPI()||isChecklist();scopeCard.hidden=!shown||isChecklist()&&ui.mode==='write'&&ui.dirty;variants.hidden=!type().id.includes('asvs');checklistDefaults.hidden=!isChecklist()||ui.mode!=='write';scopeBody.replaceChildren();
     if(!shown){if(!type().id.includes('asvs'))$('summary-scope').textContent='Whole source archive';return}
-    const doc=currentDocument(),editing=isChecklist()&&ui.mode==='write',count=isAPI()?operations(doc).length:editing?ui.draft.length:doc?.items?.length;
+    const doc=currentDocument(),editing=isChecklist()&&ui.mode==='write',count=isAPI()?operations(doc).length:editing?ui.draft.filter(item=>item.statement.trim()).length:doc?.items?.length;
     const label=isAPI()?'API spec':'Checklist';
-    $('scope-copy').textContent=isAPI()?(doc?`All ${count} endpoints in the selected API spec.`:'Choose an API spec to define the scope.'):(editing&&ui.dirty?`${count} draft items. Apply the checklist to set the scope.`:doc?`All ${count} items in the selected checklist.`:'Choose or write a checklist to define the scope.');
+    $('scope-copy').textContent=isAPI()?(doc?`All ${count} endpoints in the selected API spec.`:'Choose an API spec to define the scope.'):(editing&&ui.dirty?(count?`${itemCount(count)} drafted. Apply the checklist to set the scope.`:'Add your first item to define the scope.'):doc?`All ${itemCount(count)} in the selected checklist.`:'Choose or write a checklist to define the scope.');
     $('scope-copy').className='coverage-heading';
-    $('summary-scope').textContent=doc&&(!editing||!ui.dirty)?`All ${count} ${isAPI()?'endpoints':'items'}`:editing?`${count} draft items`:'Not selected';
+    $('summary-scope').textContent=doc&&(!editing||!ui.dirty)?`All ${isAPI()?count+' endpoints':itemCount(count)}`:editing?(count?`${itemCount(count)} drafted`:'Checklist draft'):'Not selected';
     const ref=state.selected[isAPI()?'openapi':'checklist'];
     if(ref){const source=text('p',`From ${label==='API spec'?label:'checklist'} · ${ref}`);source.className='scope-source';scopeBody.append(source)}
     if(isAPI()&&doc){
@@ -772,26 +792,32 @@ const SCOPE_FIXTURES={"openapi":{"artifact":{"namespace":"openapi","name":"shop-
   }
   function updateEditorStatus(){
     const feedback=$('checklist-feedback');if(!feedback)return;
-    const invalid=error();feedback.dataset.tone=invalid?'error':ui.dirty?'draft':'ready';
-    feedback.textContent=invalid|| (ui.dirty?`${ui.draft.length} items · unapplied changes`:`${ui.draft.length} items · checklist ready`);
-    $('apply-checklist').disabled=!!invalid||!ui.dirty;$('add-checklist-item').disabled=ui.draft.length>=SCOPE_FIXTURES.limits.maxItems;
+    const invalid=error(),empty=ui.draft.every(item=>!item.statement.trim()),applied=!invalid&&!ui.dirty;
+    feedback.dataset.tone=empty||invalid.includes('needs a statement')?'draft':invalid?'error':ui.dirty?'draft':'ready';
+    feedback.textContent=empty?'Add at least one item to define your checklist.':invalid||(ui.dirty?`${itemCount(ui.draft.length)} · unapplied changes`:`${itemCount(ui.draft.length)} · ready to use`);
+    const apply=$('apply-checklist');apply.disabled=!!invalid||!ui.dirty;apply.classList.toggle('is-applied',applied);apply.textContent=applied?'Checklist ready':'Use checklist';
+    $('editor-state').textContent=applied?'Ready':'Draft';$('editor-state').dataset.tone=applied?'ready':'draft';
+    $('add-checklist-item').disabled=ui.draft.length>=SCOPE_FIXTURES.limits.maxItems;
   }
   function dirty(){ui.dirty=true;state.selected.checklist='';updateEditorStatus();renderReadiness()}
   function renderEditor(row){
     row.replaceChildren();row.className='checklist-editor';row.id='checklist-editor';
-    const head=document.createElement('header');head.className='checklist-editor-head';const title=text('h4','Write your checklist');title.insertAdjacentHTML('afterbegin',icon('file'));
-    const existing=text('button','Use a project material');existing.type='button';existing.onclick=()=>{ui.mode='material';const material=FIXTURES.materials.find(m=>m.artifact.name==='security-checklist');state.selected.checklist=key(material);render()};head.append(title,existing);row.append(head);
+    const head=document.createElement('header');head.className='checklist-editor-head';const title=text('h4','Your checklist');title.insertAdjacentHTML('afterbegin',icon('file'));
+    const editorState=text('span','Draft');editorState.id='editor-state';editorState.className='editor-state';title.append(editorState);
+    const existing=text('button','Use existing');existing.setAttribute('aria-label','Use a project material');existing.type='button';existing.onclick=()=>{ui.mode='material';const material=FIXTURES.materials.find(m=>m.artifact.name==='security-checklist');state.selected.checklist=key(material);render()};head.append(title,existing);row.append(head);
+    const intro=text('p','One clear check per item.');intro.className='checklist-intro';row.append(intro);
     const list=document.createElement('ol');list.className='checklist-entries';row.append(list);
     for(const [index,item] of ui.draft.entries()){
       const li=document.createElement('li');li.className='checklist-entry';li.dataset.key=item.key;
-      const bar=document.createElement('div');bar.className='checklist-entry-head';const label=text('label',`Item ${index+1}`);label.htmlFor='statement-'+item.key;
-      const remove=document.createElement('button');remove.type='button';remove.className='checklist-remove';remove.setAttribute('aria-label',`Remove item ${index+1}`);remove.innerHTML=icon('trash');remove.onclick=()=>{ui.draft.splice(index,1);dirty();renderMaterials();const next=$('checklist-editor').querySelectorAll('textarea')[Math.min(index,ui.draft.length-1)];(next||$('add-checklist-item')).focus()};bar.append(label,remove);
-      const input=document.createElement('textarea');input.id=label.htmlFor;input.className='checklist-statement';input.rows=3;input.maxLength=SCOPE_FIXTURES.limits.maxStringBytes;input.value=item.statement;input.placeholder='Describe what to verify…';input.oninput=()=>{item.statement=input.value;dirty()};li.append(bar,input);list.append(li);
+      const ordinal=text('span',String(index+1).padStart(2,'0'));ordinal.className='checklist-ordinal';ordinal.setAttribute('aria-hidden','true');
+      const body=document.createElement('div');body.className='checklist-entry-body';const label=text('label',`Item ${index+1}`);label.htmlFor='statement-'+item.key;label.className='checklist-entry-label';
+      const remove=document.createElement('button');remove.type='button';remove.className='checklist-remove';remove.setAttribute('aria-label',`Remove item ${index+1}`);remove.innerHTML=icon('trash');remove.onclick=()=>{ui.draft.splice(index,1);dirty();renderMaterials();const next=$('checklist-editor').querySelectorAll('textarea')[Math.min(index,ui.draft.length-1)];(next||$('add-checklist-item')).focus()};
+      const input=document.createElement('textarea');input.id=label.htmlFor;input.className='checklist-statement';input.rows=2;input.maxLength=SCOPE_FIXTURES.limits.maxStringBytes;input.value=item.statement;input.placeholder='Describe what should be verified…';input.oninput=()=>{item.statement=input.value;dirty()};body.append(label,input);li.append(ordinal,body,remove);list.append(li);
     }
     const controls=document.createElement('div');controls.className='checklist-editor-actions';
-    const add=text('button','Add item');add.type='button';add.id='add-checklist-item';add.onclick=()=>{
+    const add=text('button','Add item');add.insertAdjacentHTML('afterbegin',icon('plus'));add.type='button';add.id='add-checklist-item';add.onclick=()=>{
       if(ui.draft.length>=SCOPE_FIXTURES.limits.maxItems)return;
-      ui.draft.push({key:'check-'+String(ui.nextKey++).padStart(4,'0'),version:'1',statement:'',applicability:'always',allowed_methods:['static'],required_evidence:[],review_policy:'automatic'});dirty();renderMaterials();$('checklist-editor').querySelector('li:last-child textarea').focus();
+      ui.draft.push(newEntry('check-'+String(ui.nextKey++).padStart(4,'0')));dirty();renderMaterials();$('checklist-editor').querySelector('li:last-child textarea').focus();
     };
     const apply=text('button','Use checklist');apply.type='button';apply.id='apply-checklist';apply.onclick=()=>{
       if(error()||!ui.dirty)return;
@@ -804,7 +830,7 @@ const SCOPE_FIXTURES={"openapi":{"artifact":{"namespace":"openapi","name":"shop-
     };
     controls.append(add,apply);row.append(controls);
     const feedback=document.createElement('p');feedback.id='checklist-feedback';feedback.className='checklist-feedback';feedback.setAttribute('role','status');row.append(feedback);
-    const settings=document.createElement('details');settings.append(text('summary','Item defaults'),text('p','Static code review · always applicable · automatic review policy · no required evidence types. Each item keeps its own key and version.'));row.append(settings);updateEditorStatus();
+    updateEditorStatus();
   }
   const originalMaterials=renderMaterials;
   renderMaterials=function(){
@@ -817,7 +843,8 @@ const SCOPE_FIXTURES={"openapi":{"artifact":{"namespace":"openapi","name":"shop-
   renderReadiness=function(){
     originalReadiness();renderScope();
     if(isChecklist()&&ui.mode==='write'&&(ui.dirty||error())){
-      $('start').disabled=true;$('save').disabled=true;$('readiness').dataset.tone='missing';$('readiness').textContent='Checklist needs review';$('readiness-copy').textContent=error()||'Apply your checklist changes before starting.';
+      const empty=ui.draft.every(item=>!item.statement.trim()),incomplete=ui.draft.some(item=>!item.statement.trim());
+      $('start').disabled=true;$('save').disabled=true;$('readiness').dataset.tone='missing';$('readiness').textContent=empty||incomplete?'Checklist draft':error()?'Check the checklist':'Unapplied changes';$('readiness-copy').textContent=empty?'Add your first item, then apply the checklist.':incomplete?'Complete each item, then apply the checklist.':error()||'Apply your checklist changes before starting.';
     }
     if(isAPI()&&new URLSearchParams(location.search).get('case')==='engagement'){
       $('start').disabled=true;$('save').disabled=true;$('readiness').dataset.tone='missing';$('readiness').textContent='Engagement preview';$('readiness-copy').textContent='Placement example. This engagement is not attached; compatibility has not been checked.';
