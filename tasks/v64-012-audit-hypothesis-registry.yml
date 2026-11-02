@@ -33,11 +33,15 @@ context:
     allow future Project ownership. Remove almost all formal approvals and keep complexity controlled.
     Generation can use selected materials, findings and ordinary results including refutations and gaps.
     The user accepted the common execution skeleton and requested concrete tasks; implementation is a
-    subsequent step, not part of this task-formation request.'
-  implementation_gate: Task formation only, requested on 2026-10-31 after acceptance of the common execution
-    skeleton. Keep pending until implementation is requested and dependencies are complete. Do not start
-    code, migrations, live Runs or deployment in this planning turn. Resolve the explicitly labelled remaining
-    contract proposals in V64-001 before dependent implementation.
+    subsequent step, not part of this task-formation request. User decision on 2026-11-02 splits shipped
+    YAML rewriting between execution owners: V64-002 delivers exploratory/supporting/observation/scan
+    programs; V64-012 delivers checklist and standard assertion-check programs together with their real
+    hypothesis/result consumers. Do not defer those configurations to V64-010 or preserve an old profile
+    format/execution branch. V64-010 verifies the combined catalog and removes remaining obsolete callers.
+    This amendment does not start implementation.'
+  implementation_gate: V64-001 decisions and the V64-022 contract correction are settled. Keep pending
+    until implementation is assigned and all dependencies are complete. This planning amendment starts
+    no code, migrations, live Runs or deployment.
   design:
   - docs/proposals/0050-audit-common-hypothesis-model.md
   - docs/plans/2026-10-31-audit-redesign.md
@@ -61,6 +65,22 @@ context:
   contract_review_followup: User-requested implementation review on 2026-11-01 found a V64-001 contract
     defect. V64-022 supplies this consumer's corrected boundary before implementation; the accepted Audit
     skeleton and this task's remaining scope are unchanged.
+  shipped_yaml:
+    boundary: Rewrite fixed checklist/standard assertions as common hypothesis-bound work without a
+      model-generated seed step. Update the related Workflow, template, instruction, completion/context
+      bindings and fixtures needed by the real callers. Preserve source standards, applicability,
+      sufficiency and coverage; generation remains optional V64-013 work.
+    profiles:
+    - configs/audit-profiles/source_checklist.yaml
+    - configs/audit-profiles/owasp_top10_2025_source_risk.yaml
+    - configs/audit-profiles/owasp_asvs_5_0_l1_source_pilot.yaml
+    - configs/audit-profiles/owasp_asvs_5_0_l1_source_review.yaml
+    - configs/audit-profiles/owasp_wstg_4_2_source_review.yaml
+    - configs/audit-profiles/owasp_wstg_4_2_fast_source_review.yaml
+    - configs/audit-profiles/owasp_wstg_4_2_active_http.yaml
+    - configs/audit-profiles/owasp_wstg_4_2_fast_active_http.yaml
+    previous_owner: V64-002 supplies the coordinator and rewrites the other six shipped profiles. Extend
+      that same execution/catalog path, with no checklist-specific coordinator or compatibility reader.
 scope:
   in:
   - Create the Audit-owned hypothesis registry and real seed/manual write/read callers, with stable opaque
@@ -78,6 +98,10 @@ scope:
   - On Project finding publication, retain the exact source hypothesis revision as ordinary Project-owned
     evidence. Audit purge may remove its live registry but preserves ID/revision and readable assertion
     in finding provenance; no second live registry is created.
+  - Rewrite the eight context.shipped_yaml profiles and their required Workflow/template/instruction
+    bindings with hypothesis execution in this task. Translate checklist and standard assertions into
+    exact common seeds/tasks, remove old item-package/execution-manifest/ZIP completion authoring as
+    these callers migrate, and update isolated fixtures and ordinary configuration documentation.
   out:
   - A Project hypothesis registry now, learned priority scores, incremental frontier propagation, attack-tree
     execution or a separate checklist scheduler.
@@ -98,6 +122,12 @@ requirements:
   text: Generated and human origins cannot be spoofed; requested attention does not establish truth or
     override scope/budgets. Not reproducing an existential bug claim in an insufficient sample remains
     inconclusive, not a global refutation. Positive and negative results retain their tested conditions.
+- id: R5
+  text: The owned shipped YAML must run through this task's real common hypothesis/task/result path,
+    preserving standard versions, selected material bounds, operation restrictions and fixed coverage.
+    Rewrite ordinary pre-release catalog content under CAT-R74; changing an Audit standard package still
+    needs its own new version. No compatibility translation, unsupported-profile mode or old approval
+    authority is introduced by the migration.
 failure_outcomes:
 - operation: Admit hypotheses and select exact hypothesis-bound tasks
   permanent: Reject invalid/foreign/unsupported content and exact-revision or collision conflicts through
@@ -114,7 +144,7 @@ failure_outcomes:
 cardinality:
 - collection: Admit hypotheses and select exact hypothesis-bound tasks
   expected: 'Base fixture: 2 fixed assertions and 1 manual hypothesis; scale fixture with at least 1,000
-    records and sparse ready work.'
+    records and sparse ready work. Shipped rewrite: 8 checklist/standard assertion profiles.'
   maximum: Proposed hypothesis contract bounds are fixed by V64-001 in LIM/shared fixtures; current task/iteration/batch
     ceilings remain authoritative.
   bound: At most 128 admitted primary records / 1 MiB metadata per mutation slice; lists use existing
@@ -151,6 +181,12 @@ acceptance_criteria:
   when: the source Audit is purged
   then: the Project finding still exposes original hypothesis ID/revision and the exact retained assertion/evidence
     without a dangling-only reference or fabricated replacement
+- id: A6
+  given: the eight context.shipped_yaml profiles, V64-002's migrated programs and equivalent isolated fixtures
+  when: the shipped catalog validates and checklist/standard checking callers run through real components
+  then: all owned programs resolve on the common contract, checklist seeds require no model calls,
+    checking Runs carry exact hypothesis associations and ordinary results, and standard provenance and
+    fixed coverage survive; no old profile/execution fallback is needed
 tests:
 - command: make require-database
 - command: go test -tags=integration -count=1 ./internal/auditdomain ./internal/auditstore/... ./internal/auditservice
@@ -176,6 +212,10 @@ tests:
   - A3
   - A4
   - A5
+  - A6
+- command: make test-config
+  covers:
+  - A6
 - command: make verify-public-api verify-public-api-postgres
   covers:
   - A1

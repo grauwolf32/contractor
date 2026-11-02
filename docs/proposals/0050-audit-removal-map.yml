@@ -144,8 +144,10 @@ paths:
     only after migrated callers.
 - prefix: internal/config/auditprofile/
   action: replace
-  owner: V64-010
-  facts: Replace staged role/inventory/review authoring with the common program; no lenient reader.
+  owner: V64-002
+  facts: Switch authoring and executable catalog bindings to the common program with observation/scan
+    callers. V64-012 adds checklist/assertion seed consumers and their YAML. V64-010 verifies the combined
+    catalog and removes remaining obsolete paths; no lenient reader or second executor.
 - prefix: runtime/src/contractor_runtime/toolsets/audit_results/
   action: replace
   owner: V64-012
@@ -175,8 +177,9 @@ paths:
   facts: Replace the old ZIP completion envelope only with the actual Runtime/Scheduler caller.
 - prefix: internal/config/audit_profile.go
   action: replace
-  owner: V64-010
-  facts: Switch catalog authoring strictly after executable consumers migrate.
+  owner: V64-002
+  facts: Replace the former catalog entry point with its executable common program consumer. V64-012
+    extends the same path for fixed/manual hypotheses; no compatibility translation.
 - prefix: internal/httpapi/public/
   action: replace
   owner: V64-008
@@ -304,72 +307,72 @@ paths:
 profiles:
 - path: configs/audit-profiles/openapi_nuclei_scan.yaml
   action: replace
-  owner: V64-010
+  owner: V64-002
   facts: Preserve purpose, selected source/settings/rules, Workflow closure and tighter budgets; express
     initial/supporting/check work through the common program. Remove approval/stage-role/ZIP authoring.
 - path: configs/audit-profiles/openapi_operation_observe.yaml
   action: replace
-  owner: V64-010
+  owner: V64-002
   facts: Preserve purpose, selected source/settings/rules, Workflow closure and tighter budgets; express
     initial/supporting/check work through the common program. Remove approval/stage-role/ZIP authoring.
 - path: configs/audit-profiles/openapi_operation_trace.yaml
   action: replace
-  owner: V64-010
+  owner: V64-002
   facts: Preserve purpose, selected source/settings/rules, Workflow closure and tighter budgets; express
     initial/supporting/check work through the common program. Remove approval/stage-role/ZIP authoring.
 - path: configs/audit-profiles/openapi_sqlmap_scan.yaml
   action: replace
-  owner: V64-010
+  owner: V64-002
   facts: Preserve purpose, selected source/settings/rules, Workflow closure and tighter budgets; express
     initial/supporting/check work through the common program. Remove approval/stage-role/ZIP authoring.
 - path: configs/audit-profiles/owasp_asvs_5_0_l1_source_pilot.yaml
   action: replace
-  owner: V64-010
+  owner: V64-012
   facts: Preserve purpose, selected source/settings/rules, Workflow closure and tighter budgets; express
     initial/supporting/check work through the common program. Remove approval/stage-role/ZIP authoring.
 - path: configs/audit-profiles/owasp_asvs_5_0_l1_source_review.yaml
   action: replace
-  owner: V64-010
+  owner: V64-012
   facts: Preserve purpose, selected source/settings/rules, Workflow closure and tighter budgets; express
     initial/supporting/check work through the common program. Remove approval/stage-role/ZIP authoring.
 - path: configs/audit-profiles/owasp_top10_2025_source_risk.yaml
   action: replace
-  owner: V64-010
+  owner: V64-012
   facts: Preserve purpose, selected source/settings/rules, Workflow closure and tighter budgets; express
     initial/supporting/check work through the common program. Remove approval/stage-role/ZIP authoring.
 - path: configs/audit-profiles/owasp_wstg_4_2_active_http.yaml
   action: replace
-  owner: V64-010
+  owner: V64-012
   facts: Preserve purpose, selected source/settings/rules, Workflow closure and tighter budgets; express
     initial/supporting/check work through the common program. Remove approval/stage-role/ZIP authoring.
 - path: configs/audit-profiles/owasp_wstg_4_2_fast_active_http.yaml
   action: replace
-  owner: V64-010
+  owner: V64-012
   facts: Preserve purpose, selected source/settings/rules, Workflow closure and tighter budgets; express
     initial/supporting/check work through the common program. Remove approval/stage-role/ZIP authoring.
 - path: configs/audit-profiles/owasp_wstg_4_2_fast_source_review.yaml
   action: replace
-  owner: V64-010
+  owner: V64-012
   facts: Preserve purpose, selected source/settings/rules, Workflow closure and tighter budgets; express
     initial/supporting/check work through the common program. Remove approval/stage-role/ZIP authoring.
 - path: configs/audit-profiles/owasp_wstg_4_2_source_review.yaml
   action: replace
-  owner: V64-010
+  owner: V64-012
   facts: Preserve purpose, selected source/settings/rules, Workflow closure and tighter budgets; express
     initial/supporting/check work through the common program. Remove approval/stage-role/ZIP authoring.
 - path: configs/audit-profiles/source_checklist.yaml
   action: replace
-  owner: V64-010
+  owner: V64-012
   facts: Preserve purpose, selected source/settings/rules, Workflow closure and tighter budgets; express
     initial/supporting/check work through the common program. Remove approval/stage-role/ZIP authoring.
 - path: configs/audit-profiles/source_openapi_sqlmap_scan.yaml
   action: replace
-  owner: V64-010
+  owner: V64-002
   facts: Preserve purpose, selected source/settings/rules, Workflow closure and tighter budgets; express
     initial/supporting/check work through the common program. Remove approval/stage-role/ZIP authoring.
 - path: configs/audit-profiles/web_scan.yaml
   action: replace
-  owner: V64-010
+  owner: V64-002
   facts: Preserve purpose, selected source/settings/rules, Workflow closure and tighter budgets; express
     initial/supporting/check work through the common program. Remove approval/stage-role/ZIP authoring.
 operations:

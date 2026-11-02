@@ -95,7 +95,7 @@ the epics are in [epics.yml](epics.yml).
 | [V64-002](v64-002-audit-priority-store.yml) | feature | P1 | V64-014 | Coordinate durable Audit tasks through ordinary Runs |
 | [V64-005](v64-005-independent-priority-verdicts.yml) | feature | P2 | V64-012, V64-013 | Optionally rank the common Audit ready-task shortlist |
 | [V64-008](v64-008-audit-priority-api-coverage.yml) | feature | P1 | V64-012, V64-013, V411-010 | Expose Audit tasks check results findings and selected materials |
-| [V64-010](v64-010-audit-priority-profile.yml) | feature | P1 | V64-012, V64-013, V411-010 | Migrate shipped Audit programs and retire the old pipeline |
+| [V64-010](v64-010-audit-priority-profile.yml) | feature | P1 | V64-012, V64-013, V411-010 | Verify shipped Audit programs and retire the remaining old pipeline |
 | [V64-011](v64-011-audit-priority-release.yml) | feature | P1 | V64-009, V64-010, V411-015, V425-017 | Gate the basic Audit research scenario and complexity reduction |
 | [V64-012](v64-012-audit-hypothesis-registry.yml) | feature | P1 | V64-002, V64-014 | Verify fixed and manual hypotheses through Audit tasks |
 | [V64-013](v64-013-audit-hypothesis-generation.yml) | feature | P1 | V64-012, V411-011 | Generate scoped hypotheses from selected materials and check results |

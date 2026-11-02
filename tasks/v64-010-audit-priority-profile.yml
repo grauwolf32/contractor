@@ -1,6 +1,6 @@
 schema_version: '1.0'
 id: V64-010
-title: Migrate shipped Audit programs and retire the old pipeline
+title: Verify shipped Audit programs and retire the remaining old pipeline
 milestone: audit-check-prioritization
 epic: audits
 kind: feature
@@ -17,8 +17,9 @@ languages:
 - json
 - yaml
 - markdown
-goal: Shipped Audit scenarios use the small program/task/result contract, and their replaced Round/package/admission
-  paths are removed instead of surviving as a compatibility pipeline.
+goal: Verify the shipped programs already rewritten by V64-002 and V64-012 together with optional V64-013
+  generation, and remove their remaining Round/package/admission callers instead of retaining a compatibility
+  pipeline.
 demonstration: The shipped source/API/target/checklist/verification programs resolve and pass real deterministic
   journeys through the same task/Run path with the expected retained findings and coverage.
 context:
@@ -34,7 +35,11 @@ context:
     The user accepted the common execution skeleton and requested concrete tasks; implementation is a
     subsequent step, not part of this task-formation request. User decision on 2026-11-01 rejects parallel
     Audit/Project Finding models: V64-014 supplies one Project identity/current state and its existing
-    read/edit callers; this task reuses that owner rather than adding another Finding lifecycle.'
+    read/edit callers; this task reuses that owner rather than adding another Finding lifecycle. User
+    decision on 2026-11-02 moves the shipped YAML rewrite to its execution owners: V64-002 owns six
+    observation/tracing/scan programs and V64-012 owns eight checklist/standard assertion programs. This
+    task verifies the integrated catalog, aligns remaining consumers and removes obsolete machinery;
+    it does not postpone or duplicate the earlier YAML rewrite. This is a planning amendment only.'
   implementation_gate: V64-001 decisions are settled. Keep pending until implementation is assigned and
     dependencies are complete; this task amendment starts no code, migrations, live Runs or deployment.
   design:
@@ -57,8 +62,10 @@ context:
     keyed/natural receipts. No new collector, admission engine, lease store or compatibility reader.
 scope:
   in:
-  - Migrate shipped profiles/templates/instructions and remaining ordinary consumers to common initial
-    tasks, exact materials and bounded continuation.
+  - Verify the shipped profiles/templates/instructions already rewritten by V64-002/V64-012 and the
+    V64-013 producer together on common initial tasks, exact materials and bounded continuation. Align
+    only remaining integration consumers and remove obsolete configuration paths; do not repeat the
+    earlier profile rewrite or introduce a compatibility executor.
   - Preserve standards/checklist provenance and sufficiency. Version changed Audit standard content as
     required; ordinary pre-release catalog changes follow CAT-R74.
   - Delete replaced internal Audit ZIP codecs/manifests, admission/staging/seal/materialization states,
