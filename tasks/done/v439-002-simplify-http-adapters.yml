@@ -6,7 +6,7 @@ epic: api-contracts
 kind: chore
 introduced_by: V370-009
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages: [go]
 goal: >-
@@ -52,3 +52,8 @@ tests:
     covers: [A1, A2, A3]
   - command: "make verify-public-api"
     covers: [A1, A2, A3]
+implementation_commit: 8faa7ccfd569447e8b58738e8478a4798d4465fc
+verification:
+  date: "2026-11-03"
+  result: >-
+    Full HTTP package suites passed against disposable TCP PostgreSQL, both in the consolidated integration run and with -race. Public operation/route/envelope contract checks and make verify-public-api passed. make lint passed without new architecture or export exceptions.
