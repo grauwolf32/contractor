@@ -83,19 +83,6 @@
   ],
   "remaining_failures": [
     {
-      "command": "make test-runtime",
-      "result": "2 failed, 5809 passed, 133 skipped on macOS",
-      "owners": [
-        "V425-001",
-        "V425-002"
-      ],
-      "cases": [
-        "test_projectfs_local_io.py::test_limits_deadline_names_and_binary_classification",
-        "test_code_analysis_graph.py::test_graph_collection_stops_at_encoded_result_ceiling_with_resumable_cursor"
-      ],
-      "reason": "Documented APFS NFC/NFD aliasing and macOS PATH_MAX defects; production files involved are unchanged from integrated main. Linux-only skips are not passes."
-    },
-    {
       "command": "make ui-browser-mocked",
       "result": "last full run: 129 passed, 10 failed. Three Finding-page history cases were corrected and passed in the subsequent 33-case focused run. Seven Catalog/Studio cases from main remain uncorrected.",
       "reason": "AgentTemplate mocks still supply removed modelPolicy fields; Studio expected YAML replaces instead of preserving existing summarizer overrides. These unrelated model-policy fixtures were not changed in V64-014."
@@ -106,5 +93,45 @@
       "reason": "Staged workflows/streamline_copy.yaml selects unknown ModelPolicy worker@1 after main model-policy migration; full real UI-stack path remains unproven."
     }
   ],
-  "delivery": "Feature branch is not merged into main; no live database migration, deployment or model change was performed."
+  "delivery": "Implementation already merged into main through 2ccbf2cdd4790e23d8c8463921865b20500fb44e. The original unmerged-branch note is historical. This acceptance-policy update performs no live migration, deployment or model change.",
+  "historical_failures": [
+    {
+      "command": "make test-runtime",
+      "result": "2 failed, 5809 passed, 133 skipped on macOS",
+      "owners": [
+        "V425-001",
+        "V425-002"
+      ],
+      "cases": [
+        "test_projectfs_local_io.py::test_limits_deadline_names_and_binary_classification",
+        "test_code_analysis_graph.py::test_graph_collection_stops_at_encoded_result_ceiling_with_resumable_cursor"
+      ],
+      "reason": "Documented APFS NFC/NFD aliasing and macOS PATH_MAX defects; production files involved are unchanged from integrated main. Linux-only skips are not passes.",
+      "resolution": {
+        "date": "2026-11-02",
+        "authority": "User decision: both fixtures are Linux-only and must not run or affect acceptance on macOS.",
+        "task": "V433-007",
+        "blocks_macos_acceptance": false,
+        "production_fix_claimed": false
+      }
+    }
+  ],
+  "acceptance_update": {
+    "date": "2026-11-02",
+    "authority": "User decision: the two named filesystem fixtures do not execute on macOS and do not block acceptance.",
+    "task": "V433-007",
+    "platform_policy": "OPS-R1: explicit Linux-only marks; expected macOS skips, no manual deselection and no claim of Linux execution.",
+    "runtime_verification": {
+      "command": "make test-runtime",
+      "platform": "macOS",
+      "result": "passed: 5866 passed, 135 skipped; zero deselected; Runtime JUnit report verification passed",
+      "elapsed_seconds": 357.82,
+      "manual_deselection": false,
+      "new_platform_skips": 2,
+      "other_existing_platform_or_opt_in_skips": 133,
+      "log": "/tmp/runtime-v433-007-full.log",
+      "source_task": "V433-007",
+      "scope": "The two Linux-only fixtures do not block macOS acceptance; this update does not close V64-014 or claim Linux execution."
+    }
+  }
 }

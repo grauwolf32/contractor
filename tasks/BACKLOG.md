@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-79 open tasks: 12 in progress, 56 pending, 11 deferred. 1357 finished: 1339 completed, 18 archived.
+80 open tasks: 13 in progress, 54 pending, 13 deferred. 1357 finished: 1339 completed, 18 archived.
 
 ## In progress
 
@@ -22,6 +22,7 @@ the epics are in [epics.yml](epics.yml).
 | [V420-002](v420-002-planner-compaction-vertical-slice.yml) | planner-worker | feature | P1 | Implement opt-in bounded compaction for Streamline and Router Planners |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Enable shared Planner compaction and reuse native YAML in shipped Workflows |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
+| [V433-007](v433-007-linux-filesystem-test-scope.yml) | quality | chore | P3 | Scope Linux filesystem fixtures out of macOS Runtime acceptance |
 | [V435-001](v435-001-server-owned-agent-labels.yml) | runtime-config | defect | P1 | Remove Runtime startup label assignments and keep agent infrastructure settings Server-owned |
 
 ## Pending
@@ -41,18 +42,6 @@ the epics are in [epics.yml](epics.yml).
 | [V417-007](v417-007-context-compaction-state-and-ui.yml) | feature | P1 | V417-003 | Report compaction progress and costs without exposing context content |
 | [V420-003](v420-003-planner-compaction-fault-scale-conformance.yml) | chore | P1 | V420-002 | Verify Planner compaction persistence cancellation and scale boundaries |
 | [V420-004](v420-004-planner-compaction-diagnostics.yml) | feature | P1 | V420-002 | Expose bounded truthful Planner compaction diagnostics |
-
-### Run workspaces and project filesystem (`workspaces`)
-
-| Task | Kind | Priority | Waiting for | Title |
-| --- | --- | --- | --- | --- |
-| [V425-001](v425-001-apfs-opaque-leaf-normalization.yml) | defect | P3 | — | Keep an NFD opaque leaf unreadable through its NFC name on a normalization-insensitive volume |
-
-### Code analysis and taint annotations (`code-analysis`)
-
-| Task | Kind | Priority | Waiting for | Title |
-| --- | --- | --- | --- | --- |
-| [V425-002](v425-002-trailmark-mirror-path-max.yml) | defect | P3 | — | Build the Trailmark graph for workspace paths longer than the host PATH_MAX |
 
 ### HTTP and Caido tools (`http-tools`)
 
@@ -160,7 +149,7 @@ the epics are in [epics.yml](epics.yml).
 | [V417-009](v417-009-context-compaction-release-gate.yml) | chore | P1 | V417-003, V417-004, V417-005, V417-006, V417-007 | Verify context compaction across real processes and close the deterministic milestone |
 | [V420-005](v420-005-planner-compaction-release-gate.yml) | chore | P1 | V420-006, V420-003, V420-004 | Accept Planner compaction through real-process and integrated release gates |
 | [V425-014](v425-014-runtime-tests-fail-on-macos.yml) | chore | P3 | — | Make the Runtime process-liveness assertions able to fail on macOS |
-| [V433-005](v433-005-runtime-resource-bounds-gate.yml) | chore | P3 | V433-003 | Verify the Runtime resource-bound fixes and reconcile the review dispositions |
+| [V433-005](v433-005-runtime-resource-bounds-gate.yml) | chore | P3 | V433-003, V433-007 | Verify the Runtime resource-bound fixes and reconcile the review dispositions |
 
 ## Deferred
 
@@ -177,6 +166,8 @@ the epics are in [epics.yml](epics.yml).
 | [V61-009](v61-009-toolset-configuration-release.yml) | runtime-config | 2026-10-11 | Explicit user decision that external MCP tools are needed (for example for autonomous pentest Audits, proposal 0033); then port the branch onto main rather than reimplementing, renumber its migration and rerun the V61-009 release gate. |
 | [V62-008](v62-008-project-analysis-preparation.yml) | audits | 2026-09-20 | Explicit user approval of standalone analysis-report reuse and the additional two-Workflow chain. |
 | [V365-016](v365-016-fold-planner-execution-reports.yml) | persistence | 2026-10-04 | Explicit user approval of making Planner reports a mutable slot on stage_metrics. |
+| [V425-001](v425-001-apfs-opaque-leaf-normalization.yml) | workspaces | 2026-11-02 | Explicit user decision to require separate macOS filename hardening; first rescope its acceptance and dedicated coverage rather than treating this Linux fixture as a required macOS test. |
+| [V425-002](v425-002-trailmark-mirror-path-max.yml) | code-analysis | 2026-11-02 | Explicit user decision to require separate macOS long-path support; first rescope its acceptance and dedicated coverage rather than treating this Linux fixture as a required macOS test. |
 
 ## Epics
 
@@ -204,4 +195,4 @@ tasks in `introduced_by`.
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 18 | 46 | 9 | 22 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 38 | 25 | 16 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 27 | 47 | 17 |
-| Quality, CI and process (`quality`) | 11 | 1 | 29 | 120 | 27 |
+| Quality, CI and process (`quality`) | 12 | 1 | 29 | 121 | 27 |
