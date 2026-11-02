@@ -5,6 +5,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
+	"strings"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
@@ -13,8 +16,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
-	"sort"
-	"strings"
 )
 
 const (
@@ -71,6 +72,7 @@ type RepeatProjection struct {
 	Draft       *RepeatDraft
 	Notices     []RepeatNotice
 }
+
 type RepeatDraft struct {
 	RequiredPlacementLabels []string
 	Parameters              map[string]string
@@ -78,6 +80,7 @@ type RepeatDraft struct {
 	Labels                  runstore.RunMetadataLabels
 	Inputs                  map[string]RepeatInput
 }
+
 type RepeatInput struct {
 	Status        string
 	SourceScope   artifacts.ScopeKind
@@ -86,6 +89,7 @@ type RepeatInput struct {
 	CanReplace    bool
 	Code, Message string
 }
+
 type RepeatNotice struct {
 	Code     string `json:"code"`
 	Severity string `json:"severity"`

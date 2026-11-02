@@ -2,14 +2,17 @@ package public
 
 import (
 	"context"
-	"github.com/grauwolf32/contractor/internal/runservice"
 	"net/http"
+
+	"github.com/grauwolf32/contractor/internal/runservice"
 )
 
 type RepeatDraftReader interface {
 	Read(context.Context, string, string) (runservice.RepeatProjection, error)
 }
+
 type RunRepeatDependencies struct{ RepeatDrafts RepeatDraftReader }
+
 type runRepeatHandlers struct{ RunRepeatDependencies }
 
 func (h *runRepeatHandlers) getRunRepeatDraft(w http.ResponseWriter, r *http.Request) error {
