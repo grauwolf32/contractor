@@ -5,7 +5,7 @@ milestone: runtime-resource-bounds-2026-11
 epic: quality
 kind: chore
 priority: P3
-status: in_progress
+status: completed
 depends_on: []
 languages: [python, markdown, yaml, json]
 goal: The two Linux-specific filesystem fixtures never execute or block feature acceptance on macOS, without manual pytest deselection.
@@ -67,3 +67,5 @@ verification: >-
   failures and records this new standard-gate result. Other task statuses
   remain unchanged except the two explicitly deferred OS concerns.
   Full log: /tmp/runtime-v433-007-full.log.
+implementation_commit: ef762220a852bcab5476568041be18b22fa53a14
+landing: Prepared on codex/runtime-linux-test-scope; not yet merged into main.

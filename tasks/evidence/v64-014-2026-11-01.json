@@ -132,6 +132,8 @@
       "log": "/tmp/runtime-v433-007-full.log",
       "source_task": "V433-007",
       "scope": "The two Linux-only fixtures do not block macOS acceptance; this update does not close V64-014 or claim Linux execution."
-    }
+    },
+    "branch": "codex/runtime-linux-test-scope",
+    "implementation_commit": "ef762220a852bcab5476568041be18b22fa53a14"
   }
 }
