@@ -6,7 +6,7 @@ epic: execution-core
 kind: chore
 introduced_by: V436-001
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V436-001, V436-002]
 languages: [go, sql, typescript]
 goal: "Land the verified Run repeat simplification on current main with one sequential migration chain."
@@ -59,3 +59,11 @@ tests:
     covers: [A2]
   - command: "VITEST_MAX_WORKERS=2 make ui-verify"
     covers: [A3]
+
+verification:
+  - "The combined revision includes main dc5254a0e9e985b684cd98be9e0bbb3d1015791e, including the current Runtime registration and response-bound contracts."
+  - "make lint and all listed full PostgreSQL package suites passed after the final code merge."
+  - "make verify-public-api and make test-wire-cross-language passed: 373 fixtures, 395 Go and 289 Python shared tests; 1589 selected Python tests passed."
+  - "VITEST_MAX_WORKERS=2 make ui-verify passed: 221 files, 2639 tests passed and one expected failure. The UI/OpenAPI and Artifact/Run/persistence trees are unchanged by the final Runtime-only merge."
+  - "Populated Audit migration and retired-repeat cleanup regressions pass together with the unchanged 000001/000002 chain and cleanup 000003."
+implementation_commit: 7ab9c8639fa67891c5258f896ed2413b9013ec2c
