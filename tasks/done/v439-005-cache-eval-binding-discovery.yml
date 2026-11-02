@@ -6,7 +6,7 @@ epic: evals
 kind: chore
 introduced_by: V370-009
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages: [go]
 goal: >-
@@ -57,3 +57,8 @@ tests:
     covers: [A1, A2, A3]
   - command: "make verify-public-api"
     covers: [A1, A2, A3]
+implementation_commit: d58863d005b172c0294b68817c1687f58f990845
+verification:
+  date: "2026-11-03"
+  result: >-
+    Full Config, AuditService, EvalService and public HTTP suites passed against disposable TCP PostgreSQL, including -race. A 502-Workflow catalog proves identical fingerprints/filter/order, page isolation, snapshot refresh and cursor invalidation; a cached one-row projection measured one allocation. Removed Manager.Workflows after it lost its last production caller. make verify-public-api and make lint passed.

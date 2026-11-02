@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-85 open tasks: 17 in progress, 55 pending, 13 deferred. 1370 finished: 1352 completed, 18 archived.
+84 open tasks: 16 in progress, 55 pending, 13 deferred. 1371 finished: 1353 completed, 18 archived.
 
 ## In progress
 
@@ -26,7 +26,6 @@ the epics are in [epics.yml](epics.yml).
 | [V437-005](v437-005-inject-artifact-storage-dependencies.yml) | projects-artifacts | chore | P2 | Inject Artifact storage dependencies explicitly |
 | [V437-006](v437-006-group-artifact-policy-and-preview.yml) | projects-artifacts | chore | P3 | Group shared Artifact policy and previews under artifacts |
 | [V437-007](v437-007-name-scheduler-fixture-sqlstate.yml) | execution-core | chore | P3 | Name the Scheduler discard fixture SQL condition |
-| [V439-005](v439-005-cache-eval-binding-discovery.yml) | evals | chore | P2 | Page Eval capabilities from immutable catalog discovery |
 | [V439-007](v439-007-integrate-storage-dependencies.yml) | api-contracts | chore | P2 | Integrate committed Artifact storage dependencies with HTTP review changes |
 
 ## Pending
@@ -135,7 +134,7 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V411-017](v411-017-pentest-api-cli.yml) | feature | P1 | V411-015, V411-016, V64-008 | Expose HTTP engagement setup and results through existing API and CLI |
-| [V439-006](v439-006-verify-httpapi-review.yml) | chore | P2 | V439-005, V439-007 | Verify the HTTP API review cleanup |
+| [V439-006](v439-006-verify-httpapi-review.yml) | chore | P2 | V439-007 | Verify the HTTP API review cleanup |
 
 ### PostgreSQL persistence and schema (`persistence`)
 
@@ -194,7 +193,7 @@ tasks in `introduced_by`.
 | Workflow catalog and document workflows (`workflows`) | 6 | 19 | 16 | 16 | 21 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 2 | 36 | 39 | 16 | 66 |
 | Audits (`audits`) | 17 | 67 | 90 | 38 | 137 |
-| Evaluations (`evals`) | 7 | 21 | 39 | 16 | 49 |
+| Evaluations (`evals`) | 6 | 21 | 39 | 16 | 49 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 5 |
 | Web UI (`ui`) | 2 | 34 | 69 | 25 | 69 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 18 | 46 | 9 | 22 |
