@@ -1,0 +1,40 @@
+schema_version: "1.0"
+id: V438-004
+title: "Organize Registry lifecycle and compile immutable capability lookups"
+milestone: controlplane-review-2026-11
+epic: execution-core
+kind: chore
+introduced_by: V370-011
+priority: P2
+status: pending
+depends_on: [V438-003]
+languages: [go]
+goal: "Registry responsibilities and state invariants are locally readable and repeated matching avoids rebuilding immutable tool capability maps."
+context:
+  authority: "User decision 2026-11-02: fix the two reviewed controlplane defects and implement the proposed refactoring; engagementadapter is a child package of controlplane."
+  specification:
+    - docs/spec/execution/control-plane.md#CTL-R87
+    - docs/spec/execution/control-plane.md#CTL-R88
+    - docs/spec/execution/control-plane.md#CTL-R162
+  finding: >-
+    registry.go combines registration, heartbeat, reservation, grants, release and principal lifecycle in 1658 lines. isCompatible rebuilds nested tool maps for each binding-candidate pair, including repeated checks under the Registry mutex.
+  siblings: >-
+    Optimistic placement, exact matching under lock, waiting-model holds and transaction rechecks share capability matching. Mutable RuntimeConfig/principal observations retain attempt-scoped caching and transactional re-read.
+  decision: >-
+    Split files within the same package along existing responsibilities, document orthogonal state invariants, and compile immutable advertised tool capabilities at registration for Registry matching. Add an early impossible-cardinality return before optimistic edge resolution. Keep the complete injective matcher and all existing lock/lease guarantees; benchmark representative fleets without claiming unmeasured speedups.
+scope:
+  in:
+    - "Separate Registry registration/heartbeat, reservations, grant/release and principal code without extra packages."
+    - "Reuse immutable capability indexes during locked matching and prove equivalent specialist/generalist behavior."
+    - "Reject impossible cardinality before candidate resolution and verify the complete review slice."
+  out:
+    - "No wire schema, user configuration, database schema or Runtime execution behavior changes."
+acceptance_criteria:
+  - {id: A1, text: "Registry files follow their lifecycle responsibilities and explain lease, observation, authority and fencing invariants."}
+  - {id: A2, text: "Matching retains exact capability and complete injective assignment behavior while reusing immutable tool indexes."}
+  - {id: A3, text: "A Stage with more bindings than candidates performs no candidate configuration reads."}
+  - {id: A4, text: "Integrated lint, package tests, PostgreSQL regressions and the native prepare scenario pass; verification limitations are recorded explicitly."}
+tests:
+  - {command: "go test -race -count=1 ./internal/controlplane/... ./internal/contracts/control ./internal/scheduler ./internal/auditservice ./internal/app ./internal/archtest", covers: [A1, A2, A3, A4]}
+  - {command: "go test -run ^$ -bench ^BenchmarkCapabilityMatching -benchtime=100ms ./internal/controlplane", covers: [A2]}
+  - {command: "make lint", covers: [A1, A2, A3, A4]}

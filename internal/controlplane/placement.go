@@ -244,11 +244,14 @@ func (a *PlacementAllocator) candidateEdges(
 			}
 			key := placementResolutionKey(binding.LogicalAgentName, candidate.Registration.InstanceID)
 			optimistic[key] = runtimeConfig
+			requiredAdapters := append(slices.Clone(runtimeConfig.RequiredRuntimeAdapters), request.auditAdapters...)
+			slices.Sort(requiredAdapters)
+			requiredAdapters = slices.Compact(requiredAdapters)
 			edges = append(edges, CandidateEdge{
 				LogicalAgentName: binding.LogicalAgentName, RuntimeAgentID: candidate.Principal.RuntimeAgentID,
 				RuntimeAgentInstanceID:    candidate.Registration.InstanceID,
 				RuntimeAgentLabelRevision: candidate.Principal.LabelRevision,
-				RequiredRuntimeAdapters:   append(slices.Clone(runtimeConfig.RequiredRuntimeAdapters), request.auditAdapters...),
+				RequiredRuntimeAdapters:   requiredAdapters,
 			})
 		}
 	}

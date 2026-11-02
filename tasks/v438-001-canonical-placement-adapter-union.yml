@@ -1,0 +1,38 @@
+schema_version: "1.0"
+id: V438-001
+title: "Canonicalize combined placement adapter requirements"
+milestone: controlplane-review-2026-11
+epic: execution-core
+kind: defect
+introduced_by: V411-002
+priority: P1
+status: in_progress
+depends_on: []
+languages: [go]
+goal: "A Runtime supporting controlled HTTP and configured infrastructure adapters accepts the complete placement requirement."
+context:
+  authority: "User decision 2026-11-02: fix the two reviewed controlplane defects and implement the proposed refactoring; engagementadapter is a child package of controlplane."
+  specification:
+    - docs/spec/execution/control-plane.md#CTL-R168
+    - docs/spec/execution/control-plane.md#CTL-R88
+  finding: >-
+    internal/controlplane/placement.go:251 appends engagement requirements after sorted RuntimeConfig adapters; HTTP plus OTLP produces [otlp-http@1,http-target@1], rejected by validateCandidateEdges at registry.go:788.
+  siblings: >-
+    candidateEdges feeds both reservation and waiting-model holds. Registration and RuntimeConfig already validate sorted unique adapter sets; containsRuntimeAdapters relies on their canonical order. Pinning checks each source independently.
+  decision: >-
+    Controlplane combines requirement sets once as a sorted unique union before constructing edges, without changing RuntimeConfig provenance. Regression uses real PostgreSQL placement and the combined adapter case.
+scope:
+  in:
+    - "Canonical adapter union for reservation and model-stage hold edges."
+    - "Real PostgreSQL regression with engagement and OTLP configuration."
+  out:
+    - "No wire schema, user configuration, database schema or Runtime execution behavior changes."
+acceptance_criteria:
+  - {id: A1, text: "Controlled HTTP plus OTLP places on a fully compatible Runtime and preserves separate RuntimeConfig provenance."}
+  - {id: A2, text: "Missing either capability refuses placement and leaves no durable partial allocation."}
+  - {id: A3, text: "The regression fails against the original append implementation."}
+tests:
+  - {command: "go test -race -count=1 ./internal/controlplane/...", covers: [A1, A2, A3]}
+verification:
+  regression_before_fix: "The both-adapters PostgreSQL subtest failed with invalid candidate adapter requirements."
+  result: "Full controlplane package suite passed with PostgreSQL and -race, including all three regression cases."
