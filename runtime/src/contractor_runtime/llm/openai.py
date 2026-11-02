@@ -19,6 +19,7 @@ from pydantic import BaseModel, PrivateAttr
 
 from contractor_runtime.llm.client import GatewayClientHandle, GatewayRequestError
 from contractor_runtime.llm.errors import GatewayFailure
+from contractor_runtime.threads import to_thread_until_done
 
 _SAFE_ERROR_TYPE = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,127}")
 _FINISH_REASON = {
@@ -122,8 +123,10 @@ class OpenAICompatibleGatewayLlm(BaseLlm):
                 completion = await self._client_handle.complete(
                     _completion_request(self.model, llm_request)
                 )
-            received = True
-            response = _to_llm_response(completion)
+                received = True
+                response = await to_thread_until_done(
+                    _to_llm_response, completion, name="gateway-adk-response"
+                )
         except asyncio.CancelledError:
             raise
         except Exception as error:

@@ -256,6 +256,50 @@ def test_cancelled_probe_releases_its_grant_before_propagating():
     asyncio.run(scenario())
 
 
+def test_repeated_cancellation_joins_the_existing_probe_release():
+    async def scenario():
+        release_started, release_allowed, sent = asyncio.Event(), asyncio.Event(), asyncio.Event()
+
+        class BlockingRelease(Authority):
+            async def update(self, model, request_id, action, code=None, retry_after_seconds=0):
+                if action == "released":
+                    release_started.set()
+                    await release_allowed.wait()
+                return await super().update(model, request_id, action, code, retry_after_seconds)
+
+        authority = BlockingRelease()
+
+        async def gateway(_):
+            sent.set()
+            await asyncio.Event().wait()
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(gateway)) as http:
+            handle = new_gateway_client(
+                base_url="https://gateway.test/v1",
+                api_key=None,
+                timeout_seconds=5,
+                http_client=http,
+                recovery=authority,
+            )
+            pending = asyncio.create_task(handle.complete({"model": "worker"}))
+            await sent.wait()
+            pending.cancel()
+            await release_started.wait()
+            try:
+                for _ in range(3):
+                    pending.cancel()
+                    await asyncio.sleep(0)
+                    assert not pending.done()
+            finally:
+                release_allowed.set()
+            with pytest.raises(asyncio.CancelledError):
+                await pending
+        assert [event[2] for event in authority.events] == ["acquire", "released"]
+        assert authority.events[0][1] == authority.events[1][1]
+
+    asyncio.run(scenario())
+
+
 def test_outer_invocation_deadline_releases_probe_without_a_model_response():
     async def scenario():
         authority = Authority()

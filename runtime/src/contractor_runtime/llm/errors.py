@@ -34,7 +34,7 @@ def classify_response(
     status = response.status_code
     body = None
     if len(response.content) <= MAX_ERROR_CLASSIFICATION_BYTES:
-        with suppress(ValueError):
+        with suppress(ValueError, RecursionError):
             body = response.json()
     error = body.get("error", body) if isinstance(body, dict) else None
     code = error.get("code") if isinstance(error, dict) else None
