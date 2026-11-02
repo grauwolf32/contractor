@@ -1,0 +1,70 @@
+schema_version: "1.0"
+id: V433-005
+title: Verify the Runtime resource-bound fixes and reconcile the review dispositions
+milestone: runtime-resource-bounds-2026-11
+epic: quality
+kind: chore
+priority: P3
+status: pending
+depends_on: [V433-001, V433-002, V433-003, V433-004]
+languages: [python, markdown]
+goal: The seven reported Runtime findings have verified dispositions and all four remaining corrections pass integrated Runtime checks.
+context:
+  authority: >-
+    User request 2026-11-02 authorizes revalidation and creation of fix tasks.
+    This shared exit task verifies the package after its defect tasks finish;
+    task creation does not start their implementation or claim them completed.
+  specification:
+    - docs/spec/execution/runtime-agent.md#RTA-R87
+    - docs/spec/execution/worker.md#WRK-R8
+    - docs/spec/platform/observability.md#OBS-R77
+    - docs/spec/findings/findings.md#FND-R122
+  review_base: 57634940d40862fb638d4beea212e53a5107994a
+  dispositions:
+    - Ordinary shutdown omission is fixed by V432-002; the common process deadline remains V433-001.
+    - Repeated cancellation of State/session/tool-history cleanup is fixed by V432-001 and retained by the extracted owners in V432-006.
+    - Controlled HTTP header merging and aggregate session admission are fixed by V432-005.
+    - Retained HTTP-body truncation in reads/history/private capture is fixed by V432-005.
+    - Gateway response byte admission and off-loop JSON parsing remain V433-002.
+    - OTLP pre-allocation decompression admission remains V433-003.
+    - Findings preparation and projections outside the event loop remain V433-004.
+  revalidation: >-
+    Current main passed 23 focused regressions: ten selected CLI, real ADK
+    State/session cancellation and controlled HTTP cases, plus thirteen
+    threads/history/completion cases. Streamed probes reproduced a 4-MiB
+    Gateway response at max_tokens=1, a 4,099-byte OTLP gzip chunk decoded
+    to 4 MiB before the 64-KiB check, and findings decode/preview work on
+    the loop thread. These are pre-fix dispositions, not acceptance evidence
+    for the pending tasks. User-provided links target the older primary
+    checkout; the review and new task line numbers target this current main.
+  boundary: >-
+    The exit gate adds no architecture or product scope. Each defect owns its
+    regressions, contracts and implementation commit; this task checks their
+    interaction with existing shutdown, repeated cancellation and HTTP fixes.
+  existing_platform_exclusions: >-
+    The inherited macOS APFS normalization case owned by V425-001 and the
+    Trailmark PATH_MAX case owned by V425-002 are explicitly deselected below,
+    as in the completed V432-008 integration gate. They remain open and
+    unproven by this package, not waived or fixed. Do not silently add further
+    exclusions; re-evaluate the selection if those tasks land before this gate.
+scope:
+  in:
+    - Run integrated deterministic Runtime and lint checks on the combined revision and record exact commands, results, skips and any known platform exclusions.
+    - Verify every disposition against final code and ensure no duplicate pending task for the already fixed findings.
+    - Confirm task/spec/backlog consistency and report the branch revision and whether it is merged; follow the existing branch landing policy.
+  out:
+    - New feature work, live Gateway quality claims, deployment, database migrations and unrelated open task implementation.
+acceptance_criteria:
+  - id: A1
+    text: V433-001 through V433-004 meet every criterion with primary implementation commits and their required checks; all seven dispositions refer to actual final code and tests.
+  - id: A2
+    text: The complete Runtime selection with the two named inherited macOS exclusions and make lint pass on the combined revision; skips and exclusions are explicitly reported as unproven, never as passes or automatic waivers.
+  - id: A3
+    text: Existing ordinary Worker shutdown, repeated State/session/history cancellation and controlled header/truncation regressions remain covered, and task/backlog/spec records agree with the final implementation and landing status.
+tests:
+  - command: cd runtime && uv run pytest -W error tests --deselect=tests/test_projectfs_local_io.py::test_limits_deadline_names_and_binary_classification --deselect=tests/test_code_analysis_graph.py::test_graph_collection_stops_at_encoded_result_ceiling_with_resumable_cursor
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+  - command: git diff --check
+    covers: [A3]

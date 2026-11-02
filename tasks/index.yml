@@ -164,6 +164,9 @@ execution_policy:
     P3: Low-impact correction with no user-visible failure, such as documentation, dead code or test hygiene.
 
 milestones:
+  - id: runtime-resource-bounds-2026-11
+    exit_task: V433-005
+    outcome: Runtime shutdown has one cleanup deadline; Gateway and OTLP response reads bound allocation before decoding, and findings preparation keeps CPU work off the event loop with joined cancellation and verified existing contracts.
   - id: runtime-ownership-2026-11
     exit_task: V432-008
     outcome: Runtime shares owned-task joining, typed allocation resources, exact Artifact CAS and HTTP rules; focused Worker and allocation orchestrators preserve existing authority and lifecycle contracts with integrated deterministic verification.
