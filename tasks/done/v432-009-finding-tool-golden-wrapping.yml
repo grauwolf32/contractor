@@ -6,7 +6,7 @@ epic: findings
 kind: chore
 introduced_by: V64-014
 priority: P3
-status: in_progress
+status: completed
 depends_on: []
 languages: [python]
 goal: Restore the complete model-facing Finding contract guard after a whitespace-only reader description change on main.
@@ -44,3 +44,8 @@ tests:
     covers: [A1, A2]
   - command: git diff --check
     covers: [A1]
+implementation_commit: b0e0463843486df61bc9bf88b521edfb1b388816
+verification: >-
+  Complete Finding declaration and reader suites: 72 passed. The JSON fixture
+  diff is one line: only the description newline changes. The exact contract
+  equality guard and every schema remain unchanged. git diff --check passes.
