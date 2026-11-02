@@ -6,7 +6,7 @@ epic: projects-artifacts
 kind: chore
 introduced_by: V370-016
 priority: P2
-status: pending
+status: in_progress
 depends_on: [V437-002]
 languages: [go]
 goal: "Publication reuses a verified physical generation without reading its full payload while authoritative locks are held."

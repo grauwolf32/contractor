@@ -6,7 +6,7 @@ epic: projects-artifacts
 kind: defect
 introduced_by: V370-016
 priority: P3
-status: in_progress
+status: completed
 depends_on: [V437-001]
 languages: [go]
 goal: "Original and replayed immutable Artifact writes return the same authoritative creation timestamps."
@@ -41,5 +41,9 @@ acceptance_criteria:
 tests:
   - command: "go test -count=1 -tags integration ./internal/artifacts/..."
     covers: [A1, A2]
-  - command: "go test -count=1 ./internal/httpapi/public ./internal/httpapi/privateartifacts"
+  - command: "go test -count=1 -tags integration ./internal/httpapi/public ./internal/httpapi/privateartifacts"
     covers: [A1, A2]
+implementation_commit: d03273ad0a211a0ad1dc7111bedb2d65a70490fc
+verification: >-
+  Complete Artifact, public HTTP and private Artifact HTTP integration suites passed.
+  Original and concurrent replay timestamps agree; public JSON shape is unchanged.
