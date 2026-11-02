@@ -1,0 +1,82 @@
+schema_version: '1.0'
+id: V434-001
+title: Integrate Audit artifact ownership with current main
+milestone: audit-check-prioritization
+epic: audits
+kind: chore
+introduced_by: V64-004
+priority: P1
+status: in_progress
+depends_on:
+- V64-004
+languages:
+- go
+- sql
+- yaml
+- typescript
+- python
+goal: Land the verified Audit material handoff and publication on current main while retaining its Project
+  Finding ownership, shared helpers and folded schema baseline.
+context:
+  authority: User requested merging codex/audit-artifact-workspace into main on 2026-11-02. This authorizes
+    routine merge reconciliation and required checks, with --no-ff landing after verification.
+  finding: main advanced from d946c448f557ab84aa1a52afb27a0aa10405f064 to 9a2d6f9afe228e025c9381dff34233f5b6939083
+    during V64-004. It moved shared helpers, replaced Audit-local Finding operations and folded migrations
+    into 000001_baseline.sql. The old feature migration and overlapping controller/public fixtures must
+    follow those current contracts.
+  specification:
+  - docs/spec/artifacts/artifact-store.md
+  - docs/spec/audits/execution.md
+  - docs/spec/platform/persistence.md
+  - docs/spec/artifacts/retention-and-deletion.md
+  boundaries: Keep V64-004 exact same-version forks and explicit Project publication. Preserve current
+    Project Findings and Runtime ownership. Renumber the feature migration after the folded baseline and
+    adapt only actual integration conflicts; add no compatibility reader, coordinator, receipt store or
+    deployment.
+scope:
+  in:
+  - Merge current main into the feature branch and reconcile actual source/specification/fixture conflicts.
+  - Align the Audit material migration and real-store migration test with the current baseline and current
+    retained-dependency schema.
+  - Regenerate public clients, ERD, task backlog and dependency graph through their owning generators.
+  - Verify the merged Go, public/shared contracts and mandatory real-process workspace cases before --no-ff
+    landing on clean main.
+  out:
+  - New Audit behavior beyond V64-004, changes to Project Finding semantics or Runtime resource ownership.
+  - Demo deployment, demo database migration or model selection changes.
+acceptance_criteria:
+- id: A1
+  text: The integrated source compiles and its new Artifact migration applies after the current baseline
+    without restoring removed Finding/schema paths; existing exact materials retain shared version/blob
+    identities.
+- id: A2
+  text: All mandatory workspace handoff/publication/replay/CAS/authority cases execute through real PostgreSQL
+    and processes with zero skips; current public and shared contracts remain consistent.
+- id: A3
+  text: Relevant complete package suites and lint pass, generated artifacts are current and the verified
+    branch is merged into main through --no-ff without changing unrelated working files.
+tests:
+- command: go test -tags=integration -count=1 ./internal/artifacts/... ./internal/auditimport/... ./internal/runservice
+    ./internal/auditservice ./internal/auditstore/... ./internal/auditcontroller/... ./internal/httpapi/public/...
+    ./internal/persistence/... ./internal/findingintake/... ./internal/archtest ./internal/publicclient/...
+  covers:
+  - A1
+  - A2
+- command: python3 scripts/test-audit-composition-e2e.py --case-set workspace
+  covers:
+  - A1
+  - A2
+- command: make verify-public-api verify-public-api-postgres test-wire-cross-language
+  covers:
+  - A1
+  - A2
+- command: make ui-verify
+  covers:
+  - A2
+  - A3
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+implementation_commit: null
