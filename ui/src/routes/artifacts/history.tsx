@@ -91,11 +91,13 @@ export function ArtifactHistory({
   scope,
   metadata,
   titleAs = "h3",
+  section,
 }: {
   scope: ArtifactArchiveScope;
   metadata: ArtifactMetadata;
   /** Heading level of Versions and Lineage. Default "h3". */
   titleAs?: "h2" | "h3" | undefined;
+  section?: "versions" | "lineage" | undefined;
 }) {
   const location = useLocation();
   const api = usePublicAPI();
@@ -104,76 +106,80 @@ export function ArtifactHistory({
   const { namespace, name, revision } = metadata.artifact;
   return (
     <div className="materials-history">
-      <HistorySection
-        title="Versions"
-        titleAs={titleAs}
-        queryKey={(cursor) => keys.versions(namespace, name, cursor)}
-        load={(page) => artifacts.versions({ namespace, name, ...page })}
-        empty="No versions found."
-        pagesLabel="Version pages"
-      >
-        {(items) => (
-          <ol className="materials-versions">
-            {items.map((item) => (
-              <li key={item.artifact.revision}>
-                <Link
-                  to={`?revision=${encodeURIComponent(item.artifact.revision)}`}
-                  state={location.state}
-                  aria-current={
-                    item.artifact.revision === revision ? "page" : undefined
-                  }
+      {section === "lineage" ? null : (
+        <HistorySection
+          title="Versions"
+          titleAs={titleAs}
+          queryKey={(cursor) => keys.versions(namespace, name, cursor)}
+          load={(page) => artifacts.versions({ namespace, name, ...page })}
+          empty="No versions found."
+          pagesLabel="Version pages"
+        >
+          {(items) => (
+            <ol className="materials-versions">
+              {items.map((item) => (
+                <li key={item.artifact.revision}>
+                  <Link
+                    to={`?revision=${encodeURIComponent(item.artifact.revision)}`}
+                    state={location.state}
+                    aria-current={
+                      item.artifact.revision === revision ? "page" : undefined
+                    }
+                  >
+                    <code>{item.artifact.revision}</code>
+                    <span>{formatBytes(item.size)}</span>
+                    <RecordedTime value={item.createdAt} />
+                    {item.current ? (
+                      <span className="materials-badge">current</span>
+                    ) : null}
+                  </Link>
+                </li>
+              ))}
+            </ol>
+          )}
+        </HistorySection>
+      )}
+      {section === "versions" ? null : (
+        <HistorySection
+          title="Lineage"
+          titleAs={titleAs}
+          queryKey={(cursor) => keys.lineage(namespace, name, revision, cursor)}
+          load={(page) =>
+            artifacts.lineage({ namespace, name, revision, ...page })
+          }
+          empty="No lineage edges reference this revision."
+          pagesLabel="Lineage pages"
+        >
+          {(items) => (
+            <ol className="materials-lineage">
+              {items.map((edge, index) => (
+                <li
+                  key={`${edge.kind}-${edge.createdAt}-${edge.source.revision}-${index}`}
                 >
-                  <code>{item.artifact.revision}</code>
-                  <span>{formatBytes(item.size)}</span>
-                  <RecordedTime value={item.createdAt} />
-                  {item.current ? (
-                    <span className="materials-badge">current</span>
-                  ) : null}
-                </Link>
-              </li>
-            ))}
-          </ol>
-        )}
-      </HistorySection>
-      <HistorySection
-        title="Lineage"
-        titleAs={titleAs}
-        queryKey={(cursor) => keys.lineage(namespace, name, revision, cursor)}
-        load={(page) =>
-          artifacts.lineage({ namespace, name, revision, ...page })
-        }
-        empty="No lineage edges reference this revision."
-        pagesLabel="Lineage pages"
-      >
-        {(items) => (
-          <ol className="materials-lineage">
-            {items.map((edge, index) => (
-              <li
-                key={`${edge.kind}-${edge.createdAt}-${edge.source.revision}-${index}`}
-              >
-                <strong>{edge.kind.replaceAll("_", " ")}</strong>
-                <span className="materials-lineage-path">
-                  <ExactRef scope={edge.sourceScope} value={edge.source} />
-                  <span aria-hidden="true">→</span>
-                  <span className="ui-visually-hidden">to</span>
-                  <ExactRef scope={edge.targetScope} value={edge.target} />
-                </span>
-                <span className="materials-lineage-meta">
-                  {edge.runId === undefined ? null : (
-                    <Link to={`/runs/${encodeURIComponent(edge.runId)}`}>
-                      Run {edge.runId}
-                    </Link>
-                  )}
-                  {edge.stageExecutionId === undefined ? null : (
-                    <small>Stage execution {edge.stageExecutionId}</small>
-                  )}
-                  <RecordedTime value={edge.createdAt} />
-                </span>
-              </li>
-            ))}
-          </ol>
-        )}
-      </HistorySection>
+                  <strong>{edge.kind.replaceAll("_", " ")}</strong>
+                  <span className="materials-lineage-path">
+                    <ExactRef scope={edge.sourceScope} value={edge.source} />
+                    <span aria-hidden="true">→</span>
+                    <span className="ui-visually-hidden">to</span>
+                    <ExactRef scope={edge.targetScope} value={edge.target} />
+                  </span>
+                  <span className="materials-lineage-meta">
+                    {edge.runId === undefined ? null : (
+                      <Link to={`/runs/${encodeURIComponent(edge.runId)}`}>
+                        Run {edge.runId}
+                      </Link>
+                    )}
+                    {edge.stageExecutionId === undefined ? null : (
+                      <small>Stage execution {edge.stageExecutionId}</small>
+                    )}
+                    <RecordedTime value={edge.createdAt} />
+                  </span>
+                </li>
+              ))}
+            </ol>
+          )}
+        </HistorySection>
+      )}
     </div>
   );
 }

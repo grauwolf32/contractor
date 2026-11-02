@@ -1949,7 +1949,9 @@ describe("Run routes", () => {
     );
     await view.user.click(screen.getByRole("button", { name: "Preview" }));
     expect(
-      await screen.findByText("safe report", { selector: "pre" }),
+      await screen.findByText("safe report", {
+        selector: ".materials-source-line",
+      }),
     ).toBeInTheDocument();
     expect(view.container.textContent).not.toMatch(/prompt|tool arguments/i);
   });
@@ -2064,13 +2066,18 @@ describe("Run routes", () => {
     ).toBeVisible();
     expect(screen.getByText("yes")).toBeInTheDocument();
     await view.user.click(screen.getByRole("button", { name: "Versions" }));
+    await view.user.click(
+      screen.getByText("Technical details", { selector: ".ui-tech-label" }),
+    );
     expect(await screen.findByText("output bind")).toBeInTheDocument();
     expect(
       screen.queryByRole("heading", { name: /Upload/ }),
     ).not.toBeInTheDocument();
     await view.user.click(screen.getByRole("button", { name: "Load preview" }));
     expect(
-      await screen.findByText("safe report", { selector: "pre" }),
+      await screen.findByText("safe report", {
+        selector: ".materials-source-line",
+      }),
     ).toBeInTheDocument();
     expect(screen.queryByText(/token|secret prompt/i)).not.toBeInTheDocument();
   });

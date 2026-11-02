@@ -13,6 +13,7 @@ import {
   type ArtifactPreviewPlan,
 } from "./preview-plan";
 import { Button } from "../../ui";
+import { SourcePreview } from "./source-preview";
 import { ScanReportSummary } from "../../widgets/scan-reports/view";
 import type { HTTPPreviewContext } from "./previews/http-exchange";
 import { PanelTabs } from "./tabs";
@@ -35,28 +36,6 @@ const RENDERER_LABELS = {
 } as const;
 
 type RenderedPlan = Exclude<ArtifactPreviewPlan, { kind: "source" }>;
-
-function SourcePreview({ source }: { source: string }) {
-  const [wrap, setWrap] = useState(true);
-  return (
-    <div className="materials-source-reader">
-      <div className="materials-source-tools">
-        <span>Source</span>
-        <Button
-          size="xs"
-          variant="ghost"
-          aria-pressed={wrap}
-          onClick={() => setWrap(!wrap)}
-        >
-          Wrap lines
-        </Button>
-      </div>
-      <pre className="artifact-preview" data-wrap={wrap} tabIndex={0}>
-        {source}
-      </pre>
-    </div>
-  );
-}
 
 function Renderer({
   plan,

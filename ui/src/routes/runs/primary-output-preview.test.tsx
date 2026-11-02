@@ -135,7 +135,9 @@ describe("Run primary output preview", () => {
     );
 
     expect(
-      await screen.findByText(reportSource, { selector: "pre" }),
+      await screen.findByText(reportSource, {
+        selector: ".materials-source-line",
+      }),
     ).toBeInTheDocument();
     expect(
       reads().filter((url) =>

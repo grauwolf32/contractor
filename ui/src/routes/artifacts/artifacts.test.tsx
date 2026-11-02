@@ -393,6 +393,9 @@ describe("Artifact routes", () => {
     expect(screen.queryByText("input fork")).not.toBeInTheDocument();
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Versions" }));
+    await user.click(
+      screen.getByText("Technical details", { selector: ".ui-tech-label" }),
+    );
     expect(await screen.findByText("input fork")).toBeInTheDocument();
     expect(screen.getByText("project output publish")).toBeInTheDocument();
     expect(screen.getByText("Run run-example")).toBeInTheDocument();

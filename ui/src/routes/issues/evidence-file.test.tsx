@@ -42,17 +42,12 @@ it("explicitly previews and downloads exact Project evidence without an automati
   );
   expect(server.requests).toHaveLength(0);
   await view.user.click(screen.getByRole("button", { name: "Preview" }));
-  expect(
-    await screen.findByText(file.text.replace(/\s+/g, " ").trim(), {
-      exact: true,
-    }),
-  ).toBeVisible();
+  await waitFor(() =>
+    expect(document.querySelector("pre")?.textContent).toBe(file.text),
+  );
+  expect(document.querySelector("pre")).toBeVisible();
   await view.user.click(screen.getByRole("button", { name: "Hide preview" }));
-  expect(
-    screen.queryByText(file.text.replace(/\s+/g, " ").trim(), {
-      exact: true,
-    }),
-  ).toBeNull();
+  expect(document.querySelector("pre")).toBeNull();
   await view.user.click(
     screen.getByRole("button", { name: "Download search-route" }),
   );
@@ -85,11 +80,10 @@ it("keeps failed metadata explicit and retries without falling back to another s
   expect(server.requests).toHaveLength(1);
   failed = false;
   await view.user.click(screen.getByRole("button", { name: "Retry" }));
-  expect(
-    await screen.findByText(file.text.replace(/\s+/g, " ").trim(), {
-      exact: true,
-    }),
-  ).toBeVisible();
+  await waitFor(() =>
+    expect(document.querySelector("pre")?.textContent).toBe(file.text),
+  );
+  expect(document.querySelector("pre")).toBeVisible();
 });
 
 it("uses the shared preview size bound before reading bytes", async () => {
@@ -145,11 +139,10 @@ it("shows a bounded saved source snippet by default when requested by the worksp
   renderWithAPI(<FindingEvidenceFile source={source} index={0} snippet />, {
     server,
   });
-  expect(
-    await screen.findByText(file.text.replace(/\s+/g, " ").trim(), {
-      exact: true,
-    }),
-  ).toBeVisible();
+  await waitFor(() =>
+    expect(document.querySelector("pre")?.textContent).toBe(file.text),
+  );
+  expect(document.querySelector("pre")).toBeVisible();
   const reads = server.requests.filter((request) =>
     new URL(request.url).pathname.includes("/artifacts/"),
   );

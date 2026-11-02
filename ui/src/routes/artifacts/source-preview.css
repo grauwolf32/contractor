@@ -1,0 +1,43 @@
+/* Number labels are presentation only and do not enter the literal source text. */
+.materials-source-reader .materials-numbered-source[data-numbered="true"] {
+  white-space: normal;
+  padding: var(--space-3) 0;
+}
+.materials-source-line {
+  position: relative;
+  display: block;
+  min-height: 1.7em;
+  padding: 0 var(--space-3) 0 var(--space-12);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.materials-source-line::before {
+  content: attr(data-line);
+  position: absolute;
+  left: 0;
+  width: var(--space-8);
+  text-align: right;
+  color: var(--muted);
+  user-select: none;
+}
+.materials-numbered-source[data-wrap="false"] .materials-source-line {
+  white-space: pre;
+  min-width: max-content;
+}
+.materials-source-reader .materials-source-tools {
+  border-bottom: 1px solid var(--line);
+  padding-block: var(--space-1-5);
+}
+.materials-source-tools > span {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  border-bottom: 2px solid var(--link);
+  margin-bottom: calc(-1 * var(--space-1-5));
+  padding-bottom: var(--space-1-5);
+  color: var(--text);
+  font-size: var(--text-sm);
+}
+.materials-preview-shell .materials-source-tools > span {
+  visibility: hidden;
+}
