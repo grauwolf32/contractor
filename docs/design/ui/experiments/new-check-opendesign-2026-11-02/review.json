@@ -154,5 +154,7 @@
     "serve.mjs": "8e42bb5905b88d683b886c31ef728eee37f44321ef27a1ed2eeace7f14417f5f",
     "verify.mjs": "d435a99e7794525dc8e65a301b0d80e8abbdd3c5da315751704dcfb6b197d305"
   },
-  "nativeReview": "Inspected the actual IAB ready desktop and missing-material 390px preview; labels, collapsed type browser, missing state and disabled launch remain readable."
+  "nativeReview": "Inspected the actual IAB ready desktop and missing-material 390px preview; labels, collapsed type browser, missing state and disabled launch remain readable.",
+  "implementationCommit": "bebad902d73da144aa6867451de5971f92395612",
+  "delivery": "Design preview ready for review on codex/new-check-opendesign; no production transfer or main merge."
 }

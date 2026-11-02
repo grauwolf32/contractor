@@ -5,7 +5,7 @@ milestone: ui-journey-usability
 epic: ui
 kind: feature
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V429-019]
 languages: [html, css, javascript]
 goal: Make the next check's purpose, type, materials and readiness easy to understand in a reviewed New check design preview with consistent typography and usable phone composition.
@@ -111,3 +111,5 @@ verification:
     Conversation and Message row remain identical. Pre/post complete backups
     passed SQLite integrity. Relay stopped, upstream credential removed; 22 of
     24 allowed model requests used. No production code or business data changed.
+
+implementation_commit: bebad902d73da144aa6867451de5971f92395612
