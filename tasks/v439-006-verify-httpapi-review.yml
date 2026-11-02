@@ -7,7 +7,7 @@ kind: chore
 introduced_by: V370-009
 priority: P2
 status: pending
-depends_on: [V439-001, V439-002, V439-003, V439-004, V439-005]
+depends_on: [V439-001, V439-002, V439-003, V439-004, V439-005, V439-007]
 languages: [go]
 goal: >-
   The P1 fix and authorized adapter/domain/catalog simplifications pass the integrated HTTP contract and lint gates on one branch.
