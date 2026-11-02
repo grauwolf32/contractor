@@ -6,7 +6,7 @@ epic: execution-core
 kind: chore
 introduced_by: V370-011
 priority: P2
-status: pending
+status: in_progress
 depends_on: [V438-003]
 languages: [go]
 goal: "Registry responsibilities and state invariants are locally readable and repeated matching avoids rebuilding immutable tool capability maps."
