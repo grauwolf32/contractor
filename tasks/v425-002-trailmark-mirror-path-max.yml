@@ -6,11 +6,27 @@ epic: code-analysis
 kind: defect
 introduced_by: V15-003
 priority: P3
-status: pending
+status: deferred
+deferral:
+  date: "2026-11-02"
+  previous_status: pending
+  reason: >-
+    User decision: the named Linux-specific long-path fixture must not run
+    on macOS or block feature acceptance. V433-007 applies an explicit Linux
+    marker and updates acceptance policy. No production path-limit change
+    or Mac remediation is required for the affected feature acceptance.
+  reactivate_when: >-
+    Explicit user decision to require separate macOS long-path support;
+    first rescope its acceptance and dedicated coverage rather than treating
+    this Linux fixture as a required macOS test.
 depends_on: []
 languages: [python]
 goal: "A graph build over workspace paths the workspace rules accept (up to 4096 UTF-8 bytes) succeeds, or reports those files through explicit coverage, on every supported host instead of failing the whole build with code_analysis_engine_failed on macOS."
 context:
+  authority: >-
+    User decision 2026-11-02: this fixture is Linux-only and must not affect
+    macOS acceptance. Earlier macOS-specific acceptance below is historical
+    deferred scope, superseded for active gates by OPS-R1 and V433-007.
   review: "Filed by V401-007 (2026-10-30) from the macOS Runtime suite run; first seen in the 2026-10-23 merged verification run (docs/research/2026-10-23-server-runtime-review.md)"
   specification:
     - docs/spec/tools/code-analysis.md

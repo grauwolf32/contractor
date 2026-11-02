@@ -130,8 +130,12 @@ func TestSchedulerPassesReservationContextAndCancellation(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
 	defer cancel()
 	cancel()
-	_, _, err = h.scheduler.liveOrNewReservations(ctx, h.store.run, workflow, execution)
-	if !errors.Is(err, context.Canceled) || allocator.observed != ctx || h.allocator.reserveCalls != 0 {
-		t.Fatalf("reservation ignored caller context: err=%v observed=%v calls=%d", err, allocator.observed == ctx, h.allocator.reserveCalls)
+	requirements, err := auditBindingRequirements(h.store.run, workflow, execution.StageContext)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = h.scheduler.reserveStage(ctx, stagePlacementRequest(h.store.run, workflow, execution, requirements))
+	if !errors.Is(err, context.Canceled) || (allocator.observed == nil || !errors.Is(allocator.observed.Err(), context.Canceled)) || h.allocator.reserveCalls != 0 {
+		t.Fatalf("reservation ignored caller context: err=%v observed=%v calls=%d", err, allocator.observed != nil, h.allocator.reserveCalls)
 	}
 }

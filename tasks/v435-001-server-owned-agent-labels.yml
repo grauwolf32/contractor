@@ -13,6 +13,11 @@ goal: >-
   Runtime registration creates an unlabeled certificate principal and never assigns or
   overwrites infrastructure labels; Operations remains their sole mutation surface.
 context:
+  acceptance_update: >-
+    User decision 2026-11-02: the APFS filename and long Trailmark-path
+    fixtures are Linux-only under OPS-R1/V433-007, so their historical macOS
+    failures are not acceptance blockers. The standard Runtime gate needs no
+    manual deselection. This updates policy without changing this task's status.
   integration_note: Renumbered from V434-001 during the 2026-11-02 user-requested main merge because newer main already used that ID for Audit integration work.
   authority:
     - date: "2026-11-02"

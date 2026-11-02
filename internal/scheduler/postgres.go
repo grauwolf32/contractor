@@ -39,7 +39,7 @@ func (p *PostgresPersistence) CreateStageWithContext(
 	var created runstore.StageExecution
 	err := persistencepostgres.InTx(ctx, p.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		store := runstore.NewPostgresTxStore(tx)
-		if _, err := store.LockRunState(ctx, params.RunID, stageCreationRunStates...); err != nil {
+		if _, err := lockClaimedRun(ctx, store, params.RunID, stageCreationRunStates...); err != nil {
 			return err
 		}
 		if err := store.LockRunQueueAdmission(ctx, params.RunID); err != nil {
@@ -82,7 +82,7 @@ func (p *PostgresPersistence) EnterFinalizingWithResult(
 		}
 		// A Runtime Agent may deliver its result while the Run waits for a
 		// model gateway on another route; the result commit clears the wait.
-		if _, err := store.LockRunState(ctx, execution.RunID, finalizationRunStates...); err != nil {
+		if _, err := lockClaimedRun(ctx, store, execution.RunID, finalizationRunStates...); err != nil {
 			return err
 		}
 		artifactService := artifacts.NewService(artifactpostgres.NewRepository(tx))
@@ -120,7 +120,7 @@ func (p *PostgresPersistence) EnterAbortingWithTermination(
 ) error {
 	return persistencepostgres.InTx(ctx, p.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		store := runstore.NewPostgresTxStore(tx)
-		if _, err := store.LockRunState(ctx, runID, abortRunStates...); err != nil {
+		if _, err := lockClaimedRun(ctx, store, runID, abortRunStates...); err != nil {
 			return err
 		}
 		if _, err := store.LockStageState(ctx, runID, params.StageExecutionID); err != nil {
@@ -140,7 +140,7 @@ func (p *PostgresPersistence) CommitResultProgression(
 	return persistencepostgres.InTx(ctx, p.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		txStore := runstore.NewPostgresTxStore(tx)
 		store := txStore.PostgresStore
-		if _, err := txStore.LockRunState(ctx, value.RunID, progressionRunStates...); err != nil {
+		if _, err := lockClaimedRun(ctx, txStore, value.RunID, progressionRunStates...); err != nil {
 			return err
 		}
 		if _, err := txStore.LockStageState(ctx, value.RunID, value.StageExecutionID); err != nil {
@@ -226,7 +226,7 @@ func (p *PostgresPersistence) CommitTerminationProgression(
 	}
 	return persistencepostgres.InTx(ctx, p.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		txStore := runstore.NewPostgresTxStore(tx)
-		if _, err := txStore.LockRunState(ctx, value.RunID, progressionRunStates...); err != nil {
+		if _, err := lockClaimedRun(ctx, txStore, value.RunID, progressionRunStates...); err != nil {
 			return err
 		}
 		if _, err := txStore.LockStageState(ctx, value.RunID, value.StageExecutionID); err != nil {
@@ -271,7 +271,7 @@ func (p *PostgresPersistence) AcceptResultDuringCancellation(
 	}
 	return persistencepostgres.InTx(ctx, p.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		store := runstore.NewPostgresTxStore(tx)
-		if _, err := store.LockRunState(ctx, runID, runstore.RunCancelling); err != nil {
+		if _, err := lockClaimedRun(ctx, store, runID, runstore.RunCancelling); err != nil {
 			return err
 		}
 		if _, err := store.LockStageState(ctx, runID, stageExecutionID); err != nil {
@@ -304,7 +304,7 @@ func (p *PostgresPersistence) CommitTerminationAndFinishRun(
 ) error {
 	return persistencepostgres.InTx(ctx, p.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		store := runstore.NewPostgresTxStore(tx)
-		if _, err := store.LockRunState(ctx, runID, expectedRunState); err != nil {
+		if _, err := lockClaimedRun(ctx, store, runID, expectedRunState); err != nil {
 			return err
 		}
 		if _, err := store.LockStageState(ctx, runID, stageExecutionID); err != nil {
@@ -350,7 +350,11 @@ func (p *PostgresPersistence) FailRunWithActiveStages(
 	abortID string,
 ) error {
 	return persistencepostgres.InTx(ctx, p.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		if err := runstore.NewPostgresTxStore(tx).FailRunWithActiveStages(ctx, runstore.FailRunWithActiveStagesParams{
+		store := runstore.NewPostgresTxStore(tx)
+		if _, err := lockClaimedRun(ctx, store, runID, expectedRunState); err != nil {
+			return err
+		}
+		if err := store.FailRunWithActiveStages(ctx, runstore.FailRunWithActiveStagesParams{
 			RunID: runID, ExpectedState: expectedRunState, NextState: nextRunState, Reason: reason,
 			TerminationSchemaVersion: contracts.APIVersion, Termination: termination, AbortID: abortID,
 		}); err != nil {
@@ -375,7 +379,7 @@ func (p *PostgresPersistence) FailRunWithActiveStages(
 func (p *PostgresPersistence) FinishCancelledRun(ctx context.Context, runID string) error {
 	return persistencepostgres.InTx(ctx, p.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		store := runstore.NewPostgresTxStore(tx)
-		if _, err := store.LockRunState(ctx, runID, runstore.RunCancelling); err != nil {
+		if _, err := lockClaimedRun(ctx, store, runID, runstore.RunCancelling); err != nil {
 			return err
 		}
 		if err := freezeOutputs(ctx, artifacts.NewService(artifactpostgres.NewRepository(tx)), runID); err != nil {

@@ -7,6 +7,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/credentials"
@@ -152,10 +153,7 @@ func (s *Scheduler) materializeRuntimeSettings(
 		result.LLMGatewayFailureSignatures = &copied
 	}
 	if runtimeConfig.LLMCredential != nil {
-		if s.options.Credentials == nil {
-			return runtimesettings.RuntimeSettings{}, fmt.Errorf("selected LLM credential is unavailable")
-		}
-		token, err := s.options.Credentials.ResolveLLMCredential(
+		token, err := s.resolveLLMCredential(
 			ctx, *runtimeConfig.LLMCredential, runtimeConfig.LLMGateway.Ref,
 		)
 		if err := resolvedCredentialError(token, err); err != nil {
@@ -334,6 +332,8 @@ func (s *Scheduler) useRuntimeCredential(
 	if s.options.RuntimeCredentials == nil {
 		return errors.New("Runtime credential service is unavailable")
 	}
+	ctx, cancel := context.WithTimeout(ctx, s.options.OperationTimeout)
+	defer cancel()
 	return s.options.RuntimeCredentials.UsePlaintext(ctx, credentialID, allowed, consumer)
 }
 
@@ -399,10 +399,7 @@ func (s *Scheduler) resolveCredential(
 	if selection.LLMGateway == nil {
 		return contracts.SecretString{}, fmt.Errorf("selected LLM credential has no Gateway")
 	}
-	if s.options.Credentials == nil {
-		return contracts.SecretString{}, fmt.Errorf("selected LLM credential is unavailable")
-	}
-	token, err := s.options.Credentials.ResolveLLMCredential(
+	token, err := s.resolveLLMCredential(
 		ctx, *selection.Credential, selection.LLMGateway.Ref,
 	)
 	if err := resolvedCredentialError(token, err); err != nil {
@@ -457,4 +454,15 @@ func classifyCredentialError(err error) (bool, string) {
 		return true, "storage_unavailable"
 	}
 	return false, "configuration_unavailable"
+}
+
+// Credential lookup is a store operation, separate from the Runtime batch
+// and from any later Planner model request.
+func (s *Scheduler) resolveLLMCredential(ctx context.Context, ref llmgateway.LLMCredentialRef, gateway llmgateway.LLMGatewayConfigRef) (contracts.SecretString, error) {
+	if s.options.Credentials == nil {
+		return contracts.SecretString{}, fmt.Errorf("selected LLM credential is unavailable")
+	}
+	ctx, cancel := context.WithTimeout(ctx, s.options.OperationTimeout)
+	defer cancel()
+	return s.options.Credentials.ResolveLLMCredential(ctx, ref, gateway)
 }

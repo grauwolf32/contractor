@@ -1,0 +1,143 @@
+schema_version: "1.0"
+id: V438-001
+title: Fence Scheduler lifecycle writes and simplify bounded lane progression
+milestone: hub-audit-2026-10
+epic: execution-core
+kind: defect
+introduced_by: MVP-014
+priority: P1
+status: completed
+implementation_commit: "66ea890d8721ac28d172256423cd7e3fcff2c09e"
+depends_on: [MVP-014, V367-013, V407-016]
+languages: [go]
+goal: >-
+  A replaced Scheduler claim cannot commit Run or Stage progression; Pause discard
+  recovers without consuming an unadmitted attempt, every store call keeps its
+  operation budget, and lane supervision is easier to follow.
+context:
+  integration_note: >-
+    Renumbered from the Scheduler branch's V435-001 during the user-requested
+    2026-11-02 main merge because main assigned that ID to Runtime label ownership.
+    The branch's pending native cleanup fixture follow-up duplicates main's
+    completed V435-002 and is replaced by that authoritative record.
+  authority:
+    - date: "2026-11-02"
+      source: user
+      decision: >-
+        Implement the three reproduced Scheduler review findings and the proposed
+        simplifications together on a separate branch, then run related tests.
+  specification:
+    - docs/spec/execution/scheduler.md
+    - docs/spec/platform/persistence.md
+    - docs/spec/platform/failure-model.md
+    - docs/spec/operations/operations.md
+  finding: >-
+    internal/scheduler/postgres.go:142 locks lifecycle state but does not compare
+    the expected Run claim; an old lane commits succeeded and clears a replacement
+    claim before renewal notices it. internal/scheduler/admission.go:64 discards
+    registry reservations before COMMIT; a rollback leaves allocation rows without
+    grants and resume interrupts an unadmitted attempt. This was the accepted
+    FAIL-SCH-18 risk introduced by V367-013, now authorized for correction.
+    internal/scheduler/stage_preparation.go:200 and run_execution.go:26 pass a
+    lane context into store calls without scheduler.operationTimeout.
+  siblings: >-
+    Cover every Scheduler lifecycle transaction (creation, admission, discard,
+    candidate, abort, progression and terminal cancellation/failure), both Planner
+    and Server-operation admission, all direct Scheduler store reads and allocation
+    metadata calls. Report identities and allocation-release recovery retain their
+    independent existing contracts; Runtime batches retain their own deadlines.
+    Supervisor simplification follows V407-016's fill rounds, limits and drain;
+    reservation verification reuses the requirements and workspace already built.
+  boundary_decision: >-
+    Compare the exact expected claim under the existing Run row lock; no new lease,
+    epoch or receipt table. Claim expiry alone must not invalidate an unchanged
+    live owner's claim (SCH-R120). Keep discard's existing Stage natural key and
+    reconcile missing live reservations only for preparing, never-admitted pending
+    work under the same locks, rather than treating an unstarted Worker as lost.
+    Rollback and ambiguous COMMIT are retried from durable rows; admitted work
+    retains ordinary interruption semantics. Use one operation context per store
+    call and explicit per-pool supervisor state, without changing scheduling policy.
+scope:
+  in:
+    - Require and transactionally fence the exact Scheduler claim on lifecycle writes.
+    - Reconcile failed Pause discard before admission or new placement, without another attempt.
+    - Centralize store-operation budgets and retain claim-aware cleanup cancellation.
+    - Group lane pool state and use explicit claim-acquired and lane-finished events.
+    - Reuse binding requirements and workspace in reservation verification.
+    - Add real PostgreSQL regressions for stale ownership and failed discard COMMIT.
+    - Update normative Scheduler and failure contracts and run related complete suites.
+  out:
+    - Public or private wire changes, schema migrations, new durable mechanisms or scheduling policy.
+    - Changes to the primary checkout's ongoing Runtime label work or live deployments.
+acceptance_criteria:
+  - id: A1
+    given: A lane whose SQL claim is replaced before its next renewal.
+    when: It attempts any lifecycle commit, including cancellation cleanup.
+    then: It commits no lifecycle change and preserves the replacement claim; missing ownership is rejected and an unchanged expired local claim remains usable.
+  - id: A2
+    given: Pause discard loses COMMIT or rolls back after removing live reservations.
+    when: The Scheduler claims the never-admitted Stage again, while paused or resumed.
+    then: It reconciles durable allocations and succeeds after resume as the original attempt, without dispatch while paused or leaking a reservation.
+  - id: A3
+    given: A Scheduler lane with an operation budget shorter than its enclosing lifetime.
+    when: It reads or mutates a store, admits a Planner or Server operation, or resolves allocation metadata.
+    then: Each call receives its own operation deadline; Runtime prepare/release retain independent budgets and cleanup still stops on claim loss.
+  - id: A4
+    given: Both lane pools, dynamic settings, fill rounds, cancellation and capacity deferral.
+    when: The simplified supervisor and reservation checks execute.
+    then: Existing concurrency, refill, drain, idle query-count, fairness and verified provenance tests pass with one coherent pool state and reused binding expectations.
+  - id: A5
+    text: New regressions fail on the reviewed behavior; complete touched-package tests and lint pass, and the task records the exact evidence and branch landing status.
+tests:
+  - command: "go test -race -tags=integration -count=1 ./internal/scheduler ./internal/runstore ./internal/memory"
+    covers: [A1, A2, A3, A4, A5]
+  - command: "go test -race -tags=integration -count=1 -run '^(TestPlacementPostgresDiscardedUnpreparedReservationIsPlacedAgain|TestRuntimeBatchesShareOneDeadlineFromTheirOwnBudget|TestPrepareAllCleansEveryReservationAfterPartialFailure|TestFinalizeAllFencesBeforeRuntimeAndReleaseRetainsFailedGrant|TestTerminalCallsUseSavedOrEarlierCallerDeadlineIndependentlyOfCleanup)$' ./internal/controlplane"
+    covers: [A2, A3, A4]
+  - command: make lint
+    covers: [A1, A2, A3, A4, A5]
+verification:
+  date: "2026-11-02"
+  environment: macOS arm64, Go 1.26.9, Node 24.20.0; dedicated local PostgreSQL 17 database with isolated per-test schemas and symlink-free TMPDIR.
+  commands:
+    - "go test -race -tags=integration -count=1 ./internal/scheduler ./internal/runstore ./internal/memory: passed complete suites with PostgreSQL configured."
+    - "Focused Control Plane command under tests: passed all five selected placement, prepare, finalize, release and independent-deadline regressions with race detector and PostgreSQL."
+    - "make lint: passed, including generated-client/shared-config/dependency checks, UI gates, Go vet/staticcheck/test-only exports, scripts/deployment checks, task/spec/ERD/fixture checks and Runtime lint/import rules."
+    - "go test -race -tags=integration -run '^(TestPostgresCancelAndSuccessRaceSerializesOnRunRow|TestPostgresLifecycleCommitsRequireExactClaim|TestPostgresUnadmittedWritesRejectReplacedClaim)$' -count=10 ./internal/scheduler: passed."
+    - "make docs-dependencies docs-dependencies-check and git diff --check: passed after final documentation changes."
+  regression_evidence:
+    - "A temporary Go overlay bypassing the row-locked claim comparison fails TestPostgresReplacedClaimCannotCommitBeforeRenewal: old lane commit = <nil>, want claim loss."
+    - "A temporary Go overlay removing unadmitted discard reconciliation fails the real COMMIT-rollback case: paused reconciliation rows=1 grants=0 calls=0."
+    - "A temporary Go overlay removing Store/ArtifactResolver operation budgets fails Run state, active Stage, allocations and artifact metadata deadline assertions."
+    - "The real-store tests cover missing/wrong-Run/replaced scope, every lifecycle boundary, detached cancellation cleanup and unchanged expired claim ownership; Planner journals and Server operation calls retain the originally acquired scope."
+    - "Rollback after live discard and a lost successful response both resume the same Stage as attempt 1, without Worker calls while paused or retained recovery probe reservations."
+    - "Virtual-time blocked-read regression ends at the operation budget and releases the claim; ordinary Runtime batch deadlines, pool fill/drain/fairness, long-history read bounds and release pacing still pass."
+  boundaries: >-
+    No migration, new table, lease, receipt, public/private wire change or scheduling policy.
+    Unadmitted recovery applies only to the complete absent live batch of a preparing,
+    never-admitted pending Stage; partial loss and admitted work keep ordinary interruption.
+    Budget enforcement also covers credentials and gateway-route binding; Runtime batches
+    and model requests keep their independent deadlines. Test fixture writes now supply
+    real explicit ownership and memory persistence enforces the same claim check.
+  unrelated_baseline_failure: >-
+    The optional broad Control Plane suite exposes native_cleanup_failure_fences_until_release
+    with cleanup failure = <nil>. The unchanged Runtime/process fixture fails identically
+    with both runstore changes restored through a baseline overlay. Its stale fault hook
+    was tracked by the branch as pending V435-002; current main already contains
+    its completed repair in tasks/done/v435-002-native-cleanup-fault-owner.yml,
+    so the duplicate pending definition is removed during integration.
+  landing: Merged codex/scheduler-review-fixes into current main through --no-ff after integrated verification; the primary checkout work is unchanged.
+  main_integration:
+    date: "2026-11-02"
+    authority: User requested merging the reviewed Scheduler branch into main.
+    previous_main: "1ceb67614d1ba767a824dc140eead89c7f534044"
+    branch_head: "a58b6b85bf5024c93b73bf0fad9c286ecd4434a0"
+    test_result: "go test -race -tags=integration -count=1 ./internal/scheduler ./internal/runstore ./internal/memory ./internal/controlplane passed against a dedicated PostgreSQL database."
+    resolution: >-
+      Regenerated the conflicted dependency graph and backlog from merged sources;
+      retained main's V435-001 Runtime label task, renamed this Scheduler task to
+      V438-001, and retained main's completed V435-002 instead of the duplicate
+      pending Runtime cleanup fixture task. No production-code conflict required
+      a new implementation. The complete Control Plane suite now passes with the
+      cleanup fixture repair already present in main.
+
+    lint_result: "make lint passed on the integrated main tree; final task/specification/dependency checks and git diff --cached --check passed."

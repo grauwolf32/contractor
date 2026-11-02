@@ -12,18 +12,38 @@ import (
 	"github.com/grauwolf32/contractor/internal/settingsstore"
 )
 
-// Run supervises two lane pools of PostgreSQL-authoritative sizes: one for
-// Runs whose next Stage uses a model (maxConcurrentRuns) and one for Runs
-// whose next Stage does not (maxConcurrentToolRuns, SCH-R175). Each lane owns
-// at most one durable claim of its pool's class, while maintenance remains
-// outside the semantic execution limits so cancellation and release can
-// always drain.
+// lanePool is owned by the supervisor goroutine. A round admits at most the
+// lanes missing when it opened, with one claim in flight; lanes already doing
+// useful work may complete and be replaced independently of that round.
+type lanePool struct {
+	class                             resolved.LaneClass
+	desired, active, wanted, claiming int
+	round                             uint64
+}
+
+type laneEventKind uint8
+
+const (
+	claimAcquired laneEventKind = iota
+	laneFinished
+)
+
+type laneEvent struct {
+	kind   laneEventKind
+	class  resolved.LaneClass
+	round  uint64
+	worked bool
+	err    error
+}
+
+// Run supervises the independently sized model and tool pools. Only this
+// goroutine changes pool state; lanes send claim-acquired and lane-finished
+// events. Maintenance remains outside the semantic execution limits.
 func (s *Scheduler) Run(ctx context.Context) error {
 	if !s.beginProductionRun() {
 		return errors.New("Workflow Scheduler is already running")
 	}
 	defer s.endProductionRun()
-
 	desired, err := s.readLaneLimits(ctx)
 	if ctx.Err() != nil {
 		return nil
@@ -34,82 +54,49 @@ func (s *Scheduler) Run(ctx context.Context) error {
 	monitorContext, cancelMonitor := context.WithCancel(context.WithoutCancel(ctx))
 	var monitor sync.WaitGroup
 	monitor.Add(2)
-	go func() {
-		defer monitor.Done()
-		s.monitorAllocationLosses(monitorContext)
-	}()
-	go func() {
-		defer monitor.Done()
-		s.monitorTerminalRelease(monitorContext)
-	}()
+	go func() { defer monitor.Done(); s.monitorAllocationLosses(monitorContext) }()
+	go func() { defer monitor.Done(); s.monitorTerminalRelease(monitorContext) }()
 
-	// laneEvent reports that a lane's claim was admitted (the lane keeps
-	// progressing its Run) or, last, that the lane ended; claimed tells
-	// whether that ended lane had reported its admission, and round is the
-	// fill round of its pool that was current when it started. A lane sends
-	// at most one of each, so two events per possible lane never block a lane
-	// after the supervisor stops receiving.
-	type laneEvent struct {
-		class    resolved.LaneClass
-		round    uint64
-		admitted bool
-		claimed  bool
-		worked   bool
-		err      error
-	}
+	// At most two events per possible lane, so lanes can finish after the
+	// supervisor stops receiving, including during a pool decrease's drain.
 	events := make(chan laneEvent, 2*settingsstore.MaximumLanes)
 	var lanes sync.WaitGroup
-	activeLanes := make(map[resolved.LaneClass]int, len(resolved.LaneClasses))
-	// Each poll or wake opens a fill round of every pool: round numbers them,
-	// wanted counts the lanes the current round may still start, and claiming
-	// counts the pool's lanes that have not claimed a Run yet.
-	round := make(map[resolved.LaneClass]uint64, len(resolved.LaneClasses))
-	wanted := make(map[resolved.LaneClass]int, len(resolved.LaneClasses))
-	claiming := make(map[resolved.LaneClass]int, len(resolved.LaneClasses))
-	admissionHealthy := true
-	canStart := func(class resolved.LaneClass) bool {
-		return admissionHealthy && ctx.Err() == nil && activeLanes[class] < desired[class]
+	pools := make(map[resolved.LaneClass]*lanePool, len(resolved.LaneClasses))
+	for _, class := range resolved.LaneClasses {
+		pools[class] = &lanePool{class: class}
 	}
-	startLane := func(class resolved.LaneClass) {
-		activeLanes[class]++
-		claiming[class]++
+	admissionHealthy := true
+	canStart := func(pool *lanePool) bool { return admissionHealthy && ctx.Err() == nil && pool.active < pool.desired }
+	startLane := func(pool *lanePool) {
+		pool.active++
+		pool.claiming++
 		lanes.Add(1)
-		started := round[class]
+		class, started := pool.class, pool.round
 		go func() {
 			defer lanes.Done()
-			claimed := false
-			worked, laneErr := s.progressOneClaim(ctx, class, func() {
-				claimed = true
-				events <- laneEvent{class: class, round: started, admitted: true}
-			})
-			events <- laneEvent{class: class, round: started, claimed: claimed, worked: worked, err: laneErr}
+			worked, laneErr := s.progressOneClaim(ctx, class, func() { events <- laneEvent{kind: claimAcquired, class: class, round: started} })
+			events <- laneEvent{kind: laneFinished, class: class, round: started, worked: worked, err: laneErr}
 		}()
 	}
-	// continueFill starts the round's next lane only once no lane of the pool
-	// is still claiming, so an idle pool costs one claim attempt per round
-	// however many lanes it has, while a pool with runnable work fills every
-	// lane of the round before any of them completes (SCH-R181, LIM-SCH-21).
-	continueFill := func(class resolved.LaneClass) {
-		if claiming[class] == 0 && wanted[class] > 0 && canStart(class) {
-			wanted[class]--
-			startLane(class)
+	// Idle pools attempt one claim per round. Busy pools fill the next lane
+	// as soon as the previous claim succeeds (SCH-R181), without waiting for
+	// that Run's work to finish.
+	continueFill := func(pool *lanePool) {
+		if pool.claiming == 0 && pool.wanted > 0 && canStart(pool) {
+			pool.wanted--
+			startLane(pool)
 		}
 	}
-	// A round may start the lanes its pool lacks when it opens, as many as
-	// the serial fill of every free lane did. Each pool resizes and drains
-	// on its own (SCH-R134, SCH-R135).
 	fillLanes := func() {
 		for _, class := range resolved.LaneClasses {
-			round[class]++
-			wanted[class] = max(0, desired[class]-activeLanes[class])
-			continueFill(class)
+			pool := pools[class]
+			pool.desired = desired[class]
+			pool.round++
+			pool.wanted = max(0, pool.desired-pool.active)
+			continueFill(pool)
 		}
 	}
-	defer func() {
-		lanes.Wait()
-		cancelMonitor()
-		monitor.Wait()
-	}()
+	defer func() { lanes.Wait(); cancelMonitor(); monitor.Wait() }()
 	fillLanes()
 	refresh := s.after(s.options.PollInterval)
 	for {
@@ -117,64 +104,47 @@ func (s *Scheduler) Run(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		case event := <-events:
-			if event.admitted {
-				// The lane holds its claim while it progresses the Run; the
-				// round's next lane may look for more work at once.
-				claiming[event.class]--
-				continueFill(event.class)
+			pool := pools[event.class]
+			if event.kind == claimAcquired {
+				pool.claiming--
+				continueFill(pool)
 				continue
 			}
-			activeLanes[event.class]--
-			if !event.claimed {
-				claiming[event.class]--
-				if event.round == round[event.class] {
-					// The round found no work or could not claim: the pool
-					// waits for the next poll or wake.
-					wanted[event.class] = 0
+			pool.active--
+			if !event.worked {
+				pool.claiming--
+				if event.round == pool.round {
+					pool.wanted = 0 // No work or a failed claim ends its own round.
 				} else {
-					// The claim predates the current round, which counted
-					// the lane's slot as taken and whose own first claim has
-					// been waiting for it.
-					wanted[event.class] = min(wanted[event.class]+1,
-						max(0, desired[event.class]-activeLanes[event.class]))
-					continueFill(event.class)
+					// An old claim occupied a slot when the current round opened;
+					// its completion must not consume that round's first attempt.
+					pool.wanted = min(pool.wanted+1, max(0, pool.desired-pool.active))
+					continueFill(pool)
 				}
 			}
 			if event.err != nil && !errors.Is(event.err, ErrDeferred) && ctx.Err() == nil {
 				s.options.Logger.Error("Workflow Scheduler lane failed", "lane_class", string(event.class), "error", event.err)
 			}
-			// Preserve the serial loop's eager progression only after useful,
-			// successful work: the freed lane is replaced at once. No-work and
-			// deferred attempts wait for a bounded poll/wake so incompatible
-			// Runs cannot create a hot loop. A Run handed to the other pool is
-			// claimed there on its next refill.
-			if event.worked && event.err == nil && canStart(event.class) {
-				startLane(event.class)
+			// Replace successful work eagerly. Deferred or failed work waits for
+			// the next poll/wake, so blocked Runs cannot cause a hot loop.
+			if event.worked && event.err == nil && canStart(pool) {
+				startLane(pool)
 			}
+			continue
 		case <-s.wake:
-			next, refreshErr := s.readLaneLimits(ctx)
-			if refreshErr != nil {
-				admissionHealthy = false
-				if ctx.Err() == nil {
-					s.options.Logger.Error("refresh Workflow Scheduler concurrency setting failed", "error", refreshErr)
-				}
-				continue
-			}
-			desired, admissionHealthy = next, true
-			fillLanes()
 		case <-refresh:
 			refresh = s.after(s.options.PollInterval)
-			next, refreshErr := s.readLaneLimits(ctx)
-			if refreshErr != nil {
-				admissionHealthy = false
-				if ctx.Err() == nil {
-					s.options.Logger.Error("refresh Workflow Scheduler concurrency setting failed", "error", refreshErr)
-				}
-				continue
-			}
-			desired, admissionHealthy = next, true
-			fillLanes()
 		}
+		next, refreshErr := s.readLaneLimits(ctx)
+		if refreshErr != nil {
+			admissionHealthy = false
+			if ctx.Err() == nil {
+				s.options.Logger.Error("refresh Workflow Scheduler concurrency setting failed", "error", refreshErr)
+			}
+			continue
+		}
+		desired, admissionHealthy = next, true
+		fillLanes()
 	}
 }
 
@@ -205,6 +175,8 @@ func (s *Scheduler) progressOneClaim(
 	if err != nil {
 		return false, err
 	}
+	ownershipContext = WithRunClaim(ownershipContext, run.RunID, claimID)
+	executionContext = WithRunClaim(executionContext, run.RunID, claimID)
 	if admitted != nil {
 		admitted()
 	}

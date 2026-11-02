@@ -206,7 +206,7 @@ func TestPostgresFailActiveRunEndsCancellingRunAsCancelled(t *testing.T) {
 		NewID:  func(prefix string) (string, error) { return prefix + "1", nil },
 		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}}
-	if err := s.failInvalidRunState(ctx, "run-1", nil); err != nil {
+	if err := s.failInvalidRunState(fixtureClaim(t, ctx, pool, "run-1"), "run-1", nil); err != nil {
 		t.Fatalf("fail cancelling Run: %v", err)
 	}
 	run, err := store.GetRun(ctx, "run-1")

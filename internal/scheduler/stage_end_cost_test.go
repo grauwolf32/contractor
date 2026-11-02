@@ -622,7 +622,7 @@ func TestTerminalReleaseRecoveryForgetsPreparationSecrets(t *testing.T) {
 			RuntimeSettings: runtimesettings.RuntimeSettings{LLMGatewayToken: new(contracts.NewSecretString("recovery-secret"))},
 		}})
 
-	if err := harness.scheduler.failInvalidRunState(t.Context(), "run-1", errReviewStateInvalid); err != nil {
+	if err := harness.scheduler.failInvalidRunState(memoryFixtureClaim(t.Context(), harness), "run-1", errReviewStateInvalid); err != nil {
 		t.Fatal(err)
 	}
 	if harness.store.run.State != runstore.RunFailed || harness.store.stages[0].State != runstore.StageInterrupted ||
