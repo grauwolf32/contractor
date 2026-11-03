@@ -10,6 +10,7 @@ depends_on:
 - V64-002
 - V64-014
 - V64-022
+- V443-002
 languages:
 - go
 - python
@@ -40,6 +41,12 @@ context:
     hypothesis/result consumers. Do not defer those configurations to V64-010 or preserve an old profile
     format/execution branch. V64-010 verifies the combined catalog and removes remaining obsolete callers.
     This amendment does not start implementation. User assignment 2026-11-03 authorizes implementation on a separate branch after the prerequisites merged into main.'
+  main_integration: >-
+    Local main 4214f46da8e046063c24f7eea8be05bfa90bd66a is integrated through
+    8f739bf4bc5c3fc79272ea0bf6927d6a0dc3e25a. Only generated BACKLOG.md conflicted;
+    it was regenerated. Full owner, API, UI, wire, catalog, process and lint checks pass.
+    The integrated Runtime suite passes 5708 tests with 135 existing optional skips after
+    the separately tracked test-only V443-002 repair. Branch remains local and unmerged to main.
   verification_evidence: tasks/evidence/v64-012-2026-11-04.json
   implementation_gate: >-
     Implementation was assigned on a separate branch after V64-002, V64-014 and V64-022 merged.

@@ -104,5 +104,47 @@
       "TestSharedAssertionSourcesFreezeRealArtifactsBeforeBoundedAdmission"
     ]
   },
-  "scope": "Deterministic local implementation and disposable-database verification. No live-model quality or deployment is claimed."
+  "scope": "Deterministic local implementation and disposable-database verification. No live-model quality or deployment is claimed.",
+  "integration_main": "4214f46da8e046063c24f7eea8be05bfa90bd66a",
+  "integration_commit": "8f739bf4bc5c3fc79272ea0bf6927d6a0dc3e25a",
+  "integration_result": "Current main merged into the separate branch. Only the generated backlog conflicted; it was regenerated. All deterministic acceptance groups were repeated and passed.",
+  "integrated_checks": [
+    {
+      "command": "go test -tags=integration -count=1 ./internal/auditdomain ./internal/auditstore/... ./internal/auditservice ./internal/auditcontroller ./internal/runservice ./internal/findingintake/... ./internal/auditimport/... ./internal/artifacts/... ./internal/archtest ./internal/persistence/...",
+      "result": "passed in full; no mandatory database skips",
+      "log": "/tmp/v64-012-integrated-go.log"
+    },
+    {
+      "command": "make test-audit-basic-e2e test-wire-cross-language",
+      "result": "passed on clean integration: 8 process cases, no selected skips; 369 fixtures, 401 Go / 255 Python shared tests",
+      "log": "/tmp/v64-012-integrated-e2e.log"
+    },
+    {
+      "command": "make lint ui-verify test-config verify-public-api verify-public-api-postgres",
+      "result": "passed; 216 UI test files, 2467 passing tests and one expected negative test; all 14 common profiles validate",
+      "log": "/tmp/v64-012-integrated-gates.log"
+    },
+    {
+      "command": "go test -count=1 ./tests/eval/audit_programs ./internal/app ./internal/configload ./internal/auditstandards",
+      "result": "passed on isolated application test database",
+      "log": "/tmp/v64-012-integrated-extra.log"
+    },
+    {
+      "command": "node --input-type=module -e 'import {runBrowserGate} from \"./ui/server/browser-gate.mjs\"; await runBrowserGate(\"audit-hypotheses\", \"Audit hypotheses\", [\"e2e/audit-hypotheses.spec.ts\", \"e2e/project-finding-sources.spec.ts\"]);'",
+      "result": "passed: all 9 browser cases",
+      "log": "/tmp/v64-012-integrated-browser.log"
+    },
+    {
+      "command": "make test-runtime",
+      "result": "passed: 5708 passed, 135 existing optional platform/environment skips; the independent report verifier passes",
+      "log": "/tmp/v443-002-runtime.log"
+    }
+  ],
+  "verification_prerequisite": {
+    "task": "V443-002",
+    "implementation_commit": "e4839b10ed4151214113ff5975d4d20e56674715",
+    "reason": "The integrated Runtime run and isolated recheck exposed a pre-existing test race: a cold Python fixture took 198 ms against a shared 150 ms output/timeout budget. Production Podman code is unchanged.",
+    "earlier_failure": "/tmp/v64-012-integrated-runtime.log: 1 failed, 5706 passed, 135 skipped; the isolated original case also failed.",
+    "fix": "Separate the output ceiling budget from timeout cases and prove the old budget fails using a deliberately delayed flood. The full integrated Runtime suite now passes."
+  }
 }
