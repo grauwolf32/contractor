@@ -47,7 +47,7 @@
       "type": "string",
       "minLength": 1,
       "maxLength": 65536,
-      "pattern": "[^\t\n\u000b\f\r \u0085\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000]",
+      "pattern": "[^\t\n\u000b\f\r                  　]",
       "x-maxUtf8Bytes": 65536
     },
     "digest": {
@@ -244,6 +244,9 @@
             "$ref": "#/$defs/key"
           },
           "maxProperties": 128
+        },
+        "max_attempts": {
+          "$ref": "#/$defs/attempt_limit"
         }
       },
       "required": [
@@ -316,9 +319,7 @@
           "maximum": 1000000
         },
         "max_attempts": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 10
+          "$ref": "#/$defs/attempt_limit"
         },
         "deadline_seconds": {
           "type": "integer",
@@ -753,7 +754,7 @@
             "minLength": 1,
             "maxLength": 512,
             "x-maxUtf8Bytes": 512,
-            "pattern": "[^\t\n\u000b\f\r \u0085\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000]"
+            "pattern": "[^\t\n\u000b\f\r                  　]"
           },
           "maxItems": 512,
           "uniqueItems": true
@@ -807,7 +808,7 @@
             "minLength": 1,
             "maxLength": 512,
             "x-maxUtf8Bytes": 512,
-            "pattern": "[^\t\n\u000b\f\r \u0085\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000]"
+            "pattern": "[^\t\n\u000b\f\r                  　]"
           },
           "maxItems": 512,
           "uniqueItems": true
@@ -1264,6 +1265,11 @@
           "uniqueItems": true
         }
       }
+    },
+    "attempt_limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10
     }
   },
   "x-maxEncodedBytes": 8388608

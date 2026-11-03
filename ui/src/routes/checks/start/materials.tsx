@@ -171,7 +171,7 @@ function LiveTargetMaterial({
 /** Inputs attached from the project's current materials. */
 export function MaterialsCard({ model }: { model: StartCheck }) {
   const headingId = useId();
-  const { materials, slots, exact } = model;
+  const { materials, slots } = model;
   const paths = projectPaths(model.projectId);
   const usesTarget = model.scopeFields.has("target");
   const shared = sharedMaterials(slots);
@@ -289,10 +289,8 @@ export function MaterialsCard({ model }: { model: StartCheck }) {
       ) : null}
       <p className="ui-caption">
         Picked by file format: a format match does not check what is inside, so
-        make sure each one is right.
-        {exact?.requiresInputValidation === true
-          ? " The server checks them when the check starts."
-          : ""}{" "}
+        make sure each one is right. The server validates exact metadata and
+        input formats at start.{" "}
         <Link to={paths.addMaterial}>Add materials</Link>
       </p>
     </section>

@@ -33,6 +33,34 @@ func (h *evalHandlers) evalCapabilities(w http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		return err
 	}
+	type binding struct {
+		Kind      string  `json:"kind"`
+		Selector  string  `json:"selector"`
+		Available bool    `json:"available"`
+		Reason    *string `json:"reason"`
+	}
+	bindings := []binding{}
+	if q.Get("kind") != "audit" {
+		for _, workflow := range h.Config.Workflows() {
+			bindings = append(bindings, binding{Kind: "workflow", Selector: workflow.Ref.Name + "@" + workflow.Ref.Version, Available: true})
+		}
+	}
+	if q.Get("kind") != "workflow" {
+		for _, profile := range h.Audits.Profiles() {
+			bindings = append(bindings, binding{Kind: "audit", Selector: profile.Profile.Ref.Name + "@" + profile.Profile.Ref.Version, Available: true})
+		}
+	}
+	sort.Slice(bindings, func(i, j int) bool {
+		return bindings[i].Kind+":"+bindings[i].Selector < bindings[j].Kind+":"+bindings[j].Selector
+	})
+	raw, err := json.Marshal(bindings)
+	if err != nil {
+		return err
+	}
+	snapshot := evaldomain.Digest(raw)
+	if cursor.Snapshot != "" && cursor.Snapshot != snapshot {
+		return evaldomain.Failure("eval_view_changed")
+	}
 	after := ""
 	if len(cursor.Position) > 0 {
 		after = cursor.Position[0]

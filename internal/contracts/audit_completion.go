@@ -5,29 +5,24 @@ package contracts
 const AuditCheckResultsV1 = "audit-check-results@1"
 
 type WorkerCompletionContract struct {
-	Kind              string      `json:"kind" strictjson:"required"`
-	Task              ArtifactRef `json:"task" strictjson:"required"`
-	ExecutionManifest ArtifactRef `json:"executionManifest" strictjson:"required"`
-	ResultArtifact    ArtifactRef `json:"resultArtifact" strictjson:"required"`
+	Kind           string      `json:"kind" strictjson:"required"`
+	Context        ArtifactRef `json:"context" strictjson:"required"`
+	ResultArtifact ArtifactRef `json:"resultArtifact" strictjson:"required"`
 }
 
 func (c WorkerCompletionContract) Validate() error {
 	if c.Kind != AuditCheckResultsV1 {
 		return Invalidf("unsupported Worker completion contract")
 	}
-	if err := c.Task.ValidateExact(); err != nil {
-		return err
-	}
-	if err := c.ExecutionManifest.ValidateExact(); err != nil {
+	if err := c.Context.ValidateExact(); err != nil {
 		return err
 	}
 	if err := c.ResultArtifact.Validate(); err != nil {
 		return err
 	}
-	if c.Task.Namespace != "inputs" || c.ExecutionManifest.Namespace != "inputs" ||
-		c.Task.Name == c.ExecutionManifest.Name || c.ResultArtifact.Revision != nil ||
+	if c.Context.Namespace != "inputs" || c.ResultArtifact.Revision != nil ||
 		c.ResultArtifact.Namespace == "inputs" {
-		return Invalidf("Worker completion refs require distinct exact Run inputs and a versionless output")
+		return Invalidf("Worker completion requires an exact Run context and a versionless output")
 	}
 	return nil
 }
@@ -51,14 +46,8 @@ func CloneWorkerCompletionContract(source *WorkerCompletionContract) *WorkerComp
 		return nil
 	}
 	result := *source
-	if source.Task.Revision != nil {
-		revision := *source.Task.Revision
-		result.Task.Revision = &revision
-	}
-	if source.ExecutionManifest.Revision != nil {
-		revision := *source.ExecutionManifest.Revision
-		result.ExecutionManifest.Revision = &revision
-	}
+	result.Context = source.Context.Clone()
+	result.ResultArtifact = source.ResultArtifact.Clone()
 	return &result
 }
 

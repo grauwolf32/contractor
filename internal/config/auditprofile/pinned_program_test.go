@@ -6,6 +6,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
@@ -61,5 +62,44 @@ func TestSharedPinnedProgramRecoversOnlyItsExactClosure(t *testing.T) {
 		return workflow, err
 	}); err == nil {
 		t.Fatal("accepted mismatched selected Workflow identity")
+	}
+}
+
+func TestSharedPinnedProgramCloneDetachesAuthoringAndExecutionMaps(t *testing.T) {
+	catalog := loadCatalog(t, copyCatalog(t, "audit-common-catalog"))
+	var fixture struct{ Cases []struct{ Document string } }
+	if err := json.Unmarshal(contractstest.ReadFile(t, "api", "testdata", "audit-common", "programs.json"), &fixture); err != nil {
+		t.Fatal(err)
+	}
+	program, err := auditcontract.DecodeProgram([]byte(fixture.Cases[0].Document))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cap := 2
+	binding := program.Workflows["inspect"]
+	binding.MaxAttempts = &cap
+	program.Workflows["inspect"] = binding
+	program.InitialWork[0].Inputs = map[string]string{"source": "source"}
+	program.Hypotheses["example"] = auditcontract.HypothesisSeed{Statement: "The selected reader can access the document", Scope: map[string]string{"actor": "reader"}, Grounds: "Observed document reference"}
+	program.Continuation = &auditcontract.Continuation{Workflow: "inspect"}
+	data, _ := json.Marshal(program)
+	pinned, err := auditprofile.PinProgram(resolved.Selector{ID: "clone", Version: "1"}, data, catalog.Workflow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	clone := pinned.Clone()
+	clone.Program.Inputs["source"].MediaTypes[0] = "application/zip"
+	copyBinding := clone.Program.Workflows["inspect"]
+	*copyBinding.MaxAttempts = 1
+	copyBinding.Inputs["source"] = auditcontract.InputMapping{Source: "task-input"}
+	copyBinding.Parameters["objective"] = "Another objective"
+	copyBinding.Outputs["material"] = "other"
+	clone.Program.InitialWork[0].Inputs["source"] = "missing"
+	clone.Program.Hypotheses["example"].Scope["actor"] = "writer"
+	clone.Program.Continuation.Workflow = "missing"
+	clone.Workflows["inspect"].Inputs["source"].MediaTypes[0] = "application/zip"
+	digest, err := pinned.Digest()
+	if err != nil || digest != pinned.Ref.Digest {
+		t.Fatalf("caller changed catalog-owned program: %s %v", digest, err)
 	}
 }

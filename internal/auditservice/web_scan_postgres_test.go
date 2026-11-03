@@ -3,10 +3,12 @@ package auditservice
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/configload"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -66,7 +68,7 @@ func TestWebScanAuditPinsOneProjectWithoutModelOrOpenAPI(t *testing.T) {
 			}
 			params := StartParams{OwnerID: project.OwnerID, AuditID: draft.AuditID, ExpectedRevision: draft.Revision, IdempotencyKey: "start-" + mode, RequestDigest: serviceTestDigest("start-" + mode)}
 			started, err := service.Start(ctx, params)
-			if err != nil || started.Audit.State != auditstore.AuditActive || len(started.Items) != 1 {
+			if err != nil || started.Audit.State != auditstore.AuditActive || len(started.Items) != 0 {
 				t.Fatalf("start: %v", err)
 			}
 			baseline, err := DecodeBaseline(started.Audit.BaselineSnapshot)
@@ -76,8 +78,8 @@ func TestWebScanAuditPinsOneProjectWithoutModelOrOpenAPI(t *testing.T) {
 			if len(baseline.Inputs) != len(inputs) {
 				t.Fatal("exact rule/source inputs lost")
 			}
-			if started.Items[0].Kind != "web-scan" {
-				t.Fatal("not a direct-target Audit item")
+			if started.Audit.CurrentRoundID != nil {
+				t.Fatal("ordinary start invented a Round")
 			}
 			replay, err := service.Start(ctx, params)
 			if err != nil || !replay.Replayed || replay.Audit.AuditID != started.Audit.AuditID {
@@ -85,4 +87,13 @@ func TestWebScanAuditPinsOneProjectWithoutModelOrOpenAPI(t *testing.T) {
 			}
 		})
 	}
+}
+
+func loadAuditServiceCatalog(t *testing.T) *config.Snapshot {
+	t.Helper()
+	catalog, _, err := configload.LoadUnionReadOnly("../../testdata/configs-scan", filepath.Join(t.TempDir(), "managed"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return catalog
 }

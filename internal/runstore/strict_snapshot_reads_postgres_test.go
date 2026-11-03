@@ -165,10 +165,9 @@ WHERE run_id = $1`, audited.RunID); err != nil {
 		Artifacts: map[string]contracts.ArtifactRef{},
 	}
 	completion := contracts.WorkerCompletionContract{
-		Kind:              contracts.AuditCheckResultsV1,
-		Task:              contracts.ArtifactRef{Namespace: "inputs", Name: "task", Revision: &revision},
-		ExecutionManifest: contracts.ArtifactRef{Namespace: "inputs", Name: "manifest", Revision: &revision},
-		ResultArtifact:    contracts.ArtifactRef{Namespace: "check", Name: "result"},
+		Kind:           contracts.AuditCheckResultsV1,
+		Context:        contracts.ArtifactRef{Namespace: "inputs", Name: "context", Revision: &revision},
+		ResultArtifact: contracts.ArtifactRef{Namespace: "check", Name: "result"},
 	}
 	allocationCompletion := completion
 	allocationCompletion.ResultArtifact.Namespace = allocation.Namespace

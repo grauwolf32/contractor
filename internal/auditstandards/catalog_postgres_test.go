@@ -14,7 +14,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/persistence/postgrestest"
-	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -61,35 +60,11 @@ SELECT count(*) FROM artifact_binding_revisions
 		t.Fatalf("catalog revisions = %d, error=%v", revisions, err)
 	}
 
-	project, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{
-		ProjectID: "catalog-project", OwnerID: "catalog-owner", Kind: projectstore.KindProject,
-		Name: "Catalog project", IdempotencyKey: "create-catalog-project",
-		RequestDigest: contentdigest.Bytes([]byte("catalog-project")),
-	})
-	if err != nil {
-		t.Fatal(err)
+	resolved, err := catalog.Resolve(ctx, "catalog-owner", Reference{Scheme: "example", Version: "1"})
+	if err != nil || resolved.Source.Artifact.Revision == nil || resolved.Source.Digest != contentdigest.Bytes(resolved.Package.payload) {
+		t.Fatalf("exact catalog read = (%+v, %v)", resolved, err)
 	}
-	pinned, err := catalog.Pin(ctx, project.OwnerID, project.ProjectID, "audit-catalog-test",
-		[]Reference{{Scheme: "example", Version: "1"}})
-	if err != nil || len(pinned) != 1 || pinned[0].Retained.Artifact.Revision == nil {
-		t.Fatalf("pin = (%+v, %v)", pinned, err)
-	}
-	retained, err := service.Project(project.ProjectID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	read, err := retained.Read(ctx, pinned[0].Retained.Artifact)
-	if err != nil || contentdigest.Bytes(read.Payload.Data) != pinned[0].Catalog.Digest {
-		t.Fatalf("retained package integrity = (%+v, %v)", read, err)
-	}
-	var frozen bool
-	if err := pool.QueryRow(ctx, `
-SELECT frozen FROM artifact_bindings
- WHERE scope_kind = 'project' AND scope_id = $1
-   AND namespace = 'audit-catalog-test' AND name = $2`,
-		project.ProjectID, pinned[0].Retained.Artifact.Name).Scan(&frozen); err != nil || !frozen {
-		t.Fatalf("retained package frozen = %t, error=%v", frozen, err)
-	}
+
 }
 
 func isolatedCatalogPool(

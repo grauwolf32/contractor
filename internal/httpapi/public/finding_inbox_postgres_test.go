@@ -68,7 +68,7 @@ func seedPublicInboxReceipt(t *testing.T, ctx context.Context, pool *pgxpool.Poo
 	if _, err := pool.Exec(ctx, `INSERT INTO finding_proposal_receipts (
 receipt_id,proposal_id,allocation_id,runtime_agent_id,runtime_instance_id,stage_execution_id,logical_agent_name,
 invocation_id,submission_id,client_key,request_digest,run_id,owner_id,project_id,
-audit_execution_id,audit_id,audit_role,workflow_name,workflow_version,
+audit_execution_id,audit_id,audit_task_id,workflow_name,workflow_version,
 workflow_schema_version,workflow_configuration_ref,workflow_closure_digest,proposal_ref,proposal_digest,proposal_media_type,
 proposal_size_bytes,evidence,report_projection
 , checks_projection) VALUES($1,$2,'allocation-inbox','runtime','instance','stage','worker',$3,$4,$5,$6,$7,$8,'inbox-project',

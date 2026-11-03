@@ -2,6 +2,7 @@ package findingintake
 
 import (
 	"context"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/findingexport"
 	"github.com/jackc/pgx/v5"

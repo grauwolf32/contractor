@@ -11,23 +11,21 @@
  */
 import type {
   Audit,
-  FindingVerdict,
-  FindingSeverity,
-  FindingState,
   AuditItem,
   AuditProfile,
   AuditReviewAction,
   AuditReviewRequest,
   AuditState,
+  FindingSeverity,
+  FindingState,
+  FindingVerdict,
 } from "../api/audits";
 import type { components } from "../api/generated/public";
 import type { RunStatus, WorkflowRunState } from "../api/runs";
 import { formatNumber } from "./format";
 import type { StatusTone } from "./status-tone";
-
-export type AuditCoverageStatus = components["schemas"]["AuditCoverageStatus"];
 type AuditReportStatus = components["schemas"]["AuditReportStatus"];
-export type AuditReviewState = components["schemas"]["AuditReviewState"];
+type AuditReviewState = components["schemas"]["AuditReviewState"];
 type AuditReviewKind = AuditReviewRequest["kind"];
 
 /** A status word and the tone its glyph, chip or segment uses. */
@@ -84,21 +82,6 @@ export const CHECK_STATE_LABELS: Readonly<Record<AuditState, VocabularyLabel>> =
     deleting: { label: "Deleting", tone: "neutral" },
   };
 
-export const COVERAGE_STATUS_LABELS: Readonly<
-  Record<AuditCoverageStatus, VocabularyLabel>
-> = {
-  "not-tested": { label: "Not checked yet", tone: "idle" },
-  inconclusive: { label: "Inconclusive", tone: "warning" },
-  satisfied: { label: "Met", tone: "done" },
-  violated: { label: "Issue found", tone: "blocked" },
-  "not-applicable": { label: "Not applicable", tone: "neutral" },
-  blocked: { label: "Blocked", tone: "blocked" },
-  excluded: { label: "Excluded", tone: "neutral" },
-  "traced-complete": { label: "Fully traced", tone: "done" },
-  "traced-partial": { label: "Partially traced", tone: "partial" },
-  unmapped: { label: "Unmapped", tone: "neutral" },
-};
-
 export const FINDING_STATE_LABELS: Readonly<
   Record<FindingState, VocabularyLabel>
 > = {
@@ -129,13 +112,12 @@ const REVIEW_ACTION_LABELS: Readonly<
   not_applicable: { label: "Not applicable", tone: "neutral" },
 };
 
-export const REVIEW_STATE_LABELS: Readonly<
-  Record<AuditReviewState, VocabularyLabel>
-> = {
-  pending: { label: "Waiting for you", tone: "review" },
-  decided: { label: "Decided", tone: "done" },
-  expired: { label: "Expired", tone: "neutral" },
-};
+const REVIEW_STATE_LABELS: Readonly<Record<AuditReviewState, VocabularyLabel>> =
+  {
+    pending: { label: "Waiting for you", tone: "review" },
+    decided: { label: "Decided", tone: "done" },
+    expired: { label: "Expired", tone: "neutral" },
+  };
 
 // A proposed report never reads as accepted (contract §3).
 const REPORT_STATUS_LABELS: Readonly<
@@ -184,27 +166,9 @@ export function labelOf<K extends string>(
     : { label: readableValue(value), tone: "neutral" };
 }
 
-/**
- * The word for `value` in `table`; a value this client does not know yet
- * reads as written ("release_pending" is "Release pending").
- */
-export function wordOf<K extends string>(
-  table: Readonly<Record<K, string>>,
-  value: K,
-): string {
-  return Object.hasOwn(table, value) ? table[value] : readableValue(value);
-}
-
 /** Check (Audit) state: "Running", "Waiting for you", "Finished", … */
 export function checkStateLabel(state: AuditState): VocabularyLabel {
   return labelOf(CHECK_STATE_LABELS, state);
-}
-
-/** Coverage status of one endpoint, requirement or scenario. */
-export function coverageStatusLabel(
-  status: AuditCoverageStatus,
-): VocabularyLabel {
-  return labelOf(COVERAGE_STATUS_LABELS, status);
 }
 
 /** Triage state of a possible issue: "Needs review", "Confirmed", … */
@@ -337,20 +301,6 @@ export function itemCount(kind: ItemKind, count: number): string {
   return `${formatNumber(count)} ${itemNoun(kind, count)}`;
 }
 
-type InventoryImplementation = AuditProfile["inventory"]["implementation"];
-
-const IMPLEMENTATION_KINDS: Readonly<
-  Record<InventoryImplementation, ItemKind>
-> = {
-  "openapi-operations@1": "endpoint",
-  "openapi-scans@1": "endpoint",
-  "web-scans@1": "endpoint",
-  // Refined by the standards the check type references.
-  "standard-mappings@1": "requirement",
-  "checklist@1": "item",
-  "finding-candidates@1": "item",
-};
-
 // Work item kinds the Server's inventories create (internal/auditdomain).
 const WORK_ITEM_KINDS: Readonly<Record<string, ItemKind>> = {
   "operation-trace": "endpoint",
@@ -383,7 +333,7 @@ function checkTypeNameKind(name: string): ItemKind {
 /** What the UI knows about a check: a work item, the check type or the check. */
 type CheckItemKindSource =
   | Pick<AuditItem, "kind" | "origin">
-  | Pick<AuditProfile, "inventory" | "standards">
+  | Pick<AuditProfile, "ref">
   | Pick<Audit, "profile" | "baseline">;
 
 /**
@@ -408,18 +358,7 @@ type CheckItemKindSource =
  * Anything else is an item: the contract's word when the kind is unknown.
  */
 export function checkItemKind(source: CheckItemKindSource): ItemKind {
-  if ("inventory" in source) {
-    const kind = Object.hasOwn(
-      IMPLEMENTATION_KINDS,
-      source.inventory.implementation,
-    )
-      ? IMPLEMENTATION_KINDS[source.inventory.implementation]
-      : "item";
-    return kind === "requirement"
-      ? (standardsKind(source.standards.map((standard) => standard.scheme)) ??
-          "requirement")
-      : kind;
-  }
+  if ("ref" in source) return checkTypeNameKind(source.ref.name);
   if ("origin" in source) {
     const kind = Object.hasOwn(WORK_ITEM_KINDS, source.kind)
       ? WORK_ITEM_KINDS[source.kind]
@@ -440,4 +379,28 @@ export function checkItemKind(source: CheckItemKindSource): ItemKind {
   if (baseline?.inventory?.standardSelection !== undefined)
     return "requirement";
   return checkTypeNameKind(source.profile.name);
+}
+
+export const COVERAGE_STATUS_LABELS: Readonly<
+  Record<AuditCoverageStatus, VocabularyLabel>
+> = {
+  "not-tested": { label: "Not checked yet", tone: "idle" },
+  inconclusive: { label: "Inconclusive", tone: "warning" },
+  satisfied: { label: "Met", tone: "done" },
+  violated: { label: "Issue found", tone: "blocked" },
+  "not-applicable": { label: "Not applicable", tone: "neutral" },
+  blocked: { label: "Blocked", tone: "blocked" },
+  excluded: { label: "Excluded", tone: "neutral" },
+  "traced-complete": { label: "Fully traced", tone: "done" },
+  "traced-partial": { label: "Partially traced", tone: "partial" },
+  unmapped: { label: "Unmapped", tone: "neutral" },
+};
+
+type AuditCoverageStatus = components["schemas"]["AuditCoverageStatus"];
+
+function wordOf<K extends string>(
+  table: Readonly<Record<K, string>>,
+  value: K,
+): string {
+  return Object.hasOwn(table, value) ? table[value] : readableValue(value);
 }

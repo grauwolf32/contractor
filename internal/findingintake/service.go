@@ -13,7 +13,9 @@ import (
 	artifactpolicy "github.com/grauwolf32/contractor/internal/artifacts/policy"
 	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
+	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
+	"github.com/grauwolf32/contractor/internal/auditstore/querystore"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
@@ -164,7 +166,7 @@ func (s *Service) Submit(
 			return readErr
 		}
 
-		origin, ownerID, projectID, err := verifyTrustedExecution(ctx, tx, grant, s.storage)
+		origin, ownerID, projectID, err := verifyTrustedExecution(ctx, tx, grant, canonical.request.ItemKey, s.storage)
 		if err != nil {
 			return err
 		}
@@ -348,6 +350,7 @@ func verifyTrustedExecution(
 	ctx context.Context,
 	tx pgx.Tx,
 	grant controlplane.AllocationGrant,
+	selectedItem *string,
 	storage *artifactpostgres.Storage,
 ) (Origin, string, *string, error) {
 	if strings.TrimSpace(grant.AllocationID) == "" || strings.TrimSpace(grant.RunID) == "" ||
@@ -401,21 +404,20 @@ func verifyTrustedExecution(
 	origin.Workflow.ConfigurationRef.Name = run.WorkflowName
 	origin.Workflow.ConfigurationRef.Version = run.WorkflowVersion
 	if run.AuditExecutionID != nil {
-		var audit AuditOrigin
-		err := tx.QueryRow(ctx, `
-SELECT execution.audit_id, execution.execution_id, execution.role
-  FROM audit_executions AS execution
-  JOIN audits AS audit USING (audit_id)
- WHERE execution.execution_id = $1 AND execution.run_id = $2`,
-			*run.AuditExecutionID, run.RunID,
-		).Scan(&audit.AuditID, &audit.ExecutionID, &audit.Role)
-		if errors.Is(err, pgx.ErrNoRows) {
-			return Origin{}, "", nil, ErrToolNotSelected
+		key := ""
+		if selectedItem != nil {
+			key = *selectedItem
+		}
+		task, err := querystore.New(tx).ExecutionTaskOrigin(ctx, *run.AuditExecutionID, run.RunID, key)
+		if errors.Is(err, auditstore.ErrNotFound) || errors.Is(err, auditstore.ErrInvalid) {
+			return Origin{}, "", nil, ErrAccessDenied
 		}
 		if err != nil {
-			return Origin{}, "", nil, fmt.Errorf("read finding Audit provenance: %w", err)
+			return Origin{}, "", nil, fmt.Errorf("read finding Task provenance: %w", err)
 		}
-		origin.Audit = &audit
+		origin.Audit = &AuditOrigin{AuditID: task.AuditID, ExecutionID: *run.AuditExecutionID, TaskID: task.TaskID, Hypothesis: task.Hypothesis}
+	} else if selectedItem != nil {
+		return Origin{}, "", nil, ErrInvalid
 	}
 	return origin, run.OwnerID, run.ProjectID, nil
 }
@@ -456,21 +458,25 @@ func insertReceipt(
 		projectProposalJSON, _ = json.Marshal(projectProposal)
 		projectEvidenceJSON, _ = json.Marshal(projectEvidence)
 	}
-	var auditExecutionID, auditID, auditRole *string
+	var auditExecutionID, auditID, auditTaskID *string
+	var hypothesis []byte
 	if origin.Audit != nil {
-		auditExecutionID, auditID, auditRole = &origin.Audit.ExecutionID, &origin.Audit.AuditID, &origin.Audit.Role
+		auditExecutionID, auditID, auditTaskID = &origin.Audit.ExecutionID, &origin.Audit.AuditID, &origin.Audit.TaskID
+		if origin.Audit.Hypothesis != nil {
+			hypothesis, _ = json.Marshal(origin.Audit.Hypothesis)
+		}
 	}
 	_, err := tx.Exec(ctx, insertReceiptSQL,
 		receiptID, proposalID, grant.AllocationID, grant.RuntimeAgentID, grant.RuntimeInstanceID,
 		grant.StageExecutionID, grant.LogicalAgentName, canonical.request.InvocationID,
 		canonical.request.SubmissionID, canonical.request.Proposal.ClientKey, canonical.digest,
 		grant.RunID, ownerID, projectID,
-		auditExecutionID, auditID, auditRole, origin.Workflow.Name, origin.Workflow.Version,
+		auditExecutionID, auditID, auditTaskID, origin.Workflow.Name, origin.Workflow.Version,
 		origin.Workflow.SchemaVersion, configurationRef, origin.Workflow.ClosureDigest,
 		proposalRef, proposal.Digest, proposal.MediaType, proposal.SizeBytes,
 		evidenceJSON, string(canonical.reportProjection), string(fingerprintJSON), string(canonical.anchorProjection),
 		string(canonical.checksProjection),
-		canonical.request.PublishProblem, publicationError, projectProposalJSON, projectEvidenceJSON,
+		canonical.request.PublishProblem, publicationError, projectProposalJSON, projectEvidenceJSON, hypothesis,
 	)
 	if err != nil {
 		switch persistencepostgres.Classify(err) {

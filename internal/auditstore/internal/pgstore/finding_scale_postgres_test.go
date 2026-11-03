@@ -2,7 +2,6 @@ package pgstore
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
@@ -156,7 +155,7 @@ SELECT attname::text FROM pg_attribute
 		t.Fatalf("collection columns = %v, %v", collection, err)
 	}
 	states := statesOfExecutions(t)
-	for index, state := range states {
+	for _, state := range states {
 		t.Run(state, func(t *testing.T) {
 			tx, err := pool.Begin(ctx)
 			if err != nil {
@@ -169,7 +168,7 @@ SELECT attname::text FROM pg_attribute
 			id := "probe-" + state
 			overrides := map[string]string{
 				"execution_id": `'` + id + `'`, "submission_key": `'` + id + `'`, "round_id": `NULL`,
-				"role": `'discovery'`, "role_attempt": fmt.Sprint(1_000_000 + index), "state": `'` + state + `'`,
+				"role": `'task'`, "role_attempt": `NULL`, "state": `'` + state + `'`,
 				"run_id": `'` + id + `-run'`, "run_provenance": `jsonb_set(src.run_provenance, '{runId}', to_jsonb('` + id + `-run'::text))`,
 			}
 			if state == string(auditstore.ExecutionCollected) {

@@ -22,51 +22,6 @@ type AuditReceiptKey struct {
 	ReceiptID string
 }
 
-// GetAuditReceipts reads receipts admitted to the owner's Audit: its native
-// child receipts and those it holds in its own Project. Returned receipts
-// follow input order, including repeated identities, and expose only the
-// requesting Audit's own hold, loaded for the whole page.
-func (s *Service) GetAuditReceipts(ctx context.Context, ownerID, auditID string, ids []string) ([]Receipt, error) {
-	if auditID == "" || len(ids) > MaxAuditReceiptBatchSize {
-		return nil, ErrInvalid
-	}
-	keys := make([]AuditReceiptKey, len(ids))
-	for index, id := range ids {
-		keys[index] = AuditReceiptKey{AuditID: auditID, ReceiptID: id}
-	}
-	return s.GetOwnerAuditReceipts(ctx, ownerID, keys)
-}
-
-// GetOwnerAuditReceipts reads each keyed receipt through its own Audit of the
-// owner exactly as GetAuditReceipts does, for a page whose findings belong to
-// several Audits: one statement reads the receipts, one their holds and one
-// exact Artifact read serves each bounded group of proposals, whatever the
-// number of Audits. Returned receipts follow input order, including repeated
-// keys, and each exposes only the hold of the Audit it was read through.
-func (s *Service) GetOwnerAuditReceipts(ctx context.Context, ownerID string, keys []AuditReceiptKey) ([]Receipt, error) {
-	if ownerID == "" || len(keys) > MaxAuditReceiptBatchSize {
-		return nil, ErrInvalid
-	}
-	for _, key := range keys {
-		if key.AuditID == "" || key.ReceiptID == "" {
-			return nil, ErrInvalid
-		}
-	}
-	if len(keys) == 0 {
-		return []Receipt{}, nil
-	}
-	auditIDs, receiptIDs := distinctReceiptKeys(keys)
-	rows, err := s.pool.Query(ctx, readOwnerAuditReceiptsSQL, ownerID, auditIDs, receiptIDs)
-	if err != nil {
-		return nil, fmt.Errorf("read Audit finding receipts: %w", err)
-	}
-	receipts, err := scanAuditReceiptBatch(rows, keys)
-	if err != nil {
-		return nil, err
-	}
-	return s.hydrateAuditReceipts(ctx, ownerID, keys, receipts)
-}
-
 // distinctReceiptKeys returns the parallel Audit and receipt identities of
 // the distinct keys, in first-seen order.
 func distinctReceiptKeys(keys []AuditReceiptKey) ([]string, []string) {
@@ -82,43 +37,6 @@ func distinctReceiptKeys(keys []AuditReceiptKey) ([]string, []string) {
 		receiptIDs = append(receiptIDs, key.ReceiptID)
 	}
 	return auditIDs, receiptIDs
-}
-
-// scanAuditReceiptBatch returns the receipts of keys in input order; a key
-// whose receipt is not admitted to its Audit is ErrNotFound.
-func scanAuditReceiptBatch(rows pgx.Rows, keys []AuditReceiptKey) ([]Receipt, error) {
-	defer rows.Close()
-	byKey := make(map[AuditReceiptKey]Receipt, len(keys))
-	for rows.Next() {
-		var auditID string
-		receipt, err := scanReceiptRow(throughAudit{row: rows, auditID: &auditID})
-		if err != nil {
-			return nil, err
-		}
-		byKey[AuditReceiptKey{AuditID: auditID, ReceiptID: receipt.ReceiptID}] = receipt
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate Audit finding receipts: %w", err)
-	}
-	result := make([]Receipt, len(keys))
-	for index, key := range keys {
-		receipt, ok := byKey[key]
-		if !ok {
-			return nil, ErrNotFound
-		}
-		result[index] = receipt
-	}
-	return result, nil
-}
-
-// throughAudit scans a receipt row followed by the Audit it was read through.
-type throughAudit struct {
-	row     pgx.Row
-	auditID *string
-}
-
-func (r throughAudit) Scan(dest ...any) error {
-	return r.row.Scan(append(dest, r.auditID)...)
 }
 
 func scanReceiptRows(rows pgx.Rows) ([]Receipt, error) {

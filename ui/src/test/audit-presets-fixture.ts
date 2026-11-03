@@ -1,6 +1,7 @@
-import type { AuditStandard } from "../api/audit-presets";
 import type { AuditProfile } from "../api/audits";
+import type { components } from "../api/generated/public";
 import { conforming } from "./builders";
+type AuditStandard = components["schemas"]["AuditStandardPackage"];
 
 export const presetFixture: AuditProfile = conforming("AuditProfile", {
   ref: {
@@ -8,49 +9,52 @@ export const presetFixture: AuditProfile = conforming("AuditProfile", {
     version: "1",
     digest: `sha256:${"1".repeat(64)}`,
   },
-  mode: "requirements-verification",
-  standards: [{ scheme: "review-standard", version: "2026" }],
-  inputs: { source: { required: true, mediaTypes: ["application/zip"] } },
-  inventory: {
-    implementation: "standard-mappings@1",
-    itemWorkflowRole: "check",
-    standardSelection: {
-      scope: "Selected source requirements",
-      levels: ["1"],
-      entryIds: ["REQ-1", "REQ-2"],
+  inputs: { source: { required: true, media_types: ["application/zip"] } },
+  limits: {
+    max_tasks: 10,
+    max_iterations: 1,
+    max_tasks_per_iteration: 10,
+    batch_size: 1,
+    max_submitted_runs: 30,
+    max_attempts: 3,
+    deadline_seconds: 600,
+    max_evidence_bytes: 1048576,
+    max_hypotheses: 10,
+    max_hypothesis_revisions: 10,
+    max_hypothesis_bytes: 32768,
+  },
+  policy: { active_operations: "prohibited" },
+  program: {
+    schema: "contractor.audit.program.v1",
+    inputs: { source: { required: true, media_types: ["application/zip"] } },
+    workflows: {
+      check: {
+        ref: "source-check@3",
+        inputs: { source: { source: "audit-input", name: "source" } },
+        parameters: {},
+        outputs: { result: "result" },
+      },
     },
-  },
-  workflows: {
-    check: {
-      kind: "check",
-      workflow: { name: "source-check", version: "3" },
-      inputs: {},
-      parameters: {},
-      outputs: { result: "result" },
+    hypotheses: {},
+    initial_work: [
+      { key: "inspect", workflow: "check", objective: "Inspect source" },
+    ],
+    limits: {
+      max_tasks: 10,
+      max_iterations: 1,
+      max_tasks_per_iteration: 10,
+      batch_size: 1,
+      max_submitted_runs: 30,
+      max_attempts: 3,
+      deadline_seconds: 600,
+      max_evidence_bytes: 1048576,
+      max_hypotheses: 10,
+      max_hypothesis_revisions: 10,
+      max_hypothesis_bytes: 32768,
     },
+    policy: { active_operations: "prohibited" },
   },
-  execution: {
-    roundMode: "fixed-barrier",
-    maxRounds: 1,
-    batchSize: 1,
-    maxItemsPerRound: 10,
-    maxItemsTotal: 10,
-    maxSubmittedRuns: 30,
-    maxItemRunAttempts: 3,
-    deadlineSeconds: 600,
-    maxEvidenceBytes: 1048576,
-    incompleteRound: "assess-with-gaps",
-  },
-  interaction: {
-    activeChecks: "prohibited",
-    notApplicable: "human-required",
-    reportAcceptance: "automatic",
-  },
-  serverCompatible: true,
-  requiresInputValidation: true,
-  compatibilityReasons: [],
 });
-
 export const newerPresetFixture: AuditProfile = conforming("AuditProfile", {
   ...presetFixture,
   ref: {
@@ -58,23 +62,11 @@ export const newerPresetFixture: AuditProfile = conforming("AuditProfile", {
     version: "10",
     digest: `sha256:${"2".repeat(64)}`,
   },
-  inventory: {
-    implementation: "standard-mappings@1",
-    itemWorkflowRole: "check",
-  },
 });
-
 export const dynamicPresetFixture: AuditProfile = conforming("AuditProfile", {
   ...presetFixture,
   ref: { ...presetFixture.ref, name: "openapi-operation-trace" },
-  mode: "operation-tracing",
-  standards: [],
-  inputs: { openapi: { required: true, mediaTypes: ["application/yaml"] } },
-  inventory: {
-    implementation: "openapi-operations@1",
-    source: { source: "audit-input", name: "openapi" },
-    itemWorkflowRole: "check",
-  },
+  inputs: { openapi: { required: true, media_types: ["application/yaml"] } },
 });
 
 export const standardFixture: AuditStandard = conforming(

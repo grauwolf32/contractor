@@ -40,7 +40,7 @@ import (
 // before the next attempt; the import replays its whole transaction and
 // commits exactly once. A replay of the request changes nothing.
 func TestPostgresOwnerImportReplaysProjectFenceConflict(t *testing.T) {
-	f := newDeletionImportFixture(t)
+	f := newFindingImportFixture(t, false, true)
 	writer := beginConcurrentFindingWriter(t, f)
 	trace := &intakeTransactions{}
 	trace.afterFence = func(fence int, _ error) {
@@ -92,7 +92,7 @@ func TestPostgresFindingIntakeSharesTheProjectWithConcurrentAdmissions(t *testin
 		{"Project artifact admission", beginConcurrentProjectArtifactAdmission},
 	} {
 		t.Run(contender.name, func(t *testing.T) {
-			f := newDeletionImportFixture(t)
+			f := newFindingImportFixture(t, false, true)
 			collected := f.request
 			collected.Proposal = insertAuditChildReceipt(t, f, "collected-candidate").Proposal.Ref
 			holder := contender.begin(t, f)
@@ -156,7 +156,7 @@ func TestPostgresFindingIntakeReplaysOnlyDefiniteConflicts(t *testing.T) {
 		},
 	} {
 		t.Run(entry.name+"/persistent Project contention", func(t *testing.T) {
-			f := newDeletionImportFixture(t)
+			f := newFindingImportFixture(t, false, true)
 			writer := beginConcurrentFindingWriter(t, f)
 			trace := &intakeTransactions{}
 			intake := intakeOnActorPool(t, f, trace)
@@ -177,7 +177,7 @@ func TestPostgresFindingIntakeReplaysOnlyDefiniteConflicts(t *testing.T) {
 		})
 
 		t.Run(entry.name+"/cancelled after a conflict", func(t *testing.T) {
-			f := newDeletionImportFixture(t)
+			f := newFindingImportFixture(t, false, true)
 			_ = beginConcurrentFindingWriter(t, f)
 			ctx, cancel := context.WithCancel(f.ctx)
 			defer cancel()
@@ -200,7 +200,7 @@ func TestPostgresFindingIntakeReplaysOnlyDefiniteConflicts(t *testing.T) {
 		})
 
 		t.Run(entry.name+"/permanent failures", func(t *testing.T) {
-			f := newDeletionImportFixture(t)
+			f := newFindingImportFixture(t, false, true)
 			trace := &intakeTransactions{}
 			intake := intakeOnActorPool(t, f, trace)
 			before := readIntakeState(t, f)
@@ -234,7 +234,7 @@ UPDATE audits
 		})
 
 		t.Run(entry.name+"/lost commit response", func(t *testing.T) {
-			f := newDeletionImportFixture(t)
+			f := newFindingImportFixture(t, false, true)
 			trace := &intakeTransactions{}
 			fault := &lostCommitResponse{}
 			intake := intakeOnLostCommitPool(t, f, trace, fault)
@@ -279,7 +279,7 @@ func TestPostgresCollectionPageReplaysOnlyItsConflictedTransaction(t *testing.T)
 			name = "persistent conflict then resumed collection"
 		}
 		t.Run(name, func(t *testing.T) {
-			f := newDeletionImportFixture(t)
+			f := newFindingImportFixture(t, false, true)
 			ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
 			defer cancel()
 			f.ctx = ctx
@@ -408,7 +408,7 @@ SELECT entity_id FROM audit_events WHERE audit_id = $1 AND kind = 'finding.propo
 func TestPostgresFindingIntakeSerializesWithProjectDeletion(t *testing.T) {
 	for _, outcome := range []string{"deletion commits between attempts", "import cancelled after the conflict"} {
 		t.Run("deletion waits on the import's Audit/"+outcome, func(t *testing.T) {
-			f := newDeletionImportFixture(t)
+			f := newFindingImportFixture(t, false, true)
 			cancelled := outcome == "import cancelled after the conflict"
 			importCtx, cancelImport := context.WithCancel(f.ctx)
 			defer cancelImport()
@@ -501,7 +501,7 @@ func TestPostgresFindingIntakeSerializesWithProjectDeletion(t *testing.T) {
 	}
 
 	t.Run("import holds the fence before deletion", func(t *testing.T) {
-		f := newDeletionImportFixture(t)
+		f := newFindingImportFixture(t, false, true)
 		late := insertAuditChildReceipt(t, f, "late-candidate")
 		fenceHeld, resumeImport := make(chan struct{}), make(chan struct{})
 		var resumeOnce sync.Once

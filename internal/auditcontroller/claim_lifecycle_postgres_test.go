@@ -75,8 +75,8 @@ SELECT holder_id, epoch FROM audit_controller_claims WHERE audit_id = $1`,
 func TestPostgresControllerReleasesTheClaimOfACancelledStep(t *testing.T) {
 	ctx, cancelTest := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancelTest()
-	harness := newPostgresControllerHarness(t, ctx, 1)
-	controller := harness.controller(t)
+	harness := newCommonControllerHarness(t)
+	controller := harness.commonController(t)
 	// Only the cancellation may end the step, never its own budget.
 	controller.options.OperationTimeout = time.Minute
 	held := &heldStepStore{
@@ -124,8 +124,8 @@ func TestPostgresControllerReleasesTheClaimOfACancelledStep(t *testing.T) {
 func TestPostgresControllerPassToleratesAClaimTakenOverDuringItsStep(t *testing.T) {
 	ctx, cancelTest := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancelTest()
-	harness := newPostgresControllerHarness(t, ctx, 1)
-	controller := harness.controller(t)
+	harness := newCommonControllerHarness(t)
+	controller := harness.commonController(t)
 	held := &heldStepStore{Store: controller.store, entered: make(chan struct{}), proceed: make(chan struct{})}
 	controller.store = held
 	done := make(chan error, 1)

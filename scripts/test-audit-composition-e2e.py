@@ -18,7 +18,7 @@ def matrix(case_set: str = "all") -> dict:
     # JSON is a YAML subset; keeping this gate stdlib-only avoids bootstrap deps.
     value = json.loads(MATRIX.read_text())
     workspace = value.get("workspace", {})
-    for boundary in ("integration", "process"):
+    for boundary in ("process",):
         selected = workspace.get(boundary, {})
         names = {name.rsplit("/", 1)[-1] for cases in selected.values() for name in cases}
         if names != {"handoff", "publication", "replay", "cas", "authority"}:

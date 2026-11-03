@@ -439,99 +439,6 @@ func (e AttemptDiagnosticParticipant) Valid() bool {
 	}
 }
 
-// Defines values for Audit0Phase.
-const (
-	Audit0PhaseNotStarted Audit0Phase = "not-started"
-)
-
-// Valid indicates whether the value is a known member of the Audit0Phase enum.
-func (e Audit0Phase) Valid() bool {
-	switch e {
-	case Audit0PhaseNotStarted:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for Audit1Phase.
-const (
-	Audit1PhaseInventory Audit1Phase = "inventory"
-	Audit1PhasePreparing Audit1Phase = "preparing"
-)
-
-// Valid indicates whether the value is a known member of the Audit1Phase enum.
-func (e Audit1Phase) Valid() bool {
-	switch e {
-	case Audit1PhaseInventory:
-		return true
-	case Audit1PhasePreparing:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for Audit2Phase.
-const (
-	Audit2PhaseRounds Audit2Phase = "rounds"
-)
-
-// Valid indicates whether the value is a known member of the Audit2Phase enum.
-func (e Audit2Phase) Valid() bool {
-	switch e {
-	case Audit2PhaseRounds:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for AuditCheckMethodMappingMethod.
-const (
-	Alternative   AuditCheckMethodMappingMethod = "alternative"
-	Applicability AuditCheckMethodMappingMethod = "applicability"
-	HttpProbe     AuditCheckMethodMappingMethod = "http-probe"
-	Replay        AuditCheckMethodMappingMethod = "replay"
-	StaticTrace   AuditCheckMethodMappingMethod = "static-trace"
-	Verify        AuditCheckMethodMappingMethod = "verify"
-)
-
-// Valid indicates whether the value is a known member of the AuditCheckMethodMappingMethod enum.
-func (e AuditCheckMethodMappingMethod) Valid() bool {
-	switch e {
-	case Alternative:
-		return true
-	case Applicability:
-		return true
-	case HttpProbe:
-		return true
-	case Replay:
-		return true
-	case StaticTrace:
-		return true
-	case Verify:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for AuditCheckMethodMappingPlanSchema.
-const (
-	ContractorAuditFindingCheckPlanV1 AuditCheckMethodMappingPlanSchema = "contractor.audit.finding-check-plan.v1"
-)
-
-// Valid indicates whether the value is a known member of the AuditCheckMethodMappingPlanSchema enum.
-func (e AuditCheckMethodMappingPlanSchema) Valid() bool {
-	switch e {
-	case ContractorAuditFindingCheckPlanV1:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for AuditCollectionDisposition.
 const (
 	AuditCollectionDispositionAcceptedResult            AuditCollectionDisposition = "accepted-result"
@@ -660,16 +567,16 @@ func (e AuditCoverageStatus) Valid() bool {
 
 // Defines values for AuditDispatchState.
 const (
-	AuditDispatchStateClosed AuditDispatchState = "closed"
-	AuditDispatchStateOpen   AuditDispatchState = "open"
+	Closed AuditDispatchState = "closed"
+	Open   AuditDispatchState = "open"
 )
 
 // Valid indicates whether the value is a known member of the AuditDispatchState enum.
 func (e AuditDispatchState) Valid() bool {
 	switch e {
-	case AuditDispatchStateClosed:
+	case Closed:
 		return true
-	case AuditDispatchStateOpen:
+	case Open:
 		return true
 	default:
 		return false
@@ -745,57 +652,24 @@ func (e AuditExecutionItemState) Valid() bool {
 	}
 }
 
-// Defines values for AuditExecutionPolicyIncompleteRound.
-const (
-	AuditExecutionPolicyIncompleteRoundAssessWithGaps AuditExecutionPolicyIncompleteRound = "assess-with-gaps"
-	AuditExecutionPolicyIncompleteRoundFail           AuditExecutionPolicyIncompleteRound = "fail"
-)
-
-// Valid indicates whether the value is a known member of the AuditExecutionPolicyIncompleteRound enum.
-func (e AuditExecutionPolicyIncompleteRound) Valid() bool {
-	switch e {
-	case AuditExecutionPolicyIncompleteRoundAssessWithGaps:
-		return true
-	case AuditExecutionPolicyIncompleteRoundFail:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for AuditExecutionPolicyRoundMode.
-const (
-	FixedBarrier AuditExecutionPolicyRoundMode = "fixed-barrier"
-)
-
-// Valid indicates whether the value is a known member of the AuditExecutionPolicyRoundMode enum.
-func (e AuditExecutionPolicyRoundMode) Valid() bool {
-	switch e {
-	case FixedBarrier:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for AuditExecutionRole.
 const (
-	AuditExecutionRoleAssessment AuditExecutionRole = "assessment"
-	AuditExecutionRoleCheck      AuditExecutionRole = "check"
-	AuditExecutionRoleDiscovery  AuditExecutionRole = "discovery"
-	AuditExecutionRolePrepare    AuditExecutionRole = "prepare"
+	Assessment AuditExecutionRole = "assessment"
+	Check      AuditExecutionRole = "check"
+	Discovery  AuditExecutionRole = "discovery"
+	Prepare    AuditExecutionRole = "prepare"
 )
 
 // Valid indicates whether the value is a known member of the AuditExecutionRole enum.
 func (e AuditExecutionRole) Valid() bool {
 	switch e {
-	case AuditExecutionRoleAssessment:
+	case Assessment:
 		return true
-	case AuditExecutionRoleCheck:
+	case Check:
 		return true
-	case AuditExecutionRoleDiscovery:
+	case Discovery:
 		return true
-	case AuditExecutionRolePrepare:
+	case Prepare:
 		return true
 	default:
 		return false
@@ -850,174 +724,6 @@ func (e AuditHoldState) Valid() bool {
 	case AuditHoldStatePending:
 		return true
 	case AuditHoldStateReleased:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for AuditInteractionPolicyNotApplicable.
-const (
-	AuditInteractionPolicyNotApplicableHumanRequired AuditInteractionPolicyNotApplicable = "human-required"
-	AuditInteractionPolicyNotApplicableProfileRule   AuditInteractionPolicyNotApplicable = "profile-rule"
-)
-
-// Valid indicates whether the value is a known member of the AuditInteractionPolicyNotApplicable enum.
-func (e AuditInteractionPolicyNotApplicable) Valid() bool {
-	switch e {
-	case AuditInteractionPolicyNotApplicableHumanRequired:
-		return true
-	case AuditInteractionPolicyNotApplicableProfileRule:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for AuditInteractionPolicyReportAcceptance.
-const (
-	AuditInteractionPolicyReportAcceptanceAutomatic     AuditInteractionPolicyReportAcceptance = "automatic"
-	AuditInteractionPolicyReportAcceptanceHumanRequired AuditInteractionPolicyReportAcceptance = "human-required"
-)
-
-// Valid indicates whether the value is a known member of the AuditInteractionPolicyReportAcceptance enum.
-func (e AuditInteractionPolicyReportAcceptance) Valid() bool {
-	switch e {
-	case AuditInteractionPolicyReportAcceptanceAutomatic:
-		return true
-	case AuditInteractionPolicyReportAcceptanceHumanRequired:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for AuditInventoryImplementation.
-const (
-	AuditInventoryImplementationChecklist1         AuditInventoryImplementation = "checklist@1"
-	AuditInventoryImplementationFindingCandidates1 AuditInventoryImplementation = "finding-candidates@1"
-	AuditInventoryImplementationOpenapiOperations1 AuditInventoryImplementation = "openapi-operations@1"
-	AuditInventoryImplementationOpenapiScans1      AuditInventoryImplementation = "openapi-scans@1"
-	AuditInventoryImplementationStandardMappings1  AuditInventoryImplementation = "standard-mappings@1"
-	AuditInventoryImplementationWebScans1          AuditInventoryImplementation = "web-scans@1"
-)
-
-// Valid indicates whether the value is a known member of the AuditInventoryImplementation enum.
-func (e AuditInventoryImplementation) Valid() bool {
-	switch e {
-	case AuditInventoryImplementationChecklist1:
-		return true
-	case AuditInventoryImplementationFindingCandidates1:
-		return true
-	case AuditInventoryImplementationOpenapiOperations1:
-		return true
-	case AuditInventoryImplementationOpenapiScans1:
-		return true
-	case AuditInventoryImplementationStandardMappings1:
-		return true
-	case AuditInventoryImplementationWebScans1:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for AuditInventory0Implementation.
-const (
-	AuditInventory0ImplementationStandardMappings1 AuditInventory0Implementation = "standard-mappings@1"
-)
-
-// Valid indicates whether the value is a known member of the AuditInventory0Implementation enum.
-func (e AuditInventory0Implementation) Valid() bool {
-	switch e {
-	case AuditInventory0ImplementationStandardMappings1:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for AuditInventory1Implementation.
-const (
-	AuditInventory1ImplementationOpenapiScans1 AuditInventory1Implementation = "openapi-scans@1"
-	AuditInventory1ImplementationWebScans1     AuditInventory1Implementation = "web-scans@1"
-)
-
-// Valid indicates whether the value is a known member of the AuditInventory1Implementation enum.
-func (e AuditInventory1Implementation) Valid() bool {
-	switch e {
-	case AuditInventory1ImplementationOpenapiScans1:
-		return true
-	case AuditInventory1ImplementationWebScans1:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for AuditInventory2Implementation.
-const (
-	AuditInventory2ImplementationChecklist1         AuditInventory2Implementation = "checklist@1"
-	AuditInventory2ImplementationFindingCandidates1 AuditInventory2Implementation = "finding-candidates@1"
-	AuditInventory2ImplementationOpenapiOperations1 AuditInventory2Implementation = "openapi-operations@1"
-)
-
-// Valid indicates whether the value is a known member of the AuditInventory2Implementation enum.
-func (e AuditInventory2Implementation) Valid() bool {
-	switch e {
-	case AuditInventory2ImplementationChecklist1:
-		return true
-	case AuditInventory2ImplementationFindingCandidates1:
-		return true
-	case AuditInventory2ImplementationOpenapiOperations1:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for AuditInventoryArtifactSource.
-const (
-	AuditInventoryArtifactSourceAuditInput    AuditInventoryArtifactSource = "audit-input"
-	AuditInventoryArtifactSourcePrepareOutput AuditInventoryArtifactSource = "prepare-output"
-)
-
-// Valid indicates whether the value is a known member of the AuditInventoryArtifactSource enum.
-func (e AuditInventoryArtifactSource) Valid() bool {
-	switch e {
-	case AuditInventoryArtifactSourceAuditInput:
-		return true
-	case AuditInventoryArtifactSourcePrepareOutput:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for AuditInventoryArtifact0Source.
-const (
-	AuditInventoryArtifact0SourceAuditInput AuditInventoryArtifact0Source = "audit-input"
-)
-
-// Valid indicates whether the value is a known member of the AuditInventoryArtifact0Source enum.
-func (e AuditInventoryArtifact0Source) Valid() bool {
-	switch e {
-	case AuditInventoryArtifact0SourceAuditInput:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for AuditInventoryArtifact1Source.
-const (
-	AuditInventoryArtifact1SourcePrepareOutput AuditInventoryArtifact1Source = "prepare-output"
-)
-
-// Valid indicates whether the value is a known member of the AuditInventoryArtifact1Source enum.
-func (e AuditInventoryArtifact1Source) Valid() bool {
-	switch e {
-	case AuditInventoryArtifact1SourcePrepareOutput:
 		return true
 	default:
 		return false
@@ -1090,144 +796,6 @@ func (e AuditItemState) Valid() bool {
 	}
 }
 
-// Defines values for AuditPhase.
-const (
-	AuditPhaseInventory  AuditPhase = "inventory"
-	AuditPhaseNotStarted AuditPhase = "not-started"
-	AuditPhasePreparing  AuditPhase = "preparing"
-	AuditPhaseRounds     AuditPhase = "rounds"
-)
-
-// Valid indicates whether the value is a known member of the AuditPhase enum.
-func (e AuditPhase) Valid() bool {
-	switch e {
-	case AuditPhaseInventory:
-		return true
-	case AuditPhaseNotStarted:
-		return true
-	case AuditPhasePreparing:
-		return true
-	case AuditPhaseRounds:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for AuditPreparationRoleStatus.
-const (
-	AuditPreparationRoleStatusAccepted AuditPreparationRoleStatus = "accepted"
-	AuditPreparationRoleStatusFailed   AuditPreparationRoleStatus = "failed"
-	AuditPreparationRoleStatusPending  AuditPreparationRoleStatus = "pending"
-	AuditPreparationRoleStatusRunning  AuditPreparationRoleStatus = "running"
-)
-
-// Valid indicates whether the value is a known member of the AuditPreparationRoleStatus enum.
-func (e AuditPreparationRoleStatus) Valid() bool {
-	switch e {
-	case AuditPreparationRoleStatusAccepted:
-		return true
-	case AuditPreparationRoleStatusFailed:
-		return true
-	case AuditPreparationRoleStatusPending:
-		return true
-	case AuditPreparationRoleStatusRunning:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for AuditPreparationRole0Attempts.
-const (
-	N0 AuditPreparationRole0Attempts = 0
-)
-
-// Valid indicates whether the value is a known member of the AuditPreparationRole0Attempts enum.
-func (e AuditPreparationRole0Attempts) Valid() bool {
-	switch e {
-	case N0:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for AuditPreparationRole0Status.
-const (
-	AuditPreparationRole0StatusPending AuditPreparationRole0Status = "pending"
-)
-
-// Valid indicates whether the value is a known member of the AuditPreparationRole0Status enum.
-func (e AuditPreparationRole0Status) Valid() bool {
-	switch e {
-	case AuditPreparationRole0StatusPending:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for AuditPreparationRole1Status.
-const (
-	AuditPreparationRole1StatusFailed  AuditPreparationRole1Status = "failed"
-	AuditPreparationRole1StatusRunning AuditPreparationRole1Status = "running"
-)
-
-// Valid indicates whether the value is a known member of the AuditPreparationRole1Status enum.
-func (e AuditPreparationRole1Status) Valid() bool {
-	switch e {
-	case AuditPreparationRole1StatusFailed:
-		return true
-	case AuditPreparationRole1StatusRunning:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for AuditPreparationRole2Status.
-const (
-	AuditPreparationRole2StatusAccepted AuditPreparationRole2Status = "accepted"
-)
-
-// Valid indicates whether the value is a known member of the AuditPreparationRole2Status enum.
-func (e AuditPreparationRole2Status) Valid() bool {
-	switch e {
-	case AuditPreparationRole2StatusAccepted:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for AuditProfileMode.
-const (
-	CustomChecklist          AuditProfileMode = "custom-checklist"
-	FindingVerification      AuditProfileMode = "finding-verification"
-	OperationTracing         AuditProfileMode = "operation-tracing"
-	RequirementsVerification AuditProfileMode = "requirements-verification"
-	RiskAssessment           AuditProfileMode = "risk-assessment"
-)
-
-// Valid indicates whether the value is a known member of the AuditProfileMode enum.
-func (e AuditProfileMode) Valid() bool {
-	switch e {
-	case CustomChecklist:
-		return true
-	case FindingVerification:
-		return true
-	case OperationTracing:
-		return true
-	case RequirementsVerification:
-		return true
-	case RiskAssessment:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for AuditProfileUnsupportedDetailsKind.
 const (
 	AuditProfileUnsupported AuditProfileUnsupportedDetailsKind = "audit_profile_unsupported"
@@ -1243,60 +811,84 @@ func (e AuditProfileUnsupportedDetailsKind) Valid() bool {
 	}
 }
 
-// Defines values for AuditProfileWorkflowKind.
+// Defines values for AuditProgramSchema.
 const (
-	AuditProfileWorkflowKindAssessment AuditProfileWorkflowKind = "assessment"
-	AuditProfileWorkflowKindCheck      AuditProfileWorkflowKind = "check"
-	AuditProfileWorkflowKindDiscovery  AuditProfileWorkflowKind = "discovery"
-	AuditProfileWorkflowKindPrepare    AuditProfileWorkflowKind = "prepare"
+	ContractorAuditProgramV1 AuditProgramSchema = "contractor.audit.program.v1"
 )
 
-// Valid indicates whether the value is a known member of the AuditProfileWorkflowKind enum.
-func (e AuditProfileWorkflowKind) Valid() bool {
+// Valid indicates whether the value is a known member of the AuditProgramSchema enum.
+func (e AuditProgramSchema) Valid() bool {
 	switch e {
-	case AuditProfileWorkflowKindAssessment:
-		return true
-	case AuditProfileWorkflowKindCheck:
-		return true
-	case AuditProfileWorkflowKindDiscovery:
-		return true
-	case AuditProfileWorkflowKindPrepare:
+	case ContractorAuditProgramV1:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for AuditProfileWorkflow0Kind.
+// Defines values for AuditProgramInputMediaTypes1.
 const (
-	AuditProfileWorkflow0KindPrepare AuditProfileWorkflow0Kind = "prepare"
+	AuditProgramInputMediaTypes1Asterisk AuditProgramInputMediaTypes1 = "*/*"
 )
 
-// Valid indicates whether the value is a known member of the AuditProfileWorkflow0Kind enum.
-func (e AuditProfileWorkflow0Kind) Valid() bool {
+// Valid indicates whether the value is a known member of the AuditProgramInputMediaTypes1 enum.
+func (e AuditProgramInputMediaTypes1) Valid() bool {
 	switch e {
-	case AuditProfileWorkflow0KindPrepare:
+	case AuditProgramInputMediaTypes1Asterisk:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for AuditProfileWorkflow1Kind.
+// Defines values for AuditProgramInputMapping0Source.
 const (
-	AuditProfileWorkflow1KindAssessment AuditProfileWorkflow1Kind = "assessment"
-	AuditProfileWorkflow1KindCheck      AuditProfileWorkflow1Kind = "check"
-	AuditProfileWorkflow1KindDiscovery  AuditProfileWorkflow1Kind = "discovery"
+	AuditProgramInputMapping0SourceAuditInput AuditProgramInputMapping0Source = "audit-input"
 )
 
-// Valid indicates whether the value is a known member of the AuditProfileWorkflow1Kind enum.
-func (e AuditProfileWorkflow1Kind) Valid() bool {
+// Valid indicates whether the value is a known member of the AuditProgramInputMapping0Source enum.
+func (e AuditProgramInputMapping0Source) Valid() bool {
 	switch e {
-	case AuditProfileWorkflow1KindAssessment:
+	case AuditProgramInputMapping0SourceAuditInput:
 		return true
-	case AuditProfileWorkflow1KindCheck:
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditProgramInputMapping1Source.
+const (
+	PriorResults AuditProgramInputMapping1Source = "prior-results"
+	TaskContext  AuditProgramInputMapping1Source = "task-context"
+	TaskInput    AuditProgramInputMapping1Source = "task-input"
+)
+
+// Valid indicates whether the value is a known member of the AuditProgramInputMapping1Source enum.
+func (e AuditProgramInputMapping1Source) Valid() bool {
+	switch e {
+	case PriorResults:
 		return true
-	case AuditProfileWorkflow1KindDiscovery:
+	case TaskContext:
+		return true
+	case TaskInput:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditProgramPolicyActiveOperations.
+const (
+	AuditProgramPolicyActiveOperationsAllowed    AuditProgramPolicyActiveOperations = "allowed"
+	AuditProgramPolicyActiveOperationsProhibited AuditProgramPolicyActiveOperations = "prohibited"
+)
+
+// Valid indicates whether the value is a known member of the AuditProgramPolicyActiveOperations enum.
+func (e AuditProgramPolicyActiveOperations) Valid() bool {
+	switch e {
+	case AuditProgramPolicyActiveOperationsAllowed:
+		return true
+	case AuditProgramPolicyActiveOperationsProhibited:
 		return true
 	default:
 		return false
@@ -1444,33 +1036,6 @@ func (e AuditReviewSubjectKind) Valid() bool {
 	}
 }
 
-// Defines values for AuditRoundState.
-const (
-	AuditRoundStateAccepted  AuditRoundState = "accepted"
-	AuditRoundStateAssessing AuditRoundState = "assessing"
-	AuditRoundStateClosed    AuditRoundState = "closed"
-	AuditRoundStateExecuting AuditRoundState = "executing"
-	AuditRoundStateProposed  AuditRoundState = "proposed"
-)
-
-// Valid indicates whether the value is a known member of the AuditRoundState enum.
-func (e AuditRoundState) Valid() bool {
-	switch e {
-	case AuditRoundStateAccepted:
-		return true
-	case AuditRoundStateAssessing:
-		return true
-	case AuditRoundStateClosed:
-		return true
-	case AuditRoundStateExecuting:
-		return true
-	case AuditRoundStateProposed:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for AuditRunProvenanceSchema.
 const (
 	ContractorAuditRunProvenanceV1 AuditRunProvenanceSchema = "contractor.audit.run-provenance.v1"
@@ -1506,19 +1071,19 @@ func (e AuditScanProvenanceScanner) Valid() bool {
 
 // Defines values for AuditStandardApplicabilityMode.
 const (
-	AuditStandardApplicabilityModeAlways      AuditStandardApplicabilityMode = "always"
-	AuditStandardApplicabilityModeHumanReview AuditStandardApplicabilityMode = "human-review"
-	AuditStandardApplicabilityModeProfileRule AuditStandardApplicabilityMode = "profile-rule"
+	Always      AuditStandardApplicabilityMode = "always"
+	HumanReview AuditStandardApplicabilityMode = "human-review"
+	ProfileRule AuditStandardApplicabilityMode = "profile-rule"
 )
 
 // Valid indicates whether the value is a known member of the AuditStandardApplicabilityMode enum.
 func (e AuditStandardApplicabilityMode) Valid() bool {
 	switch e {
-	case AuditStandardApplicabilityModeAlways:
+	case Always:
 		return true
-	case AuditStandardApplicabilityModeHumanReview:
+	case HumanReview:
 		return true
-	case AuditStandardApplicabilityModeProfileRule:
+	case ProfileRule:
 		return true
 	default:
 		return false
@@ -1774,39 +1339,6 @@ func (e AuditStandardPackageResponseApiVersion) Valid() bool {
 	}
 }
 
-// Defines values for AuditStartResponse0AuditPhase.
-const (
-	AuditStartResponse0AuditPhaseRounds AuditStartResponse0AuditPhase = "rounds"
-)
-
-// Valid indicates whether the value is a known member of the AuditStartResponse0AuditPhase enum.
-func (e AuditStartResponse0AuditPhase) Valid() bool {
-	switch e {
-	case AuditStartResponse0AuditPhaseRounds:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for AuditStartResponse1AuditPhase.
-const (
-	AuditStartResponse1AuditPhaseInventory AuditStartResponse1AuditPhase = "inventory"
-	AuditStartResponse1AuditPhasePreparing AuditStartResponse1AuditPhase = "preparing"
-)
-
-// Valid indicates whether the value is a known member of the AuditStartResponse1AuditPhase enum.
-func (e AuditStartResponse1AuditPhase) Valid() bool {
-	switch e {
-	case AuditStartResponse1AuditPhaseInventory:
-		return true
-	case AuditStartResponse1AuditPhasePreparing:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for AuditState.
 const (
 	AuditStateActive        AuditState = "active"
@@ -1945,117 +1477,6 @@ func (e AuditTerminalOutcome) Valid() bool {
 	case AuditTerminalOutcomeSubmissionFailed:
 		return true
 	case AuditTerminalOutcomeSucceeded:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for AuditWorkflowInputMappingSource.
-const (
-	AuditWorkflowInputMappingSourceAuditInput         AuditWorkflowInputMappingSource = "audit-input"
-	AuditWorkflowInputMappingSourceExecutionManifest  AuditWorkflowInputMappingSource = "execution-manifest"
-	AuditWorkflowInputMappingSourceItemPackage        AuditWorkflowInputMappingSource = "item-package"
-	AuditWorkflowInputMappingSourcePrepareOutput      AuditWorkflowInputMappingSource = "prepare-output"
-	AuditWorkflowInputMappingSourceRetainedDependency AuditWorkflowInputMappingSource = "retained-dependency"
-	AuditWorkflowInputMappingSourceRetainedOutput     AuditWorkflowInputMappingSource = "retained-output"
-	AuditWorkflowInputMappingSourceRoundResults       AuditWorkflowInputMappingSource = "round-results"
-)
-
-// Valid indicates whether the value is a known member of the AuditWorkflowInputMappingSource enum.
-func (e AuditWorkflowInputMappingSource) Valid() bool {
-	switch e {
-	case AuditWorkflowInputMappingSourceAuditInput:
-		return true
-	case AuditWorkflowInputMappingSourceExecutionManifest:
-		return true
-	case AuditWorkflowInputMappingSourceItemPackage:
-		return true
-	case AuditWorkflowInputMappingSourcePrepareOutput:
-		return true
-	case AuditWorkflowInputMappingSourceRetainedDependency:
-		return true
-	case AuditWorkflowInputMappingSourceRetainedOutput:
-		return true
-	case AuditWorkflowInputMappingSourceRoundResults:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for AuditWorkflowInputMapping0Source.
-const (
-	AuditWorkflowInputMapping0SourceAuditInput         AuditWorkflowInputMapping0Source = "audit-input"
-	AuditWorkflowInputMapping0SourceRetainedDependency AuditWorkflowInputMapping0Source = "retained-dependency"
-)
-
-// Valid indicates whether the value is a known member of the AuditWorkflowInputMapping0Source enum.
-func (e AuditWorkflowInputMapping0Source) Valid() bool {
-	switch e {
-	case AuditWorkflowInputMapping0SourceAuditInput:
-		return true
-	case AuditWorkflowInputMapping0SourceRetainedDependency:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for AuditWorkflowInputMapping1Source.
-const (
-	AuditWorkflowInputMapping1SourceExecutionManifest AuditWorkflowInputMapping1Source = "execution-manifest"
-	AuditWorkflowInputMapping1SourceItemPackage       AuditWorkflowInputMapping1Source = "item-package"
-	AuditWorkflowInputMapping1SourceRoundResults      AuditWorkflowInputMapping1Source = "round-results"
-)
-
-// Valid indicates whether the value is a known member of the AuditWorkflowInputMapping1Source enum.
-func (e AuditWorkflowInputMapping1Source) Valid() bool {
-	switch e {
-	case AuditWorkflowInputMapping1SourceExecutionManifest:
-		return true
-	case AuditWorkflowInputMapping1SourceItemPackage:
-		return true
-	case AuditWorkflowInputMapping1SourceRoundResults:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for AuditWorkflowInputMapping2Source.
-const (
-	AuditWorkflowInputMapping2SourcePrepareOutput  AuditWorkflowInputMapping2Source = "prepare-output"
-	AuditWorkflowInputMapping2SourceRetainedOutput AuditWorkflowInputMapping2Source = "retained-output"
-)
-
-// Valid indicates whether the value is a known member of the AuditWorkflowInputMapping2Source enum.
-func (e AuditWorkflowInputMapping2Source) Valid() bool {
-	switch e {
-	case AuditWorkflowInputMapping2SourcePrepareOutput:
-		return true
-	case AuditWorkflowInputMapping2SourceRetainedOutput:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for AuditWorkflowParameterMappingSource.
-const (
-	AuditWorkflowParameterMappingSourceItemField  AuditWorkflowParameterMappingSource = "item-field"
-	AuditWorkflowParameterMappingSourceLiteral    AuditWorkflowParameterMappingSource = "literal"
-	AuditWorkflowParameterMappingSourceScopeField AuditWorkflowParameterMappingSource = "scope-field"
-)
-
-// Valid indicates whether the value is a known member of the AuditWorkflowParameterMappingSource enum.
-func (e AuditWorkflowParameterMappingSource) Valid() bool {
-	switch e {
-	case AuditWorkflowParameterMappingSourceItemField:
-		return true
-	case AuditWorkflowParameterMappingSourceLiteral:
-		return true
-	case AuditWorkflowParameterMappingSourceScopeField:
 		return true
 	default:
 		return false
@@ -7312,10 +6733,9 @@ type AttemptDiagnostics struct {
 
 // Audit defines model for Audit.
 type Audit struct {
-	AuditId        ResourceId     `json:"auditId"`
-	Baseline       *AuditBaseline `json:"baseline,omitempty"`
-	CreatedAt      time.Time      `json:"createdAt"`
-	CurrentRoundId *ResourceId    `json:"currentRoundId,omitempty"`
+	AuditId   ResourceId     `json:"auditId"`
+	Baseline  *AuditBaseline `json:"baseline,omitempty"`
+	CreatedAt time.Time      `json:"createdAt"`
 
 	// DeadlineAt Absent when the started Audit has no time limit.
 	DeadlineAt          *time.Time                    `json:"deadlineAt,omitempty"`
@@ -7323,9 +6743,9 @@ type Audit struct {
 	DispatchState       AuditDispatchState            `json:"dispatchState"`
 	EventSequence       int                           `json:"eventSequence"`
 	FinishedAt          *time.Time                    `json:"finishedAt,omitempty"`
-	GeneratedInventory  *AuditGeneratedInventory      `json:"generatedInventory,omitempty"`
 	HoldState           AuditHoldState                `json:"holdState"`
 	Inputs              map[string]AuditExactArtifact `json:"inputs"`
+	Iteration           int                           `json:"iteration"`
 
 	// Labels Ordinary labels pinned at Audit start and inherited by every child Run. cloud or local with an empty value selects the whole namespace; cloud=aws selects cloud/aws. Four entries are reserved for child-specific audit.* provenance.
 	Labels              *AuditLabels `json:"labels,omitempty"`
@@ -7333,11 +6753,9 @@ type Audit struct {
 	OutstandingRunCount int          `json:"outstandingRunCount"`
 
 	// PausedAt Time when the remaining Audit allowance was frozen.
-	PausedAt    *time.Time           `json:"pausedAt,omitempty"`
-	Phase       AuditPhase           `json:"phase"`
-	Preparation *AuditPreparation    `json:"preparation,omitempty"`
-	Profile     AuditProfileIdentity `json:"profile"`
-	ProjectId   ResourceId           `json:"projectId"`
+	PausedAt  *time.Time           `json:"pausedAt,omitempty"`
+	Profile   AuditProfileIdentity `json:"profile"`
+	ProjectId ResourceId           `json:"projectId"`
 
 	// RequiredPlacementLabels Sorted unique cloud/local paths forming one ancestor chain. Empty means no location declaration or requirement.
 	RequiredPlacementLabels *PlacementLabels `json:"requiredPlacementLabels,omitempty"`
@@ -7352,33 +6770,9 @@ type Audit struct {
 	State             AuditState                `json:"state"`
 	StopReason        *AuditStopReason          `json:"stopReason,omitempty"`
 	SubmittedRunCount int                       `json:"submittedRunCount"`
+	TaskCount         int                       `json:"taskCount"`
 	UpdatedAt         time.Time                 `json:"updatedAt"`
-	union             json.RawMessage
 }
-
-// Audit0 defines model for Audit.0.
-type Audit0 struct {
-	Phase *Audit0Phase `json:"phase,omitempty"`
-}
-
-// Audit0Phase defines model for Audit.0.Phase.
-type Audit0Phase string
-
-// Audit1 defines model for Audit.1.
-type Audit1 struct {
-	Phase *Audit1Phase `json:"phase,omitempty"`
-}
-
-// Audit1Phase defines model for Audit.1.Phase.
-type Audit1Phase string
-
-// Audit2 defines model for Audit.2.
-type Audit2 struct {
-	Phase *Audit2Phase `json:"phase,omitempty"`
-}
-
-// Audit2Phase defines model for Audit.2.Phase.
-type Audit2Phase string
 
 // AuditActor defines model for AuditActor.
 type AuditActor = string
@@ -7416,31 +6810,6 @@ type AuditBaselineInventory struct {
 	StandardSelection        *AuditStandardSelection `json:"standardSelection,omitempty"`
 	Worklist                 AuditExactArtifact      `json:"worklist"`
 }
-
-// AuditCheckCapabilityRequirement defines model for AuditCheckCapabilityRequirement.
-type AuditCheckCapabilityRequirement struct {
-	Agent ConfigId `json:"agent"`
-	Ref   struct {
-		ToolsetId ConfigId      `json:"toolsetId"`
-		Version   ConfigVersion `json:"version"`
-	} `json:"ref"`
-	Stage ConfigId `json:"stage"`
-	Tools []string `json:"tools"`
-}
-
-// AuditCheckMethodMapping defines model for AuditCheckMethodMapping.
-type AuditCheckMethodMapping struct {
-	Method               AuditCheckMethodMappingMethod     `json:"method"`
-	PlanSchema           AuditCheckMethodMappingPlanSchema `json:"planSchema"`
-	RequiredCapabilities []AuditCheckCapabilityRequirement `json:"requiredCapabilities"`
-	WorkflowRole         string                            `json:"workflowRole"`
-}
-
-// AuditCheckMethodMappingMethod defines model for AuditCheckMethodMapping.Method.
-type AuditCheckMethodMappingMethod string
-
-// AuditCheckMethodMappingPlanSchema defines model for AuditCheckMethodMapping.PlanSchema.
-type AuditCheckMethodMappingPlanSchema string
 
 // AuditCollectionDisposition defines model for AuditCollectionDisposition.
 type AuditCollectionDisposition string
@@ -7550,6 +6919,7 @@ type AuditEventPage struct {
 type AuditEventSummary struct {
 	Action       *AuditReviewAction          `json:"action,omitempty"`
 	Count        *int                        `json:"count,omitempty"`
+	CreatedCount *int                        `json:"createdCount,omitempty"`
 	Disposition  *AuditCollectionDisposition `json:"disposition,omitempty"`
 	FindingId    *ResourceId                 `json:"findingId,omitempty"`
 	From         *string                     `json:"from,omitempty"`
@@ -7564,8 +6934,11 @@ type AuditEventSummary struct {
 	State        *string                     `json:"state,omitempty"`
 	SubjectId    *ResourceId                 `json:"subjectId,omitempty"`
 	SubjectKind  *AuditReviewSubjectKind     `json:"subjectKind,omitempty"`
+	TaskCount    *int                        `json:"taskCount,omitempty"`
 	To           *string                     `json:"to,omitempty"`
 	Verdict      *AuditEventSummaryVerdict   `json:"verdict,omitempty"`
+	WorkCount    *int                        `json:"workCount,omitempty"`
+	Workflow     *AuditCommonKey             `json:"workflow,omitempty"`
 	WorkflowRole *ResourceId                 `json:"workflowRole,omitempty"`
 }
 
@@ -7586,26 +6959,6 @@ type AuditExactArtifact struct {
 // AuditExecutionItemState defines model for AuditExecutionItemState.
 type AuditExecutionItemState string
 
-// AuditExecutionPolicy defines model for AuditExecutionPolicy.
-type AuditExecutionPolicy struct {
-	BatchSize          int                                 `json:"batchSize"`
-	DeadlineSeconds    int                                 `json:"deadlineSeconds"`
-	IncompleteRound    AuditExecutionPolicyIncompleteRound `json:"incompleteRound"`
-	MaxEvidenceBytes   int                                 `json:"maxEvidenceBytes"`
-	MaxItemRunAttempts int                                 `json:"maxItemRunAttempts"`
-	MaxItemsPerRound   int                                 `json:"maxItemsPerRound"`
-	MaxItemsTotal      int                                 `json:"maxItemsTotal"`
-	MaxRounds          int                                 `json:"maxRounds"`
-	MaxSubmittedRuns   int                                 `json:"maxSubmittedRuns"`
-	RoundMode          AuditExecutionPolicyRoundMode       `json:"roundMode"`
-}
-
-// AuditExecutionPolicyIncompleteRound defines model for AuditExecutionPolicy.IncompleteRound.
-type AuditExecutionPolicyIncompleteRound string
-
-// AuditExecutionPolicyRoundMode defines model for AuditExecutionPolicy.RoundMode.
-type AuditExecutionPolicyRoundMode string
-
 // AuditExecutionRole defines model for AuditExecutionRole.
 type AuditExecutionRole string
 
@@ -7621,100 +6974,8 @@ type AuditFindingPage struct {
 	ProjectRevision int                     `json:"projectRevision"`
 }
 
-// AuditGeneratedInventory defines model for AuditGeneratedInventory.
-type AuditGeneratedInventory struct {
-	CanonicalInventoryDigest Digest             `json:"canonicalInventoryDigest"`
-	Gaps                     []string           `json:"gaps"`
-	ItemCount                int                `json:"itemCount"`
-	Snapshot                 AuditExactArtifact `json:"snapshot"`
-	SourceContentDigest      Digest             `json:"sourceContentDigest"`
-	Sources                  struct {
-		Settings *AuditExactArtifact `json:"settings,omitempty"`
-		Source   AuditExactArtifact  `json:"source"`
-	} `json:"sources"`
-	Worklist AuditExactArtifact `json:"worklist"`
-}
-
 // AuditHoldState defines model for AuditHoldState.
 type AuditHoldState string
-
-// AuditInteractionPolicy defines model for AuditInteractionPolicy.
-type AuditInteractionPolicy struct {
-	// ActiveChecks Project approval policy for active-enabled Audit profiles, pinned at Audit start. A profile prohibition always remains prohibited.
-	ActiveChecks     ActiveChecksPolicy                     `json:"activeChecks"`
-	NotApplicable    AuditInteractionPolicyNotApplicable    `json:"notApplicable"`
-	ReportAcceptance AuditInteractionPolicyReportAcceptance `json:"reportAcceptance"`
-}
-
-// AuditInteractionPolicyNotApplicable defines model for AuditInteractionPolicy.NotApplicable.
-type AuditInteractionPolicyNotApplicable string
-
-// AuditInteractionPolicyReportAcceptance defines model for AuditInteractionPolicy.ReportAcceptance.
-type AuditInteractionPolicyReportAcceptance string
-
-// AuditInventory defines model for AuditInventory.
-type AuditInventory struct {
-	Implementation    AuditInventoryImplementation `json:"implementation"`
-	ItemWorkflowRole  ArtifactName                 `json:"itemWorkflowRole"`
-	Settings          *AuditInventoryArtifact      `json:"settings,omitempty"`
-	Source            *AuditInventoryArtifact      `json:"source,omitempty"`
-	StandardSelection *AuditStandardSelection      `json:"standardSelection,omitempty"`
-	union             json.RawMessage
-}
-
-// AuditInventoryImplementation defines model for AuditInventory.Implementation.
-type AuditInventoryImplementation string
-
-// AuditInventory0 defines model for AuditInventory.0.
-type AuditInventory0 struct {
-	Implementation *AuditInventory0Implementation `json:"implementation,omitempty"`
-}
-
-// AuditInventory0Implementation defines model for AuditInventory.0.Implementation.
-type AuditInventory0Implementation string
-
-// AuditInventory1 defines model for AuditInventory.1.
-type AuditInventory1 struct {
-	Implementation *AuditInventory1Implementation `json:"implementation,omitempty"`
-}
-
-// AuditInventory1Implementation defines model for AuditInventory.1.Implementation.
-type AuditInventory1Implementation string
-
-// AuditInventory2 defines model for AuditInventory.2.
-type AuditInventory2 struct {
-	Implementation *AuditInventory2Implementation `json:"implementation,omitempty"`
-}
-
-// AuditInventory2Implementation defines model for AuditInventory.2.Implementation.
-type AuditInventory2Implementation string
-
-// AuditInventoryArtifact defines model for AuditInventoryArtifact.
-type AuditInventoryArtifact struct {
-	Name   ArtifactName                 `json:"name"`
-	Role   *ArtifactName                `json:"role,omitempty"`
-	Source AuditInventoryArtifactSource `json:"source"`
-	union  json.RawMessage
-}
-
-// AuditInventoryArtifactSource defines model for AuditInventoryArtifact.Source.
-type AuditInventoryArtifactSource string
-
-// AuditInventoryArtifact0 defines model for AuditInventoryArtifact.0.
-type AuditInventoryArtifact0 struct {
-	Source *AuditInventoryArtifact0Source `json:"source,omitempty"`
-}
-
-// AuditInventoryArtifact0Source defines model for AuditInventoryArtifact.0.Source.
-type AuditInventoryArtifact0Source string
-
-// AuditInventoryArtifact1 defines model for AuditInventoryArtifact.1.
-type AuditInventoryArtifact1 struct {
-	Source *AuditInventoryArtifact1Source `json:"source,omitempty"`
-}
-
-// AuditInventoryArtifact1Source defines model for AuditInventoryArtifact.1.Source.
-type AuditInventoryArtifact1Source string
 
 // AuditItem defines model for AuditItem.
 type AuditItem struct {
@@ -7824,9 +7085,6 @@ type AuditPage struct {
 	Page  PageInfo `json:"page"`
 }
 
-// AuditPhase defines model for AuditPhase.
-type AuditPhase string
-
 // AuditPinnedRuntimeLabel defines model for AuditPinnedRuntimeLabel.
 type AuditPinnedRuntimeLabel struct {
 	BindingRevision int                     `json:"bindingRevision"`
@@ -7845,85 +7103,15 @@ type AuditPinnedStandard struct {
 	Title     string                    `json:"title"`
 }
 
-// AuditPreparation defines model for AuditPreparation.
-type AuditPreparation struct {
-	Roles map[string]AuditPreparationRole `json:"roles"`
-}
-
-// AuditPreparationOutput defines model for AuditPreparationOutput.
-type AuditPreparationOutput struct {
-	Artifact struct {
-		Digest    Digest           `json:"digest"`
-		MediaType MediaType        `json:"mediaType"`
-		Ref       ExactArtifactRef `json:"ref"`
-		SizeBytes int              `json:"sizeBytes"`
-	} `json:"artifact"`
-	ExecutionId    ResourceId   `json:"executionId"`
-	RunId          ResourceId   `json:"runId"`
-	WorkflowOutput ArtifactName `json:"workflowOutput"`
-}
-
-// AuditPreparationRole defines model for AuditPreparationRole.
-type AuditPreparationRole struct {
-	Attempts    int                               `json:"attempts"`
-	ExecutionId *ResourceId                       `json:"executionId,omitempty"`
-	MaxAttempts int                               `json:"maxAttempts"`
-	Outputs     map[string]AuditPreparationOutput `json:"outputs"`
-	RunId       *ResourceId                       `json:"runId,omitempty"`
-	Status      AuditPreparationRoleStatus        `json:"status"`
-	union       json.RawMessage
-}
-
-// AuditPreparationRoleStatus defines model for AuditPreparationRole.Status.
-type AuditPreparationRoleStatus string
-
-// AuditPreparationRole0 defines model for AuditPreparationRole.0.
-type AuditPreparationRole0 struct {
-	Attempts *AuditPreparationRole0Attempts `json:"attempts,omitempty"`
-	Outputs  interface{}                    `json:"outputs,omitempty"`
-	Status   *AuditPreparationRole0Status   `json:"status,omitempty"`
-}
-
-// AuditPreparationRole0Attempts defines model for AuditPreparationRole.0.Attempts.
-type AuditPreparationRole0Attempts int
-
-// AuditPreparationRole0Status defines model for AuditPreparationRole.0.Status.
-type AuditPreparationRole0Status string
-
-// AuditPreparationRole1 defines model for AuditPreparationRole.1.
-type AuditPreparationRole1 struct {
-	Attempts interface{}                  `json:"attempts,omitempty"`
-	Outputs  interface{}                  `json:"outputs,omitempty"`
-	Status   *AuditPreparationRole1Status `json:"status,omitempty"`
-}
-
-// AuditPreparationRole1Status defines model for AuditPreparationRole.1.Status.
-type AuditPreparationRole1Status string
-
-// AuditPreparationRole2 defines model for AuditPreparationRole.2.
-type AuditPreparationRole2 struct {
-	Attempts interface{}                  `json:"attempts,omitempty"`
-	Outputs  interface{}                  `json:"outputs,omitempty"`
-	Status   *AuditPreparationRole2Status `json:"status,omitempty"`
-}
-
-// AuditPreparationRole2Status defines model for AuditPreparationRole.2.Status.
-type AuditPreparationRole2Status string
-
 // AuditProfile defines model for AuditProfile.
 type AuditProfile struct {
-	CompatibilityReasons    []AuditCompatibilityReason          `json:"compatibilityReasons"`
-	Execution               AuditExecutionPolicy                `json:"execution"`
-	Inputs                  map[string]AuditProfileInput        `json:"inputs"`
-	Interaction             AuditInteractionPolicy              `json:"interaction"`
-	Inventory               AuditInventory                      `json:"inventory"`
-	Methods                 *map[string]AuditCheckMethodMapping `json:"methods,omitempty"`
-	Mode                    AuditProfileMode                    `json:"mode"`
-	Ref                     AuditProfileRef                     `json:"ref"`
-	RequiresInputValidation bool                                `json:"requiresInputValidation"`
-	ServerCompatible        bool                                `json:"serverCompatible"`
-	Standards               []AuditStandardRef                  `json:"standards"`
-	Workflows               *map[string]AuditProfileWorkflow    `json:"workflows,omitempty"`
+	Inputs map[string]AuditProgramInput `json:"inputs"`
+	Limits AuditProgramLimits           `json:"limits"`
+	Policy AuditProgramPolicy           `json:"policy"`
+
+	// Program The exact authored common program; present on profile detail.
+	Program *AuditProgram   `json:"program,omitempty"`
+	Ref     AuditProfileRef `json:"ref"`
 }
 
 // AuditProfileIdentity defines model for AuditProfileIdentity.
@@ -7932,15 +7120,6 @@ type AuditProfileIdentity struct {
 	Name    ConfigurationName `json:"name"`
 	Version ConfigVersion     `json:"version"`
 }
-
-// AuditProfileInput defines model for AuditProfileInput.
-type AuditProfileInput struct {
-	MediaTypes []MediaType `json:"mediaTypes"`
-	Required   bool        `json:"required"`
-}
-
-// AuditProfileMode defines model for AuditProfileMode.
-type AuditProfileMode string
 
 // AuditProfilePage defines model for AuditProfilePage.
 type AuditProfilePage struct {
@@ -7970,35 +7149,112 @@ type AuditProfileUnsupportedDetails struct {
 // AuditProfileUnsupportedDetailsKind defines model for AuditProfileUnsupportedDetails.Kind.
 type AuditProfileUnsupportedDetailsKind string
 
-// AuditProfileWorkflow defines model for AuditProfileWorkflow.
-type AuditProfileWorkflow struct {
-	Inputs         map[string]AuditWorkflowInputMapping     `json:"inputs"`
-	Kind           AuditProfileWorkflowKind                 `json:"kind"`
-	MaxRunAttempts *int                                     `json:"maxRunAttempts,omitempty"`
-	Outputs        map[string]ArtifactName                  `json:"outputs"`
-	Parameters     map[string]AuditWorkflowParameterMapping `json:"parameters"`
-	Workflow       WorkflowRef                              `json:"workflow"`
-	union          json.RawMessage
+// AuditProgram defines model for AuditProgram.
+type AuditProgram struct {
+	Continuation *struct {
+		Workflow AuditCommonKey `json:"workflow"`
+	} `json:"continuation,omitempty"`
+	Hypotheses  map[string]AuditProgramHypothesisSeed `json:"hypotheses"`
+	InitialWork []AuditProgramInitialWork             `json:"initial_work"`
+	Inputs      map[string]AuditProgramInput          `json:"inputs"`
+	Limits      AuditProgramLimits                    `json:"limits"`
+	Policy      AuditProgramPolicy                    `json:"policy"`
+	Schema      AuditProgramSchema                    `json:"schema"`
+	Workflows   map[string]AuditProgramWorkflow       `json:"workflows"`
 }
 
-// AuditProfileWorkflowKind defines model for AuditProfileWorkflow.Kind.
-type AuditProfileWorkflowKind string
+// AuditProgramSchema defines model for AuditProgram.Schema.
+type AuditProgramSchema string
 
-// AuditProfileWorkflow0 defines model for AuditProfileWorkflow.0.
-type AuditProfileWorkflow0 struct {
-	Kind *AuditProfileWorkflow0Kind `json:"kind,omitempty"`
+// AuditProgramAttemptLimit defines model for AuditProgramAttemptLimit.
+type AuditProgramAttemptLimit = int
+
+// AuditProgramHypothesisSeed The complete seed's RFC 8785 canonical UTF-8 encoding must fit 32768 bytes. This early content bound does not replace the complete hypothesis document bound after trusted identity, revision and origin are assigned.
+type AuditProgramHypothesisSeed struct {
+	Grounds   AuditCommonText            `json:"grounds"`
+	Scope     map[string]AuditCommonText `json:"scope"`
+	Statement AuditCommonText            `json:"statement"`
 }
 
-// AuditProfileWorkflow0Kind defines model for AuditProfileWorkflow.0.Kind.
-type AuditProfileWorkflow0Kind string
-
-// AuditProfileWorkflow1 defines model for AuditProfileWorkflow.1.
-type AuditProfileWorkflow1 struct {
-	Kind *AuditProfileWorkflow1Kind `json:"kind,omitempty"`
+// AuditProgramInitialWork defines model for AuditProgramInitialWork.
+type AuditProgramInitialWork struct {
+	Hypothesis *AuditCommonKey            `json:"hypothesis,omitempty"`
+	Inputs     *map[string]AuditCommonKey `json:"inputs,omitempty"`
+	Key        AuditCommonKey             `json:"key"`
+	Objective  AuditCommonText            `json:"objective"`
+	Workflow   AuditCommonKey             `json:"workflow"`
 }
 
-// AuditProfileWorkflow1Kind defines model for AuditProfileWorkflow.1.Kind.
-type AuditProfileWorkflow1Kind string
+// AuditProgramInput defines model for AuditProgramInput.
+type AuditProgramInput struct {
+	MediaTypes []AuditProgramInput_MediaTypes_Item `json:"media_types"`
+	Required   bool                                `json:"required"`
+}
+
+// AuditProgramInputMediaTypes1 defines model for AuditProgramInput.MediaTypes.1.
+type AuditProgramInputMediaTypes1 string
+
+// AuditProgramInput_MediaTypes_Item defines model for AuditProgramInput.media_types.Item.
+type AuditProgramInput_MediaTypes_Item struct {
+	union json.RawMessage
+}
+
+// AuditProgramInputMapping defines model for AuditProgramInputMapping.
+type AuditProgramInputMapping struct {
+	union json.RawMessage
+}
+
+// AuditProgramInputMapping0 defines model for AuditProgramInputMapping.0.
+type AuditProgramInputMapping0 struct {
+	Name   AuditCommonKey                  `json:"name"`
+	Source AuditProgramInputMapping0Source `json:"source"`
+}
+
+// AuditProgramInputMapping0Source defines model for AuditProgramInputMapping.0.Source.
+type AuditProgramInputMapping0Source string
+
+// AuditProgramInputMapping1 defines model for AuditProgramInputMapping.1.
+type AuditProgramInputMapping1 struct {
+	Source AuditProgramInputMapping1Source `json:"source"`
+}
+
+// AuditProgramInputMapping1Source defines model for AuditProgramInputMapping.1.Source.
+type AuditProgramInputMapping1Source string
+
+// AuditProgramLimits defines model for AuditProgramLimits.
+type AuditProgramLimits struct {
+	BatchSize              int                      `json:"batch_size"`
+	DeadlineSeconds        int                      `json:"deadline_seconds"`
+	MaxAttempts            AuditProgramAttemptLimit `json:"max_attempts"`
+	MaxEvidenceBytes       int                      `json:"max_evidence_bytes"`
+	MaxHypotheses          int                      `json:"max_hypotheses"`
+	MaxHypothesisBytes     int                      `json:"max_hypothesis_bytes"`
+	MaxHypothesisRevisions int                      `json:"max_hypothesis_revisions"`
+	MaxIterations          int                      `json:"max_iterations"`
+	MaxSubmittedRuns       int                      `json:"max_submitted_runs"`
+	MaxTasks               int                      `json:"max_tasks"`
+	MaxTasksPerIteration   int                      `json:"max_tasks_per_iteration"`
+}
+
+// AuditProgramPolicy defines model for AuditProgramPolicy.
+type AuditProgramPolicy struct {
+	ActiveOperations AuditProgramPolicyActiveOperations `json:"active_operations"`
+}
+
+// AuditProgramPolicyActiveOperations defines model for AuditProgramPolicy.ActiveOperations.
+type AuditProgramPolicyActiveOperations string
+
+// AuditProgramSelector defines model for AuditProgramSelector.
+type AuditProgramSelector = string
+
+// AuditProgramWorkflow defines model for AuditProgramWorkflow.
+type AuditProgramWorkflow struct {
+	Inputs      map[string]AuditProgramInputMapping `json:"inputs"`
+	MaxAttempts *AuditProgramAttemptLimit           `json:"max_attempts,omitempty"`
+	Outputs     map[string]AuditCommonKey           `json:"outputs"`
+	Parameters  map[string]string                   `json:"parameters"`
+	Ref         AuditProgramSelector                `json:"ref"`
+}
 
 // AuditReport defines model for AuditReport.
 type AuditReport struct {
@@ -8090,21 +7346,6 @@ type AuditReviewState string
 
 // AuditReviewSubjectKind defines model for AuditReviewSubjectKind.
 type AuditReviewSubjectKind string
-
-// AuditRound defines model for AuditRound.
-type AuditRound struct {
-	CreatedAt         time.Time          `json:"createdAt"`
-	ExpectedItemCount int                `json:"expectedItemCount"`
-	Manifest          AuditExactArtifact `json:"manifest"`
-	Ordinal           int                `json:"ordinal"`
-	Revision          int                `json:"revision"`
-	RoundId           ResourceId         `json:"roundId"`
-	State             AuditRoundState    `json:"state"`
-	UpdatedAt         time.Time          `json:"updatedAt"`
-}
-
-// AuditRoundState defines model for AuditRoundState.
-type AuditRoundState string
 
 // AuditRunProvenance defines model for AuditRunProvenance.
 type AuditRunProvenance struct {
@@ -8319,32 +7560,8 @@ type AuditStandardSource struct {
 
 // AuditStartResponse defines model for AuditStartResponse.
 type AuditStartResponse struct {
-	Audit Audit       `json:"audit"`
-	Items []AuditItem `json:"items"`
-	Round *AuditRound `json:"round,omitempty"`
-	union json.RawMessage
+	Audit Audit `json:"audit"`
 }
-
-// AuditStartResponse0 defines model for AuditStartResponse.0.
-type AuditStartResponse0 struct {
-	Audit *struct {
-		Phase *AuditStartResponse0AuditPhase `json:"phase,omitempty"`
-	} `json:"audit,omitempty"`
-}
-
-// AuditStartResponse0AuditPhase defines model for AuditStartResponse.0.Audit.Phase.
-type AuditStartResponse0AuditPhase string
-
-// AuditStartResponse1 defines model for AuditStartResponse.1.
-type AuditStartResponse1 struct {
-	Audit *struct {
-		Phase *AuditStartResponse1AuditPhase `json:"phase,omitempty"`
-	} `json:"audit,omitempty"`
-	Items interface{} `json:"items,omitempty"`
-}
-
-// AuditStartResponse1AuditPhase defines model for AuditStartResponse.1.Audit.Phase.
-type AuditStartResponse1AuditPhase string
 
 // AuditState defines model for AuditState.
 type AuditState string
@@ -8455,51 +7672,6 @@ type AuditTimeLimitRequest struct {
 	// DeadlineSeconds Time allowed from start or resume, in seconds. Zero disables the Audit deadline. Omit at start to use the profile; omit at resume to retain paused time remaining, or renew the profile allowance after expiry. Pauses do not consume this allowance.
 	DeadlineSeconds *int `json:"deadlineSeconds,omitempty"`
 }
-
-// AuditWorkflowInputMapping defines model for AuditWorkflowInputMapping.
-type AuditWorkflowInputMapping struct {
-	Name   *ArtifactName                   `json:"name,omitempty"`
-	Role   *ArtifactName                   `json:"role,omitempty"`
-	Source AuditWorkflowInputMappingSource `json:"source"`
-	union  json.RawMessage
-}
-
-// AuditWorkflowInputMappingSource defines model for AuditWorkflowInputMapping.Source.
-type AuditWorkflowInputMappingSource string
-
-// AuditWorkflowInputMapping0 defines model for AuditWorkflowInputMapping.0.
-type AuditWorkflowInputMapping0 struct {
-	Source *AuditWorkflowInputMapping0Source `json:"source,omitempty"`
-}
-
-// AuditWorkflowInputMapping0Source defines model for AuditWorkflowInputMapping.0.Source.
-type AuditWorkflowInputMapping0Source string
-
-// AuditWorkflowInputMapping1 defines model for AuditWorkflowInputMapping.1.
-type AuditWorkflowInputMapping1 struct {
-	Source *AuditWorkflowInputMapping1Source `json:"source,omitempty"`
-}
-
-// AuditWorkflowInputMapping1Source defines model for AuditWorkflowInputMapping.1.Source.
-type AuditWorkflowInputMapping1Source string
-
-// AuditWorkflowInputMapping2 defines model for AuditWorkflowInputMapping.2.
-type AuditWorkflowInputMapping2 struct {
-	Source *AuditWorkflowInputMapping2Source `json:"source,omitempty"`
-}
-
-// AuditWorkflowInputMapping2Source defines model for AuditWorkflowInputMapping.2.Source.
-type AuditWorkflowInputMapping2Source string
-
-// AuditWorkflowParameterMapping defines model for AuditWorkflowParameterMapping.
-type AuditWorkflowParameterMapping struct {
-	Name   *ArtifactName                       `json:"name,omitempty"`
-	Source AuditWorkflowParameterMappingSource `json:"source"`
-	Value  *string                             `json:"value,omitempty"`
-}
-
-// AuditWorkflowParameterMappingSource defines model for AuditWorkflowParameterMapping.Source.
-type AuditWorkflowParameterMappingSource string
 
 // AuditWorkflowProvenance defines model for AuditWorkflowProvenance.
 type AuditWorkflowProvenance struct {
@@ -10035,9 +9207,13 @@ type FindingAuditHold struct {
 
 // FindingAuditOrigin defines model for FindingAuditOrigin.
 type FindingAuditOrigin struct {
-	AuditId     ResourceId         `json:"auditId"`
-	ExecutionId ResourceId         `json:"executionId"`
-	Role        AuditExecutionRole `json:"role"`
+	AuditId     ResourceId `json:"auditId"`
+	ExecutionId ResourceId `json:"executionId"`
+	Hypothesis  *struct {
+		Id       ResourceId `json:"id"`
+		Revision int        `json:"revision"`
+	} `json:"hypothesis,omitempty"`
+	TaskId ResourceId `json:"taskId"`
 }
 
 // FindingCandidate defines model for FindingCandidate.
@@ -14622,22 +13798,22 @@ func (t *ArgumentBinding_3_Value) UnmarshalJSON(b []byte) error {
 	return err
 }
 
-// AsAudit0 returns the union data inside the Audit as a Audit0
-func (t Audit) AsAudit0() (Audit0, error) {
-	var body Audit0
+// AsMediaType returns the union data inside the AuditProgramInput_MediaTypes_Item as a MediaType
+func (t AuditProgramInput_MediaTypes_Item) AsMediaType() (MediaType, error) {
+	var body MediaType
 	err := json.Unmarshal(t.union, &body)
 	return body, err
 }
 
-// FromAudit0 overwrites any union data inside the Audit as the provided Audit0
-func (t *Audit) FromAudit0(v Audit0) error {
+// FromMediaType overwrites any union data inside the AuditProgramInput_MediaTypes_Item as the provided MediaType
+func (t *AuditProgramInput_MediaTypes_Item) FromMediaType(v MediaType) error {
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
 }
 
-// MergeAudit0 performs a merge with any union data inside the Audit, using the provided Audit0
-func (t *Audit) MergeAudit0(v Audit0) error {
+// MergeMediaType performs a merge with any union data inside the AuditProgramInput_MediaTypes_Item, using the provided MediaType
+func (t *AuditProgramInput_MediaTypes_Item) MergeMediaType(v MediaType) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -14648,22 +13824,22 @@ func (t *Audit) MergeAudit0(v Audit0) error {
 	return err
 }
 
-// AsAudit1 returns the union data inside the Audit as a Audit1
-func (t Audit) AsAudit1() (Audit1, error) {
-	var body Audit1
+// AsAuditProgramInputMediaTypes1 returns the union data inside the AuditProgramInput_MediaTypes_Item as a AuditProgramInputMediaTypes1
+func (t AuditProgramInput_MediaTypes_Item) AsAuditProgramInputMediaTypes1() (AuditProgramInputMediaTypes1, error) {
+	var body AuditProgramInputMediaTypes1
 	err := json.Unmarshal(t.union, &body)
 	return body, err
 }
 
-// FromAudit1 overwrites any union data inside the Audit as the provided Audit1
-func (t *Audit) FromAudit1(v Audit1) error {
+// FromAuditProgramInputMediaTypes1 overwrites any union data inside the AuditProgramInput_MediaTypes_Item as the provided AuditProgramInputMediaTypes1
+func (t *AuditProgramInput_MediaTypes_Item) FromAuditProgramInputMediaTypes1(v AuditProgramInputMediaTypes1) error {
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
 }
 
-// MergeAudit1 performs a merge with any union data inside the Audit, using the provided Audit1
-func (t *Audit) MergeAudit1(v Audit1) error {
+// MergeAuditProgramInputMediaTypes1 performs a merge with any union data inside the AuditProgramInput_MediaTypes_Item, using the provided AuditProgramInputMediaTypes1
+func (t *AuditProgramInput_MediaTypes_Item) MergeAuditProgramInputMediaTypes1(v AuditProgramInputMediaTypes1) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -14674,479 +13850,32 @@ func (t *Audit) MergeAudit1(v Audit1) error {
 	return err
 }
 
-// AsAudit2 returns the union data inside the Audit as a Audit2
-func (t Audit) AsAudit2() (Audit2, error) {
-	var body Audit2
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromAudit2 overwrites any union data inside the Audit as the provided Audit2
-func (t *Audit) FromAudit2(v Audit2) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeAudit2 performs a merge with any union data inside the Audit, using the provided Audit2
-func (t *Audit) MergeAudit2(v Audit2) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-func (t Audit) MarshalJSON() ([]byte, error) {
+func (t AuditProgramInput_MediaTypes_Item) MarshalJSON() ([]byte, error) {
 	b, err := t.union.MarshalJSON()
-	if err != nil {
-		return nil, err
-	}
-	object := make(map[string]json.RawMessage)
-	if t.union != nil {
-		err = json.Unmarshal(b, &object)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	object["auditId"], err = json.Marshal(t.AuditId)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'auditId': %w", err)
-	}
-
-	if t.Baseline != nil {
-		object["baseline"], err = json.Marshal(t.Baseline)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'baseline': %w", err)
-		}
-	}
-
-	object["createdAt"], err = json.Marshal(t.CreatedAt)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'createdAt': %w", err)
-	}
-
-	if t.CurrentRoundId != nil {
-		object["currentRoundId"], err = json.Marshal(t.CurrentRoundId)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'currentRoundId': %w", err)
-		}
-	}
-
-	if t.DeadlineAt != nil {
-		object["deadlineAt"], err = json.Marshal(t.DeadlineAt)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'deadlineAt': %w", err)
-		}
-	}
-
-	if t.DeletionRequestedAt != nil {
-		object["deletionRequestedAt"], err = json.Marshal(t.DeletionRequestedAt)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'deletionRequestedAt': %w", err)
-		}
-	}
-
-	object["dispatchState"], err = json.Marshal(t.DispatchState)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'dispatchState': %w", err)
-	}
-
-	object["eventSequence"], err = json.Marshal(t.EventSequence)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'eventSequence': %w", err)
-	}
-
-	if t.FinishedAt != nil {
-		object["finishedAt"], err = json.Marshal(t.FinishedAt)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'finishedAt': %w", err)
-		}
-	}
-
-	if t.GeneratedInventory != nil {
-		object["generatedInventory"], err = json.Marshal(t.GeneratedInventory)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'generatedInventory': %w", err)
-		}
-	}
-
-	object["holdState"], err = json.Marshal(t.HoldState)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'holdState': %w", err)
-	}
-
-	if t.Inputs != nil {
-		object["inputs"], err = json.Marshal(t.Inputs)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'inputs': %w", err)
-		}
-	}
-
-	if t.Labels != nil {
-		object["labels"], err = json.Marshal(t.Labels)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'labels': %w", err)
-		}
-	}
-
-	object["limits"], err = json.Marshal(t.Limits)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'limits': %w", err)
-	}
-
-	object["outstandingRunCount"], err = json.Marshal(t.OutstandingRunCount)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'outstandingRunCount': %w", err)
-	}
-
-	if t.PausedAt != nil {
-		object["pausedAt"], err = json.Marshal(t.PausedAt)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'pausedAt': %w", err)
-		}
-	}
-
-	object["phase"], err = json.Marshal(t.Phase)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'phase': %w", err)
-	}
-
-	if t.Preparation != nil {
-		object["preparation"], err = json.Marshal(t.Preparation)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'preparation': %w", err)
-		}
-	}
-
-	object["profile"], err = json.Marshal(t.Profile)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'profile': %w", err)
-	}
-
-	object["projectId"], err = json.Marshal(t.ProjectId)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'projectId': %w", err)
-	}
-
-	if t.RequiredPlacementLabels != nil {
-		object["requiredPlacementLabels"], err = json.Marshal(t.RequiredPlacementLabels)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'requiredPlacementLabels': %w", err)
-		}
-	}
-
-	object["reservedRunCount"], err = json.Marshal(t.ReservedRunCount)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'reservedRunCount': %w", err)
-	}
-
-	object["retainedEvidenceBytes"], err = json.Marshal(t.RetainedEvidenceBytes)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'retainedEvidenceBytes': %w", err)
-	}
-
-	object["revision"], err = json.Marshal(t.Revision)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'revision': %w", err)
-	}
-
-	if t.RuntimeLabels != nil {
-		object["runtimeLabels"], err = json.Marshal(t.RuntimeLabels)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'runtimeLabels': %w", err)
-		}
-	}
-
-	object["scope"], err = json.Marshal(t.Scope)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'scope': %w", err)
-	}
-
-	if t.StartedAt != nil {
-		object["startedAt"], err = json.Marshal(t.StartedAt)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'startedAt': %w", err)
-		}
-	}
-
-	object["state"], err = json.Marshal(t.State)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'state': %w", err)
-	}
-
-	if t.StopReason != nil {
-		object["stopReason"], err = json.Marshal(t.StopReason)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'stopReason': %w", err)
-		}
-	}
-
-	object["submittedRunCount"], err = json.Marshal(t.SubmittedRunCount)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'submittedRunCount': %w", err)
-	}
-
-	object["updatedAt"], err = json.Marshal(t.UpdatedAt)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'updatedAt': %w", err)
-	}
-
-	b, err = json.Marshal(object)
 	return b, err
 }
 
-func (t *Audit) UnmarshalJSON(b []byte) error {
+func (t *AuditProgramInput_MediaTypes_Item) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
-	if err != nil {
-		return err
-	}
-	object := make(map[string]json.RawMessage)
-	err = json.Unmarshal(b, &object)
-	if err != nil {
-		return err
-	}
-
-	if raw, found := object["auditId"]; found {
-		err = json.Unmarshal(raw, &t.AuditId)
-		if err != nil {
-			return fmt.Errorf("error reading 'auditId': %w", err)
-		}
-	}
-
-	if raw, found := object["baseline"]; found {
-		err = json.Unmarshal(raw, &t.Baseline)
-		if err != nil {
-			return fmt.Errorf("error reading 'baseline': %w", err)
-		}
-	}
-
-	if raw, found := object["createdAt"]; found {
-		err = json.Unmarshal(raw, &t.CreatedAt)
-		if err != nil {
-			return fmt.Errorf("error reading 'createdAt': %w", err)
-		}
-	}
-
-	if raw, found := object["currentRoundId"]; found {
-		err = json.Unmarshal(raw, &t.CurrentRoundId)
-		if err != nil {
-			return fmt.Errorf("error reading 'currentRoundId': %w", err)
-		}
-	}
-
-	if raw, found := object["deadlineAt"]; found {
-		err = json.Unmarshal(raw, &t.DeadlineAt)
-		if err != nil {
-			return fmt.Errorf("error reading 'deadlineAt': %w", err)
-		}
-	}
-
-	if raw, found := object["deletionRequestedAt"]; found {
-		err = json.Unmarshal(raw, &t.DeletionRequestedAt)
-		if err != nil {
-			return fmt.Errorf("error reading 'deletionRequestedAt': %w", err)
-		}
-	}
-
-	if raw, found := object["dispatchState"]; found {
-		err = json.Unmarshal(raw, &t.DispatchState)
-		if err != nil {
-			return fmt.Errorf("error reading 'dispatchState': %w", err)
-		}
-	}
-
-	if raw, found := object["eventSequence"]; found {
-		err = json.Unmarshal(raw, &t.EventSequence)
-		if err != nil {
-			return fmt.Errorf("error reading 'eventSequence': %w", err)
-		}
-	}
-
-	if raw, found := object["finishedAt"]; found {
-		err = json.Unmarshal(raw, &t.FinishedAt)
-		if err != nil {
-			return fmt.Errorf("error reading 'finishedAt': %w", err)
-		}
-	}
-
-	if raw, found := object["generatedInventory"]; found {
-		err = json.Unmarshal(raw, &t.GeneratedInventory)
-		if err != nil {
-			return fmt.Errorf("error reading 'generatedInventory': %w", err)
-		}
-	}
-
-	if raw, found := object["holdState"]; found {
-		err = json.Unmarshal(raw, &t.HoldState)
-		if err != nil {
-			return fmt.Errorf("error reading 'holdState': %w", err)
-		}
-	}
-
-	if raw, found := object["inputs"]; found {
-		err = json.Unmarshal(raw, &t.Inputs)
-		if err != nil {
-			return fmt.Errorf("error reading 'inputs': %w", err)
-		}
-	}
-
-	if raw, found := object["labels"]; found {
-		err = json.Unmarshal(raw, &t.Labels)
-		if err != nil {
-			return fmt.Errorf("error reading 'labels': %w", err)
-		}
-	}
-
-	if raw, found := object["limits"]; found {
-		err = json.Unmarshal(raw, &t.Limits)
-		if err != nil {
-			return fmt.Errorf("error reading 'limits': %w", err)
-		}
-	}
-
-	if raw, found := object["outstandingRunCount"]; found {
-		err = json.Unmarshal(raw, &t.OutstandingRunCount)
-		if err != nil {
-			return fmt.Errorf("error reading 'outstandingRunCount': %w", err)
-		}
-	}
-
-	if raw, found := object["pausedAt"]; found {
-		err = json.Unmarshal(raw, &t.PausedAt)
-		if err != nil {
-			return fmt.Errorf("error reading 'pausedAt': %w", err)
-		}
-	}
-
-	if raw, found := object["phase"]; found {
-		err = json.Unmarshal(raw, &t.Phase)
-		if err != nil {
-			return fmt.Errorf("error reading 'phase': %w", err)
-		}
-	}
-
-	if raw, found := object["preparation"]; found {
-		err = json.Unmarshal(raw, &t.Preparation)
-		if err != nil {
-			return fmt.Errorf("error reading 'preparation': %w", err)
-		}
-	}
-
-	if raw, found := object["profile"]; found {
-		err = json.Unmarshal(raw, &t.Profile)
-		if err != nil {
-			return fmt.Errorf("error reading 'profile': %w", err)
-		}
-	}
-
-	if raw, found := object["projectId"]; found {
-		err = json.Unmarshal(raw, &t.ProjectId)
-		if err != nil {
-			return fmt.Errorf("error reading 'projectId': %w", err)
-		}
-	}
-
-	if raw, found := object["requiredPlacementLabels"]; found {
-		err = json.Unmarshal(raw, &t.RequiredPlacementLabels)
-		if err != nil {
-			return fmt.Errorf("error reading 'requiredPlacementLabels': %w", err)
-		}
-	}
-
-	if raw, found := object["reservedRunCount"]; found {
-		err = json.Unmarshal(raw, &t.ReservedRunCount)
-		if err != nil {
-			return fmt.Errorf("error reading 'reservedRunCount': %w", err)
-		}
-	}
-
-	if raw, found := object["retainedEvidenceBytes"]; found {
-		err = json.Unmarshal(raw, &t.RetainedEvidenceBytes)
-		if err != nil {
-			return fmt.Errorf("error reading 'retainedEvidenceBytes': %w", err)
-		}
-	}
-
-	if raw, found := object["revision"]; found {
-		err = json.Unmarshal(raw, &t.Revision)
-		if err != nil {
-			return fmt.Errorf("error reading 'revision': %w", err)
-		}
-	}
-
-	if raw, found := object["runtimeLabels"]; found {
-		err = json.Unmarshal(raw, &t.RuntimeLabels)
-		if err != nil {
-			return fmt.Errorf("error reading 'runtimeLabels': %w", err)
-		}
-	}
-
-	if raw, found := object["scope"]; found {
-		err = json.Unmarshal(raw, &t.Scope)
-		if err != nil {
-			return fmt.Errorf("error reading 'scope': %w", err)
-		}
-	}
-
-	if raw, found := object["startedAt"]; found {
-		err = json.Unmarshal(raw, &t.StartedAt)
-		if err != nil {
-			return fmt.Errorf("error reading 'startedAt': %w", err)
-		}
-	}
-
-	if raw, found := object["state"]; found {
-		err = json.Unmarshal(raw, &t.State)
-		if err != nil {
-			return fmt.Errorf("error reading 'state': %w", err)
-		}
-	}
-
-	if raw, found := object["stopReason"]; found {
-		err = json.Unmarshal(raw, &t.StopReason)
-		if err != nil {
-			return fmt.Errorf("error reading 'stopReason': %w", err)
-		}
-	}
-
-	if raw, found := object["submittedRunCount"]; found {
-		err = json.Unmarshal(raw, &t.SubmittedRunCount)
-		if err != nil {
-			return fmt.Errorf("error reading 'submittedRunCount': %w", err)
-		}
-	}
-
-	if raw, found := object["updatedAt"]; found {
-		err = json.Unmarshal(raw, &t.UpdatedAt)
-		if err != nil {
-			return fmt.Errorf("error reading 'updatedAt': %w", err)
-		}
-	}
-
 	return err
 }
 
-// AsAuditInventory0 returns the union data inside the AuditInventory as a AuditInventory0
-func (t AuditInventory) AsAuditInventory0() (AuditInventory0, error) {
-	var body AuditInventory0
+// AsAuditProgramInputMapping0 returns the union data inside the AuditProgramInputMapping as a AuditProgramInputMapping0
+func (t AuditProgramInputMapping) AsAuditProgramInputMapping0() (AuditProgramInputMapping0, error) {
+	var body AuditProgramInputMapping0
 	err := json.Unmarshal(t.union, &body)
 	return body, err
 }
 
-// FromAuditInventory0 overwrites any union data inside the AuditInventory as the provided AuditInventory0
-func (t *AuditInventory) FromAuditInventory0(v AuditInventory0) error {
+// FromAuditProgramInputMapping0 overwrites any union data inside the AuditProgramInputMapping as the provided AuditProgramInputMapping0
+func (t *AuditProgramInputMapping) FromAuditProgramInputMapping0(v AuditProgramInputMapping0) error {
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
 }
 
-// MergeAuditInventory0 performs a merge with any union data inside the AuditInventory, using the provided AuditInventory0
-func (t *AuditInventory) MergeAuditInventory0(v AuditInventory0) error {
+// MergeAuditProgramInputMapping0 performs a merge with any union data inside the AuditProgramInputMapping, using the provided AuditProgramInputMapping0
+func (t *AuditProgramInputMapping) MergeAuditProgramInputMapping0(v AuditProgramInputMapping0) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -15157,22 +13886,22 @@ func (t *AuditInventory) MergeAuditInventory0(v AuditInventory0) error {
 	return err
 }
 
-// AsAuditInventory1 returns the union data inside the AuditInventory as a AuditInventory1
-func (t AuditInventory) AsAuditInventory1() (AuditInventory1, error) {
-	var body AuditInventory1
+// AsAuditProgramInputMapping1 returns the union data inside the AuditProgramInputMapping as a AuditProgramInputMapping1
+func (t AuditProgramInputMapping) AsAuditProgramInputMapping1() (AuditProgramInputMapping1, error) {
+	var body AuditProgramInputMapping1
 	err := json.Unmarshal(t.union, &body)
 	return body, err
 }
 
-// FromAuditInventory1 overwrites any union data inside the AuditInventory as the provided AuditInventory1
-func (t *AuditInventory) FromAuditInventory1(v AuditInventory1) error {
+// FromAuditProgramInputMapping1 overwrites any union data inside the AuditProgramInputMapping as the provided AuditProgramInputMapping1
+func (t *AuditProgramInputMapping) FromAuditProgramInputMapping1(v AuditProgramInputMapping1) error {
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
 }
 
-// MergeAuditInventory1 performs a merge with any union data inside the AuditInventory, using the provided AuditInventory1
-func (t *AuditInventory) MergeAuditInventory1(v AuditInventory1) error {
+// MergeAuditProgramInputMapping1 performs a merge with any union data inside the AuditProgramInputMapping, using the provided AuditProgramInputMapping1
+func (t *AuditProgramInputMapping) MergeAuditProgramInputMapping1(v AuditProgramInputMapping1) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -15183,867 +13912,13 @@ func (t *AuditInventory) MergeAuditInventory1(v AuditInventory1) error {
 	return err
 }
 
-// AsAuditInventory2 returns the union data inside the AuditInventory as a AuditInventory2
-func (t AuditInventory) AsAuditInventory2() (AuditInventory2, error) {
-	var body AuditInventory2
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromAuditInventory2 overwrites any union data inside the AuditInventory as the provided AuditInventory2
-func (t *AuditInventory) FromAuditInventory2(v AuditInventory2) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeAuditInventory2 performs a merge with any union data inside the AuditInventory, using the provided AuditInventory2
-func (t *AuditInventory) MergeAuditInventory2(v AuditInventory2) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-func (t AuditInventory) MarshalJSON() ([]byte, error) {
+func (t AuditProgramInputMapping) MarshalJSON() ([]byte, error) {
 	b, err := t.union.MarshalJSON()
-	if err != nil {
-		return nil, err
-	}
-	object := make(map[string]json.RawMessage)
-	if t.union != nil {
-		err = json.Unmarshal(b, &object)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	object["implementation"], err = json.Marshal(t.Implementation)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'implementation': %w", err)
-	}
-
-	object["itemWorkflowRole"], err = json.Marshal(t.ItemWorkflowRole)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'itemWorkflowRole': %w", err)
-	}
-
-	if t.Settings != nil {
-		object["settings"], err = json.Marshal(t.Settings)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'settings': %w", err)
-		}
-	}
-
-	if t.Source != nil {
-		object["source"], err = json.Marshal(t.Source)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'source': %w", err)
-		}
-	}
-
-	if t.StandardSelection != nil {
-		object["standardSelection"], err = json.Marshal(t.StandardSelection)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'standardSelection': %w", err)
-		}
-	}
-	b, err = json.Marshal(object)
 	return b, err
 }
 
-func (t *AuditInventory) UnmarshalJSON(b []byte) error {
+func (t *AuditProgramInputMapping) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
-	if err != nil {
-		return err
-	}
-	object := make(map[string]json.RawMessage)
-	err = json.Unmarshal(b, &object)
-	if err != nil {
-		return err
-	}
-
-	if raw, found := object["implementation"]; found {
-		err = json.Unmarshal(raw, &t.Implementation)
-		if err != nil {
-			return fmt.Errorf("error reading 'implementation': %w", err)
-		}
-	}
-
-	if raw, found := object["itemWorkflowRole"]; found {
-		err = json.Unmarshal(raw, &t.ItemWorkflowRole)
-		if err != nil {
-			return fmt.Errorf("error reading 'itemWorkflowRole': %w", err)
-		}
-	}
-
-	if raw, found := object["settings"]; found {
-		err = json.Unmarshal(raw, &t.Settings)
-		if err != nil {
-			return fmt.Errorf("error reading 'settings': %w", err)
-		}
-	}
-
-	if raw, found := object["source"]; found {
-		err = json.Unmarshal(raw, &t.Source)
-		if err != nil {
-			return fmt.Errorf("error reading 'source': %w", err)
-		}
-	}
-
-	if raw, found := object["standardSelection"]; found {
-		err = json.Unmarshal(raw, &t.StandardSelection)
-		if err != nil {
-			return fmt.Errorf("error reading 'standardSelection': %w", err)
-		}
-	}
-
-	return err
-}
-
-// AsAuditInventoryArtifact0 returns the union data inside the AuditInventoryArtifact as a AuditInventoryArtifact0
-func (t AuditInventoryArtifact) AsAuditInventoryArtifact0() (AuditInventoryArtifact0, error) {
-	var body AuditInventoryArtifact0
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromAuditInventoryArtifact0 overwrites any union data inside the AuditInventoryArtifact as the provided AuditInventoryArtifact0
-func (t *AuditInventoryArtifact) FromAuditInventoryArtifact0(v AuditInventoryArtifact0) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeAuditInventoryArtifact0 performs a merge with any union data inside the AuditInventoryArtifact, using the provided AuditInventoryArtifact0
-func (t *AuditInventoryArtifact) MergeAuditInventoryArtifact0(v AuditInventoryArtifact0) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsAuditInventoryArtifact1 returns the union data inside the AuditInventoryArtifact as a AuditInventoryArtifact1
-func (t AuditInventoryArtifact) AsAuditInventoryArtifact1() (AuditInventoryArtifact1, error) {
-	var body AuditInventoryArtifact1
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromAuditInventoryArtifact1 overwrites any union data inside the AuditInventoryArtifact as the provided AuditInventoryArtifact1
-func (t *AuditInventoryArtifact) FromAuditInventoryArtifact1(v AuditInventoryArtifact1) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeAuditInventoryArtifact1 performs a merge with any union data inside the AuditInventoryArtifact, using the provided AuditInventoryArtifact1
-func (t *AuditInventoryArtifact) MergeAuditInventoryArtifact1(v AuditInventoryArtifact1) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-func (t AuditInventoryArtifact) MarshalJSON() ([]byte, error) {
-	b, err := t.union.MarshalJSON()
-	if err != nil {
-		return nil, err
-	}
-	object := make(map[string]json.RawMessage)
-	if t.union != nil {
-		err = json.Unmarshal(b, &object)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	object["name"], err = json.Marshal(t.Name)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'name': %w", err)
-	}
-
-	if t.Role != nil {
-		object["role"], err = json.Marshal(t.Role)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'role': %w", err)
-		}
-	}
-
-	object["source"], err = json.Marshal(t.Source)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'source': %w", err)
-	}
-
-	b, err = json.Marshal(object)
-	return b, err
-}
-
-func (t *AuditInventoryArtifact) UnmarshalJSON(b []byte) error {
-	err := t.union.UnmarshalJSON(b)
-	if err != nil {
-		return err
-	}
-	object := make(map[string]json.RawMessage)
-	err = json.Unmarshal(b, &object)
-	if err != nil {
-		return err
-	}
-
-	if raw, found := object["name"]; found {
-		err = json.Unmarshal(raw, &t.Name)
-		if err != nil {
-			return fmt.Errorf("error reading 'name': %w", err)
-		}
-	}
-
-	if raw, found := object["role"]; found {
-		err = json.Unmarshal(raw, &t.Role)
-		if err != nil {
-			return fmt.Errorf("error reading 'role': %w", err)
-		}
-	}
-
-	if raw, found := object["source"]; found {
-		err = json.Unmarshal(raw, &t.Source)
-		if err != nil {
-			return fmt.Errorf("error reading 'source': %w", err)
-		}
-	}
-
-	return err
-}
-
-// AsAuditPreparationRole0 returns the union data inside the AuditPreparationRole as a AuditPreparationRole0
-func (t AuditPreparationRole) AsAuditPreparationRole0() (AuditPreparationRole0, error) {
-	var body AuditPreparationRole0
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromAuditPreparationRole0 overwrites any union data inside the AuditPreparationRole as the provided AuditPreparationRole0
-func (t *AuditPreparationRole) FromAuditPreparationRole0(v AuditPreparationRole0) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeAuditPreparationRole0 performs a merge with any union data inside the AuditPreparationRole, using the provided AuditPreparationRole0
-func (t *AuditPreparationRole) MergeAuditPreparationRole0(v AuditPreparationRole0) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsAuditPreparationRole1 returns the union data inside the AuditPreparationRole as a AuditPreparationRole1
-func (t AuditPreparationRole) AsAuditPreparationRole1() (AuditPreparationRole1, error) {
-	var body AuditPreparationRole1
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromAuditPreparationRole1 overwrites any union data inside the AuditPreparationRole as the provided AuditPreparationRole1
-func (t *AuditPreparationRole) FromAuditPreparationRole1(v AuditPreparationRole1) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeAuditPreparationRole1 performs a merge with any union data inside the AuditPreparationRole, using the provided AuditPreparationRole1
-func (t *AuditPreparationRole) MergeAuditPreparationRole1(v AuditPreparationRole1) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsAuditPreparationRole2 returns the union data inside the AuditPreparationRole as a AuditPreparationRole2
-func (t AuditPreparationRole) AsAuditPreparationRole2() (AuditPreparationRole2, error) {
-	var body AuditPreparationRole2
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromAuditPreparationRole2 overwrites any union data inside the AuditPreparationRole as the provided AuditPreparationRole2
-func (t *AuditPreparationRole) FromAuditPreparationRole2(v AuditPreparationRole2) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeAuditPreparationRole2 performs a merge with any union data inside the AuditPreparationRole, using the provided AuditPreparationRole2
-func (t *AuditPreparationRole) MergeAuditPreparationRole2(v AuditPreparationRole2) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-func (t AuditPreparationRole) MarshalJSON() ([]byte, error) {
-	b, err := t.union.MarshalJSON()
-	if err != nil {
-		return nil, err
-	}
-	object := make(map[string]json.RawMessage)
-	if t.union != nil {
-		err = json.Unmarshal(b, &object)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	object["attempts"], err = json.Marshal(t.Attempts)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'attempts': %w", err)
-	}
-
-	if t.ExecutionId != nil {
-		object["executionId"], err = json.Marshal(t.ExecutionId)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'executionId': %w", err)
-		}
-	}
-
-	object["maxAttempts"], err = json.Marshal(t.MaxAttempts)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'maxAttempts': %w", err)
-	}
-
-	if t.Outputs != nil {
-		object["outputs"], err = json.Marshal(t.Outputs)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'outputs': %w", err)
-		}
-	}
-
-	if t.RunId != nil {
-		object["runId"], err = json.Marshal(t.RunId)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'runId': %w", err)
-		}
-	}
-
-	object["status"], err = json.Marshal(t.Status)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'status': %w", err)
-	}
-
-	b, err = json.Marshal(object)
-	return b, err
-}
-
-func (t *AuditPreparationRole) UnmarshalJSON(b []byte) error {
-	err := t.union.UnmarshalJSON(b)
-	if err != nil {
-		return err
-	}
-	object := make(map[string]json.RawMessage)
-	err = json.Unmarshal(b, &object)
-	if err != nil {
-		return err
-	}
-
-	if raw, found := object["attempts"]; found {
-		err = json.Unmarshal(raw, &t.Attempts)
-		if err != nil {
-			return fmt.Errorf("error reading 'attempts': %w", err)
-		}
-	}
-
-	if raw, found := object["executionId"]; found {
-		err = json.Unmarshal(raw, &t.ExecutionId)
-		if err != nil {
-			return fmt.Errorf("error reading 'executionId': %w", err)
-		}
-	}
-
-	if raw, found := object["maxAttempts"]; found {
-		err = json.Unmarshal(raw, &t.MaxAttempts)
-		if err != nil {
-			return fmt.Errorf("error reading 'maxAttempts': %w", err)
-		}
-	}
-
-	if raw, found := object["outputs"]; found {
-		err = json.Unmarshal(raw, &t.Outputs)
-		if err != nil {
-			return fmt.Errorf("error reading 'outputs': %w", err)
-		}
-	}
-
-	if raw, found := object["runId"]; found {
-		err = json.Unmarshal(raw, &t.RunId)
-		if err != nil {
-			return fmt.Errorf("error reading 'runId': %w", err)
-		}
-	}
-
-	if raw, found := object["status"]; found {
-		err = json.Unmarshal(raw, &t.Status)
-		if err != nil {
-			return fmt.Errorf("error reading 'status': %w", err)
-		}
-	}
-
-	return err
-}
-
-// AsAuditProfileWorkflow0 returns the union data inside the AuditProfileWorkflow as a AuditProfileWorkflow0
-func (t AuditProfileWorkflow) AsAuditProfileWorkflow0() (AuditProfileWorkflow0, error) {
-	var body AuditProfileWorkflow0
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromAuditProfileWorkflow0 overwrites any union data inside the AuditProfileWorkflow as the provided AuditProfileWorkflow0
-func (t *AuditProfileWorkflow) FromAuditProfileWorkflow0(v AuditProfileWorkflow0) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeAuditProfileWorkflow0 performs a merge with any union data inside the AuditProfileWorkflow, using the provided AuditProfileWorkflow0
-func (t *AuditProfileWorkflow) MergeAuditProfileWorkflow0(v AuditProfileWorkflow0) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsAuditProfileWorkflow1 returns the union data inside the AuditProfileWorkflow as a AuditProfileWorkflow1
-func (t AuditProfileWorkflow) AsAuditProfileWorkflow1() (AuditProfileWorkflow1, error) {
-	var body AuditProfileWorkflow1
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromAuditProfileWorkflow1 overwrites any union data inside the AuditProfileWorkflow as the provided AuditProfileWorkflow1
-func (t *AuditProfileWorkflow) FromAuditProfileWorkflow1(v AuditProfileWorkflow1) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeAuditProfileWorkflow1 performs a merge with any union data inside the AuditProfileWorkflow, using the provided AuditProfileWorkflow1
-func (t *AuditProfileWorkflow) MergeAuditProfileWorkflow1(v AuditProfileWorkflow1) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-func (t AuditProfileWorkflow) MarshalJSON() ([]byte, error) {
-	b, err := t.union.MarshalJSON()
-	if err != nil {
-		return nil, err
-	}
-	object := make(map[string]json.RawMessage)
-	if t.union != nil {
-		err = json.Unmarshal(b, &object)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	if t.Inputs != nil {
-		object["inputs"], err = json.Marshal(t.Inputs)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'inputs': %w", err)
-		}
-	}
-
-	object["kind"], err = json.Marshal(t.Kind)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'kind': %w", err)
-	}
-
-	if t.MaxRunAttempts != nil {
-		object["maxRunAttempts"], err = json.Marshal(t.MaxRunAttempts)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'maxRunAttempts': %w", err)
-		}
-	}
-
-	if t.Outputs != nil {
-		object["outputs"], err = json.Marshal(t.Outputs)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'outputs': %w", err)
-		}
-	}
-
-	if t.Parameters != nil {
-		object["parameters"], err = json.Marshal(t.Parameters)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'parameters': %w", err)
-		}
-	}
-
-	object["workflow"], err = json.Marshal(t.Workflow)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'workflow': %w", err)
-	}
-
-	b, err = json.Marshal(object)
-	return b, err
-}
-
-func (t *AuditProfileWorkflow) UnmarshalJSON(b []byte) error {
-	err := t.union.UnmarshalJSON(b)
-	if err != nil {
-		return err
-	}
-	object := make(map[string]json.RawMessage)
-	err = json.Unmarshal(b, &object)
-	if err != nil {
-		return err
-	}
-
-	if raw, found := object["inputs"]; found {
-		err = json.Unmarshal(raw, &t.Inputs)
-		if err != nil {
-			return fmt.Errorf("error reading 'inputs': %w", err)
-		}
-	}
-
-	if raw, found := object["kind"]; found {
-		err = json.Unmarshal(raw, &t.Kind)
-		if err != nil {
-			return fmt.Errorf("error reading 'kind': %w", err)
-		}
-	}
-
-	if raw, found := object["maxRunAttempts"]; found {
-		err = json.Unmarshal(raw, &t.MaxRunAttempts)
-		if err != nil {
-			return fmt.Errorf("error reading 'maxRunAttempts': %w", err)
-		}
-	}
-
-	if raw, found := object["outputs"]; found {
-		err = json.Unmarshal(raw, &t.Outputs)
-		if err != nil {
-			return fmt.Errorf("error reading 'outputs': %w", err)
-		}
-	}
-
-	if raw, found := object["parameters"]; found {
-		err = json.Unmarshal(raw, &t.Parameters)
-		if err != nil {
-			return fmt.Errorf("error reading 'parameters': %w", err)
-		}
-	}
-
-	if raw, found := object["workflow"]; found {
-		err = json.Unmarshal(raw, &t.Workflow)
-		if err != nil {
-			return fmt.Errorf("error reading 'workflow': %w", err)
-		}
-	}
-
-	return err
-}
-
-// AsAuditStartResponse0 returns the union data inside the AuditStartResponse as a AuditStartResponse0
-func (t AuditStartResponse) AsAuditStartResponse0() (AuditStartResponse0, error) {
-	var body AuditStartResponse0
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromAuditStartResponse0 overwrites any union data inside the AuditStartResponse as the provided AuditStartResponse0
-func (t *AuditStartResponse) FromAuditStartResponse0(v AuditStartResponse0) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeAuditStartResponse0 performs a merge with any union data inside the AuditStartResponse, using the provided AuditStartResponse0
-func (t *AuditStartResponse) MergeAuditStartResponse0(v AuditStartResponse0) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsAuditStartResponse1 returns the union data inside the AuditStartResponse as a AuditStartResponse1
-func (t AuditStartResponse) AsAuditStartResponse1() (AuditStartResponse1, error) {
-	var body AuditStartResponse1
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromAuditStartResponse1 overwrites any union data inside the AuditStartResponse as the provided AuditStartResponse1
-func (t *AuditStartResponse) FromAuditStartResponse1(v AuditStartResponse1) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeAuditStartResponse1 performs a merge with any union data inside the AuditStartResponse, using the provided AuditStartResponse1
-func (t *AuditStartResponse) MergeAuditStartResponse1(v AuditStartResponse1) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-func (t AuditStartResponse) MarshalJSON() ([]byte, error) {
-	b, err := t.union.MarshalJSON()
-	if err != nil {
-		return nil, err
-	}
-	object := make(map[string]json.RawMessage)
-	if t.union != nil {
-		err = json.Unmarshal(b, &object)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	object["audit"], err = json.Marshal(t.Audit)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'audit': %w", err)
-	}
-
-	if t.Items != nil {
-		object["items"], err = json.Marshal(t.Items)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'items': %w", err)
-		}
-	}
-
-	if t.Round != nil {
-		object["round"], err = json.Marshal(t.Round)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'round': %w", err)
-		}
-	}
-	b, err = json.Marshal(object)
-	return b, err
-}
-
-func (t *AuditStartResponse) UnmarshalJSON(b []byte) error {
-	err := t.union.UnmarshalJSON(b)
-	if err != nil {
-		return err
-	}
-	object := make(map[string]json.RawMessage)
-	err = json.Unmarshal(b, &object)
-	if err != nil {
-		return err
-	}
-
-	if raw, found := object["audit"]; found {
-		err = json.Unmarshal(raw, &t.Audit)
-		if err != nil {
-			return fmt.Errorf("error reading 'audit': %w", err)
-		}
-	}
-
-	if raw, found := object["items"]; found {
-		err = json.Unmarshal(raw, &t.Items)
-		if err != nil {
-			return fmt.Errorf("error reading 'items': %w", err)
-		}
-	}
-
-	if raw, found := object["round"]; found {
-		err = json.Unmarshal(raw, &t.Round)
-		if err != nil {
-			return fmt.Errorf("error reading 'round': %w", err)
-		}
-	}
-
-	return err
-}
-
-// AsAuditWorkflowInputMapping0 returns the union data inside the AuditWorkflowInputMapping as a AuditWorkflowInputMapping0
-func (t AuditWorkflowInputMapping) AsAuditWorkflowInputMapping0() (AuditWorkflowInputMapping0, error) {
-	var body AuditWorkflowInputMapping0
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromAuditWorkflowInputMapping0 overwrites any union data inside the AuditWorkflowInputMapping as the provided AuditWorkflowInputMapping0
-func (t *AuditWorkflowInputMapping) FromAuditWorkflowInputMapping0(v AuditWorkflowInputMapping0) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeAuditWorkflowInputMapping0 performs a merge with any union data inside the AuditWorkflowInputMapping, using the provided AuditWorkflowInputMapping0
-func (t *AuditWorkflowInputMapping) MergeAuditWorkflowInputMapping0(v AuditWorkflowInputMapping0) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsAuditWorkflowInputMapping1 returns the union data inside the AuditWorkflowInputMapping as a AuditWorkflowInputMapping1
-func (t AuditWorkflowInputMapping) AsAuditWorkflowInputMapping1() (AuditWorkflowInputMapping1, error) {
-	var body AuditWorkflowInputMapping1
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromAuditWorkflowInputMapping1 overwrites any union data inside the AuditWorkflowInputMapping as the provided AuditWorkflowInputMapping1
-func (t *AuditWorkflowInputMapping) FromAuditWorkflowInputMapping1(v AuditWorkflowInputMapping1) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeAuditWorkflowInputMapping1 performs a merge with any union data inside the AuditWorkflowInputMapping, using the provided AuditWorkflowInputMapping1
-func (t *AuditWorkflowInputMapping) MergeAuditWorkflowInputMapping1(v AuditWorkflowInputMapping1) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsAuditWorkflowInputMapping2 returns the union data inside the AuditWorkflowInputMapping as a AuditWorkflowInputMapping2
-func (t AuditWorkflowInputMapping) AsAuditWorkflowInputMapping2() (AuditWorkflowInputMapping2, error) {
-	var body AuditWorkflowInputMapping2
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromAuditWorkflowInputMapping2 overwrites any union data inside the AuditWorkflowInputMapping as the provided AuditWorkflowInputMapping2
-func (t *AuditWorkflowInputMapping) FromAuditWorkflowInputMapping2(v AuditWorkflowInputMapping2) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeAuditWorkflowInputMapping2 performs a merge with any union data inside the AuditWorkflowInputMapping, using the provided AuditWorkflowInputMapping2
-func (t *AuditWorkflowInputMapping) MergeAuditWorkflowInputMapping2(v AuditWorkflowInputMapping2) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-func (t AuditWorkflowInputMapping) MarshalJSON() ([]byte, error) {
-	b, err := t.union.MarshalJSON()
-	if err != nil {
-		return nil, err
-	}
-	object := make(map[string]json.RawMessage)
-	if t.union != nil {
-		err = json.Unmarshal(b, &object)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	if t.Name != nil {
-		object["name"], err = json.Marshal(t.Name)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'name': %w", err)
-		}
-	}
-
-	if t.Role != nil {
-		object["role"], err = json.Marshal(t.Role)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'role': %w", err)
-		}
-	}
-
-	object["source"], err = json.Marshal(t.Source)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'source': %w", err)
-	}
-
-	b, err = json.Marshal(object)
-	return b, err
-}
-
-func (t *AuditWorkflowInputMapping) UnmarshalJSON(b []byte) error {
-	err := t.union.UnmarshalJSON(b)
-	if err != nil {
-		return err
-	}
-	object := make(map[string]json.RawMessage)
-	err = json.Unmarshal(b, &object)
-	if err != nil {
-		return err
-	}
-
-	if raw, found := object["name"]; found {
-		err = json.Unmarshal(raw, &t.Name)
-		if err != nil {
-			return fmt.Errorf("error reading 'name': %w", err)
-		}
-	}
-
-	if raw, found := object["role"]; found {
-		err = json.Unmarshal(raw, &t.Role)
-		if err != nil {
-			return fmt.Errorf("error reading 'role': %w", err)
-		}
-	}
-
-	if raw, found := object["source"]; found {
-		err = json.Unmarshal(raw, &t.Source)
-		if err != nil {
-			return fmt.Errorf("error reading 'source': %w", err)
-		}
-	}
-
 	return err
 }
 

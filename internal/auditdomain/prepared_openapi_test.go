@@ -23,51 +23,63 @@ func TestPreparedOpenAPIPreservesDomainSelectionWithoutPackages(t *testing.T) {
 		t.Run(selection, func(t *testing.T) {
 			data := []byte(scanSource)
 			input := PreparedOpenAPIInput{Source: preparedSource("openapi", data), Data: data, Options: auditcontract.OpenAPIWorkArguments{Workflow: "check", Selection: selection, MaxItems: 256}}
-			options := testInventoryOptions("check")
-			options.SourceInputName = "openapi"
-			options.SourceRef = input.Source.Ref
-			options.ApprovalRequirement = ApprovalNone
-			var original Inventory
-			var err error
+			expected := 3
 			if selection == "scan-requests" {
 				settings := []byte(nucleiSettings)
 				material := preparedSource("settings", settings)
 				input.Settings = &material
 				input.SettingsData = settings
-				original, err = BuildOpenAPIScanInventory(data, "application/json", settings, ExactInput{Name: "settings", Ref: material.Ref, Digest: material.Digest}, options)
-			} else {
-				original, err = BuildOpenAPIInventory(data, "application/json", options)
-			}
-			if err != nil {
-				t.Fatal(err)
+				expected = 2
 			}
 			work, err := BuildPreparedOpenAPIWork(t.Context(), input)
-			if err != nil {
-				t.Fatal(err)
+			if err != nil || len(work.Items) != expected {
+				t.Fatalf("selected work = %+v, %v", work, err)
 			}
-			if len(work.Items) != len(original.Tasks) || !reflect.DeepEqual(work.Gaps, original.Gaps) {
-				t.Fatal("domain selection/gaps changed")
-			}
-			for i, item := range work.Items {
-				if item.Key != original.Tasks[i].Item.ItemKey || json.Valid(item.Data) == false {
-					t.Fatal("operation identity/order changed")
+			seen := map[string]bool{}
+			for _, item := range work.Items {
+				decoded := decodePreparedTestItem(t, item)
+				if item.Key == "" || seen[item.Key] || decoded.Schema != "contractor.audit.openapi-work-item.v1" || !reflect.DeepEqual(decoded.Source, input.Source) {
+					t.Fatal("identity/exact provenance changed")
 				}
-				var material struct {
-					Schema    string
-					Source    auditcontract.Material
-					Settings  *auditcontract.Material
-					Operation *OperationTask
-					Scan      *ScanTask
-				}
-				if err := json.Unmarshal(item.Data, &material); err != nil {
-					t.Fatal(err)
-				}
-				if !reflect.DeepEqual(material.Operation, original.Tasks[i].Document.Operation) || !reflect.DeepEqual(material.Scan, original.Tasks[i].Document.Scan) {
-					t.Fatal("operation/request conditions changed")
+				seen[item.Key] = true
+				if selection == "operations" {
+					if decoded.Operation == nil || decoded.Scan != nil {
+						t.Fatal("missing operation")
+					}
+				} else {
+					if decoded.Scan == nil || decoded.Operation != nil || !reflect.DeepEqual(decoded.Settings, input.Settings) {
+						t.Fatal("settings selection changed")
+					}
+					_, prepared, err := PrepareOpenAPIScanOperation(item.Data, data, input.SettingsData, input.Source.MediaType)
+					if err != nil || prepared.Operation != decoded.Scan.Operation {
+						t.Fatalf("ordinary scan re-preparation = %v", err)
+					}
 				}
 			}
 		})
 	}
+}
+
+func prepareTestWork(t testing.TB, data []byte, media string) (PreparedOpenAPIWork, error) {
+	t.Helper()
+	source := preparedSource("openapi", data)
+	source.MediaType = media
+	return BuildPreparedOpenAPIWork(t.Context(), PreparedOpenAPIInput{Source: source, Data: data, Options: auditcontract.OpenAPIWorkArguments{Workflow: "check", Selection: "operations", MaxItems: 256}})
+}
+func decodePreparedTestItem(t testing.TB, item PreparedOpenAPIItem) PreparedOpenAPIOperation {
+	t.Helper()
+	var result PreparedOpenAPIOperation
+	if err := json.Unmarshal(item.Data, &result); err != nil {
+		t.Fatal(err)
+	}
+	return result
+}
+func testDomainErrorCode(err error) string {
+	var v *ValidationError
+	if errors.As(err, &v) {
+		return v.Code
+	}
+	return ""
 }
 
 func TestPreparedOpenAPIBoundsAndCancellation(t *testing.T) {

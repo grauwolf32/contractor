@@ -1,10 +1,22 @@
 package auditstore
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
 )
+
+type ActivateParams struct {
+	OwnerID          string
+	AuditID          string
+	ExpectedRevision uint64
+	BaselineSnapshot json.RawMessage
+	DeadlineAt       time.Time
+	InitialRetained  []ArtifactLink
+	IdempotencyKey   string
+	RequestDigest    string
+}
 
 // TaskState records selection and collection progress. Technical execution
 // state is read from the ordinary Run associated with an attempt.

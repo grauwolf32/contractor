@@ -19,6 +19,8 @@ from contractor_runtime.toolsets.common.report_publications import ReportPublica
 
 
 class ProposalCollector(Protocol):
+    def check_finding_item(self, invocation_id: str, item_key: str | None) -> None: ...
+
     def check_proposal_refs(
         self, invocation_id: str, standard_refs: list[dict[str, str]]
     ) -> frozenset[tuple[str, str, str]]: ...

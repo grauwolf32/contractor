@@ -115,7 +115,6 @@ internal/findingintake project_findings Source selection authorizes canonical Pr
 internal/findingintake project_finding_sources Receipt/source pages and collection capture reuse immutable source membership.
 internal/findingintake project_finding_audits Audit collection selection checks genuine canonical execution membership.
 internal/findingintake finding_correlation_fences Source/history pages pin and recheck the existing Project revision.
-internal/findingintake artifact_bindings Collection replay checks the indexed natural identity of an ordinary immutable history Artifact.
 
 # Reads of another package's relation that the design accepts, each with the
 # reason. A package that writes a relation needs a [known] entry instead. A
@@ -178,8 +177,6 @@ internal/evalstore           workflow_runs                  Inventories, executi
 
 internal/findingintake       audit_events                   Collection listing and rejection look for
     finding.proposal_rejected events.
-internal/findingintake       audit_executions               Trusted execution checks match a proposal to its Audit
-    execution.
 internal/findingintake       audit_review_requests          Proposal import refuses an Audit with a pending report review.
 internal/findingintake       audits                         Receipt reads, inboxes and collection publication check the
     Audit's owner and Project; finding provenance reads its confirmation policy; import checks its state and

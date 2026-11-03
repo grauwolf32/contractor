@@ -19,27 +19,12 @@ var ErrPermanent = errors.New("Audit import cannot be completed")
 // Audit store.
 type Store interface {
 	Collect(context.Context, auditstore.CollectParams) (auditstore.CollectionReceipt, bool, error)
-	RecordReportPage(context.Context, auditstore.RecordReportPageParams) error
-	CommitReport(context.Context, auditstore.CommitReportParams) (auditstore.Audit, error)
-	ProposeReport(context.Context, auditstore.ProposeReportParams) (auditstore.Audit, bool, error)
 }
 
-// Reader is what the importer reads of an Audit while it collects and
-// assembles a report. It is the read seam of the Audit store.
+// Reader returns only the bounded selected Task membership and collection receipt.
 type Reader interface {
 	ListExecutionTasks(context.Context, string, string) ([]auditstore.Task, error)
 	CollectionReceipt(context.Context, string, string) (auditstore.CollectionReceipt, error)
-	GetArtifactLink(context.Context, string, string) (auditstore.ArtifactLink, error)
-	ListExecutionItems(context.Context, string) ([]auditstore.ExecutionItem, error)
-	ListItemsByIDs(context.Context, string, []string) ([]auditstore.Item, error)
-	ListRounds(context.Context, string) ([]auditstore.Round, error)
-	ListReportItems(context.Context, string, string, int, int) ([]auditstore.ReportItem, error)
-	ListReportFindings(context.Context, auditstore.ReportFindingPageParams) (auditstore.ReportFindingWindow, error)
-	ReportProjectRevision(context.Context, string) (uint64, error)
-	ListReportPages(context.Context, string, uint64, uint64) ([]auditstore.ReportPage, error)
-	ReadReportSections(context.Context, string, uint64, uint64) (map[auditstore.ReportSection]auditstore.ReportSectionContent, error)
-	CollectionDispositionCounts(context.Context, string) (auditstore.CollectionDispositionCounts, error)
-	GetReportCandidate(context.Context, string) (auditstore.ReportCandidate, error)
 }
 
 type RunReader interface {
@@ -51,12 +36,10 @@ type RunReader interface {
 // owning Audit inbox; it does not create findings, items, or review decisions.
 type FindingRetention interface {
 	ListAuditCollection(context.Context, string, string, string, findingintake.ListQuery) ([]findingintake.CollectionReceipt, error)
-	GetAuditReceipt(context.Context, string, string, string) (findingintake.Receipt, error)
+
 	RetainAuditCollectionBatch(context.Context, []findingintake.ImportRequest) error
 	RejectAuditCollection(context.Context, findingintake.ImportRequest, string) error
-	ResolveAuditProposals(
-		context.Context, string, string, string, string, []findingintake.ProposalKey,
-	) ([]findingintake.ResolvedProposal, error)
+	AuditExecutionReceiptReferences(context.Context, string, string, string, string) (map[string]findingintake.ReceiptReferences, error)
 }
 
 type Importer struct {
@@ -66,7 +49,6 @@ type Importer struct {
 	runs      RunReader
 	artifacts ArtifactAccess
 	findings  FindingRetention
-	budget    reportBudget
 }
 
 type TaskWorkIntake interface {
@@ -92,7 +74,7 @@ func New(
 	if len(findings) > 1 {
 		return nil, errors.New("Audit importer accepts at most one finding intake")
 	}
-	result := &Importer{store: store, reads: reads, runs: runs, artifacts: artifactAccess, budget: defaultReportBudget}
+	result := &Importer{store: store, reads: reads, runs: runs, artifacts: artifactAccess}
 	if len(findings) == 1 {
 		if findings[0] == nil {
 			return nil, errors.New("Audit importer finding intake is nil")
@@ -101,5 +83,3 @@ func New(
 	}
 	return result, nil
 }
-
-type sourceProvenance = auditstore.ResultSourceProvenance

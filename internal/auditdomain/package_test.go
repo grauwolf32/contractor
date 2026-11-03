@@ -70,8 +70,8 @@ func TestAuditPackageRejectsUnsafeOrInconsistentArchives(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			_, err := ValidatePackage(makeRawZIP(t, zip.Store, test.entries))
-			if ErrorCode(err) != test.code {
-				t.Fatalf("error = %v (%q), want %q", err, ErrorCode(err), test.code)
+			if testDomainErrorCode(err) != test.code {
+				t.Fatalf("error = %v (%q), want %q", err, testDomainErrorCode(err), test.code)
 			}
 		})
 	}
@@ -79,7 +79,7 @@ func TestAuditPackageRejectsUnsafeOrInconsistentArchives(t *testing.T) {
 	t.Run("digest mismatch", func(t *testing.T) {
 		entries := []rawZIPEntry{{"manifest.json", manifestBytes, 0}, {"body.txt", []byte("else"), 0}}
 		_, err := ValidatePackage(makeRawZIP(t, zip.Store, entries))
-		if ErrorCode(err) != CodeDigestMismatch {
+		if testDomainErrorCode(err) != CodeDigestMismatch {
 			t.Fatalf("error = %v", err)
 		}
 	})
@@ -88,7 +88,7 @@ func TestAuditPackageRejectsUnsafeOrInconsistentArchives(t *testing.T) {
 		valid := makeRawZIP(t, zip.Store, []rawZIPEntry{{"manifest.json", manifestBytes, 0}, {"body.txt", []byte("body"), 0}})
 		// archive/zip tolerates prepended bytes; the directory preflight does not.
 		_, err := ValidatePackage(append([]byte("prefix"), valid...))
-		if ErrorCode(err) != CodePackageInvalid {
+		if testDomainErrorCode(err) != CodePackageInvalid {
 			t.Fatalf("error = %v", err)
 		}
 	})
@@ -96,7 +96,7 @@ func TestAuditPackageRejectsUnsafeOrInconsistentArchives(t *testing.T) {
 	t.Run("expanded member limit", func(t *testing.T) {
 		oversized := bytes.Repeat([]byte("x"), MaximumMemberBytes+1)
 		_, err := ValidatePackage(makeRawZIP(t, zip.Deflate, []rawZIPEntry{{"manifest.json", manifestBytes, 0}, {"body.txt", oversized, 0}}))
-		if ErrorCode(err) != CodeLimitExceeded {
+		if testDomainErrorCode(err) != CodeLimitExceeded {
 			t.Fatalf("error = %v", err)
 		}
 	})
@@ -126,7 +126,7 @@ func TestAuditPackageManifestIsStrictAndCanonical(t *testing.T) {
 		}
 	}
 	_, err = ValidatePackage(makeRawZIP(t, zip.Store, []rawZIPEntry{{"manifest.json", nonCanonical, 0}, {"body.txt", member, 0}}))
-	if ErrorCode(err) != CodePackageInvalid {
+	if testDomainErrorCode(err) != CodePackageInvalid {
 		t.Fatalf("non-canonical manifest error = %v", err)
 	}
 }
@@ -173,7 +173,7 @@ func FuzzAuditPackage(f *testing.F) {
 	f.Fuzz(func(t *testing.T, candidate []byte) {
 		validated, err := ValidatePackage(candidate)
 		if err != nil {
-			if ErrorCode(err) == "" {
+			if testDomainErrorCode(err) == "" {
 				t.Fatalf("unstable error type: %T: %v", err, err)
 			}
 			return

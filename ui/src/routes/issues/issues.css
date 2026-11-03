@@ -654,7 +654,6 @@ code.issues-attempt-request {
 
 /* ---------- Sections inside the check and project pages ---------- */
 
-.issues-section,
 .issues-project {
   display: flex;
   flex-direction: column;
@@ -671,7 +670,6 @@ code.issues-attempt-request {
   min-width: 0;
 }
 
-.issues-section .issues-section-title,
 .issues-project .issues-section-title {
   margin: 0;
   color: var(--text);
@@ -681,14 +679,6 @@ code.issues-attempt-request {
   line-height: 1.25;
 }
 
-.issues-section-links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1) var(--space-4);
-  font-size: var(--text-sm);
-  font-weight: 700;
-}
-
 .issues-section-filters {
   display: flex;
   flex-direction: column;
@@ -696,27 +686,6 @@ code.issues-attempt-request {
   min-width: 0;
   padding: var(--space-3) var(--space-3-5);
   border: 1px solid var(--line);
-  border-radius: var(--radius-xl);
-  background: var(--surface);
-}
-
-.issues-embedded-list {
-  --ui-pad-start: var(--space-3-5);
-  --ui-pad-end: var(--space-3-5);
-  min-width: 0;
-  overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-xl);
-  background: var(--surface);
-}
-
-.issues-embedded-list .ui-row + .ui-row {
-  border-top: 1px solid var(--line);
-}
-
-.issues-embedded-empty {
-  padding: 0 var(--space-3-5);
-  border: 1px dashed var(--line-strong);
   border-radius: var(--radius-xl);
   background: var(--surface);
 }
@@ -731,74 +700,9 @@ code.issues-attempt-request {
   font-size: var(--text-sm);
 }
 
-.issues-card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
-  min-width: 0;
-  padding: var(--space-5);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-2xl);
-  background: var(--surface);
-  scroll-margin-top: 5rem;
-}
-
-@media (max-width: 480px) {
-  .issues-card {
-    padding: var(--space-3-5);
-  }
-}
-
 /* ---------- Check queue pager ---------- */
 
-.issues-queue {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  min-width: 0;
-}
-
-.issues-queue-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2) var(--space-4);
-}
-
-.issues-queue-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
-.issues-queue-error {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  min-width: 0;
-}
-
 /* Retained observations inside the existing finding card. */
-
-.issues-export {
-  margin-block: var(--space-3);
-  padding: var(--space-3);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-}
-.issues-export > summary {
-  cursor: pointer;
-  font-weight: 600;
-}
-.issues-export[open] > summary {
-  margin-bottom: var(--space-3);
-}
-.issues-export-option {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
 
 /* The reviewed Issue workspace; other summary consumers keep their layout. */
 .issues-workspace {

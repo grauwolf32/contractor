@@ -1,25 +1,16 @@
 """Validate model arguments before constructing canonical Audit results."""
 
-from collections.abc import Sequence
 from typing import Any, NotRequired, TypedDict
 
 from contractor_runtime.core.input_errors import ToolInputError
-from contractor_runtime.toolsets.audit_results.contracts import IDENTIFIER, MAX_VALUES
-
-
-class EvidenceArgument(TypedDict):
-    kind: str
-    summary: str
-    http_request_id: NotRequired[int]
 
 
 class BatchResultArgument(TypedDict):
-    assessment: str
-    summary: str
-    completed: list[str]
-    gaps: list[str]
-    evidence: NotRequired[list[EvidenceArgument]]
-    proposal_keys: NotRequired[list[str]]
+    rationale: str
+    tested_conditions: list[str]
+    limitations: list[str]
+    evidence: NotRequired[list[str]]
+    verdict: NotRequired[str]
 
 
 class AuditArgumentError(ToolInputError):
@@ -50,31 +41,3 @@ def array_argument(field: str, value: Any, maximum: int) -> list[Any]:
             actualCount=len(value),
         )
     return value
-
-
-def identifier_list(
-    field: str,
-    value: Any,
-    *,
-    maximum: int = MAX_VALUES,
-    allowed: Sequence[str] | None = None,
-) -> list[str]:
-    values = array_argument(field, value, maximum)
-    for index, entry in enumerate(values):
-        if not isinstance(entry, str) or IDENTIFIER.fullmatch(entry) is None:
-            raise AuditArgumentError(
-                field,
-                "Use identifiers of at most 160 characters: letters, digits, '.', '_', ':', "
-                "'-'; start with a letter or digit.",
-                index=index,
-            )
-        if allowed is not None and entry not in allowed:
-            raise AuditArgumentError(
-                field,
-                "Value is not requested by the assigned task. Use only allowedValues; "
-                "do not mark unverified coverage completed.",
-                index=index,
-                invalidValue=entry,
-                allowedValues=list(allowed),
-            )
-    return sorted(set(values))

@@ -1,29 +1,3 @@
-.audit-page {
-  display: grid;
-  gap: var(--space-5);
-  overflow-wrap: anywhere;
-}
-
-.audit-page > * {
-  min-width: 0;
-}
-
-.audit-page .route-header-row {
-  margin-bottom: var(--space-2);
-}
-
-.audit-page h2,
-.audit-page h3,
-.audit-page h4,
-.audit-page code,
-.audit-page .eyebrow {
-  overflow-wrap: anywhere;
-}
-
-.audit-page .section-heading > div {
-  min-width: 0;
-}
-
 .audit-load-more {
   display: flex;
   flex-wrap: wrap;

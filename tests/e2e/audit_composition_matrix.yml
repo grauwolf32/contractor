@@ -1,6 +1,6 @@
 {
-  "schema_version": "1.0",
-  "scope": "Preparation/source-to-scan, complete settled-Round inputs and exact typed finding-check routing through ordinary Runs; no model-quality claim.",
+  "schema_version": "2.0",
+  "scope": "Common task preparation, exact handoff, retained ordinary outputs and Project publication through real components; no model-quality claim.",
   "prerequisites": [
     "disposable PostgreSQL",
     "locked Runtime",
@@ -9,104 +9,47 @@
   ],
   "integration": {
     "github.com/grauwolf32/contractor/internal/auditcontroller": [
-      "TestPostgresCompositionReadsOnlyCommittedInventoryAndRetainedOutputs",
-      "TestPostgresAuditDetailReadsGeneratedInventoryFromOneCommit",
-      "TestPostgresPreparedOpenAPIScansKeepAssignedDenominatorAndApproval",
-      "TestPostgresPreparationDependentRunsRetainExactOutputs",
-      "TestPostgresPreparationStaleClaimBeforeRunBindingRecoversSameIntent",
-      "TestPostgresPreparationRecoversLostIntentAndRunResponses/intent",
-      "TestPostgresPreparationRecoversLostIntentAndRunResponses/run",
-      "TestPostgresPreparationRecoversLostCollectionResponse",
-      "TestPostgresPreparationPauseAndDeadlineCollectWithoutAdvancing/pause",
-      "TestPostgresPreparationPauseAndDeadlineCollectWithoutAdvancing/deadline",
-      "TestPostgresPreparationMissingOutputRetriesThenFailsWithoutRound",
-      "TestPostgresPreparationCancelAndDeleteDrainBeforeDependencies/cancel",
-      "TestPostgresPreparationCancelAndDeleteDrainBeforeDependencies/delete",
-      "TestPostgresPreparationSharedSubmissionAndEvidenceBudgets/submission",
-      "TestPostgresPreparationSharedSubmissionAndEvidenceBudgets/evidence",
-      "TestPostgresInitialInventoryAtomicAcceptanceAndPackageReplay",
-      "TestPostgresInitialInventoryFencesControlsAndStaleClaimsAfterPublication/pause",
-      "TestPostgresInitialInventoryFencesControlsAndStaleClaimsAfterPublication/cancel",
-      "TestPostgresInitialInventoryFencesControlsAndStaleClaimsAfterPublication/delete",
-      "TestPostgresInitialInventoryFencesControlsAndStaleClaimsAfterPublication/stale-claim",
-      "TestPostgresInitialInventoryFencesControlsAndStaleClaimsAfterPublication/deadline",
-      "TestPostgresInitialInventoryInvalidAndOverLimitFailBeforeRound/malformed",
-      "TestPostgresInitialInventoryInvalidAndOverLimitFailBeforeRound/empty",
-      "TestPostgresInitialInventoryInvalidAndOverLimitFailBeforeRound/over-limit",
-      "TestPostgresTypedRoutingUsesActualAdmissionAfterPauseRestartAndProducerDeletion",
-      "TestPostgresTypedAdmissionDefersAtNonTimeRoundBudgetWithoutTargetRetry",
-      "TestPostgresTypedAdmissionContinuesBeyondOnePrimarySliceBeforeAtomicAcceptance"
+      "TestPostgresCommonControllerPauseHandoffResume",
+      "TestPostgresCommonControllerReconcilesLostCreationAcknowledgement",
+      "TestPostgresCommonControllerDeadlineAndCancellation"
     ],
-    "github.com/grauwolf32/contractor/internal/artifacts/postgres": [
-      "TestSharedPostgresAuditPreparationIdentityAndReplay",
-      "TestSharedPostgresAuditPreparationConcurrentIntentAndReceipt",
-      "TestSharedPostgresAuditPreparationDependenciesAndRetryBounds",
-      "TestSharedPostgresAuditPreparationRetentionAndLifecycleWithoutRound",
-      "TestSharedPostgresAuditPreparationDeleteFencesAnUndispatchedIntent",
-      "TestSharedPostgresAuditPreparationRejectsObsoleteSnapshotsAndInventoryBaseline"
+    "github.com/grauwolf32/contractor/internal/runservice": [
+      "TestSharedPostgresCommonTaskCollectsOrdinaryOutputWhilePaused",
+      "TestSharedPostgresCommonTaskBatchKeepsMembershipAndChargesEvidenceOnce"
     ],
     "github.com/grauwolf32/contractor/internal/httpapi/public": [
-      "TestSharedPublicAuditPreparationContracts",
-      "TestSharedAuditPreparationHandlersWithoutRound",
-      "TestSharedPublicAuditDetailSnapshotContracts",
-      "TestSharedPostgresAuditDetailReadsOneCommitWhileTheAuditChanges",
-      "TestPublicProjectFindingPagesAndDirectCanonicalEdit",
-      "TestAuditArtifactReadsExactReceiptAndValidatedMember"
-    ],
-    "github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore": [
-      "TestPostgresRoundResultsCaptureRestartsBeforeSealAndPinsReviewGeneration",
-      "TestPostgresRoundResultsRejectUnsettledAndOversizeSources",
-      "TestPostgresRoundResultsCaptureAtRoundAndAuditCeilings",
-      "TestPostgresProposedMembershipHasNoReadOrReviewAuthority",
-      "TestPostgresAcceptedItemCountReadsRoundCountersAtAuditCeiling",
-      "TestPostgresAdmissionStagesMoreThan128AndAcceptsConstantParentSeal",
-      "TestPostgresAdmissionCancellationRemovesPrivateRowsInBoundedPasses",
-      "TestPostgresAdmissionAnchorsDBCutoffAndDoesNotResetDeadline",
-      "TestPostgresAdmissionExactSourceSavepointAndDecisionReplay",
-      "TestPostgresAdmissionZeroCheckReceiptAdvancesBeforeLaterCandidate",
-      "TestPostgresAdmissionRaw128HeadersAndAllPortsUseSingleConnection",
-      "TestPostgresAdmissionFinalRoundHasBoundedBudgetDispositionIntent",
-      "TestPostgresAdmissionPreparedAndAcceptedMembershipPurgeWithAudit"
-    ],
-    "github.com/grauwolf32/contractor/internal/findingintake": [
-      "TestPostgresFindingChecksIndexIntakeImmutabilityAndRetention"
+      "TestAuditTaskOperationsConformAndBindCursors"
     ]
   },
   "process": {
     "github.com/grauwolf32/contractor/tests/e2e": [
-      "TestAuditCompositionAcrossProductionProcesses/generated_sqlmap_and_deleted_preparation_run",
-      "TestAuditCompositionAcrossProductionProcesses/browser_preparation_approval_retention_and_failure",
-      "TestOpenAPIAuditScanAcrossProductionProcesses/sqlmap_exact_request_and_retained_package",
-      "TestOpenAPIAuditScanAcrossProductionProcesses/nuclei_url_coverage_and_pinned_template",
-      "TestOpenAPIAuditScanAcrossProductionProcesses/missing_concrete_input_never_dispatches",
-      "TestOpenAPIAuditScanAcrossProductionProcesses/lost_journal_ack_does_not_repeat_scan",
-      "TestOpenAPIAuditScanAcrossProductionProcesses/publication_and_collection_faults_survive_restart",
-      "TestOpenAPIAuditScanAcrossProductionProcesses/known_failure_has_bounded_cross_run_retries",
-      "TestOpenAPIAuditScanAcrossProductionProcesses/cancelled_scan_is_not_resubmitted",
-      "TestAuditRoundResultsAcrossProductionProcesses",
-      "TestAuditTypedCheckRoutingAcrossProductionProcesses"
+      "TestAuditCompositionAcrossProductionProcesses/common_tasks_and_retention",
+      "TestAuditCommonScanProfilesAcrossProductionProcesses/sqlmap",
+      "TestAuditCommonScanProfilesAcrossProductionProcesses/nuclei",
+      "TestAuditCommonScanProfilesAcrossProductionProcesses/web",
+      "TestAuditCommonSourcePreparationAcrossProductionProcesses"
     ]
   },
   "browser": {
     "production": {
       "file": "ui/e2e/audit-composition.production.ts",
       "required_tests": 1,
-      "owner": "TestAuditCompositionAcrossProductionProcesses/browser_preparation_approval_retention_and_failure"
+      "owner": "TestAuditCompositionAcrossProductionProcesses/common_tasks_and_retention"
     },
     "mocked": {
       "file": "ui/e2e/audits.spec.ts",
       "required_tests": 6,
-      "scope": "pending/failed inventory, A/B navigation, keyboard, themes and narrow viewport; verified by test-ui-stack"
+      "scope": "Paged Tasks/results at 390 and 1440 px in all themes."
     }
   },
   "workspace": {
     "integration": {
-      "github.com/grauwolf32/contractor/internal/auditcontroller": [
-        "TestPostgresAuditWorkspace/handoff",
-        "TestPostgresAuditWorkspace/publication",
-        "TestPostgresAuditWorkspace/replay",
-        "TestPostgresAuditWorkspace/cas",
-        "TestPostgresAuditWorkspace/authority"
+      "github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore": [
+        "TestSharedPostgresCommonTaskInputsStayExactAcrossProjectEdits",
+        "TestSharedPostgresCommonTaskCollectionAndPurge"
+      ],
+      "github.com/grauwolf32/contractor/internal/httpapi/public": [
+        "TestSharedPublicAuditMaterialPublicationContract"
       ]
     },
     "process": {

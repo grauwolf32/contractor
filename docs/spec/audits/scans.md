@@ -4,6 +4,19 @@ Requirement prefix: `ASC` · [Specification index](../README.md)
 
 ## Purpose and scope
 
+The executable preparation path is an ordinary Workflow with the existing
+Server-operation Stage described by [SOP-R10](../execution/server-operations.md).
+Its declared common work output enters [ACT-R13](common-contract.md#ACT-R13)
+acceptance and produces separate operation Tasks. Web scanning accepts one
+selected target Task. It creates no inventory phase, prepare role or Round.
+The original OpenAPI domain selection, conditions and gaps remain with their
+domain parser; provider adaptation remains with the owning Runtime adapter.
+
+The former role/inventory/dependency-manifest authoring described below is
+retired as an execution contract. Its independent source/settings/domain
+constraints remain applicable through their owning parser and ordinary Workflow
+inputs; none permits a second profile reader or executor.
+
 This document owns:
 
 - the preparation contract of an AuditProfile: `prepare` Workflow roles, the

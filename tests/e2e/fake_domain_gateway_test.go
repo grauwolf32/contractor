@@ -241,7 +241,11 @@ func (g *domainGateway) blockNextRequest() <-chan struct{} {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	if g.blockNext {
-		return g.blocked
+		select {
+		case <-g.release:
+		default:
+			return g.blocked
+		}
 	}
 	g.blockNext = true
 	g.blocked = make(chan struct{})

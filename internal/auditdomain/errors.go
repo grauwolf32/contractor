@@ -3,7 +3,6 @@
 package auditdomain
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/grauwolf32/contractor/internal/apierror"
@@ -52,13 +51,4 @@ func invalid(code, field string) error {
 		field = field[:MaximumDiagnosticBytes]
 	}
 	return &ValidationError{Code: code, Field: field}
-}
-
-// ErrorCode returns the stable public classification for a validation error.
-func ErrorCode(err error) string {
-	var validation *ValidationError
-	if errors.As(err, &validation) {
-		return validation.Code
-	}
-	return ""
 }

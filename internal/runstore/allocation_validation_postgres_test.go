@@ -35,10 +35,9 @@ func TestPostgresAllocationReadsEnforceWriteInvariants(t *testing.T) {
 		{"completion namespace", func(a *StageAllocation) {
 			revision := "revision"
 			a.CompletionContract = &contracts.WorkerCompletionContract{
-				Kind:              contracts.AuditCheckResultsV1,
-				Task:              contracts.ArtifactRef{Namespace: "inputs", Name: "task", Revision: &revision},
-				ExecutionManifest: contracts.ArtifactRef{Namespace: "inputs", Name: "manifest", Revision: &revision},
-				ResultArtifact:    contracts.ArtifactRef{Namespace: "another-agent", Name: "result"},
+				Kind:           contracts.AuditCheckResultsV1,
+				Context:        contracts.ArtifactRef{Namespace: "inputs", Name: "context", Revision: &revision},
+				ResultArtifact: contracts.ArtifactRef{Namespace: "another-agent", Name: "result"},
 			}
 		}},
 	} {

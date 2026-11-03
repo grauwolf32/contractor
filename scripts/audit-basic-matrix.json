@@ -1,0 +1,25 @@
+{
+  "go": {
+    "github.com/grauwolf32/contractor/tests/e2e": [
+      "TestAuditBasicExactHandoffAcrossProductionProcesses",
+      "TestAuditBasicExactHandoffAcrossProductionProcesses/finding_false",
+      "TestAuditBasicExactHandoffAcrossProductionProcesses/finding_true",
+      "TestAuditCommonPrepared256PauseRestartAndCancelAcrossProcesses",
+      "TestAuditCommonObservationProfilesAcrossProductionProcesses",
+      "TestAuditCommonObservationProfilesAcrossProductionProcesses/observe",
+      "TestAuditCommonObservationProfilesAcrossProductionProcesses/trace"
+    ]
+  },
+  "programs": {
+    "github.com/grauwolf32/contractor/tests/e2e": [
+      "TestAuditCommonScanProfilesAcrossProductionProcesses",
+      "TestAuditCommonScanProfilesAcrossProductionProcesses/sqlmap",
+      "TestAuditCommonScanProfilesAcrossProductionProcesses/nuclei",
+      "TestAuditCommonScanProfilesAcrossProductionProcesses/web",
+      "TestAuditCommonObservationProfilesAcrossProductionProcesses",
+      "TestAuditCommonObservationProfilesAcrossProductionProcesses/observe",
+      "TestAuditCommonObservationProfilesAcrossProductionProcesses/trace",
+      "TestAuditCommonSourcePreparationAcrossProductionProcesses"
+    ]
+  }
+}

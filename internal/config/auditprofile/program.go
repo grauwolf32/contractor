@@ -63,6 +63,9 @@ func ResolveProgramWorkflows(program auditcontract.Program, lookup func(string) 
 				return nil, apierror.New(apierror.AuditDocumentInvalid, "audit_document_invalid: output must name a required Workflow output")
 			}
 		}
+		if _, err := ResolveCompletionTarget(workflow, binding); err != nil {
+			return nil, err
+		}
 	}
 	for _, task := range program.InitialWork {
 		for name, slot := range workflowInputs[task.Workflow] {

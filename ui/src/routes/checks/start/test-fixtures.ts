@@ -1,8 +1,6 @@
-// Check types, materials and projects shaped like the bundled catalog
-// (configs/audit-profiles), for the Start page tests.
+// Isolated common-contract profiles and materials for generic Start page tests.
 import type { ArtifactMetadata } from "../../../api/artifacts";
 import type { Audit, AuditProfile } from "../../../api/audits";
-import type { components } from "../../../api/generated/public";
 import type { Project } from "../../../api/projects";
 import * as build from "../../../test/builders";
 
@@ -11,56 +9,30 @@ const DIGEST = `sha256:${"2".repeat(64)}`;
 type Inputs = AuditProfile["inputs"];
 
 const SOURCE: Inputs = {
-  source: { required: true, mediaTypes: ["application/zip"] },
+  source: { required: true, media_types: ["application/zip"] },
 };
 const OPENAPI_AND_SOURCE: Inputs = {
   ...SOURCE,
   openapi: {
     required: true,
-    mediaTypes: ["application/json", "application/yaml", "application/zip"],
+    media_types: ["application/json", "application/yaml", "application/zip"],
   },
 };
-
-export const webScanProfile = profileFixture("web-scan", {
-  inputs: {
-    target: { required: true, mediaTypes: ["application/json"] },
-    settings: { required: true, mediaTypes: ["application/json"] },
-    rulepack: {
-      required: false,
-      mediaTypes: [
-        "application/yaml",
-        "application/vnd.contractor.nuclei-rulepack+zip",
-      ],
-    },
-  },
-  inventory: {
-    implementation: "web-scans@1",
-    source: { source: "audit-input", name: "target" },
-    settings: { source: "audit-input", name: "settings" },
-    itemWorkflowRole: "scan",
-  },
-  interaction: {
-    activeChecks: "approval-required",
-    notApplicable: "profile-rule",
-    reportAcceptance: "automatic",
-  },
-});
-
 function limits(total: number, attempts = 3) {
   return {
-    roundMode: "fixed-barrier" as const,
-    maxRounds: 1,
-    batchSize: 1,
-    maxItemsPerRound: total,
-    maxItemsTotal: total,
-    maxSubmittedRuns: total * attempts,
-    maxItemRunAttempts: attempts,
-    deadlineSeconds: 86400,
-    maxEvidenceBytes: 67_108_864,
-    incompleteRound: "assess-with-gaps" as const,
+    max_iterations: 1,
+    batch_size: 1,
+    max_tasks_per_iteration: total,
+    max_tasks: total,
+    max_submitted_runs: total * attempts,
+    max_attempts: attempts,
+    deadline_seconds: 86400,
+    max_evidence_bytes: 67108864,
+    max_hypotheses: 128,
+    max_hypothesis_revisions: 128,
+    max_hypothesis_bytes: 32768,
   };
 }
-
 export function profileFixture(
   name: string,
   overrides: Partial<Omit<AuditProfile, "ref">> & { version?: string } = {},
@@ -68,174 +40,70 @@ export function profileFixture(
   const { version = "1", ...rest } = overrides;
   return build.conforming("AuditProfile", {
     ref: { name, version, digest: DIGEST },
-    mode: "risk-assessment",
-    standards: [],
     inputs: SOURCE,
-    inventory: {
-      implementation: "standard-mappings@1",
-      itemWorkflowRole: "check",
-    },
-    execution: limits(10),
-    interaction: {
-      activeChecks: "prohibited",
-      notApplicable: "human-required",
-      reportAcceptance: "automatic",
-    },
-    serverCompatible: true,
-    requiresInputValidation: true,
-    compatibilityReasons: [],
+    limits: limits(10),
+    policy: { active_operations: "prohibited" },
     ...rest,
   });
 }
-
 export const trace = profileFixture("openapi-operation-trace", {
-  mode: "operation-tracing",
   inputs: OPENAPI_AND_SOURCE,
-  inventory: {
-    implementation: "openapi-operations@1",
-    source: { source: "audit-input", name: "openapi" },
-    itemWorkflowRole: "trace",
-  },
-  execution: limits(256),
+  limits: limits(256),
 });
-
 export const observe = profileFixture("openapi-operation-observe", {
-  mode: "operation-tracing",
   inputs: OPENAPI_AND_SOURCE,
-  inventory: {
-    implementation: "openapi-operations@1",
-    source: { source: "audit-input", name: "openapi" },
-    itemWorkflowRole: "trace",
-  },
-  execution: limits(256),
-  interaction: {
-    activeChecks: "prohibited",
-    notApplicable: "profile-rule",
-    reportAcceptance: "automatic",
-  },
+  limits: limits(256),
 });
-
-export const top10 = profileFixture("owasp-top10-2025-source-risk", {
-  standards: [{ scheme: "owasp-web-top10", version: "2025" }],
-  inputs: SOURCE,
-  execution: limits(10),
+export const top10 = profileFixture("source-review", { limits: limits(10) });
+export const asvsReview = profileFixture("broad-review", {
+  limits: limits(70),
 });
-
-export const asvsReview = profileFixture("owasp-asvs-5-0-l1-source-review", {
-  mode: "requirements-verification",
-  standards: [{ scheme: "owasp-asvs", version: "5.0.0-l1-source.1" }],
-  inputs: SOURCE,
-  inventory: {
-    implementation: "standard-mappings@1",
-    itemWorkflowRole: "check",
-    standardSelection: {
-      scope:
-        "ASVS 5.0 Level 1 source and documentation review (70 requirements)",
-      levels: ["1"],
-      entryIds: Array.from({ length: 70 }, (_, index) => `v5.0.0-${index}`),
-    },
-  },
-  execution: limits(70),
+export const asvsPilot = profileFixture("small-review", {
+  limits: limits(5, 2),
 });
-
-export const asvsPilot = profileFixture("owasp-asvs-5-0-l1-source-pilot", {
-  mode: "requirements-verification",
-  standards: [{ scheme: "owasp-asvs", version: "5.0.0" }],
-  inputs: SOURCE,
-  inventory: {
-    implementation: "standard-mappings@1",
-    itemWorkflowRole: "check",
-    standardSelection: {
-      scope: "ASVS 5.0 Level 1 source and documentation pilot (5 requirements)",
-      levels: ["1"],
-      entryIds: ["a", "b", "c", "d", "e"],
-    },
-  },
-  execution: limits(5, 2),
-});
-
-const LIVE_INTERACTION = {
-  activeChecks: "approval-required",
-  notApplicable: "human-required",
-  reportAcceptance: "automatic",
-} as const;
-
-function liveWorkflows() {
-  return {
-    check: {
-      kind: "check" as const,
-      workflow: { name: "audit-wstg-active-http", version: "1" },
-      inputs: {},
-      parameters: {
-        target: { source: "scope-field" as const, name: "target" },
-        authorization_scope: {
-          source: "scope-field" as const,
-          name: "authorizationScope",
-        },
-      },
-      outputs: { result: "result" },
-    },
-  };
-}
-
-/** The list response leaves workflows out; the detail has them. */
-export const wstgLive = profileFixture("owasp-wstg-4-2-active-http", {
-  mode: "requirements-verification",
-  standards: [{ scheme: "owasp-wstg", version: "4.2-http.1" }],
+export const wstgLive = profileFixture("http-observe", {
   inputs: {
-    context: { required: true, mediaTypes: ["text/plain", "text/markdown"] },
+    context: { required: true, media_types: ["text/plain", "text/markdown"] },
   },
-  execution: limits(94, 1),
-  interaction: LIVE_INTERACTION,
+  limits: limits(94, 1),
+  policy: { active_operations: "allowed" },
 });
-
-export const wstgLiveDetail: AuditProfile = build.conforming("AuditProfile", {
-  ...wstgLive,
-  workflows: liveWorkflows(),
-});
-
+export const wstgLiveDetail: AuditProfile = wstgLive;
 export const nuclei = profileFixture("openapi-nuclei-scan", {
   inputs: {
     openapi: {
       required: true,
-      mediaTypes: ["application/json", "application/yaml"],
+      media_types: ["application/json", "application/yaml"],
     },
-    settings: { required: true, mediaTypes: ["application/json"] },
+    settings: { required: true, media_types: ["application/json"] },
   },
-  inventory: {
-    implementation: "openapi-scans@1",
-    source: { source: "audit-input", name: "openapi" },
-    settings: { source: "audit-input", name: "settings" },
-    itemWorkflowRole: "scan",
-  },
-  execution: limits(16),
-  interaction: {
-    activeChecks: "approval-required",
-    notApplicable: "profile-rule",
-    reportAcceptance: "automatic",
-  },
+  limits: limits(16),
+  policy: { active_operations: "allowed" },
 });
-
-export const checklist = profileFixture("source-checklist", {
-  mode: "custom-checklist",
+export const checklist = profileFixture("selected-materials", {
   inputs: {
-    source: { required: true, mediaTypes: ["application/zip"] },
+    ...SOURCE,
     checklist: {
       required: true,
-      mediaTypes: ["application/json", "application/yaml"],
+      media_types: ["application/json", "application/yaml"],
     },
   },
-  inventory: {
-    implementation: "checklist@1",
-    source: { source: "audit-input", name: "checklist" },
-    itemWorkflowRole: "check",
-  },
-  execution: limits(128),
+  limits: limits(128),
 });
-
-export const unsupported = profileFixture("legacy-multi-round", {
-  serverCompatible: false,
-  compatibilityReasons: ["multiple_rounds_unsupported"],
+export const unsupported = profileFixture("custom-inspection");
+export const webScanProfile = profileFixture("web-scan", {
+  inputs: {
+    target: { required: true, media_types: ["application/json"] },
+    settings: { required: true, media_types: ["application/json"] },
+    rulepack: {
+      required: false,
+      media_types: [
+        "application/yaml",
+        "application/vnd.contractor.nuclei-rulepack+zip",
+      ],
+    },
+  },
+  policy: { active_operations: "allowed" },
 });
 
 export function materialFixture(
@@ -279,7 +147,7 @@ export function draftAudit(
     inputs: Object.fromEntries(
       Object.entries(profile.inputs).map(([name, input]) => [
         name,
-        build.auditInput(`shop-${name}`, { mediaType: input.mediaTypes[0] }),
+        build.auditInput(`shop-${name}`, { mediaType: input.media_types[0] }),
       ]),
     ),
     limits: {
@@ -302,8 +170,8 @@ export function startedAudit(draft: Audit): Audit {
   return build.conforming("Audit", {
     ...draft,
     state: "active",
-    phase: "rounds",
-    currentRoundId: "round_1",
+    taskCount: 0,
+    iteration: 0,
     revision: draft.revision + 1,
     dispatchState: "open",
     holdState: "held",
@@ -313,12 +181,5 @@ export function startedAudit(draft: Audit): Audit {
 /** POST /v1/audits/{auditId}/start response body. */
 export function startResponse(draft: Audit) {
   const audit = startedAudit(draft);
-  return build.conforming("AuditStartResponse", {
-    audit,
-    round: build.auditRound({
-      createdAt: audit.createdAt,
-      updatedAt: audit.updatedAt,
-    }),
-    items: [],
-  } as components["schemas"]["AuditStartResponse"]);
+  return build.conforming("AuditStartResponse", { audit });
 }

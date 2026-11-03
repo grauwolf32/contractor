@@ -33,48 +33,6 @@
       "title": "Kind",
       "type": "string"
     },
-    "task": {
-      "allOf": [
-        {
-          "$ref": "#/$defs/ArtifactRef"
-        },
-        {
-          "required": [
-            "revision"
-          ],
-          "properties": {
-            "namespace": {
-              "const": "inputs"
-            },
-            "revision": {
-              "type": "string",
-              "minLength": 1
-            }
-          }
-        }
-      ]
-    },
-    "executionManifest": {
-      "allOf": [
-        {
-          "$ref": "#/$defs/ArtifactRef"
-        },
-        {
-          "required": [
-            "revision"
-          ],
-          "properties": {
-            "namespace": {
-              "const": "inputs"
-            },
-            "revision": {
-              "type": "string",
-              "minLength": 1
-            }
-          }
-        }
-      ]
-    },
     "resultArtifact": {
       "allOf": [
         {
@@ -95,12 +53,32 @@
           }
         }
       ]
+    },
+    "context": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        {
+          "required": [
+            "revision"
+          ],
+          "properties": {
+            "namespace": {
+              "const": "inputs"
+            },
+            "revision": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      ]
     }
   },
   "required": [
     "kind",
-    "task",
-    "executionManifest",
+    "context",
     "resultArtifact"
   ],
   "title": "WorkerCompletionContract",

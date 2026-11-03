@@ -70,7 +70,15 @@ context:
       User decision 2026-11-02 during V64-002 implementation permits temporarily removing these
       eight old-format profiles when the shared loader/executor switches. Restore the scenarios
       in the common format together with this task's hypothesis/result behavior, not an old reader.
-      Original YAML is retained in Git at 9b4ba9c8b1901c5c7eeb301015ad7e61cd94066d.
+      Restore the assertion-specific execution Eval tests removed from
+      tests/eval/audit_programs during the cutover together with the corresponding real common
+      callers. Restore checklist and standard-to-task mapping checks through that common path;
+      V64-027 removes the old inventory-wrapper tests with their uncalled builders. Static
+      standard-package, source/license and shared parser checks remain. Restore the CLI standard-selection
+      validation cases from internal/app/config_command_test.go when a common selection caller ships;
+      the bundled-standard validity checks remain active. Restore the fixed-name Start UI
+      suggestions only when the rewritten profiles ship. Their previous tests and YAML are retained
+      in Git at 9b4ba9c8b1901c5c7eeb301015ad7e61cd94066d.
     boundary: Rewrite fixed checklist/standard assertions as common hypothesis-bound work without a
       model-generated seed step. Update the related Workflow, template, instruction, completion/context
       bindings and fixtures needed by the real callers. Preserve source standards, applicability,

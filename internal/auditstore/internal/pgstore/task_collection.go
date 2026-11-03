@@ -27,6 +27,11 @@ func validateCollection(p auditstore.CollectParams) error {
 	if p.ErrorCode != nil && validateText("error code", *p.ErrorCode, 128, true) != nil {
 		return auditstore.ErrInvalid
 	}
+	for _, link := range p.Retained {
+		if link.Scope != artifacts.ScopeAudit {
+			return auditstore.ErrInvalid
+		}
+	}
 	if _, err := validateArtifactLinks(p.Retained); err != nil {
 		return err
 	}

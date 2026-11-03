@@ -1,19 +1,17 @@
 """Production ADK Runner and completion dispatch with offline model/artifact IO."""
 
 import asyncio
-import io
 import json
-import zipfile
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 import pytest
+from audit_fixtures import arguments
 from fakes.model import scripted_model, text_result, thought_result, tool_call
 from google.genai import types
 from test_adk_runtime import build_context, stage_request
 from test_audit_completion_continuation import CountedState
-from test_audit_result_collector import arguments
 from test_audit_result_publication import assigned
 
 from contractor_runtime.artifacts import ArtifactAPIError, ArtifactValue
@@ -39,11 +37,7 @@ class AuditClient:
     async def read_artifact(self, ref, *, max_bytes):
         self.reads.append(ref.model_copy(deep=True))
         assert ref.revision == "pinned-r1"
-        data, media = (
-            (self.inputs.task_package, "application/zip")
-            if ref.name == "task"
-            else (self.inputs.execution_manifest, "application/json")
-        )
+        data, media = self.inputs.context, "application/json"
         assert len(data) <= max_bytes
         return ArtifactValue(
             ref.model_copy(deep=True), media, data, datetime.now(UTC), datetime.now(UTC)
@@ -71,10 +65,7 @@ class AuditClient:
 def contract():
     return WorkerCompletionContract(
         kind="audit-check-results@1",
-        task=ArtifactRef(namespace="inputs", name="task", revision="pinned-r1"),
-        executionManifest=ArtifactRef(
-            namespace="inputs", name="execution_manifest", revision="pinned-r1"
-        ),
+        context=ArtifactRef(namespace="inputs", name="context", revision="pinned-r1"),
         resultArtifact=ArtifactRef(namespace="builder", name="report"),
     )
 
@@ -256,7 +247,7 @@ def test_real_runner_continues_once_with_one_owner_and_publishes_on_last_allowed
         }
         assert runtime._pipeline.finalizer is None
         assert len(model.requests) == 4 and len(client.writes) == 1
-        assert len(client.reads) == 2
+        assert len(client.reads) == 1
         assert "Runtime completion reminder" in model.requests[-1]["contentText"]
         assert all(not request["hasResponseSchema"] for request in model.requests)
         assert state.begins == state.completions == 1
@@ -265,8 +256,7 @@ def test_real_runner_continues_once_with_one_owner_and_publishes_on_last_allowed
         assert metrics["modelCalls"] == 4 and metrics["toolCalls"] == 2
         assert runtime._plugin._next_tool_ordinal == 3
         assert completion.result.observations.tools["submit_check_result"].calls == 2
-        with zipfile.ZipFile(io.BytesIO(client.writes[0])) as archive:
-            results = json.loads(archive.read("check-results.json"))["results"]
+        results = json.loads(client.writes[0])["items"]
         assert [result["item_key"] for result in results] == list(expected.owner.item_keys)
         with pytest.raises(AuditCollectionError):
             runtime._completion.current()
@@ -414,7 +404,7 @@ def test_shared_session_reuse_never_inherits_accepted_results_or_tool_authority(
         second = await runtime.invoke(stage_request())
         assert first.result is not None and second.failure.code == "audit_result_incomplete"
         assert first.invocation_id != second.invocation_id
-        assert len(client.writes) == 1 and len(client.reads) == 2
+        assert len(client.writes) == 1 and len(client.reads) == 1
         assert state.begins == state.completions == 2
         stale = await runtime._context.tools["submit_check_result"](
             SimpleNamespace(invocation_id=first.invocation_id),

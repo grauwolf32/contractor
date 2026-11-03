@@ -1,38 +1,16 @@
 import { invalidAPIResponse } from "./error";
 import type { components } from "./generated/public";
-import { auditPastPreparation } from "./states";
-
 type Audit = components["schemas"]["Audit"];
-
-/**
- * Returns `audit` after checking the preparation invariants its schema cannot
- * express: a role never used more attempts than it allows, an accepted role's
- * outputs come from its own execution and Run, and an Audit past preparation
- * has accepted every role.
- */
+/** Validate relationships between the common Audit counters. */
 export function requireAuditComposition(audit: Audit, status: number): Audit {
-  const roles = Object.values(audit.preparation?.roles ?? {});
-  const generated = audit.generatedInventory;
-  const prepared = auditPastPreparation(audit.phase);
   if (
-    (generated !== undefined &&
-      (audit.phase !== "rounds" ||
-        audit.preparation === undefined ||
-        generated.sourceContentDigest !== generated.sources.source.digest)) ||
-    roles.some(
-      (role) =>
-        role.attempts > role.maxAttempts ||
-        (prepared && role.status !== "accepted") ||
-        Object.values(role.outputs).some(
-          (output) =>
-            output.executionId !== role.executionId ||
-            output.runId !== role.runId,
-        ),
-    )
+    audit.submittedRunCount > audit.reservedRunCount ||
+    audit.outstandingRunCount > audit.reservedRunCount ||
+    audit.taskCount > audit.limits.maxItemsTotal
   ) {
     throw invalidAPIResponse(
       status,
-      "Server returned an Audit whose preparation is inconsistent",
+      "Server returned inconsistent Audit counters",
     );
   }
   return audit;

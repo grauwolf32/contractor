@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"math"
-	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -326,35 +325,6 @@ func validateTrustedTransition(params auditstore.TrustedTransitionParams) error 
 	return nil
 }
 
-func roundTransitionAllowed(from, to auditstore.RoundState) bool {
-	switch from {
-	case auditstore.RoundProposed:
-		return to == auditstore.RoundAccepted
-	case auditstore.RoundAccepted:
-		return to == auditstore.RoundExecuting || to == auditstore.RoundClosed
-	case auditstore.RoundExecuting:
-		return to == auditstore.RoundAssessing || to == auditstore.RoundClosed
-	case auditstore.RoundAssessing:
-		return to == auditstore.RoundClosed
-	default:
-		return false
-	}
-}
-
-func validateRoundTransition(params auditstore.RoundTransitionParams) error {
-	if err := validateClaimIdentity(params.Claim); err != nil {
-		return err
-	}
-	if err := validateID("roundID", params.RoundID); err != nil {
-		return err
-	}
-	if params.ExpectedRevision == 0 || params.ExpectedRevision > math.MaxInt64 || !params.ExpectedState.Valid() ||
-		!params.TargetState.Valid() || !roundTransitionAllowed(params.ExpectedState, params.TargetState) {
-		return invalidf("Audit round transition is invalid")
-	}
-	return nil
-}
-
 func validateExactArtifact(field string, value auditstore.ExactArtifact, requireMetadata bool) error {
 	if err := value.Ref.ValidateExact(); err != nil {
 		return invalidf("%s ref is invalid", field)
@@ -497,72 +467,6 @@ func validateMaterialize(params auditstore.MaterializeRoundParams) error {
 		return err
 	}
 	return validateIdempotency(params.IdempotencyKey, params.RequestDigest)
-}
-
-func validateAcceptRound(params auditstore.AcceptRoundParams) error {
-	if err := validateClaimIdentity(params.Claim); err != nil {
-		return err
-	}
-	if params.ExpectedAuditRevision == 0 || params.ExpectedAuditRevision > math.MaxInt64 || params.RoundOrdinal < 2 {
-		return invalidf("next Round precondition is invalid")
-	}
-	if err := validateID("previousRoundID", params.PreviousRoundID); err != nil {
-		return err
-	}
-	if err := validateID("roundID", params.RoundID); err != nil {
-		return err
-	}
-	if params.RoundID == params.PreviousRoundID {
-		return invalidf("next Round identity equals its predecessor")
-	}
-	if err := validateExactArtifact("round manifest", params.Manifest, false); err != nil {
-		return err
-	}
-	if _, err := validateArtifactLinks(params.Retained); err != nil {
-		return err
-	}
-	if len(params.Items) == 0 {
-		return invalidf("next Round must contain work")
-	}
-	if err := validateRoundItems(params.Items); err != nil {
-		return err
-	}
-	dependencyItems, dependencyDescriptors, dependencyBytes := 0, 0, 0
-	seenSources := make(map[string]struct{}, len(params.Items))
-	for _, item := range params.Items {
-		if item.Dependencies != nil {
-			encoded, err := auditdomain.EncodeRetainedDependencies(*item.Dependencies)
-			if err != nil {
-				return invalidf("retained dependency manifest is invalid")
-			}
-			dependencyItems++
-			dependencyDescriptors += len(item.Dependencies.Dependencies)
-			dependencyBytes += len(encoded)
-			if dependencyItems > 128 || dependencyDescriptors > 512 || dependencyBytes > 1<<20 {
-				return invalidf("retained dependency admission slice is too large")
-			}
-		}
-		if len(item.ProposalSources) != 1 {
-			return invalidf("next Round item must have one exact proposal source")
-		}
-		for _, source := range item.ProposalSources {
-			if err := validateID("proposal receipt ID", source.ReceiptID); err != nil {
-				return err
-			}
-			if source.ProposedCheckOrdinal < 0 || source.ProposedCheckOrdinal >= 512 {
-				return invalidf("proposal check ordinal is invalid")
-			}
-			if err := validateExactArtifact("proposal source", source.Proposal, true); err != nil {
-				return err
-			}
-			key := source.ReceiptID + "\x00" + strconv.Itoa(source.ProposedCheckOrdinal)
-			if _, duplicate := seenSources[key]; duplicate {
-				return invalidf("proposal check source is duplicated")
-			}
-			seenSources[key] = struct{}{}
-		}
-	}
-	return nil
 }
 
 func validateRoundItems(items []auditstore.MaterializedItem) error {
@@ -937,7 +841,7 @@ func validateArtifactLinks(links []auditstore.ArtifactLink) (int64, error) {
 		if err := validateText("artifact display ref", link.DisplayRef, 1024, false); err != nil {
 			return 0, err
 		}
-		artifactKey := link.Artifact.Ref.Namespace + "\x00" + link.Artifact.Ref.Name + "\x00" + *link.Artifact.Ref.Revision
+		artifactKey := retainedArtifactKey(link)
 		if _, counted := retainedArtifacts[artifactKey]; !counted {
 			if link.Artifact.SizeBytes > 1<<30-retainedBytes {
 				return 0, invalidf("retained artifact bytes overflow")

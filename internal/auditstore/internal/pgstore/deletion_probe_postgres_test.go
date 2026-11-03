@@ -181,8 +181,8 @@ func addDeletionProbeExecutions(t *testing.T, f deletionProbeFixture, groups ...
 		}
 		if group.audit != f.audit.AuditID {
 			// Another Audit's executions belong to no Round of it.
-			overrides["round_id"], overrides["role"] = `NULL`, `'discovery'`
-			overrides["role_attempt"] = fmt.Sprintf("%d + n", group.attempts)
+			overrides["round_id"], overrides["role"] = `NULL`, `'task'`
+			overrides["role_attempt"] = `NULL`
 		}
 		overrides["run_deleted_at"] = `NULL`
 		if group.gone {
@@ -460,7 +460,7 @@ func TestPostgresAuditDeletionProbeTraversesRunsInOriginalOrder(t *testing.T) {
 	if rewritten, originalGate := purgeGates(); !rewritten || !originalGate {
 		t.Fatalf("drained purge gate: rewritten %t, original %t", rewritten, originalGate)
 	}
-	if err := f.store.PurgeClaimed(f.ctx, f.claim, namespace); err != nil {
+	if err := purgeFixtureUntilAbsent(t, f.collectingAuditFixture, f.claim); err != nil {
 		t.Fatalf("purge of the drained Audit = %v", err)
 	}
 	var unrelated int

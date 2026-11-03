@@ -14,12 +14,10 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
-	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/configtest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
-	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	postgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -39,10 +37,24 @@ type commonTaskFixture struct {
 	source   contracts.ArtifactRef
 }
 
-func newCommonTaskFixture(t *testing.T, connections int32) commonTaskFixture {
+func newCommonTaskFixture(t *testing.T, connections int32, tighten ...func(*auditstore.Limits)) commonTaskFixture {
 	t.Helper()
 	ctx := t.Context()
 	pool := postgrestest.NewPool(t, ctx, "", postgrestest.Options{Configure: func(cfg *pgxpool.Config) { cfg.MaxConns = connections }})
+	return commonTaskFixtureOnPool(t, pool, "", tighten...)
+}
+func commonTaskFixtureOnPool(t *testing.T, pool *pgxpool.Pool, name string, tighten ...func(*auditstore.Limits)) commonTaskFixture {
+	return setupCommonTaskFixture(t, pool, name, true, tighten...)
+}
+func setupCommonTaskFixture(t *testing.T, pool *pgxpool.Pool, name string, start bool, tighten ...func(*auditstore.Limits)) commonTaskFixture {
+	t.Helper()
+	ctx := t.Context()
+	auditID, ownerID, projectID := "tasks-audit", "owner", "tasks-project"
+	if name != "" {
+		auditID = "audit-" + name
+		ownerID = "owner-" + name
+		projectID = "project-" + name
+	}
 	if _, err := postgres.ApplyMigrations(ctx, pool, postgres.MigrationBudgets{}); err != nil {
 		t.Fatal(err)
 	}
@@ -54,38 +66,27 @@ func newCommonTaskFixture(t *testing.T, connections int32) commonTaskFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var fixture struct {
-		Cases []struct{ Document string }
-	}
-	if err := json.Unmarshal(contractstest.ReadFile(t, "api", "testdata", "audit-common", "programs.json"), &fixture); err != nil {
-		t.Fatal(err)
-	}
-	pinned, err := auditprofile.PinProgram(resolved.Selector{ID: "common-tasks", Version: "1"}, []byte(fixture.Cases[0].Document), catalog.Workflow)
+	pinned, err := catalog.AuditProfile("common-tasks@1")
 	if err != nil {
 		t.Fatal(err)
 	}
 	profile, _ := json.Marshal(pinned)
 	project := projectstore.NewPostgresStore(pool)
-	if _, _, err := project.Create(ctx, projectstore.CreateParams{ProjectID: "tasks-project", OwnerID: "owner", Kind: projectstore.KindProject, Name: "Common task intake", IdempotencyKey: "project", RequestDigest: contentdigest.Bytes([]byte("project"))}); err != nil {
+	if _, _, err := project.Create(ctx, projectstore.CreateParams{ProjectID: projectID, OwnerID: ownerID, Kind: projectstore.KindProject, Name: "Common task intake", IdempotencyKey: "project", RequestDigest: contentdigest.Bytes([]byte("project"))}); err != nil {
 		t.Fatal(err)
 	}
 	limits := pinned.Program.Limits
 	owners, reads := NewOwnerStore(pool), NewQueryStore(pool)
+	effective := auditstore.Limits{MaxRounds: limits.MaxIterations, BatchSize: limits.BatchSize, MaxItemsPerRound: limits.MaxTasksPerIteration, MaxItemsTotal: limits.MaxTasks, MaxSubmittedRuns: limits.MaxSubmittedRuns, MaxItemRunAttempts: limits.MaxAttempts, MaxEvidenceBytes: limits.MaxEvidenceBytes}
+	for _, change := range tighten {
+		change(&effective)
+	}
 	audit, _, err := owners.CreateDraft(ctx, auditstore.CreateDraftParams{
-		AuditID: "tasks-audit", OwnerID: "owner", ProjectID: "tasks-project",
+		AuditID: auditID, OwnerID: ownerID, ProjectID: projectID,
 		Profile: auditstore.ProfileIdentity{Name: pinned.Ref.Name, Version: pinned.Ref.Version, Digest: pinned.Ref.Digest}, ProfileSnapshot: profile, InputSelection: json.RawMessage(`{}`),
-		Limits:         auditstore.Limits{MaxRounds: limits.MaxIterations, BatchSize: limits.BatchSize, MaxItemsPerRound: limits.MaxTasksPerIteration, MaxItemsTotal: limits.MaxTasks, MaxSubmittedRuns: limits.MaxSubmittedRuns, MaxItemRunAttempts: limits.MaxAttempts, MaxEvidenceBytes: limits.MaxEvidenceBytes},
+		Limits:         effective,
 		IdempotencyKey: "draft", RequestDigest: contentdigest.Bytes([]byte("draft")),
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	// The store fixture installs the same immutable common pin consumed by the
-	// new owner path. No legacy inventory, task ZIP or Round is constructed.
-	if _, err := pool.Exec(ctx, `UPDATE audits SET state='active',phase='rounds',started_at=clock_timestamp(),baseline_snapshot='{}',hold_state='held' WHERE audit_id=$1`, audit.AuditID); err != nil {
-		t.Fatal(err)
-	}
-	audit, err = reads.Get(ctx, "owner", audit.AuditID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,6 +107,13 @@ func newCommonTaskFixture(t *testing.T, connections int32) commonTaskFixture {
 		t.Fatalf("retained material: %v", err)
 	}
 	material := auditcontract.Material{ScopeKind: "audit", ScopeID: audit.AuditID, Ref: metadata.Ref, Digest: metadata.Digest, MediaType: metadata.MediaType, SizeBytes: metadata.Size}
+	if start {
+		baseline := commonTaskBaseline(source.Ref, metadata.Digest, metadata.MediaType, metadata.Size)
+		audit, _, err = owners.Activate(ctx, auditstore.ActivateParams{OwnerID: ownerID, AuditID: auditID, ExpectedRevision: audit.Revision, BaselineSnapshot: baseline, DeadlineAt: time.Now().Add(time.Hour), IdempotencyKey: "start", RequestDigest: contentdigest.Bytes([]byte("start"))})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
 	return commonTaskFixture{pool: pool, owners: owners, reads: reads, audit: audit, pinned: pinned, service: service, material: material, source: source.Ref}
 }
 
@@ -116,7 +124,7 @@ func (f commonTaskFixture) acceptance(count int, key string) auditstore.AcceptTa
 		tasks = append(tasks, auditstore.AcceptedTask{Document: auditcontract.Task{Schema: auditcontract.TaskSchema, AuditID: f.audit.AuditID, TaskID: id, Workflow: "inspect", Inputs: map[string]auditcontract.Material{"source": f.material}, Parameters: map[string]string{}, Objective: "Inspect the selected source"}, Source: auditstore.TaskSource{Kind: "manual", Key: id}})
 	}
 	digest, _ := contentdigest.CanonicalJSON(tasks)
-	return auditstore.AcceptTasksParams{OwnerID: "owner", AuditID: f.audit.AuditID, ExpectedRevision: f.audit.Revision, IdempotencyKey: key, RequestDigest: digest, Tasks: tasks}
+	return auditstore.AcceptTasksParams{OwnerID: f.audit.OwnerID, AuditID: f.audit.AuditID, ExpectedRevision: f.audit.Revision, IdempotencyKey: key, RequestDigest: digest, Tasks: tasks}
 }
 
 func TestSharedPostgresCommonTaskAcceptanceReplayAndPause(t *testing.T) {
@@ -394,4 +402,37 @@ func TestSharedPostgresProjectToAuditInputForkFences(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSharedPostgresCommonTaskAcceptanceUsesTighterEffectiveLimits(t *testing.T) {
+	f := newCommonTaskFixture(t, 1, func(limits *auditstore.Limits) {
+		limits.MaxItemsTotal = 1
+		limits.MaxItemsPerRound = 1
+		limits.BatchSize = 1
+		limits.MaxSubmittedRuns = 1
+		limits.MaxItemRunAttempts = 1
+		limits.MaxEvidenceBytes = 1 << 20
+	})
+	tooMany := f.acceptance(2, "too-many")
+	if _, _, err := f.owners.AcceptTasks(t.Context(), tooMany); !errors.Is(err, auditstore.ErrPrecondition) {
+		t.Fatalf("effective task ceiling: %v", err)
+	}
+	accepted, _, err := f.owners.AcceptTasks(t.Context(), f.acceptance(1, "within-cap"))
+	if err != nil || accepted.CreatedCount != 1 {
+		t.Fatalf("valid tighter pin rejected: %+v %v", accepted, err)
+	}
+	audit, err := f.reads.Get(t.Context(), "owner", f.audit.AuditID)
+	if err != nil || audit.TaskCount != 1 || audit.Limits.MaxItemsTotal != 1 {
+		t.Fatalf("effective limits widened: %+v %v", audit, err)
+	}
+}
+
+func commonTaskBaseline(ref contracts.ArtifactRef, digest, media string, size int64) json.RawMessage {
+	data, _ := json.Marshal(map[string]any{"schema": "contractor.audit.baseline.v1", "inputs": map[string]auditstore.ExactArtifact{"source": {Ref: ref, Digest: digest, MediaType: media, SizeBytes: size}}, "skills": []any{}})
+	return data
+}
+
+func commonTaskBaselineInputs(material auditcontract.Material) json.RawMessage {
+	data, _ := json.Marshal(map[string]auditstore.ExactArtifact{"source": {Ref: material.Ref, Digest: material.Digest, MediaType: material.MediaType, SizeBytes: material.SizeBytes}})
+	return data
 }

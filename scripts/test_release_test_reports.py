@@ -88,6 +88,26 @@ class ReportReuseTest(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     reports.verify_go(path, kind)
 
+    def test_basic_audit_gate_rejects_missing_skipped_and_empty_cases(self):
+        gate = reports.gate("test-audit-basic-e2e.py")
+        events = []
+        for package, names in gate["matrix"]().items():
+            for action, selected in (("run", names), ("pass", reversed(names))):
+                events.extend(dict(Action=action, Package=package, Test=name) for name in selected)
+            events.append(dict(Action="pass", Package=package))
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "go.jsonl"
+            def write(items):
+                path.write_text("".join(json.dumps(event) + "\n" for event in items))
+            write(events)
+            self.assertEqual(len(gate["verify"](path)), sum(len(cases) for cases in gate["matrix"]().values()))
+            for changed in ([], events[1:],
+                            [dict(event, Action="skip") if event.get("Test", "").endswith("finding_false") else event for event in events],
+                            [event for event in events if "Test" not in event]):
+                write(changed)
+                with self.assertRaises(ValueError):
+                    gate["verify"](path)
+
     def test_shared_go_verifier_preserves_each_family_root_scope(self) -> None:
         package = "example/audit"
         required = {package: ["TestAuditCompletion/required"]}

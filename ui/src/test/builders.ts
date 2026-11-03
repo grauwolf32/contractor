@@ -2,8 +2,8 @@
 // generated schemas when they are built, so a test cannot rely on a
 // response the Server would never send.
 import { schemaViolation } from "../api/contract";
-import type { PublicSchemaName } from "../api/generated/response-schemas";
 import type { components } from "../api/generated/public";
+import type { PublicSchemaName } from "../api/generated/response-schemas";
 
 type Schemas = components["schemas"];
 
@@ -107,9 +107,8 @@ export function audit(
         scope: {},
         runtimeLabels: [],
         state,
-        ...(draft
-          ? { phase: "not-started" as const }
-          : { phase: "rounds" as const, currentRoundId: "round_1" }),
+        taskCount: 0,
+        iteration: 0,
         revision: 1,
         dispatchState: state === "active" ? "open" : "closed",
         holdState: draft ? "pending" : "held",
@@ -122,7 +121,10 @@ export function audit(
           maxItemRunAttempts: 2,
           maxEvidenceBytes: 1_048_576,
         },
-        reservedRunCount: 0,
+        reservedRunCount: Math.max(
+          overrides.submittedRunCount ?? 0,
+          overrides.outstandingRunCount ?? 0,
+        ),
         submittedRunCount: 0,
         outstandingRunCount: 0,
         retainedEvidenceBytes: 0,
@@ -498,9 +500,7 @@ export function workspace(
     auditId: value.auditId,
     auditRevision: value.revision,
     asOf: "2026-10-05T10:40:00Z",
-    ...(value.currentRoundId === undefined
-      ? {}
-      : { roundId: value.currentRoundId }),
+
     executionState: value.state,
     outstandingRuns: value.outstandingRunCount,
     totalChecks: 0,

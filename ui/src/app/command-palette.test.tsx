@@ -276,12 +276,10 @@ describe("command palette", () => {
     }
   });
 
-  it("offers only check types this Server can run", async () => {
+  it("offers published check types without legacy compatibility filtering", async () => {
     const unsupported: AuditProfile = {
       ...presetFixture,
       ref: { ...presetFixture.ref, name: "legacy-review" },
-      serverCompatible: false,
-      compatibilityReasons: ["multiple_rounds_unsupported"],
     };
     renderShell("/runs", {
       server: { profiles: [presetFixture, unsupported] },
@@ -290,14 +288,12 @@ describe("command palette", () => {
     await user.type(field, "review");
     expect(
       await within(group("Check types")).findAllByRole("option"),
-    ).toHaveLength(1);
-    expect(options()).toEqual(["source-review"]);
+    ).toHaveLength(2);
+    expect(options()).toEqual(["legacy-review", "source-review"]);
 
     await user.clear(field);
     await user.type(field, "legacy");
-    await waitFor(() =>
-      expect(screen.getByRole("status")).toHaveTextContent("No matches"),
-    );
+    await waitFor(() => expect(options()).toEqual(["legacy-review"]));
   });
 
   it("lists one entry per check type and workflow, at its newest version", async () => {

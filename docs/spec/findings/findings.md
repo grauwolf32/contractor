@@ -1904,6 +1904,30 @@ metadata, exact reads, publication and retention mechanisms. History listing doe
 not deserialize an old Finding model or hydrate a whole source fanout. Source
 history is historical data, never a second executable assessment ledger.
 
+## Common Audit Task provenance
+
+**FND-R220.** Authenticated finding intake resolves Audit origin from the
+ordinary allocation/Stage/Run and immutable common execution membership. A
+single-member Run may omit `item_key`; a batch must select one of its actual
+member keys. Missing or foreign membership grants no origin authority. Audit
+origin carries Audit, execution and Task IDs and the Task's optional exact
+system-pinned hypothesis reference. It carries no execution-role inference,
+model-supplied identity or verdict. Finding creation remains optional.
+
+**FND-R221.** Common collection pages only unretained and unrejected receipts
+for the admitted source Run/Audit. Existing holds and rejection events record
+progress; completed history is excluded before the page limit. Source quota
+bounds the containing Run to 4,096 receipts. Result assembly reads that bounded
+source index once, retains at most 128 receipt references per Task and records
+an explicit truncation limitation. Another member's references are independent;
+the complete exact source history remains in the Project Finding owner.
+
+**FND-R222.** Audit/task/hypothesis provenance is immutable source content and
+survives permitted Run or Audit deletion with retained Project sources. It has
+no FK that erases original identity on parent purge and does not create a second
+Finding lifecycle. Collection publication and Runtime readers use the shared
+ResourceId and exact revision rules for these origins.
+
 ## Non-goals
 
 - Compatibility variants of old development shapes: the application uses one

@@ -173,11 +173,6 @@ func (s *QueryStore) GetRound(ctx context.Context, auditID, roundID string) (aud
 	return round, err
 }
 
-// ListExecutionItems reads the members of one execution in batch order.
-func (s *QueryStore) ListExecutionItems(ctx context.Context, executionID string) ([]auditstore.ExecutionItem, error) {
-	return s.listExecutionItems(ctx, executionID)
-}
-
 // GetReportCandidate reads the frozen report candidate of an Audit's
 // pending report review.
 func (s *QueryStore) GetReportCandidate(ctx context.Context, auditID string) (auditstore.ReportCandidate, error) {

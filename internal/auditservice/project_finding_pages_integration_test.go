@@ -14,7 +14,6 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/auditstore/querystore"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/persistence/explaintest"
 	"github.com/jackc/pgx/v5"
@@ -355,61 +354,6 @@ func TestProjectFindingPagesStayBoundedAtTenThousandFindingsAndFiftyThousandSour
 		}
 	}
 
-	// Report assembly uses the same bounded membership windows even when a
-	// section has no matching current states. Check real generic query plans.
-	for _, section := range []auditstore.ReportSection{auditstore.ReportSectionProposed, auditstore.ReportSectionConfirmed} {
-		var after *auditstore.ReportFindingCursor
-		seen := map[string]bool{}
-		var first, last *correlationQueryTrace
-		windows := 0
-		for {
-			trace.reads = nil
-			window, err := querystore.New(pool, artifactpgtest.NewStorage()).ListReportFindings(ctx, auditstore.ReportFindingPageParams{AuditID: f.first, Section: section, After: after, Limit: 128, ProjectionBytes: 1 << 20})
-			if err != nil {
-				t.Fatal(err)
-			}
-			windows++
-			if windows > 80 {
-				t.Fatal("report window did not converge")
-			}
-			if len(trace.reads) != 1 {
-				t.Fatal("report window hydrated by multiple statements")
-			}
-			probe := trace.reads[0]
-			if first == nil {
-				first = &probe
-			}
-			last = &probe
-			for _, row := range window.Items {
-				if seen[row.FindingID] {
-					t.Fatal("report repeated a Finding")
-				}
-				seen[row.FindingID] = true
-			}
-			if window.ContinueAfter == nil {
-				break
-			}
-			after = window.ContinueAfter
-		}
-		want := 0
-		if section == auditstore.ReportSectionProposed {
-			want = 10000
-		}
-		if len(seen) != want || windows != 79 {
-			t.Fatalf("report %s rows=%d windows=%d", section, len(seen), windows)
-		}
-		for _, probe := range []*correlationQueryTrace{first, last} {
-			plan, err := explaintest.ExplainPrepared(ctx, f.pool, explaintest.Generic, probe.sql, probe.args...)
-			if err != nil {
-				t.Fatal(err)
-			}
-			for _, table := range []string{"project_finding_audits", "project_findings", "finding_proposal_receipts"} {
-				if reads := plan.Reads.Of(table); reads > 160 {
-					t.Fatalf("report %s read %d %s rows, budget 160\n%s", section, reads, table, plan.Plan.String())
-				}
-			}
-		}
-	}
 	old := *revision
 	if _, err := f.service.EditProjectFinding(ctx, f.edit(t, 1, "scale-edit", auditstore.VerdictFalsePositive)); err != nil {
 		t.Fatal(err)

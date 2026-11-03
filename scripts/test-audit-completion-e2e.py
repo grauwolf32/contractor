@@ -17,7 +17,6 @@ from pathlib import Path
 import release_test_reports as reports
 
 ROOT = Path(__file__).resolve().parents[1]
-PATTERN = "AuditCompletion|^TestImporter|^TestStandard"
 MATRIX = ROOT / "scripts/audit-completion-matrix.json"
 
 
@@ -27,6 +26,9 @@ redact = reports.redact
 
 def matrix() -> dict:
     return json.loads(MATRIX.read_text())
+
+
+PATTERN = reports.pattern(name for cases in matrix()["go"].values() for name in cases)
 
 
 def verify_go_report(path: Path) -> list[str]:

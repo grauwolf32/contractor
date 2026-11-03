@@ -196,6 +196,8 @@ type StageLineage struct {
 	EscalationOrdinal       *int
 	PreviousExecutionID     *string
 	ResumeSourceExecutionID *string
+	PlannerSessionID        *string
+	PlannerInvocationID     *string
 }
 
 // StageTransitionAction is the durable Scheduler decision made after one

@@ -1,12 +1,5 @@
 package auditstore
 
-import (
-	"encoding/json"
-	"time"
-
-	"github.com/grauwolf32/contractor/internal/auditdomain"
-)
-
 // PreparationSnapshot pins the complete resolved submission inputs and
 // parameters before a Run exists. Recovery never resolves mutable bindings.
 type PreparationSnapshot struct {
@@ -21,66 +14,4 @@ type PreparationOutput struct {
 	WorkflowOutput string        `json:"workflowOutput"`
 	Source         ExactArtifact `json:"source"`
 	Retained       ExactArtifact `json:"retained"`
-}
-
-type AcceptedPreparationOutput struct {
-	Inputs       map[string]ExactArtifact
-	ExecutionID  string
-	WorkflowRole string
-	RoleAttempt  int
-	RunID        string
-	Output       PreparationOutput
-}
-
-type PreparationRole struct {
-	WorkflowRole   string
-	Status         auditdomain.PreparationStatus
-	Attempts       int
-	MaxRunAttempts int
-	ExecutionID    *string
-}
-
-// PreparationAttempt is the latest attempt of a prepare role as the public
-// preparation projection reads it (ASC-R41 to ASC-R43). Outputs are the
-// retained output descriptors of an accepted attempt and empty otherwise.
-type PreparationAttempt struct {
-	ExecutionID string
-	RoleAttempt int
-	RunID       *string
-	State       ExecutionState
-	Outputs     []PreparationOutput
-}
-
-// ListedPreparationRole is one pinned prepare role of a listed Audit with its
-// latest attempt, which is nil while the role has none.
-type ListedPreparationRole struct {
-	PreparationRole
-	Latest *PreparationAttempt
-}
-
-// PreparedDetail is what the detail projection of a started Audit that pins
-// a prepare role reads from one commit (ASC-R149): the Audit, its pinned
-// prepare roles in role order, each with its latest attempt, and, while the
-// Audit is in the rounds phase and not deleting, its committed
-// initial-inventory link and its first Round (ASC-R146). A read that asks for
-// the current Round also holds that Round and only its items (AUD-R226);
-// CurrentRound is nil while the Audit has none.
-type PreparedDetail struct {
-	Audit         Audit
-	Roles         []ListedPreparationRole
-	InventoryLink *ArtifactLink
-	FirstRound    *Round
-	CurrentRound  *Round
-	CurrentItems  []Item
-}
-
-type StartPreparationParams struct {
-	OwnerID          string
-	AuditID          string
-	ExpectedRevision uint64
-	BaselineSnapshot json.RawMessage
-	DeadlineAt       time.Time
-	InitialRetained  []ArtifactLink
-	IdempotencyKey   string
-	RequestDigest    string
 }

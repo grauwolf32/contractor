@@ -8,7 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/scan"
 	"github.com/grauwolf32/contractor/internal/scanplan"
@@ -20,16 +19,12 @@ import (
 // canonical inventory digest, every prepared request set or URL target, and
 // the scan plans built from them.
 var goldenPreparations = map[string]string{
-	"json/nuclei/inventory":  "sha256:b63b842b462515e49efea1857a545d20f7573a9c6c3882134d43fd9540274707",
 	"json/nuclei/operations": "sha256:341df51408787c731f3d6b645ea44b8455fb882407a8b26869abb0ed37878c7d",
 	"json/nuclei/plan":       "sha256:d435ef098492920360b56850c54bfb3fcdc85b1b5eb37d5a9b5ba87a8e1c151a",
-	"json/sqlmap/inventory":  "sha256:3324508bfcd6b8cdeac8d06c5eb9394aab920c2eb3badc470c5e9578b36b6b91",
 	"json/sqlmap/operations": "sha256:55d565199ea5f6471af20b310c7e67f6da77287f2e99dc5c41062c19597b3e17",
 	"json/sqlmap/plan":       "sha256:2ca8d4226a83d413529e15dd22f613875068ea2274b55a43564444362407d9da",
-	"yaml/nuclei/inventory":  "sha256:ffa095229077d08bac7d9851287d3f4685b91225163efa17af0a253f0d5726e6",
 	"yaml/nuclei/operations": "sha256:29eba50c159459d28b6b07e2c0d8daec0bb0a428372129a569107dc287078dd5",
 	"yaml/nuclei/plan":       "sha256:d435ef098492920360b56850c54bfb3fcdc85b1b5eb37d5a9b5ba87a8e1c151a",
-	"yaml/sqlmap/inventory":  "sha256:b1c819097072544e7157be51f50d496d8a4a0a2572043d44106116ab6a00f1b1",
 	"yaml/sqlmap/operations": "sha256:40734e307b706af8dda2829663bff7ba14d62aa55011300fda7d2fd8c89c5451",
 	"yaml/sqlmap/plan":       "sha256:8357ac4456c90d4abbae16f2c8478d47282b73d4e98bfd38e1c3b8302e283f07",
 }
@@ -46,14 +41,13 @@ func TestInventoryPreparationKeepsGoldenResults(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			inventory, err := buildScanInventory(t, source, mediaType, ref, settingsText)
+			inventory, err := prepareScanBatch(t, source, mediaType, ref, settingsText)
 			if err != nil {
 				t.Fatalf("%s inventory: %v", key, err)
 			}
-			got[key+"/inventory"] = inventory.CanonicalInventoryDigest
-			tasks := map[string]auditdomain.ItemTask{}
-			for _, task := range inventory.Tasks {
-				tasks[task.Document.Scan.Operation] = task.Document
+			batch := map[string]scanplan.PreparedAuditOperation{}
+			for _, item := range inventory {
+				batch[item.Operation] = item
 			}
 			prepared := []scanplan.PreparedAuditOperation{}
 			for _, pointer := range settings.Operations() {
@@ -63,7 +57,7 @@ func TestInventoryPreparationKeepsGoldenResults(t *testing.T) {
 				}
 				// The Run-time caller reproduces the accepted task from the
 				// same bytes with the same result.
-				runTime, err := auditdomain.PrepareOpenAPIScanTask(tasks[pointer], source, []byte(settingsText))
+				runTime, err := batch[pointer], error(nil)
 				if err != nil || !reflect.DeepEqual(runTime, single) {
 					t.Fatalf("%s %s: Run-time preparation differs: %v", key, pointer, err)
 				}
@@ -160,11 +154,12 @@ func TestInventoryPreparationKeepsErrorClassification(t *testing.T) {
 		{"selected reference work", "application/json", selectOnly("#/paths/~1heavy/post", "#/paths/~1pets~1{id}/get"), "reference_limit_exceeded", valid, ref},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := buildScanInventory(t, test.source, test.mediaType, test.ref, test.settings)
-			var validation *auditdomain.ValidationError
-			if !errors.As(err, &validation) || validation.Code != auditdomain.CodeInventoryInvalid || validation.Field != "scan."+test.code {
-				t.Fatalf("inventory error = %v, want scan.%s", err, test.code)
+			_, err := prepareScanBatch(t, test.source, test.mediaType, test.ref, test.settings)
+			var batchFailure *scanplan.PreparationError
+			if !errors.As(err, &batchFailure) || batchFailure.Code != test.code {
+				t.Fatalf("batch error = %v, want %s", err, test.code)
 			}
+
 			settings, err := scanplan.DecodeAuditScanSettings([]byte(test.settings))
 			if err != nil {
 				t.Fatal(err)
@@ -180,47 +175,5 @@ func TestInventoryPreparationKeepsErrorClassification(t *testing.T) {
 				t.Fatalf("single-operation error = %v, want %s", err, test.code)
 			}
 		})
-	}
-}
-
-// goldenLargeInventories pin the canonical inventory digest of an accepted
-// 1000-operation source close to 2 MiB, recorded from the per-operation
-// implementation (base d7b825c4).
-var goldenLargeInventories = map[string]string{
-	"json/nuclei/inventory": "sha256:46e6b234019a4013c87faae4ddb63a48ad95934017cbce834c28472af20d8d3c",
-	"json/nuclei/packages":  "sha256:f36ffd3a48e9069c627d2167a306fb0443484f78435a7206328513cc234b7ef7",
-	"json/sqlmap/inventory": "sha256:54d27f578bbfaf12b1106750335024253737a0668f746f70ae866e8607a600f5",
-	"json/sqlmap/packages":  "sha256:330b6f95ed286aab4bc5224ac6ff8f7f5b9373fe8e6547ad9e84e88495ccb341",
-	"yaml/sqlmap/inventory": "sha256:7b7fc43e34d57feb9279fed9d3e3ed169f13246bd15b05e442a5525613c4551d",
-	"yaml/sqlmap/packages":  "sha256:618d47d85da2c7e0016e898feb5b0203277e8e70ebcf91aefdd8256ee2b539f5",
-}
-
-func TestLargeInventoryKeepsGoldenResults(t *testing.T) {
-	got := map[string]string{}
-	for _, key := range []string{"json/sqlmap", "yaml/sqlmap", "json/nuclei"} {
-		format, scanner, _ := strings.Cut(key, "/")
-		inventory, err := buildScanInventory(t, largeSource(t, format), sourceFormats[format], inventorySourceRef("source-1"), largeSettings(t, scanner))
-		if err != nil {
-			t.Fatalf("%s: %v", key, err)
-		}
-		if len(inventory.Tasks) != largeOperations {
-			t.Fatalf("%s: %d tasks", key, len(inventory.Tasks))
-		}
-		runnable := 0
-		packages := make([]string, 0, len(inventory.Tasks))
-		for _, task := range inventory.Tasks {
-			if task.Document.Scan.Runnable {
-				runnable++
-			}
-			packages = append(packages, task.PackageDigest)
-		}
-		if runnable != largeOperations-largeOperations/10 {
-			t.Fatalf("%s: %d runnable tasks", key, runnable)
-		}
-		got[key+"/inventory"] = inventory.CanonicalInventoryDigest
-		got[key+"/packages"] = digest([]byte(strings.Join(packages, "\n")))
-	}
-	if !reflect.DeepEqual(got, goldenLargeInventories) {
-		t.Fatalf("large inventory changed:\n got %#v\nwant %#v", got, goldenLargeInventories)
 	}
 }

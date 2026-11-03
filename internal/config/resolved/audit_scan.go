@@ -2,20 +2,22 @@ package resolved
 
 import (
 	"fmt"
+
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/scan"
 )
 
-// AuditScanConfig opts scan-plan@1 into trusted single-item preparation and
-// result assembly. Settings and manifest bytes are pinned Audit inputs.
-type AuditScanConfig struct {
-	Scanner          string `json:"scanner" yaml:"scanner"`
-	SettingsArtifact string `json:"settingsArtifact" yaml:"settingsArtifact"`
-	TaskArtifact     string `json:"taskArtifact" yaml:"taskArtifact"`
-	ManifestArtifact string `json:"manifestArtifact" yaml:"manifestArtifact"`
-	UnknownOutcome   string `json:"unknownOutcome" yaml:"unknownOutcome"`
+// ScanPreparationConfig prepares one fixed operation or target using exact
+// ordinary Workflow artifacts. It grants no Audit identity or dispatch authority.
+type ScanPreparationConfig struct {
+	Kind              string `json:"kind" yaml:"kind"`
+	Scanner           string `json:"scanner" yaml:"scanner"`
+	SettingsArtifact  string `json:"settingsArtifact" yaml:"settingsArtifact"`
+	OperationArtifact string `json:"operationArtifact,omitempty" yaml:"operationArtifact,omitempty"`
+	UnknownOutcome    string `json:"unknownOutcome" yaml:"unknownOutcome"`
 }
 
-func cloneAuditScan(value *AuditScanConfig) *AuditScanConfig {
+func cloneScanPreparation(value *ScanPreparationConfig) *ScanPreparationConfig {
 	if value == nil {
 		return nil
 	}
@@ -23,40 +25,62 @@ func cloneAuditScan(value *AuditScanConfig) *AuditScanConfig {
 	return &copy
 }
 
-func validateAuditScanStage(stage ResolvedStage) error {
-	value := stage.AuditScan
+func validateScanPreparationStage(stage ResolvedStage) error {
+	value := stage.ScanPreparation
 	if value == nil {
 		return nil
 	}
 	if value.Scanner != "sqlmap" && value.Scanner != "nuclei" {
-		return fmt.Errorf("auditScan scanner must be sqlmap or nuclei")
+		return fmt.Errorf("scanPreparation scanner must be sqlmap or nuclei")
 	}
 	if value.UnknownOutcome != "retain-gap" {
-		return fmt.Errorf("auditScan requires unknownOutcome retain-gap")
+		return fmt.Errorf("scanPreparation requires unknownOutcome retain-gap")
 	}
-	if stage.ScanPlan == nil || len(stage.ScanPlan.Tools) != 1 || len(stage.Agents) != 1 ||
-		stage.ScanPlan.MaxInputs != 1 || stage.ScanPlan.MaxJobs != 1 {
-		return fmt.Errorf("auditScan requires one Worker and one input/job per assigned item")
+	if value.Kind != "openapi-operation" && value.Kind != "web-target" {
+		return fmt.Errorf("unsupported scanPreparation kind")
+	}
+	if (value.Kind == "openapi-operation") != (value.OperationArtifact != "") {
+		return fmt.Errorf("OpenAPI preparation requires its exact operation artifact")
+	}
+	if stage.ScanPlan == nil || len(stage.ScanPlan.Tools) != 1 || len(stage.Agents) != 1 || stage.ScanPlan.MaxInputs != 1 || stage.ScanPlan.MaxJobs != 1 {
+		return fmt.Errorf("scanPreparation requires one Worker and one input/job")
 	}
 	tool := stage.ScanPlan.Tools[0]
 	binding, ok := stage.Agents[tool.Worker]
-	if !ok || binding.Template.Execution == nil || binding.Template.Execution.Tool != "scan_"+value.Scanner ||
-		tool.MaxJobs != 1 || len(tool.TestParameters) != 0 || tool.WordlistArtifact != "" {
-		return fmt.Errorf("auditScan Worker must match scanner; test parameters come from exact settings")
+	if !ok || binding.Template.Execution == nil || binding.Template.Execution.Tool != "scan_"+value.Scanner || tool.MaxJobs != 1 || len(tool.TestParameters) != 0 || tool.WordlistArtifact != "" {
+		return fmt.Errorf("scanPreparation Worker must match the exact scanner settings")
 	}
 	if value.Scanner == "nuclei" {
 		templates, ok := binding.Template.Execution.Arguments["template_ids"]
 		text, isString := templates.Value.(string)
 		if !ok || !(templates.Source == "literal" && isString && text != "" || scan.IsNucleiSelectionBinding("template_ids", templates)) {
-			return fmt.Errorf("auditScan Nuclei requires a literal or exact-settings template selection")
+			return fmt.Errorf("Nuclei preparation requires a literal or exact-settings template selection")
 		}
 	}
-	return validateAuditScanContext(stage)
+	if value.Kind == "web-target" {
+		if value.Scanner != "nuclei" {
+			return fmt.Errorf("web target preparation requires Nuclei")
+		}
+		for _, name := range []string{"template_ids", "tags", "severity", "rate_limit"} {
+			if !scan.IsNucleiSelectionBinding(name, binding.Template.Execution.Arguments[name]) {
+				return fmt.Errorf("web target preparation requires exact-settings selection bindings")
+			}
+		}
+		pin := binding.Template.Execution.Arguments["templates_digest"]
+		digest, ok := pin.Value.(string)
+		if pin.Source != "literal" || !ok || contracts.ValidateDigest("templates_digest", digest) != nil {
+			return fmt.Errorf("web target preparation requires a pinned installed package")
+		}
+	}
+	return validateScanPreparationContext(stage)
 }
 
-func validateAuditScanContext(stage ResolvedStage) error {
-	value := stage.AuditScan
-	slots := []string{stage.ScanPlan.InputArtifact, value.SettingsArtifact, value.TaskArtifact, value.ManifestArtifact}
+func validateScanPreparationContext(stage ResolvedStage) error {
+	value := stage.ScanPreparation
+	slots := []string{stage.ScanPlan.InputArtifact, value.SettingsArtifact}
+	if value.OperationArtifact != "" {
+		slots = append(slots, value.OperationArtifact)
+	}
 	for _, agent := range stage.Agents {
 		if binding, exists := agent.Template.Execution.Arguments["rulepack_ref"]; exists && scan.IsNucleiSelectionBinding("rulepack_ref", binding) {
 			slots = append(slots, binding.Name)
@@ -65,28 +89,26 @@ func validateAuditScanContext(stage ResolvedStage) error {
 	seen := map[string]bool{}
 	for _, name := range slots {
 		if seen[name] {
-			return fmt.Errorf("auditScan artifact slots must be distinct")
+			return fmt.Errorf("scanPreparation artifact slots must be distinct")
 		}
 		seen[name] = true
-		context, exists := stage.Context.Artifacts[name]
+		input, exists := stage.Context.Artifacts[name]
 		if !exists {
-			return fmt.Errorf("auditScan context input is absent")
+			return fmt.Errorf("scanPreparation context input is absent")
 		}
-		if name == "rulepack" && !context.Required {
-			if ValidateArtifactComponent("rulepack context", context.Name) != nil {
+		if name == "rulepack" && !input.Required {
+			if ValidateArtifactComponent("rulepack context", input.Name) != nil {
 				return fmt.Errorf("invalid rulepack context")
 			}
-		} else {
-			if err := scanPlanContextArtifact(stage, name); err != nil {
-				return err
-			}
+		} else if err := scanPlanContextArtifact(stage, name); err != nil {
+			return err
 		}
-		if stage.Context.Artifacts[name].Namespace != "inputs" {
-			return fmt.Errorf("auditScan requires direct immutable Workflow inputs")
+		if input.Namespace != "inputs" {
+			return fmt.Errorf("scanPreparation requires immutable Workflow inputs")
 		}
 	}
 	if len(stage.Context.Artifacts) != len(slots) || stage.Context.Workspace != nil {
-		return fmt.Errorf("auditScan accepts only source, settings, task and execution manifest context")
+		return fmt.Errorf("scanPreparation accepts only its declared source, operation, settings and rulepack")
 	}
 	return nil
 }

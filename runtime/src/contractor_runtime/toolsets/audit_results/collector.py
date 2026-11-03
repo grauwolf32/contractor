@@ -1,16 +1,13 @@
-"""Bounded, invocation-owned Audit drafts. No artifacts or ADK State are mutated."""
+"""Bounded invocation-local drafts for ordinary Audit conclusions."""
 
 import asyncio
 from copy import deepcopy
-from dataclasses import replace
 from functools import partial
 
 from contractor_runtime import threads
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.core.worker_completion import WorkerCompletionError
 from contractor_runtime.toolsets.audit_results.contracts import (
-    MAX_COLLECTED_BYTES,
-    MAX_EVIDENCE,
     MAX_ITEMS,
     MAX_PROPOSAL_KEYS,
     MAX_REVISION,
@@ -23,38 +20,25 @@ from contractor_runtime.toolsets.audit_results.contracts import (
 )
 from contractor_runtime.toolsets.audit_results.encoding import (
     AuditResultError,
-    CanonicalAuditPackageEncoder,
+    CanonicalAuditResultEncoder,
+    evidence_handles,
 )
-from contractor_runtime.toolsets.audit_results.packages import _requested_coverage
-from contractor_runtime.toolsets.common.cwe import (
-    CWEReferenceError,
-    check_cwe_reference,
-)
+from contractor_runtime.toolsets.common.cwe import CWEReferenceError, check_cwe_reference
 
 
 class AuditCollectionError(WorkerCompletionError, ToolInputError):
-    """Runtime-authored reasons and bounded invalid identifiers may enter diagnostics."""
+    """Safe field errors contain Runtime-authored explanations only."""
 
     code = "audit_result_invalid"
 
-    def __init__(
-        self,
-        field: str,
-        reason: str,
-        *,
-        item_key: str | None = None,
-        current_revision: int | None = None,
-        details: dict | None = None,
-    ):
+    def __init__(self, field, reason, *, item_key=None, current_revision=None):
         super().__init__(f"{field}: {reason}")
-        self.field = field
-        self.reason = reason
-        self.item_key = item_key
-        self.current_revision = current_revision
-        self.details = details or {}
+        self.field, self.reason = field, reason
+        self.item_key, self.current_revision = item_key, current_revision
+        self.details = {}
 
     def as_dict(self):
-        result = {"code": self.code, "field": self.field, "message": self.reason, **self.details}
+        result = {"code": self.code, "field": self.field, "message": self.reason}
         if self.item_key is not None:
             result["itemKey"] = self.item_key
         if self.current_revision is not None:
@@ -63,39 +47,21 @@ class AuditCollectionError(WorkerCompletionError, ToolInputError):
 
 
 class InvocationAuditCollector:
-    """Create afresh for each invocation; the owner and input bytes never change.
+    """One invocation owns drafts, revisions and a final immutable seal.
 
-    Acceptance, sealing and discard are serialized by one lock. The integration
-    owner must discard in its failure/cancellation cleanup; there is no durable
-    state to recover after process loss. Explicit-update replay retains one
-    revision number per item, never an unbounded history of submitted content.
+    Admission encodes at most 64 members and 8 MiB off the event loop. The lock
+    serializes updates, sealing and discard; cancellation joins owned encoding
+    before releasing it. Nothing survives the invocation except normal artifacts.
     """
 
-    def __init__(self, inputs: AuditTrustedInputs, encoder: CanonicalAuditPackageEncoder):
-        self._inputs = inputs
-        self._encoder = encoder
-        # The allocation's encoder checks task/manifest membership, digests and
-        # order once; each invocation reuses its immutable decoded records.
-        decoded = encoder.trusted_inputs(inputs)
-        self._tasks = decoded.tasks
-        self._package_ids = decoded.records.package_ids
-        self._execution_manifest_digest = decoded.execution_manifest_digest
-        for task in self._tasks.values():
-            _requested_coverage(task)
+    def __init__(self, inputs: AuditTrustedInputs, encoder: CanonicalAuditResultEncoder):
+        self._inputs, self._encoder = inputs, encoder
+        self._tasks = encoder.trusted_inputs(inputs).items
         self._items: dict[str, RecordedAuditItem] = {}
         self._replayed_from: dict[str, int] = {}
-        # Only successful finding calls in this invocation can supply link keys.
-        # The task set bounds the number of distinct links we can publish.
-        self._proposals: dict[str, frozenset[tuple[str, str, str]]] = {}
-        self._assigned_refs = {
-            (standard["scheme"], standard["version"], entry_id)
-            for task in self._tasks.values()
-            if (standard := task.get("standard")) is not None
-            for entry_id in standard["entry_ids"]
-        }
+        self._proposals: dict[str, frozenset] = {}
         self._lock = asyncio.Lock()
-        self._sealed = False
-        self._discarded = False
+        self._sealed = self._discarded = False
 
     @property
     def owner(self):
@@ -114,208 +80,72 @@ class InvocationAuditCollector:
             self._check_live()
             self.check_invocation(invocation_id)
             tasks = deepcopy(list(self._tasks.values()))
-            result = {
-                "batchSize": len(tasks),
-                "tasks": tasks,
-                "taskPackageIds": list(self._package_ids),
-                "requestedCoverage": [_requested_coverage(task) for task in tasks],
-                "executionManifestDigest": self._execution_manifest_digest,
-            }
-            if len(tasks) == 1:
-                result.update(task=tasks[0], taskPackageId=self._package_ids[0])
-            return result
+            for task in tasks:
+                task["evidence"] = [
+                    {"handle": handle, "material": material}
+                    for handle, material in evidence_handles(task).items()
+                ]
+            return {"batchSize": len(tasks), "tasks": tasks}
 
     def check_invocation(self, invocation_id: str):
         if invocation_id != self.owner.invocation_id:
             raise AuditCollectionError("invocation", "Tool belongs to a different invocation.")
 
-    def check_proposal_refs(
-        self, invocation_id: str, standard_refs: list[dict[str, str]]
-    ) -> frozenset[tuple[str, str, str]]:
-        """Preflight an Audit finding before the Server receives its proposal."""
+    def check_finding_item(self, invocation_id, item_key):
         self._check_live(writing=True)
         self.check_invocation(invocation_id)
-        refs: set[tuple[str, str, str]] = set()
-        for reference in standard_refs:
-            identity = (reference["scheme"], reference["version"], reference["requirement_id"])
-            if identity in refs:
-                raise AuditCollectionError(
-                    "standard_refs", "Remove duplicate standard references from the finding."
-                )
-            refs.add(identity)
-            if reference["scheme"] == "CWE":
-                try:
-                    check_cwe_reference(reference)
-                except CWEReferenceError as error:
-                    raise AuditCollectionError("standard_refs", error.reason) from None
-            elif identity not in self._assigned_refs:
-                raise AuditCollectionError(
-                    "standard_refs",
-                    "Use only exact standard references from the assigned Audit tasks.",
-                )
-        return frozenset(refs)
+        if item_key is None and len(self.owner.item_keys) == 1:
+            return
+        if not isinstance(item_key, str) or item_key not in self.owner.item_keys:
+            raise AuditCollectionError(
+                "item_key", "Choose the assigned Audit task for this finding."
+            )
 
-    async def register_proposal(
-        self, invocation_id: str, client_key: str, standard_refs: list[dict[str, str]]
-    ) -> None:
-        """Remember a successful finding receipt for this invocation only."""
+    def check_proposal_refs(self, invocation_id, standard_refs):
+        # Finding intake owns standards and publication authority. Audit completion
+        # only checks invocation lifetime and the existing CWE contract locally.
+        self._check_live(writing=True)
+        self.check_invocation(invocation_id)
+        refs = frozenset(
+            (ref["scheme"], ref["version"], ref["requirement_id"]) for ref in standard_refs
+        )
+        if len(refs) != len(standard_refs):
+            raise AuditCollectionError("standard_refs", "Remove duplicate standard references.")
+        for reference in standard_refs:
+            try:
+                check_cwe_reference(reference)
+            except CWEReferenceError as error:
+                raise AuditCollectionError("standard_refs", error.reason) from None
+        return refs
+
+    async def register_proposal(self, invocation_id, client_key, standard_refs):
         async with self._lock:
             refs = self.check_proposal_refs(invocation_id, standard_refs)
             existing = self._proposals.get(client_key)
             if existing is not None and existing != refs:
-                raise AuditCollectionError(
-                    "proposal_keys", "A finding client key changed its standard references."
-                )
+                raise AuditCollectionError("client_key", "Finding client key changed content.")
             if existing is None and len(self._proposals) >= MAX_ITEMS * MAX_PROPOSAL_KEYS:
-                raise AuditCollectionError(
-                    "proposal_keys", "This invocation has reached its finding proposal limit."
-                )
+                raise AuditCollectionError("client_key", "Invocation finding limit reached.")
             self._proposals[client_key] = refs
 
-    def retained_http_evidence(self, item_key: str, request_id: str):
-        """Reuse accepted immutable observation facts even after buffer eviction.
-
-        Event-loop reads are bounded by one item's evidence list. The later
-        locked record operation still enforces revision, seal and lifecycle.
-        """
-        current = self._items.get(item_key)
-        if current is not None:
-            return next(
-                (e for e in current.value.evidence if e.http_request_id == request_id), None
-            )
-        return None
-
     def _validate(self, item: NormalizedAuditItem):
-        if not isinstance(item, NormalizedAuditItem):
-            raise AuditCollectionError("result", "Provide a normalized result.")
-        if item.item_key not in self._tasks:
+        if not isinstance(item, NormalizedAuditItem) or item.item_key not in self._tasks:
             raise AuditCollectionError("item_key", "Choose an item key from read_audit_task.")
-        key = item.item_key
-        task = self._tasks[key]
-        item = replace(
-            item,
-            completed=tuple(sorted(item.completed)),
-            gaps=tuple(sorted(item.gaps)),
-            proposal_keys=tuple(sorted(item.proposal_keys)),
-        )
-        for proposal_key in item.proposal_keys:
-            refs = self._proposals.get(proposal_key)
-            if refs is None:
-                raise AuditCollectionError(
-                    "proposal_keys",
-                    "Use the client_key returned by a successful finding call in this invocation; "
-                    "receipt_id and proposal_id cannot be linked.",
-                    item_key=key,
-                    details={"invalidValue": proposal_key},
-                )
-            if (standard := task.get("standard")) is not None:
-                missing = sorted(
-                    set(standard["entry_ids"])
-                    - {
-                        entry_id
-                        for scheme, version, entry_id in refs
-                        if scheme == standard["scheme"] and version == standard["version"]
-                    }
-                )
-                if missing:
-                    raise AuditCollectionError(
-                        "proposal_keys",
-                        "The linked finding must cite every assigned standard entry in "
-                        "standard_refs; submit a corrected finding and use its client_key.",
-                        item_key=key,
-                        details={"missingEntryIds": missing},
-                    )
-        requested = _requested_coverage(task)
-        for index, value in enumerate(item.completed):
-            if value not in requested:
-                raise AuditCollectionError(
-                    "completed",
-                    "Value is not requested by the assigned task. Use only allowedValues; "
-                    "do not mark unverified coverage completed.",
-                    item_key=key,
-                    details={
-                        "index": index,
-                        "invalidValue": value[:160],
-                        # A copy: the decoded task is shared by the allocation.
-                        "allowedValues": list(requested),
-                    },
-                )
-        if task.get("operation") is not None:
-            if item.assessment == "not-tested" and item.completed:
-                raise AuditCollectionError(
-                    "completed",
-                    "A not-tested operation must have empty completed coverage.",
-                    item_key=key,
-                )
-            return item
-        if (
-            item.assessment == "supported"
-            and task.get("profile_mode") != "risk-assessment"
-            and task.get("finding") is None
+        member = self._tasks[item.item_key]
+        if ("hypothesis" in member) != (item.verdict is not None):
+            raise AuditCollectionError(
+                "verdict", "Supply a verdict only for a task with an assigned hypothesis."
+            )
+        if item.verdict in {"supported", "refuted"} and (
+            not item.tested_conditions or not item.evidence
         ):
             raise AuditCollectionError(
-                "assessment",
-                "Use satisfied or violated for a non-risk checklist task; "
-                "supported is reserved for risk assessments and finding checks.",
-                item_key=key,
+                "evidence", "A conclusive check needs tested conditions and selected evidence."
             )
-        conclusive = item.assessment in {"satisfied", "violated", "supported", "refuted"}
-        required_kinds = task.get("checklist", {}).get("required_evidence", [])
-        live_http = (
-            "http-observation" in required_kinds
-            or task.get("finding", {}).get("method") == "http-probe"
-        )
-        if (
-            conclusive
-            and live_http
-            and not any(
-                e.http_capture is not None
-                and (
-                    e.kind == "http-observation"
-                    or task.get("finding", {}).get("method") == "http-probe"
-                )
-                for e in item.evidence
-            )
-        ):
-            raise AuditCollectionError(
-                "evidence",
-                "A live HTTP check requires selected HTTP evidence; "
-                "otherwise record an explicit gap and inconclusive result.",
-                item_key=key,
-            )
-        standard = task.get("standard")
-        if standard is not None:
-            contract = standard["evidence_contract"]
-            if item.assessment not in contract["assessments"]:
-                raise AuditCollectionError(
-                    "assessment",
-                    "Use an assessment allowed by the pinned standard.",
-                    item_key=key,
-                )
-            if len(item.evidence) > contract["maximum_evidence"] or (
-                conclusive and len(item.evidence) < contract["minimum_evidence"]
-            ):
-                raise AuditCollectionError(
-                    "evidence",
-                    "Match the pinned standard's minimum/maximum evidence count.",
-                    item_key=key,
-                )
-            if any(value.kind not in contract["evidence_kinds"] for value in item.evidence):
-                raise AuditCollectionError(
-                    "evidence.kind",
-                    "Use evidence kinds allowed by the pinned standard.",
-                    item_key=key,
-                )
-        if conclusive and task.get("checklist") is not None:
-            missing = sorted(set(requested) - {value.kind for value in item.evidence})
-            if missing:
-                # Trusted, bounded identifiers only; cap large checklists' diagnostics.
-                names = ", ".join(missing[:8])
-                raise AuditCollectionError(
-                    "evidence",
-                    f"Missing required evidence kinds ({len(missing)}): {names}.",
-                    item_key=key,
-                )
+        if item.verdict == "inconclusive" and not item.limitations:
+            raise AuditCollectionError("limitations", "Explain why the check is inconclusive.")
+        if any(handle not in evidence_handles(member) for handle in item.evidence):
+            raise AuditCollectionError("evidence", "Use evidence handles from this assigned task.")
         return item
 
     def _snapshot(self, items=None):
@@ -326,51 +156,15 @@ class InvocationAuditCollector:
         )
 
     async def _admit(self, prospective):
-        """Validate a prospective collection; the caller holds the lock throughout.
-
-        The whole prospective package is encoded off the event loop. The lock
-        stays held until that thread returns, so no other admission, seal or
-        discard interleaves, and a cancelled caller joins the encoding before
-        the cancellation propagates without replacing the collection.
-        """
-        owners: dict[str, str] = {}
-        for item in prospective.values():
-            for proposal_key in item.value.proposal_keys:
-                prior = owners.setdefault(proposal_key, item.value.item_key)
-                if prior != item.value.item_key:
-                    raise AuditCollectionError(
-                        "proposal_keys",
-                        "Link a finding proposal to only one assigned Audit item.",
-                        item_key=item.value.item_key,
-                        details={"invalidValue": proposal_key},
-                    )
-        if (
-            sum(
-                len(e.http_capture or b"")
-                for item in prospective.values()
-                for e in item.value.evidence
-            )
-            > MAX_COLLECTED_BYTES
-        ):
-            raise AuditCollectionError(
-                "evidence", "Selected HTTP evidence exceeds collection bytes."
-            )
-        if sum(len(item.value.evidence) for item in prospective.values()) > MAX_EVIDENCE:
-            raise AuditCollectionError(
-                "evidence", "Collection allows at most 256 evidence records."
-            )
         try:
             await threads.to_thread_until_done(
                 partial(self._encoder.encode, self._snapshot(prospective), inputs=self.inputs),
                 name="audit-admission-encode",
             )
-        except AuditResultError as error:
-            reason = (
-                "Prospective collection exceeds canonical data, member or ZIP bounds; reduce data."
-                if error.code == "audit_result_size_exceeded"
-                else "Prospective result cannot be encoded; check the assigned task and result."
-            )
-            raise AuditCollectionError("collection", reason) from None
+        except AuditResultError:
+            raise AuditCollectionError(
+                "collection", "Prospective conclusions exceed the JSON document contract."
+            ) from None
 
     def _receipt(self):
         return AuditRecordReceipt(

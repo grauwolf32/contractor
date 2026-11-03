@@ -1,10 +1,10 @@
 import {
+  type KeyboardEvent,
   useEffect,
   useId,
   useMemo,
   useRef,
   useState,
-  type KeyboardEvent,
 } from "react";
 import { useLocation, useNavigate } from "react-router";
 
@@ -227,8 +227,7 @@ function checkTypeOptions(
   profiles: readonly AuditProfile[],
   projectId: string | undefined,
 ): PaletteOption[] {
-  const runnable = profiles.filter((profile) => profile.serverCompatible);
-  return newestByName(runnable, (profile) => profile.ref).map((profile) =>
+  return newestByName(profiles, (profile) => profile.ref).map((profile) =>
     option(
       {
         key: `check-type:${profile.ref.name}`,
@@ -240,7 +239,7 @@ function checkTypeOptions(
           type: profile.ref.name,
         }),
       },
-      `${profile.ref.version} ${profile.mode.replaceAll("-", " ")}`,
+      profile.ref.version,
     ),
   );
 }

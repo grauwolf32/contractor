@@ -17,9 +17,7 @@ export function useAuditProjectionRefresh(
   useEffect(() => {
     const before = previous.current;
     previous.current = audit;
-    const phaseChanged =
-      before.phase !== audit.phase ||
-      before.currentRoundId !== audit.currentRoundId;
+    const phaseChanged = before.taskCount !== audit.taskCount;
     if (
       !enabled ||
       before.auditId !== audit.auditId ||

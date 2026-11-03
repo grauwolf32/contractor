@@ -101,7 +101,8 @@ func (p *CollectionPublisher) PublishFindingExport(ctx context.Context, ownerID,
 			if origin.Audit != nil {
 				value.Origin.AuditID = origin.Audit.AuditID
 				value.Origin.ExecutionID = origin.Audit.ExecutionID
-				value.Origin.Role = origin.Audit.Role
+				value.Origin.TaskID = origin.Audit.TaskID
+				value.Origin.Hypothesis = origin.Audit.Hypothesis
 			}
 			for _, doc := range documents {
 				original := origins[doc.ID]

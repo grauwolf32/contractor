@@ -34,12 +34,11 @@ func TestSharedOpenAPIDocumentBoundsMatchAuthoringAndPreparation(t *testing.T) {
 					t.Fatal(err)
 				}
 				for _, packaged := range []bool{false, true} {
-					options := testInventoryOptions("trace")
-					var inventory Inventory
+					var inventory PreparedOpenAPIWork
 					if packaged {
-						inventory, err = BuildOpenAPIInventoryFromPackage(payload, options)
+						inventory, err = prepareTestWork(t, payload, PackageMediaType)
 					} else {
-						inventory, err = BuildOpenAPIInventory(source, mediaType, options)
+						inventory, err = prepareTestWork(t, source, mediaType)
 					}
 					if tc.Violation != nil {
 						if err == nil {
@@ -50,32 +49,25 @@ func TestSharedOpenAPIDocumentBoundsMatchAuthoringAndPreparation(t *testing.T) {
 					if err != nil {
 						t.Fatalf("packaged=%v rejected accepted source: %v", packaged, err)
 					}
-					if len(inventory.CanonicalInventory) == 0 {
-						t.Fatal("missing canonical inventory")
-					}
-					for _, task := range inventory.Tasks {
-						encoded, err := EncodeItemTask(task.Document)
-						if err != nil {
-							t.Fatal(err)
-						}
-						decoded, err := DecodeItemTask(encoded)
-						if err != nil || decoded.Operation == nil {
-							t.Fatalf("retained operation task: %v", err)
+					for _, item := range inventory.Items {
+						material := decodePreparedTestItem(t, item)
+						if material.Operation == nil {
+							t.Fatal("ordinary material lost its operation")
 						}
 					}
+
 				}
 				// Scan inventory copies source identities, not source strings, into tasks.
 				// The shared path-template cases exercise source parsing; URL and operation
 				// pointer bounds of actual scan preparation remain separate contracts.
 				if tc.String != nil && tc.String.Kind != "path" {
 					settings := []byte(`{"schema":"contractor.audit.openapi-scan-settings.v1","scanner":"nuclei","server":"https://target.test","operations":{"#/paths/~1bounds/get":{}}}`)
-					options := testInventoryOptions("scan")
-					options.ApprovalRequirement = ApprovalActiveCheck
-					input := ExactInput{Name: "settings", Ref: options.SourceRef.Clone(), Digest: DigestBytes(settings)}
-					input.Ref.Name = "settings"
-					if _, err := BuildOpenAPIScanInventory(source, mediaType, settings, input, options); err != nil {
-						t.Fatalf("scan inventory rejected shared string case: %v", err)
+					input := scanWorkTestInput(source, settings)
+					input.Source.MediaType = mediaType
+					if _, err := BuildPreparedOpenAPIWork(t.Context(), input); err != nil {
+						t.Fatal(err)
 					}
+
 				}
 			})
 		}
@@ -99,30 +91,26 @@ func TestOpenAPIInventoryResolvesLongLocalPointersAndKeepsInternalBounds(t *test
 	name := "x-" + strings.Repeat("a", MaximumStringBytes)
 	description := strings.Repeat("d", MaximumStringBytes+1)
 	source := []byte(`{"openapi":"3.1.0","paths":{"/bounds":{"get":{"responses":{"200":{"$ref":"#/components/responses/` + name + `"}}}}},"components":{"responses":{"` + name + `":{"description":"` + description + `"}}}}`)
-	inventory, err := BuildOpenAPIInventory(source, "application/json", testInventoryOptions("trace"))
+	inventory, err := prepareTestWork(t, source, "application/json")
 	if err != nil {
 		t.Fatal(err)
 	}
-	operation := inventory.Tasks[0].Document.Operation.Resolved["operation"].(map[string]any)
+	operation := decodePreparedTestItem(t, inventory.Items[0]).Operation.Resolved["operation"].(map[string]any)
 	response := operation["responses"].(map[string]any)["200"].(map[string]any)
 	if response["description"] != description {
 		t.Fatal("local reference lost source description")
 	}
-	task := inventory.Tasks[0].Document
-	task.Scope = map[string]string{"objective": description}
-	if _, err := EncodeItemTask(task); err == nil {
-		t.Fatal("operation source allowance relaxed internal scope limit")
-	}
+
 }
 
 func TestOpenAPIInventoryCanonicalEncodingDoesNotInflateHTML(t *testing.T) {
 	description := strings.Repeat("<", 1500000)
 	source := []byte(`{"openapi":"3.1.0","paths":{"/bounds":{"get":{"description":"` + description + `","responses":{"200":{"description":"ok"}}}}}}`)
-	inventory, err := BuildOpenAPIInventory(source, "application/json", testInventoryOptions("trace"))
+	inventory, err := prepareTestWork(t, source, "application/json")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(inventory.CanonicalInventory), description) {
+	if !strings.Contains(string(inventory.Items[0].Data), description) {
 		t.Fatal("canonical inventory changed source text")
 	}
 }
@@ -134,12 +122,12 @@ func TestOpenAPIInventoryBoundsExpandedValuesBeforePublishing(t *testing.T) {
 	ref := `{"$ref":"#/components/schemas/Shared"}`
 	for _, copies := range []int{2, 3} {
 		source := []byte(`{"openapi":"3.1.0","paths":{"/bounds":{"get":{"x-repeated":[` + strings.TrimSuffix(strings.Repeat(ref+",", copies), ",") + `]}}},"components":{"schemas":{"Shared":{"enum":[` + values + `]}}}}`)
-		inventory, err := BuildOpenAPIInventory(source, "application/json", testInventoryOptions("trace"))
-		if copies == 2 && (err != nil || len(inventory.Tasks) != 1) {
+		inventory, err := prepareTestWork(t, source, "application/json")
+		if copies == 2 && (err != nil || len(inventory.Items) != 1) {
 			t.Fatalf("bounded expansion: %v", err)
 		}
-		if copies == 3 && (ErrorCode(err) != CodeLimitExceeded || len(inventory.Tasks) != 0) {
-			t.Fatalf("over-budget expansion: %v, tasks=%d", err, len(inventory.Tasks))
+		if copies == 3 && (testDomainErrorCode(err) != CodeLimitExceeded || len(inventory.Items) != 0) {
+			t.Fatalf("over-budget expansion: %v, tasks=%d", err, len(inventory.Items))
 		}
 	}
 }
@@ -213,14 +201,14 @@ func TestOpenAPIInventoryRejectsReferenceByteAmplification(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, packaged := range []bool{false, true} {
-		var inventory Inventory
+		var inventory PreparedOpenAPIWork
 		if packaged {
-			inventory, err = BuildOpenAPIInventoryFromPackage(payload, testInventoryOptions("trace"))
+			inventory, err = prepareTestWork(t, payload, PackageMediaType)
 		} else {
-			inventory, err = BuildOpenAPIInventory(source, "application/json", testInventoryOptions("trace"))
+			inventory, err = prepareTestWork(t, source, "application/json")
 		}
-		if ErrorCode(err) != CodeInventoryInvalid || len(inventory.Tasks) != 0 {
-			t.Fatalf("packaged=%v: err=%v tasks=%d", packaged, err, len(inventory.Tasks))
+		if testDomainErrorCode(err) != CodeInventoryInvalid || len(inventory.Items) != 0 {
+			t.Fatalf("packaged=%v: err=%v tasks=%d", packaged, err, len(inventory.Items))
 		}
 	}
 }

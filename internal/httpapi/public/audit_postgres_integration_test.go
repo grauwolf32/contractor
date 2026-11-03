@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strconv"
 	"testing"
 	"time"
 
@@ -143,7 +142,7 @@ func TestAuditPostgresPublicCreateStartAndQuery(t *testing.T) {
 	var started auditStartResponse
 	if err := json.Unmarshal(startedResponse.Body.Bytes(), &started); err != nil ||
 		started.Audit.State != auditstore.AuditActive || started.Audit.HoldState != auditstore.HoldHeld ||
-		started.Audit.Baseline == nil || len(started.Items) != 1 || started.Round.ExpectedItemCount != 1 {
+		started.Audit.Baseline == nil || started.Audit.TaskCount != 0 {
 		t.Fatalf("started response = (%+v, %v)", started, err)
 	}
 	if !slices.Equal(started.Audit.Baseline.RequiredPlacementLabels, draft.RequiredPlacementLabels) {
@@ -171,33 +170,15 @@ func TestAuditPostgresPublicCreateStartAndQuery(t *testing.T) {
 	serve(h.startAudit)(reusedStarted, reusedStart)
 	assertIdempotencyConflict(t, reusedStarted)
 
-	coverage := auditAuthenticatedRequest(http.MethodGet, "/v1/audits/"+draft.AuditID+"/coverage", nil)
-	coverage.SetPathValue("auditId", draft.AuditID)
-	coverageResponse := httptest.NewRecorder()
-	serve(h.listAuditCoverage)(coverageResponse, coverage)
-	var page auditCoveragePageResponse
-	if coverageResponse.Code != http.StatusOK || json.Unmarshal(coverageResponse.Body.Bytes(), &page) != nil ||
-		len(page.Items) != 1 || page.Items[0].Coverage.Status != auditstore.CoverageNotTested {
-		t.Fatalf("coverage = %d body=%s", coverageResponse.Code, coverageResponse.Body.String())
+	tasksRequest := auditAuthenticatedRequest(http.MethodGet, "/v1/audits/"+draft.AuditID+"/tasks", nil)
+	tasksRequest.SetPathValue("auditId", draft.AuditID)
+	tasksResponse := httptest.NewRecorder()
+	h.listAuditTasks(tasksResponse, tasksRequest)
+	var taskPage struct {
+		Items []auditTaskResponse `json:"items"`
 	}
-	if page.Items[0].Details == nil || page.Items[0].Details.Objective == "" || !json.Valid(page.Items[0].Details.TaskDocument) {
-		t.Fatalf("coverage omitted the worker task: %s", coverageResponse.Body.String())
-	}
-	if current, err := audits.Get(ctx, project.OwnerID, draft.AuditID); err != nil || page.AuditRevision != current.Revision {
-		t.Fatalf("coverage page revision = %d, Audit = (%+v, %v)", page.AuditRevision, current, err)
-	}
-	for _, pin := range []struct {
-		revision uint64
-		status   int
-	}{{page.AuditRevision, http.StatusOK}, {page.AuditRevision - 1, http.StatusConflict}} {
-		pinned := auditAuthenticatedRequest(http.MethodGet,
-			"/v1/audits/"+draft.AuditID+"/coverage?auditRevision="+strconv.FormatUint(pin.revision, 10), nil)
-		pinned.SetPathValue("auditId", draft.AuditID)
-		pinnedResponse := httptest.NewRecorder()
-		serve(h.listAuditCoverage)(pinnedResponse, pinned)
-		if pinnedResponse.Code != pin.status {
-			t.Fatalf("coverage pinned to revision %d = %d %s", pin.revision, pinnedResponse.Code, pinnedResponse.Body.String())
-		}
+	if tasksResponse.Code != http.StatusOK || json.Unmarshal(tasksResponse.Body.Bytes(), &taskPage) != nil || len(taskPage.Items) != 0 {
+		t.Fatalf("start invented selected tasks before controller intake: %d %s", tasksResponse.Code, tasksResponse.Body.String())
 	}
 
 	t.Run("paused Resume and terminal rejection", func(t *testing.T) {
@@ -261,39 +242,20 @@ func loadPublicAuditConfigurationWith(t *testing.T, edit func(root string)) *con
 kind: AuditProfile
 metadata: {name: public-checklist, version: "1"}
 spec:
-  mode: custom-checklist
-  standards: []
+  schema: contractor.audit.program.v1
   inputs:
-    source: {required: true, mediaTypes: [application/zip]}
-    checklist: {required: true, mediaTypes: [application/json]}
-  inventory:
-    implementation: checklist@1
-    source: {source: audit-input, name: checklist}
-    itemWorkflowRole: check
+    source: {required: true, media_types: [application/zip]}
+    checklist: {required: true, media_types: [application/json]}
   workflows:
-    check:
-      kind: check
+    inspect:
       ref: openapi-from-workspace@7
-      inputs:
-        source: {source: audit-input, name: source}
-      parameters:
-        objective: {source: item-field, name: subjectKey}
-      outputs: {result: openapi}
-  execution:
-    roundMode: fixed-barrier
-    maxRounds: 1
-    batchSize: 1
-    maxItemsPerRound: 10
-    maxItemsTotal: 10
-    maxSubmittedRuns: 20
-    maxItemRunAttempts: 2
-    deadlineSeconds: 3600
-    maxEvidenceBytes: 1048576
-    incompleteRound: assess-with-gaps
-  interaction:
-    activeChecks: prohibited
-    notApplicable: profile-rule
-    reportAcceptance: automatic
+      inputs: {source: {source: audit-input, name: source}}
+      parameters: {}
+      outputs: {material: openapi}
+  hypotheses: {}
+  initial_work: [{key: inspect, workflow: inspect, objective: Inspect selected source}]
+  limits: {max_tasks: 10, max_iterations: 1, max_tasks_per_iteration: 10, batch_size: 1, max_submitted_runs: 20, max_attempts: 2, deadline_seconds: 3600, max_evidence_bytes: 1048576, max_hypotheses: 128, max_hypothesis_revisions: 128, max_hypothesis_bytes: 32768}
+  policy: {active_operations: prohibited}
 `)
 	if err := os.WriteFile(filepath.Join(targetRoot, "audit-profiles", "public_checklist.yaml"), profile, 0o600); err != nil {
 		t.Fatal(err)

@@ -21,10 +21,20 @@ type ProgramInput struct {
 }
 
 type ProgramWorkflow struct {
-	Ref        string                  `json:"ref" yaml:"ref"`
-	Inputs     map[string]InputMapping `json:"inputs" yaml:"inputs"`
-	Parameters map[string]string       `json:"parameters" yaml:"parameters"`
-	Outputs    map[string]string       `json:"outputs" yaml:"outputs"`
+	MaxAttempts *int                    `json:"max_attempts,omitempty" yaml:"max_attempts,omitempty"`
+	Ref         string                  `json:"ref" yaml:"ref"`
+	Inputs      map[string]InputMapping `json:"inputs" yaml:"inputs"`
+	Parameters  map[string]string       `json:"parameters" yaml:"parameters"`
+	Outputs     map[string]string       `json:"outputs" yaml:"outputs"`
+}
+
+// AttemptLimit keeps an authored binding's tighter ceiling within the
+// effective Audit ceiling. Both are validated before execution is accepted.
+func (w ProgramWorkflow) AttemptLimit(auditLimit int) int {
+	if w.MaxAttempts != nil {
+		return min(auditLimit, *w.MaxAttempts)
+	}
+	return auditLimit
 }
 
 type InputMapping struct {

@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 )
 
 func TestFindingReportProjectionRoundTripsTheReportFields(t *testing.T) {
@@ -32,7 +34,8 @@ func TestFindingReportProjectionRoundTripsTheReportFields(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	decoded, err := DecodeFindingReportProjection(encoded)
+	var decoded FindingReportProjection
+	err = strictjson.Decode(encoded, &decoded)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +49,8 @@ func TestFindingReportProjectionRoundTripsTheReportFields(t *testing.T) {
 
 func TestFindingReportProjectionDecodesStrictly(t *testing.T) {
 	valid := `{"description":"d","preconditions":[],"limitations":[],"severity_suggestion":"","standard_refs":[],"subject":null,"title":"t"}`
-	if _, err := DecodeFindingReportProjection([]byte(valid)); err != nil {
+	var decoded FindingReportProjection
+	if err := strictjson.Decode([]byte(valid), &decoded); err != nil {
 		t.Fatal(err)
 	}
 	for name, document := range map[string]string{
@@ -65,7 +69,7 @@ func TestFindingReportProjectionDecodesStrictly(t *testing.T) {
 		"exchange extra":       `{"description":"d","http_exchange":{"request_id":1,"request_tag":"r","attempts":[],"x":1},"preconditions":[],"limitations":[],"severity_suggestion":"","standard_refs":[],"subject":null,"title":"t"}`,
 		"exchange evidence":    `{"description":"d","http_exchange":{"request_id":1,"request_tag":"r","attempts":[{"method":"GET","url":"https://t.test/","headers":[],"body_base64":"","status":200}],"response_body_evidence_id":"bad id"},"preconditions":[],"limitations":[],"severity_suggestion":"","standard_refs":[],"subject":null,"title":"t"}`,
 	} {
-		if _, err := DecodeFindingReportProjection([]byte(document)); err == nil {
+		if err := strictjson.Decode([]byte(document), &decoded); err == nil {
 			t.Errorf("%s: decoded", name)
 		}
 	}
@@ -130,7 +134,8 @@ func TestFindingReportPreconditionsAreCopiedAndUseExistingDocumentBound(t *testi
 	if err != nil || len(encoded) >= MaximumDocumentBytes || len(encoded) <= MaximumDocumentBytes-MaximumStringBytes {
 		t.Fatalf("near-bound conditions: bytes=%d error=%v", len(encoded), err)
 	}
-	decoded, err := DecodeFindingReportProjection(encoded)
+	var decoded FindingReportProjection
+	err = strictjson.Decode(encoded, &decoded)
 	if err != nil || !reflect.DeepEqual(decoded.Preconditions, proposal.Preconditions) {
 		t.Fatal("near-bound conditions did not survive strict decoding", err)
 	}

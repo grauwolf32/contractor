@@ -117,10 +117,10 @@ func (s *Snapshot) ResolvePinnedRunWorkflow(ctx context.Context, pinned resolved
 // ResolvePinnedAuditProfile preserves a prepared Eval's exact Workflow model
 // bindings while rejecting catalog dependency drift. Credential use is checked
 // by the ordinary Audit start transaction, just as for a newly selected draft.
-func (s *Snapshot) ResolvePinnedAuditProfile(_ context.Context, pinned auditprofile.ResolvedAuditProfile) (auditprofile.ResolvedAuditProfile, error) {
+func (s *Snapshot) ResolvePinnedAuditProfile(_ context.Context, pinned auditprofile.PinnedProgram) (auditprofile.PinnedProgram, error) {
 	current, err := s.AuditProfile(pinned.Ref.Name + "@" + pinned.Ref.Version)
 	if err != nil || len(current.Workflows) != len(pinned.Workflows) {
-		return auditprofile.ResolvedAuditProfile{}, contentdigest.ErrPinnedSelectionChanged
+		return auditprofile.PinnedProgram{}, contentdigest.ErrPinnedSelectionChanged
 	}
 	// Compare catalog-owned profile content with the retained effective closure.
 	// Its digest includes the captured models and may differ from the catalog's
@@ -128,39 +128,39 @@ func (s *Snapshot) ResolvePinnedAuditProfile(_ context.Context, pinned auditprof
 	for role, binding := range pinned.Workflows {
 		catalogBinding, ok := current.Workflows[role]
 		if !ok {
-			return auditprofile.ResolvedAuditProfile{}, contentdigest.ErrPinnedSelectionChanged
+			return auditprofile.PinnedProgram{}, contentdigest.ErrPinnedSelectionChanged
 		}
-		if err := s.validatePinnedWorkflow(binding.Workflow); err != nil {
-			return auditprofile.ResolvedAuditProfile{}, err
+		if err := s.validatePinnedWorkflow(binding); err != nil {
+			return auditprofile.PinnedProgram{}, err
 		}
 		// Rebuild only the captured model layer over the current immutable
 		// Workflow. Comparing the full result also detects catalog instruction,
 		// transition or input drift under an unchanged Workflow selector.
-		for name, stage := range catalogBinding.Workflow.Stages {
-			retained, ok := binding.Workflow.Stages[name]
+		for name, stage := range catalogBinding.Stages {
+			retained, ok := binding.Stages[name]
 			if !ok {
-				return auditprofile.ResolvedAuditProfile{}, contentdigest.ErrPinnedSelectionChanged
+				return auditprofile.PinnedProgram{}, contentdigest.ErrPinnedSelectionChanged
 			}
 			stage.ModelDefaults = retained.ModelDefaults
 			resolved.ApplyStageModelDefaults(&stage)
-			catalogBinding.Workflow.Stages[name] = stage
+			catalogBinding.Stages[name] = stage
 		}
-		if err := resolved.ResolveEscalationVariants(&catalogBinding.Workflow); err != nil {
-			return auditprofile.ResolvedAuditProfile{}, err
+		if err := resolved.ResolveEscalationVariants(&catalogBinding); err != nil {
+			return auditprofile.PinnedProgram{}, err
 		}
-		if !reflect.DeepEqual(catalogBinding.Workflow, binding.Workflow) {
-			return auditprofile.ResolvedAuditProfile{}, contentdigest.ErrPinnedSelectionChanged
+		if !reflect.DeepEqual(catalogBinding, binding) {
+			return auditprofile.PinnedProgram{}, contentdigest.ErrPinnedSelectionChanged
 		}
 		current.Workflows[role] = catalogBinding
 	}
-	current.Ref.Digest, err = auditprofile.Digest(current)
+	current.Ref.Digest, err = current.Digest()
 	if err != nil || !reflect.DeepEqual(current, pinned) {
-		return auditprofile.ResolvedAuditProfile{}, contentdigest.ErrPinnedSelectionChanged
+		return auditprofile.PinnedProgram{}, contentdigest.ErrPinnedSelectionChanged
 	}
 	return pinned.Clone(), nil
 }
 
-func (m *Manager) ResolvePinnedAuditProfile(ctx context.Context, pinned auditprofile.ResolvedAuditProfile) (auditprofile.ResolvedAuditProfile, error) {
+func (m *Manager) ResolvePinnedAuditProfile(ctx context.Context, pinned auditprofile.PinnedProgram) (auditprofile.PinnedProgram, error) {
 	return m.Snapshot().ResolvePinnedAuditProfile(ctx, pinned)
 }
 

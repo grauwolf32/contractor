@@ -4072,25 +4072,95 @@ export interface components {
         };
         /** @enum {string} */
         AuditCompatibilityReason: "preparation_unsupported" | "discovery_unsupported" | "assessment_unsupported" | "multiple_rounds_unsupported" | "batching_unsupported" | "automatic_active_checks_unsupported" | "project_active_checks_prohibited" | "active_check_approval_unsupported" | "manual_applicability_unsupported" | "report_acceptance_unsupported" | "manual_item_unsupported" | "engagement_capability_unsupported" | "engagement_source_closure_unsupported" | "engagement_active_checks_unsupported";
+        AuditProgram: {
+            continuation?: {
+                workflow: components["schemas"]["AuditCommonKey"];
+            };
+            hypotheses: {
+                [key: string]: components["schemas"]["AuditProgramHypothesisSeed"];
+            };
+            initial_work: components["schemas"]["AuditProgramInitialWork"][];
+            inputs: {
+                [key: string]: components["schemas"]["AuditProgramInput"];
+            };
+            limits: components["schemas"]["AuditProgramLimits"];
+            policy: components["schemas"]["AuditProgramPolicy"];
+            /** @constant */
+            schema: "contractor.audit.program.v1";
+            workflows: {
+                [key: string]: components["schemas"]["AuditProgramWorkflow"];
+            };
+        };
+        AuditProgramAttemptLimit: number;
+        /** @description The complete seed's RFC 8785 canonical UTF-8 encoding must fit 32768 bytes. This early content bound does not replace the complete hypothesis document bound after trusted identity, revision and origin are assigned. */
+        AuditProgramHypothesisSeed: {
+            grounds: components["schemas"]["AuditCommonText"];
+            scope: {
+                [key: string]: components["schemas"]["AuditCommonText"];
+            };
+            statement: components["schemas"]["AuditCommonText"];
+        };
+        AuditProgramInitialWork: {
+            hypothesis?: components["schemas"]["AuditCommonKey"];
+            inputs?: {
+                [key: string]: components["schemas"]["AuditCommonKey"];
+            };
+            key: components["schemas"]["AuditCommonKey"];
+            objective: components["schemas"]["AuditCommonText"];
+            workflow: components["schemas"]["AuditCommonKey"];
+        };
+        AuditProgramInput: {
+            media_types: (components["schemas"]["MediaType"] | "*/*")[];
+            required: boolean;
+        };
+        AuditProgramInputMapping: {
+            name: components["schemas"]["AuditCommonKey"];
+            /** @constant */
+            source: "audit-input";
+        } | {
+            /** @enum {string} */
+            source: "task-context" | "prior-results" | "task-input";
+        };
+        AuditProgramLimits: {
+            batch_size: number;
+            deadline_seconds: number;
+            max_attempts: components["schemas"]["AuditProgramAttemptLimit"];
+            max_evidence_bytes: number;
+            max_hypotheses: number;
+            max_hypothesis_bytes: number;
+            max_hypothesis_revisions: number;
+            max_iterations: number;
+            max_submitted_runs: number;
+            max_tasks: number;
+            max_tasks_per_iteration: number;
+        };
+        AuditProgramPolicy: {
+            /** @enum {string} */
+            active_operations: "allowed" | "prohibited";
+        };
+        AuditProgramSelector: string;
+        AuditProgramWorkflow: {
+            inputs: {
+                [key: string]: components["schemas"]["AuditProgramInputMapping"];
+            };
+            max_attempts?: components["schemas"]["AuditProgramAttemptLimit"];
+            outputs: {
+                [key: string]: components["schemas"]["AuditCommonKey"];
+            };
+            parameters: {
+                [key: string]: string;
+            };
+            ref: components["schemas"]["AuditProgramSelector"];
+        };
         AuditProfile: {
             ref: components["schemas"]["AuditProfileRef"];
-            mode: components["schemas"]["AuditProfileMode"];
-            standards: components["schemas"]["AuditStandardRef"][];
             inputs: {
-                [key: string]: components["schemas"]["AuditProfileInput"];
+                [key: string]: components["schemas"]["AuditProgramInput"];
             };
-            inventory: components["schemas"]["AuditInventory"];
-            workflows?: {
-                [key: string]: components["schemas"]["AuditProfileWorkflow"];
-            };
-            methods?: {
-                [key: string]: components["schemas"]["AuditCheckMethodMapping"];
-            };
-            execution: components["schemas"]["AuditExecutionPolicy"];
-            interaction: components["schemas"]["AuditInteractionPolicy"];
-            serverCompatible: boolean;
-            requiresInputValidation: boolean;
-            compatibilityReasons: components["schemas"]["AuditCompatibilityReason"][];
+            limits: components["schemas"]["AuditProgramLimits"];
+            policy: components["schemas"]["AuditProgramPolicy"];
+            /** @description The exact authored common program; present on profile detail. */
+            program?: components["schemas"]["AuditProgram"];
         };
         AuditProfilePage: {
             items: components["schemas"]["AuditProfile"][];
@@ -4246,11 +4316,7 @@ export interface components {
             runtimeLabels: components["schemas"]["RuntimeInfrastructureId"][];
             baseline?: components["schemas"]["AuditBaseline"];
             state: components["schemas"]["AuditState"];
-            phase: components["schemas"]["AuditPhase"];
-            preparation?: components["schemas"]["AuditPreparation"];
-            generatedInventory?: components["schemas"]["AuditGeneratedInventory"];
             revision: number;
-            currentRoundId?: components["schemas"]["ResourceId"];
             dispatchState: components["schemas"]["AuditDispatchState"];
             holdState: components["schemas"]["AuditHoldState"];
             /**
@@ -4280,16 +4346,9 @@ export interface components {
             finishedAt?: string;
             /** Format: date-time */
             deletionRequestedAt?: string;
-        } & ({
-            /** @constant */
-            phase?: "not-started";
-        } | {
-            /** @enum {string} */
-            phase?: "preparing" | "inventory";
-        } | {
-            /** @constant */
-            phase?: "rounds";
-        });
+            taskCount: number;
+            iteration: number;
+        };
         AuditEventSummary: {
             state?: string;
             from?: string;
@@ -4312,6 +4371,10 @@ export interface components {
             reviews?: number;
             members?: number;
             count?: number;
+            createdCount?: number;
+            workCount?: number;
+            taskCount?: number;
+            workflow?: components["schemas"]["AuditCommonKey"];
         };
         AuditEvent: {
             auditId: components["schemas"]["ResourceId"];
@@ -4615,20 +4678,7 @@ export interface components {
         };
         AuditStartResponse: {
             audit: components["schemas"]["Audit"];
-            round?: components["schemas"]["AuditRound"];
-            items: components["schemas"]["AuditItem"][];
-        } & ({
-            audit?: {
-                /** @constant */
-                phase?: "rounds";
-            };
-        } | {
-            audit?: {
-                /** @enum {string} */
-                phase?: "preparing" | "inventory";
-            };
-            items?: unknown;
-        });
+        };
         FindingExactArtifact: {
             ref: components["schemas"]["ExactArtifactRef"];
             digest: components["schemas"]["Digest"];
@@ -4877,7 +4927,11 @@ export interface components {
         FindingAuditOrigin: {
             auditId: components["schemas"]["ResourceId"];
             executionId: components["schemas"]["ResourceId"];
-            role: components["schemas"]["AuditExecutionRole"];
+            taskId: components["schemas"]["ResourceId"];
+            hypothesis?: {
+                id: components["schemas"]["ResourceId"];
+                revision: number;
+            };
         };
         FindingOrigin: {
             runId: components["schemas"]["ResourceId"];

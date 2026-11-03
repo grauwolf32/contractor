@@ -1,8 +1,9 @@
 package runtimesettings
 
 import (
-	"github.com/grauwolf32/contractor/internal/contracts"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 func TestEngagementPrivateMaterialPreservesCredentialKindGrammar(t *testing.T) {

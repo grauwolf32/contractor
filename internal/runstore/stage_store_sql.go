@@ -128,7 +128,8 @@ var hasStageExecutionsSQL = `SELECT EXISTS (SELECT 1 FROM stage_executions WHERE
 var listStageLineageSQL = `
 SELECT stage_execution_id, run_id, stage_name, attempt, state,
        execution_config_variant, escalation_ordinal,
-       previous_execution_id, resume_source_execution_id
+       previous_execution_id, resume_source_execution_id,
+       planner_session_id, planner_invocation_id
 FROM stage_executions
 WHERE run_id = $1 AND stage_name = $2
 ORDER BY attempt`

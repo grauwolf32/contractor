@@ -1,43 +1,56 @@
 apiVersion: contractor/v1alpha1
 kind: AuditProfile
-metadata: {name: web-scan, version: "1"}
+metadata:
+  name: web-scan
+  version: '1'
 spec:
-  mode: risk-assessment
-  standards: []
+  schema: contractor.audit.program.v1
   inputs:
-    target: {required: true, mediaTypes: [application/json]}
-    rulepack: {required: false, mediaTypes: [application/yaml, application/vnd.contractor.nuclei-rulepack+zip]}
-    settings: {required: true, mediaTypes: [application/json]}
-  inventory:
-    implementation: web-scans@1
-    source: {source: audit-input, name: target}
-    settings: {source: audit-input, name: settings}
-    itemWorkflowRole: scan
+    target:
+      required: true
+      media_types:
+      - application/json
+    rulepack:
+      required: false
+      media_types:
+      - application/yaml
+      - application/vnd.contractor.nuclei-rulepack+zip
+    settings:
+      required: true
+      media_types:
+      - application/json
   workflows:
     scan:
-      kind: check
       ref: audit-web-nuclei-scan@1
       inputs:
-        rulepack: {source: audit-input, name: rulepack}
-        task: {source: item-package}
-        execution_manifest: {source: execution-manifest}
-        target: {source: audit-input, name: target}
-        settings: {source: audit-input, name: settings}
+        target:
+          source: audit-input
+          name: target
+        rulepack:
+          source: audit-input
+          name: rulepack
+        settings:
+          source: audit-input
+          name: settings
       parameters: {}
-      outputs: {result: result}
-  execution:
-    roundMode: fixed-barrier
-    maxRounds: 1
-    batchSize: 1
-    # One direct target; optional exact custom rules; ordinary Audit retention.
-    maxItemsPerRound: 1
-    maxItemsTotal: 1
-    maxSubmittedRuns: 3
-    maxItemRunAttempts: 3
-    deadlineSeconds: 86400
-    maxEvidenceBytes: 67108864
-    incompleteRound: assess-with-gaps
-  interaction:
-    activeChecks: approval-required
-    notApplicable: profile-rule
-    reportAcceptance: automatic
+      outputs:
+        scan_report: result
+  hypotheses: {}
+  initial_work:
+  - key: scan-target
+    workflow: scan
+    objective: Scan the selected target with the pinned settings and exact optional rulepack
+  limits:
+    max_tasks: 1
+    max_iterations: 1
+    max_tasks_per_iteration: 1
+    batch_size: 1
+    max_submitted_runs: 3
+    max_attempts: 3
+    deadline_seconds: 86400
+    max_evidence_bytes: 67108864
+    max_hypotheses: 1
+    max_hypothesis_revisions: 1
+    max_hypothesis_bytes: 32768
+  policy:
+    active_operations: allowed

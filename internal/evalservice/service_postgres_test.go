@@ -153,8 +153,8 @@ func (retainedExecutionCatalog) ResolveRunWorkflow(context.Context, string, reso
 	return resolved.ResolvedWorkflow{}, errors.New("mutable defaults must not be consulted after preparation")
 }
 
-func (retainedExecutionCatalog) ResolveAuditProfile(context.Context, string) (auditprofile.ResolvedAuditProfile, error) {
-	return auditprofile.ResolvedAuditProfile{}, errors.New("mutable defaults must not be consulted after preparation")
+func (retainedExecutionCatalog) ResolveAuditProfile(context.Context, string) (auditprofile.PinnedProgram, error) {
+	return auditprofile.PinnedProgram{}, errors.New("mutable defaults must not be consulted after preparation")
 }
 
 func newHarness(t *testing.T) *serviceHarness {

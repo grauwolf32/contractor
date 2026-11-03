@@ -1,12 +1,8 @@
-from __future__ import annotations
+"""Strict private completion contract shared with the Server."""
 
-import copy
-import dataclasses
-import hashlib
 import json
 from pathlib import Path
 
-import jcs
 import pytest
 from jsonschema import Draft202012Validator
 from referencing import Registry, Resource
@@ -18,53 +14,15 @@ from contractor_runtime.contracts import (
     WorkerCompletionContract,
     decode_private,
 )
-from contractor_runtime.core.worker_completion import ContinueCompletion
-from contractor_runtime.toolsets.audit_results.contracts import (
-    MAX_COLLECTED_BYTES,
-    MAX_PACKAGE_BYTES,
-    AuditEncodedPackage,
-    AuditEvidence,
-    AuditInvocationOwner,
-    AuditPublicationReceipt,
-    AuditRecordReceipt,
-    AuditSnapshot,
-    AuditTrustedInputs,
-    NormalizedAuditItem,
-    RecordedAuditItem,
-    SealedAuditSnapshot,
-)
-from contractor_runtime.toolsets.audit_results.packages import _decode_execution_manifest
 
 ROOT = Path(__file__).parents[2]
 CASES = json.loads((ROOT / "api/testdata/v1alpha1/audit-completion-cases.json").read_bytes())
-EXECUTION_CASES = json.loads(
-    (ROOT / "api/testdata/audit-completion/execution-manifest-cases.json").read_bytes()
-)
 MODELS = {
     "contract": WorkerCompletionContract,
     "capabilities": RuntimeCompletionCapabilities,
     "allocation": AllocationSpec,
     "registration": AgentRegistration,
 }
-
-
-@pytest.mark.parametrize("case", EXECUTION_CASES["cases"], ids=lambda case: case["name"])
-def test_shared_compact_execution_manifests(case):
-    value = copy.deepcopy(EXECUTION_CASES["base"])
-    for patch in case["patches"]:
-        parent = value
-        for part in patch["path"][:-1]:
-            parent = parent[part]
-        if patch.get("delete"):
-            del parent[patch["path"][-1]]
-        else:
-            parent[patch["path"][-1]] = patch["value"]
-    payload = jcs.canonicalize(value)
-    if case["valid"]:
-        assert _decode_execution_manifest(payload, "application/json") == value
-    else:
-        with pytest.raises(ValueError):
-            _decode_execution_manifest(payload, "application/json")
 
 
 @pytest.mark.parametrize("case", CASES, ids=lambda case: case["name"])
@@ -103,83 +61,12 @@ def test_shared_private_schemas_accept_complete_contracts():
             }[case["model"]]
             Draft202012Validator(schema, registry=registry).validate(case["value"])
     for case in CASES:
-        if not case["valid"] and case["model"] == "contract" and case["name"] != "same-input":
+        if not case["valid"] and case["model"] == "contract":
             assert list(
                 Draft202012Validator(
                     schemas["worker-completion-contract.schema.json"], registry=registry
                 ).iter_errors(case["value"])
             )
-
-
-def owner(keys=("first", "second")):
-    return AuditInvocationOwner("allocation", "worker-invocation", "sha256:" + "a" * 64, keys)
-
-
-def item(key="first", revision=1, **kwargs):
-    return RecordedAuditItem(
-        NormalizedAuditItem(key, "inconclusive", "bounded observation", **kwargs), revision
-    )
-
-
-def test_shared_normalized_snapshot_is_immutable_owned_and_uses_trusted_order():
-    snapshot = AuditSnapshot(owner(), (item(),))
-    assert snapshot.items[0].revision == 1
-    with pytest.raises(dataclasses.FrozenInstanceError):
-        snapshot.items[0].value.summary = "model rewrite"
-    with pytest.raises(ValueError):
-        NormalizedAuditItem("first", "blocked", "reason", completed=["coverage"])
-    with pytest.raises(ValueError):
-        AuditSnapshot(owner(), (item("second"), item("first")))
-    with pytest.raises(ValueError):
-        AuditSnapshot(owner(), (item("foreign"),))
-    with pytest.raises(ValueError):
-        AuditSnapshot(owner(), (item(), item()))
-    with pytest.raises(ValueError):
-        SealedAuditSnapshot(owner(), (item(),))
-    sealed = SealedAuditSnapshot(owner(), (item(), item("second", 2)))
-    assert sealed.owner == snapshot.owner
-    assert sealed.owner != dataclasses.replace(sealed.owner, invocation_id="worker-another")
-
-
-@pytest.mark.parametrize("revision", [0, -1, True, 2**53])
-def test_shared_recorded_revisions_are_positive_exact_bounded_integers(revision):
-    with pytest.raises(ValueError):
-        item(revision=revision)
-
-
-def test_shared_limits_and_separate_recorded_publication_receipts():
-    evidence = AuditEvidence("source", "retained support")
-    with pytest.raises(ValueError):
-        AuditInvocationOwner("a", "b", "sha256:" + "a" * 64, tuple(f"item-{i}" for i in range(65)))
-    with pytest.raises(ValueError):
-        NormalizedAuditItem("first", "blocked", "я" * 8193)
-    with pytest.raises(ValueError):
-        NormalizedAuditItem("first", "pass", "not a canonical assessment")
-    with pytest.raises(ValueError):
-        NormalizedAuditItem(
-            "first", "blocked", "reason", completed=tuple(f"c-{i}" for i in range(513))
-        )
-    with pytest.raises(ValueError):
-        AuditSnapshot(
-            owner(), (item(evidence=(evidence,) * 129), item("second", evidence=(evidence,) * 128))
-        )
-    receipt = AuditRecordReceipt(owner(), (("first", 1),), ("second",))
-    assert receipt.accepted_count == 1 and receipt.total_count == 2 and not receipt.complete
-    assert not hasattr(receipt, "revision") and not hasattr(receipt, "artifact")
-    with pytest.raises(ValueError):
-        dataclasses.replace(receipt, missing_item_keys=())
-    with pytest.raises(ValueError):
-        AuditEncodedPackage(owner(), b"zip", MAX_COLLECTED_BYTES + 1, (3,))
-    with pytest.raises(ValueError):
-        AuditEncodedPackage(owner(), b"x" * (MAX_PACKAGE_BYTES + 1), 1, (1,))
-    with pytest.raises(ValueError):
-        AuditEncodedPackage(owner(), b"zip", 1, (MAX_PACKAGE_BYTES + 1,))
-    valid = AuditPublicationReceipt(owner(), "audit-check", "result", "r1", "sha256:" + "b" * 64, 3)
-    assert valid.owner == receipt.owner and valid.revision == "r1"
-    with pytest.raises(ValueError):
-        dataclasses.replace(valid, revision="")
-    with pytest.raises(ValueError):
-        ContinueCompletion("x" * (16 * 1024 + 1))
 
 
 def test_shared_optional_completion_fields_are_omitted_without_opt_in(tmp_path):
@@ -195,23 +82,3 @@ def test_shared_optional_completion_fields_are_omitted_without_opt_in(tmp_path):
     spec = allocation_spec()
     assert spec.completion_contract is None
     assert "completionContract" not in spec.model_dump(by_alias=True, exclude_none=True)
-
-
-def test_shared_encoder_inputs_pin_both_artifacts_and_keep_sensitive_bytes_immutable():
-    package = b"task-package-secret"
-    identity = dataclasses.replace(
-        owner(), task_set_sha256="sha256:" + hashlib.sha256(package).hexdigest()
-    )
-    inputs = AuditTrustedInputs(identity, package, b"manifest-secret")
-    assert inputs.execution_manifest == b"manifest-secret"
-    assert "secret" not in repr(inputs)
-    with pytest.raises(dataclasses.FrozenInstanceError):
-        inputs.task_package = b"replacement"
-    with pytest.raises(ValueError, match="digest"):
-        AuditTrustedInputs(identity, b"changed", b"manifest")
-    with pytest.raises(ValueError, match="bounds"):
-        AuditTrustedInputs(identity, bytearray(package), b"manifest")
-    protected = NormalizedAuditItem(
-        "first", "blocked", "summary-secret", evidence=(AuditEvidence("source", "evidence-secret"),)
-    )
-    assert "secret" not in repr(protected)

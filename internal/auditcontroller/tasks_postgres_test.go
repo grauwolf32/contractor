@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -21,12 +22,14 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
+	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/configtest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
+	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 	postgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -35,11 +38,57 @@ import (
 	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/grauwolf32/contractor/internal/settingsstore"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+type postgresControllerHarness struct {
+	pool       *pgxpool.Pool
+	snapshot   *config.Snapshot
+	artifacts  *artifacts.Service
+	audits     *auditstoretest.Store
+	runs       *runstore.PostgresStore
+	runService *runservice.Service
+	service    *auditservice.Service
+	started    auditservice.StartedAudit
+}
+
+type postgresNotifier struct{}
+
+func (*postgresNotifier) Wake()         {}
+func (*postgresNotifier) Cancel(string) {}
+
+type controllerCredentialLookup struct{}
+
+func (controllerCredentialLookup) LookupLLMCredential(context.Context, string) (resolved.CredentialMetadata, error) {
+	return resolved.CredentialMetadata{}, fmt.Errorf("credential is unavailable")
+}
+
+func controllerTransactionCredentialLookup() runtimeconfig.TransactionLLMCredentialLookupFactory {
+	return runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(
+		func(pgx.Tx) (resolved.CredentialLookup, error) { return controllerCredentialLookup{}, nil },
+	)
+}
+
+type controllerCredentialGuard struct{}
+
+func (controllerCredentialGuard) WithRunCreation(ctx context.Context, fn func() error) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return fn()
+}
+
+type controllerRuntimeCredentials struct{}
+
+func (controllerRuntimeCredentials) ValidateRuntimeCredentialUse(
+	context.Context, credentials.RuntimeCredentialUser, string, ...string,
+) error {
+	return nil
+}
 
 func newCommonControllerHarness(t *testing.T, configure ...func(*auditcontract.Program)) *postgresControllerHarness {
 	t.Helper()
@@ -147,7 +196,7 @@ func (h *postgresControllerHarness) commonController(t *testing.T) *Controller {
 	if err != nil {
 		t.Fatal(err)
 	}
-	controller, err := New(h.audits, h.audits, h.runs, rundeletion.New(h.pool), h.runService, h.builder(t), &postgresNotifier{}, Options{OperationTimeout: 5 * time.Second, ClaimLease: 15 * time.Second, Collector: collector.WithTaskIntake(h.service), TaskIntake: h.service})
+	controller, err := New(h.audits, h.audits, h.runs, rundeletion.New(h.pool), h.runService, &postgresNotifier{}, Options{HolderID: "postgres-audit-controller", OperationTimeout: 5 * time.Second, ClaimLease: 15 * time.Second, Collector: collector.WithTaskIntake(h.service), TaskIntake: h.service})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -453,5 +502,57 @@ func TestPostgresCommonControllerDeadlineAndCancellation(t *testing.T) {
 			}
 			t.Fatal("cancellation did not settle")
 		})
+	}
+}
+
+// Per-binding caps remain authoritative even when the Audit permits more retries.
+func TestPostgresCommonControllerHonorsTighterBindingAttemptLimit(t *testing.T) {
+	h := newCommonControllerHarness(t, func(program *auditcontract.Program) {
+		program.Limits.MaxAttempts = 3
+		cap := 2
+		binding := program.Workflows["inspect"]
+		binding.MaxAttempts = &cap
+		program.Workflows["inspect"] = binding
+	})
+	c := h.commonController(t)
+	ctx := t.Context()
+	for attempt := 1; attempt <= 2; attempt++ {
+		for range 8 {
+			if _, err := c.RunOnce(ctx); err != nil {
+				t.Fatal(err)
+			}
+			executions, err := h.audits.ListExecutions(ctx, h.started.Audit.AuditID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(executions) != attempt {
+				continue
+			}
+			execution := executions[len(executions)-1]
+			if execution.RunID == nil {
+				continue
+			}
+			run, err := h.runs.GetRun(ctx, *execution.RunID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := h.runs.TransitionRun(ctx, run.RunID, run.State, runstore.RunFailed, runstore.Reason{Code: "fixture-terminal-failure"}); err != nil {
+				t.Fatal(err)
+			}
+			break
+		}
+	}
+	for range 8 {
+		if _, err := c.RunOnce(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	executions, err := h.audits.ListExecutions(ctx, h.started.Audit.AuditID)
+	if err != nil || len(executions) != 2 {
+		t.Fatalf("binding cap reserved %d attempts: %v", len(executions), err)
+	}
+	tasks, err := h.service.Tasks(ctx, auditstore.ListTasksParams{OwnerID: "owner", AuditID: h.started.Audit.AuditID, Limit: 10})
+	if err != nil || len(tasks.Tasks) != 1 || tasks.Tasks[0].Attempts != 2 || tasks.Tasks[0].State != auditstore.TaskSettled || tasks.Tasks[0].GapCode == nil {
+		t.Fatalf("bounded retry outcome: %+v %v", tasks, err)
 	}
 }

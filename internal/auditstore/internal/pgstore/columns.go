@@ -123,19 +123,6 @@ func collectionReceiptProjection(alias string) string {
 	return strings.Join(projected, ", ")
 }
 
-// receiptSummaryColumns selects a collected AuditExecution's receipt in
-// scanReceiptSummary order, without its source output and retained
-// references.
-func receiptSummaryColumns(alias string) string {
-	sources := make([]string, 0, len(receiptColumnList))
-	for _, column := range receiptColumnList {
-		if !column.detail {
-			sources = append(sources, column.source)
-		}
-	}
-	return qualifiedColumns(alias, sources)
-}
-
 // withColumns lets the scan function of one entity's column list also read
 // the columns a statement selects before and after that list.
 type withColumns struct {

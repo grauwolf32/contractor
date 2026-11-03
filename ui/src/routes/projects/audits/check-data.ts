@@ -3,29 +3,18 @@
  * detail key (queryKeys.audits.detail), so a decision or lifecycle change
  * that invalidates the check refreshes them too.
  */
-import { useQuery, useQueries, useQueryClient } from "@tanstack/react-query";
+import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo } from "react";
 
 import {
-  collectAuditPages,
-  type AuditCollection,
-} from "../../../api/audit-collections";
-import {
   auditPollInterval,
-  getAuditReport,
   getAuditWorkspace,
-  listAuditFindings,
-  listAuditReviews,
   type Audit,
-  type ProjectFindingSummary,
-  type AuditState,
   type AuditWorkspace,
 } from "../../../api/audits";
 import { usePublicAPI } from "../../../api/context";
 import { queryKeys } from "../../../api/query-keys";
-import { useAuditCollection } from "./collections";
 import { useAuditProjectionRefresh } from "./projection-refresh";
-import { REPORT_AUDIT_STATES } from "../../../api/states";
 
 export const checkKeys = {
   /**
@@ -48,9 +37,6 @@ export const checkKeys = {
   waiting: (auditId: string) =>
     [...queryKeys.audits.allReviews(auditId), "check-activity"] as const,
 };
-
-/** Checks in these states can have a report. */
-export const REPORT_STATES: readonly AuditState[] = REPORT_AUDIT_STATES;
 
 /** The newest cached workspace of a check, shown while a newer one loads. */
 function previousWorkspace(
@@ -129,74 +115,4 @@ export function useCheckWorkspaces(
     [audits],
   );
   return useQueries({ queries, combine });
-}
-
-/**
- * Whether the check's issues and possible issues are read: a draft has none
- * and a check being deleted no longer serves them.
- */
-export function findingsReadable(audit: Pick<Audit, "state">): boolean {
-  return audit.state !== "draft" && audit.state !== "deleting";
-}
-
-/**
- * Every issue and possible issue of the check, in batches of the page cap,
- * for the counts and links on its items. Polled while the check can change.
- */
-export function useCheckFindings(audit: Audit) {
-  const api = usePublicAPI();
-  const queryKey = checkKeys.findings(audit.auditId);
-  const enabled = findingsReadable(audit);
-  const query = useAuditCollection<AuditCollection<ProjectFindingSummary>>({
-    queryKey,
-    loadBatch: (cursor) =>
-      collectAuditPages(
-        (pageCursor) =>
-          listAuditFindings(
-            api,
-            audit.auditId,
-            pageCursor === undefined ? {} : { cursor: pageCursor },
-          ),
-        cursor === undefined ? {} : { cursor },
-      ),
-    enabled,
-    refetchInterval: auditPollInterval([audit], 5_000),
-  });
-  useAuditProjectionRefresh(audit, queryKey, enabled);
-  return query;
-}
-
-/**
- * The check's pending review requests (first page, oldest first), polled
- * while the check can change and read once more when it stops.
- */
-export function useWaitingDecisions(audit: Audit, enabled = true) {
-  const api = usePublicAPI();
-  const queryKey = checkKeys.waiting(audit.auditId);
-  const active = enabled && audit.state !== "draft";
-  const query = useQuery({
-    queryKey,
-    queryFn: () => listAuditReviews(api, audit.auditId, { state: "pending" }),
-    enabled: active,
-    refetchInterval: auditPollInterval([audit], 5_000),
-    refetchOnReconnect: true,
-  });
-  useAuditProjectionRefresh(audit, queryKey, active);
-  return query;
-}
-
-/** The check's report, for checks that can have one. */
-export function useCheckReport(audit: Audit, enabled = true) {
-  const api = usePublicAPI();
-  const queryKey = queryKeys.audits.report(audit.auditId);
-  const active = enabled && REPORT_STATES.includes(audit.state);
-  const query = useQuery({
-    queryKey,
-    queryFn: () => getAuditReport(api, audit.auditId),
-    enabled: active,
-    refetchInterval: auditPollInterval([audit], 5_000),
-    refetchOnReconnect: true,
-  });
-  useAuditProjectionRefresh(audit, queryKey, active);
-  return query;
 }

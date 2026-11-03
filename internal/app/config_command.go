@@ -42,11 +42,8 @@ func runConfigCLI(args []string, logger *slog.Logger) error {
 	if managedRoot == "" {
 		managedRoot = defaultManagedConfigRoot(root)
 	}
-	snapshot, bundles, err := configload.LoadUnionReadOnly(root, managedRoot)
+	snapshot, _, err := configload.LoadUnionReadOnly(root, managedRoot)
 	if err != nil {
-		return fmt.Errorf("validate configuration: %w", err)
-	}
-	if err := validateBundledCatalogStandards(bundles.Standards, snapshot); err != nil {
 		return fmt.Errorf("validate configuration: %w", err)
 	}
 	if auditContext != "" && auditDocument == "" {

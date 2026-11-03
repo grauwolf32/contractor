@@ -1,50 +1,40 @@
-Call `read_audit_task` first. Evaluate only the exact OpenAPI operation in its
-single immutable task. Use the assigned method, path and resolved schema to
-locate the implemented handler. The current workspace is already hydrated from
-the task's pinned `inputs/source` archive; inspect source through filesystem
-and code-analysis tools. Task identity, source revision and requested coverage
-come from trusted inputs and must not be invented or broadened.
+Call `read_audit_task` first. Read the exact prepared operation from
+`inputs/operation`, including its conditions, exclusions and source references.
+Use its method, path and resolved schema to locate the implementation in the
+workspace hydrated from pinned `inputs/source`. The selected OpenAPI document
+is available as `inputs/openapi`. Keep the assigned operation's scope.
 
-Load the `trace` Skill and its relevant references. Begin graph analysis with
-`graph_summary` and inspect coverage, unsupported files and truncation. Locate
-symbols with `find_symbol` before navigating with their exact opaque `symbolId`.
-Use `find_callers`, `find_callees`, `paths_between` and `entrypoint_paths_to` to
-follow the handler, request-derived arguments, transformations, control points
-and sinks or terminal business operations. Treat `attack_surface`,
-`complexity_hotspots` and `functions_that_raise` as bounded leads. Cross-check
-structural results with `search_def`, `list_symbols`, `grep` and bounded
-`read_file` windows. A graph edge is a navigation lead, not proof that an
-untrusted value reaches a sink or that a control is effective.
+Load the `trace` Skill and its relevant references. Start with `graph_summary`
+and inspect coverage, unsupported files and truncation. Resolve symbols with
+`find_symbol`, then use their opaque `symbolId` values with `find_callers`,
+`find_callees`, `paths_between` and `entrypoint_paths_to`. Follow request-derived
+arguments, transformations, control points and sinks or business operations.
+Cross-check graph leads with `search_def`, `list_symbols`, `grep` and bounded
+`read_file` windows. Source evidence must support claims about data flow,
+reachable behavior and effective controls.
 
-Record source-relative paths and line numbers for the operation mapping and
-observed trace. Distinguish facts, inference and unresolved paths. When graph
-coverage is incomplete, inspect omitted paths through filesystem tools and
-retain unresolved portions as explicit gaps. Empty or truncated results never
-prove absence of a handler, path or vulnerability. Callbacks, webhooks and
-ambiguous mappings remain gaps under the supplied task contract.
+Record source-relative paths and line numbers in the rationale. Account for
+middleware, wrappers, service boundaries and authorization. Separate observed
+facts, inference and unresolved conditions. Inspect graph omissions through
+filesystem tools. Empty or truncated results never establish absence.
+Unsupported callbacks, webhooks and ambiguous mappings remain limitations.
 
-Mark operation-resolution completed only when the operation-to-source mapping
-is established. This key does not certify complete taint coverage; describe
-traced controls, sinks and unresolved paths in evidence. Do not invent coverage
-keys, write annotations, create findings or execute active checks.
+Record observations and unresolved paths without publishing findings or
+executing active checks.
 
-Record results with `submit_check_result`. A successful `recorded` receipt means
-local collection, not artifact publication. Supply the task's allowed assessment,
-concise rationale, completed coverage, explicit gaps, required evidence and any
-`proposal_keys` from successful finding calls. Use real JSON arrays, including [].
-For a single assigned task, item_key may be omitted. For multiple tasks, either
-submit each exact item_key incrementally or submit one complete task-ordered
-results array; never mix batch and individual fields.
+Record each assigned item with `submit_check_result`: supply `rationale`,
+`tested_conditions`, `limitations`, and selected `evidence` handles from
+`read_audit_task`. Use real JSON arrays, including []. These exploratory tasks
+have no hypothesis, so omit `verdict`. Describe what you actually inspected;
+operation mapping does not establish complete taint coverage or absence of bugs.
 
-Identical retries preserve revisions. Correct a recorded item with its current
-`expected_revision` in an individual submission. Repair errors using the returned
-field and revision; do not discard valid results or repeat an invalid call unchanged.
-Finish only when all assigned items are recorded. Runtime may give at most two
-reminders within the same invocation and budgets, then seals and publishes the
-complete canonical result ZIP after normal model completion. The submit tool
-returns no artifact receipt. Never write the result ZIP yourself. Missing results
-or publication failure fail the child Run. Publication is create-only: different
-bytes conflict with an existing result, including on Stage retries.
+For a single task `item_key` may be omitted. For a batch, submit each assigned
+key or the complete ordered `results` array. A recorded receipt confirms local
+collection. Correct an item with its current `expected_revision`. Finish when
+all assigned items are recorded. Runtime seals and publishes the ordinary JSON
+conclusions after model completion, with at most two reminders within the same
+invocation and budgets. Missing items or failed publication fail the child Run.
+The output is create-only; different bytes conflict even after a Stage retry.
 
 ## Shared Memory
 

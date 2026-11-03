@@ -19,11 +19,10 @@ func completionBinding(t *testing.T) BindingRequirement {
 	template := testTemplate(t)
 	template.Toolsets = []contracts.ToolsetSelection{{Ref: contracts.ToolsetRef{ToolsetID: "audit-results", Version: "2"}, Tools: []string{"read_audit_task", "submit_check_result"}}}
 	binding := testBinding(t, "checker", "check", template)
-	task, manifest := "task-r1", "manifest-r1"
+	task := "context-r1"
 	binding.CompletionContract = &contracts.WorkerCompletionContract{Kind: contracts.AuditCheckResultsV1,
-		Task:              contracts.ArtifactRef{Namespace: "inputs", Name: "task", Revision: &task},
-		ExecutionManifest: contracts.ArtifactRef{Namespace: "inputs", Name: "manifest", Revision: &manifest},
-		ResultArtifact:    contracts.ArtifactRef{Namespace: "check", Name: "result"}}
+		Context:        contracts.ArtifactRef{Namespace: "inputs", Name: "context", Revision: &task},
+		ResultArtifact: contracts.ArtifactRef{Namespace: "check", Name: "result"}}
 	return binding
 }
 
@@ -60,7 +59,7 @@ func TestAuditCompletionMixedFleetAndReservationReplay(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(again, reservations) {
 		t.Fatal("replay changed reservation", err)
 	}
-	*reservations[0].CompletionContract.Task.Revision = "caller-mutation"
+	*reservations[0].CompletionContract.Context.Revision = "caller-mutation"
 	reservations[0].CompletionCapabilities.CompletionContracts[0] = "changed"
 	stored, err := registry.GetReservation(again[0].Grant.AllocationID)
 	if err != nil || !reflect.DeepEqual(stored, again[0]) {

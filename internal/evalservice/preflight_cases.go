@@ -5,9 +5,7 @@ import (
 	"slices"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
-	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	pg "github.com/grauwolf32/contractor/internal/persistence/postgres"
 )
@@ -18,50 +16,7 @@ func (b preflightBinding) evaluateCase(ctx context.Context, db pg.DBTX, service 
 			return Eligibility{}, err
 		}
 	}
-	eligibility := caseEligibility(c, v, b.snapshot, capabilities)
-	if b.snapshot.Audit == nil || eligibility.State != "eligible" {
-		return eligibility, nil
-	}
-	inputs, err := readAuditInputs(ctx, service, c, v)
-	if err != nil {
-		return Eligibility{}, err
-	}
-	params := MapParameters(c, v)
-	scope := auditservice.Scope{
-		Objective:          c.Task.Objective,
-		Target:             params["target"],
-		AuthorizationScope: params["authorizationScope"],
-	}
-	if objective, ok := params["objective"]; ok {
-		scope.Objective = objective
-	}
-	if err := auditservice.ValidateInputPreview(*b.snapshot.Audit, scope, inputs, b.standards); err != nil {
-		return unavailable("The Audit input or inventory is not supported by the selected profile."), nil
-	}
-	return eligibility, nil
-}
-
-func readAuditInputs(ctx context.Context, service *artifacts.Service, c evaldomain.Case, v evaldomain.Variant) (map[string]artifacts.ReadResult, error) {
-	mapped, err := MapInputs(c, v)
-	if err != nil {
-		return nil, err
-	}
-	inputs := make(map[string]artifacts.ReadResult, len(mapped))
-	for slot, ref := range mapped {
-		store, err := artifactScope(service, ref)
-		if err != nil {
-			return nil, err
-		}
-		read, err := store.Read(ctx, contracts.ArtifactRef{Namespace: ref.Namespace, Name: ref.Name, Revision: &ref.Revision})
-		if err != nil {
-			return nil, preflightDependencyError(err)
-		}
-		if evaldomain.Digest(read.Payload.Data) != ref.SHA256 {
-			return nil, evaldomain.Failure("eval_pin_mismatch")
-		}
-		inputs[slot] = read
-	}
-	return inputs, nil
+	return caseEligibility(c, v, b.snapshot, capabilities), nil
 }
 
 func unavailable(reason string) Eligibility {
@@ -99,7 +54,7 @@ func caseEligibility(c evaldomain.Case, v evaldomain.Variant, s BindingSnapshot,
 			}
 		}
 	} else {
-		for name, slot := range s.Audit.Inputs {
+		for name, slot := range s.Audit.Program.Inputs {
 			slots[name] = resolved.ArtifactSlot{Required: slot.Required, MediaTypes: slot.MediaTypes}
 		}
 		for name, output := range auditOutputContracts {

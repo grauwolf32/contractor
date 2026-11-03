@@ -79,8 +79,8 @@ func newEngagementFixtureWithEdits(t *testing.T, editWorker func(string) string,
 		pool = limited
 	}
 	snapshot := loadAuditServiceProfilesWithEdits(t, func(s string) string {
-		s = strings.Replace(s, "  inputs:\n", "  inputs:\n    engagement: {required: true, mediaTypes: [application/vnd.contractor.engagement+json]}\n", 1)
-		return strings.Replace(s, "activeChecks: prohibited", "activeChecks: automatic", 1)
+		s = strings.Replace(s, "  inputs:\n", "  inputs:\n    engagement: {required: true, media_types: [application/vnd.contractor.engagement+json]}\n", 1)
+		return strings.Replace(s, "active_operations: prohibited", "active_operations: allowed", 1)
 	}, editWorker, func(files map[string]string) {
 		if customize != nil {
 			customize(files)
@@ -209,11 +209,11 @@ func TestEngagementAuditPinsOneAttemptAndHTTPLimits(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	profile, err := auditprofile.DecodeResolvedAuditProfileSnapshot(draft.ProfileSnapshot)
+	profile, err := auditprofile.DecodePinnedProgram(draft.ProfileSnapshot)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if profile.Execution.MaxItemRunAttempts <= 1 {
+	if profile.Program.Limits.MaxAttempts <= 1 {
 		t.Fatal("fixture must offer retries to prove the engagement override")
 	}
 	if draft.Limits.MaxItemRunAttempts != 1 {
@@ -303,26 +303,26 @@ func TestEngagementUnsupportedCapabilitiesAndBlackboxClosures(t *testing.T) {
 	selected := &engagementSelection{document: f.document("http://127.0.0.1"), inputs: []auditstore.ArtifactLink{}}
 	for _, test := range []struct {
 		name   string
-		mutate func(*auditprofile.ResolvedAuditProfile, *engagementSelection)
+		mutate func(*auditprofile.PinnedProgram, *engagementSelection)
 	}{
-		{"unclassified inherited input", func(_ *auditprofile.ResolvedAuditProfile, e *engagementSelection) { e.unclassifiedInputs = true }},
-		{"repository hydration", func(p *auditprofile.ResolvedAuditProfile, _ *engagementSelection) {
+		{"unclassified inherited input", func(_ *auditprofile.PinnedProgram, e *engagementSelection) { e.unclassifiedInputs = true }},
+		{"repository hydration", func(p *auditprofile.PinnedProgram, _ *engagementSelection) {
 			for role, binding := range p.Workflows {
-				for name, stage := range binding.Workflow.Stages {
+				for name, stage := range binding.Stages {
 					stage.Context.Workspace = &resolved.WorkspaceContext{Mode: contracts.WorkspaceModeDirect, Sources: []resolved.WorkspaceSource{{Artifact: "repository"}}}
-					binding.Workflow.Stages[name] = stage
+					binding.Stages[name] = stage
 				}
 				p.Workflows[role] = binding
 			}
 		}},
-		{"source skill", func(p *auditprofile.ResolvedAuditProfile, _ *engagementSelection) {
+		{"source skill", func(p *auditprofile.PinnedProgram, _ *engagementSelection) {
 			for role, binding := range p.Workflows {
-				for name, stage := range binding.Workflow.Stages {
+				for name, stage := range binding.Stages {
 					for key, agent := range stage.Agents {
 						agent.Template.Skills = []contracts.ArtifactRef{{Namespace: "skills", Name: "repository-context"}}
 						stage.Agents[key] = agent
 					}
-					binding.Workflow.Stages[name] = stage
+					binding.Stages[name] = stage
 				}
 				p.Workflows[role] = binding
 			}
@@ -377,7 +377,7 @@ func TestEngagementSourceAssistedRetainsExactInputsAndPurgeReleasesHolds(t *test
 	store := auditstoretest.NewStore(f.pool, artifactpgtest.NewStorage()).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch)
 	claim := claimAuditForPurge(t, f.ctx, store, draft.AuditID)
 	if deleted.Audit.State == auditstore.AuditCancelling {
-		if settled, err := store.SettleUndispatched(f.ctx, claim, auditstore.MaxReconcileRows); err != nil || settled != 1 {
+		if settled, err := store.SettleUndispatchedTasks(f.ctx, claim, auditstore.MaxReconcileRows); err != nil || settled != 0 {
 			t.Fatalf("settle undispatched engagement: %d %v", settled, err)
 		}
 		current, released, err := store.ReleaseDispatchHold(f.ctx, claim)
@@ -589,8 +589,8 @@ func TestEngagementMetadataAdmissionPrecedesPayloadReads(t *testing.T) {
 		t.Fatal(err)
 	}
 	selection := DraftSelection{Inputs: map[string]contracts.ExactArtifact{"engagement": meta.Exact(), "checklist": f.checklist}}
-	probe := &rulepackReadProbe{Repository: artifactpgtest.NewStorage().Repository(f.pool), readErr: errors.New("unexpected engagement payload read")}
-	if _, err = readAndVerifyInputs(f.ctx, artifacts.NewService(probe), f.project.ProjectID, profile, selection); !errors.Is(err, ErrInvalid) || probe.reads != 0 {
+	probe := &rulepackReadProbe{Repository: artifacts.NewPostgresRepository(f.pool), readErr: errors.New("unexpected engagement payload read")}
+	if _, err = readEngagement(f.ctx, artifacts.NewService(probe), f.project.ProjectID, profile, selection); !errors.Is(err, ErrInvalid) || probe.reads != 0 {
 		t.Fatalf("oversized engagement materialized: reads=%d err=%v", probe.reads, err)
 	}
 	draft := storedRulepackDraft(t, f.ctx, f.service, profile, f.project.ProjectID, f.project.OwnerID, "stored-oversized-engagement", selection.Inputs)

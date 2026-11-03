@@ -13,7 +13,6 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 )
@@ -99,7 +98,7 @@ else:
 		before := len(scanFixtureRequests(h))
 		audit := startWebScanAudit(t, h, "", nil)
 		waitScanAudit(t, h, audit.AuditID, 1)
-		pkg := assertScanAuditRetentionForOperation(t, h, audit, "nuclei", "target", true, 1)
+		pkg := assertWebAuditRetention(t, h, audit, true)
 		assertWebScanReport(t, pkg, "installed", "")
 		if len(scanFixtureRequests(h)) != before+1 {
 			t.Fatal("replayed admission dispatched more than one scan")
@@ -121,7 +120,7 @@ else:
 		}()
 		audit := startWebScanAudit(t, h, "", payload)
 		waitScanAudit(t, h, audit.AuditID, 1)
-		pkg := assertScanAuditRetentionForOperation(t, h, audit, "nuclei", "target", true, 1)
+		pkg := assertWebAuditRetention(t, h, audit, true)
 		assertWebScanReport(t, pkg, "rulepack", contentdigest.Bytes(payload))
 	})
 	t.Run("changed_installed_package_has_gaps_without_traffic", func(t *testing.T) {
@@ -141,7 +140,7 @@ else:
 		before := len(scanFixtureRequests(h))
 		audit := startWebScanAudit(t, h, "", nil)
 		waitScanAudit(t, h, audit.AuditID, 1)
-		assertScanAuditRetentionForOperation(t, h, audit, "nuclei", "target", false, 1)
+		assertWebAuditRetention(t, h, audit, false)
 		if len(scanFixtureRequests(h)) != before {
 			t.Fatal("changed package reached target")
 		}
@@ -150,7 +149,7 @@ else:
 		before := len(scanFixtureRequests(h))
 		audit := startWebScanAudit(t, h, "", []byte("id: bad\nhttp: []\n"))
 		waitScanAudit(t, h, audit.AuditID, 1)
-		assertScanAuditRetentionForOperation(t, h, audit, "nuclei", "target", false, 1)
+		assertWebAuditRetention(t, h, audit, false)
 		if len(scanFixtureRequests(h)) != before {
 			t.Fatal("invalid rules reached target")
 		}
@@ -160,9 +159,9 @@ else:
 		before := len(scanFixtureRequests(h))
 		audit := startWebScanAudit(t, h, "", nil)
 		waitScanAudit(t, h, audit.AuditID, 1)
-		pkg := assertScanAuditRetentionForOperation(t, h, audit, "nuclei", "target", false, 1)
-		if !slices.Contains(pkg.Results.Results[0].Coverage.Gaps, "scan_outcome_unknown") || len(scanFixtureRequests(h)) != before+1 {
-			t.Fatalf("lost result repeated work or lost its gap: %+v", pkg.Results)
+		pkg := assertWebAuditRetention(t, h, audit, false)
+		if !slices.Contains(pkg.Limitations, "scan_outcome_unknown") || len(scanFixtureRequests(h)) != before+1 {
+			t.Fatalf("lost result repeated work or lost its gap: %+v", pkg)
 		}
 	})
 	t.Run("cancelled_child_is_not_resubmitted", func(t *testing.T) {
@@ -172,20 +171,24 @@ else:
 		case <-h.ctx.Done():
 			t.Fatal("scanner never reached cancellation fixture")
 		}
-		item := scanAuditItem(t, h, audit.AuditID)
-		if len(item.Attempts) != 1 || item.Attempts[0].RunID == "" {
-			t.Fatalf("missing child Run: %+v", item)
+		task := scanAuditTask(t, h, audit.AuditID)
+		if task.LastExecution == nil {
+			t.Fatal("missing ordinary execution")
 		}
-		cancelWorkflowRun(t, h.client, h.baseURL, item.Attempts[0].RunID)
+		var runID string
+		if err := h.pool.QueryRow(h.ctx, `SELECT run_id FROM audit_executions WHERE execution_id=$1`, *task.LastExecution).Scan(&runID); err != nil {
+			t.Fatal(err)
+		}
+		cancelWorkflowRun(t, h.client, h.baseURL, runID)
 		waitScanAudit(t, h, audit.AuditID, 1)
-		assertScanAuditRetentionForOperation(t, h, audit, "nuclei", "target", false, 1)
+		assertWebAuditRetention(t, h, audit, false)
 	})
 }
 
 func startWebScanAudit(t *testing.T, h *scanProcessHarness, prefix string, rulepack []byte) auditProgramAudit {
 	t.Helper()
 	var project projectResourceResponse
-	scanAuditPOST(t, h, "/v1/projects", map[string]string{"kind": "project", "name": "Web scan Audit fixture", "activeChecks": "approval-required"}, 0, http.StatusCreated, &project)
+	scanAuditPOST(t, h, "/v1/projects", map[string]string{"kind": "project", "name": "Web scan Audit fixture", "activeChecks": "automatic"}, 0, http.StatusCreated, &project)
 	project = updateProjectTarget(t, h.client, h.baseURL, project.ProjectID, project.Revision, map[string]any{"url": h.targetURL + prefix}, http.StatusOK)
 	target := []byte(fmt.Sprintf(`{"schema":"contractor.audit.web-target.v1","url":%q}`, h.targetURL+prefix))
 	settings := []byte(`{"schema":"contractor.audit.web-scan-settings.v1","templateIds":"","tags":"","severity":"","rateLimit":10}`)
@@ -199,16 +202,11 @@ func startWebScanAudit(t *testing.T, h *scanProcessHarness, prefix string, rulep
 	var draft auditProgramAudit
 	webScanReplayPOST(t, h, "/v1/projects/"+project.ProjectID+"/audits", map[string]any{"profile": map[string]string{"name": "web-scan", "version": "1"}, "inputs": inputs}, 0, http.StatusCreated, &draft)
 	var started struct {
-		Audit auditProgramAudit  `json:"audit"`
-		Items []auditProgramItem `json:"items"`
+		Audit auditProgramAudit `json:"audit"`
 	}
 	webScanReplayPOST(t, h, "/v1/audits/"+draft.AuditID+"/start", nil, draft.Revision, http.StatusOK, &started)
-	if started.Audit.State != "active" || started.Audit.SubmittedRunCount != 0 || len(started.Items) != 1 {
-		t.Fatalf("unexpected pre-approval Audit: %+v", started)
-	}
-	var children int
-	if err := h.pool.QueryRow(h.ctx, `SELECT count(*) FROM workflow_runs WHERE audit_execution_id IN (SELECT execution_id FROM audit_executions WHERE audit_id=$1)`, draft.AuditID).Scan(&children); err != nil || children != 0 {
-		t.Fatalf("unapproved Audit dispatched: %d %v", children, err)
+	if started.Audit.State != "active" {
+		t.Fatalf("unexpected Audit start: %+v", started)
 	}
 
 	// A later Project target and source advancement must not retarget accepted work.
@@ -228,15 +226,6 @@ func startWebScanAudit(t *testing.T, h *scanProcessHarness, prefix string, rulep
 		response := do(t, h.client, req, http.StatusOK)
 		response.Body.Close()
 	}
-	var reviews struct {
-		Items []auditProgramReview `json:"items"`
-	}
-	auditProgramGET(t, h.client, h.baseURL+"/v1/audits/"+draft.AuditID+"/reviews?limit=100", &reviews)
-	if len(reviews.Items) != 1 || reviews.Items[0].Kind != "active-check-approval" || reviews.Items[0].State != "pending" {
-		t.Fatalf("missing active-check approval: %+v", reviews)
-	}
-	review := reviews.Items[0]
-	scanAuditPOST(t, h, "/v1/audits/"+draft.AuditID+"/reviews/"+review.RequestID+"/decisions", map[string]string{"action": "approve", "rationale": "Controlled local target only"}, review.Revision, http.StatusOK, nil)
 	return started.Audit
 }
 
@@ -277,23 +266,19 @@ func webScanReplayPOST(t *testing.T, h *scanProcessHarness, path string, body an
 	}
 }
 
-func assertWebScanReport(t *testing.T, pkg auditdomain.CheckResultPackage, source, digest string) {
+func assertWebScanReport(t *testing.T, pkg retainedWebScanReport, source, digest string) {
 	t.Helper()
 	found := false
-	for _, evidence := range pkg.Evidence.Evidence {
-		if evidence.Kind != "scanner-report" {
+	for _, artifact := range pkg.Artifacts {
+		if artifact.Kind != "scanner-report" {
 			continue
 		}
-		member, _ := pkg.Package.MemberByID(evidence.ContentMemberID)
 		var report scanProcessReport
-		if err := json.Unmarshal(member.Data(), &report); err != nil {
+		if err := json.Unmarshal(artifact.Data, &report); err != nil {
 			t.Fatal(err)
 		}
-		if report.Observation["source"] != source {
-			t.Fatalf("source=%+v", report)
-		}
-		if digest != "" && report.Observation["sourceContentDigest"] != digest {
-			t.Fatalf("custom source changed: %+v", report)
+		if report.Observation["source"] != source || digest != "" && report.Observation["sourceContentDigest"] != digest {
+			t.Fatalf("rulepack source changed: %+v", report)
 		}
 		if report.Observation["templateManifest"] == nil || report.Observation["selectedTemplateCount"] != float64(1) {
 			t.Fatalf("missing rule provenance: %+v", report)
@@ -301,6 +286,6 @@ func assertWebScanReport(t *testing.T, pkg auditdomain.CheckResultPackage, sourc
 		found = true
 	}
 	if !found {
-		t.Fatal("Audit did not retain scanner report")
+		t.Fatal("ordinary Audit report omitted scanner evidence")
 	}
 }

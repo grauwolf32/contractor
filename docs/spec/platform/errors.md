@@ -512,16 +512,15 @@ Assembled from every document.
 | `audit_scan_input_invalid` | — | no | The Audit source or settings media type differs from the assigned contract. | [SCN-R258](../tools/scanners.md) |
 | `audit_scan_input_missing` | — | no | A required assigned Audit input is absent. | [SCN-R258](../tools/scanners.md) |
 | `audit_scan_manifest_invalid` | — | no | The execution manifest is malformed or has an invalid assignment count. | [SCN-R258](../tools/scanners.md) |
-| `audit_scan_manifest_unavailable` | — | cause-based for Audit; no for ordinary scans | The exact execution manifest could not be read. | [SCN-R258](../tools/scanners.md) |
 | `audit_scan_preparation_invalid` | — | no | The assigned operation or prepared request cannot be validated or encoded. | [SCN-R258](../tools/scanners.md) |
 | `audit_scan_preparation_write_failed` | — | cause-based for Audit; no for ordinary scans | The create-only prepared Audit input could not be published. | [SCN-R258](../tools/scanners.md) |
 | `audit_scan_result_invalid` | — | no | Audit result assembly rejected retained content, bounds or assignment with auditscan.ErrInvalid. | [SCN-R258](../tools/scanners.md) |
 | `audit_scan_result_unavailable` | — | cause-based for Audit; no for ordinary scans | Retained evidence could not be read or result assembly was cancelled or exhausted its budget. | [SCN-R258](../tools/scanners.md) |
 | `audit_scan_result_write_failed` | — | cause-based for Audit; no for ordinary scans | The create-only Audit result package could not be published. | [SCN-R258](../tools/scanners.md) |
 | `audit_scan_settings_unavailable` | — | cause-based for Audit; no for ordinary scans | The exact Audit settings could not be read. | [SCN-R258](../tools/scanners.md) |
+| `audit_scan_operation_unavailable` | — | cause-based for Audit; no for ordinary scans | The exact selected OpenAPI operation material could not be read. | [SCN-R258](../tools/scanners.md) |
 | `audit_scan_source_unavailable` | — | cause-based for Audit; no for ordinary scans | The exact assigned source or selected rulepack could not be read. | [SCN-R258](../tools/scanners.md) |
 | `audit_scan_task_invalid` | — | no | The assigned task package, member, document or scanner identity is invalid. | [SCN-R258](../tools/scanners.md) |
-| `audit_scan_task_unavailable` | — | cause-based for Audit; no for ordinary scans | The exact assigned task package could not be read. | [SCN-R258](../tools/scanners.md) |
 | `automatic_active_checks_unsupported` | — | no | Reason code of audit_profile_unsupported for a profile prohibition conflicting with selected active tools. | [AUD-R89](../audits/audits.md) |
 | `control_plane_state_lost` | — | yes | Control Plane no longer holds the active allocation set of the Stage being prepared, such as durable allocation rows left without grants; interrupted StageTermination. | [SCH-R184](../execution/scheduler.md) |
 | `duplicate_visible_tool` | 422 | no | Selected Toolset factories returned colliding model-visible tool names; preparation rolls back. | [TLS-R21](../tools/toolsets.md) |

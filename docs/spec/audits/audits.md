@@ -14,11 +14,12 @@ decisions.
 
 [![Audit architecture: Project-bound coordination, ordinary WorkflowRuns, result collection, and persistent state](../../assets/contractor-audits.png)](../../assets/contractor-audits.png)
 
-The Audit contract covers deterministic inventories, immutable rounds, bounded
-compatible item batches in ordinary check Runs, PostgreSQL recovery, exact
-result collection, finding intake and triage, exact human decisions, pinned
-discovery and assessment roles, bounded multiple rounds, and automatic or
-owner-accepted coverage reports.
+Executable AuditProfiles contain the common [Program](common-contract.md),
+with selected inputs, allowed ordinary Workflows, initial work and limits/policy.
+Accepted Tasks and ordinary Run attempts replace inventory/Round/role authoring.
+The public common projection is ACT-R15. The previous profile/round authoring
+requirements below are retired as execution contracts; independent retained
+projections and original provenance do not authorize a compatibility executor.
 
 This document owns the AuditProfile and the curated standard packages it
 pins, the Audit baseline and scope, the durable Audit domain model, Audit

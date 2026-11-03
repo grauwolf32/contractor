@@ -16,7 +16,6 @@ func TestStartStagingLockRequiresTransaction(t *testing.T) {
 	}{
 		{(*OwnerStore)(nil), (*OwnerTxStore)(nil), "LockForStartStaging"},
 		{(*RunDeletion)(nil), (*RunDeletionTx)(nil), "LockRunDeletionAudits"},
-		{(*ReviewStore)(nil), (*ReviewTxStore)(nil), "RenewItemReviewsForResume"},
 	} {
 		if _, found := reflect.TypeOf(step.pool).MethodByName(step.method); found {
 			t.Errorf("%T.%s is available outside a transaction", step.pool, step.method)

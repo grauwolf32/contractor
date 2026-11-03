@@ -141,14 +141,14 @@ func acceptTasksInTransaction(ctx context.Context, tx pgx.Tx, p auditstore.Accep
 			}
 			continue
 		}
-		if count >= pinned.Program.Limits.MaxTasks {
+		if count >= audit.Limits.MaxItemsTotal {
 			return auditstore.TaskAcceptance{}, auditstore.ErrTaskBudgetExhausted
 		}
-		if iterationCount >= pinned.Program.Limits.MaxTasksPerIteration {
+		if iterationCount >= audit.Limits.MaxItemsPerRound {
 			iteration++
 			iterationCount = 0
 		}
-		if iteration > pinned.Program.Limits.MaxIterations {
+		if iteration > audit.Limits.MaxRounds {
 			return auditstore.TaskAcceptance{}, auditstore.ErrTaskBudgetExhausted
 		}
 		count++

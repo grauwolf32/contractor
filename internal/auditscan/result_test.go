@@ -3,8 +3,9 @@ package auditscan
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
-	"os"
+	"fmt"
 	"slices"
 	"testing"
 
@@ -28,38 +29,17 @@ type retainedScan struct {
 
 func newRetainedScan(t *testing.T) *retainedScan {
 	t.Helper()
-	read := func(name string) []byte {
-		t.Helper()
-		data, err := os.ReadFile("../../testdata/configs-scan/audit-openapi-scan/" + name)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return data
-	}
 	ref := func(namespace, name string) contracts.ArtifactRef {
 		revision := name + "-r1"
 		return contracts.ArtifactRef{Namespace: namespace, Name: name, Revision: &revision}
 	}
-	source, settings := read("openapi.json"), read("sqlmap-settings.json")
-	inventory, err := auditdomain.BuildOpenAPIScanInventory(source, auditdomain.JSONMediaType, settings,
-		auditdomain.ExactInput{Name: "scan_options", Ref: ref("project", "scan-options"), Digest: contentdigest.Bytes(settings)},
-		auditdomain.InventoryOptions{
-			Round: 1, WorkflowRole: "check", SourceInputName: "api_document",
-			SourceRef: ref("project", "api-document"), ApprovalRequirement: auditdomain.ApprovalActiveCheck,
-		})
-	if err != nil {
-		t.Fatal(err)
-	}
-	manifest := inventory.ExecutionManifest
-	taskRef := ref("project", "assigned-task")
-	manifest.Items[0].TaskRef = &taskRef
 	scan := &retainedScan{
 		plan: ref("scan-results", "plan"), report: ref("scan-results", "report"),
 		payloads: map[string]artifacts.Payload{}, fail: map[string]error{},
 	}
 	plan := []byte(`{"retained":"plan"}`)
 	scan.input = ResultInput{
-		RunID: "run-1", CurrentStage: "stage-2", Task: inventory.Tasks[0].Document, Manifest: manifest,
+		RunID: "run-1", CurrentStage: "stage-2", Scanner: "sqlmap", Runnable: true,
 		Attempts: []planner.ScanAttempt{{
 			StageExecutionID: "stage-1", StageName: "scan", Terminal: true,
 			State: planner.ScanState{
@@ -91,17 +71,18 @@ func (s *retainedScan) read(ctx context.Context, ref contracts.ArtifactRef, _ in
 	return payload, nil
 }
 
-func (s *retainedScan) build(t *testing.T) (auditdomain.CheckResult, error) {
+func (s *retainedScan) build(t *testing.T) (operationReport, error) {
 	t.Helper()
 	result, err := BuildResult(t.Context(), s.input, s.read)
 	if err != nil {
-		return auditdomain.CheckResult{}, err
+		return operationReport{}, err
 	}
-	pkg, err := auditdomain.DecodeCheckResultPackage(result.Package)
+	var report operationReport
+	err = json.Unmarshal(result.Data, &report)
 	if err != nil {
-		t.Fatalf("assembled package is invalid: %v", err)
+		t.Fatalf("assembled report is invalid: %v", err)
 	}
-	return pkg.Results.Results[0], nil
+	return report, nil
 }
 
 // Missing retained artifacts stay coverage gaps of a valid result: the scan
@@ -114,12 +95,12 @@ func TestBuildResultKeepsMissingRetainedArtifactsAsCoverageGaps(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, gap := range []string{"scan_plan_unavailable", "scan_report_unavailable"} {
-		if !slices.Contains(result.Coverage.Gaps, gap) {
-			t.Fatalf("gaps = %v, want %s", result.Coverage.Gaps, gap)
+		if !slices.Contains(result.Limitations, gap) {
+			t.Fatalf("gaps = %v, want %s", result.Limitations, gap)
 		}
 	}
-	if len(result.Coverage.Completed) != 0 {
-		t.Fatalf("completed coverage without a report: %+v", result.Coverage)
+	if result.ExecutionCompleted {
+		t.Fatalf("completed coverage without a report: %+v", result)
 	}
 }
 
@@ -169,12 +150,8 @@ func TestBuildResultClassifiesInvalidRetainedContentAndAssignment(t *testing.T) 
 			data := append([]byte(`{"tool":"scan_sqlmap","padding":"`), bytes.Repeat([]byte("x"), MaxScannerReportBytes)...)
 			s.payloads[s.report.Name] = artifacts.Payload{MediaType: auditdomain.JSONMediaType, Data: append(data, '"', '}')}
 		},
-		"assignment that differs from its manifest": func(s *retainedScan) {
-			s.input.Manifest.Items[0].SubjectKey += "-changed"
-		},
-		"manifest without a task reference": func(s *retainedScan) {
-			s.input.Manifest.Items[0].TaskRef = nil
-		},
+		"invalid Run identity": func(s *retainedScan) { s.input.RunID = "bad identity" },
+		"unknown scanner":      func(s *retainedScan) { s.input.Scanner = "other" },
 	}
 	for name, change := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -193,8 +170,64 @@ func TestBuildResultRetainsReadableReportAsCompletedCoverage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(result.Coverage.Completed) != 1 || result.Assessment != "inconclusive" ||
-		!slices.Contains(result.Coverage.Gaps, "scan_plan_unavailable") {
+	if !result.ExecutionCompleted || len(result.Artifacts) != 1 ||
+		!slices.Contains(result.Limitations, "scan_plan_unavailable") {
 		t.Fatalf("readable report result = %+v", result)
+	}
+}
+
+func TestBuildResultUnknownOutcomeDoesNotAuthorizeTrafficRetry(t *testing.T) {
+	for _, status := range []string{planner.ScanJobStarted, planner.ScanJobUnknown, planner.ScanJobCompleted, planner.ScanJobFailed} {
+		t.Run(string(status), func(t *testing.T) {
+			scan := newRetainedScan(t)
+			attempt := &scan.input.Attempts[0]
+			scan.input.CurrentStage = attempt.StageExecutionID
+			attempt.State.Jobs[0].Status = status
+			if status != planner.ScanJobCompleted {
+				attempt.State.Jobs[0].Report = nil
+			}
+			result, err := BuildResult(t.Context(), scan.input, scan.read)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result.Retryable != (status == planner.ScanJobFailed) {
+				t.Fatalf("status %s retryable=%t", status, result.Retryable)
+			}
+			var report operationReport
+			if err := json.Unmarshal(result.Data, &report); err != nil {
+				t.Fatal(err)
+			}
+			if (status == planner.ScanJobStarted || status == planner.ScanJobUnknown) && !slices.Contains(report.Limitations, "scan_outcome_unknown") {
+				t.Fatal("lost ambiguous outcome")
+			}
+		})
+	}
+}
+func TestBuildResultBoundsEmbeddedEvidenceAndRemainsSelfContained(t *testing.T) {
+	scan := newRetainedScan(t)
+	scan.payloads[scan.report.Name] = artifacts.Payload{MediaType: "application/json", Data: append(append([]byte(`{"tool":"scan_sqlmap","observations":"`), bytes.Repeat([]byte("x"), MaxScannerReportBytes-100)...), []byte(`"}`)...)}
+	for i := 0; i < 5; i++ {
+		job := scan.input.Attempts[0].State.Jobs[0]
+		job.ID = fmt.Sprintf("job-%d", i)
+		scan.input.Attempts[0].State.Jobs = append(scan.input.Attempts[0].State.Jobs, job)
+	}
+	result, err := BuildResult(t.Context(), scan.input, scan.read)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Data) > MaxResultBytes {
+		t.Fatal("unbounded report")
+	}
+	var report operationReport
+	if err := json.Unmarshal(result.Data, &report); err != nil {
+		t.Fatal(err)
+	}
+	if len(report.Artifacts) != 2 || !slices.Contains(report.Limitations, "scan_evidence_budget_exceeded") {
+		t.Fatalf("evidence count=%d gaps=%v", len(report.Artifacts), report.Limitations)
+	}
+	for _, artifact := range report.Artifacts {
+		if contentdigest.Bytes(artifact.Data) != artifact.Digest {
+			t.Fatal("embedded exact bytes changed")
+		}
 	}
 }

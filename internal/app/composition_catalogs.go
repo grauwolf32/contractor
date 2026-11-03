@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 
@@ -74,35 +73,5 @@ func configureCatalogs(
 			"digest", outcome.Digest,
 		)
 	}
-	if err := validateCatalogStandards(ctx, configurationManager, standardCatalog, ownerID, logger); err != nil {
-		return catalogServices{}, err
-	}
 	return catalogServices{artifacts: artifactService, findings: findingService}, nil
-}
-
-func validateCatalogStandards(ctx context.Context, configurationManager *workflowconfig.Manager, standardCatalog *auditstandards.Catalog, ownerID string, logger *slog.Logger) error {
-	for _, profile := range configurationManager.AuditProfiles() {
-		for _, standard := range profile.Standards {
-			resolved, err := standardCatalog.Resolve(ctx, ownerID, auditstandards.Reference{
-				Scheme: standard.Scheme, Version: standard.Version,
-			})
-			if errors.Is(err, blob.ErrMissing) {
-				logger.Warn("AuditProfile standard content missing",
-					"profile", profile.Ref.Name, "version", profile.Ref.Version,
-					"scheme", standard.Scheme, "standard_version", standard.Version,
-				)
-				continue
-			}
-			if err != nil {
-				return fmt.Errorf(
-					"resolve AuditProfile %s@%s standard %s@%s: %w",
-					profile.Ref.Name, profile.Ref.Version, standard.Scheme, standard.Version, err,
-				)
-			}
-			if err := validateProfileStandardSelection(profile, resolved.Package, resolved.Source.Artifact); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
 }

@@ -36,37 +36,36 @@ func validTaskRunIdentity(p AuditCreateParams) bool {
 // Common Run inputs and configuration are derived exclusively from the locked
 // Audit pin and immutable accepted Task documents. A coordinator passes only
 // the reserved execution identity and membership, never replacement authority.
-func normalizeTaskRunCreate(intent auditstore.RunCreationIntent, p AuditCreateParams) (AuditCreateParams, json.RawMessage, error) {
+func normalizeTaskRunCreate(intent auditstore.RunCreationIntent, p AuditCreateParams) (auditRunCreate, json.RawMessage, error) {
 	if !validTaskRunIdentity(p) || intent.Execution.Role != auditstore.ExecutionTask || intent.Execution.AuditID != p.Claim.AuditID || intent.Execution.ExecutionID != p.ExecutionID || intent.Execution.RequestDigest != p.RequestDigest || len(intent.Tasks) != len(p.TaskIDs) {
-		return AuditCreateParams{}, nil, auditstore.ErrConflict
+		return auditRunCreate{}, nil, auditstore.ErrConflict
 	}
 	pinned, err := auditprofile.DecodePinnedProgram(intent.ProgramSnapshot)
 	if err != nil {
-		return AuditCreateParams{}, nil, ErrInvalid
+		return auditRunCreate{}, nil, ErrInvalid
 	}
 	alias := intent.Execution.WorkflowRole
 	binding, ok := pinned.Program.Workflows[alias]
 	if !ok {
-		return AuditCreateParams{}, nil, ErrInvalid
+		return auditRunCreate{}, nil, ErrInvalid
 	}
 	workflow, ok := pinned.Workflows[alias]
 	if !ok {
-		return AuditCreateParams{}, nil, ErrInvalid
+		return auditRunCreate{}, nil, ErrInvalid
 	}
 	var baseline auditbaseline.BaselineSnapshot
 	if strictjson.Decode(intent.BaselineSnapshot, &baseline) != nil || baseline.Schema != auditbaseline.Schema || baseline.RuntimeConfig.Validate() != nil {
-		return AuditCreateParams{}, nil, ErrInvalid
+		return auditRunCreate{}, nil, ErrInvalid
 	}
-	result := AuditCreateParams{Claim: p.Claim, ExecutionID: p.ExecutionID, TaskIDs: slices.Clone(p.TaskIDs), RequestDigest: p.RequestDigest, NewRunID: p.NewRunID,
+	result := auditRunCreate{AuditCreateParams: AuditCreateParams{Claim: p.Claim, ExecutionID: p.ExecutionID, TaskIDs: slices.Clone(p.TaskIDs), RequestDigest: p.RequestDigest, NewRunID: p.NewRunID},
 		Workflow: workflow.Clone(), RuntimeConfig: baseline.RuntimeConfig, ProjectHTTPTarget: baseline.ProjectHTTPTarget.Clone(), RequiredPlacementLabels: slices.Clone(intent.RequiredPlacementLabels),
-		Inputs: map[string]auditstore.ExactArtifact{}, AuditInputs: map[string]bool{}, Parameters: maps.Clone(binding.Parameters)}
+		Inputs: map[string]auditstore.ExactArtifact{}, Parameters: maps.Clone(binding.Parameters)}
 	for slot, material := range intent.Tasks[0].Document.Inputs {
 		result.Inputs[slot] = contracts.ExactArtifact{Ref: material.Ref.Clone(), Digest: material.Digest, MediaType: material.MediaType, SizeBytes: material.SizeBytes}
-		result.AuditInputs[slot] = true
 	}
 	refs, err := resolved.WorkflowSkillRefs(workflow)
 	if err != nil {
-		return AuditCreateParams{}, nil, err
+		return auditRunCreate{}, nil, err
 	}
 	for _, ref := range refs {
 		found := false
@@ -78,28 +77,28 @@ func normalizeTaskRunCreate(intent auditstore.RunCreationIntent, p AuditCreatePa
 			}
 		}
 		if !found {
-			return AuditCreateParams{}, nil, ErrInvalid
+			return auditRunCreate{}, nil, ErrInvalid
 		}
 	}
 	result.Skills = agentskills.CloneRunSkills(result.Skills)
 	if !matchingPinnedSkills(refs, result.Skills) {
-		return AuditCreateParams{}, nil, ErrInvalid
+		return auditRunCreate{}, nil, ErrInvalid
 	}
 	if err := agentskills.ValidateSelectedLimits(result.Skills, resolved.WorkflowSkillSets(workflow)); err != nil {
-		return AuditCreateParams{}, nil, err
+		return auditRunCreate{}, nil, err
 	}
 	if result.ProjectHTTPTarget != nil && result.ProjectHTTPTarget.Validate() != nil {
-		return AuditCreateParams{}, nil, ErrInvalid
+		return auditRunCreate{}, nil, ErrInvalid
 	}
 	if err := validateTaskRunIntent(intent, result); err != nil {
-		return AuditCreateParams{}, nil, err
+		return auditRunCreate{}, nil, err
 	}
 	snapshot, err := resolved.EncodeResolvedWorkflowSnapshot(result.Workflow)
 	return result, snapshot, err
 }
 
-func validateTaskRunIntent(intent auditstore.RunCreationIntent, p AuditCreateParams) error {
-	if !validTaskRunIdentity(p) || intent.Execution.Role != auditstore.ExecutionTask || intent.Execution.AuditID != p.Claim.AuditID || intent.Execution.ExecutionID != p.ExecutionID || intent.Execution.RequestDigest != p.RequestDigest || len(intent.Tasks) != len(p.TaskIDs) || len(intent.Items) != 0 {
+func validateTaskRunIntent(intent auditstore.RunCreationIntent, p auditRunCreate) error {
+	if !validTaskRunIdentity(p.AuditCreateParams) || intent.Execution.Role != auditstore.ExecutionTask || intent.Execution.AuditID != p.Claim.AuditID || intent.Execution.ExecutionID != p.ExecutionID || intent.Execution.RequestDigest != p.RequestDigest || len(intent.Tasks) != len(p.TaskIDs) || len(intent.Items) != 0 {
 		return auditstore.ErrConflict
 	}
 	pinned, err := auditprofile.DecodePinnedProgram(intent.ProgramSnapshot)
@@ -127,7 +126,7 @@ func validateTaskRunIntent(intent auditstore.RunCreationIntent, p AuditCreatePar
 		}
 		for slot, material := range doc.Inputs {
 			input := p.Inputs[slot]
-			if material.ScopeKind != "audit" || material.ScopeID != doc.AuditID || !p.AuditInputs[slot] || !material.Ref.SameExact(input.Ref) || material.Digest != input.Digest || material.MediaType != input.MediaType || material.SizeBytes != input.SizeBytes {
+			if material.ScopeKind != "audit" || material.ScopeID != doc.AuditID || !material.Ref.SameExact(input.Ref) || material.Digest != input.Digest || material.MediaType != input.MediaType || material.SizeBytes != input.SizeBytes {
 				return auditstore.ErrConflict
 			}
 		}
@@ -145,7 +144,7 @@ func validateTaskRunIntent(intent auditstore.RunCreationIntent, p AuditCreatePar
 
 // Context is authored after the real Run ID and input forks exist, in the same
 // creation transaction. Its evidence grants access only to those local inputs.
-func materializeTaskRunContext(ctx context.Context, service *artifacts.Service, intent auditstore.RunCreationIntent, p AuditCreateParams, runID string, forks map[string]contracts.ArtifactRef) error {
+func materializeTaskRunContext(ctx context.Context, service *artifacts.Service, intent auditstore.RunCreationIntent, p auditRunCreate, runID string, forks map[string]contracts.ArtifactRef) error {
 	pinned, err := auditprofile.DecodePinnedProgram(intent.ProgramSnapshot)
 	if err != nil {
 		return err
@@ -167,7 +166,7 @@ func materializeTaskRunContext(ctx context.Context, service *artifacts.Service, 
 			input.ScopeKind, input.ScopeID, input.Ref = "run", runID, forks[slot]
 			evidence = append(evidence, input)
 		}
-		item := map[string]any{"item_key": fmt.Sprintf("item-%02d", i), "task_id": task.Document.TaskID, "objective": task.Document.Objective, "evidence": evidence}
+		item := map[string]any{"item_key": auditcontract.ExecutionItemKey(i), "task_id": task.Document.TaskID, "objective": task.Document.Objective, "evidence": evidence}
 		if task.Document.Hypothesis != nil {
 			return fmt.Errorf("%w: accepted hypothesis snapshot is unavailable", ErrInvalid)
 		}

@@ -26,10 +26,10 @@ const (
 )
 
 type ProfileCatalog interface {
-	AuditProfile(string) (auditprofile.ResolvedAuditProfile, error)
-	ResolveAuditProfile(context.Context, string) (auditprofile.ResolvedAuditProfile, error)
-	ResolvePinnedAuditProfile(context.Context, auditprofile.ResolvedAuditProfile) (auditprofile.ResolvedAuditProfile, error)
-	AuditProfiles() []auditprofile.ResolvedAuditProfile
+	AuditProfile(string) (auditprofile.PinnedProgram, error)
+	ResolveAuditProfile(context.Context, string) (auditprofile.PinnedProgram, error)
+	ResolvePinnedAuditProfile(context.Context, auditprofile.PinnedProgram) (auditprofile.PinnedProgram, error)
+	AuditProfiles() []auditprofile.PinnedProgram
 }
 
 // CredentialReferenceGuard must fence both managed LLM and Runtime credential
@@ -84,25 +84,17 @@ type DraftSelection struct {
 	Scope                   Scope                               `json:"scope"`
 }
 
-type BaselineInventory = auditbaseline.BaselineInventory
 type BaselineSnapshot = auditbaseline.BaselineSnapshot
 
-type Compatibility struct {
-	ServerCompatible        bool                  `json:"serverCompatible"`
-	RequiresInputValidation bool                  `json:"requiresInputValidation"`
-	Reasons                 []CompatibilityReason `json:"reasons"`
-}
-
 type ProfileProjection struct {
-	Profile       auditprofile.ResolvedAuditProfile
-	Compatibility Compatibility
+	Profile auditprofile.PinnedProgram
 }
 
 type CreateDraftParams struct {
 	OperationsPrincipal bool
 	Labels              runlabels.RunMetadataLabels
 	// PinnedProfile is trusted server-side Eval preparation, never a public field.
-	PinnedProfile         *auditprofile.ResolvedAuditProfile
+	PinnedProfile         *auditprofile.PinnedProgram
 	ExpectedProfileSHA256 string
 	AuditID               string
 	OwnerID               string

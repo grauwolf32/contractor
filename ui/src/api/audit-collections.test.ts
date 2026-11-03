@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { collectAuditPages, mergeAuditCollections } from "./audit-collections";
+import { collectAuditPages } from "./audit-collections";
 
 function pagedLoader(pages: number) {
   return vi.fn(async (cursor?: string) => {
@@ -100,20 +100,4 @@ describe("Audit collection pagination", () => {
       ).rejects.toThrow("Page cap must be a positive integer");
     },
   );
-
-  it("merges consecutive batches and keeps only the last continuation", () => {
-    expect(
-      mergeAuditCollections([
-        { items: [1, 2], truncated: true, nextCursor: "a" },
-        { items: [3], truncated: true, nextCursor: "b" },
-      ]),
-    ).toEqual({ items: [1, 2, 3], truncated: true, nextCursor: "b" });
-    expect(
-      mergeAuditCollections([
-        { items: [1], truncated: true, nextCursor: "a" },
-        { items: [2], truncated: false },
-      ]),
-    ).toEqual({ items: [1, 2], truncated: false });
-    expect(mergeAuditCollections([])).toEqual({ items: [], truncated: false });
-  });
 });

@@ -4,6 +4,8 @@ package findingintake
 
 import (
 	"bytes"
+	"encoding/json"
+	"reflect"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
@@ -61,7 +63,8 @@ func TestPostgresFindingChecksIndexIntakeImmutabilityAndRetention(t *testing.T) 
 				return data
 			}
 			initial := readIndex()
-			projection, err := auditdomain.DecodeFindingChecksProjection(initial)
+			var projection auditdomain.FindingChecksProjection
+			err = json.Unmarshal(initial, &projection)
 			if err != nil || len(projection.Checks) != 2 || projection.Checks[0].Status != "registered" || projection.Checks[1].Status != "unsupported" {
 				t.Fatalf("trusted index: %+v %v", projection, err)
 			}
@@ -70,9 +73,9 @@ func TestPostgresFindingChecksIndexIntakeImmutabilityAndRetention(t *testing.T) 
 			if err != nil {
 				t.Fatal(err)
 			}
-			check, plan, err := auditdomain.ExtractFindingCheck(source.Payload.Data, projection.Checks[0])
-			if err != nil || check != input.Proposal.ProposedChecks[0] || plan.Method != check.Method {
-				t.Fatalf("selected exact fragment: %+v %+v %v", check, plan, err)
+			proposal, err := auditdomain.DecodeFindingProposal(source.Payload.Data)
+			if err != nil || !reflect.DeepEqual(proposal.ProposedChecks, input.Proposal.ProposedChecks) {
+				t.Fatalf("exact proposal checks changed: %+v %v", proposal.ProposedChecks, err)
 			}
 			if _, err := pool.Exec(ctx, `UPDATE finding_proposal_receipts SET checks_projection=NULL WHERE receipt_id=$1`, receipt.ReceiptID); err == nil {
 				t.Fatal("published private index was mutable")

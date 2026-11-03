@@ -33,17 +33,6 @@ func (s ScanTask) CoverageRequirement() string {
 	return "sqlmap-request-scan"
 }
 
-// BuildOpenAPIScanInventory selects only the operations explicitly listed in
-// settings. Missing concrete data remain non-runnable items with gaps; a missing
-// operation or malformed settings reject the entire inventory atomically.
-func BuildOpenAPIScanInventory(source []byte, sourceMediaType string, settingsData []byte, settingsInput ExactInput, options InventoryOptions) (Inventory, error) {
-	basis, subjects, err := openAPIScanSubjects(source, sourceMediaType, settingsData, settingsInput, options, MaximumItems)
-	if err != nil {
-		return Inventory{}, err
-	}
-	return finishInventory(source, sourceMediaType, basis, subjects, options)
-}
-
 func openAPIScanSubjects(source []byte, sourceMediaType string, settingsData []byte, settingsInput ExactInput, options InventoryOptions, maxItems int) (inventoryBasis, []inventorySubject, error) {
 	if (options.ApprovalRequirement != ApprovalActiveCheck && options.ApprovalRequirement != ApprovalNone) || settingsInput.Name == options.SourceInputName ||
 		validateIdentifier(settingsInput.Name, "settings.name") != nil || settingsInput.Ref.ValidateExact() != nil ||
@@ -105,26 +94,6 @@ func openAPIScanTask(settings scanplan.AuditScanSettings, input ExactInput, prep
 	}
 	sort.Strings(task.Gaps)
 	return task
-}
-
-// PrepareOpenAPIScanTask validates retained bytes and reproduces the accepted
-// task. References remain Project-scoped provenance; a Run fork can have a new
-// ref but must contain the same bytes. Ownership/fork authorization is a caller
-// responsibility, as with other preparation helpers.
-func PrepareOpenAPIScanTask(task ItemTask, source, settingsData []byte) (scanplan.PreparedAuditOperation, error) {
-	if validateItemTask(task) != nil || task.Scan == nil || DigestBytes(source) != task.SourceContentDigest ||
-		DigestBytes(settingsData) != task.Scan.Settings.Digest {
-		return scanplan.PreparedAuditOperation{}, invalid(CodeInventoryInvalid, "scan.inputs")
-	}
-	settings, err := scanplan.DecodeAuditScanSettings(settingsData)
-	if err != nil {
-		return scanplan.PreparedAuditOperation{}, invalid(CodeInventoryInvalid, "scan.settings")
-	}
-	prepared, err := settings.PrepareOperation(source, task.SourceMediaType, task.SourceRef, task.Scan.Operation)
-	if err != nil || !sameCanonicalValue(task.Scan, openAPIScanTask(settings, task.Scan.Settings, prepared)) {
-		return scanplan.PreparedAuditOperation{}, invalid(CodeInventoryInvalid, "scan.preparation")
-	}
-	return prepared, nil
 }
 
 func openAPIScanKey(inventoryDigest, pointer string) string {

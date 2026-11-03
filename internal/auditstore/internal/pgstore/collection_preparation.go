@@ -114,7 +114,7 @@ func prepareRetainedLinks(params auditstore.CollectParams) (json.RawMessage, int
 			SizeBytes: link.Artifact.SizeBytes, SourceProvenance: link.SourceProvenance,
 			DisplayRef: link.DisplayRef,
 		}
-		key := link.Artifact.Ref.Namespace + "\x00" + link.Artifact.Ref.Name + "\x00" + *link.Artifact.Ref.Revision
+		key := retainedArtifactKey(link)
 		if _, counted := retainedArtifacts[key]; !counted {
 			retainedArtifacts[key] = struct{}{}
 			retainedBytes += link.Artifact.SizeBytes
@@ -122,4 +122,9 @@ func prepareRetainedLinks(params auditstore.CollectParams) (json.RawMessage, int
 	}
 	encoded, _ := json.Marshal(links)
 	return encoded, retainedBytes
+}
+
+// Artifact revisions are identified within their owning scope.
+func retainedArtifactKey(link auditstore.ArtifactLink) string {
+	return string(link.Scope) + "\x00" + link.Artifact.Ref.Namespace + "\x00" + link.Artifact.Ref.Name + "\x00" + *link.Artifact.Ref.Revision
 }

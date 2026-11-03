@@ -56,6 +56,9 @@ func (s *ClaimStore) SelectTasks(ctx context.Context, p auditstore.SelectTasksPa
 			return err
 		}
 		if _, err := projectstore.NewPostgresStore(tx).LockActiveAuditProject(ctx, owner, project); err != nil {
+			if errors.Is(err, projectstore.ErrDeleting) {
+				return auditstore.ErrProjectDeleting
+			}
 			return err
 		}
 		if err := auditClaims.Lock(ctx, tx, p.Claim.AuditID, p.Claim.HolderID, int64(p.Claim.Epoch)); err != nil {
@@ -102,7 +105,7 @@ func (s *ClaimStore) SelectTasks(ctx context.Context, p auditstore.SelectTasksPa
 			}
 			return nil
 		}
-		if audit.State != auditstore.AuditActive || audit.Dispatch != auditstore.DispatchOpen || len(tasks) > pinned.Program.Limits.BatchSize {
+		if audit.State != auditstore.AuditActive || audit.Dispatch != auditstore.DispatchOpen || len(tasks) > audit.Limits.BatchSize {
 			return auditstore.ErrPrecondition
 		}
 		first := tasks[0]
@@ -117,7 +120,7 @@ func (s *ClaimStore) SelectTasks(ctx context.Context, p auditstore.SelectTasksPa
 		}
 		members := make([]taskExecutionMember, 0, len(tasks))
 		for i, task := range tasks {
-			if task.State != auditstore.TaskReady || task.Attempts >= audit.Limits.MaxItemRunAttempts || task.BatchDigest != first.BatchDigest || validateTaskBinding(pinned, task.Document) != nil {
+			if task.State != auditstore.TaskReady || task.Attempts >= binding.AttemptLimit(audit.Limits.MaxItemRunAttempts) || task.BatchDigest != first.BatchDigest || validateTaskBinding(pinned, task.Document) != nil {
 				return auditstore.ErrPrecondition
 			}
 			members = append(members, taskExecutionMember{TaskID: task.Document.TaskID, Ordinal: i, Attempt: task.Attempts + 1})

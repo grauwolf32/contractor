@@ -1163,20 +1163,3 @@ func publishOutput(ctx context.Context, service *Service, runID, projectID, slot
 		Target: project, TargetRef: ArtifactRef{Namespace: "outputs", Name: slot},
 	})
 }
-
-func importAuditArtifact(
-	ctx context.Context, service *Service, runID string, source ArtifactRef, projectID string, target ArtifactRef,
-) (ForkResult, error) {
-	run, err := RunScope(runID)
-	if err != nil {
-		return ForkResult{}, err
-	}
-	project, err := ProjectScope(projectID)
-	if err != nil {
-		return ForkResult{}, err
-	}
-	return service.Fork(ctx, Fork{
-		Kind: LineageAuditImport, Source: run, SourceRef: source,
-		Target: project, TargetRef: target, Frozen: true,
-	})
-}

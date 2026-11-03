@@ -34,7 +34,7 @@ func ValidateStageExecutor(stage ResolvedStage) error {
 	if stage.Planner != (PlannerRef{}) || operation.Arguments == nil {
 		return fmt.Errorf("Stage must select exactly one registered operation or Planner")
 	}
-	if len(stage.Agents) != 0 || stage.Context.Workspace != nil || stage.Session != contracts.WorkerSessionIsolated || stage.ScanPlan != nil || stage.AuditScan != nil || stage.Instructions != (contracts.ResolvedInstructions{}) {
+	if len(stage.Agents) != 0 || stage.Context.Workspace != nil || stage.Session != contracts.WorkerSessionIsolated || stage.ScanPlan != nil || stage.ScanPreparation != nil || stage.Instructions != (contracts.ResolvedInstructions{}) {
 		return fmt.Errorf("Server operation forbids Workers, shared sessions, workspace and scan policies")
 	}
 	if err := contracts.ValidateArgumentBindings(operation.Arguments, false); err != nil {

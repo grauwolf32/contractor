@@ -1,420 +1,90 @@
 package runservice
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
-	"maps"
-	"os"
-	"path/filepath"
 	"reflect"
-	"strings"
 	"testing"
-	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
-	"github.com/grauwolf32/contractor/internal/config"
-	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
-	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/grauwolf32/contractor/internal/contracts/reporting"
-	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
-	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
-	"github.com/grauwolf32/contractor/internal/projectstore"
+	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
 	"github.com/grauwolf32/contractor/internal/runstore"
-	"github.com/grauwolf32/contractor/internal/runtimeconfig"
-	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func TestAuditCompletionPostgresAtomicCreationRestartAndAllocation(t *testing.T) {
-	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
-	if databaseURL == "" {
-		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
-	defer cancel()
-	pool := isolatedRunServicePool(t, ctx, databaseURL)
-	projects := projectstore.NewPostgresStore(pool)
-	project, _, err := projects.Create(ctx, projectstore.CreateParams{ProjectID: "project", OwnerID: "owner", Kind: projectstore.KindProject, Name: "Audit completion", IdempotencyKey: "project", RequestDigest: testDigest("1")})
-	if err != nil {
-		t.Fatal(err)
-	}
-	artifactService := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
-	store, err := artifactService.Project(project.ProjectID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	source := writeExact(t, ctx, store, "sources", "source", "application/zip", []byte("source"))
-	inventory, err := auditdomain.BuildChecklistInventory([]byte(`{"schema":"contractor.audit.checklist.v1","items":[{"key":"check-1","version":"1","statement":"Check source","applicability":"always","allowed_methods":["static"],"required_evidence":[],"review_policy":"automatic"}]}`), "application/json", auditdomain.InventoryOptions{Round: 1, WorkflowRole: "check", SourceInputName: "source", SourceRef: source.Ref, ApprovalRequirement: auditdomain.ApprovalNone})
-	if err != nil {
-		t.Fatal(err)
-	}
-	task := writeAuditExact(t, ctx, artifactService, project.ProjectID, "task", "application/zip", inventory.Tasks[0].Package)
-	manifestDoc := inventory.ExecutionManifest
-	manifestDoc.Items[0].TaskRef = &task.Ref
-	manifestBytes, err := auditdomain.EncodeExecutionManifest(manifestDoc)
-	if err != nil {
-		t.Fatal(err)
-	}
-	manifest := writeAuditExact(t, ctx, artifactService, project.ProjectID, "manifest", "application/json", manifestBytes)
-	catalog, _, err := configload.LoadUnionReadOnly("../../testdata/configs", filepath.Join(t.TempDir(), "managed"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	profile, err := catalog.AuditProfile("source-checklist@1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	binding := profile.Workflows["check"]
-	binding.WorkerCompletion = &auditprofile.AuditWorkerCompletion{Kind: contracts.AuditCheckResultsV1, Stage: "check", Agent: "checker"}
-	stage := binding.Workflow.Stages["check"]
-	agent := stage.Agents["checker"]
-	for i := range agent.Template.Toolsets {
-		if agent.Template.Toolsets[i].Ref.ToolsetID == "audit-results" {
-			agent.Template.Toolsets[i].Ref.Version = "2"
-		}
-	}
-	agent.Template.Skills = nil
-	stage.Agents["checker"] = agent
-	binding.Workflow.Stages["check"] = stage
-	if err := auditprofile.ValidateAuditWorkerCompletion(binding); err != nil {
-		t.Fatal(err)
-	}
-	profileBytes, _ := json.Marshal(map[string]any{"workflows": map[string]any{"check": binding}})
-	audits := auditstoretest.NewStore(pool, artifactpgtest.NewStorage())
-	draft, _, err := audits.CreateDraft(ctx, auditstore.CreateDraftParams{AuditID: "audit", OwnerID: project.OwnerID, ProjectID: project.ProjectID, Profile: auditstore.ProfileIdentity{Name: "test", Version: "1", Digest: testDigest("2")}, ProfileSnapshot: profileBytes, InputSelection: json.RawMessage(`{}`), Limits: auditstore.Limits{MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: 10, MaxItemsTotal: 10, MaxSubmittedRuns: 10, MaxItemRunAttempts: 2, MaxEvidenceBytes: 1 << 20}, IdempotencyKey: "audit", RequestDigest: testDigest("3")})
-	if err != nil {
-		t.Fatal(err)
-	}
-	roundID := "round"
-	_, _, err = audits.MaterializeRound(ctx, auditstore.MaterializeRoundParams{OwnerID: draft.OwnerID, AuditID: draft.AuditID, ExpectedRevision: draft.Revision, RoundID: roundID, RoundOrdinal: 1, Manifest: manifest, BaselineSnapshot: json.RawMessage(`{"labels":{},"requiredPlacementLabels":[]}`), DeadlineAt: time.Now().Add(time.Hour), Items: []auditstore.MaterializedItem{{ItemID: "item", ItemKey: "check-1", Ordinal: 0, Kind: "test", SubjectKey: manifestDoc.Items[0].SubjectKey, Task: task, Origin: runServiceAuditOrigin("check-1", task), WorkflowRole: "check", InitialState: auditstore.ItemReady, Coverage: auditstore.Coverage{Status: auditstore.CoverageNotTested, Requested: []string{}, Completed: []string{}, Gaps: []string{}}}}, IdempotencyKey: "round", RequestDigest: testDigest("4")})
-	if err != nil {
-		t.Fatal(err)
-	}
-	claims, err := audits.Claim(ctx, auditstore.ClaimParams{HolderID: "controller", Lease: time.Minute, Limit: 1})
-	if err != nil || len(claims) != 1 {
-		t.Fatal("claim", err)
-	}
-	claim := claims[0]
-	if _, err := audits.TransitionRound(ctx, auditstore.RoundTransitionParams{Claim: claim, RoundID: roundID, ExpectedRevision: 1, ExpectedState: auditstore.RoundAccepted, TargetState: auditstore.RoundExecuting}); err != nil {
-		t.Fatal(err)
-	}
-	execution, _, err := audits.CreateExecutionIntent(ctx, auditstore.CreateExecutionIntentParams{Claim: claim, ExecutionID: "execution", RoundID: &roundID, Role: auditstore.ExecutionCheck, WorkflowRole: "check", LaneClass: resolved.LaneClassModel, Manifest: manifest, SubmissionKey: "submission", RequestDigest: testDigest("5"), Members: []auditstore.ExecutionMemberIntent{{ExecutionItemID: "member", ItemID: "item", BatchOrdinal: 0, ItemAttempt: 1, Task: task, Inputs: []auditstore.ExactArtifact{source}}}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	manager, _, err := configload.NewManager(config.ManagerOptions{OperatorRoot: filepath.Join("..", "config", "testdata", "valid"), ManagedRoot: filepath.Join(t.TempDir(), "managed")})
-	if err != nil {
-		t.Fatal(err)
-	}
-	options := Options{Runs: runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()), Workflows: manager, LLMCredentials: emptyCredentialLookup{}, CredentialGuard: openCredentialGuard{}, RuntimeCredentials: acceptRuntimeCredentials{}, Projects: projects, PublicTransaction: postgresPublicTransaction(pool), AuditTransaction: postgresAuditTransaction(pool)}
-	service, err := New(options)
-	if err != nil {
-		t.Fatal(err)
-	}
-	params := AuditCreateParams{Claim: claim, ExecutionID: execution.ExecutionID, Workflow: binding.Workflow, RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(), Parameters: map[string]string{}, Inputs: map[string]auditstore.ExactArtifact{"source": source, "task": task, "execution_manifest": manifest}, ExecutionManifest: manifest, RequestDigest: execution.RequestDigest, NewRunID: func() (string, error) { return "run", nil }}
-	wrongWorkflow := params
-	encodedWorkflow, _ := json.Marshal(params.Workflow)
-	wrongWorkflow.Workflow, _ = resolved.DecodeResolvedWorkflowSnapshot(encodedWorkflow)
-	wrongWorkflow.Workflow.Ref.Version = "different-version"
-	if _, err := service.CreateAudit(ctx, wrongWorkflow); !errors.Is(err, ErrInvalid) {
-		t.Fatal("different Workflow accepted", err)
-	}
-	wrongTask := params
-	wrongTask.Inputs = contracts.CloneExactArtifacts(params.Inputs)
-	wrongTask.Inputs["task"] = source
-	if _, err := service.CreateAudit(ctx, wrongTask); !errors.Is(err, ErrInvalid) {
-		t.Fatal("foreign task accepted", err)
-	}
-	// Fail after all Run/input/contract mutations, then verify the transaction
-	// retained the durable intent but no Run or authority.
-	rollback := errors.New("injected transaction failure")
-	normalTransaction := options.AuditTransaction
-	omissionOptions := options
-	omissionOptions.AuditTransaction = func(ctx context.Context, fn func(AuditRunWriter, *artifacts.Service, AuditExecutionWriter) error) error {
-		return normalTransaction(ctx, func(r AuditRunWriter, a *artifacts.Service, e AuditExecutionWriter) error {
-			return fn(omitCompletionWriter{r}, a, e)
-		})
-	}
-	omissionService, err := New(omissionOptions)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := omissionService.CreateAudit(ctx, params); persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation {
-		t.Fatal("opted-in Run committed without its completion authority", err)
-	}
-
-	options.AuditTransaction = func(ctx context.Context, fn func(AuditRunWriter, *artifacts.Service, AuditExecutionWriter) error) error {
-		return normalTransaction(ctx, func(r AuditRunWriter, a *artifacts.Service, e AuditExecutionWriter) error {
-			if err := fn(r, a, e); err != nil {
-				return err
+func TestSharedPostgresCommonCompletionPinsExactRunContextAndMembership(t *testing.T) {
+	for _, members := range []int{1, 2} {
+		t.Run(map[int]string{1: "singleton", 2: "batch"}[members], func(t *testing.T) {
+			f := newCommonTaskRunFixtureWithWorkflow(t, true, func(workflow *resolved.ResolvedWorkflow) {
+				stage := workflow.Stages["check"]
+				agent := stage.Agents["builder"]
+				agent.Template.Summarizer = nil
+				agent.Template.Toolsets = append(agent.Template.Toolsets, contracts.ToolsetSelection{Ref: contracts.ToolsetRef{ToolsetID: "audit-results", Version: "2"}, Tools: []string{"read_audit_task", "submit_check_result"}})
+				stage.Agents["builder"] = agent
+				workflow.Stages["check"] = stage
+			}, members)
+			ctx := t.Context()
+			result, err := f.service.CreateAudit(ctx, f.params)
+			if err != nil {
+				t.Fatal(err)
 			}
-			return rollback
+			run, err := runstore.NewPostgresStore(f.pool).GetRun(ctx, result.Run.RunID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			completion := run.AuditCompletion
+			if completion == nil || completion.Stage != "check" || completion.Agent != "builder" || completion.Contract.Kind != contracts.AuditCheckResultsV1 || completion.Contract.Context.Revision == nil || completion.Contract.Context.Name != "context" {
+				t.Fatalf("completion=%+v", completion)
+			}
+			scoped, err := artifacts.NewService(artifacts.NewPostgresRepository(f.pool)).Run(run.RunID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			metadata, err := scoped.Metadata(ctx, completion.Contract.Context)
+			if err != nil || !metadata.Frozen {
+				t.Fatal("context is not exact and frozen", err)
+			}
+			payload, err := scoped.ReadExact(ctx, metadata.Exact())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := auditcontract.Decode(payload.Payload.Data, nil); err != nil {
+				t.Fatal("invalid trusted context", err)
+			}
+			var document struct {
+				RunID string `json:"run_id"`
+				Items []struct {
+					TaskID  string `json:"task_id"`
+					ItemKey string `json:"item_key"`
+				} `json:"items"`
+			}
+			if err := json.Unmarshal(payload.Payload.Data, &document); err != nil || document.RunID != run.RunID || len(document.Items) != members {
+				t.Fatalf("membership=%+v error=%v", document, err)
+			}
+			for index, item := range document.Items {
+				if item.TaskID != f.params.TaskIDs[index] || item.ItemKey != auditcontract.ExecutionItemKey(index) {
+					t.Fatal("trusted membership differs")
+				}
+			}
+			replay, err := f.service.CreateAudit(ctx, f.params)
+			if err != nil || !replay.Replayed || !reflect.DeepEqual(replay.Run.AuditCompletion, completion) {
+				t.Fatal("restart/replay changed completion", err)
+			}
+			changed := *completion
+			changed.Contract.Context = changed.Contract.Context.Clone()
+			changed.Contract.Context.Name = "foreign"
+			if err := runstore.NewPostgresStore(f.pool).SetAuditCompletion(ctx, run.RunID, changed); !errors.Is(err, runstore.ErrConflict) {
+				t.Fatal("completion authority changed", err)
+			}
+			invalid := f.params
+			invalid.TaskIDs = []string{"foreign-task"}
+			if _, err := f.service.CreateAudit(ctx, invalid); !errors.Is(err, auditstore.ErrConflict) {
+				t.Fatal("foreign membership accepted", err)
+			}
 		})
 	}
-	failing, err := New(options)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := failing.CreateAudit(ctx, params); !errors.Is(err, rollback) {
-		t.Fatalf("rollback: %v", err)
-	}
-	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
-	if _, err := runs.GetRun(ctx, "run"); !errors.Is(err, runstore.ErrNotFound) {
-		t.Fatal("orphan Run survived", err)
-	}
-	created, err := service.CreateAudit(ctx, params)
-	if err != nil {
-		t.Fatal(err)
-	}
-	completion := created.Run.AuditCompletion
-	if completion == nil || completion.Contract.Task.Namespace != "inputs" || completion.Contract.Task.ValidateExact() != nil {
-		t.Fatal("completion not pinned")
-	}
-	runArtifacts, _ := artifactService.Run("run")
-	if _, err := runArtifacts.Write(ctx, contracts.ArtifactRef{Namespace: "inputs", Name: "task"}, artifacts.Payload{MediaType: "application/zip", Data: []byte("changed alias")}, completion.Contract.Task.Revision); err != nil {
-		t.Fatal(err)
-	}
-	// A new service uses the database snapshot even though this manager only
-	// contains unrelated fixture catalog versions.
-	options.AuditTransaction = normalTransaction
-	restarted, err := New(options)
-	if err != nil {
-		t.Fatal(err)
-	}
-	replay, err := restarted.CreateAudit(ctx, params)
-	if err != nil || !replay.Replayed || !reflect.DeepEqual(replay.Run.AuditCompletion, completion) {
-		t.Fatalf("restart: %v %v", replay, err)
-	}
-	exact, err := runArtifacts.Read(ctx, completion.Contract.Task)
-	if err != nil || string(exact.Payload.Data) != string(inventory.Tasks[0].Package) {
-		t.Fatal("exact task changed", err)
-	}
-	if _, err := pool.Exec(ctx, `UPDATE workflow_runs SET audit_completion = NULL WHERE run_id = 'run'`); persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation {
-		t.Fatal("completion rewrite accepted", err)
-	}
-	// A Run event append keeps the pinned completion, so neither Audit
-	// completion trigger fires for it; the binding check of an audit-managed
-	// Run still does (PER-R22).
-	if fired := runEventAppendTriggers(t, ctx, pool, "run"); !maps.Equal(fired, map[string]int64{
-		"workflow_runs_require_complete_audit_binding": 1,
-	}) {
-		t.Fatalf("a Run event append on a Run with a completion fired the triggers %v", fired)
-	}
-	stageBytes, _ := json.Marshal(stage)
-	executionStage, err := runs.CreateStageExecution(ctx, runstore.CreateStageExecutionParams{LaneClass: resolved.LaneClassModel, StageExecutionID: "stage", RunID: "run", StageName: "check", Attempt: 1, StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: stageBytes, StageContextSchemaVersion: contracts.APIVersion, StageContext: runstore.StageContextSnapshot{Parameters: map[string]string{}, Artifacts: map[string]runstore.PinnedContextArtifact{"task": {Required: true, Artifact: &completion.Contract.Task}, "manifest": {Required: true, Artifact: &completion.Contract.ExecutionManifest}}}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	gateway := stage.ExecutionConfig.Agents["checker"].LLMGateway.Ref
-	allocation := runstore.StageAllocation{AllocationID: "allocation", StageExecutionID: executionStage.StageExecutionID, LogicalAgentName: "checker", Namespace: "audit-check", AgentTemplateRef: agent.Template.Ref, WorkerRuntimeRef: agent.Template.Runtime, RuntimeAgentID: strings.Repeat("1", 64), RuntimeAgentInstanceID: "runtime", RuntimeAgentLabelRevision: 1, RuntimeConfigurationSchemaVersion: runstore.AllocationRuntimeConfigurationSchemaVersion, PerformanceCollectionPolicy: reporting.PerformanceCollectionDisabled, RuntimeConfiguration: &runstore.AllocationRuntimeConfiguration{ModelPolicy: stage.ExecutionConfig.Agents["checker"].ModelPolicy.Ref, Origins: runtimeconfig.ResolvedRuntimeConfigOrigins{}, Provenance: runtimesettings.ResolvedRuntimeConfigProvenance{Default: runtimesettings.RuntimeLabelBindingProvenance{Label: "default", BindingRevision: 1, Config: runtimesettings.RuntimeConfigRef{Name: runtimeconfig.BuiltInName, Version: runtimeconfig.BuiltInVersion, Digest: runtimeconfig.BuiltInDigest}}, RunLabels: []runtimesettings.RuntimeLabelBindingProvenance{}, AgentLabels: []runtimesettings.RuntimeLabelBindingProvenance{}, RuntimeAdapters: []runtimesettings.RuntimeAdapterRef{}, RuntimeCredentialRefs: []runtimesettings.RuntimeCredentialRef{}, LLMGatewayConfig: &gateway}}}
-	if err := runs.RecordStageAllocation(ctx, allocation); persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation {
-		t.Fatal("allocation downgrade accepted", err)
-	}
-	allocation.CompletionContract = &completion.Contract
-	if err := runs.RecordStageAllocation(ctx, allocation); err != nil {
-		t.Fatal(err)
-	}
-	recovered, err := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()).ListStageAllocations(ctx, executionStage.StageExecutionID)
-	if err != nil || len(recovered) != 1 || !reflect.DeepEqual(recovered[0].CompletionContract, allocation.CompletionContract) {
-		t.Fatal("allocation lost contract", err)
-	}
-	if err := runs.RecordStageAllocation(ctx, allocation); err != nil {
-		t.Fatal("allocation replay", err)
-	}
-	// An allocation is compared with the Run's authority when it is
-	// recorded; its completion cannot change afterwards (PER-R22).
-	other := completion.Contract
-	other.ResultArtifact.Name += "-other"
-	mismatched := allocation
-	mismatched.AllocationID = "allocation-mismatched"
-	mismatched.CompletionContract = &other
-	if err := runs.RecordStageAllocation(ctx, mismatched); persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation ||
-		!strings.Contains(err.Error(), "Allocation completion differs from Run authority") {
-		t.Fatal("allocation with another completion accepted", err)
-	}
-	if _, err := pool.Exec(ctx, `UPDATE stage_allocations SET completion_contract = NULL WHERE allocation_id = 'allocation'`); persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation ||
-		!strings.Contains(err.Error(), "Allocation completion is immutable") {
-		t.Fatal("allocation completion rewrite accepted", err)
-	}
-	// A second Stage attempt belongs to the same Run and keeps the same output
-	// binding; it must record the exact original contract again.
-	abort := func(id string) {
-		t.Helper()
-		if err := runs.EnterAborting(ctx, runstore.EnterAbortingParams{StageExecutionID: id, ExpectedState: runstore.StagePreparing, TerminationSchemaVersion: contracts.APIVersion,
-			Termination: runstore.StageTermination{Outcome: runstore.TerminationInterrupted, Code: "test_interruption", Message: "test interruption", Retryable: true, Phase: runstore.TerminationPreparing, OccurredAt: time.Now()}, AbortID: "abort-" + id, Deadline: time.Now().Add(time.Minute), Reason: runstore.Reason{Code: "test_interruption"}}); err != nil {
-			t.Fatal(err)
-		}
-		if err := runs.CompleteStageTermination(ctx, id); err != nil {
-			t.Fatal(err)
-		}
-	}
-	abort("stage")
-	previous := "stage"
-	nextStage, err := runs.CreateStageExecution(ctx, runstore.CreateStageExecutionParams{LaneClass: resolved.LaneClassModel, StageExecutionID: "stage-retry", RunID: "run", StageName: "check", Attempt: 2, PreviousExecutionID: &previous, StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: stageBytes, StageContextSchemaVersion: contracts.APIVersion, StageContext: executionStage.StageContext})
-	if err != nil {
-		t.Fatal(err)
-	}
-	allocation.AllocationID = "allocation-retry"
-	allocation.StageExecutionID = nextStage.StageExecutionID
-	if err := runs.RecordStageAllocation(ctx, allocation); err != nil {
-		t.Fatal("same-Run retry", err)
-	}
-	abort("stage-retry")
-	if _, err := runArtifacts.Write(ctx, completion.Contract.ResultArtifact, artifacts.Payload{MediaType: "application/zip", Data: []byte("prior failed attempt output")}, nil); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := runs.TransitionRun(ctx, "run", runstore.RunPending, runstore.RunFailed, runstore.Reason{Code: "test_failure"}); err != nil {
-		t.Fatal(err)
-	}
-	cursor, err := runs.GetRunEventCursor(ctx, "run")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := audits.ObserveTerminal(ctx, auditstore.ObserveTerminalParams{Claim: claim, ExecutionID: execution.ExecutionID, RunID: "run", Generation: cursor.Generation, Sequence: uint64(cursor.Sequence)}); err != nil {
-		t.Fatal(err)
-	}
-	failureCode := "run_failed"
-	if _, _, err := audits.Collect(ctx, auditstore.CollectParams{Claim: claim, ReceiptID: "receipt", ExecutionID: execution.ExecutionID, Disposition: auditstore.CollectionExecutionFailed, ErrorCode: &failureCode, RequestDigest: testDigest("6"), Items: []auditstore.CollectionItem{{ExecutionItemID: "member", Disposition: auditstore.CollectionExecutionFailed, Retryable: true, FinalDisposition: auditstore.FinalExecutionFailed, Coverage: auditstore.Coverage{Status: auditstore.CoverageBlocked, Requested: []string{}, Completed: []string{}, Gaps: []string{"failed"}}}}}); err != nil {
-		t.Fatal(err)
-	}
-	retriedExecution, _, err := audits.CreateExecutionIntent(ctx, auditstore.CreateExecutionIntentParams{Claim: claim, ExecutionID: "execution-retry", RoundID: &roundID, Role: auditstore.ExecutionCheck, WorkflowRole: "check", LaneClass: resolved.LaneClassModel, Manifest: manifest, SubmissionKey: "submission-retry", RequestDigest: testDigest("7"), Members: []auditstore.ExecutionMemberIntent{{ExecutionItemID: "member-retry", ItemID: "item", BatchOrdinal: 0, ItemAttempt: 2, Task: task, Inputs: []auditstore.ExactArtifact{source}}}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	params.ExecutionID = retriedExecution.ExecutionID
-	params.RequestDigest = retriedExecution.RequestDigest
-	params.NewRunID = func() (string, error) { return "run-retry", nil }
-	retried, err := restarted.CreateAudit(ctx, params)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if retried.Run.RunID == created.Run.RunID || retried.Run.AuditCompletion == nil || !reflect.DeepEqual(retried.Run.AuditCompletion.Contract.ResultArtifact, completion.Contract.ResultArtifact) {
-		t.Fatal("Audit retry lost its Run-scoped output contract")
-	}
-	retriedArtifacts, _ := artifactService.Run(retried.Run.RunID)
-	if _, err := retriedArtifacts.Read(ctx, retried.Run.AuditCompletion.Contract.ResultArtifact); !errors.Is(err, artifacts.ErrArtifactNotFound) {
-		t.Fatal("new child Run inherited previous output", err)
-	}
-
-}
-
-func TestAuditCompletionPostgresTaskSetMembership(t *testing.T) {
-	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
-	if databaseURL == "" {
-		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	pool := isolatedRunServicePool(t, ctx, databaseURL)
-	_, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{ProjectID: "project", OwnerID: "owner", Kind: projectstore.KindProject, Name: "Batch", IdempotencyKey: "project", RequestDigest: testDigest("1")})
-	if err != nil {
-		t.Fatal(err)
-	}
-	service := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
-	store, _ := service.Project("project")
-	source := writeExact(t, ctx, store, "sources", "source", "application/zip", []byte("source"))
-	checklist := `{"schema":"contractor.audit.checklist.v1","items":[{"key":"first","version":"1","statement":"First check","applicability":"always","allowed_methods":["static"],"required_evidence":[],"review_policy":"automatic"},{"key":"second","version":"1","statement":"Second check","applicability":"always","allowed_methods":["static"],"required_evidence":[],"review_policy":"automatic"}]}`
-	inventory, err := auditdomain.BuildChecklistInventory([]byte(checklist), "application/json", auditdomain.InventoryOptions{Round: 1, WorkflowRole: "check", SourceInputName: "source", SourceRef: source.Ref, ApprovalRequirement: auditdomain.ApprovalNone})
-	if err != nil {
-		t.Fatal(err)
-	}
-	taskA := writeExact(t, ctx, store, "audit", "first", "application/zip", inventory.Tasks[0].Package)
-	taskB := writeExact(t, ctx, store, "audit", "second", "application/zip", inventory.Tasks[1].Package)
-	manifestDoc := inventory.ExecutionManifest
-	manifestDoc.Items[0].TaskRef = &taskA.Ref
-	manifestDoc.Items[1].TaskRef = &taskB.Ref
-	encoded, err := auditdomain.EncodeExecutionManifest(manifestDoc)
-	if err != nil {
-		t.Fatal(err)
-	}
-	manifest := writeExact(t, ctx, store, "audit", "manifest", "application/json", encoded)
-	members := []auditdomain.PackageInput{
-		{ID: "task-000", Path: "tasks/000.zip", MediaType: "application/zip", Data: inventory.Tasks[0].Package},
-		{ID: "task-001", Path: "tasks/001.zip", MediaType: "application/zip", Data: inventory.Tasks[1].Package},
-	}
-	data, _, err := auditdomain.BuildPackage("task-set", auditdomain.PackageKindTaskSet, "", members)
-	if err != nil {
-		t.Fatal(err)
-	}
-	taskSet := writeExact(t, ctx, store, "audit", "task-set", "application/zip", data)
-	intent := auditstore.RunCreationIntent{ProjectID: "project", Execution: auditstore.Execution{Manifest: manifest, WorkflowRole: "check"}, Items: []auditstore.ExecutionItem{{Task: taskA}, {Task: taskB}}}
-	if err := validateCompletionMembership(ctx, service, intent, taskSet, manifest); err != nil {
-		t.Fatal("valid batch", err)
-	}
-	if err := validateCompletionMembership(ctx, service, intent, taskA, manifest); !errors.Is(err, ErrInvalid) {
-		t.Fatal("partial task set accepted", err)
-	}
-	members[0].Data, members[1].Data = members[1].Data, members[0].Data
-	data, _, err = auditdomain.BuildPackage("reordered", auditdomain.PackageKindTaskSet, "", members)
-	if err != nil {
-		t.Fatal(err)
-	}
-	reordered := writeExact(t, ctx, store, "audit", "reordered", "application/zip", data)
-	if err := validateCompletionMembership(ctx, service, intent, reordered, manifest); !errors.Is(err, ErrInvalid) {
-		t.Fatal("wrong task membership accepted", err)
-	}
-	manifestDoc.Items[0].SubjectKey = "another-subject"
-	encoded, err = auditdomain.EncodeExecutionManifest(manifestDoc)
-	if err != nil {
-		t.Fatal(err)
-	}
-	wrongManifest := writeExact(t, ctx, store, "audit", "wrong-manifest", "application/json", encoded)
-	intent.Execution.Manifest = wrongManifest
-	if err := validateCompletionMembership(ctx, service, intent, taskSet, wrongManifest); !errors.Is(err, ErrInvalid) {
-		t.Fatal("changed task subject accepted", err)
-	}
-}
-
-// Simulates a crashed/older writer that skips the new atomic pinning step.
-type omitCompletionWriter struct{ AuditRunWriter }
-
-func (omitCompletionWriter) SetAuditCompletion(context.Context, string, runstore.AuditCompletionSnapshot) error {
-	return nil
-}
-
-// runEventAppendTriggers advances the Run's event sequence as every Run event
-// append does, under EXPLAIN ANALYZE in a transaction that it rolls back,
-// with every deferred check made immediate, and returns the calls of each
-// trigger of workflow_runs that fired.
-func runEventAppendTriggers(t *testing.T, ctx context.Context, pool *pgxpool.Pool, runID string) map[string]int64 {
-	t.Helper()
-	tx, err := pool.Begin(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
-	if _, err := tx.Exec(ctx, `SET CONSTRAINTS ALL IMMEDIATE`); err != nil {
-		t.Fatal(err)
-	}
-	var output []byte
-	if err := tx.QueryRow(ctx, `EXPLAIN (ANALYZE, TIMING OFF, SUMMARY OFF, FORMAT JSON)
-UPDATE workflow_runs SET next_run_event_sequence = next_run_event_sequence + 1 WHERE run_id = $1`,
-		runID).Scan(&output); err != nil {
-		t.Fatal(err)
-	}
-	var plans []struct {
-		Triggers []struct {
-			Name     string `json:"Trigger Name"`
-			Relation string `json:"Relation"`
-			Calls    int64  `json:"Calls"`
-		} `json:"Triggers"`
-	}
-	if err := json.Unmarshal(output, &plans); err != nil || len(plans) != 1 {
-		t.Fatalf("explain output %s: %v", output, err)
-	}
-	fired := map[string]int64{}
-	for _, trigger := range plans[0].Triggers {
-		if trigger.Relation == "workflow_runs" {
-			fired[trigger.Name] += trigger.Calls
-		}
-	}
-	return fired
 }

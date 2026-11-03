@@ -56,39 +56,19 @@ func webScanTask(source, settings []byte, input ExactInput) (ScanTask, error) {
 		TestParameters: []string{}, Gaps: []string{"url_template_scan_only"}}, nil
 }
 
-// BuildWebScanInventory creates one direct-target task without OpenAPI, model
-// judgement or network activity. The normal Audit baseline pins every input.
-func BuildWebScanInventory(source []byte, mediaType string, settings []byte, input ExactInput, options InventoryOptions) (Inventory, error) {
-	if mediaType != JSONMediaType || input.Name == options.SourceInputName ||
-		validateIdentifier(input.Name, "settings.name") != nil || input.Ref.ValidateExact() != nil || input.Digest != DigestBytes(settings) ||
-		(options.ApprovalRequirement != ApprovalNone && options.ApprovalRequirement != ApprovalActiveCheck) {
-		return Inventory{}, invalid(CodeInventoryInvalid, "web_scan.inputs")
+// PrepareWebTarget validates one ordinary target and exact settings before
+// traffic. The same domain preparation owns its identity, target and gaps.
+func PrepareWebTarget(source, settings []byte, input ExactInput) (ScanTask, scanplan.PreparedAuditOperation, WebScanSettings, error) {
+	if input.Ref.ValidateExact() != nil || input.Digest != DigestBytes(settings) {
+		return ScanTask{}, scanplan.PreparedAuditOperation{}, WebScanSettings{}, invalid(CodeInventoryInvalid, "web_scan.settings")
 	}
 	task, err := webScanTask(source, settings, input)
 	if err != nil {
-		return Inventory{}, err
+		return ScanTask{}, scanplan.PreparedAuditOperation{}, WebScanSettings{}, err
 	}
-	basis := inventoryBasis{Schema: InventoryBasisSchema, Kind: "web-scans", Subjects: []map[string]any{{"scan": task}}, Gaps: []string{}}
-	canonical, err := canonicalJSON(basis)
+	selection, err := DecodeWebScanSettings(settings)
 	if err != nil {
-		return Inventory{}, err
+		return ScanTask{}, scanplan.PreparedAuditOperation{}, WebScanSettings{}, err
 	}
-	key := openAPIScanKey(DigestBytes(canonical), task.Operation)
-	return finishInventory(source, mediaType, basis, []inventorySubject{{itemKey: key, subjectKey: key,
-		kind: "web-scan", scan: &task, approval: options.ApprovalRequirement,
-		requested: []string{task.CoverageRequirement()}, gaps: task.Gaps}}, options)
-}
-
-// PrepareWebScanTask reproduces the retained assignment before any traffic.
-func PrepareWebScanTask(task ItemTask, source, settings []byte) (scanplan.PreparedAuditOperation, error) {
-	if task.Kind != "web-scan" || validateItemTask(task) != nil || task.Scan == nil ||
-		DigestBytes(source) != task.SourceContentDigest || DigestBytes(settings) != task.Scan.Settings.Digest {
-		return scanplan.PreparedAuditOperation{}, invalid(CodeInventoryInvalid, "web_scan.inputs")
-	}
-	expected, err := webScanTask(source, settings, task.Scan.Settings)
-	if err != nil || !sameCanonicalValue(expected, *task.Scan) {
-		return scanplan.PreparedAuditOperation{}, invalid(CodeInventoryInvalid, "web_scan.preparation")
-	}
-	return scanplan.PreparedAuditOperation{Operation: expected.Operation, PreparationDigest: expected.PreparationDigest,
-		Runnable: true, Target: &scanplan.OperationTarget{URL: expected.TargetURL}}, nil
+	return task, scanplan.PreparedAuditOperation{Operation: task.Operation, PreparationDigest: task.PreparationDigest, Runnable: true, Target: &scanplan.OperationTarget{URL: task.TargetURL}}, selection, nil
 }

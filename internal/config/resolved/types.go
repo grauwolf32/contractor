@@ -212,7 +212,7 @@ type ResolvedStage struct {
 	// branch otherwise (PLN-R125).
 	PlannerContextManagement *PlannerContextManagement       `json:"plannerContextManagement,omitempty"`
 	ScanPlan                 *scan.ScanPlanPolicy            `json:"scanPlan,omitempty"`
-	AuditScan                *AuditScanConfig                `json:"auditScan,omitempty"`
+	ScanPreparation          *ScanPreparationConfig          `json:"scanPreparation,omitempty"`
 	Session                  contracts.WorkerSessionMode     `json:"session"`
 	Agents                   map[string]ResolvedAgentBinding `json:"agents"`
 	ExecutionConfig          ResolvedStageExecutionConfig    `json:"executionConfig"`

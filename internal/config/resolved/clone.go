@@ -6,14 +6,8 @@ import "github.com/grauwolf32/contractor/internal/contracts"
 // snapshot keeps, values that share no mutable state with another holder.
 // These are the deep copies they use.
 
-// Clone returns a deep copy of workflow that shares no mutable state with it,
-// so a decoded snapshot can be reused without a holder seeing another's edits.
+// Clone returns a deep copy of the exact Workflow closure.
 func (workflow ResolvedWorkflow) Clone() ResolvedWorkflow { return cloneWorkflow(workflow) }
-
-// Clone returns a deep copy of execution.
-func (execution ResolvedStageExecutionConfig) Clone() ResolvedStageExecutionConfig {
-	return cloneStageExecutionConfig(execution)
-}
 
 func cloneWorkflow(source ResolvedWorkflow) ResolvedWorkflow {
 	result := source
@@ -68,7 +62,7 @@ func cloneStage(source ResolvedStage) ResolvedStage {
 	}
 	result.PlannerContextManagement = source.PlannerContextManagement.Clone()
 	result.ScanPlan = cloneScanPlanPolicy(source.ScanPlan)
-	result.AuditScan = cloneAuditScan(source.AuditScan)
+	result.ScanPreparation = cloneScanPreparation(source.ScanPreparation)
 	result.Agents = make(map[string]ResolvedAgentBinding, len(source.Agents))
 	for name, binding := range source.Agents {
 		binding.Template = binding.Template.Clone()

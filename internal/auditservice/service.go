@@ -22,6 +22,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/jackc/pgx/v5"
@@ -60,7 +61,7 @@ func (s *Service) Profiles() []ProfileProjection {
 	result := make([]ProfileProjection, 0, len(profiles))
 	for _, profile := range profiles {
 		result = append(result, ProfileProjection{
-			Profile: profile, Compatibility: ProfileCompatibility(profile),
+			Profile: profile,
 		})
 	}
 	return result
@@ -75,7 +76,7 @@ func (s *Service) Profile(selector ProfileSelector) (ProfileProjection, error) {
 	if err != nil {
 		return ProfileProjection{}, ErrProfileNotFound
 	}
-	return ProfileProjection{Profile: profile, Compatibility: ProfileCompatibility(profile)}, nil
+	return ProfileProjection{Profile: profile}, nil
 }
 
 func (s *Service) CreateDraft(
@@ -96,7 +97,7 @@ func (s *Service) CreateDraft(
 		return replay, false, err
 	}
 	selector, _ := normalizeProfileSelector(params.Profile)
-	var profile auditprofile.ResolvedAuditProfile
+	var profile auditprofile.PinnedProgram
 	if params.PinnedProfile != nil {
 		if !contentdigest.Valid(params.ExpectedProfileSHA256) || params.PinnedProfile.Ref.Name+"@"+params.PinnedProfile.Ref.Version != selector {
 			return auditstore.Audit{}, false, ErrInvalid
@@ -167,10 +168,10 @@ func (s *Service) CreateDraft(
 		}
 	}
 	limits := auditstore.Limits{
-		MaxRounds: profile.Execution.MaxRounds, BatchSize: profile.Execution.BatchSize,
-		MaxItemsPerRound: profile.Execution.MaxItemsPerRound, MaxItemsTotal: profile.Execution.MaxItemsTotal,
-		MaxSubmittedRuns: profile.Execution.MaxSubmittedRuns, MaxItemRunAttempts: profile.Execution.MaxItemRunAttempts,
-		MaxEvidenceBytes: profile.Execution.MaxEvidenceBytes,
+		MaxRounds: profile.Program.Limits.MaxIterations, BatchSize: profile.Program.Limits.BatchSize,
+		MaxItemsPerRound: profile.Program.Limits.MaxTasksPerIteration, MaxItemsTotal: profile.Program.Limits.MaxTasks,
+		MaxSubmittedRuns: profile.Program.Limits.MaxSubmittedRuns, MaxItemRunAttempts: profile.Program.Limits.MaxAttempts,
+		MaxEvidenceBytes: profile.Program.Limits.MaxEvidenceBytes,
 	}
 	if engagement != nil {
 		limits.MaxItemRunAttempts = 1
@@ -181,7 +182,7 @@ func (s *Service) CreateDraft(
 		limits.BatchSize = min(limits.BatchSize, limits.MaxItemsPerRound)
 		limits.MaxEvidenceBytes = min(limits.MaxEvidenceBytes, int64(engagement.document.Budgets.EvidenceBytes))
 	}
-	profileSnapshot, err := json.Marshal(profile)
+	profileSnapshot, err := strictjson.Canonical(profile)
 	if err != nil {
 		return auditstore.Audit{}, false, fmt.Errorf("encode AuditProfile snapshot: %w", err)
 	}
@@ -381,7 +382,7 @@ func (s *Service) GetReport(
 
 func (s *Service) selectDraftInputs(
 	ctx context.Context,
-	profile auditprofile.ResolvedAuditProfile,
+	profile auditprofile.PinnedProgram,
 	projectID string,
 	selected map[string]contracts.ArtifactRef,
 ) (map[string]auditstore.ExactArtifact, error) {
@@ -389,11 +390,11 @@ func (s *Service) selectDraftInputs(
 		return nil, fmt.Errorf("%w: Audit inputs are invalid", ErrInvalid)
 	}
 	for name := range selected {
-		if _, ok := profile.Inputs[name]; !ok {
+		if _, ok := profile.Program.Inputs[name]; !ok {
 			return nil, fmt.Errorf("%w: Audit input slot is unknown", ErrInvalid)
 		}
 	}
-	for name, contract := range profile.Inputs {
+	for name, contract := range profile.Program.Inputs {
 		if _, ok := selected[name]; contract.Required && !ok {
 			return nil, fmt.Errorf("%w: required Audit input is missing", ErrInvalid)
 		}
@@ -410,7 +411,6 @@ func (s *Service) selectDraftInputs(
 	}
 	sort.Strings(names)
 	result := make(map[string]auditstore.ExactArtifact, len(names))
-	rulepacks := auditRulepackInputs(profile)
 	for _, name := range names {
 		ref := selected[name]
 		if err := ref.ValidateExact(); err != nil {
@@ -420,14 +420,10 @@ func (s *Service) selectDraftInputs(
 		if err != nil {
 			return nil, err
 		}
-		if !contracts.AcceptsMediaType(profile.Inputs[name].MediaTypes, metadata.MediaType) {
+		if !contracts.AcceptsMediaType(profile.Program.Inputs[name].MediaTypes, metadata.MediaType) {
 			return nil, fmt.Errorf("%w: Audit input media type is incompatible", ErrInvalid)
 		}
-		if rulepacks[name] {
-			if err := validateAuditRulepackMetadata(name, metadata.MediaType, metadata.Size); err != nil {
-				return nil, err
-			}
-		}
+
 		result[name] = auditstore.ExactArtifact{
 			Ref: metadata.Ref, Digest: metadata.Digest,
 			MediaType: metadata.MediaType, SizeBytes: metadata.Size,

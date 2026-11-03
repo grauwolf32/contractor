@@ -218,18 +218,3 @@
 /* ---------- Inside a card instead of a pane ---------- */
 
 /* The bar sits in the card's own decision box: no pane insets or divider. */
-.decisions-inline {
-  --ui-pad-start: 0;
-  --ui-pad-end: 0;
-}
-
-.decisions-inline .ui-decision {
-  padding-block: var(--space-1);
-  border-top: 0;
-  background: transparent;
-}
-
-.decisions-inline .decisions-status:not(:empty) {
-  padding-block: var(--space-1);
-  border-top: 0;
-}

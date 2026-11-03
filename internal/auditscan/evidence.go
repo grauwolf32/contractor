@@ -2,12 +2,13 @@ package auditscan
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/base64"
 	"errors"
 	"fmt"
 
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 	"github.com/grauwolf32/contractor/internal/planner"
@@ -27,21 +28,15 @@ func (b *resultBuilder) readRetained(ctx context.Context, ref contracts.Artifact
 	return payload, nil
 }
 
-func (b *resultBuilder) addEvidence(id, kind string, data []byte) bool {
-	// Reserve the domain's maximum manifest size for the package index and result
-	// metadata. Check the final ZIP separately because compression adds overhead.
-	payloadBudget := MaxResultBytes - auditdomain.MaximumManifestBytes
-	if b.evidenceBytes+len(data) > payloadBudget || len(b.evidence) >= auditdomain.MaximumEvidencePerItem {
+func (b *resultBuilder) addEvidence(id, kind string, ref contracts.ArtifactRef, data []byte) bool {
+	// Reserve 1 MiB for the bounded Run journal and exact descriptors. A final
+	// canonical-byte check also covers JSON escaping and metadata overhead.
+	if b.evidenceBytes+base64.StdEncoding.EncodedLen(len(data)) > MaxResultBytes-(1<<20) || len(b.artifacts) >= 256 {
 		b.gaps["scan_evidence_budget_exceeded"] = true
 		return false
 	}
-	b.evidenceBytes += len(data)
-	b.members = append(b.members, auditdomain.PackageInput{
-		ID: id, Path: "evidence/" + id + ".json", MediaType: auditdomain.JSONMediaType, Data: data,
-	})
-	b.evidence = append(b.evidence, auditdomain.Evidence{
-		ID: id, Kind: kind, Summary: "Retained " + kind + " from the assigned scan.", ContentMemberID: id,
-	})
+	b.evidenceBytes += base64.StdEncoding.EncodedLen(len(data))
+	b.artifacts = append(b.artifacts, retainedArtifact{ID: id, Kind: kind, Ref: ref.Clone(), Digest: contentdigest.Bytes(data), Data: append([]byte(nil), data...)})
 	return true
 }
 
@@ -82,7 +77,7 @@ func (b *resultBuilder) addPlan(ctx context.Context, prefix string, state planne
 			b.gaps[candidate.Code] = true
 		}
 	}
-	b.addEvidence(prefix+"-plan", "scan-plan", payload.Data)
+	b.addEvidence(prefix+"-plan", "scan-plan", *state.Plan, payload.Data)
 	return nil
 }
 
@@ -120,13 +115,11 @@ func (b *resultBuilder) addReport(ctx context.Context, id string, job planner.Sc
 	if err != nil {
 		return err
 	}
-	var header struct {
-		Tool string `json:"tool"`
-	}
-	if payload.MediaType != auditdomain.JSONMediaType || json.Unmarshal(payload.Data, &header) != nil || header.Tool != "scan_"+b.input.Task.Scan.Scanner {
+	var header map[string]any
+	if payload.MediaType != "application/json" || strictjson.Decode(payload.Data, &header) != nil || header["tool"] != "scan_"+b.input.Scanner {
 		return fmt.Errorf("%w: retained scanner report is invalid", ErrInvalid)
 	}
-	if b.addEvidence(id, "scanner-report", payload.Data) && job.Status == planner.ScanJobCompleted {
+	if b.addEvidence(id, "scanner-report", *job.Report, payload.Data) && job.Status == planner.ScanJobCompleted {
 		b.completed = true
 	}
 	return nil

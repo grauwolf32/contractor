@@ -78,9 +78,15 @@ func (s *ClaimStore) collect(ctx context.Context, params auditstore.CollectParam
 		if failure == persistencepostgres.ClassDuplicate {
 			return auditstore.CollectionReceipt{}, false, auditstore.ErrConflict
 		}
-		if exceeded, budgetErr := s.evidenceBudgetExceeded(
-			ctx, params.Claim.AuditID, prepared.retainedBytes,
-		); budgetErr != nil {
+		var valid bool
+		var retainedBytes int64
+		if err := s.db.QueryRow(ctx, readCollectionLinkStateSQL, params.Claim.AuditID, prepared.links).Scan(&valid, &retainedBytes); err != nil {
+			return auditstore.CollectionReceipt{}, false, err
+		}
+		if !valid {
+			return auditstore.CollectionReceipt{}, false, auditstore.ErrInvalid
+		}
+		if exceeded, budgetErr := s.evidenceBudgetExceeded(ctx, params.Claim.AuditID, retainedBytes); budgetErr != nil {
 			return auditstore.CollectionReceipt{}, false, budgetErr
 		} else if exceeded {
 			return auditstore.CollectionReceipt{}, false, auditstore.ErrEvidenceBudgetExhausted

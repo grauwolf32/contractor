@@ -17,8 +17,6 @@ import (
 )
 
 var (
-	ErrAdmissionDeadline       = errors.New("Audit admission validation deadline exceeded")
-	ErrAdmissionSliceFull      = errors.New("Audit admission slice work budget exhausted")
 	ErrCorrelationStale        = apierror.New(apierror.FindingCorrelationStale, "finding correlation traversal is stale")
 	ErrCorrelationItemTooLarge = apierror.New(apierror.FindingCorrelationItemTooLarge, "finding correlation item exceeds preview bound")
 	ErrInvalid                 = apierror.New(apierror.InvalidRequest, "auditstore invalid argument")
@@ -37,7 +35,3 @@ var (
 )
 
 // Exact accepted dependency lookup failures are permanent, classified source outcomes.
-var (
-	ErrDependencyClosureLimit    = errors.New("accepted dependency closure exceeds its bounds")
-	ErrDependencySourceAmbiguous = errors.New("accepted dependency source attempt is ambiguous")
-)

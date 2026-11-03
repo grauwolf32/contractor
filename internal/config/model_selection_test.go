@@ -257,44 +257,17 @@ func TestDeploymentModelSelectionRejectsStaleUnknownAndIncompatibleChoices(t *te
 
 func modelAuditProfileFixture(t *testing.T, root string) {
 	t.Helper()
-	writeAuditProfile(t, root, "model-checklist", `apiVersion: contractor/v1alpha1
-kind: AuditProfile
-metadata: {name: model-checklist, version: "1"}
-spec:
-  mode: custom-checklist
-  standards: []
-  inputs:
-    source: {required: true, mediaTypes: [text/plain]}
-    checklist: {required: true, mediaTypes: [application/json]}
-  inventory:
-    implementation: checklist@1
-    source: {source: audit-input, name: checklist}
-    itemWorkflowRole: check
-  workflows:
-    check:
-      kind: check
-      ref: artifact-copy@1
-      inputs:
-        source: {source: audit-input, name: source}
-      parameters:
-        objective: {source: item-field, name: subjectKey}
-      outputs: {result: result}
-  execution:
-    roundMode: fixed-barrier
-    maxRounds: 1
-    batchSize: 1
-    maxItemsPerRound: 10
-    maxItemsTotal: 10
-    maxSubmittedRuns: 20
-    maxItemRunAttempts: 2
-    deadlineSeconds: 3600
-    maxEvidenceBytes: 1048576
-    incompleteRound: assess-with-gaps
-  interaction:
-    activeChecks: prohibited
-    notApplicable: profile-rule
-    reportAcceptance: automatic
-`)
+	var value map[string]any
+	if err := json.Unmarshal([]byte(validAuditProfileYAML(t, "model-checklist")), &value); err != nil {
+		t.Fatal(err)
+	}
+	spec := value["spec"].(map[string]any)
+	spec["inputs"].(map[string]any)["checklist"] = map[string]any{"required": true, "media_types": []string{"application/json", "application/yaml"}}
+	binding := spec["workflows"].(map[string]any)["inspect"]
+	spec["workflows"] = map[string]any{"check": binding}
+	spec["initial_work"].([]any)[0].(map[string]any)["workflow"] = "check"
+	data, _ := json.Marshal(value)
+	writeAuditProfile(t, root, "model-checklist", string(data))
 }
 
 func TestDeploymentModelSelectionPinsAuditProfileDigest(t *testing.T) {
@@ -313,7 +286,7 @@ func TestDeploymentModelSelectionPinsAuditProfileDigest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	decoded, err := auditprofile.DecodeResolvedAuditProfileSnapshot(encoded)
+	decoded, err := auditprofile.DecodePinnedProgram(encoded)
 	if err != nil || !reflect.DeepEqual(decoded, before) || before.Ref.Digest == catalog.Ref.Digest {
 		t.Fatalf("effective profile does not retain its own digest: %v", err)
 	}
@@ -340,24 +313,24 @@ func TestDeploymentModelSelectionPinsAuditProfileDigest(t *testing.T) {
 	}
 	for _, test := range []struct {
 		name string
-		edit func(*auditprofile.ResolvedAuditProfile)
+		edit func(*auditprofile.PinnedProgram)
 	}{
-		{"digest", func(p *auditprofile.ResolvedAuditProfile) { p.Ref.Digest = catalog.Ref.Digest }},
-		{"missing role", func(p *auditprofile.ResolvedAuditProfile) { delete(p.Workflows, "check") }},
-		{"profile limits", func(p *auditprofile.ResolvedAuditProfile) { p.Execution.MaxItemsTotal++ }},
-		{"role kind", func(p *auditprofile.ResolvedAuditProfile) {
+		{"digest", func(p *auditprofile.PinnedProgram) { p.Ref.Digest = catalog.Ref.Digest }},
+		{"missing role", func(p *auditprofile.PinnedProgram) { delete(p.Workflows, "check") }},
+		{"profile limits", func(p *auditprofile.PinnedProgram) { p.Program.Limits.MaxTasks++ }},
+		{"allowed Workflow", func(p *auditprofile.PinnedProgram) {
 			binding := p.Workflows["check"]
-			binding.Kind = auditprofile.AuditWorkflowDiscovery
+			binding.Ref.Name = "forged-workflow"
 			p.Workflows["check"] = binding
 		}},
-		{"workflow objective", func(p *auditprofile.ResolvedAuditProfile) {
-			workflow := p.Workflows["check"].Workflow
+		{"workflow objective", func(p *auditprofile.PinnedProgram) {
+			workflow := p.Workflows["check"]
 			stage := workflow.Stages["copy"]
 			stage.Objective = "a different task"
 			workflow.Stages["copy"] = stage
 		}},
-		{"model policy", func(p *auditprofile.ResolvedAuditProfile) {
-			stage := p.Workflows["check"].Workflow.Stages["copy"]
+		{"model policy", func(p *auditprofile.PinnedProgram) {
+			stage := p.Workflows["check"].Stages["copy"]
 			policy := stage.ModelDefaults["worker"]
 			policy.Model = "unconfigured/replacement"
 			stage.ModelDefaults["worker"] = policy
@@ -367,7 +340,7 @@ func TestDeploymentModelSelectionPinsAuditProfileDigest(t *testing.T) {
 			changed := before.Clone()
 			test.edit(&changed)
 			if test.name != "digest" {
-				changed.Ref.Digest, err = auditprofile.Digest(changed)
+				changed.Ref.Digest, err = changed.Digest()
 				if err != nil {
 					t.Fatal(err)
 				}

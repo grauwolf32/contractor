@@ -276,11 +276,11 @@ func (m *Manager) WorkflowDiscovery() (WorkflowDiscovery, error) {
 	return m.Snapshot().WorkflowDiscovery()
 }
 
-func (m *Manager) AuditProfile(raw string) (auditprofile.ResolvedAuditProfile, error) {
+func (m *Manager) AuditProfile(raw string) (auditprofile.PinnedProgram, error) {
 	return m.Snapshot().AuditProfile(raw)
 }
 
-func (m *Manager) AuditProfiles() []auditprofile.ResolvedAuditProfile {
+func (m *Manager) AuditProfiles() []auditprofile.PinnedProgram {
 	return m.Snapshot().AuditProfiles()
 }
 

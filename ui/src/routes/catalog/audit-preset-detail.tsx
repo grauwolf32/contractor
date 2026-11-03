@@ -14,20 +14,12 @@ import { ContextLink } from "../../app/context-navigation";
 import { ErrorNotice } from "../../app/error-notice";
 import {
   compactDigest,
+  compareVersions,
   formatBytes,
   formatTimeLimit,
-  compareVersions,
 } from "../../app/format";
 import { QueryView } from "../../app/query-view";
-import {
-  capitalize,
-  checkItemKind,
-  itemCount,
-  type ItemKind,
-  itemNoun,
-  TERMS,
-  wordOf,
-} from "../../app/vocabulary";
+import { capitalize, TERMS } from "../../app/vocabulary";
 import {
   Button,
   ButtonLink,
@@ -39,46 +31,17 @@ import {
 } from "../../ui";
 import { auditPresetLabel } from "../projects/audits/labels";
 import { workflowFormats } from "../workflows/formats";
-import { AuditPresetStandardChecks } from "./audit-preset-checks";
 import {
-  auditModeLabels,
-  hasFixedItems,
   presetScope,
   startCheckPath,
   useAuditPresets,
 } from "./audit-preset-data";
-import {
-  CheckTypeAvailability,
-  CompatibilityReasons,
-} from "./check-type-status";
-import { LibraryBackLink, LibrarySearch } from "./library-parts";
-import { useCatalogQueryState } from "./query-state";
+import { CheckTypeAvailability } from "./check-type-status";
+import { LibraryBackLink } from "./library-parts";
 
 const BACK = {
   returnTo: "/catalog/audit-presets",
   returnLabel: "All check types",
-};
-
-const ACTIVE_TESTS: Readonly<
-  Record<AuditProfile["interaction"]["activeChecks"], string>
-> = {
-  prohibited: "Never run",
-  automatic: "Use project setting",
-  "approval-required": "Use project setting",
-};
-
-const NOT_APPLICABLE: Readonly<
-  Record<AuditProfile["interaction"]["notApplicable"], string>
-> = {
-  "human-required": "You decide what does not apply",
-  "profile-rule": "Set by the check type",
-};
-
-const REPORT_ACCEPTANCE: Readonly<
-  Record<AuditProfile["interaction"]["reportAcceptance"], string>
-> = {
-  automatic: "Accepted automatically",
-  "human-required": "Needs your acceptance",
 };
 
 function VersionPicker({ name, version }: { name: string; version: string }) {
@@ -134,80 +97,6 @@ function VersionPicker({ name, version }: { name: string; version: string }) {
   );
 }
 
-function CheckTypeItems({
-  profile,
-  kind,
-}: {
-  profile: AuditProfile;
-  kind: ItemKind;
-}) {
-  const heading = useId();
-  const search = useCatalogQueryState();
-  const plural = itemNoun(kind, 2);
-  const fixed = hasFixedItems(profile);
-  const selection = profile.inventory.standardSelection;
-  const source = profile.inventory.source;
-  return (
-    <section className="library-block" aria-labelledby={heading}>
-      <header className="library-block-header">
-        <div>
-          <h3 id={heading} className="library-block-title">
-            {capitalize(plural)}
-          </h3>
-          <p className="library-block-lede">{presetScope(profile)}</p>
-          {selection ? (
-            <p className="ui-caption">
-              {itemCount(kind, selection.entryIds.length)} selected · Levels{" "}
-              {selection.levels.join(", ")}
-            </p>
-          ) : null}
-        </div>
-        {fixed ? (
-          <LibrarySearch
-            label={`Search ${plural}`}
-            placeholder="ID, title or text"
-            value={search.draftSearch}
-            onChange={search.changeDraftSearch}
-          />
-        ) : null}
-      </header>
-      {fixed ? (
-        profile.standards.map((reference) => (
-          <AuditPresetStandardChecks
-            key={`${reference.scheme}@${reference.version}`}
-            reference={reference}
-            profile={profile}
-            kind={kind}
-            search={search.committedSearch.toLowerCase()}
-          />
-        ))
-      ) : (
-        <div className="library-note">
-          <strong>
-            The {itemNoun(kind, 1)} list depends on the inputs of each check.
-          </strong>
-          <p>
-            {source?.source === "prepare-output" ? (
-              "Preparation builds it from your project inputs."
-            ) : (
-              <>
-                You supply{" "}
-                {source === undefined ? (
-                  "the required inputs"
-                ) : (
-                  <code>{source.name}</code>
-                )}{" "}
-                when you start a check in a project.
-              </>
-            )}{" "}
-            The {plural} it finds are listed in that check’s Coverage tab.
-          </p>
-        </div>
-      )}
-    </section>
-  );
-}
-
 function CheckTypeInputs({ profile }: { profile: AuditProfile }) {
   const heading = useId();
   const inputs = Object.entries(profile.inputs).sort(
@@ -230,7 +119,7 @@ function CheckTypeInputs({ profile }: { profile: AuditProfile }) {
                 {input.required ? "Required" : "Optional"}
               </span>
               <span className="library-row-detail">
-                {input.mediaTypes
+                {input.media_types
                   .map((type) =>
                     workflowFormats[type]
                       ? `${workflowFormats[type]} (${type})`
@@ -248,7 +137,7 @@ function CheckTypeInputs({ profile }: { profile: AuditProfile }) {
 
 function CheckTypeWorkflows({ profile }: { profile: AuditProfile }) {
   const heading = useId();
-  const workflows = Object.entries(profile.workflows ?? {});
+  const workflows = Object.entries(profile.program?.workflows ?? {});
   if (workflows.length === 0) return null;
   return (
     <section className="library-block" aria-labelledby={heading}>
@@ -260,13 +149,14 @@ function CheckTypeWorkflows({ profile }: { profile: AuditProfile }) {
           <li key={role}>
             <ContextLink
               className="library-row-name"
-              to={`/catalog/workflows/${encodeURIComponent(binding.workflow.name)}/${encodeURIComponent(binding.workflow.version)}`}
+              to={`/catalog/workflows/${encodeURIComponent(binding.ref.split("@")[0]!)}/${encodeURIComponent(binding.ref.split("@")[1]!)}`}
               returnLabel={`${auditPresetLabel(profile.ref.name)} @${profile.ref.version}`}
             >
-              {binding.workflow.name}@{binding.workflow.version}
+              {binding.ref.split("@")[0]!}@{binding.ref.split("@")[1]!}
             </ContextLink>
             <span className="library-row-detail">
-              Role <code>{role}</code> · {binding.kind}
+              Role <code>{role}</code> ·{" "}
+              {Object.keys(binding.outputs).join(", ")}
             </span>
           </li>
         ))}
@@ -275,102 +165,44 @@ function CheckTypeWorkflows({ profile }: { profile: AuditProfile }) {
   );
 }
 
-function CheckTypeTechnicalDetails({ profile }: { profile: AuditProfile }) {
-  const { execution } = profile;
-  return (
-    <TechnicalDetails description="Limits and identities, for admins and debugging.">
-      <Facts
-        size="sm"
-        items={[
-          {
-            term: "Digest",
-            value: (
-              <code title={profile.ref.digest}>
-                {compactDigest(profile.ref.digest)}
-              </code>
-            ),
-          },
-          {
-            term: "Inventory",
-            value: (
-              <>
-                <code>{profile.inventory.implementation}</code> · role{" "}
-                <code>{profile.inventory.itemWorkflowRole}</code>
-              </>
-            ),
-          },
-          {
-            term: "Input validation",
-            value: profile.requiresInputValidation
-              ? "Required"
-              : "Not required",
-          },
-          {
-            term: "Rounds",
-            value: `Up to ${execution.maxRounds} · ${execution.roundMode} · incomplete round: ${execution.incompleteRound}`,
-          },
-          {
-            term: "Items",
-            value: `${execution.maxItemsTotal} in total · ${execution.maxItemsPerRound} per round · batches of ${execution.batchSize}`,
-          },
-          {
-            term: "Runs",
-            value: `Up to ${execution.maxSubmittedRuns} submitted · ${execution.maxItemRunAttempts} attempts per item`,
-          },
-          {
-            term: "Evidence",
-            value: `Up to ${formatBytes(execution.maxEvidenceBytes)}`,
-          },
-        ]}
-      />
-    </TechnicalDetails>
-  );
-}
-
 function CheckTypeContents({ profile }: { profile: AuditProfile }) {
-  const kind = checkItemKind(profile);
-  const { interaction } = profile;
+  const limits = profile.limits;
   return (
     <>
-      {profile.serverCompatible ? null : (
-        <div className="library-note" data-tone="warning">
-          <strong>This check type cannot run on this server.</strong>
-          <CompatibilityReasons reasons={profile.compatibilityReasons} />
-        </div>
-      )}
       <Facts
         items={[
           {
-            term: "Standards",
-            value:
-              profile.standards.length === 0
-                ? "None"
-                : profile.standards
-                    .map((standard) => `${standard.scheme}@${standard.version}`)
-                    .join(", "),
-          },
-          {
             term: "Time limit",
-            value: formatTimeLimit(profile.execution.deadlineSeconds),
+            value: formatTimeLimit(limits.deadline_seconds),
           },
           {
             term: "Active tests",
-            value: wordOf(ACTIVE_TESTS, interaction.activeChecks),
+            value:
+              profile.policy.active_operations === "allowed"
+                ? "Use project setting"
+                : "Prohibited",
           },
-          {
-            term: "Applicability",
-            value: wordOf(NOT_APPLICABLE, interaction.notApplicable),
-          },
-          {
-            term: "Report",
-            value: wordOf(REPORT_ACCEPTANCE, interaction.reportAcceptance),
-          },
+          { term: "Task limit", value: limits.max_tasks },
+          { term: "Attempts per task", value: limits.max_attempts },
         ]}
       />
-      <CheckTypeItems profile={profile} kind={kind} />
+      <p>{presetScope(profile)}</p>
       <CheckTypeInputs profile={profile} />
       <CheckTypeWorkflows profile={profile} />
-      <CheckTypeTechnicalDetails profile={profile} />
+      <TechnicalDetails description="Limits and identities, for admins and debugging.">
+        <Facts
+          size="sm"
+          items={[
+            {
+              term: "Digest",
+              value: <code>{compactDigest(profile.ref.digest)}</code>,
+            },
+            { term: "Runs", value: limits.max_submitted_runs },
+            { term: "Batch size", value: limits.batch_size },
+            { term: "Evidence", value: formatBytes(limits.max_evidence_bytes) },
+          ]}
+        />
+      </TechnicalDetails>
     </>
   );
 }
@@ -404,12 +236,7 @@ export function AuditPresetDetailRoute() {
               }
               meta={
                 <>
-                  <span>
-                    {capitalize(TERMS.checkType)}
-                    {profile === undefined
-                      ? null
-                      : ` · ${auditModeLabels[profile.mode]}`}
-                  </span>
+                  <span>{capitalize(TERMS.checkType)}</span>
                   <IdChip
                     value={selector}
                     display={selector}
@@ -425,7 +252,7 @@ export function AuditPresetDetailRoute() {
                   <ButtonLink to="/catalog/studio?kind=AuditProfile">
                     Open Node Studio
                   </ButtonLink>
-                  {profile?.serverCompatible ? (
+                  {profile !== undefined ? (
                     <ButtonLink variant="primary" to={startCheckPath(name)}>
                       Start a check with this type
                     </ButtonLink>

@@ -13,89 +13,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
-	"github.com/grauwolf32/contractor/internal/settingsstore"
 	"github.com/jackc/pgx/v5"
 )
-
-func (s *ClaimStore) CreateExecutionIntent(
-	ctx context.Context,
-	params auditstore.CreateExecutionIntentParams,
-) (auditstore.Execution, bool, error) {
-	if err := validateExecutionIntent(params); err != nil {
-		return auditstore.Execution{}, false, err
-	}
-	if replay, found, err := s.lookupExecutionReplay(
-		ctx, params.Claim.AuditID, params.SubmissionKey, params.RequestDigest,
-	); err != nil || found {
-		return replay, false, err
-	}
-	prepared := prepareExecutionIntentWrite(params)
-	var execution auditstore.Execution
-	err := persistencepostgres.Within(ctx, s.db, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		// The reservation holds the Scheduler settings row until it commits,
-		// so a change of either window is ordered before or after it
-		// (AUX-R6), and takes that lock before its claim, Audit and Round
-		// locks.
-		settings, err := settingsstore.NewPostgresTxStore(tx).LockSchedulerSettings(ctx)
-		if err != nil {
-			return fmt.Errorf("lock Audit dispatch window: %w", err)
-		}
-		execution, err = ScanExecution(persistencepostgres.SavepointQueryRow(ctx, tx, createExecutionIntentSQL,
-			params.Claim.AuditID, params.Claim.HolderID, params.Claim.Epoch,
-			params.ExecutionID, string(params.Role), prepared.roundID, prepared.roleAttempt,
-			prepared.manifestRef, params.Manifest.Digest, params.SubmissionKey,
-			params.RequestDigest, prepared.members,
-			params.WorkflowRole, prepared.preparation, settings.MaxConcurrentRuns,
-			settings.MaxConcurrentToolRuns, string(params.LaneClass),
-		))
-		return err
-	})
-	if err == nil {
-		return execution, true, nil
-	}
-	failure := persistencepostgres.Classify(err)
-	if failure == persistencepostgres.ClassDeleting {
-		return auditstore.Execution{}, false, auditstore.ErrProjectDeleting
-	}
-	if params.Role == auditstore.ExecutionPrepare && failure == persistencepostgres.ClassRejected {
-		return auditstore.Execution{}, false, auditstore.ErrPrecondition
-	}
-	if failure == persistencepostgres.ClassDuplicate || errors.Is(err, pgx.ErrNoRows) {
-		if existing, found, replayErr := s.lookupExecutionReplay(
-			ctx, params.Claim.AuditID, params.SubmissionKey, params.RequestDigest,
-		); replayErr != nil || found {
-			return existing, false, replayErr
-		}
-		if live, liveErr := s.claimLive(ctx, params.Claim); liveErr != nil {
-			return auditstore.Execution{}, false, liveErr
-		} else if !live {
-			return auditstore.Execution{}, false, auditstore.ErrClaimLost
-		}
-		if failure == persistencepostgres.ClassDuplicate {
-			return auditstore.Execution{}, false, auditstore.ErrConflict
-		}
-		return auditstore.Execution{}, false, auditstore.ErrPrecondition
-	}
-	return auditstore.Execution{}, false, writeError("create Audit execution intent", err)
-}
-
-func (s *ClaimStore) lookupExecutionReplay(
-	ctx context.Context, auditID, submissionKey, digest string,
-) (auditstore.Execution, bool, error) {
-	execution, err := ScanExecution(s.db.QueryRow(ctx, `
-SELECT `+ExecutionColumns("audit_executions")+` FROM audit_executions
- WHERE submission_key = $1`, submissionKey))
-	if errors.Is(err, pgx.ErrNoRows) {
-		return auditstore.Execution{}, false, nil
-	}
-	if err != nil {
-		return auditstore.Execution{}, false, fmt.Errorf("resolve execution submission replay: %w", err)
-	}
-	if execution.AuditID != auditID || execution.RequestDigest != digest {
-		return auditstore.Execution{}, true, auditstore.ErrConflict
-	}
-	return execution, true, nil
-}
 
 func (s *ClaimStore) claimLive(ctx context.Context, claim auditstore.ControllerClaim) (bool, error) {
 	live, err := auditClaims.Live(ctx, s.db, claim.AuditID, claim.HolderID, int64(claim.Epoch))

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
 	"strings"
 	"time"
 
@@ -16,7 +15,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/claimpass"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
-	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runservice"
@@ -92,41 +90,11 @@ func (c *Controller) reconcile(
 		ctx, cancel = readContext, cancelRead
 	}
 	defer cancel()
-	audit := snapshot.Audit
-	if pinned, decodeErr := auditprofile.DecodePinnedProgram(audit.ProfileSnapshot); decodeErr == nil {
-		return c.reconcileTasks(ctx, claim, snapshot, pinned)
+	pinned, err := auditprofile.DecodePinnedProgram(snapshot.Audit.ProfileSnapshot)
+	if err != nil {
+		return false, fmt.Errorf("%w: pinned program is invalid", ErrInvalidSubmission)
 	}
-	// A non-nil phase result stops this pass, including retryable no-op outcomes.
-	if result := c.reconcileReviewAndDeadline(ctx, claim, snapshot); result != nil {
-		return result.changed, result.err
-	}
-	// A batched drain phase ends the step when it changed anything: later
-	// phases need a fresh snapshot of the revision it advanced (AUX-R97).
-	if changed, err := c.observeTerminalBatch(ctx, claim, snapshot); changed || err != nil {
-		return changed, err
-	}
-	if result := c.collectOne(ctx, claim, snapshot); result != nil {
-		return result.changed, result.err
-	}
-	if audit.State == auditstore.AuditActive {
-		if changed, err := c.resumeOneIntent(ctx, claim, snapshot); changed || err != nil {
-			return changed, err
-		}
-	}
-
-	if result := c.progressRound(ctx, claim, snapshot); result != nil {
-		return result.changed, result.err
-	}
-	closed := audit.Dispatch == auditstore.DispatchClosed ||
-		audit.State == auditstore.AuditCancelling || audit.State == auditstore.AuditFinalizing ||
-		audit.State == auditstore.AuditDeleting
-	if closed {
-		return c.settleClosedAudit(ctx, claim, snapshot)
-	}
-	if result := c.progressPreparation(ctx, claim, snapshot); result != nil {
-		return result.changed, result.err
-	}
-	return c.dispatchReadyBatch(ctx, claim, snapshot)
+	return c.reconcileTasks(ctx, claim, snapshot, pinned)
 }
 
 // reportLongDeletionStep logs a deleting Audit's step that outlasted the
@@ -151,93 +119,6 @@ func reconciliationDone(changed bool, err error) *reconcileResult {
 	return &reconcileResult{changed: changed, err: err}
 }
 
-func (c *Controller) reconcileRolePhase(
-	ctx context.Context,
-	claim auditstore.ControllerClaim,
-	snapshot auditstore.ReconcileSnapshot,
-	kind auditstore.ExecutionRole,
-) (changed bool, complete bool, reason *auditstore.StopReason, err error) {
-	profile, decodeErr := auditprofile.DecodeResolvedAuditProfileSnapshot(snapshot.Audit.ProfileSnapshot)
-	if decodeErr != nil || (kind != auditstore.ExecutionPrepare && snapshot.Round == nil) {
-		return false, false, &auditstore.StopReason{
-			Code: "role_contract_invalid", Message: "The pinned Audit role configuration is invalid.",
-		}, nil
-	}
-	roles := roleNames(profile, kind)
-	if len(roles) == 0 {
-		return false, true, nil, nil
-	}
-	pendingDependency := false
-	for _, workflowRole := range roles {
-		latest, found := latestRoleExecution(snapshot.RoleExecutions, kind, workflowRole)
-		if found {
-			if latest.State != auditstore.ExecutionCollected {
-				if changed, handled, resumeErr := c.resumeRoundResultsInput(ctx, claim, snapshot, profile.Workflows[workflowRole], latest); handled {
-					return changed, false, nil, resumeErr
-				}
-				return false, false, nil, nil
-			}
-			disposition, receiptFound := roleExecutionDisposition(snapshot, latest.ExecutionID)
-			if !receiptFound {
-				return false, false, nil, nil
-			}
-			if disposition == auditstore.CollectionAccepted {
-				continue
-			}
-			if !roleDispositionRetryable(disposition, receiptErrorCode(snapshot, latest.ExecutionID)) {
-				return false, false, &auditstore.StopReason{
-					Code: "role_execution_not_retryable",
-					Message: fmt.Sprintf(
-						"Audit Workflow role %q ended with a non-retryable disposition.", workflowRole,
-					),
-				}, nil
-			}
-			maxAttempts := snapshot.Audit.Limits.MaxItemRunAttempts
-			if kind == auditstore.ExecutionPrepare {
-				maxAttempts = profile.Workflows[workflowRole].MaxRunAttempts
-			}
-			if latest.RoleAttempt == nil || *latest.RoleAttempt >= maxAttempts {
-				return false, false, &auditstore.StopReason{
-					Code: "role_attempt_budget_exhausted",
-					Message: fmt.Sprintf(
-						"Audit Workflow role %q exhausted its bounded execution attempts.", workflowRole,
-					),
-				}, nil
-			}
-		}
-		if !roleDependenciesSatisfied(profile, snapshot, workflowRole) {
-			pendingDependency = true
-			continue
-		}
-		attempt := 1
-		if found && latest.RoleAttempt != nil {
-			attempt = *latest.RoleAttempt + 1
-		}
-		if snapshot.Audit.ReservedRunCount >= snapshot.Audit.Limits.MaxSubmittedRuns {
-			return false, false, &auditstore.StopReason{
-				Code:    "submission_budget_exhausted",
-				Message: "The Audit child Run submission budget was exhausted before a required role completed.",
-			}, nil
-		}
-		if !snapshot.DispatchWindowOpen(resolved.WorkflowLaneClass(profile.Workflows[workflowRole].Workflow)) {
-			return false, false, nil, nil
-		}
-		return c.dispatchRole(ctx, claim, snapshot, workflowRole, attempt)
-	}
-	if pendingDependency {
-		return false, false, &auditstore.StopReason{
-			Code:    "role_dependency_unresolved",
-			Message: "A pinned Audit Workflow role dependency could not be satisfied.",
-		}, nil
-	}
-	return false, true, nil, nil
-}
-
-// closeActiveAudit closes dispatch of the active Audit and moves it to
-// finalizing with reason. The closing transition cannot itself be closed, so
-// the message is bounded to valid UTF-8 within the store's stop reason bound:
-// a builder may compose it from a diagnostic of any length, and a refused
-// closure would be retried on every pass (AUX-R100).
 func (c *Controller) closeActiveAudit(
 	ctx context.Context,
 	claim auditstore.ControllerClaim,
@@ -284,153 +165,6 @@ func (c *Controller) refusedWrite(audit auditstore.Audit, operation string, err 
 // roleDispatchInvalid is the stop reason of a role execution whose pinned
 // dispatch data failed deterministic validation, in the submission builder
 // or in the store that refused its intent.
-func roleDispatchInvalid() *auditstore.StopReason {
-	return &auditstore.StopReason{
-		Code:    "role_dispatch_contract_invalid",
-		Message: "Pinned Audit role dispatch data failed deterministic validation.",
-	}
-}
-
-// dispatchInvalid is the stop reason of a check execution whose pinned
-// dispatch data failed deterministic validation, in the submission builder
-// or in the store that refused its intent.
-func dispatchInvalid() *auditstore.StopReason {
-	return &auditstore.StopReason{
-		Code: "dispatch_contract_invalid", Message: "Pinned Audit dispatch data failed deterministic validation.",
-	}
-}
-
-func (c *Controller) dispatchRole(
-	ctx context.Context,
-	claim auditstore.ControllerClaim,
-	snapshot auditstore.ReconcileSnapshot,
-	workflowRole string,
-	attempt int,
-) (bool, bool, *auditstore.StopReason, error) {
-	prepared, err := c.builder.WithClaim(claim).PrepareRole(ctx, snapshot, workflowRole, attempt)
-	if err != nil {
-		if errors.Is(err, errRoundResultsPending) {
-			return true, false, nil, nil
-		}
-		if errors.Is(err, ErrInvalidSubmission) {
-			return false, false, roleDispatchInvalid(), nil
-		}
-		return false, false, nil, err
-	}
-	prepared.Intent.Claim = claim
-	execution, _, err := c.store.CreateExecutionIntent(ctx, prepared.Intent)
-	if errors.Is(err, auditstore.ErrPrecondition) {
-		return false, false, nil, nil
-	}
-	if c.refusedWrite(snapshot.Audit, "create role execution intent", err) {
-		return false, false, roleDispatchInvalid(), nil
-	}
-	if err != nil {
-		return false, false, nil, err
-	}
-	if execution.State != auditstore.ExecutionIntent {
-		return false, false, nil, fmt.Errorf(
-			"new Audit role execution %q has unexpected state %q", execution.ExecutionID, execution.State,
-		)
-	}
-	changed, err := c.createRun(ctx, claim, prepared)
-	return changed, false, nil, err
-}
-
-func roleNames(profile auditprofile.ResolvedAuditProfile, kind auditstore.ExecutionRole) []string {
-	result := make([]string, 0)
-	for name, binding := range profile.Workflows {
-		if auditstore.ExecutionRole(binding.Kind) == kind {
-			result = append(result, name)
-		}
-	}
-	sort.Strings(result)
-	return result
-}
-
-func latestRoleExecution(
-	executions []auditstore.Execution, kind auditstore.ExecutionRole, workflowRole string,
-) (auditstore.Execution, bool) {
-	var result auditstore.Execution
-	found := false
-	for _, execution := range executions {
-		if execution.Role != kind || execution.WorkflowRole != workflowRole || execution.RoleAttempt == nil {
-			continue
-		}
-		if !found || result.RoleAttempt == nil || *execution.RoleAttempt > *result.RoleAttempt {
-			result, found = execution, true
-		}
-	}
-	return result, found
-}
-
-func executionDisposition(
-	receipts []auditstore.CollectionReceiptSummary, executionID string,
-) (auditstore.CollectionDisposition, bool) {
-	for _, receipt := range receipts {
-		if receipt.ExecutionID == executionID {
-			return receipt.Disposition, true
-		}
-	}
-	return "", false
-}
-
-func roleExecutionDisposition(
-	snapshot auditstore.ReconcileSnapshot, executionID string,
-) (auditstore.CollectionDisposition, bool) {
-	if disposition, found := executionDisposition(snapshot.RoleReceipts, executionID); found {
-		return disposition, true
-	}
-	return executionDisposition(snapshot.Receipts, executionID)
-}
-
-func receiptErrorCode(snapshot auditstore.ReconcileSnapshot, executionID string) *string {
-	for _, receipts := range [][]auditstore.CollectionReceiptSummary{snapshot.RoleReceipts, snapshot.Receipts} {
-		for _, receipt := range receipts {
-			if receipt.ExecutionID == executionID {
-				return receipt.ErrorCode
-			}
-		}
-	}
-	return nil
-}
-
-func roleDispositionRetryable(disposition auditstore.CollectionDisposition, errorCode *string) bool {
-	if disposition == auditstore.CollectionExecutionFailed || disposition == auditstore.CollectionMissingOutput {
-		return true
-	}
-	return disposition == auditstore.CollectionInvalidResult &&
-		(errorCode == nil || *errorCode != "evidence-budget-exhausted")
-}
-
-func roleDependenciesSatisfied(
-	profile auditprofile.ResolvedAuditProfile,
-	snapshot auditstore.ReconcileSnapshot,
-	workflowRole string,
-) bool {
-	binding := profile.Workflows[workflowRole]
-	for _, mapping := range binding.Inputs {
-		if mapping.Source != auditprofile.AuditInputFromRetainedOutput && mapping.Source != auditprofile.AuditInputFromPreparation {
-			continue
-		}
-		source, exists := profile.Workflows[mapping.Role]
-		if !exists {
-			return false
-		}
-		execution, found := latestRoleExecution(
-			snapshot.RoleExecutions, auditstore.ExecutionRole(source.Kind), mapping.Role,
-		)
-		if !found || execution.State != auditstore.ExecutionCollected {
-			return false
-		}
-		disposition, found := roleExecutionDisposition(snapshot, execution.ExecutionID)
-		if !found || disposition != auditstore.CollectionAccepted {
-			return false
-		}
-	}
-	return true
-}
-
 func (c *Controller) failAuditImport(
 	ctx context.Context,
 	claim auditstore.ControllerClaim,
@@ -452,43 +186,6 @@ func (c *Controller) failAuditImport(
 		Reason: &reason,
 	})
 	return err == nil, err
-}
-
-func (c *Controller) dispatchClosureReason(
-	snapshot auditstore.ReconcileSnapshot,
-) *auditstore.StopReason {
-	audit := snapshot.Audit
-	if audit.DeadlineAt != nil && !c.now().Before(*audit.DeadlineAt) {
-		return &auditstore.StopReason{
-			Code: "deadline_exhausted", Message: "The Audit time limit was reached. Existing Runs can finish; extend or disable the limit to continue.",
-		}
-	}
-	if audit.Phase.PrecedesRounds() && snapshot.Round == nil && audit.CurrentRoundID == nil {
-		return nil
-	}
-	if audit.Limits.BatchSize < 1 || audit.Limits.BatchSize > auditstore.MaxCollectionItems ||
-		snapshot.Round == nil || audit.CurrentRoundID == nil ||
-		snapshot.Round.RoundID != *audit.CurrentRoundID {
-		return &auditstore.StopReason{
-			Code: "controller_contract_invalid", Message: "The active Audit is outside the one-round Controller contract.",
-		}
-	}
-	if audit.ReservedRunCount >= audit.Limits.MaxSubmittedRuns && len(snapshot.ReadyItems) != 0 {
-		return &auditstore.StopReason{
-			Code: "submission_budget_exhausted", Message: "The Audit child Run submission budget was exhausted.",
-		}
-	}
-	return nil
-}
-
-// drainBatch counts the mutations of one batched drain phase of a reconcile
-// step against the fixed per-step bound (AUX-R97, LIM-AUX-14). Snapshot rows
-// are only candidates: every mutation keeps its own store-side claim, state
-// and Run checks, and the first error, including a lost claim or a stale
-// precondition, ends the batch with the mutations already committed.
-type drainBatch struct {
-	limit     int
-	committed int
 }
 
 func (c *Controller) newDrainBatch() drainBatch {
@@ -601,133 +298,20 @@ func (c *Controller) failUnboundIntentBatch(
 	return batch.stop(ctx, nil)
 }
 
-func (c *Controller) resumeOneIntent(
-	ctx context.Context,
-	claim auditstore.ControllerClaim,
-	snapshot auditstore.ReconcileSnapshot,
-) (bool, error) {
-	for _, execution := range snapshot.Executions {
-		if execution.State != auditstore.ExecutionIntent || execution.RunID != nil {
-			continue
-		}
-		members, err := c.reads.ListExecutionItems(ctx, execution.ExecutionID)
-		if err != nil {
-			return false, err
-		}
-		var prepared PreparedSubmission
-		if execution.Role == auditstore.ExecutionCheck {
-			if len(members) == 0 || len(members) > snapshot.Audit.Limits.BatchSize {
-				return c.failInvalidIntent(ctx, claim, execution.ExecutionID)
-			}
-			itemIDs := make([]string, len(members))
-			for index, member := range members {
-				itemIDs[index] = member.ItemID
-			}
-			items, readErr := c.reads.ListItemsByIDs(ctx, snapshot.Audit.AuditID, itemIDs)
-			if readErr != nil {
-				return false, readErr
-			}
-			itemsByID := make(map[string]auditstore.Item, len(items))
-			for _, item := range items {
-				itemsByID[item.ItemID] = item
-			}
-			selected := make([]CheckExecutionMember, len(members))
-			for index, member := range members {
-				item, exists := itemsByID[member.ItemID]
-				if !exists {
-					return c.failInvalidIntent(ctx, claim, execution.ExecutionID)
-				}
-				selected[index] = CheckExecutionMember{Item: item, Attempt: member.ItemAttempt}
-			}
-			prepared, err = c.builder.WithClaim(claim).PrepareBatch(ctx, snapshot, selected)
-			if err == nil && !matchingIntent(execution, members, prepared.Intent) {
-				err = ErrInvalidSubmission
-			}
-		} else {
-			if len(members) != 0 || execution.RoleAttempt == nil {
-				return c.failInvalidIntent(ctx, claim, execution.ExecutionID)
-			}
-			prepared, err = c.builder.WithClaim(claim).PrepareRole(
-				ctx, snapshot, execution.WorkflowRole, *execution.RoleAttempt,
-			)
-			if err == nil && !matchingRoleIntent(execution, prepared.Intent) {
-				err = ErrInvalidSubmission
-			}
-		}
-		if err != nil {
-			if errors.Is(err, ErrInvalidSubmission) {
-				return c.failInvalidIntent(ctx, claim, execution.ExecutionID)
-			}
-			return false, err
-		}
-		return c.createRun(ctx, claim, prepared)
-	}
-	return false, nil
-}
-
-func matchingRoleIntent(
-	execution auditstore.Execution, prepared auditstore.CreateExecutionIntentParams,
-) bool {
-	roundMatches := execution.RoundID == nil && prepared.RoundID == nil ||
-		execution.RoundID != nil && prepared.RoundID != nil && *execution.RoundID == *prepared.RoundID
-	preparationMatches := execution.Preparation == nil && prepared.Preparation == nil ||
-		execution.Preparation != nil && prepared.Preparation != nil &&
-			sameExactInputMap(execution.Preparation.Inputs, prepared.Preparation.Inputs) &&
-			sameParameters(execution.Preparation.Parameters, prepared.Preparation.Parameters)
-	return execution.ExecutionID == prepared.ExecutionID && execution.Role == prepared.Role &&
-		execution.WorkflowRole == prepared.WorkflowRole && roundMatches && preparationMatches &&
-		execution.RoleAttempt != nil && prepared.RoleAttempt != nil &&
-		*execution.RoleAttempt == *prepared.RoleAttempt && execution.SubmissionKey == prepared.SubmissionKey &&
-		execution.RequestDigest == prepared.RequestDigest && execution.Manifest.Digest == prepared.Manifest.Digest &&
-		execution.Manifest.Ref.SameExact(prepared.Manifest.Ref) && len(prepared.Members) == 0
-}
-
-func (c *Controller) dispatch(
-	ctx context.Context,
-	claim auditstore.ControllerClaim,
-	snapshot auditstore.ReconcileSnapshot,
-	selected []CheckExecutionMember,
-) (bool, error) {
-	prepared, err := c.builder.WithClaim(claim).PrepareBatch(ctx, snapshot, selected)
-	if err != nil {
-		if errors.Is(err, ErrInvalidSubmission) {
-			return c.closeActiveAudit(ctx, claim, snapshot.Audit, dispatchInvalid())
-		}
-		return false, err
-	}
-	prepared.Intent.Claim = claim
-	execution, _, err := c.store.CreateExecutionIntent(ctx, prepared.Intent)
-	if errors.Is(err, auditstore.ErrPrecondition) {
-		// The derived dispatch window, deadline, budget, item state, or a
-		// concurrent fence won. A later authoritative snapshot decides which.
-		return false, nil
-	}
-	if c.refusedWrite(snapshot.Audit, "create check execution intent", err) {
-		return c.closeActiveAudit(ctx, claim, snapshot.Audit, dispatchInvalid())
-	}
-	if err != nil {
-		return false, err
-	}
-	if execution.State != auditstore.ExecutionIntent {
-		return false, fmt.Errorf("new Audit execution %q has unexpected state %q", execution.ExecutionID, execution.State)
-	}
-	return c.createRun(ctx, claim, prepared)
-}
-
 func (c *Controller) createRun(
 	ctx context.Context,
 	claim auditstore.ControllerClaim,
-	prepared PreparedSubmission,
+	prepared runservice.AuditCreateParams,
 ) (bool, error) {
-	prepared.Run.Claim = claim
-	prepared.Run.NewRunID = func() (string, error) { return c.newID("run_") }
-	result, err := c.creator.CreateAudit(ctx, prepared.Run)
+	prepared.Claim = claim
+	prepared.NewRunID = func() (string, error) { return c.newID("run_") }
+	result, err := c.creator.CreateAudit(ctx, prepared)
 	if err == nil {
 		c.notifier.Wake()
 		return result.Created || result.Replayed, nil
 	}
 	if permanentSubmissionError(err) {
-		return c.failInvalidIntent(ctx, claim, prepared.Intent.ExecutionID)
+		return c.failInvalidIntent(ctx, claim, prepared.ExecutionID)
 	}
 	return false, err
 }
@@ -782,50 +366,6 @@ func (c *Controller) requestCancellationBatch(
 		batch.commit()
 	}
 	return batch.stop(ctx, nil)
-}
-
-func matchingIntent(
-	execution auditstore.Execution,
-	members []auditstore.ExecutionItem,
-	prepared auditstore.CreateExecutionIntentParams,
-) bool {
-	if execution.ExecutionID != prepared.ExecutionID || execution.Role != prepared.Role ||
-		execution.WorkflowRole != prepared.WorkflowRole ||
-		execution.RoundID == nil || prepared.RoundID == nil || *execution.RoundID != *prepared.RoundID ||
-		execution.SubmissionKey != prepared.SubmissionKey || execution.RequestDigest != prepared.RequestDigest ||
-		execution.Manifest.Digest != prepared.Manifest.Digest || !execution.Manifest.Ref.SameExact(prepared.Manifest.Ref) ||
-		len(members) != len(prepared.Members) {
-		return false
-	}
-	for index, member := range members {
-		candidate := prepared.Members[index]
-		if member.ExecutionItemID != candidate.ExecutionItemID || member.ItemID != candidate.ItemID ||
-			member.BatchOrdinal != candidate.BatchOrdinal || member.BatchOrdinal != index ||
-			member.ItemAttempt != candidate.ItemAttempt || member.Task.Digest != candidate.Task.Digest ||
-			!member.Task.Ref.SameExact(candidate.Task.Ref) || !sameExactArtifacts(member.Inputs, candidate.Inputs) {
-			return false
-		}
-	}
-	return true
-}
-
-func sameExactArtifacts(left, right []auditstore.ExactArtifact) bool {
-	if len(left) != len(right) {
-		return false
-	}
-	for index := range left {
-		if left[index].Digest != right[index].Digest || left[index].MediaType != right[index].MediaType ||
-			left[index].SizeBytes != right[index].SizeBytes || !left[index].Ref.SameExact(right[index].Ref) {
-			return false
-		}
-	}
-	return true
-}
-
-func auditSettlementBarrier(snapshot auditstore.ReconcileSnapshot) bool {
-	return snapshot.Audit.OutstandingRunCount == 0 && len(snapshot.Items) == 0 &&
-		len(snapshot.Executions) == 0 && !snapshot.MoreItems && !snapshot.MoreExecutions &&
-		snapshot.Audit.Hold != auditstore.HoldHeld
 }
 
 func terminalRun(state runstore.WorkflowRunState) bool {
@@ -887,9 +427,7 @@ func (c *Controller) newID(prefix string) (string, error) {
 	return c.options.NewID(prefix)
 }
 
-func deadlineTarget(reason *auditstore.StopReason) auditstore.AuditState {
-	if reason != nil && reason.Code == "deadline_exhausted" {
-		return auditstore.AuditPaused
-	}
-	return auditstore.AuditFinalizing
+type drainBatch struct {
+	limit     int
+	committed int
 }

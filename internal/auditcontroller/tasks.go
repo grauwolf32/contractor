@@ -48,12 +48,18 @@ func (c *Controller) reconcileTasks(ctx context.Context, claim auditstore.Contro
 			return false, errors.New("Audit task intake is not configured")
 		}
 		result, err := c.options.TaskIntake.AcceptInitialTasks(ctx, claim, snapshot)
+		if errors.Is(err, auditstore.ErrPrecondition) {
+			return false, nil
+		}
+		if permanentSubmissionError(err) {
+			return c.closeActiveAudit(ctx, claim, audit, &auditstore.StopReason{Code: "initial-work-invalid", Message: "The pinned initial work cannot be accepted."})
+		}
 		if err != nil || result.Changed {
 			return result.Changed, err
 		}
 	}
 	if len(snapshot.ReadyTasks) > 0 {
-		if audit.ReservedRunCount >= pinned.Program.Limits.MaxSubmittedRuns {
+		if audit.ReservedRunCount >= audit.Limits.MaxSubmittedRuns {
 			return c.closeActiveAudit(ctx, claim, audit, &auditstore.StopReason{Code: "submission_budget_exhausted", Message: "The Audit child Run submission budget was exhausted."})
 		}
 		selected := []string{}
@@ -61,7 +67,7 @@ func (c *Controller) reconcileTasks(ctx context.Context, claim auditstore.Contro
 		batch := 1
 		for _, mapping := range pinned.Program.Workflows[first.Document.Workflow].Inputs {
 			if mapping.Source == "task-context" {
-				batch = pinned.Program.Limits.BatchSize
+				batch = audit.Limits.BatchSize
 				break
 			}
 		}
@@ -78,6 +84,9 @@ func (c *Controller) reconcileTasks(ctx context.Context, claim auditstore.Contro
 			return false, nil
 		}
 		if err != nil {
+			if c.refusedWrite(audit, "select Tasks", err) {
+				return c.closeActiveAudit(ctx, claim, audit, &auditstore.StopReason{Code: "dispatch-contract-invalid", Message: "The accepted work could not satisfy the dispatch contract."})
+			}
 			return false, err
 		}
 		return c.createTaskRun(ctx, claim, execution)
@@ -106,7 +115,7 @@ func (c *Controller) createTaskRun(ctx context.Context, claim auditstore.Control
 	for _, task := range tasks {
 		ids = append(ids, task.Document.TaskID)
 	}
-	return c.createRun(ctx, claim, PreparedSubmission{Intent: auditstore.CreateExecutionIntentParams{ExecutionID: execution.ExecutionID}, Run: runservice.AuditCreateParams{Claim: claim, ExecutionID: execution.ExecutionID, TaskIDs: ids, RequestDigest: execution.RequestDigest}})
+	return c.createRun(ctx, claim, runservice.AuditCreateParams{Claim: claim, ExecutionID: execution.ExecutionID, TaskIDs: ids, RequestDigest: execution.RequestDigest})
 }
 
 func (c *Controller) settleClosedTasks(ctx context.Context, claim auditstore.ControllerClaim, snapshot auditstore.ReconcileSnapshot) (bool, error) {

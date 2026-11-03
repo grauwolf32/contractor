@@ -539,7 +539,6 @@ test("studio live fences revisions, preserves paged items on errors and keeps it
     revision = 7;
   const audit = auditBuilder("project_studio", "audit_studio", "completed", {
     profile: { ...presetFixture.ref },
-    currentRoundId: `round_${"a".repeat(64)}`,
     revision,
     eventSequence: revision,
     holdState: "released",

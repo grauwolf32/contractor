@@ -31,15 +31,14 @@ from contractor_runtime.toolsets.audit_results.collector import (
     InvocationAuditCollector,
 )
 from contractor_runtime.toolsets.audit_results.contracts import (
-    MAX_COLLECTED_BYTES,
-    MAX_PACKAGE_BYTES,
+    MAX_DOCUMENT_BYTES,
     MAX_REMINDERS,
     AuditInvocationOwner,
     AuditTrustedInputs,
 )
 from contractor_runtime.toolsets.audit_results.encoding import (
     AuditResultError,
-    CanonicalAuditPackageEncoder,
+    CanonicalAuditResultEncoder,
 )
 from contractor_runtime.toolsets.audit_results.publication import (
     DeterministicAuditResultPublisher,
@@ -56,7 +55,7 @@ class PreparedAuditCompletion(PreparedWorkerCompletion):
         self,
         contract: WorkerCompletionContract,
         inputs: AuditTrustedInputs,
-        encoder: CanonicalAuditPackageEncoder,
+        encoder: CanonicalAuditResultEncoder,
         client: PublicationArtifactClient,
         request_timeout: float,
     ):
@@ -112,39 +111,26 @@ class PreparedAuditCompletion(PreparedWorkerCompletion):
         if client.allocation_id != allocation_id:
             raise AuditResultError("audit_result_invalid")
         async with asyncio.timeout(timeout):
-            task = await client.read_artifact(contract.task, max_bytes=MAX_PACKAGE_BYTES)
-            manifest = await client.read_artifact(
-                contract.execution_manifest,
-                max_bytes=MAX_COLLECTED_BYTES,
-            )
-        for value, exact, media in (
-            (task, contract.task, "application/zip"),
-            (manifest, contract.execution_manifest, "application/json"),
+            context = await client.read_artifact(contract.context, max_bytes=MAX_DOCUMENT_BYTES)
+        if (
+            not isinstance(context, ArtifactValue)
+            or context.artifact != contract.context
+            or context.media_type != "application/json"
         ):
-            if (
-                not isinstance(value, ArtifactValue)
-                or value.artifact != exact
-                or value.media_type != media
-            ):
-                raise AuditResultError("audit_result_invalid")
-        # Decoding and matching are CPU-bound; they run off the event loop once
-        # per allocation, and a cancellation joins them before propagating.
-        encoder = CanonicalAuditPackageEncoder()
+            raise AuditResultError("audit_result_invalid")
+        # CPU-bound strict decoding runs once off the event loop. Cancellation
+        # joins the work before allocation cleanup can release its resources.
+        encoder = CanonicalAuditResultEncoder()
         records = await threads.to_thread_until_done(
-            partial(encoder.task_records, task.data), name="audit-input-decode"
+            partial(encoder.context_records, context.data), name="audit-input-decode"
         )
         owner = AuditInvocationOwner(
             allocation_id,
             "audit-preparation",
-            sha256_digest(task.data),
-            tuple(task["item_key"] for task in records.tasks),
+            sha256_digest(context.data),
+            records.item_keys,
         )
-        inputs = AuditTrustedInputs(owner, task.data, manifest.data)
-        # Real encoder validates exact membership/order/digests before the model exists.
-        await threads.to_thread_until_done(
-            partial(encoder.trusted_inputs, inputs), name="audit-input-match"
-        )
-        await InvocationAuditCollector(inputs, encoder).discard()
+        inputs = AuditTrustedInputs(owner, context.data)
         return cls(contract, inputs, encoder, client, timeout)
 
     def current(self) -> InvocationAuditCollector:
@@ -206,7 +192,7 @@ class PreparedAuditCompletion(PreparedWorkerCompletion):
                 "Runtime completion reminder: use read_audit_task and submit_check_result "
                 "to record "
                 "the missing assigned items: " + ", ".join(missing) + ". "
-                "Use only assessments and evidence permitted by each task; "
+                "Use only verdicts and evidence permitted by each task; "
                 "terminal prose does not record results."
             )
         publisher = DeterministicAuditResultPublisher(

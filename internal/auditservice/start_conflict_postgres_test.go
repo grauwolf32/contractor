@@ -80,9 +80,14 @@ func TestAuditStartReplaysTheWinnerAfterADeadlockAbort(t *testing.T) {
 	var won StartedAudit
 	var winnerErr error
 	loser := newService(func(pgx.Tx) (resolved.CredentialLookup, error) {
-		won, winnerErr = winner.Start(ctx, start)
 		return nil, &pgconn.PgError{Code: postgres.SQLStateDeadlockDetected}
 	})
+	loser.credentialGuard = afterRollbackGuard(func(original error) {
+		if postgres.SQLState(original) == postgres.SQLStateDeadlockDetected {
+			won, winnerErr = winner.Start(ctx, start)
+		}
+	})
+
 	replayed, err := loser.Start(ctx, start)
 	if winnerErr != nil || won.Replayed || won.Audit.State != "active" {
 		t.Fatalf("winner start = (%+v, %v)", won, winnerErr)
@@ -91,4 +96,14 @@ func TestAuditStartReplaysTheWinnerAfterADeadlockAbort(t *testing.T) {
 		replayed.Audit.Revision != won.Audit.Revision {
 		t.Fatalf("start after a deadlock abort = (%+v, %v), want the winner's replay", replayed, err)
 	}
+}
+
+// The winner commits after the losing transaction released its keyed lock,
+// before the caller reconciles the abort through the existing receipt.
+type afterRollbackGuard func(error)
+
+func (g afterRollbackGuard) WithRunCreation(_ context.Context, fn func() error) error {
+	err := fn()
+	g(err)
+	return err
 }

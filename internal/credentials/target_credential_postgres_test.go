@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -17,6 +18,8 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
+	"github.com/grauwolf32/contractor/internal/configload"
+	"github.com/grauwolf32/contractor/internal/configtest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/persistence/leasetest"
@@ -347,6 +350,19 @@ func TestTargetCredentialDeleteRacesAuditHoldWithoutDeadlock(t *testing.T) {
 	if databaseURL == "" {
 		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
 	}
+	root := configtest.CopyWithPolicies(t, "../config/testdata/valid")
+	if err := os.CopyFS(root, os.DirFS("../config/testdata/audit-common-catalog")); err != nil {
+		t.Fatal(err)
+	}
+	catalog, _, err := configload.LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pinned, err := catalog.AuditProfile("empty-tasks@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	profile, _ := json.Marshal(pinned)
 	for _, maxConns := range []int32{1, 4} {
 		t.Run(fmt.Sprintf("MaxConns=%d", maxConns), func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
@@ -383,8 +399,8 @@ func TestTargetCredentialDeleteRacesAuditHoldWithoutDeadlock(t *testing.T) {
 				}
 				audit, _, err := audits.CreateDraft(ctx, auditstore.CreateDraftParams{
 					AuditID: auditID, OwnerID: project.OwnerID, ProjectID: project.ProjectID,
-					Profile:         auditstore.ProfileIdentity{Name: "profile", Version: "1", Digest: raceDigest("2")},
-					ProfileSnapshot: json.RawMessage(`{"name":"profile"}`), InputSelection: json.RawMessage(`{"inputs":{}}`),
+					Profile:         auditstore.ProfileIdentity{Name: pinned.Ref.Name, Version: pinned.Ref.Version, Digest: pinned.Ref.Digest},
+					ProfileSnapshot: profile, InputSelection: json.RawMessage(`{"inputs":{}}`),
 					Limits: auditstore.Limits{
 						MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: 1, MaxItemsTotal: 1,
 						MaxSubmittedRuns: 1, MaxItemRunAttempts: 1, MaxEvidenceBytes: 1024,
@@ -403,18 +419,10 @@ func TestTargetCredentialDeleteRacesAuditHoldWithoutDeadlock(t *testing.T) {
 							); err != nil {
 								return err
 							}
-							revision := "r1"
-							_, _, err := auditstoretest.NewTxStore(tx, artifactpgtest.NewStorage()).MaterializeRound(ctx, auditstore.MaterializeRoundParams{
+							_, _, err := auditstoretest.NewTxStore(tx).Activate(ctx, auditstore.ActivateParams{
 								OwnerID: project.OwnerID, AuditID: auditID, ExpectedRevision: audit.Revision,
-								RoundID: "round-" + auditID, RoundOrdinal: 1,
-								Manifest: auditstore.ExactArtifact{
-									Ref:    contracts.ArtifactRef{Namespace: "audits", Name: "round-" + auditID, Revision: &revision},
-									Digest: raceDigest("a"), MediaType: "application/zip", SizeBytes: 1,
-								},
-								BaselineSnapshot: json.RawMessage(`{"inputs":{},"skills":[],"llmCredentialIds":[],` +
-									`"runtimeCredentialIds":["` + id + `"]}`),
-								DeadlineAt: time.Now().Add(time.Hour), Items: []auditstore.MaterializedItem{},
-								IdempotencyKey: "start-" + auditID, RequestDigest: raceDigest("4"),
+								BaselineSnapshot: json.RawMessage(`{"schema":"contractor.audit.baseline.v1","inputs":{},"skills":[],"llmCredentialIds":[],"runtimeCredentialIds":["` + id + `"]}`),
+								DeadlineAt:       time.Now().Add(time.Hour), IdempotencyKey: "start-" + auditID, RequestDigest: raceDigest("4"),
 							})
 							return err
 						})

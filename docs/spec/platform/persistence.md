@@ -1276,8 +1276,6 @@ outlasts its retries is the retryable `503 storage_transaction_conflict`
     tests `TestPostgresRecoveryPathsRunInsideACallerTransaction` and
     `TestPostgresCreateDraftReplaysAConcurrentWinnerInsideATransaction` in
     [`internal/auditstore/internal/pgstore/transaction_recovery_postgres_test.go`](../../../internal/auditstore/internal/pgstore/transaction_recovery_postgres_test.go),
-    `TestSharedPostgresAuditPreparationStartRecoversInsideACallerTransaction` in
-    [`internal/artifacts/postgres/audit_preparation_transaction_postgres_test.go`](../../../internal/artifacts/postgres/audit_preparation_transaction_postgres_test.go)
     and `TestPostgresSavepointQueryRowKeepsTheCallerTransactionUsable` in
     [`internal/persistence/postgres/savepoint_postgres_test.go`](../../../internal/persistence/postgres/savepoint_postgres_test.go).
 16. Every foreign key of the migrated schema has an index led by all of its

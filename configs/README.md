@@ -40,7 +40,6 @@ The current user-facing Workflow set is:
 - `security-analysis@4` and `taint-trace-from-workspace@4` for their explicit
   focused analysis contracts, and `taint-trace-from-workspace-compact@1`, the
   same trace with opt-in Worker context compaction;
-- `audit-source-check@1` for bounded task sets in `source-checklist@1`;
 - `audit-openapi-operation-observe@1` for graph-backed operation analysis in
   the limited `openapi-operation-observe@1` comparison variant;
 - `audit-openapi-operation-trace@1` for graph-backed analysis and finding proposals
@@ -48,8 +47,6 @@ The current user-facing Workflow set is:
   and `source-findings-review@1` for exact source-backed proposal review;
 - `audit-openapi-nuclei-scan@1` and `audit-openapi-sqlmap-scan@1` for the
   `openapi-nuclei-scan@1` and `openapi-sqlmap-scan@1` AuditProfiles;
-- `audit-top10-source-risk@1` and `audit-asvs-source-verification@1` for the
-  standard-specific AuditProfiles, including `owasp-top10-2025-source-risk@1`;
 - `artifact-copy@2` as the ordinary artifact smoke fixture;
 - `podman-python-check@2` as the explicitly selected offline Podman execution fixture.
 
@@ -104,73 +101,38 @@ the original exact Workflow is absent. Removing a bundled resource does not
 remove copies published into a separate managed or operator catalog. Frozen
 instruction-evaluation inputs retain their own exact catalog under `tests/eval`.
 
-The source-checklist and model-backed OpenAPI review profiles are bounded,
-one-round and non-certifying. Source-backed profiles require an exact source
-ZIP alongside their checklist or OpenAPI input. Their model-backed Audit
-workers use `audit-results@2`: `read_audit_task` reads the pinned task set, and
-`submit_check_result` records validated items incrementally. Those profiles
-pin `workerCompletion: audit-check-results@1` to their Worker.
-Runtime publishes the complete canonical ZIP after normal completion; tool
-receipts report collection progress, not published artifacts. Missing results
-or publication failures fail the child Run. The checklist batches up to two
-compatible items; OpenAPI retains `batchSize: 1`.
+The shipped Audit catalog contains six common programs:
+`openapi-operation-observe@1`, `openapi-operation-trace@1`,
+`openapi-sqlmap-scan@1`, `openapi-nuclei-scan@1`,
+`source-openapi-sqlmap-scan@1` and `web-scan@1`.
+The eight checklist/standard assertion profiles are temporarily absent. Their
+restoration and real execution coverage belong to
+[V64-012](../tasks/v64-012-audit-hypothesis-registry.yml); the immutable standard
+packages and their source/license checks remain available.
 
-The `openapi-nuclei-scan@1` and `openapi-sqlmap-scan@1` profiles instead select
-`audit-openapi-nuclei-scan@1` and `audit-openapi-sqlmap-scan@1`. They take exact
-`openapi` and `settings` inputs and bind the `audit-nuclei-scan@1` or
-`audit-sqlmap-scan@1` template. These are model-free `tool@1` Workers using
-`scan@1`; they do not select `audit-results@2` or `workerCompletion`. See the
-[Audit guide](../docs/guides/audits.md) for the scan path.
+A profile pins ordinary Workflows, exact input mappings, policy and budgets.
+OpenAPI preparation runs the existing deterministic Server operation and emits
+a bounded ordinary work list. Common intake accepts separate operation Tasks;
+the coordinator dispatches them through RunService. Web-scan accepts one Task
+for the selected target.
 
-The model-backed Audit Workflows require the trusted completion contract
-supplied by an Audit. They cannot be launched as ordinary Runs with
-user-supplied task artifacts.
-All bundled Audit Workflow, AgentTemplate and AuditProfile identities start at
-`@1`; distinct scenarios have distinct names. Toolset and wire format versions
-keep their actual protocol versions, including `audit-results@2`.
+Model-backed observation/tracing uses `audit-results@2` with a trusted exact
+Task context and `workerCompletion: audit-check-results@1`. Workers record
+bounded rationale, tested conditions, limitations, evidence and an optional
+verdict. Runtime assembles ordinary JSON output; Server derives Task/hypothesis
+origin. Exploration needs no hypothesis or Finding. Trace can explicitly
+publish evidenced Project problems through the existing Finding tool.
 
-`openapi-operation-observe@1` selects `audit_openapi_operation_observer@1`, with
-all eleven `code-analysis@1` operations and bounded filesystem reads. Its
-read-only tools inspect an overlay workspace hydrated from the exact Audit
-`source` input. The existing task/execution-manifest and result ZIP contracts
-are retained. Graph coverage and source evidence inform the trace; the current
-coverage key remains `operation-resolution`. This limited comparison variant
-does not export annotations or propose findings. Its separate name distinguishes observation-only tracing from the finding producer.
-A Runtime must advertise local workspace and graph capabilities to run this profile.
+The Nuclei and SQLMap Workflows use model-free tool Workers and retain an
+ordinary, self-contained JSON operation report. Preparation and checking
+outputs remain exact Audit materials after producer Runs are removed. There
+is no special preparation phase, execution role or result ZIP in this path.
+See the [Audit guide](../docs/guides/audits.md) for inputs and API continuation.
 
-`openapi-operation-trace@1` selects `audit_openapi_operation_tracer@1`, adding
-`security-findings-code@1.finding` and `text-artifacts@1.write_text_artifact` with
-explicit Project problem publication. It preserves the operation inventory and
-prohibits active checks. Findings do not turn `operation-resolution` into full
-trace coverage. `findings-review@2` independently reads a pinned collection with
-`list_findings` and publishes an analysis report; it does not confirm findings.
-
-`audit-standards/` is the operator-owned source for immutable curated standard
-packages. Each immediate package directory contains only a strict
-`standard.json`; Server startup validates and canonicalizes the complete set
-before create-only seeding into the protected owner catalog. AuditProfiles name
-only `(scheme, version)`. Audit start resolves and retains the exact package
-revision and license provenance; changing content under an existing identity
-is fatal drift, so changed content must use a new version.
-
-`owasp-asvs-5-0-l1-source-review@1` selects all 70 ASVS 5.0.0 Level 1
-requirements from package edition `5.0.0-l1-source.1`, with the five-requirement pilot available separately as
-`owasp-asvs-5-0-l1-source-pilot@1`. `owasp-wstg-4-2-source-review@1` is a
-separate source-review preset with 94 active WSTG 4.2 scenarios. Both use
-`audit-standard-source-review@1`; live-dependent checks retain gaps instead of
-claiming successful active tests. Exact sources, licensing and regeneration
-instructions are in [the standard source guide](../docs/guides/audit-standard-sources.md).
-
-`owasp-wstg-4-2-active-http@1` is the separate live HTTP preset, using edition
-`4.2-http.1` and `audit-wstg-active-http@1`. It requires a context brief, target,
-authorization scope and active-item approval; it does not require source code.
-Each of its 94 items has one attempt, and unavailable capabilities remain gaps.
-
-`owasp-wstg-4-2-fast-source-review@1` and
-`owasp-wstg-4-2-fast-active-http@1` are separate first-pass presets with 16
-selected scenarios, one attempt per check and a four-hour default deadline.
-They preserve full-preset evidence and approval rules. Their `4.2-fast-source.1`
-and `4.2-fast-http.1` package editions make the excluded 78 scenarios explicit.
+`audit-standards/` remains the operator-owned source of immutable curated
+standard packages. Changing published standard content requires a new version.
+Exact sources, licensing and regeneration instructions remain in the
+[standard source guide](../docs/guides/audit-standard-sources.md).
 
 The document-generation overlay workspace Workflows hydrate the exact `inputs/source` ZIP below a
 private project-workspace root for every Stage and uses bounded filesystem/code

@@ -20,9 +20,9 @@ import type {
 import type { Project } from "../../../api/projects";
 import {
   candidatesFor,
-  inSentence,
-  inputLabel,
   formatList,
+  inputLabel,
+  inSentence,
   materialKey,
   orderedInputs,
   presentCheckType,
@@ -45,9 +45,6 @@ import {
   type ProjectMaterials,
 } from "./data";
 import { useLaunch, type Launch } from "./launch";
-import { useWebScanDraft, type WebScanDraft } from "./web-scan-state";
-import { useChecklistDraft, type ChecklistDraft } from "./checklist-state";
-import { useMaterialScope, type MaterialScope } from "./material-scope";
 import {
   createRequest,
   MAX_RUNTIME_LABELS,
@@ -60,6 +57,7 @@ import {
   timeLimitSeconds,
   type TimeLimitState,
 } from "./time-limit";
+import { useWebScanDraft, type WebScanDraft } from "./web-scan-state";
 
 export type ReadinessGroup = "ready" | "missing" | "unavailable" | "unknown";
 
@@ -126,10 +124,7 @@ function groupOf(readiness: Readiness | undefined): ReadinessGroup {
 
 /** The variant a row opens by default: the widest one the Server can run. */
 function defaultVariant(row: CheckTypeRow): CheckTypeFamily {
-  return (
-    row.variants.find((family) => family.preferred.serverCompatible) ??
-    row.primary
-  );
+  return row.primary;
 }
 
 function usesOf(profile: AuditProfile, needsLiveTarget: boolean): string[] {
@@ -404,7 +399,7 @@ export function useStartCheck(
           orderedInputs(contractProfile).map(([name, input]) => [
             name,
             input.required,
-            input.mediaTypes,
+            input.media_types,
           ]),
         );
   const explicitChoices =
@@ -442,7 +437,7 @@ export function useStartCheck(
       name,
       input,
       label: inputLabel(name),
-      formats: formatList(input.mediaTypes),
+      formats: formatList(input.media_types),
       candidates,
       selection: selectionKey,
       selected: candidates.find(
@@ -478,8 +473,6 @@ export function useStartCheck(
   if (selection === undefined) draftBlocker = "Choose a check type.";
   else if (project?.lifecycle === "deleting")
     draftBlocker = "This project is being deleted.";
-  else if (!selection.profile.serverCompatible)
-    draftBlocker = "This check type can't run on this server.";
   else if (exact === undefined)
     draftBlocker =
       detail.error === null

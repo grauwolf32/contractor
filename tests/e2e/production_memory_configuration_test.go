@@ -175,8 +175,8 @@ func assertProductionPlannerCompactionCatalog(t *testing.T) {
 			}
 		}
 	}
-	if direct != 8 || continuations != 16 {
-		t.Fatalf("modelled Planner coverage = %d direct/%d continuations, want 8/16", direct, continuations)
+	if direct != 8 || continuations != 20 {
+		t.Fatalf("modelled Planner coverage = %d direct/%d continuations, want 8/20", direct, continuations)
 	}
 	loaded := filepath.Join(t.TempDir(), "catalog")
 	if err := os.CopyFS(loaded, os.DirFS(root)); err != nil {

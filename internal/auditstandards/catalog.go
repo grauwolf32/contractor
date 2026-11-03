@@ -29,23 +29,6 @@ type SeedPlan struct {
 	totalBytes int64
 }
 
-// ResolveBundled returns an offline-validated package from the discovered
-// operator bundle. It never reads the database or publishes an artifact.
-func (p *SeedPlan) ResolveBundled(ref Reference) (Package, error) {
-	if p != nil {
-		for _, bundled := range p.packages {
-			if bundled.metadata.Reference == ref {
-				validated, err := Validate(bundled.payload, ref)
-				if err != nil {
-					return Package{}, err
-				}
-				return *validated, nil
-			}
-		}
-	}
-	return Package{}, ErrNotFound
-}
-
 type Catalog struct {
 	service *artifacts.Service
 }
@@ -261,98 +244,6 @@ func (c *Catalog) List(ctx context.Context, ownerID string) ([]ResolvedPackage, 
 		return referenceKey(result[i].Package.Reference()) < referenceKey(result[j].Package.Reference())
 	})
 	return result, nil
-}
-
-func (c *Catalog) Pin(
-	ctx context.Context,
-	ownerID string,
-	projectID string,
-	auditNamespace string,
-	references []Reference,
-) ([]PinnedPackage, error) {
-	result := make([]PinnedPackage, 0, len(references))
-	seen := make(map[string]struct{}, len(references))
-	for _, ref := range references {
-		key := referenceKey(ref)
-		if _, duplicate := seen[key]; duplicate {
-			return nil, validationError(CodeIdentityMismatch, ManifestPath)
-		}
-		seen[key] = struct{}{}
-		resolved, err := c.Resolve(ctx, ownerID, ref)
-		if err != nil {
-			return nil, err
-		}
-		target := contracts.ArtifactRef{
-			Namespace: auditNamespace,
-			Name:      "standard-" + strings.TrimPrefix(ArtifactName(ref), "std-"),
-		}
-		retained, err := c.writeRetained(ctx, projectID, target, resolved)
-		if err != nil {
-			return nil, err
-		}
-		result = append(result, PinnedPackage{
-			Reference: ref, Title: resolved.Package.Document.Standard.Title,
-			Source:  resolved.Package.Document.Standard.Source,
-			License: resolved.Package.Document.Standard.License,
-			Catalog: resolved.Source, Retained: retained,
-		})
-	}
-	return result, nil
-}
-
-// ResolvePinned reads the protected Project-scoped copy named by an Audit
-// baseline and revalidates both its bytes and copied provenance. It never
-// consults the mutable current catalog binding.
-func (c *Catalog) ResolvePinned(
-	ctx context.Context,
-	projectID string,
-	pinned PinnedPackage,
-) (ResolvedPackage, error) {
-	if c == nil || c.service == nil || strings.TrimSpace(projectID) == "" ||
-		ValidatePinnedPackage(pinned) != nil {
-		return ResolvedPackage{}, validationError(CodeManifestInvalid, ManifestPath)
-	}
-	store, err := c.service.Project(projectID)
-	if err != nil {
-		return ResolvedPackage{}, err
-	}
-	read, err := store.ReadExact(ctx, pinned.Retained.Exact())
-	if errors.Is(err, artifacts.ErrArtifactNotFound) {
-		return ResolvedPackage{}, ErrNotFound
-	}
-	if errors.Is(err, contracts.ErrExactArtifactMismatch) {
-		return ResolvedPackage{}, fmt.Errorf("%w: retained Audit standard identity: %v", ErrDrift, err)
-	}
-	if err != nil {
-		return ResolvedPackage{}, err
-	}
-	pkg, err := ValidateRetainedPayload(read.Payload.Data, pinned)
-	if err != nil {
-		return ResolvedPackage{}, err
-	}
-	return ResolvedPackage{Package: *pkg, Source: pinned.Retained}, nil
-}
-
-func (c *Catalog) writeRetained(
-	ctx context.Context,
-	projectID string,
-	target contracts.ArtifactRef,
-	resolved ResolvedPackage,
-) (ExactPackage, error) {
-	project, err := artifacts.ProjectScope(projectID)
-	if err != nil {
-		return ExactPackage{}, err
-	}
-	payload := artifacts.Payload{MediaType: MediaType, Data: resolved.Package.Payload()}
-	written, err := c.service.CreateFrozen(ctx, project, target, payload)
-	if errors.Is(err, artifacts.ErrAuditArtifactCollision) {
-		return ExactPackage{}, fmt.Errorf("%w: retained Audit standard collision", ErrDrift)
-	}
-	if err != nil {
-		return ExactPackage{}, err
-	}
-	return ExactPackage{Artifact: written.Ref, Digest: resolved.Package.Digest,
-		MediaType: written.MediaType, SizeBytes: written.Size}, nil
 }
 
 func Projection(resolved ResolvedPackage, detail bool) PackageProjection {

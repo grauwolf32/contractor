@@ -5,12 +5,13 @@ Requirement prefix: `ACT` · [Specification index](../README.md)
 ## Purpose and scope
 
 This document owns the strict JSON program/task/hypothesis/context/conclusion/result
-contract and its offline validation. Execution remains with the ordinary
+contract, its strict validation and the accepted Task boundary. Execution remains with the ordinary
 [Run](../execution/runs.md), [Scheduler](../execution/scheduler.md), existing
 Audit service/controller and [ArtifactStore](../artifacts/artifact-store.md).
 An offline-valid document grants no access, registers no executable profile and
-creates no Run. The current executable AuditProfile contract remains in
-[audits](audits.md); accepting these documents offline does not translate it.
+creates no Run. The executable AuditProfile contains this Program; its pinned ordinary Workflow
+closures are retained by the Audit owner. Offline validation alone does not
+register a profile or translate another format.
 
 ## Concepts
 
@@ -102,6 +103,14 @@ one conclusion is never copied to every hypothesis. Optional finding receipt
 associations also come from trusted per-item context, never model-authored IDs. A later hypothesis revision
 or Run attempt never rewrites an accepted result.
 
+The common Workflow resolver derives a Runtime completion target from selected
+`audit-results@2` tools and declared JSON context/result slots. RunService pins
+that target inside Run creation; Scheduler revalidates the target and exact
+context before allocation. Runtime refuses those tools without the contract.
+PostgreSQL protects immutable Run completion and exact allocation-to-Run
+identity. It does not interpret Audit roles or duplicate Workflow selection
+rules to infer a required completion target.
+
 **ACT-R6.** Neither verdict polarity nor a completed Run creates a finding.
 Supporting a bug claim or refuting a positive property may justify a problem only
 under the owning finding evidence rules. Findings use existing intake receipts,
@@ -164,6 +173,12 @@ materialize or rescan a whole containing collection. Lists retain existing
 row/byte pagination bounds. Replays reconcile the original identity through
 existing keyed/natural receipts; they never repeat target activity merely to
 repair an acknowledgement. A deterministic invalid result is permanent.
+
+An allowed Workflow may set `max_attempts` to preserve a tighter authored
+ceiling than the program-wide limit. It is a positive integer no larger than
+the program's `max_attempts`; reservation and retry settlement use the minimum
+of this ceiling and the effective Audit attempt budget. This changes neither
+the cumulative Run budget nor the identity of an accepted Task.
 
 **ACT-R11.** Exact accepted input/output refs retain their ordinary ownership,
 revision, digest and lineage. Publication to Project is explicit, create-only or
@@ -251,6 +266,29 @@ commit a technical gap once; ambiguous storage/read failures keep the original
 identity and retry through its existing receipt. Available partial outputs of a
 failed Run remain retained without inventing a semantic conclusion.
 
+**ACT-R15.** The public Audit profile summary carries the exact common input
+contracts, limits and operation policy; the detail additionally carries its
+Program. It exposes no inferred inventory, fixed execution role or compatibility
+mode. Public Audit detail/list/start and lifecycle responses expose committed
+owner state, Task count and iteration ordinal. Start returns the Audit without
+creating a Round or claiming that initial Task intake has already happened.
+Task lists are bounded keyset pages, and each Task's technical attempts remain
+ordinary Run associations. An explicit owner-authorized task request is accepted
+through the same operation that admits declared preparation work.
+
+A saved Task result is readable through the ordinary Audit artifact endpoint
+with logical key `task/{task_id}/result` and its exact revision. The read resolves
+only that owned Task's accepted Audit material, verifies exact metadata and the
+owner revision fence, and creates no new receipt or retention. Producer Run
+deletion does not remove the accepted bytes. An obsolete result revision is not
+substituted with a current revision. Existing execution-output links retain
+their own exact receipt authority.
+
+The minimal check view reads current Task pages and retained materials, with
+explicit limitations and gaps; Run state and Finding state remain separate. It
+does not claim coverage or a security verdict from successful Run completion.
+Activity uses the existing paged Audit event history.
+
 ## Interfaces
 
 `internal/contracts/auditcontract.Decode` returns one canonical JSON document
@@ -263,7 +301,8 @@ advertise a Runtime completion capability.
 
 See LIM-ACT-1 through LIM-ACT-5, FAIL-ACT-1 / FAIL-ACT-2 and LIFE-ACT-1 / LIFE-ACT-2 in the platform
 registries. Existing stable API error/transaction conflict rules remain with their
-owners. Offline validation introduces no public HTTP operation or response field.
+owners. The public API publishes the same Program schema and the existing
+Audit/task/material projections; offline validation performs no HTTP mutation.
 
 ## Non-goals
 

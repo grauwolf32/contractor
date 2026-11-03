@@ -254,15 +254,3 @@ func validateAuditLabels(labels runlabels.RunMetadataLabels, required []string) 
 	}
 	return nil
 }
-
-func cloneAuditStandardSelection(
-	source *auditprofile.AuditStandardSelection,
-) *auditprofile.AuditStandardSelection {
-	if source == nil {
-		return nil
-	}
-	result := *source
-	result.Levels = append([]string(nil), source.Levels...)
-	result.EntryIDs = append([]string(nil), source.EntryIDs...)
-	return &result
-}

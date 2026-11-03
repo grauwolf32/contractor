@@ -13,24 +13,20 @@ from typing import Literal
 
 from contractor_runtime.contracts.base import MAX_EXACT_INTEGER, is_blank
 from contractor_runtime.digests import sha256_digest
-from contractor_runtime.toolsets.common.http_capture import HTTPObservation
 
 MAX_ITEMS = 64
-MAX_SUMMARY_BYTES = 16 * 1024
+MAX_SUMMARY_BYTES = 65536
 MAX_VALUES = 512
 MAX_PROPOSAL_KEYS = 128
 MAX_EVIDENCE = 256
 MAX_COLLECTED_BYTES = 8 * 1024 * 1024
-MAX_MEMBER_BYTES = 16 * 1024 * 1024
-MAX_PACKAGE_BYTES = 16 * 1024 * 1024
+MAX_DOCUMENT_BYTES = MAX_COLLECTED_BYTES
 MAX_REMINDERS = 2
 MAX_REVISION = MAX_EXACT_INTEGER
 IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$")
 DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
 ARTIFACT_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
-ASSESSMENTS = frozenset(
-    {"satisfied", "violated", "supported", "refuted", "blocked", "inconclusive", "not-tested"}
-)
+VERDICTS = frozenset({"supported", "refuted", "inconclusive"})
 
 
 def _identifier(value: str) -> None:
@@ -81,71 +77,44 @@ class AuditTrustedInputs:
     """
 
     owner: AuditInvocationOwner
-    task_package: bytes = field(repr=False)
-    execution_manifest: bytes = field(repr=False)
+    context: bytes = field(repr=False)
 
     def __post_init__(self):
         if not isinstance(self.owner, AuditInvocationOwner):
             raise ValueError("trusted Audit inputs require invocation ownership")
-        if (
-            not isinstance(self.task_package, bytes)
-            or not 0 < len(self.task_package) <= MAX_PACKAGE_BYTES
-            or not isinstance(self.execution_manifest, bytes)
-            or not 0 < len(self.execution_manifest) <= MAX_COLLECTED_BYTES
-        ):
+        if not isinstance(self.context, bytes) or not 0 < len(self.context) <= MAX_DOCUMENT_BYTES:
             raise ValueError("trusted Audit input bytes exceed bounds")
-        if self.owner.task_set_sha256 != sha256_digest(self.task_package):
-            raise ValueError("trusted Audit task package changed digest")
-
-
-@dataclass(frozen=True, slots=True)
-class AuditEvidence:
-    kind: str
-    summary: str = field(repr=False)
-    http_capture: bytes | None = field(default=None, repr=False)
-    observed_at: str | None = None
-    deployment_marker: str | None = None
-    http_request_id: str | None = None
-
-    def __post_init__(self):
-        _identifier(self.kind)
-        _text(self.summary)
-        if (self.http_capture is None) != (self.observed_at is None):
-            raise ValueError("HTTP evidence requires its observation time")
-        if self.http_capture is not None and not isinstance(self.http_capture, bytes):
-            raise ValueError("HTTP evidence requires immutable capture bytes")
-        if self.http_capture is not None:
-            HTTPObservation(self.observed_at, self.deployment_marker)
-        if self.deployment_marker is not None and self.http_capture is None:
-            raise ValueError("deployment metadata requires an HTTP capture")
+        if self.owner.task_set_sha256 != sha256_digest(self.context):
+            raise ValueError("trusted Audit context changed digest")
 
 
 @dataclass(frozen=True, slots=True)
 class NormalizedAuditItem:
     item_key: str
-    assessment: str
-    summary: str = field(repr=False)
-    completed: tuple[str, ...] = ()
-    gaps: tuple[str, ...] = ()
-    evidence: tuple[AuditEvidence, ...] = ()
-    proposal_keys: tuple[str, ...] = ()
+    rationale: str = field(repr=False)
+    tested_conditions: tuple[str, ...] = ()
+    limitations: tuple[str, ...] = ()
+    evidence: tuple[str, ...] = ()
+    verdict: str | None = None
 
     def __post_init__(self):
         _identifier(self.item_key)
-        if not isinstance(self.assessment, str) or self.assessment not in ASSESSMENTS:
-            raise ValueError("unknown Audit assessment")
-        _text(self.summary)
-        for values in (self.completed, self.gaps, self.proposal_keys):
+        if self.verdict is not None and self.verdict not in VERDICTS:
+            raise ValueError("unknown Audit verdict")
+        _text(self.rationale)
+        for values in (self.tested_conditions, self.limitations):
             _tuple(values, MAX_VALUES)
             for value in values:
-                _identifier(value)
+                _text(value)
             if len(set(values)) != len(values):
-                raise ValueError("duplicate Audit collection identifier")
-        if len(self.proposal_keys) > MAX_PROPOSAL_KEYS:
-            raise ValueError("Audit proposal keys exceed the existing importer limit")
+                raise ValueError("duplicate Audit collection text")
+        if any(len(value.encode()) > 512 for value in self.limitations):
+            raise ValueError("Audit limitation bytes exceeded")
         _tuple(self.evidence, MAX_EVIDENCE)
-        if any(not isinstance(value, AuditEvidence) for value in self.evidence):
-            raise ValueError("Audit evidence must be normalized and immutable")
+        for value in self.evidence:
+            _identifier(value)
+        if len(set(self.evidence)) != len(self.evidence):
+            raise ValueError("duplicate Audit evidence handle")
 
 
 @dataclass(frozen=True, slots=True)
@@ -176,8 +145,6 @@ class AuditSnapshot:
         keys = tuple(item.value.item_key for item in self.items)
         if keys != tuple(key for key in self.owner.item_keys if key in keys):
             raise ValueError("Audit snapshot must use distinct trusted assignment order")
-        if sum(len(item.value.evidence) for item in self.items) > MAX_EVIDENCE:
-            raise ValueError("Audit snapshot exceeds aggregate evidence limit")
 
 
 @dataclass(frozen=True, slots=True)
@@ -233,30 +200,17 @@ class AuditRecordReceipt:
 
 
 @dataclass(frozen=True, slots=True)
-class AuditEncodedPackage:
+class AuditEncodedResult:
     """Publisher encoder's exact bytes and sizes used for prospective admission."""
 
     owner: AuditInvocationOwner
     data: bytes = field(repr=False)
-    collected_bytes: int
-    member_bytes: tuple[int, ...]
 
     def __post_init__(self):
         if not isinstance(self.owner, AuditInvocationOwner) or not isinstance(self.data, bytes):
             raise ValueError("Audit encoding requires immutable bytes and ownership")
-        if (
-            type(self.collected_bytes) is not int
-            or not 0 <= self.collected_bytes <= MAX_COLLECTED_BYTES
-        ):
-            raise ValueError("Audit collected-data budget exceeded")
-        # Evidence plus manifests/check-result records; bounded without approximating ZIP overhead.
-        _tuple(self.member_bytes, MAX_EVIDENCE + 3)
-        if any(
-            type(size) is not int or not 0 <= size <= MAX_MEMBER_BYTES for size in self.member_bytes
-        ):
-            raise ValueError("Audit package member size exceeded")
-        if not 0 < len(self.data) <= MAX_PACKAGE_BYTES:
-            raise ValueError("Audit encoded package size exceeded")
+        if not 0 < len(self.data) <= MAX_DOCUMENT_BYTES:
+            raise ValueError("Audit encoded result size exceeded")
 
 
 @dataclass(frozen=True, slots=True)
@@ -267,7 +221,7 @@ class AuditPublicationReceipt:
     revision: str
     sha256: str
     size_bytes: int
-    media_type: Literal["application/zip"] = "application/zip"
+    media_type: Literal["application/json"] = "application/json"
 
     def __post_init__(self):
         if not isinstance(self.owner, AuditInvocationOwner):
@@ -287,7 +241,7 @@ class AuditPublicationReceipt:
             raise ValueError("Audit publication requires a content digest")
         if (
             type(self.size_bytes) is not int
-            or not 0 < self.size_bytes <= MAX_PACKAGE_BYTES
-            or self.media_type != "application/zip"
+            or not 0 < self.size_bytes <= MAX_DOCUMENT_BYTES
+            or self.media_type != "application/json"
         ):
             raise ValueError("invalid Audit publication size/media")

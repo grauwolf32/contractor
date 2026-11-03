@@ -2,6 +2,8 @@ package auditprofile
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -17,6 +19,8 @@ type PinnedProgram struct {
 	Program   auditcontract.Program                `json:"program"`
 	Workflows map[string]resolved.ResolvedWorkflow `json:"workflows"`
 }
+
+const MaxAuditSnapshotBytes = 16 << 20
 
 func PinProgram(selector resolved.Selector, data []byte, lookup func(string) (resolved.ResolvedWorkflow, error)) (PinnedProgram, error) {
 	program, err := auditcontract.DecodeProgram(data)
@@ -43,9 +47,13 @@ func PinProgram(selector resolved.Selector, data []byte, lookup func(string) (re
 		workflows[alias] = workflow.Clone()
 	}
 	result := PinnedProgram{Ref: AuditProfileRef{Name: selector.ID, Version: selector.Version}, Program: program, Workflows: workflows}
-	result.Ref.Digest, err = result.digest()
+	result.Ref.Digest, err = result.Digest()
 	if err != nil {
 		return PinnedProgram{}, err
+	}
+	encoded, err := strictjson.Canonical(result)
+	if err != nil || len(encoded) > MaxAuditSnapshotBytes {
+		return PinnedProgram{}, invalidPinnedProgram()
 	}
 	return result, nil
 }
@@ -54,7 +62,7 @@ func PinProgram(selector resolved.Selector, data []byte, lookup func(string) (re
 // catalog. No old profile reader or Workflow inference participates in replay.
 func DecodePinnedProgram(data []byte) (PinnedProgram, error) {
 	var pinned PinnedProgram
-	if len(data) > 8<<20 || strictjson.Decode(data, &pinned) != nil || !contentdigest.Valid(pinned.Ref.Digest) {
+	if len(data) > MaxAuditSnapshotBytes || strictjson.Decode(data, &pinned) != nil || !contentdigest.Valid(pinned.Ref.Digest) {
 		return PinnedProgram{}, invalidPinnedProgram()
 	}
 	selector, err := resolved.ParseSelector(pinned.Ref.Name + "@" + pinned.Ref.Version)
@@ -94,12 +102,47 @@ func DecodePinnedProgram(data []byte) (PinnedProgram, error) {
 	return verified, nil
 }
 
-func (p PinnedProgram) digest() (string, error) {
+func (p PinnedProgram) Digest() (string, error) {
 	return contentdigest.CanonicalJSON(map[string]any{
 		"apiVersion": contracts.APIVersion, "kind": Kind,
 		"metadata": map[string]string{"name": p.Ref.Name, "version": p.Ref.Version},
 		"program":  p.Program, "workflows": p.Workflows,
 	})
+}
+
+func (p PinnedProgram) Clone() PinnedProgram {
+	p.Workflows = maps.Clone(p.Workflows)
+	for alias, workflow := range p.Workflows {
+		p.Workflows[alias] = workflow.Clone()
+	}
+	p.Program.Inputs = maps.Clone(p.Program.Inputs)
+	for name, input := range p.Program.Inputs {
+		input.MediaTypes = slices.Clone(input.MediaTypes)
+		p.Program.Inputs[name] = input
+	}
+	p.Program.Workflows = maps.Clone(p.Program.Workflows)
+	for alias, binding := range p.Program.Workflows {
+		if binding.MaxAttempts != nil {
+			ceiling := *binding.MaxAttempts
+			binding.MaxAttempts = &ceiling
+		}
+		binding.Inputs, binding.Parameters, binding.Outputs = maps.Clone(binding.Inputs), maps.Clone(binding.Parameters), maps.Clone(binding.Outputs)
+		p.Program.Workflows[alias] = binding
+	}
+	p.Program.Hypotheses = maps.Clone(p.Program.Hypotheses)
+	for key, seed := range p.Program.Hypotheses {
+		seed.Scope = maps.Clone(seed.Scope)
+		p.Program.Hypotheses[key] = seed
+	}
+	p.Program.InitialWork = slices.Clone(p.Program.InitialWork)
+	for index := range p.Program.InitialWork {
+		p.Program.InitialWork[index].Inputs = maps.Clone(p.Program.InitialWork[index].Inputs)
+	}
+	if p.Program.Continuation != nil {
+		continuation := *p.Program.Continuation
+		p.Program.Continuation = &continuation
+	}
+	return p
 }
 
 func invalidPinnedProgram() error { return fmt.Errorf("pinned Audit program is invalid") }

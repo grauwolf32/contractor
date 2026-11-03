@@ -12,8 +12,8 @@ import {
 } from "./builders";
 import { createEvalFixture } from "./evals-fixture";
 import { fakeServer, invalidJSON } from "./fake-server";
-import { bytes, failure, json, operationOf, page } from "./responses";
 import { testAPI } from "./render";
+import { bytes, failure, json, operationOf, page } from "./responses";
 
 describe("fake Server", () => {
   it("matches requests to public operations", () => {
@@ -147,8 +147,8 @@ describe("Eval fixture", () => {
 describe("builders", () => {
   it("build conforming fixtures and reject broken ones", () => {
     const check = audit("project_1", "audit_1", "completed");
-    expect(check.phase).toBe("rounds");
-    expect(audit("project_1", "audit_2", "draft").phase).toBe("not-started");
+    expect(check.taskCount).toBe(0);
+    expect(audit("project_1", "audit_2", "draft").iteration).toBe(0);
     expect(finding("project_1", "finding_1").state).toBeNull();
     expect(
       review("audit_1", "review_1", "active-check-approval").subjectKind,

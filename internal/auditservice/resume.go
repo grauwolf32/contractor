@@ -8,7 +8,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/ownerstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/querystore"
-	"github.com/grauwolf32/contractor/internal/auditstore/reviewstore"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -71,30 +70,13 @@ func (s *Service) resumeInTransaction(ctx context.Context, tx pgx.Tx, params Mut
 	if audit.Revision != params.ExpectedRevision || audit.State != auditstore.AuditPaused || len(audit.BaselineSnapshot) == 0 {
 		return MutationResult{}, auditstore.ErrPrecondition
 	}
-	candidate, err := owners.HasReportReview(ctx, audit.AuditID)
-	if err != nil {
-		return MutationResult{}, err
-	}
-	if candidate {
-		return MutationResult{}, auditstore.ErrPrecondition
-	}
 	now := s.now().UTC()
 	deadline, err := resumeDeadline(audit, params.DeadlineSeconds, now)
 	if err != nil {
 		return MutationResult{}, err
 	}
-	// Expired human decisions are never silently extended by resuming an
-	// Audit. Each needs a fresh decision for the same exact task before
-	// another submission; the PostgreSQL clock judges expiry, and the fresh
-	// requests expire with the new deadline.
-	revision, err := reviewstore.NewTx(tx, s.storage).RenewItemReviewsForResume(ctx, auditstore.ResumeRenewalParams{
-		OwnerID: params.OwnerID, AuditID: audit.AuditID, ExpectedRevision: audit.Revision, DeadlineAt: deadline,
-	})
-	if err != nil {
-		return MutationResult{}, err
-	}
 	resumed, inserted, err := owners.Resume(ctx, auditstore.ResumeParams{
-		OwnerID: params.OwnerID, AuditID: audit.AuditID, ExpectedRevision: revision,
+		OwnerID: params.OwnerID, AuditID: audit.AuditID, ExpectedRevision: audit.Revision,
 		DeadlineAt: deadline, IdempotencyKey: params.IdempotencyKey, RequestDigest: params.RequestDigest,
 	})
 	return MutationResult{Audit: resumed, Replayed: !inserted}, err
@@ -134,10 +116,10 @@ func requestedResumeDeadline(audit auditstore.Audit, seconds *int, now time.Time
 		deadline := now.Add(audit.DeadlineAt.Sub(*audit.PausedAt))
 		return &deadline, nil
 	}
-	profile, err := auditprofile.DecodeResolvedAuditProfileSnapshot(audit.ProfileSnapshot)
+	profile, err := auditprofile.DecodePinnedProgram(audit.ProfileSnapshot)
 	if err != nil {
 		return nil, err
 	}
-	deadline := now.Add(timeDurationSeconds(profile.Execution.DeadlineSeconds))
+	deadline := now.Add(timeDurationSeconds(profile.Program.Limits.DeadlineSeconds))
 	return &deadline, nil
 }

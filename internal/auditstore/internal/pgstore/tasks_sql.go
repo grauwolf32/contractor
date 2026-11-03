@@ -102,7 +102,7 @@ SELECT entry->'document'->>'task_id',$1,entry->>'source_key',entry->'source',
        (entry->>'iteration')::integer
   FROM json_array_elements($2::json) AS entry`
 
-var tasksAcceptedEvents = auditEvents(auditEvent("'audit.tasks.accepted'", "audit.audit_id", "audit.revision", "jsonb_build_object('createdCount',$5::integer)"))
+var tasksAcceptedEvents = auditEvents(auditEvent("'tasks.accepted'", "audit.audit_id", "audit.revision", "jsonb_build_object('createdCount',$5::integer)"))
 
 var advanceAcceptedTasksSQL = `
 UPDATE audits AS audit

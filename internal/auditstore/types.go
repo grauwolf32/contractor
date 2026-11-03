@@ -2,33 +2,35 @@ package auditstore
 
 import (
 	"encoding/json"
-	"fmt"
-	"github.com/grauwolf32/contractor/internal/artifacts"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts"
+
 	"github.com/grauwolf32/contractor/internal/auditdomain"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
 	"github.com/grauwolf32/contractor/internal/helpers/pagelimit"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
 const (
-	MaxClaimBatch                  = 100
-	MaxReconcileRows               = 200
-	MaxSnapshotBytes               = 16 << 20
-	MaxSummaryBytes                = 64 << 10
-	MaxCollectionItems             = 64
-	MaxArtifactLinksPerCall        = 1024
-	MaxArtifactRefBytes            = 4 << 10
-	MaxCoverageArrayBytes          = 1 << 20
-	MaxExecutionInputsBytes        = 1 << 20
-	MaxRoundPayloadBytes           = 64 << 20
-	MaxExecutionIntentBytes        = 64 << 20
-	MaxCollectionBytes             = 16 << 20
-	MaxRetainedRefsBytes           = 8 << 20
-	MaxAttemptProjection           = pagelimit.MaxRows * 10
-	MaxAuditRoleExecutionsPerRound = 256
+	MaxClaimBatch           = 100
+	MaxReconcileRows        = 200
+	MaxSnapshotBytes        = auditprofile.MaxAuditSnapshotBytes
+	MaxSummaryBytes         = 64 << 10
+	MaxCollectionItems      = auditcontract.MaxExecutionMembers
+	MaxArtifactLinksPerCall = 1024
+	MaxArtifactRefBytes     = 4 << 10
+	MaxCoverageArrayBytes   = 1 << 20
+	MaxExecutionInputsBytes = 1 << 20
+	MaxRoundPayloadBytes    = 64 << 20
+	MaxExecutionIntentBytes = 64 << 20
+	MaxCollectionBytes      = 16 << 20
+	MaxRetainedRefsBytes    = 8 << 20
+	MaxAttemptProjection    = pagelimit.MaxRows * 10
+
 	// MaxStopReasonMessageBytes bounds a stop reason message, as the
 	// audits_stop_reason_message_check constraint does.
 	MaxStopReasonMessageBytes = 4 << 10
@@ -203,27 +205,12 @@ type CoverageStatus string
 // The coverage statuses and their progress buckets are defined once in
 // auditdomain.
 const (
-	CoverageNotTested      CoverageStatus = auditdomain.CoverageNotTested
-	CoverageInconclusive   CoverageStatus = auditdomain.CoverageInconclusive
-	CoverageSatisfied      CoverageStatus = auditdomain.CoverageSatisfied
-	CoverageViolated       CoverageStatus = auditdomain.CoverageViolated
-	CoverageNotApplicable  CoverageStatus = auditdomain.CoverageNotApplicable
-	CoverageBlocked        CoverageStatus = auditdomain.CoverageBlocked
-	CoverageExcluded       CoverageStatus = auditdomain.CoverageExcluded
-	CoverageTracedComplete CoverageStatus = auditdomain.CoverageTracedComplete
-	CoverageTracedPartial  CoverageStatus = auditdomain.CoverageTracedPartial
-	CoverageUnmapped       CoverageStatus = auditdomain.CoverageUnmapped
+	CoverageNotTested CoverageStatus = auditdomain.CoverageNotTested
 )
 
 func (s CoverageStatus) Valid() bool {
 	_, ok := auditdomain.CoverageStatusBucket(string(s))
 	return ok
-}
-
-// Bucket returns the progress bucket of a valid coverage status.
-func (s CoverageStatus) Bucket() auditdomain.CoverageBucket {
-	bucket, _ := auditdomain.CoverageStatusBucket(string(s))
-	return bucket
 }
 
 type Limits struct {
@@ -380,14 +367,6 @@ type TrustedTransitionParams struct {
 	Reason           *StopReason
 }
 
-type RoundTransitionParams struct {
-	Claim            ControllerClaim
-	RoundID          string
-	ExpectedRevision uint64
-	ExpectedState    RoundState
-	TargetState      RoundState
-}
-
 // ExactArtifact is the shared exact-content descriptor. Rounds, executions
 // and results persist only its ref and digest and read back digest-only.
 type ExactArtifact = contracts.ExactArtifact
@@ -486,19 +465,6 @@ type MaterializeRoundParams struct {
 	InitialRetained  []ArtifactLink
 	IdempotencyKey   string
 	RequestDigest    string
-}
-
-type AcceptRoundParams struct {
-	PreparedRoot          *ExactArtifact
-	Generation            string
-	Retained              []ArtifactLink
-	Claim                 ControllerClaim
-	ExpectedAuditRevision uint64
-	PreviousRoundID       string
-	RoundID               string
-	RoundOrdinal          int
-	Manifest              ExactArtifact
-	Items                 []MaterializedItem
 }
 
 type Round struct {
@@ -770,38 +736,6 @@ type ItemAttempt struct {
 	CollectedAt           *time.Time             `json:"collectedAt,omitempty"`
 }
 
-type CollectionDispositionCounts struct {
-	AcceptedResult     int `json:"acceptedResult"`
-	MissingOutput      int `json:"missingOutput"`
-	InvalidResult      int `json:"invalidResult"`
-	ExecutionFailed    int `json:"executionFailed"`
-	ExecutionCancelled int `json:"executionCancelled"`
-	ContractInvalid    int `json:"contractInvalid"`
-}
-
-// ReportFinding is the trusted, bounded finding projection consumed while an
-// immutable Audit report is assembled. The proposal document remains in the
-// Artifact plane; this row pins its exact retained version and the exact
-// assessment/analyst decision (if any) selected by this report revision.
-// ReportFinding is the exact finding state one report build freezes into an
-// immutable report artifact, with the report projection of its first
-// proposal stored at intake.
-type ReportFinding struct {
-	FindingID         string
-	ProjectID         string
-	State             *FindingState
-	FirstProposal     ExactArtifact
-	DuplicateTargetID *string
-	AnalystVerdict    *AnalystVerdict
-	AnalystSeverity   *FindingSeverity
-	Rationale         *string
-	ActorID           *string
-	AssessedAt        *time.Time
-	Revision          uint64
-	CreatedAt         time.Time
-	Projection        auditdomain.FindingReportProjection
-}
-
 type CommitReportParams struct {
 	ExpectedProjectRevision uint64
 	Claim                   ControllerClaim
@@ -812,8 +746,6 @@ type CommitReportParams struct {
 	Summary                 ArtifactLink
 	RequestDigest           string
 }
-
-type ProposeReportParams = CommitReportParams
 
 // ReportDecisionParams identifies the exact frozen report candidate an owner
 // decided. The decision runs inside the review transaction, which already
@@ -944,10 +876,4 @@ func (s ReconcileSnapshot) DispatchWindowOpen(class resolved.LaneClass) bool {
 	default:
 		return false
 	}
-}
-
-// RoleOutputLogicalKey is the stable Audit-owned address of one accepted
-// output from a named discovery or assessment role in an immutable Round.
-func RoleOutputLogicalKey(roundOrdinal int, workflowRole, logicalOutput string) string {
-	return fmt.Sprintf("round/%d/role/%s/output/%s", roundOrdinal, workflowRole, logicalOutput)
 }

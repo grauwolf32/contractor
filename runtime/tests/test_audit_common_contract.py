@@ -1,7 +1,7 @@
 """Independent schema conformance for the common Audit boundary.
 
-This does not register Runtime completion support. The existing completion
-assembler is replaced only with its production execution caller.
+The independent validator and production completion decoder both consume the
+shared fixtures. Runtime assembly is exercised separately through real Workers.
 """
 
 from __future__ import annotations
@@ -77,6 +77,11 @@ def _decode(data: str):
         if "hypothesis" in member
     ):
         raise ValueError("hypothesis snapshot bytes")
+    if value["schema"] == "contractor.audit.context.v1":
+        for field in ("item_key", "task_id"):
+            values = [item[field] for item in value["items"]]
+            if len(values) != len(set(values)):
+                raise ValueError("duplicate context membership")
     if value["schema"] == "contractor.audit.mutation.v1":
         for record in value["records"]:
             _decode(jcs.canonicalize(record).decode())
@@ -156,6 +161,8 @@ def _validate_case(case):
                 ):
                     raise ValueError("checking input/result")
         for binding in bindings.values():
+            if binding.get("max_attempts", limits["max_attempts"]) > limits["max_attempts"]:
+                raise ValueError("binding attempt limit exceeds program")
             for source in binding["inputs"].values():
                 if source["source"] == "audit-input" and source["name"] not in value["inputs"]:
                     raise ValueError("unknown material")
@@ -315,3 +322,29 @@ def test_shared_audit_common_boundaries():
     records.append(bounds["hypothesis"])
     with pytest.raises(jsonschema.ValidationError):
         _decode(json.dumps(dict(schema="contractor.audit.mutation.v1", records=records)))
+
+
+def test_shared_production_completion_contexts_and_owner_bounds():
+    from contractor_runtime.contracts.audit_documents import decode_audit_document
+    from contractor_runtime.toolsets.audit_results import contracts
+
+    cases = json.loads((ROOT / "api/testdata/audit-common/results.json").read_text())["cases"]
+    for case in cases:
+        if not case.get("context"):
+            continue
+        data = case["context"]
+        try:
+            expected = _decode(data)
+        except (ValueError, jsonschema.ValidationError):
+            with pytest.raises((ValueError, jsonschema.ValidationError)):
+                decode_audit_document(data.encode(), schema="contractor.audit.context.v1")
+        else:
+            assert (
+                decode_audit_document(data.encode(), schema="contractor.audit.context.v1")
+                == expected
+            ), case["name"]
+    bounds = json.loads((ROOT / "api/testdata/audit-common/boundaries.json").read_text())
+    assert bounds["limits"]["batch_size"] == contracts.MAX_ITEMS
+    assert bounds["evidence_per_item"] == contracts.MAX_EVIDENCE
+    assert bounds["coverage_values"] == contracts.MAX_VALUES
+    assert bounds["document_bytes"] == contracts.MAX_DOCUMENT_BYTES

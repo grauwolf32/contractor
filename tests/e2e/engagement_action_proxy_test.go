@@ -3,11 +3,12 @@
 package e2e
 
 import (
-	"github.com/grauwolf32/contractor/internal/localpki"
 	"net/http"
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/localpki"
 )
 
 // The fixture observes that ordinary private traffic never uses a request

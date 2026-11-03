@@ -127,10 +127,7 @@ UPDATE audit_controller_claims
  WHERE audit_id = $1`, f.audit.AuditID); err != nil {
 		t.Fatal(err)
 	}
-	var roundID string
-	if err := f.pool.QueryRow(f.ctx, `SELECT round_id FROM audit_rounds WHERE audit_id = $1`, f.audit.AuditID).Scan(&roundID); err != nil {
-		t.Fatal(err)
-	}
+	roundID := seedReviewRows(t, f.ctx, f.pool, f.audit.AuditID, f.itemID)
 	setup, err := f.pool.Begin(f.ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -179,7 +176,7 @@ VALUES ($1, $2, `+holder+`)`, audit.id, int64(audit.epoch)); err != nil {
 		if condition.execution != "" {
 			execution := map[string]string{
 				"execution_id": quote(audit.id + "-execution"), "audit_id": id, "state": quote(condition.execution),
-				"round_id": `NULL`, "role": `'discovery'`, "role_attempt": `1`,
+				"round_id": `NULL`, "role": `'task'`, "role_attempt": `NULL`,
 				"submission_key": quote(audit.id + "-submission"), "run_id": quote(audit.id + "-run"),
 				"run_provenance": `jsonb_set(src.run_provenance, '{runId}', to_jsonb(` + quote(audit.id+"-run") + `::text))`,
 			}

@@ -4,123 +4,93 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditscan"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 	"github.com/grauwolf32/contractor/internal/planner"
 	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
-	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
-func isScanCheck(members []preparedMember) bool {
-	return len(members) == 1 && members[0].task.Scan != nil
-}
-
-func scanHistoryNeedsRecovery(history []planner.ScanAttempt) bool {
-	for _, attempt := range history {
-		if planner.ScanAttemptNeedsRecovery(attempt) {
-			return true
+// Existing durable scanner journals distinguish a known failure from an action
+// that completed or may have executed. Recover missing ordinary report output
+// from those exact journals; never re-execute traffic to repair publication.
+func (i *Importer) recoverTaskScan(ctx context.Context, snapshot auditstore.ReconcileSnapshot, execution auditstore.Execution, pinned auditprofile.PinnedProgram) (*taskOutput, bool, error) {
+	workflow := pinned.Workflows[execution.WorkflowRole]
+	var stage *resolved.ResolvedStage
+	for _, candidate := range workflow.Stages {
+		if candidate.ScanPreparation != nil {
+			copy := candidate
+			stage = &copy
 		}
 	}
-	return false
-}
-
-func (i *Importer) scanHistory(ctx context.Context, execution auditstore.Execution) (runstore.WorkflowRun, []planner.ScanAttempt, error) {
+	if stage == nil {
+		return nil, false, nil
+	}
 	store, ok := i.runs.(plannersession.ScanHistoryStore)
-	if !ok || execution.RunID == nil {
-		return runstore.WorkflowRun{}, nil, fmt.Errorf("Audit scan history is unavailable")
+	if !ok {
+		return nil, false, fmt.Errorf("scan history reader is unavailable")
 	}
-	run, err := store.GetRun(ctx, *execution.RunID)
+	history, err := plannersession.ReadAuditScanHistory(ctx, store, *execution.RunID)
 	if err != nil {
-		return runstore.WorkflowRun{}, nil, err
+		return nil, false, err
 	}
-	if run.AuditExecutionID == nil || *run.AuditExecutionID != execution.ExecutionID {
-		return runstore.WorkflowRun{}, nil, fmt.Errorf("%w: Audit scan execution identity differs", ErrPermanent)
-	}
-	history, err := plannersession.ReadAuditScanHistory(ctx, store, run.RunID)
-	if err != nil {
-		return runstore.WorkflowRun{}, nil, err
-	}
+	nonrepeatable := false
 	for _, attempt := range history {
 		if !attempt.Terminal {
-			return runstore.WorkflowRun{}, nil, fmt.Errorf("Audit scan attempt is not terminal")
+			return nil, false, fmt.Errorf("terminal Run retains an active scan attempt")
+		}
+		nonrepeatable = nonrepeatable || planner.ScanAttemptNeedsRecovery(attempt)
+	}
+	binding := pinned.Program.Workflows[execution.WorkflowRole]
+	logical, slot := "", ""
+	for key, output := range binding.Outputs {
+		if stage.WorkflowOutputs[output] == "report" {
+			if logical != "" {
+				return nil, false, fmt.Errorf("%w: duplicate scan report binding", ErrPermanent)
+			}
+			logical, slot = key, output
 		}
 	}
-	return run, history, nil
-}
-
-// collectScanRecovery settles the Run's technical failure separately from the
-// scanner's outcome. It retains canonical evidence even when final publication
-// failed. Only known failures or attempts before invocation can create a new Run.
-func (i *Importer) collectScanRecovery(
-	ctx context.Context,
-	claim auditstore.ControllerClaim,
-	snapshot auditstore.ReconcileSnapshot,
-	execution auditstore.Execution,
-	members []preparedMember,
-	code string,
-) (bool, error) {
-	if !isScanCheck(members) {
-		return false, fmt.Errorf("scan recovery requires one scan item")
+	if logical == "" {
+		return nil, nonrepeatable, nil
 	}
-	run, history, err := i.scanHistory(ctx, execution)
-	if err != nil {
-		return false, err
+	source, frozen, err := i.artifacts.DescribeRunBinding(ctx, *execution.RunID, contracts.ArtifactRef{Namespace: "outputs", Name: slot})
+	if err == nil && frozen && source.MediaType == "application/json" {
+		return nil, nonrepeatable, nil
 	}
-	if run.ProjectID == nil || *run.ProjectID != snapshot.Audit.ProjectID {
-		return false, fmt.Errorf("%w: Audit scan project identity differs", ErrPermanent)
+	if err != nil && !errors.Is(err, artifacts.ErrArtifactNotFound) {
+		return nil, false, err
 	}
-	manifestBytes, err := i.artifacts.ReadProjectExact(ctx, snapshot.Audit.ProjectID, execution.Manifest)
-	if err != nil {
-		return false, err
-	}
-	manifest, err := auditdomain.DecodeExecutionManifest(manifestBytes)
-	if err != nil {
-		return false, fmt.Errorf("%w: exact execution manifest is invalid", ErrPermanent)
-	}
-	input := auditscan.ResultInput{RunID: run.RunID, Task: members[0].task, Manifest: manifest, Attempts: history}
-	assembled, err := auditscan.BuildResult(ctx, input, i.scanRecoveryReader(run.RunID))
-	if errors.Is(err, auditscan.ErrInvalid) {
-		// The pinned assignment or the exact retained scan content can never
-		// build a result. Read failures stay retryable without a receipt.
-		return false, fmt.Errorf("%w: %w", ErrPermanent, err)
-	}
-	if err != nil {
-		return false, err
-	}
-	remainingBytes := snapshot.Audit.Limits.MaxEvidenceBytes - snapshot.Audit.RetainedEvidenceBytes
-	if int64(len(assembled.Package)) > remainingBytes {
-		return i.collectTechnical(ctx, claim, execution, members, scanRecoveryDisposition(execution),
-			false, "evidence-budget-exhausted", auditstore.CoverageInconclusive)
-	}
-	return i.retainScanRecovery(ctx, claim, snapshot, execution, members[0], history, assembled.Package, code)
-}
-
-// scanRecoveryDisposition is the technical disposition the collection gate
-// admits for the execution's terminal outcome. A disposition the gate rejects
-// would leave the execution collecting forever.
-func scanRecoveryDisposition(execution auditstore.Execution) auditstore.CollectionDisposition {
-	switch *execution.TerminalOutcome {
-	case auditstore.TerminalSucceeded:
-		return auditstore.CollectionMissingOutput
-	case auditstore.TerminalCancelled:
-		return auditstore.CollectionExecutionCancelled
-	default:
-		return auditstore.CollectionExecutionFailed
-	}
-}
-
-// scanRecoveryReader reads the whole exact revision; BuildResult enforces the
-// artifact's bound and classifies larger immutable content as invalid.
-func (i *Importer) scanRecoveryReader(runID string) auditscan.ArtifactReader {
-	return func(ctx context.Context, ref contracts.ArtifactRef, _ int) (artifacts.Payload, error) {
-		metadata, data, err := i.artifacts.ReadRunExact(ctx, runID, ref)
+	assembled, err := auditscan.BuildResult(ctx, auditscan.ResultInput{RunID: *execution.RunID, Scanner: stage.ScanPreparation.Scanner, Runnable: true, Gaps: []string{"scan_report_publication_recovered"}, Attempts: history}, func(ctx context.Context, ref contracts.ArtifactRef, limit int) (artifacts.Payload, error) {
+		exact, data, err := i.artifacts.ReadRunExact(ctx, *execution.RunID, ref)
 		if err != nil {
 			return artifacts.Payload{}, err
 		}
-		return artifacts.Payload{MediaType: metadata.MediaType, Data: data}, nil
+		if len(data) > limit {
+			return artifacts.Payload{}, fmt.Errorf("%w: retained scan report bound", auditscan.ErrInvalid)
+		}
+		return artifacts.Payload{MediaType: exact.MediaType, Data: data}, nil
+	})
+	if errors.Is(err, auditscan.ErrInvalid) {
+		return nil, nonrepeatable, fmt.Errorf("%w: invalid frozen scan history", ErrPermanent)
 	}
+	if err != nil {
+		return nil, nonrepeatable, err
+	}
+	if int64(len(assembled.Data)) > snapshot.Audit.Limits.MaxEvidenceBytes-snapshot.Audit.RetainedEvidenceBytes {
+		return nil, nonrepeatable, auditstore.ErrEvidenceBudgetExhausted
+	}
+	digest := contentdigest.Bytes(assembled.Data)
+	retained, err := i.artifacts.PutImmutableAudit(ctx, snapshot.Audit.ProjectID, contracts.ArtifactRef{Namespace: auditdomain.ArtifactNamespace(execution.AuditID), Name: "scan-recovery-" + strings.TrimPrefix(digest, "sha256:")}, artifacts.Payload{MediaType: "application/json", Data: assembled.Data})
+	if err != nil {
+		return nil, nonrepeatable, err
+	}
+	return &taskOutput{logical: logical, slot: slot, retained: retained}, nonrepeatable, nil
 }

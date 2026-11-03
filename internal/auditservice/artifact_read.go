@@ -2,6 +2,9 @@ package auditservice
 
 import (
 	"context"
+	"strings"
+
+	"github.com/grauwolf32/contractor/internal/contracts"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -18,13 +21,33 @@ func (s *Service) ReadArtifact(ctx context.Context, ownerID, auditID, key, revis
 	if audit.State == auditstore.AuditDeleting {
 		return artifacts.ReadResult{}, auditstore.ErrNotFound
 	}
-	link, err := s.reads().GetArtifactLink(ctx, auditID, key)
-	if err != nil {
-		return artifacts.ReadResult{}, err
+	var link auditstore.ArtifactLink
+	// A Task result is already an accepted exact Artifact. This read names
+	// that owner projection directly; it creates no extra retention or receipt.
+	if taskID, found := strings.CutPrefix(key, "task/"); found {
+		taskID, found = strings.CutSuffix(taskID, "/result")
+		if !found || !contracts.ValidResourceID(taskID) {
+			return artifacts.ReadResult{}, auditstore.ErrNotFound
+		}
+		task, readErr := s.reads().GetTask(ctx, ownerID, auditID, taskID)
+		if readErr != nil {
+			return artifacts.ReadResult{}, readErr
+		}
+		if task.Result == nil || task.Result.ScopeKind != "audit" || task.Result.ScopeID != auditID {
+			return artifacts.ReadResult{}, auditstore.ErrNotFound
+		}
+		result := task.Result
+		link = auditstore.ArtifactLink{Scope: artifacts.ScopeAudit, Artifact: contracts.ExactArtifact{Ref: result.Ref, Digest: result.Digest, MediaType: result.MediaType, SizeBytes: result.SizeBytes}}
+	} else {
+		link, err = s.reads().GetArtifactLink(ctx, auditID, key)
+		if err != nil {
+			return artifacts.ReadResult{}, err
+		}
 	}
 	if link.Artifact.Ref.Revision == nil || *link.Artifact.Ref.Revision != revision {
 		return artifacts.ReadResult{}, auditstore.ErrNotFound
 	}
+
 	scope, err := artifacts.ProjectScope(audit.ProjectID)
 	if link.Scope == artifacts.ScopeAudit {
 		scope, err = artifacts.AuditScope(auditID)

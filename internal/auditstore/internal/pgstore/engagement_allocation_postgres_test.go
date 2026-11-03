@@ -11,7 +11,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts/engagementcontract"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 )
@@ -81,12 +80,12 @@ func TestPostgresAllocationBaselinePreservesPinsWhileOwnedRunsDrain(t *testing.T
 					t.Fatalf("%s weakened owner fence: %v", operation, err)
 				}
 				// Reading immutable data does not reopen the existing dispatch gate.
-				_, inserted, err := f.store.CreateExecutionIntent(f.ctx, next)
+				_, inserted, err := f.store.SelectTasks(f.ctx, next)
 				if operation == "project-delete" {
 					if inserted || !errors.Is(err, auditstore.ErrProjectDeleting) {
 						t.Fatalf("new dispatch crossed Project deletion fence: inserted=%t, %v", inserted, err)
 					}
-				} else if inserted || (!errors.Is(err, auditstore.ErrPrecondition) && !errors.Is(err, auditstore.ErrClaimLost)) {
+				} else if inserted || (!errors.Is(err, auditstore.ErrPrecondition) && !errors.Is(err, auditstore.ErrProjectDeleting) && !errors.Is(err, auditstore.ErrClaimLost)) {
 					t.Fatalf("new dispatch crossed %s fence: inserted=%t, %v", operation, inserted, err)
 				}
 			})
@@ -96,10 +95,9 @@ func TestPostgresAllocationBaselinePreservesPinsWhileOwnedRunsDrain(t *testing.T
 
 // Reuse the store fixture's isolated Project, but leave this Audit's own Run
 // submitted and nonterminal so the lifecycle cases exercise draining work.
-func allocationBaselineDrainFixture(t *testing.T, engagement bool) (collectingAuditFixture, auditstore.CreateExecutionIntentParams) {
+func allocationBaselineDrainFixture(t *testing.T, engagement bool) (collectingAuditFixture, auditstore.SelectTasksParams) {
 	t.Helper()
-	f := newCollectingAuditFixture(t, "baseline-drain-seed", 1<<20)
-	baseline := map[string]any{"inputs": []any{}, "skills": []any{}}
+	baseline := map[string]any{}
 	if engagement {
 		origin := "https://target.example"
 		doc := engagementcontract.Document{
@@ -117,64 +115,14 @@ func allocationBaselineDrainFixture(t *testing.T, engagement bool) (collectingAu
 		}
 		baseline["engagement"] = map[string]any{
 			"schema": "contractor.audit.engagement-baseline.v1", "artifact": testExact("inputs", "engagement", "r1"),
-			"document": doc, "policyDigest": digest, "authorizedBy": f.project.OwnerID,
+			"document": doc, "policyDigest": digest, "authorizedBy": "owner-baseline-drain",
 			"authorizedAt": time.Date(2026, 10, 28, 12, 0, 0, 0, time.UTC),
 		}
 	}
-	encoded, err := json.Marshal(baseline)
-	if err != nil {
-		t.Fatal(err)
+	f := newCollectingAuditFixture(t, "baseline-drain", 1<<20, collectingAuditFixtureOptions{extraPending: true, nonterminal: true, baselineExtras: baseline})
+	page, err := f.store.ListTasks(f.ctx, auditstore.ListTasksParams{OwnerID: f.audit.OwnerID, AuditID: f.audit.AuditID, Limit: 3})
+	if err != nil || len(page.Tasks) != 2 {
+		t.Fatalf("pending Tasks: %+v %v", page, err)
 	}
-	f.audit, _, err = f.store.CreateDraft(f.ctx, auditstore.CreateDraftParams{
-		AuditID: "allocation-drain", OwnerID: f.project.OwnerID, ProjectID: f.project.ProjectID,
-		Profile:         auditstore.ProfileIdentity{Name: "checklist", Version: "1", Digest: testDigest("2")},
-		ProfileSnapshot: json.RawMessage(`{"name":"checklist","workflows":{"check":{"kind":"check"}}}`), InputSelection: json.RawMessage(`{}`),
-		Limits:         auditstore.Limits{MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: 2, MaxItemsTotal: 2, MaxSubmittedRuns: 3, MaxItemRunAttempts: 2, MaxEvidenceBytes: 1 << 20},
-		IdempotencyKey: "allocation-drain", RequestDigest: testDigest("3"),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	roundID := "allocation-drain-round"
-	items := make([]auditstore.MaterializedItem, 2)
-	for index := range items {
-		id := fmt.Sprintf("drain-item-%d", index)
-		items[index] = auditstore.MaterializedItem{ItemID: id, ItemKey: id, Ordinal: index, Kind: "checklist", SubjectKey: id,
-			Task: testExact("audits", id, "r1"), Origin: testOrigin(id), WorkflowRole: "check", InitialState: auditstore.ItemReady, Coverage: emptyCoverage()}
-	}
-	f.audit, _, err = f.store.MaterializeRound(f.ctx, auditstore.MaterializeRoundParams{
-		OwnerID: f.audit.OwnerID, AuditID: f.audit.AuditID, ExpectedRevision: f.audit.Revision,
-		RoundID: roundID, RoundOrdinal: 1, Manifest: testExact("audits", "drain-round", "r1"), BaselineSnapshot: encoded,
-		DeadlineAt: time.Now().Add(time.Hour), IdempotencyKey: "drain-start", RequestDigest: testDigest("4"), Items: items,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	claims, err := f.store.Claim(f.ctx, auditstore.ClaimParams{HolderID: "allocation-drain", Lease: time.Minute, Limit: 1})
-	if err != nil || len(claims) != 1 || claims[0].AuditID != f.audit.AuditID {
-		t.Fatalf("claim drain Audit: %+v, %v", claims, err)
-	}
-	f.claim = claims[0]
-	if _, err := f.store.TransitionRound(f.ctx, auditstore.RoundTransitionParams{Claim: f.claim, RoundID: roundID, ExpectedRevision: 1, ExpectedState: auditstore.RoundAccepted, TargetState: auditstore.RoundExecuting}); err != nil {
-		t.Fatal(err)
-	}
-	intent := func(index int) auditstore.CreateExecutionIntentParams {
-		return auditstore.CreateExecutionIntentParams{Claim: f.claim, ExecutionID: fmt.Sprintf("drain-execution-%d", index), RoundID: &roundID,
-			Role: auditstore.ExecutionCheck, WorkflowRole: "check", LaneClass: resolved.LaneClassModel, Manifest: testExact("audits", "drain-execution", "r1"),
-			SubmissionKey: fmt.Sprintf("drain-submit-%d", index), RequestDigest: testDigest("7"),
-			Members: []auditstore.ExecutionMemberIntent{{ExecutionItemID: fmt.Sprintf("drain-member-%d", index), ItemID: items[index].ItemID, BatchOrdinal: 0, ItemAttempt: 1, Task: items[index].Task, Inputs: []auditstore.ExactArtifact{}}}}
-	}
-	f.execution, _, err = f.store.CreateExecutionIntent(f.ctx, intent(0))
-	if err != nil {
-		t.Fatal(err)
-	}
-	f.execution, err = insertAndBindTestRun(t, f.ctx, f.pool, f.claim, f.execution, "drain-run", f.audit.OwnerID, f.project.ProjectID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	f.audit, err = f.store.Get(f.ctx, f.audit.OwnerID, f.audit.AuditID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return f, intent(1)
+	return f, auditstore.SelectTasksParams{Claim: f.claim, TaskIDs: []string{page.Tasks[1].Document.TaskID}}
 }

@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/persistence/explaintest"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
@@ -127,24 +127,19 @@ WHERE audit_id = $1`, p.audit.AuditID); err != nil {
 // for every write.
 func TestPostgresAuditExecutionWritesFireOnlyTheTriggersTheyConcern(t *testing.T) {
 	p := newAuditTriggerProbe(t, "execution-triggers", matchingRun, matchingRunUpdate)
-	roundID := "round-execution-triggers"
+	page, err := p.store.ListTasks(p.ctx, auditstore.ListTasksParams{OwnerID: p.audit.OwnerID, AuditID: p.audit.AuditID, Limit: 3})
+	if err != nil || len(page.Tasks) != 2 {
+		t.Fatalf("ready Tasks: %+v %v", page, err)
+	}
+	executionTaskID := page.Tasks[1].Document.TaskID
 	var execution auditstore.Execution
 	p.expect(t, "intent", map[string]map[string]int64{
 		"audits":           {},
 		"audit_executions": {executionAdmission: 1, preparationCheck: 1, matchingRun: 1, childProjection: 1},
 	}, func() error {
 		var err error
-		execution, _, err = p.store.CreateExecutionIntent(p.ctx, auditstore.CreateExecutionIntentParams{
-			Claim: p.claim, ExecutionID: "execution-second", RoundID: &roundID, Role: auditstore.ExecutionCheck,
-			WorkflowRole: "check", LaneClass: resolved.LaneClassModel,
-			Manifest:      testExact("audits", "execution-triggers-second", "manifest-r1"),
-			SubmissionKey: "submission-second", RequestDigest: testDigest("8"),
-			Members: []auditstore.ExecutionMemberIntent{{
-				ExecutionItemID: "member-second", ItemID: "pending-item-execution-triggers", BatchOrdinal: 0,
-				ItemAttempt: 1, Task: testExact("audits", "execution-triggers-pending-task", "task-r1"),
-				Inputs: []auditstore.ExactArtifact{},
-			}},
-		})
+		execution, _, err = p.store.SelectTasks(p.ctx, auditstore.SelectTasksParams{Claim: p.claim, TaskIDs: []string{page.Tasks[1].Document.TaskID}})
+
 		return err
 	})
 	const runID = "run-second"
@@ -198,12 +193,7 @@ WHERE run_id = $1`, runID).Scan(&generation, &sequence); err != nil {
 			Claim: p.claim, ReceiptID: "receipt-second", ExecutionID: execution.ExecutionID,
 			Disposition: auditstore.CollectionExecutionFailed, ErrorCode: &code, RequestDigest: testDigest("9"),
 			Retained: []auditstore.ArtifactLink{},
-			Items: []auditstore.CollectionItem{{
-				ExecutionItemID: "member-second", Disposition: auditstore.CollectionExecutionFailed, Retryable: true,
-				FinalDisposition: auditstore.FinalExecutionFailed,
-				Coverage: auditstore.Coverage{Status: auditstore.CoverageBlocked, Requested: []string{}, Completed: []string{},
-					Gaps: []string{code}},
-			}},
+			Tasks:    []auditstore.TaskCollection{{ExecutionItemID: auditdomain.DeterministicID("attempt", execution.ExecutionID, executionTaskID), TaskID: executionTaskID, GapCode: &code, Retryable: true}},
 		})
 		return err
 	})

@@ -1,8 +1,9 @@
 package config
 
 import (
-	"go.yaml.in/yaml/v4"
 	"testing"
+
+	"go.yaml.in/yaml/v4"
 )
 
 func TestAuthoredRulepackScopeRejectsExplicitInvalidSelectors(t *testing.T) {

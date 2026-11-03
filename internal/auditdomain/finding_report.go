@@ -37,12 +37,6 @@ func EncodeFindingReportProjection(value FindingReportProjection) ([]byte, error
 	return encodeDocument(value, validateFindingReportProjection)
 }
 
-// DecodeFindingReportProjection strictly decodes and validates stored
-// projection bytes.
-func DecodeFindingReportProjection(data []byte) (FindingReportProjection, error) {
-	return decodeDocument(data, validateFindingReportProjection)
-}
-
 func (projection *FindingReportProjection) UnmarshalJSON(data []byte) error {
 	type plain FindingReportProjection
 	var decoded plain
@@ -57,6 +51,9 @@ func (projection *FindingReportProjection) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	if err := validateFindingReportJSON(raw.(map[string]any), decoded.Subject != nil); err != nil {
+		return err
+	}
+	if err := validateFindingReportProjection(FindingReportProjection(decoded)); err != nil {
 		return err
 	}
 	*projection = FindingReportProjection(decoded)

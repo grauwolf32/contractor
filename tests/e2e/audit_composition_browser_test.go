@@ -11,7 +11,7 @@ import (
 	"testing"
 )
 
-func runCompositionBrowser(t *testing.T, h *scanProcessHarness, controlURL, token string) {
+func runCompositionBrowser(t *testing.T, h *scanProcessHarness) {
 	t.Helper()
 	uiRoot := filepath.Join(h.repositoryRoot, "ui")
 	runChecked(t, uiRoot, nil, "node", "node_modules/vite/bin/vite.js", "build")
@@ -39,16 +39,11 @@ func runCompositionBrowser(t *testing.T, h *scanProcessHarness, controlURL, toke
 	if err := os.MkdirAll(evidence, 0700); err != nil {
 		t.Fatal(err)
 	}
-	source := filepath.Join(h.temporaryRoot, "composition-source.zip")
-	if err := os.WriteFile(source, compositionSourceArchive(t), 0600); err != nil {
-		t.Fatal(err)
-	}
 	report := filepath.Join(evidence, "browser-report.json")
 	runChecked(t, uiRoot, map[string]string{
 		"CONTRACTOR_UI_E2E_BASE_URL": h.browserBaseURL, "CONTRACTOR_UI_E2E_API_URL": h.browserAPIURL,
 		"CONTRACTOR_UI_E2E_USERNAME": "admin", "CONTRACTOR_UI_E2E_PASSWORD": "contractor e2e local password",
-		"CONTRACTOR_COMPOSITION_SOURCE": source, "CONTRACTOR_COMPOSITION_TARGET": h.targetURL,
-		"CONTRACTOR_COMPOSITION_CONTROL": controlURL, "CONTRACTOR_COMPOSITION_CONTROL_TOKEN": token,
+		"CONTRACTOR_COMPOSITION_OPENAPI": filepath.Join(h.repositoryRoot, "configs/scan/examples/audit-openapi-scan/openapi.json"), "CONTRACTOR_COMPOSITION_TARGET": h.targetURL,
 		"CONTRACTOR_AUDIT_COMPOSITION_EVIDENCE_DIR": evidence, "CONTRACTOR_UI_E2E_OUTPUT_DIR": filepath.Join(evidence, "playwright"),
 		"PLAYWRIGHT_JSON_OUTPUT_FILE": report,
 	}, "node", "node_modules/@playwright/test/cli.js", "test", "--config=playwright.composition.config.ts", "--reporter=line,json")

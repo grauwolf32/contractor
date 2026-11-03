@@ -12,6 +12,7 @@ depends_on:
 - V64-014
 - V64-021
 - V64-026
+- V64-027
 languages:
 - go
 - python
@@ -81,59 +82,43 @@ context:
     task-creation operation in bounded slices, preserving producer/list/entry identity and partial
     intake/replay. It supplies the actual owner persistence/control/RunService integration; the operation
     itself writes no Audit task and introduces no inventory phase, admission engine or generator loop.
+  common_completion_boundary: >-
+    Implementation decision 2026-11-03: retire the role-derived PostgreSQL completion-requirement
+    trigger when its old profile reader loses its caller. The owning common Workflow resolver derives
+    the target; RunService pins it while creating the ordinary Run and Scheduler validates it before
+    allocation. Runtime rejects completion toolsets without that exact contract. PostgreSQL still
+    protects immutable Run completion and exact allocation-to-Run completion identity. Replacing the
+    old role reader with a second SQL Workflow/program interpreter was rejected as duplicated authority.
+    Reopen only if another production writer bypasses the trusted RunService binding path.
   implementation_progress: >-
-    Preparatory commit 8947ae49bf91122340322a3779c7312f9553aabf adds shared typed Program decoding
-    through the existing strict common validator and migrates the real catalog validation caller to it.
-    Full auditcontract, config/... and configload/... Go suites passed with canonical macOS TMPDIR.
-    V64-026 is completed at 6e75823c634f71471fd916e52b175ab35a9c478f. Catalog slot validation now
-    returns the exact allowed Workflow closures through the owning auditprofile module, sharing one
-    rule with offline validation and the upcoming accepted-task path; complete config/configload suites passed.
-    Work on 2026-11-03 adds strict pinned common programs, bounded durable Task acceptance using
-    mutation_receipts, and public task create/list/detail operations with generated Go/UI clients.
-    Exact Project inputs are retained through the ordinary frozen Project-to-Audit fork; baseline
-    input descriptors remain exact Project selections, so existing baseline holds keep their owner.
-    Accepted Tasks reference real Audit-scope material. Collected Run inputs reuse the existing
-    Run-to-Audit path and the same deterministic material name as output collection.
-    The existing execution/membership relations now reserve common Task attempts without a Round,
-    manifest or task ZIP. RunService derives Workflow, configuration, parameters and selected inputs
-    from the locked owner pin; trusted context is authored after the real Run identity/input forks.
-    The existing importer/collection receipt retains ordinary supporting outputs and normalizes
-    observation conclusions with exact Task/Run provenance and Audit-owned evidence.
-    Real PostgreSQL checks cover paused intake, equal-key concurrency, exact metadata/ownership,
-    row/byte limits, Project/claim fences, stable Run creation, paused collection, source Run purge
-    and replay before mutable source reads. A 100000-Task fixture proves sparse filtered pages in
-    custom/generic PostgreSQL plans and bounded lifecycle purge. Generic state parameters initially
-    scanned settled history; the query now uses closed validated state literals and passes both plans.
-    Full Go suites with integration tags and PostgreSQL passed for auditstore/..., runservice,
-    auditservice, auditimport, config/..., configload/..., archtest and httpapi/public, including
-    the new routes' common contract gates and dedicated Task/attempt FK/purge topology. ERD is
-    regenerated from four migrations. These are intermediate checks, not task acceptance; full
-    gates must be rerun after the remaining integration and final schema cutover.
-    The next intermediate slice connects authored initial work and declared prepared-work outputs
-    to common acceptance. It verifies the real frozen producer output and every selected material,
-    checkpoints exact source/count/offset on the existing execution, and advances that offset with
-    the Task acceptance receipt. The producer stays collecting until intake finishes or closes.
-    PostgreSQL covers 256 entries over a 90000-Task history, lost acknowledgements, claim takeover,
-    paused intake, cancellation and immutable committed source/progress. The common controller uses
-    the existing claim pass, RunService and importer; sparse ready selection probes at most 64 small
-    keys per allowed Workflow then hydrates at most 64 Tasks / 1 MiB, excluding closed lane windows.
-    Custom and generic PostgreSQL plans pass the 100000-Task ready/source lookup and purge checks.
-    Real-store controller checks cover two different Workflow refs, paused collection, exact API-owner
-    handoff after source Run purge, Resume, completion without a finding or approval, lost creation
-    acknowledgement, reserved-intent Resume at the Run ceiling, lane fairness, deadline and cancellation.
-    Importer outcome checks retain failed partial output, settle malformed/missing output/context once,
-    and retry ambiguous reads without inventing a semantic gap. A two-Task ordinary Run preserves
-    distinct contexts/conclusions and charges shared selected evidence once through existing collection
-    links. Full affected Go suites passed with
-    PostgreSQL/integration tags; the architecture import-shadow failures were fixed and its full suite
-    rerun successfully. Full persistence tests and make lint passed; the ERD and dependency graph
-    are regenerated. These are component checks; the public create/start
-    cutover, common Finding integration, six executable profile migrations, deletion of the retired
-    pipeline and actual Server/Runtime process E2E remain unfinished.
-    The current additive migration and temporary execution-role branches are development staging,
-    not the final schema or a supported compatibility path. The eight YAML remain until the loader
-    switch; V64-012 records their accepted removal/restoration boundary. No full lint/release result
-    or V64-002 completion is claimed.
+    The current implementation replaces the loader, Start, coordinator, RunService binding,
+    importer and Runtime assembler with the strict common Program/Task/context/conclusions path.
+    It reuses mutation_receipts, ControllerClaims, ordinary Run/Artifact publication and native
+    Project Finding intake. No old reader, execution-role branch, Round/ZIP materializer or
+    model-authored authority remains on that path. V64-027 removes the unconsumed surfaces and
+    ports independent parser, scanner, lifecycle, provenance and retention checks to their owners.
+    All six owned YAML programs execute ordinary Workflows. OpenAPI preparation is a registered
+    Server operation followed by bounded common intake and separate operation Tasks; web scan
+    has one selected target Task. The eight assertion/checklist programs remain removed until V64-012.
+    Real-process checks demonstrate the explicit API handoff A to B during Pause/drain, Resume,
+    ordinary retained outputs with and without a Project Finding, all six programs, prepared
+    256-operation intake/restart/cancellation, native Findings retention, deterministic web-scan
+    failures/cancellation and catalog replacement. Only model responses are scripted; configured
+    models are preserved. Registered clean-revision evidence gates remain to be run before closure.
+    PostgreSQL owner suites cover equal-key concurrency, paused intake/collection, claim takeover,
+    permanent and ambiguous outcomes, exact membership/metadata, Project deletion, Run purge,
+    effective budgets and bounded pages. Custom/generic plans cover a sparse 100000-Task history,
+    90000-Task preparation history and 5000 evidence aliases. Repeated exact evidence collection
+    validates immutable descriptors and charges scoped revisions once; drift rejects atomically.
+    Public OpenAPI and both generated clients expose common Tasks and exact retained results.
+    The minimal UI uses paginated Tasks/results and truthful controls; full UI work stays V64-009.
+    The complete Runtime suite passes 5673 tests with 135 optional environment-dependent skips.
+    Full affected Audit/Run/Artifact/Finding owners pass against disposable PostgreSQL; public API
+    and PostgreSQL contract gates, shipped configuration validation, architecture/ERD checks,
+    UI unit/type checks and make lint pass. The whole Go suite and registered final process gates
+    are still being verified; these component results do not complete either task or V64-014.
+    The coupled V64-002/V64-027 implementation must be committed before publishing clean-source
+    evidence. No merge or deployment is claimed.
   design:
   - docs/proposals/0050-audit-common-hypothesis-model.md
   - docs/plans/2026-10-31-audit-redesign.md
@@ -148,6 +133,11 @@ context:
   specification_baseline: Named specifications describe current behavior. Update their owning requirements,
     API/wire contracts and fixtures with implementation; proposal 0050 governs the reviewed replacement
     direction.
+  cleanup_prerequisite: >-
+    User decision 2026-11-03 authorizes narrow V64-027 in this branch to remove only
+    surfaces left without production callers by this cutover and their exclusive tests.
+    Schemas and integrated cleanup remain V64-010. The coupled changes land together
+    to keep the build green; neither task is completed while its verification remains.
   implementation_boundary: Every new state, export, relation or capability needs its real production caller
     in this task. Reuse RunService, Scheduler, ArtifactStore, finding intake, ControllerClaims and existing
     keyed/natural receipts. No new collector, admission engine, lease store or compatibility reader.
@@ -324,6 +314,9 @@ tests:
   - A3
   - A4
   - A6
+- command: make test-audit-common-programs-e2e
+  covers:
+  - A5
 - command: make lint
 test_prerequisites:
 - Commands below are future implementation acceptance, not results of this planning update.

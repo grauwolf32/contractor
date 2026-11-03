@@ -8,7 +8,6 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -30,7 +29,6 @@ type preflightBinding struct {
 	snapshot  BindingSnapshot
 	workflows map[string]resolved.ResolvedWorkflow
 	inputs    map[string]resolved.ArtifactSlot
-	standards []auditstandards.ResolvedPackage
 }
 
 func (r *Resolver) resolveBinding(ctx context.Context, owner string, v evaldomain.Variant, lookup resolved.CredentialLookup, service *artifacts.Service) (preflightBinding, error) {
@@ -53,27 +51,12 @@ func (r *Resolver) resolveBinding(ctx context.Context, owner string, v evaldomai
 	if err != nil {
 		return b, errors.Join(evaldomain.Failure("eval_not_ready"), err)
 	}
-	if !auditservice.ProfileCompatibility(profile).ServerCompatible {
-		return b, evaldomain.Failure("eval_not_ready")
-	}
 	b.snapshot.Audit = &profile
-	for name, slot := range profile.Inputs {
+	for name, slot := range profile.Program.Inputs {
 		b.inputs[name] = resolved.ArtifactSlot{Required: slot.Required, MediaTypes: slot.MediaTypes}
 	}
 	for role, binding := range profile.Workflows {
-		b.workflows[role] = binding.Workflow
-	}
-	catalog, err := auditstandards.NewCatalog(service)
-	if err != nil {
-		return b, err
-	}
-	for _, standard := range profile.Standards {
-		resolvedPackage, err := catalog.Resolve(ctx, owner, auditstandards.Reference{Scheme: standard.Scheme, Version: standard.Version})
-		if err != nil {
-			return b, preflightDependencyError(err)
-		}
-		b.snapshot.Standards = append(b.snapshot.Standards, resolvedPackage.Source)
-		b.standards = append(b.standards, resolvedPackage)
+		b.workflows[role] = binding
 	}
 	return b, nil
 }
@@ -81,7 +64,7 @@ func (r *Resolver) resolveBinding(ctx context.Context, owner string, v evaldomai
 func (b *preflightBinding) pinDependencies(ctx context.Context, tx pgx.Tx, service *artifacts.Service, owner string, v evaldomain.Variant, lookup runtimeconfig.TransactionLLMCredentialLookup) error {
 	skillRefs := map[string]contracts.ArtifactRef{}
 	var skillSets [][]string
-	modelFree := b.snapshot.Audit == nil
+	modelFree := true
 	for _, workflow := range b.workflows {
 		if err := resolved.ValidateResolvedWorkflowCredentials(ctx, workflow, lookup); err != nil {
 			return workflowSelectionError(err)

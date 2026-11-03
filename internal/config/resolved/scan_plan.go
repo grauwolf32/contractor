@@ -27,7 +27,7 @@ func cloneScanPlanPolicy(source *scan.ScanPlanPolicy) *scan.ScanPlanPolicy {
 // this contract has validated every member of the fixed Worker set.
 func ValidateScanPlanStage(stage ResolvedStage) error {
 	if stage.Planner.Selector() != ScanPlanPlanner {
-		if stage.ScanPlan != nil || stage.AuditScan != nil {
+		if stage.ScanPlan != nil || stage.ScanPreparation != nil {
 			return fmt.Errorf("scanPlan is only supported by scan-plan@1")
 		}
 		return nil
@@ -35,7 +35,7 @@ func ValidateScanPlanStage(stage ResolvedStage) error {
 	if stage.ScanPlan == nil {
 		return fmt.Errorf("scan-plan@1 requires scanPlan")
 	}
-	if err := validateAuditScanStage(stage); err != nil {
+	if err := validateScanPreparationStage(stage); err != nil {
 		return err
 	}
 	if err := stage.ScanPlan.Validate(); err != nil {
@@ -91,7 +91,7 @@ func ValidateScanPlanStage(stage ResolvedStage) error {
 			return fmt.Errorf("scanPlan Worker selects an unsupported scanner")
 		}
 		if execution.Tool == "scan_sqlmap" {
-			if len(tool.TestParameters) == 0 && stage.AuditScan == nil {
+			if len(tool.TestParameters) == 0 && stage.ScanPreparation == nil {
 				return fmt.Errorf("scanPlan SQLMap policy requires testParameters")
 			}
 			if _, exists := execution.Arguments["url"]; exists {
@@ -119,7 +119,7 @@ func ValidateScanPlanStage(stage ResolvedStage) error {
 		}
 		for name, source := range execution.Arguments {
 			if _, dynamic := expected[name]; !dynamic && source.Source != "literal" &&
-				!(stage.AuditScan != nil && execution.Tool == "scan_nuclei" && scan.IsNucleiSelectionBinding(name, source)) {
+				!(stage.ScanPreparation != nil && execution.Tool == "scan_nuclei" && scan.IsNucleiSelectionBinding(name, source)) {
 				return fmt.Errorf("scanPlan additional Worker arguments must be literals")
 			}
 		}
@@ -129,9 +129,6 @@ func ValidateScanPlanStage(stage ResolvedStage) error {
 	}
 	report, exists := stage.Result.Artifacts["report"]
 	reportMedia := "application/json"
-	if stage.AuditScan != nil {
-		reportMedia = "application/zip"
-	}
 	if !exists || !report.Required || report.From == nil || len(report.MediaTypes) != 1 || report.MediaTypes[0] != reportMedia {
 		return fmt.Errorf("scan-plan@1 requires a bound application/json aggregate report")
 	}
@@ -195,14 +192,17 @@ func validateScanPlanInputMedia(workflow ResolvedWorkflow, stage ResolvedStage) 
 		return nil
 	}
 	inputMedia := []string{scan.HTTPRequestSetMediaType, "text/vnd.contractor.target-list"}
-	if stage.AuditScan != nil {
-		inputMedia = []string{"application/json", "application/yaml"}
+	if stage.ScanPreparation != nil {
+		inputMedia = []string{"application/json", "application/yaml", "application/zip"}
 		for name, media := range map[string][]string{
-			stage.AuditScan.SettingsArtifact: {"application/json"},
-			stage.AuditScan.TaskArtifact:     {"application/zip"},
-			stage.AuditScan.ManifestArtifact: {"application/json"},
+			stage.ScanPreparation.SettingsArtifact: {"application/json"},
 		} {
 			if err := validate(name, media); err != nil {
+				return err
+			}
+		}
+		if stage.ScanPreparation.OperationArtifact != "" {
+			if err := validate(stage.ScanPreparation.OperationArtifact, []string{"application/json"}); err != nil {
 				return err
 			}
 		}

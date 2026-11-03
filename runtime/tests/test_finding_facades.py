@@ -8,11 +8,12 @@ from types import SimpleNamespace
 
 import httpx
 import pytest
+from audit_fixtures import assigned
 from fakes.worker_state import WorkerState
 from google.adk.tools import FunctionTool
 from google.genai import types
 from http_cookie_store import HTTPToolsetFactory
-from test_audit_result_collector import CONTEXT, fixture_assignment, tool_for
+from test_audit_result_collector import CONTEXT, tool_for
 from test_http_toolset import FakeArtifactClient, close_tools, create_tools, make_tools
 from test_security_findings_toolset import FakeFindingClient, _settings, _workspace
 
@@ -412,7 +413,7 @@ def test_cwe_standard_refs_outside_the_pinned_catalog_fail_before_submission(
 
 def test_audit_and_ordinary_findings_share_the_cwe_reference_check():
     async def scenario():
-        collector, _, _ = tool_for(fixture_assignment("standard", "requirements-verification"))
+        collector, _, _ = tool_for(assigned()[1])
         audit_state = WorkerState()
         audit_state.resources.proposal_collector = lambda: collector
         reference = StandardReference(scheme="CWE", version="4.20", requirement_id="CWE-534")

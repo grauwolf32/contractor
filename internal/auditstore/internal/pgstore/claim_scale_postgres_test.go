@@ -191,8 +191,11 @@ func addClaimScaleAudits(t *testing.T, f collectingAuditFixture, groups ...claim
 		overrides := map[string]string{
 			"audit_id": id, "state": `'` + string(group.state) + `'`,
 			"current_round_id": `NULL`, "next_event_sequence": `1`,
-			"created_at": `timestamptz '2026-09-01 00:00:00+00' + n * interval '1 second'`,
-			"updated_at": `timestamptz '2026-09-01 00:00:00+00' + n * interval '1 second'`,
+			// Fixed eligibility rows need no retained input payload. Avoid
+			// 64,000 unrelated Artifact hold mutations in this read fixture.
+			"baseline_snapshot": `jsonb_set(src.baseline_snapshot,'{inputs}','{}'::jsonb)`,
+			"created_at":        `timestamptz '2026-09-01 00:00:00+00' + n * interval '1 second'`,
+			"updated_at":        `timestamptz '2026-09-01 00:00:00+00' + n * interval '1 second'`,
 		}
 		switch {
 		case group.state == auditstore.AuditDraft:
@@ -226,7 +229,7 @@ SELECT 'claim-scale-`+group.name+`-' || lpad(n::text, 5, '0'), n % 4, `+holder+`
 		if group.busy {
 			cloneRows(t, f.ctx, setup, "audit_executions", "execution_id", f.execution.ExecutionID, group.count, map[string]string{
 				"execution_id": `'claim-scale-execution-' || n`, "audit_id": id,
-				"round_id": `NULL`, "role": `'discovery'`, "role_attempt": `1`,
+				"round_id": `NULL`, "role": `'task'`, "role_attempt": `NULL`,
 				"submission_key": `'claim-scale-submission-' || n`,
 				"run_id":         `'claim-scale-run-' || n`,
 				"run_provenance": `jsonb_set(src.run_provenance, '{runId}', to_jsonb('claim-scale-run-' || n))`,

@@ -46,22 +46,18 @@ AUDIT_COMPLETION_TOOLS = frozenset({"read_audit_task", "submit_check_result"})
 
 class WorkerCompletionContract(WireModel):
     kind: Literal["audit-check-results@1"]
-    task: ArtifactRef
-    execution_manifest: ArtifactRef
+    context: ArtifactRef
     result_artifact: ArtifactRef
 
     @model_validator(mode="after")
     def validate_completion_refs(self) -> Self:
-        self.task.require_exact()
-        self.execution_manifest.require_exact()
+        self.context.require_exact()
         if (
-            self.task.namespace != "inputs"
-            or self.execution_manifest.namespace != "inputs"
-            or self.task.name == self.execution_manifest.name
+            self.context.namespace != "inputs"
             or self.result_artifact.revision is not None
             or self.result_artifact.namespace == "inputs"
         ):
-            raise ValueError("completion needs distinct exact Run inputs and a versionless output")
+            raise ValueError("completion needs an exact Run context and a versionless output")
         return self
 
     def validate_allocation(self, namespace: str, template: ResolvedAgentTemplate) -> None:

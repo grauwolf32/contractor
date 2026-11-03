@@ -103,7 +103,7 @@ func TestPostgresAuditPurgeAtScaleProbesForeignKeysThroughIndexes(t *testing.T) 
 	// The other Audit's executions belong to no Round.
 	cloneRows(t, ctx, setup, "audit_executions", "execution_id", f.execution.ExecutionID, purgeScaleBackgroundExecutions, map[string]string{
 		"execution_id": `'background-execution-' || n`, "audit_id": backgroundID,
-		"round_id": `NULL`, "role": `'discovery'`, "role_attempt": `n`,
+		"round_id": `NULL`, "role": `'task'`, "role_attempt": `NULL`,
 		"submission_key":        `'background-' || n`,
 		"run_id":                `'background-run-' || n`,
 		"run_provenance":        `jsonb_set(src.run_provenance, '{runId}', to_jsonb('background-run-' || n))`,

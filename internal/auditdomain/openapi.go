@@ -42,30 +42,6 @@ type openAPIOperation struct {
 	gaps        []string
 }
 
-// BuildOpenAPIInventory constructs an inventory from one exact JSON or YAML
-// artifact. Relative document refs cannot resolve in this form and are rejected.
-func BuildOpenAPIInventory(source []byte, mediaType string, options InventoryOptions) (Inventory, error) {
-	root, err := parseOpenAPIDocument(source, mediaType)
-	if err != nil {
-		return Inventory{}, err
-	}
-	return buildOpenAPIInventory(openAPISource{
-		raw: source, mediaType: mediaType, entryPoint: "source/openapi",
-		documents: map[string]map[string]any{"source/openapi": root},
-	}, options)
-}
-
-// BuildOpenAPIInventoryFromPackage constructs an inventory from an exact,
-// validated openapi-source Audit package. Relative refs may resolve only to
-// declared JSON/YAML members in that package.
-func BuildOpenAPIInventoryFromPackage(payload []byte, options InventoryOptions) (Inventory, error) {
-	source, err := openAPISourceFromPackage(payload)
-	if err != nil {
-		return Inventory{}, err
-	}
-	return buildOpenAPIInventory(source, options)
-}
-
 func openAPISourceFromPackage(payload []byte) (openAPISource, error) {
 	validated, err := ValidatePackage(payload)
 	if err != nil {
@@ -93,14 +69,6 @@ func openAPISourceFromPackage(payload []byte) (openAPISource, error) {
 		raw: payload, mediaType: PackageMediaType,
 		entryPoint: validated.Manifest.EntryPoint, documents: documents,
 	}, nil
-}
-
-func buildOpenAPIInventory(source openAPISource, options InventoryOptions) (Inventory, error) {
-	basis, subjects, err := openAPISubjects(source, MaximumItems)
-	if err != nil {
-		return Inventory{}, err
-	}
-	return finishInventory(source.raw, source.mediaType, basis, subjects, options)
 }
 
 func openAPISubjects(source openAPISource, maxItems int) (inventoryBasis, []inventorySubject, error) {

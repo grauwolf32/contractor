@@ -4,13 +4,13 @@ Requirement prefix: `AWC` · [Specification index](../README.md)
 
 ## Purpose and scope
 
-This document owns the opt-in `audit-check-results@1` Worker completion
-contract: its trusted activation by an Audit check binding, its pinning on the
-child Run and the allocation, invocation-local check result collection by the
-`audit-results@2` tools, the completeness gate and bounded continuation at the
-Worker's completion boundary, deterministic publication of the
-`check-results` package, the Runtime-authored `WorkerResult` and the
-completion diagnostics.
+This document owns the opt-in `audit-check-results@1` completion strategy
+implemented by `audit-results@2`. The current strategy consumes the trusted
+common Task context and publishes ordinary common JSON conclusions; Server
+collection adds system provenance and retained Finding receipt references.
+AWC-R127 through AWC-R129 define the current boundary. Older task-ZIP,
+execution-manifest and `check-results` package authoring below is retired and
+provides no alternative Runtime reader or completion path.
 
 It extends the ordinary Worker result path ([worker](../execution/worker.md))
 and Audits ([audits](audits.md)). Where those documents describe mandatory LLM
@@ -958,3 +958,28 @@ workflows:
   replacement of the ordinary LLM finalizer, and automatic demo rollout.
 - In version 1 of the contract: durable recovery of a partially collected
   invocation, a target summarizer, and a multi-Worker completion strategy.
+
+## Common completion boundary
+
+**AWC-R127.** RunService derives one completion target from the allowed ordinary
+Workflow's declared task-context input, JSON result output and selected
+`audit-results@2` Worker. The persisted Run and allocation pin the exact context
+ArtifactRef and result target. Scheduler checks the original exact context
+before allocation; it never replaces a missing revision with the current binding.
+No role name, Round, execution manifest or package inventory grants authority.
+
+**AWC-R128.** The Runtime assembler reads the trusted common context through
+the ordinary Artifact client. Model calls submit bounded conclusion content
+for a selected member key. The assembler owns completeness, validation and
+publication of one ordinary JSON output; the model authors neither final
+package structure nor Task/Run/Finding identities. Exploratory work has no
+required hypothesis, verdict or Finding. Hypothesis-bound checks follow the
+common contract's verdict/context rules without inferring a vulnerability
+from support or refutation alone.
+
+**AWC-R129.** Server collection validates a declared common result against
+immutable selected Task/Run membership, normalizes evidence to retained exact
+Audit materials and adds trusted origins and bounded Finding receipt references.
+Normal supporting outputs retain their declared ordinary media types without
+semantic reinterpretation. A missing/invalid result is a truthful technical gap;
+source or persistence ambiguity never causes repeated target activity.

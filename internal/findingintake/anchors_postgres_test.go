@@ -165,7 +165,7 @@ func TestPostgresFindingAnchorRuntimeIntakeReplayAndRetention(t *testing.T) {
 		t.Fatalf("retained replay=%+v %v %v", retained.Anchors, ok, err)
 	}
 	for _, auditID := range []string{"anchor-audit-a", "anchor-audit-b"} {
-		retained, err := service.GetAuditReceipt(ctx, owner, auditID, first.ReceiptID)
+		retained, err := readOneAuditReceipt(t, service, ctx, owner, auditID, first.ReceiptID)
 		if err != nil || retained.Retention != RetentionProjectHeld || retained.Anchors.Keys[0] != first.Anchors.Keys[0] {
 			t.Fatalf("hold=%+v %v", retained.Anchors, err)
 		}

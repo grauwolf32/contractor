@@ -65,6 +65,8 @@ class GeneralFindingTool(_FindingFacade):
             cite every assigned entry ID.
         proposed_checks: Optional follow-up questions, each with objective and
             method. At most 512; these suggestions grant no execution authority.
+        item_key: Assigned Audit member key from read_audit_task; required for a batch.
+            Omit for an ordinary Run or a single assigned task.
         publish_problem: Explicitly publish the described problem to the Project.
             Requires selected exact evidence. False keeps an ordinary proposal.
     """
@@ -82,6 +84,7 @@ class GeneralFindingTool(_FindingFacade):
         standard_refs: list[StandardReference] | None = None,
         proposed_checks: list[ProposedCheck] | None = None,
         publish_problem: bool = False,
+        item_key: str | None = None,
     ) -> dict[str, Any]:
         return await self._publisher.submit(
             title=title,
@@ -93,6 +96,7 @@ class GeneralFindingTool(_FindingFacade):
             standard_refs=standard_refs,
             proposed_checks=proposed_checks,
             publish_problem=publish_problem,
+            item_key=item_key,
             request_id=request_id,
             caido_request_id=caido_request_id,
         )
@@ -120,6 +124,8 @@ class CodeFindingTool(_FindingFacade):
             cite every assigned entry ID.
         proposed_checks: Optional follow-up questions, each with objective and
             method. At most 512; these suggestions grant no execution authority.
+        item_key: Assigned Audit member key from read_audit_task; required for a batch.
+            Omit for an ordinary Run or a single assigned task.
         publish_problem: Explicitly publish the described problem to the Project.
             Requires selected exact evidence. False keeps an ordinary proposal.
     """
@@ -137,6 +143,7 @@ class CodeFindingTool(_FindingFacade):
         standard_refs: list[StandardReference] | None = None,
         proposed_checks: list[ProposedCheck] | None = None,
         publish_problem: bool = False,
+        item_key: str | None = None,
     ) -> dict[str, Any]:
         location: dict[str, Any] = {"file": file}
         if line is not None:
@@ -153,6 +160,7 @@ class CodeFindingTool(_FindingFacade):
             standard_refs=standard_refs,
             proposed_checks=proposed_checks,
             publish_problem=publish_problem,
+            item_key=item_key,
         )
 
 
@@ -182,6 +190,8 @@ class HTTPFindingTool(_FindingFacade):
             cite every assigned entry ID.
         proposed_checks: Optional follow-up questions, each with objective and
             method. At most 512; these suggestions grant no execution authority.
+        item_key: Assigned Audit member key from read_audit_task; required for a batch.
+            Omit for an ordinary Run or a single assigned task.
         publish_problem: Explicitly publish the described problem to the Project.
             Requires selected exact evidence. False keeps an ordinary proposal.
     """
@@ -200,6 +210,7 @@ class HTTPFindingTool(_FindingFacade):
         standard_refs: list[StandardReference] | None = None,
         proposed_checks: list[ProposedCheck] | None = None,
         publish_problem: bool = False,
+        item_key: str | None = None,
     ) -> dict[str, Any]:
         return await self._publisher.submit(
             title=title,
@@ -211,6 +222,7 @@ class HTTPFindingTool(_FindingFacade):
             standard_refs=standard_refs,
             proposed_checks=proposed_checks,
             publish_problem=publish_problem,
+            item_key=item_key,
             request_id=request_id,
             caido_request_id=caido_request_id,
         )

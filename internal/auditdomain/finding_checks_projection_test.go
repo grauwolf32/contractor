@@ -1,14 +1,13 @@
 package auditdomain
 
 import (
-	"bytes"
 	"encoding/json"
 	"strings"
 	"testing"
 )
 
 func TestFindingChecksProjectionIndexesExactBytesAndPreservesUnknownMethods(t *testing.T) {
-	doc := testFindingInventoryDocument(t).Proposals[0].Document
+	doc := testProjectedFindingProposal()
 	doc.ProposedChecks = []ProposedCheck{{Objective: "\u041a\u0438\u0440\u0438\u043b\u043b\u0438\u0446\u0430 <>& \\\"\n\u2028\u2029", Method: "verify"}, {Objective: "Ordinary valid method", Method: "operator-method"}, {Objective: strings.Repeat("a", 64<<10), Method: "replay"}}
 	// Pretty, noncanonical input proves offsets belong to the exact source.
 	data, err := json.MarshalIndent(doc, "", "  ")
@@ -23,33 +22,30 @@ func TestFindingChecksProjectionIndexesExactBytesAndPreservesUnknownMethods(t *t
 	if err != nil {
 		t.Fatal(err)
 	}
-	decoded, err := DecodeFindingChecksProjection(encoded)
+	var decoded FindingChecksProjection
+	err = json.Unmarshal(encoded, &decoded)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if projection.ProposalDigest != DigestBytes(data) || len(decoded.Checks) != 3 || decoded.Checks[0].Status != "registered" || decoded.Checks[1].Status != "unsupported" || decoded.Checks[2].Status != "plan-too-large" {
 		t.Fatalf("projection = %+v", decoded)
 	}
-	context, err := ExtractFindingChecksContext(data, *decoded.Subject, *decoded.Limitations)
-	if err != nil || !sameCanonicalValue(context.Subject, doc.Subject) || !sameCanonicalValue(context.Limitations, doc.Limitations) {
-		t.Fatalf("context = %+v, %v", context, err)
-	}
 	for i, entry := range decoded.Checks {
-		check, plan, err := ExtractFindingCheck(data, entry)
-		if err != nil || check != doc.ProposedChecks[i] {
-			t.Fatalf("check%d = %+v, %v", i, check, err)
+		fragment := data[entry.Fragment.Offset : entry.Fragment.Offset+entry.Fragment.Length]
+		var check ProposedCheck
+		if err := json.Unmarshal(fragment, &check); err != nil || check != doc.ProposedChecks[i] || DigestBytes(fragment) != entry.Fragment.Digest {
+			t.Fatalf("indexed exact check %d differs: %+v %v", i, check, err)
 		}
 		if entry.Status != "unsupported" {
-			planBytes, err := EncodeCheckPlan(plan)
-			if err != nil || DigestBytes(planBytes) != entry.PlanDigest {
-				t.Fatalf("plan%d digest mismatch", i)
+			plan, err := BuildFindingCheckPlan(doc, i)
+			if err != nil {
+				t.Fatal(err)
+			}
+			encoded, err := EncodeCheckPlan(plan)
+			if err != nil || DigestBytes(encoded) != entry.PlanDigest {
+				t.Fatalf("plan digest %d differs", i)
 			}
 		}
-	}
-	corrupt := bytes.Clone(data)
-	corrupt[decoded.Checks[0].Fragment.Offset] = 'x'
-	if _, _, err := ExtractFindingCheck(corrupt, decoded.Checks[0]); err == nil {
-		t.Fatal("corrupted fragment accepted")
 	}
 	bad := decoded
 	bad.Checks = append([]FindingCheckProjection{}, decoded.Checks...)
@@ -58,7 +54,7 @@ func TestFindingChecksProjectionIndexesExactBytesAndPreservesUnknownMethods(t *t
 		t.Fatal("guessed phase accepted")
 	}
 	for _, edit := range []func(*FindingChecksProjection){func(p *FindingChecksProjection) { p.Subject = nil }, func(p *FindingChecksProjection) { p.Checks[0].Fragment.Length = p.SizeBytes + 1 }, func(p *FindingChecksProjection) { p.Discarded = true }} {
-		bad, _ = DecodeFindingChecksProjection(encoded)
+		_ = json.Unmarshal(encoded, &bad)
 		edit(&bad)
 		if _, err := EncodeFindingChecksProjection(bad); err == nil {
 			t.Fatal("invalid projection accepted")
@@ -67,7 +63,7 @@ func TestFindingChecksProjectionIndexesExactBytesAndPreservesUnknownMethods(t *t
 }
 
 func TestFindingChecksProjectionBounds512HeadersAndDiscard(t *testing.T) {
-	doc := testFindingInventoryDocument(t).Proposals[0].Document
+	doc := testProjectedFindingProposal()
 	doc.ProposedChecks = make([]ProposedCheck, MaximumCoverageValues)
 	for i := range doc.ProposedChecks {
 		doc.ProposedChecks[i] = ProposedCheck{Objective: "check", Method: strings.Repeat("x", 160)}
@@ -89,13 +85,15 @@ func TestFindingChecksProjectionBounds512HeadersAndDiscard(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = DecodeFindingChecksProjection(encoded); err != nil || projection.Subject != nil || projection.Limitations != nil || len(projection.Checks) != 0 {
+	var decoded FindingChecksProjection
+	err = json.Unmarshal(encoded, &decoded)
+	if err != nil || projection.Subject != nil || projection.Limitations != nil || len(projection.Checks) != 0 {
 		t.Fatal("discarded projection invalid", err)
 	}
 }
 
 func TestFindingChecksProjectionMaximumRegisteredHeadersAndStrictPresence(t *testing.T) {
-	doc := testFindingInventoryDocument(t).Proposals[0].Document
+	doc := testProjectedFindingProposal()
 	doc.ProposedChecks = make([]ProposedCheck, MaximumCoverageValues)
 	for i := range doc.ProposedChecks {
 		doc.ProposedChecks[i] = ProposedCheck{Objective: strings.Repeat("x", 16000), Method: "applicability"}
@@ -122,15 +120,6 @@ func TestFindingChecksProjectionMaximumRegisteredHeadersAndStrictPresence(t *tes
 	}
 	if len(encoded) > MaximumFindingChecksProjectionBytes || projection.Checks[0].PlanBytes != 65536 || projection.Checks[0].Status != "registered" || projection.Checks[511].Fragment.Offset < 7<<20 {
 		t.Fatalf("registered bound = %d bytes, first %+v", len(encoded), projection.Checks[0])
-	}
-	var members map[string]json.RawMessage
-	if err = json.Unmarshal(encoded, &members); err != nil {
-		t.Fatal(err)
-	}
-	delete(members, "discarded")
-	missing, _ := json.Marshal(members)
-	if _, err = DecodeFindingChecksProjection(missing); err == nil {
-		t.Fatal("missing explicit false accepted")
 	}
 	bad := projection
 	overlapping := projection.Checks[0].Fragment

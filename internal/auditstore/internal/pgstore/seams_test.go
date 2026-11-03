@@ -30,27 +30,6 @@ func newTestStore(db persistencepostgres.DBTX) *testStore {
 	}
 }
 
-// testTxStore is a testStore bound to the caller's transaction, with the
-// transaction-bound steps of every seam.
-type testTxStore struct {
-	*ClaimStore
-	*OwnerTxStore
-	*ReviewTxStore
-	*QueryStore
-	*FindingEventsTx
-	*RunDeletionTx
-	*ProjectDeletion
-	*CredentialHolds
-}
-
-func newTestTxStore(tx pgx.Tx) *testTxStore {
-	return &testTxStore{
-		ClaimStore: NewClaimStore(tx, artifactpgtest.NewStorage()).WithPurgeDependencies(purgeTestAuditHolds), OwnerTxStore: NewOwnerTxStore(tx, artifactpgtest.NewStorage()), ReviewTxStore: NewReviewTxStore(tx, artifactpgtest.NewStorage()),
-		QueryStore: NewQueryStore(tx, artifactpgtest.NewStorage()), FindingEventsTx: NewFindingEventsTx(tx, artifactpgtest.NewStorage()), RunDeletionTx: NewRunDeletionTx(tx, artifactpgtest.NewStorage()),
-		ProjectDeletion: NewProjectDeletion(tx, artifactpgtest.NewStorage()), CredentialHolds: NewCredentialHolds(tx, artifactpgtest.NewStorage()),
-	}
-}
-
 // This test-only composition releases the same bounded rows as finding
 // intake, without importing that client back into its own store's fixtures.
 func purgeTestAuditHolds(ctx context.Context, tx pgx.Tx, auditID string, limit int) (int, error) {

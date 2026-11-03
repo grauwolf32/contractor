@@ -295,6 +295,10 @@ func TestSharedPostgresCommonTaskCollectsOrdinaryOutputWhilePaused(t *testing.T)
 
 func newCommonTaskRunFixture(t *testing.T, contextInput bool, memberCounts ...int) taskRunFixture {
 	t.Helper()
+	return newCommonTaskRunFixtureWithWorkflow(t, contextInput, nil, memberCounts...)
+}
+func newCommonTaskRunFixtureWithWorkflow(t *testing.T, contextInput bool, configure func(*resolved.ResolvedWorkflow), memberCounts ...int) taskRunFixture {
+	t.Helper()
 	ctx := t.Context()
 	pool := postgrestest.NewPool(t, ctx, "", postgrestest.Options{Configure: func(config *pgxpool.Config) { config.MaxConns = 1 }})
 	if _, err := postgres.ApplyMigrations(ctx, pool, postgres.MigrationBudgets{}); err != nil {
@@ -324,7 +328,13 @@ func newCommonTaskRunFixture(t *testing.T, contextInput bool, memberCounts ...in
 		program.Workflows["inspect"] = binding
 	}
 	data, _ := json.Marshal(program)
-	pinned, err := auditprofile.PinProgram(resolved.Selector{ID: "common-run", Version: "1"}, data, catalog.Workflow)
+	pinned, err := auditprofile.PinProgram(resolved.Selector{ID: "common-run", Version: "1"}, data, func(ref string) (resolved.ResolvedWorkflow, error) {
+		workflow, err := catalog.Workflow(ref)
+		if err == nil && configure != nil {
+			configure(&workflow)
+		}
+		return workflow, err
+	})
 	if err != nil {
 		t.Fatal(err)
 	}

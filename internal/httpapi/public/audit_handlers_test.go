@@ -23,52 +23,28 @@ import (
 	"github.com/grauwolf32/contractor/internal/auth"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 	"github.com/grauwolf32/contractor/internal/helpers/pagelimit"
 )
 
-func TestAuditProfileHandlersExposeCompatibilityAndExactDetail(t *testing.T) {
-	profiles := &fakeAuditManagement{profiles: []auditservice.ProfileProjection{{
-		Profile: auditprofile.ResolvedAuditProfile{
-			Ref:  auditprofile.AuditProfileRef{Name: "checklist", Version: "1", Digest: auditHandlerDigest("profile")},
-			Mode: auditprofile.AuditModeCustomChecklist, Standards: []auditprofile.AuditStandardRef{},
-			Inputs: map[string]auditprofile.AuditProfileInput{
-				"checklist": {Required: true, MediaTypes: []string{"application/json"}},
-			},
-			Inventory: auditprofile.AuditInventory{Implementation: "checklist@1", Source: &auditprofile.AuditWorkflowInputMapping{Source: auditprofile.AuditInputFromAudit, Name: "checklist"}, ItemWorkflowRole: "check"},
-			Workflows: map[string]auditprofile.ResolvedAuditWorkflowBinding{},
-			Execution: auditprofile.AuditExecutionPolicy{MaxRounds: 1, BatchSize: 1},
-			Interaction: auditprofile.AuditInteractionPolicy{
-				ActiveChecks:     auditprofile.AuditActiveChecksProhibited,
-				NotApplicable:    auditprofile.AuditNotApplicableProfileRule,
-				ReportAcceptance: auditprofile.AuditReportAutomatic,
-			},
-		},
-		Compatibility: auditservice.Compatibility{
-			ServerCompatible: false, RequiresInputValidation: true,
-			Reasons: []auditservice.CompatibilityReason{auditservice.ReasonManualApplicabilityUnsupported},
-		},
-	}}}
-	h := auditTestHandler(profiles)
-
+func TestAuditProfileHandlersExposeCommonProgramAndBoundedSummary(t *testing.T) {
+	profile := auditprofile.PinnedProgram{Ref: auditprofile.AuditProfileRef{Name: "common", Version: "1", Digest: auditHandlerDigest("profile")}, Program: auditcontract.Program{Schema: "contractor.audit.program.v1", Inputs: map[string]auditcontract.ProgramInput{"source": {Required: true, MediaTypes: []string{"text/plain"}}}, Policy: auditcontract.OperationPolicy{ActiveOperations: "prohibited"}}}
+	h := auditTestHandler(&fakeAuditManagement{profiles: []auditservice.ProfileProjection{{Profile: profile}}})
 	list := auditAuthenticatedRequest(http.MethodGet, "/v1/audit-profiles", nil)
 	response := httptest.NewRecorder()
-	serve(h.listAuditProfiles)(response, list)
-	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"serverCompatible":false`) ||
-		!strings.Contains(response.Body.String(), `"compatibilityReasons":["manual_applicability_unsupported"]`) ||
-		strings.Contains(response.Body.String(), `"workflows"`) {
-		t.Fatalf("profile list = %d %s", response.Code, response.Body.String())
+	h.listAuditProfiles(response, list)
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"media_types":["text/plain"]`) || strings.Contains(response.Body.String(), `"program"`) || strings.Contains(response.Body.String(), `"mode"`) {
+		t.Fatalf("summary: %d %s", response.Code, response.Body.String())
 	}
-
-	detail := auditAuthenticatedRequest(http.MethodGet, "/v1/audit-profiles/checklist/versions/1", nil)
-	detail.SetPathValue("name", "checklist")
+	detail := auditAuthenticatedRequest(http.MethodGet, "/v1/audit-profiles/common/versions/1", nil)
+	detail.SetPathValue("name", "common")
 	detail.SetPathValue("version", "1")
-	detailResponse := httptest.NewRecorder()
-	serve(h.getAuditProfile)(detailResponse, detail)
-	if detailResponse.Code != http.StatusOK || detailResponse.Header().Get("ETag") != `"`+auditHandlerDigest("profile")+`"` ||
-		!strings.Contains(detailResponse.Body.String(), `"mode":"custom-checklist"`) {
-		t.Fatalf("profile detail = %d headers=%v body=%s", detailResponse.Code, detailResponse.Header(), detailResponse.Body.String())
+	response = httptest.NewRecorder()
+	h.getAuditProfile(response, detail)
+	if response.Code != http.StatusOK || response.Header().Get("ETag") != `"`+profile.Ref.Digest+`"` || !strings.Contains(response.Body.String(), `"schema":"contractor.audit.program.v1"`) {
+		t.Fatalf("detail: %d %s", response.Code, response.Body.String())
 	}
 }
 
@@ -179,7 +155,7 @@ func TestAuditCreateStartQueryAndStableErrors(t *testing.T) {
 	startDigest := contentdigest.Bytes([]byte(`{"action":"start","auditId":"audit-fixed","revision":1}`))
 	if started.Code != http.StatusOK || started.Header().Get("ETag") != `"2"` ||
 		management.start.ExpectedRevision != 1 || management.start.RequestDigest != startDigest ||
-		!strings.Contains(started.Body.String(), `"expectedItemCount":1`) {
+		!strings.Contains(started.Body.String(), `"taskCount":0`) || strings.Contains(started.Body.String(), `"round"`) {
 		t.Fatalf("start Audit = %d headers=%v body=%s params=%+v", started.Code, started.Header(), started.Body.String(), management.start)
 	}
 
@@ -193,7 +169,6 @@ func TestAuditCreateStartQueryAndStableErrors(t *testing.T) {
 	}
 
 	for _, reason := range []auditservice.CompatibilityReason{
-		auditservice.ReasonActiveCheckApprovalUnsupported,
 		auditservice.ReasonEngagementCapabilityUnsupported,
 		auditservice.ReasonEngagementSourceClosureUnsupported,
 		auditservice.ReasonEngagementActiveChecksUnsupported,
@@ -356,12 +331,6 @@ type fakeAuditManagement struct {
 	started            auditservice.StartedAudit
 	attempts           map[string][]auditstore.ItemAttempt
 	coverage           auditservice.CoveragePage
-	preparation        map[string]auditservice.PreparationRoleProjection
-	preparationOwner   string
-	snapshot           *auditstore.Audit
-	detailErr          error
-	preparationPages   []int
-	preparationErr     error
 	artifactRead       artifacts.ReadResult
 	created            auditservice.CreateDraftParams
 	start              auditservice.StartParams
@@ -379,38 +348,6 @@ type fakeAuditManagement struct {
 // Detail returns audit unless prepared selects it. A selected Audit is read
 // again, as the service does, in its snapshot: the fake's later state when
 // snapshot is set, with the fake's preparation; detailErr fails that read.
-func (f *fakeAuditManagement) Detail(
-	_ context.Context, ownerID string, audit auditstore.Audit, prepared func(auditstore.Audit) bool,
-) (auditservice.AuditDetail, error) {
-	if !prepared(audit) {
-		return auditservice.AuditDetail{Audit: audit}, nil
-	}
-	f.preparationOwner = ownerID
-	if f.detailErr != nil {
-		return auditservice.AuditDetail{}, f.detailErr
-	}
-	if f.snapshot != nil {
-		audit = *f.snapshot
-	}
-	return auditservice.AuditDetail{Audit: audit, Preparation: f.preparation}, f.err
-}
-
-// StartedDetail is Detail for a start response; a selected Audit's Round and
-// items are those of the fake's start.
-func (f *fakeAuditManagement) StartedDetail(
-	ctx context.Context, ownerID string, started auditservice.StartedAudit, prepared func(auditstore.Audit) bool,
-) (auditservice.StartedDetail, error) {
-	detail, err := f.Detail(ctx, ownerID, started.Audit, prepared)
-	if err != nil {
-		return auditservice.StartedDetail{}, err
-	}
-	result := auditservice.StartedDetail{AuditDetail: detail, Items: started.Items}
-	if detail.Audit.CurrentRoundID != nil {
-		round := started.Round
-		result.Round = &round
-	}
-	return result, nil
-}
 
 func (f *fakeAuditManagement) ReadArtifact(_ context.Context, _, _, _, _ string) (artifacts.ReadResult, error) {
 	return f.artifactRead, f.err
@@ -540,27 +477,11 @@ func (f *fakeAuditManagement) Get(context.Context, string, string) (auditstore.A
 
 // ListPage lists the fake Audit, recording how many listed Audits prepared
 // selected; preparationErr fails the page read after the selection.
-func (f *fakeAuditManagement) ListPage(
-	_ context.Context, params auditstore.ListParams, prepared func(auditstore.Audit) bool,
-) ([]auditstore.Audit, map[string]map[string]auditservice.PreparationRoleProjection, error) {
-	if err := fakePageFetch(params.Limit, auditstore.ErrInvalid); err != nil {
-		return nil, nil, err
+func (f *fakeAuditManagement) List(_ context.Context, p auditstore.ListParams) ([]auditstore.Audit, error) {
+	if !pagelimit.ValidFetch(p.Limit) {
+		return nil, auditstore.ErrInvalid
 	}
-	if f.err != nil {
-		return nil, nil, f.err
-	}
-	audits := []auditstore.Audit{f.audit}
-	result := map[string]map[string]auditservice.PreparationRoleProjection{}
-	for _, audit := range audits {
-		if prepared(audit) {
-			result[audit.AuditID] = f.preparation
-		}
-	}
-	f.preparationPages = append(f.preparationPages, len(result))
-	if f.preparationErr != nil {
-		return nil, nil, f.preparationErr
-	}
-	return audits, result, nil
+	return []auditstore.Audit{f.audit}, nil
 }
 
 func (f *fakeAuditManagement) ListItems(_ context.Context, params auditstore.ListItemsParams) ([]auditstore.Item, error) {

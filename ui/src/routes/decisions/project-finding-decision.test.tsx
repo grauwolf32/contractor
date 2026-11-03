@@ -1,18 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
 import { screen, waitFor, within } from "@testing-library/react";
-import { it, expect } from "vitest";
-import { FindingDecision } from "./finding-decision";
-import {
-  getAuditFinding,
-  getProjectFinding,
-  type ProjectFinding,
-} from "../../api/audits";
+import { expect, it } from "vitest";
+import { getProjectFinding, type ProjectFinding } from "../../api/audits";
 import { usePublicAPI } from "../../api/context";
-import { fakeServer } from "../../test/fake-server";
-import { json, preconditionFailed, failure } from "../../test/responses";
-import { renderWithAPI } from "../../test/render";
-import { deferred } from "../../test/deferred";
 import { conforming, DIGEST, NOW } from "../../test/builders";
+import { deferred } from "../../test/deferred";
+import { fakeServer } from "../../test/fake-server";
+import { renderWithAPI } from "../../test/render";
+import { failure, json, preconditionFailed } from "../../test/responses";
+import { FindingDecision } from "./finding-decision";
 
 function sample(): ProjectFinding {
   return conforming("ProjectFinding", {
@@ -55,11 +51,11 @@ function Workspace() {
   });
   const left = useQuery({
     queryKey: ["audits", "left", "finding"],
-    queryFn: () => getAuditFinding(api, "left", "finding_shared"),
+    queryFn: () => getProjectFinding(api, "project_shared", "finding_shared"),
   });
   const right = useQuery({
     queryKey: ["audits", "right", "finding"],
-    queryFn: () => getAuditFinding(api, "right", "finding_shared"),
+    queryFn: () => getProjectFinding(api, "project_shared", "finding_shared"),
   });
   return (
     <>

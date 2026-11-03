@@ -1,5 +1,6 @@
-// Package auditscan assembles trusted scanner journals into canonical Audit
-// results. It never invokes scanners or accepts Worker-authored item identities.
+// Package auditscan retains scanner journals and normalized reports as ordinary
+// JSON. Provider parsing remains in Runtime adapters; this package never infers
+// a security verdict or accepts Worker-authored Audit identities.
 package auditscan
 
 import (
@@ -11,52 +12,61 @@ import (
 	"sort"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	"github.com/grauwolf32/contractor/internal/planner"
 )
 
 const (
-	// The scan planner's Artifact adapter accepts at most 4 MiB per artifact.
-	MaxResultBytes = planner.MaxScanArtifactBytes
-	// Tool Worker scan reports have the same 1 MiB bound at observation time.
+	MaxResultBytes        = planner.MaxScanArtifactBytes
 	MaxScannerReportBytes = planner.MaxScanReportBytes
-	journalSchema         = "contractor.audit.scan-journal.v1"
 	resultSummary         = "Scanner execution and observations are retained; security conclusions remain unverified."
 )
 
-// ErrInvalid classifies a deterministic failure: the trusted scan assignment
-// differs from its execution manifest, the exact retained scan content is
-// invalid or over its bound, or the assembled result breaks its own contract.
-// The same input can never build a result, so a caller must not retry it.
-// Artifact read and storage failures and cancellation are never classified so.
-var ErrInvalid = errors.New("Audit scan result input is invalid")
+var ErrInvalid = errors.New("scan report input is invalid")
 
-// ArtifactReader reads the payload of one exact Run artifact. limit is the
-// artifact's bound: a reader may refuse a larger payload before reading it,
-// and BuildResult classifies a larger returned payload as ErrInvalid.
 type ArtifactReader func(context.Context, contracts.ArtifactRef, int) (artifacts.Payload, error)
 
 type ResultInput struct {
-	RunID        string
-	CurrentStage string
-	Task         auditdomain.ItemTask
-	Manifest     auditdomain.ExecutionManifest
-	Attempts     []planner.ScanAttempt
+	RunID             string
+	CurrentStage      string
+	Scanner           string
+	PreparationDigest string
+	Runnable          bool
+	Gaps              []string
+	Attempts          []planner.ScanAttempt
 }
 
 type Result struct {
-	Package   []byte
+	Data      []byte
 	Retryable bool
 	Summary   string
+}
+
+type retainedArtifact struct {
+	ID     string                `json:"id"`
+	Kind   string                `json:"kind"`
+	Ref    contracts.ArtifactRef `json:"ref"`
+	Digest string                `json:"digest"`
+	Data   []byte                `json:"data_base64"`
+}
+
+type operationReport struct {
+	Schema             string                `json:"schema"`
+	RunID              string                `json:"run_id"`
+	Scanner            string                `json:"scanner"`
+	PreparationDigest  string                `json:"preparation_digest,omitempty"`
+	Runnable           bool                  `json:"runnable"`
+	ExecutionCompleted bool                  `json:"execution_completed"`
+	Limitations        []string              `json:"limitations"`
+	Attempts           []planner.ScanAttempt `json:"attempts"`
+	Artifacts          []retainedArtifact    `json:"artifacts"`
 }
 
 type resultBuilder struct {
 	input         ResultInput
 	read          ArtifactReader
-	members       []auditdomain.PackageInput
-	evidence      []auditdomain.Evidence
+	artifacts     []retainedArtifact
 	evidenceBytes int
 	gaps          map[string]bool
 	completed     bool
@@ -65,150 +75,43 @@ type resultBuilder struct {
 	retryable     bool
 }
 
-// BuildResult retains plans and raw reports inside the ZIP. Collection and
-// deletion of the source Run therefore cannot sever its evidence. Assessments
-// distinguish execution coverage from a verified security conclusion.
-//
-// Only the artifact reads perform I/O, and their errors, cancellation
-// included, return unchanged; a missing plan or report is a coverage gap
-// instead. An invalid assignment, retained artifact or assembled result is
-// ErrInvalid.
+// BuildResult retains bounded exact plans and normalized reports inline, so
+// deleting a source Run cannot sever the report's evidence. References remain
+// provenance. No recursive Artifact traversal or provider-specific parsing occurs.
 func BuildResult(ctx context.Context, input ResultInput, read ArtifactReader) (Result, error) {
-	if err := validateAssignment(input); err != nil {
-		return Result{}, invalidInput(err)
+	if !contracts.ValidResourceID(input.RunID) || (input.Scanner != "nuclei" && input.Scanner != "sqlmap") || read == nil {
+		return Result{}, fmt.Errorf("%w: invalid scan report assignment", ErrInvalid)
 	}
-	if read == nil {
-		return Result{}, fmt.Errorf("scan evidence reader is required")
-	}
-	builder := resultBuilder{input: input, read: read, gaps: make(map[string]bool)}
-	for _, gap := range input.Task.Scan.Gaps {
+	builder := resultBuilder{input: input, read: read, gaps: map[string]bool{}, artifacts: []retainedArtifact{}}
+	for _, gap := range input.Gaps {
 		builder.gaps[gap] = true
 	}
-	if err := builder.addJournal(); err != nil {
-		return Result{}, invalidInput(err)
-	}
 	for _, attempt := range input.Attempts {
+		if err := ctx.Err(); err != nil {
+			return Result{}, err
+		}
 		if err := builder.addAttempt(ctx, attempt); err != nil {
 			return Result{}, err
 		}
 	}
-	result, err := builder.packageResult()
-	if err != nil {
-		return Result{}, invalidInput(err)
+	if !builder.observed && input.Runnable && len(builder.gaps) == 0 {
+		builder.gaps["scan_not_invoked"] = true
 	}
-	return result, nil
+	gaps := make([]string, 0, len(builder.gaps))
+	for gap := range builder.gaps {
+		gaps = append(gaps, gap)
+	}
+	sort.Strings(gaps)
+	attempts := input.Attempts
+	if attempts == nil {
+		attempts = []planner.ScanAttempt{}
+	}
+	report := operationReport{Schema: "contractor.scan.operation-report.v1", RunID: input.RunID, Scanner: input.Scanner, PreparationDigest: input.PreparationDigest, Runnable: input.Runnable, ExecutionCompleted: builder.completed && input.Runnable, Limitations: gaps, Attempts: attempts, Artifacts: builder.artifacts}
+	data, err := strictjson.Canonical(report)
+	if err != nil || len(data) > MaxResultBytes {
+		return Result{}, fmt.Errorf("%w: scan report exceeds JSON bound", ErrInvalid)
+	}
+	return Result{Data: data, Retryable: builder.retryable && !builder.needsRecovery, Summary: resultSummary}, nil
 }
 
-func invalidInput(err error) error {
-	return fmt.Errorf("%w: %w", ErrInvalid, err)
-}
-
-func validateAssignment(input ResultInput) error {
-	if _, err := auditdomain.EncodeItemTask(input.Task); err != nil {
-		return err
-	}
-	if input.Task.Scan == nil || len(input.Manifest.Items) != 1 {
-		return fmt.Errorf("scan result requires one assigned scan item")
-	}
-	if err := auditdomain.ValidateDispatchExecutionManifest(input.Manifest); err != nil {
-		return err
-	}
-	item := input.Manifest.Items[0]
-	if item.ItemKey != input.Task.ItemKey || item.SubjectKey != input.Task.SubjectKey {
-		return fmt.Errorf("scan result assignment differs from execution manifest")
-	}
-	return nil
-}
-
-func (b *resultBuilder) addJournal() error {
-	journal := struct {
-		Schema   string                `json:"schema"`
-		RunID    string                `json:"runId"`
-		Task     auditdomain.ItemTask  `json:"task"`
-		Attempts []planner.ScanAttempt `json:"attempts"`
-	}{journalSchema, b.input.RunID, b.input.Task, b.input.Attempts}
-	data, err := strictjson.Canonical(journal)
-	if err != nil {
-		return err
-	}
-	if !b.addEvidence("scan-journal", "scan-journal", data) {
-		return fmt.Errorf("scan journal exceeds result bound")
-	}
-	return nil
-}
-
-func (b *resultBuilder) packageResult() (Result, error) {
-	resultSet, err := b.resultSet()
-	if err != nil {
-		return Result{}, err
-	}
-	resultBytes, err := auditdomain.EncodeCheckResultSet(resultSet)
-	if err != nil {
-		return Result{}, err
-	}
-	evidenceBytes, err := auditdomain.EncodeEvidence(auditdomain.EvidenceEnvelope{
-		Schema: auditdomain.EvidenceSchema, Evidence: b.evidence,
-	})
-	if err != nil {
-		return Result{}, err
-	}
-	b.members = append(b.members,
-		auditdomain.PackageInput{ID: auditdomain.CheckResultsMemberID, Path: "check-results.json", MediaType: auditdomain.JSONMediaType, Data: resultBytes},
-		auditdomain.PackageInput{ID: auditdomain.EvidenceMemberID, Path: "evidence.json", MediaType: auditdomain.JSONMediaType, Data: evidenceBytes},
-	)
-	basis, err := strictjson.Canonical(b.members)
-	if err != nil {
-		return Result{}, err
-	}
-	payload, _, err := auditdomain.BuildPackage("scan-result-"+hash(basis), auditdomain.PackageKindCheckResults, "", b.members)
-	if err != nil {
-		return Result{}, err
-	}
-	if len(payload) > MaxResultBytes {
-		return Result{}, fmt.Errorf("Audit scan result exceeds bound")
-	}
-	if _, err := auditdomain.DecodeCheckResultPackage(payload); err != nil {
-		return Result{}, err
-	}
-	return Result{Package: payload, Retryable: b.retryable && !b.needsRecovery, Summary: resultSummary}, nil
-}
-
-func (b *resultBuilder) resultSet() (auditdomain.CheckResultSet, error) {
-	manifestDigest, err := auditdomain.DigestExecutionManifest(b.input.Manifest)
-	if err != nil {
-		return auditdomain.CheckResultSet{}, err
-	}
-	task := b.input.Task
-	coverage := auditdomain.ResultCoverage{
-		Requested: []string{task.Scan.CoverageRequirement()}, Completed: []string{}, Gaps: []string{},
-	}
-	if b.completed && task.Scan.Runnable {
-		coverage.Completed = append(coverage.Completed, coverage.Requested...)
-	}
-	if !b.observed && task.Scan.Runnable && len(b.gaps) == 0 {
-		b.gaps["scan_not_invoked"] = true
-	}
-	for gap := range b.gaps {
-		coverage.Gaps = append(coverage.Gaps, gap)
-	}
-	sort.Strings(coverage.Gaps)
-	assessment := "not-tested"
-	if b.observed {
-		assessment = "inconclusive"
-	}
-	evidenceIDs := make([]string, len(b.evidence))
-	for index, evidence := range b.evidence {
-		evidenceIDs[index] = evidence.ID
-	}
-	result := auditdomain.CheckResult{
-		ItemKey: task.ItemKey, SubjectKey: task.SubjectKey, Assessment: assessment,
-		Summary: resultSummary, EvidenceIDs: evidenceIDs, Coverage: coverage, Proposals: []auditdomain.ProposalSelection{},
-	}
-	set := auditdomain.CheckResultSet{Schema: auditdomain.CheckResultsSchema, ExecutionManifestDigest: manifestDigest, Results: []auditdomain.CheckResult{result}}
-	return set, auditdomain.ValidateResultSet(set, b.input.Manifest)
-}
-
-func hash(data []byte) string {
-	sum := sha256.Sum256(data)
-	return hex.EncodeToString(sum[:])
-}
+func hash(data []byte) string { sum := sha256.Sum256(data); return hex.EncodeToString(sum[:]) }

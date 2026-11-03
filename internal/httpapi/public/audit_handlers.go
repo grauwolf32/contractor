@@ -46,11 +46,8 @@ type AuditManagement interface {
 	Cancel(context.Context, auditservice.MutationParams) (auditservice.MutationResult, error)
 	Delete(context.Context, auditservice.MutationParams) (auditservice.MutationResult, error)
 	Get(context.Context, string, string) (auditstore.Audit, error)
-	Detail(context.Context, string, auditstore.Audit, func(auditstore.Audit) bool) (auditservice.AuditDetail, error)
-	StartedDetail(context.Context, string, auditservice.StartedAudit, func(auditstore.Audit) bool) (auditservice.StartedDetail, error)
 	ReadArtifact(context.Context, string, string, string, string) (artifacts.ReadResult, error)
-	ListPage(context.Context, auditstore.ListParams, func(auditstore.Audit) bool) (
-		[]auditstore.Audit, map[string]map[string]auditservice.PreparationRoleProjection, error)
+	List(context.Context, auditstore.ListParams) ([]auditstore.Audit, error)
 	ListItems(context.Context, auditstore.ListItemsParams) ([]auditstore.Item, error)
 	// ListItemAttempts answers every requested item: an item without
 	// attempts maps to an empty list, as the PostgreSQL store fills it.
@@ -173,7 +170,7 @@ func (h *auditHandlers) createAudit(w http.ResponseWriter, r *http.Request) erro
 	if !created {
 		w.Header().Set("Idempotency-Replayed", "true")
 	}
-	response, err := h.readAuditDetail(r, audit)
+	response, err := auditReadModel(audit)
 	if err != nil {
 		return err
 	}
@@ -242,9 +239,7 @@ func (h *auditHandlers) listProjectAudits(w http.ResponseWriter, r *http.Request
 		}
 		params.BeforeCreatedAt, params.BeforeAuditID = &before, cursor[1]
 	}
-	// The page and the preparation of its preparing and inventory items come
-	// from one commit (ASC-R150).
-	audits, preparation, err := h.Audits.ListPage(r.Context(), params, auditListHydratesPreparation)
+	audits, err := h.Audits.List(r.Context(), params)
 	if err != nil {
 		return err
 	}
@@ -260,9 +255,7 @@ func (h *auditHandlers) listProjectAudits(w http.ResponseWriter, r *http.Request
 		if modelErr != nil {
 			return modelErr
 		}
-		if roles, selected := preparation[audit.AuditID]; selected {
-			item.Preparation = auditPreparationReadModel(roles)
-		}
+
 		items = append(items, item)
 	}
 	writeJSON(w, http.StatusOK, auditPageResponse{Items: items, Page: page})
@@ -278,7 +271,7 @@ func (h *auditHandlers) getAudit(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	response, err := h.readAuditDetail(r, audit)
+	response, err := auditReadModel(audit)
 	if err != nil {
 		return err
 	}
@@ -319,29 +312,12 @@ func (h *auditHandlers) startAudit(w http.ResponseWriter, r *http.Request) error
 	if started.Replayed {
 		w.Header().Set("Idempotency-Replayed", "true")
 	}
-	// The response's Audit, Round and items come from one commit (AUD-R226,
-	// ASC-R149).
-	detail, err := h.Audits.StartedDetail(r.Context(), credentialUser.UserID, started, auditDetailHydratesPreparation)
+	audit, err := auditReadModel(started.Audit)
 	if err != nil {
 		return err
-	}
-	audit, err := auditDetailReadModel(detail.AuditDetail)
-	if err != nil {
-		return err
-	}
-	items := make([]auditItemResponse, len(detail.Items))
-	for index := range detail.Items {
-		items[index] = auditItemReadModel(detail.Items[index])
 	}
 	w.Header().Set("ETag", strconv.Quote(strconv.FormatUint(audit.Revision, 10)))
-	var round *auditRoundResponse
-	if detail.Round != nil {
-		value := auditRoundReadModel(*detail.Round)
-		round = &value
-	}
-	writeJSON(w, http.StatusOK, auditStartResponse{
-		Audit: audit, Round: round, Items: items,
-	})
+	writeJSON(w, http.StatusOK, auditStartResponse{Audit: audit})
 	return nil
 }
 
@@ -411,7 +387,7 @@ func (h *auditHandlers) mutateAudit(w http.ResponseWriter, r *http.Request, acti
 	if result.Replayed {
 		w.Header().Set("Idempotency-Replayed", "true")
 	}
-	response, err := h.readAuditDetail(r, result.Audit)
+	response, err := auditReadModel(result.Audit)
 	if err != nil {
 		return err
 	}

@@ -2,357 +2,20 @@ package auditdomain
 
 import (
 	"bytes"
-	"slices"
-	"sort"
 	"strings"
-
-	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 )
 
 type inventorySubject struct {
-	acceptedPlan *AcceptedPlan
-	dependencies *RetainedDependencyManifest
-	itemKey      string
-	kind         string
-	subjectKey   string
-	approval     ApprovalRequirement
-	checklist    *ChecklistTask
-	standard     *StandardMappingTask
-	operation    *OperationTask
-	scan         *ScanTask
-	finding      *FindingTask
-	requested    []string
-	gaps         []string
-}
+	itemKey    string
+	kind       string
+	subjectKey string
+	approval   ApprovalRequirement
 
-func finishInventory(
-	source []byte,
-	sourceMediaType string,
-	basis inventoryBasis,
-	subjects []inventorySubject,
-	options InventoryOptions,
-) (Inventory, error) {
-	if err := validateInventoryOptions(options, sourceMediaType); err != nil {
-		return Inventory{}, invalid(CodeInventoryInvalid, "options")
-	}
-	if basis.Schema != InventoryBasisSchema || len(subjects) != len(basis.Subjects) {
-		return Inventory{}, invalid(CodeInventoryInvalid, "items")
-	}
-	if len(subjects) > MaximumItems {
-		return Inventory{}, invalid(CodeLimitExceeded, "items")
-	}
-	canonical, err := canonicalInventoryJSON(basis)
-	if err != nil {
-		return Inventory{}, invalid(CodeInventoryInvalid, "inventory")
-	}
-	canonicalDigest := DigestBytes(canonical)
-	sourceDigest := DigestBytes(source)
-	worklist := WorklistManifest{Schema: WorklistSchema, Round: options.Round, Items: make([]WorklistItem, 0, len(subjects))}
-	execution := ExecutionManifest{Schema: ExecutionManifestSchema, Items: make([]ExecutionItem, 0, len(subjects))}
-	coverage := CoverageEnvelope{Schema: CoverageSchema, Rows: make([]CoverageRow, 0, len(subjects))}
-	tasks := make([]GeneratedTask, 0, len(subjects))
+	operation *OperationTask
+	scan      *ScanTask
 
-	seen := make(map[string]struct{}, len(subjects))
-	var generatedBytes int64
-	for ordinal, subject := range subjects {
-		if _, duplicate := seen[subject.itemKey]; duplicate {
-			return Inventory{}, invalid(CodeInventoryInvalid, "items.item_key")
-		}
-		seen[subject.itemKey] = struct{}{}
-		document := newItemTask(subject, sourceMediaType, sourceDigest, canonicalDigest, options)
-		documentBytes, encodeErr := EncodeItemTask(document)
-		if encodeErr != nil {
-			return Inventory{}, encodeErr
-		}
-		packageID := deterministicPackageID(documentBytes)
-		packageBytes, validatedPackage, packageErr := BuildPackage(packageID, PackageKindTask, "", []PackageInput{{
-			ID: "task-document", Path: "task.json", MediaType: "application/json", Data: documentBytes,
-		}})
-		if packageErr != nil {
-			return Inventory{}, packageErr
-		}
-		generatedBytes += int64(len(packageBytes))
-		if generatedBytes > MaximumGeneratedBytes {
-			return Inventory{}, invalid(CodeLimitExceeded, "generated_packages")
-		}
-		item := newWorklistItem(subject, ordinal, packageID, options)
-		worklist.Items = append(worklist.Items, item)
-		inputs := []ExactInput{{Name: options.SourceInputName, Ref: options.SourceRef.Clone(), Digest: sourceDigest}}
-		if subject.scan != nil {
-			settings := subject.scan.Settings
-			settings.Ref = settings.Ref.Clone()
-			inputs = append(inputs, settings)
-			sort.Slice(inputs, func(i, j int) bool { return inputs[i].Name < inputs[j].Name })
-		}
-		execution.Items = append(execution.Items, ExecutionItem{
-			ItemKey: subject.itemKey, Ordinal: ordinal, SubjectKey: subject.subjectKey,
-			TaskPackageID: packageID, TaskPackageDigest: validatedPackage.Digest,
-			Inputs: inputs,
-		})
-		coverage.Rows = append(coverage.Rows, newCoverageRow(subject))
-		tasks = append(tasks, GeneratedTask{
-			Item: item, Document: document, Package: packageBytes, PackageDigest: validatedPackage.Digest,
-		})
-	}
-	if err := validateWorklist(worklist); err != nil {
-		return Inventory{}, err
-	}
-	if err := validateExecutionManifest(execution); err != nil {
-		return Inventory{}, err
-	}
-	if err := validateCoverage(coverage); err != nil {
-		return Inventory{}, err
-	}
-	result := Inventory{
-		SourceContentDigest: sourceDigest, CanonicalInventoryDigest: canonicalDigest,
-		CanonicalInventory: canonical, Worklist: worklist, ExecutionManifest: execution,
-		Coverage: coverage, Tasks: tasks, Gaps: slices.Clone(basis.Gaps),
-	}
-	if err := ValidateInventory(result); err != nil {
-		return Inventory{}, err
-	}
-	return result, nil
-}
-
-// newItemTask returns the task document of one inventory subject.
-func newItemTask(
-	subject inventorySubject,
-	sourceMediaType, sourceDigest, canonicalDigest string,
-	options InventoryOptions,
-) ItemTask {
-	return ItemTask{
-		AcceptedPlan: subject.acceptedPlan, Dependencies: subject.dependencies,
-		Schema: TaskSchema, ProfileMode: options.ProfileMode, ItemKey: subject.itemKey, Kind: subject.kind,
-		SubjectKey: subject.subjectKey, WorkflowRole: options.WorkflowRole,
-		SourceContentDigest: sourceDigest, SourceMediaType: normalizedMediaType(sourceMediaType), SourceRef: options.SourceRef.Clone(),
-		CanonicalInventoryDigest: canonicalDigest,
-		Scope:                    copyStringMap(options.Scope), Checklist: subject.checklist,
-		Standard: subject.standard, Operation: subject.operation, Scan: subject.scan, Finding: subject.finding,
-	}
-}
-
-// newWorklistItem returns the worklist entry of one inventory subject.
-func newWorklistItem(subject inventorySubject, ordinal int, packageID string, options InventoryOptions) WorklistItem {
-	approval := subject.approval
-	// A trusted profile-level active-check gate is stronger than an
-	// inventory-authored/manual gate. One exact owner decision authorizes
-	// the resulting action, so untrusted inventory data can request more
-	// review but can never downgrade the profile policy.
-	if options.ApprovalRequirement == ApprovalActiveCheck || approval == "" {
-		approval = options.ApprovalRequirement
-	}
-	return WorklistItem{
-		ItemKey: subject.itemKey, Ordinal: ordinal, Kind: subject.kind,
-		SubjectKey: subject.subjectKey, WorkflowRole: options.WorkflowRole,
-		TaskPackageID: packageID, ApprovalRequirement: approval,
-	}
-}
-
-// newCoverageRow returns the initial coverage row of one inventory subject.
-func newCoverageRow(subject inventorySubject) CoverageRow {
-	return CoverageRow{
-		ItemKey: subject.itemKey, SubjectKey: subject.subjectKey, Status: "not-tested",
-		Requested: arrayStrings(subject.requested), Completed: []string{}, Gaps: arrayStrings(subject.gaps),
-	}
-}
-
-// ValidateInventory rechecks every cross-document identity and package before
-// a caller persists or dispatches any part of the all-or-nothing result.
-func ValidateInventory(value Inventory) error {
-	if !contentdigest.Valid(value.SourceContentDigest) || !contentdigest.Valid(value.CanonicalInventoryDigest) ||
-		DigestBytes(value.CanonicalInventory) != value.CanonicalInventoryDigest {
-		return invalid(CodeInventoryInvalid, "inventory.digest")
-	}
-	var basis inventoryBasis
-	_, err := decodeJSONWithBounds(value.CanonicalInventory, &basis, openAPIOutputBounds)
-	if err != nil || basis.Schema != InventoryBasisSchema {
-		return invalid(CodeInventoryInvalid, "inventory.canonical")
-	}
-	canonical, err := canonicalInventoryJSON(basis)
-	if err != nil || !bytes.Equal(canonical, value.CanonicalInventory) || !equalStringSlices(basis.Gaps, value.Gaps) ||
-		validateSortedStrings(basis.Gaps, MaximumCoverageValues, "inventory.gaps", false) != nil ||
-		basis.Kind != "checklist" && basis.Kind != "standard-mappings" &&
-			basis.Kind != "web-scans" && basis.Kind != "openapi-operations" && basis.Kind != "openapi-scans" && basis.Kind != "finding-candidates" {
-		return invalid(CodeInventoryInvalid, "inventory.canonical")
-	}
-	if basis.Selection != nil {
-		selection := basis.Selection
-		if basis.Kind != "standard-mappings" || selection.Scope == "" ||
-			selection.Scope != strings.TrimSpace(selection.Scope) || len([]byte(selection.Scope)) > 512 ||
-			len(selection.Levels) == 0 || len(selection.Levels) > 16 ||
-			len(selection.EntryIDs) == 0 || len(selection.EntryIDs) > MaximumItems ||
-			!strictlySortedNonEmpty(selection.Levels) || !strictlySortedNonEmpty(selection.EntryIDs) {
-			return invalid(CodeInventoryInvalid, "inventory.standard_selection")
-		}
-	}
-	if err := validateWorklist(value.Worklist); err != nil {
-		return err
-	}
-	if err := validateExecutionManifest(value.ExecutionManifest); err != nil {
-		return err
-	}
-	if err := validateCoverage(value.Coverage); err != nil {
-		return err
-	}
-	count := len(value.Worklist.Items)
-	if len(basis.Subjects) != count || len(value.ExecutionManifest.Items) != count || len(value.Coverage.Rows) != count || len(value.Tasks) != count {
-		return invalid(CodeInventoryInvalid, "inventory.membership")
-	}
-	var generatedBytes int64
-	for index := 0; index < count; index++ {
-		workItem := value.Worklist.Items[index]
-		executionItem := value.ExecutionManifest.Items[index]
-		coverage := value.Coverage.Rows[index]
-		generated := value.Tasks[index]
-		if generated.Item != workItem || executionItem.Ordinal != workItem.Ordinal || executionItem.ItemKey != workItem.ItemKey ||
-			executionItem.SubjectKey != workItem.SubjectKey || executionItem.TaskPackageID != workItem.TaskPackageID ||
-			coverage.ItemKey != workItem.ItemKey || coverage.SubjectKey != workItem.SubjectKey || generated.Document.ItemKey != workItem.ItemKey ||
-			generated.Document.SubjectKey != workItem.SubjectKey || generated.Document.WorkflowRole != workItem.WorkflowRole ||
-			generated.Document.SourceContentDigest != value.SourceContentDigest || generated.Document.CanonicalInventoryDigest != value.CanonicalInventoryDigest {
-			return invalid(CodeInventoryInvalid, "inventory.membership")
-		}
-		if generated.Document.AcceptedPlan != nil && workItem.ApprovalRequirement != generated.Document.AcceptedPlan.Authorization.ApprovalRequirement {
-			return invalid(CodeInvalid, "accepted_plan.approval")
-		}
-		if coverage.Status != "not-tested" || len(coverage.Completed) != 0 {
-			return invalid(CodeInventoryInvalid, "inventory.coverage")
-		}
-		if err := validateBasisItem(basis, value.CanonicalInventoryDigest, index, workItem, generated.Document, coverage); err != nil {
-			return err
-		}
-		sourceInputs := executionItem.Inputs
-		if generated.Document.Scan != nil {
-			sourceInputs = nil
-			found := false
-			for _, input := range executionItem.Inputs {
-				if input.Name == generated.Document.Scan.Settings.Name {
-					if !sameCanonicalValue(input, generated.Document.Scan.Settings) {
-						return invalid(CodeInventoryInvalid, "inventory.inputs")
-					}
-					found = true
-				} else {
-					sourceInputs = append(sourceInputs, input)
-				}
-			}
-			if !found {
-				return invalid(CodeInventoryInvalid, "inventory.inputs")
-			}
-		}
-		if len(sourceInputs) != 1 || sourceInputs[0].Digest != value.SourceContentDigest ||
-			!sourceInputs[0].Ref.Equal(generated.Document.SourceRef) {
-			return invalid(CodeInventoryInvalid, "inventory.inputs")
-		}
-		validated, err := ValidatePackage(generated.Package)
-		if err != nil || validated.Manifest.Kind != PackageKindTask || validated.Manifest.PackageID != workItem.TaskPackageID ||
-			validated.Digest != generated.PackageDigest || executionItem.TaskPackageDigest != generated.PackageDigest || len(validated.Members()) != 1 {
-			return invalid(CodeInventoryInvalid, "inventory.task_package")
-		}
-		member, exists := validated.MemberByID("task-document")
-		metadata := member.Metadata()
-		if !exists || metadata.Path != "task.json" || metadata.MediaType != "application/json" {
-			return invalid(CodeInventoryInvalid, "inventory.task_package")
-		}
-		decoded, err := DecodeItemTask(member.Data())
-		if err != nil {
-			return invalid(CodeInventoryInvalid, "inventory.task_package")
-		}
-		stored, err := EncodeItemTask(generated.Document)
-		if err != nil || !bytes.Equal(stored, member.Data()) || deterministicPackageID(stored) != workItem.TaskPackageID {
-			return invalid(CodeInventoryInvalid, "inventory.task_package")
-		}
-		decodedBytes, err := EncodeItemTask(decoded)
-		if err != nil || !bytes.Equal(decodedBytes, stored) {
-			return invalid(CodeInventoryInvalid, "inventory.task_package")
-		}
-		generatedBytes += int64(len(generated.Package))
-		if generatedBytes > MaximumGeneratedBytes {
-			return invalid(CodeLimitExceeded, "generated_packages")
-		}
-	}
-	return nil
-}
-
-func validateBasisItem(
-	basis inventoryBasis,
-	canonicalDigest string,
-	index int,
-	item WorklistItem,
-	task ItemTask,
-	coverage CoverageRow,
-) error {
-	subject := basis.Subjects[index]
-	switch basis.Kind {
-	case "openapi-scans", "web-scans":
-		if task.Scan == nil || (basis.Kind == "openapi-scans" && item.Kind != "openapi-scan" || basis.Kind == "web-scans" && item.Kind != "web-scan") ||
-			(item.ApprovalRequirement != ApprovalActiveCheck && item.ApprovalRequirement != ApprovalNone) ||
-			item.ItemKey != openAPIScanKey(canonicalDigest, task.Scan.Operation) || item.SubjectKey != item.ItemKey ||
-			!equalStringSlices(coverage.Requested, []string{task.Scan.CoverageRequirement()}) ||
-			!equalStringSlices(coverage.Gaps, task.Scan.Gaps) ||
-			!sameCanonicalValue(subject, map[string]any{"scan": task.Scan}) {
-			return invalid(CodeInventoryInvalid, "inventory.scan")
-		}
-	case "checklist":
-		itemKey, ok := subject["item_key"].(string)
-		if !ok || itemKey != item.ItemKey || item.Kind != "checklist" || task.Checklist == nil ||
-			!equalStringSlices(coverage.Requested, task.Checklist.RequiredEvidence) || len(coverage.Gaps) != 0 ||
-			task.Checklist.ReviewPolicy == "manual" &&
-				item.ApprovalRequirement != ApprovalHumanReview &&
-				item.ApprovalRequirement != ApprovalActiveCheck ||
-			!sameCanonicalValue(subject, map[string]any{
-				"item_key": item.ItemKey, "version": task.Checklist.Version, "statement": task.Checklist.Statement,
-				"applicability": task.Checklist.Applicability, "allowed_methods": task.Checklist.AllowedMethods,
-				"required_evidence": task.Checklist.RequiredEvidence, "review_policy": task.Checklist.ReviewPolicy,
-			}) {
-			return invalid(CodeInventoryInvalid, "inventory.checklist")
-		}
-	case "standard-mappings":
-		if task.Checklist == nil || task.Standard == nil || item.Kind != "standard-mapping" ||
-			item.ItemKey != task.Standard.MappingKey || item.SubjectKey != task.Standard.MappingKey ||
-			!equalStringSlices(coverage.Requested, task.Checklist.RequiredEvidence) || len(coverage.Gaps) != 0 ||
-			task.Checklist.ReviewPolicy == "manual" &&
-				item.ApprovalRequirement != ApprovalHumanReview &&
-				item.ApprovalRequirement != ApprovalActiveCheck ||
-			!sameCanonicalValue(subject, map[string]any{
-				"item_key": item.ItemKey, "subject_key": item.SubjectKey,
-				"checklist": task.Checklist, "standard": task.Standard,
-			}) {
-			return invalid(CodeInventoryInvalid, "inventory.standard_mappings")
-		}
-		if basis.Selection != nil && (len(task.Standard.EntryIDs) != 1 ||
-			!slices.Contains(basis.Selection.EntryIDs, task.Standard.EntryIDs[0])) {
-			return invalid(CodeInventoryInvalid, "inventory.standard_selection")
-		}
-	case "openapi-operations":
-		pathTemplate, pathOK := subject["path"].(string)
-		method, methodOK := subject["method"].(string)
-		expectedKey, keyErr := openAPIOperationKey(canonicalDigest, pathTemplate, method)
-		if !pathOK || !methodOK || task.Operation == nil || item.Kind != "operation-trace" ||
-			task.Operation.Path != pathTemplate || task.Operation.Method != method ||
-			keyErr != nil || item.ItemKey != expectedKey ||
-			!equalStringSlices(coverage.Requested, []string{"operation-resolution"}) ||
-			!equalStringSlices(coverage.Gaps, task.Operation.Gaps) ||
-			!sameCanonicalOpenAPIValue(subject, map[string]any{
-				"path": task.Operation.Path, "method": task.Operation.Method,
-				"resolved": task.Operation.Resolved, "gaps": task.Operation.Gaps,
-			}) {
-			return invalid(CodeInventoryInvalid, "inventory.operation")
-		}
-	case "finding-candidates":
-		expected := map[string]any{}
-		if task.Finding != nil {
-			expected = map[string]any{"receipt_id": task.Finding.ReceiptID, "proposal_ref": task.Finding.ProposalRef, "proposal_digest": task.Finding.ProposalDigest, "proposed_check_ordinal": task.Finding.ProposedCheckOrdinal, "objective": task.Finding.Objective, "method": task.Finding.Method, "subject_key": task.SubjectKey, "limitations": task.Finding.Limitations}
-		}
-		if task.AcceptedPlan != nil {
-			expected["accepted_plan"] = task.AcceptedPlan
-		}
-		if task.Finding == nil || item.Kind != "finding-verification" ||
-			!equalStringSlices(coverage.Requested, []string{task.Finding.Method}) ||
-			!equalStringSlices(coverage.Gaps, task.Finding.Limitations) ||
-			!sameCanonicalValue(subject, expected) {
-			return invalid(CodeInventoryInvalid, "inventory.finding")
-		}
-	}
-	return nil
+	requested []string
+	gaps      []string
 }
 
 func canonicalInventoryJSON(basis inventoryBasis) ([]byte, error) {
@@ -360,12 +23,6 @@ func canonicalInventoryJSON(basis inventoryBasis) ([]byte, error) {
 		return canonicalOpenAPIJSON(basis)
 	}
 	return canonicalJSON(basis)
-}
-
-func sameCanonicalOpenAPIValue(left, right any) bool {
-	leftBytes, leftErr := canonicalOpenAPIJSON(left)
-	rightBytes, rightErr := canonicalOpenAPIJSON(right)
-	return leftErr == nil && rightErr == nil && bytes.Equal(leftBytes, rightBytes)
 }
 
 func sameCanonicalValue(left, right any) bool {
@@ -386,21 +43,6 @@ func equalStringSlices(left, right []string) bool {
 	return true
 }
 
-func validateInventoryOptions(options InventoryOptions, sourceMediaType string) error {
-	if options.Round <= 0 || validateIdentifier(options.WorkflowRole, "workflow_role") != nil ||
-		options.ProfileMode != "" && !validAuditProfileMode(options.ProfileMode) ||
-		validateIdentifier(options.SourceInputName, "source_input_name") != nil || !validApprovalRequirement(options.ApprovalRequirement) ||
-		!validMediaType(sourceMediaType) || options.SourceRef.ValidateExact() != nil || len(options.Scope) > 64 {
-		return invalid(CodeInventoryInvalid, "options")
-	}
-	for key, value := range options.Scope {
-		if validateIdentifier(key, "scope") != nil || validateText(value, "scope", false) != nil {
-			return invalid(CodeInventoryInvalid, "options.scope")
-		}
-	}
-	return nil
-}
-
 func validAuditProfileMode(mode string) bool {
 	switch mode {
 	case "risk-assessment", "requirements-verification", "custom-checklist", "operation-tracing", "finding-verification":
@@ -408,11 +50,6 @@ func validAuditProfileMode(mode string) bool {
 	default:
 		return false
 	}
-}
-
-func deterministicPackageID(document []byte) string {
-	digest := DigestBytes(append([]byte("contractor.audit.task-package.v1\x00"), document...))
-	return "task-" + strings.TrimPrefix(digest, "sha256:")
 }
 
 func cloneMap(value map[string]any) map[string]any {

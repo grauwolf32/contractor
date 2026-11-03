@@ -13,7 +13,6 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -159,70 +158,6 @@ func TestAuditRejectsTerminalDeadlineResumeWithoutChangingRetainedState(t *testi
 			}
 			if after := auditTimeControlSnapshot(t, ctx, pool); !bytes.Equal(before, after) {
 				t.Fatal("terminal Resume changed retained authority, reports, items or reviews")
-			}
-		})
-	}
-}
-
-func TestAuditDeadlinePauseResumesAndRenewsExpiredReviews(t *testing.T) {
-	for _, mode := range []string{"default", "extended", "unlimited"} {
-		t.Run(mode, func(t *testing.T) {
-			ctx, pool, service, started, now := newTimeControlAudit(t, 7200)
-			*now = started.Audit.DeadlineAt.Add(time.Minute)
-			if _, err := pool.Exec(ctx, `UPDATE audits SET state='paused',paused_at=deadline_at,stop_reason_code='deadline_exhausted',stop_reason_message='Time limit reached' WHERE audit_id='audit-time'`); err != nil {
-				t.Fatal(err)
-			}
-			if _, err := pool.Exec(ctx, `UPDATE audit_review_requests SET expires_at=clock_timestamp()-interval '1 minute' WHERE audit_id='audit-time'`); err != nil {
-				t.Fatal(err)
-			}
-			params := MutationParams{OwnerID: started.Audit.OwnerID, AuditID: started.Audit.AuditID, ExpectedRevision: started.Audit.Revision, IdempotencyKey: "resume-deadline", RequestDigest: serviceTestDigest("resume-deadline")}
-			profile, err := auditprofile.DecodeResolvedAuditProfileSnapshot(started.Audit.ProfileSnapshot)
-			if err != nil {
-				t.Fatal(err)
-			}
-			seconds := profile.Execution.DeadlineSeconds
-			if mode == "extended" {
-				seconds = 86400
-				params.DeadlineSeconds = &seconds
-			}
-			if mode == "unlimited" {
-				seconds = 0
-				params.DeadlineSeconds = &seconds
-			}
-			resumed, err := service.Resume(ctx, params)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if resumed.Audit.State != auditstore.AuditActive || resumed.Audit.Hold != auditstore.HoldHeld || resumed.Audit.Dispatch != auditstore.DispatchOpen || resumed.Audit.PausedAt != nil || resumed.Audit.StopReason != nil {
-				t.Fatalf("deadline Resume = %+v", resumed.Audit)
-			}
-			if seconds == 0 {
-				if resumed.Audit.DeadlineAt != nil {
-					t.Fatal("unlimited Resume retained deadline")
-				}
-			} else if resumed.Audit.DeadlineAt == nil || !resumed.Audit.DeadlineAt.Equal(now.Add(time.Duration(seconds)*time.Second)) {
-				t.Fatal("deadline Resume did not apply the selected allowance")
-			}
-			var pending, expired, awaiting int
-			if err := pool.QueryRow(ctx, `SELECT count(*) FILTER (WHERE state='pending'),count(*) FILTER (WHERE state='expired') FROM audit_review_requests WHERE audit_id='audit-time'`).Scan(&pending, &expired); err != nil {
-				t.Fatal(err)
-			}
-			if err := pool.QueryRow(ctx, `SELECT count(*) FROM audit_items WHERE audit_id='audit-time' AND item_key='manual' AND state='awaiting_review'`).Scan(&awaiting); err != nil {
-				t.Fatal(err)
-			}
-			if pending != 1 || expired != 1 || awaiting != 1 {
-				t.Fatalf("reviews pending=%d expired=%d awaiting=%d", pending, expired, awaiting)
-			}
-			if !bytes.Equal(resumed.Audit.BaselineSnapshot, started.Audit.BaselineSnapshot) {
-				t.Fatal("Resume rewrote baseline")
-			}
-			before := auditTimeControlSnapshot(t, ctx, pool)
-			replayed, err := service.Resume(ctx, params)
-			if err != nil || !replayed.Replayed || replayed.Audit.Revision != resumed.Audit.Revision {
-				t.Fatalf("Resume replay = %+v, %v", replayed, err)
-			}
-			if after := auditTimeControlSnapshot(t, ctx, pool); !bytes.Equal(before, after) {
-				t.Fatal("Resume replay changed retained state")
 			}
 		})
 	}

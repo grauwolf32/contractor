@@ -1,4 +1,3 @@
-import { pollInterval } from "../../../app/polling";
 import {
   useInfiniteQuery,
   useQuery,
@@ -7,22 +6,18 @@ import {
 import { useState } from "react";
 import { Link } from "react-router";
 import {
-  getProjectFinding,
   getProjectFindingSource,
-  listProjectFindingSources,
   listProjectFindingSourceHistory,
+  listProjectFindingSources,
   type ProjectFinding,
-  type ProjectFindingSummary,
 } from "../../../api/audits";
 import { usePublicAPI } from "../../../api/context";
 import { RecordedTime } from "../../../app/recorded-time";
-import { findingStateLabel } from "../../../app/vocabulary";
-import { Button, StatusChip, TechnicalDetails } from "../../../ui";
-import { FindingDecision, FindingSummary } from "../../decisions";
+import { Button } from "../../../ui";
 import { artifactDetailPath } from "../../artifacts/paths";
-import { ExactArtifactLink } from "./shared";
-import "../../issues/issues.css";
 import { SourceEvidence } from "../../issues/evidence-panel";
+import "../../issues/issues.css";
+import { ExactArtifactLink } from "./shared";
 
 function SourceHistory({
   projectId,
@@ -234,55 +229,5 @@ export function FindingSources({ finding }: { finding: ProjectFinding }) {
         receiptId={selected}
       />
     </section>
-  );
-}
-export function AuditFindingCard({
-  finding,
-}: {
-  finding: ProjectFinding | ProjectFindingSummary;
-}) {
-  const api = usePublicAPI();
-  const [expanded, setExpanded] = useState(false);
-  const state = findingStateLabel(finding.state);
-  const detail = useQuery({
-    queryKey: ["project-findings", finding.projectId, finding.findingId],
-    queryFn: () => getProjectFinding(api, finding.projectId, finding.findingId),
-    enabled: expanded,
-    refetchInterval: pollInterval({ interval: 20_000 }),
-    retry: false,
-  });
-  return (
-    <article className="issues-card" id={`finding-${finding.findingId}`}>
-      <h3>
-        <Link
-          to={`/issues/${encodeURIComponent(finding.projectId)}/${encodeURIComponent(finding.findingId)}`}
-        >
-          {finding.title}
-        </Link>
-      </h3>
-      <StatusChip tone={state.tone}>{state.label}</StatusChip>
-      <Button size="xs" onClick={() => setExpanded(!expanded)}>
-        {expanded ? "Hide details" : "Assess possible issue"}
-      </Button>
-      {expanded && detail.isPending ? (
-        <p role="status">Loading possible issue…</p>
-      ) : null}
-      {detail.error === null ? null : (
-        <p role="alert">{detail.error.message}</p>
-      )}
-      {expanded && detail.data !== undefined ? (
-        <>
-          <FindingSummary finding={detail.data} titleAs="h3" />
-          <FindingDecision finding={detail.data} />
-          <FindingSources finding={detail.data} />
-          <TechnicalDetails>
-            <p>
-              Project {finding.projectId} · Finding {finding.findingId} ·
-              Revision {detail.data.revision}
-            </p>
-          </TechnicalDetails>
-        </>
-      ) : null}
-    </article>
   );
 }

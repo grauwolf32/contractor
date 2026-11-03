@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -72,9 +73,12 @@ func TestAuditCompletionGateRejectsFalseGreenGoReports(t *testing.T) {
 		valid += event("pass", pkg, "")
 	}
 	bridgePackage := "github.com/grauwolf32/contractor/internal/auditimport"
-	bridge := "TestAuditCompletionRuntimeZIPImporter/process-loss-same-run-and-new-child"
+	bridge := "TestCommonImporterInputFailureRequiresExactOwnedChild"
 	databasePackage := "github.com/grauwolf32/contractor/internal/runservice"
-	database := "TestAuditCompletionPostgresAtomicCreationRestartAndAllocation"
+	database := "TestSharedPostgresCommonCompletionPinsExactRunContextAndMembership"
+	if !slices.Contains(required[bridgePackage], bridge) || !slices.Contains(required[databasePackage], database) {
+		t.Fatal("negative probes must mutate mandatory matrix cases")
+	}
 	for _, test := range []struct {
 		name, body string
 		passed     bool
@@ -159,7 +163,7 @@ func TestAuditCompletionGateRequiresPrerequisites(t *testing.T) {
 				if err := os.Mkdir(filepath.Join(root, "scripts"), 0700); err != nil {
 					t.Fatal(err)
 				}
-				for _, name := range []string{"test-audit-completion-e2e.py", "release_test_reports.py"} {
+				for _, name := range []string{"test-audit-completion-e2e.py", "release_test_reports.py", "audit-completion-matrix.json"} {
 					data, err := os.ReadFile(filepath.Join("../../scripts", name))
 					if err != nil {
 						t.Fatal(err)

@@ -201,7 +201,6 @@ async function installFixture(
         await fulfillJSON(
           route,
           audit("project-audit", "audit-one", "failed", {
-            currentRoundId: "round-one",
             holdState: "released",
             reservedRunCount: 1,
             submittedRunCount: 1,

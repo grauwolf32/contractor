@@ -1,22 +1,18 @@
-import { useQuery, type QueryClient } from "@tanstack/react-query";
+import { type QueryClient } from "@tanstack/react-query";
 import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useParams } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { getAudit } from "../../api/audits";
-import { usePublicAPI } from "../../api/context";
 import { queryKeys } from "../../api/query-keys";
 import { deferred } from "../../test/deferred";
 import { failure, json } from "../../test/responses";
-import { AuditReportView } from "../projects/audits/report";
 import {
   acceptanceReview,
   audit,
-  reportsServer,
   project,
   renderRoutes,
   report,
+  reportsServer,
   type ReportsServer,
   type ServerState,
 } from "./test-support";
@@ -644,107 +640,5 @@ describe("Report detail", () => {
     expect(
       await screen.findByText("This report link is not valid"),
     ).toBeVisible();
-  });
-});
-
-function CheckReportSection() {
-  const api = usePublicAPI();
-  const { auditId = "" } = useParams();
-  const check = useQuery({
-    queryKey: queryKeys.audits.detail(auditId),
-    queryFn: () => getAudit(api, auditId),
-  });
-  return check.data === undefined ? null : (
-    <AuditReportView audit={check.data} api={api} />
-  );
-}
-
-describe("AuditReportView", () => {
-  const routes = [
-    {
-      path: "/projects/:projectId/audits/:auditId/report",
-      element: <CheckReportSection />,
-    },
-  ];
-
-  it("shows the report on the check page with the decision inline", async () => {
-    renderRoutes(
-      "/projects/project_payment/audits/audit_proposed/report",
-      reportsServer(state()),
-      routes,
-    );
-    const section = await screen.findByRole("region", { name: "Report" });
-    expect(
-      within(section).getByRole("heading", { level: 2, name: "Report" }),
-    ).toBeVisible();
-    expect(
-      await within(section).findByText("Waiting for acceptance"),
-    ).toBeVisible();
-    expect(
-      within(section).getByText("This report is awaiting owner acceptance."),
-    ).toBeVisible();
-    const acceptance = within(section).getByRole("region", {
-      name: "Report acceptance",
-    });
-    expect(
-      within(acceptance).getByRole("region", { name: "Your decision" }),
-    ).toBeVisible();
-    expect(
-      within(section).getByRole("button", { name: "Download JSON" }),
-    ).toBeVisible();
-  });
-
-  it("keeps the recorded acceptance in the section after approval", async () => {
-    const user = userEvent.setup();
-    renderRoutes(
-      "/projects/project_payment/audits/audit_proposed/report",
-      reportsServer(state()),
-      routes,
-    );
-    const section = await screen.findByRole("region", { name: "Report" });
-    const acceptance = await within(section).findByRole("region", {
-      name: "Report acceptance",
-    });
-    const decision = within(acceptance).getByRole("region", {
-      name: "Your decision",
-    });
-    await user.click(within(decision).getByRole("button", { name: "Approve" }));
-    await user.type(
-      within(decision).getByRole("textbox", { name: "Why" }),
-      "Coverage and gaps are stated plainly.",
-    );
-    await user.click(
-      within(decision).getByRole("button", { name: "Record decision" }),
-    );
-
-    expect(
-      await within(acceptance).findByText("Decision recorded: Approved."),
-    ).toBeVisible();
-    // The same section keeps the recorded decision, and focus stays on it.
-    expect(
-      within(section).getByRole("region", { name: "Report acceptance" }),
-    ).toBe(acceptance);
-    const record = within(acceptance).getByRole("group", {
-      name: "Decision on report acceptance",
-    });
-    expect(within(record).getByText("Approved")).toBeVisible();
-    expect(record).toHaveFocus();
-    expect(await within(section).findByText("Ready")).toBeVisible();
-    expect(
-      within(acceptance).queryByRole("region", { name: "Your decision" }),
-    ).toBeNull();
-  });
-
-  it("offers no decision on a ready report", async () => {
-    renderRoutes(
-      "/projects/project_payment/audits/audit_ready/report",
-      reportsServer(state()),
-      routes,
-    );
-    const section = await screen.findByRole("region", { name: "Report" });
-    expect(await within(section).findByText("Ready")).toBeVisible();
-    expect(
-      within(section).queryByRole("region", { name: "Report acceptance" }),
-    ).toBeNull();
   });
 });

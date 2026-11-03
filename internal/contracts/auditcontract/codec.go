@@ -11,13 +11,14 @@ import (
 	"sync"
 	"unicode/utf8"
 
+	"strings"
+
 	auditschema "github.com/grauwolf32/contractor/api/audit/v1"
 	wireschema "github.com/grauwolf32/contractor/api/v1alpha1"
 	"github.com/grauwolf32/contractor/internal/apierror"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	jsonschema "github.com/santhosh-tekuri/jsonschema/v6"
-	"strings"
 )
 
 // MaximumDocumentBytes retains the existing Audit JSON-document ceiling.
@@ -280,6 +281,9 @@ func validProgram(v map[string]any) bool {
 	}
 	for _, raw := range workflows {
 		binding := raw.(map[string]any)
+		if ceiling, exists := binding["max_attempts"]; exists && ceiling.(float64) > limits["max_attempts"].(float64) {
+			return false
+		}
 		for _, item := range binding["inputs"].(map[string]any) {
 			source := item.(map[string]any)
 			if source["source"] == "audit-input" {

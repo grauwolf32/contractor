@@ -142,7 +142,7 @@ func decodeAuditProgram(audit auditstore.Audit) (auditprofile.PinnedProgram, err
 		return auditprofile.PinnedProgram{}, err
 	}
 	limits := pinned.Program.Limits
-	if audit.Profile.Name != pinned.Ref.Name || audit.Profile.Version != pinned.Ref.Version || audit.Profile.Digest != pinned.Ref.Digest || audit.Limits.MaxRounds != limits.MaxIterations || audit.Limits.BatchSize != limits.BatchSize || audit.Limits.MaxItemsPerRound != limits.MaxTasksPerIteration || audit.Limits.MaxItemsTotal != limits.MaxTasks || audit.Limits.MaxSubmittedRuns != limits.MaxSubmittedRuns || audit.Limits.MaxItemRunAttempts != limits.MaxAttempts || audit.Limits.MaxEvidenceBytes != limits.MaxEvidenceBytes {
+	if audit.Profile.Name != pinned.Ref.Name || audit.Profile.Version != pinned.Ref.Version || audit.Profile.Digest != pinned.Ref.Digest || validateLimits(audit.Limits) != nil || audit.Limits.MaxRounds > limits.MaxIterations || audit.Limits.BatchSize > limits.BatchSize || audit.Limits.MaxItemsPerRound > limits.MaxTasksPerIteration || audit.Limits.MaxItemsTotal > limits.MaxTasks || audit.Limits.MaxSubmittedRuns > limits.MaxSubmittedRuns || audit.Limits.MaxItemRunAttempts > limits.MaxAttempts || audit.Limits.MaxEvidenceBytes > limits.MaxEvidenceBytes {
 		return auditprofile.PinnedProgram{}, errStoredTask
 	}
 	return pinned, nil

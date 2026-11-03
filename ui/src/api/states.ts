@@ -9,7 +9,6 @@ import type { components } from "./generated/public";
  */
 
 type AuditState = components["schemas"]["AuditState"];
-type AuditPhase = components["schemas"]["AuditPhase"];
 type WorkflowRunState = components["schemas"]["WorkflowRunState"];
 type NonTerminalRunState = components["schemas"]["NonTerminalWorkflowRunState"];
 type TerminalRunState = Exclude<WorkflowRunState, NonTerminalRunState>;
@@ -112,21 +111,6 @@ export const CHANGING_AUDIT_STATES = [
   "cancelling",
   "deleting",
 ] as const satisfies readonly AuditState[];
-
-/**
- * Whether an Audit in `phase` has started and has no Round yet: it is
- * preparing or building its inventory, so it has no current Round and no
- * check has run (AUD-R194). The Server's AuditPhase.PrecedesRounds selects
- * the same phases.
- */
-export function auditPrecedesRounds(phase: AuditPhase): boolean {
-  return phase === "preparing" || phase === "inventory";
-}
-
-/** Whether material preparation has finished and inventory or Rounds can run. */
-export function auditPastPreparation(phase: AuditPhase): boolean {
-  return phase === "inventory" || phase === "rounds";
-}
 
 /** Whether `state` is one of `states`, for a narrowly typed list. */
 export function isStateIn<S extends string>(

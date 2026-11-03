@@ -48,19 +48,10 @@ type Store interface {
 	Claim(context.Context, auditstore.ClaimParams) ([]auditstore.ControllerClaim, error)
 	ReleaseClaim(context.Context, auditstore.ControllerClaim) error
 	RenewClaim(context.Context, auditstore.ControllerClaim, time.Duration) error
-	ExpireReportReview(context.Context, auditstore.ControllerClaim, uint64) (bool, error)
-	RenewExpiredItemReview(context.Context, auditstore.ControllerClaim, uint64) (bool, error)
 	TransitionClaimed(context.Context, auditstore.ClaimedTransitionParams) (auditstore.Audit, error)
-	TransitionRound(context.Context, auditstore.RoundTransitionParams) (auditstore.Round, error)
 	GetReconcileSnapshot(context.Context, auditstore.ControllerClaim) (auditstore.ReconcileSnapshot, error)
-	CompletePreparation(context.Context, auditstore.ControllerClaim, uint64) (auditstore.Audit, error)
-	AcceptInitialRound(context.Context, auditstore.AcceptInitialRoundParams) (auditstore.Round, bool, error)
-	CreateExecutionIntent(context.Context, auditstore.CreateExecutionIntentParams) (auditstore.Execution, bool, error)
-	NextItemAttempts(context.Context, auditstore.ControllerClaim, []string) (map[string]int, error)
 	ObserveTerminal(context.Context, auditstore.ObserveTerminalParams) (auditstore.Execution, error)
 	ObserveSubmissionFailure(context.Context, auditstore.ObserveSubmissionFailureParams) (auditstore.Execution, error)
-	AcceptNextRound(context.Context, auditstore.AcceptRoundParams) (auditstore.Round, bool, error)
-	SettleUndispatched(context.Context, auditstore.ControllerClaim, int) (int, error)
 	SettleUndispatchedTasks(context.Context, auditstore.ControllerClaim, int) (int, error)
 	SelectTasks(context.Context, auditstore.SelectTasksParams) (auditstore.Execution, bool, error)
 	ReleaseDispatchHold(context.Context, auditstore.ControllerClaim) (auditstore.Audit, bool, error)
@@ -73,8 +64,6 @@ type Store interface {
 // of the Audit store.
 type Reader interface {
 	ListExecutionTasks(context.Context, string, string) ([]auditstore.Task, error)
-	ListExecutionItems(context.Context, string) ([]auditstore.ExecutionItem, error)
-	ListItemsByIDs(context.Context, string, []string) ([]auditstore.Item, error)
 }
 
 // RunStore is what the Controller reads and requests of its child Runs beyond
@@ -97,48 +86,8 @@ type RunNotifier interface {
 	Cancel(string)
 }
 
-// PreparedSubmission contains the exact durable intent and the matching
-// trusted Run Service request. Claim and Run identity callbacks are attached
-// only by the Controller.
-type PreparedSubmission struct {
-	Intent auditstore.CreateExecutionIntentParams
-	Run    runservice.AuditCreateParams
-}
-
-// CheckExecutionMember is one independently attempted AuditItem selected for
-// an ordered check execution. Batch position is derived from slice order; it
-// is never supplied by a model or by mutable Workflow state.
-type CheckExecutionMember struct {
-	Item    auditstore.Item
-	Attempt int
-}
-
-type SubmissionBuilder interface {
-	WithClaim(auditstore.ControllerClaim) SubmissionBuilder
-	// PrepareBatch may select a non-empty ordered prefix of the supplied
-	// candidates to satisfy trusted encoded-package byte limits.
-	PrepareBatch(context.Context, auditstore.ReconcileSnapshot, []CheckExecutionMember) (PreparedSubmission, error)
-	PrepareRole(context.Context, auditstore.ReconcileSnapshot, string, int) (PreparedSubmission, error)
-}
-
 type Collector interface {
 	Collect(context.Context, auditstore.ControllerClaim, auditstore.ReconcileSnapshot, auditstore.Execution) (bool, error)
-	Finalize(context.Context, auditstore.ControllerClaim, auditstore.ReconcileSnapshot) (bool, error)
-}
-
-// RoundBuilder prepares the immutable manifest and exact proposal bindings for
-// a later Audit round. The Store remains responsible for claim-bound atomic
-// acceptance and consume-once validation.
-type RoundBuilder interface {
-	PrepareNextRound(
-		context.Context,
-		auditstore.ControllerClaim,
-		auditstore.ReconcileSnapshot,
-	) (auditstore.AcceptRoundParams, *auditstore.StopReason, error)
-}
-
-type InitialRoundBuilder interface {
-	PrepareInitialRound(context.Context, auditstore.ControllerClaim, auditstore.ReconcileSnapshot) (auditstore.AcceptInitialRoundParams, *auditstore.StopReason, error)
 }
 
 type Clock interface {
@@ -151,32 +100,27 @@ type TaskIntake interface {
 }
 
 type Options struct {
-	PollInterval        time.Duration
-	ClaimLease          time.Duration
-	OperationTimeout    time.Duration
-	ClaimBatch          int
-	HolderID            string
-	Clock               Clock
-	NewID               func(string) (string, error)
-	Logger              *slog.Logger
-	Collector           Collector
-	RoundBuilder        RoundBuilder
-	InitialRoundBuilder InitialRoundBuilder
-	TaskIntake          TaskIntake
+	PollInterval     time.Duration
+	ClaimLease       time.Duration
+	OperationTimeout time.Duration
+	ClaimBatch       int
+	HolderID         string
+	Clock            Clock
+	NewID            func(string) (string, error)
+	Logger           *slog.Logger
+	Collector        Collector
+	TaskIntake       TaskIntake
 }
 
 type Controller struct {
-	store               Store
-	reads               Reader
-	runs                RunStore
-	deleter             RunDeleter
-	creator             RunCreator
-	builder             SubmissionBuilder
-	collector           Collector
-	roundBuilder        RoundBuilder
-	initialRoundBuilder InitialRoundBuilder
-	notifier            RunNotifier
-	options             Options
+	store     Store
+	reads     Reader
+	runs      RunStore
+	deleter   RunDeleter
+	creator   RunCreator
+	collector Collector
+	notifier  RunNotifier
+	options   Options
 	// drainLimit is maxDrainMutationsPerStep, the bound of every batched
 	// drain phase of a reconcile step.
 	drainLimit int
@@ -193,11 +137,10 @@ func New(
 	runs RunStore,
 	deleter RunDeleter,
 	creator RunCreator,
-	builder SubmissionBuilder,
 	notifier RunNotifier,
 	options Options,
 ) (*Controller, error) {
-	if store == nil || reads == nil || runs == nil || deleter == nil || creator == nil || builder == nil || notifier == nil {
+	if store == nil || reads == nil || runs == nil || deleter == nil || creator == nil || notifier == nil {
 		return nil, errors.New("Audit Controller dependencies are incomplete")
 	}
 	if options.PollInterval == 0 {
@@ -235,9 +178,9 @@ func New(
 		options.HolderID = value
 	}
 	return &Controller{
-		store: store, reads: reads, runs: runs, deleter: deleter, creator: creator, builder: builder,
-		collector: options.Collector, roundBuilder: options.RoundBuilder, initialRoundBuilder: options.InitialRoundBuilder,
-		notifier: notifier, options: options, drainLimit: maxDrainMutationsPerStep,
+		store: store, reads: reads, runs: runs, deleter: deleter, creator: creator,
+		collector: options.Collector,
+		notifier:  notifier, options: options, drainLimit: maxDrainMutationsPerStep,
 	}, nil
 }
 

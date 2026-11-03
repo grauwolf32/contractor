@@ -41,59 +41,12 @@ const SUGGESTION_RULES: readonly SuggestionRule[] = [
       "Your objective mentions Nuclei, misconfiguration or security headers, and this check type runs Nuclei on the endpoints your scan settings select.",
   },
   {
-    id: "checklist",
-    checkTypes: ["source-checklist"],
-    words: /\b(?:checklists?|my own checks|custom checks)\b/i,
-    reason:
-      "Your objective mentions a checklist, and this check type works through your own checklist against the source code.",
-  },
-  {
-    id: "asvs",
-    checkTypes: [
-      "owasp-asvs-5-0-l1-source-review",
-      "owasp-asvs-5-0-l1-source-pilot",
-    ],
-    words:
-      /\b(?:asvs|verification standard|requirements?|compliance|compliant)\b/i,
-    reason:
-      "Your objective mentions ASVS, requirements or compliance, and this check type verifies the source code against OWASP ASVS requirements.",
-  },
-  {
-    id: "live-application",
-    checkTypes: [
-      "owasp-wstg-4-2-active-http",
-      "owasp-wstg-4-2-fast-active-http",
-    ],
-    words:
-      /\b(?:live|running|deployed|staging|production|website|web ?app|web application|pentest|penetration|black[- ]?box|dynamic)\b/i,
-    reason:
-      "Your objective mentions a running application, and this check type tests a live target over HTTP with OWASP WSTG scenarios.",
-  },
-  {
-    id: "testing-guide",
-    checkTypes: [
-      "owasp-wstg-4-2-source-review",
-      "owasp-wstg-4-2-fast-source-review",
-    ],
-    words: /\b(?:wstg|testing guide)\b/i,
-    reason:
-      "Your objective mentions the OWASP Web Security Testing Guide, and this check type reviews the source code against its scenarios.",
-  },
-  {
     id: "api-access",
     checkTypes: ["openapi-operation-trace", "openapi-operation-observe"],
     words:
       /\b(?:apis?|endpoints?|routes?|rest|graphql|authori[sz]ation|access control|permissions?|idor|bola|object[- ]level)\b/i,
     reason:
       "Your objective mentions APIs, endpoints or access control, and this check type traces each endpoint of your API spec through the source code.",
-  },
-  {
-    id: "security-risks",
-    checkTypes: ["owasp-top10-2025-source-risk"],
-    words:
-      /\b(?:owasp|top ?10|risks?|vulnerabilit(?:y|ies)|security|weakness(?:es)?|flaws?|bugs?|exploits?)\b/i,
-    reason:
-      "Your objective mentions security risks, vulnerabilities or OWASP, and this check type reviews the source code for the OWASP Top 10 (2025) risks.",
   },
 ];
 

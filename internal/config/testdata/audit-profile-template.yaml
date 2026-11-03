@@ -1,42 +1,58 @@
-apiVersion: contractor/v1alpha1
-kind: AuditProfile
-metadata:
-  name: PROFILE_NAME
-  version: "1"
-spec:
-  mode: custom-checklist
-  standards:
-    - {scheme: owasp-web-top10, version: "2025"}
-    - {scheme: owasp-asvs, version: "5.0.0"}
-  inputs:
-    source: {required: true, mediaTypes: [application/zip]}
-    checklist: {required: true, mediaTypes: [application/yaml, application/json]}
-  inventory:
-    implementation: checklist@1
-    source: {source: audit-input, name: checklist}
-    itemWorkflowRole: check
-  workflows:
-    check:
-      kind: check
-      ref: taint-trace-from-workspace@4
-      inputs:
-        source: {source: audit-input, name: source}
-      parameters:
-        target: {source: item-field, name: subjectKey}
-      outputs:
-        result: taint_report
-  execution:
-    roundMode: fixed-barrier
-    maxRounds: 3
-    batchSize: 1
-    maxItemsPerRound: 100
-    maxItemsTotal: 250
-    maxSubmittedRuns: 500
-    maxItemRunAttempts: 2
-    deadlineSeconds: 86400
-    maxEvidenceBytes: 67108864
-    incompleteRound: assess-with-gaps
-  interaction:
-    activeChecks: prohibited
-    notApplicable: profile-rule
-    reportAcceptance: automatic
+{
+  "apiVersion": "contractor/v1alpha1",
+  "kind": "AuditProfile",
+  "metadata": {
+    "name": "PROFILE_NAME",
+    "version": "1"
+  },
+  "spec": {
+    "schema": "contractor.audit.program.v1",
+    "inputs": {
+      "source": {
+        "required": true,
+        "media_types": [
+          "text/plain"
+        ]
+      }
+    },
+    "workflows": {
+      "inspect": {
+        "ref": "artifact-copy@1",
+        "inputs": {
+          "source": {
+            "source": "audit-input",
+            "name": "source"
+          }
+        },
+        "parameters": {},
+        "outputs": {
+          "material": "result"
+        }
+      }
+    },
+    "hypotheses": {},
+    "initial_work": [
+      {
+        "key": "inspect",
+        "workflow": "inspect",
+        "objective": "Inspect selected source"
+      }
+    ],
+    "limits": {
+      "max_tasks": 16,
+      "max_iterations": 1,
+      "max_tasks_per_iteration": 16,
+      "batch_size": 2,
+      "max_submitted_runs": 8,
+      "max_attempts": 2,
+      "deadline_seconds": 86400,
+      "max_evidence_bytes": 67108864,
+      "max_hypotheses": 1,
+      "max_hypothesis_revisions": 1,
+      "max_hypothesis_bytes": 32768
+    },
+    "policy": {
+      "active_operations": "prohibited"
+    }
+  }
+}

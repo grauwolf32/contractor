@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/config/resolved"
 )
 
 // injectUniqueViolationSQL makes every statement that writes audits fail with
@@ -36,29 +35,6 @@ func TestPostgresRecoveryPathsRunInsideACallerTransaction(t *testing.T) {
 	if _, err := f.pool.Exec(f.ctx, injectUniqueViolationSQL); err != nil {
 		t.Fatal(err)
 	}
-	if f.audit.CurrentRoundID == nil {
-		t.Fatal("fixture Audit has no current Round")
-	}
-	roundID := *f.audit.CurrentRoundID
-	round, err := f.store.GetRound(f.ctx, f.audit.AuditID, roundID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	item := func(name string) auditstore.MaterializedItem {
-		return auditstore.MaterializedItem{
-			ItemID: "item-" + name, ItemKey: "check-" + name, Ordinal: 0, Kind: "checklist",
-			SubjectKey: "subject-" + name, Task: testExact("audits", name+"-task", "task-r1"),
-			Origin: testOrigin("check-" + name), WorkflowRole: "check", InitialState: auditstore.ItemReady,
-			Coverage: emptyCoverage(),
-		}
-	}
-	result := testExact("audit-txrecovery", "result", "result-r1")
-	machine, summary := denseReportLinks()
-	next := item("txrecovery-next")
-	next.ProposalSources = []auditstore.ProposalItemSource{{
-		ReceiptID: "receipt-txrecovery-proposal", ProposedCheckOrdinal: 0,
-		Proposal: testExact("audits", "txrecovery-proposal", "proposal-r1"),
-	}}
 	deadline := time.Now().Add(time.Hour).UTC()
 	for _, path := range []struct {
 		name string
@@ -74,17 +50,7 @@ func TestPostgresRecoveryPathsRunInsideACallerTransaction(t *testing.T) {
 			})
 			return err
 		}},
-		{"MaterializeRound", auditstore.ErrConflict, func(ctx context.Context, s *testStore) error {
-			_, _, err := s.MaterializeRound(ctx, auditstore.MaterializeRoundParams{
-				OwnerID: f.audit.OwnerID, AuditID: f.audit.AuditID, ExpectedRevision: f.audit.Revision,
-				RoundID: "round-txrecovery-start", RoundOrdinal: 1,
-				Manifest:         testExact("audits", "txrecovery-start-worklist", "worklist-r1"),
-				BaselineSnapshot: json.RawMessage(`{"inputs":[],"skills":[]}`),
-				DeadlineAt:       deadline, Items: []auditstore.MaterializedItem{item("txrecovery-start")},
-				IdempotencyKey: "txrecovery-start", RequestDigest: testDigest("2"),
-			})
-			return err
-		}},
+
 		{"Transition", auditstore.ErrConflict, func(ctx context.Context, s *testStore) error {
 			_, _, err := s.Transition(ctx, auditstore.TransitionParams{
 				OwnerID: f.audit.OwnerID, AuditID: f.audit.AuditID, ExpectedRevision: f.audit.Revision,
@@ -107,61 +73,10 @@ func TestPostgresRecoveryPathsRunInsideACallerTransaction(t *testing.T) {
 			})
 			return err
 		}},
-		{"CreateExecutionIntent", auditstore.ErrConflict, func(ctx context.Context, s *testStore) error {
-			_, _, err := s.CreateExecutionIntent(ctx, auditstore.CreateExecutionIntentParams{
-				Claim: f.claim, ExecutionID: "execution-txrecovery-pending", RoundID: &roundID,
-				Role: auditstore.ExecutionCheck, WorkflowRole: "check", LaneClass: resolved.LaneClassModel,
-				Manifest:      testExact("audits", "txrecovery-pending-execution", "manifest-r1"),
-				SubmissionKey: "submission-txrecovery-pending", RequestDigest: testDigest("6"),
-				Members: []auditstore.ExecutionMemberIntent{{
-					ExecutionItemID: "member-txrecovery-pending", ItemID: "pending-item-txrecovery",
-					BatchOrdinal: 0, ItemAttempt: 1, Inputs: []auditstore.ExactArtifact{},
-					Task: testExact("audits", "txrecovery-pending-task", "task-r1"),
-				}},
-			})
-			return err
-		}},
+
 		{"Collect", auditstore.ErrConflict, func(ctx context.Context, s *testStore) error {
-			_, _, err := s.Collect(ctx, auditstore.CollectParams{
-				Claim: f.claim, ReceiptID: "receipt-txrecovery", ExecutionID: f.execution.ExecutionID,
-				Disposition: auditstore.CollectionAccepted, SourceOutput: &result, RequestDigest: testDigest("7"),
-				Retained: []auditstore.ArtifactLink{{Scope: "project", LogicalKey: "result/" + f.memberID, Artifact: result,
-					SourceProvenance: json.RawMessage(`{"runId":"run-txrecovery"}`),
-				}},
-				Items: []auditstore.CollectionItem{{
-					ExecutionItemID: f.memberID, Disposition: auditstore.CollectionAccepted,
-					FinalDisposition: auditstore.FinalAccepted, Result: &result,
-					Coverage: auditstore.Coverage{Status: auditstore.CoverageSatisfied, Requested: []string{}, Completed: []string{}, Gaps: []string{}},
-				}},
-			})
-			return err
-		}},
-		{"AcceptInitialRound", auditstore.ErrPrecondition, func(ctx context.Context, s *testStore) error {
-			_, _, err := s.AcceptInitialRound(ctx, auditstore.AcceptInitialRoundParams{
-				Claim: f.claim, ExpectedAuditRevision: f.audit.Revision, RoundID: "round-txrecovery-initial",
-				Manifest: testExact("audits", "txrecovery-initial-worklist", "worklist-r1"),
-				Items:    []auditstore.MaterializedItem{item("txrecovery-initial")},
-				Inventory: auditstore.ArtifactLink{Scope: "project", LogicalKey: auditstore.InitialInventoryLogicalKey, SourceProvenance: json.RawMessage(`{}`),
-					Artifact: testExact("audits", "txrecovery-inventory", "inventory-r1"),
-				},
-			})
-			return err
-		}},
-		{"AcceptNextRound", auditstore.ErrConflict, func(ctx context.Context, s *testStore) error {
-			_, _, err := s.AcceptNextRound(ctx, auditstore.AcceptRoundParams{
-				Claim: f.claim, ExpectedAuditRevision: f.audit.Revision, PreviousRoundID: roundID,
-				RoundID: "round-txrecovery-next", RoundOrdinal: 2,
-				Manifest: testExact("audits", "txrecovery-next-worklist", "worklist-r1"),
-				Items:    []auditstore.MaterializedItem{next},
-			})
-			return err
-		}},
-		{"ProposeReport", auditstore.ErrPrecondition, func(ctx context.Context, s *testStore) error {
-			_, _, err := s.ProposeReport(ctx, auditstore.ProposeReportParams{
-				Claim: f.claim, ExpectedAuditRevision: f.audit.Revision, ExpectedProjectRevision: 1,
-				RoundID: roundID, ExpectedRoundRevision: round.Revision,
-				Machine: machine, Summary: summary, RequestDigest: testDigest("8"),
-			})
+			_, _, err := s.Collect(ctx, auditstore.CollectParams{Claim: f.claim, ExecutionID: f.execution.ExecutionID, ReceiptID: "recovery-receipt", Disposition: auditstore.CollectionExecutionFailed, RequestDigest: testDigest("7"), Tasks: []auditstore.TaskCollection{{ExecutionItemID: f.memberID, TaskID: f.itemID, GapCode: stringPointer("fixture")}}})
+
 			return err
 		}},
 	} {

@@ -49,7 +49,7 @@ WHERE audit_id = $1`, f.audit.AuditID); err != nil {
 	if err := write(claim, "deleting"); !errors.Is(err, auditstore.ErrClaimLost) {
 		t.Errorf("write into deleting Audit: %v", err)
 	}
-	if err := f.store.PurgeClaimed(f.ctx, claim, namespace); err != nil {
+	if err := purgeFixtureUntilAbsent(t, f, claim); err != nil {
 		t.Fatal(err)
 	}
 	for _, name := range []string{"round-manifest", "task-package", "preparation-descriptor", "report"} {

@@ -9,7 +9,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/scanplan"
 )
@@ -162,19 +161,20 @@ func inventorySourceRef(revision string) contracts.ArtifactRef {
 	return contracts.ArtifactRef{Namespace: "inputs", Name: "openapi", Revision: &revision}
 }
 
-func buildScanInventory(t testing.TB, source []byte, mediaType string, ref contracts.ArtifactRef, settings string) (auditdomain.Inventory, error) {
+func prepareScanBatch(t testing.TB, source []byte, mediaType string, ref contracts.ArtifactRef, settingsText string) ([]scanplan.PreparedAuditOperation, error) {
 	t.Helper()
-	revision := "settings-1"
-	input := auditdomain.ExactInput{
-		Name:   "settings",
-		Ref:    contracts.ArtifactRef{Namespace: "inputs", Name: "scan-settings", Revision: &revision},
-		Digest: auditdomain.DigestBytes([]byte(settings)),
+	settings, err := scanplan.DecodeAuditScanSettings([]byte(settingsText))
+	if err != nil {
+		return nil, err
 	}
-	options := auditdomain.InventoryOptions{
-		Round: 1, WorkflowRole: "scan", SourceInputName: "source", SourceRef: ref,
-		ApprovalRequirement: auditdomain.ApprovalActiveCheck,
+	result := []scanplan.PreparedAuditOperation{}
+	for item, err := range settings.PrepareOperations(source, mediaType, ref) {
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, item)
 	}
-	return auditdomain.BuildOpenAPIScanInventory(source, mediaType, []byte(settings), input, options)
+	return result, nil
 }
 
 // largeOperations selects the maximum number of operations one settings

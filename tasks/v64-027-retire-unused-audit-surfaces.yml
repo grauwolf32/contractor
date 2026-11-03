@@ -1,0 +1,79 @@
+schema_version: '1.0'
+id: V64-027
+title: Remove Audit surfaces left without production callers by the common Task cutover
+milestone: audit-check-prioritization
+epic: audits
+kind: chore
+introduced_by: V64-002
+priority: P1
+status: in_progress
+depends_on:
+- V64-026
+languages: [go, python, yaml, markdown]
+goal: Keep one executable common Audit path by removing old exported entry points and their exclusive tests once their production callers have migrated.
+context:
+  authority: >-
+    User decision 2026-11-03 during V64-002 implementation explicitly chooses a narrow
+    prerequisite in codex/audit-task-coordinator. Remove only surfaces without production
+    callers and their exclusive tests; schema and integrated cleanup remain V64-010.
+    This authorizes this prerequisite, not the broader dependent tasks.
+  finding: >-
+    After V64-002 switches the loader, coordinator, collection and minimal public/UI callers,
+    tools/testonlyexports reports approximately 120 newly unconsumed exports across auditdomain,
+    auditbaseline, auditstore, auditservice, auditstandards, artifacts, findingintake and runstore.
+    The old admission/preparation/Round/report wrappers must not remain solely for their tests.
+    Removing those roots also retires their uncalled transitive helpers and types.
+    The inventory is reproduced with the command below, rather than a growing allowlist.
+  boundary: >-
+    Preserve domain parsers, source interpretation, standard source/license validation and every
+    remaining production reader. Remove obsolete wrappers and move substantive parser/limit
+    regressions to their actual common caller when needed. Existing opaque historical Artifact
+    reads and still-used independent APIs retain their current owners. No new compatibility
+    reader, fake production caller, test-only runtime engine or baseline expansion is allowed.
+  preserved_checks: >-
+    Parser and scanner-preparation cases now call BuildPreparedOpenAPIWork/PrepareOpenAPIScanOperation
+    and scanplan.PrepareOperations. Standards retain source, drift, licensing and static denominator
+    checks. Claims, credential holds, native Finding sources, bounded reads, Run deletion and purge
+    use common Tasks or fixed rows for independent surviving readers. Process checks cover ordinary
+    Findings collection, exact source retention, web-scan failures/cancellation and workspace publication.
+    V64-002 additionally fixes repeated evidence-link collection, scoped byte accounting and indexed
+    lookups, demonstrated against 5,000 retained aliases in custom and generic PostgreSQL plans.
+  delivery_coupling: >-
+    These removals depend on the V64-002 caller replacement already present in this worktree.
+    They must land together to keep the build green; AGENTS.md permits that exception to one
+    task per commit. Neither task completes until its own acceptance and listed checks pass.
+  verification_progress: >-
+    Full listed owner suites pass against disposable PostgreSQL. make lint passes, including
+    U1000 and testonlyexports with no baseline expansion. Remaining domain/parser, source/license,
+    claims, purge, native Finding and Artifact retention checks execute through their real owners.
+    The full Runtime suite passes 5673 cases with 135 optional skips. CLI standard-selection
+    execution checks return with their common caller in V64-012; bundled validity remains checked.
+    Final clean-revision process gates remain required; this task is still in progress.
+  specification:
+  - docs/spec/audits/common-contract.md
+  - docs/spec/audits/execution.md
+scope:
+  in:
+  - Remove exported entry points with no remaining production caller after the common cutover.
+  - Delete their exclusive old execution tests and helpers; preserve independent invariants on real paths.
+  - Align gate selectors, shared fixtures and owning specifications with the remaining callers.
+  - Regenerate dependency/ERD usage pictures when removing reads or writes.
+  out:
+  - Schema redesign or removal of still-used relations, fields, lifecycle states and public APIs.
+  - Assertion/hypothesis behavior, automatic proposals/generation and full UI redesign.
+  - Broad V64-010 integration cleanup or unfinished V64-014 verification.
+acceptance_criteria:
+- id: A1
+  text: The common cutover introduces no test-only/unused exported runtime surface and no baseline expansion.
+- id: A2
+  text: No removed execution behavior is preserved through a compatibility reader, fake caller or parallel test engine.
+- id: A3
+  text: Remaining domain interpretation, ownership, retention, bounds and common Task execution checks pass on their actual owners and real PostgreSQL.
+tests:
+- command: make lint
+  covers: [A1, A2, A3]
+- command: go test -tags=integration -count=1 ./internal/auditdomain ./internal/auditbaseline ./internal/auditstore/... ./internal/auditservice ./internal/auditcontroller ./internal/auditimport ./internal/auditstandards ./internal/artifacts ./internal/findingintake ./internal/runservice ./internal/runstore
+  covers: [A2, A3]
+- command: make test-audit-basic-e2e test-audit-common-programs-e2e
+  covers: [A2, A3]
+implementation_commit: null
