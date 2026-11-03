@@ -1,6 +1,8 @@
 # Тонкий HTTPTransport поверх одного mitmproxy engine
 
 Дата: 2026-11-03. Ветка: `codex/sitemap-source-comparison`.
+Коммит прототипа: `152c7fe2127ea796e6a60491f11a4baa7f932b0f`.
+Задача: [V410-029](../done/v410-029-mitmproxy-thin-transport-spike.yml).
 
 **Получилось провести программные HTTP/HTTPS запросы и настоящий Nuclei через
 один native engine, сохранив реальные policy/session primitives Contractor.**
