@@ -6,7 +6,7 @@ epic: operations
 kind: defect
 introduced_by: V51-001
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages: [python, markdown]
 goal: Worker OTLP acknowledgement parsing never expands a compressed response beyond its existing 64-KiB byte budget.
@@ -100,3 +100,4 @@ verification: >-
   CONTRACTOR_TEST_DATABASE_URL was unset; no PostgreSQL execution is claimed.
   Full lint output: /private/tmp/v433-003-lint.log.
 landing: Implemented on codex/v433-003-otlp-bounds; not merged into main.
+implementation_commit: b6999679f6ad38b5bb700411fbd7ca3badc75402
