@@ -63,7 +63,7 @@ V64-001 остаётся завершённой историей; исправл
 | --- | --- | --- |
 | 1 | [V64-001](../../tasks/done/v64-001-audit-priority-contracts.yml) | Общие строгие program/task/result contracts, owning boundaries, fixtures, лимиты и карта удаления/cutover |
 | 2 | [V64-004](../../tasks/done/v64-004-audit-priority-context.yml) | Audit workspace, exact handoff и публикация в Project через существующий ArtifactStore с реальным caller |
-| 2 | [V64-014](../../tasks/v64-014-audit-hypothesis-assessments.yml) | Одна Finding model в Project: существующая дедупликация, источники/evidence, единые чтение и изменение; удаление Audit finding lifecycle |
+| 2 | [V64-014](../../tasks/done/v64-014-audit-hypothesis-assessments.yml) | Одна Finding model в Project: существующая дедупликация, источники/evidence, единые чтение и изменение; удаление Audit finding lifecycle |
 | 2 | [V64-026](../../tasks/done/v64-026-openapi-prepared-work-operation.yml) | Обычный Server-operation Workflow подготовки OpenAPI и ограниченный exact work-list контракт для общего приёма отдельных заданий |
 | 3 | [V64-002](../../tasks/done/v64-002-audit-priority-store.yml) | Один coordinator, обычные Runs, pause/recovery, первый exploratory сценарий и переписывание YAML шести observation/tracing/scan программ |
 | 4 | [V64-012](../../tasks/v64-012-audit-hypothesis-registry.yml) | Fixed/manual hypotheses, automatic exact association и checklist coverage; переписывание YAML восьми checklist/standard программ вместе с их проверяющими consumers |

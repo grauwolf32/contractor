@@ -1,4 +1,10 @@
-# Unpublished instruction evaluation release
+# Historical instruction evaluation release
+
+Current tests compare these archived documents as raw data against their original
+manifest. They are not loaded through the active Audit catalog. Preserve their
+exact bytes, including obsolete fields; those fields grant no current execution
+behavior. The preparation notes below record the original experiment and do not
+provide a current Audit execution path.
 
 This overlay contains twelve new Workflows and two AuditProfiles at exact
 `eval-v40-{d1,o1,l1,t1,t2,a1}-{baseline,candidate}@1` selectors. Only A1 has
@@ -33,8 +39,9 @@ cd ../contractor
 go test ./tests/eval/agent_instructions ./internal/config
 ```
 
-The Go gate loads the complete frozen catalog plus both overlays and compares
-fully resolved contracts. Normalizing only declared identities, instruction
+The Go archive gate reads the frozen catalog plus both overlays as raw YAML and
+compares the recorded contracts without a current configuration reader.
+Normalizing only declared identities, instruction
 text and dependent template references must leave identical model policy,
 tools, Skills, budgets and behavior. This verifies **configuration equality**;
 it does not attest the model revision or tools/Skills actually deployed on a
