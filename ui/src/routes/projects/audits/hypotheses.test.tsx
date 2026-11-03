@@ -32,12 +32,9 @@ function fixture(rejectFirst = 0) {
         path: url.pathname,
       });
       if (rejectFirst && writes.length === 1)
-        return failure(
-          rejectFirst,
-          rejectFirst === 412
-            ? "precondition_failed"
-            : "storage_transaction_conflict",
-        );
+        return rejectFirst === 412
+          ? failure(412, "precondition_failed")
+          : failure(503, "storage_transaction_conflict");
       return json({
         hypotheses: [{ id: "hypothesis-one", revision: 1 }],
         audit_revision: 4,
