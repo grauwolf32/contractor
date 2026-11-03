@@ -5,7 +5,8 @@ milestone: project-sitemap-2026-10
 epic: http-tools
 kind: chore
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 6f9679437fcf8430207d7f8820650959bcfff199
 depends_on:
 - V422-003
 languages: [python, markdown]
@@ -96,3 +97,17 @@ lifecycle:
   delete: The harness closes owned listeners/clients/tasks before temporary fixture cleanup.
   retention: Only sanitized version/probe/dependency evidence is committed; no private key, credentials,
     packet body archive or production state is retained.
+verification:
+  date: '2026-11-03'
+  experiment: Three same-process repetitions passed with identical protocol and lifecycle outcomes;
+    exact versions, dependency resolution, Runtime overlay imports and source hash are retained in evidence.
+  focused_runtime: Full test_threads.py, test_engagement_allocation.py and test_podman_engine.py modules
+    passed; Ruff check/format, specification check, task validation and diff whitespace check passed.
+  full_lint: make lint was attempted and stopped at shared-config-check because go is absent from PATH;
+    this is not a full lint pass. The assessment changes no production Python source or dependency lock.
+implementation_decisions:
+- date: '2026-11-03'
+  decision: The actual spike reuses core.async_tasks.join_owned_task. A future engine implementation
+    should use the existing allocation HTTP cleanup/fencing owner, not add a proxy lifecycle framework
+    or force the proxy into Podman PreparedExecution/guardian protocols. Engine-specific listener and
+    connection-task cleanup remains necessary; no production replacement is selected by this assessment.
