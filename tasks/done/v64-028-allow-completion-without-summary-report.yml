@@ -6,7 +6,7 @@ epic: audits
 kind: defect
 introduced_by: V64-002
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V64-002]
 languages: [go, typescript, yaml, markdown]
 goal: Completed Audits with ordinary Task results remain readable in Inbox and Reports without an aggregate report.
@@ -24,6 +24,17 @@ context:
     share this contract. Lists already exclude unavailable reports by default; direct report
     navigation must explain the absence and link to retained Task results. Existing stored report
     integrity checks and genuine storage errors must remain classified failures.
+  verification: >-
+    On 0fe143e8e7646335b797cb319444a174faf276d9 the full Audit service and public HTTP
+    package suites pass against disposable PostgreSQL, as do verify-public-api and
+    verify-public-api-postgres. Full ui-verify passes 2459 tests with one expected failure,
+    plus lint, typecheck, static-server tests and build. make lint passes.
+    A one-off PostgreSQL reader probe confirms unavailable with no invented content for
+    completed Audits, while partial report pairs, corrupt descriptors and a failed storage
+    read remain errors. The probe uses a disposable schema and temporary Go overlay outside
+    the repository; no regression test is added. Inbox/cross-project lists retain their normal
+    unavailable filtering, and direct Reports navigation links to the saved Task results.
+    This local branch remains unmerged; no deployment or V64-014 completion is claimed.
 scope:
   in:
   - Return the existing unavailable projection for a completed Audit with no aggregate report.
@@ -47,4 +58,4 @@ tests:
   covers: [A2]
 - command: make lint
   covers: [A1, A2, A3]
-implementation_commit: null
+implementation_commit: 041a9d97f94966ef8dc4f19d0f7f17adffe8b1b3
