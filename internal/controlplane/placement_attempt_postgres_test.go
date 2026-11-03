@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/agentprincipal"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
@@ -386,7 +388,7 @@ func TestPlacementAttemptTransactionDriftDiscardsObservationsBeforeHold(t *testi
 	if transaction.versions != 2 || transaction.bindings != 2 || transaction.principals != 1 {
 		t.Fatalf("pinning transaction reads = %+v, want 2 versions, 2 bindings, 1 principal", transaction)
 	}
-	allocations, err := runstore.NewPostgresStore(pool).ListStageAllocations(ctx, f.stageExecutionID)
+	allocations, err := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()).ListStageAllocations(ctx, f.stageExecutionID)
 	if err != nil || len(allocations) != 0 {
 		t.Fatalf("drifted placement left durable allocations: (%+v, %v)", allocations, err)
 	}

@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/jackc/pgx/v5"
@@ -95,7 +97,7 @@ func newMultiAllocationStage(t *testing.T, ctx context.Context, extra int) multi
 		t.Fatal(err)
 	}
 	t.Cleanup(counted.Close)
-	h.scheduler.store = runstore.NewPostgresStore(counted)
+	h.scheduler.store = runstore.NewPostgresStore(counted, artifactpgtest.NewStorage())
 	return multiAllocationStage{
 		deferredPlacementHarness: h, trace: trace, execution: execution,
 		reservations: reservations, earlier: allocations[historicalAttemptID(1)],

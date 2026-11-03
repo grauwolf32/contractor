@@ -6,6 +6,8 @@ import (
 	"math"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
@@ -76,7 +78,7 @@ WHERE experiment_id = $1 AND state = 'accepted' AND execution_id IS NOT NULL`, e
 	if len(runStates) != 2 {
 		t.Fatalf("fixture has %d Runs, want one per accepted member", len(runStates))
 	}
-	runs := runstore.NewPostgresStore(h.pool)
+	runs := runstore.NewPostgresStore(h.pool, artifactpgtest.NewStorage())
 	for _, run := range runStates {
 		if runstore.WorkflowRunState(run[1]) == runstore.RunPending {
 			if _, err := runs.TransitionRun(t.Context(), run[0], runstore.RunPending, runstore.RunRunning, runstore.Reason{Code: "fixture_admitted"}); err != nil {

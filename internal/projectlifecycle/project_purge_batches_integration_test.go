@@ -14,8 +14,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -37,7 +38,7 @@ func TestProjectDeletionPurgesLargeScopeInBoundedTransactions(t *testing.T) {
 	defer cancel()
 	pool := isolatedPool(t, ctx)
 	projects := projectstore.NewPostgresStore(pool)
-	runs := runstore.NewPostgresStore(pool)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	project, _, err := projects.Create(ctx, projectstore.CreateParams{
 		ProjectID: "project-large", OwnerID: "user-1", Kind: projectstore.KindProject,
 		Name: "Large scope", IdempotencyKey: "create-project-large",
@@ -163,7 +164,7 @@ UPDATE finding_proposal_receipts
 	}
 	seedFindingReceipts(t, ctx, pool, "other", "run-other", &other.ProjectID, 2)
 	seedFindingReceipts(t, ctx, pool, "standalone", "run-standalone", nil, 1)
-	projectArtifacts, err := artifacts.NewService(artifactpostgres.NewRepository(pool)).Project(project.ProjectID)
+	projectArtifacts, err := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool)).Project(project.ProjectID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -178,7 +179,7 @@ UPDATE finding_proposal_receipts
 	}); err != nil {
 		t.Fatal(err)
 	}
-	controller := newTestController(t, pool, runstore.NewPostgresStore(pool), &recordingNotifier{}, "receipts")
+	controller := newTestController(t, pool, runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()), &recordingNotifier{}, "receipts")
 	count := func(query string) int {
 		t.Helper()
 		var value int
@@ -293,7 +294,7 @@ UPDATE finding_proposal_receipts
  WHERE run_id = 'run-deleted'`); err != nil {
 		t.Fatal(err)
 	}
-	projectArtifacts, err := artifacts.NewService(artifactpostgres.NewRepository(pool)).Project(project.ProjectID)
+	projectArtifacts, err := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool)).Project(project.ProjectID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -333,7 +334,7 @@ SELECT (SELECT count(*) FROM finding_proposal_receipts WHERE project_id = $1)
 	}
 	otherBefore := evalFootprint(other.ProjectID)
 	var logs bytes.Buffer
-	controller, err := New(pool, runstore.NewPostgresStore(pool), rundeletion.New(pool), &recordingNotifier{}, Options{
+	controller, err := New(pool, runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()), rundeletion.New(pool, artifactpgtest.NewStorage()), &recordingNotifier{}, Options{Storage: artifactpgtest.NewStorage(),
 		PollInterval: time.Millisecond, ClaimDuration: time.Minute, OperationTimeout: 5 * time.Second,
 		Logger: slog.New(slog.NewJSONHandler(&logs, nil)),
 	})

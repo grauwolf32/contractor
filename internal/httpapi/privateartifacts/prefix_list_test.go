@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
@@ -22,7 +24,7 @@ func TestPrivateArtifactPrefixListIsBoundedAndValidated(t *testing.T) {
 	repository.seed("run-a", "builder", "memory.one", "r", []byte("note"))
 	repository.seed("run-a", "foreign", "memory.foreign", "r", []byte("foreign"))
 	repository.seed("run-b", "builder", "memory.foreign", "r", []byte("foreign"))
-	handler, err := NewHandler(Dependencies{Registry: &fakeRegistry{grant: testGrant("run-a")}, Artifacts: artifacts.NewService(repository)})
+	handler, err := NewHandler(Dependencies{Transfers: artifactpgtest.NewStorage(), Registry: &fakeRegistry{grant: testGrant("run-a")}, Artifacts: artifacts.NewService(repository)})
 	if err != nil {
 		t.Fatal(err)
 	}

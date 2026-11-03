@@ -20,6 +20,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/gorilla/websocket"
 	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
@@ -232,7 +234,7 @@ func TestAgentSkillsMVPProcesses(t *testing.T) {
 		t, publicClient, publicBaseURL, "agent-skills-old-a", inputs,
 		[]string{"agent-skills-debug"},
 	)
-	store := runstore.NewPostgresStore(pool)
+	store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	assertPendingAgentSkillSelection(
 		t, ctx, store, oldRunID, seedA.Artifact.Revision, packageA,
 	)

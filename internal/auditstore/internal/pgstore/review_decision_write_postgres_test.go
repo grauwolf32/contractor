@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -138,7 +140,7 @@ func (f reviewDecisionFixture) record(
 	then func(pgx.Tx) error,
 ) error {
 	return persistencepostgres.InTx(ctx, f.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		reviews := NewReviewTxStore(tx)
+		reviews := NewReviewTxStore(tx, artifactpgtest.NewStorage())
 		if err := reviews.LockActionReviews(ctx, p.AuditID); err != nil {
 			return err
 		}
@@ -298,7 +300,7 @@ UPDATE audit_review_requests SET expires_at = clock_timestamp() - interval '1 se
 		t.Fatal(err)
 	}
 	if err := persistencepostgres.InTx(ctx, f.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		reviews := NewReviewTxStore(tx)
+		reviews := NewReviewTxStore(tx, artifactpgtest.NewStorage())
 		if _, err := reviews.LockActionReview(ctx, f.ownerID, f.auditID, expired); err != nil {
 			return err
 		}

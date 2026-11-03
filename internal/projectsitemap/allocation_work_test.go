@@ -7,9 +7,10 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	postgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
@@ -42,7 +43,7 @@ func TestPostgresSitemapReadsDoNotResolveSnapshotInputs(t *testing.T) {
 	pool := sitemapPool(t, counter)
 	ctx := t.Context()
 	createSitemapRun(t, ctx, pool, "consumer")
-	stores := artifacts.NewService(artifactpostgres.NewRepository(pool))
+	stores := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
 	scope, _ := artifacts.ProjectScope("project")
 	want := make(map[string]contracts.ArtifactRef)
 	policy := readerPolicy()
@@ -59,7 +60,7 @@ func TestPostgresSitemapReadsDoNotResolveSnapshotInputs(t *testing.T) {
 		want[name] = fork.TargetRef
 		policy.SnapshotInputs = append(policy.SnapshotInputs, name)
 	}
-	service := NewService(pool)
+	service := NewService(pool, artifactpgtest.NewStorage())
 	counter.reset()
 	if _, err := service.AllocationAccess(ctx, "consumer", "research", readerPolicy()); err != nil {
 		t.Fatal(err)
@@ -90,7 +91,7 @@ func TestPostgresSitemapReadsDoNotResolveSnapshotInputs(t *testing.T) {
 		var inputs []contracts.ExactArtifact
 		err := postgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 			var err error
-			inputs, err = resolveSnapshotInputs(ctx, tx, access)
+			inputs, err = resolveSnapshotInputs(ctx, tx, access, artifactpgtest.NewStorage())
 			return err
 		})
 		if err != nil {

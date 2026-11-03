@@ -5,10 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
+	artifactpolicy "github.com/grauwolf32/contractor/internal/artifacts/policy"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -42,7 +41,7 @@ func (s *ClaimStore) retainFindingCheckResults(ctx context.Context, params audit
 	if _, err := s.db.Exec(ctx, "SELECT contractor_lock_finding_correlation_fence($1)", projectID); err != nil {
 		return err
 	}
-	service := artifacts.NewService(artifactpostgres.NewRepository(s.db))
+	service := artifacts.NewService(s.storage.Repository(s.db))
 	scope, err := artifacts.ProjectScope(projectID)
 	if err != nil {
 		return err

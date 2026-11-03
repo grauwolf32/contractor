@@ -15,6 +15,8 @@ import (
 )
 
 type nativeChecker struct {
+	storage *artifactpostgres.Storage
+
 	db             pg.DBTX
 	result         evaldomain.ResultInput
 	outputs        map[string]evaldomain.Output
@@ -22,8 +24,8 @@ type nativeChecker struct {
 	remainingBytes int64
 }
 
-func runNativeChecks(ctx context.Context, db pg.DBTX, checks []evaldomain.Check, outputs map[string]evaldomain.Output, result evaldomain.ResultInput) ([]evaldomain.CheckResult, error) {
-	checker := nativeChecker{
+func runNativeChecks(ctx context.Context, db pg.DBTX, checks []evaldomain.Check, outputs map[string]evaldomain.Output, result evaldomain.ResultInput, storage *artifactpostgres.Storage) ([]evaldomain.CheckResult, error) {
+	checker := nativeChecker{storage: storage,
 		db:             db,
 		result:         result,
 		outputs:        outputs,
@@ -117,7 +119,7 @@ func (c *nativeChecker) checkOutput(ctx context.Context, check evaldomain.Check,
 	if !exists {
 		return "incomplete", "Required output evidence is unavailable.", nil, nil
 	}
-	if err := evalstore.NewPostgresStore(c.db).VerifyEvidence(ctx, ref); err != nil {
+	if err := evalstore.NewPostgresStore(c.db, c.storage).VerifyEvidence(ctx, ref); err != nil {
 		if evaldomain.IsCode(err, "eval_evidence_unavailable") {
 			return "incomplete", "Exact output evidence is unavailable.", nil, nil
 		}
@@ -146,7 +148,7 @@ func (c *nativeChecker) validateJSON(ctx context.Context, check evaldomain.Check
 	if err != nil {
 		return "", "", err
 	}
-	store, err := artifacts.NewService(artifactpostgres.NewRepository(c.db)).Scoped(scope)
+	store, err := artifacts.NewService(c.storage.Repository(c.db)).Scoped(scope)
 	if err != nil {
 		return "", "", err
 	}

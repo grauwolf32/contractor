@@ -19,6 +19,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -263,7 +265,7 @@ func TestTaintAnnotationsAcrossRealRuntimeProcess(t *testing.T) {
 		t.Fatalf("open taint-annotations assertion database: %v", err)
 	}
 	t.Cleanup(pool.Close)
-	store := runstore.NewPostgresStore(pool)
+	store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 
 	initialFiles := map[string]string{
 		taintSourcePath:    taintInitialApplication,

@@ -18,6 +18,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/grauwolf32/contractor/internal/mtls"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -178,7 +180,7 @@ func startPlacementStackWithConfiguration(t *testing.T, configure func(string)) 
 		t.Fatal(err)
 	}
 	t.Cleanup(pool.Close)
-	h.store = runstore.NewPostgresStore(pool)
+	h.store = runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	pkiRoot := filepath.Join(h.temporary, "pki")
 	ca, err := h.generator.InitCA(pkiRoot, false)
 	if err != nil {

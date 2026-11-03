@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -47,7 +49,7 @@ func TestPostgresProjectReceiptPurgeIsBoundedAndScoped(t *testing.T) {
 		var done bool
 		err := persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 			var err error
-			done, err = PurgeProjectReceipts(ctx, tx, deleting.ProjectID)
+			done, err = PurgeProjectReceipts(ctx, tx, deleting.ProjectID, artifactpgtest.NewStorage())
 			return err
 		})
 		return done, err
@@ -127,11 +129,11 @@ SELECT sum(pg_column_size(report_projection) + pg_column_size(evidence))
 	if left := projectReceiptIDs(t, ctx, pool, nil); len(left) != 2 {
 		t.Fatalf("receipts of Runs outside any Project = %v", left)
 	}
-	if _, err := PurgeProjectReceipts(ctx, nil, deleting.ProjectID); err == nil {
+	if _, err := PurgeProjectReceipts(ctx, nil, deleting.ProjectID, artifactpgtest.NewStorage()); err == nil {
 		t.Fatal("receipt purge without a transaction was accepted")
 	}
 	err := persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		_, err := PurgeProjectReceipts(ctx, tx, " ")
+		_, err := PurgeProjectReceipts(ctx, tx, " ", artifactpgtest.NewStorage())
 		return err
 	})
 	if !errors.Is(err, ErrInvalid) {

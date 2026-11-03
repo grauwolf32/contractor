@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -28,7 +30,7 @@ func TestPostgresStartPlannerLocksTheRunBeforeTheStage(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 			defer cancel()
 			pool := isolatedRunStorePool(t, ctx)
-			store := NewPostgresStore(pool)
+			store := NewPostgresStore(pool, artifactpgtest.NewStorage())
 			const runID, stageID = "run-start-order", "stage-start-order"
 			createPreparingStage(t, ctx, store, runID, stageID)
 			before := readStartPlannerEffects(t, ctx, pool, stageID)
@@ -43,7 +45,7 @@ func TestPostgresStartPlannerLocksTheRunBeforeTheStage(t *testing.T) {
 					t.Fatal(err)
 				}
 				defer func() { _ = caller.Rollback(context.WithoutCancel(ctx)) }()
-				starter = NewPostgresStore(caller)
+				starter = NewPostgresStore(caller, artifactpgtest.NewStorage())
 			}
 			params := testStartPlannerParams(t, stageID, "session-order")
 			done := make(chan error, 1)
@@ -83,7 +85,7 @@ func TestPostgresStartPlannerInACallerTransactionUsesOnlyThatTransaction(t *test
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedRunStorePool(t, ctx)
-	store := NewPostgresStore(pool)
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
 	const stageID = "stage-start-caller"
 	createPreparingStage(t, ctx, store, "run-start-caller", stageID)
 	single := singleConnectionPool(t, ctx, pool)
@@ -96,7 +98,7 @@ func TestPostgresStartPlannerInACallerTransactionUsesOnlyThatTransaction(t *test
 		}
 		acquired := single.Stat().AcquireCount()
 		params := testStartPlannerParams(t, stageID, "session-"+finish)
-		if err := NewPostgresStore(tx).StartPlanner(ctx, params); err != nil {
+		if err := NewPostgresStore(tx, artifactpgtest.NewStorage()).StartPlanner(ctx, params); err != nil {
 			_ = tx.Rollback(ctx)
 			t.Fatalf("%s: StartPlanner in the caller's transaction: %v", finish, err)
 		}
@@ -138,7 +140,7 @@ func TestPostgresStartPlannerLeavesTransactionConflictsToTheirOwner(t *testing.T
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedRunStorePool(t, ctx)
-	store := NewPostgresStore(pool)
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
 	injection := injectStartPlannerConflicts(t, ctx, pool)
 
 	t.Run("caller transaction", func(t *testing.T) {
@@ -150,7 +152,7 @@ func TestPostgresStartPlannerLeavesTransactionConflictsToTheirOwner(t *testing.T
 		if err != nil {
 			t.Fatal(err)
 		}
-		err = NewPostgresStore(tx).StartPlanner(ctx, testStartPlannerParams(t, stageID, "session-caller"))
+		err = NewPostgresStore(tx, artifactpgtest.NewStorage()).StartPlanner(ctx, testStartPlannerParams(t, stageID, "session-caller"))
 		if rollbackErr := tx.Rollback(ctx); rollbackErr != nil {
 			t.Fatal(rollbackErr)
 		}
@@ -215,7 +217,7 @@ func TestPostgresStartPlannerConflictsLeaveNoEffects(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedRunStorePool(t, ctx)
-	store := NewPostgresStore(pool)
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
 	const stageID, otherStageID = "stage-conflict", "stage-conflict-other"
 	createPreparingStage(t, ctx, store, "run-conflict", stageID)
 	createPreparingStage(t, ctx, store, "run-conflict-other", otherStageID)
@@ -246,7 +248,7 @@ func TestPostgresStartPlannerConflictsLeaveNoEffects(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
-	err = NewPostgresStore(tx).StartPlanner(ctx, testStartPlannerParams(t, stageID, "session-caller"))
+	err = NewPostgresStore(tx, artifactpgtest.NewStorage()).StartPlanner(ctx, testStartPlannerParams(t, stageID, "session-caller"))
 	if !errors.As(err, &stateConflict) {
 		t.Fatalf("caller-transaction StartPlanner of a running Stage = %v, want the state conflict", err)
 	}
@@ -273,7 +275,7 @@ func TestPostgresStartPlannerRejectsCancelledRun(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
 			defer cancel()
 			pool := isolatedRunStorePool(t, ctx)
-			store := NewPostgresStore(pool)
+			store := NewPostgresStore(pool, artifactpgtest.NewStorage())
 			const runID, stageID = "run-cancel-start", "stage-cancel-start"
 			createPreparingStage(t, ctx, store, runID, stageID)
 			before := readStartPlannerEffects(t, ctx, pool, stageID)
@@ -401,7 +403,7 @@ func holdRunLock(t *testing.T, ctx context.Context, pool *pgxpool.Pool, runID st
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = tx.Rollback(context.WithoutCancel(ctx)) })
-	holder := NewPostgresTxStore(tx)
+	holder := NewPostgresTxStore(tx, artifactpgtest.NewStorage())
 	if _, err := holder.LockRunState(ctx, runID); err != nil {
 		t.Fatal(err)
 	}

@@ -25,9 +25,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -195,7 +196,7 @@ func newCompletionFixtureWithOptions(t *testing.T, pool *pgxpool.Pool, options c
 	acceptance := options.acceptance
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	t.Cleanup(cancel)
-	f := &completionFixture{ctx: ctx, pool: pool, id: fmt.Sprintf("fixture-%d", time.Now().UnixNano()), artifacts: artifacts.NewService(artifactpostgres.NewRepository(pool)), audits: auditstoretest.NewStore(pool).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch), runs: runstore.NewPostgresStore(pool), keys: []string{"first", "second"}}
+	f := &completionFixture{ctx: ctx, pool: pool, id: fmt.Sprintf("fixture-%d", time.Now().UnixNano()), artifacts: artifacts.NewService(artifactpgtest.NewStorage().Repository(pool)), audits: auditstoretest.NewStore(pool, artifactpgtest.NewStorage()).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch), runs: runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()), keys: []string{"first", "second"}}
 	projects := projectstore.NewPostgresStore(pool)
 	_, _, err := projects.Create(ctx, projectstore.CreateParams{ProjectID: f.id, OwnerID: "owner", Kind: projectstore.KindProject, Name: "Completion gate", IdempotencyKey: f.id, RequestDigest: completionDigest([]byte(f.id))})
 	mustCompletion(t, err)
@@ -314,7 +315,7 @@ func newCompletionFixtureWithOptions(t *testing.T, pool *pgxpool.Pool, options c
 		},
 		AuditTransaction: func(ctx context.Context, fn func(runservice.AuditRunWriter, *artifacts.Service, runservice.AuditExecutionWriter) error) error {
 			return persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-				return fn(runstore.NewPostgresTxStore(tx), artifacts.NewService(artifactpostgres.NewRepository(tx)), auditstoretest.NewStore(tx).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch))
+				return fn(runstore.NewPostgresTxStore(tx, artifactpgtest.NewStorage()), artifacts.NewService(artifactpgtest.NewStorage().Repository(tx)), auditstoretest.NewStore(tx, artifactpgtest.NewStorage()).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch))
 			})
 		},
 	})
@@ -389,7 +390,7 @@ func (f *completionFixture) terminal(t *testing.T, outcome runstore.WorkflowRunS
 func (f *completionFixture) collect(t *testing.T, outcome runstore.WorkflowRunState, accepted bool) {
 	t.Helper()
 	execution, snapshot := f.terminal(t, outcome)
-	access, err := NewArtifactAccess(f.artifacts, hookstore.NewClaimedArtifacts(f.pool))
+	access, err := NewArtifactAccess(f.artifacts, hookstore.NewClaimedArtifacts(f.pool, artifactpgtest.NewStorage()))
 	mustCompletion(t, err)
 	importer, err := New(f.audits, f.audits, f.runs, access)
 	mustCompletion(t, err)
@@ -550,7 +551,7 @@ func (f *completionFixture) bridge(t *testing.T) *completionBridge {
 		})
 	}
 	t.Cleanup(release)
-	handler, err := privateartifacts.NewHandler(privateartifacts.Dependencies{Registry: registry, Artifacts: f.artifacts})
+	handler, err := privateartifacts.NewHandler(privateartifacts.Dependencies{Transfers: artifactpgtest.NewStorage(), Registry: registry, Artifacts: f.artifacts})
 	mustCompletion(t, err)
 	b := &completionBridge{f: f, release: release}
 	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -693,7 +694,7 @@ func (completionCredentials) ValidateRuntimeCredentialUse(
 
 func (f *completionFixture) assertRetainedHTTPObservation(t *testing.T) {
 	t.Helper()
-	mustCompletion(t, rundeletion.New(f.pool).DeleteReleasedTerminalRun(f.ctx, "owner", f.run.RunID))
+	mustCompletion(t, rundeletion.New(f.pool, artifactpgtest.NewStorage()).DeleteReleasedTerminalRun(f.ctx, "owner", f.run.RunID))
 	rows, err := f.pool.Query(f.ctx, `SELECT artifact_ref, source_provenance FROM audit_artifact_links
  WHERE audit_id=$1 AND source_provenance->'evidence'->>'http_request_id'='1'
  ORDER BY logical_key LIMIT 10`, f.id)

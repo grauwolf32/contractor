@@ -1,5 +1,5 @@
-// Package artifactpolicy defines shared purpose-specific Artifact binding rules.
-package artifactpolicy
+// Package policy defines shared purpose-specific Artifact binding rules.
+package policy
 
 import (
 	"slices"

@@ -65,38 +65,34 @@ type operationsHandlers struct {
 	cursors pageCursors
 }
 
-func (h *operationsHandlers) getOperationsSnapshot(w http.ResponseWriter, r *http.Request) {
+func (h *operationsHandlers) getOperationsSnapshot(w http.ResponseWriter, r *http.Request) error {
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	snapshot, err := h.operationsSnapshot()
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	writeJSON(w, http.StatusOK, operationsSnapshotResponse{
 		Cursor:        operationsCursor(snapshot.Cursor),
 		RuntimeAgents: snapshot.RuntimeAgents,
 		Allocations:   snapshot.Allocations,
 	})
+	return nil
 }
 
-func (h *operationsHandlers) listRuntimeAgents(w http.ResponseWriter, r *http.Request) {
+func (h *operationsHandlers) listRuntimeAgents(w http.ResponseWriter, r *http.Request) error {
 	_, limit, encodedCursor, err := pageQuery(r.URL.RawQuery)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	snapshot, err := h.operationsSnapshot()
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	after, err := h.operationsPageAfter(encodedCursor, "operations:runtime-agents", snapshot.Cursor)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	items := make([]controlplane.RuntimeAgentObservation, 0, min(pagelimit.FetchRows(limit), len(snapshot.RuntimeAgents)))
 	for _, item := range snapshot.RuntimeAgents {
@@ -112,29 +108,26 @@ func (h *operationsHandlers) listRuntimeAgents(w http.ResponseWriter, r *http.Re
 		return operationsPagePosition(snapshot.Cursor, last.InstanceID)
 	})
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	writeJSON(w, http.StatusOK, runtimeAgentPageResponse{
 		Cursor: operationsCursor(snapshot.Cursor), Items: items, Page: page,
 	})
+	return nil
 }
 
-func (h *operationsHandlers) listAllocations(w http.ResponseWriter, r *http.Request) {
+func (h *operationsHandlers) listAllocations(w http.ResponseWriter, r *http.Request) error {
 	_, limit, encodedCursor, err := pageQuery(r.URL.RawQuery)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	snapshot, err := h.operationsSnapshot()
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	after, err := h.operationsPageAfter(encodedCursor, "operations:allocations", snapshot.Cursor)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	items := make([]controlplane.AllocationObservation, 0, min(pagelimit.FetchRows(limit), len(snapshot.Allocations)))
 	for _, item := range snapshot.Allocations {
@@ -150,12 +143,12 @@ func (h *operationsHandlers) listAllocations(w http.ResponseWriter, r *http.Requ
 		return operationsPagePosition(snapshot.Cursor, last.AllocationID)
 	})
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	writeJSON(w, http.StatusOK, allocationPageResponse{
 		Cursor: operationsCursor(snapshot.Cursor), Items: items, Page: page,
 	})
+	return nil
 }
 
 func (h *operationsHandlers) operationsSnapshot() (controlplane.OperationsSnapshot, error) {

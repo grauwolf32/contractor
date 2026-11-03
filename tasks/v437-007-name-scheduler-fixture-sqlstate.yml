@@ -1,0 +1,38 @@
+schema_version: "1.0"
+id: V437-007
+title: "Name the Scheduler discard fixture SQL condition"
+milestone: hub-audit-2026-10
+epic: execution-core
+kind: chore
+introduced_by: V438-001
+priority: P3
+status: in_progress
+depends_on: [V438-001]
+languages: [go]
+goal: "The discard recovery regression exercises serialization failure without violating the shared SQLSTATE source guard."
+context:
+  review: "V437-005 full Go verification on main plus explicit storage injection."
+  finding: >-
+    internal/scheduler/discard_recovery_postgres_test.go:34 spells SQLSTATE 40001
+    in its deferred trigger. TestSQLStateLiteralsLiveOnlyInTheClassifier rejects it.
+    The Scheduler behavior is already implemented; this is a fixture-only repair.
+  authority: >-
+    Agent-proposed verification follow-up 2026-11-02, kept separate from the
+    user-authorized Artifact constructor migration. PER-R13 owns condition names.
+  specification:
+    - docs/spec/platform/persistence.md#PER-R13
+scope:
+  in:
+    - "Use the equivalent named PostgreSQL serialization_failure condition in the deferred trigger."
+  out:
+    - "Scheduler production behavior, claims, retry classes and transaction boundaries."
+acceptance_criteria:
+  - id: A1
+    text: "The shared SQLSTATE guard passes with no allowlist addition."
+  - id: A2
+    text: "The complete Scheduler suite still verifies deferred commit failure and lost acknowledgement recovery."
+tests:
+  - command: "make lint"
+    covers: [A1, A2]
+  - command: "go test -count=1 -tags integration ./internal/... ./cmd/..."
+    covers: [A1, A2]

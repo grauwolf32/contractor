@@ -6,8 +6,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -25,7 +26,7 @@ func TestWebScanAuditPinsOneProjectWithoutModelOrOpenAPI(t *testing.T) {
 	defer cancel()
 	pool := isolatedAuditServicePool(t, ctx, dsn)
 	catalog := &switchableProfileCatalog{snapshot: loadAuditServiceCatalog(t), available: true}
-	service, err := New(Options{Pool: pool, Profiles: catalog,
+	service, err := New(Options{Storage: artifactpgtest.NewStorage(), Pool: pool, Profiles: catalog,
 		TransactionLLMCredentials: runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (resolved.CredentialLookup, error) {
 			return &switchableCredentialLookup{available: true}, nil
 		}),
@@ -40,7 +41,7 @@ func TestWebScanAuditPinsOneProjectWithoutModelOrOpenAPI(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			store, err := artifacts.NewService(artifactpostgres.NewRepository(pool)).Project(project.ProjectID)
+			store, err := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool)).Project(project.ProjectID)
 			if err != nil {
 				t.Fatal(err)
 			}

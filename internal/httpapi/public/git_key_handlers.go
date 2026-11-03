@@ -28,25 +28,24 @@ type gitKeyHandlers struct {
 	GitKeyDependencies
 }
 
-func (h *gitKeyHandlers) getGitKey(w http.ResponseWriter, r *http.Request) {
+func (h *gitKeyHandlers) getGitKey(w http.ResponseWriter, r *http.Request) error {
 	if !acceptGitKeyRequest(w, r) {
-		return
+		return nil
 	}
 	m, err := h.GitKeys.Metadata(r.Context(), principalUserID(r.Context()))
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	writeJSON(w, http.StatusOK, m)
+	return nil
 }
 
-func (h *gitKeyHandlers) replaceGitKey(w http.ResponseWriter, r *http.Request) {
+func (h *gitKeyHandlers) replaceGitKey(w http.ResponseWriter, r *http.Request) error {
 	if !acceptGitKeyRequest(w, r) {
-		return
+		return nil
 	}
 	if err := requireJSONMediaType(r); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	var body struct {
 		PrivateKey string `json:"privateKey"`
@@ -55,29 +54,28 @@ func (h *gitKeyHandlers) replaceGitKey(w http.ResponseWriter, r *http.Request) {
 		if !errors.Is(err, errRequestTooLarge) {
 			err = credentials.ErrGitKeyInvalid
 		}
-		handleError(w, err)
-		return
+		return err
 	}
 	key := []byte(body.PrivateKey)
 	body.PrivateKey = ""
 	defer clear(key)
 	m, err := h.GitKeys.Replace(r.Context(), principalUserID(r.Context()), key)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	writeJSON(w, http.StatusOK, m)
+	return nil
 }
 
-func (h *gitKeyHandlers) deleteGitKey(w http.ResponseWriter, r *http.Request) {
+func (h *gitKeyHandlers) deleteGitKey(w http.ResponseWriter, r *http.Request) error {
 	if !acceptGitKeyRequest(w, r) {
-		return
+		return nil
 	}
 	if err := h.GitKeys.Delete(r.Context(), principalUserID(r.Context())); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	w.WriteHeader(http.StatusNoContent)
+	return nil
 }
 
 // acceptGitKeyRequest keeps every Git key response out of caches and refuses

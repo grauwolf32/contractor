@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"time"
 
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -26,20 +27,21 @@ type identityMaterialResolver interface {
 // Its lookups finish outside Registry locks and never perform target I/O.
 type Adapter struct {
 	pool       *pgxpool.Pool
+	storage    *artifactpostgres.Storage
 	projection func(context.Context, controlplane.Reservation, runtimesettings.RuntimeSettings) (*engagementcontract.AllocationProjection, error)
 	materials  func(context.Context, *engagementcontract.AllocationProjection) (map[string]runtimesettings.HTTPIdentityMaterial, error)
 }
 
-func New(pool *pgxpool.Pool, identities identityMaterialResolver) (*Adapter, error) {
-	if pool == nil || identities == nil {
+func New(pool *pgxpool.Pool, identities identityMaterialResolver, storage *artifactpostgres.Storage) (*Adapter, error) {
+	if pool == nil || identities == nil || storage == nil {
 		return nil, errors.New("engagement adapter dependencies are required")
 	}
 	return &Adapter{
-		pool: pool,
+		pool: pool, storage: storage,
 		projection: func(ctx context.Context, reservation controlplane.Reservation, settings runtimesettings.RuntimeSettings) (*engagementcontract.AllocationProjection, error) {
 			return auditservice.ResolveAllocationEngagement(ctx, pool, reservation.Grant.RunID, reservation.Grant.StageExecutionID, func(ctx context.Context) ([]engagementcontract.ProtectedDestination, error) {
 				return resolveProtectedDestinations(ctx, reservation, settings)
-			})
+			}, storage)
 		},
 		materials: func(ctx context.Context, projection *engagementcontract.AllocationProjection) (map[string]runtimesettings.HTTPIdentityMaterial, error) {
 			return auditservice.MaterializeHTTPIdentities(ctx, identities, projection)
@@ -50,7 +52,7 @@ func New(pool *pgxpool.Pool, identities identityMaterialResolver) (*Adapter, err
 // RequiredRuntimeAdapters reads requirements from the immutable trusted Audit
 // binding before placement, keeping them separate from RuntimeConfig provenance.
 func (a *Adapter) RequiredRuntimeAdapters(ctx context.Context, runID, stageID string) ([]runtimesettings.RuntimeAdapterRef, error) {
-	return auditservice.AllocationEngagementAdapterRequirements(ctx, a.pool, runID, stageID)
+	return auditservice.AllocationEngagementAdapterRequirements(ctx, a.pool, runID, stageID, a.storage)
 }
 
 func (a *Adapter) WithPreparedSpec(ctx context.Context, reservation controlplane.Reservation, spec control.AllocationSpec, dispatch func(control.AllocationSpec) (contracts.WorkerHandle, error)) (contracts.WorkerHandle, error) {

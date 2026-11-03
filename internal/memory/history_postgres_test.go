@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 )
 
@@ -16,11 +18,15 @@ import (
 // and the same write succeeds after the passes (MEM-R99, ART-R127). The
 // removed revisions never return to the Run's lifetime revision counter.
 func TestPostgresPlannerMemoryCommitsHistoryMaintenanceAfterRollback(t *testing.T) {
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	pool := isolatedMemoryPool(t, ctx)
 	createRunningMemoryStage(t, ctx, pool, "history-run", "history-stage")
-	store, err := NewPostgresStore(pool)
+	store, err := NewPostgresStore(pool, artifactStorage)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +57,17 @@ WHERE binding.scope_kind = 'run' AND binding.scope_id = 'history-run'
 	if err != nil {
 		t.Fatal(err)
 	}
-	limited := artifactpostgres.WithHistoryPolicy(ctx, policy)
+	limited := ctx
+	artifactHistory = policy
+	artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+	store, err = NewPostgresStore(pool, artifactStorage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	namespace, err = NewNamespace(store, Binding{RunID: "history-run", StageExecutionID: "history-stage", Namespace: "builder"})
+	if err != nil {
+		t.Fatal(err)
+	}
 	// 130 retained revisions need 129 removals for a limit of 2: two pending
 	// answers, each after a committed pass of 64, then the write.
 	for pass, want := range []int64{130 - 64, 130 - 128} {

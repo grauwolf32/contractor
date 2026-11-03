@@ -8,6 +8,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 )
 
@@ -15,7 +17,7 @@ import (
 // This exercises the real handler's HTTP mapping, rather than disconnecting HTTP.
 func TestPrivateArtifactCommittedWriteCanReturnHTTP500(t *testing.T) {
 	repository := &acknowledgementFailureRepository{memoryRepository: newMemoryRepository()}
-	handler, err := NewHandler(Dependencies{
+	handler, err := NewHandler(Dependencies{Transfers: artifactpgtest.NewStorage(),
 		Registry:     &fakeRegistry{grant: testGrant("run-a")},
 		Artifacts:    artifacts.NewService(repository),
 		NewRequestID: func() (string, error) { return "artifact-ack-failure", nil },

@@ -13,6 +13,7 @@ package pgstore
 import (
 	"context"
 
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
@@ -20,7 +21,10 @@ import (
 
 // store is the database handle and the helpers that more than one seam
 // shares. Every seam type embeds it.
-type store struct{ db persistencepostgres.DBTX }
+type store struct {
+	storage *artifactpostgres.Storage
+	db      persistencepostgres.DBTX
+}
 
 // ClaimStore holds the commands the Audit controller runs under a live
 // controller claim: claims, transitions, Round acceptance, execution intents,
@@ -31,8 +35,8 @@ type ClaimStore struct {
 	purgeDependencies auditstore.PurgeDependencies
 }
 
-func NewClaimStore(db persistencepostgres.DBTX) *ClaimStore {
-	return &ClaimStore{store: store{db: db}}
+func NewClaimStore(db persistencepostgres.DBTX, storage *artifactpostgres.Storage) *ClaimStore {
+	return &ClaimStore{store: store{db: db, storage: storage}}
 }
 
 // WithPurgeDependencies composes cleanup owned by other contexts. Purge
@@ -48,8 +52,8 @@ func (s *ClaimStore) WithPurgeDependencies(purge auditstore.PurgeDependencies) *
 // cancellation, resume and deletion, each replayed by its idempotency key.
 type OwnerStore struct{ store }
 
-func NewOwnerStore(db persistencepostgres.DBTX) *OwnerStore {
-	return &OwnerStore{store{db: db}}
+func NewOwnerStore(db persistencepostgres.DBTX, storage *artifactpostgres.Storage) *OwnerStore {
+	return &OwnerStore{store{db: db, storage: storage}}
 }
 
 // OwnerTxStore is an OwnerStore bound to the caller's transaction, with the
@@ -59,8 +63,8 @@ type OwnerTxStore struct {
 	tx pgx.Tx
 }
 
-func NewOwnerTxStore(tx pgx.Tx) *OwnerTxStore {
-	return &OwnerTxStore{OwnerStore: NewOwnerStore(tx), tx: tx}
+func NewOwnerTxStore(tx pgx.Tx, storage *artifactpostgres.Storage) *OwnerTxStore {
+	return &OwnerTxStore{OwnerStore: NewOwnerStore(tx, storage), tx: tx}
 }
 
 // ReviewStore holds the review journal: finding triage requests and
@@ -68,8 +72,8 @@ func NewOwnerTxStore(tx pgx.Tx) *OwnerTxStore {
 // review events they record.
 type ReviewStore struct{ store }
 
-func NewReviewStore(db persistencepostgres.DBTX) *ReviewStore {
-	return &ReviewStore{store{db: db}}
+func NewReviewStore(db persistencepostgres.DBTX, storage *artifactpostgres.Storage) *ReviewStore {
+	return &ReviewStore{store{db: db, storage: storage}}
 }
 
 // ReviewTxStore is a ReviewStore bound to the caller's transaction, with the
@@ -79,8 +83,8 @@ type ReviewTxStore struct {
 	tx pgx.Tx
 }
 
-func NewReviewTxStore(tx pgx.Tx) *ReviewTxStore {
-	return &ReviewTxStore{ReviewStore: NewReviewStore(tx), tx: tx}
+func NewReviewTxStore(tx pgx.Tx, storage *artifactpostgres.Storage) *ReviewTxStore {
+	return &ReviewTxStore{ReviewStore: NewReviewStore(tx, storage), tx: tx}
 }
 
 // QueryStore holds the Audit reads: Audits, Rounds, items and their
@@ -88,16 +92,16 @@ func NewReviewTxStore(tx pgx.Tx) *ReviewTxStore {
 // build's pages.
 type QueryStore struct{ store }
 
-func NewQueryStore(db persistencepostgres.DBTX) *QueryStore {
-	return &QueryStore{store{db: db}}
+func NewQueryStore(db persistencepostgres.DBTX, storage *artifactpostgres.Storage) *QueryStore {
+	return &QueryStore{store{db: db, storage: storage}}
 }
 
 // FindingEvents records the Audit events of finding intake decisions that
 // finding intake makes outside a collection.
 type FindingEvents struct{ store }
 
-func NewFindingEvents(db persistencepostgres.DBTX) *FindingEvents {
-	return &FindingEvents{store{db: db}}
+func NewFindingEvents(db persistencepostgres.DBTX, storage *artifactpostgres.Storage) *FindingEvents {
+	return &FindingEvents{store{db: db, storage: storage}}
 }
 
 // FindingEventsTx is a FindingEvents bound to finding intake's transaction,
@@ -108,16 +112,16 @@ type FindingEventsTx struct {
 	tx pgx.Tx
 }
 
-func NewFindingEventsTx(tx pgx.Tx) *FindingEventsTx {
-	return &FindingEventsTx{FindingEvents: NewFindingEvents(tx), tx: tx}
+func NewFindingEventsTx(tx pgx.Tx, storage *artifactpostgres.Storage) *FindingEventsTx {
+	return &FindingEventsTx{FindingEvents: NewFindingEvents(tx, storage), tx: tx}
 }
 
 // RunDeletion is what Run deletion reads and changes of the Audits whose
 // executions bound the Run.
 type RunDeletion struct{ store }
 
-func NewRunDeletion(db persistencepostgres.DBTX) *RunDeletion {
-	return &RunDeletion{store{db: db}}
+func NewRunDeletion(db persistencepostgres.DBTX, storage *artifactpostgres.Storage) *RunDeletion {
+	return &RunDeletion{store{db: db, storage: storage}}
 }
 
 // RunDeletionTx is a RunDeletion bound to the caller's transaction, with the
@@ -127,32 +131,32 @@ type RunDeletionTx struct {
 	tx pgx.Tx
 }
 
-func NewRunDeletionTx(tx pgx.Tx) *RunDeletionTx {
-	return &RunDeletionTx{RunDeletion: NewRunDeletion(tx), tx: tx}
+func NewRunDeletionTx(tx pgx.Tx, storage *artifactpostgres.Storage) *RunDeletionTx {
+	return &RunDeletionTx{RunDeletion: NewRunDeletion(tx, storage), tx: tx}
 }
 
 // ProjectDeletion lets Project deletion request the deletion of the
 // Project's Audits.
 type ProjectDeletion struct{ store }
 
-func NewProjectDeletion(db persistencepostgres.DBTX) *ProjectDeletion {
-	return &ProjectDeletion{store{db: db}}
+func NewProjectDeletion(db persistencepostgres.DBTX, storage *artifactpostgres.Storage) *ProjectDeletion {
+	return &ProjectDeletion{store{db: db, storage: storage}}
 }
 
 // CredentialHolds lets the credential lifecycle find the Audits whose
 // dispatch hold keeps a credential in use.
 type CredentialHolds struct{ store }
 
-func NewCredentialHolds(db persistencepostgres.DBTX) *CredentialHolds {
-	return &CredentialHolds{store{db: db}}
+func NewCredentialHolds(db persistencepostgres.DBTX, storage *artifactpostgres.Storage) *CredentialHolds {
+	return &CredentialHolds{store{db: db, storage: storage}}
 }
 
 // AuditCreations lets the Eval store match an Audit it created for an owner to
 // the creation key and request that made it.
 type AuditCreations struct{ store }
 
-func NewAuditCreations(db persistencepostgres.DBTX) *AuditCreations {
-	return &AuditCreations{store{db: db}}
+func NewAuditCreations(db persistencepostgres.DBTX, storage *artifactpostgres.Storage) *AuditCreations {
+	return &AuditCreations{store{db: db, storage: storage}}
 }
 
 // Get reads ownerID's Audit.

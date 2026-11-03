@@ -33,7 +33,7 @@ func TestPostgresPauseDiscardRecoversCommitFailureWithoutAnotherAttempt(t *testi
 			if failure == "rollback" {
 				if _, err := h.pool.Exec(ctx, `
 CREATE FUNCTION test_fail_discard_commit() RETURNS trigger LANGUAGE plpgsql AS $$
-BEGIN RAISE EXCEPTION 'injected commit failure' USING ERRCODE='40001'; END;
+BEGIN RAISE EXCEPTION 'injected commit failure' USING ERRCODE='serialization_failure'; END;
 $$;
 CREATE CONSTRAINT TRIGGER test_fail_discard_commit AFTER DELETE ON stage_allocations
 DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION test_fail_discard_commit()`); err != nil {

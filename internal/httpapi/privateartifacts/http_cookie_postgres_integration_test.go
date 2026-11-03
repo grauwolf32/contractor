@@ -14,10 +14,12 @@ import (
 	"testing"
 	"time"
 
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob/backends"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 )
 
 // The Server treats the Runtime-owned cookie format as ordinary opaque bytes.
@@ -44,10 +46,10 @@ func TestPostgresHTTPCookieContinuation(t *testing.T) {
 					t.Cleanup(func() { _ = closer.Close() })
 				}
 				runtime := blob.NewRuntime(store, nil)
+				artifactStorage := artifactpgtest.NewConfigured(runtime, artifactpostgres.DefaultHistoryPolicy())
 				var lost atomic.Bool
 				wrap := func(next http.Handler) http.Handler {
 					return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-						r = r.WithContext(blob.WithRuntime(r.Context(), runtime))
 						if r.Method == http.MethodPut && strings.HasSuffix(r.URL.Path, "/http-cookie-session") && lost.CompareAndSwap(false, true) {
 							recorder := httptest.NewRecorder()
 							next.ServeHTTP(recorder, r)
@@ -63,7 +65,7 @@ func TestPostgresHTTPCookieContinuation(t *testing.T) {
 						next.ServeHTTP(w, r)
 					})
 				}
-				harness := newCrossLanguageHarness(t, artifactpostgres.NewRepository(pool), wrap)
+				harness := newCrossLanguageHarness(t, artifactStorage.Repository(pool), wrap)
 				probe := func(action string) map[string]any {
 					args := []string{"--mode", "cookies", "--cookie-action", action}
 					if proxy {
@@ -116,11 +118,11 @@ func TestPostgresHTTPCookieContinuation(t *testing.T) {
 					t.Fatal(err)
 				}
 				defer func() { _ = tx.Rollback(context.Background()) }()
-				purger, err := artifactpostgres.NewPurger(tx)
+				purger, err := artifactStorage.Purger(tx)
 				if err != nil {
 					t.Fatal(err)
 				}
-				if err := purger.PurgeRun(blob.WithRuntime(ctx, runtime), "run-a"); err != nil {
+				if err := purger.PurgeRun(ctx, "run-a"); err != nil {
 					t.Fatal(err)
 				}
 				if err := tx.Commit(ctx); err != nil {
@@ -153,8 +155,9 @@ func TestPostgresCookieTerminalWriteBarrier(t *testing.T) {
 				t.Cleanup(func() { _ = closer.Close() })
 			}
 			runtime := blob.NewRuntime(blobs, nil)
+			artifactStorage := artifactpgtest.NewConfigured(runtime, artifactpostgres.DefaultHistoryPolicy())
 			repository := &cookieBarrierRepository{
-				Repository: artifactpostgres.NewRepository(pool),
+				Repository: artifactStorage.Repository(pool),
 				entered:    make(chan struct{}), release: make(chan struct{}),
 			}
 			handler, registry, allocation, _, _ := newProductionGrantHandler(t, repository)
@@ -164,7 +167,7 @@ func TestPostgresCookieTerminalWriteBarrier(t *testing.T) {
 					bytes.NewReader(data))
 				request.Header.Set("Content-Type", "application/vnd.contractor.http-cookie-session+json")
 				request.Header.Set("If-None-Match", "*")
-				request = request.WithContext(blob.WithRuntime(request.Context(), runtime))
+				request = request.WithContext(ctx)
 				response := httptest.NewRecorder()
 				handler.ServeHTTP(response, request)
 				return response
@@ -209,7 +212,7 @@ func TestPostgresCookieTerminalWriteBarrier(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			value, err := run.Read(blob.WithRuntime(ctx, runtime), artifacts.ArtifactRef{Namespace: "builder", Name: "http-cookie-session"})
+			value, err := run.Read(ctx, artifacts.ArtifactRef{Namespace: "builder", Name: "http-cookie-session"})
 			if err != nil || !bytes.Equal(value.Payload.Data, data) {
 				t.Fatal("post-barrier cookie bytes changed", err)
 			}

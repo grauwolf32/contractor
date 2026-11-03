@@ -332,7 +332,7 @@ const UI_ROOT = join(__dirname, "..", "..");
 /**
  * The distinctive reserved Namespaces: the purpose-reserved Run Namespaces
  * (ART-R114) and the UserScope Audit standard catalog (ART-R25), the names
- * the Go (internal/artifactpolicy/namespace_literal_test.go) and Runtime
+ * the Go (internal/artifacts/policy/namespace_literal_test.go) and Runtime
  * (runtime/tests/test_security_findings_toolset.py) scans check. inputs,
  * outputs and skills are ordinary words of other rules and are not scanned.
  * The UI names only finding-proposals; a module that needs another reserved

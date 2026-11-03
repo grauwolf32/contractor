@@ -2,328 +2,47 @@ package public
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"net/http"
-	"sort"
-	"strings"
 
-	"github.com/grauwolf32/contractor/internal/artifacts"
-	"github.com/grauwolf32/contractor/internal/artifacts/blob"
-	"github.com/grauwolf32/contractor/internal/config/resolved"
-	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/grauwolf32/contractor/internal/helpers/clone"
-	"github.com/grauwolf32/contractor/internal/projectstore"
-	"github.com/grauwolf32/contractor/internal/runstore"
-	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runservice"
 )
 
-const (
-	repeatAuthorityOrdinary = "ordinary"
-	repeatAuthorityAudit    = "audit-managed"
-	repeatStatusAvailable   = "available"
-	repeatStatusUnavailable = "unavailable"
-)
-
-// RepeatWorkflowResolver checks that a retained Workflow selection still
-// resolves.
-type RepeatWorkflowResolver interface {
-	Workflow(string) (resolved.ResolvedWorkflow, error)
-	ResolveRunWorkflow(
-		context.Context, string, resolved.CredentialLookup,
-	) (resolved.ResolvedWorkflow, error)
+type RepeatDraftReader interface {
+	Read(context.Context, string, string) (runservice.RepeatProjection, error)
 }
 
-// RepeatArtifacts reads original input provenance and exact source metadata.
-type RepeatArtifacts interface {
-	Run(string) (artifacts.ScopedStore, error)
-	User(string) (artifacts.ScopedStore, error)
-	Project(string) (artifacts.ScopedStore, error)
-}
+type RunRepeatDependencies struct{ RepeatDrafts RepeatDraftReader }
 
-// RuntimeBindingReader reads the current binding of a Runtime label.
-type RuntimeBindingReader interface {
-	GetBinding(context.Context, string) (runtimeconfig.Binding, error)
-}
+type runRepeatHandlers struct{ RunRepeatDependencies }
 
-// RunRepeatDependencies serve the repeat draft of a terminal Run.
-type RunRepeatDependencies struct {
-	Runs           RunGetter
-	Projects       ProjectReader
-	Config         RepeatWorkflowResolver
-	Credentials    resolved.CredentialLookup
-	Artifacts      RepeatArtifacts
-	RuntimeConfigs RuntimeBindingReader
-}
-
-type runRepeatHandlers struct {
-	RunRepeatDependencies
-}
-
-func (h *runRepeatHandlers) getRunRepeatDraft(w http.ResponseWriter, r *http.Request) {
-	// Source authorization and availability are rechecked for every draft.
+func (h *runRepeatHandlers) getRunRepeatDraft(w http.ResponseWriter, r *http.Request) error {
 	w.Header().Set("Cache-Control", "no-store")
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
-	run, err := ownedRun(r, h.Runs)
+	source, err := h.RepeatDrafts.Read(r.Context(), principalUserID(r.Context()), r.PathValue("runId"))
 	if err != nil {
-		handleError(w, err)
-		return
-	}
-	if !runstore.RunLifecycleTerminal.Includes(run.State) {
-		handleError(w, fmt.Errorf("%w: only terminal Runs have a repeat draft", runstore.ErrConflict))
-		return
+		return err
 	}
 	response := runRepeatDraftResponse{
-		SourceRunID: run.RunID,
-		Workflow: resolved.WorkflowRef{
-			Name: run.WorkflowName, Version: run.WorkflowVersion,
-		},
-		ProjectID: clone.Pointer(run.ProjectID),
-		Notices:   []runRepeatDraftNotice{},
+		SourceRunID: source.SourceRunID, Authority: source.Authority, Workflow: source.Workflow,
+		ProjectID: source.ProjectID, AuditID: source.AuditID, Notices: source.Notices,
 	}
-	if run.PublicationMode == runstore.PublicationAuditManaged {
-		response.Authority = repeatAuthorityAudit
-		if auditID := run.MetadataLabels["audit.id"]; auditID != "" {
-			response.AuditID = &auditID
+	if source.Draft != nil {
+		draft := source.Draft
+		response.Draft = &runRepeatDraft{
+			RequiredPlacementLabels: draft.RequiredPlacementLabels,
+			Parameters:              draft.Parameters, RuntimeLabels: draft.RuntimeLabels, Labels: draft.Labels,
+			Inputs: make(map[string]runRepeatInputSelection, len(draft.Inputs)),
 		}
-		response.Notices = append(response.Notices, runRepeatDraftNotice{
-			Code: "audit_managed_run", Severity: "blocking", Field: "authority",
-			Message: "This Run belongs to an Audit. Continue from the owning Audit instead of creating an untracked copy.",
-		})
-		writeJSON(w, http.StatusOK, response)
-		return
-	}
-	response.Authority = repeatAuthorityOrdinary
-	projectUploadsAllowed := false
-	if run.ProjectID != nil {
-		project, projectErr := h.Projects.Get(
-			r.Context(), run.OwnerID, *run.ProjectID,
-		)
-		if errors.Is(projectErr, projectstore.ErrNotFound) {
-			response.Notices = append(response.Notices, runRepeatDraftNotice{
-				Code: "project_unavailable", Severity: "blocking", Field: "projectId",
-				Message: "The owning Project is no longer available. Its ProjectScope inputs cannot be used for another Run.",
-			})
-		} else if projectErr != nil {
-			handleError(w, projectErr)
-			return
-		} else if project.Lifecycle == projectstore.LifecycleDeleting {
-			response.Notices = append(response.Notices, runRepeatDraftNotice{
-				Code: "project_deleting", Severity: "blocking", Field: "projectId",
-				Message: "The owning Project is deleting and cannot accept another Run.",
-			})
-		} else {
-			projectUploadsAllowed = true
-		}
-	}
-	selector := run.WorkflowName + "@" + run.WorkflowVersion
-	workflowAvailable := true
-	currentWorkflow, workflowErr := h.Config.Workflow(selector)
-	if workflowErr != nil {
-		workflowAvailable = false
-		response.Notices = append(response.Notices, runRepeatDraftNotice{
-			Code: "workflow_unavailable", Severity: "blocking", Field: "workflow",
-			Message: "The exact Workflow version is no longer available. Publish or restore it before configuring another Run.",
-		})
-	}
-
-	inputs, err := h.originalInputSources(r.Context(), run)
-	if err != nil {
-		if !errors.Is(err, blob.ErrIntegrity) {
-			handleError(w, err)
-			return
-		}
-		response.Notices = append(response.Notices, runRepeatDraftNotice{
-			Code: "input_provenance_invalid", Severity: "blocking", Field: "inputs",
-			Message: "The original Run input sources could not be verified. Configure a new Run from the Workflow.",
-		})
-		writeJSON(w, http.StatusOK, response)
-		return
-	}
-
-	draft := &runRepeatDraft{
-		Parameters:              clone.Map(run.Parameters),
-		RuntimeLabels:           append([]string{}, run.RuntimeLabels...),
-		RequiredPlacementLabels: append([]string{}, run.RequiredPlacementLabels...),
-		Labels:                  run.MetadataLabels.Clone(),
-	}
-	response.Draft = draft
-	draft.Inputs, err = h.repeatInputsFromSources(r.Context(), run, inputs, projectUploadsAllowed)
-	if err != nil {
-		handleError(w, err)
-		return
-	}
-	if workflowAvailable {
-		for slot, source := range inputs {
-			expected := artifacts.ScopeUser
-			if run.ProjectID != nil && currentWorkflow.Inputs[slot].SourceScope != "user" {
-				expected = artifacts.ScopeProject
+		for slot, input := range draft.Inputs {
+			selection := runRepeatInputSelection{Status: input.Status, SourceScope: input.SourceScope, Artifact: input.Artifact, Code: input.Code, Message: input.Message}
+			if input.Metadata != nil {
+				selection.Metadata = &artifactMetadataResponse{Metadata: *input.Metadata, CanUploadNewVersion: input.CanReplace}
 			}
-			if source.SourceScope != expected {
-				draft.Inputs[slot] = runRepeatInputSelection{Status: repeatStatusUnavailable, Code: "input_source_scope_changed", Message: "The Workflow now selects a different source scope. Select the input again before creating another Run."}
-			}
-		}
-		if _, resolveErr := h.Config.ResolveRunWorkflow(
-			r.Context(), selector, h.Credentials,
-		); errors.Is(resolveErr, resolved.ErrCredentialLookup) {
-			// An outage is not an unavailable selection; let the client retry.
-			handleError(w, resolveErr)
-			return
-		} else if resolveErr != nil {
-			response.Notices = append(response.Notices, runRepeatDraftNotice{
-				Code: "execution_configuration_unavailable", Severity: "blocking", Field: "workflow",
-				Message: "The Workflow's execution configuration is unavailable. Review the Workflow before submitting.",
-			})
+			response.Draft.Inputs[slot] = selection
 		}
 	}
-
-	for slot, input := range draft.Inputs {
-		if input.Status == repeatStatusUnavailable {
-			response.Notices = append(response.Notices, runRepeatDraftNotice{
-				Code: input.Code, Severity: "blocking", Field: "inputs." + slot,
-				Message: input.Message,
-			})
-		}
-	}
-	if hasEvaluationLabels(draft.Labels) {
-		response.Notices = append(response.Notices, runRepeatDraftNotice{
-			Code: "evaluation_labels_require_review", Severity: "warning", Field: "labels",
-			Message: "Evaluation labels were copied exactly. Review eval identity, sample and leg values before submitting to avoid duplicate records.",
-		})
-	}
-	if err := h.appendRuntimeBindingNotices(r.Context(), run, &response.Notices); err != nil {
-		handleError(w, err)
-		return
-	}
-	sort.SliceStable(response.Notices, func(left, right int) bool {
-		if response.Notices[left].Field != response.Notices[right].Field {
-			return response.Notices[left].Field < response.Notices[right].Field
-		}
-		return response.Notices[left].Code < response.Notices[right].Code
-	})
 	writeJSON(w, http.StatusOK, response)
-}
-
-func (h *runRepeatHandlers) originalInputSources(ctx context.Context, run runstore.WorkflowRun) (map[string]artifacts.LineageEdge, error) {
-	store, err := h.Artifacts.Run(run.RunID)
-	if err != nil {
-		return nil, err
-	}
-	return runstore.OriginalInputSources(ctx, run, store)
-}
-
-func (h *runRepeatHandlers) repeatInputsFromSources(
-	ctx context.Context, run runstore.WorkflowRun, inputs map[string]artifacts.LineageEdge, projectUploadsAllowed bool,
-) (map[string]runRepeatInputSelection, error) {
-	result := make(map[string]runRepeatInputSelection, len(inputs))
-	for _, slot := range sortedArtifactSlots(inputs) {
-		selection, err := h.resolveRepeatSource(ctx, run, inputs[slot], projectUploadsAllowed)
-		if err != nil {
-			return nil, err
-		}
-		result[slot] = selection
-	}
-	return result, nil
-}
-
-func (h *runRepeatHandlers) resolveRepeatSource(
-	ctx context.Context, run runstore.WorkflowRun, source artifacts.LineageEdge, projectUploadsAllowed bool,
-) (runRepeatInputSelection, error) {
-	ref := source.Source
-	copy := ref.Clone()
-	var (
-		store artifacts.ScopedStore
-		err   error
-		kind  artifacts.ScopeKind
-	)
-	if source.SourceScope == artifacts.ScopeUser {
-		kind = artifacts.ScopeUser
-		store, err = h.Artifacts.User(run.OwnerID)
-	} else {
-		kind = artifacts.ScopeProject
-		store, err = h.Artifacts.Project(*run.ProjectID)
-	}
-	if err != nil {
-		return runRepeatInputSelection{}, err
-	}
-	metadata, err := store.Metadata(ctx, ref)
-	if errors.Is(err, artifacts.ErrArtifactNotFound) {
-		return unavailableRepeatInput(&copy, "input_source_unavailable",
-			"The exact original Artifact revision is unavailable. Select a replacement explicitly."), nil
-	}
-	if err != nil {
-		return runRepeatInputSelection{}, err
-	}
-	if !metadata.Ref.Equal(ref) {
-		return unavailableRepeatInput(&copy, "input_source_mismatch",
-			"The exact original Artifact revision could not be verified. Select a replacement explicitly."), nil
-	}
-	metadataCopy := ownerArtifactMetadata(store, metadata, kind == artifacts.ScopeUser || projectUploadsAllowed)
-	return runRepeatInputSelection{
-		Status: repeatStatusAvailable, SourceScope: kind,
-		Artifact: &copy, Metadata: &metadataCopy,
-	}, nil
-}
-
-func unavailableRepeatInput(
-	ref *contracts.ArtifactRef, code string, message string,
-) runRepeatInputSelection {
-	return runRepeatInputSelection{
-		Status: repeatStatusUnavailable, Artifact: ref, Code: code, Message: message,
-	}
-}
-
-func (h *runRepeatHandlers) appendRuntimeBindingNotices(
-	ctx context.Context, run runstore.WorkflowRun, notices *[]runRepeatDraftNotice,
-) error {
-	pins := append([]runtimeconfig.PinnedLabel{run.RuntimeConfig.Default}, run.RuntimeConfig.Labels...)
-	for _, pin := range pins {
-		binding, err := h.RuntimeConfigs.GetBinding(ctx, pin.Label)
-		field := "runtimeLabels." + pin.Label
-		if errors.Is(err, runtimeconfig.ErrNotFound) {
-			*notices = append(*notices, runRepeatDraftNotice{
-				Code: "runtime_binding_unavailable", Severity: "blocking", Field: field,
-				Message: fmt.Sprintf("Runtime label %q is no longer bound. Remove it or restore its binding before submitting.", pin.Label),
-			})
-			continue
-		}
-		if err != nil {
-			return err
-		}
-		if binding.Revision != pin.BindingRevision || binding.Ref != pin.Config {
-			*notices = append(*notices, runRepeatDraftNotice{
-				Code: "runtime_binding_changed", Severity: "warning", Field: field,
-				Message: fmt.Sprintf("Runtime label %q now resolves to a different immutable configuration. Review it before submitting.", pin.Label),
-			})
-		}
-	}
 	return nil
-}
-
-func sortedArtifactSlots[T any](source map[string]T) []string {
-	result := make([]string, 0, len(source))
-	for slot := range source {
-		result = append(result, slot)
-	}
-	sort.Strings(result)
-	return result
-}
-
-func hasEvaluationLabels(labels runstore.RunMetadataLabels) bool {
-	if labels["purpose"] == "eval" {
-		return true
-	}
-	for key := range labels {
-		if strings.HasPrefix(key, "eval.") && len(key) > len("eval.") {
-			return true
-		}
-	}
-	return false
-}
-
-func sameOptionalString(left, right *string) bool {
-	return left == nil && right == nil || left != nil && right != nil && *left == *right
 }

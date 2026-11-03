@@ -7,9 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
+	artifactpolicy "github.com/grauwolf32/contractor/internal/artifacts/policy"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findinganalysis"
@@ -67,7 +66,7 @@ func (p *CollectionPublisher) PublishFindingExport(ctx context.Context, ownerID,
 		if err != nil {
 			return err
 		}
-		repository := artifactpostgres.NewRepository(tx)
+		repository := p.storage.Repository(tx)
 		previous, _, found, err := readExportPublication(ctx, repository, scope, auditID, id, digest)
 		if err != nil || found {
 			result = previous
@@ -212,7 +211,7 @@ func (p *CollectionPublisher) ReadFindingExport(ctx context.Context, ownerID, au
 		if err != nil {
 			return err
 		}
-		_, contents, found, err := readExportPublication(ctx, artifactpostgres.NewRepository(tx), scope, auditID, id, "")
+		_, contents, found, err := readExportPublication(ctx, p.storage.Repository(tx), scope, auditID, id, "")
 		if err != nil {
 			return err
 		}

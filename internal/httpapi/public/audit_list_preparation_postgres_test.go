@@ -17,11 +17,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
@@ -132,7 +133,7 @@ func newPreparedListFixture(t *testing.T, ctx context.Context, pool *pgxpool.Poo
 	if err != nil {
 		t.Fatal(err)
 	}
-	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
+	service := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
 	inputs := map[string]auditstore.ExactArtifact{}
 	for index, projectID := range projectIDs {
 		if _, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{
@@ -173,7 +174,7 @@ func newPreparedListFixture(t *testing.T, ctx context.Context, pool *pgxpool.Poo
 		t.Fatal(err)
 	}
 	return &preparedListFixture{t: t, ctx: ctx, pool: pool,
-		store:   auditstoretest.NewStore(pool).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch),
+		store:   auditstoretest.NewStore(pool, artifactpgtest.NewStorage()).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch),
 		catalog: catalog, artifacts: service, profile: profile, snapshot: snapshot, selection: selection,
 		baseline: baseline, inputs: inputs, owner: owner, claims: map[string]auditstore.ControllerClaim{},
 		accepted: map[string]map[string]auditstore.PreparationOutput{}}
@@ -239,7 +240,7 @@ func (f *preparedListFixture) attempt(projectID, auditID, role string, number in
 		f.t.Fatal(err)
 	}
 	if err := persistencepostgres.InTx(ctx, f.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		if _, err := runstore.NewPostgresStore(tx).CreateAuditRun(ctx, runstore.CreateAuditRunParams{
+		if _, err := runstore.NewPostgresStore(tx, artifactpgtest.NewStorage()).CreateAuditRun(ctx, runstore.CreateAuditRunParams{
 			CreateRunParams: runstore.CreateRunParams{LaneClass: resolved.LaneClassModel, RunID: runID, OwnerID: f.owner, ProjectID: &projectID,
 				WorkflowName: binding.Workflow.Ref.Name, WorkflowVersion: binding.Workflow.Ref.Version, WorkflowSchemaVersion: "contractor/v1alpha1",
 				WorkflowSnapshot: workflow, Parameters: map[string]string{}, RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot()},
@@ -247,7 +248,7 @@ func (f *preparedListFixture) attempt(projectID, auditID, role string, number in
 		}); err != nil {
 			return err
 		}
-		_, err := auditstoretest.NewStore(tx).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch).BindRun(ctx,
+		_, err := auditstoretest.NewStore(tx, artifactpgtest.NewStorage()).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch).BindRun(ctx,
 			auditstore.BindRunParams{Claim: claim, ExecutionID: execution.ExecutionID, RunID: runID})
 		return err
 	}); err != nil {
@@ -444,7 +445,7 @@ func TestSharedPostgresAuditListsHydratePreparationInFixedStatements(t *testing.
 	}
 
 	credentials := newFakeManagedCredentials()
-	service, err := auditservice.New(auditservice.Options{Pool: traced, Profiles: f.catalog, CredentialGuard: credentials,
+	service, err := auditservice.New(auditservice.Options{Storage: artifactpgtest.NewStorage(), Pool: traced, Profiles: f.catalog, CredentialGuard: credentials,
 		TransactionLLMCredentials: runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(
 			func(pgx.Tx) (resolved.CredentialLookup, error) { return credentials, nil }),
 	})
@@ -467,7 +468,7 @@ func TestSharedPostgresAuditListsHydratePreparationInFixedStatements(t *testing.
 		request.SetPathValue("projectId", projectID)
 		trace.take()
 		response := httptest.NewRecorder()
-		h.listProjectAudits(response, request)
+		serve(h.listProjectAudits)(response, request)
 		statements := trace.take()
 		var page listPage
 		if response.Code == http.StatusOK {
@@ -605,7 +606,7 @@ func TestSharedPostgresAuditListsHydratePreparationInFixedStatements(t *testing.
 			detail := auditAuthenticatedRequest(http.MethodGet, "/v1/audits/"+listed.AuditID, nil)
 			detail.SetPathValue("auditId", listed.AuditID)
 			detailed := httptest.NewRecorder()
-			h.getAudit(detailed, detail)
+			serve(h.getAudit)(detailed, detail)
 			var read struct {
 				Preparation json.RawMessage `json:"preparation"`
 			}

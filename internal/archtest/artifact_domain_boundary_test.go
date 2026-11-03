@@ -26,7 +26,7 @@ func TestSitemapUsesSharedArtifactMechanisms(t *testing.T) {
 				return err
 			}
 			if entry.IsDir() {
-				if entry.Name() == "testdata" {
+				if entry.Name() == "testdata" || path == filepath.Join("..", "..", "internal", "artifacts", "policy") {
 					return filepath.SkipDir
 				}
 				return nil

@@ -7,8 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/artifactpolicy"
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	. "github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpolicy "github.com/grauwolf32/contractor/internal/artifacts/policy"
 	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	postgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -31,7 +33,7 @@ func TestPostgresIntegrationProjectListingSkipsAuditNamespacesByIndex(t *testing
 	}); err != nil {
 		t.Fatal(err)
 	}
-	project, _ := NewService(artifactpostgres.NewRepository(pool)).Project(projectID)
+	project, _ := NewService(artifactpgtest.NewStorage().Repository(pool)).Project(projectID)
 	visible := []ArtifactRef{
 		{Namespace: "audit0", Name: "first"}, {Namespace: "auditab", Name: "second"},
 		{Namespace: "notes", Name: "third"}, {Namespace: "notes", Name: "fourth"},
@@ -77,7 +79,7 @@ WHERE scope_kind = 'project' AND scope_id = $1 AND namespace LIKE 'audit-%'`} {
 	var listed []string
 	var bindingReads int64
 	if err := postgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		pages, _ := NewService(artifactpostgres.NewRepository(tx)).Project(projectID)
+		pages, _ := NewService(artifactpgtest.NewStorage().Repository(tx)).Project(projectID)
 		query := BindingPageQuery{ExcludeNamespacePrefix: "audit-", Limit: 2}
 		for {
 			page, err := pages.ListMetadata(ctx, query)
@@ -171,7 +173,7 @@ func TestPostgresIntegrationUserListingSkipsSystemBindingsByIndex(t *testing.T) 
 	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
-	service := NewService(artifactpostgres.NewRepository(pool))
+	service := NewService(artifactpgtest.NewStorage().Repository(pool))
 	user, _ := service.User("system-library-owner")
 	refs := []ArtifactRef{{Namespace: "notes", Name: "first"}, {Namespace: "notes", Name: "second"}, {Namespace: "zeta", Name: "third"}}
 	var source WriteResult
@@ -200,7 +202,7 @@ SELECT scope_kind,scope_id,namespace,name,revision,true,1,0 FROM artifact_bindin
 	var reads int64
 	var listed []string
 	if err := postgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		pages, _ := NewService(artifactpostgres.NewRepository(tx)).User("system-library-owner")
+		pages, _ := NewService(artifactpgtest.NewStorage().Repository(tx)).User("system-library-owner")
 		query := BindingPageQuery{HiddenNamespace: artifactpolicy.AuditStandardCatalogNamespace, Limit: 2}
 		for {
 			items, err := pages.ListMetadata(ctx, query)

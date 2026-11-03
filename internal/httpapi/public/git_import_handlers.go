@@ -21,7 +21,7 @@ type GitImportService interface {
 	DoImport(context.Context, gitimport.ImportRequest, func(gitimport.ImportResult)) error
 }
 
-func (h *artifactHandlers) importGitArtifact(w http.ResponseWriter, r *http.Request) {
+func (h *artifactHandlers) importGitArtifact(w http.ResponseWriter, r *http.Request) error {
 	ctx, cancel := context.WithTimeout(r.Context(), h.GitImports.Timeout())
 	defer cancel()
 	r = r.WithContext(ctx)
@@ -32,21 +32,17 @@ func (h *artifactHandlers) importGitArtifact(w http.ResponseWriter, r *http.Requ
 	defer func() { _ = controller.SetReadDeadline(time.Time{}); _ = controller.SetWriteDeadline(time.Time{}) }()
 	w.Header().Set("Cache-Control", "no-store")
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	if err := validateArtifactRouteNames(r); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	if err := requireJSONMediaType(r); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	expected, err := artifactWritePrecondition(r)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	var body struct {
 		RepositoryURL string          `json:"repositoryUrl"`
@@ -54,22 +50,19 @@ func (h *artifactHandlers) importGitArtifact(w http.ResponseWriter, r *http.Requ
 		Ref           json.RawMessage `json:"ref"`
 	}
 	if err := decodeJSONBounded(w, r, &body, maximumGitImportBodyBytes); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	mode := gitimport.ModeSnapshot
 	if len(body.Mode) != 0 {
 		mode = ""
 		if json.Unmarshal(body.Mode, &mode) != nil || (mode != gitimport.ModeSnapshot && mode != gitimport.ModeAnalysis) {
-			handleError(w, errInvalidRequest)
-			return
+			return errInvalidRequest
 		}
 	}
 	ref := ""
 	if len(body.Ref) != 0 {
 		if json.Unmarshal(body.Ref, &ref) != nil || ref == "" {
-			handleError(w, gitimport.ErrRef)
-			return
+			return gitimport.ErrRef
 		}
 	}
 	err = h.GitImports.DoImport(r.Context(), gitimport.ImportRequest{
@@ -86,6 +79,7 @@ func (h *artifactHandlers) importGitArtifact(w http.ResponseWriter, r *http.Requ
 		writeJSON(w, status, result)
 	})
 	if err != nil {
-		handleError(w, err)
+		return err
 	}
+	return nil
 }

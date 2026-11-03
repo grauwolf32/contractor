@@ -20,6 +20,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 	"github.com/grauwolf32/contractor/internal/localpki"
@@ -151,7 +153,7 @@ func TestRunMetadataLabelsAcrossProcesses(t *testing.T) {
 		t.Fatalf("open assertion database: %v", err)
 	}
 	t.Cleanup(pool.Close)
-	store := runstore.NewPostgresStore(pool)
+	store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	operations := &runtimeOperations{t: t, client: publicClient, baseURL: publicBaseURL}
 	uploaded := uploadInput(t, publicClient, publicBaseURL)
 

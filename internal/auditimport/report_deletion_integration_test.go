@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
@@ -36,12 +38,12 @@ func TestImporterReportFinalizationSurvivesRunDeletion(t *testing.T) {
 		for _, point := range []string{"before-machine", "after-machine", "after-summary"} {
 			t.Run(acceptance+"/"+point, func(t *testing.T) {
 				f, snapshot := newReportDeletionFixture(t, pool, acceptance)
-				access, err := NewArtifactAccess(f.artifacts, hookstore.NewClaimedArtifacts(f.pool))
+				access, err := NewArtifactAccess(f.artifacts, hookstore.NewClaimedArtifacts(f.pool, artifactpgtest.NewStorage()))
 				mustCompletion(t, err)
 				deleted := false
 				hooked := &reportDeletionArtifacts{ArtifactAccess: access, hook: func(observed string) {
 					if observed == point && !deleted {
-						mustCompletion(t, rundeletion.New(f.pool).DeleteReleasedTerminalRun(f.ctx, "owner", f.run.RunID))
+						mustCompletion(t, rundeletion.New(f.pool, artifactpgtest.NewStorage()).DeleteReleasedTerminalRun(f.ctx, "owner", f.run.RunID))
 						deleted = true
 					}
 				}}
@@ -65,7 +67,7 @@ func TestImporterReportFinalizationSurvivesRunDeletion(t *testing.T) {
 				}
 				// Reconstruct the importer as after a process restart. Artifact writes
 				// and report CAS remain real; the retry may only reuse identical bytes.
-				importer, err = New(auditstoretest.NewStore(pool), auditstoretest.NewStore(pool), runstore.NewPostgresStore(pool), access)
+				importer, err = New(auditstoretest.NewStore(pool, artifactpgtest.NewStorage()), auditstoretest.NewStore(pool, artifactpgtest.NewStorage()), runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()), access)
 				mustCompletion(t, err)
 				worked, err = importer.Finalize(f.ctx, f.claim, fresh)
 				if err != nil || !worked {
@@ -120,7 +122,7 @@ func TestImporterPendingReportReviewSurvivesRunDeletion(t *testing.T) {
 	for _, action := range []auditstore.ReviewAction{auditstore.ReviewApprove, auditstore.ReviewReject} {
 		t.Run(string(action), func(t *testing.T) {
 			f, snapshot := newReportDeletionFixture(t, pool, "human-required")
-			access, err := NewArtifactAccess(f.artifacts, hookstore.NewClaimedArtifacts(f.pool))
+			access, err := NewArtifactAccess(f.artifacts, hookstore.NewClaimedArtifacts(f.pool, artifactpgtest.NewStorage()))
 			mustCompletion(t, err)
 			importer, err := New(f.audits, f.audits, f.runs, access)
 			mustCompletion(t, err)
@@ -134,7 +136,7 @@ func TestImporterPendingReportReviewSurvivesRunDeletion(t *testing.T) {
 			service := reportDeletionReviewService(t, f)
 			review, err := service.GetReview(f.ctx, "owner", f.id, candidate.RequestID)
 			mustCompletion(t, err)
-			mustCompletion(t, rundeletion.New(f.pool).DeleteReleasedTerminalRun(f.ctx, "owner", f.run.RunID))
+			mustCompletion(t, rundeletion.New(f.pool, artifactpgtest.NewStorage()).DeleteReleasedTerminalRun(f.ctx, "owner", f.run.RunID))
 			after, err := f.audits.Get(f.ctx, "owner", f.id)
 			mustCompletion(t, err)
 			if after.State != auditstore.AuditWaitingReview || after.Revision != before.Revision+1 || !after.UpdatedAt.After(before.UpdatedAt) {
@@ -194,7 +196,7 @@ func TestImporterPendingReportReviewSurvivesRunDeletion(t *testing.T) {
 func TestImporterReportRetryRejectsChangedFinalizationTimestamp(t *testing.T) {
 	pool := completionPool(t)
 	f, snapshot := newReportDeletionFixture(t, pool, "automatic")
-	access, err := NewArtifactAccess(f.artifacts, hookstore.NewClaimedArtifacts(f.pool))
+	access, err := NewArtifactAccess(f.artifacts, hookstore.NewClaimedArtifacts(f.pool, artifactpgtest.NewStorage()))
 	mustCompletion(t, err)
 
 	hooked := &reportDeletionArtifacts{ArtifactAccess: access, failAfterWrite: context.Canceled, hook: func(point string) {
@@ -226,25 +228,25 @@ func TestImporterManagedRunDeletionRollbackAndRejection(t *testing.T) {
 		tx, err := pool.Begin(f.ctx)
 		mustCompletion(t, err)
 		defer tx.Rollback(context.Background())
-		mustCompletion(t, rundeletion.New(tx).DeleteReleasedTerminalRun(f.ctx, "owner", f.run.RunID))
-		changed, err := auditstoretest.NewStore(tx).Get(f.ctx, "owner", f.id)
+		mustCompletion(t, rundeletion.New(tx, artifactpgtest.NewStorage()).DeleteReleasedTerminalRun(f.ctx, "owner", f.run.RunID))
+		changed, err := auditstoretest.NewStore(tx, artifactpgtest.NewStorage()).Get(f.ctx, "owner", f.id)
 		mustCompletion(t, err)
 		if changed.Revision != snapshot.Audit.Revision+1 || !changed.UpdatedAt.Equal(snapshot.Audit.UpdatedAt) {
 			t.Fatal("transaction-backed deletion did not invalidate exactly one managed Audit")
 		}
-		if _, err := runstore.NewPostgresStore(tx).GetRun(f.ctx, f.run.RunID); !errors.Is(err, runstore.ErrNotFound) {
+		if _, err := runstore.NewPostgresStore(tx, artifactpgtest.NewStorage()).GetRun(f.ctx, f.run.RunID); !errors.Is(err, runstore.ErrNotFound) {
 			t.Fatalf("transaction-backed deletion retained its source Run: %v", err)
 		}
 		mustCompletion(t, tx.Rollback(f.ctx))
 		assertReportDeletionSourceIntact(t, f, snapshot.Audit)
 
-		mustCompletion(t, rundeletion.New(f.pool).DeleteReleasedTerminalRun(f.ctx, "owner", f.run.RunID))
+		mustCompletion(t, rundeletion.New(f.pool, artifactpgtest.NewStorage()).DeleteReleasedTerminalRun(f.ctx, "owner", f.run.RunID))
 		changed, err = f.audits.Get(f.ctx, "owner", f.id)
 		mustCompletion(t, err)
 		if changed.Revision != snapshot.Audit.Revision+1 {
 			t.Fatal("rolled-back deletion consumed a durable Audit revision")
 		}
-		if err := rundeletion.New(f.pool).DeleteReleasedTerminalRun(f.ctx, "owner", f.run.RunID); !errors.Is(err, runstore.ErrNotFound) {
+		if err := rundeletion.New(f.pool, artifactpgtest.NewStorage()).DeleteReleasedTerminalRun(f.ctx, "owner", f.run.RunID); !errors.Is(err, runstore.ErrNotFound) {
 			t.Fatalf("repeated source deletion: %v", err)
 		}
 		repeated, err := f.audits.Get(f.ctx, "owner", f.id)
@@ -259,7 +261,7 @@ func TestImporterManagedRunDeletionRollbackAndRejection(t *testing.T) {
 		mustCompletion(t, err)
 		before, err := f.audits.Get(f.ctx, "owner", f.id)
 		mustCompletion(t, err)
-		err = rundeletion.New(f.pool).DeleteReleasedTerminalRun(f.ctx, "owner", f.run.RunID)
+		err = rundeletion.New(f.pool, artifactpgtest.NewStorage()).DeleteReleasedTerminalRun(f.ctx, "owner", f.run.RunID)
 		var blocked *rundeletion.NotDeletableError
 		if !errors.As(err, &blocked) || blocked.Reason != rundeletion.AuditCollectionPending {
 			t.Fatalf("uncollected source deletion: %v", err)
@@ -339,7 +341,7 @@ func reportDeletionReviewService(t *testing.T, f *completionFixture) *auditservi
 		OperatorRoot: "../config/testdata/valid", ManagedRoot: filepath.Join(t.TempDir(), "managed"),
 	})
 	mustCompletion(t, err)
-	service, err := auditservice.New(auditservice.Options{
+	service, err := auditservice.New(auditservice.Options{Storage: artifactpgtest.NewStorage(),
 		Pool: f.pool, Profiles: manager, CredentialGuard: completionCredentials{},
 		TransactionLLMCredentials: runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (resolved.CredentialLookup, error) {
 			return completionCredentials{}, nil

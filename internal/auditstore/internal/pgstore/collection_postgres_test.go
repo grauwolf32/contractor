@@ -10,10 +10,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/artifactpolicy"
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
+	artifactpolicy "github.com/grauwolf32/contractor/internal/artifacts/policy"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
@@ -285,7 +286,7 @@ INSERT INTO finding_proposal_audit_holds (
 	var findingID string
 	if err := persistencepostgres.InTx(f.ctx, f.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		var err error
-		findingID, err = NewFindingEventsTx(tx).AdmitProjectFinding(f.ctx, f.project.ProjectID, receiptID, "finding-"+receiptID)
+		findingID, err = NewFindingEventsTx(tx, artifactpgtest.NewStorage()).AdmitProjectFinding(f.ctx, f.project.ProjectID, receiptID, "finding-"+receiptID)
 		return err
 	}); err != nil {
 		t.Fatal(err)
@@ -457,7 +458,7 @@ func TestListItemAttemptsAnswersEveryRequestedItem(t *testing.T) {
 func writeCollectionFixtureArtifact(t *testing.T, ctx context.Context, pool *pgxpool.Pool, projectID, namespace, name string) auditstore.ExactArtifact {
 	t.Helper()
 	data := []byte("Exact fixture material " + name)
-	written, err := artifactstest.WriteAuditArtifact(ctx, artifacts.NewService(artifactpostgres.NewRepository(pool)), projectID, contracts.ArtifactRef{Namespace: namespace, Name: name}, artifacts.Payload{MediaType: "application/zip", Data: data})
+	written, err := artifactstest.WriteAuditArtifact(ctx, artifacts.NewService(artifactpgtest.NewStorage().Repository(pool)), projectID, contracts.ArtifactRef{Namespace: namespace, Name: name}, artifacts.Payload{MediaType: "application/zip", Data: data})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -475,7 +476,7 @@ func TestPostgresNegativeRecheckRetainsHistoryWithoutChangingCanonicalFinding(t 
 	err := persistencepostgres.InTx(f.ctx, f.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		high := auditstore.SeverityHigh
 		var err error
-		before, err = NewOwnerTxStore(tx).AssessProjectFinding(f.ctx, auditstore.ProjectFindingEdit{OwnerID: f.audit.OwnerID, ProjectID: f.project.ProjectID, FindingID: findingID, ExpectedRevision: 1, Verdict: auditstore.VerdictTruePositive, Severity: &high, Rationale: "Explicit human assessment before recheck"})
+		before, err = NewOwnerTxStore(tx, artifactpgtest.NewStorage()).AssessProjectFinding(f.ctx, auditstore.ProjectFindingEdit{OwnerID: f.audit.OwnerID, ProjectID: f.project.ProjectID, FindingID: findingID, ExpectedRevision: 1, Verdict: auditstore.VerdictTruePositive, Severity: &high, Rationale: "Explicit human assessment before recheck"})
 		return err
 	})
 	if err != nil {
@@ -488,12 +489,12 @@ func TestPostgresNegativeRecheckRetainsHistoryWithoutChangingCanonicalFinding(t 
 		if err != nil || inserted != (attempt == 0) {
 			t.Fatalf("negative collection replay=%t err=%v", inserted, err)
 		}
-		current, err := NewQueryStore(f.pool).GetAuditProjectFinding(f.ctx, f.audit.OwnerID, f.audit.AuditID, findingID)
+		current, err := NewQueryStore(f.pool, artifactpgtest.NewStorage()).GetAuditProjectFinding(f.ctx, f.audit.OwnerID, f.audit.AuditID, findingID)
 		if err != nil || !reflect.DeepEqual(before, current) {
 			t.Fatalf("negative result changed current analyst state: %+v %v", current, err)
 		}
 	}
-	project, err := artifacts.NewService(artifactpostgres.NewRepository(f.pool)).Project(f.project.ProjectID)
+	project, err := artifacts.NewService(artifactpgtest.NewStorage().Repository(f.pool)).Project(f.project.ProjectID)
 	if err != nil {
 		t.Fatal(err)
 	}

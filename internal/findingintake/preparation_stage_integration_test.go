@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
@@ -80,7 +82,7 @@ func TestPostgresIntakePreparationSharesOneStageRead(t *testing.T) {
 		return map[string]runstore.PinnedContextArtifact{"source": {Artifact: &refs[0]}}
 	})
 	fixture.Derived.SourceRef = &refs[0]
-	service, err := New(pool)
+	service, err := New(pool, artifactpgtest.NewStorage())
 	if err != nil {
 		t.Fatal(err)
 	}

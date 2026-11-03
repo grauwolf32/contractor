@@ -19,7 +19,7 @@ func (s *ClaimStore) Collect(
 	var changed bool
 	err := persistencepostgres.Within(ctx, s.db, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		var err error
-		bound := NewClaimStore(tx)
+		bound := NewClaimStore(tx, s.storage)
 		receipt, changed, err = bound.collect(ctx, params)
 		if err != nil || !changed {
 			return err

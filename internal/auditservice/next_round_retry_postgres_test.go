@@ -10,8 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
@@ -50,7 +51,7 @@ func testNextRoundRetryPolicy(t *testing.T, policy contracts.ActiveChecksPolicy)
 		t.Fatal(err)
 	}
 	credentials := &switchableCredentialLookup{available: true, gateway: gateway.Ref}
-	service, err := New(Options{
+	service, err := New(Options{Storage: artifactpgtest.NewStorage(),
 		Pool: pool, Profiles: profiles, CredentialGuard: &countingCredentialGuard{},
 		TransactionLLMCredentials: runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(
 			func(pgx.Tx) (resolved.CredentialLookup, error) { return credentials, nil },
@@ -67,7 +68,7 @@ func testNextRoundRetryPolicy(t *testing.T, policy contracts.ActiveChecksPolicy)
 	if err != nil {
 		t.Fatal(err)
 	}
-	projectArtifacts, err := artifacts.NewService(artifactpostgres.NewRepository(pool)).Project(project.ProjectID)
+	projectArtifacts, err := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool)).Project(project.ProjectID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,7 +138,7 @@ func testNextRoundRetryPolicy(t *testing.T, policy contracts.ActiveChecksPolicy)
 		t.Fatalf("first-Round start replay = (%+v, %v)", replay, err)
 	}
 
-	store := auditstoretest.NewStore(pool)
+	store := auditstoretest.NewStore(pool, artifactpgtest.NewStorage())
 	claims, err := store.Claim(ctx, auditstore.ClaimParams{HolderID: "round-retry-controller", Lease: time.Minute, Limit: 1})
 	if err != nil || len(claims) != 1 {
 		t.Fatalf("claim = (%+v, %v)", claims, err)

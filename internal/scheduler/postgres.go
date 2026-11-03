@@ -21,14 +21,16 @@ import (
 // PostgresPersistence composes transaction-bound RunStore and ArtifactStore
 // repositories. No method performs network I/O or reads artifact payloads.
 type PostgresPersistence struct {
+	storage *artifactpostgres.Storage
+
 	pool *pgxpool.Pool
 }
 
-func NewPostgresPersistence(pool *pgxpool.Pool) (*PostgresPersistence, error) {
-	if pool == nil {
+func NewPostgresPersistence(pool *pgxpool.Pool, storage *artifactpostgres.Storage) (*PostgresPersistence, error) {
+	if storage == nil || pool == nil {
 		return nil, fmt.Errorf("PostgreSQL pool is required")
 	}
-	return &PostgresPersistence{pool: pool}, nil
+	return &PostgresPersistence{storage: storage, pool: pool}, nil
 }
 
 func (p *PostgresPersistence) CreateStageWithContext(
@@ -38,7 +40,7 @@ func (p *PostgresPersistence) CreateStageWithContext(
 ) (runstore.StageExecution, error) {
 	var created runstore.StageExecution
 	err := persistencepostgres.InTx(ctx, p.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		store := runstore.NewPostgresTxStore(tx)
+		store := runstore.NewPostgresTxStore(tx, p.storage)
 		if _, err := lockClaimedRun(ctx, store, params.RunID, stageCreationRunStates...); err != nil {
 			return err
 		}
@@ -50,7 +52,7 @@ func (p *PostgresPersistence) CreateStageWithContext(
 		if err != nil {
 			return err
 		}
-		artifactService := artifacts.NewService(artifactpostgres.NewRepository(tx))
+		artifactService := artifacts.NewService(p.storage.Repository(tx))
 		scope, err := artifacts.RunScope(params.RunID)
 		if err != nil {
 			return err
@@ -75,7 +77,7 @@ func (p *PostgresPersistence) EnterFinalizingWithResult(
 	params runstore.EnterFinalizingParams,
 ) error {
 	return persistencepostgres.InTx(ctx, p.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		store := runstore.NewPostgresTxStore(tx)
+		store := runstore.NewPostgresTxStore(tx, p.storage)
 		execution, err := store.GetStageExecution(ctx, params.StageExecutionID)
 		if err != nil {
 			return err
@@ -85,7 +87,7 @@ func (p *PostgresPersistence) EnterFinalizingWithResult(
 		if _, err := lockClaimedRun(ctx, store, execution.RunID, finalizationRunStates...); err != nil {
 			return err
 		}
-		artifactService := artifacts.NewService(artifactpostgres.NewRepository(tx))
+		artifactService := artifacts.NewService(p.storage.Repository(tx))
 		scope, err := artifacts.RunScope(execution.RunID)
 		if err != nil {
 			return err
@@ -119,7 +121,7 @@ func (p *PostgresPersistence) EnterAbortingWithTermination(
 	params runstore.EnterAbortingParams,
 ) error {
 	return persistencepostgres.InTx(ctx, p.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		store := runstore.NewPostgresTxStore(tx)
+		store := runstore.NewPostgresTxStore(tx, p.storage)
 		if _, err := lockClaimedRun(ctx, store, runID, abortRunStates...); err != nil {
 			return err
 		}
@@ -138,7 +140,7 @@ func (p *PostgresPersistence) CommitResultProgression(
 		return err
 	}
 	return persistencepostgres.InTx(ctx, p.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		txStore := runstore.NewPostgresTxStore(tx)
+		txStore := runstore.NewPostgresTxStore(tx, p.storage)
 		store := txStore.PostgresStore
 		if _, err := lockClaimedRun(ctx, txStore, value.RunID, progressionRunStates...); err != nil {
 			return err
@@ -166,7 +168,7 @@ func (p *PostgresPersistence) CommitResultProgression(
 		}
 
 		if value.Result.Outcome == stageresult.StageSucceeded {
-			artifactService := artifacts.NewService(artifactpostgres.NewRepository(tx))
+			artifactService := artifacts.NewService(p.storage.Repository(tx))
 			outputNames := make([]string, 0, len(value.WorkflowOutputs))
 			for outputName := range value.WorkflowOutputs {
 				outputNames = append(outputNames, outputName)
@@ -195,7 +197,7 @@ func (p *PostgresPersistence) CommitResultProgression(
 			}
 		}
 
-		if err := commitNextStage(ctx, tx, store, value.Progression); err != nil {
+		if err := commitNextStage(ctx, tx, store, value.Progression, p.storage); err != nil {
 			return err
 		}
 		if _, err := store.RecordStageTransitionDecision(ctx, value.Progression.Decision); err != nil {
@@ -212,8 +214,7 @@ func (p *PostgresPersistence) CommitResultProgression(
 			publicationFailures = failures
 		}
 		return commitTerminalRun(
-			ctx, tx, store, value.RunID, value.OutputContracts, value.Progression, publicationFailures,
-		)
+			ctx, tx, store, value.RunID, value.OutputContracts, value.Progression, publicationFailures, p.storage)
 	})
 }
 
@@ -225,7 +226,7 @@ func (p *PostgresPersistence) CommitTerminationProgression(
 		return err
 	}
 	return persistencepostgres.InTx(ctx, p.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		txStore := runstore.NewPostgresTxStore(tx)
+		txStore := runstore.NewPostgresTxStore(tx, p.storage)
 		if _, err := lockClaimedRun(ctx, txStore, value.RunID, progressionRunStates...); err != nil {
 			return err
 		}
@@ -247,13 +248,13 @@ func (p *PostgresPersistence) CommitTerminationProgression(
 			return err
 		}
 
-		if err := commitNextStage(ctx, tx, store, value.Progression); err != nil {
+		if err := commitNextStage(ctx, tx, store, value.Progression, p.storage); err != nil {
 			return err
 		}
 		if _, err := store.RecordStageTransitionDecision(ctx, value.Progression.Decision); err != nil {
 			return err
 		}
-		return commitTerminalRun(ctx, tx, store, value.RunID, nil, value.Progression, 0)
+		return commitTerminalRun(ctx, tx, store, value.RunID, nil, value.Progression, 0, p.storage)
 	})
 }
 
@@ -270,7 +271,7 @@ func (p *PostgresPersistence) AcceptResultDuringCancellation(
 		return fmt.Errorf("invalid StageResult acceptance: %w", err)
 	}
 	return persistencepostgres.InTx(ctx, p.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		store := runstore.NewPostgresTxStore(tx)
+		store := runstore.NewPostgresTxStore(tx, p.storage)
 		if _, err := lockClaimedRun(ctx, store, runID, runstore.RunCancelling); err != nil {
 			return err
 		}
@@ -280,7 +281,7 @@ func (p *PostgresPersistence) AcceptResultDuringCancellation(
 		if err := store.CompleteStageResult(ctx, stageExecutionID, contracts.APIVersion, result); err != nil {
 			return err
 		}
-		artifactService := artifacts.NewService(artifactpostgres.NewRepository(tx))
+		artifactService := artifacts.NewService(p.storage.Repository(tx))
 		if err := freezeOutputs(ctx, artifactService, runID); err != nil {
 			return fmt.Errorf("freeze Workflow outputs: %w", err)
 		}
@@ -303,7 +304,7 @@ func (p *PostgresPersistence) CommitTerminationAndFinishRun(
 	reason runstore.Reason,
 ) error {
 	return persistencepostgres.InTx(ctx, p.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		store := runstore.NewPostgresTxStore(tx)
+		store := runstore.NewPostgresTxStore(tx, p.storage)
 		if _, err := lockClaimedRun(ctx, store, runID, expectedRunState); err != nil {
 			return err
 		}
@@ -313,7 +314,7 @@ func (p *PostgresPersistence) CommitTerminationAndFinishRun(
 		if err := store.CompleteStageTermination(ctx, stageExecutionID); err != nil {
 			return err
 		}
-		artifactService := artifacts.NewService(artifactpostgres.NewRepository(tx))
+		artifactService := artifacts.NewService(p.storage.Repository(tx))
 		if err := freezeOutputs(ctx, artifactService, runID); err != nil {
 			return fmt.Errorf("freeze Workflow outputs: %w", err)
 		}
@@ -350,7 +351,7 @@ func (p *PostgresPersistence) FailRunWithActiveStages(
 	abortID string,
 ) error {
 	return persistencepostgres.InTx(ctx, p.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		store := runstore.NewPostgresTxStore(tx)
+		store := runstore.NewPostgresTxStore(tx, p.storage)
 		if _, err := lockClaimedRun(ctx, store, runID, expectedRunState); err != nil {
 			return err
 		}
@@ -361,7 +362,7 @@ func (p *PostgresPersistence) FailRunWithActiveStages(
 			return err
 		}
 		// The Run row is locked above, as before every other terminal freeze.
-		if err := freezeOutputs(ctx, artifacts.NewService(artifactpostgres.NewRepository(tx)), runID); err != nil {
+		if err := freezeOutputs(ctx, artifacts.NewService(p.storage.Repository(tx)), runID); err != nil {
 			return fmt.Errorf("freeze Workflow outputs: %w", err)
 		}
 		// Every active Stage ended above; a waiting Run's expected state is
@@ -378,11 +379,11 @@ func (p *PostgresPersistence) FailRunWithActiveStages(
 // nothing.
 func (p *PostgresPersistence) FinishCancelledRun(ctx context.Context, runID string) error {
 	return persistencepostgres.InTx(ctx, p.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		store := runstore.NewPostgresTxStore(tx)
+		store := runstore.NewPostgresTxStore(tx, p.storage)
 		if _, err := lockClaimedRun(ctx, store, runID, runstore.RunCancelling); err != nil {
 			return err
 		}
-		if err := freezeOutputs(ctx, artifacts.NewService(artifactpostgres.NewRepository(tx)), runID); err != nil {
+		if err := freezeOutputs(ctx, artifacts.NewService(p.storage.Repository(tx)), runID); err != nil {
 			return fmt.Errorf("freeze Workflow outputs: %w", err)
 		}
 		_, err := store.TransitionRun(
@@ -528,6 +529,7 @@ func commitNextStage(
 	tx pgx.Tx,
 	store *runstore.PostgresStore,
 	progression StageProgression,
+	storage *artifactpostgres.Storage,
 ) error {
 	if progression.NextStage == nil {
 		return nil
@@ -539,7 +541,7 @@ func commitNextStage(
 	if created.StageExecutionID != progression.NextStage.Params.StageExecutionID {
 		return fmt.Errorf("created StageExecution identity differs from progression target")
 	}
-	artifactService := artifacts.NewService(artifactpostgres.NewRepository(tx))
+	artifactService := artifacts.NewService(storage.Repository(tx))
 	scope, err := artifacts.RunScope(progression.NextStage.Params.RunID)
 	if err != nil {
 		return err
@@ -569,21 +571,22 @@ func commitTerminalRun(
 	outputContracts map[string]resolved.ArtifactSlot,
 	progression StageProgression,
 	publicationFailures int,
+	storage *artifactpostgres.Storage,
 ) error {
 	if progression.TerminalRunState == "" {
 		return nil
 	}
 	if progression.TerminalRunState == runstore.RunSucceeded {
-		if err := verifyRequiredWorkflowOutputs(ctx, tx, runID, outputContracts); err != nil {
+		if err := verifyRequiredWorkflowOutputs(ctx, tx, runID, outputContracts, storage); err != nil {
 			return err
 		}
 	}
-	artifactService := artifacts.NewService(artifactpostgres.NewRepository(tx))
+	artifactService := artifacts.NewService(storage.Repository(tx))
 	if err := freezeOutputs(ctx, artifactService, runID); err != nil {
 		return fmt.Errorf("freeze Workflow outputs: %w", err)
 	}
 	if progression.TerminalRunState == runstore.RunSucceeded {
-		if err := publishProjectOutputs(ctx, tx, runID, outputContracts, publicationFailures); err != nil {
+		if err := publishProjectOutputs(ctx, tx, runID, outputContracts, publicationFailures, storage); err != nil {
 			return err
 		}
 	}
@@ -618,6 +621,7 @@ func publishProjectOutputs(
 	runID string,
 	outputContracts map[string]resolved.ArtifactSlot,
 	publicationFailures int,
+	storage *artifactpostgres.Storage,
 ) error {
 	var projectID *string
 	var publicationMode runstore.OutputPublicationMode
@@ -639,7 +643,7 @@ WHERE run_id = $1`, runID).Scan(&projectID, &publicationMode); err != nil {
 
 	exhausted := publicationFailures >= maxOutputPublicationFailures
 
-	artifactService := artifacts.NewService(artifactpostgres.NewRepository(tx))
+	artifactService := artifacts.NewService(storage.Repository(tx))
 	runArtifacts, err := artifactService.Run(runID)
 	if err != nil {
 		return err
@@ -663,12 +667,12 @@ WHERE run_id = $1`, runID).Scan(&projectID, &publicationMode); err != nil {
 			return fmt.Errorf("Workflow output %q is not frozen at an exact revision", name)
 		}
 		if exhausted {
-			if err := recordExhaustedOutputPublication(ctx, tx, runID, *projectID, name, source.Ref); err != nil {
+			if err := recordExhaustedOutputPublication(ctx, tx, runID, *projectID, name, source.Ref, storage); err != nil {
 				return err
 			}
 			continue
 		}
-		if err := publishOneProjectOutput(ctx, tx, runID, *projectID, name, source.Ref); err != nil {
+		if err := publishOneProjectOutput(ctx, tx, runID, *projectID, name, source.Ref, storage); err != nil {
 			return err
 		}
 	}
@@ -682,16 +686,17 @@ func publishOneProjectOutput(
 	projectID string,
 	outputName string,
 	source contracts.ArtifactRef,
+	storage *artifactpostgres.Storage,
 ) error {
 	attempt, err := tx.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("start Project output publication %q: %w", outputName, err)
 	}
-	attemptService := artifacts.NewService(artifactpostgres.NewRepository(attempt))
+	attemptService := artifacts.NewService(storage.Repository(attempt))
 	published, publishErr := publishRunOutput(ctx, attemptService, runID, projectID, outputName, source)
 	if publishErr == nil {
 		target := published.TargetRef
-		_, _, recordErr := runstore.NewPostgresStore(attempt).RecordRunOutputPublication(
+		_, _, recordErr := runstore.NewPostgresStore(attempt, storage).RecordRunOutputPublication(
 			ctx,
 			runstore.RecordRunOutputPublicationParams{
 				RunID: runID, ProjectID: projectID, OutputName: outputName,
@@ -728,7 +733,7 @@ func publishOneProjectOutput(
 		params.Status = runstore.OutputPublicationFailed
 		params.ErrorCode, params.ErrorMessage = projectOutputPublicationFailure(publishErr)
 	}
-	if _, _, err := runstore.NewPostgresStore(tx).RecordRunOutputPublication(ctx, params); err != nil {
+	if _, _, err := runstore.NewPostgresStore(tx, storage).RecordRunOutputPublication(ctx, params); err != nil {
 		return fmt.Errorf("record Project output publication %q: %w", outputName, err)
 	}
 	return nil
@@ -744,8 +749,9 @@ func recordExhaustedOutputPublication(
 	projectID string,
 	outputName string,
 	source contracts.ArtifactRef,
+	storage *artifactpostgres.Storage,
 ) error {
-	_, _, err := runstore.NewPostgresStore(tx).RecordRunOutputPublication(ctx, runstore.RecordRunOutputPublicationParams{
+	_, _, err := runstore.NewPostgresStore(tx, storage).RecordRunOutputPublication(ctx, runstore.RecordRunOutputPublicationParams{
 		RunID: runID, ProjectID: projectID, OutputName: outputName, Source: source,
 		Status: runstore.OutputPublicationFailed, ErrorCode: "publication_attempts_exhausted",
 		ErrorMessage: fmt.Sprintf(
@@ -787,12 +793,13 @@ func verifyRequiredWorkflowOutputs(
 	tx pgx.Tx,
 	runID string,
 	contractsByName map[string]resolved.ArtifactSlot,
+	storage *artifactpostgres.Storage,
 ) error {
 	scope, err := artifacts.RunScope(runID)
 	if err != nil {
 		return err
 	}
-	repository := artifactpostgres.NewRepository(tx)
+	repository := storage.Repository(tx)
 	names := make([]string, 0, len(contractsByName))
 	for name := range contractsByName {
 		names = append(names, name)

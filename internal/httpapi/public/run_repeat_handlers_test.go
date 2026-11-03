@@ -12,6 +12,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/configtest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/projectstore"
+	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
@@ -197,3 +198,14 @@ func assertRepeatDraftNotCached(t *testing.T, response *httptest.ResponseRecorde
 }
 
 func timePointer(value time.Time) *time.Time { return &value }
+
+const (
+	repeatAuthorityOrdinary = runservice.RepeatAuthorityOrdinary
+	repeatAuthorityAudit    = runservice.RepeatAuthorityAudit
+	repeatStatusAvailable   = runservice.RepeatStatusAvailable
+	repeatStatusUnavailable = runservice.RepeatStatusUnavailable
+)
+
+func sameOptionalString(left, right *string) bool {
+	return left == nil && right == nil || left != nil && right != nil && *left == *right
+}

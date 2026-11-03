@@ -14,6 +14,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/auth"
@@ -53,6 +56,7 @@ var (
 )
 
 type handlerFixture struct {
+	transfers           *blob.Runtime
 	handler             http.Handler
 	configs             *config.Manager
 	repository          *fakeArtifactRepository
@@ -338,7 +342,7 @@ func TestProjectHTTPTargetRejectsAnotherOwnersCredential(t *testing.T) {
 				Lifecycle: projectstore.LifecycleActive, Name: "Target", Revision: 1, CreatedAt: now, UpdatedAt: now,
 			}
 			current := &projectHandlers{ProjectDependencies: ProjectDependencies{
-				Projects: fixture.projects, RuntimeCredentials: fixture.runtimeCredentials,
+				Projects: fixture.projects, Editor: testProjectEditor(fixture.projects, fixture.runtimeCredentials),
 			}}
 			request := httptest.NewRequest(http.MethodPatch, "/v1/projects/project-target", bytes.NewReader([]byte(
 				`{"httpTarget":{"url":"https://attacker.example.test","credential":{"credentialId":"origin","kind":"http-origin-bearer@1"}}}`,
@@ -348,7 +352,7 @@ func TestProjectHTTPTargetRejectsAnotherOwnersCredential(t *testing.T) {
 			request.Header.Set("If-Match", `"1"`)
 			request = request.WithContext(auth.WithPrincipal(request.Context(), test.principal))
 			response := httptest.NewRecorder()
-			current.updateProject(response, request)
+			serve(current.updateProject)(response, request)
 			if response.Code != test.wantStatus {
 				t.Fatalf("attach = %d, want %d: %s", response.Code, test.wantStatus, response.Body.String())
 			}
@@ -404,7 +408,7 @@ func TestProjectRunRechecksHTTPTargetCredentialUse(t *testing.T) {
 			); err != nil {
 				t.Fatal(err)
 			}
-			services := testServices{
+			services := testServices{Transfers: artifactpgtest.NewRuntime(),
 				Config: fixture.configs, Credentials: fixture.credentials, ManagedCredentials: fixture.credentials,
 				RuntimeCredentials: fixture.runtimeCredentials, Projects: fixture.projects,
 			}
@@ -421,7 +425,7 @@ func TestProjectRunRechecksHTTPTargetCredentialUse(t *testing.T) {
 			request.Header.Set(idempotencyKeyHeader, "project-run-two")
 			request = request.WithContext(auth.WithPrincipal(request.Context(), test.principal))
 			response := httptest.NewRecorder()
-			current.createProjectRun(response, request)
+			serve(current.createProjectRun)(response, request)
 			if response.Code != test.wantStatus {
 				t.Fatalf("create Project Run = %d, want %d: %s", response.Code, test.wantStatus, response.Body.String())
 			}
@@ -748,6 +752,7 @@ func newHandlerFixtureWithAuth(
 	if err != nil {
 		t.Fatalf("load test config: %v", err)
 	}
+	transferRuntime := artifactpgtest.NewRuntime()
 	repository := newFakeArtifactRepository()
 	service := artifacts.NewService(repository)
 	runs := newFakeRunStore()
@@ -801,7 +806,7 @@ func newHandlerFixtureWithAuth(
 	if logger == nil {
 		logger = slog.New(slog.DiscardHandler)
 	}
-	services := testServices{
+	services := testServices{Transfers: transferRuntime,
 		Authentication: authentication, BrowserOrigins: origins,
 		InsecureLoopbackCookie: insecureLoopbackCookie,
 		Config:                 manager, ConfigurationPublisher: manager,
@@ -844,7 +849,7 @@ func newHandlerFixtureWithAuth(
 	if err != nil {
 		t.Fatalf("NewHandler: %v", err)
 	}
-	return handlerFixture{
+	return handlerFixture{transfers: transferRuntime,
 		handler: handler, configs: manager, repository: repository, artifacts: service,
 		runs: runs, unit: unit, notifier: notifier, metrics: metrics, plans: plans,
 		allocationResources: allocationResources, detailStores: detailStores,

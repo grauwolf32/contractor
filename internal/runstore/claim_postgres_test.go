@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
@@ -114,7 +116,7 @@ func TestPostgresClaimReadsTenThousandRunsInClaimOrder(t *testing.T) {
 	defer cancel()
 	pool := isolatedRunStorePool(t, ctx)
 	populateClaimQueue(t, ctx, pool)
-	store := NewPostgresStore(pool)
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
 	if _, err := store.UpdateOwnerQueueControl(ctx, UpdateOwnerQueueControlParams{OwnerID: "owner-3", Paused: true}); err != nil {
 		t.Fatal(err)
 	}
@@ -167,7 +169,7 @@ func TestPostgresClaimExcludesLocallyActiveRuns(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
 			defer cancel()
 			pool := isolatedRunStorePool(t, ctx)
-			store := NewPostgresStore(pool)
+			store := NewPostgresStore(pool, artifactpgtest.NewStorage())
 			for _, id := range []string{"run-live", "run-peer"} {
 				createTestRun(t, ctx, store, id)
 				if _, err := admitTestRun(ctx, store, id); err != nil {
@@ -205,7 +207,7 @@ func TestPostgresClaimSkipsPendingRunsOfPausedOwners(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedRunStorePool(t, ctx)
-	store := NewPostgresStore(pool)
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
 	create := func(runID, ownerID string) WorkflowRun {
 		t.Helper()
 		params := testRunParams(runID)
@@ -345,7 +347,7 @@ func TestPostgresActiveStageReadUsesActiveStageIndex(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 	pool := isolatedRunStorePool(t, ctx)
-	store := NewPostgresStore(pool)
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
 	const runs, history = 10, 1023
 	for index := 1; index <= runs; index++ {
 		if _, err := admitTestRun(ctx, store, createTestRun(t, ctx, store, fmt.Sprintf("run-history-%d", index)).RunID); err != nil {
@@ -436,7 +438,7 @@ func TestPostgresStageCreationCarriesTheLaneClassToTheRun(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedRunStorePool(t, ctx)
-	store := NewPostgresStore(pool)
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
 	invalid := testRunParams("run-lane-invalid")
 	invalid.LaneClass = "scan"
 	if _, err := createRun(ctx, store, invalid); !errors.Is(err, ErrInvalid) {

@@ -3,7 +3,6 @@ package privateartifacts
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
@@ -14,6 +13,9 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
+	artifactpgtest "github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
 
 	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	"github.com/grauwolf32/contractor/internal/httpapi/artifacttransfer"
@@ -158,7 +160,8 @@ func TestPrivateArtifactSlowStorageOutlivesTheClientDeadline(t *testing.T) {
 
 func privateTransferServer(t *testing.T, repository *memoryRepository) (*httptest.Server, *blob.Runtime) {
 	t.Helper()
-	inner := newTestHandler(t, &fakeRegistry{grant: testGrant("run-a")}, repository)
+	runtime := artifactpgtest.NewRuntime()
+	inner := newTestHandler(t, &fakeRegistry{grant: testGrant("run-a")}, repository, runtime)
 	trusted := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		certificate := &x509.Certificate{RawSubjectPublicKeyInfo: []byte("artifact-test-key")}
 		r.TLS = &tls.ConnectionState{
@@ -168,22 +171,24 @@ func privateTransferServer(t *testing.T, repository *memoryRepository) (*httptes
 		r.Header.Set(RuntimeInstanceHeader, "runtime-1")
 		inner.ServeHTTP(w, r)
 	})
-	runtime := blob.NewRuntime(nil, nil)
 	server := httptest.NewUnstartedServer(trusted)
-	server.Config.BaseContext = func(net.Listener) context.Context {
-		return blob.WithRuntime(context.Background(), runtime)
-	}
 	server.Start()
 	t.Cleanup(server.Close)
 	return server, runtime
 }
 
 func waitForPrivateTransferSaturation(t *testing.T, runtime *blob.Runtime) {
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
 	t.Helper()
-	ctx := blob.WithRuntime(t.Context(), runtime)
+	ctx := t.Context()
+	artifactRuntime = runtime
+	artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
 	until := time.Now().Add(2 * time.Second)
 	for {
-		_, release, err := blob.AcquireTransfer(ctx)
+		_, release, err := artifactStorage.AcquireTransfer(ctx)
 		if errors.Is(err, blob.ErrTransferCapacity) {
 			return
 		}
@@ -199,11 +204,17 @@ func waitForPrivateTransferSaturation(t *testing.T, runtime *blob.Runtime) {
 }
 
 func waitForPrivateTransferAvailability(t *testing.T, runtime *blob.Runtime, timeout time.Duration) {
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
 	t.Helper()
-	ctx := blob.WithRuntime(t.Context(), runtime)
+	ctx := t.Context()
+	artifactRuntime = runtime
+	artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
 	until := time.Now().Add(timeout)
 	for {
-		_, release, err := blob.AcquireTransfer(ctx)
+		_, release, err := artifactStorage.AcquireTransfer(ctx)
 		if err == nil {
 			release()
 			return

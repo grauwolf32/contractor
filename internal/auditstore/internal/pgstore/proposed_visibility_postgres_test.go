@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/persistence/explaintest"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -130,10 +132,10 @@ func TestPostgresProposedMembershipHasNoReadOrReviewAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := NewReviewTxStore(tx).LockActionReview(ctx, owner, auditID, requestID); !errors.Is(err, auditstore.ErrNotFound) {
+	if _, err := NewReviewTxStore(tx, artifactpgtest.NewStorage()).LockActionReview(ctx, owner, auditID, requestID); !errors.Is(err, auditstore.ErrNotFound) {
 		t.Fatalf("private review lock=%v", err)
 	}
-	if err := NewReviewStore(tx).ApplyItemReviewDecision(ctx, auditID, stagedItem, string(auditstore.ItemApprovalActiveCheck), testDigest("5"), "approve", ""); !errors.Is(err, auditstore.ErrNotFound) {
+	if err := NewReviewStore(tx, artifactpgtest.NewStorage()).ApplyItemReviewDecision(ctx, auditID, stagedItem, string(auditstore.ItemApprovalActiveCheck), testDigest("5"), "approve", ""); !errors.Is(err, auditstore.ErrNotFound) {
 		t.Fatalf("private item decision=%v", err)
 	}
 	if err := tx.Rollback(ctx); err != nil {

@@ -14,9 +14,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -91,7 +92,7 @@ func TestPostgresPagedListThroughPythonClientAndTool(t *testing.T) {
 	pool := isolatedPrivateArtifactPool(t, ctx)
 	createPrivateArtifactRun(t, ctx, pool, "run-a")
 	createPrivateArtifactRun(t, ctx, pool, "run-b")
-	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
+	service := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
 	user, err := service.User("user-1")
 	if err != nil {
 		t.Fatal(err)
@@ -150,7 +151,7 @@ WHERE scope_kind = 'run' AND scope_id = 'run-a' AND (namespace = 'skills' OR nam
 	}
 
 	recorder := &listRecorder{}
-	harness := newCrossLanguageHarness(t, artifactpostgres.NewRepository(pool), recorder.wrap)
+	harness := newCrossLanguageHarness(t, artifactpgtest.NewStorage().Repository(pool), recorder.wrap)
 	result := harness.probe("--mode", "page", "--limit", strconv.Itoa(artifacts.MaxBindingListLimit))
 	for _, view := range []string{"client", "tool"} {
 		listed, _ := result[view].([]any)
@@ -209,7 +210,7 @@ func seedPrivateRunBindings(
 
 func createPrivateArtifactRun(t *testing.T, ctx context.Context, pool *pgxpool.Pool, runID string) {
 	t.Helper()
-	store := runstore.NewPostgresStore(pool)
+	store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	if _, err := runstoretest.CreateRun(ctx, store, runstore.CreateRunParams{
 		LaneClass: resolved.LaneClassModel,
 		RunID:     runID, OwnerID: "user-1", WorkflowName: "artifact-list", WorkflowVersion: "1",

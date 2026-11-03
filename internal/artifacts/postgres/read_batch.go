@@ -47,7 +47,7 @@ func (r *Repository) ReadExactBatch(ctx context.Context, requests []ExactReadReq
 		kinds[index], ids[index] = string(request.Scope.Kind()), request.Scope.ID()
 		namespaces[index], names[index], revisions[index] = request.Ref.Namespace, request.Ref.Name, *request.Ref.Revision
 	}
-	ctx, releaseTransfer, err := blob.AcquireTransfer(ctx)
+	ctx, releaseTransfer, err := r.AcquireTransfer(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -61,7 +61,7 @@ func (r *Repository) ReadExactBatch(ctx context.Context, requests []ExactReadReq
 		return nil, err
 	}
 	for index, object := range objects {
-		data, err := activeBlobStore(ctx).Read(ctx, object)
+		data, err := r.runtime.Store.Read(ctx, object)
 		if errors.Is(err, blob.ErrMissing) {
 			removed, recheckErr := r.revisionRemoved(ctx, requests[index].Scope, requests[index].Ref, *results[index].Ref.Revision)
 			if recheckErr != nil {

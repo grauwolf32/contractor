@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/persistence/explaintest"
@@ -23,7 +25,7 @@ func TestPostgresRunEventAppendsFireNoWorkflowRunTrigger(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedRunStorePool(t, ctx)
-	run := createTestRun(t, ctx, NewPostgresStore(pool), "run-event-triggers")
+	run := createTestRun(t, ctx, NewPostgresStore(pool, artifactpgtest.NewStorage()), "run-event-triggers")
 	tx, err := pool.Begin(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -37,7 +39,7 @@ func TestPostgresRunEventAppendsFireNoWorkflowRunTrigger(t *testing.T) {
 	// probed too. EXPLAIN does not see the triggers of statements a trigger
 	// runs.
 	probe := explaintest.NewProbe(t, tx)
-	probed := NewPostgresStore(probe)
+	probed := NewPostgresStore(probe, artifactpgtest.NewStorage())
 	expectFired := func(step string, want map[string]int64, action func() error) {
 		t.Helper()
 		probe.Reset()
@@ -59,7 +61,7 @@ func TestPostgresRunEventAppendsFireNoWorkflowRunTrigger(t *testing.T) {
 		return err
 	})
 
-	store := NewPostgresStore(tx)
+	store := NewPostgresStore(tx, artifactpgtest.NewStorage())
 	if _, err := store.TransitionRun(ctx, run.RunID, RunPending, RunRunning, Reason{Code: "admitted"}); err != nil {
 		t.Fatal(err)
 	}
@@ -103,7 +105,7 @@ func TestPostgresRunEventAppendsFireNoWorkflowRunTrigger(t *testing.T) {
 	if err := tx.Commit(ctx); err != nil {
 		t.Fatal(err)
 	}
-	page, err := NewPostgresStore(pool).ListRunEvents(ctx, run.RunID, 0, 20)
+	page, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).ListRunEvents(ctx, run.RunID, 0, 20)
 	events := page.Events
 	if err != nil || len(events) < 2 || page.More || events[len(events)-2].EventID != "event-triggers-started" ||
 		events[len(events)-1].EventID != "event-triggers-request" {

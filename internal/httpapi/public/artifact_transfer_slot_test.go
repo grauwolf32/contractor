@@ -7,18 +7,25 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
+	artifactpgtest "github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
 )
 
 // Artifact byte reads share a few global transfer slots. Requests that are
 // rejected for their method or ownership must be answered without one, so
 // they neither wait for nor exhaust transfer capacity.
 func TestArtifactReadsRejectBeforeTakingATransferSlot(t *testing.T) {
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
 	fixture := newHandlerFixture(t)
-	runtime := blob.NewRuntime(nil, nil)
-	ctx := blob.WithRuntime(t.Context(), runtime)
+	runtime := fixture.transfers
+	ctx := t.Context()
+	artifactRuntime = runtime
+	artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
 	for {
-		_, release, err := blob.AcquireTransfer(ctx)
+		_, release, err := artifactStorage.AcquireTransfer(ctx)
 		if err != nil {
 			break
 		}

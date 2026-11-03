@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -66,7 +68,7 @@ func TestRetryChecksTheOwnerFromItsRunLock(t *testing.T) {
 	if allowed, err := service.Admit(ctx, "run-1", []Route{route}); err != nil || !allowed {
 		t.Fatalf("admit = %t, %v", allowed, err)
 	}
-	runs := runstore.NewPostgresStore(pool)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	if _, err := runs.TransitionRun(ctx, "run-1", runstore.RunPending, runstore.RunRunning, runstore.Reason{Code: "admitted"}); err != nil {
 		t.Fatal(err)
 	}

@@ -5,7 +5,6 @@ import (
 	"errors"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 )
 
 type sitemapTestView struct {
@@ -16,7 +15,7 @@ type sitemapTestView struct {
 // readSitemap inspects stored results with ordinary Artifact reads and the
 // domain decoder. API authorization is tested at the public/private boundary.
 func readSitemap(s *Service, ctx context.Context, projectID, revision string) (sitemapTestView, error) {
-	store, err := artifacts.NewService(artifactpostgres.NewRepository(s.pool)).Project(projectID)
+	store, err := artifacts.NewService(s.storage.Repository(s.pool)).Project(projectID)
 	if err != nil {
 		return sitemapTestView{}, err
 	}

@@ -10,8 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -194,7 +195,7 @@ func TestPostgresIterativeSnapshotPublicationReplaysAfterClaimTakeover(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	artifactsService := artifacts.NewService(artifactpostgres.NewRepository(f.pool))
+	artifactsService := artifacts.NewService(artifactpgtest.NewStorage().Repository(f.pool))
 	scope, _ := artifacts.ProjectScope(f.audit.ProjectID)
 	written, err := artifactsService.CreateFrozen(f.ctx, scope, contracts.ArtifactRef{Namespace: auditdomain.ArtifactNamespace(f.audit.AuditID), Name: "snapshot-page-0"}, artifacts.Payload{MediaType: "application/json", Data: data})
 	if err != nil {

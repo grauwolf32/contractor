@@ -12,6 +12,8 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -171,7 +173,7 @@ func assertNothingFrozen(t *testing.T, pool *pgxpool.Pool, id string) {
 // failed freeze: preparing, with no expected matrix.
 func assertStillPreparing(t *testing.T, pool *pgxpool.Pool, f nativeFreeze) {
 	t.Helper()
-	e, err := NewPostgresStore(pool).Get(t.Context(), f.scope.OwnerID, f.e.ID)
+	e, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).Get(t.Context(), f.scope.OwnerID, f.e.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -291,7 +293,7 @@ func TestSharedPostgresEvalFreezeLeavesNoPartialMatrix(t *testing.T) {
 				receipt, err = s.Create(t.Context(), params)
 				return err
 			})
-			e, err := NewPostgresStore(pool).Get(t.Context(), scope.OwnerID, params.ID)
+			e, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).Get(t.Context(), scope.OwnerID, params.ID)
 			if err != nil {
 				t.Fatal(err)
 			}

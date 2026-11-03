@@ -10,8 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
@@ -36,7 +37,7 @@ func TestPostgresProposalEvidenceQuotaAdmitsExactlyItsLimit(t *testing.T) {
 		t.Fatal(err)
 	}
 	grant := quotaSubmissionGrant(t, ctx, pool, owner, project, run)
-	service, err := New(pool)
+	service, err := New(pool, artifactpgtest.NewStorage())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,7 +63,7 @@ func TestPostgresProposalEvidenceQuotaAdmitsExactlyItsLimit(t *testing.T) {
 		t.Fatal("exchange Artifacts of the two submissions differ in size")
 	}
 
-	runArtifacts, err := artifacts.NewService(artifactpostgres.NewRepository(pool)).Run(run)
+	runArtifacts, err := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool)).Run(run)
 	if err != nil {
 		t.Fatal(err)
 	}

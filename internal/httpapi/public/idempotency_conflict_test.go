@@ -48,7 +48,7 @@ func keyedOperationRequests(t *testing.T) (handlerFixture, *reusedKeyAudits, map
 			dependencies.Sitemap = &fakeSitemap{err: reused}
 			dependencies.Audits = audits
 			dependencies.RunCreator = reusedKeyRuns{err: reused}
-			dependencies.Projects = reusedKeyProjects{ProjectManagement: dependencies.Projects, err: reused}
+			dependencies.Projects = reusedKeyProjects{testProjects: dependencies.Projects, err: reused}
 			dependencies.ConfigurationPublisher = reusedKeyPublisher{err: reused}
 			dependencies.RuntimeConfigs = reusedKeyRuntimeConfigs{
 				fakeRuntimeConfigManagement: dependencies.RuntimeConfigs.(*fakeRuntimeConfigManagement), err: reused,
@@ -209,7 +209,7 @@ func keyedOperations(t *testing.T) map[string]bool {
 }
 
 type reusedKeyProjects struct {
-	ProjectManagement
+	testProjects
 	err error
 }
 

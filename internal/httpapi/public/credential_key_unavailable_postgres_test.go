@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
@@ -47,7 +49,7 @@ func TestPostgresCredentialMutationsWithoutMasterKeyArePermanent(t *testing.T) {
 			lease := leasetest.Hold(t, pool).Lease
 			managed, err := credentials.NewService(credentials.ServiceOptions{
 				Pool: pool, Lease: lease, Gateways: gateways, Managers: managers,
-				Runs: runstore.NewPostgresStore(pool), Audits: hookstore.NewCredentialHolds(pool),
+				Runs: runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()), Audits: hookstore.NewCredentialHolds(pool, artifactpgtest.NewStorage()),
 				Barrier: barrier,
 			})
 			if err != nil {
@@ -59,7 +61,7 @@ func TestPostgresCredentialMutationsWithoutMasterKeyArePermanent(t *testing.T) {
 			runtimeCredentials, err := credentials.NewRuntimeCredentialService(
 				credentials.RuntimeCredentialServiceOptions{
 					Pool: pool, Lease: lease, Usage: credentials.NewRuntimeCredentialRepository(pool),
-					Projects: projectstore.NewPostgresStore(pool), Audits: hookstore.NewCredentialHolds(pool), Barrier: barrier,
+					Projects: projectstore.NewPostgresStore(pool), Audits: hookstore.NewCredentialHolds(pool, artifactpgtest.NewStorage()), Barrier: barrier,
 				},
 			)
 			if err != nil {

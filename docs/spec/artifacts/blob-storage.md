@@ -244,13 +244,14 @@ receipts, Skill forks, Project output publication and Git import publication
 all use the blob boundary. No direct-SQL payload path may silently bypass the
 filesystem selection.
 
-**BLB-R75.** An operation that reaches a `filesystem` object without the
-installation's blob store, a Server composition defect such as work started
-from a fresh background context, fails as a logged internal error. It is never
-reported as missing or corrupt content, and a deletion fails before its commit
-instead of skipping the unlink. A prepared filesystem payload also requires
-the installed blob store for its pre-publication check. Inline payloads carry
-their bytes with the registry row and need no filesystem access.
+**BLB-R75.** Server composition supplies one process blob runtime and a
+validated retained-history policy explicitly to Artifact storage and its consumers.
+Every repository, transaction-bound repository and purger retains those dependencies;
+operation contexts carry cancellation, deadlines and an active transfer lease only.
+A fresh background context uses the same configured backend, retention limits and
+shared transfer capacity. Composition rejects missing storage dependencies; no
+operation selects inline storage or default retention because context settings are
+absent. Physical deletion uses the injected adapter after a definite registry commit.
 
 ### Transfers and memory
 
@@ -309,7 +310,12 @@ callers as retryable. Reopen if a client must tell a client-side abort from a
 Server failure.
 
 **BLB-R29.** Socket deadlines never cancel storage work; storage
-work has its own budget.
+work has its own budget. The allocation finding endpoint also holds
+transfer admission while reading its bounded JSON and publishing selected
+HTTP evidence. Its body uses the same socket budget, its intake work uses the
+separate storage budget, and it releases admission before its receipt or error
+response. An invalid or interrupted finding JSON body remains the permanent
+`400 invalid_finding_request` and never reaches intake.
 
 **BLB-R30.** Container memory sizing must account for driver and
 serialization buffers: four 64 MiB payloads (LIM-BLB-1, LIM-ART-4) are not a

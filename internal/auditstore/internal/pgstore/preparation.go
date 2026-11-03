@@ -47,7 +47,7 @@ func (s *QueryStore) ListPreparedPage(
 	var roles map[string][]auditstore.ListedPreparationRole
 	err := persistencepostgres.Within(ctx, s.db, snapshotTransaction, func(tx pgx.Tx) error {
 		var err error
-		audits, err = NewQueryStore(tx).List(ctx, params)
+		audits, err = NewQueryStore(tx, s.storage).List(ctx, params)
 		if err != nil {
 			return err
 		}
@@ -91,7 +91,7 @@ func (s *QueryStore) GetPreparedDetail(
 ) (auditstore.PreparedDetail, error) {
 	var result auditstore.PreparedDetail
 	err := persistencepostgres.Within(ctx, s.db, snapshotTransaction, func(tx pgx.Tx) error {
-		reads := NewQueryStore(tx)
+		reads := NewQueryStore(tx, s.storage)
 		audit, err := reads.get(ctx, ownerID, auditID)
 		if err != nil {
 			return err

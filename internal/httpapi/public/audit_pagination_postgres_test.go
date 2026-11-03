@@ -5,10 +5,11 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/artifactpolicy"
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
+	artifactpolicy "github.com/grauwolf32/contractor/internal/artifacts/policy"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -32,7 +33,7 @@ func seedPublicPaginationFinding(t *testing.T, ctx context.Context, pool *pgxpoo
 	}
 
 	evidenceBytes := []byte("Exact source evidence " + suffix)
-	storedEvidence, err := artifactstest.WriteAuditArtifact(ctx, artifacts.NewService(artifactpostgres.NewRepository(pool)), projectID, contracts.ArtifactRef{Namespace: artifactpolicy.FindingMaterialsNamespace, Name: "evidence-" + suffix}, artifacts.Payload{MediaType: "text/plain", Data: evidenceBytes})
+	storedEvidence, err := artifactstest.WriteAuditArtifact(ctx, artifacts.NewService(artifactpgtest.NewStorage().Repository(pool)), projectID, contracts.ArtifactRef{Namespace: artifactpolicy.FindingMaterialsNamespace, Name: "evidence-" + suffix}, artifacts.Payload{MediaType: "text/plain", Data: evidenceBytes})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,7 +46,7 @@ func seedPublicPaginationFinding(t *testing.T, ctx context.Context, pool *pgxpoo
 	if err != nil {
 		t.Fatal(err)
 	}
-	written, err := artifactstest.WriteAuditArtifact(ctx, artifacts.NewService(artifactpostgres.NewRepository(pool)), projectID,
+	written, err := artifactstest.WriteAuditArtifact(ctx, artifacts.NewService(artifactpgtest.NewStorage().Repository(pool)), projectID,
 		contracts.ArtifactRef{Namespace: artifactpolicy.FindingMaterialsNamespace, Name: document.ClientKey},
 		artifacts.Payload{MediaType: "application/json", Data: payload})
 	if err != nil {
@@ -90,7 +91,7 @@ VALUES ($1, $2, $3, $4::jsonb, $5::jsonb)`, receiptID, auditID, projectID, propo
 
 	var findingID string
 	err = persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		hooks := hookstore.NewFindingEventsTx(tx)
+		hooks := hookstore.NewFindingEventsTx(tx, artifactpgtest.NewStorage())
 		var err error
 		findingID, err = hooks.AdmitProjectFinding(ctx, projectID, receiptID, "finding-"+suffix)
 		if err != nil {

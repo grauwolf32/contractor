@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -17,7 +19,7 @@ import (
 func TestPostgresListStageExecutionsWithUnreleasedAllocations(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
-	store := NewPostgresStore(isolatedRunStorePool(t, ctx))
+	store := NewPostgresStore(isolatedRunStorePool(t, ctx), artifactpgtest.NewStorage())
 	for _, runID := range []string{"run-a", "run-b"} {
 		if _, err := createRun(ctx, store, testRunParams(runID)); err != nil {
 			t.Fatal(err)

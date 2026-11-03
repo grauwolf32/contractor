@@ -11,31 +11,28 @@ type FindingCollectionManagement interface {
 	PublishCollection(context.Context, findingintake.PublishCollectionParams) (findingintake.PublishedCollection, error)
 }
 
-func (h *findingHandlers) publishFindingCollection(w http.ResponseWriter, r *http.Request) {
+func (h *findingHandlers) publishFindingCollection(w http.ResponseWriter, r *http.Request) error {
 	w.Header().Set("Cache-Control", "no-store")
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	if err := requireJSONMediaType(r); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	var request findingintake.PublishCollectionRequest
 	if err := decodeJSON(w, r, &request); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	result, err := h.FindingCollections.PublishCollection(r.Context(), findingintake.PublishCollectionParams{
 		OwnerID: principalUserID(r.Context()), Request: request,
 	})
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	status := http.StatusCreated
 	if result.Replayed {
 		status = http.StatusOK
 	}
 	writeJSON(w, status, result)
+	return nil
 }

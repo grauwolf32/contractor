@@ -11,11 +11,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/artifactpolicy"
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
+	artifactpolicy "github.com/grauwolf32/contractor/internal/artifacts/policy"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
@@ -73,7 +74,7 @@ func TestPostgresSameReceiptImportsIntoIndependentAudits(t *testing.T) {
 			}
 		}
 	}
-	audits := auditstoretest.NewStore(f.pool).WithPurgeDependencies(DeleteAuditHoldsBatch)
+	audits := auditstoretest.NewStore(f.pool, artifactpgtest.NewStorage()).WithPurgeDependencies(DeleteAuditHoldsBatch)
 	first, err := audits.Get(f.ctx, f.request.OwnerID, f.request.AuditID)
 	if err != nil {
 		t.Fatal(err)
@@ -95,7 +96,7 @@ func TestPostgresSameReceiptImportsIntoIndependentAudits(t *testing.T) {
 	if err != nil || receipt.Retention != RetentionProjectHeld || len(receipt.AuditHolds) != 1 || receipt.AuditHolds[0].AuditID != secondAudit {
 		t.Fatalf("surviving Audit lost its receipt after other purge: %+v %v", receipt, err)
 	}
-	projectArtifacts, err := artifacts.NewService(artifactpostgres.NewRepository(f.pool)).Project("delete-project")
+	projectArtifacts, err := artifacts.NewService(artifactpgtest.NewStorage().Repository(f.pool)).Project("delete-project")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,7 +120,7 @@ func TestPostgresAuditReceiptReadsRequireHoldInAuditProject(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := auditstoretest.NewStore(f.pool).WithPurgeDependencies(DeleteAuditHoldsBatch).CreateDraft(f.ctx, auditstore.CreateDraftParams{
+	if _, _, err := auditstoretest.NewStore(f.pool, artifactpgtest.NewStorage()).WithPurgeDependencies(DeleteAuditHoldsBatch).CreateDraft(f.ctx, auditstore.CreateDraftParams{
 		AuditID: otherAudit, OwnerID: f.request.OwnerID, ProjectID: otherProject,
 		Profile:         auditstore.ProfileIdentity{Name: "profile", Version: "1", Digest: auditdomain.DigestBytes([]byte("profile"))},
 		ProfileSnapshot: json.RawMessage(`{"interaction":{}}`),
@@ -169,7 +170,7 @@ func TestPostgresCollectionPublicationReadsRequestingAuditHoldAfterRunDeletion(t
 	if err := deleteRun(f.ctx, f.pool, f.request.OwnerID, f.request.RunID); err != nil {
 		t.Fatal(err)
 	}
-	publisher, err := NewCollectionPublisher(f.pool, emptyCollectionReviews{})
+	publisher, err := NewCollectionPublisher(f.pool, emptyCollectionReviews{}, artifactpgtest.NewStorage())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -184,7 +185,7 @@ func TestPostgresCollectionPublicationReadsRequestingAuditHoldAfterRunDeletion(t
 	if err != nil || published.EntryCount != 1 {
 		t.Fatalf("publish retained receipt = (%+v, %v)", published, err)
 	}
-	user, err := artifacts.NewService(artifactpostgres.NewRepository(f.pool)).User(f.request.OwnerID)
+	user, err := artifacts.NewService(artifactpgtest.NewStorage().Repository(f.pool)).User(f.request.OwnerID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -279,7 +280,7 @@ func TestPostgresAuditInboxOmitsUnretainedChildReceiptAfterRunDeletion(t *testin
 	if err := f.intake.RetainAuditCollectionBatch(f.ctx, []ImportRequest{request}); err != nil {
 		t.Fatal(err)
 	}
-	audits := auditstoretest.NewStore(f.pool).WithPurgeDependencies(DeleteAuditHoldsBatch)
+	audits := auditstoretest.NewStore(f.pool, artifactpgtest.NewStorage()).WithPurgeDependencies(DeleteAuditHoldsBatch)
 	beforeRejection, err := audits.Get(f.ctx, request.OwnerID, request.AuditID)
 	if err != nil {
 		t.Fatal(err)
@@ -346,7 +347,7 @@ func TestPostgresAuditInboxOmitsUnretainedChildReceiptAfterRunDeletion(t *testin
 
 func createFixtureAudit(t *testing.T, f deletionImportFixture, auditID string) {
 	t.Helper()
-	if _, _, err := auditstoretest.NewStore(f.pool).WithPurgeDependencies(DeleteAuditHoldsBatch).CreateDraft(f.ctx, auditstore.CreateDraftParams{
+	if _, _, err := auditstoretest.NewStore(f.pool, artifactpgtest.NewStorage()).WithPurgeDependencies(DeleteAuditHoldsBatch).CreateDraft(f.ctx, auditstore.CreateDraftParams{
 		AuditID: auditID, OwnerID: f.request.OwnerID, ProjectID: "delete-project",
 		Profile:         auditstore.ProfileIdentity{Name: "profile", Version: "1", Digest: auditdomain.DigestBytes([]byte("profile"))},
 		ProfileSnapshot: json.RawMessage(`{"interaction":{}}`),
@@ -419,7 +420,7 @@ func recordAuditChildReceipt(
 		}
 	}
 	written, err := artifactstest.WriteFindingProposal(
-		f.ctx, artifacts.NewService(artifactpostgres.NewRepository(f.pool)), f.request.RunID, clientKey+"-proposal",
+		f.ctx, artifacts.NewService(artifactpgtest.NewStorage().Repository(f.pool)), f.request.RunID, clientKey+"-proposal",
 		artifacts.Payload{MediaType: proposalMediaType, Data: canonical.proposalBytes},
 	)
 	if err != nil {
@@ -500,7 +501,7 @@ func TestPostgresDirectAssessmentReplayRequiresAuditScopedIdentity(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	store := artifacts.NewService(artifactpostgres.NewRepository(f.pool))
+	store := artifacts.NewService(artifactpgtest.NewStorage().Repository(f.pool))
 	scope, err := artifacts.ProjectScope(input.ProjectID)
 	if err != nil {
 		t.Fatal(err)
@@ -514,7 +515,7 @@ func TestPostgresDirectAssessmentReplayRequiresAuditScopedIdentity(t *testing.T)
 		t.Fatal(err)
 	}
 	defer tx.Rollback(f.ctx)
-	if replayed, err := directAssessmentReplay(f.ctx, tx, id, input, "supported", resultDigest, contractDigest); err != nil || !replayed {
+	if replayed, err := directAssessmentReplay(f.ctx, tx, id, input, "supported", resultDigest, contractDigest, artifactpgtest.NewStorage()); err != nil || !replayed {
 		t.Fatalf("own replay=%v %v", replayed, err)
 	}
 	for _, change := range []string{"assessment", "result", "contract", "receipt", "audit", "operation"} {
@@ -537,7 +538,7 @@ func TestPostgresDirectAssessmentReplayRequiresAuditScopedIdentity(t *testing.T)
 				changed.AuditID = "other-audit"
 				operation = deterministicID("direct-assessment", changed.AuditID, changed.ReceiptID)
 			}
-			replayed, err := directAssessmentReplay(f.ctx, tx, operation, changed, semantic, result, contract)
+			replayed, err := directAssessmentReplay(f.ctx, tx, operation, changed, semantic, result, contract, artifactpgtest.NewStorage())
 			if change == "receipt" || change == "operation" {
 				if replayed || err != nil {
 					t.Fatalf("foreign lookup=%v %v", replayed, err)

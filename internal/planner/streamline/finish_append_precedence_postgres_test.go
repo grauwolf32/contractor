@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -41,7 +43,7 @@ func TestPostgresModeledPlannerAppendFailurePrecedence(t *testing.T) {
 						ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
 						defer cancel()
 						pool := isolatedStreamlinePool(t, ctx)
-						store := runstore.NewPostgresStore(pool)
+						store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 						createPreparingStreamlineStage(t, ctx, store)
 						installRequiredEventGuard(t, ctx, pool, phase, fault)
 						service := newAppendProbeSessions(t, store, phase)
@@ -350,7 +352,7 @@ func TestModeledPlannerCancellationKeepsCompletionOwnership(t *testing.T) {
 				ctx, stop := context.WithTimeout(t.Context(), 45*time.Second)
 				defer stop()
 				pool := isolatedStreamlinePool(t, ctx)
-				store := runstore.NewPostgresStore(pool)
+				store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 				createPreparingStreamlineStage(t, ctx, store)
 				sessions := newAppendProbeSessions(t, store, "finish")
 				started, release := make(chan struct{}), make(chan struct{})
@@ -446,7 +448,7 @@ func TestPostgresModeledPlannerFinalOutcomeSurvivesAppendCancellation(t *testing
 				ctx, stop := context.WithTimeout(t.Context(), 45*time.Second)
 				defer stop()
 				pool := isolatedStreamlinePool(t, ctx)
-				store := runstore.NewPostgresStore(pool)
+				store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 				createPreparingStreamlineStage(t, ctx, store)
 				installRequiredEventGuard(t, ctx, pool, "finish", fault)
 				sessions := newAppendProbeSessions(t, store, "finish")

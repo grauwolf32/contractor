@@ -1,0 +1,69 @@
+schema_version: "1.0"
+id: V440-009
+title: "Use the registered retryable storage error in the Scope fixture"
+milestone: ui-journey-usability
+epic: ui
+kind: chore
+introduced_by: V429-024
+priority: P2
+status: completed
+depends_on: []
+languages: [typescript]
+goal: >-
+  The Scope retry test uses the same retryable 503 envelope as the Server and
+  no longer blocks the public API contract gate during the authorized merge.
+context:
+  authority:
+    - date: "2026-11-03"
+      decision: "Necessary fixture-only prerequisite discovered while carrying out the user's request to merge the HTTP review."
+  finding: >-
+    ui/src/routes/checks/start/scope.test.tsx:119 answers the unregistered
+    storage_unavailable code. TestBrowserTestDoublesAnswerRegisteredCodes fails
+    on current main and the integrated tree before the correction.
+  origin: >-
+    git blame identifies 1f7ee9f16f8f2915bd4cfc193eadd3aedddbd8ea,
+    the V429-024 New check UI transfer.
+  boundary: >-
+    ERR-R14 and internal/apierror/registry.go remain authoritative. Correct only
+    the test double to storage_transaction_conflict (503, retryable); add no
+    registry value, compatibility alias or production behavior. No persistence
+    operation changes, so the existing real source-scanning gate is the relevant
+    regression rather than a new database test.
+  siblings: >-
+    The API error source scan checks every browser test double and its status.
+    A repository-wide search found one storage_unavailable fixture; other storage
+    conflict examples already use the registered code. Run that full package.
+scope:
+  in:
+    - "Replace the single invalid Scope test envelope code with the registered retryable storage code."
+    - "Prove that the original fixture fails the existing source gate and run the full API error and UI suites."
+  out:
+    - "Production UI behavior, design, error registry/API/schema changes and unrelated review findings."
+acceptance_criteria:
+  - id: A1
+    text: >-
+      Given the real UI fixture sources, the full API error package and public
+      contract gate accept every error code and its registered HTTP status.
+  - id: A2
+    text: >-
+      The Scope retry scenario and full UI suite still pass; the existing
+      guard fails on the original fixture without any weakened assertion.
+tests:
+  - command: "go test -count=1 ./internal/apierror"
+    covers: [A1, A2]
+  - command: make verify-public-api
+    covers: [A1, A2]
+  - command: make ui-verify
+    covers: [A1, A2]
+implementation_commit: e6e2566309461eac2344f135c775e37d2ca74062
+verification:
+  date: "2026-11-03"
+  result: >-
+    The original fixture failed TestBrowserTestDoublesAnswerRegisteredCodes at
+    scope.test.tsx:119. After the one-line correction, the full internal/apierror
+    package passed (0.420s) and make verify-public-api passed (public 10.570s).
+    make ui-verify passed after the correction: all 223 files, 2657 tests and one
+    declared expected failure; all 17 Node server tests passed, generation,
+    ESLint/Prettier, typecheck and the production build passed. No source guard or
+    production error contract was changed. Used Node 24.20.0, pnpm 11.24.0,
+    PNPM_CONFIG_STORE_DIR for the existing store and VITEST_MAX_WORKERS=2.

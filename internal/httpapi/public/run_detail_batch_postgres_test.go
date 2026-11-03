@@ -12,9 +12,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auth"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
@@ -83,7 +84,7 @@ func TestPostgresRunDetailFixedBatchQueries(t *testing.T) {
 		},
 	}
 	defer traced.Close()
-	runs := runstore.NewPostgresStore(pool)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	metrics := telemetry.NewRepository(pool)
 	plans, err := plannersession.New(runs, plannersession.Options{})
 	if err != nil {
@@ -101,7 +102,7 @@ func TestPostgresRunDetailFixedBatchQueries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tracedDetails, err := runservice.NewRunDetailReader(runservice.PostgresRunDetailTransaction(traced))
+	tracedDetails, err := runservice.NewRunDetailReader(runservice.PostgresRunDetailTransaction(traced, artifactpgtest.NewStorage()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,7 +112,7 @@ func TestPostgresRunDetailFixedBatchQueries(t *testing.T) {
 		r.SetPathValue("runId", runID)
 		r = r.WithContext(auth.WithPrincipal(ctx, auth.Principal{UserID: owner}))
 		w := httptest.NewRecorder()
-		h.getRun(w, r)
+		serve(h.getRun)(w, r)
 		return w
 	}
 	wantTotal := 0
@@ -131,7 +132,7 @@ func TestPostgresRunDetailFixedBatchQueries(t *testing.T) {
 			); err != nil {
 				t.Fatal(err)
 			}
-			service := artifacts.NewService(artifactpostgres.NewRepository(pool))
+			service := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
 			runArtifacts, _ := service.Run(runID)
 			source, err := runArtifacts.Write(ctx, contracts.ArtifactRef{Namespace: "scratch", Name: "source"}, artifacts.Payload{MediaType: "text/plain", Data: []byte("exact output")}, nil)
 			if err != nil {

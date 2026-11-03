@@ -6,8 +6,9 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 )
 
 func TestPostgresSitemapSnapshotPreservesSelectedConcreteDeclarations(t *testing.T) {
@@ -17,7 +18,7 @@ func TestPostgresSitemapSnapshotPreservesSelectedConcreteDeclarations(t *testing
 				pool := sitemapPool(t)
 				ctx := t.Context()
 				createSitemapRun(t, ctx, pool, "snapshot-consumer")
-				service := NewService(pool)
+				service := NewService(pool, artifactpgtest.NewStorage())
 				rules := Authority{OwnerID: "owner", ProjectID: "project", SourceID: "rules", Kind: "manual"}
 				manual := rules
 				manual.SourceID = "manual"
@@ -65,7 +66,7 @@ func TestPostgresSitemapSnapshotPreservesSelectedConcreteDeclarations(t *testing
 				if err != nil {
 					t.Fatal(err)
 				}
-				run, err := artifacts.NewService(artifactpostgres.NewRepository(pool)).Run(access.RunID)
+				run, err := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool)).Run(access.RunID)
 				if err != nil {
 					t.Fatal(err)
 				}

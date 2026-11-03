@@ -12,8 +12,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -97,14 +98,14 @@ func (r *lostRunResponse) CreatePublic(ctx context.Context, p runservice.PublicC
 	r.mu.Unlock()
 	if first {
 		if r.remove {
-			store := runstore.NewPostgresStore(r.pool)
+			store := runstore.NewPostgresStore(r.pool, artifactpgtest.NewStorage())
 			if _, err = store.TransitionRun(ctx, result.Run.RunID, runstore.RunPending, runstore.RunRunning, runstore.Reason{Code: "fixture_admitted"}); err != nil {
 				return result, err
 			}
 			if _, err = store.TransitionRun(ctx, result.Run.RunID, runstore.RunRunning, runstore.RunSucceeded, runstore.Reason{Code: "fixture"}); err != nil {
 				return result, err
 			}
-			if err = rundeletion.New(r.pool).DeleteReleasedTerminalRun(ctx, p.OwnerID, result.Run.RunID); err != nil {
+			if err = rundeletion.New(r.pool, artifactpgtest.NewStorage()).DeleteReleasedTerminalRun(ctx, p.OwnerID, result.Run.RunID); err != nil {
 				return result, err
 			}
 		}
@@ -166,17 +167,17 @@ func newHarness(t *testing.T) *serviceHarness {
 	}
 	credentialLookup := testCredentials{gateway: gateway.Ref}
 	transactionLLMCredentials := runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (resolved.CredentialLookup, error) { return credentialLookup, nil })
-	audits, err := auditservice.New(auditservice.Options{Pool: pool, Profiles: retainedExecutionCatalog{catalog}, TransactionLLMCredentials: transactionLLMCredentials, CredentialGuard: testBarrier{}})
+	audits, err := auditservice.New(auditservice.Options{Storage: artifactpgtest.NewStorage(), Pool: pool, Profiles: retainedExecutionCatalog{catalog}, TransactionLLMCredentials: transactionLLMCredentials, CredentialGuard: testBarrier{}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	runs, err := runservice.New(runservice.Options{Runs: runstore.NewPostgresStore(pool), Workflows: retainedExecutionCatalog{catalog}, LLMCredentials: credentialLookup, CredentialGuard: testBarrier{}, RuntimeCredentials: testBarrier{}, Projects: projectstore.NewPostgresStore(pool), SkillInitializationAvailable: true, PublicTransaction: func(ctx context.Context, fn func(runservice.PublicRunWriter, *artifacts.Service) error) error {
+	runs, err := runservice.New(runservice.Options{Runs: runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()), Workflows: retainedExecutionCatalog{catalog}, LLMCredentials: credentialLookup, CredentialGuard: testBarrier{}, RuntimeCredentials: testBarrier{}, Projects: projectstore.NewPostgresStore(pool), SkillInitializationAvailable: true, PublicTransaction: func(ctx context.Context, fn func(runservice.PublicRunWriter, *artifacts.Service) error) error {
 		return pg.InTx(ctx, pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead}, func(tx pgx.Tx) error {
 			lookup, err := runtimeconfig.BindTransactionLLMCredentialLookup(tx, transactionLLMCredentials)
 			if err != nil {
 				return err
 			}
-			return fn(runstore.NewRunCreationPostgresStore(tx, lookup, credentials.NewRuntimeCredentialRepository(tx)), artifacts.NewService(artifactpostgres.NewRepository(tx)))
+			return fn(runstore.NewRunCreationPostgresStore(tx, lookup, credentials.NewRuntimeCredentialRepository(tx), artifactpgtest.NewStorage()), artifacts.NewService(artifactpgtest.NewStorage().Repository(tx)))
 		})
 	}})
 	if err != nil {
@@ -184,9 +185,9 @@ func newHarness(t *testing.T) *serviceHarness {
 	}
 	run := &lostRunResponse{RunCreator: runs, lost: map[string]bool{}, pool: pool}
 	audit := &lostAuditResponse{AuditExecutor: audits, lost: map[string]bool{}}
-	resolver := &Resolver{Pool: pool, Catalog: catalog, Credentials: transactionLLMCredentials, Barrier: testBarrier{}}
-	driver := &Driver{Pool: pool, Runs: run, Audits: audit}
-	service, err := New(Options{Pool: pool, Resolver: resolver, Driver: driver})
+	resolver := &Resolver{Storage: artifactpgtest.NewStorage(), Pool: pool, Catalog: catalog, Credentials: transactionLLMCredentials, Barrier: testBarrier{}}
+	driver := &Driver{Storage: artifactpgtest.NewStorage(), Pool: pool, Runs: run, Audits: audit}
+	service, err := New(Options{Storage: artifactpgtest.NewStorage(), Pool: pool, Resolver: resolver, Driver: driver})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -223,7 +224,7 @@ func identity(t *testing.T, key string, revision int64, doc evaldomain.Frozen) e
 }
 func (h *serviceHarness) get(t *testing.T, id string) evalstore.Experiment {
 	t.Helper()
-	e, err := evalstore.NewPostgresStore(h.pool).Get(t.Context(), h.scope.OwnerID, id)
+	e, err := evalstore.NewPostgresStore(h.pool, artifactpgtest.NewStorage()).Get(t.Context(), h.scope.OwnerID, id)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -232,7 +233,7 @@ func (h *serviceHarness) get(t *testing.T, id string) evalstore.Experiment {
 func (h *serviceHarness) dataset(t *testing.T, kind string) (evaldomain.Draft, evaldomain.DatasetInput) {
 	t.Helper()
 	draft, data, _ := planInputs(t)
-	source, _ := artifacts.NewService(artifactpostgres.NewRepository(h.pool)).User(h.scope.OwnerID)
+	source, _ := artifacts.NewService(artifactpgtest.NewStorage().Repository(h.pool)).User(h.scope.OwnerID)
 	for i := range data.Cases {
 		c := &data.Cases[i]
 		slot, media, payload := "task", "application/zip", []byte("fixture ZIP is not executed")
@@ -287,7 +288,7 @@ func (h *serviceHarness) command(t *testing.T, e evalstore.Experiment, kind stri
 	t.Helper()
 	c := evaldomain.Command{Kind: evaldomain.CommandKind(kind)}
 	if kind != "prepare" && kind != "duplicate" {
-		p, err := evalstore.NewPostgresStore(h.pool).FrozenPlan(t.Context(), e.OwnerID, e.ID)
+		p, err := evalstore.NewPostgresStore(h.pool, artifactpgtest.NewStorage()).FrozenPlan(t.Context(), e.OwnerID, e.ID)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -302,7 +303,7 @@ func (h *serviceHarness) command(t *testing.T, e evalstore.Experiment, kind stri
 }
 func (h *serviceHarness) coordinator(t *testing.T, holder string) *evalcoordinator.Coordinator {
 	t.Helper()
-	c, err := evalcoordinator.New(evalstore.NewPostgresStore(h.pool), h.service, evalcoordinator.Options{HolderID: holder})
+	c, err := evalcoordinator.New(evalstore.NewPostgresStore(h.pool, artifactpgtest.NewStorage()), h.service, evalcoordinator.Options{HolderID: holder})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -383,7 +384,7 @@ func (h *serviceHarness) finishRuns(t *testing.T) {
 	}
 	for id, state := range states {
 		if state == runstore.RunPending {
-			if _, err := runstore.NewPostgresStore(h.pool).TransitionRun(t.Context(), id, state, runstore.RunRunning, runstore.Reason{Code: "fixture_admitted"}); err != nil {
+			if _, err := runstore.NewPostgresStore(h.pool, artifactpgtest.NewStorage()).TransitionRun(t.Context(), id, state, runstore.RunRunning, runstore.Reason{Code: "fixture_admitted"}); err != nil {
 				t.Fatal(err)
 			}
 			state = runstore.RunRunning
@@ -392,14 +393,14 @@ func (h *serviceHarness) finishRuns(t *testing.T) {
 		if state == runstore.RunCancelling {
 			target = runstore.RunCancelled
 		}
-		if _, err = runstore.NewPostgresStore(h.pool).TransitionRun(t.Context(), id, state, target, runstore.Reason{Code: "fixture_completed"}); err != nil {
+		if _, err = runstore.NewPostgresStore(h.pool, artifactpgtest.NewStorage()).TransitionRun(t.Context(), id, state, target, runstore.Reason{Code: "fixture_completed"}); err != nil {
 			t.Fatal(err)
 		}
 	}
 }
 func (h *serviceHarness) finishAudits(t *testing.T) {
 	t.Helper()
-	store := auditstoretest.NewStore(h.pool).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch)
+	store := auditstoretest.NewStore(h.pool, artifactpgtest.NewStorage()).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch)
 	claims, err := store.Claim(t.Context(), auditstore.ClaimParams{HolderID: "fixture-audit-controller", Lease: time.Minute, Limit: 100})
 	if err != nil {
 		t.Fatal(err)
@@ -499,7 +500,7 @@ func TestSharedPostgresNativeBatchAdmissionFillsCapacityAndCreatesByNextTick(t *
 		t.Run(kind, func(t *testing.T) {
 			h := newHarness(t)
 			e := h.preparedWithCapacity(t, kind, 8)
-			store := evalstore.NewPostgresStore(h.pool)
+			store := evalstore.NewPostgresStore(h.pool, artifactpgtest.NewStorage())
 			ordered, err := store.NextMembers(t.Context(), e.OwnerID, e.ID, 8)
 			if err != nil || len(ordered) != 8 {
 				t.Fatalf("eligible members=%d: %v", len(ordered), err)
@@ -632,7 +633,7 @@ func TestSharedPostgresPauseResumeKeepsClockAndDuplicateStartsFresh(t *testing.T
 	if duplicate.State != "draft" || duplicate.ID == e.ID || duplicate.PortableID == e.PortableID || duplicate.StartedAt != nil || duplicate.Outstanding != 0 || duplicate.Expected != 0 {
 		t.Fatal("duplicate reused execution state")
 	}
-	if _, err = evalstore.NewPostgresStore(h.pool).FrozenPlan(t.Context(), e.OwnerID, duplicate.ID); !notFound(err) {
+	if _, err = evalstore.NewPostgresStore(h.pool, artifactpgtest.NewStorage()).FrozenPlan(t.Context(), e.OwnerID, duplicate.ID); !notFound(err) {
 		t.Fatal("duplicate reused frozen plan", err)
 	}
 }
@@ -652,7 +653,7 @@ VALUES ('expired-pause',$1,$2,'expired-pause','external','expired pause','paused
 	if _, err := h.pool.Exec(ctx, `INSERT INTO eval_controller_claims(experiment_id) VALUES ('expired-pause')`); err != nil {
 		t.Fatal(err)
 	}
-	store := evalstore.NewPostgresStore(h.pool)
+	store := evalstore.NewPostgresStore(h.pool, artifactpgtest.NewStorage())
 	claims, err := store.Claim(ctx, "expired-pause-controller", time.Minute, 1)
 	if err != nil || len(claims) != 1 || claims[0].ExperimentID != "expired-pause" {
 		t.Fatalf("expired paused claim = %+v, %v", claims, err)
@@ -839,7 +840,7 @@ func TestSharedPostgresDeadlineAndObservedTokenLimitsDrainWithoutNewAdmissions(t
 			if budget == "deadline" {
 				h.service.now = func() time.Time { return e.DeadlineAt.Add(time.Second) }
 			} else {
-				store := evalstore.NewPostgresStore(h.pool)
+				store := evalstore.NewPostgresStore(h.pool, artifactpgtest.NewStorage())
 				claims, err := store.Claim(t.Context(), "observe", time.Minute, 1)
 				if err != nil || len(claims) != 1 {
 					t.Fatal(err)
@@ -882,7 +883,7 @@ func TestSharedPostgresRecoveryAfterTransitionBeforeCommandAcknowledgement(t *te
 	h := newHarness(t)
 	e := h.create(t, "workflow")
 	h.command(t, e, "prepare")
-	store := evalstore.NewPostgresStore(h.pool)
+	store := evalstore.NewPostgresStore(h.pool, artifactpgtest.NewStorage())
 	claims, err := store.Claim(t.Context(), "crashed", time.Minute, 1)
 	if err != nil || len(claims) != 1 {
 		t.Fatal(claims, err)
@@ -919,7 +920,7 @@ func TestSharedPostgresCancelAfterAuditCreateBeforeStartDrainsThroughOrdinaryDel
 	e = h.get(t, e.ID)
 	h.command(t, e, "cancel")
 	tick(t, c)
-	store := auditstoretest.NewStore(h.pool).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch)
+	store := auditstoretest.NewStore(h.pool, artifactpgtest.NewStorage()).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch)
 	claims, err := store.Claim(t.Context(), auditstore.ClaimParams{HolderID: "audit-controller", Lease: time.Minute, Limit: 10})
 	if err != nil || len(claims) != 1 {
 		t.Fatal(claims, err)
@@ -972,7 +973,7 @@ func TestSharedPostgresProjectDeletionWaitsForUncertainRunAndFencesRemainingMemb
 	if _, _, err = projectstore.NewPostgresStore(h.pool).BeginDeletion(t.Context(), projectstore.BeginDeletionParams{OwnerID: e.OwnerID, ProjectID: e.ProjectID, ExpectedRevision: project.Revision}); err != nil {
 		t.Fatal(err)
 	}
-	store := evalstore.NewPostgresStore(h.pool)
+	store := evalstore.NewPostgresStore(h.pool, artifactpgtest.NewStorage())
 	blocked, err := store.ProjectBlocked(t.Context(), e.OwnerID, e.ProjectID)
 	if err != nil || !blocked {
 		t.Fatal("uncertain creation did not block purge", err)
@@ -1114,7 +1115,7 @@ func (h *serviceHarness) preparedWithRuntimeLabel(t *testing.T, kind string) eva
 
 func (h *serviceHarness) purgeDeletingAuditDrafts(t *testing.T) {
 	t.Helper()
-	store := auditstoretest.NewStore(h.pool).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch)
+	store := auditstoretest.NewStore(h.pool, artifactpgtest.NewStorage()).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch)
 	claims, err := store.Claim(t.Context(), auditstore.ClaimParams{
 		HolderID: "fixture-draft-purge", Lease: time.Minute, Limit: 100,
 	})

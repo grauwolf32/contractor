@@ -15,34 +15,28 @@ type FindingExportManagement interface {
 	ReadFindingExport(context.Context, string, string, string, string) (findingintake.ExportDownload, error)
 }
 
-func (h *findingHandlers) publishAuditFindingExport(w http.ResponseWriter, r *http.Request) {
+func (h *findingHandlers) publishAuditFindingExport(w http.ResponseWriter, r *http.Request) error {
 	w.Header().Set("Cache-Control", "no-store")
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	if err := requireJSONMediaType(r); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	var request findingexport.Request
 	if err := decodeJSON(w, r, &request); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	auditID := r.PathValue("auditId")
 	if _, _, err := request.Normalize(auditID); err != nil {
-		handleError(w, errInvalidRequest)
-		return
+		return errInvalidRequest
 	}
 	if _, err := h.Audits.Get(r.Context(), principalUserID(r.Context()), auditID); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
-	r, transfer, err := artifacttransfer.Acquire(w, r)
+	r, transfer, err := artifacttransfer.Acquire(w, r, h.Transfers)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	defer transfer.Close()
 	ctx, cancel := artifacttransfer.StorageContext(r.Context())
@@ -50,8 +44,7 @@ func (h *findingHandlers) publishAuditFindingExport(w http.ResponseWriter, r *ht
 	result, err := h.FindingExports.PublishFindingExport(ctx, principalUserID(r.Context()), auditID, request)
 	transfer.ReleaseBeforeWrite(0)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	w.Header().Set("Location", "/v1/audits/"+url.PathEscape(auditID)+"/findings/exports/"+url.PathEscape(result.ExportID)+"/content")
 	status := http.StatusCreated
@@ -59,33 +52,31 @@ func (h *findingHandlers) publishAuditFindingExport(w http.ResponseWriter, r *ht
 		status = http.StatusOK
 	}
 	writeJSON(w, status, result)
+	return nil
 }
 
-func (h *findingHandlers) downloadAuditFindingExport(w http.ResponseWriter, r *http.Request) {
-	h.downloadFindingExportPart(w, r, "export", ".sarif")
+func (h *findingHandlers) downloadAuditFindingExport(w http.ResponseWriter, r *http.Request) error {
+	return h.downloadFindingExportPart(w, r, "export", ".sarif")
 }
-func (h *findingHandlers) downloadAuditFindingExportSnapshot(w http.ResponseWriter, r *http.Request) {
-	h.downloadFindingExportPart(w, r, "export-snapshot", ".snapshot.json")
+func (h *findingHandlers) downloadAuditFindingExportSnapshot(w http.ResponseWriter, r *http.Request) error {
+	return h.downloadFindingExportPart(w, r, "export-snapshot", ".snapshot.json")
 }
-func (h *findingHandlers) downloadAuditFindingExportDiagnostics(w http.ResponseWriter, r *http.Request) {
-	h.downloadFindingExportPart(w, r, "export-diagnostics", ".diagnostics.json")
+func (h *findingHandlers) downloadAuditFindingExportDiagnostics(w http.ResponseWriter, r *http.Request) error {
+	return h.downloadFindingExportPart(w, r, "export-diagnostics", ".diagnostics.json")
 }
 
-func (h *findingHandlers) downloadFindingExportPart(w http.ResponseWriter, r *http.Request, part, suffix string) {
+func (h *findingHandlers) downloadFindingExportPart(w http.ResponseWriter, r *http.Request, part, suffix string) error {
 	w.Header().Set("Cache-Control", "no-store")
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	auditID := r.PathValue("auditId")
 	if _, err := h.Audits.Get(r.Context(), principalUserID(r.Context()), auditID); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
-	r, transfer, err := artifacttransfer.Acquire(w, r)
+	r, transfer, err := artifacttransfer.Acquire(w, r, h.Transfers)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	defer transfer.Close()
 	ctx, cancel := artifacttransfer.StorageContext(r.Context())
@@ -93,10 +84,10 @@ func (h *findingHandlers) downloadFindingExportPart(w http.ResponseWriter, r *ht
 	download, err := h.FindingExports.ReadFindingExport(ctx, principalUserID(r.Context()), auditID, r.PathValue("exportId"), part)
 	if err != nil {
 		transfer.ReleaseBeforeWrite(0)
-		handleError(w, err)
-		return
+		return err
 	}
 	read := download.Read
 	transfer.BoundWrite(int64(len(read.Payload.Data)))
 	writeArtifactBytes(w, read, "audit-"+auditID+suffix)
+	return nil
 }

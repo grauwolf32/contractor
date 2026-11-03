@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/telemetry"
@@ -15,7 +17,7 @@ func TestAllocationReadersRejectMissingPersistedAuthority(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
 	defer cancel()
 	pool := isolatedTelemetryPool(t, ctx)
-	runs := runstore.NewPostgresStore(pool)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	createTelemetryRun(t, ctx, runs)
 	stage := createTelemetryStage(t, ctx, runs, "stage-authority", "allocation-current", "session-authority")
 	finishTelemetryStage(t, ctx, runs, stage)
@@ -56,7 +58,7 @@ FROM stage_allocations WHERE allocation_id='allocation-current'`, test.missingRu
 				t.Fatal(err)
 			}
 			for range 2 {
-				store := runstore.NewPostgresStore(tx)
+				store := runstore.NewPostgresStore(tx, artifactpgtest.NewStorage())
 				if rows, err := store.ListStageAllocations(ctx, stage); err == nil || rows != nil {
 					t.Fatalf("incomplete allocation read = %+v, %v", rows, err)
 				}
@@ -87,7 +89,7 @@ func TestAllocationReportRejectsLegacyPolicyWithoutChangingRetainedReport(t *tes
 	ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
 	defer cancel()
 	pool := isolatedTelemetryPool(t, ctx)
-	runs := runstore.NewPostgresStore(pool)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	reports := telemetry.NewRepository(pool)
 	createTelemetryRun(t, ctx, runs)
 	stage := createTelemetryStage(t, ctx, runs, "stage-policy", "allocation-policy", "session-policy")

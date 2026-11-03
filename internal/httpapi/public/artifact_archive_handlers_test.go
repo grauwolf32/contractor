@@ -11,10 +11,10 @@ import (
 	"testing"
 
 	"github.com/getkin/kin-openapi/routers/gorillamux"
-	"github.com/grauwolf32/contractor/internal/artifactpolicy"
-	"github.com/grauwolf32/contractor/internal/artifactpreview"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
+	artifactpolicy "github.com/grauwolf32/contractor/internal/artifacts/policy"
+	artifactpreview "github.com/grauwolf32/contractor/internal/artifacts/preview"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
 	"github.com/grauwolf32/contractor/internal/projectstore"

@@ -6,7 +6,6 @@ import (
 	"errors"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 )
@@ -58,7 +57,7 @@ func (s *Store) artifactMetadata(
 	if err != nil {
 		return artifacts.Metadata{}, err
 	}
-	return artifactpostgres.NewRepository(s.db).Metadata(ctx, scope, artifacts.ArtifactRef{
+	return s.storage.Repository(s.db).Metadata(ctx, scope, artifacts.ArtifactRef{
 		Namespace: ref.Namespace, Name: ref.Name, Revision: revision,
 	})
 }

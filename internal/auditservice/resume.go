@@ -46,7 +46,7 @@ func (s *Service) Resume(ctx context.Context, params MutationParams) (MutationRe
 }
 
 func (s *Service) resumeInTransaction(ctx context.Context, tx pgx.Tx, params MutationParams) (MutationResult, error) {
-	owners, reads := ownerstore.NewTx(tx), querystore.New(tx)
+	owners, reads := ownerstore.NewTx(tx, s.storage), querystore.New(tx, s.storage)
 	// Serialize retries before any mutable dependency checks.
 	if err := owners.LockMutation(ctx, params.OwnerID, auditstore.MutationTransition, params.IdempotencyKey); err != nil {
 		return MutationResult{}, err
@@ -87,7 +87,7 @@ func (s *Service) resumeInTransaction(ctx context.Context, tx pgx.Tx, params Mut
 	// Audit. Each needs a fresh decision for the same exact task before
 	// another submission; the PostgreSQL clock judges expiry, and the fresh
 	// requests expire with the new deadline.
-	revision, err := reviewstore.NewTx(tx).RenewItemReviewsForResume(ctx, auditstore.ResumeRenewalParams{
+	revision, err := reviewstore.NewTx(tx, s.storage).RenewItemReviewsForResume(ctx, auditstore.ResumeRenewalParams{
 		OwnerID: params.OwnerID, AuditID: audit.AuditID, ExpectedRevision: audit.Revision, DeadlineAt: deadline,
 	})
 	if err != nil {

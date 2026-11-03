@@ -25,7 +25,7 @@ func (s *Service) prepareTypedNextRound(ctx context.Context, claim auditstore.Co
 		return auditstore.AcceptRoundParams{}, nil, err
 	}
 	capacity := roundItemCapacity(snapshot.Audit.Limits.MaxItemsPerRound, snapshot.Audit.Limits.MaxItemsTotal, total)
-	progress, err := hookstore.NewClaimedAdmission(s.pool).WithStep(ctx, auditstore.AdmissionStepParams{Claim: claim, PreviousRoundID: snapshot.Round.RoundID, Now: s.now()}, func(ctx context.Context, session *hookstore.AdmissionSession) (auditstore.AdmissionMutation, error) {
+	progress, err := hookstore.NewClaimedAdmission(s.pool, s.storage).WithStep(ctx, auditstore.AdmissionStepParams{Claim: claim, PreviousRoundID: snapshot.Round.RoundID, Now: s.now()}, func(ctx context.Context, session *hookstore.AdmissionSession) (auditstore.AdmissionMutation, error) {
 		state := session.State
 		if state.StopCode != "" {
 			return auditstore.AdmissionMutation{Next: state}, nil

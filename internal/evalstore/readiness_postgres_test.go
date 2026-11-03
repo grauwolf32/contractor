@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
@@ -88,7 +90,7 @@ func TestSharedPostgresFreezeStoresNativeReadinessForTheView(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer traced.Close()
-			view, err := NewPostgresStore(traced).FrozenPlanView(ctx, f.scope.OwnerID, f.e.ID)
+			view, err := NewPostgresStore(traced, artifactpgtest.NewStorage()).FrozenPlanView(ctx, f.scope.OwnerID, f.e.ID)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -98,11 +100,11 @@ func TestSharedPostgresFreezeStoresNativeReadinessForTheView(t *testing.T) {
 			if view.Readiness == nil || !reflect.DeepEqual(*view.Readiness, want) {
 				t.Fatalf("stored readiness:\n got %+v\nwant %+v", view.Readiness, want)
 			}
-			metadata, err := NewPostgresStore(pool).FrozenPlanMetadata(ctx, f.scope.OwnerID, f.e.ID)
+			metadata, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).FrozenPlanMetadata(ctx, f.scope.OwnerID, f.e.ID)
 			if err != nil || view.PlanMetadata.SHA256 != metadata.SHA256 || view.SHA256 != plan.Digest() || !bytes.Equal(view.Setup, metadata.Setup) {
 				t.Fatalf("view metadata %+v differs from %+v: %v", view.PlanMetadata, metadata, err)
 			}
-			if _, err = NewPostgresStore(pool).FrozenPlanView(ctx, "other-owner", f.e.ID); !code(err, "eval_not_found") {
+			if _, err = NewPostgresStore(pool, artifactpgtest.NewStorage()).FrozenPlanView(ctx, "other-owner", f.e.ID); !code(err, "eval_not_found") {
 				t.Fatalf("plan view crossed the owner boundary: %v", err)
 			}
 		})
@@ -111,7 +113,7 @@ func TestSharedPostgresFreezeStoresNativeReadinessForTheView(t *testing.T) {
 		pool := testPool(t)
 		scope := setupProject(t, pool, "owner", "eval")
 		e := createExperiment(t, pool, scope, "exp", "trace-1", "external-workflow")
-		view, err := NewPostgresStore(pool).FrozenPlanView(t.Context(), e.OwnerID, e.ID)
+		view, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).FrozenPlanView(t.Context(), e.OwnerID, e.ID)
 		if err != nil || view.Readiness != nil || view.SHA256 != planDigest(t, pool, e) {
 			t.Fatalf("external plan view %+v: %v", view, err)
 		}
@@ -156,7 +158,7 @@ func TestSharedPostgresStoredReadinessIsImmutableAndDecodedStrictly(t *testing.T
 		if err := bypassPlanImmutability(t, pool, `UPDATE eval_frozen_plans SET readiness=$2 WHERE experiment_id=$1`, f.e.ID, []byte(malformed)); err != nil {
 			t.Fatal(err)
 		}
-		_, err := NewPostgresStore(pool).FrozenPlanView(ctx, f.scope.OwnerID, f.e.ID)
+		_, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).FrozenPlanView(ctx, f.scope.OwnerID, f.e.ID)
 		var domain *evaldomain.Error
 		if err == nil || errors.As(err, &domain) {
 			t.Fatalf("malformed readiness %s read as %v", malformed, err)

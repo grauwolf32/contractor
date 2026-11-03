@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/jackc/pgx/v5"
@@ -284,7 +286,7 @@ func TestStageTransitionEscalationDecisionValidation(t *testing.T) {
 func TestTypedConflictAndNoWorkResults(t *testing.T) {
 	t.Parallel()
 
-	store := NewPostgresStore(stubDB{row: stubRow{err: pgx.ErrNoRows}})
+	store := NewPostgresStore(stubDB{row: stubRow{err: pgx.ErrNoRows}}, artifactpgtest.NewStorage())
 	_, err := store.TransitionRun(
 		context.Background(), "run-1", RunInitializing, RunPending, Reason{Code: "ready"},
 	)
@@ -306,7 +308,7 @@ func TestStorePreservesContextCancellation(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	store := NewPostgresStore(stubDB{row: stubRow{err: ctx.Err()}})
+	store := NewPostgresStore(stubDB{row: stubRow{err: ctx.Err()}}, artifactpgtest.NewStorage())
 	_, err := store.GetRun(ctx, "run-1")
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("GetRun error = %v, want context.Canceled", err)

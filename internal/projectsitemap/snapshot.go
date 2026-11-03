@@ -79,7 +79,7 @@ func (s *Service) SnapshotAllocation(ctx context.Context, access AllocationAcces
 			if err := checkProject(ctx, tx, access.OwnerID, access.ProjectID, true); err != nil {
 				return err
 			}
-			repository := artifactpostgres.NewTxRepository(tx)
+			repository := s.storage.TxRepository(tx)
 			store, err := artifacts.NewService(repository).Project(access.ProjectID)
 			if err != nil {
 				return err
@@ -97,7 +97,7 @@ func (s *Service) SnapshotAllocation(ctx context.Context, access AllocationAcces
 			if err != nil {
 				return err
 			}
-			inputs, err := resolveSnapshotInputs(ctx, tx, access)
+			inputs, err := resolveSnapshotInputs(ctx, tx, access, s.storage)
 			if err != nil {
 				return err
 			}

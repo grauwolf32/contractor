@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/persistence/explaintest"
 )
 
@@ -22,11 +24,11 @@ func TestPostgresStageAllocationUpdatesFireOnlyTheTriggersTheyConcern(t *testing
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	pool := isolatedRunStorePool(t, ctx)
-	run := createTestRun(t, ctx, NewPostgresStore(pool), "run-allocation-triggers")
-	if _, err := admitTestRun(ctx, NewPostgresStore(pool), run.RunID); err != nil {
+	run := createTestRun(t, ctx, NewPostgresStore(pool, artifactpgtest.NewStorage()), "run-allocation-triggers")
+	if _, err := admitTestRun(ctx, NewPostgresStore(pool, artifactpgtest.NewStorage()), run.RunID); err != nil {
 		t.Fatal(err)
 	}
-	stage, err := NewPostgresStore(pool).CreateStageExecution(ctx,
+	stage, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).CreateStageExecution(ctx,
 		testActiveStageParams(run.RunID, "stage-allocation-triggers", "copy"))
 	if err != nil {
 		t.Fatal(err)
@@ -40,7 +42,7 @@ func TestPostgresStageAllocationUpdatesFireOnlyTheTriggersTheyConcern(t *testing
 		t.Fatal(err)
 	}
 	probe := explaintest.NewProbe(t, tx)
-	store := NewPostgresStore(probe)
+	store := NewPostgresStore(probe, artifactpgtest.NewStorage())
 	const (
 		identity   = "stage_allocations_protect_identity"
 		policy     = "stage_allocations_protect_performance_policy"

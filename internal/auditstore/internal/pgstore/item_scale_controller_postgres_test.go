@@ -5,6 +5,8 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/persistence/explaintest"
 	"github.com/jackc/pgx/v5"
@@ -145,7 +147,7 @@ SELECT (SELECT count(*) FROM audit_review_requests WHERE audit_id = $1),
 			if _, err := conn.Exec(f.ctx, "SET plan_cache_mode = "+string(mode)); err != nil {
 				t.Fatal(err)
 			}
-			items, err := NewQueryStore(conn).listReconcileItems(f.ctx, f.auditID, limit)
+			items, err := NewQueryStore(conn, artifactpgtest.NewStorage()).listReconcileItems(f.ctx, f.auditID, limit)
 			if err != nil {
 				t.Fatal(err)
 			}

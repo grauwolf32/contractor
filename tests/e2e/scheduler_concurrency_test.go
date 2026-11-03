@@ -16,6 +16,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -179,7 +181,7 @@ func TestSchedulerConcurrencyAcrossProductionProcesses(t *testing.T) {
 		t.Fatalf("open Scheduler-concurrency assertion database: %v", err)
 	}
 	t.Cleanup(pool.Close)
-	store := runstore.NewPostgresStore(pool)
+	store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	activeRuns, instances := activeAllocatedRuns(t, ctx, store, concurrentRuns)
 	if len(activeRuns) != 2 || len(instances) != 2 {
 		t.Fatalf("active production lanes = runs:%v Runtime instances:%v, want two distinct of each", activeRuns, instances)

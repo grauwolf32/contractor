@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"google.golang.org/adk/v2/model"
@@ -22,7 +24,7 @@ func TestPostgresADKEventFieldsRemainInRAMOnly(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
 	defer cancel()
 	pool := isolatedPlannerPool(t, ctx)
-	store := runstore.NewPostgresStore(pool)
+	store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	createPlannerStage(t, ctx, store)
 	service, err := New(store, Options{})
 	if err != nil {

@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/jackc/pgx/v5"
@@ -74,7 +76,7 @@ func tracedStageStore(t *testing.T, ctx context.Context, pool *pgxpool.Pool) (*r
 		t.Fatal(err)
 	}
 	t.Cleanup(traced.Close)
-	return runstore.NewPostgresStore(traced), trace
+	return runstore.NewPostgresStore(traced, artifactpgtest.NewStorage()), trace
 }
 
 // requireNoSnapshotHistoryRead fails when a statement that selects a

@@ -6,8 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/artifacts"
 	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
+
+	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -29,13 +30,13 @@ type directHistoryFactForTest struct {
 
 // Read the production source-history API and exact ordinary Artifact bytes;
 // there is no table of source assessments or special historical reader.
-func readDirectHistoryForTest(t *testing.T, ctx context.Context, pool *pgxpool.Pool, owner, project, receipt, audit string) []directHistoryFactForTest {
+func readDirectHistoryForTest(t *testing.T, ctx context.Context, pool *pgxpool.Pool, owner, project, receipt, audit string, storage *artifactpostgres.Storage) []directHistoryFactForTest {
 	t.Helper()
-	intake, err := New(pool)
+	intake, err := New(pool, storage)
 	if err != nil {
 		t.Fatal(err)
 	}
-	store, err := artifacts.NewService(artifactpostgres.NewRepository(pool)).Project(project)
+	store, err := artifacts.NewService(storage.Repository(pool)).Project(project)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -101,11 +101,12 @@ type serverConfigSpec struct {
 }
 
 func defaultServerConfigValues() serverConfigValues {
+	history := artifactpostgres.DefaultHistoryPolicy()
 	return serverConfigValues{
 		artifactBlobBackend:         string(blob.Auto),
 		artifactBlobInlineMaxBytes:  blob.DefaultInlineMaxBytes,
-		artifactHistoryMaxRevisions: artifactpostgres.DefaultHistoryMaxRevisions,
-		artifactHistoryMaxBytes:     artifactpostgres.DefaultHistoryMaxBytes,
+		artifactHistoryMaxRevisions: history.MaxRevisions(),
+		artifactHistoryMaxBytes:     history.MaxBytes(),
 		developmentLLMGateway:       defaultDevelopmentLLMGateway,
 		gitImportLimits:             gitimport.DefaultLimits(),
 		operations:                  defaultOperationalSettings(),

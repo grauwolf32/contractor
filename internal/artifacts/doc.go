@@ -3,6 +3,9 @@
 // generic Namespace policy, while trusted primitives serve callers that own
 // their purpose-specific authorization and Namespace rules.
 //
+// Shared Namespace rules live in artifacts/policy; bounded archive browsing
+// lives in artifacts/preview. Both keep their existing dependency layers.
+//
 // Package artifacts/postgres implements the registry: bindings, immutable
 // revisions, lineage, retained-history admission, metadata reads and lifecycle
 // purge. Its transaction-only operations compose derived context and Git
@@ -12,6 +15,11 @@
 // transfer admission. The blob/backends factory selects the write policy;
 // its filesystem and postgres adapters store physical files and inline bytes.
 // PostgreSQL remains the registry for either payload backend.
+//
+// Server composition injects one postgres.Storage into consumers. It binds
+// repositories and purgers to their caller-owned database transactions without
+// losing the process payload runtime or retained-history limits. Context carries
+// only operation state and an active transfer lease.
 //
 // A prepared payload verifies a reusable physical generation before publication
 // locks. Publication may attach only that verified key or its complete candidate.

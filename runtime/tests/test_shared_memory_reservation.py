@@ -1,6 +1,6 @@
 """The reserved-binding rule the Runtime shares with the Go Server.
 
-internal/artifactpolicy and internal/contracts read the same api/testdata
+internal/artifacts/policy and internal/contracts read the same api/testdata
 fixture; make test-wire-cross-language runs both sides.
 """
 

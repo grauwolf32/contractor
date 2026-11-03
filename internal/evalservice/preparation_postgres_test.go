@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalstore"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -46,7 +48,7 @@ func TestSharedPostgresEvalPreparationFailurePreservesCauseAndRetry(t *testing.T
 			if strings.Contains(string(e.Diagnostic), cause.Error()) || evaldomain.Validate("Diagnostic", e.Diagnostic) != nil {
 				t.Fatalf("unsafe diagnostic: %s", e.Diagnostic)
 			}
-			pending, err := evalstore.NewPostgresStore(h.pool).PendingCommands(t.Context(), e.OwnerID, e.ID)
+			pending, err := evalstore.NewPostgresStore(h.pool, artifactpgtest.NewStorage()).PendingCommands(t.Context(), e.OwnerID, e.ID)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -63,7 +65,7 @@ func TestSharedPostgresEvalPreparationFailurePreservesCauseAndRetry(t *testing.T
 				if e = h.get(t, e.ID); e.State != evaldomain.StateReady || len(e.Diagnostic) != 0 {
 					t.Fatalf("retry did not prepare: %s", e.State)
 				}
-				record, err := evalstore.NewPostgresStore(h.pool).CommandRecord(t.Context(), e.OwnerID, e.ID, pending[0].ID)
+				record, err := evalstore.NewPostgresStore(h.pool, artifactpgtest.NewStorage()).CommandRecord(t.Context(), e.OwnerID, e.ID, pending[0].ID)
 				if err != nil || record.State != "succeeded" {
 					t.Fatalf("retry command: %+v %v", record, err)
 				}

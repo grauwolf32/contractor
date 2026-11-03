@@ -13,8 +13,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/artifactpolicy"
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpolicy "github.com/grauwolf32/contractor/internal/artifacts/policy"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -52,7 +54,7 @@ func TestAuditProfileHandlersExposeCompatibilityAndExactDetail(t *testing.T) {
 
 	list := auditAuthenticatedRequest(http.MethodGet, "/v1/audit-profiles", nil)
 	response := httptest.NewRecorder()
-	h.listAuditProfiles(response, list)
+	serve(h.listAuditProfiles)(response, list)
 	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"serverCompatible":false`) ||
 		!strings.Contains(response.Body.String(), `"compatibilityReasons":["manual_applicability_unsupported"]`) ||
 		strings.Contains(response.Body.String(), `"workflows"`) {
@@ -63,7 +65,7 @@ func TestAuditProfileHandlersExposeCompatibilityAndExactDetail(t *testing.T) {
 	detail.SetPathValue("name", "checklist")
 	detail.SetPathValue("version", "1")
 	detailResponse := httptest.NewRecorder()
-	h.getAuditProfile(detailResponse, detail)
+	serve(h.getAuditProfile)(detailResponse, detail)
 	if detailResponse.Code != http.StatusOK || detailResponse.Header().Get("ETag") != `"`+auditHandlerDigest("profile")+`"` ||
 		!strings.Contains(detailResponse.Body.String(), `"mode":"custom-checklist"`) {
 		t.Fatalf("profile detail = %d headers=%v body=%s", detailResponse.Code, detailResponse.Header(), detailResponse.Body.String())
@@ -89,7 +91,7 @@ func TestAuditStandardHandlersExposeCatalogProjectionOnly(t *testing.T) {
 
 	list := auditAuthenticatedRequest(http.MethodGet, "/v1/audit-standards", nil)
 	response := httptest.NewRecorder()
-	h.listAuditStandards(response, list)
+	serve(h.listAuditStandards)(response, list)
 	if response.Code != http.StatusOK ||
 		!strings.Contains(response.Body.String(), `"scheme":"example"`) ||
 		!strings.Contains(response.Body.String(), `"entryCount":1`) ||
@@ -104,7 +106,7 @@ func TestAuditStandardHandlersExposeCatalogProjectionOnly(t *testing.T) {
 	detail.SetPathValue("scheme", "example")
 	detail.SetPathValue("version", "1")
 	detailResponse := httptest.NewRecorder()
-	h.getAuditStandard(detailResponse, detail)
+	serve(h.getAuditStandard)(detailResponse, detail)
 	if detailResponse.Code != http.StatusOK ||
 		!strings.Contains(detailResponse.Body.String(), `"id":"EX-1"`) {
 		t.Fatalf("standard detail = %d %s", detailResponse.Code, detailResponse.Body.String())
@@ -143,7 +145,7 @@ func TestAuditCreateStartQueryAndStableErrors(t *testing.T) {
 	create.Header.Set("Content-Type", "application/json")
 	create.Header.Set("Idempotency-Key", "create-audit")
 	created := httptest.NewRecorder()
-	h.createAudit(created, create)
+	serve(h.createAudit)(created, create)
 	if created.Code != http.StatusCreated || created.Header().Get("ETag") != `"1"` ||
 		management.created.OwnerID != "user-1" || management.created.ProjectID != "project-one" ||
 		management.created.RequestDigest == "" {
@@ -172,7 +174,7 @@ func TestAuditCreateStartQueryAndStableErrors(t *testing.T) {
 	start.Header.Set("Idempotency-Key", "start-audit")
 	start.Header.Set("If-Match", `"1"`)
 	started := httptest.NewRecorder()
-	h.startAudit(started, start)
+	serve(h.startAudit)(started, start)
 	// A start binds its action like every other lifecycle request.
 	startDigest := contentdigest.Bytes([]byte(`{"action":"start","auditId":"audit-fixed","revision":1}`))
 	if started.Code != http.StatusOK || started.Header().Get("ETag") != `"2"` ||
@@ -185,7 +187,7 @@ func TestAuditCreateStartQueryAndStableErrors(t *testing.T) {
 	foreign := auditAuthenticatedRequest(http.MethodGet, "/v1/audits/audit-fixed", nil)
 	foreign.SetPathValue("auditId", "audit-fixed")
 	foreignResponse := httptest.NewRecorder()
-	h.getAudit(foreignResponse, foreign)
+	serve(h.getAudit)(foreignResponse, foreign)
 	if foreignResponse.Code != http.StatusNotFound || !strings.Contains(foreignResponse.Body.String(), `"code":"not_found"`) {
 		t.Fatalf("foreign Audit = %d %s", foreignResponse.Code, foreignResponse.Body.String())
 	}
@@ -202,7 +204,7 @@ func TestAuditCreateStartQueryAndStableErrors(t *testing.T) {
 		unsupported.Header.Set("Idempotency-Key", "unsupported-audit")
 		unsupported.Header.Set("If-Match", `"1"`)
 		unsupportedResponse := httptest.NewRecorder()
-		h.startAudit(unsupportedResponse, unsupported)
+		serve(h.startAudit)(unsupportedResponse, unsupported)
 		if unsupportedResponse.Code != http.StatusUnprocessableEntity ||
 			!strings.Contains(unsupportedResponse.Body.String(), `"code":"audit_profile_unsupported"`) ||
 			!strings.Contains(unsupportedResponse.Body.String(), `"`+string(reason)+`"`) {
@@ -230,7 +232,7 @@ func TestAuditReportHandlerReturnsOnlyAcceptedProjection(t *testing.T) {
 	request := auditAuthenticatedRequest(http.MethodGet, "/v1/audits/audit-fixed/report", nil)
 	request.SetPathValue("auditId", "audit-fixed")
 	response := httptest.NewRecorder()
-	h.getAuditReport(response, request)
+	serve(h.getAuditReport)(response, request)
 	if response.Code != http.StatusOK || response.Header().Get("Cache-Control") != "no-store" ||
 		!strings.Contains(response.Body.String(), `"status":"ready"`) ||
 		!strings.Contains(response.Body.String(), `"schema":"contractor.audit.report.v1"`) ||
@@ -240,7 +242,7 @@ func TestAuditReportHandlerReturnsOnlyAcceptedProjection(t *testing.T) {
 
 	management.report = auditservice.ReportProjection{Status: auditservice.ReportPending}
 	pending := httptest.NewRecorder()
-	h.getAuditReport(pending, request)
+	serve(h.getAuditReport)(pending, request)
 	if pending.Code != http.StatusOK || pending.Body.String() != "{\"status\":\"pending\"}\n" {
 		t.Fatalf("pending Audit report = %d %s", pending.Code, pending.Body.String())
 	}
@@ -261,7 +263,7 @@ func TestAuditFindingProposalHandlersExposeInboxAndExactImport(t *testing.T) {
 	list := auditAuthenticatedRequest(http.MethodGet, "/v1/audits/audit-fixed/finding-proposals?limit=10", nil)
 	list.SetPathValue("auditId", "audit-fixed")
 	listed := httptest.NewRecorder()
-	h.listAuditFindingProposals(listed, list)
+	serve(h.listAuditFindingProposals)(listed, list)
 	if listed.Code != http.StatusOK || listed.Header().Get("Cache-Control") != "no-store" ||
 		!strings.Contains(listed.Body.String(), `"receiptId":"receipt-one"`) ||
 		findings.listOwner != "user-1" || findings.listAudit != "audit-fixed" {
@@ -274,7 +276,7 @@ func TestAuditFindingProposalHandlersExposeInboxAndExactImport(t *testing.T) {
 	request.SetPathValue("auditId", "audit-fixed")
 	request.Header.Set("Content-Type", "application/json")
 	response := httptest.NewRecorder()
-	h.importAuditFindingProposal(response, request)
+	serve(h.importAuditFindingProposal)(response, request)
 	if response.Code != http.StatusCreated || findings.imported.OwnerID != "user-1" ||
 		findings.imported.AuditID != "audit-fixed" || findings.imported.RunID != "run-one" ||
 		!strings.Contains(response.Body.String(), `"replayed":false`) {
@@ -312,10 +314,10 @@ func TestAuditLifecycleHandlersRequireCASAndIdempotency(t *testing.T) {
 		status int
 		call   func(http.ResponseWriter, *http.Request)
 	}{
-		{"pause", http.MethodPost, "/v1/audits/audit-fixed/pause", http.StatusOK, h.pauseAudit},
-		{"resume", http.MethodPost, "/v1/audits/audit-fixed/resume", http.StatusOK, h.resumeAudit},
-		{"cancel", http.MethodPost, "/v1/audits/audit-fixed/cancel", http.StatusAccepted, h.cancelAudit},
-		{"delete", http.MethodDelete, "/v1/audits/audit-fixed", http.StatusAccepted, h.deleteAudit},
+		{"pause", http.MethodPost, "/v1/audits/audit-fixed/pause", http.StatusOK, serve(h.pauseAudit)},
+		{"resume", http.MethodPost, "/v1/audits/audit-fixed/resume", http.StatusOK, serve(h.resumeAudit)},
+		{"cancel", http.MethodPost, "/v1/audits/audit-fixed/cancel", http.StatusAccepted, serve(h.cancelAudit)},
+		{"delete", http.MethodDelete, "/v1/audits/audit-fixed", http.StatusAccepted, serve(h.deleteAudit)},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			request := auditAuthenticatedRequest(test.method, test.path, nil)
@@ -336,7 +338,7 @@ func TestAuditLifecycleHandlersRequireCASAndIdempotency(t *testing.T) {
 	missingCAS.SetPathValue("auditId", "audit-fixed")
 	missingCAS.Header.Set("Idempotency-Key", "missing-cas")
 	response := httptest.NewRecorder()
-	h.cancelAudit(response, missingCAS)
+	serve(h.cancelAudit)(response, missingCAS)
 	if response.Code != http.StatusBadRequest {
 		t.Fatalf("missing CAS status = %d body=%s", response.Code, response.Body.String())
 	}
@@ -658,7 +660,7 @@ func (f *fakeAuditManagement) ListReviews(
 }
 
 func auditTestHandler(audits AuditManagement) *auditHandlers {
-	return &auditHandlers{AuditDependencies: AuditDependencies{
+	return &auditHandlers{AuditDependencies: AuditDependencies{Transfers: artifactpgtest.NewStorage(),
 		Audits: audits, Projects: newFakeProjectStore(),
 		NewID: func(string) (string, error) { return "audit-fixed", nil },
 	}}
@@ -666,7 +668,7 @@ func auditTestHandler(audits AuditManagement) *auditHandlers {
 
 // findingTestHandler serves the finding proposals of the Audits of audits.
 func findingTestHandler(audits AuditReader, proposals FindingProposalManagement) *findingHandlers {
-	return &findingHandlers{FindingDependencies: FindingDependencies{
+	return &findingHandlers{FindingDependencies: FindingDependencies{Transfers: artifactpgtest.NewStorage(),
 		FindingProposals: proposals, FindingCollections: missingFindingCollections{}, FindingExports: missingFindingExports{},
 		Audits: audits, Runs: newFakeRunStore(),
 	}}

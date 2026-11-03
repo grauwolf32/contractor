@@ -13,7 +13,7 @@ import (
 )
 
 func (s *Service) FindingExportScope(ctx context.Context, tx pgx.Tx, ownerID, auditID string, lock bool) (string, error) {
-	id, err := querystore.New(tx).FindingExportScope(ctx, ownerID, auditID, lock)
+	id, err := querystore.New(tx, s.storage).FindingExportScope(ctx, ownerID, auditID, lock)
 	return id, collectionError(err)
 }
 
@@ -24,7 +24,7 @@ func (s *Service) SelectExportFindings(ctx context.Context, tx pgx.Tx, ownerID, 
 	for i, v := range selections {
 		ids[i] = v.FindingID
 	}
-	reads := querystore.New(tx)
+	reads := querystore.New(tx, s.storage)
 	records, err := reads.ExportFindings(ctx, ownerID, auditID, ids)
 	if err != nil {
 		return nil, collectionError(err)

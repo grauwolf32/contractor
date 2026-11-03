@@ -81,7 +81,7 @@ func TestSharedAuditPreparationHandlersWithoutRound(t *testing.T) {
 	start.Header.Set("Idempotency-Key", "start-prepared")
 	start.Header.Set("If-Match", `"1"`)
 	response := httptest.NewRecorder()
-	h.startAudit(response, start)
+	serve(h.startAudit)(response, start)
 	var body map[string]json.RawMessage
 	if response.Code != http.StatusOK || json.Unmarshal(response.Body.Bytes(), &body) != nil || body["round"] != nil || string(body["items"]) != "[]" || !strings.Contains(string(body["audit"]), `"phase":"preparing"`) {
 		t.Fatalf("preparation start invented a Round: %d %s", response.Code, response.Body.String())
@@ -94,13 +94,13 @@ func TestSharedAuditPreparationHandlersWithoutRound(t *testing.T) {
 		request := auditAuthenticatedRequest(http.MethodGet, "/v1/audits/prepared-audit", nil)
 		request.SetPathValue("auditId", audit.AuditID)
 		response := httptest.NewRecorder()
-		h.getAudit(response, request)
+		serve(h.getAudit)(response, request)
 		if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"phase":"`+string(phase)+`"`) || strings.Contains(response.Body.String(), `"currentRoundId"`) {
 			t.Fatalf("preparation detail: %d %s", response.Code, response.Body.String())
 		}
 		list := auditAuthenticatedRequest(http.MethodGet, "/v1/audits", nil)
 		listed := httptest.NewRecorder()
-		h.listProjectAudits(listed, list)
+		serve(h.listProjectAudits)(listed, list)
 		if listed.Code != http.StatusOK || !strings.Contains(listed.Body.String(), `"preparation":{"roles"`) ||
 			len(management.preparationPages) == 0 || management.preparationPages[len(management.preparationPages)-1] != 1 {
 			t.Fatalf("preparation list omitted required role status: %d %s", listed.Code, listed.Body.String())
@@ -119,7 +119,7 @@ func TestSharedAuditPreparationHandlersWithoutRound(t *testing.T) {
 	} {
 		management.preparationErr = failure.err
 		listed := httptest.NewRecorder()
-		h.listProjectAudits(listed, auditAuthenticatedRequest(http.MethodGet, "/v1/audits", nil))
+		serve(h.listProjectAudits)(listed, auditAuthenticatedRequest(http.MethodGet, "/v1/audits", nil))
 		var body errorResponse
 		if listed.Code != failure.status || json.Unmarshal(listed.Body.Bytes(), &body) != nil || body.Code != failure.code {
 			t.Fatalf("list with hydration error %v = %d %s", failure.err, listed.Code, listed.Body.String())
@@ -128,7 +128,7 @@ func TestSharedAuditPreparationHandlersWithoutRound(t *testing.T) {
 	management.preparationErr = nil
 	management.audit.Phase, management.audit.State = auditdomain.AuditPhaseNotStarted, auditstore.AuditDraft
 	drafts := httptest.NewRecorder()
-	h.listProjectAudits(drafts, auditAuthenticatedRequest(http.MethodGet, "/v1/audits", nil))
+	serve(h.listProjectAudits)(drafts, auditAuthenticatedRequest(http.MethodGet, "/v1/audits", nil))
 	if drafts.Code != http.StatusOK || strings.Contains(drafts.Body.String(), `"preparation"`) ||
 		management.preparationPages[len(management.preparationPages)-1] != 0 {
 		t.Fatalf("draft list hydrated preparation: %d %s", drafts.Code, drafts.Body.String())
@@ -138,7 +138,7 @@ func TestSharedAuditPreparationHandlersWithoutRound(t *testing.T) {
 		name   string
 		handle func(http.ResponseWriter, *http.Request)
 		status int
-	}{{"pause", h.pauseAudit, http.StatusOK}, {"resume", h.resumeAudit, http.StatusOK}, {"cancel", h.cancelAudit, http.StatusAccepted}, {"delete", h.deleteAudit, http.StatusAccepted}} {
+	}{{"pause", serve(h.pauseAudit), http.StatusOK}, {"resume", serve(h.resumeAudit), http.StatusOK}, {"cancel", serve(h.cancelAudit), http.StatusAccepted}, {"delete", serve(h.deleteAudit), http.StatusAccepted}} {
 		request := auditAuthenticatedRequest(http.MethodPost, "/v1/audits/prepared-audit/"+action.name, nil)
 		if action.name == "delete" {
 			request.Method = http.MethodDelete
@@ -158,7 +158,7 @@ func TestSharedAuditPreparationHandlersWithoutRound(t *testing.T) {
 	draft := auditAuthenticatedRequest(http.MethodGet, "/v1/audits/prepared-audit", nil)
 	draft.SetPathValue("auditId", audit.AuditID)
 	drafted := httptest.NewRecorder()
-	h.getAudit(drafted, draft)
+	serve(h.getAudit)(drafted, draft)
 	if drafted.Code != http.StatusOK || strings.Contains(drafted.Body.String(), `"preparation"`) {
 		t.Fatalf("draft falsely entered preparation: %d %s", drafted.Code, drafted.Body.String())
 	}

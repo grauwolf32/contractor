@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	. "github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob"
@@ -33,14 +35,20 @@ func (b historyBinding) ref() ArtifactRef { return ArtifactRef{Namespace: b.name
 // they alone referenced goes with them while shared content stays. Exact
 // reads of a removed revision report not found, never the current content.
 func TestPostgresHistoryRetainsTheNewestRevisionsOfEachBinding(t *testing.T) {
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
-	ctx, _ = purgeBlobContext(t, ctx, pool)
-	ctx = artifactpostgres.WithHistoryPolicy(ctx, artifactpostgres.NewTestHistoryPolicy(3, 1<<30))
+	artifactStorage, _ = purgeBlobStorage(t, ctx, pool)
+	artifactRuntime = artifactpostgres.RuntimeForTest(artifactStorage)
+	artifactHistory = artifactpostgres.NewTestHistoryPolicy(3, 1<<30)
+	artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
 	createHistoryProject(t, ctx, pool, "history-project")
 	createArtifactRun(t, ctx, pool, "history-run", true)
-	service := NewService(artifactpostgres.NewRepository(pool))
+	service := NewService(artifactStorage.Repository(pool))
 	user, _ := service.User("user-1")
 	project, _ := service.Project("history-project")
 	run, _ := service.Run("history-run")
@@ -125,12 +133,18 @@ SELECT 1 FROM artifact_versions AS version WHERE version.blob_sha256 = blob.sha2
 // revisions share content, and the limit applies to each binding on its own:
 // two bindings together retain more than one binding may.
 func TestPostgresHistoryByteLimitAppliesToEachBinding(t *testing.T) {
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
-	ctx, _ = purgeBlobContext(t, ctx, pool)
-	ctx = artifactpostgres.WithHistoryPolicy(ctx, artifactpostgres.NewTestHistoryPolicy(100, 25))
-	user, _ := NewService(artifactpostgres.NewRepository(pool)).User("user-1")
+	artifactStorage, _ = purgeBlobStorage(t, ctx, pool)
+	artifactRuntime = artifactpostgres.RuntimeForTest(artifactStorage)
+	artifactHistory = artifactpostgres.NewTestHistoryPolicy(100, 25)
+	artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+	user, _ := NewService(artifactStorage.Repository(pool)).User("user-1")
 	for _, name := range []string{"first", "second"} {
 		binding := historyBinding{"user", "user-1", "bytes", name}
 		var revision *string
@@ -174,12 +188,18 @@ func TestPostgresHistoryByteLimitAppliesToEachBinding(t *testing.T) {
 // write that only held revisions could make room for. Releasing a hold puts
 // its revision back first in line, ahead of every younger revision.
 func TestPostgresHistoryPreservesHoldsAndReseeksAReleasedHold(t *testing.T) {
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
-	ctx, _ = purgeBlobContext(t, ctx, pool)
-	ctx = artifactpostgres.WithHistoryPolicy(ctx, artifactpostgres.NewTestHistoryPolicy(3, 1<<30))
-	service := NewService(artifactpostgres.NewRepository(pool))
+	artifactStorage, _ = purgeBlobStorage(t, ctx, pool)
+	artifactRuntime = artifactpostgres.RuntimeForTest(artifactStorage)
+	artifactHistory = artifactpostgres.NewTestHistoryPolicy(3, 1<<30)
+	artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+	service := NewService(artifactStorage.Repository(pool))
 	user, _ := service.User("user-1")
 	binding := historyBinding{"user", "user-1", "notes", "held"}
 	var revisions []string
@@ -271,12 +291,18 @@ func TestPostgresHistoryPreservesHoldsAndReseeksAReleasedHold(t *testing.T) {
 // revisions are never examined, and a hold released behind the removed
 // revisions is removed before any younger revision.
 func TestPostgresHistoryMaintenanceIsBoundedPerTransaction(t *testing.T) {
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
-	ctx, _ = purgeBlobContext(t, ctx, pool)
-	ctx = artifactpostgres.WithHistoryPolicy(ctx, artifactpostgres.NewTestHistoryPolicy(20, 1<<30))
-	service := NewService(artifactpostgres.NewRepository(pool))
+	artifactStorage, _ = purgeBlobStorage(t, ctx, pool)
+	artifactRuntime = artifactpostgres.RuntimeForTest(artifactStorage)
+	artifactHistory = artifactpostgres.NewTestHistoryPolicy(20, 1<<30)
+	artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+	service := NewService(artifactStorage.Repository(pool))
 	user, _ := service.User("user-1")
 	seedUnrelatedBindings(t, ctx, pool, 2000)
 	binding := historyBinding{"user", "user-1", "notes", "long"}
@@ -345,18 +371,24 @@ func TestPostgresHistoryMaintenanceIsBoundedPerTransaction(t *testing.T) {
 // and once the caller has rolled back, MaintainHistory commits one pass for
 // that binding.
 func TestPostgresHistoryBoundSpansTheCallersTransaction(t *testing.T) {
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
-	ctx, _ = purgeBlobContext(t, ctx, pool)
-	ctx = artifactpostgres.WithHistoryPolicy(ctx, artifactpostgres.NewTestHistoryPolicy(10, 1<<30))
+	artifactStorage, _ = purgeBlobStorage(t, ctx, pool)
+	artifactRuntime = artifactpostgres.RuntimeForTest(artifactStorage)
+	artifactHistory = artifactpostgres.NewTestHistoryPolicy(10, 1<<30)
+	artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
 	first := historyBinding{"user", "user-1", "notes", "first"}
 	second := historyBinding{"user", "user-1", "notes", "second"}
 	firstSeeded := seedHistory(t, ctx, pool, first, 50)
 	secondSeeded := seedHistory(t, ctx, pool, second, 50)
 	var writeErr error
 	err := postgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		user, _ := NewService(artifactpostgres.NewRepository(tx)).User("user-1")
+		user, _ := NewService(artifactStorage.Repository(tx)).User("user-1")
 		if _, err := user.Write(ctx, first.ref(), Payload{MediaType: "text/plain", Data: []byte("first")}, &firstSeeded[49]); err != nil {
 			return err
 		}
@@ -370,7 +402,7 @@ func TestPostgresHistoryBoundSpansTheCallersTransaction(t *testing.T) {
 	if len(historyRevisions(t, ctx, pool, first)) != 50 || len(historyRevisions(t, ctx, pool, second)) != 50 {
 		t.Fatal("the rolled back transaction removed history")
 	}
-	err = artifactpostgres.NewRepository(pool).MaintainHistory(ctx, err)
+	err = artifactStorage.Repository(pool).MaintainHistory(ctx, err)
 	if !errors.As(err, &pending) || !pending.Maintained || pending.Removed != 41 {
 		t.Fatalf("maintenance after rollback = %v, want 41 removals", err)
 	}
@@ -380,7 +412,7 @@ func TestPostgresHistoryBoundSpansTheCallersTransaction(t *testing.T) {
 	assertHistoryCounters(t, ctx, pool, second)
 	// A repository bound to a transaction cannot commit a pass.
 	err = postgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		return artifactpostgres.NewRepository(tx).MaintainHistory(ctx, &HistoryMaintenanceError{
+		return artifactStorage.Repository(tx).MaintainHistory(ctx, &HistoryMaintenanceError{
 			Scope: userScope(t, "user-1"), Ref: second.ref(), Size: 1,
 		})
 	})
@@ -392,24 +424,31 @@ func TestPostgresHistoryBoundSpansTheCallersTransaction(t *testing.T) {
 // One pass removes at most 64 MiB of encoded content; the first removal of a
 // pass always goes, so a pass makes progress whatever the sizes.
 func TestPostgresHistoryPassReclaimsAtMost64MiB(t *testing.T) {
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
-	ctx, objects := purgeBlobContext(t, ctx, pool)
+	artifactStorage, objects := purgeBlobStorage(t, ctx, pool)
+	artifactRuntime = artifactpostgres.RuntimeForTest(artifactStorage)
 	if objects == "" {
 		files, err := filesystem.Open(ctx, t.TempDir())
 		if err != nil {
 			t.Fatal(err)
 		}
 		t.Cleanup(func() { _ = files.Close() })
-		ctx = blob.WithRuntime(ctx, blob.NewRuntime(files, nil))
+		artifactRuntime = blob.NewRuntime(files, nil)
+		artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
 	}
-	ctx = artifactpostgres.WithHistoryPolicy(ctx, artifactpostgres.NewTestHistoryPolicy(2, 1<<40))
+	artifactHistory = artifactpostgres.NewTestHistoryPolicy(2, 1<<40)
+	artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
 	binding := historyBinding{"user", "user-1", "files", "large"}
 	// Four 40-MiB revisions recorded as filesystem content whose objects are
 	// already gone: their unlink after commit is a logged no-op.
 	seeded := seedLargeHistory(t, ctx, pool, binding, 4, 40<<20)
-	user, _ := NewService(artifactpostgres.NewRepository(pool)).User("user-1")
+	user, _ := NewService(artifactStorage.Repository(pool)).User("user-1")
 	_, err := user.Write(ctx, binding.ref(), Payload{MediaType: "text/plain", Data: []byte("small")}, &seeded[3])
 	var pending *HistoryMaintenanceError
 	if !errors.As(err, &pending) || pending.Removed != 1 {
@@ -430,12 +469,18 @@ func TestPostgresHistoryPassReclaimsAtMost64MiB(t *testing.T) {
 // Writes that only create bindings, refused CAS writes and frozen bindings
 // keep their existing outcomes and never touch history.
 func TestPostgresHistoryLeavesOtherWriteOutcomesAlone(t *testing.T) {
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
-	ctx, _ = purgeBlobContext(t, ctx, pool)
-	ctx = artifactpostgres.WithHistoryPolicy(ctx, artifactpostgres.NewTestHistoryPolicy(2, 1<<30))
-	service := NewService(artifactpostgres.NewRepository(pool))
+	artifactStorage, _ = purgeBlobStorage(t, ctx, pool)
+	artifactRuntime = artifactpostgres.RuntimeForTest(artifactStorage)
+	artifactHistory = artifactpostgres.NewTestHistoryPolicy(2, 1<<30)
+	artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+	service := NewService(artifactStorage.Repository(pool))
 	user, _ := service.User("user-1")
 	binding := historyBinding{"user", "user-1", "notes", "cas"}
 	seeded := seedHistory(t, ctx, pool, binding, 5)
@@ -550,7 +595,7 @@ WHERE scope_kind = $1 AND scope_id = $2 AND namespace = $3 AND name = $4 AND rev
 func purgeHistoryRun(t *testing.T, ctx context.Context, pool *pgxpool.Pool, runID string) {
 	t.Helper()
 	if err := postgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		purger, err := artifactpostgres.NewPurger(tx)
+		purger, err := artifactpgtest.NewStorage().Purger(tx)
 		if err != nil {
 			return err
 		}
@@ -703,6 +748,10 @@ func (s *racingBlobStore) Read(ctx context.Context, object blob.Object) ([]byte,
 // filesystem content reports an exact revision as not found, never as missing
 // content, and reads the new current of a versionless reference.
 func TestPostgresHistoryReadRacingRetention(t *testing.T) {
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
@@ -711,8 +760,10 @@ func TestPostgresHistoryReadRacingRetention(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = files.Close() })
-	ctx = artifactpostgres.WithHistoryPolicy(blob.WithRuntime(ctx, blob.NewRuntime(files, nil)), artifactpostgres.NewTestHistoryPolicy(2, 1<<30))
-	repository := artifactpostgres.NewRepository(pool)
+	artifactRuntime = blob.NewRuntime(files, nil)
+	artifactHistory = artifactpostgres.NewTestHistoryPolicy(2, 1<<30)
+	artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+	repository := artifactStorage.Repository(pool)
 	user, _ := NewService(repository).User("user-1")
 	binding := historyBinding{"user", "user-1", "notes", "raced"}
 	var current *string
@@ -728,23 +779,23 @@ func TestPostgresHistoryReadRacingRetention(t *testing.T) {
 	first := *current
 	write("second revision")
 	second := *current
-	raced := func(before func()) context.Context {
-		return blob.WithRuntime(ctx, blob.NewRuntime(&racingBlobStore{Storage: files, before: before}, nil))
+	raced := func(before func()) *artifactpostgres.Repository {
+		return artifactpgtest.NewConfigured(blob.NewRuntime(&racingBlobStore{Storage: files, before: before}, nil), artifactHistory).Repository(pool)
 	}
 
 	exact := binding.ref()
 	exact.Revision = &first
-	if _, err := repository.Read(raced(func() { write("third revision") }), userScope(t, "user-1"), exact); !errors.Is(err, ErrArtifactNotFound) {
+	if _, err := raced(func() { write("third revision") }).Read(ctx, userScope(t, "user-1"), exact); !errors.Is(err, ErrArtifactNotFound) {
 		t.Fatalf("exact read raced by retention = %v, want not found", err)
 	}
 	batch := []artifactpostgres.ExactReadRequest{{Scope: userScope(t, "user-1"), Ref: binding.ref()}}
 	batch[0].Ref.Revision = &second
-	if _, err := repository.ReadExactBatch(raced(func() { write("fourth revision") }), batch); !errors.Is(err, ErrArtifactNotFound) {
+	if _, err := raced(func() { write("fourth revision") }).ReadExactBatch(ctx, batch); !errors.Is(err, ErrArtifactNotFound) {
 		t.Fatalf("exact batch read raced by retention = %v, want not found", err)
 	}
 	// The current revision is removed in the same commit as the write that
 	// replaces it, so a versionless reader rereads the new current.
-	result, err := repository.Read(raced(func() { write("fifth revision"); write("sixth revision") }), userScope(t, "user-1"), binding.ref())
+	result, err := raced(func() { write("fifth revision"); write("sixth revision") }).Read(ctx, userScope(t, "user-1"), binding.ref())
 	if err != nil || string(result.Payload.Data) != "sixth revision" {
 		t.Fatalf("current read raced by retention = %q, %v", result.Payload.Data, err)
 	}

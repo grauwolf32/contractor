@@ -6,10 +6,9 @@ import (
 	"errors"
 	"strconv"
 
-	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
+	artifactpolicy "github.com/grauwolf32/contractor/internal/artifacts/policy"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -58,7 +57,7 @@ func (s *OwnerTxStore) AssessProjectFinding(ctx context.Context, edit auditstore
 		}
 		return auditstore.ProjectFinding{}, err
 	}
-	if err := NewFindingEventsTx(s.tx).LockFindingCorrelationFence(ctx, edit.ProjectID); err != nil {
+	if err := NewFindingEventsTx(s.tx, s.storage).LockFindingCorrelationFence(ctx, edit.ProjectID); err != nil {
 		return auditstore.ProjectFinding{}, err
 	}
 	if edit.DuplicateTargetID != nil {
@@ -90,7 +89,7 @@ func (s *OwnerTxStore) AssessProjectFinding(ctx context.Context, edit auditstore
 	if err != nil {
 		return result, err
 	}
-	if _, err := artifacts.NewService(artifactpostgres.NewRepository(s.tx)).CreateFrozen(ctx, scope,
+	if _, err := artifacts.NewService(s.storage.Repository(s.tx)).CreateFrozen(ctx, scope,
 		contracts.ArtifactRef{Namespace: artifactpolicy.FindingHistoryNamespace,
 			Name: auditdomain.FindingSourceHistoryName(result.FirstReceiptID, "analyst-edit", result.FindingID+":"+strconv.FormatUint(result.Revision, 10))},
 		artifacts.Payload{MediaType: "application/json", Data: body}); err != nil {

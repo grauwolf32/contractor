@@ -5,10 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
+	artifactpolicy "github.com/grauwolf32/contractor/internal/artifacts/policy"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/ownerstore"
@@ -60,22 +59,22 @@ func (s *Service) PublishMaterial(ctx context.Context, ownerID, projectID, key s
 		receipt, replay, err := persistencepostgres.KeyedMutation(ctx, tx,
 			persistencepostgres.ProjectReceiptKey(ownerID, projectID, request.AuditID, "audit-material-publication", key), digest,
 			func() (persistencepostgres.Receipt, error) {
-				owners := ownerstore.NewTx(tx)
+				owners := ownerstore.NewTx(tx, s.storage)
 				if err := owners.LockAuditForResume(ctx, ownerID, request.AuditID); err != nil {
 					return persistencepostgres.Receipt{}, err
 				}
-				audit, err := querystore.New(tx).Get(ctx, ownerID, request.AuditID)
+				audit, err := querystore.New(tx, s.storage).Get(ctx, ownerID, request.AuditID)
 				if err != nil {
 					return persistencepostgres.Receipt{}, err
 				}
 				if audit.ProjectID != projectID || audit.State == auditstore.AuditDeleting {
 					return persistencepostgres.Receipt{}, auditstore.ErrNotFound
 				}
-				exact, err := querystore.New(tx).Material(ctx, audit.AuditID, request.Source)
+				exact, err := querystore.New(tx, s.storage).Material(ctx, audit.AuditID, request.Source)
 				if err != nil {
 					return persistencepostgres.Receipt{}, err
 				}
-				service := artifacts.NewService(artifactpostgres.NewRepository(tx))
+				service := artifacts.NewService(s.storage.Repository(tx))
 				source, _ := artifacts.AuditScope(audit.AuditID)
 				store, _ := service.Scoped(source)
 				described, err := store.DescribeExact(ctx, []contracts.ArtifactRef{request.Source})
@@ -113,7 +112,7 @@ func (s *Service) PublishMaterial(ctx context.Context, ownerID, projectID, key s
 	})
 	var pending *artifacts.HistoryMaintenanceError
 	if errors.As(err, &pending) {
-		err = artifactpostgres.NewRepository(s.pool).MaintainHistory(ctx, pending)
+		err = s.storage.Repository(s.pool).MaintainHistory(ctx, pending)
 	}
 	return result, err
 }

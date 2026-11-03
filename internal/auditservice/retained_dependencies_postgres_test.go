@@ -10,8 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
@@ -52,7 +53,7 @@ func TestPostgresAcceptedRetainedDependencyManifestMaximumReplayAndPurge(t *test
 	})
 	gateway, _ := catalog.LLMGateway("test-gateway@1")
 	credentials := &switchableCredentialLookup{available: true, gateway: gateway.Ref}
-	service, err := New(Options{Pool: pool, Profiles: &switchableProfileCatalog{snapshot: catalog, available: true}, CredentialGuard: &countingCredentialGuard{}, TransactionLLMCredentials: runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (resolved.CredentialLookup, error) { return credentials, nil })})
+	service, err := New(Options{Storage: artifactpgtest.NewStorage(), Pool: pool, Profiles: &switchableProfileCatalog{snapshot: catalog, available: true}, CredentialGuard: &countingCredentialGuard{}, TransactionLLMCredentials: runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (resolved.CredentialLookup, error) { return credentials, nil })})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,7 +61,7 @@ func TestPostgresAcceptedRetainedDependencyManifestMaximumReplayAndPurge(t *test
 	if _, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{ProjectID: project, OwnerID: owner, Kind: projectstore.KindProject, Name: "Dependencies", IdempotencyKey: "project", RequestDigest: serviceTestDigest("project")}); err != nil {
 		t.Fatal(err)
 	}
-	artifactService := artifacts.NewService(artifactpostgres.NewRepository(pool))
+	artifactService := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
 	projectArtifacts, _ := artifactService.Project(project)
 	checklist := writeChecklist(t, ctx, projectArtifacts, "dependency", "automatic")
 
@@ -87,7 +88,7 @@ func TestPostgresAcceptedRetainedDependencyManifestMaximumReplayAndPurge(t *test
 	if err != nil {
 		t.Fatal(err)
 	}
-	store := auditstoretest.NewStore(pool).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch)
+	store := auditstoretest.NewStore(pool, artifactpgtest.NewStorage()).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch)
 	claims, err := store.Claim(ctx, auditstore.ClaimParams{HolderID: "dependency-test", Lease: 2 * time.Minute, Limit: 1})
 	if err != nil || len(claims) != 1 {
 		t.Fatalf("claim: %+v %v", claims, err)
@@ -155,7 +156,7 @@ func TestPostgresAcceptedRetainedDependencyManifestMaximumReplayAndPurge(t *test
 	if _, err := budgetTx.Exec(ctx, `UPDATE audits SET retained_evidence_bytes=max_evidence_bytes WHERE audit_id=$1`, id); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := auditstoretest.NewStore(budgetTx).AcceptNextRound(ctx, params); !errors.Is(err, auditstore.ErrEvidenceBudgetExhausted) {
+	if _, _, err := auditstoretest.NewStore(budgetTx, artifactpgtest.NewStorage()).AcceptNextRound(ctx, params); !errors.Is(err, auditstore.ErrEvidenceBudgetExhausted) {
 		t.Fatalf("budget race was not classified permanently: %v", err)
 	}
 	if err := budgetTx.Rollback(ctx); err != nil {

@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 )
@@ -14,12 +16,12 @@ func TestAuditCompletionPostgresOrdinaryOmissionAndSpoofedAuthority(t *testing.T
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	pool := isolatedRunStorePool(t, ctx)
-	runs := NewPostgresStore(pool)
+	runs := NewPostgresStore(pool, artifactpgtest.NewStorage())
 	run := createTestRun(t, ctx, runs, "ordinary-completion")
 	if run.AuditCompletion != nil {
 		t.Fatal("ordinary creation invented completion")
 	}
-	loaded, err := NewPostgresStore(pool).GetRun(ctx, run.RunID)
+	loaded, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).GetRun(ctx, run.RunID)
 	if err != nil || loaded.AuditCompletion != nil {
 		t.Fatal("legacy omission changed on recovery", err)
 	}

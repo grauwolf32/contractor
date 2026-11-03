@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	. "github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob"
@@ -30,8 +32,8 @@ func TestStorageReviewControlledCAS(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 			defer cancel()
 			pool := isolatedArtifactPool(t, ctx)
-			ctx = testBlobContext(t, ctx, pool)
-			store, _ := NewService(artifactpostgres.NewRepository(pool)).User("owner")
+			artifactStorage := testBlobStorage(t, ctx, pool)
+			store, _ := NewService(artifactStorage.Repository(pool)).User("owner")
 			target := ArtifactRef{Namespace: "docs", Name: "report"}
 			initial, err := store.Write(ctx, target, Payload{MediaType: "text/plain", Data: []byte("initial")}, nil)
 			if err != nil {
@@ -42,7 +44,7 @@ func TestStorageReviewControlledCAS(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer first.Rollback(context.Background())
-			writer, _ := NewService(artifactpostgres.NewRepository(first)).User("owner")
+			writer, _ := NewService(artifactStorage.Repository(first)).User("owner")
 			winning, err := writer.Write(ctx, target, Payload{MediaType: "text/plain", Data: []byte("winner")}, initial.Ref.Revision)
 			if err != nil {
 				t.Fatal(err)
@@ -54,7 +56,7 @@ func TestStorageReviewControlledCAS(t *testing.T) {
 			defer second.Rollback(context.Background())
 			done := make(chan error, 1)
 			go func() {
-				loser, _ := NewService(artifactpostgres.NewRepository(second)).User("owner")
+				loser, _ := NewService(artifactStorage.Repository(second)).User("owner")
 				_, err := loser.Write(ctx, target, Payload{MediaType: "text/plain", Data: []byte("loser")}, initial.Ref.Revision)
 				done <- err
 			}()
@@ -98,9 +100,9 @@ func TestStorageReviewProjectDeletionAdmission(t *testing.T) {
 					ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 					defer cancel()
 					pool := isolatedArtifactPool(t, ctx)
-					ctx = testBlobContext(t, ctx, pool)
-					project, source := storageReviewProject(t, ctx, pool)
-					store, _ := NewService(artifactpostgres.NewRepository(pool)).Project(project.ProjectID)
+					artifactStorage := testBlobStorage(t, ctx, pool)
+					project, source := storageReviewProject(t, ctx, pool, artifactStorage)
+					store, _ := NewService(artifactStorage.Repository(pool)).Project(project.ProjectID)
 					target := ArtifactRef{Namespace: "docs", Name: "content"}
 					var prior *string
 					if operation == "update" {
@@ -111,7 +113,7 @@ func TestStorageReviewProjectDeletionAdmission(t *testing.T) {
 						prior = initial.Ref.Revision
 					}
 					mutate := func(tx pgx.Tx) error {
-						service := NewService(artifactpostgres.NewRepository(tx))
+						service := NewService(artifactStorage.Repository(tx))
 						if operation == "publication" {
 							_, err := publishOutput(ctx, service, "review-run", project.ProjectID, "result", source)
 							return err
@@ -190,17 +192,17 @@ func TestStorageReviewProjectDeletionAdmission(t *testing.T) {
 	}
 }
 
-func storageReviewProject(t *testing.T, ctx context.Context, pool *pgxpool.Pool) (projectstore.Project, ArtifactRef) {
+func storageReviewProject(t *testing.T, ctx context.Context, pool *pgxpool.Pool, storage *artifactpostgres.Storage) (projectstore.Project, ArtifactRef) {
 	t.Helper()
 	p, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{ProjectID: "review-project", OwnerID: "user-1", Kind: projectstore.KindProject, Name: "Review", IdempotencyKey: "review", RequestDigest: "sha256:" + strings.Repeat("a", 64)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = runstoretest.CreateRun(ctx, runstore.NewPostgresStore(pool), runstore.CreateRunParams{LaneClass: resolved.LaneClassModel, RunID: "review-run", OwnerID: p.OwnerID, ProjectID: &p.ProjectID, WorkflowName: "copy", WorkflowVersion: "1", WorkflowSchemaVersion: "contractor/v1alpha1", WorkflowSnapshot: json.RawMessage(`{}`), RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot()})
+	_, err = runstoretest.CreateRun(ctx, runstore.NewPostgresStore(pool, storage), runstore.CreateRunParams{LaneClass: resolved.LaneClassModel, RunID: "review-run", OwnerID: p.OwnerID, ProjectID: &p.ProjectID, WorkflowName: "copy", WorkflowVersion: "1", WorkflowSchemaVersion: "contractor/v1alpha1", WorkflowSnapshot: json.RawMessage(`{}`), RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot()})
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := NewService(artifactpostgres.NewRepository(pool))
+	s := NewService(storage.Repository(pool))
 	run, _ := s.Run("review-run")
 	written, err := run.Write(ctx, ArtifactRef{Namespace: "scratch", Name: "source"}, Payload{MediaType: "text/plain", Data: []byte("accepted")}, nil)
 	if err != nil {
@@ -217,6 +219,10 @@ func storageReviewProject(t *testing.T, ctx context.Context, pool *pgxpool.Pool)
 }
 
 func TestStorageReviewSingleConnectionCleanup(t *testing.T) {
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
 	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
 	base := isolatedArtifactPool(t, ctx)
@@ -233,9 +239,10 @@ func TestStorageReviewSingleConnectionCleanup(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer files.Close()
-	ctx = blob.WithRuntime(ctx, blob.NewRuntime(files, nil))
+	artifactRuntime = blob.NewRuntime(files, nil)
+	artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
 	createArtifactRun(t, ctx, pool, "minimal-pool", true)
-	run, _ := NewService(artifactpostgres.NewRepository(pool)).Run("minimal-pool")
+	run, _ := NewService(artifactStorage.Repository(pool)).Run("minimal-pool")
 	ref := ArtifactRef{Namespace: "scratch", Name: "content"}
 	first, err := run.Write(ctx, ref, Payload{MediaType: "text/plain", Data: []byte("same bytes")}, nil)
 	if err != nil {
@@ -250,10 +257,10 @@ func TestStorageReviewSingleConnectionCleanup(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if _, err := runstore.NewPostgresStore(pool).TransitionRun(ctx, "minimal-pool", runstore.RunRunning, runstore.RunSucceeded, runstore.Reason{Code: "done"}); err != nil {
+	if _, err := runstore.NewPostgresStore(pool, artifactStorage).TransitionRun(ctx, "minimal-pool", runstore.RunRunning, runstore.RunSucceeded, runstore.Reason{Code: "done"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := rundeletion.New(pool).DeleteReleasedTerminalRun(ctx, "user-1", "minimal-pool"); err != nil {
+	if err := rundeletion.New(pool, artifactStorage).DeleteReleasedTerminalRun(ctx, "user-1", "minimal-pool"); err != nil {
 		t.Fatal(err)
 	}
 	report, err := artifactpostgres.CleanupFilesystemBlobs(ctx, pool, path, true)

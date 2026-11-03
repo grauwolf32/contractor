@@ -56,7 +56,7 @@ release-verify-process-c: test-release-process-e2e-c
 
 RELEASE_RACE_PATTERNS := \
 	./cmd/contractor-skill/... \
-	./internal/agentskills/... ./internal/app/... ./internal/artifactpolicy/... \
+	./internal/agentskills/... ./internal/app/... ./internal/artifacts/policy/... \
 	./internal/artifacts/... ./internal/config/... ./internal/contracts/... \
 	./internal/controlplane/... ./internal/credentials/... ./internal/httpapi/... \
 	./internal/memory/... ./internal/mtls/... ./internal/performance \

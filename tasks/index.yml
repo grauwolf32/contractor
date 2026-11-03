@@ -170,6 +170,9 @@ execution_policy:
     P3: Low-impact correction with no user-visible failure, such as documentation, dead code or test hygiene.
 
 milestones:
+  - id: httpapi-review-cleanup-2026-11
+    exit_task: V440-006
+    outcome: Finding HTTP transfers have bounded socket and storage work; lean adapters call existing domain owners and page cached immutable catalog projections with verified public contracts.
   - id: controlplane-review-2026-11
     exit_task: V439-004
     outcome: Combined adapter requirements place correctly, Registry snapshots are detached, and a composed engagement adapter separates Audit preparation from the Runtime protocol with verified lifecycle and capability matching.

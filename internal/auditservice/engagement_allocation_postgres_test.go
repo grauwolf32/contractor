@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
@@ -76,7 +78,7 @@ func testEngagementStartToPrivateAllocationPins(t *testing.T, accessMode string,
 	if err != nil {
 		t.Fatal(err)
 	}
-	store := auditstoretest.NewStore(f.pool)
+	store := auditstoretest.NewStore(f.pool, artifactpgtest.NewStorage())
 	claim := claimAuditForPurge(t, f.ctx, store, draft.AuditID)
 	roundID := *started.Audit.CurrentRoundID
 	if _, err = store.TransitionRound(f.ctx, auditstore.RoundTransitionParams{Claim: claim, RoundID: roundID, ExpectedRevision: 1, ExpectedState: auditstore.RoundAccepted, TargetState: auditstore.RoundExecuting}); err != nil {
@@ -97,17 +99,17 @@ func testEngagementStartToPrivateAllocationPins(t *testing.T, accessMode string,
 	}
 	const runID = "engagement-child-run"
 	err = persistencepostgres.InTx(f.ctx, f.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		_, createErr := runstore.NewPostgresStore(tx).CreateAuditRun(f.ctx, runstore.CreateAuditRunParams{CreateRunParams: runstore.CreateRunParams{RunID: runID, OwnerID: f.project.OwnerID, ProjectID: &f.project.ProjectID, WorkflowName: workflow.Ref.Name, WorkflowVersion: workflow.Ref.Version, WorkflowSchemaVersion: "contractor/v1alpha1", WorkflowSnapshot: workflowBytes, Parameters: map[string]string{}, RuntimeConfig: baseline.RuntimeConfig, LaneClass: resolved.LaneClassModel}, AuditExecutionID: execution.ExecutionID, AuditSubmissionKey: execution.SubmissionKey})
+		_, createErr := runstore.NewPostgresStore(tx, artifactpgtest.NewStorage()).CreateAuditRun(f.ctx, runstore.CreateAuditRunParams{CreateRunParams: runstore.CreateRunParams{RunID: runID, OwnerID: f.project.OwnerID, ProjectID: &f.project.ProjectID, WorkflowName: workflow.Ref.Name, WorkflowVersion: workflow.Ref.Version, WorkflowSchemaVersion: "contractor/v1alpha1", WorkflowSnapshot: workflowBytes, Parameters: map[string]string{}, RuntimeConfig: baseline.RuntimeConfig, LaneClass: resolved.LaneClassModel}, AuditExecutionID: execution.ExecutionID, AuditSubmissionKey: execution.SubmissionKey})
 		if createErr != nil {
 			return createErr
 		}
-		_, bindErr := auditstoretest.NewStore(tx).BindRun(f.ctx, auditstore.BindRunParams{Claim: claim, ExecutionID: execution.ExecutionID, RunID: runID})
+		_, bindErr := auditstoretest.NewStore(tx, artifactpgtest.NewStorage()).BindRun(f.ctx, auditstore.BindRunParams{Claim: claim, ExecutionID: execution.ExecutionID, RunID: runID})
 		return bindErr
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	runs := runstore.NewPostgresStore(f.pool)
+	runs := runstore.NewPostgresStore(f.pool, artifactpgtest.NewStorage())
 	if _, err = runs.TransitionRun(f.ctx, runID, runstore.RunInitializing, runstore.RunPending, runstore.Reason{Code: "initialized"}); err != nil {
 		t.Fatal(err)
 	}
@@ -128,16 +130,16 @@ func testEngagementStartToPrivateAllocationPins(t *testing.T, accessMode string,
 		}
 		return []engagementcontract.ProtectedDestination{{Hostname: "server.example", Addresses: []string{"10.22.1.2"}, Port: 443}}, nil
 	}
-	requirements, err := AllocationEngagementAdapterRequirements(f.ctx, f.pool, runID, stage.StageExecutionID)
+	requirements, err := AllocationEngagementAdapterRequirements(f.ctx, f.pool, runID, stage.StageExecutionID, artifactpgtest.NewStorage())
 	if err != nil || (len(requirements) == 1) != controlled {
 		t.Fatalf("requirements=%v err=%v", requirements, err)
 	}
 	if controlled {
-		if _, err := ResolveAllocationEngagement(f.ctx, f.pool, runID, stage.StageExecutionID, nil); err == nil {
+		if _, err := ResolveAllocationEngagement(f.ctx, f.pool, runID, stage.StageExecutionID, nil, artifactpgtest.NewStorage()); err == nil {
 			t.Fatal("controlled projection omitted protected destinations")
 		}
 	}
-	first, err := ResolveAllocationEngagement(f.ctx, f.pool, runID, stage.StageExecutionID, protected)
+	first, err := ResolveAllocationEngagement(f.ctx, f.pool, runID, stage.StageExecutionID, protected, artifactpgtest.NewStorage())
 	if err != nil || first == nil {
 		t.Fatalf("private projection=%+v %v", first, err)
 	}
@@ -169,7 +171,7 @@ func testEngagementStartToPrivateAllocationPins(t *testing.T, accessMode string,
 	if _, err = projectstore.NewPostgresStore(f.pool).Update(f.ctx, projectstore.UpdateParams{ProjectID: f.project.ProjectID, OwnerID: f.project.OwnerID, ExpectedRevision: f.project.Revision, Name: f.project.Name, ActiveChecks: &prohibited}); err != nil {
 		t.Fatal(err)
 	}
-	second, err := ResolveAllocationEngagement(f.ctx, f.pool, runID, stage.StageExecutionID, protected)
+	second, err := ResolveAllocationEngagement(f.ctx, f.pool, runID, stage.StageExecutionID, protected, artifactpgtest.NewStorage())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -196,7 +198,7 @@ func testEngagementStartToPrivateAllocationPins(t *testing.T, accessMode string,
 			first.HTTP.Identities[1].Credential.CredentialID = "changed"
 		}
 	}
-	third, err := ResolveAllocationEngagement(f.ctx, f.pool, runID, stage.StageExecutionID, protected)
+	third, err := ResolveAllocationEngagement(f.ctx, f.pool, runID, stage.StageExecutionID, protected, artifactpgtest.NewStorage())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -204,10 +206,10 @@ func testEngagementStartToPrivateAllocationPins(t *testing.T, accessMode string,
 	if err != nil || string(thirdBytes) != string(secondBytes) {
 		t.Fatalf("mutating an allocation projection changed its retained authority: %v", err)
 	}
-	if _, err = ResolveAllocationEngagement(f.ctx, f.pool, "foreign-run", stage.StageExecutionID, nil); !errors.Is(err, runstore.ErrNotFound) {
+	if _, err = ResolveAllocationEngagement(f.ctx, f.pool, "foreign-run", stage.StageExecutionID, nil, artifactpgtest.NewStorage()); !errors.Is(err, runstore.ErrNotFound) {
 		t.Fatalf("foreign Run reached baseline: %v", err)
 	}
-	if _, err = ResolveAllocationEngagement(f.ctx, f.pool, runID, "foreign-stage", nil); !errors.Is(err, runstore.ErrNotFound) {
+	if _, err = ResolveAllocationEngagement(f.ctx, f.pool, runID, "foreign-stage", nil, artifactpgtest.NewStorage()); !errors.Is(err, runstore.ErrNotFound) {
 		t.Fatalf("foreign Stage reached baseline: %v", err)
 	}
 }

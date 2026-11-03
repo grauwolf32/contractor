@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 )
@@ -29,7 +31,7 @@ func TestAuditArtifactReadsExactReceiptAndValidatedMember(t *testing.T) {
 		t.Fatal(err)
 	}
 	management := &auditArtifactManagement{read: artifacts.ReadResult{Payload: artifacts.Payload{MediaType: auditdomain.PackageMediaType, Data: data}}}
-	h := auditHandlers{AuditDependencies: AuditDependencies{Audits: management}}
+	h := auditHandlers{AuditDependencies: AuditDependencies{Transfers: artifactpgtest.NewStorage(), Audits: management}}
 	for _, tc := range []struct {
 		query  string
 		status int
@@ -44,7 +46,7 @@ func TestAuditArtifactReadsExactReceiptAndValidatedMember(t *testing.T) {
 		r := auditAuthenticatedRequest(http.MethodGet, "/v1/audits/audit-one/artifacts?"+tc.query, nil)
 		r.SetPathValue("auditId", "audit-one")
 		response := httptest.NewRecorder()
-		h.getAuditArtifact(response, r)
+		serve(h.getAuditArtifact)(response, r)
 		if response.Code != tc.status || (tc.body != "" && response.Body.String() != tc.body) {
 			t.Fatalf("%s: %d %s", tc.query, response.Code, response.Body.String())
 		}

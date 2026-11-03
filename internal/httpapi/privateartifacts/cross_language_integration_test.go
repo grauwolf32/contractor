@@ -16,6 +16,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/grauwolf32/contractor/internal/mtls"
@@ -122,7 +124,7 @@ func newCrossLanguageHarness(
 	grant := testGrant("run-a")
 	grant.RuntimeAgentID = principalID
 	registry := &fakeRegistry{grant: grant}
-	handler, err := NewHandler(Dependencies{
+	handler, err := NewHandler(Dependencies{Transfers: artifactpgtest.NewStorage(),
 		Registry: registry, Artifacts: artifacts.NewService(repository),
 	})
 	if err != nil {

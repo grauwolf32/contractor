@@ -5,6 +5,7 @@
 package auditstoretest
 
 import (
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -13,6 +14,7 @@ import (
 
 // Store joins every seam of the Audit store on one database handle.
 type Store struct {
+	storage *artifactpostgres.Storage
 	*pgstore.ClaimStore
 	*pgstore.OwnerStore
 	*pgstore.ReviewStore
@@ -25,12 +27,12 @@ type Store struct {
 }
 
 // NewStore returns every seam on db, a pool or a caller's transaction.
-func NewStore(db persistencepostgres.DBTX) *Store {
-	return &Store{db: db,
-		ClaimStore: pgstore.NewClaimStore(db), OwnerStore: pgstore.NewOwnerStore(db),
-		ReviewStore: pgstore.NewReviewStore(db), QueryStore: pgstore.NewQueryStore(db),
-		FindingEvents: pgstore.NewFindingEvents(db), RunDeletion: pgstore.NewRunDeletion(db),
-		ProjectDeletion: pgstore.NewProjectDeletion(db), CredentialHolds: pgstore.NewCredentialHolds(db),
+func NewStore(db persistencepostgres.DBTX, storage *artifactpostgres.Storage) *Store {
+	return &Store{db: db, storage: storage,
+		ClaimStore: pgstore.NewClaimStore(db, storage), OwnerStore: pgstore.NewOwnerStore(db, storage),
+		ReviewStore: pgstore.NewReviewStore(db, storage), QueryStore: pgstore.NewQueryStore(db, storage),
+		FindingEvents: pgstore.NewFindingEvents(db, storage), RunDeletion: pgstore.NewRunDeletion(db, storage),
+		ProjectDeletion: pgstore.NewProjectDeletion(db, storage), CredentialHolds: pgstore.NewCredentialHolds(db, storage),
 	}
 }
 
@@ -48,12 +50,12 @@ type TxStore struct {
 }
 
 // NewTxStore returns every seam bound to the caller's transaction tx.
-func NewTxStore(tx pgx.Tx) *TxStore {
+func NewTxStore(tx pgx.Tx, storage *artifactpostgres.Storage) *TxStore {
 	return &TxStore{
-		ClaimStore: pgstore.NewClaimStore(tx), OwnerTxStore: pgstore.NewOwnerTxStore(tx),
-		ReviewTxStore: pgstore.NewReviewTxStore(tx), QueryStore: pgstore.NewQueryStore(tx),
-		FindingEventsTx: pgstore.NewFindingEventsTx(tx), RunDeletionTx: pgstore.NewRunDeletionTx(tx),
-		ProjectDeletion: pgstore.NewProjectDeletion(tx), CredentialHolds: pgstore.NewCredentialHolds(tx),
+		ClaimStore: pgstore.NewClaimStore(tx, storage), OwnerTxStore: pgstore.NewOwnerTxStore(tx, storage),
+		ReviewTxStore: pgstore.NewReviewTxStore(tx, storage), QueryStore: pgstore.NewQueryStore(tx, storage),
+		FindingEventsTx: pgstore.NewFindingEventsTx(tx, storage), RunDeletionTx: pgstore.NewRunDeletionTx(tx, storage),
+		ProjectDeletion: pgstore.NewProjectDeletion(tx, storage), CredentialHolds: pgstore.NewCredentialHolds(tx, storage),
 	}
 }
 

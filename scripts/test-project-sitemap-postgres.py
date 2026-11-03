@@ -14,7 +14,7 @@ PACKAGES = (
     "internal/projectsitemap", "internal/artifacts/postgres", "internal/projectstore",
     "internal/projectlifecycle", "internal/persistence/postgres",
     "internal/httpapi/public", "internal/cli", "internal/publicclient",
-    "internal/app", "internal/artifactpolicy", "internal/archtest", "internal/httpapi/privateartifacts", "internal/controlplane", "internal/runstore",
+    "internal/app", "internal/artifacts/policy", "internal/archtest", "internal/httpapi/privateartifacts", "internal/controlplane", "internal/runstore",
 )
 REQUIRED = {
     "TestPostgresSitemapReceiptsOwnershipAndHistory",

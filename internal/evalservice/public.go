@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalstore"
 	"github.com/grauwolf32/contractor/internal/helpers/randomid"
@@ -44,7 +43,7 @@ type ExperimentView struct {
 func (s *Service) Get(ctx context.Context, owner, id string) (ExperimentView, error) {
 	var out ExperimentView
 	err := pg.InTx(ctx, s.pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
-		st := evalstore.NewTxStore(tx)
+		st := evalstore.NewTxStore(tx, s.storage)
 		e, err := st.Get(ctx, owner, id)
 		if err != nil {
 			return err
@@ -143,15 +142,15 @@ func utcTime(value *time.Time) *time.Time {
 }
 
 func (s *Service) List(ctx context.Context, p evalstore.SummaryPageParams) (evalstore.SummaryPage, error) {
-	return evalstore.NewPostgresStore(s.pool).SummaryPage(ctx, p)
+	return evalstore.NewPostgresStore(s.pool, s.storage).SummaryPage(ctx, p)
 }
 
 func (s *Service) Datasets(ctx context.Context, scope evalstore.Scope, afterID, afterRevision string, limit int, revision *int64) (evalstore.DatasetPage, error) {
-	return evalstore.NewPostgresStore(s.pool).DatasetPage(ctx, scope, afterID, afterRevision, limit, revision)
+	return evalstore.NewPostgresStore(s.pool, s.storage).DatasetPage(ctx, scope, afterID, afterRevision, limit, revision)
 }
 
 func (s *Service) Dataset(ctx context.Context, scope evalstore.Scope, id, revision string) (evalstore.DatasetRevision, error) {
-	return evalstore.NewPostgresStore(s.pool).Dataset(ctx, scope, id, revision)
+	return evalstore.NewPostgresStore(s.pool, s.storage).Dataset(ctx, scope, id, revision)
 }
 
 func (s *Service) PutDataset(ctx context.Context, scope evalstore.Scope, doc evaldomain.Frozen, m evaldomain.MutationIdentity) (evalstore.Receipt, error) {
@@ -159,7 +158,7 @@ func (s *Service) PutDataset(ctx context.Context, scope evalstore.Scope, doc eva
 	if err := evaldomain.DecodeInto("DatasetInput", doc.Bytes(), &data); err != nil {
 		return evalstore.Receipt{}, err
 	}
-	replay, err := evalstore.NewPostgresStore(s.pool).Replay(ctx, scope, "datasets", "dataset-create", m)
+	replay, err := evalstore.NewPostgresStore(s.pool, s.storage).Replay(ctx, scope, "datasets", "dataset-create", m)
 	if err != nil {
 		return evalstore.Receipt{}, err
 	}
@@ -172,7 +171,7 @@ func (s *Service) PutDataset(ctx context.Context, scope evalstore.Scope, doc eva
 	}
 	var result evalstore.Receipt
 	err = pg.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		artifactService := artifacts.NewService(artifactpostgres.NewRepository(tx))
+		artifactService := artifacts.NewService(s.storage.Repository(tx))
 		for _, c := range data.Cases {
 			for _, ref := range c.Inputs {
 				if err := verifyArtifact(ctx, tx, artifactService, scope.OwnerID, ref); err != nil {
@@ -181,14 +180,14 @@ func (s *Service) PutDataset(ctx context.Context, scope evalstore.Scope, doc eva
 			}
 		}
 		var err error
-		result, err = evalstore.NewTxStore(tx).PutDataset(ctx, scope, revision, doc, m)
+		result, err = evalstore.NewTxStore(tx, s.storage).PutDataset(ctx, scope, revision, doc, m)
 		return err
 	})
 	return result, err
 }
 
 func (s *Service) ScopeForMutation(ctx context.Context, owner, id, operation, key string) (evalstore.Scope, error) {
-	return evalstore.NewPostgresStore(s.pool).ScopeForMutation(ctx, owner, id, operation, key)
+	return evalstore.NewPostgresStore(s.pool, s.storage).ScopeForMutation(ctx, owner, id, operation, key)
 }
 
 func (s *Service) UpdateDraft(ctx context.Context, scope evalstore.Scope, id string, doc evaldomain.Frozen, m evaldomain.MutationIdentity) (evalstore.Receipt, error) {
@@ -212,7 +211,7 @@ func (s *Service) Delete(ctx context.Context, scope evalstore.Scope, id string, 
 }
 
 func (s *Service) GetCommand(ctx context.Context, owner, id, command string) (evalstore.CommandRecord, *string, error) {
-	st := evalstore.NewPostgresStore(s.pool)
+	st := evalstore.NewPostgresStore(s.pool, s.storage)
 	record, err := st.CommandRecord(ctx, owner, id, command)
 	if err != nil {
 		return record, nil, err

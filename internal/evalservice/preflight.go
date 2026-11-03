@@ -28,6 +28,8 @@ type CredentialBarrier interface {
 }
 
 type Resolver struct {
+	Storage *artifactpostgres.Storage
+
 	Pool        *pgxpool.Pool
 	Catalog     Catalog
 	Credentials runtimeconfig.TransactionLLMCredentialLookupFactory
@@ -46,7 +48,7 @@ type BindingSnapshot struct {
 // It creates no executions or artifacts. Dispatch rechecks the retained pins.
 func (r *Resolver) Resolve(ctx context.Context, owner string, v evaldomain.Variant, cases []evaldomain.Case) (Preflight, error) {
 	out := Preflight{Pins: map[string]Pin{}, Cases: map[string]Eligibility{}}
-	if r.Pool == nil || r.Catalog == nil || r.Credentials == nil || r.Barrier == nil {
+	if r.Storage == nil || r.Pool == nil || r.Catalog == nil || r.Credentials == nil || r.Barrier == nil {
 		return out, errors.New("eval preflight dependencies are incomplete")
 	}
 	raw, err := jsonBytes(v)
@@ -63,7 +65,7 @@ func (r *Resolver) Resolve(ctx context.Context, owner string, v evaldomain.Varia
 			if err != nil {
 				return err
 			}
-			service := artifacts.NewService(artifactpostgres.NewRepository(tx))
+			service := artifacts.NewService(r.Storage.Repository(tx))
 			binding, err := r.resolveBinding(ctx, owner, v, lookup, service)
 			if err != nil {
 				return err

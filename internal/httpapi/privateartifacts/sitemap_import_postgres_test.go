@@ -9,8 +9,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/projectsitemap"
@@ -23,7 +24,7 @@ func TestPostgresPrivateSitemapImportAuthorityAndExactSources(t *testing.T) {
 	pool := isolatedPrivateArtifactPool(t, ctx)
 	createPrivateSitemapProjectRun(t, ctx, pool, "project-import", "run-import")
 	createPrivateSitemapProjectRun(t, ctx, pool, "project-foreign", "run-foreign")
-	artifactService := artifacts.NewService(artifactpostgres.NewRepository(pool))
+	artifactService := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
 	payload := []byte("opaque evidence from an arbitrary source")
 	create := func(runID, namespace string) contracts.ArtifactRef {
 		t.Helper()
@@ -42,7 +43,7 @@ func TestPostgresPrivateSitemapImportAuthorityAndExactSources(t *testing.T) {
 	foreign := create("run-foreign", "builder")
 	registry := &fakeRegistry{grant: testGrant("run-import")}
 	registry.grant.SitemapPolicy = &contracts.ProjectSitemapPolicy{Version: contracts.SitemapAccessVersion}
-	handler, err := NewHandler(Dependencies{Registry: registry, Artifacts: artifactService, Sitemap: projectsitemap.NewService(pool), RunProjects: runstore.NewPostgresStore(pool), Projects: projectstore.NewPostgresStore(pool)})
+	handler, err := NewHandler(Dependencies{Transfers: artifactpgtest.NewStorage(), Registry: registry, Artifacts: artifactService, Sitemap: projectsitemap.NewService(pool, artifactpgtest.NewStorage()), RunProjects: runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()), Projects: projectstore.NewPostgresStore(pool)})
 	if err != nil {
 		t.Fatal(err)
 	}

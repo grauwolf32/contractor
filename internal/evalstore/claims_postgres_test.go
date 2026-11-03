@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/jackc/pgx/v5"
 )
 
@@ -35,7 +37,7 @@ SELECT experiment_id FROM eval_experiments`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	store := NewPostgresStore(pool)
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
 	for poll := 0; poll < 10; poll++ {
 		claims, err := store.Claim(ctx, "claim-controller", time.Minute, 4)
 		if err != nil || len(claims) != 1 || claims[0].ExperimentID != "running-one" {
@@ -128,7 +130,7 @@ SELECT experiment_id FROM eval_experiments`)
 	if planScansExperimentTable(plan) || planScansTable(plan, "eval_controller_claims") {
 		t.Fatalf("claim plan scans retained terminal experiments or claims: %s", raw)
 	}
-	claims, err := NewPostgresStore(pool).Claim(ctx, "plan-controller", time.Minute, 4)
+	claims, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).Claim(ctx, "plan-controller", time.Minute, 4)
 	if err != nil || len(claims) != 1 || claims[0].ExperimentID != "running-one" {
 		t.Fatalf("claim from terminal-heavy table = %+v, %v", claims, err)
 	}
@@ -178,7 +180,7 @@ SELECT experiment_id FROM eval_experiments`)
 			t.Fatalf("claim plan reads every paused experiment instead of a deadline range: %s", raw)
 		}
 	}
-	claims, err := NewPostgresStore(pool).Claim(ctx, "plan-controller", time.Minute, 10)
+	claims, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).Claim(ctx, "plan-controller", time.Minute, 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -254,7 +256,7 @@ FROM generate_series(1,3) n`, scope.OwnerID, scope.ProjectID); err != nil {
 		t.Fatal(err)
 	}
 	defer tx.Rollback(ctx)
-	first, err := NewTxStore(tx).Claim(ctx, "first", time.Minute, 1)
+	first, err := NewTxStore(tx, artifactpgtest.NewStorage()).Claim(ctx, "first", time.Minute, 1)
 	if err != nil || len(first) != 1 {
 		t.Fatalf("first bounded claim: %+v %v", first, err)
 	}
@@ -262,7 +264,7 @@ FROM generate_series(1,3) n`, scope.OwnerID, scope.ProjectID); err != nil {
 	// rows immediately. Ordering must not lock rows beyond the first limit.
 	bounded, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
-	second, err := NewPostgresStore(pool).Claim(bounded, "second", time.Minute, 2)
+	second, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).Claim(bounded, "second", time.Minute, 2)
 	if err != nil || len(second) != 2 {
 		t.Fatalf("second holder blocked or lost candidates: %+v %v", second, err)
 	}

@@ -5,6 +5,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/reviewstore"
 	"github.com/jackc/pgx/v5"
@@ -24,8 +25,9 @@ func (s *Service) ListReviews(
 
 func appendAuditReviewEvent(
 	ctx context.Context, tx pgx.Tx, auditID, kind, entityID string, summary map[string]any,
+	storage *artifactpostgres.Storage,
 ) error {
-	return reviewstore.New(tx).AppendReviewEvent(ctx, auditstore.ReviewEventParams{
+	return reviewstore.New(tx, storage).AppendReviewEvent(ctx, auditstore.ReviewEventParams{
 		AuditID: auditID, Kind: kind, EntityID: entityID, Summary: summary,
 	})
 }

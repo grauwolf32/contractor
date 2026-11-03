@@ -17,10 +17,13 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-type ClaimedAdmission struct{ db persistencepostgres.DBTX }
+type ClaimedAdmission struct {
+	storage *artifactpostgres.Storage
+	db      persistencepostgres.DBTX
+}
 
-func NewClaimedAdmission(db persistencepostgres.DBTX) *ClaimedAdmission {
-	return &ClaimedAdmission{db: db}
+func NewClaimedAdmission(db persistencepostgres.DBTX, storage *artifactpostgres.Storage) *ClaimedAdmission {
+	return &ClaimedAdmission{db: db, storage: storage}
 }
 
 type admissionWork struct {
@@ -45,6 +48,8 @@ func (w *admissionWork) add(primary, related, metadata int, payload int64) error
 // transaction. Neither an owner request nor a nested callback obtains controller
 // commands or a second pool connection.
 type AdmissionSession struct {
+	storage *artifactpostgres.Storage
+
 	State         auditstore.AdmissionProgress
 	Artifacts     *artifacts.Service
 	Reads         auditstore.AdmissionReader
@@ -69,9 +74,9 @@ func (s *AdmissionSession) WithCandidate(ctx context.Context, fn func(context.Co
 		_ = child.Rollback(cleanup)
 	}()
 	reader := *s.reader
-	reader.QueryStore = NewQueryStore(child)
+	reader.QueryStore = NewQueryStore(child, s.storage)
 	reader.db = child
-	keep, err := fn(ctx, artifacts.NewService(artifactpostgres.NewRepository(child)), &reader)
+	keep, err := fn(ctx, artifacts.NewService(s.storage.Repository(child)), &reader)
 	if err != nil || !keep {
 		return false, err
 	}
@@ -149,8 +154,8 @@ func (s *ClaimedAdmission) WithStep(ctx context.Context, params auditstore.Admis
 		if !now.Before(state.DeadlineAt) {
 			return auditstore.ErrAdmissionDeadline
 		}
-		reader := newAdmissionReader(tx, state, owner, project)
-		session := &AdmissionSession{State: state, Artifacts: artifacts.NewService(artifactpostgres.NewRepository(tx)), Reads: reader, tx: tx, reader: reader}
+		reader := newAdmissionReader(tx, state, owner, project, s.storage)
+		session := &AdmissionSession{storage: s.storage, State: state, Artifacts: artifacts.NewService(s.storage.Repository(tx)), Reads: reader, tx: tx, reader: reader}
 		mutation, err := fn(ctx, session)
 		if err != nil {
 			return err

@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/persistence/explaintest"
@@ -124,7 +126,7 @@ func seedSelectedView(t *testing.T, pool *pgxpool.Pool, scope Scope, id string, 
 		_, err = st.db.Exec(ctx, `INSERT INTO eval_controller_claims(experiment_id) VALUES($1)`, id)
 		return err
 	})
-	claims, err := NewPostgresStore(pool).Claim(ctx, "reader-"+id, 5*time.Minute, 10)
+	claims, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).Claim(ctx, "reader-"+id, 5*time.Minute, 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -393,7 +395,7 @@ FROM (SELECT %s AS v FROM eval_view_pairs p WHERE experiment_id = $1 UNION ALL S
 		// upper bound; when every measure is equal, the exclusive bin is empty.
 		bins = append(bins, &BinFilter{Metric: metric, Lower: low, Upper: middle}, &BinFilter{Metric: metric, Lower: low, Upper: middle, UpperInclusive: true})
 	}
-	reader := NewPostgresStore(pool)
+	reader := NewPostgresStore(pool, artifactpgtest.NewStorage())
 	pages := 0
 	base := SelectedPageParams{OwnerID: scope.OwnerID, ExperimentID: id, Generation: view.Generation, AfterOrdinal: -1}
 	for _, suite := range []string{"", "suite-00", "suite-02", "suite-none"} {
@@ -484,7 +486,7 @@ func TestSharedPostgresEvalSelectedPagesDecodeOnlyTheirOwnDocuments(t *testing.T
 	if checked := requireProjectedSides(t, pool, id); checked != 10 {
 		t.Fatalf("checked %d pair rows, want 10", checked)
 	}
-	reader := NewPostgresStore(pool)
+	reader := NewPostgresStore(pool, artifactpgtest.NewStorage())
 	first := SelectedPageParams{OwnerID: scope.OwnerID, ExperimentID: id, Generation: view.Generation, AfterOrdinal: -1, Limit: 4}
 	members, err := reader.SelectedMemberPage(ctx, first)
 	if err != nil || len(members.Items) != 4 || members.Items[0].Member.Reason == nil || *members.Items[0].Member.Reason != reason {
@@ -538,7 +540,7 @@ func TestSharedPostgresEvalTenThousandSelectedMembersBoundedPages(t *testing.T) 
 		t.Fatalf("full denominator %+v", view.Summary)
 	}
 	counter := &evalQueryCounter{DBTX: pool}
-	reader := NewPostgresStore(counter)
+	reader := NewPostgresStore(counter, artifactpgtest.NewStorage())
 	p := SelectedPageParams{OwnerID: scope.OwnerID, ExperimentID: id, Generation: view.Generation, AfterOrdinal: -1, Limit: 100}
 	seen := map[string]bool{}
 	var maxBytes int

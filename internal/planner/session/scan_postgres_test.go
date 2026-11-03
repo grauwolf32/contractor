@@ -3,11 +3,13 @@ package session
 import (
 	"context"
 	"errors"
-	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -17,7 +19,7 @@ func TestPostgresScanClaimsFenceTakeoverAndConcurrentDispatch(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
 	defer cancel()
 	pool := isolatedPlannerPool(t, ctx)
-	store := runstore.NewPostgresStore(pool)
+	store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	createPlannerStage(t, ctx, store)
 	if _, err := store.ClaimRunnableRun(ctx, "scan-claim-1", time.Minute, nil, resolved.LaneClassModel); err != nil {
 		t.Fatal(err)

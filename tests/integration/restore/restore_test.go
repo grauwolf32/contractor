@@ -18,10 +18,13 @@ import (
 	"testing"
 	"time"
 
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
+
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob/backends/filesystem"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	postgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/jackc/pgx/v5"
@@ -45,33 +48,33 @@ func TestBackupRestorePreservesExactArtifactsAndCAS(t *testing.T) {
 				t.Fatalf("fresh migration: %+v, %v", initial, err)
 			}
 			sourceDir, backupDir, targetDir := t.TempDir(), filepath.Join(t.TempDir(), "blobs"), t.TempDir()
-			sourceCtx := restoreBlobContext(t, ctx, backend, sourceDir)
+			sourceStorage := restoreBlobStorage(t, ctx, backend, sourceDir)
 			projects := projectstore.NewPostgresStore(source)
 			params := projectstore.CreateParams{
 				ProjectID: "restore-project", OwnerID: "restore-owner", Kind: projectstore.KindProject,
 				Name: "Restored project", IdempotencyKey: "restore-project-create",
 				RequestDigest: "sha256:" + strings.Repeat("a", 64),
 			}
-			project, _, err := projects.Create(sourceCtx, params)
+			project, _, err := projects.Create(ctx, params)
 			if err != nil {
 				t.Fatal(err)
 			}
-			store, err := artifacts.NewService(artifactpostgres.NewRepository(source)).Project(project.ProjectID)
+			store, err := artifacts.NewService(sourceStorage.Repository(source)).Project(project.ProjectID)
 			if err != nil {
 				t.Fatal(err)
 			}
 			ref := artifacts.ArtifactRef{Namespace: "docs", Name: "recovery"}
 			firstBody := []byte("retained first revision: Unicode Привет and <>&\n")
-			first, err := store.Write(sourceCtx, ref, artifacts.Payload{MediaType: "text/plain", Data: firstBody}, nil)
+			first, err := store.Write(ctx, ref, artifacts.Payload{MediaType: "text/plain", Data: firstBody}, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
 			latestBody := bytes.Repeat([]byte("binary\x00payload\xff\n"), 1024)
-			latest, err := store.Write(sourceCtx, ref, artifacts.Payload{MediaType: "application/octet-stream", Data: latestBody}, first.Ref.Revision)
+			latest, err := store.Write(ctx, ref, artifacts.Payload{MediaType: "application/octet-stream", Data: latestBody}, first.Ref.Revision)
 			if err != nil {
 				t.Fatal(err)
 			}
-			before, err := store.Metadata(sourceCtx, latest.Ref)
+			before, err := store.Metadata(ctx, latest.Ref)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -105,13 +108,13 @@ func TestBackupRestorePreservesExactArtifactsAndCAS(t *testing.T) {
 			if restoredRows := tableFunctionRows(t, ctx, target); !maps.Equal(restoredRows, functionRows) {
 				t.Fatalf("restored rows of tables that call schema functions differ:\n%v\nwant\n%v", restoredRows, functionRows)
 			}
-			targetCtx := restoreBlobContext(t, ctx, backend, targetDir)
-			recoveredStore, err := artifacts.NewService(artifactpostgres.NewRepository(target)).Project(project.ProjectID)
+			targetStorage := restoreBlobStorage(t, ctx, backend, targetDir)
+			recoveredStore, err := artifacts.NewService(targetStorage.Repository(target)).Project(project.ProjectID)
 			if err != nil {
 				t.Fatal(err)
 			}
 			if backend == blob.Filesystem {
-				if _, err := recoveredStore.Read(targetCtx, latest.Ref); err == nil {
+				if _, err := recoveredStore.Read(ctx, latest.Ref); err == nil {
 					t.Fatal("database-only restore fabricated missing filesystem payload")
 				}
 				if err := os.CopyFS(targetDir, os.DirFS(backupDir)); err != nil {
@@ -122,23 +125,23 @@ func TestBackupRestorePreservesExactArtifactsAndCAS(t *testing.T) {
 				ref  artifacts.ArtifactRef
 				body []byte
 			}{{first.Ref, firstBody}, {latest.Ref, latestBody}, {ref, latestBody}} {
-				read, err := recoveredStore.Read(targetCtx, expected.ref)
+				read, err := recoveredStore.Read(ctx, expected.ref)
 				if err != nil || !bytes.Equal(read.Payload.Data, expected.body) {
 					t.Fatalf("restored exact/current content differs: %v", err)
 				}
 			}
-			after, err := recoveredStore.Metadata(targetCtx, latest.Ref)
+			after, err := recoveredStore.Metadata(ctx, latest.Ref)
 			if err != nil || after.Digest != before.Digest || after.Size != before.Size || after.MediaType != before.MediaType {
 				t.Fatalf("restored metadata differs: %v", err)
 			}
-			replayed, created, err := projectstore.NewPostgresStore(target).Create(targetCtx, params)
+			replayed, created, err := projectstore.NewPostgresStore(target).Create(ctx, params)
 			if err != nil || created || replayed.ProjectID != project.ProjectID || replayed.Revision != project.Revision {
 				t.Fatalf("restored idempotency receipt: %+v, created=%v, %v", replayed, created, err)
 			}
-			if _, err := recoveredStore.Write(targetCtx, ref, artifacts.Payload{MediaType: "text/plain", Data: []byte("stale")}, first.Ref.Revision); !errors.Is(err, artifacts.ErrArtifactConflict) {
+			if _, err := recoveredStore.Write(ctx, ref, artifacts.Payload{MediaType: "text/plain", Data: []byte("stale")}, first.Ref.Revision); !errors.Is(err, artifacts.ErrArtifactConflict) {
 				t.Fatalf("restored stale CAS: %v", err)
 			}
-			if _, err := recoveredStore.Write(targetCtx, ref, artifacts.Payload{MediaType: "text/plain", Data: []byte("resumed")}, latest.Ref.Revision); err != nil {
+			if _, err := recoveredStore.Write(ctx, ref, artifacts.Payload{MediaType: "text/plain", Data: []byte("resumed")}, latest.Ref.Revision); err != nil {
 				t.Fatalf("resumed write: %v", err)
 			}
 			t.Logf("restored schema %d, two exact revisions, idempotency, CAS and the rows of %d tables that call schema functions; backend=%s",
@@ -193,17 +196,17 @@ func restoreDatabase(t *testing.T, ctx context.Context, admin *pgxpool.Pool, con
 	return pool, name
 }
 
-func restoreBlobContext(t *testing.T, ctx context.Context, backend blob.Backend, directory string) context.Context {
+func restoreBlobStorage(t *testing.T, ctx context.Context, backend blob.Backend, directory string) *artifactpostgres.Storage {
 	t.Helper()
 	if backend != blob.Filesystem {
-		return ctx
+		return artifactpgtest.NewStorage()
 	}
 	store, err := filesystem.Open(ctx, directory)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = store.Close() })
-	return blob.WithRuntime(ctx, blob.NewRuntime(store, nil))
+	return artifactpgtest.NewConfigured(blob.NewRuntime(store, nil), artifactpostgres.DefaultHistoryPolicy())
 }
 
 func runPostgresTool(t *testing.T, ctx context.Context, config *pgxpool.Config, database, tool string, args ...string) {

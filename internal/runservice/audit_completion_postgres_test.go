@@ -12,8 +12,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
@@ -45,7 +46,7 @@ func TestAuditCompletionPostgresAtomicCreationRestartAndAllocation(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	artifactService := artifacts.NewService(artifactpostgres.NewRepository(pool))
+	artifactService := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
 	store, err := artifactService.Project(project.ProjectID)
 	if err != nil {
 		t.Fatal(err)
@@ -87,7 +88,7 @@ func TestAuditCompletionPostgresAtomicCreationRestartAndAllocation(t *testing.T)
 		t.Fatal(err)
 	}
 	profileBytes, _ := json.Marshal(map[string]any{"workflows": map[string]any{"check": binding}})
-	audits := auditstoretest.NewStore(pool)
+	audits := auditstoretest.NewStore(pool, artifactpgtest.NewStorage())
 	draft, _, err := audits.CreateDraft(ctx, auditstore.CreateDraftParams{AuditID: "audit", OwnerID: project.OwnerID, ProjectID: project.ProjectID, Profile: auditstore.ProfileIdentity{Name: "test", Version: "1", Digest: testDigest("2")}, ProfileSnapshot: profileBytes, InputSelection: json.RawMessage(`{}`), Limits: auditstore.Limits{MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: 10, MaxItemsTotal: 10, MaxSubmittedRuns: 10, MaxItemRunAttempts: 2, MaxEvidenceBytes: 1 << 20}, IdempotencyKey: "audit", RequestDigest: testDigest("3")})
 	if err != nil {
 		t.Fatal(err)
@@ -113,7 +114,7 @@ func TestAuditCompletionPostgresAtomicCreationRestartAndAllocation(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	options := Options{Runs: runstore.NewPostgresStore(pool), Workflows: manager, LLMCredentials: emptyCredentialLookup{}, CredentialGuard: openCredentialGuard{}, RuntimeCredentials: acceptRuntimeCredentials{}, Projects: projects, PublicTransaction: postgresPublicTransaction(pool), AuditTransaction: postgresAuditTransaction(pool)}
+	options := Options{Runs: runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()), Workflows: manager, LLMCredentials: emptyCredentialLookup{}, CredentialGuard: openCredentialGuard{}, RuntimeCredentials: acceptRuntimeCredentials{}, Projects: projects, PublicTransaction: postgresPublicTransaction(pool), AuditTransaction: postgresAuditTransaction(pool)}
 	service, err := New(options)
 	if err != nil {
 		t.Fatal(err)
@@ -165,7 +166,7 @@ func TestAuditCompletionPostgresAtomicCreationRestartAndAllocation(t *testing.T)
 	if _, err := failing.CreateAudit(ctx, params); !errors.Is(err, rollback) {
 		t.Fatalf("rollback: %v", err)
 	}
-	runs := runstore.NewPostgresStore(pool)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	if _, err := runs.GetRun(ctx, "run"); !errors.Is(err, runstore.ErrNotFound) {
 		t.Fatal("orphan Run survived", err)
 	}
@@ -221,7 +222,7 @@ func TestAuditCompletionPostgresAtomicCreationRestartAndAllocation(t *testing.T)
 	if err := runs.RecordStageAllocation(ctx, allocation); err != nil {
 		t.Fatal(err)
 	}
-	recovered, err := runstore.NewPostgresStore(pool).ListStageAllocations(ctx, executionStage.StageExecutionID)
+	recovered, err := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()).ListStageAllocations(ctx, executionStage.StageExecutionID)
 	if err != nil || len(recovered) != 1 || !reflect.DeepEqual(recovered[0].CompletionContract, allocation.CompletionContract) {
 		t.Fatal("allocation lost contract", err)
 	}
@@ -317,7 +318,7 @@ func TestAuditCompletionPostgresTaskSetMembership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
+	service := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
 	store, _ := service.Project("project")
 	source := writeExact(t, ctx, store, "sources", "source", "application/zip", []byte("source"))
 	checklist := `{"schema":"contractor.audit.checklist.v1","items":[{"key":"first","version":"1","statement":"First check","applicability":"always","allowed_methods":["static"],"required_evidence":[],"review_policy":"automatic"},{"key":"second","version":"1","statement":"Second check","applicability":"always","allowed_methods":["static"],"required_evidence":[],"review_policy":"automatic"}]}`

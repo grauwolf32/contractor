@@ -204,7 +204,7 @@ AND round.results_sealed AND `+auditClaims.LiveCondition("claim", "$2", "$3"), p
 	if strictjson.Decode(encoded, &descriptor) != nil || descriptor.Validate() != nil || !descriptor.HasMetadata() {
 		return nil, invalidf("published Round results page is invalid")
 	}
-	project, err := artifacts.NewService(artifactpostgres.NewRepository(s.db)).Project(projectID)
+	project, err := artifacts.NewService(s.storage.Repository(s.db)).Project(projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -246,7 +246,7 @@ WHERE page.round_id=$1 AND page.source_generation=$2 AND page.ordinal=$3 AND rou
 		if auditdomain.DigestBytes(content) != p.Artifact.Digest || int64(len(content)) != p.Artifact.SizeBytes {
 			return invalidf("Round results page publication content differs")
 		}
-		if err := verifyRoundResultsPublication(ctx, tx, p.RoundResultsStepParams, p.Artifact); err != nil {
+		if err := verifyRoundResultsPublication(ctx, tx, p.RoundResultsStepParams, p.Artifact, s.storage); err != nil {
 			return err
 		}
 		if err := publishRoundResultsLink(ctx, tx, p.RoundResultsStepParams, p.Generation, "round-results/"+p.RoundID+"/page/"+strconv.Itoa(p.Ordinal), p.Artifact); err != nil {
@@ -302,7 +302,7 @@ func (s *ClaimStore) PublishRoundResultsManifest(ctx context.Context, p auditsto
 		if state.MetadataBytes+int64(len(encoded))*2 > auditdomain.MaximumRoundResultsBytes {
 			return invalidf("Round results exceed total metadata ceiling")
 		}
-		if err := verifyRoundResultsPublication(ctx, tx, p.RoundResultsStepParams, p.Manifest); err != nil {
+		if err := verifyRoundResultsPublication(ctx, tx, p.RoundResultsStepParams, p.Manifest, s.storage); err != nil {
 			return err
 		}
 		if err := publishRoundResultsLink(ctx, tx, p.RoundResultsStepParams, p.Generation, "round-results/"+p.RoundID, p.Manifest); err != nil {
@@ -515,7 +515,7 @@ func readRoundResultsRelated(ctx context.Context, tx pgx.Tx, auditID, _ string, 
 	return items, nil
 }
 
-func verifyRoundResultsPublication(ctx context.Context, tx pgx.Tx, p auditstore.RoundResultsStepParams, descriptor auditstore.ExactArtifact) error {
+func verifyRoundResultsPublication(ctx context.Context, tx pgx.Tx, p auditstore.RoundResultsStepParams, descriptor auditstore.ExactArtifact, storage *artifactpostgres.Storage) error {
 	if descriptor.Ref.Namespace != auditdomain.ArtifactNamespace(p.Claim.AuditID) || descriptor.MediaType != "application/json" || descriptor.SizeBytes > auditdomain.MaximumRoundResultsDocumentBytes {
 		return invalidf("Round results publication is outside its protected namespace or bounds")
 	}
@@ -523,7 +523,7 @@ func verifyRoundResultsPublication(ctx context.Context, tx pgx.Tx, p auditstore.
 	if err := tx.QueryRow(ctx, `SELECT project_id FROM audits WHERE audit_id=$1`, p.Claim.AuditID).Scan(&projectID); err != nil {
 		return err
 	}
-	project, err := artifacts.NewService(artifactpostgres.NewRepository(tx)).Project(projectID)
+	project, err := artifacts.NewService(storage.Repository(tx)).Project(projectID)
 	if err != nil {
 		return err
 	}

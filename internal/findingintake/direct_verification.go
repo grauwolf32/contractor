@@ -8,9 +8,9 @@ import (
 	"slices"
 	"sort"
 
-	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	artifactpolicy "github.com/grauwolf32/contractor/internal/artifacts/policy"
 	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -82,10 +82,11 @@ func WithCollectionDirectVerificationCache(ctx context.Context) context.Context 
 
 func resolveDirectVerification(
 	ctx context.Context, tx pgx.Tx, service *artifacts.Service, input directVerificationInput,
+	storage *artifactpostgres.Storage,
 ) (*preparedDirectVerification, error) {
 	cache, _ := ctx.Value(directVerificationCacheKey{}).(*directVerificationCache)
 	if cache == nil {
-		return prepareDirectVerification(ctx, tx, service, input)
+		return prepareDirectVerification(ctx, tx, service, input, storage)
 	}
 	if cache.ready {
 		if cache.runID != input.RunID || cache.projectID != input.ProjectID || cache.closure != input.WorkflowClosureDigest {
@@ -94,7 +95,7 @@ func resolveDirectVerification(
 		return cache.prepared, cache.err
 	}
 	cache.runID, cache.projectID, cache.closure = input.RunID, input.ProjectID, input.WorkflowClosureDigest
-	cache.prepared, cache.err = prepareDirectVerification(ctx, tx, service, input)
+	cache.prepared, cache.err = prepareDirectVerification(ctx, tx, service, input, storage)
 	cache.ready = true
 	return cache.prepared, cache.err
 }
@@ -108,8 +109,9 @@ func tryAcceptDirectVerification(
 	tx pgx.Tx,
 	artifactService *artifacts.Service,
 	input directVerificationInput,
+	storage *artifactpostgres.Storage,
 ) error {
-	prepared, err := resolveDirectVerification(ctx, tx, artifactService, input)
+	prepared, err := resolveDirectVerification(ctx, tx, artifactService, input, storage)
 	if err != nil || prepared == nil {
 		return err
 	}
@@ -136,8 +138,7 @@ func tryAcceptDirectVerification(
 	assessmentID := deterministicID("direct-assessment", input.AuditID, input.ReceiptID)
 	if replayed, err := directAssessmentReplay(
 		ctx, tx, assessmentID, input, verification.Assessment,
-		descriptor.Digest, auditdomain.DigestBytes(contractBytes),
-	); err != nil || replayed {
+		descriptor.Digest, auditdomain.DigestBytes(contractBytes), storage); err != nil || replayed {
 		return err
 	}
 	retainedBytes := descriptor.Size + int64(len(contractBytes))
@@ -189,14 +190,14 @@ SELECT retained_evidence_bytes + $2 <= max_evidence_bytes
 	}
 	return commitDirectVerification(
 		ctx, tx, assessmentID, input, verification,
-		resultArtifact, contractArtifact, retainedBytes,
-	)
+		resultArtifact, contractArtifact, retainedBytes, storage)
 }
 
 func prepareDirectVerification(
 	ctx context.Context, tx pgx.Tx, artifactService *artifacts.Service, input directVerificationInput,
+	storage *artifactpostgres.Storage,
 ) (*preparedDirectVerification, error) {
-	run, err := runstore.NewPostgresStore(tx).GetRun(ctx, input.RunID)
+	run, err := runstore.NewPostgresStore(tx, storage).GetRun(ctx, input.RunID)
 	if err != nil {
 		return nil, err
 	}
@@ -325,8 +326,10 @@ func isEvidenceSubset(selected, available []string) bool {
 }
 
 func directAssessmentReplay(ctx context.Context, tx pgx.Tx, assessmentID string, input directVerificationInput,
-	semantic, resultDigest, contractDigest string) (bool, error) {
-	service := artifacts.NewService(artifactpostgres.NewRepository(tx))
+	semantic, resultDigest, contractDigest string,
+	storage *artifactpostgres.Storage,
+) (bool, error) {
+	service := artifacts.NewService(storage.Repository(tx))
 	project, err := service.Project(input.ProjectID)
 	if err != nil {
 		return false, err
@@ -377,6 +380,7 @@ func commitDirectVerification(
 	verification auditdomain.DirectVerificationResult,
 	result, contract ExactArtifact,
 	retainedBytes int64,
+	storage *artifactpostgres.Storage,
 ) error {
 	resultProvenance, _ := json.Marshal(map[string]any{
 		"schema":                "contractor.audit.direct-verification-provenance.v1",
@@ -394,7 +398,7 @@ func commitDirectVerification(
 		"runId":                 input.RunID,
 		"workflowClosureDigest": input.WorkflowClosureDigest,
 	})
-	return hookstore.NewFindingEventsTx(tx).CommitDirectFindingAssessment(ctx, auditstore.DirectFindingAssessment{
+	return hookstore.NewFindingEventsTx(tx, storage).CommitDirectFindingAssessment(ctx, auditstore.DirectFindingAssessment{
 		ProjectID: input.ProjectID,
 		AuditID:   input.AuditID, ReceiptID: input.ReceiptID, AssessmentID: assessmentID,
 		SemanticAssessment: verification.Assessment,

@@ -8,9 +8,11 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/artifactpolicy"
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
+	artifactpolicy "github.com/grauwolf32/contractor/internal/artifacts/policy"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -49,9 +51,9 @@ func TestPostgresStandardReadFailureAfterRetentionKeepsExecutionCollecting(t *te
 		"first": {{InvocationID: f.proposalInvocation(), ClientKey: "candidate"}},
 	})
 	execution, snapshot := f.terminal(t, runstore.RunSucceeded)
-	access, err := NewArtifactAccess(f.artifacts, hookstore.NewClaimedArtifacts(f.pool))
+	access, err := NewArtifactAccess(f.artifacts, hookstore.NewClaimedArtifacts(f.pool, artifactpgtest.NewStorage()))
 	mustCompletion(t, err)
-	intake, err := findingintake.New(f.pool)
+	intake, err := findingintake.New(f.pool, artifactpgtest.NewStorage())
 	mustCompletion(t, err)
 	faults := &collectionFaults{standardRef: pinned.Retained.Artifact}
 	importer, err := New(f.audits, f.audits, f.runs, collectionFaultAccess{ArtifactAccess: access, faults: faults}, intake)
@@ -142,7 +144,7 @@ func TestPostgresInvalidPinnedStandardSettlesCollectionContractInvalid(t *testin
 				f.writeResult(t, map[string][]auditdomain.ProposalSelection{
 					"first": {{InvocationID: f.proposalInvocation(), ClientKey: "candidate"}},
 				})
-				intake, err := findingintake.New(f.pool)
+				intake, err := findingintake.New(f.pool, artifactpgtest.NewStorage())
 				mustCompletion(t, err)
 				if entry.ownerHold {
 					var proposalRef contracts.ArtifactRef
@@ -154,7 +156,7 @@ SELECT proposal_ref FROM finding_proposal_receipts WHERE receipt_id = $1`, recei
 					mustCompletion(t, err)
 				}
 				execution, snapshot := f.terminal(t, runstore.RunSucceeded)
-				access, err := NewArtifactAccess(f.artifacts, hookstore.NewClaimedArtifacts(f.pool))
+				access, err := NewArtifactAccess(f.artifacts, hookstore.NewClaimedArtifacts(f.pool, artifactpgtest.NewStorage()))
 				mustCompletion(t, err)
 				faults := &collectionFaults{standardRef: pinned.Retained.Artifact}
 				importer, err := New(f.audits, f.audits, f.runs, collectionFaultAccess{ArtifactAccess: access, faults: faults}, intake)

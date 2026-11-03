@@ -11,8 +11,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingintake"
@@ -53,7 +54,7 @@ func TestPostgresPublicJSONNULEscapesBeforeSideEffects(t *testing.T) {
 	for _, kind := range []string{"project", "run", "project run", "audit"} {
 		t.Run(kind, func(t *testing.T) {
 			h := newEvalAPIHarness(t)
-			service := artifacts.NewService(artifactpostgres.NewRepository(h.pool))
+			service := artifacts.NewService(artifactpgtest.NewStorage().Repository(h.pool))
 			user, err := service.User("user-1")
 			if err != nil {
 				t.Fatal(err)
@@ -111,13 +112,13 @@ func TestPostgresPublicJSONNULEscapesBeforeSideEffects(t *testing.T) {
 			created := h.request(t, http.MethodPost, path, corrected, "nul-write", "", status)
 			if kind == "run" {
 				run := apiDecode[createRunResponse](t, created)
-				runs := runstore.NewPostgresStore(h.pool)
+				runs := runstore.NewPostgresStore(h.pool, artifactpgtest.NewStorage())
 				cancelHandler := &runHandlers{RunDependencies: RunDependencies{Runs: runs, RunLifecycle: runs, RunNotifier: &recordingRunNotifier{}, NewID: func(string) (string, error) { return "resume-nul", nil }, Now: func() time.Time { return time.Date(2026, 10, 25, 12, 0, 0, 0, time.UTC) }}}
 				resume := auditAuthenticatedRequest(http.MethodPost, "/v1/runs/"+run.RunID+"/resume", []byte(`{"stageExecutionId":"stage\u0000source"}`))
 				resume.SetPathValue("runId", run.RunID)
 				resume.Header.Set("Content-Type", "application/json")
 				resumed := httptest.NewRecorder()
-				cancelHandler.resumeRun(resumed, resume)
+				serve(cancelHandler.resumeRun)(resumed, resume)
 				if problem := apiDecode[errorResponse](t, resumed); resumed.Code != http.StatusBadRequest || problem.Code != "invalid_request" || problem.Retryable {
 					t.Fatalf("NUL resumption = %d %+v", resumed.Code, problem)
 				}
@@ -131,7 +132,7 @@ func TestPostgresPublicJSONNULEscapesBeforeSideEffects(t *testing.T) {
 					request.SetPathValue("runId", run.RunID)
 					request.Header.Set("Content-Type", "application/json")
 					response := httptest.NewRecorder()
-					cancelHandler.cancelRun(response, request)
+					serve(cancelHandler.cancelRun)(response, request)
 					return response
 				}
 				bad := cancelRequest("reason\x00text")
@@ -152,11 +153,11 @@ func TestPostgresPublicJSONNULEscapesBeforeSideEffects(t *testing.T) {
 
 func TestPostgresFindingImportRejectsNULEscapeBeforeSideEffects(t *testing.T) {
 	h := newEvalAPIHarness(t)
-	intake, err := findingintake.New(h.pool)
+	intake, err := findingintake.New(h.pool, artifactpgtest.NewStorage())
 	if err != nil {
 		t.Fatal(err)
 	}
-	handler := findingHandlers{FindingDependencies: FindingDependencies{FindingProposals: intake}}
+	handler := findingHandlers{FindingDependencies: FindingDependencies{Transfers: artifactpgtest.NewStorage(), FindingProposals: intake}}
 	before := nulWriteCounts(t, h)
 	revision := "1"
 	body, err := json.Marshal(importFindingProposalRequest{RunID: "source\x00content", Proposal: contracts.ArtifactRef{Namespace: "finding-proposals", Name: "proposal", Revision: &revision}})
@@ -167,7 +168,7 @@ func TestPostgresFindingImportRejectsNULEscapeBeforeSideEffects(t *testing.T) {
 	request.SetPathValue("auditId", "audit")
 	request.Header.Set("Content-Type", "application/json")
 	response := httptest.NewRecorder()
-	handler.importAuditFindingProposal(response, request)
+	serve(handler.importAuditFindingProposal)(response, request)
 	problem := apiDecode[errorResponse](t, response)
 	if response.Code != http.StatusBadRequest || problem.Code != "invalid_request" || problem.Retryable || !maps.Equal(before, nulWriteCounts(t, h)) {
 		t.Fatalf("NUL finding import = %d %+v", response.Code, problem)

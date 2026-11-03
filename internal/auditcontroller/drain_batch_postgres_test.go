@@ -11,8 +11,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditimport"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -112,10 +113,10 @@ func (h *postgresControllerHarness) collectingController(
 	t *testing.T, pool *pgxpool.Pool, holderID string, claimBatch int,
 ) *Controller {
 	t.Helper()
-	audits := auditstoretest.NewStore(pool).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch)
-	runs := runstore.NewPostgresStore(pool)
+	audits := auditstoretest.NewStore(pool, artifactpgtest.NewStorage()).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	access, err := auditimport.NewArtifactAccess(
-		artifacts.NewService(artifactpostgres.NewRepository(pool)), hookstore.NewClaimedArtifacts(pool),
+		artifacts.NewService(artifactpgtest.NewStorage().Repository(pool)), hookstore.NewClaimedArtifacts(pool, artifactpgtest.NewStorage()),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -126,7 +127,7 @@ func (h *postgresControllerHarness) collectingController(
 	}
 	var ids int
 	controller, err := New(
-		audits, audits, runs, rundeletion.New(pool), h.runService, h.builder(t), &postgresNotifier{},
+		audits, audits, runs, rundeletion.New(pool, artifactpgtest.NewStorage()), h.runService, h.builder(t), &postgresNotifier{},
 		Options{
 			HolderID: holderID, ClaimLease: 20 * time.Second,
 			OperationTimeout: 10 * time.Second, ClaimBatch: claimBatch, Collector: collector,

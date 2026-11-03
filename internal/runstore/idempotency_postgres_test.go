@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -17,7 +19,7 @@ import (
 func TestPostgresPublicRunKeyReuseIsAPermanentIdempotencyConflict(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
-	store := NewPostgresStore(isolatedRunStorePool(t, ctx))
+	store := NewPostgresStore(isolatedRunStorePool(t, ctx), artifactpgtest.NewStorage())
 	digest := func(fill string) string { return "sha256:" + strings.Repeat(fill, 64) }
 	first := CreateRunIdempotentParams{
 		CreateRunParams: testRunParams("run-idempotent"), IdempotencyKey: "create-run-key", RequestDigest: digest("a"),

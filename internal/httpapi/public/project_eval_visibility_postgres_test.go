@@ -8,6 +8,8 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalstore"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -30,7 +32,7 @@ func TestSharedProjectCollectionExcludesEvalExecutionWorkspacesBeforePagination(
 	memberPath := "/v1/eval-experiments/" + e.ID + "/members/" + manifest.Members[0].MemberID
 	h.request(t, "POST", memberPath+"/submissions", evaldomain.Submission{PlanSHA256: *e.PlanSHA256}, "submit", "", 202)
 	h.tick(t)
-	submission, err := evalstore.NewPostgresStore(h.pool).Submission(t.Context(), "user-1", e.ID, manifest.Members[0].MemberID)
+	submission, err := evalstore.NewPostgresStore(h.pool, artifactpgtest.NewStorage()).Submission(t.Context(), "user-1", e.ID, manifest.Members[0].MemberID)
 	if err != nil || submission.ExecutionProjectID == nil || submission.ExecutionID == nil {
 		t.Fatalf("Audit workspace was not created: %+v, %v", submission, err)
 	}

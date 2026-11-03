@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	artifactpolicy "github.com/grauwolf32/contractor/internal/artifacts/policy"
 )
 
 func TestWriteRejectsDistinctInvalidInputsBeforeRepository(t *testing.T) {

@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/jackc/pgx/v5"
@@ -51,7 +53,7 @@ func captureStatement(t *testing.T, call func(*PostgresStore) error) statementCa
 	t.Helper()
 	capture := &statementCapture{}
 	// Stores may wrap the error without its cause; the recorded SQL is proof.
-	if err := call(NewPostgresStore(capture)); err == nil || capture.sql == "" {
+	if err := call(NewPostgresStore(capture, artifactpgtest.NewStorage())); err == nil || capture.sql == "" {
 		t.Fatalf("store call did not reach the database: %v", err)
 	}
 	return *capture
@@ -217,7 +219,7 @@ func TestPostgresActiveRunReadsUseActiveStateIndexes(t *testing.T) {
 	defer cancel()
 	pool := isolatedRunStorePool(t, ctx)
 	populateRunHistory(t, ctx, pool)
-	store := NewPostgresStore(pool)
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
 
 	const queueOwner, llmCredential, workflowCredential = "owner-1", "llm-20", "workflow-20"
 	var wantQueue, wantLLM, wantWorkflow []string
@@ -416,7 +418,7 @@ func TestPostgresRunEventSequenceBumpIsHeapOnlyUpdate(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedRunStorePool(t, ctx)
-	run := createTestRun(t, ctx, NewPostgresStore(pool), "run-event-sequence-hot")
+	run := createTestRun(t, ctx, NewPostgresStore(pool, artifactpgtest.NewStorage()), "run-event-sequence-hot")
 	tx, err := pool.Begin(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -453,7 +455,7 @@ func TestPostgresClaimRenewalIsHeapOnlyUpdate(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedRunStorePool(t, ctx)
-	store := NewPostgresStore(pool)
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
 	run := createTestRun(t, ctx, store, "run-claim-renewal-hot")
 	if _, err := admitTestRun(ctx, store, run.RunID); err != nil {
 		t.Fatal(err)
@@ -477,7 +479,7 @@ SELECT pg_stat_get_xact_tuples_updated('workflow_runs'::regclass),
 		return updated, heapOnly
 	}
 	updatedBefore, heapOnlyBefore := counters()
-	state, err := NewPostgresStore(tx).RenewRunClaim(ctx, run.RunID, "claim-hot", 2*time.Minute)
+	state, err := NewPostgresStore(tx, artifactpgtest.NewStorage()).RenewRunClaim(ctx, run.RunID, "claim-hot", 2*time.Minute)
 	if err != nil || state != RunRunning {
 		t.Fatalf("renewal = (%s, %v), want running", state, err)
 	}
@@ -485,7 +487,7 @@ SELECT pg_stat_get_xact_tuples_updated('workflow_runs'::regclass),
 	if updated, heapOnly := updatedAfter-updatedBefore, heapOnlyAfter-heapOnlyBefore; updated != 1 || heapOnly != 1 {
 		t.Fatalf("claim renewal: %d updates, %d heap-only; an index covers what the renewal writes", updated, heapOnly)
 	}
-	renewed, err := NewPostgresStore(tx).GetRun(ctx, run.RunID)
+	renewed, err := NewPostgresStore(tx, artifactpgtest.NewStorage()).GetRun(ctx, run.RunID)
 	if err != nil || !renewed.UpdatedAt.Equal(claimed.UpdatedAt) || renewed.SchedulerClaim == nil ||
 		!renewed.SchedulerClaim.ExpiresAt.After(claimed.SchedulerClaim.ExpiresAt) {
 		t.Fatalf("renewed Run updatedAt %v (claimed %v), claim %+v (claimed %+v), err %v",
@@ -502,7 +504,7 @@ func TestPostgresWorkflowCredentialMatchKeepsItsExactSemantics(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedRunStorePool(t, ctx)
-	store := NewPostgresStore(pool)
+	store := NewPostgresStore(pool, artifactpgtest.NewStorage())
 	var want []string
 	for index, shape := range []struct {
 		snapshot string

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditstore/ownerstore"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
@@ -34,7 +35,7 @@ const receiptPurgeBytes = `pg_column_size(report_projection) + pg_column_size(ev
 // finding and assessment that referenced a receipt, are gone (DEL-R61). It
 // deletes in the Project lifecycle purge mode of the Artifact purger; the
 // receipt trigger refuses a receipt whose Project is not deleting.
-func PurgeProjectReceipts(ctx context.Context, tx pgx.Tx, projectID string) (bool, error) {
+func PurgeProjectReceipts(ctx context.Context, tx pgx.Tx, projectID string, storage *artifactpostgres.Storage) (bool, error) {
 	if tx == nil {
 		return false, errors.New("PostgreSQL transaction is required")
 	}
@@ -51,7 +52,7 @@ func PurgeProjectReceipts(ctx context.Context, tx pgx.Tx, projectID string) (boo
 	); err != nil {
 		return false, fmt.Errorf("enable Project lifecycle purge: %w", err)
 	}
-	findingsGone, err := ownerstore.NewTx(tx).PurgeProjectFindings(ctx, projectID)
+	findingsGone, err := ownerstore.NewTx(tx, storage).PurgeProjectFindings(ctx, projectID)
 	if err != nil {
 		return false, err
 	}

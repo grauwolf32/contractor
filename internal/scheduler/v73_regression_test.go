@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"testing"
 
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
+	artifactpgtest "github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	inline "github.com/grauwolf32/contractor/internal/artifacts/blob/backends/postgres"
@@ -37,15 +40,21 @@ func (r *metadataOnlyRepository) Metadata(_ context.Context, scope artifacts.Sco
 }
 
 func TestArtifactResolverUsesMetadataWithAllTransferSlotsOccupied(t *testing.T) {
-	ctx := blob.WithRuntime(t.Context(), blob.NewRuntime(inline.Store{}, nil))
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
+	ctx := t.Context()
+	artifactRuntime = blob.NewRuntime(inline.Store{}, nil)
+	artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
 	for range 4 {
-		_, release, err := blob.AcquireTransfer(ctx)
+		_, release, err := artifactStorage.AcquireTransfer(ctx)
 		if err != nil {
 			t.Fatal(err)
 		}
 		t.Cleanup(release)
 	}
-	if _, _, err := blob.AcquireTransfer(ctx); !errors.Is(err, blob.ErrTransferCapacity) {
+	if _, _, err := artifactStorage.AcquireTransfer(ctx); !errors.Is(err, blob.ErrTransferCapacity) {
 		t.Fatalf("transfer budget was not exhausted: %v", err)
 	}
 	repo := &metadataOnlyRepository{ref: exactRef("builder", "copied", "result-r1")}

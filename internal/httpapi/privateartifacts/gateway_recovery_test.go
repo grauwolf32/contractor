@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 )
@@ -24,7 +26,7 @@ func (r *recordingRecovery) Update(
 
 func newRecoveryTestHandler(recovery gatewayRecoveryUpdater) http.Handler {
 	current := &handler{
-		dependencies: Dependencies{
+		dependencies: Dependencies{Transfers: artifactpgtest.NewStorage(),
 			Registry:  &fakeRegistry{grant: testGrant("run-a")},
 			Artifacts: artifacts.NewService(newMemoryRepository()),
 		},
@@ -96,7 +98,7 @@ func TestGatewayRecoveryFencedAllocationDeliversOnlyTerminalUpdates(t *testing.T
 			grant.WriteFenced = true
 			recovery := &recordingRecovery{}
 			current := &handler{
-				dependencies: Dependencies{
+				dependencies: Dependencies{Transfers: artifactpgtest.NewStorage(),
 					Registry:  &fakeRegistry{grant: grant},
 					Artifacts: artifacts.NewService(newMemoryRepository()),
 				},

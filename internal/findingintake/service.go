@@ -9,9 +9,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	artifactpolicy "github.com/grauwolf32/contractor/internal/artifacts/policy"
 	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
@@ -30,15 +29,17 @@ const (
 )
 
 type Service struct {
+	storage *artifactpostgres.Storage
+
 	pool         *pgxpool.Pool
 	afterPrepare func(context.Context) // deterministic transfer-boundary integration test seam
 }
 
-func New(pool *pgxpool.Pool) (*Service, error) {
-	if pool == nil {
+func New(pool *pgxpool.Pool, storage *artifactpostgres.Storage) (*Service, error) {
+	if storage == nil || pool == nil {
 		return nil, errors.New("finding intake PostgreSQL pool is required")
 	}
-	return &Service{pool: pool}, nil
+	return &Service{storage: storage, pool: pool}, nil
 }
 
 // FindReplay returns an already committed exact receipt without consulting the
@@ -82,7 +83,7 @@ func (s *Service) Submit(
 		return Receipt{}, false, err
 	}
 	// Retain the slot while both the candidate blob and receipt are published.
-	ctx, releaseTransfer, err := blob.AcquireTransfer(ctx)
+	ctx, releaseTransfer, err := s.storage.AcquireTransfer(ctx)
 	if err != nil {
 		return Receipt{}, false, err
 	}
@@ -119,13 +120,13 @@ func (s *Service) Submit(
 		if encodeErr != nil || len(data) > artifacts.MaxPayloadSize {
 			return Receipt{}, false, fmt.Errorf("%w: HTTP evidence payload", ErrInvalid)
 		}
-		prepared, prepareErr := artifactpostgres.PreparePayload(ctx, s.pool, artifacts.Payload{MediaType: auditdomain.HTTPExchangeMediaType, Data: data})
+		prepared, prepareErr := s.storage.PreparePayload(ctx, s.pool, artifacts.Payload{MediaType: auditdomain.HTTPExchangeMediaType, Data: data})
 		if prepareErr != nil {
 			return Receipt{}, false, prepareErr
 		}
 		httpPayload = &prepared
 	}
-	preparedPayload, err := artifactpostgres.PreparePayload(ctx, s.pool, artifacts.Payload{MediaType: proposalMediaType, Data: canonical.proposalBytes})
+	preparedPayload, err := s.storage.PreparePayload(ctx, s.pool, artifacts.Payload{MediaType: proposalMediaType, Data: canonical.proposalBytes})
 	if err != nil {
 		return Receipt{}, false, err
 	}
@@ -163,7 +164,7 @@ func (s *Service) Submit(
 			return readErr
 		}
 
-		origin, ownerID, projectID, err := verifyTrustedExecution(ctx, tx, grant)
+		origin, ownerID, projectID, err := verifyTrustedExecution(ctx, tx, grant, s.storage)
 		if err != nil {
 			return err
 		}
@@ -183,7 +184,7 @@ SELECT count(*) FROM finding_proposal_receipts WHERE run_id = $1`, grant.RunID).
 			return fmt.Errorf("%w: Run proposal quota exceeded", ErrInvalid)
 		}
 
-		artifactService := artifacts.NewService(artifactpostgres.NewRepository(tx))
+		artifactService := artifacts.NewService(s.storage.Repository(tx))
 		runArtifacts, err := artifactService.Run(grant.RunID)
 		if err != nil {
 			return err
@@ -277,7 +278,7 @@ SELECT count(*) FROM finding_proposal_receipts WHERE run_id = $1`, grant.RunID).
 			case len(evidence) == 0:
 				publicationError = "problem_evidence_required"
 			default:
-				if err := hookstore.NewFindingEventsTx(tx).LockFindingCorrelationFence(ctx, *projectID); err != nil {
+				if err := hookstore.NewFindingEventsTx(tx, s.storage).LockFindingCorrelationFence(ctx, *projectID); err != nil {
 					return err
 				}
 				retained, retainErr := retainFindingArtifact(ctx, artifactService, grant.RunID, *projectID,
@@ -305,7 +306,7 @@ SELECT count(*) FROM finding_proposal_receipts WHERE run_id = $1`, grant.RunID).
 			return err
 		}
 		if projectProposal != nil {
-			if _, err := hookstore.NewFindingEventsTx(tx).AdmitProjectFinding(ctx, *projectID, receiptID,
+			if _, err := hookstore.NewFindingEventsTx(tx, s.storage).AdmitProjectFinding(ctx, *projectID, receiptID,
 				deterministicID("finding", receiptID)); err != nil {
 				return err
 			}
@@ -332,7 +333,7 @@ type preparationStage func() (runstore.StageExecution, error)
 // Stage inside the intake transaction for provenance and authorization.
 func (s *Service) lazyPreparationStage(ctx context.Context, grant controlplane.AllocationGrant) preparationStage {
 	return sync.OnceValues(func() (runstore.StageExecution, error) {
-		stage, err := runstore.NewPostgresStore(s.pool).GetStageExecution(ctx, grant.StageExecutionID)
+		stage, err := runstore.NewPostgresStore(s.pool, s.storage).GetStageExecution(ctx, grant.StageExecutionID)
 		if err != nil {
 			return runstore.StageExecution{}, err
 		}
@@ -347,6 +348,7 @@ func verifyTrustedExecution(
 	ctx context.Context,
 	tx pgx.Tx,
 	grant controlplane.AllocationGrant,
+	storage *artifactpostgres.Storage,
 ) (Origin, string, *string, error) {
 	if strings.TrimSpace(grant.AllocationID) == "" || strings.TrimSpace(grant.RunID) == "" ||
 		strings.TrimSpace(grant.StageExecutionID) == "" || strings.TrimSpace(grant.LogicalAgentName) == "" {
@@ -362,7 +364,7 @@ func verifyTrustedExecution(
 	}
 	// Only a confirmed absence denies the grant. A storage failure keeps its
 	// cause so the submission stays retryable instead of becoming a denial.
-	runs := runstore.NewPostgresStore(tx)
+	runs := runstore.NewPostgresStore(tx, storage)
 	run, err := runs.GetRun(ctx, grant.RunID)
 	if errors.Is(err, runstore.ErrNotFound) {
 		return Origin{}, "", nil, ErrAccessDenied

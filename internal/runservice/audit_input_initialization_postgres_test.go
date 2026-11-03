@@ -10,10 +10,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/artifactpolicy"
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
+	artifactpolicy "github.com/grauwolf32/contractor/internal/artifacts/policy"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
@@ -41,7 +42,7 @@ func auditInputFixture(t *testing.T, ctx context.Context) (Options, AuditCreateP
 	if err != nil {
 		t.Fatal(err)
 	}
-	artifactService := artifacts.NewService(artifactpostgres.NewRepository(pool))
+	artifactService := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
 	store, err := artifactService.Project(project.ProjectID)
 	if err != nil {
 		t.Fatal(err)
@@ -83,7 +84,7 @@ func auditInputFixture(t *testing.T, ctx context.Context) (Options, AuditCreateP
 		t.Fatal(err)
 	}
 	profileBytes, _ := json.Marshal(map[string]any{"workflows": map[string]any{"check": binding}})
-	audits := auditstoretest.NewStore(pool)
+	audits := auditstoretest.NewStore(pool, artifactpgtest.NewStorage())
 	draft, _, err := audits.CreateDraft(ctx, auditstore.CreateDraftParams{AuditID: "audit", OwnerID: project.OwnerID, ProjectID: project.ProjectID, Profile: auditstore.ProfileIdentity{Name: "test", Version: "1", Digest: testDigest("2")}, ProfileSnapshot: profileBytes, InputSelection: json.RawMessage(`{}`), Limits: auditstore.Limits{MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: 10, MaxItemsTotal: 10, MaxSubmittedRuns: 10, MaxItemRunAttempts: 2, MaxEvidenceBytes: 1 << 20}, IdempotencyKey: "audit", RequestDigest: testDigest("3")})
 	if err != nil {
 		t.Fatal(err)
@@ -109,7 +110,7 @@ func auditInputFixture(t *testing.T, ctx context.Context) (Options, AuditCreateP
 	if err != nil {
 		t.Fatal(err)
 	}
-	options := Options{Runs: runstore.NewPostgresStore(pool), Workflows: manager, LLMCredentials: emptyCredentialLookup{}, CredentialGuard: openCredentialGuard{}, RuntimeCredentials: acceptRuntimeCredentials{}, Projects: projects, PublicTransaction: postgresPublicTransaction(pool), AuditTransaction: postgresAuditTransaction(pool)}
+	options := Options{Runs: runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()), Workflows: manager, LLMCredentials: emptyCredentialLookup{}, CredentialGuard: openCredentialGuard{}, RuntimeCredentials: acceptRuntimeCredentials{}, Projects: projects, PublicTransaction: postgresPublicTransaction(pool), AuditTransaction: postgresAuditTransaction(pool)}
 	params := AuditCreateParams{Claim: claim, ExecutionID: execution.ExecutionID, Workflow: binding.Workflow, RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(), Parameters: map[string]string{}, Inputs: map[string]auditstore.ExactArtifact{"source": source, "task": task, "execution_manifest": manifest}, ExecutionManifest: manifest, RequestDigest: execution.RequestDigest, NewRunID: func() (string, error) { return "run", nil }}
 	return options, params, pool
 }
@@ -166,7 +167,7 @@ func TestAuditInputPostgresResumesOneChildAndClassifiesFailures(t *testing.T) {
 				if !errors.Is(err, transient) {
 					t.Fatal("first transient outcome", err)
 				}
-				if _, err := runstore.NewPostgresStore(pool).GetRun(ctx, "run"); !errors.Is(err, runstore.ErrNotFound) {
+				if _, err := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()).GetRun(ctx, "run"); !errors.Is(err, runstore.ErrNotFound) {
 					t.Fatal("rolled back first slice retained a child", err)
 				}
 				first, err = service.CreateAudit(ctx, params)
@@ -253,7 +254,7 @@ func TestAuditInputPostgresCanonicalByteBoundaryAndImmutability(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer tx.Rollback(context.WithoutCancel(ctx))
-	runs := runstore.NewPostgresTxStore(tx)
+	runs := runstore.NewPostgresTxStore(tx, artifactpgtest.NewStorage())
 	state, err := runs.LockAuditInputMaterialization(ctx, created.Run.RunID)
 	if err != nil {
 		t.Fatal(err)

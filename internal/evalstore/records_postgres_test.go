@@ -6,6 +6,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	pg "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
@@ -56,7 +58,7 @@ func TestSharedPostgresEvalRecordReceiptRaceIsRetryable(t *testing.T) {
 		_, err := st.PutRecord(ctx, params("assessment", winner, identity))
 		return err
 	})
-	_, err = NewTxStore(stale).PutRecord(ctx, params("assessment", loser, identity))
+	_, err = NewTxStore(stale, artifactpgtest.NewStorage()).PutRecord(ctx, params("assessment", loser, identity))
 	if !pg.IsTransactionConflict(err) {
 		t.Fatalf("stale receipt race = %v, want a serialization failure", err)
 	}
@@ -67,7 +69,7 @@ func TestSharedPostgresEvalRecordRevisionsSelectionCASAndRetainedReview(t *testi
 	ctx := context.Background()
 	scope := setupProject(t, pool, "owner", "eval")
 	e := createExperiment(t, pool, scope, "experiment", "trace-1", "external-workflow")
-	reader := NewPostgresStore(pool)
+	reader := NewPostgresStore(pool, artifactpgtest.NewStorage())
 	ms := members(t, pool, e)
 	var result evaldomain.ResultInput
 	if err := json.Unmarshal(fixture(t, "result", "ResultInput").Bytes(), &result); err != nil {
@@ -172,7 +174,7 @@ func TestSharedPostgresEvalCompleteViewPublicationAndInterruptedProjection(t *te
 	scope := setupProject(t, pool, "owner", "eval")
 	e := createExperiment(t, pool, scope, "experiment", "trace-1", "external-workflow")
 	claim := oneClaim(t, pool)
-	reader := NewPostgresStore(pool)
+	reader := NewPostgresStore(pool, artifactpgtest.NewStorage())
 	ms := members(t, pool, e)
 	comparison := evaldomain.Comparison{Baseline: "a", Candidate: "b", Gates: evaldomain.Gates{MinCandidateEndToEndPass: 1}}
 	project := func(changed bool) {

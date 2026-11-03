@@ -11,8 +11,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
@@ -37,7 +38,7 @@ func TestProjectFindingExplicitPublicationRetainsIndependentSources(t *testing.T
 	}); err != nil {
 		t.Fatal(err)
 	}
-	service, err := New(pool)
+	service, err := New(pool, artifactpgtest.NewStorage())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,7 +113,7 @@ func TestProjectFindingExplicitPublicationRetainsIndependentSources(t *testing.T
 		t.Fatalf("canonical findings=%d independent sources=%d inferred assessments=%d", count, sources, assessed)
 	}
 	for index, auditID := range []string{"publication-audit-a", "publication-audit-b"} {
-		if _, _, err := auditstoretest.NewStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{
+		if _, _, err := auditstoretest.NewStore(pool, artifactpgtest.NewStorage()).CreateDraft(ctx, auditstore.CreateDraftParams{
 			AuditID: auditID, OwnerID: owner, ProjectID: project,
 			Profile:         auditstore.ProfileIdentity{Name: "publication", Version: "1", Digest: auditdomain.DigestBytes([]byte("profile"))},
 			ProfileSnapshot: json.RawMessage(`{}`), InputSelection: json.RawMessage(`{}`),
@@ -126,7 +127,7 @@ func TestProjectFindingExplicitPublicationRetainsIndependentSources(t *testing.T
 			t.Fatal(err)
 		}
 	}
-	read := querystore.New(pool)
+	read := querystore.New(pool, artifactpgtest.NewStorage())
 	findingID := *receipts[0].FindingID
 	var edited auditstore.ProjectFinding
 	for index, auditID := range []string{"publication-audit-a", "publication-audit-b"} {
@@ -137,7 +138,7 @@ func TestProjectFindingExplicitPublicationRetainsIndependentSources(t *testing.T
 		severity := auditstore.SeverityHigh
 		err = persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 			var editErr error
-			edited, editErr = ownerstore.NewTx(tx).AssessProjectFinding(ctx, auditstore.ProjectFindingEdit{
+			edited, editErr = ownerstore.NewTx(tx, artifactpgtest.NewStorage()).AssessProjectFinding(ctx, auditstore.ProjectFindingEdit{
 				OwnerID: owner, ProjectID: project, FindingID: findingID, ExpectedRevision: fromAudit.Revision,
 				Verdict: auditstore.VerdictTruePositive, Severity: &severity, Rationale: "Explicit Project assessment",
 			})
@@ -159,7 +160,7 @@ func TestProjectFindingExplicitPublicationRetainsIndependentSources(t *testing.T
 		}
 	}
 	err = persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		_, err := ownerstore.NewTx(tx).AssessProjectFinding(ctx, auditstore.ProjectFindingEdit{
+		_, err := ownerstore.NewTx(tx, artifactpgtest.NewStorage()).AssessProjectFinding(ctx, auditstore.ProjectFindingEdit{
 			OwnerID: owner, ProjectID: project, FindingID: findingID, ExpectedRevision: 1,
 			Verdict: auditstore.VerdictFalsePositive, Rationale: "Stale edit",
 		})
@@ -174,7 +175,7 @@ func TestProjectFindingExplicitPublicationRetainsIndependentSources(t *testing.T
 	}
 	// Run and Audit deletion remove execution context, never the canonical
 	// problem, independently retained source claims or their exact evidence.
-	runs := runstore.NewPostgresStore(pool)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	for _, grant := range grants {
 		if err := runs.MarkStageAllocationReleased(ctx, grant.AllocationID); err != nil {
 			t.Fatal(err)
@@ -186,7 +187,7 @@ func TestProjectFindingExplicitPublicationRetainsIndependentSources(t *testing.T
 			t.Fatal(err)
 		}
 	}
-	audits := auditstoretest.NewStore(pool).WithPurgeDependencies(DeleteAuditHoldsBatch)
+	audits := auditstoretest.NewStore(pool, artifactpgtest.NewStorage()).WithPurgeDependencies(DeleteAuditHoldsBatch)
 	for _, auditID := range []string{"publication-audit-a", "publication-audit-b"} {
 		audit, err := audits.Get(ctx, owner, auditID)
 		if err != nil {
@@ -211,7 +212,7 @@ func TestProjectFindingExplicitPublicationRetainsIndependentSources(t *testing.T
 			if err != nil || source.Retention != RetentionProjectHeld || !source.Origin.RunDeleted || source.ProjectProposal == nil || !reflect.DeepEqual(source.Document, inputs[sourceIndex].Proposal) || !reflect.DeepEqual(source.ProjectEvidence, original.ProjectEvidence) {
 				t.Fatalf("independent source after purge: %+v %v", source, err)
 			}
-			scope, err := artifacts.NewService(artifactpostgres.NewRepository(pool)).Project(project)
+			scope, err := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool)).Project(project)
 			if err != nil {
 				t.Fatal(err)
 			}

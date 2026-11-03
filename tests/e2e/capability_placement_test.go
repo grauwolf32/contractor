@@ -15,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -161,7 +163,7 @@ func TestHeterogeneousRuntimeCapabilityPlacement(t *testing.T) {
 		t.Fatalf("open assertion database: %v", err)
 	}
 	t.Cleanup(pool.Close)
-	store := runstore.NewPostgresStore(pool)
+	store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	waitingExecution := waitForUnallocatedPreparingExecution(t, ctx, store, runID)
 	if gateway.Calls() != 0 {
 		t.Fatalf("Planner or Worker reached the Gateway while capacity was incompatible: %d calls", gateway.Calls())

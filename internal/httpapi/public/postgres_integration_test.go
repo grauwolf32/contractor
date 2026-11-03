@@ -15,9 +15,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
@@ -55,8 +56,8 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
-	runs := runstore.NewPostgresStore(pool)
+	service := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	nextRunID := "run-public"
 	managedCredentials := newFakeManagedCredentials()
 	gateway, err := configurationManager.LLMGateway("local-litellm@1")
@@ -84,11 +85,11 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(eventHub.Close)
-	runDetails, err := runservice.NewRunDetailReader(runservice.PostgresRunDetailTransaction(pool))
+	runDetails, err := runservice.NewRunDetailReader(runservice.PostgresRunDetailTransaction(pool, artifactpgtest.NewStorage()))
 	if err != nil {
 		t.Fatal(err)
 	}
-	services := testServices{
+	services := testServices{Transfers: artifactpgtest.NewRuntime(),
 		Authentication: authentication, BrowserOrigins: origins,
 		Config: configurationManager, ConfigurationPublisher: configurationManager,
 		Credentials: managedCredentials, ManagedCredentials: managedCredentials,
@@ -103,7 +104,7 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 		Evals:                   unservedEvals{}, EvalNotifier: &countingWaker{},
 		GitImports: unavailableGitImports{}, GitKeys: unavailableGitKeys{},
 		GatewayRecovery: noGatewayWait{}, RunNotifier: &recordingRunNotifier{},
-		Runs: runs, RunDetails: runDetails, RunQueue: runs, RunLifecycle: runs, RunDeletion: rundeletion.New(pool), Artifacts: service,
+		Runs: runs, RunDetails: runDetails, RunQueue: runs, RunLifecycle: runs, RunDeletion: rundeletion.New(pool, artifactpgtest.NewStorage()), Artifacts: service,
 		Operations: operations, OperationsInvalidator: operations,
 		Performance: performance.NewReadService(
 			false, nil, nil, performance.NewHistoryRepository(pool, time.Now), time.Now,
@@ -225,7 +226,7 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 	}
 	var outputRef contracts.ArtifactRef
 	err = persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		txArtifacts := artifacts.NewService(artifactpostgres.NewRepository(tx))
+		txArtifacts := artifacts.NewService(artifactpgtest.NewStorage().Repository(tx))
 		bound, err := artifactstest.BindOutput(ctx, txArtifacts, "run-public", "result", intermediate.Ref)
 		if err != nil {
 			return err
@@ -234,10 +235,10 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 		if err := artifactstest.FreezeOutputs(ctx, txArtifacts, "run-public"); err != nil {
 			return err
 		}
-		if _, err := runstore.NewPostgresStore(tx).TransitionRun(ctx, "run-public", runstore.RunPending, runstore.RunRunning, runstore.Reason{Code: "fixture_admitted"}); err != nil {
+		if _, err := runstore.NewPostgresStore(tx, artifactpgtest.NewStorage()).TransitionRun(ctx, "run-public", runstore.RunPending, runstore.RunRunning, runstore.Reason{Code: "fixture_admitted"}); err != nil {
 			return err
 		}
-		_, err = runstore.NewPostgresStore(tx).TransitionRun(
+		_, err = runstore.NewPostgresStore(tx, artifactpgtest.NewStorage()).TransitionRun(
 			ctx, "run-public", runstore.RunRunning, runstore.RunSucceeded,
 			runstore.Reason{Code: "outputs_frozen"},
 		)
@@ -441,12 +442,12 @@ func (u integrationUnitOfWork) Do(ctx context.Context, fn func(RunWriter, *artif
 		if err != nil {
 			return err
 		}
-		var repository artifacts.Repository = artifactpostgres.NewRepository(tx)
+		var repository artifacts.Repository = artifactpgtest.NewStorage().Repository(tx)
 		if u.wrapArtifacts != nil {
 			repository = u.wrapArtifacts(repository)
 		}
 		return fn(
-			runstore.NewRunCreationPostgresStore(tx, lookup, credentials.NewRuntimeCredentialRepository(tx)),
+			runstore.NewRunCreationPostgresStore(tx, lookup, credentials.NewRuntimeCredentialRepository(tx), artifactpgtest.NewStorage()),
 			artifacts.NewService(repository),
 		)
 	})

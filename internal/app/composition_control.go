@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/agentprincipal"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/controlplane"
@@ -43,6 +44,7 @@ func configureControlPlane(
 	credentialSet credentialServices,
 	plannerTelemetryRegistry *telemetry.PlannerAdapterRegistry,
 	logger *slog.Logger,
+	storage *artifactpostgres.Storage,
 ) (controlServices, error) {
 	runtimeConfigPublisher, err := runtimeconfig.NewPublisher(runtimeconfig.PublisherOptions{
 		Pool: pool,
@@ -96,12 +98,13 @@ func configureControlPlane(
 	if err != nil {
 		return controlServices{}, fmt.Errorf("configure Runtime Agent principal Operations: %w", err)
 	}
-	engagementPreparation, err := engagementadapter.New(pool, credentialSet.runtime)
+	engagementPreparation, err := engagementadapter.New(pool, credentialSet.runtime, storage)
 	if err != nil {
 		return controlServices{}, fmt.Errorf("configure engagement preparation: %w", err)
 	}
 	placementAllocator, err := controlplane.NewPlacementAllocator(controlplane.PlacementAllocatorOptions{
-		Pool: pool, Registry: registry, Gateways: configurationManager,
+		Storage: storage,
+		Pool:    pool, Registry: registry, Gateways: configurationManager,
 		AdditionalAdapterRequirements: engagementPreparation.RequiredRuntimeAdapters,
 		LLMCredentials:                credentialSet.provider, RuntimeCredentials: credentialSet.runtime,
 		TransactionLLMCredentials: credentialSet.transactionLookup,

@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"os"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/rundeletion"
@@ -99,7 +101,7 @@ func TestPostgresRunDetailReadsStateAndCursorFromOneSnapshot(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedRunServicePool(t, ctx, databaseURL)
-	runs := runstore.NewPostgresStore(pool)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	const owner, runID = "owner-detail", "run-detail"
 	createRunningDetailRun(t, ctx, runs, owner, runID)
 	before, err := runs.GetRunEventCursor(ctx, runID)
@@ -112,7 +114,7 @@ func TestPostgresRunDetailReadsStateAndCursorFromOneSnapshot(t *testing.T) {
 			ctx, runID, runstore.RunRunning, runstore.RunFailed, runstore.Reason{Code: "stage_failed"},
 		)
 	}}
-	reader, err := NewRunDetailReader(PostgresRunDetailTransaction(newRunDetailReaderPool(t, ctx, pool, trace)))
+	reader, err := NewRunDetailReader(PostgresRunDetailTransaction(newRunDetailReaderPool(t, ctx, pool, trace), artifactpgtest.NewStorage()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -178,7 +180,7 @@ func TestPostgresRunDetailSurvivesFailedOptionalMetricsRead(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedRunServicePool(t, ctx, databaseURL)
-	runs := runstore.NewPostgresStore(pool)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	const owner, runID = "owner-metrics", "run-metrics"
 	createRunningDetailRun(t, ctx, runs, owner, runID)
 	if _, err := runs.CreateStageExecution(ctx, runstore.CreateStageExecutionParams{
@@ -194,7 +196,7 @@ func TestPostgresRunDetailSurvivesFailedOptionalMetricsRead(t *testing.T) {
 	if _, err := pool.Exec(ctx, `ALTER TABLE stage_metrics RENAME TO stage_metrics_hidden`); err != nil {
 		t.Fatal(err)
 	}
-	reader, err := NewRunDetailReader(PostgresRunDetailTransaction(newRunDetailReaderPool(t, ctx, pool, nil)))
+	reader, err := NewRunDetailReader(PostgresRunDetailTransaction(newRunDetailReaderPool(t, ctx, pool, nil), artifactpgtest.NewStorage()))
 	if err != nil {
 		t.Fatal(err)
 	}

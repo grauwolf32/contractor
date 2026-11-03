@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	. "github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
@@ -19,10 +21,15 @@ func (publicationNoRead) Read(context.Context, blob.Object) ([]byte, error) {
 }
 
 func TestPostgresPreparedPublicationDoesNotReadPayloadInsideTransaction(t *testing.T) {
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
 	for _, changed := range []bool{false, true} {
 		t.Run(map[bool]string{false: "verified-generation", true: "changed-generation"}[changed], func(t *testing.T) {
 			f := newDedupFixture(t)
-			prepared, err := artifactpostgres.PreparePayload(f.ctx, f.pool, f.payload)
+			artifactStorage = f.storage
+			prepared, err := artifactStorage.PreparePayload(f.ctx, f.pool, f.payload)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -37,9 +44,11 @@ func TestPostgresPreparedPublicationDoesNotReadPayloadInsideTransaction(t *testi
 					t.Fatal(err)
 				}
 			}
-			ctx := blob.WithRuntime(f.ctx, blob.NewRuntime(publicationNoRead{Storage: f.files}, nil))
+			ctx := f.ctx
+			artifactRuntime = blob.NewRuntime(publicationNoRead{Storage: f.files}, nil)
+			artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
 			err = postgres.InTx(ctx, f.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-				store, err := NewService(artifactpostgres.NewRepository(tx)).User("user-1")
+				store, err := NewService(artifactStorage.Repository(tx)).User("user-1")
 				if err != nil {
 					return err
 				}

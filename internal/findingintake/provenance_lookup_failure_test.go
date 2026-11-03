@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
@@ -79,7 +81,7 @@ func TestPostgresFindingSubmissionKeepsProvenanceLookupFailure(t *testing.T) {
 			} else {
 				grant = quotaSubmissionGrant(t, ctx, pool, ownerID, projectID, runID)
 			}
-			service, err := New(pool)
+			service, err := New(pool, artifactpgtest.NewStorage())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -155,7 +157,7 @@ func auditSubmissionGrant(
 			Digest: digest(name),
 		}
 	}
-	audits := auditstoretest.NewStore(pool)
+	audits := auditstoretest.NewStore(pool, artifactpgtest.NewStorage())
 	audit, _, err := audits.CreateDraft(ctx, auditstore.CreateDraftParams{
 		AuditID: runID + "-audit", OwnerID: ownerID, ProjectID: projectID,
 		Profile: auditstore.ProfileIdentity{Name: "profile", Version: "1", Digest: digest("profile")},
@@ -217,7 +219,7 @@ func auditSubmissionGrant(
 	}
 	project := projectID
 	if err := persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		runs := runstore.NewPostgresStore(tx)
+		runs := runstore.NewPostgresStore(tx, artifactpgtest.NewStorage())
 		if _, err := runs.CreateAuditRun(ctx, runstore.CreateAuditRunParams{
 			CreateRunParams: runstore.CreateRunParams{
 				LaneClass: resolved.LaneClassModel,
@@ -231,7 +233,7 @@ func auditSubmissionGrant(
 		}); err != nil {
 			return err
 		}
-		if _, err := auditstoretest.NewStore(tx).BindRun(ctx, auditstore.BindRunParams{
+		if _, err := auditstoretest.NewStore(tx, artifactpgtest.NewStorage()).BindRun(ctx, auditstore.BindRunParams{
 			Claim: claim, ExecutionID: execution.ExecutionID, RunID: runID,
 		}); err != nil {
 			return err
@@ -248,7 +250,7 @@ func auditSubmissionGrant(
 	}); err != nil {
 		t.Fatal(err)
 	}
-	runs := runstore.NewPostgresStore(pool)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	stageID, allocationID := runID+"-stage", runID+"-allocation"
 	if _, err := runs.CreateStageExecution(ctx, runstore.CreateStageExecutionParams{
 		LaneClass:        resolved.LaneClassModel,

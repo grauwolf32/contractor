@@ -5,11 +5,13 @@ package auditcontroller
 import (
 	"context"
 	"errors"
-	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	"slices"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
@@ -238,7 +240,7 @@ func TestPostgresPreparationDependentRunsRetainExactOutputs(t *testing.T) {
 		if execution.State != auditstore.ExecutionCollected || len(execution.PreparationOutputs) != 2 {
 			t.Fatalf("incomplete receipt: %+v", execution)
 		}
-		if err := rundeletion.New(h.pool).DeleteReleasedTerminalRun(ctx, audit.OwnerID, *execution.RunID); err != nil {
+		if err := rundeletion.New(h.pool, artifactpgtest.NewStorage()).DeleteReleasedTerminalRun(ctx, audit.OwnerID, *execution.RunID); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -379,7 +381,7 @@ func TestPostgresPreparationRecoversLostCollectionResponse(t *testing.T) {
 	preparationStep(t, ctx, c)
 	finishPreparationRun(t, ctx, h, preparationExecutions(t, ctx, h, 1)[0], runstore.RunSucceeded, false)
 	preparationStep(t, ctx, c)
-	access, _ := auditimport.NewArtifactAccess(h.artifacts, hookstore.NewClaimedArtifacts(h.pool))
+	access, _ := auditimport.NewArtifactAccess(h.artifacts, hookstore.NewClaimedArtifacts(h.pool, artifactpgtest.NewStorage()))
 	c.collector, _ = auditimport.New(lostPreparationCollection{h.audits}, h.audits, h.runs, access)
 	if _, err := c.RunOnce(ctx); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("lost collection response: %v", err)
@@ -398,7 +400,7 @@ func TestPostgresPreparationRecoversLostCollectionResponse(t *testing.T) {
 	if after.ReservedRunCount != 1 || after.RetainedEvidenceBytes != before.RetainedEvidenceBytes || after.Phase != auditdomain.AuditPhaseInventory {
 		t.Fatalf("collection replay charged twice: %+v", after)
 	}
-	if err := rundeletion.New(h.pool).DeleteReleasedTerminalRun(ctx, after.OwnerID, *execution.RunID); err != nil {
+	if err := rundeletion.New(h.pool, artifactpgtest.NewStorage()).DeleteReleasedTerminalRun(ctx, after.OwnerID, *execution.RunID); err != nil {
 		t.Fatalf("committed collection did not release Run: %v", err)
 	}
 }
@@ -469,7 +471,7 @@ func TestPostgresPreparationMissingOutputRetriesThenFailsWithoutRound(t *testing
 				if execution.State != auditstore.ExecutionCollected || len(execution.PreparationOutputs) != 0 {
 					t.Fatalf("partial output receipt: %+v", execution)
 				}
-				if err := rundeletion.New(h.pool).DeleteReleasedTerminalRun(ctx, audit.OwnerID, *execution.RunID); err != nil {
+				if err := rundeletion.New(h.pool, artifactpgtest.NewStorage()).DeleteReleasedTerminalRun(ctx, audit.OwnerID, *execution.RunID); err != nil {
 					t.Fatal(err)
 				}
 				if _, err := h.audits.GetArtifactLink(ctx, audit.AuditID, "prepare-attempt:"+execution.ExecutionID+":list"); err != nil {
@@ -529,7 +531,7 @@ func TestPostgresPreparationCancelAndDeleteDrainBeforeDependencies(t *testing.T)
 					if audit.OutstandingRunCount != 0 || audit.Hold != auditstore.HoldReleased {
 						t.Fatalf("cancelled Audit did not drain: %+v", audit)
 					}
-					if err := rundeletion.New(h.pool).DeleteReleasedTerminalRun(ctx, audit.OwnerID, run.RunID); err != nil {
+					if err := rundeletion.New(h.pool, artifactpgtest.NewStorage()).DeleteReleasedTerminalRun(ctx, audit.OwnerID, run.RunID); err != nil {
 						t.Fatal(err)
 					}
 					return

@@ -11,8 +11,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -55,9 +56,9 @@ func TestPostgresUserRulepackForksAcrossProjectsAndRejectsInvalidSourcesAtomical
 	if err != nil {
 		t.Fatal(err)
 	}
-	runs := runstore.NewPostgresStore(pool)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	projects := projectstore.NewPostgresStore(pool)
-	artifactService := artifacts.NewService(artifactpostgres.NewRepository(pool))
+	artifactService := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
 	user, _ := artifactService.User("pack-owner")
 	other, _ := artifactService.User("other-owner")
 	pack := writeExact(t, ctx, user, "rules", "pack", "application/yaml", []byte("exact owner rules"))
@@ -140,7 +141,7 @@ func TestPostgresUserRulepackForksAcrossProjectsAndRejectsInvalidSourcesAtomical
 	if err != nil {
 		t.Fatal(err)
 	}
-	purger, err := artifactpostgres.NewPurger(tx)
+	purger, err := artifactpgtest.NewStorage().Purger(tx)
 	if err != nil {
 		t.Fatal(err)
 	}

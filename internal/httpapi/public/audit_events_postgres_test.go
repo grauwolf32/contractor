@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/getkin/kin-openapi/routers/gorillamux"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -28,7 +30,7 @@ func TestPublicAuditEventHistory(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
 	defer cancel()
 	pool := isolatedPublicPool(t, ctx)
-	store := auditstoretest.NewStore(pool)
+	store := auditstoretest.NewStore(pool, artifactpgtest.NewStorage())
 	for _, auditID := range []string{"audit-events", "audit-other"} {
 		_, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{ProjectID: "project-" + auditID, OwnerID: "user-1", Kind: projectstore.KindProject, Name: auditID, IdempotencyKey: auditID, RequestDigest: auditHandlerDigest(auditID)})
 		if err != nil {
@@ -53,7 +55,7 @@ func TestPublicAuditEventHistory(t *testing.T) {
 	fixture := newHandlerFixtureWithAuth(t, "../../config/testdata/valid", newTestAuthentication(t), mustTestOrigins(t), false, nil, func(d *testServices) {
 		credentials := newFakeManagedCredentials()
 		var err error
-		service, err = auditservice.New(auditservice.Options{Pool: pool, Profiles: d.Config.(*config.Manager), CredentialGuard: credentials, TransactionLLMCredentials: runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (resolved.CredentialLookup, error) { return credentials, nil })})
+		service, err = auditservice.New(auditservice.Options{Storage: artifactpgtest.NewStorage(), Pool: pool, Profiles: d.Config.(*config.Manager), CredentialGuard: credentials, TransactionLLMCredentials: runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (resolved.CredentialLookup, error) { return credentials, nil })})
 		if err != nil {
 			t.Fatal(err)
 		}

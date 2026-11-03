@@ -6,8 +6,9 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/findinganalysis"
 	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
@@ -15,7 +16,7 @@ import (
 
 func TestPostgresCollectionValidatesOptionalAnalysisBeforePublication(t *testing.T) {
 	f := newDeletionImportFixture(t)
-	store, err := artifacts.NewService(artifactpostgres.NewRepository(f.pool)).Run(f.request.RunID)
+	store, err := artifacts.NewService(artifactpgtest.NewStorage().Repository(f.pool)).Run(f.request.RunID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -25,7 +26,7 @@ func TestPostgresCollectionValidatesOptionalAnalysisBeforePublication(t *testing
 		t.Fatal(err)
 	}
 	source := ExactArtifact{Ref: written.Ref, Digest: auditdomain.DigestBytes(data), MediaType: written.MediaType, SizeBytes: written.Size}
-	publisher, err := NewCollectionPublisher(f.pool, emptyCollectionReviews{})
+	publisher, err := NewCollectionPublisher(f.pool, emptyCollectionReviews{}, artifactpgtest.NewStorage())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,7 +59,7 @@ func TestPostgresCollectionValidatesOptionalAnalysisBeforePublication(t *testing
 			if auditdomain.ErrorCode(err) != auditdomain.CodeInvalid {
 				t.Fatalf("invalid exact source: %v", err)
 			}
-			user, err := artifacts.NewService(artifactpostgres.NewRepository(f.pool)).User(f.request.OwnerID)
+			user, err := artifacts.NewService(artifactpgtest.NewStorage().Repository(f.pool)).User(f.request.OwnerID)
 			if err != nil {
 				t.Fatal(err)
 			}

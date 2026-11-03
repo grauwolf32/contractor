@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	artifactpolicy "github.com/grauwolf32/contractor/internal/artifacts/policy"
 )
 
 func (r *Repository) ListRefs(ctx context.Context, scope artifacts.Scope, query artifacts.RefPageQuery) (artifacts.RefPage, error) {

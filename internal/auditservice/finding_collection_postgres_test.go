@@ -13,10 +13,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/apierror"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
@@ -47,7 +48,7 @@ func collectionTestPool(t *testing.T) (context.Context, *pgxpool.Pool) {
 
 func newCollectionTestPublisher(t *testing.T, pool *pgxpool.Pool) *findingintake.CollectionPublisher {
 	t.Helper()
-	publisher, err := findingintake.NewCollectionPublisher(pool, &Service{pool: pool})
+	publisher, err := findingintake.NewCollectionPublisher(pool, &Service{storage: artifactpgtest.NewStorage(), pool: pool}, artifactpgtest.NewStorage())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,7 +73,7 @@ func seedCollectionRun(t *testing.T, ctx context.Context, pool *pgxpool.Pool, ow
 	if len(projects) == 1 {
 		projectID = &projects[0]
 	}
-	_, err = runstoretest.CreateRun(ctx, runstore.NewPostgresStore(pool), runstore.CreateRunParams{
+	_, err = runstoretest.CreateRun(ctx, runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()), runstore.CreateRunParams{
 		LaneClass: resolved.LaneClassModel,
 		RunID:     runID, OwnerID: owner, ProjectID: projectID, WorkflowName: workflow.Ref.Name, WorkflowVersion: workflow.Ref.Version,
 		WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: encoded, Parameters: map[string]string{}, RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
@@ -90,7 +91,7 @@ func seedCollectionRunReceipt(t *testing.T, ctx context.Context, pool *pgxpool.P
 
 func seedCollectionRunReceiptDocument(t *testing.T, ctx context.Context, pool *pgxpool.Pool, owner, runID, suffix string, missingEvidence, publishProblem bool, edit func(*auditdomain.FindingProposal), extra ...findingintake.ExactArtifact) {
 	t.Helper()
-	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
+	service := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
 	run, err := service.Run(runID)
 	if err != nil {
 		t.Fatal(err)
@@ -193,7 +194,7 @@ func TestFindingCollectionPublicationRunRetentionAndReplay(t *testing.T) {
 		t.Fatalf("concurrent publication: results=%+v errors=%v", results, errs)
 	}
 	result := results[0]
-	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
+	service := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
 	user, _ := service.User(owner)
 	read, err := user.Read(ctx, result.Artifact.Ref)
 	if err != nil {
@@ -228,12 +229,12 @@ func TestFindingCollectionPublicationRunRetentionAndReplay(t *testing.T) {
 	}
 	seedCollectionRun(t, ctx, pool, owner, "run-later")
 	seedCollectionRunReceipt(t, ctx, pool, owner, "run-later", "later", false)
-	runs := runstore.NewPostgresStore(pool)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	for _, id := range []string{"run-a", "run-b"} {
 		if _, err := runs.TransitionRun(ctx, id, runstore.RunInitializing, runstore.RunFailed, runstore.Reason{Code: "test_done"}); err != nil {
 			t.Fatal(err)
 		}
-		if err := rundeletion.New(pool).DeleteReleasedTerminalRun(ctx, owner, id); err != nil {
+		if err := rundeletion.New(pool, artifactpgtest.NewStorage()).DeleteReleasedTerminalRun(ctx, owner, id); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -266,7 +267,7 @@ func TestFindingCollectionPublicationRejectsPartialForeignAndInterruptedWrites(t
 	seedCollectionRun(t, ctx, pool, "owner", "run-missing")
 	seedCollectionRunReceipt(t, ctx, pool, "owner", "run-missing", "missing", true)
 	publisher := newCollectionTestPublisher(t, pool)
-	user, _ := artifacts.NewService(artifactpostgres.NewRepository(pool)).User("owner")
+	user, _ := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool)).User("owner")
 	for _, tc := range []struct{ key, run, receipt string }{
 		{"foreign-source", "run-foreign", "receipt-foreign"},
 		{"foreign-receipt", "run-good", "receipt-foreign"},
@@ -324,7 +325,7 @@ func TestFindingCollectionAuditContributionsAndPinnedReview(t *testing.T) {
 	if _, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{ProjectID: projectID, OwnerID: owner, Kind: projectstore.KindProject, Name: "Collection", IdempotencyKey: "project", RequestDigest: serviceTestDigest("project")}); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := auditstoretest.NewStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{
+	if _, _, err := auditstoretest.NewStore(pool, artifactpgtest.NewStorage()).CreateDraft(ctx, auditstore.CreateDraftParams{
 		AuditID: auditID, OwnerID: owner, ProjectID: projectID, Profile: auditstore.ProfileIdentity{Name: "review", Version: "1", Digest: serviceTestDigest("profile")},
 		ProfileSnapshot: json.RawMessage(`{"interaction":{}}`), InputSelection: json.RawMessage(`{}`),
 		Limits:         auditstore.Limits{MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: 2, MaxItemsTotal: 2, MaxSubmittedRuns: 2, MaxItemRunAttempts: 1, MaxEvidenceBytes: 1 << 20},
@@ -346,7 +347,7 @@ func TestFindingCollectionAuditContributionsAndPinnedReview(t *testing.T) {
 	if err != nil || result.EntryCount != 2 {
 		t.Fatalf("all contributions: %+v %v", result, err)
 	}
-	user, _ := artifacts.NewService(artifactpostgres.NewRepository(pool)).User(owner)
+	user, _ := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool)).User(owner)
 	read, err := user.Read(ctx, result.Artifact.Ref)
 	if err != nil {
 		t.Fatal(err)
@@ -365,11 +366,11 @@ func TestFindingCollectionAuditContributionsAndPinnedReview(t *testing.T) {
 			t.Fatalf("deleted Run retained source: %+v", document)
 		}
 	}
-	intake, err := findingintake.New(pool)
+	intake, err := findingintake.New(pool, artifactpgtest.NewStorage())
 	if err != nil {
 		t.Fatal(err)
 	}
-	decideFindingForTest(t, ctx, &Service{pool: pool, findings: intake, now: time.Now}, owner, auditID, first, 1, "snapshot-later", auditstore.VerdictNeedsEvidence, nil, nil)
+	decideFindingForTest(t, ctx, &Service{storage: artifactpgtest.NewStorage(), pool: pool, findings: intake, now: time.Now}, owner, auditID, first, 1, "snapshot-later", auditstore.VerdictNeedsEvidence, nil, nil)
 	replay, err := publisher.PublishCollection(ctx, params)
 	if err != nil || !replay.Replayed || replay.Artifact.Digest != result.Artifact.Digest {
 		t.Fatalf("review change refreshed snapshot: %+v %v", replay, err)

@@ -11,6 +11,9 @@ import (
 	"testing"
 	"time"
 
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
+	artifactpgtest "github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 )
@@ -45,13 +48,19 @@ func (d *deadlineRecorder) SetWriteDeadline(deadline time.Time) error {
 }
 
 func TestReleaseBeforeWriteFreesTheSlotAndBoundsTheResponse(t *testing.T) {
-	ctx := blob.WithRuntime(context.Background(), blob.NewRuntime(nil, nil))
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
+	ctx := context.Background()
+	artifactRuntime = artifactpgtest.NewRuntime()
+	artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
 	request := httptest.NewRequestWithContext(ctx, http.MethodPut, "/artifact", nil)
 	recorders := make([]*deadlineRecorder, 4)
 	transfers := make([]*Transfer, 4)
 	for index := range transfers {
 		recorders[index] = &deadlineRecorder{ResponseRecorder: httptest.NewRecorder()}
-		_, transfer, err := Acquire(recorders[index], request)
+		_, transfer, err := Acquire(recorders[index], request, artifactStorage)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -63,7 +72,7 @@ func TestReleaseBeforeWriteFreesTheSlotAndBoundsTheResponse(t *testing.T) {
 		}
 	}()
 	rejected := &deadlineRecorder{ResponseRecorder: httptest.NewRecorder()}
-	if _, _, err := Acquire(rejected, request); !errors.Is(err, blob.ErrTransferCapacity) {
+	if _, _, err := Acquire(rejected, request, artifactStorage); !errors.Is(err, blob.ErrTransferCapacity) {
 		t.Fatalf("fifth transfer = %v, want capacity error", err)
 	}
 	if len(rejected.read)+len(rejected.write) != 0 {
@@ -76,7 +85,7 @@ func TestReleaseBeforeWriteFreesTheSlotAndBoundsTheResponse(t *testing.T) {
 	if written.Before(beforeWrite.Add(Duration(3<<20))) || written.After(time.Now().Add(Duration(3<<20))) {
 		t.Fatalf("response deadline = %s after the write began, want %s", written.Sub(beforeWrite), Duration(3<<20))
 	}
-	_, replacement, err := Acquire(rejected, request)
+	_, replacement, err := Acquire(rejected, request, artifactStorage)
 	if err != nil {
 		t.Fatalf("slot was not released before the response write: %v", err)
 	}
@@ -84,7 +93,7 @@ func TestReleaseBeforeWriteFreesTheSlotAndBoundsTheResponse(t *testing.T) {
 	// Repeated release and Close must not free a slot another request now holds.
 	transfers[0].ReleaseBeforeWrite(0)
 	transfers[0].Close()
-	if _, _, err := Acquire(&deadlineRecorder{ResponseRecorder: httptest.NewRecorder()}, request); !errors.Is(err, blob.ErrTransferCapacity) {
+	if _, _, err := Acquire(&deadlineRecorder{ResponseRecorder: httptest.NewRecorder()}, request, artifactStorage); !errors.Is(err, blob.ErrTransferCapacity) {
 		t.Fatalf("transfer after repeated release = %v, want capacity error", err)
 	}
 	for _, deadline := range append(recorders[0].read, recorders[0].write...) {
@@ -95,10 +104,16 @@ func TestReleaseBeforeWriteFreesTheSlotAndBoundsTheResponse(t *testing.T) {
 }
 
 func TestBoundWriteMeasuresTheResponseFromTheWrite(t *testing.T) {
-	ctx := blob.WithRuntime(context.Background(), blob.NewRuntime(nil, nil))
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
+	ctx := context.Background()
+	artifactRuntime = artifactpgtest.NewRuntime()
+	artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
 	recorder := &deadlineRecorder{ResponseRecorder: httptest.NewRecorder()}
 	request := httptest.NewRequestWithContext(ctx, http.MethodGet, "/artifact", nil)
-	_, transfer, err := Acquire(recorder, request)
+	_, transfer, err := Acquire(recorder, request, artifactStorage)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,9 +136,15 @@ func TestBoundWriteMeasuresTheResponseFromTheWrite(t *testing.T) {
 }
 
 func TestAcquireLeavesStorageWorkWithoutAClientDeadline(t *testing.T) {
-	ctx := blob.WithRuntime(context.Background(), blob.NewRuntime(nil, nil))
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
+	ctx := context.Background()
+	artifactRuntime = artifactpgtest.NewRuntime()
+	artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
 	recorder := &deadlineRecorder{ResponseRecorder: httptest.NewRecorder()}
-	admitted, transfer, err := Acquire(recorder, httptest.NewRequestWithContext(ctx, http.MethodPut, "/artifact", nil))
+	admitted, transfer, err := Acquire(recorder, httptest.NewRequestWithContext(ctx, http.MethodPut, "/artifact", nil), artifactStorage)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,7 +162,7 @@ func TestAcquireLeavesStorageWorkWithoutAClientDeadline(t *testing.T) {
 	if !ok || deadline.Before(started.Add(StorageBudget)) || deadline.After(time.Now().Add(StorageBudget)) {
 		t.Fatalf("storage deadline = %v (%t), want %s from the start of storage work", deadline, ok, StorageBudget)
 	}
-	if _, nested, err := blob.AcquireTransfer(storage); err != nil {
+	if _, nested, err := artifactStorage.AcquireTransfer(storage); err != nil {
 		t.Fatalf("storage work does not share the transfer lease: %v", err)
 	} else {
 		nested()
@@ -157,13 +178,19 @@ type failingReader struct{}
 func (failingReader) Read([]byte) (int, error) { return 0, errors.New("body must not be read") }
 
 func TestReadBodyAllocatesAtMostTheDeclaredBound(t *testing.T) {
-	ctx := blob.WithRuntime(context.Background(), blob.NewRuntime(nil, nil))
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
+	ctx := context.Background()
+	artifactRuntime = artifactpgtest.NewRuntime()
+	artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
 	read := func(body io.Reader, declared, limit int64) ([]byte, uint64, *deadlineRecorder, error) {
 		t.Helper()
 		request := httptest.NewRequestWithContext(ctx, http.MethodPut, "/artifact", body)
 		request.ContentLength = declared
 		recorder := &deadlineRecorder{ResponseRecorder: httptest.NewRecorder()}
-		admitted, transfer, err := Acquire(recorder, request)
+		admitted, transfer, err := Acquire(recorder, request, artifactStorage)
 		if err != nil {
 			t.Fatal(err)
 		}

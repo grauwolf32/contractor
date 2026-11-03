@@ -33,6 +33,10 @@ func decodeBoundedJSON(w http.ResponseWriter, r *http.Request, maximum int64, ta
 	if err != nil {
 		return fmt.Errorf("%w: read JSON body", errInvalidRequest)
 	}
+	return decodeRequestJSON(data, target)
+}
+
+func decodeRequestJSON(data []byte, target any) error {
 	if strictjson.HasNULEscape(data) {
 		return fmt.Errorf("%w: JSON body contains a NUL escape", errInvalidRequest)
 	}

@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -47,7 +49,7 @@ func TestAuditReportReviewExpiresOnCancelOrDelete(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			store := auditstoretest.NewStore(pool)
+			store := auditstoretest.NewStore(pool, artifactpgtest.NewStorage())
 			audit, _, err := store.CreateDraft(ctx, auditstore.CreateDraftParams{
 				AuditID: "audit-report-close-" + action,
 				OwnerID: project.OwnerID, ProjectID: project.ProjectID,
@@ -72,11 +74,11 @@ func TestAuditReportReviewExpiresOnCancelOrDelete(t *testing.T) {
 			}
 			waiting, candidate, claim := proposeReportForTest(t, ctx, pool, store, audit, "close-"+action)
 			requestID := candidate.RequestID
-			intake, err := findingintake.New(pool)
+			intake, err := findingintake.New(pool, artifactpgtest.NewStorage())
 			if err != nil {
 				t.Fatal(err)
 			}
-			service := &Service{pool: pool, findings: intake, now: time.Now}
+			service := &Service{storage: artifactpgtest.NewStorage(), pool: pool, findings: intake, now: time.Now}
 			before, err := service.GetWorkspace(ctx, audit.OwnerID, audit.AuditID)
 			if err != nil || before.PendingReviews != 1 {
 				t.Fatalf("workspace before closing report review = (%+v, %v)", before, err)

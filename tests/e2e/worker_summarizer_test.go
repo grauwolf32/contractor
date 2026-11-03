@@ -16,6 +16,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/localpki"
@@ -337,7 +339,7 @@ func loadSummarizerProcessReport(
 	runID string,
 ) telemetry.StoredAllocationReport {
 	t.Helper()
-	store := runstore.NewPostgresStore(pool)
+	store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	executions, err := store.ListStageExecutions(ctx, runID)
 	if err != nil || len(executions) != 1 {
 		t.Fatalf("%s StageExecutions = (%+v, %v), want one", runID, executions, err)
@@ -535,7 +537,7 @@ func runSummaryContinuationProcess(t *testing.T, ctx context.Context, server, ru
 	if len(status.Attempts) != 2 || status.Attempts[0].State != "failed" || status.Attempts[1].State != "succeeded" {
 		t.Fatalf("summary attempts: %+v", status.Attempts)
 	}
-	store := runstore.NewPostgresStore(pool)
+	store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	executions, err := store.ListStageExecutions(ctx, runID)
 	if err != nil || len(executions) != 2 {
 		t.Fatalf("continuation executions: %v", err)

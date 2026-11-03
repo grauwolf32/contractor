@@ -5,9 +5,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
+	artifactpolicy "github.com/grauwolf32/contractor/internal/artifacts/policy"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -162,7 +161,7 @@ func (s *Service) ListProjectSourceHistory(ctx context.Context, ownerID, project
 	if !owned {
 		return ProjectSourceHistoryPage{}, ErrNotFound
 	}
-	project, err := artifacts.NewService(artifactpostgres.NewRepository(s.pool)).Project(projectID)
+	project, err := artifacts.NewService(s.storage.Repository(s.pool)).Project(projectID)
 	if err != nil {
 		return ProjectSourceHistoryPage{}, err
 	}

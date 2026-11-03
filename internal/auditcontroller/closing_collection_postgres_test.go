@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -36,7 +38,7 @@ func TestPostgresClosingAuditRetainsLateChildFindingProposal(t *testing.T) {
 			harness := newPostgresControllerHarnessWithConfig(
 				t, ctx, 0, 1, loadControllerConfigWithFindings(t, 1, 10, true),
 			)
-			intake, err := findingintake.New(harness.pool)
+			intake, err := findingintake.New(harness.pool, artifactpgtest.NewStorage())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -61,7 +63,7 @@ func TestPostgresClosingAuditRetainsLateChildFindingProposal(t *testing.T) {
 			}
 			target := auditstore.AuditCancelled
 			if closing == auditstore.AuditCancelling {
-				service, err := auditservice.New(auditservice.Options{
+				service, err := auditservice.New(auditservice.Options{Storage: artifactpgtest.NewStorage(),
 					Pool: harness.pool, Profiles: harness.snapshot,
 					TransactionLLMCredentials: controllerTransactionCredentialLookup(),
 					CredentialGuard:           controllerCredentialGuard{},
@@ -140,7 +142,7 @@ SELECT (SELECT count(*) FROM finding_proposal_audit_holds WHERE audit_id = $1),
 				t.Fatalf("retained holds = %d, unexpected implicitly published Findings = %d", holds, findings)
 			}
 			if target == auditstore.AuditCompleted {
-				service, err := auditservice.New(auditservice.Options{
+				service, err := auditservice.New(auditservice.Options{Storage: artifactpgtest.NewStorage(),
 					Pool: harness.pool, Profiles: harness.snapshot,
 					TransactionLLMCredentials: controllerTransactionCredentialLookup(),
 					CredentialGuard:           controllerCredentialGuard{},
@@ -175,7 +177,7 @@ func TestPostgresCollectionRejectsOnlyInvalidChildFindingProposal(t *testing.T) 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	harness := newPostgresControllerHarnessWithConfig(t, ctx, 0, 1, loadControllerConfigWithFindings(t, 1, 10, true))
-	intake, err := findingintake.New(harness.pool)
+	intake, err := findingintake.New(harness.pool, artifactpgtest.NewStorage())
 	if err != nil {
 		t.Fatal(err)
 	}

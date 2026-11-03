@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	. "github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob"
@@ -48,8 +50,8 @@ func TestPostgresArtifactStorageDatesExactForkCASAndPurge(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
-	ctx = testBlobContext(t, ctx, pool)
-	service := NewService(artifactpostgres.NewRepository(pool))
+	artifactStorage := testBlobStorage(t, ctx, pool)
+	service := NewService(artifactStorage.Repository(pool))
 	user, _ := service.User("user-1")
 	payload := Payload{MediaType: "application/json", Data: []byte(`{"storageTimestamps":{"blobCreatedAt":"invented"}}`)}
 	first, err := user.Write(ctx, ArtifactRef{Namespace: "docs", Name: "source"}, payload, nil)
@@ -107,7 +109,7 @@ func TestPostgresArtifactStorageDatesExactForkCASAndPurge(t *testing.T) {
 		t.Fatalf("rejected CAS changed dates: %v", err)
 	}
 	scope, _ := RunScope("timestamp-fork")
-	if err := artifactpostgres.NewRepository(pool).Freeze(ctx, scope, "inputs"); err != nil {
+	if err := artifactStorage.Repository(pool).Freeze(ctx, scope, "inputs"); err != nil {
 		t.Fatal(err)
 	}
 	frozen, err := run.Metadata(ctx, fork.TargetRef)
@@ -118,7 +120,7 @@ func TestPostgresArtifactStorageDatesExactForkCASAndPurge(t *testing.T) {
 		t.Fatal("freeze changed immutable content dates")
 	}
 	// A Project output survives purge of its source Run with original dates.
-	project, outputRef := storageReviewProject(t, ctx, pool)
+	project, outputRef := storageReviewProject(t, ctx, pool, artifactpgtest.NewStorage())
 	published, err := publishOutput(ctx, service, "review-run", project.ProjectID, "result", outputRef)
 	if err != nil {
 		t.Fatal(err)
@@ -129,7 +131,7 @@ func TestPostgresArtifactStorageDatesExactForkCASAndPurge(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error {
-		p, err := artifactpostgres.NewPurger(tx)
+		p, err := artifactStorage.Purger(tx)
 		if err != nil {
 			return err
 		}
@@ -173,11 +175,15 @@ func assertStoredTimestampFacts(t *testing.T, ctx context.Context, pool *pgxpool
 }
 
 func TestPostgresArtifactStorageDatesBoundedPages(t *testing.T) {
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
 	ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
-	ctx = testBlobContext(t, ctx, pool)
-	store, _ := NewService(artifactpostgres.NewRepository(pool)).User("timestamp-pages")
+	artifactStorage = testBlobStorage(t, ctx, pool)
+	store, _ := NewService(artifactStorage.Repository(pool)).User("timestamp-pages")
 	seed, err := store.Write(ctx, ArtifactRef{Namespace: "docs", Name: "seed"}, Payload{MediaType: "text/plain", Data: []byte("seed")}, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -218,9 +224,12 @@ func TestPostgresArtifactStorageDatesBoundedPages(t *testing.T) {
 		t.Fatal(err)
 	}
 	reads := &timestampQueries{DBTX: tx}
-	repository := artifactpostgres.NewRepository(reads)
+	repository := artifactStorage.Repository(reads)
 	scope, _ := UserScope("timestamp-pages")
-	readCtx := blob.WithRuntime(ctx, blob.NewRuntime(timestampNoBlobs{}, nil))
+	readCtx := ctx
+	artifactRuntime = blob.NewRuntime(timestampNoBlobs{}, nil)
+	artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+	repository = artifactStorage.Repository(reads)
 	for _, size := range []int{7, 200} {
 		query := BindingPageQuery{Limit: size}
 		seen := map[string]bool{}
@@ -290,7 +299,7 @@ func TestPostgresArtifactStorageDatesRejectCorruption(t *testing.T) {
 	if _, err := pool.Exec(ctx, `INSERT INTO artifact_scopes(scope_kind,scope_id,created_at) VALUES('user','corrupt-date','0001-01-01T00:00:00Z')`); err != nil {
 		t.Fatal(err)
 	}
-	store, _ := NewService(artifactpostgres.NewRepository(pool)).User("corrupt-date")
+	store, _ := NewService(artifactpgtest.NewStorage().Repository(pool)).User("corrupt-date")
 	written, err := store.Write(ctx, ArtifactRef{Namespace: "docs", Name: "source"}, Payload{MediaType: "text/plain", Data: []byte("valid payload")}, nil)
 	if err != nil {
 		t.Fatal(err)

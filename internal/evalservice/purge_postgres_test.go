@@ -9,6 +9,8 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalstore"
 	"github.com/jackc/pgx/v5"
@@ -25,7 +27,7 @@ func TestSharedPostgresEvalPurgeYieldsBetweenTicksAndRefusesPartialReads(t *test
 	h := newHarness(t)
 	ctx := t.Context()
 	var logs bytes.Buffer
-	logged, err := New(Options{Pool: h.pool, Resolver: h.resolver, Driver: h.driver, Logger: slog.New(slog.NewJSONHandler(&logs, nil))})
+	logged, err := New(Options{Storage: artifactpgtest.NewStorage(), Pool: h.pool, Resolver: h.resolver, Driver: h.driver, Logger: slog.New(slog.NewJSONHandler(&logs, nil))})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -33,7 +35,7 @@ func TestSharedPostgresEvalPurgeYieldsBetweenTicksAndRefusesPartialReads(t *test
 	e := h.prepared(t, "workflow")
 	h.command(t, e, "start")
 	c := h.coordinator(t, "controller")
-	store := evalstore.NewPostgresStore(h.pool)
+	store := evalstore.NewPostgresStore(h.pool, artifactpgtest.NewStorage())
 	for n := 0; n < 40; n++ {
 		tick(t, c)
 		h.finishRuns(t)

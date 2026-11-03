@@ -115,3 +115,15 @@ func methodNotAllowed(w http.ResponseWriter, _ *http.Request) {
 func notFound(w http.ResponseWriter, _ *http.Request) {
 	writeError(w, apierror.NotFound, "")
 }
+
+// operationHandler keeps operation failures as errors until the HTTP boundary.
+// Successful operations still own their response status and body.
+type operationHandler func(http.ResponseWriter, *http.Request) error
+
+func serve(next operationHandler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if err := next(w, r); err != nil {
+			handleError(w, err)
+		}
+	}
+}

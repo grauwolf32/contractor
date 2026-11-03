@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
@@ -49,7 +51,7 @@ func TestEngagementPlacementFailsClosedOnRequirementRead(t *testing.T) {
 			if unavailable && !errors.Is(err, context.DeadlineExceeded) || !unavailable && !errors.Is(err, ErrInsufficientCapacity) {
 				t.Fatal(err)
 			}
-			allocations, err := runstore.NewPostgresStore(pool).ListStageAllocations(ctx, fixture.stageExecutionID)
+			allocations, err := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()).ListStageAllocations(ctx, fixture.stageExecutionID)
 			if err != nil || len(allocations) != 0 {
 				t.Fatal("ineligible allocation became durable", allocations, err)
 			}
@@ -80,7 +82,7 @@ func TestEngagementPlacementCombinesConfiguredAndAuditAdapters(t *testing.T) {
 				if !errors.Is(err, ErrInsufficientCapacity) {
 					t.Fatalf("placement error = %v", err)
 				}
-				allocations, readErr := runstore.NewPostgresStore(pool).ListStageAllocations(ctx, fixture.stageExecutionID)
+				allocations, readErr := runstore.NewPostgresStore(pool, fixture.allocator.storage).ListStageAllocations(ctx, fixture.stageExecutionID)
 				if readErr != nil || len(allocations) != 0 {
 					t.Fatalf("partial allocations = %v, err = %v", allocations, readErr)
 				}

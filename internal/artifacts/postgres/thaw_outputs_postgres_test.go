@@ -6,9 +6,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	. "github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
@@ -23,7 +24,7 @@ func TestPostgresThawOutputsOnlyInsideARunContinuation(t *testing.T) {
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
 	createArtifactRun(t, ctx, pool, "thaw-run", true)
-	service := NewService(artifactpostgres.NewRepository(pool))
+	service := NewService(artifactpgtest.NewStorage().Repository(pool))
 	run, err := service.Run("thaw-run")
 	if err != nil {
 		t.Fatal(err)
@@ -45,7 +46,7 @@ func TestPostgresThawOutputsOnlyInsideARunContinuation(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error {
-		return artifactpostgres.NewTxRepository(tx).ThawOutputs(ctx, project)
+		return artifactpgtest.NewStorage().TxRepository(tx).ThawOutputs(ctx, project)
 	}); !errors.Is(err, ErrInvalidScope) {
 		t.Fatalf("thaw of a ProjectScope = %v", err)
 	}
@@ -54,7 +55,7 @@ func TestPostgresThawOutputsOnlyInsideARunContinuation(t *testing.T) {
 		t.Fatal(err)
 	}
 	err = pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error {
-		return artifactpostgres.NewTxRepository(tx).ThawOutputs(ctx, scope)
+		return artifactpgtest.NewStorage().TxRepository(tx).ThawOutputs(ctx, scope)
 	})
 	if persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation {
 		t.Fatalf("thaw without a continuation receipt = %v", err)

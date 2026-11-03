@@ -21,7 +21,7 @@ func TestAuditEventPaginationAndCursorBinding(t *testing.T) {
 		r := auditAuthenticatedRequest(http.MethodGet, path, nil)
 		r.SetPathValue("auditId", auditID)
 		w := httptest.NewRecorder()
-		h.listAuditEvents(w, r)
+		serve(h.listAuditEvents)(w, r)
 		return w
 	}
 	w := read("/v1/audits/audit-1/events?limit=200", "audit-1")

@@ -6,7 +6,7 @@ epic: projects-artifacts
 kind: chore
 introduced_by: V370-016
 priority: P2
-status: pending
+status: in_progress
 depends_on: [V437-004]
 languages: [go]
 goal: "Storage runtime and retention policy are explicit process dependencies that survive transaction binding without context configuration."
@@ -23,6 +23,9 @@ context:
     Follow-up only. Review constructor impact before implementation, using the
     existing store owners and one process runtime. No global registry, second
     store, feature-specific service locator or implicit optional dependency.
+  resumption: >-
+    User decision 2026-11-02: take V437-005 now after merging the package split,
+    including all affected constructors and composition.
   scope_decision: >-
     User decision 2026-11-02 after scope clarification: complete fixes, optimization
     and package separation now; leave full runtime/history dependency injection
@@ -31,6 +34,15 @@ context:
     blob/runtime.go WithRuntime and postgres/history_policy.go WithHistoryPolicy keep process dependencies in context; a fresh operation context can lose transfer admission, backend selection and configured retention limits.
   siblings: >-
     Migrate every constructor, transaction-bound repository, purger, transport transfer caller and tests; update layer classification, ownership registry, ERD, release selectors and source guards.
+  implementation_boundary: >-
+    Decision 2026-11-02: one postgres.Storage owns the process blob runtime and
+    immutable history policy. Its Repository, TxRepository and Purger factories
+    bind the caller's DBTX without changing those dependencies. Composition passes
+    the same Storage through affected subsystem constructors and transfer ports.
+    Context retains only cancellation, deadlines and an active transfer lease.
+    Passing runtime and policy separately through every binding was rejected
+    because it lets consumers pair unrelated admission and retention dependencies.
+    Revisit this owner only when a concrete backend needs another process dependency.
   boundary: >-
     ArtifactStore owns normalized identity, revisions, history, lineage and
     persistence. Payload backends own physical byte operations. Domain callers

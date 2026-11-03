@@ -20,6 +20,8 @@ import (
 // logical owner binding: only the exact source outcome already committed on
 // WorkflowRun is accepted.
 type runSkillInitializer struct {
+	storage *artifactpostgres.Storage
+
 	pool *pgxpool.Pool
 }
 
@@ -32,7 +34,7 @@ func (i *runSkillInitializer) InitializeRunSkills(
 	}
 	var result runstore.WorkflowRun
 	err := persistencepostgres.InTx(ctx, i.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		store := runstore.NewPostgresTxStore(tx)
+		store := runstore.NewPostgresTxStore(tx, i.storage)
 		run, err := store.LockRunSkillInitialization(ctx, runID)
 		if err != nil {
 			return err
@@ -51,7 +53,7 @@ func (i *runSkillInitializer) InitializeRunSkills(
 		if err != nil || !sameSelectedSkillNames(refs, run.SkillSnapshot) {
 			return invalidPinnedSkillSnapshot()
 		}
-		service := artifacts.NewService(artifactpostgres.NewRepository(tx))
+		service := artifacts.NewService(i.storage.Repository(tx))
 		catalog, err := agentskills.NewCatalog(service)
 		if err != nil {
 			return err
@@ -77,7 +79,7 @@ func (i *runSkillInitializer) InitializeRunSkills(
 
 	var skillErr *agentskills.RunSkillError
 	if !errors.As(err, &skillErr) || skillErr.Retryable {
-		current, loadErr := runstore.NewPostgresStore(i.pool).GetRun(ctx, runID)
+		current, loadErr := runstore.NewPostgresStore(i.pool, i.storage).GetRun(ctx, runID)
 		if loadErr == nil {
 			result = current
 		}
@@ -97,7 +99,7 @@ func (i *runSkillInitializer) failPermanent(
 ) (runstore.WorkflowRun, error) {
 	var result runstore.WorkflowRun
 	err := persistencepostgres.InTx(ctx, i.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		store := runstore.NewPostgresTxStore(tx)
+		store := runstore.NewPostgresTxStore(tx, i.storage)
 		current, err := store.LockRunSkillInitialization(ctx, runID)
 		if err != nil {
 			return err

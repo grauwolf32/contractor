@@ -1,4 +1,4 @@
-package artifactpreview
+package preview
 
 import (
 	"archive/zip"

@@ -18,6 +18,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -147,7 +149,7 @@ func TestCodeAnalysisAcrossHeterogeneousRuntimeProcesses(t *testing.T) {
 		t.Fatalf("open code-analysis assertion database: %v", err)
 	}
 	t.Cleanup(pool.Close)
-	store := runstore.NewPostgresStore(pool)
+	store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 
 	graphInitialID := createCodeAnalysisRun(
 		t, publicClient, publicBaseURL, "code-analysis-graph-e2e@1",

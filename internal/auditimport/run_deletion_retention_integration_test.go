@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
@@ -44,9 +46,9 @@ func TestPostgresContractInvalidCollectionRetainsProposalAfterRunDeletion(t *tes
 	})
 
 	execution, snapshot := f.terminal(t, runstore.RunFailed)
-	access, err := NewArtifactAccess(f.artifacts, hookstore.NewClaimedArtifacts(f.pool))
+	access, err := NewArtifactAccess(f.artifacts, hookstore.NewClaimedArtifacts(f.pool, artifactpgtest.NewStorage()))
 	mustCompletion(t, err)
-	intake, err := findingintake.New(f.pool)
+	intake, err := findingintake.New(f.pool, artifactpgtest.NewStorage())
 	mustCompletion(t, err)
 	importer, err := New(f.audits, f.audits, f.runs,
 		invalidTaskArtifactAccess{ArtifactAccess: access, task: f.tasks[0].Ref}, intake)
@@ -62,7 +64,7 @@ SELECT collection_disposition FROM audit_executions WHERE execution_id = $1`,
 	if disposition != string(auditstore.CollectionContractInvalid) {
 		t.Fatalf("collection disposition = %q", disposition)
 	}
-	mustCompletion(t, rundeletion.New(f.pool).DeleteReleasedTerminalRun(f.ctx, "owner", f.run.RunID))
+	mustCompletion(t, rundeletion.New(f.pool, artifactpgtest.NewStorage()).DeleteReleasedTerminalRun(f.ctx, "owner", f.run.RunID))
 	var retention string
 	mustCompletion(t, f.pool.QueryRow(f.ctx, `
 SELECT retention_state FROM finding_proposal_receipts WHERE receipt_id = $1`, receiptID).Scan(&retention))
@@ -121,7 +123,7 @@ INSERT INTO finding_proposal_receipts (
 , json_build_object('schema','contractor.audit.finding-checks-projection.v1','proposal_digest',($2)::text,'size_bytes',(2)::bigint,'discarded',false,'subject',NULL,'limitations',NULL,'checks','[]'::json))`, id, completionDigest([]byte(id)), f.run.RunID, f.id, f.execution.ExecutionID, string(proposalRef))
 		mustCompletion(t, err)
 	}
-	access, err := NewArtifactAccess(f.artifacts, hookstore.NewClaimedArtifacts(f.pool))
+	access, err := NewArtifactAccess(f.artifacts, hookstore.NewClaimedArtifacts(f.pool, artifactpgtest.NewStorage()))
 	mustCompletion(t, err)
 	importer, err := New(f.audits, f.audits, f.runs, access)
 	mustCompletion(t, err)
@@ -138,7 +140,7 @@ INSERT INTO finding_proposal_receipts (
 SELECT jsonb_agg(to_jsonb(receipt) - ARRAY['retention_state', 'source_run_deleted_at', 'discarded_at', 'retention_updated_at', 'report_projection', 'fingerprint_projection', 'anchor_projection', 'comparison_projection', 'checks_projection', 'checks_projection_bytes', 'checks_projection_count']
                  ORDER BY receipt_id)
 FROM finding_proposal_receipts AS receipt WHERE run_id = $1`, f.run.RunID).Scan(&original))
-	mustCompletion(t, rundeletion.New(f.pool).DeleteReleasedTerminalRun(f.ctx, "owner", f.run.RunID))
+	mustCompletion(t, rundeletion.New(f.pool, artifactpgtest.NewStorage()).DeleteReleasedTerminalRun(f.ctx, "owner", f.run.RunID))
 	after, err := f.audits.Get(f.ctx, "owner", f.id)
 	mustCompletion(t, err)
 	if after.Revision != before.Revision+1 || !after.UpdatedAt.After(before.UpdatedAt) {
@@ -215,9 +217,9 @@ func TestImporterFinalizesHeldFindingReportAfterSourceRunDeletion(t *testing.T) 
 	submit, release := realFindingReportIntake(t, f)
 	receiptID := submit(document)
 	release()
-	access, err := NewArtifactAccess(f.artifacts, hookstore.NewClaimedArtifacts(f.pool))
+	access, err := NewArtifactAccess(f.artifacts, hookstore.NewClaimedArtifacts(f.pool, artifactpgtest.NewStorage()))
 	mustCompletion(t, err)
-	intake, err := findingintake.New(f.pool)
+	intake, err := findingintake.New(f.pool, artifactpgtest.NewStorage())
 	mustCompletion(t, err)
 	importer, err := New(f.audits, f.audits, f.runs, access, intake)
 	mustCompletion(t, err)
@@ -226,7 +228,7 @@ func TestImporterFinalizesHeldFindingReportAfterSourceRunDeletion(t *testing.T) 
 		t.Fatalf("collect retained candidate: worked=%v, err=%v", worked, err)
 	}
 	finishReportDeletionFixture(t, f)
-	mustCompletion(t, rundeletion.New(f.pool).DeleteReleasedTerminalRun(f.ctx, "owner", f.run.RunID))
+	mustCompletion(t, rundeletion.New(f.pool, artifactpgtest.NewStorage()).DeleteReleasedTerminalRun(f.ctx, "owner", f.run.RunID))
 	var retention string
 	mustCompletion(t, f.pool.QueryRow(f.ctx, "SELECT retention_state FROM finding_proposal_receipts WHERE receipt_id=$1", receiptID).Scan(&retention))
 	if retention != string(findingintake.RetentionProjectHeld) {
@@ -274,9 +276,9 @@ func TestImporterReportsFirstReceiptPreconditionsAfterHumanConfirmation(t *testi
 	later.Preconditions = []string{"A different condition from a later source."}
 	submit(later)
 	release()
-	access, err := NewArtifactAccess(f.artifacts, hookstore.NewClaimedArtifacts(f.pool))
+	access, err := NewArtifactAccess(f.artifacts, hookstore.NewClaimedArtifacts(f.pool, artifactpgtest.NewStorage()))
 	mustCompletion(t, err)
-	intake, err := findingintake.New(f.pool)
+	intake, err := findingintake.New(f.pool, artifactpgtest.NewStorage())
 	mustCompletion(t, err)
 	importer, err := New(f.audits, f.audits, f.runs, access, intake)
 	mustCompletion(t, err)
@@ -295,7 +297,7 @@ func TestImporterReportsFirstReceiptPreconditionsAfterHumanConfirmation(t *testi
 	}
 
 	finishReportDeletionFixture(t, f)
-	mustCompletion(t, rundeletion.New(f.pool).DeleteReleasedTerminalRun(f.ctx, "owner", f.run.RunID))
+	mustCompletion(t, rundeletion.New(f.pool, artifactpgtest.NewStorage()).DeleteReleasedTerminalRun(f.ctx, "owner", f.run.RunID))
 	snapshot, err = f.audits.GetReconcileSnapshot(f.ctx, f.claim)
 	mustCompletion(t, err)
 	if worked, err := importer.Finalize(f.ctx, f.claim, snapshot); err != nil || !worked {
@@ -366,7 +368,7 @@ func realFindingReportIntake(t *testing.T, f *completionFixture) (func(auditdoma
 	mustCompletion(t, f.runs.RecordStageAllocation(f.ctx, allocation))
 	grant := controlplane.AllocationGrant{AllocationID: allocation.AllocationID, RuntimeAgentID: allocation.RuntimeAgentID, RuntimeInstanceID: allocation.RuntimeAgentInstanceID,
 		RunID: f.run.RunID, StageExecutionID: execution.StageExecutionID, LogicalAgentName: "checker", Namespace: binding.Namespace}
-	intake, err := findingintake.New(f.pool)
+	intake, err := findingintake.New(f.pool, artifactpgtest.NewStorage())
 	mustCompletion(t, err)
 
 	runScope, err := f.artifacts.Run(f.run.RunID)

@@ -8,8 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
@@ -22,7 +23,7 @@ import (
 func scopeDataset(t *testing.T, h *serviceHarness, sourceScope, kind string) (evaldomain.Draft, evaldomain.DatasetInput, contracts.ArtifactRef) {
 	t.Helper()
 	draft, data := h.dataset(t, "workflow")
-	service := artifacts.NewService(artifactpostgres.NewRepository(h.pool))
+	service := artifacts.NewService(artifactpgtest.NewStorage().Repository(h.pool))
 	source, _ := service.User(h.scope.OwnerID)
 	scopeID := h.scope.OwnerID
 	if sourceScope == "project" {
@@ -104,7 +105,7 @@ func TestSharedPostgresEvalUserRulepackCreatesRun(t *testing.T) {
 				t.Fatalf("prepared state=%s diagnostic=%s", e.State, e.Diagnostic)
 			}
 			if mode == "user" {
-				user, _ := artifacts.NewService(artifactpostgres.NewRepository(h.pool)).User(h.scope.OwnerID)
+				user, _ := artifacts.NewService(artifactpgtest.NewStorage().Repository(h.pool)).User(h.scope.OwnerID)
 				if _, err := user.Write(t.Context(), contracts.ArtifactRef{Namespace: pack.Namespace, Name: pack.Name}, artifacts.Payload{MediaType: "application/yaml", Data: []byte("id: newer-rule\n")}, pack.Revision); err != nil {
 					t.Fatal(err)
 				}
@@ -128,7 +129,7 @@ func assertScopeRun(t *testing.T, h *serviceHarness, original contracts.Artifact
 	if err := h.pool.QueryRow(t.Context(), `SELECT run_id FROM workflow_runs`).Scan(&id); err != nil {
 		t.Fatal(err)
 	}
-	store, _ := artifacts.NewService(artifactpostgres.NewRepository(h.pool)).Run(id)
+	store, _ := artifacts.NewService(artifactpgtest.NewStorage().Repository(h.pool)).Run(id)
 	for slot, want := range map[string]string{"task": "fixture ZIP is not executed", "rulepack": "id: fixture-rule\n"} {
 		read, err := store.Read(t.Context(), contracts.ArtifactRef{Namespace: "inputs", Name: slot})
 		if slot == "rulepack" && !withPack {
@@ -257,7 +258,7 @@ func TestSharedPostgresEvalSourceScopesForNativeAndExternalMembers(t *testing.T)
 				assertScopeRun(t, h, pack, true)
 				return
 			}
-			sub, err := evalstore.NewPostgresStore(h.pool).Submission(t.Context(), h.scope.OwnerID, e.ID, member)
+			sub, err := evalstore.NewPostgresStore(h.pool, artifactpgtest.NewStorage()).Submission(t.Context(), h.scope.OwnerID, e.ID, member)
 			if err != nil || sub.ExecutionID == nil {
 				t.Fatalf("Audit submission: %+v %v", sub, err)
 			}
@@ -269,7 +270,7 @@ func TestSharedPostgresEvalSourceScopesForNativeAndExternalMembers(t *testing.T)
 			if err != nil {
 				t.Fatal(err)
 			}
-			store, _ := artifacts.NewService(artifactpostgres.NewRepository(h.pool)).Project(audit.ProjectID)
+			store, _ := artifacts.NewService(artifactpgtest.NewStorage().Repository(h.pool)).Project(audit.ProjectID)
 			read, err := store.ReadExact(t.Context(), baseline.Inputs["rulepack"])
 			if err != nil || string(read.Payload.Data) != "id: fixture-rule\n" || audit.ProjectID == h.scope.ProjectID {
 				t.Fatalf("Audit must stage its exact rulepack in its execution Project: %v", err)
@@ -330,7 +331,7 @@ func TestSharedPostgresEvalMissingRulepackAfterIntentCancelsAndPurges(t *testing
 	for n := 0; n < 4; n++ {
 		tick(t, c)
 	}
-	if _, err := evalstore.NewPostgresStore(h.pool).Get(t.Context(), h.scope.OwnerID, e.ID); !notFound(err) {
+	if _, err := evalstore.NewPostgresStore(h.pool, artifactpgtest.NewStorage()).Get(t.Context(), h.scope.OwnerID, e.ID); !notFound(err) {
 		t.Fatalf("rejected member blocked Eval purge: %v", err)
 	}
 }
@@ -343,7 +344,7 @@ func TestSharedPostgresEvalRulepackExactReplayAndCleanup(t *testing.T) {
 	tick(t, c)
 	tick(t, c) // Ordinary Run commits; the harness loses its response.
 	id := assertScopeRun(t, h, pack, true)
-	user, _ := artifacts.NewService(artifactpostgres.NewRepository(h.pool)).User(h.scope.OwnerID)
+	user, _ := artifacts.NewService(artifactpgtest.NewStorage().Repository(h.pool)).User(h.scope.OwnerID)
 	advanced, err := user.Write(t.Context(), contracts.ArtifactRef{Namespace: pack.Namespace, Name: pack.Name}, artifacts.Payload{MediaType: "application/yaml", Data: []byte("id: replacement-rule\n")}, pack.Revision)
 	if err != nil {
 		t.Fatal(err)
@@ -357,7 +358,7 @@ func TestSharedPostgresEvalRulepackExactReplayAndCleanup(t *testing.T) {
 		t.Fatalf("replay cancellation: %s %d", got.State, got.Outstanding)
 	}
 	assertScopeRun(t, h, pack, true)
-	if err := rundeletion.New(h.pool).DeleteReleasedTerminalRun(t.Context(), h.scope.OwnerID, id); err != nil {
+	if err := rundeletion.New(h.pool, artifactpgtest.NewStorage()).DeleteReleasedTerminalRun(t.Context(), h.scope.OwnerID, id); err != nil {
 		t.Fatal(err)
 	}
 	read, err := user.Read(t.Context(), advanced.Ref)

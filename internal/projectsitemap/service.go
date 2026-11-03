@@ -8,9 +8,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	artifactpolicy "github.com/grauwolf32/contractor/internal/artifacts/policy"
 	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
@@ -23,9 +22,14 @@ import (
 
 // Service is the production publication boundary. Every store involved in a
 // mutation uses the same transaction, including the common Artifact writer.
-type Service struct{ pool *pgxpool.Pool }
+type Service struct {
+	storage *artifactpostgres.Storage
+	pool    *pgxpool.Pool
+}
 
-func NewService(pool *pgxpool.Pool) *Service { return &Service{pool: pool} }
+func NewService(pool *pgxpool.Pool, storage *artifactpostgres.Storage) *Service {
+	return &Service{storage: storage, pool: pool}
+}
 
 type Result struct {
 	Ref      contracts.ArtifactRef `json:"artifact"`
@@ -77,7 +81,7 @@ func (s *Service) Mutate(ctx context.Context, a Authority, idempotencyKey string
 	var result Result
 	err := s.mutationTransaction(ctx, appendCompatible, func(ctx context.Context, tx pgx.Tx) error {
 		var err error
-		result, err = mutateTransaction(ctx, tx, a, idempotencyKey, m)
+		result, err = mutateTransaction(ctx, tx, a, idempotencyKey, m, s.storage)
 		return err
 	})
 	return result, err
@@ -95,7 +99,7 @@ func (s *Service) mutationTransaction(ctx context.Context, appendCompatible bool
 			return contracts.ErrIdempotencyConflict
 		}
 		if errors.Is(err, artifacts.ErrHistoryMaintenancePending) {
-			return artifactpostgres.NewRepository(s.pool).MaintainHistory(ctx, err)
+			return s.storage.Repository(s.pool).MaintainHistory(ctx, err)
 		}
 		if err == nil || (!postgres.IsTransactionConflict(err) && !(appendCompatible && errors.Is(err, artifacts.ErrArtifactConflict))) {
 			return err
@@ -128,7 +132,7 @@ type projectedObservation struct {
 	Omitted          bool              `json:"omitted"`
 }
 
-func mutateTransaction(ctx context.Context, tx pgx.Tx, a Authority, idempotencyKey string, m Mutation) (Result, error) {
+func mutateTransaction(ctx context.Context, tx pgx.Tx, a Authority, idempotencyKey string, m Mutation, storage *artifactpostgres.Storage) (Result, error) {
 	if err := checkProject(ctx, tx, a.OwnerID, a.ProjectID, true); err != nil {
 		return Result{}, err
 	}
@@ -140,7 +144,7 @@ func mutateTransaction(ctx context.Context, tx pgx.Tx, a Authority, idempotencyK
 	if err != nil {
 		return Result{}, err
 	}
-	service := artifacts.NewService(artifactpostgres.NewTxRepository(tx))
+	service := artifacts.NewService(storage.TxRepository(tx))
 	store, err := service.Project(a.ProjectID)
 	if err != nil {
 		return Result{}, err
@@ -155,7 +159,7 @@ func mutateTransaction(ctx context.Context, tx pgx.Tx, a Authority, idempotencyK
 		}
 		policy = record.Policy
 	} else {
-		admitted, release, err := blob.AcquireTransfer(ctx)
+		admitted, release, err := storage.AcquireTransfer(ctx)
 		if err != nil {
 			return Result{}, err
 		}

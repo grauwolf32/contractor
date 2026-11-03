@@ -3,6 +3,7 @@ package public
 import (
 	"bytes"
 	"encoding/json"
+	"github.com/grauwolf32/contractor/internal/runservice"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -11,9 +12,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auth"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
@@ -30,14 +32,14 @@ func TestPostgresRunRepeatUsesExactCreationLineageWithoutMutation(t *testing.T) 
 	ctx := t.Context()
 	pool := isolatedPublicPool(t, ctx)
 	fixture := newHandlerFixture(t)
-	repository := artifactpostgres.NewRepository(pool)
+	repository := artifactpgtest.NewStorage().Repository(pool)
 	service := artifacts.NewService(repository)
-	runs := runstore.NewPostgresStore(pool)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	projects := projectstore.NewPostgresStore(pool)
-	h := &runRepeatHandlers{RunRepeatDependencies: RunRepeatDependencies{
+	h := &runRepeatHandlers{RunRepeatDependencies: RunRepeatDependencies{RepeatDrafts: runservice.NewRepeatReader(runservice.RepeatOptions{
 		Runs: runs, Artifacts: service, Projects: projects,
 		Config: fixture.configs, Credentials: fixture.credentials, RuntimeConfigs: fixture.runtimeConfigs,
-	}}
+	})}}
 	// Include payload bytes, revisions, clocks, pins, lineage and Run events so
 	// repeated projections cannot quietly repair history or create another Run.
 	storedState := func() map[string]string {
@@ -163,7 +165,7 @@ func TestPostgresRunRepeatUsesExactCreationLineageWithoutMutation(t *testing.T) 
 						request := httptest.NewRequest(http.MethodGet, "/v1/runs/"+runID+"/repeat-draft", nil).WithContext(auth.WithPrincipal(ctx, auth.Principal{UserID: "user-1"}))
 						request.SetPathValue("runId", runID)
 						response := httptest.NewRecorder()
-						h.getRunRepeatDraft(response, request)
+						serve(h.getRunRepeatDraft)(response, request)
 						var repeat runRepeatDraftResponse
 						decodeQueryResponse(t, response, &repeat)
 						if response.Code != http.StatusOK || repeat.Authority != repeatAuthorityOrdinary {
@@ -204,8 +206,8 @@ func TestPostgresRepeatRefusesChangedInputSourceScope(t *testing.T) {
 	ctx := t.Context()
 	pool := isolatedPublicPool(t, ctx)
 	fixture := newHandlerFixture(t)
-	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
-	runs := runstore.NewPostgresStore(pool)
+	service := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	projects := projectstore.NewPostgresStore(pool)
 	project, _, err := projects.Create(ctx, projectstore.CreateParams{ProjectID: "scope-drift-project", OwnerID: "user-1", Kind: projectstore.KindProject, Name: "Scope drift", IdempotencyKey: "scope-drift-project", RequestDigest: "sha256:" + strings.Repeat("a", 64)})
 	if err != nil {
@@ -227,11 +229,11 @@ func TestPostgresRepeatRefusesChangedInputSourceScope(t *testing.T) {
 	if _, err := runs.TransitionRun(ctx, runID, runstore.RunInitializing, runstore.RunFailed, runstore.Reason{Code: "fixture-complete"}); err != nil {
 		t.Fatal(err)
 	}
-	h := &runRepeatHandlers{RunRepeatDependencies: RunRepeatDependencies{Runs: runs, Projects: projects, Artifacts: service, Config: fixture.configs, Credentials: fixture.credentials, RuntimeConfigs: fixture.runtimeConfigs}}
+	h := &runRepeatHandlers{RunRepeatDependencies: RunRepeatDependencies{RepeatDrafts: runservice.NewRepeatReader(runservice.RepeatOptions{Runs: runs, Projects: projects, Artifacts: service, Config: fixture.configs, Credentials: fixture.credentials, RuntimeConfigs: fixture.runtimeConfigs})}}
 	request := httptest.NewRequest(http.MethodGet, "/v1/runs/"+runID+"/repeat-draft", nil).WithContext(auth.WithPrincipal(ctx, auth.Principal{UserID: "user-1"}))
 	request.SetPathValue("runId", runID)
 	response := httptest.NewRecorder()
-	h.getRunRepeatDraft(response, request)
+	serve(h.getRunRepeatDraft)(response, request)
 	var repeat runRepeatDraftResponse
 	decodeQueryResponse(t, response, &repeat)
 	if response.Code != http.StatusOK || repeat.Draft == nil || repeat.Draft.Inputs["rulepack"].Status != repeatStatusUnavailable || !hasRepeatNotice(repeat.Notices, "input_source_scope_changed") {

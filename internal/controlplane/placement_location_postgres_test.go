@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -75,7 +77,7 @@ func TestPlacementLocationWaitsForMatchingFleetAndRetainsProvenance(t *testing.T
 			if len(f.registry.SnapshotOperations().Allocations) != 0 {
 				t.Fatal("partial placement consumed a slot")
 			}
-			store := runstore.NewPostgresStore(pool)
+			store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 			stage, err := store.GetStageExecution(ctx, f.stageExecutionID)
 			if err != nil || stage.AdmittedAt != nil {
 				t.Fatalf("capacity waiting was admitted: %+v, %v", stage, err)
@@ -123,7 +125,7 @@ func TestPlacementLocationWaitsForMatchingFleetAndRetainsProvenance(t *testing.T
 			if len(fresh.SnapshotOperations().RuntimeAgents) != 0 {
 				t.Fatal("new Registry unexpectedly has live fleet")
 			}
-			retained, err = runstore.NewPostgresStore(pool).ListStageAllocations(ctx, f.stageExecutionID)
+			retained, err = runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()).ListStageAllocations(ctx, f.stageExecutionID)
 			if err != nil || len(retained) != 2 || retained[0].RuntimePlacementLabels[0] == "local/lab" {
 				t.Fatalf("history depends on live fleet or aliases caller memory: %+v, %v", retained, err)
 			}

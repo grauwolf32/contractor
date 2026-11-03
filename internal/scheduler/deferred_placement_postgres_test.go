@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	inline "github.com/grauwolf32/contractor/internal/artifacts/blob/backends/postgres"
@@ -101,23 +103,28 @@ type deferredPlacementHarness struct {
 }
 
 func TestPostgresPlannerMetadataInspectionWithTransferSlotsSaturated(t *testing.T) {
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	h := newDeferredPlacementHarness(t, ctx, nil)
-	service := artifacts.NewService(artifactpostgres.NewRepository(h.pool))
+	service := artifacts.NewService(artifactStorage.Repository(h.pool))
 	inspector, err := planner.NewArtifactServiceInspector(service)
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx = blob.WithRuntime(ctx, blob.NewRuntime(inline.Store{}, nil))
+	artifactRuntime = blob.NewRuntime(inline.Store{}, nil)
+	artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
 	for range 4 {
-		_, release, err := blob.AcquireTransfer(ctx)
+		_, release, err := artifactStorage.AcquireTransfer(ctx)
 		if err != nil {
 			t.Fatal(err)
 		}
 		t.Cleanup(release)
 	}
-	if _, _, err := blob.AcquireTransfer(ctx); !errors.Is(err, blob.ErrTransferCapacity) {
+	if _, _, err := artifactStorage.AcquireTransfer(ctx); !errors.Is(err, blob.ErrTransferCapacity) {
 		t.Fatalf("transfer gate was not saturated: %v", err)
 	}
 	ref := h.invoker.result.Artifacts["copied"]
@@ -141,8 +148,8 @@ func newDeferredPlacementHarness(t *testing.T, ctx context.Context, wrap func(At
 	for _, configureWorkflow := range configure {
 		configureWorkflow(&workflow)
 	}
-	store := runstore.NewPostgresStore(pool)
-	artifactService := artifacts.NewService(artifactpostgres.NewRepository(pool))
+	store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
+	artifactService := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
 	runStore := createSchedulerRun(t, ctx, store, artifactService, workflow)
 	workerWrite, err := runStore.Write(ctx, contracts.ArtifactRef{Namespace: "builder", Name: "copied"},
 		artifacts.Payload{MediaType: "text/plain", Data: []byte("copied\n")}, nil)
@@ -181,7 +188,7 @@ func newDeferredPlacementHarness(t *testing.T, ctx context.Context, wrap func(At
 	}
 	workers := &memoryWorkers{allocator: allocator, workflow: workflow, clock: clock, events: events}
 	resolver, _ := NewArtifactServiceResolver(artifactService)
-	transactions, _ := NewPostgresPersistence(pool)
+	transactions, _ := NewPostgresPersistence(pool, artifactpgtest.NewStorage())
 	var persistence AtomicPersistence = transactions
 	if wrap != nil {
 		persistence = wrap(persistence)
@@ -670,7 +677,7 @@ func TestPostgresFailActiveRunAcceptsFinalizingCandidateAndReleasesAllocations(t
 			if _, err := h.workers.allocator.GetGrant(allocations[0].AllocationID); !errors.Is(err, controlplane.ErrAllocationNotFound) {
 				t.Fatalf("allocation grant after recovery = %v", err)
 			}
-			if err := rundeletion.New(h.pool).DeleteReleasedTerminalRun(ctx, "user-1", "run-1"); err != nil {
+			if err := rundeletion.New(h.pool, artifactpgtest.NewStorage()).DeleteReleasedTerminalRun(ctx, "user-1", "run-1"); err != nil {
 				t.Fatalf("delete released terminal Run: %v", err)
 			}
 		})

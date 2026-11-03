@@ -80,16 +80,14 @@ func correlationQueryID(query url.Values, key string, required bool) bool {
 	return contracts.ValidResourceID(values[0])
 }
 
-func (h *auditHandlers) listFindingDuplicateCandidates(w http.ResponseWriter, r *http.Request) {
+func (h *auditHandlers) listFindingDuplicateCandidates(w http.ResponseWriter, r *http.Request) error {
 	w.Header().Set("Cache-Control", "no-store")
 	query, limit, cursor, err := findingCorrelationQuery(r, "scope", "targetAuditId", "sourceReceiptId")
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	if !correlationQueryID(query, "targetAuditId", false) || !correlationQueryID(query, "sourceReceiptId", false) {
-		handleError(w, errInvalidRequest)
-		return
+		return errInvalidRequest
 	}
 	scope := query.Get("scope")
 	if _, ok := query["scope"]; !ok {
@@ -99,48 +97,42 @@ func (h *auditHandlers) listFindingDuplicateCandidates(w http.ResponseWriter, r 
 	kind := findingCorrelationKind("candidates", p.OwnerID, p.AuditID, p.FindingID, p.Scope, p.TargetAuditID, p.SourceReceiptID, p.Limit)
 	p.Cursor, err = h.cursors.decodeFindingCorrelation(cursor, kind)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	result, err := h.Audits.FindingCandidates(r.Context(), p)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	result.Page.NextCursor, err = h.cursors.encodeFindingCorrelation(kind, result.Next)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	writeJSON(w, http.StatusOK, result)
+	return nil
 }
-func (h *auditHandlers) listProjectFindingComparisons(w http.ResponseWriter, r *http.Request) {
+func (h *auditHandlers) listProjectFindingComparisons(w http.ResponseWriter, r *http.Request) error {
 	w.Header().Set("Cache-Control", "no-store")
 	query, limit, cursor, err := findingCorrelationQuery(r, "leftAuditId", "rightAuditId")
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	if !correlationQueryID(query, "leftAuditId", true) || !correlationQueryID(query, "rightAuditId", true) {
-		handleError(w, errInvalidRequest)
-		return
+		return errInvalidRequest
 	}
 	p := auditservice.FindingComparisonParams{OwnerID: principalUserID(r.Context()), ProjectID: r.PathValue("projectId"), LeftAuditID: query.Get("leftAuditId"), RightAuditID: query.Get("rightAuditId"), Limit: limit}
 	kind := findingCorrelationKind("comparison", p.OwnerID, p.ProjectID, p.LeftAuditID, p.RightAuditID, p.Limit)
 	p.Cursor, err = h.cursors.decodeFindingCorrelation(cursor, kind)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	result, err := h.Audits.CompareFindings(r.Context(), p)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	result.Page.NextCursor, err = h.cursors.encodeFindingCorrelation(kind, result.Next)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	writeJSON(w, http.StatusOK, result)
+	return nil
 }

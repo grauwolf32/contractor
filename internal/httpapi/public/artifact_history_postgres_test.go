@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/credentials"
@@ -30,31 +32,35 @@ func TestPostgresPublicArtifactHistoryOutcomes(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	pool := isolatedPublicPool(t, ctx)
-	service := artifacts.NewService(artifactpostgres.NewRepository(pool))
+	service := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
 	fixture := newHandlerFixtureWithAuth(t, "../../config/testdata/valid", newTestAuthentication(t),
 		mustTestOrigins(t), false, nil, func(dependencies *testServices) { dependencies.Artifacts = service })
-	policy := func(revisions int64) context.Context {
+	policy := func(revisions int64) *artifactpostgres.Storage {
 		configured, err := artifactpostgres.NewHistoryPolicy(revisions, artifactpostgres.DefaultHistoryMaxBytes)
 		if err != nil {
 			t.Fatal(err)
 		}
-		return artifactpostgres.WithHistoryPolicy(ctx, configured)
+		return artifactpgtest.NewConfigured(artifactpgtest.NewRuntime(), configured)
 	}
-	put := func(requestContext context.Context, name, header, value, body string) *httptest.ResponseRecorder {
+	put := func(storage *artifactpostgres.Storage, name, header, value, body string) *httptest.ResponseRecorder {
+		fixture := newHandlerFixtureWithAuth(t, "../../config/testdata/valid", newTestAuthentication(t), mustTestOrigins(t), false, nil, func(d *testServices) {
+			d.Artifacts = artifacts.NewService(storage.Repository(pool))
+			d.Transfers = storage
+		})
 		request := authenticatedRequest(http.MethodPut, "/v1/artifacts/notes/"+name, bytes.NewReader([]byte(body)))
-		request = request.WithContext(requestContext)
+		request = request.WithContext(ctx)
 		request.Header.Set("Content-Type", "text/plain")
 		request.Header.Set(header, value)
 		response := httptest.NewRecorder()
 		fixture.handler.ServeHTTP(response, request)
 		return response
 	}
-	write := func(requestContext context.Context, name string, count int) []string {
+	write := func(storage *artifactpostgres.Storage, name string, count int) []string {
 		t.Helper()
 		var tags []string
 		header, value := "If-None-Match", "*"
 		for index := range count {
-			response := put(requestContext, name, header, value, fmt.Sprintf("%s %d", name, index))
+			response := put(storage, name, header, value, fmt.Sprintf("%s %d", name, index))
 			if response.Code != http.StatusCreated && response.Code != http.StatusOK {
 				t.Fatalf("write %s %d = %d %s", name, index, response.Code, response.Body.String())
 			}
@@ -105,6 +111,10 @@ WHERE scope_kind = 'user' AND namespace = 'notes' AND name = 'held'`); err != ni
 // and the importer then commits the binding's maintenance pass on the pool
 // before it answers, so the same import succeeds on a later attempt.
 func TestPostgresGitImportCommitsHistoryMaintenanceAfterItsRollback(t *testing.T) {
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	pool := isolatedPublicPool(t, ctx)
@@ -123,11 +133,11 @@ func TestPostgresGitImportCommitsHistoryMaintenanceAfterItsRollback(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	importer, err := gitimport.NewImporter(pool, client, credentials.NewGitKeys(pool, cipher), gitimport.Deadline)
+	importer, err := gitimport.NewImporter(pool, client, credentials.NewGitKeys(pool, cipher), gitimport.Deadline, artifactStorage)
 	if err != nil {
 		t.Fatal(err)
 	}
-	user, err := artifacts.NewService(artifactpostgres.NewRepository(pool)).User("user-1")
+	user, err := artifacts.NewService(artifactStorage.Repository(pool)).User("user-1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -144,7 +154,13 @@ func TestPostgresGitImportCommitsHistoryMaintenanceAfterItsRollback(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	limited := artifactpostgres.WithHistoryPolicy(ctx, configured)
+	limited := ctx
+	artifactHistory = configured
+	artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+	importer, err = gitimport.NewImporter(pool, client, credentials.NewGitKeys(pool, cipher), gitimport.Deadline, artifactStorage)
+	if err != nil {
+		t.Fatal(err)
+	}
 	request := gitimport.ImportRequest{OwnerID: "user-1", Target: target, ExpectedRevision: current, RepositoryURL: "https://example.test/repo.git"}
 	err = importer.DoImport(limited, request, func(gitimport.ImportResult) { t.Fatal("a pending import responded") })
 	var pending *artifacts.HistoryMaintenanceError

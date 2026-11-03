@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
@@ -95,7 +97,7 @@ spec:
 		files["agent-templates/worker.yaml"] = strings.Replace(files["agent-templates/worker.yaml"], "  sandboxProfile:", "    - ref: security-findings@1\n      tools: [finding]\n  sandboxProfile:", 1)
 	})
 	h := newPostgresControllerHarnessWithConfig(t, ctx, 0, 3, catalog)
-	intake, err := findingintake.New(h.pool)
+	intake, err := findingintake.New(h.pool, artifactpgtest.NewStorage())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -154,7 +156,7 @@ spec:
 	// Delete the actual source Runs before the accepted receipt adapter builds
 	// later tasks. Neither exact retained source depends on a live producer.
 	for _, runID := range []string{prepared.RunID, *producer.RunID} {
-		if err := rundeletion.New(h.pool).DeleteReleasedTerminalRun(ctx, snapshot.Audit.OwnerID, runID); err != nil {
+		if err := rundeletion.New(h.pool, artifactpgtest.NewStorage()).DeleteReleasedTerminalRun(ctx, snapshot.Audit.OwnerID, runID); err != nil {
 			t.Fatalf("delete producer %s: %v", runID, err)
 		}
 	}
@@ -376,7 +378,7 @@ spec:
 	if changed, err := c.collector.Collect(ctx, claim, collectionSnapshot, observed); err != nil || !changed {
 		t.Fatalf("collect cancelled retained consumer: changed=%t error=%v", changed, err)
 	}
-	if err := rundeletion.New(h.pool).DeleteReleasedTerminalRun(ctx, snapshot.Audit.OwnerID, child.Run.RunID); err != nil {
+	if err := rundeletion.New(h.pool, artifactpgtest.NewStorage()).DeleteReleasedTerminalRun(ctx, snapshot.Audit.OwnerID, child.Run.RunID); err != nil {
 		t.Fatalf("delete collected retained consumer: %v", err)
 	}
 	var runs, progress, scopes, revisions, lineage int

@@ -18,8 +18,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
@@ -335,7 +336,7 @@ func TestPostgresCollectionPageReplaysOnlyItsConflictedTransaction(t *testing.T)
 			trace.beforeFence = func(fence int) {
 				if fence == conflictedFence {
 					// Another finding writer of the Project takes its fence.
-					if err := hookstore.NewFindingEventsTx(contender).LockFindingCorrelationFence(
+					if err := hookstore.NewFindingEventsTx(contender, artifactpgtest.NewStorage()).LockFindingCorrelationFence(
 						ctx, "delete-project"); err != nil {
 						t.Errorf("contend for the Project's finding correlation fence: %v", err)
 					}
@@ -437,7 +438,7 @@ func TestPostgresFindingIntakeSerializesWithProjectDeletion(t *testing.T) {
 				}
 			}
 			actorPool, actorPID := deletionActorPool(t, f, trace)
-			intake, err := New(actorPool)
+			intake, err := New(actorPool, artifactpgtest.NewStorage())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -514,7 +515,7 @@ func TestPostgresFindingIntakeSerializesWithProjectDeletion(t *testing.T) {
 			}
 		}
 		actorPool, actorPID := deletionActorPool(t, f, trace)
-		intake, err := New(actorPool)
+		intake, err := New(actorPool, artifactpgtest.NewStorage())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -613,7 +614,7 @@ func (s intakeState) rejected(count int64) intakeState {
 // finding correlation fence shares.
 func beginConcurrentRunCreation(t *testing.T, f deletionImportFixture, runID string) pgx.Tx {
 	t.Helper()
-	source, err := runstore.NewPostgresStore(f.pool).GetRun(f.ctx, f.request.RunID)
+	source, err := runstore.NewPostgresStore(f.pool, artifactpgtest.NewStorage()).GetRun(f.ctx, f.request.RunID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -622,7 +623,7 @@ func beginConcurrentRunCreation(t *testing.T, f deletionImportFixture, runID str
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = tx.Rollback(context.Background()) })
-	if _, err := runstoretest.CreateRun(f.ctx, runstore.NewPostgresStore(tx), runstore.CreateRunParams{
+	if _, err := runstoretest.CreateRun(f.ctx, runstore.NewPostgresStore(tx, artifactpgtest.NewStorage()), runstore.CreateRunParams{
 		LaneClass: resolved.LaneClassModel, RunID: runID, OwnerID: source.OwnerID, ProjectID: source.ProjectID,
 		WorkflowName: source.WorkflowName, WorkflowVersion: source.WorkflowVersion,
 		WorkflowSchemaVersion: source.WorkflowSchemaVersion, WorkflowSnapshot: source.WorkflowSnapshot,
@@ -648,7 +649,7 @@ func beginConcurrentFindingWriter(t *testing.T, f deletionImportFixture) pgx.Tx 
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = tx.Rollback(context.Background()) })
-	if err := hookstore.NewFindingEventsTx(tx).LockFindingCorrelationFence(f.ctx, "delete-project"); err != nil {
+	if err := hookstore.NewFindingEventsTx(tx, artifactpgtest.NewStorage()).LockFindingCorrelationFence(f.ctx, "delete-project"); err != nil {
 		t.Fatal(err)
 	}
 	return tx
@@ -676,7 +677,7 @@ func beginConcurrentProjectArtifactAdmission(t *testing.T, f deletionImportFixtu
 	t.Helper()
 	write := func(db persistencepostgres.DBTX, name string) {
 		t.Helper()
-		projectArtifacts, err := artifacts.NewService(artifactpostgres.NewRepository(db)).Project("delete-project")
+		projectArtifacts, err := artifacts.NewService(artifactpgtest.NewStorage().Repository(db)).Project("delete-project")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -745,7 +746,7 @@ func requireAuditLockReleased(t *testing.T, f deletionImportFixture) {
 func intakeOnActorPool(t *testing.T, f deletionImportFixture, trace pgx.QueryTracer) *Service {
 	t.Helper()
 	pool, _ := deletionActorPool(t, f, trace)
-	intake, err := New(pool)
+	intake, err := New(pool, artifactpgtest.NewStorage())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1008,7 +1009,7 @@ func intakeOnLostCommitPool(
 		t.Fatal(err)
 	}
 	t.Cleanup(pool.Close)
-	intake, err := New(pool)
+	intake, err := New(pool, artifactpgtest.NewStorage())
 	if err != nil {
 		t.Fatal(err)
 	}

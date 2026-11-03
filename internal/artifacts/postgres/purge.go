@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	artifactpolicy "github.com/grauwolf32/contractor/internal/artifacts/policy"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
@@ -24,6 +24,7 @@ var purgeBatchSize = persistencepostgres.CleanupBatchRows
 // deletion. It only accepts an existing transaction so ArtifactStore cleanup
 // and removal of the owning resource cannot commit independently.
 type Purger struct {
+	*Storage
 	tx pgx.Tx
 }
 
@@ -45,7 +46,7 @@ func (p *Purger) PurgeAudit(ctx context.Context, auditID string) (bool, error) {
 		return false, err
 	}
 	if len(batch.versionIDs) > 0 {
-		return false, collectUnreferencedVersions(ctx, p.tx, batch.versionIDs)
+		return false, p.collectUnreferencedVersions(ctx, p.tx, batch.versionIDs)
 	}
 	_, err = p.tx.Exec(ctx, `DELETE FROM artifact_scopes WHERE scope_kind='audit' AND scope_id=$1`, auditID)
 	return err == nil, err
@@ -79,17 +80,17 @@ func (p *Purger) PurgeAuditNamespace(
 	if err != nil {
 		return false, fmt.Errorf("purge Audit Artifact namespace: %w", err)
 	}
-	if err := collectUnreferencedVersions(ctx, p.tx, batch.versionIDs); err != nil {
+	if err := p.collectUnreferencedVersions(ctx, p.tx, batch.versionIDs); err != nil {
 		return false, err
 	}
 	return len(batch.versionIDs) < purgeBatchSize, nil
 }
 
-func NewPurger(tx pgx.Tx) (*Purger, error) {
+func (s *Storage) Purger(tx pgx.Tx) (*Purger, error) {
 	if tx == nil {
 		return nil, fmt.Errorf("PostgreSQL transaction is required")
 	}
-	return &Purger{tx: tx}, nil
+	return &Purger{Storage: s, tx: tx}, nil
 }
 
 // PurgeRun removes every RunScope binding and every pin owned by runID. Exact
@@ -124,7 +125,7 @@ DELETE FROM artifact_scopes
 WHERE scope_kind = $1 AND scope_id = $2`, scope.Kind(), scope.ID()); err != nil {
 		return fmt.Errorf("delete WorkflowRun Artifact scope: %w", err)
 	}
-	return collectUnreferencedVersions(ctx, p.tx, versionIDs)
+	return p.collectUnreferencedVersions(ctx, p.tx, versionIDs)
 }
 
 // PurgeProject removes the ProjectScope of a deleting Project in bounded
@@ -158,7 +159,7 @@ func (p *Purger) PurgeProject(ctx context.Context, projectID string) (bool, erro
 		return false, fmt.Errorf("purge Project Artifact batch: %w", err)
 	}
 	if len(batch.versionIDs) > 0 {
-		return false, collectUnreferencedVersions(ctx, p.tx, batch.versionIDs)
+		return false, p.collectUnreferencedVersions(ctx, p.tx, batch.versionIDs)
 	}
 	if _, err := p.tx.Exec(ctx, `
 DELETE FROM artifact_scopes
@@ -299,7 +300,7 @@ func (p *Purger) purgeRevisionBatch(
 // before it deletes the ones nothing references any more. Its callers are the
 // controlled scope purge and automatic history retention, which enable their
 // delete exception for tx and run it under READ COMMITTED (see lockScope).
-func collectUnreferencedVersions(ctx context.Context, tx pgx.Tx, versionIDs []string) error {
+func (s *Storage) collectUnreferencedVersions(ctx context.Context, tx pgx.Tx, versionIDs []string) error {
 	if len(versionIDs) == 0 {
 		return nil
 	}
@@ -337,14 +338,14 @@ WHERE sha256 = ANY($1::bytea[]) ORDER BY sha256 FOR UPDATE`, chunk); err != nil 
 		blobDigests = append(blobDigests, digests...)
 	}
 	for chunk := range slices.Chunk(sortedDigests(blobDigests), purgeBatchSize) {
-		if err := collectUnreferencedBlobs(ctx, tx, chunk); err != nil {
+		if err := s.collectUnreferencedBlobs(ctx, tx, chunk); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func collectUnreferencedBlobs(ctx context.Context, tx pgx.Tx, digests [][]byte) error {
+func (s *Storage) collectUnreferencedBlobs(ctx context.Context, tx pgx.Tx, digests [][]byte) error {
 	deleted, err := tx.Query(ctx, purgeUnreferencedBlobsSQL, digests)
 	if err != nil {
 		return fmt.Errorf("collect unreferenced Artifact blobs: %w", err)
@@ -357,9 +358,7 @@ func collectUnreferencedBlobs(ctx context.Context, tx pgx.Tx, digests [][]byte) 
 			return err
 		}
 		if kind == blob.Filesystem && key != nil {
-			if err := deletePhysicalAfterCommit(ctx, tx, blob.Object{Backend: kind, Key: *key}); err != nil {
-				return err
-			}
+			s.deletePhysicalAfterCommit(ctx, tx, blob.Object{Backend: kind, Key: *key})
 		}
 	}
 	return deleted.Err()

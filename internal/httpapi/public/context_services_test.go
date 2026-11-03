@@ -3,11 +3,15 @@ package public
 import (
 	"context"
 	"errors"
+	"github.com/grauwolf32/contractor/internal/runservice"
 	"log/slog"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/httpapi/artifacttransfer"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auth"
+	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/credentials"
@@ -19,6 +23,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	"github.com/grauwolf32/contractor/internal/gitimport"
 	publicevents "github.com/grauwolf32/contractor/internal/httpapi/public/events"
+	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 )
 
@@ -28,8 +33,7 @@ import (
 type testCatalog interface {
 	ResolvePinnedRunWorkflow(context.Context, resolved.ResolvedWorkflow, resolved.CredentialLookup) (resolved.ResolvedWorkflow, error)
 	CatalogReader
-	RepeatWorkflowResolver
-	WorkflowLister
+	runservice.RepeatWorkflowResolver
 }
 
 // testManagedCredentials is the managed LLM credential service a test serves;
@@ -41,15 +45,22 @@ type testManagedCredentials interface {
 
 // testRuntimeCredentials serves the Runtime credential routes and the
 // credential checks of Project targets and Run creation.
+type testProjects interface {
+	ProjectManagement
+	projectstore.EditStore
+}
+
 type testRuntimeCredentials interface {
 	RuntimeCredentialManagement
-	ProjectCredentialValidator
+	projectstore.EditCredentialGuard
+	runservice.RuntimeCredentialValidator
 }
 
 // testServices is the flat set of services a test handler is built from.
 // dependencies groups them by context the way the Server's composition does,
 // so a test replaces one service for every context that uses it.
 type testServices struct {
+	Transfers    artifacttransfer.Admission
 	BearerToken  contracts.SecretString
 	NewRequestID func() (string, error)
 	Logger       *slog.Logger
@@ -70,7 +81,7 @@ type testServices struct {
 	RuntimeCredentials     testRuntimeCredentials
 	RuntimeAgentPrincipals RuntimeAgentPrincipalManagement
 
-	Projects                ProjectManagement
+	Projects                testProjects
 	Sitemap                 ProjectSitemap
 	ProjectDeletionNotifier Waker
 	Runs                    RunReader
@@ -127,7 +138,7 @@ func (s testServices) dependencies() Dependencies {
 			OperationsInvalidator: s.OperationsInvalidator,
 		},
 		Projects: ProjectDependencies{
-			Projects: s.Projects, RuntimeCredentials: s.RuntimeCredentials,
+			Projects: s.Projects, Editor: testProjectEditor(s.Projects, s.RuntimeCredentials),
 			Sitemap:                 s.Sitemap,
 			ProjectDeletionNotifier: s.ProjectDeletionNotifier, NewID: s.NewID,
 		},
@@ -137,21 +148,21 @@ func (s testServices) dependencies() Dependencies {
 			RunDeletion: s.RunDeletion, RunCreator: s.RunCreator, RunNotifier: s.RunNotifier,
 			GatewayRecovery: s.GatewayRecovery, Projects: s.Projects, NewID: s.NewID, Now: s.Now,
 		},
-		RunRepeat: RunRepeatDependencies{
+		RunRepeat: RunRepeatDependencies{RepeatDrafts: runservice.NewRepeatReader(runservice.RepeatOptions{
 			Runs: s.Runs, Projects: s.Projects, Config: s.Config, Credentials: s.Credentials,
 			Artifacts: s.Artifacts, RuntimeConfigs: s.RuntimeConfigs,
-		},
+		})},
 		Queue: QueueDependencies{RunQueue: s.RunQueue, RunNotifier: s.RunNotifier},
-		Artifacts: ArtifactDependencies{
+		Artifacts: ArtifactDependencies{Transfers: s.Transfers,
 			Artifacts: s.Artifacts, Projects: s.Projects, Runs: s.Runs, GitImports: s.GitImports,
 		},
-		Audits: AuditDependencies{Audits: s.Audits, Projects: s.Projects, NewID: s.NewID},
-		Findings: FindingDependencies{
+		Audits: AuditDependencies{Transfers: s.Transfers, Audits: s.Audits, Projects: s.Projects, NewID: s.NewID},
+		Findings: FindingDependencies{Transfers: s.Transfers,
 			FindingProposals: s.FindingProposals, FindingCollections: s.FindingCollections, FindingExports: s.FindingExports,
 			Audits: s.Audits, Runs: s.Runs,
 		},
 		Evals: EvalDependencies{
-			Evals: s.Evals, EvalNotifier: s.EvalNotifier, Config: s.Config, Audits: s.Audits,
+			Evals: s.Evals, EvalNotifier: s.EvalNotifier, CatalogSnapshot: testCapabilitySnapshot(s.Config),
 		},
 		Operations: OperationsDependencies{
 			ModelSelection: s.ModelSelection,
@@ -370,4 +381,23 @@ func (missingFindingExports) PublishFindingExport(context.Context, string, strin
 }
 func (missingFindingExports) ReadFindingExport(context.Context, string, string, string, string) (findingintake.ExportDownload, error) {
 	return findingintake.ExportDownload{}, findingintake.ErrNotFound
+}
+
+// Test catalogs use either the production swappable Manager or one frozen
+// Snapshot. Both provide the same immutable view to the capability reader.
+func testCapabilitySnapshot(catalog testCatalog) func() *config.Snapshot {
+	switch source := catalog.(type) {
+	case interface{ Snapshot() *config.Snapshot }:
+		return source.Snapshot
+	case *config.Snapshot:
+		return func() *config.Snapshot { return source }
+	default:
+		panic("test catalog provides no immutable snapshot")
+	}
+}
+
+func testProjectEditor(projects projectstore.EditStore, validator testRuntimeCredentials) *projectstore.Editor {
+	return projectstore.NewEditor(projects, validator, func(ctx context.Context, ownerID string, operations bool, credentialID, kind string) error {
+		return validator.ValidateRuntimeCredentialUse(ctx, credentials.RuntimeCredentialUser{UserID: ownerID, Operations: operations}, credentialID, kind)
+	})
 }

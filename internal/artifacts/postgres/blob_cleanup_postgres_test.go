@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	. "github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob/backends/filesystem"
@@ -14,6 +16,10 @@ import (
 )
 
 func TestFilesystemOfflineCleanupPreservesReferences(t *testing.T) {
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
@@ -23,8 +29,9 @@ func TestFilesystemOfflineCleanupPreservesReferences(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer files.Close()
-	ctx = blob.WithRuntime(ctx, blob.NewRuntime(files, nil))
-	store, _ := NewService(artifactpostgres.NewRepository(pool)).User("user-1")
+	artifactRuntime = blob.NewRuntime(files, nil)
+	artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+	store, _ := NewService(artifactStorage.Repository(pool)).User("user-1")
 	keep, err := store.Write(ctx, ArtifactRef{Namespace: "docs", Name: "keep"}, Payload{MediaType: "text/plain", Data: []byte("keep")}, nil)
 	if err != nil {
 		t.Fatal(err)

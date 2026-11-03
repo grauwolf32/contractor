@@ -12,47 +12,42 @@ import (
 
 // Both Scheduler settings routes are authorized by requireOperationsRoutes.
 
-func (h *operationsHandlers) getSchedulerSettings(w http.ResponseWriter, r *http.Request) {
+func (h *operationsHandlers) getSchedulerSettings(w http.ResponseWriter, r *http.Request) error {
 	w.Header().Set("Cache-Control", "no-store")
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	settings, err := h.SchedulerSettings.GetSchedulerSettings(r.Context())
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	h.writeSchedulerSettings(w, settings)
+	return nil
 }
 
-func (h *operationsHandlers) putSchedulerSettings(w http.ResponseWriter, r *http.Request) {
+func (h *operationsHandlers) putSchedulerSettings(w http.ResponseWriter, r *http.Request) error {
 	w.Header().Set("Cache-Control", "no-store")
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	if requireJSONMediaType(r) != nil {
 		writeError(w, apierror.UnsupportedMediaType, "")
-		return
+		return nil
 	}
 	expectedRevision, err := schedulerSettingsPrecondition(r)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	var request updateSchedulerSettingsRequest
 	if err := decodeJSON(w, r, &request); err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	if request.MaxConcurrentRuns < settingsstore.MinimumConcurrentRuns ||
 		request.MaxConcurrentRuns > settingsstore.MaximumConcurrentRuns ||
 		(request.MaxConcurrentToolRuns != nil &&
 			(*request.MaxConcurrentToolRuns < settingsstore.MinimumConcurrentToolRuns ||
 				*request.MaxConcurrentToolRuns > settingsstore.MaximumConcurrentToolRuns)) {
-		handleError(w, settingsstore.ErrInvalid)
-		return
+		return settingsstore.ErrInvalid
 	}
 	settings, err := h.SchedulerSettings.UpdateSchedulerSettings(
 		r.Context(), settingsstore.UpdateSchedulerSettingsParams{
@@ -62,8 +57,7 @@ func (h *operationsHandlers) putSchedulerSettings(w http.ResponseWriter, r *http
 		},
 	)
 	if err != nil {
-		handleError(w, err)
-		return
+		return err
 	}
 	changed := settings.Revision != expectedRevision
 	if changed {
@@ -71,12 +65,12 @@ func (h *operationsHandlers) putSchedulerSettings(w http.ResponseWriter, r *http
 		if err := h.OperationsInvalidator.InvalidateOperations(
 			controlplane.OperationsSchedulerSettings, "",
 		); err != nil {
-			handleError(w, err)
-			return
+			return err
 		}
 		h.auditSchedulerSettingsMutation(r, settings)
 	}
 	h.writeSchedulerSettings(w, settings)
+	return nil
 }
 
 func (h *operationsHandlers) writeSchedulerSettings(w http.ResponseWriter, settings settingsstore.SchedulerSettings) {

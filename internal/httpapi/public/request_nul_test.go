@@ -46,7 +46,7 @@ func TestAuditJSONNULEscapeIsRejectedBeforeIdentityAndService(t *testing.T) {
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("Idempotency-Key", "nul-boundary")
 	response := httptest.NewRecorder()
-	h.createAudit(response, request)
+	serve(h.createAudit)(response, request)
 	if response.Code != http.StatusBadRequest {
 		t.Fatalf("Audit boundary = %d %s", response.Code, response.Body.String())
 	}
@@ -58,7 +58,7 @@ func TestRuntimeConfigJSONNULEscapeIsRejectedBeforePublication(t *testing.T) {
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("Idempotency-Key", "nul-boundary")
 	response := httptest.NewRecorder()
-	h.publishRuntimeConfig(response, request)
+	serve(h.publishRuntimeConfig)(response, request)
 	if response.Code != http.StatusBadRequest {
 		t.Fatalf("RuntimeConfig boundary = %d %s", response.Code, response.Body.String())
 	}

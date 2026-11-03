@@ -1,17 +1,14 @@
 package postgres_test
 
 import (
-	"bytes"
 	"context"
 	"errors"
-	"log"
-	"log/slog"
 	"os"
 	"path/filepath"
-	"strings"
-	"sync"
 	"testing"
 	"time"
+
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
 
 	. "github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob"
@@ -24,6 +21,10 @@ import (
 )
 
 func TestFilesystemRegistryAndCommitCleanup(t *testing.T) {
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
@@ -33,9 +34,10 @@ func TestFilesystemRegistryAndCommitCleanup(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer files.Close()
-	ctx = blob.WithRuntime(ctx, blob.NewRuntime(files, nil))
+	artifactRuntime = blob.NewRuntime(files, nil)
+	artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
 	createArtifactRun(t, ctx, pool, "files-run", true)
-	run, _ := NewService(artifactpostgres.NewRepository(pool)).Run("files-run")
+	run, _ := NewService(artifactStorage.Repository(pool)).Run("files-run")
 	written, err := run.Write(ctx, ArtifactRef{Namespace: "scratch", Name: "content"}, Payload{MediaType: "text/plain", Data: []byte("original")}, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -48,12 +50,12 @@ func TestFilesystemRegistryAndCommitCleanup(t *testing.T) {
 	if inline {
 		t.Fatal("filesystem payload duplicated in PostgreSQL")
 	}
-	if _, err := runstore.NewPostgresStore(pool).TransitionRun(ctx, "files-run", runstore.RunRunning, runstore.RunSucceeded, runstore.Reason{Code: "done"}); err != nil {
+	if _, err := runstore.NewPostgresStore(pool, artifactStorage).TransitionRun(ctx, "files-run", runstore.RunRunning, runstore.RunSucceeded, runstore.Reason{Code: "done"}); err != nil {
 		t.Fatal(err)
 	}
 	abort := errors.New("abort")
 	err = postgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		if err := rundeletion.New(tx).DeleteReleasedTerminalRun(ctx, "user-1", "files-run"); err != nil {
+		if err := rundeletion.New(tx, artifactStorage).DeleteReleasedTerminalRun(ctx, "user-1", "files-run"); err != nil {
 			return err
 		}
 		return abort
@@ -64,7 +66,7 @@ func TestFilesystemRegistryAndCommitCleanup(t *testing.T) {
 	if _, err := run.Read(ctx, written.Ref); err != nil {
 		t.Fatalf("rollback lost bytes: %v", err)
 	}
-	if err := rundeletion.New(pool).DeleteReleasedTerminalRun(ctx, "user-1", "files-run"); err != nil {
+	if err := rundeletion.New(pool, artifactStorage).DeleteReleasedTerminalRun(ctx, "user-1", "files-run"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(filepath.Join(path, key)); !errors.Is(err, os.ErrNotExist) {
@@ -72,14 +74,9 @@ func TestFilesystemRegistryAndCommitCleanup(t *testing.T) {
 	}
 }
 
-// A context without the installed blob runtime, such as a fresh
-// context.Background(), cannot open or unlink filesystem objects. Reads and
-// deletion fail as logged internal errors instead of reporting corrupt content
-// or silently orphaning the file, and nothing is deleted until a context with
-// the runtime retries.
-func TestFilesystemBlobWithoutRuntimeFailsLoudly(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
+// Fresh operation contexts retain the process backend for all payload paths.
+func TestFilesystemBlobUsesInjectedRuntimeWithFreshContext(t *testing.T) {
+	ctx := t.Context()
 	pool := isolatedArtifactPool(t, ctx)
 	path := t.TempDir()
 	files, err := filesystem.Open(ctx, path)
@@ -87,96 +84,52 @@ func TestFilesystemBlobWithoutRuntimeFailsLoudly(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer files.Close()
-	installed := blob.WithRuntime(ctx, blob.NewRuntime(files, nil))
-	createArtifactRun(t, installed, pool, "runtimeless-run", true)
-	run, _ := NewService(artifactpostgres.NewRepository(pool)).Run("runtimeless-run")
-	written, err := run.Write(installed, ArtifactRef{Namespace: "scratch", Name: "content"}, Payload{MediaType: "text/plain", Data: []byte("filesystem bytes")}, nil)
+	storage := artifactpgtest.NewConfigured(blob.NewRuntime(files, nil), artifactpostgres.DefaultHistoryPolicy())
+	createArtifactRun(t, ctx, pool, "fresh-context-run", true)
+	run, _ := NewService(storage.Repository(pool)).Run("fresh-context-run")
+	fresh := context.Background()
+	written, err := run.Write(fresh, ArtifactRef{Namespace: "scratch", Name: "content"}, Payload{MediaType: "text/plain", Data: []byte("filesystem bytes")}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var key string
-	if err := pool.QueryRow(ctx, `SELECT object_key FROM artifact_blobs`).Scan(&key); err != nil {
-		t.Fatal(err)
-	}
-	logs := captureDefaultLogger(t)
-	runtimeless := context.Background()
-	loud := func(operation string, err error) {
-		t.Helper()
-		if !errors.Is(err, blob.ErrRuntimeMissing) || errors.Is(err, blob.ErrIntegrity) ||
-			errors.Is(err, blob.ErrMissing) || errors.Is(err, blob.ErrIO) {
-			t.Fatalf("%s without blob runtime = %v, want an internal missing-runtime error", operation, err)
-		}
-	}
-	_, err = run.Read(runtimeless, written.Ref)
-	loud("read", err)
-	scope, _ := RunScope("runtimeless-run")
-	_, err = artifactpostgres.NewRepository(pool).ReadExactBatch(runtimeless, []artifactpostgres.ExactReadRequest{{Scope: scope, Ref: written.Ref}})
-	loud("exact batch read", err)
-	prepared, err := artifactpostgres.PreparePayload(installed, pool, Payload{MediaType: "text/plain", Data: []byte("prepared bytes")})
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = run.Write(runtimeless, ArtifactRef{Namespace: "scratch", Name: "prepared"}, prepared, nil)
-	loud("write of a prepared filesystem payload", err)
-	if _, err := runstore.NewPostgresStore(pool).TransitionRun(ctx, "runtimeless-run", runstore.RunRunning, runstore.RunSucceeded, runstore.Reason{Code: "done"}); err != nil {
-		t.Fatal(err)
-	}
-	err = rundeletion.New(pool).DeleteReleasedTerminalRun(runtimeless, "user-1", "runtimeless-run")
-	loud("Run deletion", err)
-	for _, operation := range []string{"operation=read", "operation=check", "operation=delete"} {
-		if !strings.Contains(logs.String(), operation) {
-			t.Fatalf("missing runtime was not logged for %s: %q", operation, logs.String())
-		}
-	}
-	// The failed deletion rolled back: the binding still reads its bytes.
-	read, err := run.Read(installed, written.Ref)
+	read, err := run.Read(context.Background(), written.Ref)
 	if err != nil || string(read.Payload.Data) != "filesystem bytes" {
-		t.Fatalf("read with runtime after failed deletion = (%q, %v)", read.Payload.Data, err)
+		t.Fatalf("fresh read: %q %v", read.Payload.Data, err)
 	}
-	if _, err := os.Stat(filepath.Join(path, key)); err != nil {
-		t.Fatalf("failed deletion touched the file: %v", err)
+	scope, _ := RunScope("fresh-context-run")
+	batch, err := storage.Repository(pool).ReadExactBatch(context.Background(), []artifactpostgres.ExactReadRequest{{Scope: scope, Ref: written.Ref}})
+	if err != nil || len(batch) != 1 || string(batch[0].Payload.Data) != "filesystem bytes" {
+		t.Fatalf("fresh batch: %v", err)
 	}
-	if err := rundeletion.New(pool).DeleteReleasedTerminalRun(installed, "user-1", "runtimeless-run"); err != nil {
+	prepared, err := storage.PreparePayload(context.Background(), pool, Payload{MediaType: "text/plain", Data: []byte("prepared bytes")})
+	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(filepath.Join(path, key)); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("committed unlink: %v", err)
+	if _, err := run.Write(context.Background(), ArtifactRef{Namespace: "scratch", Name: "prepared"}, prepared, nil); err != nil {
+		t.Fatal(err)
 	}
-}
-
-// captureDefaultLogger routes slog.Default to a buffer for one sequential test
-// and restores the default logger and the log package output afterwards.
-func captureDefaultLogger(t *testing.T) *syncBuffer {
-	t.Helper()
-	previous, writer, flags := slog.Default(), log.Writer(), log.Flags()
-	output := &syncBuffer{}
-	slog.SetDefault(slog.New(slog.NewTextHandler(output, nil)))
-	t.Cleanup(func() {
-		slog.SetDefault(previous)
-		log.SetOutput(writer)
-		log.SetFlags(flags)
-	})
-	return output
-}
-
-type syncBuffer struct {
-	mu     sync.Mutex
-	buffer bytes.Buffer
-}
-
-func (b *syncBuffer) Write(data []byte) (int, error) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.buffer.Write(data)
-}
-
-func (b *syncBuffer) String() string {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.buffer.String()
+	keys := blobObjectKeys(t, ctx, pool, `SELECT object_key FROM artifact_blobs WHERE object_key IS NOT NULL`)
+	if len(keys) != 2 {
+		t.Fatalf("filesystem keys: %v", keys)
+	}
+	if _, err := runstore.NewPostgresStore(pool, storage).TransitionRun(ctx, "fresh-context-run", runstore.RunRunning, runstore.RunSucceeded, runstore.Reason{Code: "done"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := rundeletion.New(pool, storage).DeleteReleasedTerminalRun(context.Background(), "user-1", "fresh-context-run"); err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range keys {
+		if _, err := os.Stat(filepath.Join(path, key)); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("committed unlink: %v", err)
+		}
+	}
 }
 
 func TestFilesystemMissingContentKeepsMetadata(t *testing.T) {
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
@@ -186,8 +139,9 @@ func TestFilesystemMissingContentKeepsMetadata(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer files.Close()
-	ctx = blob.WithRuntime(ctx, blob.NewRuntime(files, nil))
-	store, _ := NewService(artifactpostgres.NewRepository(pool)).User("user-1")
+	artifactRuntime = blob.NewRuntime(files, nil)
+	artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+	store, _ := NewService(artifactStorage.Repository(pool)).User("user-1")
 	written, err := store.Write(ctx, ArtifactRef{Namespace: "docs", Name: "lost"}, Payload{MediaType: "text/plain", Data: []byte("payload")}, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -210,6 +164,10 @@ func TestFilesystemMissingContentKeepsMetadata(t *testing.T) {
 // The registry commit remains successful when unlink fails. Offline cleanup can
 // later converge without a cleanup queue or a second logical deletion.
 func TestFilesystemFailedUnlinkLeavesCleanableOrphan(t *testing.T) {
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
@@ -219,16 +177,17 @@ func TestFilesystemFailedUnlinkLeavesCleanableOrphan(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer files.Close()
-	ctx = blob.WithRuntime(ctx, blob.NewRuntime(failedUnlinkStore{Storage: files}, nil))
+	artifactRuntime = blob.NewRuntime(failedUnlinkStore{Storage: files}, nil)
+	artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
 	createArtifactRun(t, ctx, pool, "unlink-run", true)
-	run, _ := NewService(artifactpostgres.NewRepository(pool)).Run("unlink-run")
+	run, _ := NewService(artifactStorage.Repository(pool)).Run("unlink-run")
 	if _, err := run.Write(ctx, ArtifactRef{Namespace: "scratch", Name: "orphan"}, Payload{MediaType: "text/plain", Data: []byte("unlink failure")}, nil); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := runstore.NewPostgresStore(pool).TransitionRun(ctx, "unlink-run", runstore.RunRunning, runstore.RunSucceeded, runstore.Reason{Code: "done"}); err != nil {
+	if _, err := runstore.NewPostgresStore(pool, artifactStorage).TransitionRun(ctx, "unlink-run", runstore.RunRunning, runstore.RunSucceeded, runstore.Reason{Code: "done"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := rundeletion.New(pool).DeleteReleasedTerminalRun(ctx, "user-1", "unlink-run"); err != nil {
+	if err := rundeletion.New(pool, artifactStorage).DeleteReleasedTerminalRun(ctx, "user-1", "unlink-run"); err != nil {
 		t.Fatalf("unlink failed logical deletion: %v", err)
 	}
 	report, err := artifactpostgres.CleanupFilesystemBlobs(ctx, pool, path, true)
@@ -242,6 +201,10 @@ type failedUnlinkStore struct{ blob.Storage }
 func (failedUnlinkStore) Delete(context.Context, blob.Object) error { return os.ErrPermission }
 
 func TestFilesystemCreateOnlyConflictDiscardsCandidate(t *testing.T) {
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
@@ -251,8 +214,9 @@ func TestFilesystemCreateOnlyConflictDiscardsCandidate(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer files.Close()
-	ctx = blob.WithRuntime(ctx, blob.NewRuntime(files, nil))
-	store, _ := NewService(artifactpostgres.NewRepository(pool)).User("user-1")
+	artifactRuntime = blob.NewRuntime(files, nil)
+	artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+	store, _ := NewService(artifactStorage.Repository(pool)).User("user-1")
 	target := ArtifactRef{Namespace: "docs", Name: "immutable"}
 	first := Payload{MediaType: "text/plain", Data: []byte("first bytes")}
 	if _, err := store.Write(ctx, target, first, nil); err != nil {
@@ -267,14 +231,14 @@ func TestFilesystemCreateOnlyConflictDiscardsCandidate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	txStore, _ := NewService(artifactpostgres.NewRepository(tx)).User("user-1")
+	txStore, _ := NewService(artifactStorage.Repository(tx)).User("user-1")
 	if _, err := txStore.Write(ctx, target, first, nil); !errors.Is(err, ErrArtifactConflict) {
 		t.Fatalf("transactional create-only conflict = %v", err)
 	}
 	if err := tx.Rollback(ctx); err != nil {
 		t.Fatal(err)
 	}
-	prepared, err := artifactpostgres.PreparePayload(ctx, pool, Payload{MediaType: "text/plain", Data: []byte("shared prepared bytes")})
+	prepared, err := artifactStorage.PreparePayload(ctx, pool, Payload{MediaType: "text/plain", Data: []byte("shared prepared bytes")})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -305,6 +269,10 @@ func TestFilesystemCreateOnlyConflictDiscardsCandidate(t *testing.T) {
 // referenced content. A CAS retry remains a conflict with one durable revision
 // and discards only its own unpublished candidate.
 func TestFilesystemLostWriteAcknowledgementKeepsCommittedBytes(t *testing.T) {
+	artifactRuntime := artifactpgtest.NewRuntime()
+	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
+	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
@@ -314,14 +282,15 @@ func TestFilesystemLostWriteAcknowledgementKeepsCommittedBytes(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer files.Close()
-	ctx = blob.WithRuntime(ctx, blob.NewRuntime(files, nil))
-	broken, _ := NewService(artifactpostgres.NewRepository(lostAcknowledgementDB{DBTX: pool})).User("user-1")
+	artifactRuntime = blob.NewRuntime(files, nil)
+	artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
+	broken, _ := NewService(artifactStorage.Repository(lostAcknowledgementDB{DBTX: pool})).User("user-1")
 	target := ArtifactRef{Namespace: "docs", Name: "committed"}
 	payload := Payload{MediaType: "text/plain", Data: []byte("committed before connection loss")}
 	if _, err := broken.Write(ctx, target, payload, nil); !errors.Is(err, errLostAcknowledgement) {
 		t.Fatalf("write failure: %v", err)
 	}
-	normal, _ := NewService(artifactpostgres.NewRepository(pool)).User("user-1")
+	normal, _ := NewService(artifactStorage.Repository(pool)).User("user-1")
 	read, err := normal.Read(ctx, target)
 	if err != nil || string(read.Payload.Data) != string(payload.Data) {
 		t.Fatalf("committed bytes lost: %v", err)
