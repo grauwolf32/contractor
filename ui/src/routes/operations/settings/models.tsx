@@ -145,23 +145,25 @@ export function ModelSettings() {
           };
           return (
             <form className="ops-setting-form" onSubmit={submit}>
-              <Facts
-                className="ops-glance"
-                aria-label="Saved model selection"
-                items={[
-                  {
-                    term: "Saved default",
-                    value: savedModel?.id ?? selection.defaultModel,
-                  },
-                  {
-                    term: "Context window",
-                    value:
-                      savedModel === undefined
-                        ? "Unavailable"
-                        : `${formatNumber(savedModel.contextWindowTokens)} tokens`,
-                  },
-                ]}
-              />
+              <TechnicalDetails summary="Saved model selection">
+                <Facts
+                  className="ops-glance"
+                  aria-label="Saved model selection"
+                  items={[
+                    {
+                      term: "Saved default",
+                      value: savedModel?.id ?? selection.defaultModel,
+                    },
+                    {
+                      term: "Context window",
+                      value:
+                        savedModel === undefined
+                          ? "Unavailable"
+                          : `${formatNumber(savedModel.contextWindowTokens)} tokens`,
+                    },
+                  ]}
+                />
+              </TechnicalDetails>
               <div className="ops-model-choice">
                 <Field label="Default model">
                   {(control) => (
@@ -308,36 +310,38 @@ export function ModelSettings() {
                   budgets.
                 </p>
               </TechnicalDetails>
-              <div className="ops-form-actions">
-                <Button
-                  type="submit"
-                  variant="primary"
-                  disabled={!dirty || stale || !compatible}
-                  pending={mutation.isPending}
-                  pendingLabel="Saving…"
-                >
-                  Save model defaults
-                </Button>
-                <Button
-                  onClick={reset}
-                  disabled={
-                    mutation.isPending || (edit === undefined && !conflict)
-                  }
-                >
-                  {stale ? "Use saved selection" : "Discard changes"}
-                </Button>
-                {mutation.error !== null ? (
+              {dirty || stale || mutation.isPending ? (
+                <div className="ops-form-actions">
                   <Button
-                    variant="ghost"
-                    disabled={mutation.isPending}
-                    pending={query.isFetching}
-                    pendingLabel="Reloading…"
-                    onClick={() => void query.refetch()}
+                    type="submit"
+                    variant="primary"
+                    disabled={!dirty || stale || !compatible}
+                    pending={mutation.isPending}
+                    pendingLabel="Saving…"
                   >
-                    Refresh from server
+                    Save model defaults
                   </Button>
-                ) : null}
-              </div>
+                  <Button
+                    onClick={reset}
+                    disabled={
+                      mutation.isPending || (edit === undefined && !conflict)
+                    }
+                  >
+                    {stale ? "Use saved selection" : "Discard changes"}
+                  </Button>
+                  {mutation.error !== null ? (
+                    <Button
+                      variant="ghost"
+                      disabled={mutation.isPending}
+                      pending={query.isFetching}
+                      pendingLabel="Reloading…"
+                      onClick={() => void query.refetch()}
+                    >
+                      Refresh from server
+                    </Button>
+                  ) : null}
+                </div>
+              ) : null}
             </form>
           );
         }}

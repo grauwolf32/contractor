@@ -137,9 +137,10 @@ describe("Operations Scheduler settings", () => {
     expect(
       within(sections).getByRole("link", { name: "Settings" }),
     ).toHaveAttribute("aria-current", "page");
-    expect(
-      screen.getByRole("link", { name: /Workflow scheduling/ }),
-    ).toHaveAttribute("href", "#workflow-scheduling");
+    expect(screen.getByRole("link", { name: "Scheduling" })).toHaveAttribute(
+      "href",
+      "#workflow-scheduling",
+    );
     // The title is set in an effect, which may run after the page shows.
     await waitFor(() =>
       expect(document.title).toBe("Settings · Operations · Contractor"),
@@ -205,8 +206,8 @@ describe("Operations Scheduler settings", () => {
     ).toBeInTheDocument();
     expect(input).toHaveValue(2);
     expect(
-      screen.getByRole("button", { name: "Save scheduling limits" }),
-    ).toBeDisabled();
+      screen.queryByRole("button", { name: "Save scheduling limits" }),
+    ).not.toBeInTheDocument();
   });
 
   it("explains both limits and keeps their setting names under Technical details", async () => {
@@ -256,8 +257,11 @@ describe("Operations Scheduler settings", () => {
     const input = await screen.findByLabelText(
       "Concurrent Runs without a model",
     );
-    const save = screen.getByRole("button", { name: "Save scheduling limits" });
+    expect(
+      screen.queryByRole("button", { name: "Save scheduling limits" }),
+    ).toBeNull();
     fireEvent.change(input, { target: { value: "0" } });
+    const save = screen.getByRole("button", { name: "Save scheduling limits" });
     expect(
       screen.getByText(
         "Concurrent Runs without a model must be from 1 through 32.",
@@ -265,9 +269,13 @@ describe("Operations Scheduler settings", () => {
     ).toBeInTheDocument();
     expect(save).toBeDisabled();
     fireEvent.change(input, { target: { value: "2" } });
-    expect(save).toBeDisabled();
+    expect(
+      screen.queryByRole("button", { name: "Save scheduling limits" }),
+    ).toBeNull();
     fireEvent.change(input, { target: { value: "6" } });
-    await user.click(save);
+    await user.click(
+      screen.getByRole("button", { name: "Save scheduling limits" }),
+    );
 
     expect(
       await screen.findByText("Saved 1 using a model and 6 without a model."),
@@ -283,7 +291,9 @@ describe("Operations Scheduler settings", () => {
     expect(screen.getByLabelText("Concurrent Runs using a model")).toHaveValue(
       1,
     );
-    expect(save).toBeDisabled();
+    expect(
+      screen.queryByRole("button", { name: "Save scheduling limits" }),
+    ).toBeNull();
   });
 
   it("reloads after a 412 and preserves the unsaved draft without overwriting", async () => {

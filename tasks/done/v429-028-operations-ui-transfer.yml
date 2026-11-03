@@ -1,0 +1,125 @@
+schema_version: "1.0"
+id: V429-028
+title: Transfer the approved Operations design into the working UI
+milestone: ui-journey-usability
+epic: ui
+kind: feature
+priority: P2
+status: completed
+implementation_commit: 71041cac9766a340665e0281e31708218c9ac4de
+depends_on: [V429-025, V429-026, V429-027]
+languages: [typescript, css, javascript]
+goal: Operators use the approved Operations layouts in the real React application while retaining all existing observation, configuration, credential and settings behavior.
+demonstration: Open actual Application routes with schema-valid synthetic PublicAPI responses, navigate all Operations sections, inspect current and completed execution facts, edit real settings forms and verify the approved layouts at desktop and phone widths in every theme.
+context:
+  authority: >-
+    User 2026-11-03 explicitly authorizes transferring the approved Operations
+    previews into the working UI. Subsequent review rejects the first transfer
+    for strong visual differences, collapsed Runtime toolsets and different
+    metrics charts, and asks to recheck every tab. Acceptance requires a paired
+    comparison including expanded content, not only overflow checks.
+    User 2026-11-03 subsequently authorizes the main merge; the integrated UI
+    release is 0.11.7 after main advanced to 0.11.6.
+  specification: docs/spec/operations/operations.md
+  design: docs/design/ui/README.md
+  references:
+    - docs/design/ui/experiments/operations-opendesign-2026-11-02/README.md
+    - docs/design/ui/experiments/operations-tabs-opendesign-2026-11-03/README.md
+    - docs/design/ui/experiments/operations-settings-opendesign-2026-11-03/README.md
+  decision: >-
+    Existing public API clients, live subscription/resync, pagination, mutation
+    receipts, capability gates, validation and revision conflict handling keep
+    ownership. Transfer presentation into the existing routes and shared UI
+    components without replacing functional controls with mockups. CPU/RSS
+    use observed bars inside the upper cards; full history remains available.
+    Runtime capabilities are visible after one disclosure, with full-width
+    wrapping toolsets. Mobile uses the approved labelled disclosure. Settings
+    retain separate model/scheduling writes and actual Git key import/removal.
+    Reuse global fonts/tokens/icons, preserve every native reference, and expose
+    full identities/diagnostics through disclosures. Production preview uses
+    actual React with a synthetic transport; no live business writes or model
+    change is needed. The subsequently authorized main merge retains the same
+    production owners and preserved native references.
+scope:
+  in:
+    - Labelled Operations sidebar and mobile section navigation with actual route destinations.
+    - Overview snapshot strip, compact colored slot legend, inspection facts and current process/allocation disclosures.
+    - Existing inventory, history, Performance and setup screens with matching visual language and all functional controls retained.
+    - Execution/personal Settings grouping, role disclosures, scheduling steppers, independent dirty/conflict actions and theme swatches.
+    - Real-route fixture preview, responsive visual verification, UI version patch and existing regression gates.
+  out:
+    - New Server/API/domain mechanisms, live data mutation, model changes, deployment, replacing native assets or main merge.
+requirements:
+  - id: R1
+    text: Actual React routes closely follow the approved hierarchy, typography, icons, colored status states, spacing and responsive navigation; other application sections keep global style consistency.
+  - id: R2
+    text: Snapshot facts remain authoritative, observation stays separate from assignment, unknown reads/timestamps/resources remain explicit, and existing resync/backoff and independent Performance/history reads remain intact.
+  - id: R3
+    text: Existing pagination and all configuration, label, credential and personal Git key actions remain reachable with current validation, capability checks, destructive confirmation and revision conflict behavior.
+  - id: R4
+    text: Model/scheduling drafts save independently, a clean resource has no active save footer, stale edits remain visible and blocked, and limits retain the existing shared bounds.
+  - id: R5
+    text: No native OpenDesign data is modified; the preview renders real components with explicit synthetic transport and all production theme/width/control gates pass.
+failure_outcomes:
+  - operation: Existing Operations reads and live updates
+    permanent: Keep current API error/capability presentation and unknown state; do not fabricate zero, health or execution state.
+    retryable: Retain existing bounded read retry, stale data and resync/backoff behavior.
+    ambiguous: No new mutation is introduced by presentation changes.
+    cancelled: Existing query/subscription cancellation owns navigation cleanup.
+    timeout: Keep current API and polling timeout ownership.
+  - operation: Existing settings/configuration/credential writes
+    permanent: Retain validation and API error handling; never claim a successful change after rejection.
+    retryable: Keep current receipt/reconciliation behavior; no automatic write retries added.
+    ambiguous: Preserve existing operation identities and reconcile through current reads.
+    cancelled: Preserve guarded late navigation and pending operation ownership.
+    timeout: Keep existing transport/mutation bounds and stale-conflict behavior.
+cardinality:
+  - collection: Production Operations inventories
+    expected: Existing Runtime process/allocation snapshot and paginated principals/configuration/credentials/history.
+    maximum: Existing public API limits and paging; no additional unbounded collection.
+    bound: Reuse current reads and pagination without per-row requests; Overview renders at most six processes, six allocations and four inspection rows with explicit full-inventory links.
+  - collection: Preview fixtures
+    expected: Up to eight principals, six allocations, three published versions and two credentials.
+    maximum: Twelve explicit rows per fixture and sixty fixed Performance samples.
+    bound: Fixed schema-valid synthetic transport around actual Application, no live API connection.
+lifecycle:
+  - entity: Existing Operations and Settings resources
+    delete: Existing capability checks, confirmation and dependency errors remain unchanged.
+    cascade: No new production entity or lifecycle.
+    retention: Existing resource retention and all immutable OpenDesign artifacts remain unchanged.
+acceptance_criteria:
+  - id: A1
+    text: Real Operations routes show the reviewed navigation and Overview presentation with exact state counts, colored compact legend and full process/allocation facts on demand.
+  - id: A2
+    text: All remaining routes and Settings retain real controls, pagination, resource scopes, errors and conflicts while adopting approved presentation; existing UI suites pass.
+  - id: A3
+    text: Actual React preview fits all themes at 1440/1100/390/320px, exercises representative navigation/disclosure/forms and is opened for review; a paired comparison covers every tab plus expanded Runtime toolsets; native reference hashes remain unchanged.
+tests:
+  - command: make ui-verify
+    covers: [A1, A2]
+  - command: make ui-gates
+    covers: [A1, A2]
+  - command: node docs/design/ui/experiments/operations-production-2026-11-03/verify.mjs
+    covers: [A1, A2, A3]
+  - command: node docs/design/ui/experiments/operations-production-2026-11-03/compare.mjs
+    covers: [A1, A3]
+  - command: cd ui && CONTRACTOR_UI_E2E_BASE_URL=http://127.0.0.1:17571 corepack pnpm exec playwright test e2e/operations-forms.spec.ts e2e/model-selection.spec.ts e2e/git-artifacts.spec.ts e2e/performance.spec.ts
+    covers: [A1, A2]
+  - command: python3 scripts/check_tasks.py
+    covers: [A3]
+  - command: python3 scripts/check_spec.py
+    covers: [A1, A2]
+  - command: git diff --check
+    covers: [A1, A2, A3]
+verification_limits:
+  - The attempted real Operations process stack failed before UI startup because the unchanged staged streamline_copy Workflow selects absent ModelPolicy worker@1; no Server/Runtime/browser integration pass is claimed.
+  - The final full UI suite uses VITEST_MAX_WORKERS=4 after unrestricted runs hit the existing five-second large-Issues-evidence test timeout under host load; no unrelated test or timeout was changed.
+
+integration_verification:
+  date: "2026-11-03"
+  main_base: 4b690b3e22a8a3bb50515d2dbbcf63db500b09a8
+  ui_release: "0.11.7"
+  ui: VITEST_MAX_WORKERS=4 make ui-verify passes 214 files, 2463 tests and one declared expected failure; lint, typecheck and build pass.
+  browser: All 19 affected Operations, model, Git and Performance browser scenarios pass against the built integrated UI.
+  visual: All 119 theme/width/state layouts and 107 unchanged native reference hashes pass on the integrated candidate.
+  lint: make lint passes on the integrated main candidate, including task/spec, generated contracts, UI, Go layers and Runtime import contracts.

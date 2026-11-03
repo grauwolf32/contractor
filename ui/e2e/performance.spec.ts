@@ -159,12 +159,16 @@ test("renders disabled stale and discontinuous performance observations truthful
   await page.reload();
   const serverProcess = page
     .locator("article.performance-metric-card")
-    .filter({ has: page.getByRole("heading", { name: "Server process" }) });
+    .filter({ has: page.getByRole("heading", { name: "Server CPU" }) });
   await expect(serverProcess.getByText("stale", { exact: true })).toBeVisible();
   await expect(
     page.getByText(/This range crosses 2 Server generations/),
   ).toBeVisible();
-  const cpuChart = page.getByRole("img", { name: "CPU usage" });
+  await expect(
+    page.getByRole("img", { name: "CPU usage" }).locator("span"),
+  ).toHaveCount(2);
+  await page.getByText("Detailed history", { exact: true }).click();
+  const cpuChart = page.getByRole("img", { name: "CPU usage · details" });
   await expect(cpuChart).toBeVisible();
   await expect(cpuChart.locator(".performance-chart-line")).toHaveCount(2);
   await expect(page.getByLabel("CPU usage numeric summary")).toContainText(
@@ -256,6 +260,7 @@ test("shows only available GPU metrics on desktop and mobile", async ({
   await expect(detailedCard.getByText("44 °C", { exact: true })).toBeVisible();
   await expect(detailedCard.getByText("Power draw")).toHaveCount(0);
   await details.locator("summary").click();
+  await page.getByText("Detailed history", { exact: true }).click();
   const chart = page.getByRole("img", { name: "GPU utilization" });
   await expect(chart).toBeVisible();
   await expect(chart.locator(".performance-chart-line")).toHaveCount(2);
@@ -312,9 +317,7 @@ test("shows only available GPU metrics on desktop and mobile", async ({
   });
   gpuAvailable = false;
   await page.reload();
-  await expect(
-    page.getByRole("heading", { name: "Server process" }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Server CPU" })).toBeVisible();
   await expect(card).toHaveCount(0);
   await expect(
     page.getByRole("img", { name: /GPU|VRAM|Temperature/ }),

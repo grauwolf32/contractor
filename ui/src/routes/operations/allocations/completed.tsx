@@ -103,6 +103,10 @@ export function CompletedAllocationListRoute() {
             {validationError}
           </p>
         )}
+        <p className="ops-inventory-note">
+          CPU and observed RSS peak cover the Runtime process, including service
+          work. Subprocesses and sandbox containers are excluded.
+        </p>
         <QueryView
           query={query}
           loading={

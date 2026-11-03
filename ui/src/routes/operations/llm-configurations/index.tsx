@@ -13,7 +13,7 @@ import { useCursorStack } from "../../../app/pagination";
 import { QueryView } from "../../../app/query-view";
 import { compactDigest } from "../../../app/format";
 import { ButtonLink, FilterChips } from "../../../ui";
-import { OpsSection, ScopeChip } from "../common";
+import { EntryHeading, OpsSection, ScopeChip } from "../common";
 import { configurationVersionPath, KIND_LABELS, KIND_ORDER } from "./kinds";
 
 const DEFAULT_KIND: ConfigurationKind = "model-policies";
@@ -45,51 +45,40 @@ function ConfigurationTable({ kind }: { kind: ConfigurationKind }) {
         }
       >
         {(data) => (
-          <div className="ops-table-wrap">
-            <table className="ops-table" data-stack="">
-              <thead>
-                <tr>
-                  <th>Version</th>
-                  <th>Source</th>
-                  <th>Digest</th>
-                  <th>
-                    <span className="ui-visually-hidden">Action</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.items.map((resource) => (
-                  <tr
-                    key={`${resource.ref.name}@${resource.ref.version}:${resource.ref.digest}`}
-                  >
-                    <td data-label="Version">
-                      <strong className="ui-mono">
+          <div className="ops-resource-list">
+            {data.items.map((resource) => (
+              <details
+                className="ops-resource-row ops-resource-disclosure"
+                key={`${resource.ref.name}@${resource.ref.version}:${resource.ref.digest}`}
+              >
+                <summary className="ops-resource-heading">
+                  <EntryHeading
+                    icon="docs"
+                    title={
+                      <strong>
                         {resource.ref.name}@{resource.ref.version}
                       </strong>
-                    </td>
-                    <td data-label="Source">
-                      <ScopeChip>{resource.source}</ScopeChip>
-                    </td>
-                    <td data-label="Digest">
-                      <code className="ops-digest" title={resource.ref.digest}>
-                        {compactDigest(resource.ref.digest)}
-                      </code>
-                    </td>
-                    <td data-label="" className="ops-cell-actions">
-                      <ButtonLink
-                        size="sm"
-                        to={configurationVersionPath(resource.ref)}
-                      >
-                        {resource.ref.kind === "model-policies" ||
-                        resource.ref.kind === "llm-gateways"
-                          ? "Inspect / clone"
-                          : "Inspect"}
-                      </ButtonLink>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    }
+                    subtitle={label.singular}
+                  >
+                    <ScopeChip>{resource.source}</ScopeChip>
+                  </EntryHeading>
+                </summary>
+                <div className="ops-resource-body">
+                  <code className="ops-digest" title={resource.ref.digest}>
+                    {compactDigest(resource.ref.digest)}
+                  </code>
+                  <ButtonLink
+                    size="sm"
+                    to={configurationVersionPath(resource.ref)}
+                  >
+                    {resource.ref.kind === "agent-templates"
+                      ? "Inspect"
+                      : "Inspect / clone"}
+                  </ButtonLink>
+                </div>
+              </details>
+            ))}
           </div>
         )}
       </QueryView>
@@ -123,7 +112,7 @@ export function ConfigurationListRoute() {
             <p>Agent templates are read-only here.</p>
           </>
         }
-        actions={<ScopeChip>Server-wide</ScopeChip>}
+        eyebrow="Server-wide"
       >
         <FilterChips<ConfigurationKind>
           label="Kind"
@@ -138,6 +127,10 @@ export function ConfigurationListRoute() {
             label: KIND_LABELS[candidate].plural,
           }))}
         />
+        <p className="ops-inventory-note">
+          Inspect an exact version. Publishing a clone does not select it for
+          execution.
+        </p>
         {kind === "agent-templates" ? (
           <p className="ui-caption">
             <Link to="/catalog/agents">
