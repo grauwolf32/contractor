@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-78 open tasks: 11 in progress, 54 pending, 13 deferred. 1399 finished: 1381 completed, 18 archived.
+77 open tasks: 11 in progress, 53 pending, 13 deferred. 1400 finished: 1382 completed, 18 archived.
 
 ## In progress
 
@@ -118,12 +118,6 @@ the epics are in [epics.yml](epics.yml).
 | [V64-009](v64-009-audit-priority-ui.yml) | feature | P1 | V64-008, V64-010 | Show the basic research journey in the existing Audit UI |
 | [V411-018](v411-018-pentest-ui-journey.yml) | feature | P1 | V411-015, V411-017, V64-009 | Build the ordinary HTTP Audit setup and evidence UI journey |
 
-### Operations, authentication, CLI and deployment (`operations`)
-
-| Task | Kind | Priority | Waiting for | Title |
-| --- | --- | --- | --- | --- |
-| [V433-003](v433-003-otlp-decompression-bounds.yml) | defect | P2 | — | Enforce OTLP acknowledgement limits before decompression allocates the body |
-
 ### Public API and wire contracts (`api-contracts`)
 
 | Task | Kind | Priority | Waiting for | Title |
@@ -147,7 +141,7 @@ the epics are in [epics.yml](epics.yml).
 | [V417-009](v417-009-context-compaction-release-gate.yml) | chore | P1 | V417-003, V417-004, V417-005, V417-006, V417-007 | Verify context compaction across real processes and close the deterministic milestone |
 | [V420-005](v420-005-planner-compaction-release-gate.yml) | chore | P1 | V420-006, V420-003, V420-004 | Accept Planner compaction through real-process and integrated release gates |
 | [V425-014](v425-014-runtime-tests-fail-on-macos.yml) | chore | P3 | — | Make the Runtime process-liveness assertions able to fail on macOS |
-| [V433-005](v433-005-runtime-resource-bounds-gate.yml) | chore | P3 | V433-003 | Verify the Runtime resource-bound fixes and reconcile the review dispositions |
+| [V433-005](v433-005-runtime-resource-bounds-gate.yml) | chore | P3 | — | Verify the Runtime resource-bound fixes and reconcile the review dispositions |
 
 ## Deferred
 
@@ -190,7 +184,7 @@ tasks in `introduced_by`.
 | Evaluations (`evals`) | 6 | 21 | 39 | 16 | 49 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 5 |
 | Web UI (`ui`) | 2 | 41 | 70 | 26 | 71 |
-| Operations, authentication, CLI and deployment (`operations`) | 1 | 18 | 46 | 9 | 22 |
+| Operations, authentication, CLI and deployment (`operations`) | 0 | 18 | 46 | 9 | 22 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 39 | 29 | 20 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 27 | 47 | 17 |
 | Quality, CI and process (`quality`) | 11 | 1 | 29 | 121 | 27 |
