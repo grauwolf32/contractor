@@ -6,7 +6,7 @@ epic: ui
 kind: chore
 introduced_by: V429-024
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages: [typescript]
 goal: >-
@@ -55,3 +55,15 @@ tests:
     covers: [A1, A2]
   - command: make ui-verify
     covers: [A1, A2]
+implementation_commit: e6e2566309461eac2344f135c775e37d2ca74062
+verification:
+  date: "2026-11-03"
+  result: >-
+    The original fixture failed TestBrowserTestDoublesAnswerRegisteredCodes at
+    scope.test.tsx:119. After the one-line correction, the full internal/apierror
+    package passed (0.420s) and make verify-public-api passed (public 10.570s).
+    make ui-verify passed after the correction: all 223 files, 2657 tests and one
+    declared expected failure; all 17 Node server tests passed, generation,
+    ESLint/Prettier, typecheck and the production build passed. No source guard or
+    production error contract was changed. Used Node 24.20.0, pnpm 11.24.0,
+    PNPM_CONFIG_STORE_DIR for the existing store and VITEST_MAX_WORKERS=2.

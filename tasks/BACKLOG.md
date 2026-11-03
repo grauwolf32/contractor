@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-84 open tasks: 16 in progress, 55 pending, 13 deferred. 1383 finished: 1365 completed, 18 archived.
+83 open tasks: 15 in progress, 55 pending, 13 deferred. 1384 finished: 1366 completed, 18 archived.
 
 ## In progress
 
@@ -26,7 +26,6 @@ the epics are in [epics.yml](epics.yml).
 | [V437-005](v437-005-inject-artifact-storage-dependencies.yml) | projects-artifacts | chore | P2 | Inject Artifact storage dependencies explicitly |
 | [V437-006](v437-006-group-artifact-policy-and-preview.yml) | projects-artifacts | chore | P3 | Group shared Artifact policy and previews under artifacts |
 | [V437-007](v437-007-name-scheduler-fixture-sqlstate.yml) | execution-core | chore | P3 | Name the Scheduler discard fixture SQL condition |
-| [V440-009](v440-009-use-registered-scope-error-fixture.yml) | ui | chore | P2 | Use the registered retryable storage error in the Scope fixture |
 
 ## Pending
 
@@ -134,7 +133,7 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V411-017](v411-017-pentest-api-cli.yml) | feature | P1 | V411-015, V411-016, V64-008 | Expose HTTP engagement setup and results through existing API and CLI |
-| [V440-008](v440-008-integrate-current-main.yml) | chore | P2 | V440-009 | Integrate current main before landing the HTTP API review |
+| [V440-008](v440-008-integrate-current-main.yml) | chore | P2 | — | Integrate current main before landing the HTTP API review |
 
 ### PostgreSQL persistence and schema (`persistence`)
 
@@ -195,7 +194,7 @@ tasks in `introduced_by`.
 | Audits (`audits`) | 17 | 67 | 90 | 38 | 140 |
 | Evaluations (`evals`) | 6 | 21 | 39 | 16 | 49 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 5 |
-| Web UI (`ui`) | 3 | 38 | 70 | 26 | 71 |
+| Web UI (`ui`) | 2 | 38 | 70 | 26 | 71 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 18 | 46 | 9 | 22 |
 | Public API and wire contracts (`api-contracts`) | 2 | 2 | 39 | 29 | 20 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 27 | 47 | 17 |
