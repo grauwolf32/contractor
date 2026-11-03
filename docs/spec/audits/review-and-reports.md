@@ -514,7 +514,7 @@ from current analyst ratings rather than rewriting that report.
 
 ### Reports
 
-**REV-R200.** Common Task coordination may complete an Audit with ordinary
+**REV-R201.** Common Task coordination may complete an Audit with ordinary
 retained Task results and no aggregate report. In that case `getAuditReport`
 returns HTTP 200 with `status: unavailable`, without report artifacts or content.
 Completion does not imply report generation or acceptance. Inbox and Reports
