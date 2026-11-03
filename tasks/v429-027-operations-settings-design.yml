@@ -1,0 +1,117 @@
+schema_version: "1.0"
+id: V429-027
+title: Refine Operations Settings and compact the overview legend
+milestone: ui-journey-usability
+epic: ui
+kind: feature
+priority: P2
+status: in_progress
+depends_on: [V429-026]
+languages: [javascript, html, css]
+goal: Operators can distinguish execution defaults from personal settings and edit one setting without navigating an undifferentiated long form.
+demonstration: Open the new Settings preview, inspect the default model and separate scheduling limits, reveal role overrides, edit and discard local drafts, inspect repository access and select a theme, then compare with the previous Settings and visit unchanged Operations tabs.
+context:
+  authority: User 2026-11-03 requests more design work on Settings and approves the other Operations tabs; during the work also explicitly requests a tighter Overview idle/busy/reserved/draining/fenced pill group.
+  specification: docs/spec/operations/operations.md
+  design: docs/design/ui/README.md
+  decision: >-
+    Agent proposal: compact local navigation, an execution column for Models
+    and Workflow scheduling and a separate personal column for Git SSH key
+    and appearance. Each Server resource retains independent save/conflict
+    behavior; no combined transactional save is invented. The real Git key
+    component imports a private key rather than generating one, so its layout
+    reference must use that source behavior. The prototype accepts no secrets.
+    New isolated native project generates Settings-only CSS; host assembly is
+    planned and explicitly attributed. Preserve every prior artifact and serve
+    the other approved tabs from their original files. No production transfer. The later user request adds only a small host CSS
+    override for Overview legend spacing; retain its original native source and
+    clearly separate that host override from the new Settings native CSS. Visual
+    QA also requires a separately retained host layout correction for phone
+    personal columns and narrow scheduling captions; never alter native CSS.
+scope:
+  in:
+    - Settings-specific layout, clear scope labels, compact model choice and advanced role overrides.
+    - Separate model and scheduling drafts, reset and explicit stale/read-failure/unconfigured examples.
+    - Git key metadata/import layout and browser theme choices without accepting secrets or writing settings.
+    - Native OpenDesign CSS, immutable inputs and output, verified full backups and navigable preview.
+    - Compact wrapping Overview slot legend with close label/count spacing and unchanged source counts/colors.
+  out:
+    - Changes to other approved tabs beyond the requested Overview legend spacing, production UI/API, configured live model, credential operations, deployment or main merge.
+requirements:
+  - id: R1
+    text: Settings uses shared project fonts, tokens and icons with distinct execution and personal scopes and compact responsive layout.
+  - id: R2
+    text: Model and scheduling edits keep independent save/reset states; stale drafts cannot claim successful saves or overwrite another revision, and unavailable reads never fabricate saved values.
+  - id: R3
+    text: Git SSH key presentation follows the existing import/metadata/remove surface without generating a key, accepting secret input or sending credential requests; theme changes stay in the preview.
+  - id: R4
+    text: Exact native CSS is retained and host assembly is explicit; previous native data and all other approved tab documents remain unchanged.
+failure_outcomes:
+  - operation: Native CSS generation
+    permanent: Retain input, receipt, any CSS and failed status; show only verified output and explicitly record host assembly.
+    retryable: At most one deliberate continuation within the same 24-request budget and configured model.
+    ambiguous: Record submission identity first and reconcile the existing run before resubmitting.
+    cancelled: Stop only owned run and relay; preserve all generated files and native history.
+    timeout: One-hour relay expiry and bounded long model wait; never substitute the configured model.
+  - operation: Preview form actions
+    permanent: Validate local limits and show explicit read/conflict states, preserving local drafts.
+    retryable: Local retry/reset only; no deployment request.
+    ambiguous: No production write or secret input exists.
+    cancelled: Page closure discards local edits only.
+    timeout: No external operations from preview controls.
+cardinality:
+  - collection: Settings fixtures
+    expected: Two model profiles, four roles, two scheduling limits and four theme choices.
+    maximum: Three fixed model profiles and four roles; five explicit read/draft scenarios.
+    bound: One fixed local render without inventory polling or any production request.
+  - collection: Native generation
+    expected: One seed and brief in one new project, CSS output only.
+    maximum: Twenty-four model requests and one-hour relay lifetime.
+    bound: Existing internal-only network, read-only root and state volume; same configured gateway and model.
+lifecycle:
+  - entity: Settings design revision
+    delete: No old assets or native history are deleted.
+    cascade: No production entities.
+    retention: Exact inputs, CSS, assembly, run identity, before/after recovery manifests and review captures.
+acceptance_criteria:
+  - id: A1
+    text: Settings has clearly grouped execution and personal sections with local model/role/scheduling edit, discard, valid limit and stale/read-failure behavior; Git and theme layout follow their actual source scope.
+  - id: A2
+    text: Native OpenDesign produces retained CSS with the unchanged configured model; host assembly is byte-verified, old project files/history remain identical, and relay/credential cleanup is verified.
+  - id: A3
+    text: All themes at 1440/1100/390/320px fit without overflow; controls and old/new comparison work, other tabs are byte-identical source references with only the explicitly requested compact Overview legend overlay, no external requests occur and the preview is opened.
+tests:
+  - command: node docs/design/ui/experiments/operations-settings-opendesign-2026-11-03/verify.mjs
+    covers: [A1, A2, A3]
+  - command: python3 scripts/check_tasks.py
+    covers: [A3]
+  - command: python3 scripts/check_spec.py
+    covers: [A1]
+  - command: git diff --check
+    covers: [A1, A2, A3]
+
+verification:
+  - >-
+    Native CSS is retained from successful run 8986a7ac-9468-481b-b1c5-1df77924190a.
+    Initial run d5e8163f-843d-4919-bd1d-d392aae1427b reported success without CSS;
+    the one allowed continuation used a line-broken structural reference in the
+    same budget. Exact inputs/prompts/output and both outcomes are explicit.
+    Host assembly and separate visual-QA fixes are independently hashed; native
+    CSS is unchanged. The configured Contractor model is unchanged.
+  - >-
+    verify.mjs passes 60 Settings layouts and 12 Overview legend layouts in all
+    themes at 1440/1100/390/320px. It exercises separate model/scheduling drafts,
+    role overrides, local save/reset, stale conflicts, integer bounds, disabled
+    private-key entry, theme choices, previous/new comparison, section
+    navigation, keyboard disclosures and live resize. No overflow, page errors
+    or production/external requests. Visual QA confirms readable full-width
+    scheduling lanes and single-column personal cards on phones.
+  - >-
+    All 198 previous native files and previous history rows are identical in
+    independently verified full SQLite recovery backups; eleven project files
+    were added. Relay stopped and upstream credential removed after 10 of 24
+    requests. Original approved tab files remain byte-identical; only the
+    explicitly requested compact Overview legend is overlaid in this wrapper.
+  - >-
+    python3 scripts/check_tasks.py, python3 scripts/check_spec.py and git diff
+    --check pass. No production source changed and no production UI gate ran.

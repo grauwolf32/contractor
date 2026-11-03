@@ -1,0 +1,1149 @@
+<!doctype html><html lang="en" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Contractor · Settings design</title><style id="shared-theme">/*
+ * Colour, type and scale tokens for the light, dark and black themes
+ * (docs/design/ui/themes.md). Every colour in the UI comes from these tokens,
+ * and spacing, radii, font sizes and control heights come from the scale
+ * (src/ui/README.md, "Style scale").
+ *
+ * Light is the base. src/app/theme.ts always sets data-theme="light|dark|
+ * black": an explicit choice, or the system preference resolved to light or
+ * dark and followed while it changes.
+ */
+:root {
+  color-scheme: light;
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* Spacing: a 4 px grid, --space-N = N x 0.25rem, with half steps. */
+  --space-0-5: 0.125rem;
+  --space-1: 0.25rem;
+  --space-1-5: 0.375rem;
+  --space-2: 0.5rem;
+  --space-2-5: 0.625rem;
+  --space-3: 0.75rem;
+  --space-3-5: 0.875rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-12: 3rem;
+
+  /* Radii: chips and inputs, controls, cards, panes, pills. */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+  --radius-2xl: 14px;
+  --radius-full: 999px;
+
+  /* Font sizes: 11, 12, 13, 14, 16, 20 and 24 px. */
+  --text-2xs: 0.6875rem;
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-md: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.5rem;
+
+  /* Control heights: xs, sm and md buttons; lg is the touch target. */
+  --control-xs: 1.75rem;
+  --control-sm: 2rem;
+  --control-md: 2.375rem;
+  --control-lg: 2.75rem;
+
+  --background: #eceff3;
+  --surface: #ffffff;
+  --surface-subtle: #f4f6f9;
+  --surface-raised: #f1f4f8;
+  --surface-hover: #e9eef4;
+  --sunken: #f7f9fb;
+  --row-hover: #f3f6f9;
+  --line: #dde2e9;
+  --line-strong: #c3cbd6;
+  --text: #10151d;
+  --muted: #4a5466;
+  --muted-strong: #2c3542;
+
+  --primary: #1f2630;
+  --primary-hover: #353f4d;
+  --on-primary: #ffffff;
+  --accent: #2f5d8a;
+  --accent-dark: #e6eef7;
+  --accent-line: #b3c6dc;
+  --link: #2f5d8a;
+  --focus: #2f5d8a;
+  --focus-ring: rgb(47 93 138 / 24%);
+
+  --success: #17703a;
+  --success-bg: #e2f2e7;
+  --success-line: #a7d3b6;
+  --warning: #8a4a00;
+  --warning-bg: #fbeed6;
+  --warning-line: #e4c38a;
+  --danger: #b3261e;
+  --danger-bg: #fbe5e2;
+  --danger-bg-strong: #f6d0cb;
+  --danger-line: #eab1ab;
+  --danger-ink: #8f1d17;
+  --danger-strong: #951f18;
+  --on-danger: #ffffff;
+  --info: #1d4fbf;
+  --info-bg: #e3eafb;
+  --info-line: #b2c4ef;
+
+  --code-ink: #24415f;
+  --scrim: rgb(16 21 29 / 42%);
+  --shadow-lg:
+    0 24px 64px -20px rgb(16 21 29 / 35%), 0 2px 6px rgb(16 21 29 / 8%);
+  --brand-bg: #050505;
+
+  /*
+   * V3B parts (src/ui): chrome for method chips and rail states, faint
+   * secondary text, the selected-row tint with its bar and outline, code
+   * blocks and highlighted lines, the rail count badge, and progress
+   * segments (m-*). The selection tokens alias the accent family, so the
+   * dark and black blocks only redefine the rest.
+   */
+  --chrome: #e3e8ee;
+  --chrome-2: #d6dde6;
+  --faint: #56606f;
+  --sel: var(--accent-dark);
+  --sel-bar: var(--accent);
+  --sel-line: var(--accent-line);
+  --code-bg: #f6f8fa;
+  --code-hl: #e6eef7;
+  --badge-bg: #10151d;
+  --badge-ink: #ffffff;
+  --m-idle: #cfd6e0;
+  --m-partial: #c08600;
+  --m-progress: #3f6fe0;
+  --m-blocked: #a3221a;
+  --m-done: #1f8a4c;
+
+  --diff-add-bg: #e6f4ea;
+  --diff-add-ink: #14532b;
+  --diff-add-num-bg: #cfe9d7;
+  --diff-add-num-ink: #17703a;
+  --diff-del-bg: #fbe9e7;
+  --diff-del-ink: #7f1a14;
+  --diff-del-num-bg: #f5d0cc;
+  --diff-del-num-ink: #a3221a;
+  --diff-hunk-bg: #e8eefa;
+  --diff-hunk-ink: #1d4fbf;
+  --diff-hunk-num-bg: #d6e1f6;
+  --diff-file-bg: #eef1f5;
+  --diff-file-ink: #10151d;
+  --diff-num-ink: #5f6a7a;
+  --diff-num-line: #e3e7ed;
+  --diff-add-count: #17703a;
+  --diff-del-count: #b3261e;
+
+  /* Evals: variant A is always blue, B always orange (S30:593-596). */
+  --eval-a: #1f6fd1;
+  --eval-b: #c25a00;
+  --eval-b-stripe: #8a3f00;
+  --chart-axis: #9aa5b4;
+  /* GPU series: Okabe-Ito based; every series also has a named legend entry. */
+  --gpu-1: #0072b2;
+  --gpu-2: #b86e00;
+  --gpu-3: #00805e;
+  --gpu-4: #7d7200;
+  --gpu-5: #b4447f;
+  --gpu-6: #c24e00;
+  --gpu-7: #5b4bc4;
+  --gpu-8: #4b5566;
+  --gpu-9: #004f7c;
+  --gpu-10: #8a5200;
+  --gpu-11: #005a42;
+  --gpu-12: #5a5200;
+  --gpu-13: #8a2e5f;
+  --gpu-14: #933a00;
+  --gpu-15: #3f3196;
+  --gpu-16: #2f3744;
+}
+
+/*
+ * First paint for a dark system preference, before src/app/theme.ts sets
+ * data-theme (it resolves "system" to light or dark and follows changes).
+ * The values repeat the dark block below; theme.test.ts keeps them equal.
+ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    color-scheme: dark;
+    --background: #0b0e13;
+    --text: #e9edf3;
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --background: #0b0e13;
+  --surface: #121720;
+  --surface-subtle: #0e131a;
+  --surface-raised: #1a202b;
+  --surface-hover: #1e2633;
+  --sunken: #090d12;
+  --row-hover: #161d28;
+  --line: #222b38;
+  --line-strong: #344155;
+  --text: #e9edf3;
+  --muted: #a8b3c3;
+  --muted-strong: #c9d2de;
+  --primary: #d3dbe6;
+  --primary-hover: #e6ebf2;
+  --on-primary: #0b1017;
+  --accent: #9fbde0;
+  --accent-dark: #172334;
+  --accent-line: #3a5677;
+  --link: #9fbde0;
+  --focus: #9fbde0;
+  --focus-ring: rgb(159 189 224 / 28%);
+  --success: #72d895;
+  --success-bg: #10261a;
+  --success-line: #2c6343;
+  --warning: #f3b54a;
+  --warning-bg: #2a2010;
+  --warning-line: #6b5424;
+  --danger: #ff8e85;
+  --danger-bg: #311614;
+  --danger-bg-strong: #45201d;
+  --danger-line: #6e3431;
+  --danger-ink: #ffc2bc;
+  --danger-strong: #ffa49c;
+  --on-danger: #2a0b09;
+  --info: #8fb3ff;
+  --info-bg: #14213b;
+  --info-line: #2f4878;
+  --code-ink: #cdd9e8;
+  --scrim: rgb(4 6 9 / 72%);
+  --shadow-lg:
+    0 24px 64px -16px rgb(0 0 0 / 75%), 0 0 0 1px rgb(255 255 255 / 4%);
+  --chrome: #1b2331;
+  --chrome-2: #243044;
+  --faint: #99a5b7;
+  --code-bg: #0e131a;
+  --code-hl: #172334;
+  --badge-bg: #d3dbe6;
+  --badge-ink: #0b1017;
+  --m-idle: #2b3546;
+  --m-partial: #f6c35c;
+  --m-progress: #6f9bff;
+  --m-blocked: #e0483f;
+  --m-done: #5cc983;
+  --diff-add-bg: #10291b;
+  --diff-add-ink: #b9f6ca;
+  --diff-add-num-bg: #174127;
+  --diff-add-num-ink: #91dca9;
+  --diff-del-bg: #30171a;
+  --diff-del-ink: #ffd0d4;
+  --diff-del-num-bg: #512027;
+  --diff-del-num-ink: #f3a1a8;
+  --diff-hunk-bg: #10233a;
+  --diff-hunk-ink: #9dcaff;
+  --diff-hunk-num-bg: #142c49;
+  --diff-file-bg: #171d26;
+  --diff-file-ink: #d7e5f8;
+  --diff-num-ink: #7d8a9c;
+  --diff-num-line: rgb(255 255 255 / 6%);
+  --diff-add-count: #75d89a;
+  --diff-del-count: #ff938a;
+  --eval-a: #78b9ff;
+  --eval-b: #ffb56e;
+  --eval-b-stripe: #925621;
+  --chart-axis: #4d5968;
+  --gpu-1: #56b4e9;
+  --gpu-2: #e69f00;
+  --gpu-3: #2fc79a;
+  --gpu-4: #f0e442;
+  --gpu-5: #cc79a7;
+  --gpu-6: #ff7a45;
+  --gpu-7: #a99cff;
+  --gpu-8: #c9d2de;
+  --gpu-9: #9fd3f5;
+  --gpu-10: #f5c45c;
+  --gpu-11: #7ee0bf;
+  --gpu-12: #f7ef8a;
+  --gpu-13: #e3a6c8;
+  --gpu-14: #ffa883;
+  --gpu-15: #cbc3ff;
+  --gpu-16: #e6ebf2;
+}
+
+:root[data-theme="black"] {
+  color-scheme: dark;
+  --background: #000000;
+  --surface: #0a0a0b;
+  --surface-subtle: #050506;
+  --surface-raised: #141518;
+  --surface-hover: #1a1c20;
+  --sunken: #000000;
+  --row-hover: #101113;
+  --line: #1e2024;
+  --line-strong: #2d3036;
+  --text: #ececec;
+  --muted: #a3a7ad;
+  --muted-strong: #c9ccd1;
+  --primary: #e6e8eb;
+  --primary-hover: #f4f5f7;
+  --on-primary: #000000;
+  --accent: #a9c3e0;
+  --accent-dark: #0f1722;
+  --accent-line: #2c3e55;
+  --link: #a9c3e0;
+  --focus: #a9c3e0;
+  --focus-ring: rgb(169 195 224 / 28%);
+  --success: #72d895;
+  --success-bg: #0a1a10;
+  --success-line: #24503a;
+  --warning: #f3b54a;
+  --warning-bg: #1c1508;
+  --warning-line: #4f3e1c;
+  --danger: #ff8e85;
+  --danger-bg: #200c0b;
+  --danger-bg-strong: #331412;
+  --danger-line: #57302d;
+  --danger-ink: #ffc2bc;
+  --danger-strong: #ffa49c;
+  --on-danger: #1a0605;
+  --info: #8fb3ff;
+  --info-bg: #0c1529;
+  --info-line: #24385c;
+  --code-ink: #d6dde6;
+  --scrim: rgb(0 0 0 / 80%);
+  --shadow-lg: 0 0 0 1px #2d3036, 0 24px 64px -16px rgb(0 0 0 / 90%);
+  --chrome: #141518;
+  --chrome-2: #1c1e22;
+  --faint: #94989f;
+  --code-bg: #050506;
+  --code-hl: #0f1722;
+  --badge-bg: #e6e8eb;
+  --badge-ink: #000000;
+  --m-idle: #26292e;
+  --m-partial: #f6c35c;
+  --m-progress: #6f9bff;
+  --m-blocked: #e0483f;
+  --m-done: #5cc983;
+  --diff-add-bg: #0b1f14;
+  --diff-add-ink: #b9f6ca;
+  --diff-add-num-bg: #12331f;
+  --diff-add-num-ink: #91dca9;
+  --diff-del-bg: #22100f;
+  --diff-del-ink: #ffd0d4;
+  --diff-del-num-bg: #3d181d;
+  --diff-del-num-ink: #f3a1a8;
+  --diff-hunk-bg: #0b1a2c;
+  --diff-hunk-ink: #9dcaff;
+  --diff-hunk-num-bg: #10223a;
+  --diff-file-bg: #111214;
+  --diff-file-ink: #d7e5f8;
+  --diff-num-ink: #7f848c;
+  --diff-num-line: rgb(255 255 255 / 6%);
+  --diff-add-count: #75d89a;
+  --diff-del-count: #ff938a;
+  --eval-a: #78b9ff;
+  --eval-b: #ffb56e;
+  --eval-b-stripe: #925621;
+  --chart-axis: #3a3e45;
+  --gpu-1: #56b4e9;
+  --gpu-2: #e69f00;
+  --gpu-3: #2fc79a;
+  --gpu-4: #f0e442;
+  --gpu-5: #cc79a7;
+  --gpu-6: #ff7a45;
+  --gpu-7: #a99cff;
+  --gpu-8: #c9d2de;
+  --gpu-9: #9fd3f5;
+  --gpu-10: #f5c45c;
+  --gpu-11: #7ee0bf;
+  --gpu-12: #f7ef8a;
+  --gpu-13: #e3a6c8;
+  --gpu-14: #ffa883;
+  --gpu-15: #cbc3ff;
+  --gpu-16: #e6ebf2;
+}
+</style><style id="functional-seed-style">
+*{box-sizing:border-box}body{margin:0;background:var(--background);color:var(--text);font:var(--text-sm)/1.5 var(--font-sans)}button,a,summary{-webkit-tap-highlight-color:transparent}button{font:inherit;color:inherit;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);padding:var(--space-2) var(--space-3);cursor:pointer}a{color:var(--link);text-underline-offset:3px}button:focus-visible,a:focus-visible,summary:focus-visible{outline:2px solid var(--focus);outline-offset:3px}svg{flex:none;width:18px;height:18px;vertical-align:middle}[hidden]{display:none!important}h1,h2,h3,p{margin:0}h1{font-size:var(--text-xl);font-weight:600}h2{font-size:var(--text-lg);font-weight:600}h3{font-size:var(--text-md);font-weight:600}code{font-family:var(--font-mono);font-size:var(--text-xs);overflow-wrap:anywhere}.app-shell{display:grid;grid-template-columns:76px minmax(0,1fr);min-height:100dvh}.global-rail{background:var(--surface);border-right:1px solid var(--line);padding:var(--space-5) var(--space-2);display:flex;flex-direction:column;gap:var(--space-3)}.brand{text-align:center;font-size:var(--text-lg);margin-bottom:var(--space-4)}.global-rail a{display:grid;justify-items:center;gap:var(--space-1);padding:var(--space-2);font-size:var(--text-2xs);text-decoration:none;color:var(--muted)}.global-rail a[aria-current]{background:var(--sel);color:var(--link);border-radius:var(--radius-md)}.mobile-bar{display:none}.workspace{min-width:0;padding:var(--space-6) var(--space-8)}.page-head{display:flex;justify-content:space-between;gap:var(--space-4);align-items:start;margin-bottom:var(--space-6)}.page-head p{color:var(--muted);margin-top:var(--space-1)}.page-actions{display:flex;gap:var(--space-3);align-items:center;flex-wrap:wrap}.connection{display:flex;gap:var(--space-2);align-items:center;font-size:var(--text-xs)}.connection[data-tone=success]{color:var(--success)}.connection[data-tone=warning]{color:var(--warning)}.connection-note{font-size:var(--text-xs);color:var(--muted);margin-bottom:var(--space-4)}.ops-workspace{display:grid;grid-template-columns:200px minmax(0,1fr);gap:var(--space-6);align-items:start}.ops-navigation{min-width:0}.ops-navigation summary{cursor:pointer;font-weight:500;margin-bottom:var(--space-3)}.ops-navigation summary span{display:block;font-size:var(--text-xs);color:var(--muted);font-weight:400}.ops-navigation nav{display:grid;gap:var(--space-1)}.ops-navigation a{display:flex;align-items:center;gap:var(--space-2);padding:var(--space-2) var(--space-3);text-decoration:none;color:var(--muted-strong);border-radius:var(--radius-sm)}.ops-navigation a[aria-current]{background:var(--sel);color:var(--text)}.nav-group{font-size:var(--text-2xs);text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:var(--space-5) var(--space-3) var(--space-2)}.overview-content{min-width:0;display:grid;gap:var(--space-5)}.glance{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--space-3)}.glance-card{padding:var(--space-4);border:1px solid var(--line);border-radius:var(--radius-md);background:var(--surface);min-width:0}.glance-label{display:flex;align-items:center;gap:var(--space-2);color:var(--muted);font-size:var(--text-xs)}.glance-number{display:block;font:500 2rem/1.4 var(--font-mono);margin-top:var(--space-2)}.glance-card p{color:var(--muted);font-size:var(--text-xs)}.readiness-grid{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);gap:var(--space-4)}.panel{min-width:0;padding:var(--space-5);border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--surface)}.panel-head{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);margin-bottom:var(--space-4)}.panel-head span{font-size:var(--text-xs);color:var(--muted)}.slot-track{display:flex;gap:var(--space-1);height:16px;margin:var(--space-5) 0;border-radius:var(--radius-sm);overflow:hidden}.slot-track span{background:var(--line-strong);flex-basis:0}.slot-track [data-state=idle]{background:var(--success)}.slot-track [data-state=busy]{background:var(--accent)}.slot-track [data-state=reserved]{background:var(--info)}.slot-track [data-state=draining]{background:var(--warning)}.slot-track [data-state=fenced]{background:var(--danger)}.slot-legend{display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-4);padding:0;margin:0;list-style:none}.slot-legend li{display:flex;gap:var(--space-2);align-items:center}.status-chip{display:inline-flex;align-items:center;gap:var(--space-1);padding:var(--space-0-5) var(--space-2);border:1px solid var(--line);border-radius:var(--radius-full);font-size:var(--text-2xs);color:var(--muted-strong);white-space:normal}.status-chip[data-tone=progress]{background:var(--info-bg);border-color:var(--info-line);color:var(--info)}.status-chip[data-tone=warning]{background:var(--warning-bg);border-color:var(--warning-line);color:var(--warning)}.status-chip[data-tone=danger]{background:var(--danger-bg);border-color:var(--danger-line);color:var(--danger)}.capacity-note,.quiet,.drain-note,.empty-copy{font-size:var(--text-xs);line-height:1.65;color:var(--muted)}.capacity-note{margin-top:var(--space-4)}.inspection-item{display:grid;grid-template-columns:18px minmax(0,1fr);gap:var(--space-1) var(--space-2);margin-bottom:var(--space-3)}.inspection-item>svg,.inspection-item>span{color:var(--warning)}.inspection-item p{grid-column:2;font-size:var(--text-xs);color:var(--muted)}.drain-note{margin-top:var(--space-3)}.empty-copy{padding-block:var(--space-3)}.section-heading{display:flex;justify-content:space-between;align-items:center;gap:var(--space-3);margin-bottom:var(--space-3)}.section-heading .count{color:var(--muted);font:var(--text-xs)/1.5 var(--font-mono);margin-left:var(--space-2)}.section-heading>a,.details-link{font-size:var(--text-xs)}.process-list,.allocation-list{display:grid;gap:var(--space-2)}.agent-row,.allocation-row{border:1px solid var(--line);border-radius:var(--radius-md);background:var(--surface);min-width:0}.agent-row>summary{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr) 18px;gap:var(--space-3);padding:var(--space-4);align-items:center;list-style:none;cursor:pointer}.allocation-row>summary{display:grid;grid-template-columns:minmax(0,1fr) auto 18px;gap:var(--space-3);padding:var(--space-4);align-items:center;list-style:none;cursor:pointer}summary::-webkit-details-marker{display:none}.row-heading{min-width:0;display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap}.row-heading strong{font-weight:500;font-size:var(--text-sm);overflow-wrap:anywhere}.row-heading code{color:var(--muted)}.row-icon{color:var(--muted)}.row-context{font-size:var(--text-xs);color:var(--muted);overflow-wrap:anywhere}.row-open{color:var(--muted)}.allocation-states{display:flex;flex-wrap:wrap;gap:var(--space-2)}.row-details{border-top:1px solid var(--line);padding:var(--space-4);display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-3)}.row-details-title{flex:1 1 100%;display:flex;align-items:center;justify-content:space-between;font-size:var(--text-sm)}.fact-list{display:grid;gap:var(--space-2);margin:0;min-width:0;flex:1 1 100%}.fact-list>div{display:grid;grid-template-columns:160px minmax(0,1fr);gap:var(--space-3);font-size:var(--text-xs)}.fact-list dt{color:var(--muted)}.fact-list dd{margin:0;font-family:var(--font-mono);overflow-wrap:anywhere}.icon-button{display:grid;place-items:center;padding:var(--space-1);border:0;background:transparent}.diagnostics{border-top:1px solid var(--line);padding-top:var(--space-4)}.diagnostics>summary{font-size:var(--text-xs);color:var(--muted);cursor:pointer}.diagnostics-body{padding-block:var(--space-4)}.shortcuts{display:flex;flex-wrap:wrap;gap:var(--space-3);font-size:var(--text-xs)}.read-error{border-color:var(--danger-line);padding:var(--space-6)}.read-error p{margin:var(--space-3) 0;color:var(--muted)}.action-status{font-size:var(--text-xs);color:var(--muted);min-height:1.5em}.agent-row[data-warning=true]{border-color:var(--warning-line)}
+@media(max-width:1100px){.workspace{padding:var(--space-5)}.ops-workspace{grid-template-columns:180px minmax(0,1fr);gap:var(--space-4)}.readiness-grid{grid-template-columns:1fr}.agent-row>summary{grid-template-columns:minmax(0,1fr) auto 18px}.row-context{grid-column:1/3;grid-row:2}.agent-row>summary>.row-open{grid-column:3;grid-row:1}.allocation-row>summary{grid-template-columns:minmax(0,1fr) 18px}.allocation-states{grid-column:1;grid-row:2}.allocation-row>summary>.row-open{grid-column:2;grid-row:1}}
+@media(max-width:820px){.app-shell{grid-template-columns:1fr}.global-rail{display:none}.global-rail[data-open=true]{display:flex;position:relative}.mobile-bar{display:flex;align-items:center;justify-content:space-between;padding:var(--space-3) var(--space-4);border-bottom:1px solid var(--line);background:var(--surface)}.workspace{padding:var(--space-4)}.page-head{flex-wrap:wrap}.page-head h1{font-size:var(--text-xl)}.ops-workspace{grid-template-columns:1fr}.ops-navigation{padding:var(--space-3);border:1px solid var(--line);border-radius:var(--radius-md);background:var(--surface)}.ops-navigation summary{margin:0}.ops-navigation details[open] summary{margin-bottom:var(--space-3)}.glance{grid-template-columns:1fr}.glance-card{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:var(--space-1) var(--space-3)}.glance-number{grid-column:2;grid-row:1/3;margin:0;font-size:var(--text-xl)}.glance-card p{grid-column:1}.panel{padding:var(--space-4)}.fact-list>div{grid-template-columns:1fr;gap:var(--space-1)}.section-heading{align-items:start}.section-heading a{flex:0 1 auto;text-align:right}.agent-row>summary,.allocation-row>summary{padding:var(--space-3)}.row-details{padding:var(--space-3)}}
+</style><style id="opendesign">
+/*
+ * opendesign.css — Operations overview visual pass.
+ * Overrides layered after the seed styles; every colour comes from the
+ * existing theme tokens and both font families are the supplied ones.
+ * Breakpoints follow the seed scale: 1100 / 820 / 640 / 480.
+ */
+
+/* Page frame: capped measure and a header band divider */
+.workspace {
+  max-width: 1280px;
+  margin-inline: auto;
+}
+.page-head {
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--line);
+}
+.page-head h1 { letter-spacing: -.01em; }
+.page-actions { gap: var(--space-2); }
+
+/* Live-transport badge in the page actions */
+.connection {
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-full);
+  background: var(--surface);
+  font-weight: 500;
+}
+.connection svg { width: 14px; height: 14px; }
+.connection[data-tone=success] {
+  border-color: var(--success-line);
+  background: var(--success-bg);
+}
+.connection[data-tone=warning] {
+  border-color: var(--warning-line);
+  background: var(--warning-bg);
+}
+
+/* Compact snapshot band: micro-labels, mono counts */
+.glance { gap: var(--space-3); }
+.glance-card {
+  padding: var(--space-3) var(--space-4);
+}
+.glance-label {
+  font-size: var(--text-2xs);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+.glance-label svg { width: 14px; height: 14px; }
+.glance-number {
+  font: 500 var(--text-lg)/1.3 var(--font-mono);
+  margin-top: var(--space-1);
+}
+.glance-card p { font-size: var(--text-xs); }
+#mismatch-card[data-tone=warning] {
+  border-color: var(--warning-line);
+  background: var(--warning-bg);
+}
+#mismatch-card[data-tone=warning] .glance-number { color: var(--warning); }
+#mismatch-card[data-tone=unknown] .glance-number { color: var(--muted); }
+
+/* Slot distribution — the visual anchor */
+.readiness { border-color: var(--line-strong); }
+.slot-track {
+  height: 1.25rem;
+  gap: var(--space-0-5);
+  margin: var(--space-4) 0;
+  background: var(--sunken);
+  border: 1px solid var(--line);
+}
+.slot-track span { min-width: var(--space-1-5); }
+.slot-legend {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
+  gap: var(--space-2) var(--space-3);
+}
+.slot-legend strong { font: 600 var(--text-xs)/1.4 var(--font-mono); }
+.capacity-note {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+
+/* Needs inspection — clearly qualified items */
+#inspection[data-tone=warning] { border-color: var(--warning-line); }
+#inspection[data-tone=warning] .panel-head h2 { color: var(--warning); }
+.inspection-item {
+  margin-bottom: 0;
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--line);
+}
+.inspection-item:first-child { border-top: 0; padding-top: 0; }
+.inspection-item a {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: 500;
+}
+.inspection-item p { font-size: var(--text-xs); }
+#inspection .details-link {
+  display: inline-block;
+  margin-top: var(--space-3);
+}
+.drain-note {
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+
+/* Section headers below the anchor panels */
+.section-heading {
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--line);
+}
+.section-heading h2 {
+  font-size: var(--text-md);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.section-heading a { white-space: nowrap; }
+
+/* Labelled section navigation */
+.ops-navigation summary { font-weight: 600; }
+.ops-navigation a { transition: background 150ms ease; }
+.ops-navigation a:hover { background: var(--surface-hover); }
+.ops-navigation a[aria-current] { box-shadow: inset 2px 0 0 var(--sel-bar); }
+.nav-group {
+  margin: var(--space-4) var(--space-3) var(--space-1);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+
+/* Sticky labelled nav card on wide screens */
+@media (min-width: 821px) {
+  .ops-navigation {
+    position: sticky;
+    top: var(--space-6);
+    padding: var(--space-4);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+  }
+}
+
+/* Process and allocation rows — related but distinct */
+.status-chip { font-weight: 500; }
+.agent-row>summary,
+.allocation-row>summary {
+  padding: var(--space-3) var(--space-4);
+  transition: background 150ms ease;
+}
+.agent-row>summary:hover,
+.allocation-row>summary:hover { background: var(--row-hover); }
+.row-open { transition: transform 150ms ease; }
+details[open]>summary .row-open { transform: rotate(90deg); }
+.agent-row[data-warning=true] .row-icon { color: var(--warning); }
+.allocation-row .row-icon { color: var(--accent); }
+.allocation-states .status-chip:last-child {
+  background: transparent;
+  border-color: currentColor;
+}
+.row-details {
+  background: var(--surface-subtle);
+  padding: var(--space-3) var(--space-4);
+}
+.row-details-title {
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--muted);
+}
+
+/* Technical facts inside disclosures */
+.fact-list { gap: 0; }
+.fact-list>div {
+  padding: var(--space-1-5) 0;
+  border-bottom: 1px solid var(--line);
+}
+.fact-list>div:last-child { border-bottom: 0; }
+.fact-list dt {
+  font-size: var(--text-2xs);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  align-self: center;
+}
+
+/* Empty and failed reads stay explicit */
+.empty-copy {
+  padding: var(--space-3);
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-md);
+}
+#read-error { background: var(--danger-bg); }
+#read-error h2 { color: var(--danger-ink); }
+
+/* Footer links, diagnostics, copy buttons */
+.shortcuts {
+  border-top: 1px solid var(--line);
+  padding-top: var(--space-4);
+}
+.diagnostics>summary:hover { color: var(--muted-strong); }
+.icon-button { color: var(--muted); }
+.icon-button:hover { color: var(--text); }
+
+/* 1100 — narrower rail, tighter band */
+@media (max-width: 1100px) {
+  .ops-navigation { padding: var(--space-3); }
+  .glance { gap: var(--space-2); }
+}
+
+/* 820 — nav folds into the labelled block; snapshot stacks */
+@media (max-width: 820px) {
+  .mobile-bar {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  .glance-number {
+    grid-column: 2;
+    grid-row: 1/3;
+    margin: 0;
+  }
+  .agent-row,
+  .allocation-row { scroll-margin-top: 3.5rem; }
+}
+
+/* 640 — stacked header, tighter rows */
+@media (max-width: 640px) {
+  .page-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .page-actions { justify-content: space-between; }
+  .agent-row>summary,
+  .allocation-row>summary { padding: var(--space-3); }
+  .row-details { padding: var(--space-3); }
+}
+
+/* 480 — phones: restacked process rows, two-column legend */
+@media (max-width: 480px) {
+  .workspace { padding: var(--space-4) var(--space-3); }
+  .glance-card { padding: var(--space-3); }
+  .slot-track { height: 1rem; }
+  .slot-legend { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .agent-row>summary { grid-template-columns: minmax(0, 1fr) 18px; }
+  .agent-row>summary>.row-state { grid-column: 1; grid-row: 2; justify-self: start; }
+  .agent-row>summary>.row-context { grid-column: 1; grid-row: 3; }
+  .agent-row>summary>.row-open { grid-column: 2; grid-row: 1; }
+  .mobile-bar { padding: var(--space-2) var(--space-3); }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .ops-navigation a,
+  .agent-row>summary,
+  .allocation-row>summary,
+  .row-open { transition: none; }
+}
+</style>
+<style id="tabs-base">.tabs-content{gap:var(--space-5)}.tab-heading{display:flex;justify-content:space-between;gap:var(--space-4);align-items:start}.tab-heading p{margin-top:var(--space-2);color:var(--muted);max-width:68ch}.eyebrow{text-transform:uppercase;letter-spacing:.08em;font-size:var(--text-2xs);color:var(--muted);margin-bottom:var(--space-1)}.toolbar,.filter-group,.subtabs,.button-row{display:flex;gap:var(--space-2);align-items:center;flex-wrap:wrap}.toolbar{justify-content:space-between}.filter-group button[aria-pressed=true],.subtabs a[aria-current]{background:var(--sel);color:var(--link);border-color:var(--sel-line)}.subtabs a{padding:var(--space-2) var(--space-3);border-radius:var(--radius-sm);text-decoration:none}.inventory{display:grid;gap:var(--space-3)}.inventory-entry{border:1px solid var(--line);border-radius:var(--radius-md);background:var(--surface);min-width:0}.inventory-entry>summary{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);padding:var(--space-4);cursor:pointer;list-style:none}.entry-identity{display:flex;gap:var(--space-3);align-items:center;min-width:0}.entry-identity>div{min-width:0}.entry-identity strong{display:block;overflow-wrap:anywhere}.entry-identity small{display:block;color:var(--muted);font-size:var(--text-xs);overflow-wrap:anywhere}.entry-icon{display:grid;place-items:center;flex-shrink:0;background:var(--surface-raised);width:36px;height:36px;border-radius:var(--radius-sm);color:var(--muted)}.entry-states,.chips{display:flex;gap:var(--space-2);align-items:center;flex-wrap:wrap}.entry-body{padding:var(--space-4);border-top:1px solid var(--line);display:grid;gap:var(--space-4)}.entry-meta{display:flex;gap:var(--space-4);flex-wrap:wrap;color:var(--muted);font-size:var(--text-xs);padding:0 var(--space-4) var(--space-3)}.entry-link{border-top:1px solid var(--line);padding-top:var(--space-3);font-size:var(--text-xs)}.notice{border:1px solid var(--line);padding:var(--space-3) var(--space-4);border-radius:var(--radius-sm);color:var(--muted);font-size:var(--text-xs)}.notice[data-tone=warning]{border-color:var(--warning-line);background:var(--warning-bg);color:var(--warning)}.status-chip[data-tone=success]{color:var(--success);background:var(--success-bg);border-color:var(--success-line)}.status-chip[data-tone=neutral]{background:var(--surface-raised)}.status-chip[data-tone=unknown]{border-style:dashed}.primary{background:var(--primary);border-color:var(--primary);color:var(--on-primary)}input,select,textarea{max-width:100%;min-width:0;font:inherit;color:var(--text);background:var(--sunken);border:1px solid var(--line-strong);border-radius:var(--radius-sm);padding:var(--space-2) var(--space-3)}textarea{resize:vertical;min-height:110px;font-family:var(--font-mono);font-size:var(--text-xs)}label.field{display:grid;gap:var(--space-2);font-size:var(--text-xs)}.field small{color:var(--muted)}.form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-4)}.form-grid .wide{grid-column:1/-1}.form-footer{display:flex;gap:var(--space-3);align-items:center;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:var(--space-4)}.settings-block{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:var(--space-6);border-top:1px solid var(--line);padding-block:var(--space-6)}.settings-copy p{font-size:var(--text-xs);color:var(--muted);margin-top:var(--space-3)}.settings-form{display:grid;gap:var(--space-4);min-width:0}.scope{font-size:var(--text-2xs);color:var(--muted);margin-top:var(--space-2)}.settings-directory{display:flex;gap:var(--space-4);flex-wrap:wrap;font-size:var(--text-xs)}.metric-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--space-4)}.metric{padding:var(--space-4);border:1px solid var(--line);border-radius:var(--radius-md);background:var(--surface);min-width:0}.metric>header{display:flex;justify-content:space-between;gap:var(--space-2)}.metric-value{font:500 1.8rem/1.5 var(--font-mono);display:block;margin-block:var(--space-3)}.metric-value small{font:var(--text-xs)/1.5 var(--font-sans);color:var(--muted)}.chart{margin-top:var(--space-5);height:90px;display:flex;gap:3px;align-items:end;border-bottom:1px solid var(--line)}.chart span{background:var(--info);opacity:.65;flex:1;min-width:0}.chart-labels{display:flex;justify-content:space-between;font-size:var(--text-2xs);color:var(--muted);margin-top:var(--space-2)}.chart-gap{height:90px;display:grid;place-items:center;font-size:var(--text-xs);color:var(--muted)}.two-column{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-4)}.data-line{display:flex;justify-content:space-between;gap:var(--space-3);padding-block:var(--space-3);border-bottom:1px solid var(--line);font-size:var(--text-xs)}.data-line span{color:var(--muted)}.progress-track{height:5px;background:var(--surface-raised);border-radius:var(--radius-full);margin-block:var(--space-2);overflow:hidden}.progress-track span{height:100%;display:block;background:var(--info)}.empty-state{padding:var(--space-8);text-align:center;border:1px dashed var(--line-strong);border-radius:var(--radius-md);color:var(--muted)}.empty-state strong{display:block;margin:var(--space-3) 0;color:var(--text)}.selection-dialog{padding:0;max-width:min(680px,calc(100vw - 32px));width:100%;background:var(--surface);color:var(--text);border:1px solid var(--line-strong);border-radius:var(--radius-lg)}.selection-dialog::backdrop{background:var(--scrim)}.dialog-head{display:flex;align-items:center;justify-content:space-between;padding:var(--space-5);border-bottom:1px solid var(--line)}.dialog-body{padding:var(--space-5);display:grid;gap:var(--space-4);max-height:75dvh;overflow:auto}.check-label{display:flex;align-items:center;gap:var(--space-2);font-size:var(--text-xs)}.check-label input{accent-color:var(--accent)}.count-note{font-size:var(--text-xs);color:var(--muted)}button:disabled{opacity:.5;cursor:default}
+@media(max-width:1100px){.metric-grid{grid-template-columns:1fr}.metric{display:block}.settings-block{grid-template-columns:1fr;gap:var(--space-4)}}
+@media(max-width:640px){.tab-heading,.toolbar{display:grid;gap:var(--space-3)}.inventory-entry>summary{align-items:start;flex-wrap:wrap}.entry-states{width:100%;padding-left:48px}.form-grid,.two-column{grid-template-columns:1fr}.settings-block{padding-block:var(--space-5)}.entry-body{padding:var(--space-3)}.form-footer button{flex:1 1 auto}.entry-meta{gap:var(--space-2);display:grid}.metric-grid{gap:var(--space-3)}.tab-heading>button{justify-self:start}.dialog-head,.dialog-body{padding:var(--space-4)}}
+</style><style id="opendesign-tabs">/*
+ * opendesign-tabs.css — visual pass for the remaining Operations tabs.
+ * Presentation layer over the seed and tabs-base styles: no HTML or JS
+ * changes, no facts hidden or replaced, no pseudo-element copy.
+ * Every colour, spacing, radius, size and font value comes from the
+ * tokens already declared in the seed (light/dark/black aware).
+ * Breakpoints follow the established scale: 1100 / 640 / 480.
+ */
+
+/* ---- Tab frame: editorial header with a divider ------------------- */
+
+.tabs-content { gap: var(--space-6); }
+.tab-heading {
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--line);
+}
+.tab-heading h2 { letter-spacing: -.01em; }
+.tab-heading > p {
+  max-width: 60ch;
+  font-size: var(--text-sm);
+  line-height: 1.6;
+}
+.tab-heading > button { flex: none; }
+.eyebrow { color: var(--muted-strong); }
+
+/* ---- Toolbars, segmented filters, counts -------------------------- */
+
+.toolbar { gap: var(--space-3); }
+.tabs-content > .count-note {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--muted);
+}
+.filter-group {
+  gap: 0;
+  padding: var(--space-0-5);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-subtle);
+}
+.filter-group button {
+  border: 0;
+  background: transparent;
+  border-radius: var(--radius-xs);
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--muted-strong);
+}
+.filter-group button:hover { color: var(--text); }
+.filter-group button[aria-pressed=true] {
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1px var(--sel-line);
+}
+#history-filter { align-items: end; }
+#history-filter .field { flex: 1 1 16rem; }
+#history-filter input { width: 100%; }
+
+/* ---- Allocations subtabs: underline tabs, not pill cards ---------- */
+
+.subtabs {
+  gap: var(--space-4);
+  border-bottom: 1px solid var(--line);
+}
+.subtabs a {
+  padding: var(--space-2) var(--space-1);
+  border-radius: 0;
+  font-weight: 500;
+  color: var(--muted);
+}
+.subtabs a:hover { color: var(--text); }
+.subtabs a[aria-current] {
+  background: transparent;
+  color: var(--text);
+  box-shadow: inset 0 -2px 0 var(--sel-bar);
+}
+
+/* ---- Inventory: compact list rows, not interchangeable cards ------ */
+
+.inventory { gap: var(--space-2); }
+.inventory-entry { transition: border-color 150ms ease; }
+.inventory-entry > summary {
+  padding: var(--space-3) var(--space-4);
+  transition: background 150ms ease;
+}
+.inventory-entry > summary:hover { background: var(--row-hover); }
+.inventory-entry[open] { border-color: var(--sel-line); }
+.inventory-entry[open] > summary { box-shadow: inset 2px 0 0 var(--sel-bar); }
+.entry-identity strong { font-weight: 500; }
+.entry-icon {
+  width: 32px;
+  height: 32px;
+  background: var(--surface-subtle);
+  color: var(--muted-strong);
+}
+.inventory-entry[data-agent] .entry-icon {
+  border-radius: var(--radius-full);
+  background: var(--accent-dark);
+  color: var(--accent);
+}
+.inventory-entry[id] .entry-icon {
+  border-radius: var(--radius-xs);
+  background: var(--sunken);
+}
+.entry-states > svg:last-child {
+  color: var(--faint);
+  transition: transform 150ms ease;
+}
+.inventory-entry[open] > summary .entry-states > svg:last-child { transform: rotate(90deg); }
+/* Meta band between the summary row and the opened body */
+.inventory-entry > .entry-meta {
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-2) var(--space-4);
+  background: var(--surface-subtle);
+  border-top: 1px solid var(--line);
+}
+
+/* ---- Status pills: colour carries the availability state ---------- */
+
+.status-chip {
+  font-size: var(--text-2xs);
+  font-weight: 500;
+  letter-spacing: .02em;
+}
+.status-chip svg { width: 12px; height: 12px; }
+.status-chip[data-tone=unknown] {
+  color: var(--muted);
+  background: var(--surface-subtle);
+  border-style: dashed;
+}
+/* Allocations: authoritative phase filled, observed phase outlined */
+.inventory-entry[id] .entry-states .status-chip:nth-of-type(2) {
+  background: transparent;
+  border-color: currentColor;
+}
+
+/* ---- Opened bodies, facts and small actions ----------------------- */
+
+.entry-body { padding: var(--space-4); }
+.entry-link a { font-weight: 500; }
+.button-row { gap: var(--space-2); }
+.button-row button {
+  min-height: var(--control-xs);
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-xs);
+}
+.notice { background: var(--surface-subtle); }
+
+/* ---- Performance: readings first, restrained plots --------------- */
+
+.metric-grid { gap: var(--space-3); }
+.metric { padding: var(--space-4); }
+.metric > header h3 { font-size: var(--text-sm); }
+.metric-value {
+  font: 500 var(--text-xl)/1.4 var(--font-mono);
+  white-space: nowrap;
+  margin-block: var(--space-3);
+}
+.chart {
+  gap: var(--space-0-5);
+  margin-top: var(--space-4);
+  background: var(--sunken);
+}
+.chart span {
+  min-width: var(--space-0-5);
+  border-radius: var(--radius-xs) var(--radius-xs) 0 0;
+}
+.chart-labels { font-family: var(--font-mono); }
+.chart-gap {
+  border-radius: var(--radius-sm);
+  background: var(--sunken);
+}
+.two-column { gap: var(--space-3); }
+.panel { padding: var(--space-4); }
+.data-line strong {
+  font-family: var(--font-mono);
+  font-weight: 500;
+}
+.progress-track { height: var(--space-1); }
+
+/* ---- Settings: editorial description/form rows ------------------- */
+
+.settings-directory {
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.settings-directory a {
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-full);
+  background: var(--surface-subtle);
+  text-decoration: none;
+}
+.settings-directory a:hover { background: var(--surface-hover); }
+.settings-block { gap: var(--space-6); }
+.settings-copy h3 { font-size: var(--text-md); }
+.settings-copy .scope {
+  display: inline-block;
+  padding: var(--space-0-5) var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-full);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+.settings-copy p:not(.scope) {
+  max-width: 48ch;
+  line-height: 1.6;
+}
+
+/* ---- Shared controls, empty states and forms --------------------- */
+
+button { transition: background-color 150ms ease, border-color 150ms ease; }
+button:not(.primary):hover {
+  background: var(--surface-hover);
+  border-color: var(--line-strong);
+}
+.primary:hover {
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
+}
+label.field span {
+  color: var(--muted-strong);
+  font-weight: 500;
+}
+fieldset { margin: 0; padding: 0; border: 0; }
+legend {
+  padding: 0;
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--muted-strong);
+}
+.check-label { padding: var(--space-1) 0; }
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+.empty-state { padding: var(--space-6) var(--space-4); }
+.empty-state svg {
+  width: 24px;
+  height: 24px;
+  color: var(--faint);
+}
+
+/* ---- Native dialogs: elevated, calm, clearly headed -------------- */
+
+.selection-dialog { box-shadow: var(--shadow-lg); }
+.dialog-head {
+  padding: var(--space-4) var(--space-5);
+  background: var(--surface-subtle);
+}
+.dialog-head h3 { font-size: var(--text-md); }
+.dialog-head button {
+  min-height: var(--control-xs);
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-xs);
+}
+.dialog-feedback {
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+  font-size: var(--text-xs);
+  color: var(--muted);
+  min-height: 1.5em;
+}
+
+/* ---- 1100: tighter frame ----------------------------------------- */
+
+@media (max-width: 1100px) {
+  .tabs-content { gap: var(--space-5); }
+  .settings-block { gap: var(--space-5); }
+}
+
+/* ---- 480: phones — single-column facts, reflowed forms ----------- */
+
+@media (max-width: 480px) {
+  .tabs-content { gap: var(--space-4); }
+  .tab-heading { padding-bottom: var(--space-3); }
+  .filter-group { width: 100%; }
+  .filter-group button { flex: 1 1 auto; }
+  .inventory-entry > summary { padding: var(--space-3); }
+  .inventory-entry > .entry-meta { padding: var(--space-2) var(--space-3); }
+  .entry-body { padding: var(--space-3); }
+  .fact-list > div {
+    grid-template-columns: 1fr;
+    gap: var(--space-0-5);
+  }
+  .two-column { grid-template-columns: 1fr; }
+  .metric-value { font-size: var(--text-lg); }
+  .settings-block { gap: var(--space-4); }
+}
+
+/* ---- Reduced motion ---------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  button,
+  .inventory-entry,
+  .inventory-entry > summary,
+  .subtabs a,
+  .entry-states > svg:last-child {
+    transition: none;
+  }
+}
+</style><style id="settings-base">.settings-redesign{min-width:0;display:grid;gap:var(--space-5)}.settings-redesign *{box-sizing:border-box}.settings-redesign [hidden]{display:none!important}.settings-heading{display:flex;align-items:start;justify-content:space-between;gap:var(--space-4)}.settings-heading p{color:var(--muted);font-size:var(--text-xs);margin-top:var(--space-2)}.setting-eyebrow{text-transform:uppercase;letter-spacing:.08em;font-size:var(--text-2xs)}.setting-preview-badge,.setting-state{font-size:var(--text-2xs);color:var(--muted);background:var(--surface-subtle);padding:var(--space-1) var(--space-2);border:1px solid var(--line);border-radius:var(--radius-full);white-space:nowrap}.settings-jumps{display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:var(--space-4);font-size:var(--text-xs)}.settings-jumps a{display:flex;align-items:center;gap:var(--space-1);text-decoration:none;padding:var(--space-1) var(--space-2);border-radius:var(--radius-sm);color:var(--muted-strong)}.settings-jumps a:hover{background:var(--surface-hover)}.settings-jumps svg{width:14px;height:14px}.settings-jumps>span{width:1px;height:16px;background:var(--line)}.settings-columns{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(270px,1fr);gap:var(--space-5);align-items:start}.settings-execution,.settings-personal{display:grid;gap:var(--space-4);min-width:0}.setting-group-label{display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:var(--text-xs)}.setting-group-label>span{display:flex;align-items:center;gap:var(--space-2);color:var(--text);font-weight:500}.setting-group-label small{font-size:var(--text-2xs)}.setting-panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);padding:var(--space-5);min-width:0;scroll-margin-top:var(--space-4)}.setting-panel-head{display:flex;align-items:start;gap:var(--space-3);margin-bottom:var(--space-4)}.setting-panel-head>div{flex:1;min-width:0}.setting-panel-head h3{font-size:var(--text-md)}.setting-panel-head p,.setting-description{font-size:var(--text-xs);color:var(--muted);margin-top:var(--space-1);line-height:1.6}.setting-section-icon,.model-mark{color:var(--muted);display:grid;place-items:center}.setting-state[data-state=dirty]{color:var(--warning);background:var(--warning-bg);border-color:var(--warning-line)}.setting-state[data-state=conflict]{color:var(--danger);background:var(--danger-bg);border-color:var(--danger-line)}.setting-state-empty{border-style:dashed}.setting-form{display:grid;gap:var(--space-3)}.setting-label,.role-grid label{display:block;font-size:var(--text-xs);font-weight:500;margin-bottom:var(--space-1)}.settings-redesign input,.settings-redesign select,.settings-redesign textarea{font:inherit;color:var(--text);background:var(--sunken);border:1px solid var(--line-strong);border-radius:var(--radius-sm);padding:var(--space-2) var(--space-3);max-width:100%;min-width:0}.settings-redesign input:focus-visible,.settings-redesign select:focus-visible,.settings-redesign textarea:focus-visible{outline:2px solid var(--focus);outline-offset:2px}.model-select-row{display:flex;align-items:center;gap:var(--space-2)}.model-select-row select{width:100%}.model-capacity{display:flex;gap:var(--space-4);flex-wrap:wrap;font-size:var(--text-2xs);color:var(--muted)}.model-capacity strong{color:var(--muted-strong);font-family:var(--font-mono);font-weight:500}.setting-disclosure{border-top:1px solid var(--line)}.setting-disclosure>summary{display:flex;gap:var(--space-2);align-items:center;font-size:var(--text-xs);font-weight:500;padding:var(--space-3) 0;cursor:pointer;list-style:none}.setting-disclosure>summary>span:first-child{margin-right:auto}.setting-disclosure>summary>svg{width:14px;height:14px;color:var(--muted)}.setting-disclosure-body{display:grid;gap:var(--space-3);padding-bottom:var(--space-3)}.setting-summary-note{font-size:var(--text-2xs);color:var(--muted);font-weight:400}.role-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-3)}.role-grid select{width:100%}.setting-hint,.setting-footnote,.setting-technical,.settings-local-note{font-size:var(--text-2xs);color:var(--muted);line-height:1.6}.setting-technical summary{cursor:pointer;padding-block:var(--space-1)}.setting-technical p,.setting-technical code{display:block;margin-top:var(--space-2);overflow-wrap:anywhere}.setting-technical dl{margin:var(--space-2) 0}.setting-technical dl>div{display:flex;justify-content:space-between;gap:var(--space-3)}.setting-technical dd{margin:0}.limit-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-3)}.limit-item{padding:var(--space-4);background:var(--surface-subtle);border:1px solid var(--line);border-radius:var(--radius-md);min-width:0}.limit-icon{color:var(--muted);display:block;margin-bottom:var(--space-3)}.limit-item label{font-size:var(--text-xs);font-weight:500}.limit-item p{font-size:var(--text-2xs);color:var(--muted);margin-top:var(--space-1);min-height:2.8em}.limit-item small{font-size:var(--text-2xs);color:var(--muted)}.limit-control{display:flex;align-items:center;gap:var(--space-2);margin-block:var(--space-3);max-width:100%}.limit-control input{width:64px;padding-inline:var(--space-1);text-align:center;font-family:var(--font-mono);font-size:var(--text-lg);appearance:textfield;-moz-appearance:textfield}.limit-control input::-webkit-inner-spin-button{appearance:none}.limit-control button{min-width:32px;height:32px;padding:0}.setting-callout,.setting-mini-note{display:flex;align-items:start;gap:var(--space-2);font-size:var(--text-2xs);color:var(--muted);line-height:1.6}.setting-callout{padding:var(--space-3);background:var(--surface-subtle);border-radius:var(--radius-sm)}.setting-callout svg,.setting-mini-note svg{width:15px;height:15px;flex:none;margin-top:2px}.setting-mini-note{margin-top:var(--space-4)}.setting-edit-footer{padding-top:var(--space-3);border-top:1px solid var(--line);display:flex;gap:var(--space-3);justify-content:space-between;align-items:center;font-size:var(--text-2xs);color:var(--warning);flex-wrap:wrap}.setting-edit-footer>div{display:flex;gap:var(--space-2);flex-wrap:wrap}.settings-redesign button{font-size:var(--text-xs)}.settings-redesign button:disabled{opacity:.45;cursor:default}.settings-redesign button.setting-primary{background:var(--primary);color:var(--on-primary);border-color:var(--primary)}.setting-text-button{justify-self:start;background:transparent;color:var(--link);border:0;padding:var(--space-1) 0}.setting-message{padding:var(--space-3);border:1px solid var(--line);border-radius:var(--radius-sm);font-size:var(--text-xs)}.setting-message p{margin-top:var(--space-1)}.setting-warning{background:var(--warning-bg);border-color:var(--warning-line);color:var(--warning)}.setting-error{background:var(--danger-bg);border-color:var(--danger-line);color:var(--danger)}.setting-feedback{font-size:var(--text-2xs);color:var(--info);padding-top:var(--space-2)}.repository-panel>.setting-description{margin-block:var(--space-3)}.repository-panel textarea{width:100%;font-family:var(--font-mono);font-size:var(--text-2xs)}.theme-choices{border:0;padding:0;margin:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-2)}.theme-choices legend{margin-bottom:var(--space-3)}.theme-choices label{position:relative;display:grid;gap:var(--space-2);padding:var(--space-2);border:1px solid var(--line);border-radius:var(--radius-sm);cursor:pointer;font-size:var(--text-2xs)}.theme-choices input{position:absolute;right:var(--space-2);bottom:var(--space-2);accent-color:var(--accent);padding:0}.theme-choices label:has(input:checked){border-color:var(--sel-line);box-shadow:inset 0 0 0 1px var(--sel-line)}.theme-choices strong{font-weight:500}.theme-swatch{display:grid;grid-template-columns:12px minmax(0,1fr);grid-template-rows:8px 12px;gap:var(--space-1);padding:var(--space-2);border:1px solid var(--line);border-radius:var(--radius-xs);height:42px;background:var(--background)}.theme-swatch i{display:block;background:var(--surface-raised);border-radius:2px}.theme-swatch i:first-child{grid-row:1/3}.theme-light{--background:var(--surface);--surface-raised:var(--chrome)}.theme-dark{--background:var(--sunken);--surface-raised:var(--line-strong)}.theme-black{--background:var(--brand-bg);--surface-raised:var(--line)}.appearance-panel>.setting-hint{margin-top:var(--space-3)}
+@media(max-width:1100px){.settings-columns{grid-template-columns:1fr}.settings-personal{grid-template-columns:repeat(2,minmax(0,1fr))}.settings-personal>.setting-group-label,.settings-local-note{grid-column:1/-1}}
+@media(max-width:640px){.settings-heading{display:block}.setting-preview-badge{display:inline-block;margin-top:var(--space-3)}.settings-columns,.settings-personal{grid-template-columns:1fr}.settings-jumps{gap:var(--space-1)}.settings-jumps>span{display:none}.setting-panel{padding:var(--space-4)}.limit-grid,.role-grid{grid-template-columns:1fr}.limit-item{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:var(--space-2);align-items:center}.limit-item>.limit-icon{display:none}.limit-item p{grid-column:1;min-height:0}.limit-item small{grid-column:1;font-size:var(--text-2xs)}.limit-control{grid-column:2;grid-row:1/4;margin:0}.limit-control input{width:44px}.limit-control button{min-width:28px;height:32px}.setting-edit-footer>div{width:100%}.setting-edit-footer button{flex:1}.setting-panel-head{gap:var(--space-2)}.setting-section-icon{display:none}}
+</style><style id="opendesign-settings">.settings-redesign .settings-columns { gap: var(--space-6); }
+.settings-redesign .settings-execution,
+.settings-redesign .settings-personal { gap: var(--space-5); }
+.settings-redesign .setting-group-label { border-bottom: 1px solid var(--line); padding-bottom: var(--space-2); }
+.settings-redesign .setting-group-label>span { font-size: var(--text-2xs); letter-spacing: .06em; text-transform: uppercase; }
+.settings-redesign .setting-group-label small { color: var(--faint); }
+.settings-redesign .setting-panel { border-radius: var(--radius-xl); }
+.settings-redesign .setting-panel-head { padding-bottom: var(--space-3); border-bottom: 1px solid var(--line); }
+.settings-redesign .setting-state { border-radius: var(--radius-full); }
+.settings-redesign .setting-state[data-state=dirty]::before,
+.settings-redesign .setting-state[data-state=conflict]::before {
+  content: "";
+  display: inline-block;
+  width: var(--space-1-5);
+  height: var(--space-1-5);
+  margin-right: var(--space-1);
+  border-radius: var(--radius-full);
+  background: currentColor;
+}
+.settings-redesign button:hover:not(:disabled):not(.setting-primary):not(.setting-text-button) { background: var(--surface-hover); border-color: var(--line-strong); }
+.settings-redesign button.setting-primary:hover:not(:disabled) { background: var(--primary-hover); }
+.settings-redesign button:focus-visible,
+.settings-redesign a:focus-visible,
+.settings-redesign summary:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.settings-redesign .model-mark { width: var(--control-sm); height: var(--control-sm); background: var(--surface-subtle); border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.settings-redesign .model-capacity { gap: var(--space-5); padding: var(--space-2) var(--space-3); background: var(--surface-subtle); border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.settings-redesign .setting-disclosure>summary {
+  margin-inline: calc(var(--space-2) * -1);
+  padding-inline: var(--space-2);
+  border-radius: var(--radius-sm);
+  transition: background-color 150ms ease-out;
+}
+.settings-redesign .setting-disclosure>summary:hover { background: var(--row-hover); }
+.settings-redesign .setting-disclosure>summary>:last-child { transition: transform 150ms ease-out; }
+.settings-redesign .setting-disclosure[open]>summary>:last-child { transform: rotate(90deg); }
+.settings-redesign .setting-disclosure-body { border-left: 2px solid var(--line); padding-left: var(--space-3); }
+.settings-redesign .role-grid { gap: var(--space-3) var(--space-4); }
+.settings-redesign .setting-technical dl>div { padding-block: var(--space-1); border-bottom: 1px solid var(--line); }
+.settings-redesign .setting-technical dd { font-family: var(--font-mono); }
+.settings-redesign .limit-item {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) auto;
+  align-items: center;
+  column-gap: var(--space-3);
+  row-gap: var(--space-0-5);
+  padding: var(--space-3) var(--space-4);
+}
+.settings-redesign .limit-item .limit-icon { display: none; }
+.settings-redesign .limit-item label,
+.settings-redesign .limit-item p,
+.settings-redesign .limit-item small { grid-column: 1; }
+.settings-redesign .limit-item p { margin-top: 0; min-height: 0; }
+.settings-redesign .limit-item .limit-control { grid-column: 2; grid-row: 1 / 4; margin: 0; }
+.settings-redesign .limit-control button {
+  min-width: var(--control-sm);
+  height: var(--control-sm);
+  padding: 0;
+  border-radius: var(--radius-sm);
+  display: grid;
+  place-items: center;
+}
+.settings-redesign .limit-control input { border-radius: var(--radius-sm); }
+.settings-redesign .setting-callout { border: 1px solid var(--line); border-radius: var(--radius-md); }
+.settings-redesign .setting-edit-footer { border: 1px solid var(--line); border-radius: var(--radius-md); padding: var(--space-3); }
+.settings-redesign .setting-edit-footer>div { margin-left: auto; }
+.settings-redesign .setting-mini-note { padding: var(--space-3); background: var(--surface-subtle); border: 1px solid var(--line); border-radius: var(--radius-md); }
+.settings-redesign .theme-choices label {
+  border-radius: var(--radius-md);
+  transition: background-color 150ms ease-out, border-color 150ms ease-out;
+}
+.settings-redesign .theme-choices label:hover { background: var(--row-hover); }
+.settings-redesign .theme-choices label:has(input:checked) {
+  border-color: var(--sel-line);
+  box-shadow: inset 0 0 0 1px var(--sel-line), 0 0 0 3px var(--focus-ring);
+}
+.settings-redesign .theme-choices label:has(input:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
+.settings-redesign .theme-swatch { border-radius: var(--radius-xs); }
+.settings-redesign .settings-jumps a:hover { color: var(--text); }
+
+@media (max-width:1100px) {
+  .settings-redesign .settings-columns { gap: var(--space-5); }
+  .settings-redesign .settings-personal { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .settings-redesign .settings-personal>.setting-group-label,
+  .settings-redesign .settings-local-note { grid-column: 1 / -1; }
+}
+
+@media (max-width:390px) {
+  .settings-redesign .setting-panel { padding: var(--space-4); }
+  .settings-redesign .setting-panel-head { flex-wrap: wrap; }
+  .settings-redesign .role-grid,
+  .settings-redesign .limit-grid { grid-template-columns: 1fr; }
+  .settings-redesign .model-capacity { flex-direction: column; gap: var(--space-1); }
+  .settings-redesign .setting-edit-footer>div { width: 100%; }
+  .settings-redesign .setting-edit-footer button { flex: 1; }
+}
+
+@media (max-width:320px) {
+  .settings-redesign .setting-panel { padding: var(--space-3); }
+  .settings-redesign .theme-choices { grid-template-columns: 1fr; }
+  .settings-redesign .limit-item { grid-template-columns: 1fr; }
+  .settings-redesign .limit-item .limit-control { grid-column: 1; grid-row: auto; justify-content: flex-start; }
+}
+</style></head><body>
+<div class="app-shell"><aside class="global-rail" id="global-rail"><div class="brand">C</div><a href="/"><svg class="app-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true"><path d="M3.5 13.5h4.6l1.4 2.5h5l1.4-2.5h4.6"></path><path d="M6 5h12l2.5 8.5V19h-17v-5.5z"></path></svg><span>Inbox</span></a><a href="/projects"><svg class="app-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h4l3 3h7a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"></path></svg><span>Projects</span></a><a href="/checks"><svg class="app-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true"><path d="M12 3.5l7 2.8v5.2c0 4.3-2.9 7.9-7 9-4.1-1.1-7-4.7-7-9V6.3z"></path><path d="M9.2 12l2 2 3.8-3.8"></path></svg><span>Checks</span></a><a href="/issues"><svg class="app-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true"><path d="M12 3.2l8.8 8.8-8.8 8.8L3.2 12z"></path><path d="M12 8.2v4.6M12 15.8v.01"></path></svg><span>Issues</span></a><a href="/reports"><svg class="app-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true"><path d="M6.5 3.5h7.5l4.5 4.5v12.5h-12z"></path><path d="M14 3.5V8h4.5"></path><path d="M9.5 12.5h6M9.5 16h6"></path></svg><span>Reports</span></a><a href="/runs"><svg class="app-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m10 8 6 4-6 4V8Z"></path></svg><span>Runs</span></a><a href="/catalog"><svg class="app-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true"><path d="M4.5 4.5h4v15h-4zM10 4.5h4v15h-4zM15.6 5.4l3.5-.9 2.4 14.5-3.5.9z"></path></svg><span>Library</span></a><a href="/evals"><svg class="app-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true"><path d="M9 3h6M10 3v6l-5.6 9A2 2 0 0 0 6.1 21h11.8a2 2 0 0 0 1.7-3L14 9V3M7.5 14h9"></path></svg><span>Evals</span></a><a href="/operations" aria-current="page"><svg class="app-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true"><rect x="3" y="3" width="18" height="7" rx="2"></rect><rect x="3" y="14" width="18" height="7" rx="2"></rect><path d="M7 6.5h.01M7 17.5h.01M12 6.5h5M12 17.5h5"></path></svg><span>Operations</span></a></aside><div class="app-main"><div class="mobile-bar"><strong>Contractor</strong><button id="mobile-menu" aria-expanded="false">Menu</button></div><main class="workspace"><header class="page-head"><div><h1>Operations</h1><p>Monitor execution and manage server-wide configuration.</p></div><div class="page-actions"><span id="connection" class="connection"></span><button data-refresh>Refresh</button></div></header><p id="connection-note" class="connection-note"></p>
+<div class="ops-workspace"><aside class="ops-navigation"><details id="sections-browser" open><summary>Overview<span>Operations sections</span></summary><nav aria-label="Operations sections"><a href="/operations" aria-current="page"><svg class="app-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true"><rect x="3" y="3" width="18" height="7" rx="2"></rect><rect x="3" y="14" width="18" height="7" rx="2"></rect><path d="M7 6.5h.01M7 17.5h.01M12 6.5h5M12 17.5h5"></path></svg><span>Overview</span></a><a href="/operations/runtime-agents"><svg class="app-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true"><rect x="3" y="3" width="18" height="7" rx="2"></rect><rect x="3" y="14" width="18" height="7" rx="2"></rect><path d="M7 6.5h.01M7 17.5h.01M12 6.5h5M12 17.5h5"></path></svg><span>Runtime Agents</span></a><a href="/operations/allocations"><svg class="app-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7 .1l3-3a5 5 0 0 0-7.1-7.1l-1.7 1.7M14 11a5 5 0 0 0-7-.1l-3 3a5 5 0 0 0 7.1 7.1l1.7-1.7"></path></svg><span>Allocations</span></a><a href="/operations/performance"><svg class="app-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true"><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3"></path><path d="M4.5 4.5v3h3M12 8v4l2.8 1.8"></path></svg><span>Performance</span></a><span class="nav-group">Setup</span><a href="/operations/configuration"><svg class="app-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7 .1l3-3a5 5 0 0 0-7.1-7.1l-1.7 1.7M14 11a5 5 0 0 0-7-.1l-3 3a5 5 0 0 0 7.1 7.1l1.7-1.7"></path></svg><span>Configuration</span></a><a href="/operations/configurations"><svg class="app-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true"><path d="M6.5 3.5h7.5l4.5 4.5v12.5h-12z"></path><path d="M14 3.5V8h4.5M9.5 12.5h6M9.5 16h6"></path></svg><span>LLM configurations</span></a><a href="/operations/credentials"><svg class="app-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true"><circle cx="12" cy="12" r="8.5"></circle><path d="M3.5 12h17M12 3.5c2.4 2.4 3.5 5.2 3.5 8.5s-1.1 6.1-3.5 8.5c-2.4-2.4-3.5-5.2-3.5-8.5s1.1-6.1 3.5-8.5z"></path></svg><span>Credentials</span></a><a href="/operations/settings"><svg class="app-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true"><path d="M3 6h4m4 0h10M3 12h10m4 0h4M3 18h4m4 0h10"></path><circle cx="9" cy="6" r="2"></circle><circle cx="15" cy="12" r="2"></circle><circle cx="9" cy="18" r="2"></circle></svg><span>Settings</span></a></nav></details></aside><div class="overview-content"><div class="settings-redesign">
+  <header class="settings-heading">
+    <div><p class="setting-eyebrow">Preferences & defaults</p><h2>Settings</h2><p>Execution defaults for the server. Personal choices for you.</p></div>
+    <span class="setting-preview-badge">Synthetic preview</span>
+  </header>
+  <nav class="settings-jumps" aria-label="Settings on this page">
+    <a href="#model-selection"><svg class="app-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true"><path d="M4.5 4.5h4v15h-4zM10 4.5h4v15h-4zM15.6 5.4l3.5-.9 2.4 14.5-3.5.9z"></path></svg> Models</a><a href="#workflow-scheduling"><svg class="app-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m10 8 6 4-6 4V8Z"></path></svg> Scheduling</a><span></span><a href="#repository-access"><svg class="app-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7 .1l3-3a5 5 0 0 0-7.1-7.1l-1.7 1.7M14 11a5 5 0 0 0-7-.1l-3 3a5 5 0 0 0 7.1 7.1l1.7-1.7"></path></svg> Repository access</a><a href="#appearance"><svg class="app-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true"><path d="M3 6h4m4 0h10M3 12h10m4 0h4M3 18h4m4 0h10"></path><circle cx="9" cy="6" r="2"></circle><circle cx="15" cy="12" r="2"></circle><circle cx="9" cy="18" r="2"></circle></svg> Appearance</a>
+  </nav>
+  <div id="settings-read-error" class="setting-message setting-error" role="alert" hidden><strong>Settings could not be read</strong><p>Saved values are unavailable. Your personal appearance controls remain available.</p><button type="button" data-action="retry">Retry read</button></div>
+  <div class="settings-columns">
+    <div class="settings-execution">
+      <div class="setting-group-label"><span><svg class="app-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true"><rect x="3" y="3" width="18" height="7" rx="2"></rect><rect x="3" y="14" width="18" height="7" rx="2"></rect><path d="M7 6.5h.01M7 17.5h.01M12 6.5h5M12 17.5h5"></path></svg> Execution</span><small>Server-wide</small></div>
+      <section id="model-selection" class="setting-panel model-panel" aria-labelledby="models-title">
+        <header class="setting-panel-head"><span class="setting-section-icon"><svg class="app-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true"><path d="M4.5 4.5h4v15h-4zM10 4.5h4v15h-4zM15.6 5.4l3.5-.9 2.4 14.5-3.5.9z"></path></svg></span><div><h3 id="models-title">Models</h3><p>One default for new Runs and checks.</p></div><span id="model-state" class="setting-state">Saved</span></header>
+        <div id="model-unconfigured" class="setting-empty" hidden><strong>No model catalog configured</strong><p>Add a model catalog to make defaults available.</p></div>
+        <form id="model-form" class="setting-form">
+          <label for="default-model" class="setting-label">Default model</label>
+          <div class="model-select-row"><span class="model-mark" aria-hidden="true"><svg class="app-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true"><circle cx="12" cy="12" r="8.5"></circle><path d="M3.5 12h17M12 3.5c2.4 2.4 3.5 5.2 3.5 8.5s-1.1 6.1-3.5 8.5c-2.4-2.4-3.5-5.2-3.5-8.5s1.1-6.1 3.5-8.5z"></path></svg></span><select id="default-model" name="defaultModel" aria-describedby="model-capacity"><option value="contractor-default">Contractor default</option><option value="demo-alternative">Alternative model · demo</option></select></div>
+          <div id="model-capacity" class="model-capacity"><span><strong id="context-tokens">131,072</strong> context tokens</span><span><strong id="output-tokens">8,192</strong> max output tokens</span></div>
+          <details id="role-overrides" class="setting-disclosure"><summary><span>Models by role</span><span id="role-summary" class="setting-summary-note">All use default</span><svg class="app-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true"><path d="M13.5 4.5h6v6M19.5 4.5L11 13M17.5 14v4.5a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1v-11a1 1 0 0 1 1-1H10"></path></svg></summary><div class="setting-disclosure-body"><p class="setting-hint">Use the default unless a role needs a different model.</p><div class="role-grid">
+            <div><label for="role-planner">Planner</label><select id="role-planner" data-role="planner"><option value="">Use default</option><option value="contractor-default">Contractor default</option><option value="demo-alternative">Alternative model · demo</option></select></div>
+            <div><label for="role-worker">Worker</label><select id="role-worker" data-role="worker"><option value="">Use default</option><option value="contractor-default">Contractor default</option><option value="demo-alternative">Alternative model · demo</option></select></div>
+            <div><label for="role-summarizer">Summarizer</label><select id="role-summarizer" data-role="summarizer"><option value="">Use default</option><option value="contractor-default">Contractor default</option><option value="demo-alternative">Alternative model · demo</option></select></div>
+            <div><label for="role-completion">Audit completion</label><select id="role-completion" data-role="audit_completion_worker"><option value="">Use default</option><option value="contractor-default">Contractor default</option><option value="demo-alternative">Alternative model · demo</option></select></div>
+          </div><button type="button" class="setting-text-button" data-action="default-roles">Use default for all roles</button></div></details>
+          <details class="setting-technical"><summary>Context & budgets</summary><p>Context capacity comes from the model profile. Role spending and output budgets stay separate; changing the model does not raise them.</p><code>Default profile: configured Contractor model · synthetic catalog</code></details>
+          <p class="setting-footnote">Existing Runs, check drafts and prepared Evals keep their model choices.</p>
+          <div id="model-conflict" class="setting-message setting-warning" role="alert" hidden><strong>A newer selection is available</strong><p>Your draft is preserved. Load the saved selection before editing again.</p></div>
+          <div id="model-actions" class="setting-edit-footer" hidden><span id="model-change-note">Unsaved changes</span><div><button type="button" data-action="reset-model">Discard changes</button><button type="submit" class="setting-primary" id="save-model">Save model defaults</button></div></div>
+          <p id="model-feedback" class="setting-feedback" role="status" hidden></p>
+        </form>
+      </section>
+      <section id="workflow-scheduling" class="setting-panel scheduling-panel" aria-labelledby="scheduling-title">
+        <header class="setting-panel-head"><span class="setting-section-icon"><svg class="app-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m10 8 6 4-6 4V8Z"></path></svg></span><div><h3 id="scheduling-title">Workflow scheduling</h3><p>Separate lanes for model and tool work.</p></div><span id="schedule-state" class="setting-state">Saved</span></header>
+        <form id="schedule-form" class="setting-form">
+          <div class="limit-grid">
+            <div class="limit-item"><span class="limit-icon"><svg class="app-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true"><path d="M12 3.5l7 2.8v5.2c0 4.3-2.9 7.9-7 9-4.1-1.1-7-4.7-7-9V6.3z"></path><path d="M9.2 12l2 2 3.8-3.8"></path></svg></span><label for="model-runs">Runs using a model</label><p>Analysis, planning and review</p><div class="limit-control"><button type="button" data-step="model-runs:-1" aria-label="Decrease model Run limit">−</button><input id="model-runs" name="modelRuns" type="number" value="1" min="1" max="32" step="1" required aria-describedby="model-runs-hint"><button type="button" data-step="model-runs:1" aria-label="Increase model Run limit">+</button></div><small id="model-runs-hint">1–32 concurrent Runs</small></div>
+            <div class="limit-item"><span class="limit-icon"><svg class="app-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true"><rect x="3" y="3" width="18" height="7" rx="2"></rect><rect x="3" y="14" width="18" height="7" rx="2"></rect><path d="M7 6.5h.01M7 17.5h.01M12 6.5h5M12 17.5h5"></path></svg></span><label for="tool-runs">Runs without a model</label><p>Scanners and deterministic tools</p><div class="limit-control"><button type="button" data-step="tool-runs:-1" aria-label="Decrease tool Run limit">−</button><input id="tool-runs" name="toolRuns" type="number" value="2" min="1" max="32" step="1" required aria-describedby="tool-runs-hint"><button type="button" data-step="tool-runs:1" aria-label="Increase tool Run limit">+</button></div><small id="tool-runs-hint">1–32 concurrent Runs</small></div>
+          </div>
+          <div class="setting-callout"><svg class="app-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true"><path d="M6.5 3.5h7.5l4.5 4.5v12.5h-12z"></path><path d="M14 3.5V8h4.5M9.5 12.5h6M9.5 16h6"></path></svg><p><strong>Admission, not capacity.</strong> Compatible Runtime slots may limit throughput. Lowering a limit lets active work finish.</p></div>
+          <details class="setting-technical"><summary>Scheduling details</summary><p>One Run can require several Runtime Agents. When both kinds wait for the same agent, the Run using a model gets it. Lowering limits never cancels existing Runs or allocations.</p><dl><div><dt>Saved revision</dt><dd id="schedule-revision">4</dd></div><div><dt>Last updated</dt><dd>2026-11-03 12:00 UTC · demo</dd></div></dl><a href="/runs?view=queue">Open Runs / Queue →</a></details>
+          <div id="schedule-conflict" class="setting-message setting-warning" role="alert" hidden><strong>Scheduling limits changed</strong><p>Reload the saved pair before editing again. Your current draft has not been applied.</p></div>
+          <div id="schedule-actions" class="setting-edit-footer" hidden><span id="schedule-change-note">Unsaved changes</span><div><button type="button" data-action="reset-schedule">Discard changes</button><button type="submit" class="setting-primary" id="save-schedule">Save scheduling limits</button></div></div>
+          <p id="schedule-feedback" class="setting-feedback" role="status" hidden></p>
+        </form>
+      </section>
+    </div>
+    <aside class="settings-personal" aria-label="Personal settings">
+      <div class="setting-group-label"><span><svg class="app-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true"><path d="M3 6h4m4 0h10M3 12h10m4 0h4M3 18h4m4 0h10"></path><circle cx="9" cy="6" r="2"></circle><circle cx="15" cy="12" r="2"></circle><circle cx="9" cy="18" r="2"></circle></svg> Your workspace</span><small>Personal</small></div>
+      <section id="repository-access" class="setting-panel repository-panel" aria-labelledby="repository-title">
+        <header class="setting-panel-head"><span class="setting-section-icon"><svg class="app-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7 .1l3-3a5 5 0 0 0-7.1-7.1l-1.7 1.7M14 11a5 5 0 0 0-7-.1l-3 3a5 5 0 0 0 7.1 7.1l1.7-1.7"></path></svg></span><div><h3 id="repository-title">Repository access</h3><p>Git SSH key</p></div></header>
+        <span id="git-status" class="setting-state setting-state-empty">Not configured</span><p class="setting-description">For private Git imports. Public HTTPS repositories do not need a key.</p>
+        <details id="git-editor" class="setting-disclosure"><summary><span>Add Git SSH key</span><svg class="app-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true"><path d="M13.5 4.5h6v6M19.5 4.5L11 13M17.5 14v4.5a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1v-11a1 1 0 0 1 1-1H10"></path></svg></summary><div class="setting-disclosure-body"><label class="setting-label" for="git-key">SSH private key</label><textarea id="git-key" rows="4" placeholder="Private key input · design example" disabled autocomplete="off" spellcheck="false"></textarea><p class="setting-hint">Unencrypted OpenSSH or PEM · up to 32 KiB. Input is disabled in this design preview.</p><button type="button" disabled>Save Git key</button></div></details>
+        <div class="setting-mini-note"><svg class="app-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true"><path d="M6.5 3.5h7.5l4.5 4.5v12.5h-12z"></path><path d="M14 3.5V8h4.5M9.5 12.5h6M9.5 16h6"></path></svg><p><strong>Write-only access.</strong> Only the saved key's fingerprint, type and update time can be read back.</p></div>
+      </section>
+      <section id="appearance" class="setting-panel appearance-panel" aria-labelledby="appearance-title">
+        <header class="setting-panel-head"><span class="setting-section-icon"><svg class="app-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true"><path d="M3 6h4m4 0h10M3 12h10m4 0h4M3 18h4m4 0h10"></path><circle cx="9" cy="6" r="2"></circle><circle cx="15" cy="12" r="2"></circle><circle cx="9" cy="18" r="2"></circle></svg></span><div><h3 id="appearance-title">Appearance</h3><p>This browser</p></div></header>
+        <fieldset class="theme-choices"><legend class="setting-label">Theme</legend>
+          <label><input type="radio" name="appearance" value="system"><span class="theme-swatch theme-system" aria-hidden="true"><i></i><i></i><i></i></span><strong>System</strong></label>
+          <label><input type="radio" name="appearance" value="light"><span class="theme-swatch theme-light" aria-hidden="true"><i></i><i></i><i></i></span><strong>Light</strong></label>
+          <label><input type="radio" name="appearance" value="dark"><span class="theme-swatch theme-dark" aria-hidden="true"><i></i><i></i><i></i></span><strong>Dark</strong></label>
+          <label><input type="radio" name="appearance" value="black"><span class="theme-swatch theme-black" aria-hidden="true"><i></i><i></i><i></i></span><strong>Black</strong></label>
+        </fieldset><p class="setting-hint" id="theme-feedback">Applied across Contractor in this browser.</p>
+      </section>
+      <p class="settings-local-note">Local design preview · no server changes</p>
+    </aside>
+  </div>
+</div>
+</div></div><p id="action-status" class="action-status" role="status" aria-live="polite"></p></main></div></div><script>const q=new URLSearchParams(location.search),scenario=['normal','attention','empty','reconnecting','error'].includes(q.get('case'))?q.get('case'):'normal';
+const $=id=>document.getElementById(id),roles=[...document.querySelectorAll('[data-role]')];
+const profiles={'contractor-default':{context:131072,output:8192},'demo-alternative':{context:65536,output:8192}};
+let modelSaved={defaultModel:'contractor-default',roles:{}},scheduleSaved={modelRuns:1,toolRuns:2},modelStale=scenario==='attention',scheduleStale=modelStale;
+let modelLocal=false,scheduleLocal=false,revision=4;
+const format=n=>n.toLocaleString('en-US');
+function modelValue(){return {defaultModel:$('default-model').value,roles:Object.fromEntries(roles.filter(el=>el.value).map(el=>[el.dataset.role,el.value]))}}
+function scheduleValue(){return {modelRuns:Number($('model-runs').value),toolRuns:Number($('tool-runs').value)}}
+const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+function announce(s){$('action-status').textContent=s}
+function modelUpdate(){const value=modelValue(),dirty=!same(value,modelSaved),count=Object.keys(value.roles).length,profile=profiles[value.defaultModel];$('role-summary').textContent=count?count+' custom · '+(4-count)+' use default':'All use default';$('context-tokens').textContent=format(profile.context);$('output-tokens').textContent=format(profile.output);$('model-actions').hidden=!dirty&&!modelStale;$('model-state').textContent=modelStale?'Conflict':dirty?'Unsaved':modelLocal?'Preview applied':'Saved';$('model-state').dataset.state=modelStale?'conflict':dirty?'dirty':'saved';$('model-conflict').hidden=!modelStale;$('save-model').disabled=!dirty||modelStale;$('model-change-note').textContent=modelStale?'Draft preserved':'For new executions only';document.querySelector('[data-action="reset-model"]').textContent=modelStale?'Use saved selection':'Discard changes';document.querySelector('[data-action="default-roles"]').disabled=!count}
+function scheduleUpdate(){const value=scheduleValue(),dirty=!same(value,scheduleSaved),valid=$('schedule-form').checkValidity();$('schedule-actions').hidden=!dirty&&!scheduleStale;$('schedule-state').textContent=scheduleStale?'Conflict':dirty?'Unsaved':scheduleLocal?'Preview applied':'Saved';$('schedule-state').dataset.state=scheduleStale?'conflict':dirty?'dirty':'saved';$('schedule-conflict').hidden=!scheduleStale;$('save-schedule').disabled=!dirty||scheduleStale||!valid;$('schedule-change-note').textContent=scheduleStale?'Draft preserved':valid?'Both limits save together':'Enter whole numbers from 1 to 32';document.querySelector('[data-action="reset-schedule"]').textContent=scheduleStale?'Reload saved limits':'Discard changes';for(const b of document.querySelectorAll('[data-step]')){const [id,delta]=b.dataset.step.split(':'),v=Number($(id).value);b.disabled=Number(delta)<0?v<=1:v>=32}}
+function feedback(id,s){$(id).hidden=false;$(id).textContent=s;announce(s)}
+function resetModel(){modelStale=false;$('default-model').value=modelSaved.defaultModel;for(const el of roles)el.value=modelSaved.roles[el.dataset.role]??'';$('model-feedback').hidden=true;modelUpdate()}
+function resetSchedule(){scheduleStale=false;$('model-runs').value=scheduleSaved.modelRuns;$('tool-runs').value=scheduleSaved.toolRuns;$('schedule-feedback').hidden=true;scheduleUpdate()}
+$('model-form').addEventListener('change',()=>{$('model-feedback').hidden=true;modelUpdate()});$('schedule-form').addEventListener('input',()=>{$('schedule-feedback').hidden=true;scheduleUpdate()});
+$('model-form').onsubmit=e=>{e.preventDefault();if(modelStale||same(modelValue(),modelSaved))return;modelSaved=modelValue();modelLocal=true;modelUpdate();feedback('model-feedback','Model draft applied to this preview only. No Server changes were sent.')};
+$('schedule-form').onsubmit=e=>{e.preventDefault();if(scheduleStale||!$('schedule-form').reportValidity()||same(scheduleValue(),scheduleSaved))return;scheduleSaved=scheduleValue();scheduleLocal=true;revision++;$('schedule-revision').textContent=String(revision);scheduleUpdate();feedback('schedule-feedback','Both limits applied to this preview only. No Server changes were sent.')};
+document.addEventListener('click',e=>{const b=e.target.closest('[data-action],[data-step]');if(!b)return;if(b.dataset.step){const [id,delta]=b.dataset.step.split(':');$(id).value=Math.max(1,Math.min(32,Number($(id).value||1)+Number(delta)));$('schedule-feedback').hidden=true;scheduleUpdate();return}if(b.dataset.action==='reset-model')resetModel();if(b.dataset.action==='reset-schedule')resetSchedule();if(b.dataset.action==='default-roles'){for(const el of roles)el.value='';$('model-feedback').hidden=true;modelUpdate()}if(b.dataset.action==='retry')announce('Read failure remains selected. Choose another example in the preview toolbar.')});
+function setTheme(preference){const resolved=preference==='system'?(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'):preference;document.documentElement.dataset.theme=resolved;document.querySelector(`[name=appearance][value="${preference}"]`).checked=true;$('theme-feedback').textContent=preference==='system'?'Following the device: '+resolved+'. Preview only.':'Showing '+resolved+' in this preview.';parent.postMessage({type:'operations-theme',theme:resolved},'*')}
+const initialTheme=['light','dark','black'].includes(q.get('theme'))?q.get('theme'):'dark';document.documentElement.dataset.theme=initialTheme;document.querySelector(`[name=appearance][value="${initialTheme}"]`).checked=true;
+for(const radio of document.querySelectorAll('[name=appearance]'))radio.onchange=()=>setTheme(radio.value);
+if(modelStale){$('default-model').value='demo-alternative';$('model-runs').value='3'}modelUpdate();scheduleUpdate();
+if(scenario==='empty'){$('model-form').hidden=true;$('model-unconfigured').hidden=false;$('model-state').textContent='Not configured'}
+if(scenario==='error'){$('settings-read-error').hidden=false;$('model-form').hidden=true;$('schedule-form').hidden=true;$('model-state').textContent='Unavailable';$('schedule-state').textContent='Unavailable';$('git-status').textContent='Unavailable';$('git-editor').hidden=true}
+const connection=$('connection');connection.textContent=scenario==='error'?'Read failed':scenario==='reconnecting'?'Reconnecting':'Live updates';connection.dataset.tone=['error','reconnecting'].includes(scenario)?'warning':'success';$('connection-note').textContent=scenario==='reconnecting'?'Showing saved synthetic values while updates reconnect.':'Local design preview · fixed synthetic settings';
+for(const link of document.querySelectorAll('.ops-navigation a')){link.removeAttribute('aria-current');if(link.getAttribute('href')==='/operations/settings')link.setAttribute('aria-current','page')}
+$('sections-browser').querySelector('summary').innerHTML='Settings<span>Operations sections</span>';
+const destinations={'/operations':'overview','/operations/runtime-agents':'runtime-agents','/operations/allocations':'allocations','/operations/allocations/completed':'completed','/operations/performance':'performance','/operations/configuration':'configuration','/operations/configurations':'llm','/operations/credentials':'credentials','/operations/settings':'settings'};
+document.addEventListener('click',e=>{const a=e.target.closest('a');if(!a)return;e.preventDefault();const href=a.getAttribute('href');if(href.startsWith('#')){const target=document.getElementById(href.slice(1));target?.scrollIntoView({block:'start'});return}if(destinations[href]){parent.postMessage({type:'operations-section',section:destinations[href]},'*');return}announce('Preview destination: '+href+'. No deployment request was sent.')});
+for(const b of document.querySelectorAll('[data-refresh]'))b.onclick=()=>announce('Preview refreshed the same synthetic settings. No deployment request was sent.');
+const mobile=matchMedia('(max-width:820px)');function adapt(){$('sections-browser').open=!mobile.matches}mobile.addEventListener('change',adapt);adapt();$('mobile-menu').onclick=()=>{$('global-rail').dataset.open=String($('global-rail').dataset.open!=='true');$('mobile-menu').setAttribute('aria-expanded',$('global-rail').dataset.open)};
+window.__settingsReview={scenario,modelValue,scheduleValue,source:'Current Settings routes; synthetic local edits only'};
+</script></body></html>
