@@ -1277,32 +1277,37 @@ silently discard supplied request data or count as authenticated testing
 
 ## Examples
 
-The executable example
-[`prepared-openapi-scan.yaml`](../../../api/testdata/audit-composition/prepared-openapi-scan.yaml)
-selects the `openapi-from-workspace@7` Workflow as a `prepare` role and the
-scan Workflow's `auditTask: openapi-scan@1` execution contract. Its inventory
-and prepare role:
+The shipped
+[`source_openapi_sqlmap_scan.yaml`](../../../configs/audit-profiles/source_openapi_sqlmap_scan.yaml)
+selects the ordinary `source-openapi-prepare-work@1` Workflow. Its model stages
+produce OpenAPI, then its Server-operation Stage publishes bounded common work.
+The ordinary `work` output enters common acceptance and produces separate
+operation Tasks for the declared `scan` Workflow binding:
 
 ```yaml
-inventory:
-  implementation: openapi-scans@1
-  source: {source: prepare-output, role: generate-api, name: api}
-  settings: {source: audit-input, name: settings}
-  itemWorkflowRole: scan
 workflows:
-  generate-api:
-    kind: prepare
-    ref: openapi-from-workspace@7
-    maxRunAttempts: 2
+  prepare:
+    ref: source-openapi-prepare-work@1
     inputs:
       source: {source: audit-input, name: source}
-    parameters: {}
+      settings: {source: audit-input, name: settings}
+    parameters:
+      checking_workflow: scan
+      selection: scan-requests
+      max_items: '16'
     outputs:
+      work: work
       api: openapi
       validation: openapi_validation_report
+    max_attempts: 2
+initial_work:
+- key: prepare-operations
+  workflow: prepare
+  objective: Prepare bounded operation work from the exact selected materials
 ```
 
-The `auditTask` executor declaration is shown with ASC-R72.
+The complete profile declares its inputs, checking Workflow, limits and pinned
+operation policy. The same common Task/ordinary Run path executes both bindings.
 
 ## Non-goals
 
