@@ -6,7 +6,7 @@ epic: api-contracts
 kind: chore
 introduced_by: V440-007
 priority: P2
-status: pending
+status: completed
 depends_on: [V440-006, V440-007, V440-009]
 languages: [go, typescript]
 goal: >-
@@ -14,9 +14,9 @@ goal: >-
   Control Plane engagement adapter, explicit shared Artifact storage and UI work.
 context:
   prerequisite: >-
-    V440-009 corrects an incoming UI error fixture rejected by the existing
-    public API guard. Resume this integration task after that independent
-    fixture correction is completed; the merge resolutions are already committed.
+    V440-009 completed the incoming UI error fixture correction rejected by the
+    existing public API guard. Its full contract and UI gates now pass; this
+    integration resumes with the merge resolutions already committed.
   task_id_history: "HTTP review IDs moved from V439 to V440 on 2026-11-03 because main had already published the V439 Control Plane tasks."
   authority:
     - date: "2026-11-03"
@@ -67,3 +67,29 @@ tests:
     covers: [A1, A2]
   - command: make lint
     covers: [A1, A2]
+implementation_commit: 533742d51204c7e4aa0779ed845df5f8045ac543
+verification:
+  date: "2026-11-03"
+  integration_base: 45da0f37c44e8a802778448fab602221d09f4bcf
+  result: >-
+    The full integration suites for Control Plane (including engagementadapter),
+    app, HTTP and architecture passed against disposable TCP PostgreSQL:
+    Control Plane 27.838s, app 15.756s, public 98.215s, private 37.543s,
+    events 4.192s and architecture 2.562s. The complete Control Plane subtree
+    also passed with -race (34.636s; engagementadapter 1.716s).
+    make verify-public-api passed after V440-009 (public 10.570s).
+    make ui-verify passed after the fixture correction: 223 files, 2657 passed
+    tests and one declared expected failure, 17 Node tests, generation, lint,
+    typecheck and build. make lint passed with PostgreSQL configured, including
+    all 190 script tests, source/layer/export/release-graph/spec/task/ERD guards.
+    make docs-dependencies-check and git diff --check passed. Node 24.20.0,
+    pnpm 11.24.0, the existing PNPM_CONFIG_STORE_DIR, Go 1.26.9, TMPDIR=/private/tmp,
+    GOMAXPROCS=4, Go package parallelism 2 and VITEST_MAX_WORKERS=2 were used.
+  task_ids: >-
+    Main's published Control Plane V439 IDs remain intact. All eight HTTP review
+    records and their own links/milestone exit moved to V440; implementation
+    hashes and original evidence were retained. The generated backlog is current.
+  delivery: >-
+    The combined branch is ready for the user-authorized git merge --no-ff into
+    main based on the exact integration_base above. Unrelated primary-checkout
+    files were preserved. No remote publication is part of this task.

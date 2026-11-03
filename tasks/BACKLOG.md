@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-83 open tasks: 15 in progress, 55 pending, 13 deferred. 1384 finished: 1366 completed, 18 archived.
+82 open tasks: 15 in progress, 54 pending, 13 deferred. 1385 finished: 1367 completed, 18 archived.
 
 ## In progress
 
@@ -133,7 +133,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V411-017](v411-017-pentest-api-cli.yml) | feature | P1 | V411-015, V411-016, V64-008 | Expose HTTP engagement setup and results through existing API and CLI |
-| [V440-008](v440-008-integrate-current-main.yml) | chore | P2 | — | Integrate current main before landing the HTTP API review |
 
 ### PostgreSQL persistence and schema (`persistence`)
 
@@ -196,6 +195,6 @@ tasks in `introduced_by`.
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 5 |
 | Web UI (`ui`) | 2 | 38 | 70 | 26 | 71 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 18 | 46 | 9 | 22 |
-| Public API and wire contracts (`api-contracts`) | 2 | 2 | 39 | 29 | 20 |
+| Public API and wire contracts (`api-contracts`) | 1 | 2 | 39 | 29 | 20 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 27 | 47 | 17 |
 | Quality, CI and process (`quality`) | 11 | 1 | 29 | 121 | 27 |
