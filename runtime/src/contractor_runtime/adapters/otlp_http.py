@@ -45,7 +45,7 @@ from contractor_runtime.contracts import (
     RuntimeAdapterRef,
     TelemetrySettings,
 )
-from contractor_runtime.http_body import HTTP_TRANSPORT_ERRORS
+from contractor_runtime.http_body import BOUNDED_ACCEPT_ENCODING, HTTP_TRANSPORT_ERRORS
 from contractor_runtime.redaction import contains_private_value
 from contractor_runtime.shared_config import get_shared_config
 
@@ -390,6 +390,7 @@ class OTLPHTTPAdapterFactory:
         try:
             ExportTraceServiceRequest().SerializeToString()
             client = httpx.AsyncClient(
+                headers={"Accept-Encoding": BOUNDED_ACCEPT_ENCODING},
                 transport=self._transport,
                 trust_env=False,
                 follow_redirects=False,
@@ -466,6 +467,7 @@ class OTLPHTTPAdapter:
         timeout = float(min(context.request_timeout_seconds, settings.flush_timeout_seconds))
         self._delivery_timeout = timeout
         self._client: httpx.AsyncClient | None = httpx.AsyncClient(
+            headers={"Accept-Encoding": BOUNDED_ACCEPT_ENCODING},
             transport=transport,
             trust_env=False,
             follow_redirects=False,

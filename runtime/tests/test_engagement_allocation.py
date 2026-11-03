@@ -9,10 +9,10 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from fakes.engagement import preflight_spec
+from fakes.engagement_engine import transport as HTTPTransport
 from fakes.worker_runtime import StubADKWorkerRuntimeFactory
 from test_engagement_target import Network, policy_config
 
-from contractor_runtime.adapters.http_transport import HTTPTransport
 from contractor_runtime.allocation import AllocationService
 from contractor_runtime.capabilities import discover_capabilities
 from contractor_runtime.contracts import (

@@ -1,6 +1,8 @@
 # mitmproxy для HTTP транспорта Runtime и sandbox
 
-Дата: 3 ноября 2026 года. Статус: proposal; выбор production-реализации открыт.
+Дата: 3 ноября 2026 года; уточнение 4 ноября 2026 года.
+Статус: production HTTP принят пользователем и реализован в V410-030;
+Caido и прозрачный sandbox routing остаются proposal.
 
 Цель — получить развитую обработку HTTP/TLS и полезные proxy-функции без
 собственной реализации протокольного движка, сохранив существующие engagement
@@ -11,8 +13,37 @@ policy, credentials, limits и lifecycle Contractor. Дополнительны�
 существующий sandbox/allocation lifecycle и сохранить обсуждение как proposal.
 Последующее уточнение: для sandbox интересует перенаправление трафика портов
 80 и 443 на bridge на сетевом уровне, без настройки proxy в каждой программе.
-Варианты ниже являются предложениями агента; миграция production и удаление
-Caido пока не выбраны.
+Исторические варианты ниже являются предложениями агента. Production HTTP
+уточнён в следующем разделе; удаление Caido пока не выбрано.
+
+## Принятый production срез (4 ноября)
+
+Пользователь попросил полноценно доработать тонкий транспорт после V410-029
+и уточнил минимальный протокол: HTTP/1.1 и выше. V410-030 заменяет controlled
+httpcore и собственный parser/TLS scanner bridge одним allocation-owned
+mitmproxy engine. HTTPTransport сохраняет engagement policy, credentials,
+cookie jars, quotas, redirects/retry и результаты. Исходящие соединения
+переиспользуются только внутри identity и exact origin; HTTP/2 поддерживает
+параллельные streams. HTTP/1.0 отклоняется, HTTP/3 не заявлен.
+
+```mermaid
+flowchart LR
+    Tools[HTTP tools] --> Owner[HTTPTransport: policy / identity / limits]
+    Nuclei --> Ingress[Native HTTP/TLS ingress]
+    Ingress --> Owner
+    Owner --> Engine[Native HTTP/1.1 + HTTP/2 layers]
+    Engine --> Guard[DNS pin / peer / lease I/O guard]
+    Guard --> Target[Target]
+```
+
+Ingress и исходящие layers используют один engine. Синтетический ответ ingress
+не становится наблюдением target: результат выдаёт только исходящий owner.
+Callback и native stream завершаются до удаления их приватного state. История
+flows не сохраняется; временная CA и TLS caches удаляются после joined stop.
+Встраивание не вызывает `Master.run()`, меняющий общие настройки asyncio.
+Нормативный контракт находится в
+[HTP-R137–149](../spec/tools/http-caido.md#controlled-audit-http-and-explicit-credentials).
+Оценки и прототипы далее описывают состояние до этого среза.
 
 ## Ветка и исполняемый тест
 
@@ -47,7 +78,7 @@ Bridge завершает входящий TLS, а transport независим�
 запрос. Это IPC-вход в наш HTTP owner; управление scope и credentials находится
 за ним.
 
-Собственный входной bridge поддерживает обычный HTTP/1, один запрос на
+Собственный входной bridge поддерживает обычный HTTP/1.1, один запрос на
 соединение и ограниченный буферизованный обмен. Исходящий transport также
 использует HTTP/1.1 и новое соединение на attempt. mitmproxy интересен готовой
 обработкой TLS/mTLS, HTTP/2, переиспользованием соединений, streaming,
@@ -64,7 +95,7 @@ WebSocket и hooks обработки сообщений.
 
 Минимальная композиция — `Master`, `Proxyserver`, `NextLayer`, `TlsConfig`
 и собственные test hooks. Три последовательных прогона дали одинаковые
-результаты: HTTP/1, проверяемый HTTPS MITM, upstream mTLS, реальный HTTP/2
+результаты: HTTP/1.1, проверяемый HTTPS MITM, upstream mTLS, реальный HTTP/2
 на обоих участках, reuse origin connection, SSE streaming и WebSocket echo.
 Запрещённый fixture path дал локальный `403` без upstream connection.
 

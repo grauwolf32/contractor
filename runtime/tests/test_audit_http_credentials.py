@@ -146,9 +146,8 @@ def test_cross_origin_redirect_drops_manual_auth_and_reports_final_method():
     import time
 
     from fakes.engagement import preflight_spec
+    from fakes.engagement_engine import transport as HTTPTransport
     from test_engagement_target import Network, policy_config
-
-    from contractor_runtime.adapters.http_transport import HTTPTransport
 
     async def scenario():
         spec = preflight_spec()

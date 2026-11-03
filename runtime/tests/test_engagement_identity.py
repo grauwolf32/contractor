@@ -9,10 +9,10 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
+from fakes.engagement_engine import transport as HTTPTransport
 from fakes.engagement_socket import SocketTarget, socket_spec
 from test_engagement_target import Network, policy_config
 
-from contractor_runtime.adapters.http_transport import HTTPTransport
 from contractor_runtime.contracts import AllocationSpec
 from contractor_runtime.contracts.engagement import HTTPLimits
 
@@ -63,9 +63,8 @@ def test_cookie_identity_jars_are_distinct_even_when_initial_credential_is_share
 def test_supplied_cookie_limit_covers_all_origins_before_request():
     from types import SimpleNamespace
 
+    from fakes.engagement_engine import transport as HTTPTransport
     from test_engagement_target import Network, policy_config
-
-    from contractor_runtime.adapters.http_transport import HTTPTransport
 
     target = SimpleNamespace(origin="http://target.example", address="10.20.0.8")
     spec = identity_spec(

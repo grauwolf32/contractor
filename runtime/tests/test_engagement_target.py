@@ -1,4 +1,4 @@
-"""Local slot limits and retries on the production httpcore path."""
+"""Domain admission, limits and retry decisions with an engine double."""
 
 import asyncio
 import ipaddress
@@ -7,8 +7,9 @@ import ssl
 import httpcore
 import pytest
 from fakes.engagement import preflight_spec
+from fakes.engagement_engine import transport as HTTPTransport
 
-from contractor_runtime.adapters.http_transport import HTTPTransport, HTTPTransportError
+from contractor_runtime.adapters.http_transport import HTTPTransportError
 from contractor_runtime.contracts.engagement import HTTPLimits
 from contractor_runtime.core.target_policy import TargetPolicyConfig, TargetUnresolved
 

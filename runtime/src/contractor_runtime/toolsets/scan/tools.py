@@ -259,7 +259,6 @@ class _ScanSession:
                 async with asyncio.timeout_at(deadline):
                     async with HTTPProxyBridge(
                         self.controlled_http,
-                        directory,
                         credential_id=credential_id,
                         deadline=deadline,
                     ) as bridge:

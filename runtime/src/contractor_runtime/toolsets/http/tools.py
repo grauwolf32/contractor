@@ -58,7 +58,12 @@ from contractor_runtime.core.target_policy import (
     validate_host_syntax,
 )
 from contractor_runtime.core.tool_metrics import RecordedToolCall, ToolMetrics, elapsed_ms
-from contractor_runtime.http_body import HTTP_TRANSPORT_ERRORS, BodyTooLarge, read_limited_body
+from contractor_runtime.http_body import (
+    BOUNDED_ACCEPT_ENCODING,
+    HTTP_TRANSPORT_ERRORS,
+    BodyTooLarge,
+    read_limited_body,
+)
 from contractor_runtime.redaction import runtime_secrets
 from contractor_runtime.shared_config import get_shared_config
 from contractor_runtime.toolsets.common.artifacts import (
@@ -1408,6 +1413,7 @@ def _selected_http_tools(selected, session, metrics):
 def _direct_client(policy: TargetPolicy) -> httpx.AsyncClient:
     limits = httpx.Limits(max_connections=4, max_keepalive_connections=2)
     return httpx.AsyncClient(
+        headers={"Accept-Encoding": BOUNDED_ACCEPT_ENCODING},
         transport=PolicyHTTPTransport(policy, limits=limits),
         trust_env=False,
         follow_redirects=False,

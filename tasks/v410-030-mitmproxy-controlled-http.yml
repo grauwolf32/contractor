@@ -1,0 +1,151 @@
+schema_version: '1.0'
+id: V410-030
+title: Execute controlled HTTP through one native mitmproxy engine
+milestone: project-sitemap-2026-10
+epic: http-tools
+kind: feature
+priority: P1
+status: in_progress
+depends_on: [V410-029]
+languages: [python, markdown]
+goal: >-
+  HTTP tools and supported HTTP scanners use one production protocol engine for verified TLS,
+  HTTP/1.1 and HTTP/2, connection reuse and bounded response processing. Contractor retains the
+  engagement authority and ordinary allocation lifecycle while replacing its duplicate protocol code.
+demonstration: >-
+  An ordinary controlled HTTP tool and real Nuclei use the same allocation HTTP owner against
+  owned socket fixtures. The native engine preserves credentials, canonical URL, all-answer DNS
+  policy, peer checks, quotas and cancellation, including concurrent reused HTTP/2 connections;
+  the old controlled httpcore dispatch and handwritten scanner parser are removed.
+context:
+  authority: >-
+    User decision on 2026-11-04 asks to fully develop the thin transport after the successful
+    V410-029 prototype. This authorizes production integration and removal of replaced paths,
+    with the existing engagement and evidence contracts preserved. The previous experimental-only
+    scope is superseded for this task. This does not select Caido removal, transparent Podman
+    networking, new scanner integrations, global quotas or one-allocation placement machinery.
+    User clarification on 2026-11-04 requires HTTP/1.1 and higher: HTTP/1.0 is not an
+    acceptable fallback. This slice implements HTTP/1.1 and HTTP/2; no unverified HTTP/3
+    capability is advertised.
+  proposal: docs/proposals/0053-mitmproxy-runtime-and-sandbox.md
+  evidence: tasks/evidence/v410-030-mitmproxy-controlled-http.md
+  boundary_decision: >-
+    HTTPTransport owns authority, counters, redirects, credentials and bounded result assembly;
+    native HTTP/TLS layers own protocol state. Virtual programmatic messages avoid a loopback
+    HTTPX client and a second response body. Private scanner ingress delegates to that same owner.
+    Native I/O guards plus bounded header/native queue adapters are version-pinned instead of
+    copying the engine network dispatcher. A simpler HTTPX-over-native-proxy composition was
+    rejected because it duplicates framing/buffering and obscures physical-attempt ownership.
+    Reopen the embedding if upgrading the pinned library invalidates native-message ownership
+    or if real conformance cannot preserve admission and joined cleanup. Native HTTP/2 stream
+    resets preserve unrelated work where possible; a shared connection failure can fail other
+    active streams without replaying a possibly sent request.
+  specification:
+  - docs/spec/tools/http-caido.md#HTP-R137
+  - docs/spec/tools/http-caido.md#HTP-R138
+  - docs/spec/tools/http-caido.md#HTP-R139
+  - docs/spec/tools/http-caido.md#HTP-R140
+  - docs/spec/tools/http-caido.md#HTP-R144
+  - docs/spec/tools/http-caido.md#HTP-R145
+  - docs/spec/tools/http-caido.md#HTP-R146
+  - docs/spec/tools/http-caido.md#HTP-R148
+  - docs/spec/tools/http-caido.md#HTP-R149
+scope:
+  in:
+  - Pin and package mitmproxy 12.3.1; keep HTTPTransport as the existing allocation authority and API.
+  - Replace controlled outgoing httpcore dispatch with native HTTP layers and a version-checked I/O integration; no native network-server fork or fallback transport.
+  - Reuse existing HTTPRoutePolicy, IdentitySession, response/evidence and owned-task cleanup primitives.
+  - Replace HTTPProxyBridge parsing/TLS with a thin private ingress handle on the same engine; preserve per-invocation capabilities and scanner failure propagation.
+  - Support native HTTP/1.1 keepalive and HTTP/2 with exchange-level deadlines/admission and pools isolated by credential identity and exact origin; reject HTTP/1.0 rather than silently downgrade.
+  - Keep ordinary HTTPX clients advertising only the existing bounded gzip/deflate codecs after the new dependency installs optional Brotli; unsupported encodings remain raw.
+  - Preserve canonical targets, physical-attempt accounting, safe pre-send retry, redirects, cookie epochs, byte/header bounds, truncation and no decompression.
+  - Verify real socket, tool, scanner, lifecycle, concurrency and redaction paths; update owning specifications and superseded proposal/pending-task integration references.
+  out:
+  - Caido routing/removal, transparent Podman egress, WebSocket capability or unintegrated scanner transport support.
+  - New public/wire fields, durable entities, distributed HTTP accounting, automatic login or retained flow history.
+requirements:
+- id: R1
+  text: There is one native outgoing engine per active HTTP allocation, initialized lazily without target I/O during prepare, and no fallback to the replaced controlled backend.
+- id: R2
+  text: Every physical exchange uses existing policy and identity authority; reused connections cannot bypass fresh URL/method/DNS/peer checks or cross identity/origin boundaries.
+- id: R3
+  text: Lease/deadline checks cover queued work and target I/O. The local first-application-write flag precedes possible sending and prevents unsafe retries; TLS handshake alone does not mark an application request.
+- id: R4
+  text: Existing HTTP results, bounded raw bodies, cookie state/error behavior, redirects and scanner failure semantics remain truthful under native protocol handling.
+- id: R5
+  text: Engine callbacks fail closed, library diagnostics cannot emit credentials or request content, and all tasks/listeners/streams/private material remain owned until joined cleanup.
+failure_outcomes:
+- operation: Initialize the native engine and private scanner ingress
+  permanent: Unsupported pinned engine API or invalid configuration fails preparation/use with a classified Runtime failure and never selects another transport.
+  retryable: No blind target replay during initialization; subsequent ordinary invocation may retry only after confirmed passive cleanup.
+  ambiguous: Retain exact partially acquired resources for cleanup and fence through the existing allocation owner if closure cannot be confirmed.
+  cancelled: Existing joined cleanup closes partial listeners/handlers and erases temporary certificates/capabilities after joins.
+  timeout: Allocation preparation/use and common cleanup deadlines retain ownership until completion or fencing.
+- operation: Issue a physical HTTP attempt
+  permanent: Scope/identity/header/body denial occurs before forbidden target bytes; received HTTP statuses remain completed outcomes. Invalid framing is response_invalid.
+  retryable: At most one safe-method retry after a proven pre-send connection/TLS failure, with fresh admission and request allowance.
+  ambiguous: Any entered application send prevents automatic replay; return the existing bounded transport failure without a new journal.
+  cancelled: Reset the exact exchange and join its callbacks/I/O; wider allocation stop joins shared connections and scanner invocations.
+  timeout: One monotonic call deadline includes admission wait, redirects, body read and cleanup of the timed-out exchange.
+cardinality:
+- collection: Identity/origin pool registry
+  expected: One anonymous origin, with optional explicitly selected credentials
+  maximum: At most eight identities times sixteen assigned origins
+  bound: Pools are allocation-local; closed exchanges are removed and retained response bytes obey the existing shared/configured body bound; no flow archive or per-request history is added.
+- collection: Active physical attempts and scanner ingress capabilities
+  expected: Existing selected tool/scanner invocations and configured concurrency
+  maximum: Constrained by the callers and optional engagement limits; no new default engagement quota
+  bound: Admission/backpressure remains under the existing HTTP owner; capabilities are removed after their exact invocation and connections/tasks are joined before release.
+lifecycle:
+- entity: Native engine, connection pools and private ingress capabilities
+  delete: HTTP owner close on abort/finalize/cancellation/lease loss/failed preparation/release; retryable cleanup retains the exact owned resources.
+  cascade: Active exchanges, native tasks, scanner handlers, credentials/cookies and temporary CA material.
+  retention: Only ordinary existing bounded result/evidence metadata; no secret-bearing engine flow history survives joined stop.
+acceptance_criteria:
+- id: A1
+  given: A controlled HTTP allocation with real fixtures and explicit credentials
+  when: Tools and the supported scanner issue HTTP and HTTPS requests
+  then: One pinned native engine executes them with the existing outcomes and evidence; the replaced controlled backend/parser has no production caller.
+- id: A2
+  given: Reused HTTP/1.1 or concurrent HTTP/2 connections and changing admission/deadlines
+  when: A forbidden scope, DNS set, protected endpoint, peer or expired authority is encountered
+  then: No forbidden application bytes are sent; allowed flows retain identity/origin isolation and per-attempt accounting.
+- id: A3
+  given: Redirects, pre-send failures, partial writes, malformed/oversized responses and cookie epochs
+  when: The native engine completes, rejects or loses an exchange
+  then: Real-path regression tests preserve retry/redirect/body/header/no-decompression and session semantics without false success or unsafe replay.
+- id: A4
+  given: Startup failure, concurrent close, a stalled response or active scanner and client
+  when: Cancellation, deadline, lease loss or allocation release occurs
+  then: All owned work is joined before secrets/files are erased; uncertain cleanup remains fenced and diagnostics are content-free.
+- id: A5
+  given: The pinned dependency and final implementation
+  when: Runtime validation and the real socket/tool/scanner suites run
+  then: Required checks pass, documentation agrees with production behavior and the report identifies any environment-limited gates without claiming unrun coverage.
+tests:
+- command: make test-runtime
+  covers: [A1, A2, A3, A4, A5]
+- command: cd runtime && uv run ruff check .
+  covers: [A5]
+- command: cd runtime && uv run ruff format --check .
+  covers: [A5]
+- command: cd runtime && uv run lint-imports
+  covers: [A5]
+- command: cd runtime && uv run ruff check ../scripts/experiments/mitmproxy_production_memory.py
+  covers: [A5]
+- command: cd runtime && uv run ruff format --check ../scripts/experiments/mitmproxy_production_memory.py
+  covers: [A5]
+- command: cd runtime && uv run python ../scripts/experiments/mitmproxy_production_memory.py --output /tmp/v410-030-native-memory.json
+  covers: [A3, A4, A5]
+- command: python3 scripts/check_spec.py
+  covers: [A5]
+- command: cd runtime && uv run python ../scripts/check_tasks.py
+  covers: [A5]
+
+verification:
+  date: '2026-11-04'
+  runtime: make test-runtime passed (5945 passed, 135 environment-gated skips) and the report verifier passed.
+  focused: Final HTTP engine/bridge, real Nuclei and complete scanner-package selection passed (558 cases) after unused-argument cleanup.
+  lint: make lint passed with cached Go 1.26.9 and Node 24.20/Corepack on PATH; standalone Ruff check/format, import-linter, task/spec validation and diff whitespace checks passed.
+  memory: Three fresh production-engine processes completed all 36 target responses and joined cleanup; sanitized measurements and limitations are in tasks/evidence/v410-030-mitmproxy-controlled-http.md.
+  delivery: Local branch codex/sitemap-source-comparison; not merged into main. Linux packaging, live external Workflows, Caido and transparent sandbox routing were not verified by this slice.

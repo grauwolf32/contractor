@@ -28,7 +28,7 @@ from contractor_runtime.core.process import (
     run_command,
 )
 from contractor_runtime.core.target_policy import TargetDenied, TargetPolicy
-from contractor_runtime.http_body import HTTP_TRANSPORT_ERRORS
+from contractor_runtime.http_body import BOUNDED_ACCEPT_ENCODING, HTTP_TRANSPORT_ERRORS
 
 MAX_SUBPROCESS_ARGUMENTS = 128
 MAX_SUBPROCESS_ARGUMENT_BYTES = 4096
@@ -428,7 +428,11 @@ class HTTPProxyAdapterFactory:
         try:
             context = ssl.create_default_context()
             transport = httpx.AsyncHTTPTransport(verify=context, trust_env=False, retries=0)
-            client = httpx.AsyncClient(transport=transport, trust_env=False)
+            client = httpx.AsyncClient(
+                transport=transport,
+                trust_env=False,
+                headers={"Accept-Encoding": BOUNDED_ACCEPT_ENCODING},
+            )
         except Exception:
             return False
         finally:
@@ -532,6 +536,7 @@ class HTTPProxyAdapter:
         observed = _ObservedProxyTransport(transport, self.metrics)
         handle = ProxyHTTPClient(
             httpx.AsyncClient(
+                headers={"Accept-Encoding": BOUNDED_ACCEPT_ENCODING},
                 transport=observed,
                 trust_env=False,
                 follow_redirects=False,

@@ -15,6 +15,14 @@ from contractor_runtime.adapters.http_transport import HTTPOutcome
 class Owner:
     def __init__(self):
         self.calls = []
+        self.engine = None
+
+    async def open_proxy(self):
+        from contractor_runtime.adapters.http_engine import HTTPEngine
+
+        self.engine = HTTPEngine(require_authority=lambda: None)
+        await self.engine.start()
+        return self.engine
 
     def credentials(self):
         return []
@@ -37,19 +45,29 @@ class Owner:
         )
 
 
-@pytest.mark.parametrize("scheme", ["http", "https"])
-def test_bridge_delegates_plaintext_and_tls_without_target_resolution(tmp_path, scheme):
+@pytest.mark.parametrize("scheme,http2", [("http", False), ("https", False), ("https", True)])
+def test_bridge_delegates_plaintext_and_tls_without_target_resolution(
+    tmp_path, scheme, http2, monkeypatch
+):
+    from mitmproxy.net import tls
+
+    writes = []
+    monkeypatch.setattr(tls, "log_master_secret", lambda *_: writes.append(True))
+
     async def scenario():
         owner = Owner()
         async with HTTPProxyBridge(
-            owner, tmp_path, credential_id=None, deadline=time.monotonic() + 15
+            owner, credential_id=None, deadline=time.monotonic() + 15
         ) as bridge:
             proxy = bridge.proxy_url
-            async with httpx.AsyncClient(proxy=proxy, verify=False, trust_env=False) as client:
+            async with httpx.AsyncClient(
+                proxy=proxy, verify=False, trust_env=False, http2=http2
+            ) as client:
                 response = await client.post(
                     scheme + "://nonresolving.invalid/allowed", content=b"payload"
                 )
             assert response.status_code == 200 and response.content == b"from-owner"
+            assert response.http_version == ("HTTP/2" if http2 else "HTTP/1.1")
             assert "x-local-hop" not in response.headers
             assert len(owner.calls) == 1
             url, options = owner.calls[0]
@@ -60,17 +78,27 @@ def test_bridge_delegates_plaintext_and_tls_without_target_resolution(tmp_path, 
             assert not any(key == b"proxy-authorization" for key, _ in options["headers"])
             assert bridge.error_code is None
             assert bridge._token.encode() not in bridge.redact(bridge._token.encode())
+        assert not writes
         assert not bridge._private_values
         assert not bridge._writers and not bridge._tasks
 
-    asyncio.run(scenario())
+    async def joined():
+        try:
+            await scenario()
+        finally:
+            from contractor_runtime.adapters import http_engine
+
+            if http_engine._active is not None:
+                await http_engine._active.close()
+
+    asyncio.run(joined())
 
 
 def test_bridge_uses_runtime_cookie_authority_and_keeps_partial_failures(tmp_path):
     async def scenario():
         owner = Owner()
         async with HTTPProxyBridge(
-            owner, tmp_path, credential_id=None, deadline=time.monotonic() + 15
+            owner, credential_id=None, deadline=time.monotonic() + 15
         ) as bridge:
             proxy = bridge.proxy_url
             async with httpx.AsyncClient(proxy=proxy, trust_env=False) as client:
@@ -86,14 +114,23 @@ def test_bridge_uses_runtime_cookie_authority_and_keeps_partial_failures(tmp_pat
             assert len(owner.calls) == 2
             assert bridge.error_code == "scan_request_failed"
 
-    asyncio.run(scenario())
+    async def joined():
+        try:
+            await scenario()
+        finally:
+            from contractor_runtime.adapters import http_engine
+
+            if http_engine._active is not None:
+                await http_engine._active.close()
+
+    asyncio.run(joined())
 
 
 def test_bridge_refuses_unauthenticated_local_client_before_forwarding(tmp_path):
     async def scenario():
         owner = Owner()
         async with HTTPProxyBridge(
-            owner, tmp_path, credential_id=None, deadline=time.monotonic() + 15
+            owner, credential_id=None, deadline=time.monotonic() + 15
         ) as bridge:
             port = bridge._server.sockets[0].getsockname()[1]
             reader, writer = await asyncio.open_connection("127.0.0.1", port)
@@ -106,7 +143,16 @@ def test_bridge_refuses_unauthenticated_local_client_before_forwarding(tmp_path)
             await writer.wait_closed()
             assert owner.calls == []
 
-    asyncio.run(scenario())
+    async def joined():
+        try:
+            await scenario()
+        finally:
+            from contractor_runtime.adapters import http_engine
+
+            if http_engine._active is not None:
+                await http_engine._active.close()
+
+    asyncio.run(joined())
 
 
 def test_bridge_early_engine_exit_joins_and_reports_unfinished_exchange(tmp_path):
@@ -123,7 +169,7 @@ def test_bridge_early_engine_exit_joins_and_reports_unfinished_exchange(tmp_path
 
         async with (
             HTTPProxyBridge(
-                PendingOwner(), tmp_path, credential_id=None, deadline=time.monotonic() + 15
+                PendingOwner(), credential_id=None, deadline=time.monotonic() + 15
             ) as bridge,
             httpx.AsyncClient(proxy=bridge.proxy_url, trust_env=False) as client,
         ):
@@ -136,5 +182,41 @@ def test_bridge_early_engine_exit_joins_and_reports_unfinished_exchange(tmp_path
         assert joined.is_set()
         assert bridge.error_code == "scan_request_failed"
         assert not bridge._tasks and not bridge._writers
+
+    async def joined():
+        try:
+            await scenario()
+        finally:
+            from contractor_runtime.adapters import http_engine
+
+            if http_engine._active is not None:
+                await http_engine._active.close()
+
+    asyncio.run(joined())
+
+
+def test_bridge_refuses_http10_before_owner_call(tmp_path):
+    async def scenario():
+        owner = Owner()
+        try:
+            async with HTTPProxyBridge(
+                owner, credential_id=None, deadline=time.monotonic() + 15
+            ) as bridge:
+                port = bridge._server.sockets[0].getsockname()[1]
+                reader, writer = await asyncio.open_connection("127.0.0.1", port)
+                writer.write(
+                    b"GET http://nonresolving.invalid/ HTTP/1.0\r\n"
+                    b"Host: nonresolving.invalid\r\nProxy-Authorization: "
+                    + bridge._authorization
+                    + b"\r\n\r\n"
+                )
+                await writer.drain()
+                assert await reader.read() == b""
+                writer.close()
+                await writer.wait_closed()
+                assert owner.calls == []
+        finally:
+            if owner.engine is not None:
+                await owner.engine.close()
 
     asyncio.run(scenario())

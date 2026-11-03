@@ -10,14 +10,13 @@ from contextlib import nullcontext
 from dataclasses import dataclass
 from urllib.parse import urlsplit
 
-import httpcore
-import httpx
-
+from contractor_runtime.adapters.http_engine_state import EngineFailure
 from contractor_runtime.adapters.http_policy import HTTPRoutePolicy
-from contractor_runtime.adapters.http_session import IdentitySession, PrivateResponse
-from contractor_runtime.adapters.http_stream import ControlledBackend, RequestBoundary
+from contractor_runtime.adapters.http_session import IdentitySession
+from contractor_runtime.adapters.http_stream import RequestBoundary
 from contractor_runtime.contracts import AllocationSpec
 from contractor_runtime.contracts.engagement import MAX_URL_BYTES, HTTPLimits, resolve_redirect_url
+from contractor_runtime.core.http_limits import MAX_CONTROLLED_HEADER_BYTES, MAX_HEADERS
 from contractor_runtime.core.http_session import basic_authorization
 from contractor_runtime.core.target_policy import Resolver, TargetDenied, TargetUnresolved
 from contractor_runtime.shared_config import get_shared_config
@@ -68,7 +67,6 @@ class HTTPTransport:
         *,
         protected_urls: tuple[str, ...] = (),
         resolver: Resolver | None = None,
-        backend: httpcore.AsyncNetworkBackend | None = None,
         ssl_context: ssl.SSLContext | None = None,
         monotonic=time.monotonic,
         sleep=asyncio.sleep,
@@ -82,7 +80,8 @@ class HTTPTransport:
         self._policy = HTTPRoutePolicy(
             self._assignment, protected_urls=protected_urls, resolver=resolver
         )
-        self._backend, self._clock, self._sleep = backend, monotonic, sleep
+        self._clock, self._sleep = monotonic, sleep
+        self._engine = None
         self._ssl = ssl_context
         self._tasks: set[asyncio.Task] = set()
         self._response_cleanup: list[Callable[[], None]] = []
@@ -114,7 +113,6 @@ class HTTPTransport:
             else nullcontext()
         )
         self._session_locks = {session.identity.id: asyncio.Lock() for session in self._sessions}
-        self._deadline = float("inf")
         self._authority_deadline: Callable[[], float | None] = lambda: None
         self._stopped = False
 
@@ -152,7 +150,6 @@ class HTTPTransport:
         for session in self._sessions:
             session.close()
         self._sessions.clear()
-        self._backend = None
         self._ssl = None
         self._authority_deadline = lambda: None
 
@@ -160,9 +157,9 @@ class HTTPTransport:
         if self._stopped:
             raise HTTPTransportError("http_allocation_closed")
         lease = self._authority_deadline()
-        if lease is None or self._clock() >= min(self._deadline, lease):
+        if lease is None or self._clock() >= lease:
             raise HTTPTransportError("http_allocation_closed")
-        return min(self._deadline, lease)
+        return lease
 
     def attach_response_buffer(self, cleanup: Callable[[], None]) -> None:
         """Allocation teardown also erases model-facing response buffers."""
@@ -180,26 +177,36 @@ class HTTPTransport:
             self._tasks.discard(asyncio.current_task())
 
     async def _close_boundary(self, boundary: RequestBoundary) -> None:
-        if boundary.transport is not None:
-            await boundary.transport.aclose()
         self._boundaries.discard(boundary)
 
     async def _close_transport(self) -> None:
-        # A close failure retains that exact owner for stop's next attempt.
-        for boundary in tuple(self._boundaries):
-            await self._close_boundary(boundary)
+        if self._engine is not None:
+            await self._engine.close()
+            self._engine = None
 
     async def _initialize(self) -> None:
         async with self._initialize_lock:
             if self._initialized:
                 return
-            if self._ssl is None:
-                self._ssl = await to_thread_until_done(
-                    lambda: httpx.create_ssl_context(trust_env=False),
-                    name="engagement-tls-context",
-                )
             await self._policy.initialize(self._settings)
+            if self._engine is None:
+                from contractor_runtime.adapters.http_engine import HTTPEngine
+
+                self._engine = HTTPEngine(
+                    require_authority=self._require_authority, ssl_context=self._ssl
+                )
+                try:
+                    await self._engine.start()
+                except BaseException:
+                    await self._close_transport()
+                    raise
             self._initialized = True
+
+    async def open_proxy(self):
+        """Acquire private scanner ingress on this allocation's native engine."""
+        self._require_authority()
+        await self._initialize()
+        return self._engine
 
     def _session(self, credential_id: str | None) -> IdentitySession:
         self._require_authority()
@@ -308,7 +315,7 @@ class HTTPTransport:
         deadline = min(self._require_authority(), self._clock() + timeout)
         try:
             async with asyncio.timeout(max(0, deadline - self._clock())):
-                async with self._session_locks[session.identity.id], self._semaphore:
+                async with self._semaphore:
                     await self._initialize()
                     return await self._execute_session(session, url, deadline=deadline, **options)
         finally:
@@ -316,12 +323,6 @@ class HTTPTransport:
 
     async def _execute_session(self, session, url, **options):
         outcome, response = await self._request_chain(session, url, **options)
-        if response is not None and not response.session_valid:
-            # A cookie identity cannot continue after losing its supplied jar.
-            # The completed physical response remains available to the tool.
-            session.clear()
-            if session.identity.kind == "cookies":
-                session.state = "blocked"
         return outcome, response
 
     async def _admit_request(self) -> None:
@@ -347,12 +348,15 @@ class HTTPTransport:
             (b"Host", urlsplit(url).netloc.encode("ascii")),
             *([] if b"accept" in names else [(b"Accept", b"*/*")]),
             *([] if b"accept-encoding" in names else [(b"Accept-Encoding", b"identity")]),
-            (b"Connection", b"close"),
             *request.headers,
         ]
         if request.body or request.method in {"POST", "PUT", "PATCH"}:
             headers.append((b"Content-Length", str(len(request.body)).encode()))
-        if len(headers) > 64 or sum(len(name) + len(value) + 4 for name, value in headers) > 32768:
+        if (
+            len(headers) > MAX_HEADERS
+            or sum(len(name) + len(value) + 4 for name, value in headers)
+            > MAX_CONTROLLED_HEADER_BYTES
+        ):
             raise ValueError("controlled HTTP headers exceed bound")
         return headers
 
@@ -372,15 +376,19 @@ class HTTPTransport:
         hop = retry = 0
         while True:
             self._require_authority()
-            epoch = session.epoch
-            try:
-                private_request = await to_thread_until_done(
-                    session.request,
-                    url,
-                    name="engagement-private-request",
-                )
-            except (ValueError, KeyError, UnicodeError):
-                return HTTPOutcome(kind="denied", reason="policy_denied"), None
+            async with self._session_locks[session.identity.id]:
+                epoch = session.epoch
+                try:
+                    private_request = await to_thread_until_done(
+                        session.request, url, name="engagement-private-request"
+                    )
+                except (ValueError, KeyError, UnicodeError):
+                    return HTTPOutcome(kind="denied", reason="policy_denied"), None
+
+            def require_session(epoch=epoch):
+                if epoch is not session.epoch or session.state == "blocked":
+                    raise TargetDenied
+
             private_request.method = method
             private_request.body = body
             private_request.follow_redirects = follow_redirects
@@ -403,6 +411,7 @@ class HTTPTransport:
                 deadline,
                 authority_deadline=self._authority_deadline,
                 monotonic=self._clock,
+                require_session=require_session,
             )
             self._boundaries.add(boundary)
             next_url = None
@@ -416,18 +425,15 @@ class HTTPTransport:
                 raise
             except TargetDenied:
                 outcome = self._failure(boundary, "policy_denied")
-            except (TimeoutError, httpcore.TimeoutException):
+            except TimeoutError:
                 outcome = self._failure(boundary, "timeout")
-            except httpcore.RemoteProtocolError:
-                outcome = self._failure(boundary, "response_invalid")
-            except (httpcore.ConnectError, TargetUnresolved) as error:
-                outcome = self._failure(
-                    boundary,
-                    "tls_failed" if isinstance(error.__cause__, ssl.SSLError) else "connect_failed",
-                )
+            except EngineFailure as error:
+                outcome = self._failure(boundary, error.reason)
+            except TargetUnresolved:
+                outcome = self._failure(boundary, "connect_failed")
             except ssl.SSLError:
                 outcome = self._failure(boundary, "tls_failed")
-            except (httpcore.NetworkError, HTTPTransportError, ValueError, OSError):
+            except (HTTPTransportError, ValueError, OSError):
                 outcome = self._failure(boundary, "transport_failed")
             finally:
                 # Retain ownership after a close failure so allocation teardown
@@ -437,14 +443,17 @@ class HTTPTransport:
                 response.method = method
                 response.redirects = hop
                 response.retries = retry
-                try:
-                    await to_thread_until_done(
-                        session.receive, response, epoch, name="engagement-private-response"
-                    )
-                except (ValueError, KeyError, IndexError, UnicodeError, RecursionError):
-                    # A malformed cookie update invalidates the session while
-                    # preserving the completed response.
-                    response.session_valid = False
+                async with self._session_locks[session.identity.id]:
+                    try:
+                        await to_thread_until_done(
+                            session.receive, response, epoch, name="engagement-private-response"
+                        )
+                    except (ValueError, KeyError, IndexError, UnicodeError, RecursionError):
+                        response.session_valid = False
+                    if not response.session_valid and epoch is session.epoch:
+                        session.clear()
+                        if session.identity.kind == "cookies":
+                            session.state = "blocked"
             if response is not None and not response.session_valid:
                 return outcome, response
             if outcome.kind == "completed" and next_url is not None and hop < 5:
@@ -489,84 +498,35 @@ class HTTPTransport:
             request.method,
             name="engagement-request-scope",
         )
-        # Core accepts ASCII wire URLs only. Do not silently transform a URL
-        # after the local scope has authorized it.
         if not url.isascii():
             raise ValueError("unsupported target URL encoding")
-        backend = ControlledBackend(policy, boundary, self._backend)
-        async with httpcore.AsyncConnectionPool(
-            ssl_context=self._ssl,
-            max_connections=1,
-            max_keepalive_connections=0,
-            http1=True,
-            http2=False,
-            retries=0,
-            network_backend=backend,
-        ) as pool:
-            parsed = urlsplit(url)
-            # httpcore's string parser uses urlparse and discards the final
-            # segment's semicolon parameters and an empty query delimiter.
-            # Pass the already-authorized request target without parsing again.
-            target = parsed.path + ("?" + parsed.query if "?" in url else "")
-            wire_url = httpcore.URL(
-                scheme=parsed.scheme,
-                host=parsed.hostname,
-                port=parsed.port,
-                target=target,
-            )
-            timeout = max(0, boundary.deadline - self._clock())
-            async with pool.stream(
-                request.method,
-                wire_url,
-                headers=request.headers,
-                content=request.body,
-                extensions={
-                    "timeout": dict.fromkeys(("connect", "read", "write", "pool"), timeout)
-                },
-            ) as response:
-                if not boundary.request_started:
-                    raise HTTPTransportError("http_allocation_closed")
-                next_url = None
-                if request.follow_redirects and response.status in REDIRECT_STATUSES:
-                    locations = [
-                        value for name, value in response.headers if name.lower() == b"location"
-                    ]
-                    if len(locations) == 1 and len(locations[0]) <= MAX_URL_BYTES:
-                        try:
-                            candidate = resolve_redirect_url(url, locations[0].decode("ascii"))
-                            if not session.allows_origin(candidate):
-                                raise TargetDenied
-                            await to_thread_until_done(
-                                self._policy.for_url,
-                                candidate,
-                                session.identity,
-                                "GET"
-                                if response.status == 303
-                                or (response.status in {301, 302} and request.method == "POST")
-                                else request.method,
-                                name="engagement-redirect-scope",
-                            )
-                            next_url = candidate
-                        except (ValueError, UnicodeError, TargetDenied):
-                            pass
-                count, truncated = 0, False
-                body = bytearray()
-                async for chunk in response.aiter_stream():
-                    available = (
-                        min(
-                            get_shared_config().http_response_body_max_bytes,
-                            self._http_limits.response_body_bytes
-                            or get_shared_config().http_response_body_max_bytes,
-                        )
-                        - count
+        limit = min(
+            get_shared_config().http_response_body_max_bytes,
+            self._http_limits.response_body_bytes
+            or get_shared_config().http_response_body_max_bytes,
+        )
+        response = await self._engine.request(
+            url, boundary, request, policy, session.identity.id, limit
+        )
+        next_url = None
+        if request.follow_redirects and response.status in REDIRECT_STATUSES:
+            locations = [value for name, value in response.headers if name.lower() == b"location"]
+            if len(locations) == 1 and len(locations[0]) <= MAX_URL_BYTES:
+                try:
+                    candidate = resolve_redirect_url(url, locations[0].decode("ascii"))
+                    if not session.allows_origin(candidate):
+                        raise TargetDenied
+                    await to_thread_until_done(
+                        self._policy.for_url,
+                        candidate,
+                        session.identity,
+                        "GET"
+                        if response.status == 303
+                        or (response.status in {301, 302} and request.method == "POST")
+                        else request.method,
+                        name="engagement-redirect-scope",
                     )
-                    count += min(available, len(chunk))
-                    body.extend(chunk[:available])
-                    if len(chunk) > available:
-                        truncated = True
-                        break
-                return (
-                    HTTPOutcome(kind="completed"),
-                    next_url,
-                    PrivateResponse(url, response.status, response.headers, bytes(body), truncated),
-                )
+                    next_url = candidate
+                except (ValueError, UnicodeError, TargetDenied):
+                    pass
+        return HTTPOutcome(kind="completed"), next_url, response
