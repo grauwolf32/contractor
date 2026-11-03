@@ -6,7 +6,7 @@ epic: audits
 kind: defect
 introduced_by: V64-002
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V64-002]
 languages: [go, typescript, yaml, markdown]
 goal: A paused check shows collected results and prepared Tasks automatically after its last Run terminates.
@@ -31,6 +31,20 @@ context:
     start/purge lock test. Keep that test's lock guarantee by detecting the exact purge backend
     through pg_blocking_pids instead of matching the truncated SQL suffix. This updates an
     existing test helper and adds no regression test.
+  verification: >-
+    On 0fe143e8e7646335b797cb319444a174faf276d9 the full Audit store, service and public
+    HTTP suites pass against disposable PostgreSQL. verify-public-api and
+    verify-public-api-postgres pass; the public client package suite also passes.
+    Full ui-verify passes 2459 tests with one expected failure, plus lint, typecheck,
+    static-server tests and build. make lint passes with regenerated dependency and ERD checks.
+    A temporary external Go overlay probes actual owner selection, observation of submission
+    failure, pause, list and collection: collectionPending stays true with zero outstanding
+    Runs in both pause and list responses, then clears when the Task settles. Custom and
+    generic PostgreSQL plans use audit_executions_reconcile_idx across 5000 collected rows.
+    An independent one-off Vite SSR import exercises the production auditPollInterval function:
+    paused collecting and draining Audits poll; a fully drained paused Audit stops.
+    No new regression test is committed. The existing final-projection-refresh suite passes.
+    No migration, new state or stored counter was added. This local branch remains unmerged.
 scope:
   in:
   - Expose the bounded derived collectionPending fact in Audit reads and both generated clients.
@@ -54,4 +68,4 @@ tests:
   covers: [A1, A2]
 - command: make lint
   covers: [A1, A2, A3]
-implementation_commit: null
+implementation_commit: 0fe143e8e7646335b797cb319444a174faf276d9
