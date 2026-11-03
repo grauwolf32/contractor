@@ -1,15 +1,117 @@
 package streamline
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/stageresult"
+	"github.com/grauwolf32/contractor/internal/telemetry"
+	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
+	"google.golang.org/protobuf/proto"
 )
+
+func TestSharedPlannerTelemetrySubtaskIDs(t *testing.T) {
+	var fixture struct {
+		IDs []struct {
+			Value string
+			Valid bool
+		}
+	}
+	if err := json.Unmarshal(contractstest.ReadFile(t, "api", "testdata", "planner-subtask-cases.json"), &fixture); err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range fixture.IDs {
+		want := "invalid"
+		if test.Valid {
+			want = test.Value
+		}
+		if got := safeSubtaskID(test.Value); got != want {
+			t.Errorf("safeSubtaskID(%q) = %q, want %q", test.Value, got, want)
+		}
+	}
+	if safeSubtaskID("") != "invalid" {
+		t.Fatal("empty ID accepted")
+	}
+}
+
+func TestModeledPlannerReportsThreeDigitSubtaskID(t *testing.T) {
+	for _, profile := range []plannerProfile{streamlineProfile, routerProfile} {
+		t.Run(profile.ref, func(t *testing.T) {
+			llm := &scriptedModel{}
+			for range 101 {
+				llm.steps = append(llm.steps, addSubtaskStep("Inspect", "Read source"))
+			}
+			for index := range 101 {
+				args := map[string]any{"subtask_id": fmt.Sprint(index)}
+				if profile.routesWorkers {
+					args["worker_name"] = "builder"
+				}
+				llm.steps = append(llm.steps, functionStep(executeCurrentSubtaskToolName, args))
+			}
+			llm.steps = append(llm.steps, functionStep(finishToolName, map[string]any{
+				"outcome": "succeeded", "summary": "done", "artifacts": map[string]any{},
+			}))
+			sessions := newFakeSessions()
+			workers := &fakeWorkerInvoker{results: map[string]stageresult.StageContentResult{
+				"builder": stageResult("done", map[string]contracts.ArtifactRef{}),
+			}}
+			factory, err := newFactory(profile, sessions, sessions, workers, &fakeInspector{},
+				unavailableWorkerStateReader{}, nil, testModelFactory(llm), Limits{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			invocation := testInvocation("builder")
+			invocation.Stage.Planner = resolved.PlannerRef{PlannerID: strings.TrimSuffix(profile.ref, "@1"), Version: "1"}
+			invocation.Stage.MaxSubtasks = 101
+			invocation.Stage.Result.Artifacts = map[string]resolved.ArtifactSlot{}
+			invocation.ModelAccess.ModelPolicy.MaxModelCalls = len(llm.steps)
+			invocation.ModelAccess.ModelPolicy.MaxWorkerCalls = 101
+			adapter, payloads := streamlineTestTelemetry(t, invocation)
+			invocation.Instrumentation = adapter.Instrumentation()
+			instance, err := factory.Create(invocation)
+			if err != nil {
+				t.Fatal(err)
+			}
+			result, err := instance.Run(t.Context())
+			if err != nil || result.Outcome != stageresult.StageSucceeded || len(workers.calls) != 101 {
+				t.Fatalf("Run = (%+v, %v), Worker calls = %d", result, err, len(workers.calls))
+			}
+			report, _ := instance.(planner.ReportProvider).ExecutionReport()
+			lastDispatch := report.ToolCalls[len(report.ToolCalls)-2]
+			if lastDispatch.Tool != executeCurrentSubtaskToolName || lastDispatch.Arguments["subtaskId"] != "100" {
+				t.Fatalf("last dispatch = %+v", lastDispatch)
+			}
+			if exported := adapter.Flush(t.Context()); !exported.Succeeded {
+				t.Fatalf("export = %+v", exported)
+			}
+			var trace collectortracev1.ExportTraceServiceRequest
+			if err := proto.Unmarshal(<-payloads, &trace); err != nil {
+				t.Fatal(err)
+			}
+			for _, resource := range trace.ResourceSpans {
+				for _, scope := range resource.ScopeSpans {
+					for _, span := range scope.Spans {
+						if span.Name != string(telemetry.PlannerSpanWorker) {
+							continue
+						}
+						for _, attr := range span.Attributes {
+							if attr.Key == "subtask.id" && attr.Value.GetStringValue() == "100" {
+								return
+							}
+						}
+					}
+				}
+			}
+			t.Fatal("Worker span lost subtask ID 100")
+		})
+	}
+}
 
 func TestModeledFactoriesEnforceWorkflowSubtaskLimitThroughTools(t *testing.T) {
 	for _, profile := range []plannerProfile{streamlineProfile, routerProfile} {

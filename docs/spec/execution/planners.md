@@ -447,6 +447,11 @@ with about 20 percent headroom, so a second decode or a copy of the snapshot
 fails it. The wall time of such a read, 60 ms at most, depends on the host
 and is measured by a benchmark beside that test, not gated.
 
+Workspace coverage and ordered read/unread path collections are derived once
+for each cached State and released with it on a new completion or Planner
+close. Each page still revalidates the strong ETag and completion correlation;
+pagination does not rescan the complete workspace on an unchanged revision.
+
 **PLN-R48.** Projection tools accept no state key, JSONPath,
 expression, field list or arbitrary aggregation program.
 
@@ -705,6 +710,14 @@ usage is a retryable invalid-response failure
 (`planner_gateway_invalid_response`, [Errors](../platform/errors.md)) rather
 than a way to bypass the cumulative budget (FAIL-PLN-1).
 
+Main-model and compactor response envelopes must contain exactly one JSON
+value with no duplicate keys at any nesting level; provider extension fields
+remain permitted. Main-model tool argument strings are independently decoded
+with the same duplicate-key and trailing-data checks before tool dispatch.
+An ambiguous envelope provides no trusted usage. If only its tool arguments
+are rejected, valid envelope usage is still charged once before returning
+`planner_gateway_invalid_response`.
+
 ### Model access and Gateway failures
 
 Resolution of a model-backed Planner's own ModelPolicy, LLMGatewayConfig and
@@ -924,6 +937,13 @@ completion it builds below the size that was refused, so a retry would most
 likely repeat the rejection after another full invocation. Reopen this when a
 retried invocation is given a smaller state budget than the one that was
 refused.
+
+Fact receipt capacity is derived from the session's pinned `maxSubtasks`:
+`3 × effective maxSubtasks + 1` (LIM-PLN-19). Each subtask can select one
+dispatch and change the current subtask twice when added just in time; the
+last receipt records the accepted finish. Replaying an identical fact uses
+its existing receipt. The same bound applies on durable writes and reads;
+the independent state byte bound still applies to the entire session.
 
 **PLN-R124.** The durable state of one Planner session, which holds its
 request, plan, recorded facts and completion, is at most 2 MiB (2,097,152

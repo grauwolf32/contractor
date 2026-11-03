@@ -1,0 +1,69 @@
+schema_version: '1.0'
+milestone: hub-audit-defects-2026-10
+epic: planner-worker
+depends_on: []
+languages:
+- go
+id: V441-004
+title: Evict only live Planner history cursors
+kind: defect
+introduced_by: V420-002
+priority: P2
+status: completed
+goal: Reading one history chain does not evict another while fewer than eight cursors remain live.
+context:
+  authority: 'User request on 2026-11-03: "Давай сделаем упрощения и оптимизации и затем поправим проблемы".'
+  finding: internal/planner/streamline/history.go:138 removes consumed tokens from the map but leaves them
+    in order; history.go:187 evicts by stale queue length.
+  siblings: Streamline and Router share one engine. Passthrough, scan, durable reads, Gateway main/compactor
+    and telemetry consumers are checked where applicable; no Runtime or UI behavior change is introduced.
+  specification:
+  - docs/spec/execution/planners.md#PLN-R131
+  - docs/spec/platform/limits.md#LIM-PLN-18
+  boundary: 'Implementation decision: preserve the existing Planner/domain/Server-operation separation and
+    public fact vocabulary. Keep receipt capacity derived from the pinned plan rather than introduce a new
+    event-batching protocol or receipt owner. Atomic event batching remains a separate option if measured database
+    cost warrants it.'
+  verification:
+    date: '2026-11-03'
+    environment: Go 1.26.9 darwin/arm64; dedicated disposable PostgreSQL; scripted models, local HTTP Gateway
+      and OTLP fixtures.
+    evidence: Two interleaved history chains survive more than eight advances; foreign use does not consume
+      a token. Filling the eight live slots and issuing a ninth evicts exactly the oldest live cursor. Existing
+      consumed, foreign, index/checkpoint-invalidated cursor and exact pagination tests pass. The new interleaved
+      regression fails with the previous FIFO.
+    checks:
+    - make lint
+    - go test -p=2 -count=1 ./internal/planner/... ./internal/scheduler ./internal/archtest ./tests/integration/streamline
+      (with PostgreSQL)
+    - go test -race -p=2 -count=1 ./internal/planner/... (with PostgreSQL)
+  integration_identity: Renamed from V439-004 on 2026-11-03 during the user-requested main merge because that
+    ID was independently assigned to Control Plane on main. Original implementation commits and verification
+    are preserved.
+scope:
+  in:
+  - Remove consumed tokens from both bounded cursor structures and preserve FIFO eviction of live cursors.
+  - Cover interleaved chains, invalid/foreign tokens, full capacity, index changes and checkpoint invalidation.
+  out:
+  - Relocating scanplan, adding Server operations, changing Worker/model selection, changing public schemas
+    or replacing the persistence mechanism.
+acceptance_criteria:
+- id: A1
+  text: Two interleaved chains survive more than eight advances without premature eviction.
+- id: A2
+  text: Nine genuinely live cursors evict exactly the oldest live token; consumed and invalidated tokens remain
+    rejected.
+- id: A3
+  text: Exact bounded history pagination and compaction integration suites pass.
+tests:
+- command: CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/planner/...
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+implementation_commit: a569408ae4031155a1f27980396d916c422e9ac0

@@ -6,7 +6,7 @@ epic: projects-artifacts
 kind: chore
 introduced_by: V370-016
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V437-004]
 languages: [go]
 goal: "Storage runtime and retention policy are explicit process dependencies that survive transaction binding without context configuration."
@@ -61,5 +61,17 @@ acceptance_criteria:
 tests:
   - command: "make lint"
     covers: [A1, A2]
-  - command: "go test -count=1 -tags integration ./internal/... ./cmd/..."
+  - command: "go test -count=1 -tags integration -p 2 ./internal/... ./cmd/..."
     covers: [A1, A2]
+implementation_commit: 6e619b7c1609062e0339cd82f447b7e6cff28e6e
+verification: >-
+  make lint and the complete internal/... and cmd/... suites with integration
+  tags and a disposable TCP PostgreSQL database passed. Complete artifacts/...
+  and HTTP transfer suites passed with -race; the registry suite was repeated
+  with -race after strengthening the metadata no-payload-read spy. Complete
+  registry and finding-intake suites passed with filesystem payload selection.
+  Fresh-context tests cover configured backend, shared transfer capacity,
+  transaction binding, rollback, retained-history eviction and committed purge.
+  TestLocalGoToPythonArtifactCopy and TestArtifactHistoryAcrossProductionProcesses
+  passed through real Server/Runtime processes. Backup/restore and
+  verify-architecture passed. Full browser and release-verify gates were not run.

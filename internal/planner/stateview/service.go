@@ -67,9 +67,10 @@ type boundWorker struct {
 }
 
 type cacheEntry struct {
-	selector completionSelector
-	etag     string
-	snapshot reporting.AgentStateSnapshot
+	selector  completionSelector
+	etag      string
+	snapshot  reporting.AgentStateSnapshot
+	workspace *workspaceProjection
 }
 
 type cursorRecord struct {
@@ -222,26 +223,9 @@ func (s *Service) GetWorkspaceCoverage(
 	if err != nil {
 		return WorkspaceCoverage{}, err
 	}
-	result := WorkspaceCoverage{
-		ScopedFiles: uint64(len(workspace.ScopePaths)), ScopeComplete: workspace.ScopeComplete,
-		DetailComplete: workspace.DetailComplete,
-	}
-	// Interaction paths are unique (AgentStateSnapshot.Validate), so counting
-	// interactions counts paths.
-	for _, item := range workspace.Interactions {
-		result.DiscoveredFiles += countIf(item.DiscoveryCalls > 0)
-		result.ReadFiles += countIf(item.ReadCalls > 0)
-		result.MatchedFiles += countIf(item.MatchCalls > 0)
-		result.ModifiedFiles += countIf(item.MutationCalls > 0)
-	}
-	if workspace.ScopeComplete && workspace.DetailComplete {
-		read := readPaths(workspace)
-		unread := uint64(0)
-		for _, path := range workspace.ScopePaths {
-			if _, observed := read[path]; !observed {
-				unread++
-			}
-		}
+	result := workspace.coverage
+	if result.UnreadFiles != nil {
+		unread := *result.UnreadFiles
 		result.UnreadFiles = &unread
 	}
 	if err := s.ensureCurrent(logicalName, selector); err != nil {
@@ -260,13 +244,7 @@ func (s *Service) ListReadFiles(
 	if err != nil {
 		return FilePage{}, err
 	}
-	files := make([]string, 0, len(workspace.Interactions))
-	for _, interaction := range workspace.Interactions {
-		if interaction.ReadCalls > 0 {
-			files = append(files, interaction.Path)
-		}
-	}
-	return s.page("read", logicalName, selector, files, cursor, limit, workspace.DetailComplete)
+	return s.page("read", logicalName, selector, workspace.readFiles, cursor, limit, workspace.coverage.DetailComplete)
 }
 
 func (s *Service) ListUnreadFiles(
@@ -279,28 +257,21 @@ func (s *Service) ListUnreadFiles(
 	if err != nil {
 		return FilePage{}, err
 	}
-	if !workspace.ScopeComplete || !workspace.DetailComplete {
+	if !workspace.coverage.ScopeComplete || !workspace.coverage.DetailComplete {
 		return FilePage{}, projectionError(CodeWorkspaceIncomplete, false)
 	}
-	read := readPaths(workspace)
-	files := make([]string, 0, len(workspace.ScopePaths))
-	for _, path := range workspace.ScopePaths {
-		if _, observed := read[path]; !observed {
-			files = append(files, path)
-		}
-	}
-	return s.page("unread", logicalName, selector, files, cursor, limit, true)
+	return s.page("unread", logicalName, selector, workspace.unreadFiles, cursor, limit, true)
 }
 
 func (s *Service) GetWorkerToolUsage(
 	ctx context.Context,
 	logicalName string,
 ) (WorkerToolUsage, error) {
-	snapshot, selector, err := s.load(ctx, logicalName, false)
+	loaded, selector, err := s.load(ctx, logicalName, false)
 	if err != nil {
 		return WorkerToolUsage{}, err
 	}
-	invocation := snapshot.State.LastCompletedInvocation
+	invocation := loaded.snapshot.State.LastCompletedInvocation
 	if invocation == nil {
 		return WorkerToolUsage{}, projectionError(CodeChanged, true)
 	}
@@ -332,29 +303,26 @@ func (s *Service) GetWorkerToolUsage(
 func (s *Service) loadWorkspace(
 	ctx context.Context,
 	logicalName string,
-) (reporting.WorkerStateWorkspace, completionSelector, error) {
-	snapshot, selector, err := s.load(ctx, logicalName, true)
+) (*workspaceProjection, completionSelector, error) {
+	loaded, selector, err := s.load(ctx, logicalName, true)
 	if err != nil {
-		return reporting.WorkerStateWorkspace{}, completionSelector{}, err
+		return nil, completionSelector{}, err
 	}
-	invocation := snapshot.State.LastCompletedInvocation
-	if invocation == nil || invocation.Workspace == nil {
-		return reporting.WorkerStateWorkspace{}, completionSelector{}, projectionError(
-			CodeWorkspaceUnavailable, false,
-		)
+	if loaded.workspace == nil {
+		return nil, completionSelector{}, projectionError(CodeWorkspaceUnavailable, false)
 	}
-	return *invocation.Workspace, selector, nil
+	return loaded.workspace, selector, nil
 }
 
 func (s *Service) load(
 	ctx context.Context,
 	logicalName string,
 	requireWorkspace bool,
-) (reporting.AgentStateSnapshot, completionSelector, error) {
+) (cacheEntry, completionSelector, error) {
 	s.mu.Lock()
 	if s.closed {
 		s.mu.Unlock()
-		return reporting.AgentStateSnapshot{}, completionSelector{}, projectionError(CodeUnavailable, true)
+		return cacheEntry{}, completionSelector{}, projectionError(CodeUnavailable, true)
 	}
 	binding, exists := s.bindings[logicalName]
 	selector, selected := s.selectors[logicalName]
@@ -364,10 +332,10 @@ func (s *Service) load(
 	}
 	s.mu.Unlock()
 	if !exists || !selected {
-		return reporting.AgentStateSnapshot{}, completionSelector{}, projectionError(CodeUnavailable, true)
+		return cacheEntry{}, completionSelector{}, projectionError(CodeUnavailable, true)
 	}
 	if requireWorkspace && !binding.workspaceEligible {
-		return reporting.AgentStateSnapshot{}, completionSelector{}, projectionError(
+		return cacheEntry{}, completionSelector{}, projectionError(
 			CodeWorkspaceUnavailable, false,
 		)
 	}
@@ -382,30 +350,36 @@ func (s *Service) load(
 		if errors.As(readErr, &typed) {
 			retryable = typed.Retryable
 		}
-		return reporting.AgentStateSnapshot{}, completionSelector{}, projectionError(CodeUnavailable, retryable)
+		return cacheEntry{}, completionSelector{}, projectionError(CodeUnavailable, retryable)
 	}
-	var snapshot reporting.AgentStateSnapshot
+	var loaded cacheEntry
 	switch {
 	case read.NotModified && read.Snapshot == nil && hasCache && read.ETag == cached.etag:
-		snapshot = cached.snapshot
+		loaded = cached
 	case !read.NotModified && read.Snapshot != nil:
 		// The reader hands over a snapshot it decoded and validated for this
 		// read alone; projections only read it, so it is cached as is.
-		snapshot = *read.Snapshot
+		loaded = cacheEntry{selector: selector, etag: read.ETag, snapshot: *read.Snapshot}
 	default:
-		return reporting.AgentStateSnapshot{}, completionSelector{}, projectionError(CodeUnavailable, true)
+		return cacheEntry{}, completionSelector{}, projectionError(CodeUnavailable, true)
 	}
+	snapshot := loaded.snapshot
 	expectedETag := fmt.Sprintf("\"contractor-agent-state-v1-%d\"", snapshot.State.StateRevision)
 	if read.ETag != expectedETag || !correlates(snapshot, selector) {
-		return reporting.AgentStateSnapshot{}, completionSelector{}, projectionError(CodeChanged, true)
+		return cacheEntry{}, completionSelector{}, projectionError(CodeChanged, true)
+	}
+	if requireWorkspace && loaded.workspace == nil {
+		if invocation := snapshot.State.LastCompletedInvocation; invocation != nil && invocation.Workspace != nil {
+			loaded.workspace = projectWorkspace(*invocation.Workspace)
+		}
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed || s.selectors[logicalName] != selector {
-		return reporting.AgentStateSnapshot{}, completionSelector{}, projectionError(CodeChanged, true)
+		return cacheEntry{}, completionSelector{}, projectionError(CodeChanged, true)
 	}
-	s.cache[logicalName] = cacheEntry{selector: selector, etag: read.ETag, snapshot: snapshot}
-	return snapshot, selector, nil
+	s.cache[logicalName] = loaded
+	return loaded, selector, nil
 }
 
 func correlates(snapshot reporting.AgentStateSnapshot, selector completionSelector) bool {
@@ -421,15 +395,40 @@ func countIf(condition bool) uint64 {
 	return 0
 }
 
-// readPaths returns the paths the Worker read.
-func readPaths(workspace reporting.WorkerStateWorkspace) map[string]struct{} {
+// workspaceProjection is immutable and cached with the validated State. Each
+// page still revalidates its strong ETag and completion correlation, while
+// complete path collections are derived only once per changed revision.
+type workspaceProjection struct {
+	coverage               WorkspaceCoverage
+	readFiles, unreadFiles []string
+}
+
+func projectWorkspace(workspace reporting.WorkerStateWorkspace) *workspaceProjection {
+	projection := &workspaceProjection{coverage: WorkspaceCoverage{
+		ScopedFiles: uint64(len(workspace.ScopePaths)), ScopeComplete: workspace.ScopeComplete,
+		DetailComplete: workspace.DetailComplete,
+	}}
 	read := make(map[string]struct{}, len(workspace.Interactions))
 	for _, item := range workspace.Interactions {
+		projection.coverage.DiscoveredFiles += countIf(item.DiscoveryCalls > 0)
+		projection.coverage.ReadFiles += countIf(item.ReadCalls > 0)
+		projection.coverage.MatchedFiles += countIf(item.MatchCalls > 0)
+		projection.coverage.ModifiedFiles += countIf(item.MutationCalls > 0)
 		if item.ReadCalls > 0 {
+			projection.readFiles = append(projection.readFiles, item.Path)
 			read[item.Path] = struct{}{}
 		}
 	}
-	return read
+	if workspace.ScopeComplete && workspace.DetailComplete {
+		for _, path := range workspace.ScopePaths {
+			if _, observed := read[path]; !observed {
+				projection.unreadFiles = append(projection.unreadFiles, path)
+			}
+		}
+		unread := uint64(len(projection.unreadFiles))
+		projection.coverage.UnreadFiles = &unread
+	}
+	return projection
 }
 
 func (s *Service) page(

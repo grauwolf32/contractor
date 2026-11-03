@@ -136,3 +136,72 @@ func BenchmarkWorkerStateChangedRevision(b *testing.B) {
 	}
 	b.ReportMetric(float64(processCPU(b)-started)/float64(time.Millisecond)/float64(calls), "cpu-ms/op")
 }
+
+// cachedPaginationReader models the Runtime's strong-ETag response without
+// retaining a growing call log in the benchmark.
+type cachedPaginationReader struct {
+	snapshot reporting.AgentStateSnapshot
+}
+
+func (r *cachedPaginationReader) ReadWorkerState(
+	_ context.Context, _ contracts.WorkerHandle, etag string,
+) (reporting.WorkerStateReadResult, error) {
+	current := stateETag(r.snapshot.State.StateRevision)
+	if etag == current {
+		return reporting.WorkerStateReadResult{ETag: current, NotModified: true}, nil
+	}
+	return reporting.WorkerStateReadResult{ETag: current, Snapshot: &r.snapshot}, nil
+}
+
+func cachedPagination(t testing.TB) func() {
+	t.Helper()
+	snapshot, err := contracts.DecodePrivateStrict[reporting.AgentStateSnapshot](maximumStateBody(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := testService(t, &cachedPaginationReader{snapshot: snapshot}, Binding{
+		LogicalName: "builder", Handle: stateHandle("allocation-builder"), WorkspaceEligible: true,
+	})
+	if err := service.RecordCompletion("builder", "1.1", stateCompletion("worker-completed", "1.1", 7)); err != nil {
+		t.Fatal(err)
+	}
+	return func() {
+		cursor, total := "", 0
+		for {
+			page, err := service.ListUnreadFiles(t.Context(), "builder", cursor, 100)
+			if err != nil || !page.Complete || len(page.Files) != 100 {
+				t.Fatalf("unread page = (%+v, %v)", page, err)
+			}
+			for _, path := range page.Files {
+				index := total * 2
+				want := fmt.Sprintf("src/component%03d/module%04d/source.go", index/100, index)
+				if path != want {
+					t.Fatalf("unread path %d = %q, want %q", total, path, want)
+				}
+				total++
+			}
+			if page.NextCursor == "" {
+				break
+			}
+			cursor = page.NextCursor
+		}
+		if total != maximumStatePaths/2 {
+			t.Fatalf("unread files = %d", total)
+		}
+	}
+}
+
+func TestWorkerStateCachedPaginationAtMaximumPaths(t *testing.T) {
+	read := cachedPagination(t)
+	read()
+	read()
+}
+
+func BenchmarkWorkerStateCachedPagination(b *testing.B) {
+	read := cachedPagination(b)
+	read()
+	b.ReportAllocs()
+	for b.Loop() {
+		read()
+	}
+}

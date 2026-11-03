@@ -6,7 +6,7 @@ epic: execution-core
 kind: chore
 introduced_by: V438-001
 priority: P3
-status: in_progress
+status: completed
 depends_on: [V438-001]
 languages: [go]
 goal: "The discard recovery regression exercises serialization failure without violating the shared SQLSTATE source guard."
@@ -34,5 +34,11 @@ acceptance_criteria:
 tests:
   - command: "make lint"
     covers: [A1, A2]
-  - command: "go test -count=1 -tags integration ./internal/... ./cmd/..."
+  - command: "go test -count=1 -tags integration -p 2 ./internal/... ./cmd/..."
     covers: [A1, A2]
+implementation_commit: ba215d5a0ba985e907ad0d3185c51c0908f2dd82
+verification: >-
+  make lint and the complete internal/... and cmd/... integration suites passed
+  with PostgreSQL. The persistence SQLSTATE guard passes without an allowlist
+  addition; the full Scheduler suite exercises the equivalent named condition
+  in its deferred commit failure and lost-acknowledgement recovery scenarios.

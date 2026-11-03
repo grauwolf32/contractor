@@ -46,9 +46,6 @@ func (s *Service) LoadPlans(ctx context.Context, identities []planner.SessionIde
 			return nil
 		}
 		projection := canonicalPlanProjection(*state.Plan)
-		if err := projection.Validate(); err != nil {
-			return fmt.Errorf("persisted Planner plan is invalid: %w", err)
-		}
 		result[identity.StageExecutionID] = projection
 		return nil
 	})
