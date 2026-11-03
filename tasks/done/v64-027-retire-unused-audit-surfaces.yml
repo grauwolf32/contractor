@@ -6,7 +6,7 @@ epic: audits
 kind: chore
 introduced_by: V64-002
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V64-026
 languages: [go, python, yaml, markdown]
@@ -43,20 +43,26 @@ context:
     They must land together to keep the build green; AGENTS.md permits that exception to one
     task per commit. Neither task completes until its own acceptance and listed checks pass.
   verification_progress: >-
-    Full listed owner suites pass against disposable PostgreSQL. make lint passes, including
-    U1000 and testonlyexports with no baseline expansion. Remaining domain/parser, source/license,
+    Rebased onto main 1c57d43b030372cd4b4ca77772413213a541048e as requested by the user.
+    Full listed owner suites pass against disposable PostgreSQL on
+    5824e3528d692bc3eff77a44d540db7600d0f003. make lint passes, including U1000 and
+    testonlyexports with no baseline expansion. Remaining domain/parser, source/license,
     claims, purge, native Finding and Artifact retention checks execute through their real owners.
-    The full Runtime suite passes 5673 cases with 135 optional skips. CLI standard-selection
+    The full Runtime suite passes 5737 cases with 135 optional skips. CLI standard-selection
     execution checks return with their common caller in V64-012; bundled validity remains checked.
-    Clean c733653ccb93f063cfed6fa62f7ab008b8584a1b passes the basic gate (7 cases),
+    Clean 89b6473ac6435140698fbec816da9bdae64df4c0 passes the basic gate (7 cases),
     six-program gate (8 cases), completion (174 Go/416 Runtime), iterative PostgreSQL/process,
     composition (9 integration/10 process plus browser), and HTTP conformance (41 process,
-    2 accounting and 92 Runtime cases). Program-library hardening passes full owner suites with
-    race detection. Seven unconsumed fixtures and the exclusive retired Round snapshot test are
+    2 accounting and 92 Runtime cases). Program-library hardening passed full owner suites with
+    race detection before the rebase; post-rebase completion, iterative and public PostgreSQL
+    gates also run with race detection. Seven unconsumed fixtures and the exclusive retired Round snapshot test are
     removed; remaining method-authoring, SQL-retention and coverage fixtures declare their actual
-    readers. Cross-language verification passes 368 fixtures, 396 Go and 255 Python shared tests.
-    The user requests rebasing on current main after checks; integration verification remains
-    before closure, so this task is still in progress.
+    readers. On 5824e3528d692bc3eff77a44d540db7600d0f003 cross-language verification passes
+    368 fixtures, 397 Go and 255 Python shared tests; public API, shipped configuration and
+    architecture gates pass. That final cleanup only removes unused Start styles/exports and
+    obsolete fixture-reader metadata, leaving the verified process behavior unchanged.
+    The global make test-go failure in unchanged V64-014 archived Eval pins is recorded in V64-002;
+    it does not pass or complete that separately unfinished task. This branch remains unmerged.
   specification:
   - docs/spec/audits/common-contract.md
   - docs/spec/audits/execution.md
@@ -84,4 +90,4 @@ tests:
   covers: [A2, A3]
 - command: make test-audit-basic-e2e test-audit-common-programs-e2e
   covers: [A2, A3]
-implementation_commit: null
+implementation_commit: 5824e3528d692bc3eff77a44d540db7600d0f003
