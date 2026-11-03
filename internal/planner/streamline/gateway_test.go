@@ -236,6 +236,14 @@ func TestPlannerChargesAndClassifiesRejectedGatewayResponses(t *testing.T) {
 			wantCode: "planner_gateway_invalid_response", wantInput: 40, wantOutput: 50},
 		{name: "malformed tool arguments", finishReason: "tool_calls", arguments: "{", includeTool: true,
 			wantCode: "planner_gateway_invalid_response", wantInput: 40, wantOutput: 50},
+		{name: "duplicate tool argument", finishReason: "tool_calls", arguments: `{"subtask_id":"1","subtask_id":"0"}`, includeTool: true,
+			wantCode: "planner_gateway_invalid_response", wantInput: 40, wantOutput: 50},
+		{name: "escaped duplicate tool argument", finishReason: "tool_calls", arguments: `{"subtask_id":"1","subtask_\u0069d":"0"}`, includeTool: true,
+			wantCode: "planner_gateway_invalid_response", wantInput: 40, wantOutput: 50},
+		{name: "nested duplicate tool argument", finishReason: "tool_calls", arguments: `{"subtask_id":"0","extra":{"x":1,"x":2}}`, includeTool: true,
+			wantCode: "planner_gateway_invalid_response", wantInput: 40, wantOutput: 50},
+		{name: "trailing tool argument", finishReason: "tool_calls", arguments: `{"subtask_id":"0"} {}`, includeTool: true,
+			wantCode: "planner_gateway_invalid_response", wantInput: 40, wantOutput: 50},
 		{name: "null tool arguments", finishReason: "tool_calls", arguments: "null", includeTool: true,
 			wantCode: "planner_gateway_invalid_response", wantInput: 40, wantOutput: 50},
 		{name: "missing usage", finishReason: "stop", omitUsage: true,
@@ -417,5 +425,56 @@ func TestOpenAICompatibleCompactorKeepsFinishReasonAndUsage(t *testing.T) {
 				t.Fatalf("reply = %+v", reply)
 			}
 		})
+	}
+}
+
+func TestOpenAICompatibleGatewayEnvelopeIsUnambiguous(t *testing.T) {
+	const valid = `{"choices":[{"finish_reason":"stop","message":{"content":"done"}}],"usage":{"prompt_tokens":11,"completion_tokens":7,"total_tokens":18}}`
+	for _, test := range []struct {
+		name, payload string
+		valid         bool
+	}{
+		{"provider extensions", `{"id":"response-1","provider":{"extra":true},` + valid[1:], true},
+		{"duplicate top-level key", `{"model":"first","model":"second",` + valid[1:], false},
+		{"escaped duplicate key", `{"model":"first","mo\u0064el":"second",` + valid[1:], false},
+		{"duplicate usage", strings.Replace(valid, `"prompt_tokens":11`, `"prompt_tokens":1,"prompt_tokens":11`, 1), false},
+		{"duplicate choice field", strings.Replace(valid, `"content":"done"`, `"content":"wrong","content":"done"`, 1), false},
+		{"duplicate extension field", `{"provider":{"extra":false,"extra":true},` + valid[1:], false},
+		{"trailing object", valid + `{}`, false},
+		{"trailing garbage", valid + `invalid`, false},
+	} {
+		for _, path := range []string{"main", "compactor"} {
+			t.Run(test.name+"/"+path, func(t *testing.T) {
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.Header().Set("Content-Type", "application/json")
+					_, _ = w.Write([]byte(test.payload))
+				}))
+				defer server.Close()
+				llm, err := NewOpenAICompatibleModel(GatewaySettings{
+					URL: server.URL, Model: "planner-model", HTTPClient: server.Client(),
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				request := &model.LLMRequest{Contents: []*genai.Content{genai.NewContentFromText("context", genai.RoleUser)}}
+				if path == "compactor" {
+					_, err = llm.(compactionModel).compact(t.Context(), request)
+				} else {
+					for _, currentErr := range llm.GenerateContent(t.Context(), request, false) {
+						err = currentErr
+					}
+				}
+				if test.valid {
+					if err != nil {
+						t.Fatalf("valid provider extension rejected: %v", err)
+					}
+					return
+				}
+				var rejected *gatewayResponseRejected
+				if !errors.As(err, &rejected) || rejected.usage != nil {
+					t.Fatalf("ambiguous envelope = %v, want rejection without trusted usage", err)
+				}
+			})
+		}
 	}
 }

@@ -9,7 +9,7 @@ title: Reject ambiguous Planner Gateway JSON before tool dispatch
 kind: defect
 introduced_by: V1-006
 priority: P2
-status: pending
+status: in_progress
 goal: Malformed Gateway replies and duplicate tool argument keys never become executable Planner tools.
 context:
   authority: 'User request 2026-11-03: implement the reviewed Planner simplifications and optimizations first,

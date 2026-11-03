@@ -710,6 +710,14 @@ usage is a retryable invalid-response failure
 (`planner_gateway_invalid_response`, [Errors](../platform/errors.md)) rather
 than a way to bypass the cumulative budget (FAIL-PLN-1).
 
+Main-model and compactor response envelopes must contain exactly one JSON
+value with no duplicate keys at any nesting level; provider extension fields
+remain permitted. Main-model tool argument strings are independently decoded
+with the same duplicate-key and trailing-data checks before tool dispatch.
+An ambiguous envelope provides no trusted usage. If only its tool arguments
+are rejected, valid envelope usage is still charged once before returning
+`planner_gateway_invalid_response`.
+
 ### Model access and Gateway failures
 
 Resolution of a model-backed Planner's own ModelPolicy, LLMGatewayConfig and

@@ -12,6 +12,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	"github.com/grauwolf32/contractor/internal/helpers/requestid"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	"google.golang.org/adk/v2/model"
 	"google.golang.org/genai"
 )
@@ -120,9 +121,9 @@ func (m *openAICompatibleModel) compact(ctx context.Context, request *model.LLMR
 // usage is the ordinary invalid Gateway response; every other defect is left
 // to compactor validation with its known usage.
 func decodeCompactorResponse(payload []byte) (compactorReply, error) {
-	var response chatResponse
-	if err := json.NewDecoder(bytes.NewReader(payload)).Decode(&response); err != nil {
-		return compactorReply{}, &gatewayResponseRejected{reason: "invalid JSON"}
+	response, err := decodeGatewayResponse(payload)
+	if err != nil {
+		return compactorReply{}, err
 	}
 	usage, err := chatResponseUsage(response.Usage)
 	if err != nil {
@@ -347,10 +348,9 @@ func (e *gatewayResponseRejected) Error() string {
 }
 
 func decodeChatResponse(payload []byte) (*model.LLMResponse, error) {
-	var response chatResponse
-	decoder := json.NewDecoder(bytes.NewReader(payload))
-	if err := decoder.Decode(&response); err != nil {
-		return nil, &gatewayResponseRejected{reason: "invalid JSON"}
+	response, err := decodeGatewayResponse(payload)
+	if err != nil {
+		return nil, err
 	}
 	usage, err := chatResponseUsage(response.Usage)
 	if err != nil {
@@ -374,7 +374,7 @@ func decodeChatResponse(payload []byte) (*model.LLMResponse, error) {
 		var arguments map[string]any
 		if strings.TrimSpace(call.Function.Arguments) == "" {
 			arguments = map[string]any{}
-		} else if err := json.Unmarshal([]byte(call.Function.Arguments), &arguments); err != nil || arguments == nil {
+		} else if err := strictjson.Decode([]byte(call.Function.Arguments), &arguments); err != nil || arguments == nil {
 			return reject("invalid tool arguments")
 		}
 		part := genai.NewPartFromFunctionCall(call.Function.Name, arguments)
@@ -388,6 +388,21 @@ func decodeChatResponse(payload []byte) (*model.LLMResponse, error) {
 		Content:       &genai.Content{Role: genai.RoleModel, Parts: parts},
 		UsageMetadata: usage, ModelVersion: response.Model,
 	}, nil
+}
+
+// Provider envelopes may carry extension fields, but must still be one
+// unambiguous JSON value. Check before projecting fields so duplicate keys
+// cannot disappear in maps or typed structs. Tool argument strings are
+// independently decoded through strictjson before becoming executable.
+func decodeGatewayResponse(payload []byte) (chatResponse, error) {
+	var response chatResponse
+	if err := strictjson.RejectDuplicateKeys(payload); err != nil {
+		return response, &gatewayResponseRejected{reason: "invalid JSON"}
+	}
+	if err := json.Unmarshal(payload, &response); err != nil {
+		return response, &gatewayResponseRejected{reason: "invalid JSON"}
+	}
+	return response, nil
 }
 
 // chatResponseUsage validates the token usage every Planner Gateway response
