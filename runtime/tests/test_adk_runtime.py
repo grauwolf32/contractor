@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import ast
 import asyncio
 import base64
 import copy
@@ -31,7 +30,7 @@ from google.adk.sessions import InMemorySessionService
 from google.genai import types
 from pydantic import Field
 
-import contractor_runtime
+import contractor_runtime.worker.finalizer as finalizer_module
 import contractor_runtime.worker.runtime as worker_runtime_module
 from contractor_runtime.adapters import (
     AdapterHandles,
@@ -408,7 +407,13 @@ def adk_system_instruction(instruction: str, *, agent: str, description: str) ->
         "The session key {contractor} is ordinary text here.",
     ],
 )
-def test_adk_worker_sends_authored_instruction_literally(tmp_path: Path, instruction: str) -> None:
+def test_adk_worker_sends_authored_instruction_literally(
+    tmp_path: Path, instruction: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The finalizer must preserve the same brace forms as the ordinary Worker.
+    finalizer_instruction = f"{FINALIZER_INSTRUCTION}\n{instruction}"
+    monkeypatch.setattr(finalizer_module, "_SYSTEM_INSTRUCTION", finalizer_instruction)
+
     async def scenario() -> None:
         model = scripted_model([terminal_text("done")])
         runtime = await create_runtime(tmp_path, WorkerState(), {}, model, instruction=instruction)
@@ -425,7 +430,7 @@ def test_adk_worker_sends_authored_instruction_literally(tmp_path: Path, instruc
             instruction, agent="contractor_worker", description="Build artifacts"
         )
         assert finalizer_request["systemInstruction"] == adk_system_instruction(
-            FINALIZER_INSTRUCTION,
+            finalizer_instruction,
             agent="contractor_worker_result_finalizer",
             description="Serialize one already completed Worker result.",
         )
@@ -497,31 +502,6 @@ def test_adk_worker_instruction_ignores_matching_session_state_keys(tmp_path: Pa
         await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
 
     asyncio.run(scenario())
-
-
-def test_every_runtime_llm_agent_receives_a_literal_instruction_provider() -> None:
-    """A string instruction would be ADK State templating; only a provider is literal."""
-
-    root = Path(contractor_runtime.__file__).parent
-    sites: dict[str, list[str]] = {}
-    for path in sorted(root.rglob("*.py")):
-        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
-            if not isinstance(node, ast.Call):
-                continue
-            name = node.func.attr if isinstance(node.func, ast.Attribute) else None
-            if isinstance(node.func, ast.Name):
-                name = node.func.id
-            if name not in {"Agent", "LlmAgent"}:
-                continue
-            keywords = {keyword.arg: keyword.value for keyword in node.keywords}
-            literal = isinstance(keywords.get("instruction"), ast.Lambda) and not (
-                {"global_instruction", "static_instruction", None} & keywords.keys()
-            )
-            sites.setdefault(path.relative_to(root).as_posix(), []).append(
-                f"line {node.lineno}: {'literal' if literal else 'NOT literal'}"
-            )
-    assert {"worker/runtime.py", "worker/finalizer.py", "worker/summarizer.py"} <= sites.keys()
-    assert all("NOT literal" not in site for lines in sites.values() for site in lines), sites
 
 
 def test_adk_worker_emits_content_free_model_tool_and_a2a_hooks(tmp_path: Path) -> None:

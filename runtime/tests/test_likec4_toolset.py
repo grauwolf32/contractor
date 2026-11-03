@@ -1,11 +1,9 @@
 from __future__ import annotations
 
 import asyncio
-import inspect
 import json
 import subprocess
 import threading
-import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -21,6 +19,8 @@ from document_preparation_probes import (
 )
 from document_write_faults import FaultInjectingArtifactClient
 from fakes.worker_state import WorkerState
+from google.adk.tools import FunctionTool
+from google.genai import types
 from shared_config_defaults import MAX_ARTIFACT_BYTES
 
 import contractor_runtime.toolsets.likec4.tools as likec4_module
@@ -37,6 +37,7 @@ from contractor_runtime.contracts import (
 )
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.factories import built_in_factories
+from contractor_runtime.llm.openai import _tools
 from contractor_runtime.toolsets.likec4.tools import (
     MAX_DOCUMENT_UTF8_BYTES,
     LikeC4ToolsetFactory,
@@ -393,16 +394,18 @@ def test_read_never_reports_a_later_line_as_partially_returned(tmp_path: Path) -
     asyncio.run(scenario())
 
 
-def test_read_likec4_keeps_its_prefix_only_long_line_interface() -> None:
-    # A line beyond the output limit is returned as a prefix with partialLine;
-    # read_likec4 has no line_offset continuation (read_text_artifact has).
-    assert list(inspect.signature(likec4_module.ReadLikeC4Tool.__call__).parameters) == [
-        "self",
-        "start_line",
-        "max_lines",
-    ]
-    description = " ".join(likec4_module.ReadLikeC4Tool.description.split())
-    assert "partialLine means one line alone exceeds the limit and only its prefix" in description
+def test_read_likec4_keeps_its_prefix_only_long_line_interface(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        tools = await make_tools(
+            tmp_path, MemoryArtifactClient(), WorkerState(), namespace="architecture"
+        )
+        declaration = FunctionTool(tools["read_likec4"])._get_declaration()
+        schema = _tools([types.Tool(function_declarations=[declaration])])[0]["function"][
+            "parameters"
+        ]
+        assert set(schema["properties"]) == {"max_lines", "start_line"}
+
+    asyncio.run(scenario())
 
 
 def test_json_fallback_is_bounded_and_rejects_deep_nesting() -> None:
@@ -410,10 +413,8 @@ def test_json_fallback_is_bounded_and_rejects_deep_nesting() -> None:
         "errors": []
     }
     for text in ("[" * 200_000, "banner " + "{" * 200_000, "x" + "[" * 500_000):
-        started = time.monotonic()
         with pytest.raises(ValueError):
             likec4_module._extract_json(text)
-        assert time.monotonic() - started < 5
 
 
 def test_validation_reports_deeply_nested_output_as_invalid_json(

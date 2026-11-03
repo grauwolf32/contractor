@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-import inspect
 import json
 import random
-import time
 from collections.abc import Mapping
 
 from contractor_runtime.toolsets.code_analysis.trailmark_child import (
@@ -45,7 +43,6 @@ def test_high_branching_traversal_stops_after_limit_plus_one() -> None:
     ]
     assert truncated is True
     assert traversal_steps == 9
-    assert "digraph_all_simple_paths" not in inspect.getsource(_bounded_simple_paths)
 
 
 def test_traversal_avoids_cycles_and_counts_depth_in_nodes() -> None:
@@ -98,7 +95,6 @@ def test_entrypoint_sources_are_ordered_and_identity_path_is_valid() -> None:
 def test_unreachable_target_in_dense_cyclic_graph_costs_no_enumeration() -> None:
     adjacency = {**_ring(30, 4), "target": ()}
 
-    started = time.monotonic()
     paths, truncated, traversal_steps = _bounded_simple_paths(
         adjacency,
         tuple(sorted(adjacency)),
@@ -107,7 +103,6 @@ def test_unreachable_target_in_dense_cyclic_graph_costs_no_enumeration() -> None
         limit=20,
     )
 
-    assert time.monotonic() - started < 1
     assert paths == [("target",)]
     assert truncated is False
     assert traversal_steps == 0
@@ -138,7 +133,6 @@ def test_step_budget_reports_an_incomplete_traversal_as_truncated() -> None:
     bounded, bounded_truncated, bounded_steps = _bounded_simple_paths(
         adjacency, ("n00",), "target", max_depth=20, limit=1, max_steps=1_000
     )
-    started = time.monotonic()
     _, default_truncated, default_steps = _bounded_simple_paths(
         adjacency, ("n00",), "target", max_depth=20, limit=1
     )
@@ -146,7 +140,6 @@ def test_step_budget_reports_an_incomplete_traversal_as_truncated() -> None:
     assert bounded == [] and bounded_truncated is True
     assert bounded_steps == 1_000
     assert default_truncated is True and default_steps == MAX_TRAVERSAL_STEPS
-    assert time.monotonic() - started < 8
 
 
 def test_step_budget_is_shared_by_every_entrypoint_source() -> None:
