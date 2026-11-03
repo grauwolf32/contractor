@@ -9,27 +9,43 @@ title: Simplify Planner orchestration and cache revision-bound file projections
 kind: chore
 introduced_by: V1-006
 priority: P3
-status: in_progress
+status: completed
 goal: Keep Planner outcomes unchanged while removing repeated dispatch cleanup, prompt sections, JSON copying
   and per-page workspace scans.
 context:
-  authority: 'User request 2026-11-03: implement the reviewed Planner simplifications and optimizations first,
-    then fix the four reproduced defects. Preserve the existing Planner/domain/Server-operation boundaries.'
+  authority: 'User request on 2026-11-03: "Давай сделаем упрощения и оптимизации и затем поправим проблемы".'
   finding: internal/planner/streamline/tools.go:231 repeats failed-dispatch recording; planner.go:496 repeats
     instruction sections; session/service.go:672 serializes a copy; stateview/service.go:285 rebuilds complete
     file lists per page.
   siblings: Streamline and Router share one engine. Passthrough, scan, durable reads, Gateway main/compactor
     and telemetry consumers are checked where applicable; no Runtime or UI behavior change is introduced.
   specification:
-  - docs/spec/execution/planners.md
-  - docs/spec/platform/limits.md
-  boundary: Planner owns orchestration; Session owns durable receipts and validation; StateView owns revision-bound
-    projections. Keep existing events and stores rather than adding batching protocols, tables or receipt owners.
-    Reopen atomic event batching only if measured database cost justifies a separate change.
+  - docs/spec/execution/planners.md#PLN-R14
+  - docs/spec/execution/planners.md#PLN-R106
+  - docs/spec/execution/planners.md#PLN-R115
+  boundary: 'Implementation decision: preserve the existing Planner/domain/Server-operation separation and
+    public fact vocabulary. Keep receipt capacity derived from the pinned plan rather than introduce a new
+    event-batching protocol or receipt owner. Atomic event batching remains a separate option if measured database
+    cost warrants it.'
+  verification:
+    date: '2026-11-03'
+    environment: Go 1.26.9 darwin/arm64; dedicated disposable PostgreSQL; scripted models, local HTTP Gateway
+      and OTLP fixtures.
+    evidence: Prompt assembly is byte-identical to the pre-refactor Streamline/Router instructions in the temporary
+      comparison probe. Typed completion recovery, dispatch failure precedence and cache invalidation pass
+      the real-store suites. A 50-page traversal of 10,000 scope paths drops from 30,603,988 to 518,163 allocated
+      bytes; the final benchmark reports 576,033 ns/op and the deterministic traversal bound is 2 MiB. Production
+      cleanup removes 58 lines before the subsequent fixes.
+    checks:
+    - make lint
+    - go test -p=2 -count=1 ./internal/planner/... ./internal/scheduler ./internal/archtest ./tests/integration/streamline
+      (with PostgreSQL)
+    - go test -race -p=2 -count=1 ./internal/planner/... (with PostgreSQL)
+    - go test -run '^$' -bench '^BenchmarkWorkerStateCachedPagination$' -benchmem ./internal/planner/stateview
 scope:
   in:
-  - Extract concrete dispatch-failure and common prompt helpers while preserving strings, event order and failure
-    precedence.
+  - Share concrete dispatch-failure handling and common prompt assembly while preserving strings, event order
+    and failure precedence.
   - Clone Completion through its typed result/failure graph and remove the immediately repeated LoadPlans projection
     validation.
   - Cache read/unread paths per validated Worker State revision; preserve conditional reads, correlation, ordering
@@ -60,3 +76,4 @@ tests:
   - A1
   - A2
   - A3
+implementation_commit: dc78a33dbafa89839a9a5b8c2ce295a0cbcb522d
