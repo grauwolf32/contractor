@@ -232,6 +232,7 @@ test("Git key settings live under Operations and retain no browser secret", asyn
     operations: true,
   });
   await page.goto("/operations/settings");
+  await page.getByText("Add Git SSH key", { exact: true }).click();
   const input = page.getByLabel("SSH private key");
   await input.fill("fixture-private-key-canary");
   await page.getByRole("button", { name: "Save Git key" }).click();

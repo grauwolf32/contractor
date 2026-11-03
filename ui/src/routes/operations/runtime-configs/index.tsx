@@ -19,8 +19,8 @@ import { runtimeConfigVersionPath } from "../../../app/navigation";
 import { useCursorStack } from "../../../app/pagination";
 import { QueryView } from "../../../app/query-view";
 import { RecordedTime } from "../../../app/recorded-time";
-import { Button } from "../../../ui";
-import { OpsSection, RefLink } from "../common";
+import { Button, StatusChip } from "../../../ui";
+import { EntryHeading, OpsSection, RefLink, ScopeChip } from "../common";
 import { BindingCell, RuntimeBindingsDialog } from "./bindings";
 import {
   RuntimeCredentialCreateForm,
@@ -63,12 +63,13 @@ export function RuntimeConfigurationRoute() {
       {labels.error === null ? null : <ErrorNotice error={labels.error} />}
       <OpsSection
         id="runtime-config-versions-heading"
-        titleAs="h3"
-        title="RuntimeConfig versions"
-        description="A version has no effect until default or a named label points to it."
-        aside={`${loadedConfigs.length} loaded`}
+        title="Runtime configuration"
+        eyebrow="Execution defaults"
+        description="Published versions, label bindings and Runtime service credentials apply server-wide."
+        aside={<ScopeChip>Server-wide</ScopeChip>}
         actions={
           <Button
+            variant="primary"
             size="sm"
             icon={<Icon name="add-config" />}
             aria-haspopup="dialog"
@@ -78,6 +79,10 @@ export function RuntimeConfigurationRoute() {
           </Button>
         }
       >
+        <p className="ops-inventory-note">
+          Publishing does not activate a version. A default or named label must
+          point to its exact digest.
+        </p>
         <QueryView
           query={configs}
           loading={
@@ -96,46 +101,78 @@ export function RuntimeConfigurationRoute() {
           }
         >
           {(page) => (
-            <div className="ops-table-wrap">
-              <table className="ops-table" data-stack="">
-                <thead>
-                  <tr>
-                    <th>Version</th>
-                    <th>Source</th>
-                    <th>Created</th>
-                    <th>Bindings</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {page.items.map((resource) => (
-                    <tr key={exactKey(resource.ref)}>
-                      <td data-label="Version">
-                        <RefLink
-                          to={runtimeConfigVersionPath(resource.ref)}
-                          {...resource.ref}
-                        />
-                      </td>
-                      <td data-label="Source">
-                        {resource.builtIn ? "built-in" : resource.createdBy}
-                      </td>
-                      <td data-label="Created">
-                        {resource.builtIn ? (
-                          "Built-in"
-                        ) : (
-                          <RecordedTime value={resource.createdAt} />
-                        )}
-                      </td>
-                      <td data-label="Bindings">
-                        <BindingCell
-                          resource={resource}
-                          labels={labels}
-                          onManage={() => setBindingTarget(resource)}
-                        />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="ops-resource-list">
+              {page.items.map((resource) => {
+                const selected = labels.data?.items.filter(
+                  (binding) =>
+                    exactKey(binding.config) === exactKey(resource.ref),
+                );
+                return (
+                  <details
+                    className="ops-resource-row ops-resource-disclosure"
+                    key={exactKey(resource.ref)}
+                  >
+                    <summary className="ops-resource-heading">
+                      <EntryHeading
+                        icon="binding"
+                        title={
+                          <strong>
+                            {resource.ref.name}@{resource.ref.version}
+                          </strong>
+                        }
+                        subtitle={
+                          resource.builtIn
+                            ? "Built-in version"
+                            : resource.createdBy
+                        }
+                      >
+                        <div className="ops-chips">
+                          {selected === undefined ? (
+                            <span className="ops-muted">
+                              Bindings unavailable
+                            </span>
+                          ) : selected.length === 0 ? (
+                            <StatusChip tone="neutral" size="sm">
+                              Not bound
+                            </StatusChip>
+                          ) : (
+                            selected.map((binding) => (
+                              <StatusChip
+                                key={binding.label}
+                                tone="neutral"
+                                size="sm"
+                              >
+                                {binding.label}
+                              </StatusChip>
+                            ))
+                          )}
+                        </div>
+                      </EntryHeading>
+                    </summary>
+                    <div className="ops-resource-body">
+                      <RefLink
+                        to={runtimeConfigVersionPath(resource.ref)}
+                        {...resource.ref}
+                      />
+                      <div className="ops-resource-meta">
+                        <span>
+                          Created:{" "}
+                          {resource.builtIn ? (
+                            "Built-in"
+                          ) : (
+                            <RecordedTime value={resource.createdAt} />
+                          )}
+                        </span>
+                      </div>
+                      <BindingCell
+                        resource={resource}
+                        labels={labels}
+                        onManage={() => setBindingTarget(resource)}
+                      />
+                    </div>
+                  </details>
+                );
+              })}
             </div>
           )}
         </QueryView>

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import inspect
 import random
 import tracemalloc
 from dataclasses import dataclass, field
@@ -11,6 +10,8 @@ from pathlib import Path
 import pytest
 from fakes.artifact_reads import CountingPayload, count_derivations, hold_preparation
 from fakes.worker_state import WorkerState
+from google.adk.tools import FunctionTool
+from google.genai import types
 from shared_config_defaults import MAX_ARTIFACT_BYTES
 
 import contractor_runtime.toolsets.common.artifact_read_cache as read_cache
@@ -30,11 +31,11 @@ from contractor_runtime.contracts import (
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.core.lines import split_lines
 from contractor_runtime.factories import built_in_factories
+from contractor_runtime.llm.openai import _tools
 from contractor_runtime.toolsets.run_artifacts.tools import RunArtifactsToolsetFactory
 from contractor_runtime.toolsets.text_artifacts.tools import (
     MAX_TEXT_WRITE_BYTES,
     MAX_VISIBLE_TEXT_BYTES,
-    ReadTextArtifactTool,
     TextArtifactsToolsetFactory,
 )
 from contractor_runtime.workspace import AllocationWorkspace
@@ -604,16 +605,23 @@ def test_indexed_pages_match_whole_text_pages(
     asyncio.run(scenario())
 
 
-def test_reader_signature_is_unchanged() -> None:
-    assert list(inspect.signature(ReadTextArtifactTool.__call__).parameters) == [
-        "self",
-        "namespace",
-        "name",
-        "revision",
-        "start_line",
-        "max_lines",
-        "line_offset",
-    ]
+def test_reader_schema_exposes_supported_arguments(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        tools = await make_tools(tmp_path, MemoryArtifactClient(), WorkerState())
+        declaration = FunctionTool(tools["read_text_artifact"])._get_declaration()
+        schema = _tools([types.Tool(function_declarations=[declaration])])[0]["function"][
+            "parameters"
+        ]
+        assert set(schema["properties"]) == {
+            "name",
+            "revision",
+            "max_lines",
+            "namespace",
+            "line_offset",
+            "start_line",
+        }
+
+    asyncio.run(scenario())
 
 
 def test_read_text_artifact_numbers_lines_like_read_file(tmp_path: Path) -> None:

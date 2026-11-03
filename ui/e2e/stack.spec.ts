@@ -705,16 +705,12 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   await expect(
     page.getByText("Performance collection is disabled."),
   ).toHaveCount(0);
-  await expect(
-    page.getByRole("heading", { name: "Server process" }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Server CPU" })).toBeVisible();
 
   await page.goto("/operations/allocations/completed");
   await page.getByLabel("Run ID (optional)").fill(streamlineRunID);
   await page.getByRole("button", { name: "Apply filter" }).click();
-  const retainedRow = page
-    .getByRole("row")
-    .filter({ has: page.getByRole("link", { name: streamlineRunID }) });
+  const retainedRow = page.locator(".ops-completed-row");
   await expect(retainedRow).toHaveCount(1);
   await retainedRow.getByRole("button", { name: /^Metrics for / }).click();
   const retainedResource = page
@@ -1047,6 +1043,15 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   await expect(page.getByText(/Published ui-stack-debug@1/)).toBeVisible();
   await page.getByRole("button", { name: "Close RuntimeConfig form" }).click();
   await page
+    .locator(".ops-resource-row")
+    .filter({
+      has: page
+        .locator("summary")
+        .getByText("ui-stack-debug@1", { exact: true }),
+    })
+    .locator("summary")
+    .click();
+  await page
     .getByRole("button", { name: "Manage bindings for ui-stack-debug@1" })
     .click();
   const runtimeLabelForm = page.locator("form.runtime-label-create");
@@ -1068,6 +1073,7 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   await page.goto("/operations/runtime-agents");
   const principal = page.locator("article.runtime-principal-card").first();
   await expect(principal).toBeVisible();
+  await principal.locator(".ops-agent-disclosure > summary").click();
   await principal.getByRole("button", { name: "Edit labels" }).click();
   const agentLabels = page.getByRole("dialog", { name: "Edit Agent labels" });
   await expect(agentLabels.getByText(/future allocations/)).toBeVisible();

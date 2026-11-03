@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { Link } from "react-router";
 
 import { usePublicAPI } from "../../../api/context";
@@ -7,14 +8,16 @@ import { queryKeys } from "../../../api/query-keys";
 import { RUNTIME_CONFIGURATION_PATH } from "../../../app/navigation";
 import { CursorControls } from "../../../app/cursor-controls";
 import { useCursorStack } from "../../../app/pagination";
-import { DisclosureChevron, OpsSection, ScopeChip } from "../common";
+import { EntryHeading, OpsSection } from "../common";
 import { SETTINGS_PATH } from "../settings/path";
 import { ActiveChip } from "./active-chip";
 import { CredentialCreateForm } from "./form";
+import { Button } from "../../../ui";
 import { RecordedTime } from "../../../app/recorded-time";
 import { QueryView } from "../../../app/query-view";
 
 export function CredentialListRoute() {
+  const [creating, setCreating] = useState(false);
   const api = usePublicAPI();
   const pages = useCursorStack();
   const cursor = pages.cursor;
@@ -45,8 +48,22 @@ export function CredentialListRoute() {
             </p>
           </>
         }
-        actions={<ScopeChip>Server-wide</ScopeChip>}
+        actions={
+          <Button
+            variant="primary"
+            onClick={() => setCreating((value) => !value)}
+            aria-expanded={creating}
+            aria-controls="ops-create-credential"
+          >
+            Create LLM credential
+          </Button>
+        }
       >
+        <div id="ops-create-credential" hidden={!creating}>
+          <div className="ops-resource-body">
+            <CredentialCreateForm />
+          </div>
+        </div>
         <QueryView
           query={query}
           loading={
@@ -59,64 +76,56 @@ export function CredentialListRoute() {
             <div className="ops-empty">
               <strong>No managed LLM credentials</strong>
               <p>
-                Use Create LLM credential below to manage gateway access and
-                budgets here.
+                Create an LLM credential to manage gateway access and budgets
+                here.
               </p>
             </div>
           }
         >
           {(data) => (
-            <div className="ops-table-wrap">
-              <table className="ops-table" data-stack="">
-                <thead>
-                  <tr>
-                    <th>Credential</th>
-                    <th>Gateway</th>
-                    <th>Policy set</th>
-                    <th>Spend</th>
-                    <th>Created</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.items.map((credential) => (
-                    <tr key={credential.credentialId}>
-                      <td data-label="Credential">
-                        <span className="ops-chips">
-                          <Link
-                            className="ui-mono"
-                            to={`/operations/credentials/${encodeURIComponent(credential.credentialId)}`}
-                          >
-                            {credential.credentialId}
-                          </Link>
-                          <ActiveChip />
-                        </span>
-                        {credential.label === undefined ? null : (
-                          <span className="ops-cell-sub">
-                            {credential.label}
-                          </span>
-                        )}
-                      </td>
-                      <td data-label="Gateway">
-                        <code className="ui-mono">
-                          {credential.llmGateway.gatewayId}@
-                          {credential.llmGateway.version}
-                        </code>
-                      </td>
-                      <td data-label="Policy set">
-                        {credential.effectivePolicy.modelPolicies.length}
-                      </td>
-                      <td data-label="Spend">
-                        {credential.consumption?.spend ?? (
-                          <span className="ops-muted">not observed</span>
-                        )}
-                      </td>
-                      <td data-label="Created">
-                        <RecordedTime value={credential.createdAt} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="ops-resource-list">
+              {data.items.map((credential) => (
+                <details
+                  className="ops-resource-row ops-resource-disclosure"
+                  key={credential.credentialId}
+                >
+                  <summary className="ops-resource-heading">
+                    <EntryHeading
+                      icon="target"
+                      title={
+                        <strong>
+                          {credential.label ?? credential.credentialId}
+                        </strong>
+                      }
+                      subtitle={credential.credentialId}
+                    >
+                      <ActiveChip />
+                    </EntryHeading>
+                  </summary>
+                  <div className="ops-resource-body">
+                    <div className="ops-resource-meta">
+                      <span>
+                        {credential.llmGateway.gatewayId}@
+                        {credential.llmGateway.version}
+                      </span>
+                      <span>
+                        {credential.effectivePolicy.modelPolicies.length} model
+                        policies
+                      </span>
+                      <span>
+                        Spend: {credential.consumption?.spend ?? "not observed"}
+                      </span>
+                      <RecordedTime value={credential.createdAt} />
+                    </div>
+                    <Link
+                      className="ops-details-link"
+                      to={`/operations/credentials/${encodeURIComponent(credential.credentialId)}`}
+                    >
+                      Inspect credential →
+                    </Link>
+                  </div>
+                </details>
+              ))}
             </div>
           )}
         </QueryView>
@@ -125,13 +134,6 @@ export function CredentialListRoute() {
           {...pages.controls(query.data?.page)}
         />
       </OpsSection>
-      <details className="ops-disclosure configuration-clone">
-        <summary>
-          <DisclosureChevron />
-          Create LLM credential
-        </summary>
-        <CredentialCreateForm />
-      </details>
     </div>
   );
 }

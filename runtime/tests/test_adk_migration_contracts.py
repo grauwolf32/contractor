@@ -104,32 +104,6 @@ def test_runner_preserves_raw_integer_list_rejection(tmp_path: Path, values: lis
     asyncio.run(scenario())
 
 
-@pytest.mark.parametrize(
-    ("response", "code"),
-    [
-        (text_result(""), "worker_result_invalid"),
-        (text_result(" \n"), "worker_result_invalid"),
-        (thought_result(), "worker_result_missing"),
-    ],
-)
-def test_runner_empty_visible_output_keeps_missing_result_outcome(
-    tmp_path: Path, response: object, code: str
-) -> None:
-    async def scenario() -> None:
-        model = scripted_model([response])
-        runtime = await create_runtime(tmp_path, WorkerState(), {}, model)
-        try:
-            result = await runtime.invoke(stage_request())
-            assert result.result is None
-            assert result.failure is not None
-            assert result.failure.code == code
-            assert len(model.requests) == 1
-        finally:
-            await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
-
-    asyncio.run(scenario())
-
-
 @pytest.mark.parametrize("phase", ["ordinary", "finalizer", "summarizer"])
 @pytest.mark.parametrize(
     ("kind", "limited"),

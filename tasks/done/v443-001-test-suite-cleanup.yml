@@ -1,0 +1,115 @@
+schema_version: "1.0"
+id: V443-001
+title: "Retire duplicate and experimental Server and Runtime tests"
+milestone: test-gate-cost-2026-10
+epic: quality
+kind: chore
+introduced_by: V57-005
+priority: P3
+status: completed
+depends_on: []
+languages: [go, python]
+goal: >-
+  Keep production contract coverage while reducing duplicated scenarios, test-local
+  implementations, implementation-shape assertions and unnecessary polling waits.
+context:
+  authority:
+    - date: "2026-11-03"
+      decision: "User requested implementing the reviewed Server and Runtime test cleanup after updating main."
+  review: "Server and Runtime regression-test reviews in this chat on 2026-11-03."
+  specification:
+    - docs/spec/execution/control-plane.md
+    - docs/spec/execution/worker.md
+    - docs/spec/tools/code-analysis.md
+    - docs/testing/README.md
+  finding: >-
+    internal/planner/a2a/client_connection_experiment_test.go:203 spends about 66 seconds
+    comparing three transports with twenty polls each; its fixed-duration test measures
+    an experiment rather than a production guarantee. The two finding receipt tests in
+    internal/findingintake/service_postgres_test.go:44 run the same 540-line scenario.
+    runtime/tests/test_compaction_spike.py:79 maintains a separate Projection after
+    production compact@1 tests shipped. The older empty-response matrix overlaps its
+    expanded successor, and traversal tests combine deterministic work counters with
+    wall-clock and source-text assertions.
+  provenance:
+    - "V57-005 introduced the A2A connection experiment; V407-013 supplied production reuse coverage."
+    - "V368-009 introduced the duplicate finding receipt wrapper."
+    - "V417-002 introduced the compaction spike; V417-003 covers the production coordinator."
+    - "V418-001 and its follow-ups introduced overlapping ADK response characterization."
+  boundary: >-
+    This task changes tests and their current gate references only. Production protocols,
+    persistence, schemas, runtime policy and catalog behavior keep their existing owners.
+    Real PostgreSQL lifecycle tests and production SDK/Runtime ceiling tests remain.
+  decision: >-
+    Keep one production test for each guarantee; retire superseded experiments only after
+    mapping their cases to existing production tests, and retain unique SDK characterization.
+    The simpler alternative is leaving all experiments in the default suite, at the cost of
+    duplicated test logic and polling waits. Reopen a removed case only for a demonstrated
+    contract gap. Audit removal-map checks stay until their remaining owner tasks finish.
+  coverage_mapping:
+    two_checkpoints: "test_worker_compaction.py::test_isolated_worker_continues_through_two_checkpoints"
+    unsafe_groups: "test_worker_compaction.py::test_unsafe_history_fails_before_any_compactor_call and test_incomplete_group_fails_before_compactor_call"
+    refused_checkpoint: "test_worker_compaction.py::test_rejected_compactor_output_adds_no_marker_and_no_later_calls and marker acknowledgement/conflict cases"
+    ineffective_after_commit: "test_worker_compaction.py::test_ineffective_checkpoint_keeps_marker_and_stops_before_dispatch"
+    cancelled_owner: >-
+      Production compactor cancellation remains in test_cancellation_during_compactor_call_adds_no_marker;
+      native turn and snapshot joining remain in test_adk_runtime.py and test_worker_history.py.
+      The removed append/continuation owners belonged solely to the toy Projection, not Runtime.
+    sdk_identity: "The timestamp-range and append-idempotency cases remain in test_adk_compaction_contracts.py."
+    empty_response: "test_adk_migration_contracts.py::test_runner_terminal_empty_response_has_finite_outcome_and_known_usage subsumes all three older cases."
+    literal_instructions: >-
+      Existing Worker/finalizer literal-instruction cases now inject the same brace-containing text
+      into both owners. Terminal summarizer and production compactor literal text remain tested.
+      The obsolete AST-only entry is removed from audit-completion-matrix.json; all real cases stay.
+scope:
+  in:
+    - "Shorten the production A2A reuse check and retain comparisons only in the existing benchmark."
+    - "Remove the duplicate finding receipt invocation and verify the revised Audit matrix has no obsolete owner reference."
+    - "Consolidate paired configuration test setups without removing input cases."
+    - "Retire the compaction Projection spike after recording its coverage mapping; preserve unique SDK cases."
+    - "Remove superseded empty-response tests and redundant timing/source assertions; check instructions and tool schemas at their real boundary."
+    - "Simplify the sitemap architecture guard using existing layer and table ownership checks where sufficient."
+  out:
+    - "Production behavior changes, new frameworks, schema/API changes, live-model runs and Audit redesign."
+    - "Reducing admitted scale ceilings or dropping failure, cancellation, retention, secret or real-store coverage."
+acceptance_criteria:
+  - id: A1
+    text: >-
+      Production A2A reuse still proves one handshake across SendMessage and multiple polls
+      with joined connection cleanup, without three twenty-poll default workloads.
+  - id: A2
+    text: >-
+      Finding receipts execute their retained PostgreSQL scenario once; current matrix
+      references remain valid and configuration input cases remain covered.
+  - id: A3
+    text: >-
+      The test-local compaction implementation is removed; its production coverage mapping
+      and retained unique SDK cases are explicit. Existing Runtime contracts and ceilings pass.
+  - id: A4
+    text: >-
+      Removed source-shape and timing checks have retained behavioral, schema, work-counter
+      or architecture-owner coverage. Full touched Go packages, Runtime tests and lint pass.
+tests:
+  - command: "go test -tags=integration -count=1 ./internal/planner/a2a ./internal/findingintake ./internal/config/... ./internal/archtest ./tests/e2e"
+    covers: [A1, A2, A4]
+  - command: "cd runtime && uv run pytest -W error tests"
+    covers: [A3, A4]
+  - command: "make lint"
+    covers: [A1, A2, A3, A4]
+implementation_commit: 5fb35dae00808cd0cc495eb729379ea4591fc748
+verification:
+  date: "2026-11-03"
+  result: >-
+    All listed checks passed. Full touched Go packages passed with integration-tagged tests
+    against an isolated disposable PostgreSQL 17 cluster; the A2A, Config and architecture
+    packages also passed under -race. The default A2A reuse case took 0.05 seconds versus
+    66.32 seconds in the initial review, retaining exact handshake, send/poll and cleanup checks.
+    Full Runtime: 5707 passed and 135 explicitly skipped in 396.22 seconds; skips cover Linux
+    Podman/filesystem capabilities, explicit process/engine gates and unconfigured live-model
+    checks, not failed PostgreSQL connections. release_test_reports.py verify-runtime accepted
+    the full JUnit report. Four temporary mutation probes confirmed that raw string instructions
+    are rejected by behavioral tests of Worker, finalizer, summarizer and compactor.
+    make lint passed, including the release graph, all current test selections, task/spec and
+    shared-fixture source checks, generated clients, Go analysis, Ruff and import-layer contracts.
+    Net test-source reduction is 790 lines. Production source and supported limits are unchanged;
+    the full process/browser release-verify gate was outside this test-only change.

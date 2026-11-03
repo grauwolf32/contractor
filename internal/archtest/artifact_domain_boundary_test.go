@@ -9,11 +9,15 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	artifactpolicy "github.com/grauwolf32/contractor/internal/artifacts/policy"
 )
 
 // Domain commands and namespace identities belong to their domain or policy.
 // Shared storage, receipts and lifecycle must not dispatch on sitemap.
-// Table ownership independently bars the domain's direct artifact-table SQL.
+// Layer dependencies bar imports of projectsitemap; table ownership bars its
+// direct artifact-table SQL. This check only keeps the reserved namespace at
+// its policy boundary, without banning unrelated prose or artifact names.
 func TestSitemapUsesSharedArtifactMechanisms(t *testing.T) {
 	files := 0
 	for _, directory := range []string{
@@ -50,7 +54,7 @@ func TestSitemapUsesSharedArtifactMechanisms(t *testing.T) {
 						value, _ = strconv.Unquote(node.Value)
 					}
 				}
-				if strings.Contains(strings.ToLower(value), "sitemap") {
+				if value == artifactpolicy.ProjectSitemapNamespace || value == "ProjectSitemapNamespace" {
 					t.Errorf("%s: shared artifact mechanism references sitemap: %q", positions.Position(node.Pos()), value)
 				}
 				return true

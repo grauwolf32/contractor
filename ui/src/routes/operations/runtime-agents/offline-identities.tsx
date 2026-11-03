@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useId, useState } from "react";
+import { useState } from "react";
 
 import { usePublicAPI } from "../../../api/context";
 import {
@@ -8,11 +8,11 @@ import {
   type RuntimeLabelBinding,
 } from "../../../api/operations";
 import { queryKeys } from "../../../api/query-keys";
-import { AlertDialog, Button, IdChip } from "../../../ui";
+import { AlertDialog, Button, IdChip, StatusChip } from "../../../ui";
 import { Icon } from "../../../app/icon";
 import { ErrorNotice } from "../../../app/error-notice";
 import { formatTimestamp, formatAge, plural } from "../../../app/format";
-import { DisclosureChevron } from "../common";
+import { EntryHeading } from "../common";
 import { agentDisplayName } from "./identity";
 import { AgentLabelsDialog } from "./labels-dialog";
 import { createMutationIdempotencyKey } from "../../../mutations/idempotency";
@@ -62,53 +62,67 @@ function OfflineIdentityRow({
   });
   return (
     <li className="ops-offline-row">
-      <div className="ops-offline-name">
-        <span className="ops-dot" data-offline="" aria-hidden="true" />
-        <strong>{name}</strong>
-        <IdChip
-          value={principal.runtimeAgentId}
-          label={`Agent ID for ${name}`}
-        />
-      </div>
-      <span className="ops-offline-fact">
-        {labelsWereUpdated ? "Labels updated" : "Registered"}{" "}
-        <time dateTime={factTimestamp} title={formatTimestamp(factTimestamp)}>
-          {formatAge(factTimestamp, now)}
-        </time>
-      </span>
-      <span className="ops-offline-fact">
-        {plural(principal.labels.length, "label")}
-      </span>
-      <div className="ops-offline-actions">
-        <Button
-          size="xs"
-          icon={<Icon name="settings" />}
-          disabled={bindings === undefined || deletion.isPending}
-          aria-haspopup="dialog"
-          aria-label={`Edit labels for ${name}`}
-          onClick={() => setEditing(true)}
-        >
-          Edit labels
-        </Button>
-        <Button
-          size="xs"
-          variant="danger"
-          disabled={hasLabels || deletion.isPending}
-          aria-haspopup="dialog"
-          aria-label={`Forget ${name}`}
-          title={
-            hasLabels
-              ? "Clear the saved labels before forgetting this identity."
-              : "Forget this offline identity"
-          }
-          onClick={() => {
-            deletion.reset();
-            setForgetting(true);
-          }}
-        >
-          Forget
-        </Button>
-      </div>
+      <details className="ops-resource-row ops-resource-disclosure">
+        <summary className="ops-resource-heading">
+          <EntryHeading
+            icon="operations"
+            title={<strong>{name}</strong>}
+            subtitle="No current process"
+          >
+            <StatusChip tone="neutral" size="sm">
+              Offline
+            </StatusChip>
+          </EntryHeading>
+        </summary>
+        <div className="ops-resource-body">
+          <IdChip
+            value={principal.runtimeAgentId}
+            label={`Agent ID for ${name}`}
+          />
+          <span className="ops-offline-fact">
+            {labelsWereUpdated ? "Labels updated" : "Registered"}{" "}
+            <time
+              dateTime={factTimestamp}
+              title={formatTimestamp(factTimestamp)}
+            >
+              {formatAge(factTimestamp, now)}
+            </time>
+          </span>
+          <span className="ops-offline-fact">
+            {plural(principal.labels.length, "label")}
+          </span>
+          <div className="ops-offline-actions">
+            <Button
+              size="xs"
+              icon={<Icon name="settings" />}
+              disabled={bindings === undefined || deletion.isPending}
+              aria-haspopup="dialog"
+              aria-label={`Edit labels for ${name}`}
+              onClick={() => setEditing(true)}
+            >
+              Edit labels
+            </Button>
+            <Button
+              size="xs"
+              variant="danger"
+              disabled={hasLabels || deletion.isPending}
+              aria-haspopup="dialog"
+              aria-label={`Forget ${name}`}
+              title={
+                hasLabels
+                  ? "Clear the saved labels before forgetting this identity."
+                  : "Forget this offline identity"
+              }
+              onClick={() => {
+                deletion.reset();
+                setForgetting(true);
+              }}
+            >
+              Forget
+            </Button>
+          </div>
+        </div>
+      </details>
       {editing && bindings !== undefined ? (
         <AgentLabelsDialog
           principal={principal}
@@ -148,29 +162,18 @@ export function OfflineIdentities({
   principals,
   bindings,
   now,
-  open,
 }: {
   principals: RuntimeAgentPrincipal[];
   bindings: RuntimeLabelBinding[] | undefined;
   now: number;
-  open: boolean;
 }) {
-  const heading = useId();
   if (principals.length === 0) return null;
   return (
-    <details
+    <section
       className="ops-offline"
-      open={open || undefined}
-      aria-labelledby={heading}
+      role="group"
+      aria-label={`Offline identities (${principals.length})`}
     >
-      <summary id={heading}>
-        <DisclosureChevron />
-        Offline identities ({principals.length})
-      </summary>
-      <p className="ops-offline-note">
-        No live process is registered for these IDs. Saved labels are retained
-        for the next registration; an identity without labels can be forgotten.
-      </p>
       <ul className="ops-offline-list">
         {principals.map((principal) => (
           <OfflineIdentityRow
@@ -181,6 +184,6 @@ export function OfflineIdentities({
           />
         ))}
       </ul>
-    </details>
+    </section>
   );
 }

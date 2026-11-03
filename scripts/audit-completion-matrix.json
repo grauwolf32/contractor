@@ -112,7 +112,6 @@
     "tests.test_adk_runtime::test_deadline_during_an_ordinary_phase_cancels_and_joins_its_work": 4,
     "tests.test_adk_runtime::test_deadline_passing_at_a_step_boundary_starts_no_next_call": 2,
     "tests.test_adk_runtime::test_deadline_stops_an_ordinary_model_recovery_wait": 1,
-    "tests.test_adk_runtime::test_every_runtime_llm_agent_receives_a_literal_instruction_provider": 1,
     "tests.test_adk_runtime::test_failing_telemetry_sink_cannot_change_the_worker_outcome": 2,
     "tests.test_adk_runtime::test_finalize_and_abort_never_start_an_idle_terminal_summarizer": 1,
     "tests.test_adk_runtime::test_gateway_model_bounds_transport_retries_and_aggregate_timeout": 1,

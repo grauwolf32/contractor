@@ -148,7 +148,7 @@ for (const viewport of [
     const writes = await installOperations(page);
     await page.goto("/operations");
     await expect(
-      page.getByRole("heading", { name: "Execution readiness" }),
+      page.getByRole("heading", { name: "Execution slots" }),
     ).toBeVisible();
     await expect(
       page.getByText(/Idle slots do not guarantee capacity/),
@@ -166,7 +166,7 @@ for (const viewport of [
       .getByRole("link", { name: "Runtime configuration →", exact: true })
       .click();
     await expect(
-      page.getByRole("heading", { name: "RuntimeConfig versions" }),
+      page.getByRole("heading", { name: "Runtime configuration" }),
     ).toBeVisible();
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect(page.getByLabel("RuntimeConfig name")).toHaveCount(0);
@@ -205,6 +205,13 @@ for (const viewport of [
     await page.keyboard.press("Escape");
     await expect(publish).toBeFocused();
 
+    await page
+      .locator(".ops-resource-row")
+      .filter({
+        has: page.locator("summary").getByText("base@1", { exact: true }),
+      })
+      .locator("summary")
+      .click();
     await page
       .getByRole("button", { name: "Manage bindings for base@1" })
       .click();

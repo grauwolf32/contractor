@@ -49,20 +49,33 @@ export function RuntimeAgentListRoute() {
         id="runtime-agents-heading"
         title="Runtime Agents"
         description="Availability, current work and saved Agent labels."
-        aside={`${snapshot.runtimeAgents.length} online · ${principals.data?.items.length ?? 0} identities loaded`}
       >
         {principals.data === undefined ? null : (
-          <FilterChips<Connection>
-            label="Agent connection"
-            value={connection}
-            onChange={setConnection}
-            options={[
-              { value: "all", label: "All", count: items.length },
-              { value: "online", label: "Online", count: allOnline.length },
-              { value: "offline", label: "Offline", count: allOffline.length },
-            ]}
-          />
+          <div className="ops-agent-toolbar">
+            <FilterChips<Connection>
+              label="Agent connection"
+              value={connection}
+              onChange={setConnection}
+              options={[
+                { value: "all", label: "All", count: items.length },
+                { value: "online", label: "Online", count: allOnline.length },
+                {
+                  value: "offline",
+                  label: "Offline",
+                  count: allOffline.length,
+                },
+              ]}
+            />
+            <span className="ui-caption">
+              {snapshot.runtimeAgents.length} current processes · {items.length}{" "}
+              saved identities
+            </span>
+          </div>
         )}
+        <p className="ops-inventory-note">
+          Available does not guarantee that an agent supports a particular
+          Workflow.
+        </p>
         {bindings.error === null ? null : (
           <ErrorNotice error={bindings.error} />
         )}
@@ -98,7 +111,6 @@ export function RuntimeAgentListRoute() {
                   principals={offline}
                   bindings={bindings.data?.items}
                   now={now}
-                  open={connection === "offline"}
                 />
               </>
             )

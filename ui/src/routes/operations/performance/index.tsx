@@ -1,3 +1,4 @@
+import { Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import "./reading.css";
 import { useMemo, useState, type ReactNode } from "react";
@@ -25,11 +26,12 @@ import {
 } from "../../../app/format";
 import { Facts, Field, TechnicalDetails } from "../../../ui";
 import { OperationsState, OpsSection } from "../common";
-import { type ChartDatum, MetricChart } from "./chart";
+import { type ChartDatum, MetricBars, MetricChart } from "./chart";
 import { performanceFreshnessState } from "./freshness";
 import { GPUCurrentMetrics, GPUHistoryCharts } from "./gpu";
 import { historyGPUDevices, useGPUColors, type GPUColors } from "./gpu-colors";
 import { RefreshButton } from "../../../app/refresh-button";
+import { ErrorNotice } from "../../../app/error-notice";
 import { QueryView } from "../../../app/query-view";
 import { pollInterval } from "../../../app/polling";
 
@@ -219,50 +221,199 @@ function GroupCard({
 function CurrentResourceSummary({
   snapshot,
   gpuColors,
+  history,
+  series,
+  stepSeconds,
 }: {
   snapshot: PerformanceSnapshot;
   gpuColors: GPUColors;
+  history: PerformanceHistory | undefined;
+  series: ReturnType<typeof chartData>;
+  stepSeconds: number;
 }) {
   const sample = snapshot.current;
+  const http = currentHTTP(snapshot);
+  const bars = (title: string, data: ChartDatum[], unit: string) =>
+    history === undefined ? (
+      <p className="ops-bar-empty">History has not been read.</p>
+    ) : (
+      <MetricBars
+        title={title}
+        data={data}
+        from={history.from}
+        to={history.to}
+        expectedStepSeconds={stepSeconds}
+        unit={unit}
+      />
+    );
   return (
-    <div className="ops-metric-grid">
-      <GroupCard
-        title="Server process"
-        freshness={sample?.process?.freshness}
-        readAt={snapshot.observedAt}
-        facts={[
-          { term: "CPU", value: metric(sample?.process?.cpuCores, cores) },
-          {
-            term: "Resident memory",
-            value: metric(sample?.process?.rssBytes, formatBytes),
-          },
-        ]}
-      />
-      <GPUCurrentMetrics
-        gpu={sample?.gpu}
-        readAt={snapshot.observedAt}
-        colors={gpuColors}
-        compact
-      />
-      <GroupCard
-        title="PostgreSQL"
-        freshness={sample?.database?.freshness}
-        readAt={snapshot.observedAt}
-        facts={[
-          {
-            term: "Active connections",
-            value: metric(sample?.database?.activeConnections, formatNumber),
-          },
-          {
-            term: "Lock waiting",
-            value: metric(
-              sample?.database?.lockWaitingConnections,
+    <>
+      <div className="ops-primary-metrics">
+        <article className="performance-metric-card ops-summary-metric">
+          <header>
+            <h3>Server CPU</h3>
+            <OperationsState
+              state={performanceFreshnessState(
+                sample?.process?.freshness,
+                snapshot.observedAt,
+              )}
+            />
+          </header>
+          <strong className="ops-metric-value">
+            {metric(sample?.process?.cpuCores, formatNumber)}{" "}
+            <small>cores</small>
+          </strong>
+          <p className="ui-caption">Process CPU consumption</p>
+          {bars("CPU usage", series.cpu, "cores")}
+        </article>
+        <article className="performance-metric-card ops-summary-metric">
+          <header>
+            <h3>Server memory</h3>
+            <OperationsState
+              state={performanceFreshnessState(
+                sample?.process?.freshness,
+                snapshot.observedAt,
+              )}
+            />
+          </header>
+          <strong className="ops-metric-value">
+            {metric(
+              sample?.process?.rssBytes === undefined
+                ? undefined
+                : sample.process.rssBytes / (1024 * 1024),
               formatNumber,
-            ),
-          },
-        ]}
-      />
-    </div>
+            )}{" "}
+            <small>MiB RSS</small>
+          </strong>
+          <p className="ui-caption">
+            {metric(sample?.process?.heapLiveBytes, formatBytes)} live heap
+          </p>
+          {bars(
+            "Resident memory",
+            series.rss.map((point) => ({
+              ...point,
+              ...(point.value === undefined
+                ? {}
+                : { value: point.value / (1024 * 1024) }),
+            })),
+            "MiB",
+          )}
+        </article>
+        <article className="performance-metric-card ops-summary-metric">
+          <header>
+            <h3>HTTP</h3>
+            <OperationsState
+              state={performanceFreshnessState(
+                sample?.http?.freshness,
+                snapshot.observedAt,
+              )}
+            />
+          </header>
+          <strong className="ops-metric-value">
+            {metric(http.requestRate, formatNumber)} <small>requests / s</small>
+          </strong>
+          <Facts
+            layout="rows"
+            size="sm"
+            items={[
+              {
+                term: "Errors / s",
+                value: metric(http.errorRate, formatNumber),
+              },
+              { term: "In flight", value: metric(http.inFlight, formatNumber) },
+              {
+                term: "p95 upper bound",
+                value: quantile(http.histogram, 0.95),
+              },
+            ]}
+          />
+          <p className="ui-caption">Public and private surfaces combined.</p>
+        </article>
+      </div>
+      <div className="ops-secondary-metrics">
+        <article className="performance-metric-card ops-database-metric">
+          <header>
+            <h3>Database & connection pool</h3>
+            <OperationsState
+              state={performanceFreshnessState(
+                sample?.database?.freshness,
+                snapshot.observedAt,
+              )}
+            />
+          </header>
+          <Facts
+            layout="rows"
+            size="sm"
+            items={[
+              {
+                term: "Pool acquired",
+                value: `${metric(sample?.pool?.acquiredConnections, formatNumber)} / ${metric(sample?.pool?.maxConnections, formatNumber)}`,
+              },
+              {
+                term: "Pool idle",
+                value: metric(sample?.pool?.idleConnections, formatNumber),
+              },
+              {
+                term: "Active DB connections",
+                value: metric(
+                  sample?.database?.activeConnections,
+                  formatNumber,
+                ),
+              },
+              {
+                term: "Lock waiting",
+                value: metric(
+                  sample?.database?.lockWaitingConnections,
+                  formatNumber,
+                ),
+              },
+              {
+                term: "Longest transaction",
+                value: metric(
+                  sample?.database?.longestTransactionSeconds,
+                  formatSeconds,
+                ),
+              },
+              {
+                term: "Database size",
+                value: metric(sample?.databaseSize?.sizeBytes, formatBytes),
+              },
+            ]}
+          />
+          <p className="ui-caption">
+            Database statistics: {snapshot.databaseIntervalSeconds} s · size:{" "}
+            {snapshot.databaseSizeIntervalSeconds / 60} min
+          </p>
+        </article>
+        {sample?.gpu === undefined ||
+        sample.gpu.freshness.status === "unavailable" ||
+        sample.gpu.devices.length === 0 ? (
+          <article className="performance-metric-card">
+            <header>
+              <h3>Host GPU</h3>
+              <OperationsState state="unavailable" tone="neutral" />
+            </header>
+            <p className="ui-caption">
+              No GPU observation is available. Unknown utilization is not shown
+              as zero.
+            </p>
+            <Link
+              className="ops-details-link"
+              to="/operations/allocations/completed"
+            >
+              Completed allocation resources →
+            </Link>
+          </article>
+        ) : (
+          <GPUCurrentMetrics
+            gpu={sample.gpu}
+            readAt={snapshot.observedAt}
+            colors={gpuColors}
+            compact
+          />
+        )}
+      </div>
+    </>
   );
 }
 
@@ -464,7 +615,8 @@ function CurrentMetrics({
 export function OperationsPerformanceRoute() {
   const api = usePublicAPI();
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const [range, setRange] = useState<PerformanceRange>("1h");
+  const [historyDetailsOpen, setHistoryDetailsOpen] = useState(false);
+  const [range, setRange] = useState<PerformanceRange>("15m");
   const current = useQuery({
     queryKey: queryKeys.operations.performance.current,
     queryFn: ({ signal }) => getPerformance(api, signal),
@@ -507,53 +659,8 @@ export function OperationsPerformanceRoute() {
           />
         }
       >
-        <QueryView
-          query={current}
-          loading={
-            <p className="ops-loading" role="status">
-              Loading current performance…
-            </p>
-          }
-        >
-          {(data) =>
-            !data.enabled ? (
-              <div className="notice notice-warning" role="status">
-                <strong>Performance collection is disabled.</strong>
-                <p>
-                  Retained history remains available below until its seven-day
-                  expiry.
-                </p>
-              </div>
-            ) : data.current === undefined ? (
-              <p className="ops-empty" role="status">
-                Collection is enabled and waiting for its first bounded sample.
-              </p>
-            ) : (
-              <>
-                <p className="ops-observed-at">
-                  Read {formatTimestamp(data.observedAt)} · generation{" "}
-                  <code>{data.generation}</code>
-                </p>
-                <CurrentResourceSummary snapshot={data} gpuColors={gpuColors} />
-              </>
-            )
-          }
-        </QueryView>
-      </OpsSection>
-
-      <section
-        className="ops-section"
-        aria-labelledby="performance-history-heading"
-      >
-        <header className="ops-history-head">
-          <div className="ops-section-heading">
-            <h2 id="performance-history-heading" className="ops-section-title">
-              History
-            </h2>
-            <p className="ops-section-description">
-              Lines are not joined across gaps or Server restarts.
-            </p>
-          </div>
+        <div className="ops-performance-toolbar">
+          {" "}
           <Field label="Time range" className="ops-range-field">
             {(control) => (
               <select
@@ -578,7 +685,59 @@ export function OperationsPerformanceRoute() {
               </select>
             )}
           </Field>
-        </header>
+          <p className="ui-caption">
+            {current.data === undefined
+              ? "Snapshot not read"
+              : `Snapshot ${formatTimestamp(current.data.observedAt)}`}
+          </p>
+        </div>
+        <QueryView
+          query={current}
+          loading={
+            <p className="ops-loading" role="status">
+              Loading current performance…
+            </p>
+          }
+        >
+          {(data) =>
+            !data.enabled ? (
+              <div className="notice notice-warning" role="status">
+                <strong>Performance collection is disabled.</strong>
+                <p>
+                  Retained history remains available below until its seven-day
+                  expiry.
+                </p>
+              </div>
+            ) : data.current === undefined ? (
+              <p className="ops-empty" role="status">
+                Collection is enabled and waiting for its first bounded sample.
+              </p>
+            ) : (
+              <>
+                <CurrentResourceSummary
+                  snapshot={data}
+                  gpuColors={gpuColors}
+                  history={history.data}
+                  series={series}
+                  stepSeconds={stepSeconds}
+                />
+              </>
+            )
+          }
+        </QueryView>
+      </OpsSection>
+
+      {history.error === null ? null : <ErrorNotice error={history.error} />}
+      {generations.size > 1 ? (
+        <p className="ops-inventory-note">
+          This range crosses {generations.size} Server generations. Observations
+          are not joined across restarts.
+        </p>
+      ) : null}
+      <TechnicalDetails
+        summary="Detailed history"
+        onToggle={setHistoryDetailsOpen}
+      >
         <QueryView
           query={history}
           loading={
@@ -589,49 +748,45 @@ export function OperationsPerformanceRoute() {
         >
           {(historyData) => (
             <>
-              {generations.size > 1 ? (
-                <div className="notice notice-warning" role="status">
-                  This range crosses {generations.size} Server generations.
-                  Lines are intentionally not joined across restarts.
+              {historyDetailsOpen || current.data?.current === undefined ? (
+                <div className="ops-chart-grid">
+                  <MetricChart
+                    title="CPU usage · details"
+                    description="Average Server process CPU expressed as used cores"
+                    data={series.cpu}
+                    expectedStepSeconds={stepSeconds}
+                    unit="cores"
+                  />
+                  <MetricChart
+                    title="Resident memory · details"
+                    description="Observed Server process resident set size"
+                    data={series.rss.map((datum) => ({
+                      ...datum,
+                      ...(datum.value === undefined
+                        ? {}
+                        : { value: datum.value / (1024 * 1024) }),
+                    }))}
+                    expectedStepSeconds={stepSeconds}
+                    unit="MiB"
+                  />
+                  <GPUHistoryCharts
+                    colors={gpuColors}
+                    history={historyData}
+                    stepSeconds={stepSeconds}
+                  />
+                  <MetricChart
+                    title="HTTP request rate"
+                    description="Public and private completed requests per second"
+                    data={series.requests}
+                    expectedStepSeconds={stepSeconds}
+                    unit="req/s"
+                  />
                 </div>
               ) : null}
-              <div className="ops-chart-grid">
-                <MetricChart
-                  title="CPU usage"
-                  description="Average Server process CPU expressed as used cores"
-                  data={series.cpu}
-                  expectedStepSeconds={stepSeconds}
-                  unit="cores"
-                />
-                <MetricChart
-                  title="Resident memory"
-                  description="Observed Server process resident set size"
-                  data={series.rss.map((datum) => ({
-                    ...datum,
-                    ...(datum.value === undefined
-                      ? {}
-                      : { value: datum.value / (1024 * 1024) }),
-                  }))}
-                  expectedStepSeconds={stepSeconds}
-                  unit="MiB"
-                />
-                <GPUHistoryCharts
-                  colors={gpuColors}
-                  history={historyData}
-                  stepSeconds={stepSeconds}
-                />
-                <MetricChart
-                  title="HTTP request rate"
-                  description="Public and private completed requests per second"
-                  data={series.requests}
-                  expectedStepSeconds={stepSeconds}
-                  unit="req/s"
-                />
-              </div>
             </>
           )}
         </QueryView>
-      </section>
+      </TechnicalDetails>
       {current.data?.current === undefined ? null : (
         <TechnicalDetails
           className="ops-counters"

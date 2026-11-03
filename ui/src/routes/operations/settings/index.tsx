@@ -18,7 +18,14 @@ import { writeConflict } from "../../../app/conflict";
 import { ErrorNotice } from "../../../app/error-notice";
 import { formatTimestamp } from "../../../app/format";
 import { QueryView } from "../../../app/query-view";
-import { Button, Facts, Field, StatusGlyph } from "../../../ui";
+import { Icon } from "../../../app/icon";
+import {
+  Button,
+  Facts,
+  Field,
+  StatusGlyph,
+  TechnicalDetails,
+} from "../../../ui";
 import { AppearanceSettings } from "../../settings/appearance";
 import { GitKeySettings } from "../../settings/git-key";
 import { SettingSection } from "../../settings/section";
@@ -164,6 +171,21 @@ function SchedulerSettings() {
     });
   };
 
+  const changeLimit = (name: keyof SchedulerLimits, value: string) => {
+    if (query.data === undefined) return;
+    const next = { ...displayedDraft, [name]: value };
+    if (sameDraft(next, savedDraft(query.data))) {
+      setDraft(undefined);
+      setEditBaseline(undefined);
+      setConflict(undefined);
+    } else {
+      setEditBaseline((current) => current ?? query.data);
+      setDraft(next);
+    }
+    setSaved(undefined);
+    mutation.reset();
+  };
+
   const reset = () => {
     if (query.data === undefined) {
       return;
@@ -190,17 +212,7 @@ function SchedulerSettings() {
             when compatible Runtime Agent slots are unavailable, and one
             Workflow Run may require several agents.
           </p>
-          <div className="ops-callout">
-            <StatusGlyph tone="info" size={15} />
-            <div>
-              <strong>Admission, not capacity.</strong>
-              <p>
-                Lowering a limit drains existing work naturally. It never
-                cancels active Runs or allocations. When both kinds of Run wait
-                for the same Runtime Agent, the Run using a model gets it.
-              </p>
-            </div>
-          </div>
+
           <p className="ui-caption">
             Queue admission remains separate under{" "}
             <Link to="/runs?view=queue">Runs / Queue</Link>.
@@ -218,73 +230,124 @@ function SchedulerSettings() {
       >
         {(data) => (
           <form className="ops-setting-form" onSubmit={submit}>
-            <Facts
-              className="ops-glance"
-              aria-label="Saved Scheduler settings"
-              items={[
-                ...LIMITS.map(({ name, fact }) => ({
-                  term: fact,
-                  value: data.resource[name],
-                })),
-                {
-                  term: "Last updated",
-                  value: formatTimestamp(data.resource.updatedAt),
-                },
-              ]}
-              technical={[
-                ...LIMITS.map(({ name, fact, pool }) => ({
-                  term: fact,
-                  value: (
-                    <>
-                      <code>{name}</code>, the <code>{pool}</code> lane pool
-                    </>
-                  ),
-                })),
-                {
-                  term: "Revision",
-                  value: <code>{data.resource.revision}</code>,
-                },
-              ]}
-            />
-            {LIMITS.map((limit) => (
-              <Field
-                key={limit.name}
-                className="ops-number-field"
-                label={limit.label}
-                hint={`${limit.hint} A whole number from ${limit.minimum} through ${limit.maximum}.`}
-                error={validationErrors[limit.name]}
-              >
-                {(control) => (
-                  <input
-                    {...control}
-                    name={limit.name}
-                    type="number"
-                    inputMode="numeric"
-                    min={limit.minimum}
-                    max={limit.maximum}
-                    step={1}
-                    required
-                    value={displayedDraft[limit.name]}
-                    onChange={(event) => {
-                      const next = {
-                        ...displayedDraft,
-                        [limit.name]: event.target.value,
-                      };
-                      if (sameDraft(next, savedDraft(data))) {
-                        setDraft(undefined);
-                        setEditBaseline(undefined);
-                        setConflict(undefined);
-                      } else {
-                        setEditBaseline((current) => current ?? data);
-                        setDraft(next);
-                      }
-                      setSaved(undefined);
-                      mutation.reset();
-                    }}
-                  />
-                )}
-              </Field>
-            ))}
+            <TechnicalDetails summary="Saved scheduling settings">
+              <Facts
+                className="ops-glance"
+                aria-label="Saved Scheduler settings"
+                items={[
+                  ...LIMITS.map(({ name, fact }) => ({
+                    term: fact,
+                    value: data.resource[name],
+                  })),
+                  {
+                    term: "Last updated",
+                    value: formatTimestamp(data.resource.updatedAt),
+                  },
+                ]}
+                technical={[
+                  ...LIMITS.map(({ name, fact, pool }) => ({
+                    term: fact,
+                    value: (
+                      <>
+                        <code>{name}</code>, the <code>{pool}</code> lane pool
+                      </>
+                    ),
+                  })),
+                  {
+                    term: "Revision",
+                    value: <code>{data.resource.revision}</code>,
+                  },
+                ]}
+              />
+            </TechnicalDetails>
+            <div className="ops-scheduling-lanes">
+              {LIMITS.map((limit) => (
+                <Field
+                  key={limit.name}
+                  className="ops-number-field"
+                  label={limit.label}
+                  hint={`${limit.hint} A whole number from ${limit.minimum} through ${limit.maximum}.`}
+                  error={validationErrors[limit.name]}
+                >
+                  {(control) => (
+                    <div className="ops-limit-control">
+                      <Button
+                        size="xs"
+                        aria-label={`Decrease ${limit.label.toLowerCase()}`}
+                        disabled={
+                          mutation.isPending ||
+                          Number(displayedDraft[limit.name]) <= limit.minimum
+                        }
+                        onClick={() =>
+                          changeLimit(
+                            limit.name,
+                            String(
+                              Math.max(
+                                limit.minimum,
+                                Number(
+                                  displayedDraft[limit.name] || limit.minimum,
+                                ) - 1,
+                              ),
+                            ),
+                          )
+                        }
+                      >
+                        −
+                      </Button>
+                      <input
+                        {...control}
+                        name={limit.name}
+                        type="number"
+                        inputMode="numeric"
+                        min={limit.minimum}
+                        max={limit.maximum}
+                        step={1}
+                        required
+                        value={displayedDraft[limit.name]}
+                        onChange={(event) =>
+                          changeLimit(limit.name, event.target.value)
+                        }
+                      />
+                      <Button
+                        size="xs"
+                        aria-label={`Increase ${limit.label.toLowerCase()}`}
+                        disabled={
+                          mutation.isPending ||
+                          Number(displayedDraft[limit.name]) >= limit.maximum
+                        }
+                        onClick={() =>
+                          changeLimit(
+                            limit.name,
+                            String(
+                              Math.min(
+                                limit.maximum,
+                                Number(
+                                  displayedDraft[limit.name] || limit.minimum,
+                                ) + 1,
+                              ),
+                            ),
+                          )
+                        }
+                      >
+                        +
+                      </Button>
+                    </div>
+                  )}
+                </Field>
+              ))}
+            </div>
+            <div className="ops-callout">
+              <StatusGlyph tone="info" size={15} />
+              <div>
+                <strong>Admission, not capacity.</strong>
+                <p>
+                  Lowering a limit drains existing work naturally. It never
+                  cancels active Runs or allocations. When both kinds of Run
+                  wait for the same Runtime Agent, the Run using a model gets
+                  it.
+                </p>
+              </div>
+            </div>
             {conflictMessage === undefined ? null : (
               <div className="notice notice-warning" role="alert">
                 {conflictMessage}
@@ -301,23 +364,28 @@ function SchedulerSettings() {
               </div>
             )}
 
-            <div className="ops-form-actions">
-              <Button
-                variant="primary"
-                type="submit"
-                disabled={invalid || !dirty || stale}
-                pending={mutation.isPending}
-                pendingLabel="Saving…"
-              >
-                Save scheduling limits
-              </Button>
-              <Button
-                aria-label="Reset to saved values"
-                disabled={mutation.isPending || (!dirty && !stale)}
-                onClick={reset}
-              >
-                Reset
-              </Button>
+            {dirty || stale || conflict !== undefined || mutation.isPending ? (
+              <div className="ops-form-actions">
+                <Button
+                  variant="primary"
+                  type="submit"
+                  disabled={invalid || !dirty || stale}
+                  pending={mutation.isPending}
+                  pendingLabel="Saving…"
+                >
+                  Save scheduling limits
+                </Button>
+                <Button
+                  aria-label="Reset to saved values"
+                  disabled={mutation.isPending || (!dirty && !stale)}
+                  onClick={reset}
+                >
+                  Reset
+                </Button>
+              </div>
+            ) : null}
+            <div className="ops-setting-refresh">
+              {" "}
               <Button
                 variant="ghost"
                 className="ops-push-end"
@@ -343,18 +411,18 @@ function SettingsDirectory({ scheduler }: { scheduler: boolean }) {
         <>
           {" "}
           <a href="#model-selection">
-            Models <small>Defaults for new executions</small>
+            <Icon name="library" size={14} /> Models
           </a>
           <a href="#workflow-scheduling">
-            Workflow scheduling <small>Server-wide policy</small>
+            <Icon name="runs" size={14} /> Scheduling
           </a>
         </>
       ) : null}
       <a href="#repository-access">
-        Repository access <small>Personal credential</small>
+        <Icon name="binding" size={14} /> Repository access
       </a>
       <a href="#appearance">
-        Appearance <small>This browser</small>
+        <Icon name="settings" size={14} /> Appearance
       </a>
     </nav>
   );
@@ -392,14 +460,30 @@ export function OperationsSettingsRoute() {
   const sections = (
     <div className="ops-settings">
       <SettingsDirectory scheduler={canManageScheduler} />
-      {canManageScheduler ? (
-        <>
-          <SchedulerSettings />
-          <ModelSettings />
-        </>
-      ) : null}
-      <GitKeySettings titleAs={titleAs} />
-      <AppearanceSettings titleAs={titleAs} />
+      <div className="ops-settings-columns">
+        {canManageScheduler ? (
+          <div className="ops-settings-execution">
+            <div className="ops-settings-group">
+              <span>
+                <Icon name="operations" size={16} /> Execution
+              </span>
+              <small>Server-wide</small>
+            </div>
+            <ModelSettings />
+            <SchedulerSettings />
+          </div>
+        ) : null}
+        <div className="ops-settings-personal">
+          <div className="ops-settings-group">
+            <span>
+              <Icon name="settings" size={16} /> Your workspace
+            </span>
+            <small>Personal</small>
+          </div>
+          <GitKeySettings titleAs={titleAs} />
+          <AppearanceSettings titleAs={titleAs} />
+        </div>
+      </div>
     </div>
   );
   if (!canManageScheduler)

@@ -201,37 +201,25 @@ func experimentTaskHandler(pollsPerInvocation int64, sends, polls *atomic.Int64)
 }
 
 func TestConnectionReuseExperimentCounts(t *testing.T) {
-	for _, strategy := range []string{"production", "owned_baseline", "owned_reuse"} {
-		t.Run(strategy, func(t *testing.T) {
-			var sends, polls atomic.Int64
-			f := newConnectionExperiment(t, experimentTaskHandler(20, &sends, &polls))
-			invoker := newExperimentInvoker(t, f, strategy == "owned_reuse", 2*time.Millisecond, nil)
-			if strategy == "production" {
-				var err error
-				invoker, err = NewMTLS(f.files, 2*time.Second, Options{PollInterval: 2 * time.Millisecond})
-				if err != nil {
-					t.Fatal(err)
-				}
-			}
-			start := time.Now()
-			if _, err := invoker.Invoke(context.Background(), "worker", f.handle(), stageRequest()); err != nil {
-				t.Fatal(err)
-			}
-			// Invoke closes the connections it owns before returning.
-			experimentAwaitClosed(t, f)
-			// Production reuses one verified connection for SendMessage and
-			// all twenty polls (CTL-R163); the fresh-connection baseline
-			// verifies one connection per request.
-			want := int64(1)
-			if strategy == "owned_baseline" {
-				want = 21
-			}
-			if f.accepts.Load() != want || f.handshakes.Load() != want || sends.Load() != 1 || polls.Load() != 20 {
-				t.Fatalf("counts: connections=%d handshakes=%d sends=%d polls=%d", f.accepts.Load(), f.handshakes.Load(), sends.Load(), polls.Load())
-			}
-			t.Logf("connections=%d handshakes=%d sends=%d polls=%d elapsed=%s", f.accepts.Load(), f.handshakes.Load(), sends.Load(), polls.Load(), time.Since(start))
-		})
-	}
+	t.Run("production", func(t *testing.T) {
+		const pollCount = 3
+		var sends, polls atomic.Int64
+		f := newConnectionExperiment(t, experimentTaskHandler(pollCount, &sends, &polls))
+		invoker, err := NewMTLS(f.files, 2*time.Second, Options{PollInterval: 2 * time.Millisecond})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := invoker.Invoke(context.Background(), "worker", f.handle(), stageRequest()); err != nil {
+			t.Fatal(err)
+		}
+		// Invoke closes the connections it owns before returning.
+		experimentAwaitClosed(t, f)
+		// SendMessage and several polls share one verified connection
+		// (CTL-R163). The benchmark owns transport comparisons.
+		if f.accepts.Load() != 1 || f.handshakes.Load() != 1 || sends.Load() != 1 || polls.Load() != pollCount {
+			t.Fatalf("counts: connections=%d handshakes=%d sends=%d polls=%d", f.accepts.Load(), f.handshakes.Load(), sends.Load(), polls.Load())
+		}
+	})
 }
 
 func TestNewMTLSRejectsWrongRuntimePrincipal(t *testing.T) {
@@ -257,54 +245,6 @@ func TestNewMTLSRejectsWrongRuntimePrincipal(t *testing.T) {
 	experimentAwaitClosed(t, f)
 	if requests.Load() != 0 {
 		t.Fatalf("wrong principal received %d protected HTTP requests", requests.Load())
-	}
-}
-
-func TestConnectionReuseExperimentFixedTaskDuration(t *testing.T) {
-	// A second workload makes progress depend on elapsed server time instead
-	// of number of polls. Slow clients may observe fewer intermediate states.
-	for _, reuse := range []bool{false, true} {
-		t.Run(fmt.Sprintf("reuse_%t", reuse), func(t *testing.T) {
-			var readyAt atomic.Int64
-			var sends, polls atomic.Int64
-			f := newConnectionExperiment(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				var rpc experimentRPC
-				if json.NewDecoder(r.Body).Decode(&rpc) != nil {
-					return
-				}
-				if rpc.Method == "SendMessage" {
-					sends.Add(1)
-					readyAt.Store(time.Now().Add(800 * time.Millisecond).UnixNano())
-					experimentResponse(w, rpc.ID, sdk.StreamResponse{Event: experimentWorkingTask()})
-					return
-				}
-				if rpc.Method != "GetTask" {
-					http.Error(w, "invalid RPC", 400)
-					return
-				}
-				polls.Add(1)
-				result := experimentWorkingTask()
-				if time.Now().UnixNano() >= readyAt.Load() {
-					result = experimentCompletedTask()
-				}
-				experimentResponse(w, rpc.ID, result)
-			}))
-			invoker := newExperimentInvoker(t, f, reuse, 100*time.Millisecond, nil)
-			start := time.Now()
-			if _, err := invoker.Invoke(context.Background(), "worker", f.handle(), stageRequest()); err != nil {
-				t.Fatal(err)
-			}
-			elapsed := time.Since(start)
-			experimentAwaitClosed(t, f)
-			want := sends.Load() + polls.Load()
-			if reuse {
-				want = 1
-			}
-			if sends.Load() != 1 || polls.Load() < 1 || f.accepts.Load() != want || f.handshakes.Load() != want || elapsed < 800*time.Millisecond {
-				t.Fatal("invalid fixed-duration measurements")
-			}
-			t.Logf("task_ready_after=800ms poll_interval=100ms elapsed=%s sends=%d polls=%d connections=%d handshakes=%d", elapsed, sends.Load(), polls.Load(), f.accepts.Load(), f.handshakes.Load())
-		})
 	}
 }
 

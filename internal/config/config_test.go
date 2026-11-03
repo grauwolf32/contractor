@@ -81,45 +81,30 @@ func TestLoadResolvesAndPinsCatalogReferences(t *testing.T) {
 }
 
 // Visible-name collisions between Toolsets are TestToolsetVisibleNameCollision.
-func TestTaintAnnotationsToolSelectionIsStrict(t *testing.T) {
+func TestToolsetSelectionsAreStrict(t *testing.T) {
 	t.Parallel()
-
-	current := &loader{}
-	selected, err := current.resolveToolsets(&[]toolsetSelectionSource{{
-		Ref: "taint-annotations@1", Tools: []string{"annotate_validate", "annotate_trace"},
-	}})
-	if err != nil {
-		t.Fatalf("valid taint annotation selection: %v", err)
-	}
-	if got, want := selected[0].Tools, []string{"annotate_trace", "annotate_validate"}; !equalStrings(got, want) {
-		t.Fatalf("normalized taint annotation tools = %v, want %v", got, want)
-	}
-
-	if _, err := current.resolveToolsets(&[]toolsetSelectionSource{{
-		Ref: "taint-annotations@1", Tools: []string{"annotate"},
-	}}); err == nil || !strings.Contains(err.Error(), "does not export selected tool") {
-		t.Fatalf("unknown taint annotation tool error = %v", err)
-	}
-}
-
-func TestCodeAnalysisToolSelectionIsStrict(t *testing.T) {
-	t.Parallel()
-
-	current := &loader{}
-	selected, err := current.resolveToolsets(&[]toolsetSelectionSource{{
-		Ref: "code-analysis@1", Tools: []string{"search_def", "find_callers"},
-	}})
-	if err != nil {
-		t.Fatalf("valid code-analysis selection: %v", err)
-	}
-	if got, want := selected[0].Tools, []string{"find_callers", "search_def"}; !equalStrings(got, want) {
-		t.Fatalf("normalized code-analysis tools = %v, want %v", got, want)
-	}
-
-	if _, err := current.resolveToolsets(&[]toolsetSelectionSource{{
-		Ref: "code-analysis@1", Tools: []string{"search_definition"},
-	}}); err == nil || !strings.Contains(err.Error(), "does not export selected tool") {
-		t.Fatalf("unknown code-analysis tool error = %v", err)
+	for _, test := range []struct {
+		ref               string
+		tools, normalized []string
+		unknown           string
+	}{
+		{"taint-annotations@1", []string{"annotate_validate", "annotate_trace"}, []string{"annotate_trace", "annotate_validate"}, "annotate"},
+		{"code-analysis@1", []string{"search_def", "find_callers"}, []string{"find_callers", "search_def"}, "search_definition"},
+	} {
+		t.Run(test.ref, func(t *testing.T) {
+			t.Parallel()
+			current := &loader{}
+			selected, err := current.resolveToolsets(&[]toolsetSelectionSource{{Ref: test.ref, Tools: test.tools}})
+			if err != nil {
+				t.Fatalf("valid selection: %v", err)
+			}
+			if got := selected[0].Tools; !equalStrings(got, test.normalized) {
+				t.Fatalf("normalized tools = %v, want %v", got, test.normalized)
+			}
+			if _, err := current.resolveToolsets(&[]toolsetSelectionSource{{Ref: test.ref, Tools: []string{test.unknown}}}); err == nil || !strings.Contains(err.Error(), "does not export selected tool") {
+				t.Fatalf("unknown tool error = %v", err)
+			}
+		})
 	}
 }
 

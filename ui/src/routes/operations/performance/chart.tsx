@@ -2,6 +2,7 @@ import { useId } from "react";
 
 import { metricSeriesSegments } from "./series";
 import { formatNumber, formatTimestamp } from "../../../app/format";
+import { TechnicalDetails } from "../../../ui";
 
 export interface ChartDatum {
   observedAt: string;
@@ -26,6 +27,95 @@ interface ChartProps {
 function numeric(value: number, unit: string): string {
   const formatted = formatNumber(value, value < 10 ? 2 : 1);
   return unit === "" ? formatted : `${formatted} ${unit}`;
+}
+
+/** Compact observed bars, positioned in the requested window without filling gaps. */
+export function MetricBars({
+  title,
+  data,
+  from,
+  to,
+  expectedStepSeconds,
+  unit,
+}: {
+  title: string;
+  data: readonly ChartDatum[];
+  from: string;
+  to: string;
+  expectedStepSeconds: number;
+  unit: string;
+}) {
+  const values = metricSeriesSegments(data, expectedStepSeconds).flatMap(
+    (segment) =>
+      segment.values.map((point) => ({
+        ...point,
+        generation: segment.generation,
+      })),
+  );
+  if (values.length === 0)
+    return <p className="ops-bar-empty">No observations in this range.</p>;
+  const start = Math.min(
+    Date.parse(from),
+    ...values.map((point) => point.time),
+  );
+  const end = Date.parse(to);
+  const duration = Math.max(expectedStepSeconds * 1000, end - start);
+  const maximum = Math.max(...values.map((point) => point.value));
+  const barWidth = Math.min(
+    100,
+    ((expectedStepSeconds * 1000) / duration) * 100,
+  );
+  return (
+    <div className="ops-bars">
+      <div className="ops-bar-chart" role="img" aria-label={title}>
+        {values.map((point, index) => (
+          <span
+            key={`${point.generation}:${point.time}:${index}`}
+            data-generation={point.generation}
+            style={{
+              left: `${Math.max(0, Math.min(100 - barWidth, ((point.time - start) / duration) * 100))}%`,
+              width: `${barWidth}%`,
+              height: `${maximum === 0 ? 0 : (point.value / (maximum * 1.15)) * 100}%`,
+            }}
+            title={`${formatTimestamp(point.observedAt)} · ${numeric(point.value, unit)}`}
+          />
+        ))}
+      </div>
+      <div className="ops-bar-times">
+        <time dateTime={from}>
+          {new Date(from).toISOString().slice(11, 16)} UTC
+        </time>
+        <time dateTime={to}>
+          {new Date(to).toISOString().slice(11, 16)} UTC
+        </time>
+      </div>
+      <TechnicalDetails summary="Numeric summary">
+        <dl
+          className="performance-chart-summary"
+          aria-label={`${title} numeric summary`}
+        >
+          <div>
+            <dt>Minimum</dt>
+            <dd>
+              {numeric(Math.min(...values.map((point) => point.value)), unit)}
+            </dd>
+          </div>
+          <div>
+            <dt>Latest</dt>
+            <dd>{numeric(values[values.length - 1]!.value, unit)}</dd>
+          </div>
+          <div>
+            <dt>Maximum</dt>
+            <dd>{numeric(maximum, unit)}</dd>
+          </div>
+          <div>
+            <dt>Observed points</dt>
+            <dd>{values.length}</dd>
+          </div>
+        </dl>
+      </TechnicalDetails>
+    </div>
+  );
 }
 
 export function MetricChart({

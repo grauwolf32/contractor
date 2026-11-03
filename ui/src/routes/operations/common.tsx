@@ -1,15 +1,47 @@
-import "./common.css";
+import "./styles";
 import type { ReactNode } from "react";
 import { Link, type To } from "react-router";
 
 import type { AllocationObservation } from "../../api/operations";
 import { ErrorNotice } from "../../app/error-notice";
 import { compactDigest, formatNumber, formatTimestamp } from "../../app/format";
-import { Icon } from "../../app/icon";
+import { Icon, type IconName } from "../../app/icon";
 import { Facts, StatusChip } from "../../ui";
 import { configurationVersionPath } from "./llm-configurations/kinds";
 import type { ExactConfigurationRef } from "./references";
 import { operationsTone } from "./state";
+import type { StatusTone } from "../../app/status-tone";
+
+/** Shared inventory summary: icon, two-line identity and state pills. */
+export function EntryHeading({
+  icon,
+  title,
+  subtitle,
+  children,
+}: {
+  icon: IconName;
+  title: ReactNode;
+  subtitle: ReactNode;
+  children?: ReactNode;
+}) {
+  return (
+    <>
+      <div className="ops-entry-identity">
+        <span className="ops-resource-icon">
+          <Icon name={icon} size={18} />
+        </span>
+        <div>
+          {title}
+          <small>{subtitle}</small>
+        </div>
+      </div>
+      <span className="ops-entry-states">
+        {children}
+        <Icon name="open" size={16} />
+      </span>
+    </>
+  );
+}
 
 /** An exact version: its name@version, linked to `to`, and short digest. */
 export function RefLink({
@@ -69,13 +101,16 @@ export function SafeReason({
 export function OperationsState({
   state,
   prefix,
+  tone,
 }: {
   state: string;
   /** Says whose state it is, e.g. "Runtime" for an observed phase. */
   prefix?: string | undefined;
+  /** Missing telemetry is an unknown observation, rather than execution failure. */
+  tone?: StatusTone | undefined;
 }) {
   return (
-    <StatusChip tone={operationsTone(state)} size="sm">
+    <StatusChip tone={tone ?? operationsTone(state)} size="sm">
       {prefix === undefined ? null : (
         <>
           <span className="ops-state-prefix">{prefix}</span>{" "}
