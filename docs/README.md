@@ -65,6 +65,11 @@ including wildcard `200` responses and soft-404. It keeps ffuf, Katana and Nucle
 under existing scan tools, does not require one allocation, and defers production
 source removal until comparative evidence exists.
 
+[mitmproxy for Runtime HTTP and sandbox](proposals/0053-mitmproxy-runtime-and-sandbox.md)
+records the embedding experiment branch, lifecycle reuse, useful addons, memory
+observations, optional Caido chains and transparent sandbox HTTP/HTTPS routing.
+The production engine and sandbox network integration remain open choices.
+
 Accepted contracts belong in the specification; implementation status belongs
 in [task files](../tasks/) governed by [tasks/index.yml](../tasks/index.yml).
 The following are non-normative, and a historical report does not establish
