@@ -16,6 +16,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
 	"github.com/grauwolf32/contractor/internal/auditimport"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
@@ -133,7 +134,7 @@ func newCommonControllerHarness(t *testing.T, configure ...func(*auditcontract.P
 	if err != nil {
 		t.Fatal(err)
 	}
-	art := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	art := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
 	projectArtifacts, _ := art.Project(project.ProjectID)
 	written, err := projectArtifacts.Write(ctx, contracts.ArtifactRef{Namespace: "inputs", Name: "source"}, artifacts.Payload{MediaType: "text/plain", Data: []byte("selected source")}, nil)
 	if err != nil {
@@ -151,7 +152,7 @@ func newCommonControllerHarness(t *testing.T, configure ...func(*auditcontract.P
 	if err != nil {
 		t.Fatal(err)
 	}
-	audits := auditstoretest.NewStore(pool).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch)
+	audits := auditstoretest.NewStore(pool, artifactpgtest.NewStorage()).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch)
 	snapshot, _ := json.Marshal(pinned)
 	limits := program.Limits
 	audit, _, err := audits.CreateDraft(ctx, auditstore.CreateDraftParams{AuditID: "common-audit", OwnerID: "owner", ProjectID: project.ProjectID, Profile: auditstore.ProfileIdentity{Name: pinned.Ref.Name, Version: pinned.Ref.Version, Digest: pinned.Ref.Digest}, ProfileSnapshot: snapshot, InputSelection: json.RawMessage(`{}`), Limits: auditstore.Limits{MaxRounds: limits.MaxIterations, BatchSize: limits.BatchSize, MaxItemsPerRound: limits.MaxTasksPerIteration, MaxItemsTotal: limits.MaxTasks, MaxSubmittedRuns: limits.MaxSubmittedRuns, MaxItemRunAttempts: limits.MaxAttempts, MaxEvidenceBytes: limits.MaxEvidenceBytes}, IdempotencyKey: "audit", RequestDigest: contentdigest.Bytes([]byte("audit"))})
@@ -165,18 +166,18 @@ func newCommonControllerHarness(t *testing.T, configure ...func(*auditcontract.P
 	if _, err := pool.Exec(ctx, `UPDATE audits SET state='active',phase='rounds',started_at=clock_timestamp(),hold_state='held',baseline_snapshot=$2 WHERE audit_id=$1`, audit.AuditID, baseline); err != nil {
 		t.Fatal(err)
 	}
-	service, err := auditservice.New(auditservice.Options{Pool: pool, Profiles: catalog, TransactionLLMCredentials: controllerTransactionCredentialLookup(), CredentialGuard: controllerCredentialGuard{}})
+	service, err := auditservice.New(auditservice.Options{Pool: pool, Profiles: catalog, TransactionLLMCredentials: controllerTransactionCredentialLookup(), CredentialGuard: controllerCredentialGuard{}, Storage: artifactpgtest.NewStorage()})
 	if err != nil {
 		t.Fatal(err)
 	}
-	runs := runstore.NewPostgresStore(pool)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	runService, err := runservice.New(runservice.Options{Runs: runs, Workflows: catalog, LLMCredentials: controllerCredentialLookup{}, CredentialGuard: controllerCredentialGuard{}, RuntimeCredentials: controllerRuntimeCredentials{}, Projects: projects, SkillInitializationAvailable: true,
 		PublicTransaction: func(context.Context, func(runservice.PublicRunWriter, *artifacts.Service) error) error {
 			return errors.New("public Run creation is outside this component fixture")
 		},
 		AuditTransaction: func(ctx context.Context, fn func(runservice.AuditRunWriter, *artifacts.Service, runservice.AuditExecutionWriter) error) error {
 			return postgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-				return fn(runstore.NewPostgresTxStore(tx), artifacts.NewService(artifacts.NewPostgresRepository(tx)), auditstoretest.NewStore(tx))
+				return fn(runstore.NewPostgresTxStore(tx, artifactpgtest.NewStorage()), artifacts.NewService(artifactpgtest.NewStorage().Repository(tx)), auditstoretest.NewStore(tx, artifactpgtest.NewStorage()))
 			})
 		},
 	})
@@ -188,7 +189,7 @@ func newCommonControllerHarness(t *testing.T, configure ...func(*auditcontract.P
 
 func (h *postgresControllerHarness) commonController(t *testing.T) *Controller {
 	t.Helper()
-	access, err := auditimport.NewArtifactAccess(h.artifacts, hookstore.NewClaimedArtifacts(h.pool))
+	access, err := auditimport.NewArtifactAccess(h.artifacts, hookstore.NewClaimedArtifacts(h.pool, artifactpgtest.NewStorage()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -196,7 +197,7 @@ func (h *postgresControllerHarness) commonController(t *testing.T) *Controller {
 	if err != nil {
 		t.Fatal(err)
 	}
-	controller, err := New(h.audits, h.audits, h.runs, rundeletion.New(h.pool), h.runService, &postgresNotifier{}, Options{HolderID: "postgres-audit-controller", OperationTimeout: 5 * time.Second, ClaimLease: 15 * time.Second, Collector: collector.WithTaskIntake(h.service), TaskIntake: h.service})
+	controller, err := New(h.audits, h.audits, h.runs, rundeletion.New(h.pool, artifactpgtest.NewStorage()), h.runService, &postgresNotifier{}, Options{HolderID: "postgres-audit-controller", OperationTimeout: 5 * time.Second, ClaimLease: 15 * time.Second, Collector: collector.WithTaskIntake(h.service), TaskIntake: h.service})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -237,7 +238,7 @@ func TestPostgresCommonControllerPauseHandoffResume(t *testing.T) {
 	if changed, err := c.RunOnce(ctx); err != nil || changed {
 		t.Fatalf("empty paused Audit completed: %v %v", changed, err)
 	}
-	if err := rundeletion.New(h.pool).DeleteReleasedTerminalRun(ctx, "owner", *first.RunID); err != nil {
+	if err := rundeletion.New(h.pool, artifactpgtest.NewStorage()).DeleteReleasedTerminalRun(ctx, "owner", *first.RunID); err != nil {
 		t.Fatal(err)
 	}
 	audit, err = h.service.Get(ctx, "owner", audit.AuditID)

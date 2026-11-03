@@ -8,6 +8,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/ownerstore"
@@ -72,7 +73,7 @@ func newCommonTaskServiceFixture(t *testing.T, configure func(*auditcontract.Pro
 	if _, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{ProjectID: "task-project", OwnerID: "owner", Kind: projectstore.KindProject, Name: "Task service", IdempotencyKey: "project", RequestDigest: contentdigest.Bytes([]byte("project"))}); err != nil {
 		t.Fatal(err)
 	}
-	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	artifactService := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
 	project, _ := artifactService.Project("task-project")
 	write, err := project.Write(ctx, contracts.ArtifactRef{Namespace: "inputs", Name: "source"}, artifacts.Payload{MediaType: "text/plain", Data: []byte("selected input")}, nil)
 	if err != nil {
@@ -84,7 +85,7 @@ func newCommonTaskServiceFixture(t *testing.T, configure func(*auditcontract.Pro
 	}
 	profile, _ := json.Marshal(pinned)
 	limits := pinned.Program.Limits
-	audit, _, err := ownerstore.New(pool).CreateDraft(ctx, auditstore.CreateDraftParams{AuditID: "common-audit", OwnerID: "owner", ProjectID: "task-project", Profile: auditstore.ProfileIdentity{Name: pinned.Ref.Name, Version: pinned.Ref.Version, Digest: pinned.Ref.Digest}, ProfileSnapshot: profile, InputSelection: json.RawMessage(`{}`), Limits: auditstore.Limits{MaxRounds: limits.MaxIterations, BatchSize: limits.BatchSize, MaxItemsPerRound: limits.MaxTasksPerIteration, MaxItemsTotal: limits.MaxTasks, MaxSubmittedRuns: limits.MaxSubmittedRuns, MaxItemRunAttempts: limits.MaxAttempts, MaxEvidenceBytes: limits.MaxEvidenceBytes}, IdempotencyKey: "draft", RequestDigest: contentdigest.Bytes([]byte("draft"))})
+	audit, _, err := ownerstore.New(pool, artifactpgtest.NewStorage()).CreateDraft(ctx, auditstore.CreateDraftParams{AuditID: "common-audit", OwnerID: "owner", ProjectID: "task-project", Profile: auditstore.ProfileIdentity{Name: pinned.Ref.Name, Version: pinned.Ref.Version, Digest: pinned.Ref.Digest}, ProfileSnapshot: profile, InputSelection: json.RawMessage(`{}`), Limits: auditstore.Limits{MaxRounds: limits.MaxIterations, BatchSize: limits.BatchSize, MaxItemsPerRound: limits.MaxTasksPerIteration, MaxItemsTotal: limits.MaxTasks, MaxSubmittedRuns: limits.MaxSubmittedRuns, MaxItemRunAttempts: limits.MaxAttempts, MaxEvidenceBytes: limits.MaxEvidenceBytes}, IdempotencyKey: "draft", RequestDigest: contentdigest.Bytes([]byte("draft"))})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -76,7 +76,11 @@ context:
       V64-027 removes the old inventory-wrapper tests with their uncalled builders. Static
       standard-package, source/license and shared parser checks remain. Restore the CLI standard-selection
       validation cases from internal/app/config_command_test.go when a common selection caller ships;
-      the bundled-standard validity checks remain active. Restore the fixed-name Start UI
+      the bundled-standard validity checks remain active. Integration note 2026-11-03 (agent):
+      during the requested main rebase,
+      the old inventory-backed checklist composer/state, authoring fixtures and exclusive scope
+      tests are also retired. Restore their applicable checks and UI through common hypothesis-bound
+      callers; do not restore BuildChecklistInventory or an alternate reader. Restore the fixed-name Start UI
       suggestions only when the rewritten profiles ship. Their previous tests and YAML are retained
       in Git at 9b4ba9c8b1901c5c7eeb301015ad7e61cd94066d.
     boundary: Rewrite fixed checklist/standard assertions as common hypothesis-bound work without a

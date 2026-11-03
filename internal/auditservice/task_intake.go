@@ -90,7 +90,7 @@ func (s *Service) AcceptPreparedWork(ctx context.Context, claim auditstore.Contr
 	if !exists || source.Ref.Namespace != "outputs" || source.Ref.Name != binding.Outputs["work"] {
 		return auditstore.TaskIntakeResult{}, ErrInvalid
 	}
-	run, err := artifacts.NewService(artifacts.NewPostgresRepository(s.pool)).Run(*execution.RunID)
+	run, err := artifacts.NewService(s.storage.Repository(s.pool)).Run(*execution.RunID)
 	if err != nil {
 		return auditstore.TaskIntakeResult{}, err
 	}

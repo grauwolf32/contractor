@@ -5,7 +5,7 @@ import { isWebScanProfile } from "./web-scan-contract";
  * and readiness against the project's current materials.
  *
  * Everything here is derived from the profile contract the Server publishes
- * (inputs, inventory, standards, interaction, workflows) and from the
+ * (inputs, policy, limits and pinned workflows) and from the
  * project's current materials. Media types decide compatibility: a match
  * means the format matches, never that a material is the right one
  * (docs/spec/ui/journeys.md US-03).
@@ -435,15 +435,7 @@ export function scopeSummary(profile: AuditProfile): ScopeSummary {
   };
 }
 
-/** A check's inventory determines its shared line icon, without guessing from names. */
-export function checkTypeIcon(profile: AuditProfile): IconName {
-  const icons: Record<AuditProfile["inventory"]["implementation"], IconName> = {
-    "checklist@1": "checklist",
-    "openapi-operations@1": "api",
-    "openapi-scans@1": "api",
-    "web-scans@1": "target",
-    "finding-candidates@1": "issues",
-    "standard-mappings@1": "checks",
-  };
-  return icons[profile.inventory.implementation];
+/** Common programs use one check glyph; their inputs describe the domain. */
+export function checkTypeIcon(): IconName {
+  return "checks";
 }

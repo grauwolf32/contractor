@@ -419,7 +419,7 @@ func TestTargetCredentialDeleteRacesAuditHoldWithoutDeadlock(t *testing.T) {
 							); err != nil {
 								return err
 							}
-							_, _, err := auditstoretest.NewTxStore(tx).Activate(ctx, auditstore.ActivateParams{
+							_, _, err := auditstoretest.NewTxStore(tx, artifactpgtest.NewStorage()).Activate(ctx, auditstore.ActivateParams{
 								OwnerID: project.OwnerID, AuditID: auditID, ExpectedRevision: audit.Revision,
 								BaselineSnapshot: json.RawMessage(`{"schema":"contractor.audit.baseline.v1","inputs":{},"skills":[],"llmCredentialIds":[],"runtimeCredentialIds":["` + id + `"]}`),
 								DeadlineAt:       time.Now().Add(time.Hour), IdempotencyKey: "start-" + auditID, RequestDigest: raceDigest("4"),

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
@@ -184,7 +185,7 @@ func auditSubmissionGrant(
 	}
 	pin, _ := json.Marshal(profile)
 	limits := profile.Program.Limits
-	audits := auditstoretest.NewStore(pool)
+	audits := auditstoretest.NewStore(pool, artifactpgtest.NewStorage())
 	audit, _, err := audits.CreateDraft(ctx, auditstore.CreateDraftParams{
 		AuditID: runID + "-audit", OwnerID: ownerID, ProjectID: projectID,
 		Profile: auditstore.ProfileIdentity{Name: profile.Ref.Name, Version: profile.Ref.Version, Digest: profile.Ref.Digest}, ProfileSnapshot: pin, InputSelection: json.RawMessage(`{}`),
@@ -194,7 +195,7 @@ func auditSubmissionGrant(
 	if err != nil {
 		t.Fatal(err)
 	}
-	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	artifactService := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
 	projectArtifacts, _ := artifactService.Project(projectID)
 	source, err := projectArtifacts.Write(ctx, contracts.ArtifactRef{Namespace: "inputs", Name: "source"}, artifacts.Payload{MediaType: "text/plain", Data: []byte("selected source")}, nil)
 	if err != nil {
@@ -206,7 +207,7 @@ func auditSubmissionGrant(
 	if err != nil {
 		t.Fatal(err)
 	}
-	metadata, err := artifacts.NewPostgresRepository(pool).Metadata(ctx, targetScope, retained.TargetRef)
+	metadata, err := artifactpgtest.NewStorage().Repository(pool).Metadata(ctx, targetScope, retained.TargetRef)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -320,7 +321,7 @@ func TestPostgresFindingBatchTaskOriginAndBoundedResultReferences(t *testing.T) 
 		t.Fatal(err)
 	}
 	grant, firstOrigin := auditSubmissionGrant(t, ctx, pool, owner, project, run, 2)
-	service, err := New(pool)
+	service, err := New(pool, artifactpgtest.NewStorage())
 	if err != nil {
 		t.Fatal(err)
 	}

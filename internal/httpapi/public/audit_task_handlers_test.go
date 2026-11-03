@@ -186,7 +186,7 @@ func TestAuditTaskGetRejectsQuery(t *testing.T) {
 	h := auditTestHandler(&taskAuditManagement{})
 	r := auditAuthenticatedRequest(http.MethodGet, "/v1/audits/audit-one/tasks/task-one?unknown=1", nil)
 	w := httptest.NewRecorder()
-	h.getAuditTask(w, r)
+	serve(h.getAuditTask).ServeHTTP(w, r)
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("unexpected query: %d %s", w.Code, w.Body.String())
 	}

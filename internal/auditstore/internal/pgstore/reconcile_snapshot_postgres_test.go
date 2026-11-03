@@ -72,7 +72,7 @@ func (c *commitAfterFirstStatement) TraceQueryEnd(ctx context.Context, _ *pgx.Co
 // that each took their own snapshot would report the new value.
 func TestSharedPostgresReconcileSnapshotReadsOneCommitOnAPoolAndInACallerTransaction(t *testing.T) {
 	common := newCommonTaskFixture(t, 2)
-	claims, err := NewClaimStore(common.pool).Claim(t.Context(), auditstore.ClaimParams{HolderID: "snapshot-reader", Lease: time.Minute, Limit: 1})
+	claims, err := NewClaimStore(common.pool, artifactpgtest.NewStorage()).Claim(t.Context(), auditstore.ClaimParams{HolderID: "snapshot-reader", Lease: time.Minute, Limit: 1})
 	if err != nil || len(claims) != 1 {
 		t.Fatalf("claim: %+v %v", claims, err)
 	}

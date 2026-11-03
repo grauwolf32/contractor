@@ -17,7 +17,6 @@ import (
 	"time"
 
 	artifactpolicy "github.com/grauwolf32/contractor/internal/artifacts/policy"
-	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/jackc/pgx/v5/pgxpool"
 )

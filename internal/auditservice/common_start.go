@@ -42,7 +42,7 @@ func (s *Service) Start(ctx context.Context, p StartParams) (StartedAudit, error
 	var result StartedAudit
 	err := s.credentialGuard.WithRunCreation(ctx, func() error {
 		return postgres.InTxWithRetry(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-			owners, reads := ownerstore.NewTx(tx), querystore.New(tx)
+			owners, reads := ownerstore.NewTx(tx, s.storage), querystore.New(tx, s.storage)
 			if err := owners.LockMutation(ctx, p.OwnerID, auditstore.MutationStart, p.IdempotencyKey); err != nil {
 				return err
 			}
@@ -79,7 +79,7 @@ func (s *Service) Start(ctx context.Context, p StartParams) (StartedAudit, error
 			if err != nil {
 				return err
 			}
-			art := artifacts.NewService(artifacts.NewPostgresRepository(tx))
+			art := artifacts.NewService(s.storage.Repository(tx))
 			projectArtifacts, _ := art.Project(audit.ProjectID)
 			refs := []contracts.ArtifactRef{}
 			expected := []contracts.ExactArtifact{}
@@ -115,7 +115,7 @@ func (s *Service) Start(ctx context.Context, p StartParams) (StartedAudit, error
 			for _, workflow := range profile.Workflows {
 				modelFree = modelFree && resolved.WorkflowToolWorkersOnly(workflow)
 			}
-			runtimeSnapshot, err := runstore.NewRunCreationPostgresStore(tx, lookup, runtimeCredentials).PinRuntimeLabels(ctx, selection.RuntimeLabels, modelFree)
+			runtimeSnapshot, err := runstore.NewRunCreationPostgresStore(tx, lookup, runtimeCredentials, s.storage).PinRuntimeLabels(ctx, selection.RuntimeLabels, modelFree)
 			if err != nil {
 				return err
 			}

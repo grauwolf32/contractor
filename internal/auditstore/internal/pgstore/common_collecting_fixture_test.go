@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -155,7 +156,7 @@ INSERT INTO finding_proposal_audit_holds (
 	var findingID string
 	if err := persistencepostgres.InTx(f.ctx, f.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		var err error
-		findingID, err = NewFindingEventsTx(tx).AdmitProjectFinding(f.ctx, f.project.ProjectID, receiptID, "finding-"+receiptID)
+		findingID, err = NewFindingEventsTx(tx, artifactpgtest.NewStorage()).AdmitProjectFinding(f.ctx, f.project.ProjectID, receiptID, "finding-"+receiptID)
 		return err
 	}); err != nil {
 		t.Fatal(err)

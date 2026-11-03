@@ -80,7 +80,7 @@ acceptance_criteria:
 tests:
 - command: make lint
   covers: [A1, A2, A3]
-- command: go test -tags=integration -count=1 ./internal/auditdomain ./internal/auditbaseline ./internal/auditstore/... ./internal/auditservice ./internal/auditcontroller ./internal/auditimport ./internal/auditstandards ./internal/artifacts ./internal/findingintake ./internal/runservice ./internal/runstore
+- command: go test -tags=integration -count=1 ./internal/auditdomain ./internal/auditbaseline ./internal/auditstore/... ./internal/auditservice ./internal/auditcontroller ./internal/auditimport ./internal/auditstandards ./internal/artifacts ./internal/artifacts/postgres/... ./internal/findingintake ./internal/runservice ./internal/runstore
   covers: [A2, A3]
 - command: make test-audit-basic-e2e test-audit-common-programs-e2e
   covers: [A2, A3]

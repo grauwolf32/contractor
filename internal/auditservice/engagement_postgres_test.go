@@ -589,7 +589,7 @@ func TestEngagementMetadataAdmissionPrecedesPayloadReads(t *testing.T) {
 		t.Fatal(err)
 	}
 	selection := DraftSelection{Inputs: map[string]contracts.ExactArtifact{"engagement": meta.Exact(), "checklist": f.checklist}}
-	probe := &rulepackReadProbe{Repository: artifacts.NewPostgresRepository(f.pool), readErr: errors.New("unexpected engagement payload read")}
+	probe := &rulepackReadProbe{Repository: artifactpgtest.NewStorage().Repository(f.pool), readErr: errors.New("unexpected engagement payload read")}
 	if _, err = readEngagement(f.ctx, artifacts.NewService(probe), f.project.ProjectID, profile, selection); !errors.Is(err, ErrInvalid) || probe.reads != 0 {
 		t.Fatalf("oversized engagement materialized: reads=%d err=%v", probe.reads, err)
 	}

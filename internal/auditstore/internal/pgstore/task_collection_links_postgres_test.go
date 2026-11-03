@@ -3,12 +3,14 @@ package pgstore
 import (
 	"encoding/json"
 	"errors"
-	"github.com/grauwolf32/contractor/internal/persistence/explaintest"
 	"os"
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/persistence/explaintest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -23,7 +25,7 @@ func TestSharedPostgresCommonTaskCollectionReusesExactEvidence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	claims := NewClaimStore(f.pool)
+	claims := NewClaimStore(f.pool, artifactpgtest.NewStorage())
 	claimed, err := claims.Claim(ctx, auditstore.ClaimParams{HolderID: "shared-evidence", Lease: time.Minute, Limit: 1})
 	if err != nil || len(claimed) != 1 {
 		t.Fatalf("claim: %+v %v", claimed, err)

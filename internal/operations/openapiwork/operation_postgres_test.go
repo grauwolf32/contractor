@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/configtest"
@@ -54,11 +55,11 @@ func ownedOperation(t *testing.T) (*Module, operations.Call, *pgxpool.Pool) {
 	}
 	parameters := map[string]string{"checking_workflow": "check", "selection": "operations", "max_items": "256"}
 	encoded, _ := json.Marshal(workflow)
-	store := runstore.NewPostgresStore(pool)
+	store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	if _, err := runstoretest.CreateRun(ctx, store, runstore.CreateRunParams{RunID: "producer", OwnerID: "owner", ProjectID: &project, LaneClass: resolved.LaneClassTool, WorkflowName: workflow.Ref.Name, WorkflowVersion: workflow.Ref.Version, WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: encoded, Parameters: parameters, RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot()}); err != nil {
 		t.Fatal(err)
 	}
-	service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	service := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
 	scope, _ := artifacts.RunScope("producer")
 	source, err := service.Create(ctx, scope, contracts.ArtifactRef{Namespace: "inputs", Name: "openapi"}, artifacts.Payload{MediaType: "application/json", Data: []byte(`{"openapi":"3.1.0","paths":{"/items":{"get":{}}}}`)})
 	if err != nil {
@@ -78,7 +79,7 @@ func ownedOperation(t *testing.T) (*Module, operations.Call, *pgxpool.Pool) {
 		t.Fatal(err)
 	}
 	if err := postgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		s := runstore.NewPostgresTxStore(tx)
+		s := runstore.NewPostgresTxStore(tx, artifactpgtest.NewStorage())
 		if _, err := s.LockRunState(ctx, "producer", runstore.RunRunning); err != nil {
 			return err
 		}
@@ -93,7 +94,7 @@ func ownedOperation(t *testing.T) (*Module, operations.Call, *pgxpool.Pool) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	return New(pool), operations.Call{RunID: "producer", StageExecutionID: "prepare-stage", ClaimID: "claim", Arguments: map[string]any{"workflow": "check", "selection": "operations", "max_items": "256"}, Inputs: map[string]contracts.ArtifactRef{"openapi": source.Ref}, Outputs: map[string]contracts.ArtifactRef{"work": {Namespace: "prepared-work", Name: "work"}}}, pool
+	return New(pool, artifactpgtest.NewStorage()), operations.Call{RunID: "producer", StageExecutionID: "prepare-stage", ClaimID: "claim", Arguments: map[string]any{"workflow": "check", "selection": "operations", "max_items": "256"}, Inputs: map[string]contracts.ArtifactRef{"openapi": source.Ref}, Outputs: map[string]contracts.ArtifactRef{"work": {Namespace: "prepared-work", Name: "work"}}}, pool
 }
 
 func TestPostgresPreparedWorkPublicationReplayAndCollision(t *testing.T) {
@@ -101,7 +102,7 @@ func TestPostgresPreparedWorkPublicationReplayAndCollision(t *testing.T) {
 		t.Run(scenario, func(t *testing.T) {
 			m, call, pool := ownedOperation(t)
 			ctx := t.Context()
-			service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+			service := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
 			scope, _ := artifacts.RunScope(call.RunID)
 			store, _ := service.Run(call.RunID)
 			if scenario == "collision" {
@@ -141,7 +142,7 @@ func TestPostgresPreparedWorkRejectsClosedAuthority(t *testing.T) {
 		t.Run(scenario, func(t *testing.T) {
 			m, call, pool := ownedOperation(t)
 			ctx := t.Context()
-			runs := runstore.NewPostgresStore(pool)
+			runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 			switch scenario {
 			case "claim-lost":
 				if err := runs.ReleaseRunClaim(ctx, call.RunID, call.ClaimID); err != nil {
@@ -165,7 +166,7 @@ func TestPostgresPreparedWorkRejectsClosedAuthority(t *testing.T) {
 			if _, err := m.Run(ctx, call); err == nil {
 				t.Fatal("closed or changed authority published")
 			}
-			store, _ := artifacts.NewService(artifacts.NewPostgresRepository(pool)).Run(call.RunID)
+			store, _ := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool)).Run(call.RunID)
 			if _, err := store.Metadata(ctx, call.Outputs["work"]); !errors.Is(err, artifacts.ErrArtifactNotFound) {
 				t.Fatalf("published root after fence rejection: %v", err)
 			}
@@ -176,7 +177,7 @@ func TestPostgresPreparedWorkRejectsClosedAuthority(t *testing.T) {
 func TestPreparedWorkRejectsBadBindingsBeforeStorage(t *testing.T) {
 	for _, args := range []map[string]any{{"workflow": "check", "selection": "operations", "max_items": "257"}, {"workflow": "check", "selection": "operations", "max_items": "+1"}, {"workflow": "check", "selection": "unknown", "max_items": "1"}} {
 		revision := "exact"
-		_, err := New(nil).Run(t.Context(), operations.Call{Arguments: args, Inputs: map[string]contracts.ArtifactRef{"openapi": {Namespace: "inputs", Name: "openapi", Revision: &revision}}, Outputs: map[string]contracts.ArtifactRef{"work": {Namespace: "prepared-work", Name: "work"}}})
+		_, err := New(nil, nil).Run(t.Context(), operations.Call{Arguments: args, Inputs: map[string]contracts.ArtifactRef{"openapi": {Namespace: "inputs", Name: "openapi", Revision: &revision}}, Outputs: map[string]contracts.ArtifactRef{"work": {Namespace: "prepared-work", Name: "work"}}})
 		var failure *operations.Failure
 		if !errors.As(err, &failure) || failure.Code != "invalid_request" || failure.Retryable {
 			t.Fatalf("invalid binding reached storage: %v", err)

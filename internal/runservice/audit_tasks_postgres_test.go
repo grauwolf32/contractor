@@ -14,6 +14,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
 	"github.com/grauwolf32/contractor/internal/auditbaseline"
 	"github.com/grauwolf32/contractor/internal/auditimport"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
@@ -88,7 +89,7 @@ func TestSharedPostgresCommonTaskCollectionFailureOutcomes(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			art := artifacts.NewService(artifacts.NewPostgresRepository(f.pool))
+			art := artifacts.NewService(artifactpgtest.NewStorage().Repository(f.pool))
 			run, _ := art.Run(created.Run.RunID)
 			if test.output {
 				payload := artifacts.Payload{MediaType: "text/plain", Data: []byte("partial support")}
@@ -106,7 +107,7 @@ func TestSharedPostgresCommonTaskCollectionFailureOutcomes(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			runs := runstore.NewPostgresStore(f.pool)
+			runs := runstore.NewPostgresStore(f.pool, artifactpgtest.NewStorage())
 			terminal := runstore.RunSucceeded
 			if test.failed {
 				terminal = runstore.RunFailed
@@ -128,7 +129,7 @@ func TestSharedPostgresCommonTaskCollectionFailureOutcomes(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			access, err := auditimport.NewArtifactAccess(art, hookstore.NewClaimedArtifacts(f.pool))
+			access, err := auditimport.NewArtifactAccess(art, hookstore.NewClaimedArtifacts(f.pool, artifactpgtest.NewStorage()))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -174,7 +175,7 @@ func TestSharedPostgresCommonTaskCollectsOrdinaryOutputWhilePaused(t *testing.T)
 			if err != nil {
 				t.Fatal(err)
 			}
-			art := artifacts.NewService(artifacts.NewPostgresRepository(f.pool))
+			art := artifacts.NewService(artifactpgtest.NewStorage().Repository(f.pool))
 			run, _ := art.Run(created.Run.RunID)
 			payload := artifacts.Payload{MediaType: "text/plain", Data: []byte("ordinary output")}
 			if semantic {
@@ -216,7 +217,7 @@ func TestSharedPostgresCommonTaskCollectsOrdinaryOutputWhilePaused(t *testing.T)
 			if _, _, err := f.audits.Transition(ctx, auditstore.TransitionParams{OwnerID: "owner", AuditID: audit.AuditID, ExpectedRevision: audit.Revision, ExpectedState: auditstore.AuditActive, TargetState: auditstore.AuditPaused, IdempotencyKey: "pause", RequestDigest: contentdigest.Bytes([]byte("pause"))}); err != nil {
 				t.Fatal(err)
 			}
-			runs := runstore.NewPostgresStore(f.pool)
+			runs := runstore.NewPostgresStore(f.pool, artifactpgtest.NewStorage())
 			if _, err := runs.TransitionRun(ctx, created.Run.RunID, runstore.RunPending, runstore.RunRunning, runstore.Reason{Code: "admitted"}); err != nil {
 				t.Fatal(err)
 			}
@@ -235,7 +236,7 @@ func TestSharedPostgresCommonTaskCollectsOrdinaryOutputWhilePaused(t *testing.T)
 			if err != nil {
 				t.Fatal(err)
 			}
-			access, err := auditimport.NewArtifactAccess(art, hookstore.NewClaimedArtifacts(f.pool))
+			access, err := auditimport.NewArtifactAccess(art, hookstore.NewClaimedArtifacts(f.pool, artifactpgtest.NewStorage()))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -275,7 +276,7 @@ func TestSharedPostgresCommonTaskCollectsOrdinaryOutputWhilePaused(t *testing.T)
 			} else if string(result.Payload.Data) != "ordinary output" {
 				t.Fatalf("supporting output was reinterpreted: %s", result.Payload.Data)
 			}
-			if err := rundeletion.New(f.pool).DeleteReleasedTerminalRun(ctx, "owner", created.Run.RunID); err != nil {
+			if err := rundeletion.New(f.pool, artifactpgtest.NewStorage()).DeleteReleasedTerminalRun(ctx, "owner", created.Run.RunID); err != nil {
 				t.Fatal(err)
 			}
 			// A lost acknowledgement is resolved before touching the purged Run.
@@ -342,12 +343,12 @@ func newCommonTaskRunFixtureWithWorkflow(t *testing.T, contextInput bool, config
 	if err != nil {
 		t.Fatal(err)
 	}
-	art := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	art := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
 	projectArtifacts, _ := art.Project(project.ProjectID)
 	source := writeExact(t, ctx, projectArtifacts, "inputs", "source", "text/plain", []byte("exact selected bytes"))
 	profile, _ := json.Marshal(pinned)
 	limits := program.Limits
-	audits := auditstoretest.NewStore(pool)
+	audits := auditstoretest.NewStore(pool, artifactpgtest.NewStorage())
 	audit, _, err := audits.CreateDraft(ctx, auditstore.CreateDraftParams{AuditID: "common-run-audit", OwnerID: "owner", ProjectID: project.ProjectID, Profile: auditstore.ProfileIdentity{Name: pinned.Ref.Name, Version: pinned.Ref.Version, Digest: pinned.Ref.Digest}, ProfileSnapshot: profile, InputSelection: json.RawMessage(`{}`), Limits: auditstore.Limits{MaxRounds: limits.MaxIterations, BatchSize: limits.BatchSize, MaxItemsPerRound: limits.MaxTasksPerIteration, MaxItemsTotal: limits.MaxTasks, MaxSubmittedRuns: limits.MaxSubmittedRuns, MaxItemRunAttempts: limits.MaxAttempts, MaxEvidenceBytes: limits.MaxEvidenceBytes}, IdempotencyKey: "draft", RequestDigest: contentdigest.Bytes([]byte("draft"))})
 	if err != nil {
 		t.Fatal(err)
@@ -402,7 +403,7 @@ func TestSharedPostgresCommonTaskCreatesOrdinaryRunAndReplays(t *testing.T) {
 			if err != nil || !replay.Replayed || replay.Run.RunID != created.Run.RunID {
 				t.Fatalf("replay: %+v %v", replay, err)
 			}
-			art := artifacts.NewService(artifacts.NewPostgresRepository(f.pool))
+			art := artifacts.NewService(artifactpgtest.NewStorage().Repository(f.pool))
 			run, _ := art.Run(created.Run.RunID)
 			input, err := run.Read(t.Context(), contracts.ArtifactRef{Namespace: "inputs", Name: "source"})
 			if err != nil || string(input.Payload.Data) != "exact selected bytes" {
@@ -447,7 +448,7 @@ func TestSharedPostgresCommonTaskBatchKeepsMembershipAndChargesEvidenceOnce(t *t
 	if err != nil {
 		t.Fatal(err)
 	}
-	art := artifacts.NewService(artifacts.NewPostgresRepository(f.pool))
+	art := artifacts.NewService(artifactpgtest.NewStorage().Repository(f.pool))
 	run, _ := art.Run(created.Run.RunID)
 	trusted, err := run.Read(ctx, contracts.ArtifactRef{Namespace: "inputs", Name: "context"})
 	if err != nil {
@@ -478,7 +479,7 @@ func TestSharedPostgresCommonTaskBatchKeepsMembershipAndChargesEvidenceOnce(t *t
 	if err := artifactstest.FreezeOutputs(ctx, art, created.Run.RunID); err != nil {
 		t.Fatal(err)
 	}
-	runs := runstore.NewPostgresStore(f.pool)
+	runs := runstore.NewPostgresStore(f.pool, artifactpgtest.NewStorage())
 	for _, transition := range [][2]runstore.WorkflowRunState{{runstore.RunPending, runstore.RunRunning}, {runstore.RunRunning, runstore.RunSucceeded}} {
 		if _, err := runs.TransitionRun(ctx, created.Run.RunID, transition[0], transition[1], runstore.Reason{Code: "fixture"}); err != nil {
 			t.Fatal(err)
@@ -496,7 +497,7 @@ func TestSharedPostgresCommonTaskBatchKeepsMembershipAndChargesEvidenceOnce(t *t
 	if err != nil {
 		t.Fatal(err)
 	}
-	access, err := auditimport.NewArtifactAccess(art, hookstore.NewClaimedArtifacts(f.pool))
+	access, err := auditimport.NewArtifactAccess(art, hookstore.NewClaimedArtifacts(f.pool, artifactpgtest.NewStorage()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -555,7 +556,7 @@ func TestSharedPostgresCommonTaskRunCreationRespectsPause(t *testing.T) {
 	if _, err := f.service.CreateAudit(t.Context(), f.params); !errors.Is(err, auditstore.ErrPrecondition) {
 		t.Fatalf("paused submission: %v", err)
 	}
-	if _, err := runstore.NewPostgresStore(f.pool).GetRun(t.Context(), "ordinary-task-run"); !errors.Is(err, runstore.ErrNotFound) {
+	if _, err := runstore.NewPostgresStore(f.pool, artifactpgtest.NewStorage()).GetRun(t.Context(), "ordinary-task-run"); !errors.Is(err, runstore.ErrNotFound) {
 		t.Fatalf("partial Run committed: %v", err)
 	}
 }

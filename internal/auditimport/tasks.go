@@ -8,6 +8,9 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
+
 	"github.com/grauwolf32/contractor/internal/apierror"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
@@ -293,7 +296,7 @@ func (i *Importer) collectTasks(ctx context.Context, claim auditstore.Controller
 			intake, err := i.intake.AcceptPreparedWork(ctx, claim, snapshot, execution, source, data)
 			if err != nil {
 				var classified apierror.Classified
-				invalid := errors.Is(err, auditstore.ErrInvalid) || errors.Is(err, auditstore.ErrConflict) || artifacts.IsExactReferenceRejection(err) || artifacts.IsExactRevisionMissing(err) || errors.As(err, &classified) && classified.ErrorKind() == apierror.AuditDocumentInvalid
+				invalid := errors.Is(err, auditstore.ErrInvalid) || errors.Is(err, auditstore.ErrConflict) || artifacts.IsExactReferenceRejection(err) || artifactpostgres.IsExactRevisionMissing(err) || errors.As(err, &classified) && classified.ErrorKind() == apierror.AuditDocumentInvalid
 				if !invalid {
 					return false, err
 				}
@@ -357,7 +360,7 @@ func permanentTaskCollectionError(err error) bool {
 		return false
 	}
 	var classified apierror.Classified
-	return errors.Is(err, auditstore.ErrInvalid) || errors.Is(err, artifacts.ErrArtifactIntegrity) || errors.Is(err, artifacts.ErrBlobMissing) || artifacts.IsExactReferenceRejection(err) || artifacts.IsExactRevisionMissing(err) || errors.As(err, &classified) && (classified.ErrorKind() == apierror.InvalidRequest || classified.ErrorKind() == apierror.AuditDocumentInvalid)
+	return errors.Is(err, auditstore.ErrInvalid) || errors.Is(err, blob.ErrIntegrity) || errors.Is(err, blob.ErrMissing) || artifacts.IsExactReferenceRejection(err) || artifactpostgres.IsExactRevisionMissing(err) || errors.As(err, &classified) && (classified.ErrorKind() == apierror.InvalidRequest || classified.ErrorKind() == apierror.AuditDocumentInvalid)
 }
 
 func (i *Importer) normalizeTaskResult(ctx context.Context, ownerID string, execution auditstore.Execution, pinned auditprofile.PinnedProgram, tasks []auditstore.Task, output taskOutput) ([]byte, error) {

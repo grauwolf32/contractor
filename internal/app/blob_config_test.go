@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/artifacts/blob"
-	"github.com/grauwolf32/contractor/internal/artifacts"
 )
 
 func TestBlobConfigFlagsOverrideEnvironment(t *testing.T) {

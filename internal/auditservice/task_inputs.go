@@ -22,7 +22,7 @@ import (
 func (s *Service) retainTaskInput(ctx context.Context, audit auditstore.Audit, claim *auditstore.ControllerClaim, revision uint64, source auditcontract.Material, preparedExecution string) (auditcontract.Material, error) {
 	var retained auditcontract.Material
 	err := postgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		current, err := ownerstore.NewTx(tx).LockTaskInputs(ctx, audit.OwnerID, audit.AuditID, claim)
+		current, err := ownerstore.NewTx(tx, s.storage).LockTaskInputs(ctx, audit.OwnerID, audit.AuditID, claim)
 		if err != nil {
 			return err
 		}
@@ -43,9 +43,9 @@ func (s *Service) retainTaskInput(ctx context.Context, audit auditstore.Audit, c
 				}
 				sourceScope, err = artifacts.AuditScope(source.ScopeID)
 			case "run":
-				accepted, readErr := querystore.New(tx).CollectedRunInput(ctx, current.AuditID, source.ScopeID)
+				accepted, readErr := querystore.New(tx, s.storage).CollectedRunInput(ctx, current.AuditID, source.ScopeID)
 				if readErr == nil && !accepted && claim != nil && preparedExecution != "" {
-					accepted, readErr = querystore.New(tx).PreparedRunInput(ctx, current.AuditID, preparedExecution, source.ScopeID)
+					accepted, readErr = querystore.New(tx, s.storage).PreparedRunInput(ctx, current.AuditID, preparedExecution, source.ScopeID)
 				}
 				if readErr != nil {
 					return readErr
@@ -115,9 +115,9 @@ func (s *Service) retainTaskInput(ctx context.Context, audit auditstore.Audit, c
 			return nil
 		}
 		if claim != nil {
-			return hookstore.NewClaimedArtifacts(tx).WithArtifactWrite(ctx, *claim, current.ProjectID, auditdomain.ArtifactNamespace(current.AuditID), write)
+			return hookstore.NewClaimedArtifacts(tx, s.storage).WithArtifactWrite(ctx, *claim, current.ProjectID, auditdomain.ArtifactNamespace(current.AuditID), write)
 		}
-		return write(artifacts.NewService(artifacts.NewPostgresTxRepository(tx)))
+		return write(artifacts.NewService(s.storage.TxRepository(tx)))
 	})
 	if err != nil {
 		return auditcontract.Material{}, err

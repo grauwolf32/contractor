@@ -408,7 +408,7 @@ func verifyTrustedExecution(
 		if selectedItem != nil {
 			key = *selectedItem
 		}
-		task, err := querystore.New(tx).ExecutionTaskOrigin(ctx, *run.AuditExecutionID, run.RunID, key)
+		task, err := querystore.New(tx, storage).ExecutionTaskOrigin(ctx, *run.AuditExecutionID, run.RunID, key)
 		if errors.Is(err, auditstore.ErrNotFound) || errors.Is(err, auditstore.ErrInvalid) {
 			return Origin{}, "", nil, ErrAccessDenied
 		}

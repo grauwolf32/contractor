@@ -159,9 +159,6 @@ describe("Start a check: check types", () => {
     expect(
       within(setup()).getByRole("heading", { name: "API endpoint trace" }),
     ).toBeVisible();
-    expect(
-      within(setup()).getByText(/Why this fits:/).parentElement,
-    ).toHaveTextContent("format matches");
   });
 
   it("follows the type parameter and says when it names nothing", async () => {

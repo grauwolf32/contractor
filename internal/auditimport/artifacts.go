@@ -5,8 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+
+	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
@@ -163,7 +164,7 @@ func (a *ServiceArtifactAccess) retainRunExact(ctx context.Context, runID string
 	}
 	retained := auditstore.ExactArtifact{Ref: result.TargetRef, Digest: source.Digest, MediaType: result.MediaType, SizeBytes: result.Size}
 	if retained.MediaType != source.MediaType || retained.SizeBytes != source.SizeBytes {
-		return auditstore.ExactArtifact{}, artifacts.ErrArtifactIntegrity
+		return auditstore.ExactArtifact{}, blob.ErrIntegrity
 	}
 	return retained, nil
 }

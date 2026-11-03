@@ -89,7 +89,7 @@ func (s *ClaimStore) SelectTasks(ctx context.Context, p auditstore.SelectTasksPa
 					return auditstore.ErrPrecondition
 				}
 			}
-			execution, err = NewClaimStore(tx).getExecution(ctx, audit.AuditID, *prior)
+			execution, err = NewClaimStore(tx, s.storage).getExecution(ctx, audit.AuditID, *prior)
 			if err != nil {
 				return err
 			}

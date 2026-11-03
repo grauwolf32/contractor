@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
@@ -19,7 +20,7 @@ func TestSharedPostgresCommonTaskSelectionReservesOneStableAttempt(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	claims := NewClaimStore(f.pool)
+	claims := NewClaimStore(f.pool, artifactpgtest.NewStorage())
 	claimed, err := claims.Claim(ctx, auditstore.ClaimParams{HolderID: "task-selector", Lease: time.Minute, Limit: 1})
 	if err != nil || len(claimed) != 1 {
 		t.Fatalf("claim: %+v %v", claimed, err)
@@ -67,7 +68,7 @@ func TestSharedPostgresCommonTaskCollectionAndPurge(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	claims := NewClaimStore(f.pool).WithPurgeDependencies(func(context.Context, pgx.Tx, string, int) (int, error) { return 0, nil })
+	claims := NewClaimStore(f.pool, artifactpgtest.NewStorage()).WithPurgeDependencies(func(context.Context, pgx.Tx, string, int) (int, error) { return 0, nil })
 	claimed, err := claims.Claim(ctx, auditstore.ClaimParams{HolderID: "common-purger", Lease: time.Minute, Limit: 1})
 	if err != nil || len(claimed) != 1 {
 		t.Fatalf("claim: %+v %v", claimed, err)
@@ -142,7 +143,7 @@ func TestSharedPostgresCommonTaskSelectionRejectsUnattributableBatch(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	claims := NewClaimStore(f.pool)
+	claims := NewClaimStore(f.pool, artifactpgtest.NewStorage())
 	claimed, err := claims.Claim(t.Context(), auditstore.ClaimParams{HolderID: "selector", Lease: time.Minute, Limit: 1})
 	if err != nil || len(claimed) != 1 {
 		t.Fatalf("claim: %+v %v", claimed, err)

@@ -32,7 +32,7 @@ func TestSharedPostgresCommonCompletionPinsExactRunContextAndMembership(t *testi
 			if err != nil {
 				t.Fatal(err)
 			}
-			run, err := runstore.NewPostgresStore(f.pool).GetRun(ctx, result.Run.RunID)
+			run, err := runstore.NewPostgresStore(f.pool, artifactpgtest.NewStorage()).GetRun(ctx, result.Run.RunID)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -40,7 +40,7 @@ func TestSharedPostgresCommonCompletionPinsExactRunContextAndMembership(t *testi
 			if completion == nil || completion.Stage != "check" || completion.Agent != "builder" || completion.Contract.Kind != contracts.AuditCheckResultsV1 || completion.Contract.Context.Revision == nil || completion.Contract.Context.Name != "context" {
 				t.Fatalf("completion=%+v", completion)
 			}
-			scoped, err := artifacts.NewService(artifacts.NewPostgresRepository(f.pool)).Run(run.RunID)
+			scoped, err := artifacts.NewService(artifactpgtest.NewStorage().Repository(f.pool)).Run(run.RunID)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -77,7 +77,7 @@ func TestSharedPostgresCommonCompletionPinsExactRunContextAndMembership(t *testi
 			changed := *completion
 			changed.Contract.Context = changed.Contract.Context.Clone()
 			changed.Contract.Context.Name = "foreign"
-			if err := runstore.NewPostgresStore(f.pool).SetAuditCompletion(ctx, run.RunID, changed); !errors.Is(err, runstore.ErrConflict) {
+			if err := runstore.NewPostgresStore(f.pool, artifactpgtest.NewStorage()).SetAuditCompletion(ctx, run.RunID, changed); !errors.Is(err, runstore.ErrConflict) {
 				t.Fatal("completion authority changed", err)
 			}
 			invalid := f.params

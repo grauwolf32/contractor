@@ -9,8 +9,11 @@ node docs/design/ui/experiments/new-check-opendesign-2026-11-02/serve.mjs 17567
 node docs/design/ui/experiments/new-check-opendesign-2026-11-02/verify-opendesign-pass.mjs
 node docs/design/ui/experiments/new-check-opendesign-2026-11-02/verify.mjs
 node docs/design/ui/experiments/new-check-opendesign-2026-11-02/verify-scope.mjs
-go run docs/design/ui/experiments/new-check-opendesign-2026-11-02/verify-content.go
 ```
+
+The old inventory-based Go content verifier is retired. Current execution is
+verified through the common Audit process gates; assertion authoring returns
+with its common hypothesis-bound caller. The preview remains historical design data.
 
 Open <http://127.0.0.1:17567/?version=new&case=ready&theme=dark&width=1440>.
 The external toolbar switches candidate/current reference/generated original/input

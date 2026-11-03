@@ -7,6 +7,7 @@ import (
 	"sort"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -61,7 +62,7 @@ func (s *OwnerStore) AcceptTasks(ctx context.Context, p auditstore.AcceptTasksPa
 	err = postgres.Within(ctx, s.db, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		receipt, replay, err := postgres.KeyedMutation(ctx, tx, auditReceiptKey(p.OwnerID, auditstore.MutationAcceptTasks, p.IdempotencyKey), p.RequestDigest,
 			func() (postgres.Receipt, error) {
-				accepted, err := acceptTasksInTransaction(ctx, tx, p, selected)
+				accepted, err := acceptTasksInTransaction(ctx, tx, p, selected, s.storage)
 				if err != nil {
 					return postgres.Receipt{}, err
 				}
@@ -87,7 +88,7 @@ func (s *OwnerStore) AcceptTasks(ctx context.Context, p auditstore.AcceptTasksPa
 	return result, replayed, nil
 }
 
-func acceptTasksInTransaction(ctx context.Context, tx pgx.Tx, p auditstore.AcceptTasksParams, selected []validatedTask) (auditstore.TaskAcceptance, error) {
+func acceptTasksInTransaction(ctx context.Context, tx pgx.Tx, p auditstore.AcceptTasksParams, selected []validatedTask, storage *artifactpostgres.Storage) (auditstore.TaskAcceptance, error) {
 	var projectID string
 	err := tx.QueryRow(ctx, `SELECT project_id FROM audits WHERE audit_id=$1 AND owner_id=$2`, p.AuditID, p.OwnerID).Scan(&projectID)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -156,7 +157,7 @@ func acceptTasksInTransaction(ctx context.Context, tx pgx.Tx, p auditstore.Accep
 		task.Ordinal, task.Iteration = count, iteration
 		created = append(created, task)
 	}
-	if err := verifyTaskMaterials(ctx, tx, p.AuditID, selected); err != nil {
+	if err := verifyTaskMaterials(ctx, tx, p.AuditID, selected, storage); err != nil {
 		return auditstore.TaskAcceptance{}, err
 	}
 	if len(created) > 0 {
@@ -221,7 +222,7 @@ func existingTasksBySource(ctx context.Context, tx pgx.Tx, auditID string, selec
 	return result, rows.Err()
 }
 
-func verifyTaskMaterials(ctx context.Context, tx pgx.Tx, auditID string, selected []validatedTask) error {
+func verifyTaskMaterials(ctx context.Context, tx pgx.Tx, auditID string, selected []validatedTask, storage *artifactpostgres.Storage) error {
 	materials := map[string]auditcontract.Material{}
 	for _, task := range selected {
 		for _, material := range task.Document.Inputs {
@@ -246,7 +247,7 @@ func verifyTaskMaterials(ctx context.Context, tx pgx.Tx, auditID string, selecte
 	}
 	sort.Strings(keys)
 	scope, _ := artifacts.AuditScope(auditID)
-	repository := artifacts.NewPostgresTxRepository(tx)
+	repository := storage.TxRepository(tx)
 	for start := 0; start < len(keys); start += artifacts.MaxExactReadBatchSize {
 		chunk := keys[start:min(start+artifacts.MaxExactReadBatchSize, len(keys))]
 		refs := make([]contracts.ArtifactRef, 0, len(chunk))

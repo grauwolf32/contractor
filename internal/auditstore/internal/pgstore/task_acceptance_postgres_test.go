@@ -11,6 +11,9 @@ import (
 	"testing"
 	"time"
 
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
@@ -76,7 +79,7 @@ func setupCommonTaskFixture(t *testing.T, pool *pgxpool.Pool, name string, start
 		t.Fatal(err)
 	}
 	limits := pinned.Program.Limits
-	owners, reads := NewOwnerStore(pool), NewQueryStore(pool)
+	owners, reads := NewOwnerStore(pool, artifactpgtest.NewStorage()), NewQueryStore(pool, artifactpgtest.NewStorage())
 	effective := auditstore.Limits{MaxRounds: limits.MaxIterations, BatchSize: limits.BatchSize, MaxItemsPerRound: limits.MaxTasksPerIteration, MaxItemsTotal: limits.MaxTasks, MaxSubmittedRuns: limits.MaxSubmittedRuns, MaxItemRunAttempts: limits.MaxAttempts, MaxEvidenceBytes: limits.MaxEvidenceBytes}
 	for _, change := range tighten {
 		change(&effective)
@@ -90,7 +93,7 @@ func setupCommonTaskFixture(t *testing.T, pool *pgxpool.Pool, name string, start
 	if err != nil {
 		t.Fatal(err)
 	}
-	service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	service := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
 	projectArtifacts, _ := service.Project(audit.ProjectID)
 	source, err := projectArtifacts.Write(ctx, contracts.ArtifactRef{Namespace: "inputs", Name: "source"}, artifacts.Payload{MediaType: "text/plain", Data: []byte("selected source")}, nil)
 	if err != nil {
@@ -102,7 +105,7 @@ func setupCommonTaskFixture(t *testing.T, pool *pgxpool.Pool, name string, start
 	if err != nil {
 		t.Fatal(err)
 	}
-	metadata, err := artifacts.NewPostgresRepository(pool).Metadata(ctx, auditScope, retained.TargetRef)
+	metadata, err := artifactpgtest.NewStorage().Repository(pool).Metadata(ctx, auditScope, retained.TargetRef)
 	if err != nil || !metadata.Frozen {
 		t.Fatalf("retained material: %v", err)
 	}
@@ -233,12 +236,13 @@ func TestSharedPostgresCommonTaskInputsStayExactAcrossProjectEdits(t *testing.T)
 	if _, _, err := f.owners.AcceptTasks(t.Context(), p); err != nil {
 		t.Fatal(err)
 	}
-	policy, err := artifacts.NewHistoryPolicy(2, artifacts.HistoryBytesFloor)
+	policy, err := artifactpostgres.NewHistoryPolicy(2, artifactpostgres.HistoryBytesFloor)
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx := artifacts.WithHistoryPolicy(t.Context(), policy)
-	project, _ := f.service.Project(f.audit.ProjectID)
+	ctx := t.Context()
+	historyService := artifacts.NewService(artifactpgtest.NewConfigured(artifactpgtest.NewRuntime(), policy).Repository(f.pool))
+	project, _ := historyService.Project(f.audit.ProjectID)
 	current := f.source
 	var intermediate contracts.ArtifactRef
 	for index, value := range []string{"source revision two", "source revision three"} {
@@ -340,7 +344,7 @@ func TestSharedPostgresCommonTaskClaimAndProjectFences(t *testing.T) {
 			f := newCommonTaskFixture(t, 1)
 			p := f.acceptance(1, scenario)
 			if scenario == "claim-lost" {
-				claims := NewClaimStore(f.pool)
+				claims := NewClaimStore(f.pool, artifactpgtest.NewStorage())
 				claimed, err := claims.Claim(t.Context(), auditstore.ClaimParams{HolderID: "holder", Lease: time.Minute, Limit: 1})
 				if err != nil || len(claimed) != 1 {
 					t.Fatalf("claim: %+v %v", claimed, err)
@@ -397,7 +401,7 @@ func TestSharedPostgresProjectToAuditInputForkFences(t *testing.T) {
 			if _, err := f.service.Fork(t.Context(), request); err == nil {
 				t.Fatal("invalid Project-to-Audit input fork was admitted")
 			}
-			if _, err := artifacts.NewPostgresRepository(f.pool).Metadata(t.Context(), request.Target, request.TargetRef); !errors.Is(err, artifacts.ErrArtifactNotFound) {
+			if _, err := artifactpgtest.NewStorage().Repository(f.pool).Metadata(t.Context(), request.Target, request.TargetRef); !errors.Is(err, artifacts.ErrArtifactNotFound) {
 				t.Fatalf("partial input fork: %v", err)
 			}
 		})

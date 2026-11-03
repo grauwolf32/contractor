@@ -9,8 +9,9 @@ import (
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/apierror"
-	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpolicy "github.com/grauwolf32/contractor/internal/artifacts/policy"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
@@ -20,10 +21,15 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type Module struct{ pool *pgxpool.Pool }
+type Module struct {
+	pool    *pgxpool.Pool
+	storage *artifactpostgres.Storage
+}
 
-func New(pool *pgxpool.Pool) *Module { return &Module{pool: pool} }
-func (*Module) Ref() string          { return contracts.OpenAPIPrepareWorkOperation }
+func New(pool *pgxpool.Pool, storage *artifactpostgres.Storage) *Module {
+	return &Module{pool: pool, storage: storage}
+}
+func (*Module) Ref() string { return contracts.OpenAPIPrepareWorkOperation }
 
 func invalid() error {
 	return &operations.Failure{Code: "invalid_request", Message: "OpenAPI preparation inputs, arguments or outputs are invalid"}
@@ -62,7 +68,7 @@ func (m *Module) prepare(ctx context.Context, call operations.Call) (stageresult
 	if len(call.Inputs) != inputs || call.Inputs["openapi"].ValidateExact() != nil || inputs == 2 && call.Inputs["settings"].ValidateExact() != nil {
 		return empty, invalid()
 	}
-	if m.pool == nil {
+	if m.pool == nil || m.storage == nil {
 		return empty, &operations.Failure{Code: "server_operation_unavailable", Message: "OpenAPI preparation storage is unavailable"}
 	}
 	input, err := m.readInputs(ctx, call, options)

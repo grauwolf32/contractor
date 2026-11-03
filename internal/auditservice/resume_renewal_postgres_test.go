@@ -13,7 +13,7 @@ import (
 
 func TestAuditResumeKeepsAcceptedTasksWithoutReviewRenewal(t *testing.T) {
 	ctx, pool, service, started, now := newTimeControlAudit(t, 7200)
-	store := auditstoretest.NewStore(pool)
+	store := auditstoretest.NewStore(pool, artifactpgtest.NewStorage())
 	claims, err := store.Claim(ctx, auditstore.ClaimParams{HolderID: "resume-fixture", Lease: time.Minute, Limit: 1})
 	if err != nil || len(claims) != 1 {
 		t.Fatalf("claim=%+v %v", claims, err)

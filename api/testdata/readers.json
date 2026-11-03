@@ -3,7 +3,6 @@
   "readers": {
     "audit-common/": {"readers": ["go", "python"]},
     "audit-common/boundaries.json": {"readers": ["go", "python", "ui"]},
-    "audit-checklist-authoring.json": {"readers": ["go", "ui"]},
     "exact-integer-cases.json": {"readers": ["go", "python"]},
     "v1alpha1/valid/shared-config.json": {"readers": ["go", "python", "ui"]},
     "workflow-context-management-cases.json": {"readers": ["go", "ui"]},

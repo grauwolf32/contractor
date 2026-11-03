@@ -23,13 +23,13 @@ import (
 // order. Parsing is outside these transactions; each publication owns one bounded
 // Artifact write, with a final live-claim check before commit.
 func (m *Module) withOwner(ctx context.Context, call operations.Call, fn func(context.Context, *artifacts.Service) error) error {
-	admitted, release, err := artifacts.AcquireTransfer(ctx)
+	admitted, release, err := m.storage.AcquireTransfer(ctx)
 	if err != nil {
 		return err
 	}
 	defer release()
 	return postgres.InTx(admitted, m.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		store := runstore.NewPostgresTxStore(tx)
+		store := runstore.NewPostgresTxStore(tx, m.storage)
 		owner, err := store.ProjectContext(admitted, call.RunID)
 		if err != nil {
 			return err
@@ -83,7 +83,7 @@ func (m *Module) withOwner(ctx context.Context, call operations.Call, fn func(co
 		if selected != len(call.Inputs) {
 			return invalid()
 		}
-		if err := fn(admitted, artifacts.NewService(artifacts.NewPostgresTxRepository(tx))); err != nil {
+		if err := fn(admitted, artifacts.NewService(m.storage.TxRepository(tx))); err != nil {
 			return err
 		}
 		if err := admitted.Err(); err != nil {

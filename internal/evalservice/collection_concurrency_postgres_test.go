@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -82,7 +83,7 @@ func collectingEvalAudit(t *testing.T) (*serviceHarness, evalstore.Experiment, e
 		t.Fatal(err)
 	}
 	code := "fixture-submission-failed"
-	members, err := auditstoretest.NewStore(h.pool).ListExecutionTasks(t.Context(), execution.AuditID, execution.ExecutionID)
+	members, err := auditstoretest.NewStore(h.pool, artifactpgtest.NewStorage()).ListExecutionTasks(t.Context(), execution.AuditID, execution.ExecutionID)
 	if err != nil || len(members) != 1 {
 		t.Fatalf("execution membership: %+v %v", members, err)
 	}

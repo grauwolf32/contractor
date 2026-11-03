@@ -173,7 +173,7 @@ func TestAuditPostgresPublicCreateStartAndQuery(t *testing.T) {
 	tasksRequest := auditAuthenticatedRequest(http.MethodGet, "/v1/audits/"+draft.AuditID+"/tasks", nil)
 	tasksRequest.SetPathValue("auditId", draft.AuditID)
 	tasksResponse := httptest.NewRecorder()
-	h.listAuditTasks(tasksResponse, tasksRequest)
+	serve(h.listAuditTasks).ServeHTTP(tasksResponse, tasksRequest)
 	var taskPage struct {
 		Items []auditTaskResponse `json:"items"`
 	}

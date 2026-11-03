@@ -23,7 +23,7 @@ func (s *OwnerStore) Activate(ctx context.Context, p auditstore.ActivateParams) 
 		return auditstore.Audit{}, false, err
 	}
 	return s.keyedAuditMutation(ctx, p.OwnerID, auditstore.MutationStart, p.IdempotencyKey, p.RequestDigest, func(tx pgx.Tx) (auditMutationResult, error) {
-		audit, err := NewQueryStore(tx).Get(ctx, p.OwnerID, p.AuditID)
+		audit, err := NewQueryStore(tx, s.storage).Get(ctx, p.OwnerID, p.AuditID)
 		if err != nil {
 			return auditMutationResult{}, err
 		}

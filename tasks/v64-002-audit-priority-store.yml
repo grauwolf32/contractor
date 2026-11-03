@@ -66,6 +66,19 @@ context:
     Commit 770f9227c34858666f00d9461cd582efe5ce9803 changed those files during unfinished V64-014.
     This branch does not change them. That failure is not a pass and does not close V64-014;
     the explicit dependency waiver remains in effect.
+  main_integration: >-
+    User-requested rebase onto local main 1c57d43b030372cd4b4ca77772413213a541048e is complete.
+    The pre-rebase history is retained as codex/audit-task-coordinator-before-main-2026-11-03.
+    Common Task acceptance, input forks and Server preparation now use the configured explicit
+    Artifact Storage, including transaction-bound repositories and transfer admission. HTTP Task
+    handlers use main's common error boundary. Eval capabilities retain main's bounded immutable
+    snapshot cache and expose strictly loaded common programs. Main's Start layout is preserved
+    with common inputs/policy/limits; unused inventory/checklist helpers return with V64-012.
+    All Go packages compile with integration/e2e tags. Full owners pass on PostgreSQL, including
+    artifacts/postgres and public HTTP. Architecture and export gates pass without new baselines.
+    Runtime passes 5737 tests with 135 optional skips. UI passes 2459 tests and one expected failure,
+    plus typecheck and build, with one worker. Clean-revision process gates and final lint remain
+    before task closure; these results do not close V64-014.
   implementation_gate: >-
     Implementation is assigned. V64-001, V64-004 and V64-021 are completed; the user explicitly
     waived waiting for formal V64-014 completion for this task on 2026-11-02. V64-026 completed at

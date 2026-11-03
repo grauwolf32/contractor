@@ -9,6 +9,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
@@ -34,7 +35,7 @@ func TestSharedCommonInitialAndPreparedTaskIntake(t *testing.T) {
 				program.Workflows["check"] = auditcontract.ProgramWorkflow{Ref: "audit-prepared-check@1", Inputs: map[string]auditcontract.InputMapping{"operation": {Source: "task-input"}, "openapi": {Source: "task-input"}, "settings": {Source: "task-input"}}, Parameters: map[string]string{}, Outputs: map[string]string{"material": "result"}}
 			})
 			ctx := t.Context()
-			store := auditstoretest.NewStore(f.pool)
+			store := auditstoretest.NewStore(f.pool, artifactpgtest.NewStorage())
 			if _, err := f.pool.Exec(ctx, `UPDATE audits SET state='active',dispatch_state='open' WHERE audit_id=$1`, f.audit.AuditID); err != nil {
 				t.Fatal(err)
 			}
@@ -106,17 +107,17 @@ func TestSharedCommonInitialAndPreparedTaskIntake(t *testing.T) {
 				t.Fatal(err)
 			}
 			err = postgres.InTx(ctx, f.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-				runs := runstore.NewPostgresStore(tx)
+				runs := runstore.NewPostgresStore(tx, artifactpgtest.NewStorage())
 				if _, err := runs.CreateAuditRun(ctx, runstore.CreateAuditRunParams{CreateRunParams: runstore.CreateRunParams{RunID: runID, OwnerID: "owner", ProjectID: &f.audit.ProjectID, WorkflowName: workflow.Ref.Name, WorkflowVersion: workflow.Ref.Version, WorkflowSchemaVersion: "1", WorkflowSnapshot: workflowData, Parameters: map[string]string{}, RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(), LaneClass: resolved.EntryLaneClass(workflow)}, AuditExecutionID: execution.ExecutionID, AuditSubmissionKey: execution.SubmissionKey}); err != nil {
 					return err
 				}
-				_, err := auditstoretest.NewStore(tx).BindRun(ctx, auditstore.BindRunParams{Claim: claim, ExecutionID: execution.ExecutionID, RunID: runID})
+				_, err := auditstoretest.NewStore(tx, artifactpgtest.NewStorage()).BindRun(ctx, auditstore.BindRunParams{Claim: claim, ExecutionID: execution.ExecutionID, RunID: runID})
 				return err
 			})
 			if err != nil {
 				t.Fatal(err)
 			}
-			art := artifacts.NewService(artifacts.NewPostgresRepository(f.pool))
+			art := artifacts.NewService(artifactpgtest.NewStorage().Repository(f.pool))
 			run, _ := art.Run(runID)
 			write := func(name string, data []byte) auditcontract.Material {
 				t.Helper()
@@ -153,7 +154,7 @@ func TestSharedCommonInitialAndPreparedTaskIntake(t *testing.T) {
 				t.Fatal(err)
 			}
 			output.Ref = bound.Ref
-			runs := runstore.NewPostgresStore(f.pool)
+			runs := runstore.NewPostgresStore(f.pool, artifactpgtest.NewStorage())
 			for _, transition := range [][2]runstore.WorkflowRunState{{runstore.RunInitializing, runstore.RunPending}, {runstore.RunPending, runstore.RunRunning}, {runstore.RunRunning, runstore.RunSucceeded}} {
 				if _, err := runs.TransitionRun(ctx, runID, transition[0], transition[1], runstore.Reason{Code: "fixture"}); err != nil {
 					t.Fatal(err)

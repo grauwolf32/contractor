@@ -54,7 +54,7 @@ func TestAuditManagedRunSkipsGenericProjectOutputPublication(t *testing.T) {
 		t.Fatal(err)
 	}
 	profile, _ := json.Marshal(pinned)
-	store := auditstoretest.NewStore(pool)
+	store := auditstoretest.NewStore(pool, artifactpgtest.NewStorage())
 	audit, _, err := store.CreateDraft(ctx, auditstore.CreateDraftParams{
 		AuditID: "audit-publication", OwnerID: project.OwnerID, ProjectID: project.ProjectID,
 		Profile:         auditstore.ProfileIdentity{Name: pinned.Ref.Name, Version: pinned.Ref.Version, Digest: pinned.Ref.Digest},

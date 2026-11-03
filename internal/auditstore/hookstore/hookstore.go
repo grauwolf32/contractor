@@ -46,7 +46,8 @@ type AuditCreations = pgstore.AuditCreations
 // an explicit live claim, without exposing controller commands.
 type ClaimedArtifacts = pgstore.ClaimedArtifacts
 
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
+func NewClaimedArtifacts(db persistencepostgres.DBTX, storage *artifactpostgres.Storage) *ClaimedArtifacts {
+	return pgstore.NewClaimedArtifacts(db, storage)
 }
 
 func NewFindingEvents(db persistencepostgres.DBTX, storage *artifactpostgres.Storage) *FindingEvents {

@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
@@ -100,7 +101,7 @@ func TestSharedPostgresCommonTaskPagesAndPurgeAtCeiling(t *testing.T) {
 	if _, err := f.pool.Exec(ctx, `UPDATE audits SET state='deleting',dispatch_state='closed',hold_state='released',deletion_requested_at=clock_timestamp() WHERE audit_id=$1`, f.audit.AuditID); err != nil {
 		t.Fatal(err)
 	}
-	claims := NewClaimStore(f.pool).WithPurgeDependencies(func(context.Context, pgx.Tx, string, int) (int, error) { return 0, nil })
+	claims := NewClaimStore(f.pool, artifactpgtest.NewStorage()).WithPurgeDependencies(func(context.Context, pgx.Tx, string, int) (int, error) { return 0, nil })
 	claimed, err := claims.Claim(ctx, auditstore.ClaimParams{HolderID: "ceiling-purger", Lease: 5 * time.Minute, Limit: 1})
 	if err != nil || len(claimed) != 1 {
 		t.Fatalf("claim: %+v %v", claimed, err)
