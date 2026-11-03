@@ -1,0 +1,64 @@
+schema_version: "1.0"
+id: V439-008
+title: "Integrate current main before landing the HTTP API review"
+milestone: httpapi-review-cleanup-2026-11
+epic: api-contracts
+kind: chore
+introduced_by: V439-007
+priority: P2
+status: in_progress
+depends_on: [V439-006, V439-007]
+languages: [go, typescript]
+goal: >-
+  The verified HTTP review can land on current main while preserving the newer
+  Control Plane engagement adapter, explicit shared Artifact storage and UI work.
+context:
+  authority:
+    - date: "2026-11-03"
+      decision: "User explicitly requested merging the completed HTTP review branch."
+  finding: >-
+    Trial merge of main 45da0f37c44e8a802778448fab602221d09f4bcf and
+    codex/httpapi-review 9004848b071170ad9b2d57b7445269000e9359ad conflicts
+    in internal/app/composition_control.go, internal/controlplane/placement.go,
+    tasks/index.yml and generated backlog/dependency documents.
+  boundary: >-
+    Preserve main's AdditionalAdapterRequirements port and engagementadapter
+    ownership; preserve the injected Artifact storage/runtime and all HTTP fixes.
+    Resolve constructor call sites using the same shared storage, without
+    restoring removed callbacks or moving engagement rules into Control Plane.
+    Generated files are rebuilt from their owners. Main remains untouched until
+    this combined branch is checked; landing uses git merge --no-ff.
+  decision: >-
+    Integrate main into the existing HTTP worktree, rather than resolving code
+    directly on main. This keeps an independently reviewable and testable merge
+    result. Reconsider only if main changes again before landing.
+scope:
+  in:
+    - "Resolve the concrete merge overlaps and adapt new main consumers to existing explicit storage constructors."
+    - "Regenerate the task backlog and dependency graph, retaining every milestone and completed task from both parents."
+    - "Verify the combined affected Go suites on disposable PostgreSQL, the public API, architecture/lint and UI gates."
+  out:
+    - "New features, other review findings, API/schema changes and taking over unrelated in-progress tasks."
+    - "Changing unrelated primary-checkout files or publishing to the remote."
+acceptance_criteria:
+  - id: A1
+    text: >-
+      Given both branches, when integrated, the existing P1 transfer correction,
+      HTTP simplifications, current engagement adapter and UI changes coexist;
+      constructor wiring uses the same explicit storage/runtime and layers hold.
+  - id: A2
+    text: >-
+      All listed checks pass on the combined tree with real PostgreSQL; task
+      metadata and generated artifacts are current and the branch is ready for
+      the user-authorized no-fast-forward merge into main.
+tests:
+  - command: "go test -tags=integration -count=1 -p=2 ./internal/controlplane/... ./internal/engagementadapter/... ./internal/app/... ./internal/httpapi/... ./internal/archtest/..."
+    covers: [A1, A2]
+  - command: "go test -tags=integration -race -count=1 -p=2 ./internal/controlplane/... ./internal/engagementadapter/..."
+    covers: [A1, A2]
+  - command: make verify-public-api
+    covers: [A1, A2]
+  - command: make ui-verify
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2]
