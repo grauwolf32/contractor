@@ -1,20 +1,6 @@
 # Audit completion fixtures
 
-`task-local-validation.json` contains full trusted task documents and named
-submission cases referencing those documents. `valid` is task-local admission,
-not final Audit acceptance. The Python tests package the task and submit through
-the v2 tool; Go validates the task/result schemas and runs the importer's actual
-semantic coverage checks. No operator catalog, live model or database is needed.
-
-Keep positive cases with partial coverage or gaps: valid data can still yield
-inconclusive Audit coverage. Standard minimum evidence applies only to conclusive
-results; its assessment, evidence-kind and maximum-count restrictions always apply.
-
-`execution-manifest-cases.json` pins the compact execution transport shared by
-Go and Runtime. Each member names its exact task package; accepted plans and
-retained dependencies stay in that task, and their former execution-item fields
-are rejected even when null. The shared cases cover member identity and closed
-fields without changing the separate generic-inventory and allocated-batch bounds.
+Current common Task/context/conclusion cases live in `../audit-common/`.
 
 ## Completion diagnostics
 

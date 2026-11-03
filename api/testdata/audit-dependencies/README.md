@@ -1,8 +1,6 @@
-# Retained item dependency conformance
+# Retained dependency SQL paths
 
-`manifest-cases.json` holds one complete four-origin manifest and bounded
-single-path mutations. An empty path leaves the base unchanged. Go and Python
-run every case against the production codecs; both also exercise the 32-entry
-ceiling, metadata byte bound and task/execution agreement. The source JSON
-references intentionally grant no access. The exact source/retained content
-uses shared `contracts.ExactArtifact` field names.
+`manifest-cases.json` contains the exact descriptor read by the surviving
+PostgreSQL retention functions. The Go regression checks the typed codec and
+migration JSON paths together, so a renamed reference cannot silently lose
+its retention hold. Runtime receives ordinary selected Run artifacts.

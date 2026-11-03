@@ -1,5 +1,5 @@
 # Contract-only stand-in for the openapi-from-workspace@7 prepare Workflow that
-# api/testdata/audit-composition/prepared-openapi-scan.yaml selects. It keeps
+# the isolated preparation catalog selects. It keeps
 # the inputs and the outputs that profile maps, but runs one copy Stage.
 apiVersion: contractor/v1alpha1
 kind: Workflow

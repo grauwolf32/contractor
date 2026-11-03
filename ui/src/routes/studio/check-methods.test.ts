@@ -10,7 +10,7 @@ import {
 } from "./check-methods";
 
 describe("registered check routes", () => {
-  it("shares registered methods with Go and Runtime", () => {
+  it("shares registered methods with the public authoring schema", () => {
     expect(MAX_CHECK_METHODS).toBe(fixture.maximumMethods);
     expect(MAX_CHECK_CAPABILITIES).toBe(fixture.maximumCapabilities);
     expect(CHECK_METHODS).toEqual(fixture.methods.map((entry) => entry.method));

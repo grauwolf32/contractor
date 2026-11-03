@@ -51,12 +51,21 @@ context:
     selection, conditions and gaps; the operations module adapts declared Workflow inputs/outputs;
     Audit service owns IDs, validation, bounded acceptance and idempotency. Compatible tasks can
     batch. V64-026 owns the narrow operation/output/admission-validation prerequisite. Web-scan
-    remains one task per selected target. This is deterministic preparation, not V64-013 generation.'
+    remains one task per selected target. This is deterministic preparation, not V64-013 generation.
+    User request 2026-11-03: after verification, rebase this branch onto current main and verify the
+    resulting integration before delivery.'
   execution_authority: >-
     User assigned implementation on 2026-11-02 and explicitly permitted starting on current main
     despite V64-014 remaining in_progress. Its merged implementation is the integration baseline;
     this exception neither completes V64-014 nor treats its outstanding verification as passing.
     Work is isolated on codex/audit-task-coordinator. No demo deployment is authorized.
+  baseline_verification: >-
+    A whole make test-go run on an isolated database passes the changed owners but fails
+    TestEvaluationReleasePreservesPairedContracts in tests/eval/agent_instructions. The two archived
+    eval-v40-a1 profile bytes are identical to main while their release manifest digests disagree.
+    Commit 770f9227c34858666f00d9461cd582efe5ce9803 changed those files during unfinished V64-014.
+    This branch does not change them. That failure is not a pass and does not close V64-014;
+    the explicit dependency waiver remains in effect.
   implementation_gate: >-
     Implementation is assigned. V64-001, V64-004 and V64-021 are completed; the user explicitly
     waived waiting for formal V64-014 completion for this task on 2026-11-02. V64-026 completed at
@@ -104,7 +113,9 @@ context:
     ordinary retained outputs with and without a Project Finding, all six programs, prepared
     256-operation intake/restart/cancellation, native Findings retention, deterministic web-scan
     failures/cancellation and catalog replacement. Only model responses are scripted; configured
-    models are preserved. Registered clean-revision evidence gates remain to be run before closure.
+    models are preserved. Clean c733653ccb93f063cfed6fa62f7ab008b8584a1b passes basic (7),
+    six-program (8), completion (174 Go/416 Runtime), iterative PostgreSQL/process, composition
+    (9 integration/10 process and browser), and HTTP (41 process/2 accounting/92 Runtime) gates.
     PostgreSQL owner suites cover equal-key concurrency, paused intake/collection, claim takeover,
     permanent and ambiguous outcomes, exact membership/metadata, Project deletion, Run purge,
     effective budgets and bounded pages. Custom/generic plans cover a sparse 100000-Task history,
@@ -115,10 +126,11 @@ context:
     The complete Runtime suite passes 5673 tests with 135 optional environment-dependent skips.
     Full affected Audit/Run/Artifact/Finding owners pass against disposable PostgreSQL; public API
     and PostgreSQL contract gates, shipped configuration validation, architecture/ERD checks,
-    UI unit/type checks and make lint pass. The whole Go suite and registered final process gates
-    are still being verified; these component results do not complete either task or V64-014.
-    The coupled V64-002/V64-027 implementation must be committed before publishing clean-source
-    evidence. No merge or deployment is claimed.
+    UI unit/type checks and make lint pass. Program-library hardening passes full race suites.
+    Cross-language verification after retiring unused fixtures passes 368 fixtures, 396 Go and
+    255 Python shared tests. The whole Go gate retains the unchanged V64-014 archive-pin failure
+    described above. The requested rebase and integration verification remain before closure;
+    neither task nor V64-014 is declared complete. No merge or deployment is claimed.
   design:
   - docs/proposals/0050-audit-common-hypothesis-model.md
   - docs/plans/2026-10-31-audit-redesign.md
