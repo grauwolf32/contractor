@@ -5,7 +5,7 @@ milestone: audit-check-prioritization
 epic: audits
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V64-001
 languages:
@@ -37,7 +37,7 @@ context:
     below remain evidence of the old policy, not current acceptance blockers.
     The standard macOS gate on V433-007 passed: 5866 passed, 135 skipped,
     no manual deselection; Runtime JUnit verification passed as well.
-    This updates verification policy, not this task's in_progress status.
+    Completion reconciliation requested on 2026-11-03 is recorded below; no Linux execution is claimed.
   authority: >-
     User decisions 2026-10-31 and 2026-11-01: keep Project finding deduplication, automatic trusted
     Audit/Run and optional hypothesis provenance, evidence-backed problems distinct from ordinary
@@ -71,20 +71,26 @@ context:
     This supersedes R6's earlier requirement to migrate old proposals into live source records.
     Archive the existing Audit facts/materials and remove their executable rows in the one-time migration;
     ordinary Artifact access supplies their history without a second Audit runtime model.
+    User request 2026-11-03: reconcile the existing verification and move this task to done.
   implementation_progress: >-
     Canonical Project ownership, direct manual assessment/CAS/replay, explicit evidenced publication,
     independent retained sources/results/history, opaque drained Audit cutover and active confirmation
-    removal are implemented on codex/project-finding-ownership. No Finding review lifecycle, index
-    backfill command, migration-pending reader or second mutable Finding model remains. New indexes
-    are immutable and non-NULL. Main f9eaea44b was merged before final verification; the accepted Issue
-    workspace layout and keyboard/focus behavior are retained. PostgreSQL scale/cleanup, 14 real-process
-    cases, API/wire/config gates, ui-verify, 33 related browser scenarios and lint/architecture passed.
-    The final combined PostgreSQL command passed as well. Historical Runtime verification failed on
-    V425-001/002, now excluded from macOS acceptance by the explicit 2026-11-02 decision;
-    wider Catalog/Studio browser fixtures and real UI-stack
-    setup also expose unrelated main model-policy fixture failures. The task remains in_progress;
-    implementation and known verification limits are recorded in tasks/evidence/v64-014-2026-11-01.json.
-  verification_evidence: tasks/evidence/v64-014-2026-11-01.json
+    removal were implemented in e4b6df107d664192de4c3056b4af1c56a682932f and merged into main
+    through 2ccbf2cdd4790e23d8c8463921865b20500fb44e. No Finding review lifecycle, index backfill
+    command, migration-pending reader or second mutable Finding model remains. New indexes are
+    immutable and non-NULL. Existing evidence includes PostgreSQL scale/cleanup, canonical edits
+    shared by two Audits, 14 real-process cases and 33 related browser scenarios.
+    Acceptance is now reconciled against the merged common coordinator. The complete required
+    PostgreSQL owner command passes again, as do all 14 Findings process cases and 206 Runtime
+    Findings contract cases. Recent full Runtime (5737 passed, 135 expected environment/platform
+    skips), UI (2459 passed, one expected failure), API/wire/config and architecture results are
+    retained without unnecessary reruns of unchanged code. make lint passes.
+    V64-030 repairs the remaining frozen Eval archive-pin defect by restoring two exact historical
+    YAML files; the complete paired-archive package passes and no active confirmation reader returns.
+    Historical non-required wider Catalog/Studio/UI-stack failures remain dated evidence, not claimed
+    passes or a reason to keep this feature in progress. Integrated release readiness remains V64-011.
+  verification_evidence: tasks/evidence/v64-014-2026-11-03.json
+  historical_verification_evidence: tasks/evidence/v64-014-2026-11-01.json
   implementation_gate: >-
     User assigned the replacement implementation on 2026-11-01. V64-001 is completed and V64-004 is
     not a prerequisite. This authorizes implementation and disposable-database verification, not live
@@ -333,7 +339,7 @@ tests:
 - command: make lint verify-architecture
   covers: [A3, A5, A6]
 test_prerequisites:
-- These are future implementation acceptance commands, not results of this task rewrite.
+- Required acceptance commands have dated passing evidence in context.verification_evidence.
 - Use disposable PostgreSQL; a configured/unavailable DB or a mandatory skipped/zero-match selection fails. The OPS-R1 Linux-only fixtures are expected macOS skips, not mandatory macOS selections or acceptance blockers.
 - Use testdata catalogs and pseudo-Skills; run whole touched-package suites and required consuming gates.
 verification_requirements:
@@ -343,4 +349,4 @@ verification_requirements:
 - >-
   Register changed table owners/readers, indexes and ERD; keep layer direction and strict write/read validation.
   New exports/states/endpoints need actual callers in this task. Broad Audit redesign remains with its existing tasks.
-implementation_commit: null
+implementation_commit: e4b6df107d664192de4c3056b4af1c56a682932f

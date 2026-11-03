@@ -9,6 +9,10 @@ project:
 
 execution_policy:
   current_delivery_focus: >-
+    User request 2026-11-03 closes V64-014 after reconciling its required passing verification and
+    restoring the immutable Eval archive bytes through V64-030. V64-002 and its common Task
+    integration are already completed and merged. These status updates do not assign pending
+    dependent implementation; the dated decisions below retain their original authority and scope.
     User decision 2026-11-02 resolves OpenAPI operation granularity during V64-002 investigation:
     V64-026 is the narrow prerequisite for an ordinary Server-operation preparation Workflow and a
     bounded exact work-list/admission-validation contract. Existing domain builders own interpretation;
