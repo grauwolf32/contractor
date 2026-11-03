@@ -1,0 +1,108 @@
+{
+  "task": "V64-012",
+  "date": "2026-11-04",
+  "status": "completed",
+  "implementation_commit": "00513d9a468ed12c88c2060a134c70955fcccdfb",
+  "branch": "codex/audit-hypothesis-registry",
+  "base": "9c35463a0d200c84de0ea851d1c04e7dec6af618",
+  "merged_to_main": false,
+  "process_verification_source": "9341db3bb",
+  "process_source_note": "The subsequent commit only names literal test-double error responses; no production behavior changed after the clean process proof.",
+  "checks": [
+    {
+      "command": "make require-database",
+      "result": "passed; disposable PostgreSQL configured; owner suites and application lease suites used separate databases"
+    },
+    {
+      "command": "go test -tags=integration -count=1 ./internal/auditdomain ./internal/auditstore/... ./internal/auditservice ./internal/auditcontroller ./internal/runservice ./internal/findingintake/... ./internal/auditimport/... ./internal/artifacts/...",
+      "result": "passed in full; both task-required owner groups; no mandatory database skips",
+      "log": "/tmp/v64-012-go-accepted.log"
+    },
+    {
+      "command": "make test-audit-basic-e2e",
+      "result": "passed on a clean revision: 8 required cases, zero selected skips; fixed three-member Runtime batch retains original per-item revisions across an in-flight edit",
+      "log": "/tmp/v64-012-e2e-accepted.log"
+    },
+    {
+      "command": "make test-wire-cross-language",
+      "result": "passed: 369 fixtures, 401 Go and 255 Python shared tests",
+      "log": "/tmp/v64-012-e2e-wire-final.log"
+    },
+    {
+      "command": "make test-config",
+      "result": "passed: 14 common profiles, including all 8 restored assertion profiles; 25 Workflows, 27 templates, 39 instructions",
+      "log": "/tmp/v64-012-api-accepted.log"
+    },
+    {
+      "command": "make verify-public-api verify-public-api-postgres",
+      "result": "passed, including race-backed PostgreSQL operations and registered literal error-response fixtures",
+      "log": "/tmp/v64-012-api-verified.log"
+    },
+    {
+      "command": "make test-runtime",
+      "result": "passed: 5737 passed, 135 existing optional platform/environment skips, no manual deselection; report verifier passed",
+      "log": "/tmp/v64-012-runtime-accepted.log"
+    },
+    {
+      "command": "make ui-verify",
+      "result": "passed: 215 test files, 2463 passing tests and one expected negative test; generation, lint, typecheck, static-server tests and build passed",
+      "log": "/tmp/v64-012-ui-accepted.log"
+    },
+    {
+      "command": "node --input-type=module -e 'import {runBrowserGate} from \"./ui/server/browser-gate.mjs\"; await runBrowserGate(\"audit-hypotheses\", \"Audit hypotheses\", [\"e2e/audit-hypotheses.spec.ts\", \"e2e/project-finding-sources.spec.ts\"]);'",
+      "result": "passed: 9 browser cases; 390 px in light/dark/black and retained Project source links at 390/1440 px; zero selected skips",
+      "log": "/tmp/v64-012-browser-accepted.log"
+    },
+    {
+      "command": "go test -count=1 ./tests/eval/audit_programs ./internal/app ./internal/configload ./internal/auditstandards",
+      "result": "passed in full; application lease tests used their own disposable database",
+      "log": "/tmp/v64-012-extra-final.log"
+    },
+    {
+      "command": "go test -count=1 ./internal/archtest ./internal/persistence/...",
+      "result": "passed in full; migration size dispositions, SQL ownership and stored limits are registered",
+      "log": "/tmp/v64-012-persistence-final.log"
+    },
+    {
+      "command": "make verify-architecture",
+      "result": "passed",
+      "log": "/tmp/v64-012-architecture.log"
+    },
+    {
+      "command": "make lint",
+      "result": "passed: generated contracts, layer/export/ownership/ERD/task/spec/release graph, Runtime lint and import boundaries",
+      "log": "/tmp/v64-012-lint-accepted.log"
+    }
+  ],
+  "acceptance_evidence": {
+    "A1": [
+      "TestSharedHypothesesInitialAndManualExactPins",
+      "TestSharedManualAssertionAndCheckAreAtomicAndReplayExactPins",
+      "TestAuditFixedHypothesesAcrossProductionProcesses"
+    ],
+    "A2": [
+      "TestPostgresCommonHypothesisChecksRetainPerItemRevisions",
+      "TestAuditFixedHypothesesAcrossProductionProcesses",
+      "TestPostgresFindingBatchTaskOriginAndBoundedResultReferences"
+    ],
+    "A3": [
+      "TestStandardAssertionsRetainUnmappedRequirementsAndSufficiency",
+      "TestProjectFindingRetainsExactHypothesisAfterAuditPurge",
+      "TestAuditFixedHypothesesAcrossProductionProcesses"
+    ],
+    "A4": [
+      "TestSharedHypothesisPagesAndSparseHistoryAtRealisticSize: 1000 real registry admissions",
+      "TestSharedPostgresCommonTaskPagesAndPurgeAtCeiling: 100000 settled/ready Tasks, custom/generic plan row budgets and explicit attention ordering"
+    ],
+    "A5": [
+      "TestProjectFindingRetainsExactHypothesisAfterAuditPurge",
+      "project-finding-sources.spec.ts: exact retained assertion link survives absent Audit/Run views"
+    ],
+    "A6": [
+      "TestCommonCatalogAssertionProfilesUseExactHypothesisTasks",
+      "TestConfigValidateCommonStandardAssertionSelections",
+      "TestSharedAssertionSourcesFreezeRealArtifactsBeforeBoundedAdmission"
+    ]
+  },
+  "scope": "Deterministic local implementation and disposable-database verification. No live-model quality or deployment is claimed."
+}

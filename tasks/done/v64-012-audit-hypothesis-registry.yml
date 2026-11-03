@@ -5,7 +5,7 @@ milestone: audit-check-prioritization
 epic: audits
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V64-002
 - V64-014
@@ -40,9 +40,10 @@ context:
     hypothesis/result consumers. Do not defer those configurations to V64-010 or preserve an old profile
     format/execution branch. V64-010 verifies the combined catalog and removes remaining obsolete callers.
     This amendment does not start implementation. User assignment 2026-11-03 authorizes implementation on a separate branch after the prerequisites merged into main.'
-  implementation_gate: V64-001 decisions and the V64-022 contract correction are settled. Keep pending
-    until implementation is assigned and all dependencies are complete. This planning amendment starts
-    no code, migrations, live Runs or deployment.
+  verification_evidence: tasks/evidence/v64-012-2026-11-04.json
+  implementation_gate: >-
+    Implementation was assigned on a separate branch after V64-002, V64-014 and V64-022 merged.
+    All listed deterministic acceptance commands passed. No demo deployment is authorized.
   design:
   - docs/proposals/0050-audit-common-hypothesis-model.md
   - docs/plans/2026-10-31-audit-redesign.md
@@ -268,7 +269,7 @@ tests:
   - A3
 - command: make lint
 test_prerequisites:
-- Run the listed acceptance commands on the implementation; configured database failures and mandatory skips fail.
+- All listed acceptance commands passed; dated verification evidence records outcomes and existing optional Runtime skips.
 - Use disposable PostgreSQL with CONTRACTOR_TEST_DATABASE_URL set; configured/unavailable DB or mandatory
   skips fail. A focused selector matching zero tests fails.
 - Use testdata catalogs and pseudo-Skills, not live configs in unit/integration tests. Run whole touched-package
@@ -282,7 +283,7 @@ verification_requirements:
   dependencies and strict reads/writes.
 - Delete the replaced vertical path and its exclusive schemas/states/tests as its callers migrate. Final
   V64-011 proves no parallel legacy pipeline remains.
-implementation_commit: null
+implementation_commit: 00513d9a468ed12c88c2060a134c70955fcccdfb
 replanning:
   date: '2026-10-31'
   previous_title: Store Audit hypotheses and sparse provenance with trusted ingestion
