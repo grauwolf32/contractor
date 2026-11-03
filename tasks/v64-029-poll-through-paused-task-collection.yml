@@ -1,0 +1,52 @@
+schema_version: '1.0'
+id: V64-029
+title: Keep paused Audit reads polling until terminal output collection finishes
+milestone: audit-check-prioritization
+epic: audits
+kind: defect
+introduced_by: V64-002
+priority: P2
+status: in_progress
+depends_on: [V64-002]
+languages: [go, typescript, yaml, markdown]
+goal: A paused check shows collected results and prepared Tasks automatically after its last Run terminates.
+context:
+  authority: >-
+    User review 2026-11-03 reports this P2 on separate PostgreSQL. User clarification 2026-11-03
+    says a new regression test is unnecessary; use existing suites and a disposable PostgreSQL probe.
+  finding: >-
+    ui/src/api/audits.ts:523 stops paused polling at outstandingRunCount zero, while
+    internal/auditstore/internal/pgstore/execution_sql.go:135 decrements that count at terminal
+    observation before collection commits. The Task is still selected and its result absent.
+  siblings: >-
+    Audit detail/list, workspace, Reports and projection-refresh hooks use auditPollInterval.
+    All authoritative Audit responses, including list and mutation responses, must carry the same
+    derived pending-collection fact, and the final projection refresh must observe its transition.
+  boundary: >-
+    Derive collectionPending from an indexed existence lookup of collecting executions in the
+    Audit read snapshot. Keep the existing active-Run counter unchanged. No stored counter,
+    migration, full-history aggregation, new lifecycle state or per-row API round trip is needed.
+scope:
+  in:
+  - Expose the bounded derived collectionPending fact in Audit reads and both generated clients.
+  - Continue common polling and perform the final projection refresh after collection settles.
+  - Update existing required-field fixtures and owning specification.
+  out:
+  - New regression tests, coordinator sequencing changes, waiting states or background scheduling changes.
+acceptance_criteria:
+- id: A1
+  text: Paused Audits with zero outstanding Runs and collecting executions keep polling until collection commits.
+- id: A2
+  text: Task results and prepared Tasks refresh automatically, and drained paused Audits stop polling with a final projection read.
+- id: A3
+  text: Pending-collection reads use existing indexes and bounded Audit pages without scanning settled execution history.
+tests:
+- command: go test -tags=integration -count=1 ./internal/auditstore/... ./internal/auditservice ./internal/httpapi/public
+  covers: [A1, A3]
+- command: make verify-public-api verify-public-api-postgres
+  covers: [A1, A3]
+- command: VITEST_MAX_WORKERS=1 make ui-verify
+  covers: [A1, A2]
+- command: make lint
+  covers: [A1, A2, A3]
+implementation_commit: null
